@@ -161,6 +161,7 @@ SET (SQL_SOURCE
                sql_type.cc sql_mode.cc sql_type_json.cc
                sql_type_string.cc
                sql_type_geom.cc
+               sql_type_timestamp_with_tz.cc
                item_windowfunc.cc sql_window.cc
 	       sql_cte.cc
                item_vers.cc

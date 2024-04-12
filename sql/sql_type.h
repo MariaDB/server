@@ -29,6 +29,7 @@
 #include "sql_time.h"
 #include "sql_type_string.h"
 #include "sql_type_real.h"
+#include "sql_type_timestamp_with_tz.h"
 #include "compat56.h"
 #include "log_event_data_type.h"
 
@@ -3884,6 +3885,8 @@ public:
   virtual bool can_return_extract_source(interval_type type) const;
   virtual bool is_bool_type() const { return false; }
   virtual bool is_general_purpose_string_type() const { return false; }
+  virtual Session_env_dependency::Param type_conversion_dependency_from(
+                                            const Type_handler *from) const;
   virtual uint Item_time_precision(THD *thd, Item *item) const;
   virtual uint Item_datetime_precision(THD *thd, Item *item) const;
   virtual uint Item_decimal_scale(const Item *item) const;
@@ -6668,6 +6671,9 @@ public:
   {
     return true;
   }
+  Session_env_dependency::Param type_conversion_dependency_from(
+                                                        const Type_handler *to)
+                                                        const override;
   void Column_definition_implicit_upgrade(Column_definition *c) const override;
   bool
   Column_definition_attributes_frm_unpack(Column_definition_attributes *attr,
@@ -6803,6 +6809,254 @@ public:
                                    const Bit_addr &bit,
                                    const Column_definition_attributes *attr,
                                    uint32 flags) const override;
+};
+
+
+class Type_handler_timestamp2_with_tz: public Type_handler_temporal_result
+{
+public:
+  using NativeBufferTSwTZ = NativeBuffer<Timestamp_with_tz::native_size_std()>;
+  virtual ~Type_handler_timestamp2_with_tz() = default;
+
+  static Timestamp_with_tz_null item_value_null(THD *thd, Item *item);
+  static Timestamp_with_tz_null item_result_value_null(THD *thd, Item *item);
+
+  const Type_collection *type_collection() const override;
+  bool is_scalar_type() const override { return true; }
+  bool can_return_extract_source(interval_type type) const override
+  {
+    return true;
+  }
+  bool can_return_int() const override { return false; }
+  bool can_return_decimal() const override { return false; }
+  bool can_return_real() const override { return false; }
+  bool can_return_str() const override { return true; }
+  bool can_return_text() const override { return true; }
+  bool can_return_date() const override { return true; }
+  bool can_return_time() const override { return false; }
+
+  // start of temporal_result methods
+  Item_result result_type() const override { return STRING_RESULT; }
+  Item_result cmp_type() const override { return TIME_RESULT; }
+  void Column_definition_attributes_frm_pack(
+                                        const Column_definition_attributes *at,
+                                        uchar *buff) const override;
+  bool Column_definition_prepare_stage1(THD *thd,
+                                        MEM_ROOT *mem_root,
+                                        Column_definition *c,
+                                        handler *file,
+                                        ulonglong table_flags,
+                                        const Column_derived_attributes
+                                              *derived_attr)
+                                        const override;
+  bool Item_const_eq(const Item_const *a, const Item_const *b,
+                     bool binary_cmp) const override;
+  bool Item_param_set_from_value(THD *thd,
+                                 Item_param *param,
+                                 const Type_all_attributes *attr,
+                                 const st_value *value) const override;
+  uint32 max_display_length(const Item *item) const override;
+  uint32 Item_decimal_notation_int_digits(const Item *item) const override;
+  bool can_change_cond_ref_to_const(Item_bool_func2 *target,
+                                   Item *target_expr, Item *target_value,
+                                   Item_bool_func2 *source,
+                                   Item *source_expr, Item *source_const)
+    const override;
+  bool subquery_type_allows_materialization(const Item *inner,
+                                            const Item *outer,
+                                            bool is_in_predicate)
+    const override;
+  bool Item_func_min_max_fix_attributes(THD *thd, Item_func_min_max *func,
+                                        Item **items, uint nitems)
+    const override;
+  bool Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *) const override;
+  bool Item_sum_sum_fix_length_and_dec(Item_sum_sum *) const override;
+  bool Item_sum_avg_fix_length_and_dec(Item_sum_avg *) const override;
+  bool Item_sum_variance_fix_length_and_dec(Item_sum_variance *) const override;
+  bool Item_val_bool(Item *item) const override;
+  void Item_get_date(THD *thd, Item *item, Temporal::Warn *warn,
+                     MYSQL_TIME *ltime,  date_mode_t fuzzydate) const override;
+  longlong Item_val_int_signed_typecast(Item *item) const override;
+  longlong Item_val_int_unsigned_typecast(Item *item) const override;
+  String *Item_func_hex_val_str_ascii(Item_func_hex *, String *)const override;
+  double Item_func_hybrid_field_type_val_real(Item_func_hybrid_field_type *)
+                                              const override;
+  longlong Item_func_hybrid_field_type_val_int(Item_func_hybrid_field_type *)
+                                               const override;
+  my_decimal *Item_func_hybrid_field_type_val_decimal(
+                                              Item_func_hybrid_field_type *,
+                                              my_decimal *) const override;
+  void Item_func_hybrid_field_type_get_date(THD *,
+                                            Item_func_hybrid_field_type *,
+                                            Temporal::Warn *,
+                                            MYSQL_TIME *,
+                                            date_mode_t) const override;
+  bool Item_func_between_fix_length_and_dec(Item_func_between *)const override;
+  bool Item_func_in_fix_comparator_compatible_types(THD *, Item_func_in *)
+    const override;
+
+  bool Item_func_plus_fix_length_and_dec(Item_func_plus *) const override;
+  bool Item_func_minus_fix_length_and_dec(Item_func_minus *) const override;
+  bool Item_func_mul_fix_length_and_dec(Item_func_mul *) const override;
+  bool Item_func_div_fix_length_and_dec(Item_func_div *) const override;
+  bool Item_func_mod_fix_length_and_dec(Item_func_mod *) const override;
+  const Vers_type_handler *vers() const override;
+  // end of temporal_result methods
+
+  // start of temporal_with_date methods
+  Item_literal *create_literal_item(THD *thd, const char *str, size_t length,
+                                    CHARSET_INFO *cs, bool send_error)
+                                    const override;
+  int stored_field_cmp_to_item(THD *thd, Field *field, Item *item)
+                               const override;
+  bool Item_save_in_value(THD *thd, Item *item, st_value *value)
+                          const override;
+  void Item_update_null_value(Item *item) const override;
+  Item *make_const_item_for_comparison(THD *, Item *src, const Item *cmp)
+                                       const override;
+  // end of temporal_with_date methods
+
+  // start of timestamp_common
+  const Name &default_value() const override;
+  const Type_handler *type_handler_for_comparison() const override;
+  const Type_handler *type_handler_for_native_format() const override;
+
+  enum_field_types field_type() const override { return MYSQL_TYPE_TIMESTAMP; }
+  enum_dynamic_column_type dyncol_type(const Type_all_attributes *attr)
+                                       const override
+  {
+    return DYN_COL_DATETIME;
+  }
+
+  protocol_send_type_t protocol_send_type() const override
+  {
+    return PROTOCOL_SEND_STRING;
+  }
+
+  enum_mysql_timestamp_type mysql_timestamp_type() const override
+  {
+    return MYSQL_TIMESTAMP_DATETIME;
+  }
+  bool is_val_native_ready() const override
+  {
+    return true;
+  }
+  bool is_timestamp_type() const override
+  {
+    return false; // e.g. don't use automatic default
+  }
+  Session_env_dependency::Param type_conversion_dependency_from(
+                                                        const Type_handler *to)
+                                                        const override;
+  void Column_definition_implicit_upgrade(Column_definition *c) const override;
+  bool
+  Column_definition_attributes_frm_unpack(Column_definition_attributes *attr,
+                                          TABLE_SHARE *share,
+                                          const uchar *buffer,
+                                          LEX_CUSTRING *gis_options)
+                                          const override;
+  bool Item_eq_value(THD *thd, const Type_cmp_attributes *attr,
+                     Item *a, Item *b) const override;
+  bool Item_val_native_with_conversion(THD *thd, Item *, Native *to)
+                                       const override;
+  bool Item_val_native_with_conversion_result(THD *thd, Item *, Native *to)
+                                              const override;
+  bool Item_param_val_native(THD *thd, Item_param *item, Native *to)
+                             const override;
+  int cmp_native(const Native &a, const Native &b) const override;
+  longlong Item_func_between_val_int(Item_func_between *func) const override;
+  bool Item_func_round_fix_length_and_dec(Item_func_round *func) const override;
+  bool Item_func_int_val_fix_length_and_dec(Item_func_int_val*) const override;
+  cmp_item *make_cmp_item(THD *thd, CHARSET_INFO *cs) const override;
+  in_vector *make_in_vector(THD *thd, const Item_func_in *f, uint nargs)
+                            const override;
+  void make_sort_key_part(uchar *to, Item *item,
+                          const SORT_FIELD_ATTR *sort_field,
+                          String *tmp) const override;
+  uint make_packed_sort_key_part(uchar *to, Item *item,
+                                 const SORT_FIELD_ATTR *sort_field,
+                                 String *tmp) const override;
+  void sort_length(THD *thd,
+                   const Type_std_attributes *item,
+                   SORT_FIELD_ATTR *attr) const override;
+  bool Column_definition_fix_attributes(Column_definition *c) const override;
+  uint Item_decimal_scale(const Item *item) const override
+  {
+    return Item_decimal_scale_with_seconds(item);
+  }
+  uint Item_decimal_precision(const Item *item) const override;
+  uint Item_divisor_precision_increment(const Item *item) const override
+  {
+    return Item_divisor_precision_increment_with_seconds(item);
+  }
+  bool Item_send(Item *item, Protocol *protocol, st_value *buf) const override
+  {
+    return Item_send_str(item, protocol, buf);
+  }
+  int Item_save_in_field(Item *item, Field *field, bool no_conversions)
+                         const override;
+  String *print_item_value(THD *thd, Item *item, String *str) const override;
+  Item_cache *Item_get_cache(THD *thd, const Item *item) const override;
+  Item_copy *create_item_copy(THD *thd, Item *item) const override;
+  String *Item_func_min_max_val_str(Item_func_min_max *, String *) const override;
+  double Item_func_min_max_val_real(Item_func_min_max *) const override;
+  longlong Item_func_min_max_val_int(Item_func_min_max *) const override;
+  my_decimal *Item_func_min_max_val_decimal(Item_func_min_max *,
+                                            my_decimal *) const override;
+  bool set_comparator_func(Arg_comparator *cmp) const override;
+  bool Item_hybrid_func_fix_attributes(THD *thd,
+                                       const char *name,
+                                       Type_handler_hybrid_field_type *,
+                                       Type_all_attributes *atrr,
+                                       Item **items, uint nitems)
+                                       const override;
+  void Item_param_set_param_func(Item_param *param,
+                                 uchar **pos, ulong len) const override;
+  bool Item_func_min_max_get_date(THD *thd, Item_func_min_max*,
+                                  MYSQL_TIME *, date_mode_t fuzzydate)
+                                  const override;
+  // end of timestamp_common
+
+
+  // start of timestamp2
+  enum_field_types real_field_type() const override
+  {
+    return MYSQL_TYPE_TIMESTAMP2;
+  }
+  uint32 max_display_length_for_field(const Conv_source &src) const override;
+  uint32 calc_pack_length(uint32 length) const override;
+  Field *make_conversion_table_field(MEM_ROOT *root,
+                                     TABLE *table, uint metadata,
+                                     const Field *target) const override;
+
+  bool Column_definition_prepare_stage2(Column_definition *c,
+                                        handler *file,
+                                        ulonglong table_flags) const override
+  {
+    return Column_definition_prepare_stage2_legacy_num(c, MYSQL_TYPE_TIMESTAMP2);
+  }
+  Field *make_table_field(MEM_ROOT *root,
+                          const LEX_CSTRING *name,
+                          const Record_addr &addr,
+                          const Type_all_attributes &attr,
+                          TABLE_SHARE *share) const override;
+
+  Field *make_table_field_from_def(TABLE_SHARE *share,
+                                   MEM_ROOT *mem_root,
+                                   const LEX_CSTRING *name,
+                                   const Record_addr &addr,
+                                   const Bit_addr &bit,
+                                   const Column_definition_attributes *attr,
+                                   uint32 flags) const override;
+  // end of timestamp2
+
+  String *Item_func_hybrid_field_type_val_str(Item_func_hybrid_field_type *,
+                                              String *) const override;
+
+  bool Item_func_abs_fix_length_and_dec(Item_func_abs *func) const override;
+
+  bool Item_func_neg_fix_length_and_dec(Item_func_neg *func) const override;
+
 };
 
 
@@ -7653,6 +7907,9 @@ extern Named_type_handler<Type_handler_datetime>    type_handler_datetime;
 extern Named_type_handler<Type_handler_datetime2>   type_handler_datetime2;
 extern Named_type_handler<Type_handler_timestamp>   type_handler_timestamp;
 extern Named_type_handler<Type_handler_timestamp2>  type_handler_timestamp2;
+
+extern Named_type_handler<Type_handler_timestamp2_with_tz>
+                                               type_handler_timestamp2_with_tz;
 
 extern Type_handler_interval_DDhhmmssff type_handler_interval_DDhhmmssff;
 

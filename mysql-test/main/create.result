@@ -1794,8 +1794,18 @@ item_name varchar(32) primary key, -- A common attribute for all items
 i int,
 dynamic_cols  blob  -- Dynamic columns will be stored here
 );
+Warnings:
+Warning	1901	Function or expression 'column_get(`dynamic_cols`,1 as char charset latin1)' cannot be used in the GENERATED ALWAYS AS clause of `color`
+Warning	1105	Its intermediate result may be limited by @@max_allowed_packet
+Warning	1901	Function or expression 'column_get(column_add(column_create(1,'blue' AS char charset latin1 collate latin1_swedish_ci ),2,'ttt'),`i` as char charset latin1)' cannot be used in the GENERATED ALWAYS AS clause of `cl`
+Warning	1105	Its intermediate result may be limited by @@max_allowed_packet
 INSERT INTO t1(item_name, dynamic_cols, i) VALUES 
 ('MariaDB T-shirt', COLUMN_CREATE(1, 'blue', 2, 'XL'), 1);
+Warnings:
+Warning	1901	Function or expression 'column_get(`dynamic_cols`,1 as char charset latin1)' cannot be used in the GENERATED ALWAYS AS clause of `color`
+Warning	1105	Its intermediate result may be limited by @@max_allowed_packet
+Warning	1901	Function or expression 'column_get(column_add(column_create(1,'blue' AS char charset latin1 collate latin1_swedish_ci ),2,'ttt'),`i` as char charset latin1)' cannot be used in the GENERATED ALWAYS AS clause of `cl`
+Warning	1105	Its intermediate result may be limited by @@max_allowed_packet
 INSERT INTO t1(item_name, dynamic_cols, i) VALUES
 ('Thinkpad Laptop', COLUMN_CREATE(1, 'black', 3, 500), 2);
 select item_name, color, cl from t1;

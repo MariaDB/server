@@ -1960,6 +1960,129 @@ bool Item_func_from_unixtime::get_date(THD *thd, MYSQL_TIME *ltime,
 }
 
 
+bool Item_func_at_tz::check_arguments() const
+{
+  if (args[0]->check_type_can_return_date(func_name()))
+    return true;
+  const Type_handler *handler= args[0]->type_handler();
+  if (dynamic_cast<const Type_handler_time_common*>(handler) ||
+      dynamic_cast<const Type_handler_date_common*>(handler))
+  {
+    my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+             handler->name().ptr(), func_name());
+    return true;
+  }
+  return false;
+}
+
+
+bool Item_func_at_tz::fix_length_and_dec()
+{
+  fix_attributes_datetime(args[0]->datetime_precision(current_thd));
+  max_length+= 1 + m_tz->get_name()->length();
+  maybe_null= true;
+  return false;
+}
+
+
+void Item_func_at_tz::print(String *str, enum_query_type query_type)
+{
+  args[0]->print_parenthesised(str, query_type, precedence());
+  str->append(STRING_WITH_LEN(" at time zone "));
+  str->append("'");
+  str->append(m_tz->get_name()[0]);
+  str->append("'");
+}
+
+
+bool Item_func_at_tz::val_native(THD *thd, Native *to)
+{
+  /*
+    The SQL standard about:
+      datetime_expr AT TIME ZONE 'TZ'
+    says:
+    a) If the argument is a datetime type with time zone,
+       then the UTC component of the result is just taken the argument.
+    b) If the argument is a datetime type without time zone),
+       then the UTC component of the result is DV-STZD, where:
+       - DV is the UTC component of the argument
+       - STZD is the current default time zone displacement of
+         the SQL-session (which is @@time_zone in MariaDB)
+  */
+  const Type_handler *fmt=
+    args[0]->type_handler()->type_handler_for_native_format();
+  if (fmt == &type_handler_timestamp2 ||
+      fmt == &type_handler_timestamp2_with_tz)
+  {
+    Timestamp_with_tz_null ts= TH::item_value_null(thd, args[0]);
+    return (null_value= ts.is_null()) ? true :
+           ts.set_tz(m_tz).to_native(to, decimals);
+  }
+  /*
+    Treat other argument data types (e.g. DATETIME) as
+    "TIMESTAMP WITHOUT TIME ZONE".
+  */
+  Datetime dt(thd, args[0], Datetime::Options(TIME_NO_ZEROS, thd));
+  Timestamp_with_tz_null ts(thd, dt, thd->variables.time_zone);
+  thd->time_zone_used|= !ts.is_null();
+  return null_value= ts.set_tz(m_tz).to_native(to, decimals);
+}
+
+
+bool Item_func_timestamp_tz::check_arguments() const
+{
+  if (args[0]->check_type_can_return_date(func_name()))
+    return true;
+  const Type_handler *handler= args[0]->type_handler();
+  if (dynamic_cast<const Type_handler_time_common*>(handler) ||
+      dynamic_cast<const Type_handler_date_common*>(handler))
+  {
+    my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+             handler->name().ptr(), func_name());
+    return true;
+  }
+  return false;
+}
+
+
+bool Item_func_timestamp_tz::fix_length_and_dec()
+{
+  fix_attributes_datetime(args[0]->datetime_precision(current_thd));
+  max_length+= 1 + m_tz->get_name()->length();
+  maybe_null= true;
+  return false;
+}
+
+
+void Item_func_timestamp_tz::print(String *str, enum_query_type query_type)
+{
+  str->append(func_name());
+  str->append('(');
+  args[0]->print(str, query_type);
+  str->append(STRING_WITH_LEN(",'"));
+  str->append(m_tz->get_name()[0]);
+  str->append(STRING_WITH_LEN("')"));
+}
+
+
+bool Item_func_timestamp_tz::val_native(THD *thd, Native *to)
+{
+  const Type_handler *fmt=
+    args[0]->type_handler()->type_handler_for_native_format();
+  if (fmt == &type_handler_timestamp2 ||
+      fmt == &type_handler_timestamp2_with_tz)
+  {
+    Timestamp_with_tz_null ts= TH::item_value_null(thd, args[0]);
+    return (null_value= ts.is_null()) ? true :
+           ts.set_tz(m_tz).to_native(to, decimals);
+  }
+
+  Datetime dt(thd, args[0], Datetime::Options(TIME_NO_ZEROS, thd));
+  return null_value= Timestamp_with_tz_null(thd, dt, m_tz).
+                       to_native(to, decimals);
+}
+
+
 bool Item_func_convert_tz::get_date(THD *thd, MYSQL_TIME *ltime,
                                     date_mode_t fuzzydate __attribute__((unused)))
 {

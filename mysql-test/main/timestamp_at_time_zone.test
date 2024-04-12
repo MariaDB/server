@@ -1,0 +1,288 @@
+--echo #
+--echo # Start of 10.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-20610 Assertion failed or btr_validate_index(..) in row_upd_sec_index_entry on a time_zone change
+--echo #
+
+--echo #
+--echo # timestamp_expr AT TIME ZONE
+--echo #
+
+CREATE TABLE t1 (a TIMESTAMP NULL);
+
+CREATE VIEW v_a AS
+SELECT
+  a,
+  a AT TIME ZONE '-08:00' AS a_at_m0800,
+  a AT TIME ZONE '-04:00' AS a_at_m0400,
+  a AT TIME ZONE '-02:00' AS a_at_m0200,
+  a AT TIME ZONE '-01:00' AS a_at_m0100,
+  a AT TIME ZONE '+00:00' AS a_at__0000,
+  a AT TIME ZONE '+01:00' AS a_at_p0100,
+  a AT TIME ZONE '+02:00' AS a_at_p0200,
+  a AT TIME ZONE '+04:00' AS a_at_p0400,
+  a AT TIME ZONE '+08:00' AS a_at_p0800
+FROM t1;
+
+CREATE VIEW v_concat AS
+SELECT
+  a,
+  CONCAT(a AT TIME ZONE '-08:00') AS con_a_at_m0800,
+  CONCAT(a AT TIME ZONE '-04:00') AS con_a_at_m0400,
+  CONCAT(a AT TIME ZONE '-02:00') AS con_a_at_m0200,
+  CONCAT(a AT TIME ZONE '-01:00') AS con_a_at_m0100,
+  CONCAT(a AT TIME ZONE '+00:00') AS con_a_at__0000,
+  CONCAT(a AT TIME ZONE '+01:00') AS con_a_at_p0100,
+  CONCAT(a AT TIME ZONE '+02:00') AS con_a_at_p0200,
+  CONCAT(a AT TIME ZONE '+04:00') AS con_a_at_p0400,
+  CONCAT(a AT TIME ZONE '+08:00') AS con_a_at_p0800
+FROM t1;
+
+CREATE VIEW v_unix_time AS
+SELECT
+  a,
+  UNIX_TIMESTAMP(a)                       AS uts_a_at__none,
+  UNIX_TIMESTAMP(a AT TIME ZONE '-08:00') AS uts_a_at_m0800,
+  UNIX_TIMESTAMP(a AT TIME ZONE '-04:00') AS uts_a_at_m0400,
+  UNIX_TIMESTAMP(a AT TIME ZONE '-02:00') AS uts_a_at_m0200,
+  UNIX_TIMESTAMP(a AT TIME ZONE '-01:00') AS uts_a_at_m0100,
+  UNIX_TIMESTAMP(a AT TIME ZONE '+00:00') AS uts_a_at__0000,
+  UNIX_TIMESTAMP(a AT TIME ZONE '+01:00') AS uts_a_at_p0100,
+  UNIX_TIMESTAMP(a AT TIME ZONE '+02:00') AS uts_a_at_p0200,
+  UNIX_TIMESTAMP(a AT TIME ZONE '+04:00') AS uts_a_at_p0400,
+  UNIX_TIMESTAMP(a AT TIME ZONE '+08:00') AS uts_a_at_p0800
+FROM t1;
+
+CREATE VIEW v_extract_ds AS
+SELECT
+  a,
+  EXTRACT(DAY_SECOND FROM a                      ) AS eds_a_at__none,
+  EXTRACT(DAY_SECOND FROM a AT TIME ZONE '-08:00') AS eds_a_at_m0800,
+  EXTRACT(DAY_SECOND FROM a AT TIME ZONE '-04:00') AS eds_a_at_m0400,
+  EXTRACT(DAY_SECOND FROM a AT TIME ZONE '-02:00') AS eds_a_at_m0200,
+  EXTRACT(DAY_SECOND FROM a AT TIME ZONE '-01:00') AS eds_a_at_m0100,
+  EXTRACT(DAY_SECOND FROM a AT TIME ZONE '+00:00') AS eds_a_at__0000,
+  EXTRACT(DAY_SECOND FROM a AT TIME ZONE '+01:00') AS eds_a_at_p0100,
+  EXTRACT(DAY_SECOND FROM a AT TIME ZONE '+02:00') AS eds_a_at_p0200,
+  EXTRACT(DAY_SECOND FROM a AT TIME ZONE '+04:00') AS eds_a_at_p0400,
+  EXTRACT(DAY_SECOND FROM a AT TIME ZONE '+08:00') AS eds_a_at_p0800
+FROM t1;
+
+CREATE VIEW v_cast_as_datetime AS
+SELECT
+  a,
+  CAST(a                       AS DATETIME) AS cdt_a_at__none,
+  CAST(a AT TIME ZONE '-08:00' AS DATETIME) AS cdt_a_at_m0800,
+  CAST(a AT TIME ZONE '-04:00' AS DATETIME) AS cdt_a_at_m0400,
+  CAST(a AT TIME ZONE '-02:00' AS DATETIME) AS cdt_a_at_m0200,
+  CAST(a AT TIME ZONE '-01:00' AS DATETIME) AS cdt_a_at_m0100,
+  CAST(a AT TIME ZONE '+00:00' AS DATETIME) AS cdt_a_at__0000,
+  CAST(a AT TIME ZONE '+01:00' AS DATETIME) AS cdt_a_at_p0100,
+  CAST(a AT TIME ZONE '+02:00' AS DATETIME) AS cdt_a_at_p0200,
+  CAST(a AT TIME ZONE '+04:00' AS DATETIME) AS cdt_a_at_p0400,
+  CAST(a AT TIME ZONE '+08:00' AS DATETIME) AS cdt_a_at_p0800
+FROM t1;
+
+CREATE VIEW v_cast_as_date AS
+SELECT
+  a,
+  CAST(a                       AS DATE) AS cdd_a_at__none,
+  CAST(a AT TIME ZONE '-08:00' AS DATE) AS cdd_a_at_m0800,
+  CAST(a AT TIME ZONE '-04:00' AS DATE) AS cdd_a_at_m0400,
+  CAST(a AT TIME ZONE '-02:00' AS DATE) AS cdd_a_at_m0200,
+  CAST(a AT TIME ZONE '-01:00' AS DATE) AS cdd_a_at_m0100,
+  CAST(a AT TIME ZONE '+00:00' AS DATE) AS cdd_a_at__0000,
+  CAST(a AT TIME ZONE '+01:00' AS DATE) AS cdd_a_at_p0100,
+  CAST(a AT TIME ZONE '+02:00' AS DATE) AS cdd_a_at_p0200,
+  CAST(a AT TIME ZONE '+04:00' AS DATE) AS cdd_a_at_p0400,
+  CAST(a AT TIME ZONE '+08:00' AS DATE) AS cdd_a_at_p0800
+FROM t1;
+
+CREATE VIEW v_cast_as_time AS
+SELECT
+  a,
+  CAST(a                       AS TIME) AS ctm_a_at__none,
+  CAST(a AT TIME ZONE '-08:00' AS TIME) AS ctm_a_at_m0800,
+  CAST(a AT TIME ZONE '-04:00' AS TIME) AS ctm_a_at_m0400,
+  CAST(a AT TIME ZONE '-02:00' AS TIME) AS ctm_a_at_m0200,
+  CAST(a AT TIME ZONE '-01:00' AS TIME) AS ctm_a_at_m0100,
+  CAST(a AT TIME ZONE '+00:00' AS TIME) AS ctm_a_at__0000,
+  CAST(a AT TIME ZONE '+01:00' AS TIME) AS ctm_a_at_p0100,
+  CAST(a AT TIME ZONE '+02:00' AS TIME) AS ctm_a_at_p0200,
+  CAST(a AT TIME ZONE '+04:00' AS TIME) AS ctm_a_at_p0400,
+  CAST(a AT TIME ZONE '+08:00' AS TIME) AS ctm_a_at_p0800
+FROM t1;
+
+CREATE VIEW v_cast_as_unsigned AS
+SELECT
+  a,
+  CAST(a                       AS UNSIGNED) AS cui_a_at__none,
+  CAST(a AT TIME ZONE '-08:00' AS UNSIGNED) AS cui_a_at_m0800,
+  CAST(a AT TIME ZONE '-04:00' AS UNSIGNED) AS cui_a_at_m0400,
+  CAST(a AT TIME ZONE '-02:00' AS UNSIGNED) AS cui_a_at_m0200,
+  CAST(a AT TIME ZONE '-01:00' AS UNSIGNED) AS cui_a_at_m0100,
+  CAST(a AT TIME ZONE '+00:00' AS UNSIGNED) AS cui_a_at__0000,
+  CAST(a AT TIME ZONE '+01:00' AS UNSIGNED) AS cui_a_at_p0100,
+  CAST(a AT TIME ZONE '+02:00' AS UNSIGNED) AS cui_a_at_p0200,
+  CAST(a AT TIME ZONE '+04:00' AS UNSIGNED) AS cui_a_at_p0400,
+  CAST(a AT TIME ZONE '+08:00' AS UNSIGNED) AS cui_a_at_p0800
+FROM t1;
+
+CREATE VIEW v_cast_as_decimal_14_0 AS
+SELECT
+  a,
+  CAST(a                       AS DECIMAL(14,0)) AS cdc_a_at__none,
+  CAST(a AT TIME ZONE '-08:00' AS DECIMAL(14,0)) AS cdc_a_at_m0800,
+  CAST(a AT TIME ZONE '-04:00' AS DECIMAL(14,0)) AS cdc_a_at_m0400,
+  CAST(a AT TIME ZONE '-02:00' AS DECIMAL(14,0)) AS cdc_a_at_m0200,
+  CAST(a AT TIME ZONE '-01:00' AS DECIMAL(14,0)) AS cdc_a_at_m0100,
+  CAST(a AT TIME ZONE '+00:00' AS DECIMAL(14,0)) AS cdc_a_at__0000,
+  CAST(a AT TIME ZONE '+01:00' AS DECIMAL(14,0)) AS cdc_a_at_p0100,
+  CAST(a AT TIME ZONE '+02:00' AS DECIMAL(14,0)) AS cdc_a_at_p0200,
+  CAST(a AT TIME ZONE '+04:00' AS DECIMAL(14,0)) AS cdc_a_at_p0400,
+  CAST(a AT TIME ZONE '+08:00' AS DECIMAL(14,0)) AS cdc_a_at_p0800
+FROM t1;
+
+CREATE VIEW v_cast_as_double AS
+SELECT
+  a,
+  CAST(a                       AS DOUBLE) AS cdb_a_at__none,
+  CAST(a AT TIME ZONE '-08:00' AS DOUBLE) AS cdb_a_at_m0800,
+  CAST(a AT TIME ZONE '-04:00' AS DOUBLE) AS cdb_a_at_m0400,
+  CAST(a AT TIME ZONE '-02:00' AS DOUBLE) AS cdb_a_at_m0200,
+  CAST(a AT TIME ZONE '-01:00' AS DOUBLE) AS cdb_a_at_m0100,
+  CAST(a AT TIME ZONE '+00:00' AS DOUBLE) AS cdb_a_at__0000,
+  CAST(a AT TIME ZONE '+01:00' AS DOUBLE) AS cdb_a_at_p0100,
+  CAST(a AT TIME ZONE '+02:00' AS DOUBLE) AS cdb_a_at_p0200,
+  CAST(a AT TIME ZONE '+04:00' AS DOUBLE) AS cdb_a_at_p0400,
+  CAST(a AT TIME ZONE '+08:00' AS DOUBLE) AS cdb_a_at_p0800
+FROM t1;
+
+DELIMITER $$;
+CREATE PROCEDURE exec(query TEXT)
+BEGIN
+  SELECT query AS `Query`;
+  EXECUTE IMMEDIATE query;
+END;
+$$
+CREATE PROCEDURE query_all_views()
+BEGIN
+  CALL exec('SELECT * FROM v_a');
+  CALL exec('SELECT * FROM v_concat');
+  CALL exec('SELECT * FROM v_unix_time');
+  CALL exec('SELECT * FROM v_extract_ds');
+  CALL exec('SELECT * FROM v_cast_as_datetime');
+  CALL exec('SELECT * FROM v_cast_as_date');
+  CALL exec('SELECT * FROM v_cast_as_time');
+  CALL exec('SELECT * FROM v_cast_as_unsigned');
+  CALL exec('SELECT * FROM v_cast_as_decimal_14_0');
+  CALL exec('SELECT * FROM v_cast_as_double');
+END;
+$$
+DELIMITER ;$$
+
+
+SET time_zone='+04:00';
+INSERT INTO t1 VALUES (NULL);
+
+--vertical_results
+SET time_zone='+04:00';
+CALL query_all_views();
+DELETE FROM t1;
+--horizontal_results
+
+
+SET time_zone='+04:00';
+INSERT INTO t1 VALUES (TIMESTAMP'2001-01-01 10:00:00');
+
+--vertical_results
+SET time_zone='+03:00';
+CALL query_all_views();
+SET time_zone='+04:00';
+CALL query_all_views();
+SET time_zone='+05:00';
+CALL query_all_views();
+DELETE FROM t1;
+--horizontal_results
+
+DROP TABLE t1;
+
+
+--echo #
+--echo # datetime_expr AT TIME ZONE
+--echo #
+
+
+CREATE TABLE t1 (a DATETIME);
+
+SET time_zone='+04:00';
+INSERT INTO t1 VALUES (NULL);
+
+--vertical_results
+SET time_zone='+04:00';
+CALL query_all_views();
+DELETE FROM t1;
+--horizontal_results
+
+
+SET time_zone='+04:00';
+INSERT INTO t1 VALUES (TIMESTAMP'2001-01-01 10:00:00');
+
+--vertical_results
+SET time_zone='+03:00';
+CALL query_all_views();
+SET time_zone='+04:00';
+CALL query_all_views();
+SET time_zone='+05:00';
+CALL query_all_views();
+DELETE FROM t1;
+--horizontal_results
+
+
+DROP PROCEDURE query_all_views;
+DROP PROCEDURE exec;
+
+DROP VIEW v_a;
+DROP VIEW v_concat;
+DROP VIEW v_unix_time;
+DROP VIEW v_extract_ds;
+DROP VIEW v_cast_as_datetime;
+DROP VIEW v_cast_as_date;
+DROP VIEW v_cast_as_time;
+DROP VIEW v_cast_as_unsigned;
+DROP VIEW v_cast_as_decimal_14_0;
+DROP VIEW v_cast_as_double;
+
+DROP TABLE t1;
+
+SET time_zone=DEFAULT;
+
+
+--echo #
+--echo # Hybrid functions
+--echo #
+
+# TODO: fix this to mix as follows:
+# TIMESTAMP WITH TIME ZONE + TIMESTAMP -> return TIMESTAMP WITH TIME ZONE???
+# ???
+
+SET time_zone='+04:00';
+CREATE TABLE t1 (a TIMESTAMP NULL);
+INSERT INTO t1 VALUES (NULL),('2001-01-01 10:00:00');
+--vertical_results
+SELECT
+  a,
+  a AT TIME ZONE '+04:00' AS a1,
+  COALESCE(a AT TIME ZONE '+04:00',
+           '2002-01-01 10:00:00' AT TIME ZONE '+00:00') AS a2
+FROM t1;
+--horizontal_results
+DROP TABLE t1;
+SET time_zone=DEFAULT;
+
+
+--echo #
+--echo # End of 10.5 tests
+--echo #

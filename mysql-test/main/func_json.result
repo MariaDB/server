@@ -1661,7 +1661,13 @@ CREATE TABLE arrNestTest (
 id VARCHAR(80) AS (JSON_COMPACT(JSON_EXTRACT(doc, "$._id"))) UNIQUE KEY,
 doc JSON, 
 CONSTRAINT id_not_null CHECK(id IS NOT NULL));
+Warnings:
+Warning	1901	Function or expression 'json_compact(json_extract(`doc`,'$._id'))' cannot be used in the GENERATED ALWAYS AS clause of `id`
+Warning	1105	The result octet length 4294967295 may be limited by @@max_allowed_packet
 INSERT INTO test.arrNestTest (doc) VALUES ('{ "_id" : { "$oid" : "611c0a463b150154132f6636" }, "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : 1.0 } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] }');
+Warnings:
+Warning	1901	Function or expression 'json_compact(json_extract(`doc`,'$._id'))' cannot be used in the GENERATED ALWAYS AS clause of `id`
+Warning	1105	The result octet length 4294967295 may be limited by @@max_allowed_packet
 SELECT * FROM arrNestTest;
 id	doc
 {"$oid":"611c0a463b150154132f6636"}	{ "_id" : { "$oid" : "611c0a463b150154132f6636" }, "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : 1.0 } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] }
@@ -1693,6 +1699,9 @@ json_arrayagg('ä')	json_objectagg(1, 'ä')
 # MDEV-31402: SIGSEGV in json_get_path_next | Item_func_json_extract::read_json
 #
 CREATE TABLE t (id CHAR AS (JSON_COMPACT (JSON_EXTRACT(doc,"$._id"))) UNIQUE KEY,doc JSON,CONSTRAINT notnu CHECK (id IS NOT NULL));
+Warnings:
+Warning	1901	Function or expression 'json_compact(json_extract(`doc`,'$._id'))' cannot be used in the GENERATED ALWAYS AS clause of `id`
+Warning	1105	The result octet length 4294967295 may be limited by @@max_allowed_packet
 INSERT INTO t (doc) VALUES ('{ "_id" : { "$oid" : "0ca0b0f0" },"a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" :0} ] } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] }');
 ERROR 22001: Data too long for column 'id' at row 1
 DROP TABLE t;

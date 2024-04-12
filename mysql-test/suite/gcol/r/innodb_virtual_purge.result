@@ -45,6 +45,9 @@ h VARCHAR(10) DEFAULT NULL
 INSERT INTO t2 VALUES (REPEAT('g', 16000), REPEAT('x', 16000), DEFAULT, 'kk');
 INSERT INTO t2 VALUES (REPEAT('a', 16000), REPEAT('b', 16000), DEFAULT, 'mm');
 CREATE INDEX idx ON t2(c(100));
+Warnings:
+Warning	1901	Function or expression 'concat(`a`,`b`)' cannot be used in the GENERATED ALWAYS AS clause of `c`
+Warning	1105	The result octet length 131070 may be limited by @@max_allowed_packet
 INSERT INTO t1 (a, b) VALUES(1,1);
 connection con1;
 BEGIN;
@@ -85,7 +88,10 @@ affected rows: 2
 info: Rows matched: 2  Changed: 2  Warnings: 0
 ALTER TABLE t2 DROP COLUMN c;
 affected rows: 0
-info: Records: 0  Duplicates: 0  Warnings: 0
+info: Records: 0  Duplicates: 0  Warnings: 2
+Warnings:
+Warning	1901	Function or expression 'concat(`a`,`b`)' cannot be used in the GENERATED ALWAYS AS clause of `c`
+Warning	1105	The result octet length 131070 may be limited by @@max_allowed_packet
 UPDATE t2 SET a = REPEAT('s', 6000) WHERE a like 'aaa%';
 affected rows: 1
 info: Rows matched: 1  Changed: 1  Warnings: 0
@@ -93,13 +99,23 @@ ALTER TABLE t2 ADD COLUMN x1 BLOB GENERATED ALWAYS AS (CONCAT(a,b)) VIRTUAL,
 ADD COLUMN x2 BLOB GENERATED ALWAYS AS (CONCAT(a,b)) VIRTUAL,
 ADD INDEX(x1(100), x2(120)), ADD INDEX (x1(20));
 affected rows: 0
-info: Records: 0  Duplicates: 0  Warnings: 0
+info: Records: 0  Duplicates: 0  Warnings: 4
+Warnings:
+Warning	1901	Function or expression 'concat(`a`,`b`)' cannot be used in the GENERATED ALWAYS AS clause of `x1`
+Warning	1105	The result octet length 131070 may be limited by @@max_allowed_packet
+Warning	1901	Function or expression 'concat(`a`,`b`)' cannot be used in the GENERATED ALWAYS AS clause of `x2`
+Warning	1105	The result octet length 131070 may be limited by @@max_allowed_packet
 UPDATE t1 SET a=5;
 affected rows: 2
 info: Rows matched: 2  Changed: 2  Warnings: 0
 UPDATE t2 SET a = REPEAT('m', 16000) WHERE a like 'sss%';
 affected rows: 1
-info: Rows matched: 1  Changed: 1  Warnings: 0
+info: Rows matched: 1  Changed: 1  Warnings: 4
+Warnings:
+Warning	1901	Function or expression 'concat(`a`,`b`)' cannot be used in the GENERATED ALWAYS AS clause of `x1`
+Warning	1105	The result octet length 131070 may be limited by @@max_allowed_packet
+Warning	1901	Function or expression 'concat(`a`,`b`)' cannot be used in the GENERATED ALWAYS AS clause of `x2`
+Warning	1105	The result octet length 131070 may be limited by @@max_allowed_packet
 ALTER TABLE t1 DROP COLUMN b2, ALGORITHM=INPLACE;
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0

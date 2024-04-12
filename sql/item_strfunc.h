@@ -72,6 +72,16 @@ public:
   const Type_handler *type_handler() const { return string_type_handler(); }
   void left_right_max_length();
   bool fix_fields(THD *thd, Item **ref);
+  Session_env_dependency value_depends_on_session_env() const override
+  {
+    DBUG_ASSERT(fixed);
+    Session_env_dependency dep= Item_func::value_depends_on_session_env();
+    return dep | Session_env_dependency(0,
+                         max_length > 1024 ?
+                         Session_env_dependency::SYS_VAR_MAX_ALLOWED_PACKET :
+                         Session_env_dependency::NONE);
+  }
+
 };
 
 

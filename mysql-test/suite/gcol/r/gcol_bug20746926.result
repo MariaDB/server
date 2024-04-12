@@ -8,12 +8,19 @@ a date not null,
 b mediumtext generated always as ((a not in (a,a))) virtual,
 c timestamp generated always as ((a not in (b,b))) stored
 );
+Warnings:
+Warning	1901	Function or expression '`a` not in (`b`,`b`)' cannot be used in the GENERATED ALWAYS AS clause of `c`
+Warning	1105	DATETIME to TIMESTAMP conversion depends on @@time_zone
 insert t1(a) values(7777777777);
 Warnings:
+Warning	1901	Function or expression '`a` not in (`b`,`b`)' cannot be used in the GENERATED ALWAYS AS clause of `c`
+Warning	1105	DATETIME to TIMESTAMP conversion depends on @@time_zone
 Warning	1265	Data truncated for column 'a' at row 1
 Warning	1292	Truncated incorrect datetime value: '0'
 show warnings;
 Level	Code	Message
+Warning	1901	Function or expression '`a` not in (`b`,`b`)' cannot be used in the GENERATED ALWAYS AS clause of `c`
+Warning	1105	DATETIME to TIMESTAMP conversion depends on @@time_zone
 Warning	1265	Data truncated for column 'a' at row 1
 Warning	1292	Truncated incorrect datetime value: '0'
 disconnect con1;

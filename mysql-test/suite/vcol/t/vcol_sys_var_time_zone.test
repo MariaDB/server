@@ -1,0 +1,419 @@
+--echo #
+--echo # Start of 10.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-20610 Assertion failed or btr_validate_index(..) in row_upd_sec_index_entry on a time_zone change
+--echo #
+
+--echo # Without indexed the conversion to TIMESTAMP and from TIMESTAMP
+--echo # works without errors or wanings
+
+CREATE TABLE t1
+(
+  a DATETIME,
+  v TIMESTAMP GENERATED ALWAYS AS (a)
+);
+DROP TABLE t1;
+
+CREATE TABLE t1
+(
+  a TIMESTAMP,
+  v DATETIME GENERATED ALWAYS AS (a)
+);
+DROP TABLE t1;
+
+CREATE TABLE t1
+(
+  a DECIMAL(32,0),
+  v TIMESTAMP GENERATED ALWAYS AS (a)
+);
+DROP TABLE t1;
+
+CREATE TABLE t1
+(
+  a TIMESTAMP,
+  v DECIMAL(32,0) GENERATED ALWAYS AS (a)
+);
+DROP TABLE t1;
+
+
+--echo #
+--echo # TIMESTAMP -> not-TIMESTAMP depends on @@time_zone.
+--echo #
+
+CREATE TABLE t1
+(
+  a TIMESTAMP,
+  v DATETIME GENERATED ALWAYS AS (a),
+  KEY(v)
+);
+DROP TABLE t1;
+
+CREATE OR REPLACE TABLE t1 (
+  a TIMESTAMP,
+  v DECIMAL(32,0) GENERATED ALWAYS AS (a),
+  KEY(v)
+);
+DROP TABLE t1;
+
+CREATE OR REPLACE TABLE t1 (
+  a TIMESTAMP,
+  v VARCHAR(64) GENERATED ALWAYS AS (a),
+  KEY(v)
+);
+DROP TABLE t1;
+
+
+--echo #
+--echo # Conversion not-TIMESTAMP -> TIMESTAMP depends on @@time_zone.
+--echo #
+
+
+CREATE OR REPLACE TABLE t1 (
+  a DECIMAL(32,0),
+  v TIMESTAMP GENERATED ALWAYS AS (a),
+  KEY(v)
+);
+DROP TABLE t1;
+
+
+CREATE TABLE t1
+(
+  a DATETIME,
+  v TIMESTAMP GENERATED ALWAYS AS (a),
+  KEY(v)
+);
+DROP TABLE t1;
+
+
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+CREATE TABLE t1
+(
+  a VARCHAR(64),
+  v TIMESTAMP GENERATED ALWAYS AS (a),
+  KEY(v)
+);
+SHOW WARNINGS;
+
+
+CREATE TABLE t1
+(
+  a VARCHAR(64),
+  v TIMESTAMP GENERATED ALWAYS AS (ROUND(a)),
+  KEY(v)
+);
+DROP TABLE t1;
+
+
+CREATE TABLE t1 (
+  a DECIMAL(32,0),
+  v TIMESTAMP GENERATED ALWAYS AS (a AT TIME ZONE '+04:00'),
+  KEY(v)
+);
+DROP TABLE t1;
+
+
+CREATE TABLE t1
+(
+  a DATETIME,
+  v TIMESTAMP GENERATED ALWAYS AS (a AT TIME ZONE '+04:00'),
+  KEY(v)
+);
+DROP TABLE t1;
+
+
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+CREATE TABLE t1
+(
+  a VARCHAR(64),
+  v TIMESTAMP GENERATED ALWAYS AS (a AT TIME ZONE '+04:00'),
+  KEY(v)
+);
+SHOW WARNINGS;
+
+
+CREATE TABLE t1
+(
+  a VARCHAR(64),
+  v TIMESTAMP GENERATED ALWAYS AS (ROUND(a) AT TIME ZONE '+04:00'),
+  KEY(v)
+);
+SHOW WARNINGS;
+DROP TABLE t1;
+
+
+--echo #
+--echo # LEFT(ts AT TIME ZONE ..) can remove dependency on @@time_zone
+--echo #
+
+SET time_zone='+04:00';
+CREATE TABLE t1
+(
+  a TIMESTAMP,
+  v_________at_p0400 VARCHAR(32) GENERATED ALWAYS AS (a AT TIME ZONE '+04:00'),
+  v_left_19_at_p0400 VARCHAR(32) GENERATED ALWAYS AS (LEFT(a AT TIME ZONE '+04:00',19))
+);
+SHOW CREATE TABLE t1;
+INSERT INTO t1 (a) VALUES ('2001-01-01 00:00:00');
+--vertical_results
+SET time_zone='+04:00';
+SELECT * FROM t1;
+SET time_zone='+03:00';
+SELECT * FROM t1;
+SET time_zone='+05:00';
+SELECT * FROM t1;
+--horizontal_results
+DROP TABLE t1;
+SET time_zone=DEFAULT;
+
+
+--echo #
+--echo # EXTRACT(... FROM ts AT TIME ZONE ..) can remove dependency on @@time_zone
+--echo #
+
+SET time_zone='+04:00';
+CREATE TABLE t1
+(
+  a TIMESTAMP,
+  v___________a_at_p0400 VARCHAR(32) GENERATED ALWAYS AS (a AT TIME ZONE '+04:00'),
+  v_e_year____a_at_p0400 VARCHAR(32) GENERATED ALWAYS AS (EXTRACT(YEAR FROM a AT TIME ZONE '+04:00')),
+  v_e_month___a_at_p0400 VARCHAR(32) GENERATED ALWAYS AS (EXTRACT(MONTH FROM a AT TIME ZONE '+04:00')),
+  v_e_day_____a_at_p0400 VARCHAR(32) GENERATED ALWAYS AS (EXTRACT(DAY FROM a AT TIME ZONE '+04:00')),
+  v_e_hour____a_at_p0400 VARCHAR(32) GENERATED ALWAYS AS (EXTRACT(HOUR FROM a AT TIME ZONE '+04:00')),
+  v_e_minute__a_at_p0400 VARCHAR(32) GENERATED ALWAYS AS (EXTRACT(MINUTE FROM a AT TIME ZONE '+04:00')),
+  v_e_second__a_at_p0400 VARCHAR(32) GENERATED ALWAYS AS (EXTRACT(SECOND FROM a AT TIME ZONE '+04:00')),
+  v_e_usecond_a_at_p0400 VARCHAR(32) GENERATED ALWAYS AS (EXTRACT(MICROSECOND FROM a AT TIME ZONE '+04:00'))
+);
+SHOW CREATE TABLE t1;
+INSERT INTO t1 (a) VALUES ('2001-01-01 00:00:00');
+--vertical_results
+SET time_zone='+04:00';
+SELECT * FROM t1;
+SET time_zone='+03:00';
+SELECT * FROM t1;
+SET time_zone='+05:00';
+SELECT * FROM t1;
+--horizontal_results
+DROP TABLE t1;
+SET time_zone=DEFAULT;
+
+
+--echo #
+--echo # Implicit and explicit CAST(... FROM ts AT TIME ZONE ..) can remove dependency on @@time_zone
+--echo #
+
+SET time_zone='+04:00';
+CREATE TABLE t1
+(
+  a TIMESTAMP,
+  v_i_cast_as_td_a_________ DATETIME GENERATED ALWAYS AS (a),
+  v_e_cast_as_td_a_________ DATETIME GENERATED ALWAYS AS (CAST(a AS DATETIME)),
+  v_i_cast_as_td_a_at_p0400 DATETIME GENERATED ALWAYS AS (a AT TIME ZONE '+04:00'),
+  v_e_cast_as_td_a_at_p0400 DATETIME GENERATED ALWAYS AS (CAST(a AT TIME ZONE '+04:00' AS DATETIME))
+);
+SHOW CREATE TABLE t1;
+INSERT INTO t1 (a) VALUES ('2001-01-01 00:00:00');
+--vertical_results
+SET time_zone='+04:00';
+SELECT * FROM t1;
+SET time_zone='+03:00';
+SELECT * FROM t1;
+SET time_zone='+05:00';
+SELECT * FROM t1;
+--horizontal_results
+DROP TABLE t1;
+SET time_zone=DEFAULT;
+
+
+
+--echo #
+--echo # (timestamp_expr AT TIME ZONE 'TZ') removes the dependency on @@time_zone
+--echo # and allows the conversion from TIMESTAMP to DATETIME.
+--echo #
+
+SET time_zone='+04:00';
+CREATE TABLE t1
+(
+  a TIMESTAMP,
+  vd DATETIME GENERATED ALWAYS AS (a AT TIME ZONE '+01:00'),
+  KEY(vd)
+);
+SHOW CREATE TABLE t1;
+INSERT INTO t1 (a) VALUES ('2001-01-01 00:00:00');
+--vertical_results
+SET time_zone='+08:00';
+SELECT * FROM t1;
+SET time_zone='+04:00';
+SELECT * FROM t1;
+SET time_zone='+02:00';
+SELECT * FROM t1;
+SET time_zone='+01:00';
+SELECT * FROM t1;
+SET time_zone='+00:00';
+SELECT * FROM t1;
+SET time_zone='-01:00';
+SELECT * FROM t1;
+SET time_zone='-02:00';
+SELECT * FROM t1;
+SET time_zone='-04:00';
+SELECT * FROM t1;
+SET time_zone='-08:00';
+SELECT * FROM t1;
+--horizontal_results
+DROP TABLE t1;
+SET time_zone=DEFAULT;
+
+
+SET time_zone='+04:00';
+CREATE TABLE t1
+(
+  a TIMESTAMP(6),
+  vd DECIMAL(32,6) GENERATED ALWAYS AS (a AT TIME ZONE '+01:00'),
+  KEY(vd)
+);
+SHOW CREATE TABLE t1;
+INSERT INTO t1 (a) VALUES ('2001-01-01 00:00:00.123456');
+--vertical_results
+SET time_zone='+08:00';
+SELECT * FROM t1;
+SET time_zone='+04:00';
+SELECT * FROM t1;
+SET time_zone='+02:00';
+SELECT * FROM t1;
+SET time_zone='+01:00';
+SELECT * FROM t1;
+SET time_zone='+00:00';
+SELECT * FROM t1;
+SET time_zone='-01:00';
+SELECT * FROM t1;
+SET time_zone='-02:00';
+SELECT * FROM t1;
+SET time_zone='-04:00';
+SELECT * FROM t1;
+SET time_zone='-08:00';
+SELECT * FROM t1;
+--horizontal_results
+DROP TABLE t1;
+SET time_zone=DEFAULT;
+
+
+--echo #
+--echo # but (datetime_expr AT TIME ZONE 'TZ') still depends on @@time_zone
+--echo #
+
+CREATE TABLE t1
+(
+  a DATETIME,
+  vd DATETIME GENERATED ALWAYS AS (a AT TIME ZONE '+01:00'),
+  KEY(vd)
+);
+DROP TABLE t1;
+
+
+CREATE TABLE t1
+(
+  a DATETIME,
+  vd TIMESTAMP GENERATED ALWAYS AS (a AT TIME ZONE '+01:00'),
+  KEY(vd)
+);
+DROP TABLE t1;
+
+
+--echo #
+--echo # TIMESTAMP_TZ(datetime_expr,'TZ') removes the dependency on @@time_zone
+--echo # and allows the conversion from DATETIME to TIMESTAMP.
+--echo #
+
+SET time_zone='+04:00';
+CREATE TABLE t1
+(
+  a DATETIME,
+  v TIMESTAMP GENERATED ALWAYS AS (TIMESTAMP_TZ(a, '+01:00')),
+  u BIGINT GENERATED ALWAYS AS (UNIX_TIMESTAMP(v)),
+  KEY(v)
+);
+SHOW CREATE TABLE t1;
+INSERT INTO t1 (a) VALUES ('2001-01-01 00:00:00');
+--vertical_results
+SET time_zone='+08:00';
+SELECT * FROM t1;
+SET time_zone='+04:00';
+SELECT * FROM t1;
+SET time_zone='+02:00';
+SELECT * FROM t1;
+SET time_zone='+01:00';
+SELECT * FROM t1;
+SET time_zone='+00:00';
+SELECT * FROM t1;
+SET time_zone='-01:00';
+SELECT * FROM t1;
+SET time_zone='-02:00';
+SELECT * FROM t1;
+SET time_zone='-04:00';
+SELECT * FROM t1;
+SET time_zone='-08:00';
+SELECT * FROM t1;
+--horizontal_results
+DROP TABLE t1;
+SET time_zone=DEFAULT;
+
+
+SET time_zone='+04:00';
+CREATE TABLE t1
+(
+  a DECIMAL(32,6),
+  v TIMESTAMP(6) GENERATED ALWAYS AS (TIMESTAMP_TZ(a, '+01:00')),
+  u DECIMAL(32,6) GENERATED ALWAYS AS (UNIX_TIMESTAMP(v)),
+  KEY(v)
+);
+SHOW CREATE TABLE t1;
+INSERT INTO t1 (a) VALUES (20010101000000.123456);
+--vertical_results
+SET time_zone='+08:00';
+SELECT * FROM t1;
+SET time_zone='+04:00';
+SELECT * FROM t1;
+SET time_zone='+02:00';
+SELECT * FROM t1;
+SET time_zone='+01:00';
+SELECT * FROM t1;
+SET time_zone='+00:00';
+SELECT * FROM t1;
+SET time_zone='-01:00';
+SELECT * FROM t1;
+SET time_zone='-02:00';
+SELECT * FROM t1;
+SET time_zone='-04:00';
+SELECT * FROM t1;
+SET time_zone='-08:00';
+SELECT * FROM t1;
+--horizontal_results
+DROP TABLE t1;
+SET time_zone=DEFAULT;
+
+
+--echo #
+--echo # but TIMESTAMP_TZ(timestamp_expr, 'tz') still depends on @@time_zone
+--echo #
+
+CREATE TABLE t1
+(
+  a TIMESTAMP,
+  v TIMESTAMP GENERATED ALWAYS AS (TIMESTAMP_TZ(a, '+01:00')),
+  KEY(v)
+);
+DROP TABLE t1;
+
+CREATE TABLE t1
+(
+  a TIMESTAMP,
+  v DATETIME GENERATED ALWAYS AS (TIMESTAMP_TZ(a, '+01:00')),
+  KEY(v)
+);
+DROP TABLE t1;
+
+
+--echo #
+--echo # End of 10.5 tests
+--echo #

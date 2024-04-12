@@ -1,0 +1,80 @@
+--echo #
+--echo # Start of 10.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-20610 Assertion failed or btr_validate_index(..) in row_upd_sec_index_entry on a time_zone change
+--echo #
+
+SET time_zone='+04:00';
+CREATE TABLE t1 (a DATETIME);
+--error ER_PARSE_ERROR
+SELECT TIMESTAMP_TZ(a, concat('unknown')) FROM t1;
+--error ER_PARSE_ERROR
+SELECT TIMESTAMP_TZ(a, a) FROM t1;
+--error ER_UNKNOWN_TIME_ZONE
+SELECT TIMESTAMP_TZ(a, 'unknown') FROM t1;
+DROP TABLE t1;
+
+SET time_zone='+04:00';
+CREATE TABLE t1 (a DATETIME);
+INSERT INTO t1 VALUES ('2001-01-01 10:00:00');
+CREATE VIEW v1 AS SELECT
+  TIMESTAMP_TZ(a, '-08:00') AS tstz_a_m0800,
+  TIMESTAMP_TZ(a, '-04:00') AS tstz_a_m0400,
+  TIMESTAMP_TZ(a, '-02:00') AS tstz_a_m0200,
+  TIMESTAMP_TZ(a, '-01:00') AS tstz_a_m0100,
+  TIMESTAMP_TZ(a, '+00:00') AS tstz_a_p0000,
+  TIMESTAMP_TZ(a, '+01:00') AS tstz_a_p0100,
+  TIMESTAMP_TZ(a, '+02:00') AS tstz_a_p0200,
+  TIMESTAMP_TZ(a, '+04:00') AS tstz_a_p0400,
+  TIMESTAMP_TZ(a, '+08:00') AS tstz_a_p0800
+FROM t1;
+SHOW CREATE VIEW v1;
+
+CREATE VIEW v2 AS SELECT
+  UNIX_TIMESTAMP(tstz_a_m0800) AS uts_tstz_a_m0800,
+  UNIX_TIMESTAMP(tstz_a_m0400) AS uts_tstz_a_m0400,
+  UNIX_TIMESTAMP(tstz_a_m0200) AS uts_tstz_a_m0200,
+  UNIX_TIMESTAMP(tstz_a_m0100) AS uts_tstz_a_m0100,
+  UNIX_TIMESTAMP(tstz_a_p0000) AS uts_tstz_a_p0000,
+  UNIX_TIMESTAMP(tstz_a_p0100) AS uts_tstz_a_p0100,
+  UNIX_TIMESTAMP(tstz_a_p0200) AS uts_tstz_a_p0200,
+  UNIX_TIMESTAMP(tstz_a_p0400) AS uts_tstz_a_p0400,
+  UNIX_TIMESTAMP(tstz_a_p0800) AS uts_tstz_a_p0800
+FROM v1;
+
+--vertical_results
+SET time_zone='-04:00';
+SELECT * FROM v1;
+SELECT * FROM v2;
+SET time_zone='+00:00';
+SELECT * FROM v1;
+SELECT * FROM v2;
+SET time_zone='+04:00';
+SELECT * FROM v1;
+SELECT * FROM v2;
+--horizontal_results
+
+ALTER TABLE t1 MODIFY a DATETIME(6);
+UPDATE t1 SET a= a + INTERVAL 123456 MICROSECOND;
+--vertical_results
+SET time_zone='-04:00';
+SELECT * FROM v1;
+SELECT * FROM v2;
+SET time_zone='+00:00';
+SELECT * FROM v1;
+SELECT * FROM v2;
+SET time_zone='+04:00';
+SELECT * FROM v1;
+SELECT * FROM v2;
+--horizontal_results
+
+DROP VIEW v2;
+DROP VIEW v1;
+DROP TABLE t1;
+SET time_zone=DEFAULT;
+
+--echo #
+--echo # End of 10.5 tests
+--echo #

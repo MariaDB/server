@@ -1499,6 +1499,21 @@ bool Field::check_vcol_sql_mode_dependency(THD *thd, vcol_init_mode mode) const
       dep.push_dependency_warnings(thd);
       return error;
     }
+    Session_env_dependency env_dep_value=
+      vcol_info->expr->value_depends_on_session_env();
+    Session_env_dependency env_dep_cnv(0,
+                                       type_handler()->
+                                         type_conversion_dependency_from(
+                                           vcol_info->expr->type_handler()));
+    Session_env_dependency env_dep= env_dep_value | env_dep_cnv;
+    if (env_dep)
+    {
+      // Will be changed to error in 11.6
+      bool error= false;//(mode & VCOL_INIT_DEPENDENCY_FAILURE_IS_ERROR) != 0;
+      error_generated_column_function_is_not_allowed(thd, error);
+      env_dep.push_dependency_warnings(thd, vcol_info->expr);
+      return error;
+    }
   }
   return false;
 }

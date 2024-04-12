@@ -224,7 +224,13 @@ insert into t1 values(1, default);
 ERROR 23000: Duplicate entry '1' for key 'b'
 drop table t1;
 create table t1(a blob, b blob, c blob as (left(a, 5000)) virtual, d blob as (left(b, 5000)) persistent, unique(a,b(4000)));
+Warnings:
+Warning	1901	Function or expression 'left(`b`,5000)' cannot be used in the GENERATED ALWAYS AS clause of `d`
+Warning	1105	The result octet length 5000 may be limited by @@max_allowed_packet
 insert into t1(a,b) values(10,11);
+Warnings:
+Warning	1901	Function or expression 'left(`b`,5000)' cannot be used in the GENERATED ALWAYS AS clause of `d`
+Warning	1105	The result octet length 5000 may be limited by @@max_allowed_packet
 insert into t1(a,b) values(10,11);
 ERROR 23000: Duplicate entry '10-11' for key 'a'
 insert into t1(a,b) values(2,2);

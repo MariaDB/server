@@ -365,7 +365,13 @@ c blob GENERATED ALWAYS AS (concat(a,b)) VIRTUAL,
 d blob GENERATED ALWAYS AS (b) VIRTUAL,
 e int(11) GENERATED ALWAYS AS (10) VIRTUAL,
 h int(11) NOT NULL, PRIMARY KEY (h), key(c(20)));
+Warnings:
+Warning	1901	Function or expression 'concat(`a`,`b`)' cannot be used in the GENERATED ALWAYS AS clause of `c`
+Warning	1105	The result octet length 65635 may be limited by @@max_allowed_packet
 INSERT INTO t(a,b,h) VALUES('aaaaaaa','1111111', 11);
+Warnings:
+Warning	1901	Function or expression 'concat(`a`,`b`)' cannot be used in the GENERATED ALWAYS AS clause of `c`
+Warning	1105	The result octet length 65635 may be limited by @@max_allowed_packet
 INSERT INTO t(a,b,h) VALUES('bbbbbbb','2222222', 22);
 SELECT c FROM t;
 c

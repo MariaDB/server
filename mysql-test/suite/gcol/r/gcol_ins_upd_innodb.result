@@ -426,11 +426,17 @@ CREATE TABLE t1 (col1 INT, col2 INT, col3 INT, col4 INT, col5
 INT GENERATED ALWAYS AS (col3 * col2) VIRTUAL, col6 INT GENERATED ALWAYS AS
 (col4 * col1) STORED, col7 INT GENERATED ALWAYS AS (col6 + col6) VIRTUAL,
 col8 INT GENERATED ALWAYS AS (col6 / col5) STORED, col9 TEXT);
+Warnings:
+Warning	1901	Function or expression '`col6` / `col5`' cannot be used in the GENERATED ALWAYS AS clause of `col8`
+Warning	1105	Expression depends on @@div_precision_increment
 SET @fill_amount = (@@innodb_page_size / 2 ) + 1;
 INSERT INTO t1 (col1,col2,col3,col4,col5,col6,col7,col8,col9) VALUES /* 3 */
 (3, 3 / 3, 3 + 3, 3 / 3, DEFAULT, DEFAULT, DEFAULT, DEFAULT ,REPEAT(CAST(3 AS
 CHAR(1)),@fill_amount)) , (3, 3 * 3, 3 + 3, 3 / 3, DEFAULT, DEFAULT, DEFAULT,
 DEFAULT ,REPEAT(CAST(3 AS CHAR(1)),@fill_amount));
+Warnings:
+Warning	1901	Function or expression '`col6` / `col5`' cannot be used in the GENERATED ALWAYS AS clause of `col8`
+Warning	1105	Expression depends on @@div_precision_increment
 UPDATE t1 SET col1 = 2;
 UPDATE t1 SET col7 = DEFAULT;
 UPDATE t1 SET col8 = DEFAULT;
@@ -443,7 +449,13 @@ c blob GENERATED ALWAYS AS (concat(a,b)) VIRTUAL,
 d blob GENERATED ALWAYS AS (b) VIRTUAL,
 e int(11) GENERATED ALWAYS AS (10) VIRTUAL,
 h int(11) NOT NULL, PRIMARY KEY (h), key(c(20)));
+Warnings:
+Warning	1901	Function or expression 'concat(`a`,`b`)' cannot be used in the GENERATED ALWAYS AS clause of `c`
+Warning	1105	The result octet length 65635 may be limited by @@max_allowed_packet
 INSERT INTO t(a,b,h) VALUES('aaaaaaa','1111111', 11);
+Warnings:
+Warning	1901	Function or expression 'concat(`a`,`b`)' cannot be used in the GENERATED ALWAYS AS clause of `c`
+Warning	1105	The result octet length 65635 may be limited by @@max_allowed_packet
 INSERT INTO t(a,b,h) VALUES('bbbbbbb','2222222', 22);
 SELECT c FROM t;
 c

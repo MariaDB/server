@@ -731,6 +731,7 @@ SYMBOL symbols[] = {
   { "YEAR",		SYM(YEAR_SYM)},
   { "YEAR_MONTH",	SYM(YEAR_MONTH_SYM)},
   { "ZEROFILL",		SYM(ZEROFILL)},
+  { "ZONE",             SYM(ZONE_SYM)},
   { "||",		SYM(OR2_SYM)}
 };
 
@@ -780,6 +781,7 @@ SYMBOL sql_functions[] = {
   { "SUM",		SYM(SUM_SYM)},
   { "SYSDATE",		SYM(SYSDATE)},
   { "SYSTEM_USER",      SYM(USER_SYM)},
+  { "TIMESTAMP_TZ",     SYM(TIMESTAMP_TZ_SYM)},
   { "TRIM",		SYM(TRIM)},
   { "TRIM_ORACLE",	SYM(TRIM_ORACLE)},
   { "VARIANCE",		SYM(VARIANCE_SYM)},

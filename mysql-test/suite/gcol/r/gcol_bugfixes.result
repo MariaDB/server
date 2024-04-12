@@ -52,7 +52,13 @@ c_blob BLOB,
 c_blob_key BLOB GENERATED ALWAYS AS (REPEAT(c_blob,15)) STORED,
 KEY (c_blob_key(200))
 );
+Warnings:
+Warning	1901	Function or expression 'repeat(`c_blob`,15)' cannot be used in the GENERATED ALWAYS AS clause of `c_blob_key`
+Warning	1105	The result octet length 983025 may be limited by @@max_allowed_packet
 INSERT  INTO t1 (c_blob) VALUES ('xceks');
+Warnings:
+Warning	1901	Function or expression 'repeat(`c_blob`,15)' cannot be used in the GENERATED ALWAYS AS clause of `c_blob_key`
+Warning	1105	The result octet length 983025 may be limited by @@max_allowed_packet
 DROP TABLE t1;
 #
 # Bug#21345972 WL8149:JOIN_CACHE::FILTER_VIRTUAL_GCOL_BASE_COLS(): ASSERTION `FALSE' FAILED.
@@ -279,6 +285,15 @@ KEY (col_int_key, col_longblob_key(100)),
 KEY (col_longtext_key(10), col_longblob_key(100)),
 KEY (col_int_key, col_text_key(10), col_blob_key(100), col_longtext_key(50), col_longblob_key(50))
 ) engine=innodb;
+Warnings:
+Warning	1901	Function or expression 'repeat(`col_blob_nokey`,15)' cannot be used in the GENERATED ALWAYS AS clause of `col_blob_key`
+Warning	1105	The result octet length 983025 may be limited by @@max_allowed_packet
+Warning	1901	Function or expression 'repeat(`col_longblob_nokey`,20)' cannot be used in the GENERATED ALWAYS AS clause of `col_longblob_key`
+Warning	1105	The result octet length 16777216 may be limited by @@max_allowed_packet
+Warning	1901	Function or expression 'repeat(`col_longblob_nokey`,18)' cannot be used in the GENERATED ALWAYS AS clause of `col_longtext_key`
+Warning	1105	The result octet length 16777216 may be limited by @@max_allowed_packet
+Warning	1901	Function or expression 'repeat(`col_text_nokey`,30)' cannot be used in the GENERATED ALWAYS AS clause of `col_text_key`
+Warning	1105	The result octet length 1966050 may be limited by @@max_allowed_packet
 INSERT INTO t1 (col_int_nokey,col_blob_nokey,col_longtext_nokey,col_longblob_nokey,col_text_nokey)
 VALUES
 (0, 'ijcszxw', 'ijcszxw', 'ijcszxw', 'ijcszxw'),
@@ -291,6 +306,15 @@ VALUES
 (5, 'bjjv', 'bjjv', 'bjjv', 'bjjv'),
 (0, 'jjvvkymalu', 'jjvvkymalu', 'jjvvkymalu', 'jjvvkymalu'),
 (3, 'j', 'j', 'j', 'j');
+Warnings:
+Warning	1901	Function or expression 'repeat(`col_blob_nokey`,15)' cannot be used in the GENERATED ALWAYS AS clause of `col_blob_key`
+Warning	1105	The result octet length 983025 may be limited by @@max_allowed_packet
+Warning	1901	Function or expression 'repeat(`col_longblob_nokey`,20)' cannot be used in the GENERATED ALWAYS AS clause of `col_longblob_key`
+Warning	1105	The result octet length 16777216 may be limited by @@max_allowed_packet
+Warning	1901	Function or expression 'repeat(`col_longblob_nokey`,18)' cannot be used in the GENERATED ALWAYS AS clause of `col_longtext_key`
+Warning	1105	The result octet length 16777216 may be limited by @@max_allowed_packet
+Warning	1901	Function or expression 'repeat(`col_text_nokey`,30)' cannot be used in the GENERATED ALWAYS AS clause of `col_text_key`
+Warning	1105	The result octet length 1966050 may be limited by @@max_allowed_packet
 SELECT alias1.pk AS field1
 FROM t1 AS alias1 LEFT OUTER JOIN t1 AS alias2
 ON alias1.col_int_key = alias2.col_int_key
@@ -308,6 +332,15 @@ field1
 3
 8
 8
+Warnings:
+Warning	1901	Function or expression 'repeat(`col_blob_nokey`,15)' cannot be used in the GENERATED ALWAYS AS clause of `col_blob_key`
+Warning	1105	The result octet length 983025 may be limited by @@max_allowed_packet
+Warning	1901	Function or expression 'repeat(`col_longblob_nokey`,20)' cannot be used in the GENERATED ALWAYS AS clause of `col_longblob_key`
+Warning	1105	The result octet length 16777216 may be limited by @@max_allowed_packet
+Warning	1901	Function or expression 'repeat(`col_longblob_nokey`,18)' cannot be used in the GENERATED ALWAYS AS clause of `col_longtext_key`
+Warning	1105	The result octet length 16777216 may be limited by @@max_allowed_packet
+Warning	1901	Function or expression 'repeat(`col_text_nokey`,30)' cannot be used in the GENERATED ALWAYS AS clause of `col_text_key`
+Warning	1105	The result octet length 1966050 may be limited by @@max_allowed_packet
 DROP TABLE t1;
 # bug#21487651: gcols: memory leak after failed alter table
 CREATE TABLE t(a int);
@@ -544,7 +577,15 @@ b BLOB,
 c TIMESTAMP GENERATED ALWAYS AS (GREATEST(a, '2000-01-01 00:00:00')) VIRTUAL,
 UNIQUE KEY(c)
 );
+Warnings:
+Warning	1901	Function or expression 'greatest(`a`,'2000-01-01 00:00:00')' cannot be used in the GENERATED ALWAYS AS clause of `c`
+Warning	1105	TIMESTAMP to DATETIME conversion depends on @@time_zone
+Warning	1105	DATETIME to TIMESTAMP conversion depends on @@time_zone
 INSERT INTO t(b) VALUES ('');
+Warnings:
+Warning	1901	Function or expression 'greatest(`a`,'2000-01-01 00:00:00')' cannot be used in the GENERATED ALWAYS AS clause of `c`
+Warning	1105	TIMESTAMP to DATETIME conversion depends on @@time_zone
+Warning	1105	DATETIME to TIMESTAMP conversion depends on @@time_zone
 UPDATE t SET a='2001-01-01 00:00:00';
 SELECT c FROM t;
 c

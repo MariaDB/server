@@ -1,0 +1,1182 @@
+#
+# Start of 10.5 tests
+#
+#
+# MDEV-20610 Assertion failed or btr_validate_index(..) in row_upd_sec_index_entry on a time_zone change
+#
+#
+# timestamp_expr AT TIME ZONE
+#
+CREATE TABLE t1 (a TIMESTAMP NULL);
+CREATE VIEW v_a AS
+SELECT
+a,
+a AT TIME ZONE '-08:00' AS a_at_m0800,
+a AT TIME ZONE '-04:00' AS a_at_m0400,
+a AT TIME ZONE '-02:00' AS a_at_m0200,
+a AT TIME ZONE '-01:00' AS a_at_m0100,
+a AT TIME ZONE '+00:00' AS a_at__0000,
+a AT TIME ZONE '+01:00' AS a_at_p0100,
+a AT TIME ZONE '+02:00' AS a_at_p0200,
+a AT TIME ZONE '+04:00' AS a_at_p0400,
+a AT TIME ZONE '+08:00' AS a_at_p0800
+FROM t1;
+CREATE VIEW v_concat AS
+SELECT
+a,
+CONCAT(a AT TIME ZONE '-08:00') AS con_a_at_m0800,
+CONCAT(a AT TIME ZONE '-04:00') AS con_a_at_m0400,
+CONCAT(a AT TIME ZONE '-02:00') AS con_a_at_m0200,
+CONCAT(a AT TIME ZONE '-01:00') AS con_a_at_m0100,
+CONCAT(a AT TIME ZONE '+00:00') AS con_a_at__0000,
+CONCAT(a AT TIME ZONE '+01:00') AS con_a_at_p0100,
+CONCAT(a AT TIME ZONE '+02:00') AS con_a_at_p0200,
+CONCAT(a AT TIME ZONE '+04:00') AS con_a_at_p0400,
+CONCAT(a AT TIME ZONE '+08:00') AS con_a_at_p0800
+FROM t1;
+CREATE VIEW v_unix_time AS
+SELECT
+a,
+UNIX_TIMESTAMP(a)                       AS uts_a_at__none,
+UNIX_TIMESTAMP(a AT TIME ZONE '-08:00') AS uts_a_at_m0800,
+UNIX_TIMESTAMP(a AT TIME ZONE '-04:00') AS uts_a_at_m0400,
+UNIX_TIMESTAMP(a AT TIME ZONE '-02:00') AS uts_a_at_m0200,
+UNIX_TIMESTAMP(a AT TIME ZONE '-01:00') AS uts_a_at_m0100,
+UNIX_TIMESTAMP(a AT TIME ZONE '+00:00') AS uts_a_at__0000,
+UNIX_TIMESTAMP(a AT TIME ZONE '+01:00') AS uts_a_at_p0100,
+UNIX_TIMESTAMP(a AT TIME ZONE '+02:00') AS uts_a_at_p0200,
+UNIX_TIMESTAMP(a AT TIME ZONE '+04:00') AS uts_a_at_p0400,
+UNIX_TIMESTAMP(a AT TIME ZONE '+08:00') AS uts_a_at_p0800
+FROM t1;
+CREATE VIEW v_extract_ds AS
+SELECT
+a,
+EXTRACT(DAY_SECOND FROM a                      ) AS eds_a_at__none,
+EXTRACT(DAY_SECOND FROM a AT TIME ZONE '-08:00') AS eds_a_at_m0800,
+EXTRACT(DAY_SECOND FROM a AT TIME ZONE '-04:00') AS eds_a_at_m0400,
+EXTRACT(DAY_SECOND FROM a AT TIME ZONE '-02:00') AS eds_a_at_m0200,
+EXTRACT(DAY_SECOND FROM a AT TIME ZONE '-01:00') AS eds_a_at_m0100,
+EXTRACT(DAY_SECOND FROM a AT TIME ZONE '+00:00') AS eds_a_at__0000,
+EXTRACT(DAY_SECOND FROM a AT TIME ZONE '+01:00') AS eds_a_at_p0100,
+EXTRACT(DAY_SECOND FROM a AT TIME ZONE '+02:00') AS eds_a_at_p0200,
+EXTRACT(DAY_SECOND FROM a AT TIME ZONE '+04:00') AS eds_a_at_p0400,
+EXTRACT(DAY_SECOND FROM a AT TIME ZONE '+08:00') AS eds_a_at_p0800
+FROM t1;
+CREATE VIEW v_cast_as_datetime AS
+SELECT
+a,
+CAST(a                       AS DATETIME) AS cdt_a_at__none,
+CAST(a AT TIME ZONE '-08:00' AS DATETIME) AS cdt_a_at_m0800,
+CAST(a AT TIME ZONE '-04:00' AS DATETIME) AS cdt_a_at_m0400,
+CAST(a AT TIME ZONE '-02:00' AS DATETIME) AS cdt_a_at_m0200,
+CAST(a AT TIME ZONE '-01:00' AS DATETIME) AS cdt_a_at_m0100,
+CAST(a AT TIME ZONE '+00:00' AS DATETIME) AS cdt_a_at__0000,
+CAST(a AT TIME ZONE '+01:00' AS DATETIME) AS cdt_a_at_p0100,
+CAST(a AT TIME ZONE '+02:00' AS DATETIME) AS cdt_a_at_p0200,
+CAST(a AT TIME ZONE '+04:00' AS DATETIME) AS cdt_a_at_p0400,
+CAST(a AT TIME ZONE '+08:00' AS DATETIME) AS cdt_a_at_p0800
+FROM t1;
+CREATE VIEW v_cast_as_date AS
+SELECT
+a,
+CAST(a                       AS DATE) AS cdd_a_at__none,
+CAST(a AT TIME ZONE '-08:00' AS DATE) AS cdd_a_at_m0800,
+CAST(a AT TIME ZONE '-04:00' AS DATE) AS cdd_a_at_m0400,
+CAST(a AT TIME ZONE '-02:00' AS DATE) AS cdd_a_at_m0200,
+CAST(a AT TIME ZONE '-01:00' AS DATE) AS cdd_a_at_m0100,
+CAST(a AT TIME ZONE '+00:00' AS DATE) AS cdd_a_at__0000,
+CAST(a AT TIME ZONE '+01:00' AS DATE) AS cdd_a_at_p0100,
+CAST(a AT TIME ZONE '+02:00' AS DATE) AS cdd_a_at_p0200,
+CAST(a AT TIME ZONE '+04:00' AS DATE) AS cdd_a_at_p0400,
+CAST(a AT TIME ZONE '+08:00' AS DATE) AS cdd_a_at_p0800
+FROM t1;
+CREATE VIEW v_cast_as_time AS
+SELECT
+a,
+CAST(a                       AS TIME) AS ctm_a_at__none,
+CAST(a AT TIME ZONE '-08:00' AS TIME) AS ctm_a_at_m0800,
+CAST(a AT TIME ZONE '-04:00' AS TIME) AS ctm_a_at_m0400,
+CAST(a AT TIME ZONE '-02:00' AS TIME) AS ctm_a_at_m0200,
+CAST(a AT TIME ZONE '-01:00' AS TIME) AS ctm_a_at_m0100,
+CAST(a AT TIME ZONE '+00:00' AS TIME) AS ctm_a_at__0000,
+CAST(a AT TIME ZONE '+01:00' AS TIME) AS ctm_a_at_p0100,
+CAST(a AT TIME ZONE '+02:00' AS TIME) AS ctm_a_at_p0200,
+CAST(a AT TIME ZONE '+04:00' AS TIME) AS ctm_a_at_p0400,
+CAST(a AT TIME ZONE '+08:00' AS TIME) AS ctm_a_at_p0800
+FROM t1;
+CREATE VIEW v_cast_as_unsigned AS
+SELECT
+a,
+CAST(a                       AS UNSIGNED) AS cui_a_at__none,
+CAST(a AT TIME ZONE '-08:00' AS UNSIGNED) AS cui_a_at_m0800,
+CAST(a AT TIME ZONE '-04:00' AS UNSIGNED) AS cui_a_at_m0400,
+CAST(a AT TIME ZONE '-02:00' AS UNSIGNED) AS cui_a_at_m0200,
+CAST(a AT TIME ZONE '-01:00' AS UNSIGNED) AS cui_a_at_m0100,
+CAST(a AT TIME ZONE '+00:00' AS UNSIGNED) AS cui_a_at__0000,
+CAST(a AT TIME ZONE '+01:00' AS UNSIGNED) AS cui_a_at_p0100,
+CAST(a AT TIME ZONE '+02:00' AS UNSIGNED) AS cui_a_at_p0200,
+CAST(a AT TIME ZONE '+04:00' AS UNSIGNED) AS cui_a_at_p0400,
+CAST(a AT TIME ZONE '+08:00' AS UNSIGNED) AS cui_a_at_p0800
+FROM t1;
+CREATE VIEW v_cast_as_decimal_14_0 AS
+SELECT
+a,
+CAST(a                       AS DECIMAL(14,0)) AS cdc_a_at__none,
+CAST(a AT TIME ZONE '-08:00' AS DECIMAL(14,0)) AS cdc_a_at_m0800,
+CAST(a AT TIME ZONE '-04:00' AS DECIMAL(14,0)) AS cdc_a_at_m0400,
+CAST(a AT TIME ZONE '-02:00' AS DECIMAL(14,0)) AS cdc_a_at_m0200,
+CAST(a AT TIME ZONE '-01:00' AS DECIMAL(14,0)) AS cdc_a_at_m0100,
+CAST(a AT TIME ZONE '+00:00' AS DECIMAL(14,0)) AS cdc_a_at__0000,
+CAST(a AT TIME ZONE '+01:00' AS DECIMAL(14,0)) AS cdc_a_at_p0100,
+CAST(a AT TIME ZONE '+02:00' AS DECIMAL(14,0)) AS cdc_a_at_p0200,
+CAST(a AT TIME ZONE '+04:00' AS DECIMAL(14,0)) AS cdc_a_at_p0400,
+CAST(a AT TIME ZONE '+08:00' AS DECIMAL(14,0)) AS cdc_a_at_p0800
+FROM t1;
+CREATE VIEW v_cast_as_double AS
+SELECT
+a,
+CAST(a                       AS DOUBLE) AS cdb_a_at__none,
+CAST(a AT TIME ZONE '-08:00' AS DOUBLE) AS cdb_a_at_m0800,
+CAST(a AT TIME ZONE '-04:00' AS DOUBLE) AS cdb_a_at_m0400,
+CAST(a AT TIME ZONE '-02:00' AS DOUBLE) AS cdb_a_at_m0200,
+CAST(a AT TIME ZONE '-01:00' AS DOUBLE) AS cdb_a_at_m0100,
+CAST(a AT TIME ZONE '+00:00' AS DOUBLE) AS cdb_a_at__0000,
+CAST(a AT TIME ZONE '+01:00' AS DOUBLE) AS cdb_a_at_p0100,
+CAST(a AT TIME ZONE '+02:00' AS DOUBLE) AS cdb_a_at_p0200,
+CAST(a AT TIME ZONE '+04:00' AS DOUBLE) AS cdb_a_at_p0400,
+CAST(a AT TIME ZONE '+08:00' AS DOUBLE) AS cdb_a_at_p0800
+FROM t1;
+CREATE PROCEDURE exec(query TEXT)
+BEGIN
+SELECT query AS `Query`;
+EXECUTE IMMEDIATE query;
+END;
+$$
+CREATE PROCEDURE query_all_views()
+BEGIN
+CALL exec('SELECT * FROM v_a');
+CALL exec('SELECT * FROM v_concat');
+CALL exec('SELECT * FROM v_unix_time');
+CALL exec('SELECT * FROM v_extract_ds');
+CALL exec('SELECT * FROM v_cast_as_datetime');
+CALL exec('SELECT * FROM v_cast_as_date');
+CALL exec('SELECT * FROM v_cast_as_time');
+CALL exec('SELECT * FROM v_cast_as_unsigned');
+CALL exec('SELECT * FROM v_cast_as_decimal_14_0');
+CALL exec('SELECT * FROM v_cast_as_double');
+END;
+$$
+SET time_zone='+04:00';
+INSERT INTO t1 VALUES (NULL);
+SET time_zone='+04:00';
+CALL query_all_views();
+Query	SELECT * FROM v_a
+a	NULL
+a_at_m0800	NULL
+a_at_m0400	NULL
+a_at_m0200	NULL
+a_at_m0100	NULL
+a_at__0000	NULL
+a_at_p0100	NULL
+a_at_p0200	NULL
+a_at_p0400	NULL
+a_at_p0800	NULL
+Query	SELECT * FROM v_concat
+a	NULL
+con_a_at_m0800	NULL
+con_a_at_m0400	NULL
+con_a_at_m0200	NULL
+con_a_at_m0100	NULL
+con_a_at__0000	NULL
+con_a_at_p0100	NULL
+con_a_at_p0200	NULL
+con_a_at_p0400	NULL
+con_a_at_p0800	NULL
+Query	SELECT * FROM v_unix_time
+a	NULL
+uts_a_at__none	NULL
+uts_a_at_m0800	NULL
+uts_a_at_m0400	NULL
+uts_a_at_m0200	NULL
+uts_a_at_m0100	NULL
+uts_a_at__0000	NULL
+uts_a_at_p0100	NULL
+uts_a_at_p0200	NULL
+uts_a_at_p0400	NULL
+uts_a_at_p0800	NULL
+Query	SELECT * FROM v_extract_ds
+a	NULL
+eds_a_at__none	NULL
+eds_a_at_m0800	NULL
+eds_a_at_m0400	NULL
+eds_a_at_m0200	NULL
+eds_a_at_m0100	NULL
+eds_a_at__0000	NULL
+eds_a_at_p0100	NULL
+eds_a_at_p0200	NULL
+eds_a_at_p0400	NULL
+eds_a_at_p0800	NULL
+Query	SELECT * FROM v_cast_as_datetime
+a	NULL
+cdt_a_at__none	NULL
+cdt_a_at_m0800	NULL
+cdt_a_at_m0400	NULL
+cdt_a_at_m0200	NULL
+cdt_a_at_m0100	NULL
+cdt_a_at__0000	NULL
+cdt_a_at_p0100	NULL
+cdt_a_at_p0200	NULL
+cdt_a_at_p0400	NULL
+cdt_a_at_p0800	NULL
+Query	SELECT * FROM v_cast_as_date
+a	NULL
+cdd_a_at__none	NULL
+cdd_a_at_m0800	NULL
+cdd_a_at_m0400	NULL
+cdd_a_at_m0200	NULL
+cdd_a_at_m0100	NULL
+cdd_a_at__0000	NULL
+cdd_a_at_p0100	NULL
+cdd_a_at_p0200	NULL
+cdd_a_at_p0400	NULL
+cdd_a_at_p0800	NULL
+Query	SELECT * FROM v_cast_as_time
+a	NULL
+ctm_a_at__none	NULL
+ctm_a_at_m0800	NULL
+ctm_a_at_m0400	NULL
+ctm_a_at_m0200	NULL
+ctm_a_at_m0100	NULL
+ctm_a_at__0000	NULL
+ctm_a_at_p0100	NULL
+ctm_a_at_p0200	NULL
+ctm_a_at_p0400	NULL
+ctm_a_at_p0800	NULL
+Query	SELECT * FROM v_cast_as_unsigned
+a	NULL
+cui_a_at__none	NULL
+cui_a_at_m0800	NULL
+cui_a_at_m0400	NULL
+cui_a_at_m0200	NULL
+cui_a_at_m0100	NULL
+cui_a_at__0000	NULL
+cui_a_at_p0100	NULL
+cui_a_at_p0200	NULL
+cui_a_at_p0400	NULL
+cui_a_at_p0800	NULL
+Query	SELECT * FROM v_cast_as_decimal_14_0
+a	NULL
+cdc_a_at__none	NULL
+cdc_a_at_m0800	NULL
+cdc_a_at_m0400	NULL
+cdc_a_at_m0200	NULL
+cdc_a_at_m0100	NULL
+cdc_a_at__0000	NULL
+cdc_a_at_p0100	NULL
+cdc_a_at_p0200	NULL
+cdc_a_at_p0400	NULL
+cdc_a_at_p0800	NULL
+Query	SELECT * FROM v_cast_as_double
+a	NULL
+cdb_a_at__none	NULL
+cdb_a_at_m0800	NULL
+cdb_a_at_m0400	NULL
+cdb_a_at_m0200	NULL
+cdb_a_at_m0100	NULL
+cdb_a_at__0000	NULL
+cdb_a_at_p0100	NULL
+cdb_a_at_p0200	NULL
+cdb_a_at_p0400	NULL
+cdb_a_at_p0800	NULL
+DELETE FROM t1;
+SET time_zone='+04:00';
+INSERT INTO t1 VALUES (TIMESTAMP'2001-01-01 10:00:00');
+SET time_zone='+03:00';
+CALL query_all_views();
+Query	SELECT * FROM v_a
+a	2001-01-01 09:00:00
+a_at_m0800	2000-12-31 22:00:00 -08:00
+a_at_m0400	2001-01-01 02:00:00 -04:00
+a_at_m0200	2001-01-01 04:00:00 -02:00
+a_at_m0100	2001-01-01 05:00:00 -01:00
+a_at__0000	2001-01-01 06:00:00 +00:00
+a_at_p0100	2001-01-01 07:00:00 +01:00
+a_at_p0200	2001-01-01 08:00:00 +02:00
+a_at_p0400	2001-01-01 10:00:00 +04:00
+a_at_p0800	2001-01-01 14:00:00 +08:00
+Query	SELECT * FROM v_concat
+a	2001-01-01 09:00:00
+con_a_at_m0800	2000-12-31 22:00:00 -08:00
+con_a_at_m0400	2001-01-01 02:00:00 -04:00
+con_a_at_m0200	2001-01-01 04:00:00 -02:00
+con_a_at_m0100	2001-01-01 05:00:00 -01:00
+con_a_at__0000	2001-01-01 06:00:00 +00:00
+con_a_at_p0100	2001-01-01 07:00:00 +01:00
+con_a_at_p0200	2001-01-01 08:00:00 +02:00
+con_a_at_p0400	2001-01-01 10:00:00 +04:00
+con_a_at_p0800	2001-01-01 14:00:00 +08:00
+Query	SELECT * FROM v_unix_time
+a	2001-01-01 09:00:00
+uts_a_at__none	978328800
+uts_a_at_m0800	978328800
+uts_a_at_m0400	978328800
+uts_a_at_m0200	978328800
+uts_a_at_m0100	978328800
+uts_a_at__0000	978328800
+uts_a_at_p0100	978328800
+uts_a_at_p0200	978328800
+uts_a_at_p0400	978328800
+uts_a_at_p0800	978328800
+Query	SELECT * FROM v_extract_ds
+a	2001-01-01 09:00:00
+eds_a_at__none	1090000
+eds_a_at_m0800	31220000
+eds_a_at_m0400	1020000
+eds_a_at_m0200	1040000
+eds_a_at_m0100	1050000
+eds_a_at__0000	1060000
+eds_a_at_p0100	1070000
+eds_a_at_p0200	1080000
+eds_a_at_p0400	1100000
+eds_a_at_p0800	1140000
+Query	SELECT * FROM v_cast_as_datetime
+a	2001-01-01 09:00:00
+cdt_a_at__none	2001-01-01 09:00:00
+cdt_a_at_m0800	2000-12-31 22:00:00
+cdt_a_at_m0400	2001-01-01 02:00:00
+cdt_a_at_m0200	2001-01-01 04:00:00
+cdt_a_at_m0100	2001-01-01 05:00:00
+cdt_a_at__0000	2001-01-01 06:00:00
+cdt_a_at_p0100	2001-01-01 07:00:00
+cdt_a_at_p0200	2001-01-01 08:00:00
+cdt_a_at_p0400	2001-01-01 10:00:00
+cdt_a_at_p0800	2001-01-01 14:00:00
+Query	SELECT * FROM v_cast_as_date
+a	2001-01-01 09:00:00
+cdd_a_at__none	2001-01-01
+cdd_a_at_m0800	2000-12-31
+cdd_a_at_m0400	2001-01-01
+cdd_a_at_m0200	2001-01-01
+cdd_a_at_m0100	2001-01-01
+cdd_a_at__0000	2001-01-01
+cdd_a_at_p0100	2001-01-01
+cdd_a_at_p0200	2001-01-01
+cdd_a_at_p0400	2001-01-01
+cdd_a_at_p0800	2001-01-01
+Query	SELECT * FROM v_cast_as_time
+a	2001-01-01 09:00:00
+ctm_a_at__none	09:00:00
+ctm_a_at_m0800	22:00:00
+ctm_a_at_m0400	02:00:00
+ctm_a_at_m0200	04:00:00
+ctm_a_at_m0100	05:00:00
+ctm_a_at__0000	06:00:00
+ctm_a_at_p0100	07:00:00
+ctm_a_at_p0200	08:00:00
+ctm_a_at_p0400	10:00:00
+ctm_a_at_p0800	14:00:00
+Query	SELECT * FROM v_cast_as_unsigned
+a	2001-01-01 09:00:00
+cui_a_at__none	20010101090000
+cui_a_at_m0800	20001231220000
+cui_a_at_m0400	20010101020000
+cui_a_at_m0200	20010101040000
+cui_a_at_m0100	20010101050000
+cui_a_at__0000	20010101060000
+cui_a_at_p0100	20010101070000
+cui_a_at_p0200	20010101080000
+cui_a_at_p0400	20010101100000
+cui_a_at_p0800	20010101140000
+Query	SELECT * FROM v_cast_as_decimal_14_0
+a	2001-01-01 09:00:00
+cdc_a_at__none	20010101090000
+cdc_a_at_m0800	20001231220000
+cdc_a_at_m0400	20010101020000
+cdc_a_at_m0200	20010101040000
+cdc_a_at_m0100	20010101050000
+cdc_a_at__0000	20010101060000
+cdc_a_at_p0100	20010101070000
+cdc_a_at_p0200	20010101080000
+cdc_a_at_p0400	20010101100000
+cdc_a_at_p0800	20010101140000
+Query	SELECT * FROM v_cast_as_double
+a	2001-01-01 09:00:00
+cdb_a_at__none	20010101090000
+cdb_a_at_m0800	20001231220000
+cdb_a_at_m0400	20010101020000
+cdb_a_at_m0200	20010101040000
+cdb_a_at_m0100	20010101050000
+cdb_a_at__0000	20010101060000
+cdb_a_at_p0100	20010101070000
+cdb_a_at_p0200	20010101080000
+cdb_a_at_p0400	20010101100000
+cdb_a_at_p0800	20010101140000
+SET time_zone='+04:00';
+CALL query_all_views();
+Query	SELECT * FROM v_a
+a	2001-01-01 10:00:00
+a_at_m0800	2000-12-31 22:00:00 -08:00
+a_at_m0400	2001-01-01 02:00:00 -04:00
+a_at_m0200	2001-01-01 04:00:00 -02:00
+a_at_m0100	2001-01-01 05:00:00 -01:00
+a_at__0000	2001-01-01 06:00:00 +00:00
+a_at_p0100	2001-01-01 07:00:00 +01:00
+a_at_p0200	2001-01-01 08:00:00 +02:00
+a_at_p0400	2001-01-01 10:00:00 +04:00
+a_at_p0800	2001-01-01 14:00:00 +08:00
+Query	SELECT * FROM v_concat
+a	2001-01-01 10:00:00
+con_a_at_m0800	2000-12-31 22:00:00 -08:00
+con_a_at_m0400	2001-01-01 02:00:00 -04:00
+con_a_at_m0200	2001-01-01 04:00:00 -02:00
+con_a_at_m0100	2001-01-01 05:00:00 -01:00
+con_a_at__0000	2001-01-01 06:00:00 +00:00
+con_a_at_p0100	2001-01-01 07:00:00 +01:00
+con_a_at_p0200	2001-01-01 08:00:00 +02:00
+con_a_at_p0400	2001-01-01 10:00:00 +04:00
+con_a_at_p0800	2001-01-01 14:00:00 +08:00
+Query	SELECT * FROM v_unix_time
+a	2001-01-01 10:00:00
+uts_a_at__none	978328800
+uts_a_at_m0800	978328800
+uts_a_at_m0400	978328800
+uts_a_at_m0200	978328800
+uts_a_at_m0100	978328800
+uts_a_at__0000	978328800
+uts_a_at_p0100	978328800
+uts_a_at_p0200	978328800
+uts_a_at_p0400	978328800
+uts_a_at_p0800	978328800
+Query	SELECT * FROM v_extract_ds
+a	2001-01-01 10:00:00
+eds_a_at__none	1100000
+eds_a_at_m0800	31220000
+eds_a_at_m0400	1020000
+eds_a_at_m0200	1040000
+eds_a_at_m0100	1050000
+eds_a_at__0000	1060000
+eds_a_at_p0100	1070000
+eds_a_at_p0200	1080000
+eds_a_at_p0400	1100000
+eds_a_at_p0800	1140000
+Query	SELECT * FROM v_cast_as_datetime
+a	2001-01-01 10:00:00
+cdt_a_at__none	2001-01-01 10:00:00
+cdt_a_at_m0800	2000-12-31 22:00:00
+cdt_a_at_m0400	2001-01-01 02:00:00
+cdt_a_at_m0200	2001-01-01 04:00:00
+cdt_a_at_m0100	2001-01-01 05:00:00
+cdt_a_at__0000	2001-01-01 06:00:00
+cdt_a_at_p0100	2001-01-01 07:00:00
+cdt_a_at_p0200	2001-01-01 08:00:00
+cdt_a_at_p0400	2001-01-01 10:00:00
+cdt_a_at_p0800	2001-01-01 14:00:00
+Query	SELECT * FROM v_cast_as_date
+a	2001-01-01 10:00:00
+cdd_a_at__none	2001-01-01
+cdd_a_at_m0800	2000-12-31
+cdd_a_at_m0400	2001-01-01
+cdd_a_at_m0200	2001-01-01
+cdd_a_at_m0100	2001-01-01
+cdd_a_at__0000	2001-01-01
+cdd_a_at_p0100	2001-01-01
+cdd_a_at_p0200	2001-01-01
+cdd_a_at_p0400	2001-01-01
+cdd_a_at_p0800	2001-01-01
+Query	SELECT * FROM v_cast_as_time
+a	2001-01-01 10:00:00
+ctm_a_at__none	10:00:00
+ctm_a_at_m0800	22:00:00
+ctm_a_at_m0400	02:00:00
+ctm_a_at_m0200	04:00:00
+ctm_a_at_m0100	05:00:00
+ctm_a_at__0000	06:00:00
+ctm_a_at_p0100	07:00:00
+ctm_a_at_p0200	08:00:00
+ctm_a_at_p0400	10:00:00
+ctm_a_at_p0800	14:00:00
+Query	SELECT * FROM v_cast_as_unsigned
+a	2001-01-01 10:00:00
+cui_a_at__none	20010101100000
+cui_a_at_m0800	20001231220000
+cui_a_at_m0400	20010101020000
+cui_a_at_m0200	20010101040000
+cui_a_at_m0100	20010101050000
+cui_a_at__0000	20010101060000
+cui_a_at_p0100	20010101070000
+cui_a_at_p0200	20010101080000
+cui_a_at_p0400	20010101100000
+cui_a_at_p0800	20010101140000
+Query	SELECT * FROM v_cast_as_decimal_14_0
+a	2001-01-01 10:00:00
+cdc_a_at__none	20010101100000
+cdc_a_at_m0800	20001231220000
+cdc_a_at_m0400	20010101020000
+cdc_a_at_m0200	20010101040000
+cdc_a_at_m0100	20010101050000
+cdc_a_at__0000	20010101060000
+cdc_a_at_p0100	20010101070000
+cdc_a_at_p0200	20010101080000
+cdc_a_at_p0400	20010101100000
+cdc_a_at_p0800	20010101140000
+Query	SELECT * FROM v_cast_as_double
+a	2001-01-01 10:00:00
+cdb_a_at__none	20010101100000
+cdb_a_at_m0800	20001231220000
+cdb_a_at_m0400	20010101020000
+cdb_a_at_m0200	20010101040000
+cdb_a_at_m0100	20010101050000
+cdb_a_at__0000	20010101060000
+cdb_a_at_p0100	20010101070000
+cdb_a_at_p0200	20010101080000
+cdb_a_at_p0400	20010101100000
+cdb_a_at_p0800	20010101140000
+SET time_zone='+05:00';
+CALL query_all_views();
+Query	SELECT * FROM v_a
+a	2001-01-01 11:00:00
+a_at_m0800	2000-12-31 22:00:00 -08:00
+a_at_m0400	2001-01-01 02:00:00 -04:00
+a_at_m0200	2001-01-01 04:00:00 -02:00
+a_at_m0100	2001-01-01 05:00:00 -01:00
+a_at__0000	2001-01-01 06:00:00 +00:00
+a_at_p0100	2001-01-01 07:00:00 +01:00
+a_at_p0200	2001-01-01 08:00:00 +02:00
+a_at_p0400	2001-01-01 10:00:00 +04:00
+a_at_p0800	2001-01-01 14:00:00 +08:00
+Query	SELECT * FROM v_concat
+a	2001-01-01 11:00:00
+con_a_at_m0800	2000-12-31 22:00:00 -08:00
+con_a_at_m0400	2001-01-01 02:00:00 -04:00
+con_a_at_m0200	2001-01-01 04:00:00 -02:00
+con_a_at_m0100	2001-01-01 05:00:00 -01:00
+con_a_at__0000	2001-01-01 06:00:00 +00:00
+con_a_at_p0100	2001-01-01 07:00:00 +01:00
+con_a_at_p0200	2001-01-01 08:00:00 +02:00
+con_a_at_p0400	2001-01-01 10:00:00 +04:00
+con_a_at_p0800	2001-01-01 14:00:00 +08:00
+Query	SELECT * FROM v_unix_time
+a	2001-01-01 11:00:00
+uts_a_at__none	978328800
+uts_a_at_m0800	978328800
+uts_a_at_m0400	978328800
+uts_a_at_m0200	978328800
+uts_a_at_m0100	978328800
+uts_a_at__0000	978328800
+uts_a_at_p0100	978328800
+uts_a_at_p0200	978328800
+uts_a_at_p0400	978328800
+uts_a_at_p0800	978328800
+Query	SELECT * FROM v_extract_ds
+a	2001-01-01 11:00:00
+eds_a_at__none	1110000
+eds_a_at_m0800	31220000
+eds_a_at_m0400	1020000
+eds_a_at_m0200	1040000
+eds_a_at_m0100	1050000
+eds_a_at__0000	1060000
+eds_a_at_p0100	1070000
+eds_a_at_p0200	1080000
+eds_a_at_p0400	1100000
+eds_a_at_p0800	1140000
+Query	SELECT * FROM v_cast_as_datetime
+a	2001-01-01 11:00:00
+cdt_a_at__none	2001-01-01 11:00:00
+cdt_a_at_m0800	2000-12-31 22:00:00
+cdt_a_at_m0400	2001-01-01 02:00:00
+cdt_a_at_m0200	2001-01-01 04:00:00
+cdt_a_at_m0100	2001-01-01 05:00:00
+cdt_a_at__0000	2001-01-01 06:00:00
+cdt_a_at_p0100	2001-01-01 07:00:00
+cdt_a_at_p0200	2001-01-01 08:00:00
+cdt_a_at_p0400	2001-01-01 10:00:00
+cdt_a_at_p0800	2001-01-01 14:00:00
+Query	SELECT * FROM v_cast_as_date
+a	2001-01-01 11:00:00
+cdd_a_at__none	2001-01-01
+cdd_a_at_m0800	2000-12-31
+cdd_a_at_m0400	2001-01-01
+cdd_a_at_m0200	2001-01-01
+cdd_a_at_m0100	2001-01-01
+cdd_a_at__0000	2001-01-01
+cdd_a_at_p0100	2001-01-01
+cdd_a_at_p0200	2001-01-01
+cdd_a_at_p0400	2001-01-01
+cdd_a_at_p0800	2001-01-01
+Query	SELECT * FROM v_cast_as_time
+a	2001-01-01 11:00:00
+ctm_a_at__none	11:00:00
+ctm_a_at_m0800	22:00:00
+ctm_a_at_m0400	02:00:00
+ctm_a_at_m0200	04:00:00
+ctm_a_at_m0100	05:00:00
+ctm_a_at__0000	06:00:00
+ctm_a_at_p0100	07:00:00
+ctm_a_at_p0200	08:00:00
+ctm_a_at_p0400	10:00:00
+ctm_a_at_p0800	14:00:00
+Query	SELECT * FROM v_cast_as_unsigned
+a	2001-01-01 11:00:00
+cui_a_at__none	20010101110000
+cui_a_at_m0800	20001231220000
+cui_a_at_m0400	20010101020000
+cui_a_at_m0200	20010101040000
+cui_a_at_m0100	20010101050000
+cui_a_at__0000	20010101060000
+cui_a_at_p0100	20010101070000
+cui_a_at_p0200	20010101080000
+cui_a_at_p0400	20010101100000
+cui_a_at_p0800	20010101140000
+Query	SELECT * FROM v_cast_as_decimal_14_0
+a	2001-01-01 11:00:00
+cdc_a_at__none	20010101110000
+cdc_a_at_m0800	20001231220000
+cdc_a_at_m0400	20010101020000
+cdc_a_at_m0200	20010101040000
+cdc_a_at_m0100	20010101050000
+cdc_a_at__0000	20010101060000
+cdc_a_at_p0100	20010101070000
+cdc_a_at_p0200	20010101080000
+cdc_a_at_p0400	20010101100000
+cdc_a_at_p0800	20010101140000
+Query	SELECT * FROM v_cast_as_double
+a	2001-01-01 11:00:00
+cdb_a_at__none	20010101110000
+cdb_a_at_m0800	20001231220000
+cdb_a_at_m0400	20010101020000
+cdb_a_at_m0200	20010101040000
+cdb_a_at_m0100	20010101050000
+cdb_a_at__0000	20010101060000
+cdb_a_at_p0100	20010101070000
+cdb_a_at_p0200	20010101080000
+cdb_a_at_p0400	20010101100000
+cdb_a_at_p0800	20010101140000
+DELETE FROM t1;
+DROP TABLE t1;
+#
+# datetime_expr AT TIME ZONE
+#
+CREATE TABLE t1 (a DATETIME);
+SET time_zone='+04:00';
+INSERT INTO t1 VALUES (NULL);
+SET time_zone='+04:00';
+CALL query_all_views();
+Query	SELECT * FROM v_a
+a	NULL
+a_at_m0800	NULL
+a_at_m0400	NULL
+a_at_m0200	NULL
+a_at_m0100	NULL
+a_at__0000	NULL
+a_at_p0100	NULL
+a_at_p0200	NULL
+a_at_p0400	NULL
+a_at_p0800	NULL
+Query	SELECT * FROM v_concat
+a	NULL
+con_a_at_m0800	NULL
+con_a_at_m0400	NULL
+con_a_at_m0200	NULL
+con_a_at_m0100	NULL
+con_a_at__0000	NULL
+con_a_at_p0100	NULL
+con_a_at_p0200	NULL
+con_a_at_p0400	NULL
+con_a_at_p0800	NULL
+Query	SELECT * FROM v_unix_time
+a	NULL
+uts_a_at__none	NULL
+uts_a_at_m0800	NULL
+uts_a_at_m0400	NULL
+uts_a_at_m0200	NULL
+uts_a_at_m0100	NULL
+uts_a_at__0000	NULL
+uts_a_at_p0100	NULL
+uts_a_at_p0200	NULL
+uts_a_at_p0400	NULL
+uts_a_at_p0800	NULL
+Query	SELECT * FROM v_extract_ds
+a	NULL
+eds_a_at__none	NULL
+eds_a_at_m0800	NULL
+eds_a_at_m0400	NULL
+eds_a_at_m0200	NULL
+eds_a_at_m0100	NULL
+eds_a_at__0000	NULL
+eds_a_at_p0100	NULL
+eds_a_at_p0200	NULL
+eds_a_at_p0400	NULL
+eds_a_at_p0800	NULL
+Query	SELECT * FROM v_cast_as_datetime
+a	NULL
+cdt_a_at__none	NULL
+cdt_a_at_m0800	NULL
+cdt_a_at_m0400	NULL
+cdt_a_at_m0200	NULL
+cdt_a_at_m0100	NULL
+cdt_a_at__0000	NULL
+cdt_a_at_p0100	NULL
+cdt_a_at_p0200	NULL
+cdt_a_at_p0400	NULL
+cdt_a_at_p0800	NULL
+Query	SELECT * FROM v_cast_as_date
+a	NULL
+cdd_a_at__none	NULL
+cdd_a_at_m0800	NULL
+cdd_a_at_m0400	NULL
+cdd_a_at_m0200	NULL
+cdd_a_at_m0100	NULL
+cdd_a_at__0000	NULL
+cdd_a_at_p0100	NULL
+cdd_a_at_p0200	NULL
+cdd_a_at_p0400	NULL
+cdd_a_at_p0800	NULL
+Query	SELECT * FROM v_cast_as_time
+a	NULL
+ctm_a_at__none	NULL
+ctm_a_at_m0800	NULL
+ctm_a_at_m0400	NULL
+ctm_a_at_m0200	NULL
+ctm_a_at_m0100	NULL
+ctm_a_at__0000	NULL
+ctm_a_at_p0100	NULL
+ctm_a_at_p0200	NULL
+ctm_a_at_p0400	NULL
+ctm_a_at_p0800	NULL
+Query	SELECT * FROM v_cast_as_unsigned
+a	NULL
+cui_a_at__none	NULL
+cui_a_at_m0800	NULL
+cui_a_at_m0400	NULL
+cui_a_at_m0200	NULL
+cui_a_at_m0100	NULL
+cui_a_at__0000	NULL
+cui_a_at_p0100	NULL
+cui_a_at_p0200	NULL
+cui_a_at_p0400	NULL
+cui_a_at_p0800	NULL
+Query	SELECT * FROM v_cast_as_decimal_14_0
+a	NULL
+cdc_a_at__none	NULL
+cdc_a_at_m0800	NULL
+cdc_a_at_m0400	NULL
+cdc_a_at_m0200	NULL
+cdc_a_at_m0100	NULL
+cdc_a_at__0000	NULL
+cdc_a_at_p0100	NULL
+cdc_a_at_p0200	NULL
+cdc_a_at_p0400	NULL
+cdc_a_at_p0800	NULL
+Query	SELECT * FROM v_cast_as_double
+a	NULL
+cdb_a_at__none	NULL
+cdb_a_at_m0800	NULL
+cdb_a_at_m0400	NULL
+cdb_a_at_m0200	NULL
+cdb_a_at_m0100	NULL
+cdb_a_at__0000	NULL
+cdb_a_at_p0100	NULL
+cdb_a_at_p0200	NULL
+cdb_a_at_p0400	NULL
+cdb_a_at_p0800	NULL
+DELETE FROM t1;
+SET time_zone='+04:00';
+INSERT INTO t1 VALUES (TIMESTAMP'2001-01-01 10:00:00');
+SET time_zone='+03:00';
+CALL query_all_views();
+Query	SELECT * FROM v_a
+a	2001-01-01 10:00:00
+a_at_m0800	2000-12-31 23:00:00 -08:00
+a_at_m0400	2001-01-01 03:00:00 -04:00
+a_at_m0200	2001-01-01 05:00:00 -02:00
+a_at_m0100	2001-01-01 06:00:00 -01:00
+a_at__0000	2001-01-01 07:00:00 +00:00
+a_at_p0100	2001-01-01 08:00:00 +01:00
+a_at_p0200	2001-01-01 09:00:00 +02:00
+a_at_p0400	2001-01-01 11:00:00 +04:00
+a_at_p0800	2001-01-01 15:00:00 +08:00
+Query	SELECT * FROM v_concat
+a	2001-01-01 10:00:00
+con_a_at_m0800	2000-12-31 23:00:00 -08:00
+con_a_at_m0400	2001-01-01 03:00:00 -04:00
+con_a_at_m0200	2001-01-01 05:00:00 -02:00
+con_a_at_m0100	2001-01-01 06:00:00 -01:00
+con_a_at__0000	2001-01-01 07:00:00 +00:00
+con_a_at_p0100	2001-01-01 08:00:00 +01:00
+con_a_at_p0200	2001-01-01 09:00:00 +02:00
+con_a_at_p0400	2001-01-01 11:00:00 +04:00
+con_a_at_p0800	2001-01-01 15:00:00 +08:00
+Query	SELECT * FROM v_unix_time
+a	2001-01-01 10:00:00
+uts_a_at__none	978332400
+uts_a_at_m0800	978332400
+uts_a_at_m0400	978332400
+uts_a_at_m0200	978332400
+uts_a_at_m0100	978332400
+uts_a_at__0000	978332400
+uts_a_at_p0100	978332400
+uts_a_at_p0200	978332400
+uts_a_at_p0400	978332400
+uts_a_at_p0800	978332400
+Query	SELECT * FROM v_extract_ds
+a	2001-01-01 10:00:00
+eds_a_at__none	1100000
+eds_a_at_m0800	31230000
+eds_a_at_m0400	1030000
+eds_a_at_m0200	1050000
+eds_a_at_m0100	1060000
+eds_a_at__0000	1070000
+eds_a_at_p0100	1080000
+eds_a_at_p0200	1090000
+eds_a_at_p0400	1110000
+eds_a_at_p0800	1150000
+Query	SELECT * FROM v_cast_as_datetime
+a	2001-01-01 10:00:00
+cdt_a_at__none	2001-01-01 10:00:00
+cdt_a_at_m0800	2000-12-31 23:00:00
+cdt_a_at_m0400	2001-01-01 03:00:00
+cdt_a_at_m0200	2001-01-01 05:00:00
+cdt_a_at_m0100	2001-01-01 06:00:00
+cdt_a_at__0000	2001-01-01 07:00:00
+cdt_a_at_p0100	2001-01-01 08:00:00
+cdt_a_at_p0200	2001-01-01 09:00:00
+cdt_a_at_p0400	2001-01-01 11:00:00
+cdt_a_at_p0800	2001-01-01 15:00:00
+Query	SELECT * FROM v_cast_as_date
+a	2001-01-01 10:00:00
+cdd_a_at__none	2001-01-01
+cdd_a_at_m0800	2000-12-31
+cdd_a_at_m0400	2001-01-01
+cdd_a_at_m0200	2001-01-01
+cdd_a_at_m0100	2001-01-01
+cdd_a_at__0000	2001-01-01
+cdd_a_at_p0100	2001-01-01
+cdd_a_at_p0200	2001-01-01
+cdd_a_at_p0400	2001-01-01
+cdd_a_at_p0800	2001-01-01
+Query	SELECT * FROM v_cast_as_time
+a	2001-01-01 10:00:00
+ctm_a_at__none	10:00:00
+ctm_a_at_m0800	23:00:00
+ctm_a_at_m0400	03:00:00
+ctm_a_at_m0200	05:00:00
+ctm_a_at_m0100	06:00:00
+ctm_a_at__0000	07:00:00
+ctm_a_at_p0100	08:00:00
+ctm_a_at_p0200	09:00:00
+ctm_a_at_p0400	11:00:00
+ctm_a_at_p0800	15:00:00
+Query	SELECT * FROM v_cast_as_unsigned
+a	2001-01-01 10:00:00
+cui_a_at__none	20010101100000
+cui_a_at_m0800	20001231230000
+cui_a_at_m0400	20010101030000
+cui_a_at_m0200	20010101050000
+cui_a_at_m0100	20010101060000
+cui_a_at__0000	20010101070000
+cui_a_at_p0100	20010101080000
+cui_a_at_p0200	20010101090000
+cui_a_at_p0400	20010101110000
+cui_a_at_p0800	20010101150000
+Query	SELECT * FROM v_cast_as_decimal_14_0
+a	2001-01-01 10:00:00
+cdc_a_at__none	20010101100000
+cdc_a_at_m0800	20001231230000
+cdc_a_at_m0400	20010101030000
+cdc_a_at_m0200	20010101050000
+cdc_a_at_m0100	20010101060000
+cdc_a_at__0000	20010101070000
+cdc_a_at_p0100	20010101080000
+cdc_a_at_p0200	20010101090000
+cdc_a_at_p0400	20010101110000
+cdc_a_at_p0800	20010101150000
+Query	SELECT * FROM v_cast_as_double
+a	2001-01-01 10:00:00
+cdb_a_at__none	20010101100000
+cdb_a_at_m0800	20001231230000
+cdb_a_at_m0400	20010101030000
+cdb_a_at_m0200	20010101050000
+cdb_a_at_m0100	20010101060000
+cdb_a_at__0000	20010101070000
+cdb_a_at_p0100	20010101080000
+cdb_a_at_p0200	20010101090000
+cdb_a_at_p0400	20010101110000
+cdb_a_at_p0800	20010101150000
+SET time_zone='+04:00';
+CALL query_all_views();
+Query	SELECT * FROM v_a
+a	2001-01-01 10:00:00
+a_at_m0800	2000-12-31 22:00:00 -08:00
+a_at_m0400	2001-01-01 02:00:00 -04:00
+a_at_m0200	2001-01-01 04:00:00 -02:00
+a_at_m0100	2001-01-01 05:00:00 -01:00
+a_at__0000	2001-01-01 06:00:00 +00:00
+a_at_p0100	2001-01-01 07:00:00 +01:00
+a_at_p0200	2001-01-01 08:00:00 +02:00
+a_at_p0400	2001-01-01 10:00:00 +04:00
+a_at_p0800	2001-01-01 14:00:00 +08:00
+Query	SELECT * FROM v_concat
+a	2001-01-01 10:00:00
+con_a_at_m0800	2000-12-31 22:00:00 -08:00
+con_a_at_m0400	2001-01-01 02:00:00 -04:00
+con_a_at_m0200	2001-01-01 04:00:00 -02:00
+con_a_at_m0100	2001-01-01 05:00:00 -01:00
+con_a_at__0000	2001-01-01 06:00:00 +00:00
+con_a_at_p0100	2001-01-01 07:00:00 +01:00
+con_a_at_p0200	2001-01-01 08:00:00 +02:00
+con_a_at_p0400	2001-01-01 10:00:00 +04:00
+con_a_at_p0800	2001-01-01 14:00:00 +08:00
+Query	SELECT * FROM v_unix_time
+a	2001-01-01 10:00:00
+uts_a_at__none	978328800
+uts_a_at_m0800	978328800
+uts_a_at_m0400	978328800
+uts_a_at_m0200	978328800
+uts_a_at_m0100	978328800
+uts_a_at__0000	978328800
+uts_a_at_p0100	978328800
+uts_a_at_p0200	978328800
+uts_a_at_p0400	978328800
+uts_a_at_p0800	978328800
+Query	SELECT * FROM v_extract_ds
+a	2001-01-01 10:00:00
+eds_a_at__none	1100000
+eds_a_at_m0800	31220000
+eds_a_at_m0400	1020000
+eds_a_at_m0200	1040000
+eds_a_at_m0100	1050000
+eds_a_at__0000	1060000
+eds_a_at_p0100	1070000
+eds_a_at_p0200	1080000
+eds_a_at_p0400	1100000
+eds_a_at_p0800	1140000
+Query	SELECT * FROM v_cast_as_datetime
+a	2001-01-01 10:00:00
+cdt_a_at__none	2001-01-01 10:00:00
+cdt_a_at_m0800	2000-12-31 22:00:00
+cdt_a_at_m0400	2001-01-01 02:00:00
+cdt_a_at_m0200	2001-01-01 04:00:00
+cdt_a_at_m0100	2001-01-01 05:00:00
+cdt_a_at__0000	2001-01-01 06:00:00
+cdt_a_at_p0100	2001-01-01 07:00:00
+cdt_a_at_p0200	2001-01-01 08:00:00
+cdt_a_at_p0400	2001-01-01 10:00:00
+cdt_a_at_p0800	2001-01-01 14:00:00
+Query	SELECT * FROM v_cast_as_date
+a	2001-01-01 10:00:00
+cdd_a_at__none	2001-01-01
+cdd_a_at_m0800	2000-12-31
+cdd_a_at_m0400	2001-01-01
+cdd_a_at_m0200	2001-01-01
+cdd_a_at_m0100	2001-01-01
+cdd_a_at__0000	2001-01-01
+cdd_a_at_p0100	2001-01-01
+cdd_a_at_p0200	2001-01-01
+cdd_a_at_p0400	2001-01-01
+cdd_a_at_p0800	2001-01-01
+Query	SELECT * FROM v_cast_as_time
+a	2001-01-01 10:00:00
+ctm_a_at__none	10:00:00
+ctm_a_at_m0800	22:00:00
+ctm_a_at_m0400	02:00:00
+ctm_a_at_m0200	04:00:00
+ctm_a_at_m0100	05:00:00
+ctm_a_at__0000	06:00:00
+ctm_a_at_p0100	07:00:00
+ctm_a_at_p0200	08:00:00
+ctm_a_at_p0400	10:00:00
+ctm_a_at_p0800	14:00:00
+Query	SELECT * FROM v_cast_as_unsigned
+a	2001-01-01 10:00:00
+cui_a_at__none	20010101100000
+cui_a_at_m0800	20001231220000
+cui_a_at_m0400	20010101020000
+cui_a_at_m0200	20010101040000
+cui_a_at_m0100	20010101050000
+cui_a_at__0000	20010101060000
+cui_a_at_p0100	20010101070000
+cui_a_at_p0200	20010101080000
+cui_a_at_p0400	20010101100000
+cui_a_at_p0800	20010101140000
+Query	SELECT * FROM v_cast_as_decimal_14_0
+a	2001-01-01 10:00:00
+cdc_a_at__none	20010101100000
+cdc_a_at_m0800	20001231220000
+cdc_a_at_m0400	20010101020000
+cdc_a_at_m0200	20010101040000
+cdc_a_at_m0100	20010101050000
+cdc_a_at__0000	20010101060000
+cdc_a_at_p0100	20010101070000
+cdc_a_at_p0200	20010101080000
+cdc_a_at_p0400	20010101100000
+cdc_a_at_p0800	20010101140000
+Query	SELECT * FROM v_cast_as_double
+a	2001-01-01 10:00:00
+cdb_a_at__none	20010101100000
+cdb_a_at_m0800	20001231220000
+cdb_a_at_m0400	20010101020000
+cdb_a_at_m0200	20010101040000
+cdb_a_at_m0100	20010101050000
+cdb_a_at__0000	20010101060000
+cdb_a_at_p0100	20010101070000
+cdb_a_at_p0200	20010101080000
+cdb_a_at_p0400	20010101100000
+cdb_a_at_p0800	20010101140000
+SET time_zone='+05:00';
+CALL query_all_views();
+Query	SELECT * FROM v_a
+a	2001-01-01 10:00:00
+a_at_m0800	2000-12-31 21:00:00 -08:00
+a_at_m0400	2001-01-01 01:00:00 -04:00
+a_at_m0200	2001-01-01 03:00:00 -02:00
+a_at_m0100	2001-01-01 04:00:00 -01:00
+a_at__0000	2001-01-01 05:00:00 +00:00
+a_at_p0100	2001-01-01 06:00:00 +01:00
+a_at_p0200	2001-01-01 07:00:00 +02:00
+a_at_p0400	2001-01-01 09:00:00 +04:00
+a_at_p0800	2001-01-01 13:00:00 +08:00
+Query	SELECT * FROM v_concat
+a	2001-01-01 10:00:00
+con_a_at_m0800	2000-12-31 21:00:00 -08:00
+con_a_at_m0400	2001-01-01 01:00:00 -04:00
+con_a_at_m0200	2001-01-01 03:00:00 -02:00
+con_a_at_m0100	2001-01-01 04:00:00 -01:00
+con_a_at__0000	2001-01-01 05:00:00 +00:00
+con_a_at_p0100	2001-01-01 06:00:00 +01:00
+con_a_at_p0200	2001-01-01 07:00:00 +02:00
+con_a_at_p0400	2001-01-01 09:00:00 +04:00
+con_a_at_p0800	2001-01-01 13:00:00 +08:00
+Query	SELECT * FROM v_unix_time
+a	2001-01-01 10:00:00
+uts_a_at__none	978325200
+uts_a_at_m0800	978325200
+uts_a_at_m0400	978325200
+uts_a_at_m0200	978325200
+uts_a_at_m0100	978325200
+uts_a_at__0000	978325200
+uts_a_at_p0100	978325200
+uts_a_at_p0200	978325200
+uts_a_at_p0400	978325200
+uts_a_at_p0800	978325200
+Query	SELECT * FROM v_extract_ds
+a	2001-01-01 10:00:00
+eds_a_at__none	1100000
+eds_a_at_m0800	31210000
+eds_a_at_m0400	1010000
+eds_a_at_m0200	1030000
+eds_a_at_m0100	1040000
+eds_a_at__0000	1050000
+eds_a_at_p0100	1060000
+eds_a_at_p0200	1070000
+eds_a_at_p0400	1090000
+eds_a_at_p0800	1130000
+Query	SELECT * FROM v_cast_as_datetime
+a	2001-01-01 10:00:00
+cdt_a_at__none	2001-01-01 10:00:00
+cdt_a_at_m0800	2000-12-31 21:00:00
+cdt_a_at_m0400	2001-01-01 01:00:00
+cdt_a_at_m0200	2001-01-01 03:00:00
+cdt_a_at_m0100	2001-01-01 04:00:00
+cdt_a_at__0000	2001-01-01 05:00:00
+cdt_a_at_p0100	2001-01-01 06:00:00
+cdt_a_at_p0200	2001-01-01 07:00:00
+cdt_a_at_p0400	2001-01-01 09:00:00
+cdt_a_at_p0800	2001-01-01 13:00:00
+Query	SELECT * FROM v_cast_as_date
+a	2001-01-01 10:00:00
+cdd_a_at__none	2001-01-01
+cdd_a_at_m0800	2000-12-31
+cdd_a_at_m0400	2001-01-01
+cdd_a_at_m0200	2001-01-01
+cdd_a_at_m0100	2001-01-01
+cdd_a_at__0000	2001-01-01
+cdd_a_at_p0100	2001-01-01
+cdd_a_at_p0200	2001-01-01
+cdd_a_at_p0400	2001-01-01
+cdd_a_at_p0800	2001-01-01
+Query	SELECT * FROM v_cast_as_time
+a	2001-01-01 10:00:00
+ctm_a_at__none	10:00:00
+ctm_a_at_m0800	21:00:00
+ctm_a_at_m0400	01:00:00
+ctm_a_at_m0200	03:00:00
+ctm_a_at_m0100	04:00:00
+ctm_a_at__0000	05:00:00
+ctm_a_at_p0100	06:00:00
+ctm_a_at_p0200	07:00:00
+ctm_a_at_p0400	09:00:00
+ctm_a_at_p0800	13:00:00
+Query	SELECT * FROM v_cast_as_unsigned
+a	2001-01-01 10:00:00
+cui_a_at__none	20010101100000
+cui_a_at_m0800	20001231210000
+cui_a_at_m0400	20010101010000
+cui_a_at_m0200	20010101030000
+cui_a_at_m0100	20010101040000
+cui_a_at__0000	20010101050000
+cui_a_at_p0100	20010101060000
+cui_a_at_p0200	20010101070000
+cui_a_at_p0400	20010101090000
+cui_a_at_p0800	20010101130000
+Query	SELECT * FROM v_cast_as_decimal_14_0
+a	2001-01-01 10:00:00
+cdc_a_at__none	20010101100000
+cdc_a_at_m0800	20001231210000
+cdc_a_at_m0400	20010101010000
+cdc_a_at_m0200	20010101030000
+cdc_a_at_m0100	20010101040000
+cdc_a_at__0000	20010101050000
+cdc_a_at_p0100	20010101060000
+cdc_a_at_p0200	20010101070000
+cdc_a_at_p0400	20010101090000
+cdc_a_at_p0800	20010101130000
+Query	SELECT * FROM v_cast_as_double
+a	2001-01-01 10:00:00
+cdb_a_at__none	20010101100000
+cdb_a_at_m0800	20001231210000
+cdb_a_at_m0400	20010101010000
+cdb_a_at_m0200	20010101030000
+cdb_a_at_m0100	20010101040000
+cdb_a_at__0000	20010101050000
+cdb_a_at_p0100	20010101060000
+cdb_a_at_p0200	20010101070000
+cdb_a_at_p0400	20010101090000
+cdb_a_at_p0800	20010101130000
+DELETE FROM t1;
+DROP PROCEDURE query_all_views;
+DROP PROCEDURE exec;
+DROP VIEW v_a;
+DROP VIEW v_concat;
+DROP VIEW v_unix_time;
+DROP VIEW v_extract_ds;
+DROP VIEW v_cast_as_datetime;
+DROP VIEW v_cast_as_date;
+DROP VIEW v_cast_as_time;
+DROP VIEW v_cast_as_unsigned;
+DROP VIEW v_cast_as_decimal_14_0;
+DROP VIEW v_cast_as_double;
+DROP TABLE t1;
+SET time_zone=DEFAULT;
+#
+# Hybrid functions
+#
+SET time_zone='+04:00';
+CREATE TABLE t1 (a TIMESTAMP NULL);
+INSERT INTO t1 VALUES (NULL),('2001-01-01 10:00:00');
+SELECT
+a,
+a AT TIME ZONE '+04:00' AS a1,
+COALESCE(a AT TIME ZONE '+04:00',
+'2002-01-01 10:00:00' AT TIME ZONE '+00:00') AS a2
+FROM t1;
+a	NULL
+a1	NULL
+a2	2002-01-01 06:00:00 +00:00
+a	2001-01-01 10:00:00
+a1	2001-01-01 10:00:00 +04:00
+a2	2001-01-01 10:00:00 +04:00
+DROP TABLE t1;
+SET time_zone=DEFAULT;
+#
+# End of 10.5 tests
+#

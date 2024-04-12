@@ -551,12 +551,28 @@ col1	col2	col3	col4	vgc1	sgc1
 1	10	100	NULL	1000	-90
 2	20	200	NULL	4000	-180
 ALTER TABLE t1 MODIFY COLUMN sgc1 INTEGER AS (col2 / col3) STORED;
+Warnings:
+Warning	1901	Function or expression '`col2` / `col3`' cannot be used in the GENERATED ALWAYS AS clause of `sgc1`
+Warning	1105	Expression depends on @@div_precision_increment
+Warning	1901	Function or expression '`col2` / `col3`' cannot be used in the GENERATED ALWAYS AS clause of `sgc1`
+Warning	1105	Expression depends on @@div_precision_increment
+Warning	1901	Function or expression '`col2` / `col3`' cannot be used in the GENERATED ALWAYS AS clause of `sgc1`
+Warning	1105	Expression depends on @@div_precision_increment
 SELECT * FROM t1 order by col1;
 col1	col2	col3	col4	vgc1	sgc1
 1	10	100	NULL	1000	0
 2	20	200	NULL	4000	0
+Warnings:
+Warning	1901	Function or expression '`col2` / `col3`' cannot be used in the GENERATED ALWAYS AS clause of `sgc1`
+Warning	1105	Expression depends on @@div_precision_increment
 ALTER TABLE t1 MODIFY COLUMN vgc1 INTEGER AS (col2 + col3) VIRTUAL;
+Warnings:
+Warning	1901	Function or expression '`col2` / `col3`' cannot be used in the GENERATED ALWAYS AS clause of `sgc1`
+Warning	1105	Expression depends on @@div_precision_increment
 ALTER TABLE t1 MODIFY COLUMN sgc1 INTEGER AS (col2 - col3) STORED;
+Warnings:
+Warning	1901	Function or expression '`col2` / `col3`' cannot be used in the GENERATED ALWAYS AS clause of `sgc1`
+Warning	1105	Expression depends on @@div_precision_increment
 ALTER TABLE t1 ADD INDEX vgc1 (vgc1);
 ALTER TABLE t1 ADD INDEX sgc1 (sgc1);
 ALTER TABLE t1 MODIFY COLUMN vgc1 INTEGER AS (col2 * col3) VIRTUAL;
@@ -569,19 +585,62 @@ vgc1
 1000
 4000
 ALTER TABLE t1 MODIFY COLUMN sgc1 INTEGER AS (col2 / col3) STORED;
+Warnings:
+Warning	1901	Function or expression '`col2` / `col3`' cannot be used in the GENERATED ALWAYS AS clause of `sgc1`
+Warning	1105	Expression depends on @@div_precision_increment
+Warning	1901	Function or expression '`col2` / `col3`' cannot be used in the GENERATED ALWAYS AS clause of `sgc1`
+Warning	1105	Expression depends on @@div_precision_increment
+Warning	1901	Function or expression '`col2` / `col3`' cannot be used in the GENERATED ALWAYS AS clause of `sgc1`
+Warning	1105	Expression depends on @@div_precision_increment
 SELECT * FROM t1 order by col1;
 col1	col2	col3	col4	vgc1	sgc1
 1	10	100	NULL	1000	0
 2	20	200	NULL	4000	0
+Warnings:
+Warning	1901	Function or expression '`col2` / `col3`' cannot be used in the GENERATED ALWAYS AS clause of `sgc1`
+Warning	1105	Expression depends on @@div_precision_increment
 SELECT sgc1 FROM t1 order by sgc1;
 sgc1
 0
 0
 ALTER TABLE t1 DROP INDEX vgc1;
+Warnings:
+Warning	1901	Function or expression '`col2` / `col3`' cannot be used in the GENERATED ALWAYS AS clause of `sgc1`
+Warning	1105	Expression depends on @@div_precision_increment
+Warning	1901	Function or expression '`col2` / `col3`' cannot be used in the GENERATED ALWAYS AS clause of `sgc1`
+Warning	1105	Expression depends on @@div_precision_increment
+Warning	1901	Function or expression '`col2` / `col3`' cannot be used in the GENERATED ALWAYS AS clause of `sgc1`
+Warning	1105	Expression depends on @@div_precision_increment
 ALTER TABLE t1 DROP INDEX sgc1;
+Warnings:
+Warning	1901	Function or expression '`col2` / `col3`' cannot be used in the GENERATED ALWAYS AS clause of `sgc1`
+Warning	1105	Expression depends on @@div_precision_increment
+Warning	1901	Function or expression '`col2` / `col3`' cannot be used in the GENERATED ALWAYS AS clause of `sgc1`
+Warning	1105	Expression depends on @@div_precision_increment
+Warning	1901	Function or expression '`col2` / `col3`' cannot be used in the GENERATED ALWAYS AS clause of `sgc1`
+Warning	1105	Expression depends on @@div_precision_increment
+Warning	1901	Function or expression '`col2` / `col3`' cannot be used in the GENERATED ALWAYS AS clause of `sgc1`
+Warning	1105	Expression depends on @@div_precision_increment
 ALTER TABLE t1 MODIFY COLUMN vgc1 INTEGER AS (col2 + col3) VIRTUAL;
+Warnings:
+Warning	1901	Function or expression '`col2` / `col3`' cannot be used in the GENERATED ALWAYS AS clause of `sgc1`
+Warning	1105	Expression depends on @@div_precision_increment
+Warning	1901	Function or expression '`col2` / `col3`' cannot be used in the GENERATED ALWAYS AS clause of `sgc1`
+Warning	1105	Expression depends on @@div_precision_increment
 ALTER TABLE t1 ADD UNIQUE INDEX vgc1 (vgc1);
+Warnings:
+Warning	1901	Function or expression '`col2` / `col3`' cannot be used in the GENERATED ALWAYS AS clause of `sgc1`
+Warning	1105	Expression depends on @@div_precision_increment
+Warning	1901	Function or expression '`col2` / `col3`' cannot be used in the GENERATED ALWAYS AS clause of `sgc1`
+Warning	1105	Expression depends on @@div_precision_increment
+Warning	1901	Function or expression '`col2` / `col3`' cannot be used in the GENERATED ALWAYS AS clause of `sgc1`
+Warning	1105	Expression depends on @@div_precision_increment
+Warning	1901	Function or expression '`col2` / `col3`' cannot be used in the GENERATED ALWAYS AS clause of `sgc1`
+Warning	1105	Expression depends on @@div_precision_increment
 ALTER TABLE t1 MODIFY COLUMN sgc1 INTEGER AS (col2 - col3) STORED;
+Warnings:
+Warning	1901	Function or expression '`col2` / `col3`' cannot be used in the GENERATED ALWAYS AS clause of `sgc1`
+Warning	1105	Expression depends on @@div_precision_increment
 ALTER TABLE t1 ADD UNIQUE INDEX sgc1 (sgc1);
 ALTER TABLE t1 MODIFY COLUMN vgc1 INTEGER AS (col2 / col3) VIRTUAL;
 ERROR 23000: Duplicate entry '0' for key 'vgc1'

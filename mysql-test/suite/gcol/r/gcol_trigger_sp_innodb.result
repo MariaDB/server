@@ -2,6 +2,9 @@ SET @@session.default_storage_engine = 'InnoDB';
 create table t1 (a int,
 b int generated always as (a/10) virtual,
 c int generated always as (a/10) stored);
+Warnings:
+Warning	1901	Function or expression '`a` / 10' cannot be used in the GENERATED ALWAYS AS clause of `c`
+Warning	1105	Expression depends on @@div_precision_increment
 create table t2 (a timestamp);
 create trigger trg1 before insert on t1 for each row
 begin
@@ -14,12 +17,18 @@ if (new.c > 50) then
 set new.a:= 500;
 end if;
 end|
+Warnings:
+Warning	1901	Function or expression '`a` / 10' cannot be used in the GENERATED ALWAYS AS clause of `c`
+Warning	1105	Expression depends on @@div_precision_increment
 create trigger trg2 after insert on t1 for each row
 begin
 if (new.b >= 60) then
 insert into t2 values (now());
 end if;
 end|
+Warnings:
+Warning	1901	Function or expression '`a` / 10' cannot be used in the GENERATED ALWAYS AS clause of `c`
+Warning	1105	Expression depends on @@div_precision_increment
 create function f1()
 returns int
 begin
@@ -32,6 +41,9 @@ return sum1;
 end|
 set sql_warnings = 1;
 insert into t1 (a) values (200);
+Warnings:
+Warning	1901	Function or expression '`a` / 10' cannot be used in the GENERATED ALWAYS AS clause of `c`
+Warning	1105	Expression depends on @@div_precision_increment
 select * from t1;
 a	b	c
 200	20	20
@@ -58,6 +70,9 @@ f1()
 set sql_warnings = 0;
 drop trigger trg1;
 drop trigger trg2;
+Warnings:
+Warning	1901	Function or expression '`a` / 10' cannot be used in the GENERATED ALWAYS AS clause of `c`
+Warning	1105	Expression depends on @@div_precision_increment
 drop table t2;
 create procedure p1()
 begin
@@ -75,6 +90,9 @@ end if;
 end;
 end|
 delete from t1;
+Warnings:
+Warning	1901	Function or expression '`a` / 10' cannot be used in the GENERATED ALWAYS AS clause of `c`
+Warning	1105	Expression depends on @@div_precision_increment
 call p1();
 select * from t2;
 a	b	c

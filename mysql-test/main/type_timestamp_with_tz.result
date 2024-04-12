@@ -1,0 +1,423 @@
+SET time_zone='+04:00';
+CREATE TABLE t1 AS SELECT '2001-01-01 10:00:00' AT TIME ZONE '+00:00' AS c1;
+ERROR HY000: Illegal parameter data type timestamp with time zone for operation 'CREATE TABLE'
+SELECT POINT(1,1) AT TIME ZONE '+00:00';
+ERROR HY000: Illegal parameter data type point for operation 'AT TIME ZONE'
+SELECT ROW(1,1) AT TIME ZONE '+00:00';
+ERROR HY000: Illegal parameter data type row for operation 'AT TIME ZONE'
+#
+# ORDER BY
+#
+CREATE TABLE t1 (a datetime);
+INSERT INTO t1 VALUES ('2001-01-01 00:00:00'),('2001-01-01 00:00:01');
+SELECT TIMESTAMP_TZ(a,'+00:00') AS a1 FROM t1 ORDER BY a1;
+a1
+2001-01-01 00:00:00 +00:00
+2001-01-01 00:00:01 +00:00
+SELECT TIMESTAMP_TZ(a,'+00:00') AS a1 FROM t1 ORDER BY a1 DESC;
+a1
+2001-01-01 00:00:01 +00:00
+2001-01-01 00:00:00 +00:00
+ANALYZE FORMAT=JSON
+SELECT TIMESTAMP_TZ(a,'+00:00') AS a1 FROM t1 ORDER BY a1;
+ANALYZE
+{
+  "query_block": {
+    "select_id": 1,
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "read_sorted_file": {
+      "r_rows": 2,
+      "filesort": {
+        "sort_key": "timestamp_tz(t1.a,'+00:00')",
+        "r_loops": 1,
+        "r_total_time_ms": "REPLACED",
+        "r_used_priority_queue": false,
+        "r_output_rows": 2,
+        "r_buffer_size": "REPLACED",
+        "r_sort_mode": "sort_key,addon_fields",
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "r_loops": 1,
+          "rows": 2,
+          "r_rows": 2,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "filtered": 100,
+          "r_filtered": 100
+        }
+      }
+    }
+  }
+}
+DROP TABLE t1;
+CREATE TABLE t1 (a datetime, b text character set utf8);
+INSERT INTO t1 VALUES ('2001-01-01 00:00:00',''),('2001-01-01 00:00:01','');
+SELECT TIMESTAMP_TZ(a,'+00:00') AS a1 FROM t1 ORDER BY a1, b;
+a1
+2001-01-01 00:00:00 +00:00
+2001-01-01 00:00:01 +00:00
+SELECT TIMESTAMP_TZ(a,'+00:00') AS a1 FROM t1 ORDER BY a1 DESC, b;
+a1
+2001-01-01 00:00:01 +00:00
+2001-01-01 00:00:00 +00:00
+ANALYZE FORMAT=JSON
+SELECT TIMESTAMP_TZ(a,'+00:00') AS a1 FROM t1 ORDER BY a1, b;
+ANALYZE
+{
+  "query_block": {
+    "select_id": 1,
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "read_sorted_file": {
+      "r_rows": 2,
+      "filesort": {
+        "sort_key": "timestamp_tz(t1.a,'+00:00'), t1.b",
+        "r_loops": 1,
+        "r_total_time_ms": "REPLACED",
+        "r_used_priority_queue": false,
+        "r_output_rows": 2,
+        "r_buffer_size": "REPLACED",
+        "r_sort_mode": "packed_sort_key,rowid",
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "r_loops": 1,
+          "rows": 2,
+          "r_rows": 2,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "filtered": 100,
+          "r_filtered": 100
+        }
+      }
+    }
+  }
+}
+DROP TABLE t1;
+#
+# Comparison
+#
+SELECT TIMESTAMP_TZ('2001-01-01 06:00:00','+00:00')=
+TIMESTAMP_TZ('2001-01-01 10:00:00','+04:00') AS c1;
+c1
+1
+SELECT TIMESTAMP_TZ('2001-01-01 06:00:00','+00:00')<
+TIMESTAMP_TZ('2001-01-01 10:00:01','+04:00') AS c1;
+c1
+1
+SELECT TIMESTAMP_TZ('2001-01-01 06:00:01','+00:00')>
+TIMESTAMP_TZ('2001-01-01 10:00:00','+04:00') AS c1;
+c1
+1
+SELECT TIMESTAMP_TZ('2001-01-01 06:00:00.1','+00:00')=
+TIMESTAMP_TZ('2001-01-01 10:00:00.1','+04:00') AS c1;
+c1
+1
+SELECT TIMESTAMP_TZ('2001-01-01 06:00:00.0','+00:00')<
+TIMESTAMP_TZ('2001-01-01 10:00:00.1','+04:00') AS c1;
+c1
+1
+SELECT TIMESTAMP_TZ('2001-01-01 06:00:00.1','+00:00')>
+TIMESTAMP_TZ('2001-01-01 10:00:00.0','+04:00') AS c1;
+c1
+1
+#
+# BETWEEN
+#
+SELECT
+TIMESTAMP_TZ('2001-01-01 06:00:00.0','+00:00') BETWEEN
+TIMESTAMP_TZ('2001-01-01 10:00:00.0','+04:00') AND
+TIMESTAMP_TZ('2001-01-01 10:00:00.0','+04:00') AS c1;
+c1
+1
+SELECT
+TIMESTAMP_TZ('2001-01-01 06:00:00.1','+00:00') BETWEEN
+TIMESTAMP_TZ('2001-01-01 10:00:00.0','+04:00') AND
+TIMESTAMP_TZ('2001-01-01 10:00:00.0','+04:00') AS c1;
+c1
+0
+SELECT
+TIMESTAMP_TZ('2001-01-01 06:00:00.0','+00:00') BETWEEN
+TIMESTAMP_TZ('2001-01-01 10:00:00.1','+04:00') AND
+TIMESTAMP_TZ('2001-01-01 10:00:00.0','+04:00') AS c1;
+c1
+0
+SELECT
+TIMESTAMP_TZ('2001-01-01 06:00:00.1','+00:00') BETWEEN
+TIMESTAMP_TZ('2001-01-01 10:00:00.1','+04:00') AND
+TIMESTAMP_TZ('2001-01-01 10:00:00.0','+04:00') AS c1;
+c1
+0
+SELECT
+TIMESTAMP_TZ('2001-01-01 06:00:00.0','+00:00') BETWEEN
+TIMESTAMP_TZ('2001-01-01 10:00:00.0','+04:00') AND
+TIMESTAMP_TZ('2001-01-01 10:00:00.1','+04:00') AS c1;
+c1
+1
+SELECT
+TIMESTAMP_TZ('2001-01-01 06:00:00.1','+00:00') BETWEEN
+TIMESTAMP_TZ('2001-01-01 10:00:00.0','+04:00') AND
+TIMESTAMP_TZ('2001-01-01 10:00:00.1','+04:00') AS c1;
+c1
+1
+SELECT
+TIMESTAMP_TZ('2001-01-01 06:00:00.0','+00:00') BETWEEN
+TIMESTAMP_TZ('2001-01-01 10:00:00.1','+04:00') AND
+TIMESTAMP_TZ('2001-01-01 10:00:00.1','+04:00') AS c1;
+c1
+0
+SELECT
+TIMESTAMP_TZ('2001-01-01 06:00:00.1','+00:00') BETWEEN
+TIMESTAMP_TZ('2001-01-01 10:00:00.1','+04:00') AND
+TIMESTAMP_TZ('2001-01-01 10:00:00.1','+04:00') AS c1;
+c1
+1
+SELECT
+TIMESTAMP_TZ('2001-01-01 06:00:00.1'     ,'+00:00') BETWEEN
+TIMESTAMP_TZ('2001-01-01 10:00:00.0'     ,'+04:00') AND
+TIMESTAMP_TZ('2001-01-01 10:00:00.999999','+04:00') AS c1;
+c1
+1
+SELECT
+TIMESTAMP_TZ('2001-01-01 06:00:00.1'     ,'+00:00') BETWEEN
+TIMESTAMP_TZ('2001-01-01 10:00:00.11'    ,'+04:00') AND
+TIMESTAMP_TZ('2001-01-01 10:00:00.999999','+04:00') AS c1;
+c1
+0
+#
+# IN
+#
+CREATE TABLE t1 (a datetime);
+INSERT INTO t1 VALUES ('2001-01-01 00:00:00'),('2001-01-01 00:00:01');
+SELECT
+a,
+TIMESTAMP_TZ(a, '+00:00') IN (
+TIMESTAMP_TZ('2001-01-01 04:00:00','+04:00'),
+TIMESTAMP_TZ('2001-01-01 00:00:00','+04:00')) AS c1
+FROM t1;
+a	c1
+2001-01-01 00:00:00	1
+2001-01-01 00:00:01	0
+SELECT
+a,
+TIMESTAMP_TZ(a, '+00:00') IN (
+TIMESTAMP_TZ('2001-01-01 00:00:00','+04:00'),
+TIMESTAMP_TZ('2001-01-01 04:00:00','+04:00')) AS c1
+FROM t1;
+a	c1
+2001-01-01 00:00:00	1
+2001-01-01 00:00:01	0
+SELECT
+a,
+ROW(1, TIMESTAMP_TZ(a, '+00:00')) IN (
+ROW(1,TIMESTAMP_TZ('2001-01-01 04:00:00','+04:00')),
+ROW(1,TIMESTAMP_TZ('2001-01-01 00:00:00','+04:00'))) AS c1
+FROM t1;
+a	c1
+2001-01-01 00:00:00	1
+2001-01-01 00:00:01	0
+SELECT
+a,
+ROW(1,TIMESTAMP_TZ(a, '+00:00')) IN (
+ROW(1,TIMESTAMP_TZ('2001-01-01 00:00:00','+04:00')),
+ROW(1,TIMESTAMP_TZ('2001-01-01 04:00:00','+04:00'))) AS c1
+FROM t1;
+a	c1
+2001-01-01 00:00:00	1
+2001-01-01 00:00:01	0
+DROP TABLE t1;
+#
+# Unary operations
+#
+SELECT ROUND('2001-01-01 10:00:00' AT TIME ZONE '+00:00');
+ERROR HY000: Illegal parameter data type timestamp with time zone for operation 'round'
+SELECT FLOOR('2001-01-01 10:00:00' AT TIME ZONE '+00:00');
+ERROR HY000: Illegal parameter data type timestamp with time zone for operation 'floor'
+SELECT CEILING('2001-01-01 10:00:00' AT TIME ZONE '+00:00');
+ERROR HY000: Illegal parameter data type timestamp with time zone for operation 'ceiling'
+SELECT ABS('2001-01-01 10:00:00' AT TIME ZONE '+00:00');
+ERROR HY000: Illegal parameter data type timestamp with time zone for operation 'abs'
+SELECT -('2001-01-01 10:00:00' AT TIME ZONE '+00:00');
+ERROR HY000: Illegal parameter data type timestamp with time zone for operation '-'
+#
+# Dyadic operations
+#
+SELECT '2001-01-01 10:00:00' AT TIME ZONE '+00:00' + 1;
+ERROR HY000: Illegal parameter data types timestamp with time zone and int for operation '+'
+SELECT '2001-01-01 10:00:00' AT TIME ZONE '+00:00' - 1;
+ERROR HY000: Illegal parameter data types timestamp with time zone and int for operation '-'
+SELECT '2001-01-01 10:00:00' AT TIME ZONE '+00:00' * 1;
+ERROR HY000: Illegal parameter data types timestamp with time zone and int for operation '*'
+SELECT '2001-01-01 10:00:00' AT TIME ZONE '+00:00' / 1;
+ERROR HY000: Illegal parameter data types timestamp with time zone and int for operation '/'
+SELECT '2001-01-01 10:00:00' AT TIME ZONE '+00:00' MOD 1;
+ERROR HY000: Illegal parameter data types timestamp with time zone and int for operation 'MOD'
+SELECT 1 + '2001-01-01 10:00:00' AT TIME ZONE '+00:00';
+ERROR HY000: Illegal parameter data types int and timestamp with time zone for operation '+'
+SELECT 1 - '2001-01-01 10:00:00' AT TIME ZONE '+00:00';
+ERROR HY000: Illegal parameter data types int and timestamp with time zone for operation '-'
+SELECT 1 * '2001-01-01 10:00:00' AT TIME ZONE '+00:00';
+ERROR HY000: Illegal parameter data types int and timestamp with time zone for operation '*'
+SELECT 1 / '2001-01-01 10:00:00' AT TIME ZONE '+00:00';
+ERROR HY000: Illegal parameter data types int and timestamp with time zone for operation '/'
+SELECT 1 MOD '2001-01-01 10:00:00' AT TIME ZONE '+00:00';
+ERROR HY000: Illegal parameter data types int and timestamp with time zone for operation 'MOD'
+#
+# LEAST/GREATEST
+#
+SELECT LEAST('2001-01-01 10:00:00' AT TIME ZONE '+00:00', 1);
+ERROR HY000: Illegal parameter data types timestamp with time zone and int for operation 'least'
+SELECT GREATEST('2001-01-01 10:00:00' AT TIME ZONE '+00:00', 1);
+ERROR HY000: Illegal parameter data types timestamp with time zone and int for operation 'greatest'
+SELECT GREATEST(1, '2001-01-01 10:00:00' AT TIME ZONE '+00:00');
+ERROR HY000: Illegal parameter data types int and timestamp with time zone for operation 'greatest'
+SELECT LEAST('2001-01-01 10:00:00' AT TIME ZONE '+00:00', '');
+ERROR HY000: Illegal parameter data types timestamp with time zone and varchar for operation 'least'
+SELECT GREATEST('', '2001-01-01 10:00:00' AT TIME ZONE '+00:00');
+ERROR HY000: Illegal parameter data types varchar and timestamp with time zone for operation 'greatest'
+SELECT LEAST('2001-01-01 10:00:00' AT TIME ZONE '+00:00',
+'2001-01-01 10:00:00' AT TIME ZONE '+00:00') AS c1;
+c1
+2001-01-01 06:00:00 +00:00
+SELECT LEAST('2001-01-01 10:00:00' AT TIME ZONE '+00:00', NULL) AS c1;
+c1
+NULL
+SELECT LEAST(NULL, '2001-01-01 10:00:00' AT TIME ZONE '+00:00') AS c1;
+c1
+NULL
+SELECT GREATEST('2001-01-01 10:00:00' AT TIME ZONE '+00:00',
+'2001-01-01 10:00:00' AT TIME ZONE '+00:00') AS c1;
+c1
+2001-01-01 06:00:00 +00:00
+SELECT GREATEST('2001-01-01 10:00:00' AT TIME ZONE '+00:00', NULL) AS c1;
+c1
+NULL
+SELECT GREATEST(NULL, '2001-01-01 10:00:00' AT TIME ZONE '+00:00') AS c1;
+c1
+NULL
+CREATE TABLE t1 (a DATETIME(6));
+INSERT INTO t1 VALUES ('2001-01-01 00:00:00'),('2001-01-01 00:00:00.999999');
+SELECT LEAST(a, TIMESTAMP_TZ(a,'+00:00')) FROM t1;
+ERROR HY000: Illegal parameter data types datetime and timestamp with time zone for operation 'least'
+SELECT
+a,
+LEAST(TIMESTAMP_TZ(a,'+00:00'),
+TIMESTAMP_TZ('2001-01-01 04:00:00.999000','+04:00')) AS l
+FROM t1;
+a	l
+2001-01-01 00:00:00.000000	2001-01-01 00:00:00.000000 +00:00
+2001-01-01 00:00:00.999999	2001-01-01 04:00:00.999000 +04:00
+DROP TABLE t1;
+#
+# Hybrid functions
+#
+SELECT COALESCE('2001-01-01 10:00:00' AT TIME ZONE '+00:00', NULL) AS c1;
+c1
+2001-01-01 06:00:00 +00:00
+SELECT COALESCE(NULL, '2001-01-01 10:00:00' AT TIME ZONE '+00:00') AS c1;
+c1
+2001-01-01 06:00:00 +00:00
+#
+# CASE
+#
+CREATE TABLE t1 (a DATETIME(6));
+INSERT INTO t1 VALUES
+('2001-01-01 00:00:00'),
+('2001-01-01 04:00:00'),
+('2001-01-01 00:00:00.999999');
+SELECT
+a,
+CASE TIMESTAMP_TZ(a,'+00:00')
+WHEN TIMESTAMP_TZ('2001-01-01 04:00:00','+00:00') THEN 1
+WHEN TIMESTAMP_TZ('2001-01-01 04:00:00','+04:00') THEN 4
+ELSE 0
+END AS c1
+FROM t1;
+a	c1
+2001-01-01 00:00:00.000000	4
+2001-01-01 04:00:00.000000	1
+2001-01-01 00:00:00.999999	0
+DROP TABLE t1;
+#
+# GROUP BY
+#
+SET time_zone='+04:00';
+CREATE OR REPLACE TABLE t1 (a INT, b TIMESTAMP) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1,'2018-06-19 00:00:00');
+SELECT NULLIF(TIMESTAMP_TZ(b,'+00:00'), NULL) AS f, MAX(a) FROM t1 GROUP BY f;
+f	MAX(a)
+2018-06-18 20:00:00 +00:00	1
+DROP TABLE t1;
+SET time_zone=DEFAULT;
+#
+# MIN and MAX
+#
+CREATE TABLE t1 (a DATETIME(6));
+INSERT INTO t1 VALUES
+('2001-01-01 00:00:00'),
+('2001-01-01 00:00:00.999999');
+SELECT MIN(TIMESTAMP_TZ(a, '+00:00')) FROM t1;
+MIN(TIMESTAMP_TZ(a, '+00:00'))
+2001-01-01 00:00:00.000000 +00:00
+SELECT MAX(TIMESTAMP_TZ(a, '+00:00')) FROM t1;
+MAX(TIMESTAMP_TZ(a, '+00:00'))
+2001-01-01 00:00:00.999999 +00:00
+DROP TABLE t1;
+#
+# Subselect
+#
+CREATE TABLE t1 (a DATETIME(6));
+INSERT INTO t1 VALUES
+('2001-01-01 00:00:00'),
+('2001-01-01 00:00:00.999999');
+SELECT 1=(SELECT TIMESTAMP_TZ(a,'+00:00') FROM t1 GROUP BY a LIMIT 1);
+ERROR HY000: Illegal parameter data types int and timestamp with time zone for operation '='
+SELECT TIMESTAMP_TZ('2001-01-01 00:00:00.999999','+00:00')=
+(SELECT TIMESTAMP_TZ(a,'+00:00') FROM t1 GROUP BY a LIMIT 1) AS c1;
+c1
+0
+SELECT TIMESTAMP_TZ('2001-01-01 00:00:00.999999','+00:00')=
+(SELECT TIMESTAMP_TZ(a,'+00:00') FROM t1 GROUP BY a ORDER BY a DESC LIMIT 1) AS c1;
+c1
+1
+SELECT (SELECT TIMESTAMP_TZ(a,'+00:00') FROM t1 ORDER BY a LIMIT 1) <
+(SELECT TIMESTAMP_TZ(a,'+00:00') FROM t1 ORDER BY a DESC LIMIT 1) AS c1;
+c1
+1
+SELECT (SELECT MIN(TIMESTAMP_TZ(a, '+00:00')) FROM t1) <
+(SELECT MAX(TIMESTAMP_TZ(a, '+00:00')) FROM t1) AS c1;
+c1
+1
+DROP TABLE t1;
+#
+# Prepared statements
+#
+EXECUTE IMMEDIATE
+'SELECT ? AS p'
+USING
+TIMESTAMP_TZ('2001-01-01 10:20:30', '+04:00');
+p
+2001-01-01 10:20:30
+CREATE TABLE t1 (a DATETIME);
+INSERT INTO t1 VALUES ('2001-01-01 10:00:00'), ('2001-01-01 10:00:01');
+EXECUTE IMMEDIATE
+'SELECT * FROM t1 WHERE TIMESTAMP_TZ(a,''+04:00'')=?'
+USING
+TIMESTAMP_TZ('2001-01-01 10:00:00', '+04:00');
+a
+2001-01-01 10:00:00
+DROP TABLE t1;
+#
+# Prepared statements - bad example.
+# This behaviour will change to return the time zone in the output.
+# This should be fixed together with MDEV-14271.
+#
+EXECUTE IMMEDIATE
+'SELECT CONCAT(?) AS p'
+USING
+TIMESTAMP_TZ('2001-01-01 10:20:30', '+04:00');
+p
+2001-01-01 10:20:30
+SET time_zone=DEFAULT;

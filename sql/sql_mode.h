@@ -159,4 +159,68 @@ public:
 };
 
 
+
+/*
+  A combination of hard and soft dependency on the SQL Session
+  environment, such as system variables.
+  Implements the same set of operations with Sql_mode_dependency.
+  See above for details.
+*/
+class Session_env_dependency
+{
+public:
+  enum Param
+  {
+    NONE= 0,
+    SYS_VAR_TIME_ZONE_GMT_SEC_TO_TIME = 1 << 0,
+    SYS_VAR_TIME_ZONE_TIME_TO_GMT_SEC = 1 << 1,
+    SYS_VAR_DIV_PRECISION_INCREMENT   = 1 << 2,
+    SYS_VAR_MAX_ALLOWED_PACKET        = 1 << 3
+  };
+private:
+  sql_mode_t m_hard;
+  sql_mode_t m_soft;
+public:
+  Session_env_dependency()
+   :m_hard(0), m_soft(0)
+  { }
+  Session_env_dependency(sql_mode_t hard, sql_mode_t soft)
+   :m_hard(hard), m_soft(soft)
+  { }
+  sql_mode_t hard() const { return m_hard; }
+  sql_mode_t soft() const { return m_soft; }
+  operator bool () const
+  {
+    return m_hard > 0 || m_soft > 0;
+  }
+  Session_env_dependency operator|(const Session_env_dependency &other) const
+  {
+    return Session_env_dependency(m_hard | other.m_hard, m_soft | other.m_soft);
+  }
+  Session_env_dependency operator&(const Session_env_dependency &other) const
+  {
+    return Session_env_dependency(m_hard & other.m_hard, m_soft & other.m_soft);
+  }
+  Session_env_dependency &operator|=(const Session_env_dependency &other)
+  {
+    m_hard|= other.m_hard;
+    m_soft|= other.m_soft;
+    return *this;
+  }
+  Session_env_dependency &operator&=(const Session_env_dependency &other)
+  {
+    m_hard&= other.m_hard;
+    m_soft&= other.m_soft;
+    return *this;
+  }
+  Session_env_dependency &soft_to_hard()
+  {
+    m_hard|= m_soft;
+    m_soft= 0;
+    return *this;
+  }
+  void push_dependency_warnings(THD *thd, const Item *item) const;
+};
+
+
 #endif // SQL_MODE_H_INCLUDED

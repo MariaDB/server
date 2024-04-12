@@ -224,7 +224,13 @@ col_varchar_nokey TEXT ,
 col_varchar_key TEXT GENERATED ALWAYS AS (REPEAT(col_varchar_nokey, 1000)),
 KEY (col_varchar_key(50))
 );
+Warnings:
+Warning	1901	Function or expression 'repeat(`col_varchar_nokey`,1000)' cannot be used in the GENERATED ALWAYS AS clause of `col_varchar_key`
+Warning	1105	The result octet length 16777216 may be limited by @@max_allowed_packet
 INSERT INTO A (col_varchar_nokey) VALUES ('');
+Warnings:
+Warning	1901	Function or expression 'repeat(`col_varchar_nokey`,1000)' cannot be used in the GENERATED ALWAYS AS clause of `col_varchar_key`
+Warning	1105	The result octet length 16777216 may be limited by @@max_allowed_packet
 CREATE TABLE D (
 pk INTEGER AUTO_INCREMENT,
 col_date_nokey BLOB,
@@ -242,12 +248,30 @@ KEY (col_time_key(20)),
 KEY (col_datetime_key(20)),
 KEY (col_varchar_key(10), col_date_key(10), col_time_key(5), col_datetime_key(5))
 );
+Warnings:
+Warning	1901	Function or expression 'repeat(`col_date_nokey`,1000)' cannot be used in the GENERATED ALWAYS AS clause of `col_date_key`
+Warning	1105	The result octet length 16777216 may be limited by @@max_allowed_packet
+Warning	1901	Function or expression 'repeat(`col_datetime_nokey`,1000)' cannot be used in the GENERATED ALWAYS AS clause of `col_datetime_key`
+Warning	1105	The result octet length 16777216 may be limited by @@max_allowed_packet
+Warning	1901	Function or expression 'repeat(`col_datetime_nokey`,1000)' cannot be used in the GENERATED ALWAYS AS clause of `col_time_key`
+Warning	1105	The result octet length 16777216 may be limited by @@max_allowed_packet
+Warning	1901	Function or expression 'repeat(`col_varchar_nokey`,1000)' cannot be used in the GENERATED ALWAYS AS clause of `col_varchar_key`
+Warning	1105	The result octet length 16777216 may be limited by @@max_allowed_packet
 INSERT INTO D (
 col_date_nokey,
 col_time_nokey,
 col_datetime_nokey,
 col_varchar_nokey
 ) VALUES ('', '', '', ''),('', '', '', '');
+Warnings:
+Warning	1901	Function or expression 'repeat(`col_date_nokey`,1000)' cannot be used in the GENERATED ALWAYS AS clause of `col_date_key`
+Warning	1105	The result octet length 16777216 may be limited by @@max_allowed_packet
+Warning	1901	Function or expression 'repeat(`col_datetime_nokey`,1000)' cannot be used in the GENERATED ALWAYS AS clause of `col_datetime_key`
+Warning	1105	The result octet length 16777216 may be limited by @@max_allowed_packet
+Warning	1901	Function or expression 'repeat(`col_datetime_nokey`,1000)' cannot be used in the GENERATED ALWAYS AS clause of `col_time_key`
+Warning	1105	The result octet length 16777216 may be limited by @@max_allowed_packet
+Warning	1901	Function or expression 'repeat(`col_varchar_nokey`,1000)' cannot be used in the GENERATED ALWAYS AS clause of `col_varchar_key`
+Warning	1105	The result octet length 16777216 may be limited by @@max_allowed_packet
 DELETE FROM OUTR1.* USING D AS OUTR1 RIGHT JOIN A AS OUTR2 ON
 ( OUTR1 . `col_varchar_nokey` = OUTR2 . `col_varchar_nokey` );
 DROP TABLE IF EXISTS A,D;
@@ -269,9 +293,18 @@ PRIMARY KEY (`col3`),
 UNIQUE KEY uidx (`col2`),
 KEY idx (`col5`)
 );
+Warnings:
+Warning	1901	Function or expression '`col2` / `col2`' cannot be used in the GENERATED ALWAYS AS clause of `col5`
+Warning	1105	Expression depends on @@div_precision_increment
 INSERT INTO t1(col1,col2,col3,col4,col9,col6)
 VALUES(1,1,0,1,REPEAT(col1,1000),0), (3,2,1,1,REPEAT(col1,1000),NULL);
+Warnings:
+Warning	1901	Function or expression '`col2` / `col2`' cannot be used in the GENERATED ALWAYS AS clause of `col5`
+Warning	1105	Expression depends on @@div_precision_increment
 ALTER TABLE t1 ADD COLUMN extra INT;
+Warnings:
+Warning	1901	Function or expression '`col2` / `col2`' cannot be used in the GENERATED ALWAYS AS clause of `col5`
+Warning	1105	Expression depends on @@div_precision_increment
 DROP TABLE t1;
 #
 # Bug#21316860: WL8149:INNODB: FAILING ASSERTION:
@@ -671,9 +704,18 @@ col65 INTEGER DEFAULT NULL,
 gcol2 INTEGER GENERATED ALWAYS AS (col3 / col4) VIRTUAL,
 KEY idx1 (gcol2)
 );
+Warnings:
+Warning	1901	Function or expression '`col3` / `col4`' cannot be used in the GENERATED ALWAYS AS clause of `gcol2`
+Warning	1105	Expression depends on @@div_precision_increment
 INSERT INTO t1 (col1, col2, col3, col4)
 VALUES (1,1,1,1), (2,2,2,2), (3,3,3,3), (4,4,4,4), (5,5,5,5);
+Warnings:
+Warning	1901	Function or expression '`col3` / `col4`' cannot be used in the GENERATED ALWAYS AS clause of `gcol2`
+Warning	1105	Expression depends on @@div_precision_increment
 ALTER TABLE t1 ADD COLUMN extra INTEGER;
+Warnings:
+Warning	1901	Function or expression '`col3` / `col4`' cannot be used in the GENERATED ALWAYS AS clause of `gcol2`
+Warning	1105	Expression depends on @@div_precision_increment
 SELECT gcol2 FROM t1 FORCE INDEX(idx1);
 gcol2
 1
@@ -681,6 +723,9 @@ gcol2
 1
 1
 1
+Warnings:
+Warning	1901	Function or expression '`col3` / `col4`' cannot be used in the GENERATED ALWAYS AS clause of `gcol2`
+Warning	1105	Expression depends on @@div_precision_increment
 DROP TABLE t1;
 #
 # Bug#21628161 CRASH/MEMORY CORRUPTION ADDING INDEXES TO VIRTUAL COLUMN

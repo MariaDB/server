@@ -916,6 +916,96 @@ class Item_func_convert_tz :public Item_datetimefunc
 };
 
 
+class Item_timestamp_with_fixed_tz_func: public Item_func
+{
+protected:
+  const Time_zone *m_tz;
+public:
+  Item_timestamp_with_fixed_tz_func(THD *thd, Item *a, const Time_zone *tz)
+   :Item_func(thd, a), m_tz(tz)
+  { }
+  const Type_handler *type_handler() const override
+  { return &type_handler_timestamp2_with_tz; }
+  using TH = Type_handler_timestamp2_with_tz;
+  bool eq(const Item *item, bool binary_cmp) const override
+  {
+    return Item_func::eq(item, binary_cmp) &&
+             m_tz ==
+             static_cast<const Item_timestamp_with_fixed_tz_func*>(item)->m_tz;
+  }
+  longlong val_int() override
+  {
+    return TH::item_value_null(current_thd, this).to_longlong();
+  }
+  double val_real() override
+  {
+    return TH::item_value_null(current_thd, this).to_double();
+  }
+  my_decimal *val_decimal(my_decimal *to) override
+  {
+    return TH::item_value_null(current_thd, this).to_decimal(to);
+  }
+  String *val_str(String *to) override
+  {
+    return TH::item_value_null(current_thd, this).
+             val_str(to, (decimal_digit_t) decimals);
+  }
+  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override
+  {
+    return TH::item_value_null(current_thd, this).get_date(ltime);
+  }
+};
+
+
+class Item_func_at_tz: public Item_timestamp_with_fixed_tz_func
+{
+public:
+  using Item_timestamp_with_fixed_tz_func::Item_timestamp_with_fixed_tz_func;
+  const char *func_name() const override { return "AT TIME ZONE"; }
+  bool check_arguments() const override;
+  void print(String *str, enum_query_type query_type) override;
+  enum precedence precedence() const override { return COLLATE_PRECEDENCE; }
+  Item_field *field_for_view_update() override
+  {
+    return args[0]->field_for_view_update();
+  }
+  bool need_parentheses_in_default() override { return true; }
+  bool fix_length_and_dec() override;
+  bool val_native(THD *thd, Native *to) override;
+  Item *get_copy(THD *thd) override
+  { return get_item_copy<Item_func_at_tz>(thd, this); }
+};
+
+
+class Item_func_timestamp_tz: public Item_timestamp_with_fixed_tz_func
+{
+public:
+  using Item_timestamp_with_fixed_tz_func::Item_timestamp_with_fixed_tz_func;
+  const char *func_name() const override { return "timestamp_tz"; }
+  bool check_arguments() const override;
+  void print(String *str, enum_query_type query_type) override;
+  bool fix_length_and_dec() override;
+  bool val_native(THD *thd, Native *to) override;
+  Session_env_dependency value_depends_on_session_env() const override
+  {
+    /*
+      This function converts from DATETIME to TIMESTAMP WITH TIME ZONE.
+      This conversion itself does not depend on @@time_zone.
+      But args[0] is first converted from its data type to DATETIME.
+      Check if the args[0]->DATETIME conversion is safe. If args[0] is
+      TIMESTAMP, then this conversion depends on @@time_zone again.
+    */
+    Session_env_dependency dep_conv(0, type_handler_datetime2.
+                                          type_conversion_dependency_from(
+                                            args[0]->type_handler()));
+    return Item_args::value_depends_on_session_env_bit_or().soft_to_hard() |
+           dep_conv;
+  }
+  Item *get_copy(THD *thd) override
+  { return get_item_copy<Item_func_timestamp_tz>(thd, this); }
+};
+
+
 class Item_func_sec_to_time :public Item_timefunc
 {
   bool check_arguments() const

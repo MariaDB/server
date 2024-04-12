@@ -1645,6 +1645,12 @@ public:
   double real_op();
   my_decimal *decimal_op(my_decimal *);
   const char *func_name() const { return "/"; }
+  Session_env_dependency value_depends_on_session_env() const override
+  {
+    return args[0]->value_depends_on_session_env().soft_to_hard() |
+           Session_env_dependency(0,
+             Session_env_dependency::SYS_VAR_DIV_PRECISION_INCREMENT);
+  }
   enum precedence precedence() const { return MUL_PRECEDENCE; }
   bool fix_length_and_dec();
   void fix_length_and_dec_double();

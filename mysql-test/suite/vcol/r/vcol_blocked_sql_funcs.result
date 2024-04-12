@@ -212,8 +212,14 @@ ERROR HY000: Function or expression 'variance()' cannot be used in the GENERATED
 #
 # ExtractValue()
 create or replace table t1 (a varchar(1024), b varchar(1024) as (ExtractValue(a,'//b[$@j]')) PERSISTENT);
+Warnings:
+Warning	1901	Function or expression 'extractvalue(`a`,'//b[$@j]')' cannot be used in the GENERATED ALWAYS AS clause of `b`
+Warning	1105	The result octet length 16777216 may be limited by @@max_allowed_packet
 # UpdateXML()
 create or replace table t1 (a varchar(1024), b varchar(1024) as (UpdateXML(a,'/a','<e>fff</e>')) PERSISTENT);
+Warnings:
+Warning	1901	Function or expression 'updatexml(`a`,'/a','<e>fff</e>')' cannot be used in the GENERATED ALWAYS AS clause of `b`
+Warning	1105	The result octet length 16777216 may be limited by @@max_allowed_packet
 #
 # Sub-selects
 #

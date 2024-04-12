@@ -429,11 +429,30 @@ Warnings:
 Warning	1286	Unknown storage engine 'innodb'
 Warning	1266	Using storage engine MyISAM for table 't'
 Note	1071	Specified key was too long; max key length is 1000 bytes
+Warning	1901	Function or expression 'concat(`a`,`b`)' cannot be used in the GENERATED ALWAYS AS clause of `c`
+Warning	1105	The result octet length 65536 may be limited by @@max_allowed_packet
 insert into t values (0,0,default,0);
+Warnings:
+Warning	1901	Function or expression 'concat(`a`,`b`)' cannot be used in the GENERATED ALWAYS AS clause of `c`
+Warning	1105	The result octet length 65536 may be limited by @@max_allowed_packet
 create table ti like t;
+Warnings:
+Warning	1901	Function or expression 'concat(`a`,`b`)' cannot be used in the GENERATED ALWAYS AS clause of `c`
+Warning	1105	The result octet length 65536 may be limited by @@max_allowed_packet
 alter table ti engine=myisam;
+Warnings:
+Warning	1901	Function or expression 'concat(`a`,`b`)' cannot be used in the GENERATED ALWAYS AS clause of `c`
+Warning	1105	The result octet length 65536 may be limited by @@max_allowed_packet
+Warning	1901	Function or expression 'concat(`a`,`b`)' cannot be used in the GENERATED ALWAYS AS clause of `c`
+Warning	1105	The result octet length 65536 may be limited by @@max_allowed_packet
+Warning	1901	Function or expression 'concat(`a`,`b`)' cannot be used in the GENERATED ALWAYS AS clause of `c`
+Warning	1105	The result octet length 65536 may be limited by @@max_allowed_packet
+Warning	1901	Function or expression 'concat(`a`,`b`)' cannot be used in the GENERATED ALWAYS AS clause of `c`
+Warning	1105	The result octet length 65536 may be limited by @@max_allowed_packet
 insert into ti select * from t;
 Warnings:
+Warning	1901	Function or expression 'concat(`a`,`b`)' cannot be used in the GENERATED ALWAYS AS clause of `c`
+Warning	1105	The result octet length 65536 may be limited by @@max_allowed_packet
 Warning	1906	The value specified for generated column 'c' in table 'ti' has been ignored
 drop tables ti, t;
 create table t (id int,a varchar(1),b varchar(1),c varchar(1) generated always as (concat (a,b)),key(c)) engine=myisam;

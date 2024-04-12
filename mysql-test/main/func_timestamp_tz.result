@@ -1,0 +1,178 @@
+#
+# Start of 10.5 tests
+#
+#
+# MDEV-20610 Assertion failed or btr_validate_index(..) in row_upd_sec_index_entry on a time_zone change
+#
+SET time_zone='+04:00';
+CREATE TABLE t1 (a DATETIME);
+SELECT TIMESTAMP_TZ(a, concat('unknown')) FROM t1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'concat('unknown')) FROM t1' at line 1
+SELECT TIMESTAMP_TZ(a, a) FROM t1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'a) FROM t1' at line 1
+SELECT TIMESTAMP_TZ(a, 'unknown') FROM t1;
+ERROR HY000: Unknown or incorrect time zone: 'unknown'
+DROP TABLE t1;
+SET time_zone='+04:00';
+CREATE TABLE t1 (a DATETIME);
+INSERT INTO t1 VALUES ('2001-01-01 10:00:00');
+CREATE VIEW v1 AS SELECT
+TIMESTAMP_TZ(a, '-08:00') AS tstz_a_m0800,
+TIMESTAMP_TZ(a, '-04:00') AS tstz_a_m0400,
+TIMESTAMP_TZ(a, '-02:00') AS tstz_a_m0200,
+TIMESTAMP_TZ(a, '-01:00') AS tstz_a_m0100,
+TIMESTAMP_TZ(a, '+00:00') AS tstz_a_p0000,
+TIMESTAMP_TZ(a, '+01:00') AS tstz_a_p0100,
+TIMESTAMP_TZ(a, '+02:00') AS tstz_a_p0200,
+TIMESTAMP_TZ(a, '+04:00') AS tstz_a_p0400,
+TIMESTAMP_TZ(a, '+08:00') AS tstz_a_p0800
+FROM t1;
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select timestamp_tz(`t1`.`a`,'-08:00') AS `tstz_a_m0800`,timestamp_tz(`t1`.`a`,'-04:00') AS `tstz_a_m0400`,timestamp_tz(`t1`.`a`,'-02:00') AS `tstz_a_m0200`,timestamp_tz(`t1`.`a`,'-01:00') AS `tstz_a_m0100`,timestamp_tz(`t1`.`a`,'+00:00') AS `tstz_a_p0000`,timestamp_tz(`t1`.`a`,'+01:00') AS `tstz_a_p0100`,timestamp_tz(`t1`.`a`,'+02:00') AS `tstz_a_p0200`,timestamp_tz(`t1`.`a`,'+04:00') AS `tstz_a_p0400`,timestamp_tz(`t1`.`a`,'+08:00') AS `tstz_a_p0800` from `t1`	latin1	latin1_swedish_ci
+CREATE VIEW v2 AS SELECT
+UNIX_TIMESTAMP(tstz_a_m0800) AS uts_tstz_a_m0800,
+UNIX_TIMESTAMP(tstz_a_m0400) AS uts_tstz_a_m0400,
+UNIX_TIMESTAMP(tstz_a_m0200) AS uts_tstz_a_m0200,
+UNIX_TIMESTAMP(tstz_a_m0100) AS uts_tstz_a_m0100,
+UNIX_TIMESTAMP(tstz_a_p0000) AS uts_tstz_a_p0000,
+UNIX_TIMESTAMP(tstz_a_p0100) AS uts_tstz_a_p0100,
+UNIX_TIMESTAMP(tstz_a_p0200) AS uts_tstz_a_p0200,
+UNIX_TIMESTAMP(tstz_a_p0400) AS uts_tstz_a_p0400,
+UNIX_TIMESTAMP(tstz_a_p0800) AS uts_tstz_a_p0800
+FROM v1;
+SET time_zone='-04:00';
+SELECT * FROM v1;
+tstz_a_m0800	2001-01-01 10:00:00 -08:00
+tstz_a_m0400	2001-01-01 10:00:00 -04:00
+tstz_a_m0200	2001-01-01 10:00:00 -02:00
+tstz_a_m0100	2001-01-01 10:00:00 -01:00
+tstz_a_p0000	2001-01-01 10:00:00 +00:00
+tstz_a_p0100	2001-01-01 10:00:00 +01:00
+tstz_a_p0200	2001-01-01 10:00:00 +02:00
+tstz_a_p0400	2001-01-01 10:00:00 +04:00
+tstz_a_p0800	2001-01-01 10:00:00 +08:00
+SELECT * FROM v2;
+uts_tstz_a_m0800	978372000
+uts_tstz_a_m0400	978357600
+uts_tstz_a_m0200	978350400
+uts_tstz_a_m0100	978346800
+uts_tstz_a_p0000	978343200
+uts_tstz_a_p0100	978339600
+uts_tstz_a_p0200	978336000
+uts_tstz_a_p0400	978328800
+uts_tstz_a_p0800	978314400
+SET time_zone='+00:00';
+SELECT * FROM v1;
+tstz_a_m0800	2001-01-01 10:00:00 -08:00
+tstz_a_m0400	2001-01-01 10:00:00 -04:00
+tstz_a_m0200	2001-01-01 10:00:00 -02:00
+tstz_a_m0100	2001-01-01 10:00:00 -01:00
+tstz_a_p0000	2001-01-01 10:00:00 +00:00
+tstz_a_p0100	2001-01-01 10:00:00 +01:00
+tstz_a_p0200	2001-01-01 10:00:00 +02:00
+tstz_a_p0400	2001-01-01 10:00:00 +04:00
+tstz_a_p0800	2001-01-01 10:00:00 +08:00
+SELECT * FROM v2;
+uts_tstz_a_m0800	978372000
+uts_tstz_a_m0400	978357600
+uts_tstz_a_m0200	978350400
+uts_tstz_a_m0100	978346800
+uts_tstz_a_p0000	978343200
+uts_tstz_a_p0100	978339600
+uts_tstz_a_p0200	978336000
+uts_tstz_a_p0400	978328800
+uts_tstz_a_p0800	978314400
+SET time_zone='+04:00';
+SELECT * FROM v1;
+tstz_a_m0800	2001-01-01 10:00:00 -08:00
+tstz_a_m0400	2001-01-01 10:00:00 -04:00
+tstz_a_m0200	2001-01-01 10:00:00 -02:00
+tstz_a_m0100	2001-01-01 10:00:00 -01:00
+tstz_a_p0000	2001-01-01 10:00:00 +00:00
+tstz_a_p0100	2001-01-01 10:00:00 +01:00
+tstz_a_p0200	2001-01-01 10:00:00 +02:00
+tstz_a_p0400	2001-01-01 10:00:00 +04:00
+tstz_a_p0800	2001-01-01 10:00:00 +08:00
+SELECT * FROM v2;
+uts_tstz_a_m0800	978372000
+uts_tstz_a_m0400	978357600
+uts_tstz_a_m0200	978350400
+uts_tstz_a_m0100	978346800
+uts_tstz_a_p0000	978343200
+uts_tstz_a_p0100	978339600
+uts_tstz_a_p0200	978336000
+uts_tstz_a_p0400	978328800
+uts_tstz_a_p0800	978314400
+ALTER TABLE t1 MODIFY a DATETIME(6);
+UPDATE t1 SET a= a + INTERVAL 123456 MICROSECOND;
+SET time_zone='-04:00';
+SELECT * FROM v1;
+tstz_a_m0800	2001-01-01 10:00:00.123456 -08:00
+tstz_a_m0400	2001-01-01 10:00:00.123456 -04:00
+tstz_a_m0200	2001-01-01 10:00:00.123456 -02:00
+tstz_a_m0100	2001-01-01 10:00:00.123456 -01:00
+tstz_a_p0000	2001-01-01 10:00:00.123456 +00:00
+tstz_a_p0100	2001-01-01 10:00:00.123456 +01:00
+tstz_a_p0200	2001-01-01 10:00:00.123456 +02:00
+tstz_a_p0400	2001-01-01 10:00:00.123456 +04:00
+tstz_a_p0800	2001-01-01 10:00:00.123456 +08:00
+SELECT * FROM v2;
+uts_tstz_a_m0800	978372000.123456
+uts_tstz_a_m0400	978357600.123456
+uts_tstz_a_m0200	978350400.123456
+uts_tstz_a_m0100	978346800.123456
+uts_tstz_a_p0000	978343200.123456
+uts_tstz_a_p0100	978339600.123456
+uts_tstz_a_p0200	978336000.123456
+uts_tstz_a_p0400	978328800.123456
+uts_tstz_a_p0800	978314400.123456
+SET time_zone='+00:00';
+SELECT * FROM v1;
+tstz_a_m0800	2001-01-01 10:00:00.123456 -08:00
+tstz_a_m0400	2001-01-01 10:00:00.123456 -04:00
+tstz_a_m0200	2001-01-01 10:00:00.123456 -02:00
+tstz_a_m0100	2001-01-01 10:00:00.123456 -01:00
+tstz_a_p0000	2001-01-01 10:00:00.123456 +00:00
+tstz_a_p0100	2001-01-01 10:00:00.123456 +01:00
+tstz_a_p0200	2001-01-01 10:00:00.123456 +02:00
+tstz_a_p0400	2001-01-01 10:00:00.123456 +04:00
+tstz_a_p0800	2001-01-01 10:00:00.123456 +08:00
+SELECT * FROM v2;
+uts_tstz_a_m0800	978372000.123456
+uts_tstz_a_m0400	978357600.123456
+uts_tstz_a_m0200	978350400.123456
+uts_tstz_a_m0100	978346800.123456
+uts_tstz_a_p0000	978343200.123456
+uts_tstz_a_p0100	978339600.123456
+uts_tstz_a_p0200	978336000.123456
+uts_tstz_a_p0400	978328800.123456
+uts_tstz_a_p0800	978314400.123456
+SET time_zone='+04:00';
+SELECT * FROM v1;
+tstz_a_m0800	2001-01-01 10:00:00.123456 -08:00
+tstz_a_m0400	2001-01-01 10:00:00.123456 -04:00
+tstz_a_m0200	2001-01-01 10:00:00.123456 -02:00
+tstz_a_m0100	2001-01-01 10:00:00.123456 -01:00
+tstz_a_p0000	2001-01-01 10:00:00.123456 +00:00
+tstz_a_p0100	2001-01-01 10:00:00.123456 +01:00
+tstz_a_p0200	2001-01-01 10:00:00.123456 +02:00
+tstz_a_p0400	2001-01-01 10:00:00.123456 +04:00
+tstz_a_p0800	2001-01-01 10:00:00.123456 +08:00
+SELECT * FROM v2;
+uts_tstz_a_m0800	978372000.123456
+uts_tstz_a_m0400	978357600.123456
+uts_tstz_a_m0200	978350400.123456
+uts_tstz_a_m0100	978346800.123456
+uts_tstz_a_p0000	978343200.123456
+uts_tstz_a_p0100	978339600.123456
+uts_tstz_a_p0200	978336000.123456
+uts_tstz_a_p0400	978328800.123456
+uts_tstz_a_p0800	978314400.123456
+DROP VIEW v2;
+DROP VIEW v1;
+DROP TABLE t1;
+SET time_zone=DEFAULT;
+#
+# End of 10.5 tests
+#
