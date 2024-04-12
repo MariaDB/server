@@ -154,6 +154,7 @@ extern char *gtid_pos_auto_engines;
 extern plugin_ref *opt_gtid_pos_auto_plugins;
 extern bool opt_endinfo, using_udf_functions;
 extern my_bool locked_in_memory;
+extern bool metadata_lock_info_plugin_loaded;
 extern bool opt_using_transactions;
 extern ulong current_pid;
 extern double expire_logs_days;
