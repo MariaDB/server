@@ -4832,24 +4832,24 @@ public:
   */
   bool copy_db_to(LEX_CSTRING *to)
   {
-    if (db.str == NULL)
+    if (db.str)
     {
-      /*
-        No default database is set. In this case if it's guaranteed that
-        no CTE can be used in the statement then we can throw an error right
-        now at the parser stage. Otherwise the decision about throwing such
-        a message must be postponed until a post-parser stage when we are able
-        to resolve all CTE names as we don't need this message to be thrown
-        for any CTE references.
-      */
-      if (!lex->with_cte_resolution)
-        my_message(ER_NO_DB_ERROR, ER(ER_NO_DB_ERROR), MYF(0));
-      return TRUE;
+      to->str= strmake(db.str, db.length);
+      to->length= db.length;
+      return to->str == NULL;                     /* True on error */
     }
 
-    to->str= strmake(db.str, db.length);
-    to->length= db.length;
-    return to->str == NULL;                     /* True on error */
+    /*
+      No default database is set. In this case if it's guaranteed that
+      no CTE can be used in the statement then we can throw an error right
+      now at the parser stage. Otherwise the decision about throwing such
+      a message must be postponed until a post-parser stage when we are able
+      to resolve all CTE names as we don't need this message to be thrown
+      for any CTE references.
+    */
+    if (!lex->with_cte_resolution)
+      my_message(ER_NO_DB_ERROR, ER(ER_NO_DB_ERROR), MYF(0));
+    return TRUE;
   }
   /* Get db name or "". Use for printing current db */
   const char *get_db()
