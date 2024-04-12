@@ -56,8 +56,9 @@ dict_stats_set_persistent(
 		stat_persistent |= DICT_STATS_PERSISTENT_OFF;
 	}
 
-	/* we rely on this assignment to be atomic */
-	table->stat_persistent = stat_persistent;
+	/* we rely on this assignment to be atomic
+	The & 3 bitwise operator below produces bitfields defined in dict0mem.h */
+	table->stat_persistent = stat_persistent & 3;
 }
 
 /** @return whether persistent statistics is enabled for a given table */
@@ -119,7 +120,7 @@ dict_stats_auto_recalc_set(
 	}
 
 	/* we rely on this assignment to be atomic */
-	table->stats_auto_recalc = stats_auto_recalc;
+	table->stats_auto_recalc = stats_auto_recalc & 3;
 }
 
 /** @return whether auto recalc is enabled for a given table*/

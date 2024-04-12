@@ -1,5 +1,6 @@
 call mtr.add_suppression("InnoDB: Column stat_value in table mysql\\.innodb_index_stats is BIGINT UNSIGNED but should be BIGINT UNSIGNED NOT NULL");
 call mtr.add_suppression("InnoDB: Fetch of persistent statistics requested for table");
+call mtr.add_suppression("InnoDB: Recalculation of persistent statistics requested for table `mysql`.`innodb_index_stats` but the required persistent statistics storage is not present or is corrupted. Using transient stats instead.");
 CREATE TABLE test_ps_fetch_corrupted
 (a INT, PRIMARY KEY (a))
 ENGINE=INNODB STATS_PERSISTENT=1;
