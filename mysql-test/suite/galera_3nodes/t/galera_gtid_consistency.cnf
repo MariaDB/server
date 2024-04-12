@@ -1,38 +1,31 @@
 !include ../galera_3nodes.cnf
 
-[mysqld.1]
-wsrep-node-name="node1"
-wsrep_gtid_domain_id=1111
-gtid_domain_id=2
-server_id=10999
+[mysqld]
+loose-galera-gtid-consistency=1
 wsrep_sst_auth="root:"
 wsrep_sst_method=mariabackup
 log_slave_updates=ON
 log_bin=mariadb-bin-log
 binlog-format=row
 wsrep-gtid-mode=ON
+wsrep-debug=1
+gtid-strict-mode=1
+
+[mysqld.1]
+wsrep-node-name="node1"
+gtid_domain_id=2
+server_id=10999
+wsrep_gtid_domain_id=1111
 
 [mysqld.2]
 wsrep-node-name="node2"
-wsrep_gtid_domain_id=1112
 gtid_domain_id=3
-wsrep_sst_auth="root:"
-wsrep_sst_method=mariabackup
-log_slave_updates=ON
-log_bin=mariadb-bin-log
-binlog-format=row
-wsrep-gtid-mode=ON
+wsrep_gtid_domain_id=1112
 
 [mysqld.3]
 wsrep-node-name="node3"
-wsrep_gtid_domain_id=1113
 gtid_domain_id=4
-wsrep_sst_auth="root:"
-wsrep_sst_method=mariabackup
-log_slave_updates=ON
-log_bin=mariadb-bin-log
-binlog-format=row
-wsrep-gtid-mode=ON
+wsrep_gtid_domain_id=1113
 
 [sst]
 transferfmt=@ENV.MTR_GALERA_TFMT
