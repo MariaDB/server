@@ -340,6 +340,10 @@ static int free(void *p)
     shutdown_plugin= true;
     mysql_cond_signal(&sleep_condition);
     mysql_mutex_unlock(&sleep_mutex);
+
+    for (uint i= 0; i < url_count; i++)
+      urls[i]->abort();
+
     pthread_join(sender_thread, NULL);
 
     mysql_mutex_destroy(&sleep_mutex);
