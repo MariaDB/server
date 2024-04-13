@@ -10,7 +10,7 @@ source include/wait_condition.inc;
 --connect (con1,localhost,root,,)
 --let $con_id = `SELECT CONNECTION_ID()`
 
-let $wait_condition=select info is NULL from information_schema.processlist where id != $con_id;
+let $wait_condition=select command = 'sleep' from information_schema.processlist where id != $con_id;
 source include/wait_condition.inc;
 
 --replace_result Execute Query
@@ -32,9 +32,7 @@ reap;
 SET DEBUG_SYNC='reset';
 
 # Wait until default connection has reset query string
-let $wait_condition=
-  SELECT COUNT(*) = 1 from information_schema.processlist
-  WHERE info is NULL;
+let $wait_condition=select command = 'sleep' from information_schema.processlist where id != $con_id;
 --source include/wait_condition.inc
 
 --replace_result Execute Query
