@@ -706,9 +706,6 @@ mysql_mutex_t LOCK_thread_id;
   server may be fairly high, we need a dedicated lock.
 */
 mysql_mutex_t LOCK_prepared_stmt_count;
-#ifdef HAVE_OPENSSL
-mysql_mutex_t LOCK_des_key_file;
-#endif
 mysql_rwlock_t LOCK_grant, LOCK_sys_init_connect, LOCK_sys_init_slave;
 mysql_rwlock_t LOCK_ssl_refresh;
 mysql_rwlock_t LOCK_all_status_vars;
@@ -849,7 +846,7 @@ static struct my_option pfs_early_options[]=
 
 PSI_file_key key_file_binlog,  key_file_binlog_cache, key_file_binlog_index,
   key_file_binlog_index_cache, key_file_casetest,
-  key_file_dbopt, key_file_des_key_file, key_file_ERRMSG, key_select_to_file,
+  key_file_dbopt, key_file_ERRMSG, key_select_to_file,
   key_file_fileparser, key_file_frm, key_file_global_ddl_log, key_file_load,
   key_file_loadfile, key_file_log_event_data, key_file_log_event_info,
   key_file_master_info, key_file_misc, key_file_partition_ddl_log,
@@ -860,15 +857,18 @@ PSI_file_key key_file_relaylog, key_file_relaylog_index,
              key_file_relaylog_cache, key_file_relaylog_index_cache;
 PSI_file_key key_file_binlog_state;
 
+#ifdef HAVE_des
+char *des_key_file;
+PSI_file_key key_file_des_key_file;
+PSI_mutex_key key_LOCK_des_key_file;
+mysql_mutex_t LOCK_des_key_file;
+#endif /* HAVE_des */
+
 #ifdef HAVE_PSI_INTERFACE
 #ifdef HAVE_MMAP
 PSI_mutex_key key_PAGE_lock, key_LOCK_sync, key_LOCK_active, key_LOCK_pool,
   key_LOCK_pending_checkpoint;
 #endif /* HAVE_MMAP */
-
-#ifdef HAVE_OPENSSL
-PSI_mutex_key key_LOCK_des_key_file;
-#endif /* HAVE_OPENSSL */
 
 PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_xid_list,
   key_BINLOG_LOCK_binlog_background_thread,
@@ -924,9 +924,9 @@ static PSI_mutex_info all_server_mutexes[]=
   { &key_LOCK_pool, "TC_LOG_MMAP::LOCK_pending_checkpoint", 0},
 #endif /* HAVE_MMAP */
 
-#ifdef HAVE_OPENSSL
+#ifdef HAVE_des
   { &key_LOCK_des_key_file, "LOCK_des_key_file", PSI_FLAG_GLOBAL},
-#endif /* HAVE_OPENSSL */
+#endif /* HAVE_des */
 
   { &key_BINLOG_LOCK_index, "MYSQL_BIN_LOG::LOCK_index", 0},
   { &key_BINLOG_LOCK_xid_list, "MYSQL_BIN_LOG::LOCK_xid_list", 0},
@@ -1454,7 +1454,6 @@ static void openssl_dynlock_destroy(openssl_lock_t *, const char *, int);
 static void openssl_lock_function(int, int, const char *, int);
 static void openssl_lock(int, openssl_lock_t *, const char *, int);
 #endif /* HAVE_OPENSSL10 */
-char *des_key_file;
 #ifndef EMBEDDED_LIBRARY
 struct st_VioSSLFd *ssl_acceptor_fd;
 #endif
@@ -2137,7 +2136,9 @@ static void clean_up_mutexes()
   mysql_mutex_destroy(&LOCK_global_table_stats);
   mysql_mutex_destroy(&LOCK_global_index_stats);
 #ifdef HAVE_OPENSSL
+#ifdef HAVE_des
   mysql_mutex_destroy(&LOCK_des_key_file);
+#endif /* HAVE_des */
 #if defined(HAVE_OPENSSL10) && !defined(HAVE_WOLFSSL)
   for (int i= 0; i < CRYPTO_num_locks(); ++i)
     mysql_rwlock_destroy(&openssl_stdlocks[i].lock);
@@ -4260,8 +4261,10 @@ static int init_thread_environment()
                    MY_MUTEX_INIT_SLOW);
 
 #ifdef HAVE_OPENSSL
+#ifdef HAVE_des
   mysql_mutex_init(key_LOCK_des_key_file,
                    &LOCK_des_key_file, MY_MUTEX_INIT_FAST);
+#endif /* HAVE_des */
 #if defined(HAVE_OPENSSL10) && !defined(HAVE_WOLFSSL)
   openssl_stdlocks= (openssl_lock_t*) OPENSSL_malloc(CRYPTO_num_locks() *
                                                      sizeof(openssl_lock_t));
@@ -4479,8 +4482,10 @@ static void init_ssl()
   {
     have_ssl= SHOW_OPTION_DISABLED;
   }
+#ifdef HAVE_des
   if (des_key_file)
     load_des_key_file(des_key_file);
+#endif /* HAVE_des */
 #endif /* HAVE_OPENSSL && ! EMBEDDED_LIBRARY */
 }
 
@@ -6566,12 +6571,12 @@ struct my_option my_long_options[]=
    &opt_debug_sync_timeout, 0,
    0, GET_UINT, OPT_ARG, 0, 0, UINT_MAX, 0, 0, 0},
 #endif /* defined(ENABLED_DEBUG_SYNC) */
-#ifdef HAVE_OPENSSL
+#ifdef HAVE_des
   {"des-key-file", 0,
    "Load keys for des_encrypt() and des_encrypt from given file.",
    &des_key_file, &des_key_file, 0, GET_STR, REQUIRED_ARG,
    0, 0, 0, 0, 0, 0},
-#endif /* HAVE_OPENSSL */
+#endif /* HAVE_des */
 #ifdef HAVE_STACKTRACE
   {"stack-trace", 0 , "Print a symbolic stack trace on failure",
    &opt_stack_trace, &opt_stack_trace, 0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0},
@@ -7917,7 +7922,9 @@ static int mysql_init_variables(void)
   libwrapName= NullS;
 #endif
 #ifdef HAVE_OPENSSL
+#ifdef HAVE_des
   des_key_file = 0;
+#endif /* HAVE_des */
 #ifndef EMBEDDED_LIBRARY
   ssl_acceptor_fd= 0;
 #endif /* ! EMBEDDED_LIBRARY */
@@ -9112,7 +9119,9 @@ static PSI_file_info all_server_files[]=
   { &key_file_io_cache, "io_cache", 0},
   { &key_file_casetest, "casetest", 0},
   { &key_file_dbopt, "dbopt", 0},
+#ifdef HAVE_des
   { &key_file_des_key_file, "des_key_file", 0},
+#endif
   { &key_file_ERRMSG, "ERRMSG", 0},
   { &key_select_to_file, "select_to_file", 0},
   { &key_file_fileparser, "file_parser", 0},
