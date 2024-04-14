@@ -1,36 +1,33 @@
 --source include/have_catalogs.inc
 --source include/have_innodb.inc
 
-# Create a sql file we can use to create privilege tables
-let $log_file=$MYSQLTEST_VARDIR/tmp/connect-catalogs.sql;
---source include/create_catalog_priv_tables.inc
-
 --echo #
 --echo # Test CONNECT engine with catalogs
 --echo #
 
 --echo # Create catalog cat1
+
 create catalog cat1;
 use catalog cat1;
---source include/restore_catalog_priv_tables.inc
+create user root@localhost;
+grant all privileges on *.* to root@localhost;
 create database foo;
 use foo;
-
 create table t1 (a int);
 insert into t1 values (1),(2),(3);
 
 --echo # Create catalog cat2
 create catalog cat2;
 use catalog cat2;
---source include/restore_catalog_priv_tables.inc
+create user root@localhost;
+grant all privileges on *.* to root@localhost;
 create database bar;
-use bar;
+use catalog def;
 
 --echo #
 --echo # Test connecting to different catalogs
 --echo #
 
-use catalog def;
 use test;
 create table tc1 (a int) engine=connect table_type=MariaDB tabname=t1 catname=cat1 dbname=foo connection='mysql://root@localhost';
 select * from tc1;
@@ -53,13 +50,5 @@ drop table tc2;
 drop table tc3;
 drop table tc4;
 
-use catalog cat1;
-drop database foo;
-drop database mysql;
-use catalog cat2;
-drop database bar;
-drop database mysql;
-use catalog def;
 drop catalog cat2;
 drop catalog cat1;
---remove_file $log_file

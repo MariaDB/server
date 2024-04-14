@@ -50,6 +50,8 @@ public:
   void initialize_from_env();
   /* Init catalogs when server is up and tables can be read */
   bool late_init();
+  /* Read grant tables if not yet read */
+  bool initialize_grants();
   void free();
 };
 

@@ -287,9 +287,12 @@ public:
       engine that the row can be unlocked. We want to keep that also.
   as a result, "ANALYZE $stmt" uses a select_send_analyze which still uses 
   select_send::send_data() & co., and also uses  Protocol_discard object.
+
+  Note that send_ok() and send_error() are not implemented, which means
+  that ok and error packets are sent to the end user.
 */
 
-class Protocol_discard final : public Protocol
+class Protocol_discard : public Protocol
 {
 public:
   Protocol_discard(THD *thd_arg) : Protocol(thd_arg) {}
@@ -322,6 +325,27 @@ public:
   enum enum_protocol_type type() override { return PROTOCOL_DISCARD; };
 };
 
+
+/*
+  Like Protocol_discard, but ok and error packets are also intercepted
+*/
+
+class Protocol_discard_all final : public Protocol_discard
+{
+public:
+  Protocol_discard_all(THD *thd_arg) : Protocol_discard(thd_arg) {}
+  bool send_ok(uint server_status, uint statement_warn_count,
+               ulonglong affected_rows, ulonglong last_insert_id,
+               const char *message) override
+  {
+    return 0;
+  }
+  bool send_error(uint sql_errno, const char *err_msg,
+                  const char *sql_state) override
+  {
+    return 0;
+  }
+};
 
 void send_warning(THD *thd, uint sql_errno, const char *err=0);
 void net_send_progress_packet(THD *thd);

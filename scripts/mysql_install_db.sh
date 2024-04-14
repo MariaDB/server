@@ -692,11 +692,13 @@ cat_sql()
               echo "create catalog if not exists $dir;"
               echo "use catalog $dir;"
               echo "create database if not exists mysql;"
+              echo "use mysql;"
               cat_create_tables $dir
           fi
       done
   else
     echo "create database if not exists mysql;"
+    echo "use mysql;"
     cat_create_tables def
   fi
 

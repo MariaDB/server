@@ -32,6 +32,8 @@
 #include "mysys_err.h"                          // EE_STATE
 #include "sql_db.h"                             // write_db_opt
 #include "log_event.h"                          //
+#include "sql_parse.h"                          // mysql_parse()
+#include "strfunc.h"                            // strconvert
 #ifdef _WIN32
 #include <direct.h>
 #endif
@@ -80,6 +82,7 @@ SQL_CATALOG *get_catalog_with_error(const THD *thd,
 }
 bool check_catalog_access(THD *thd, const LEX_CSTRING *name)
 {
+  my_error(ER_NO_CATALOGS, MYF(0));
   return 1;
 }
 bool init_catalogs(const char *datadir)
@@ -94,6 +97,8 @@ void free_catalogs()
 static bool late_init_done= 0;
 
 static SQL_I_List<SQL_CATALOG> deleted_catalogs;
+
+static int add_catalog_tables(THD *org_thd, SQL_CATALOG *catalog);
 
 
 /* Check if the server is configured with catalog support */
@@ -118,13 +123,13 @@ bool check_if_using_catalogs()
 bool check_catalog_name(const LEX_STRING *name)
 {
   const uchar *ptr, *end;
-  if (name->length >= MAX_CATALOG_NAME)
+  if (name->length == 0 || name->length >= MAX_CATALOG_NAME)
     return 1;
 
   for (ptr= (uchar*) name->str, end= ptr+ name->length ; ptr < end; ptr++)
   {
     my_wc_t wc;
-    int res= files_charset_info->mb_wc(&wc, ptr, end);
+    int res= my_charset_filename.mb_wc(&wc, ptr, end);
     if (res != 1)
       return 1;                                 // Wrong character
   }
@@ -141,6 +146,7 @@ SQL_CATALOG *get_catalog(const LEX_CSTRING *name, bool initialize)
   SQL_CATALOG *catalog;
   DBUG_ENTER("get_catalog");
   DBUG_PRINT("enter", ("catalog: %.*s", name->length, name->str));
+
   if (name->length == internal_default_catalog.name.length &&
       !strncmp(name->str, internal_default_catalog.name.str,
                internal_default_catalog.name.length))
@@ -283,16 +289,27 @@ bool SQL_CATALOG::late_init()
 {
   bool res= 0;
   if (opt_bootstrap)
-    return 0;
-  acl_init(this, opt_noacl);
-  if (!opt_noacl)
+    return res;
+  res= acl_init(this, opt_noacl);
+  if (!res && !opt_noacl)
   {
-    bool res= grant_init(this);
+    res= grant_init(this);
     if (!res)
       initialized= 2;
   }
+  if (res)                                   // TO BE REMOVED
+    catalog_acl= 0;                          // TO BE REMOVED
+
   return res;
 }
+
+bool SQL_CATALOG::initialize_grants()
+{
+  if (!catalog_acl && !opt_bootstrap)
+    return late_init();
+  return 0;
+}
+
 
 /*
   Call late_init() for all catalogs
@@ -303,7 +320,10 @@ bool SQL_CATALOG::late_init()
 
 bool late_init_all_catalogs()
 {
+  SQL_CATALOG *cat;
   mysql_mutex_lock(&LOCK_catalogs);
+
+#ifdef INITALIZE_ALL_CATALOGS
   Hash_set<SQL_CATALOG>::Iterator it{catalog_hash};
   while (SQL_CATALOG *cat= it++)
   {
@@ -316,6 +336,17 @@ bool late_init_all_catalogs()
       }
     }
   }
+#else
+  cat= &internal_default_catalog;
+  if (cat->initialized < 2)
+  {
+    if (cat->late_init())
+    {
+      mysql_mutex_unlock(&LOCK_catalogs);
+      return 1;
+    }
+  }
+#endif
   late_init_done= 1;
   mysql_mutex_unlock(&LOCK_catalogs);
   return 0;
@@ -413,20 +444,23 @@ void SQL_CATALOG::free()
                    datadir if special symbols is in the name.
 */
 
-static bool add_catalog(MEM_ROOT *memroot, const char *datadir,
-                        const LEX_CSTRING *name)
+SQL_CATALOG *add_catalog(MEM_ROOT *memroot, const char *datadir,
+                         const LEX_CSTRING *name)
 {
   LEX_CSTRING *tmp;
   char opt_path[FN_REFLEN + 1], *ptr;
+  char libstr[2];
   Schema_specification_st create;
   SQL_CATALOG *cat;
+  DBUG_ENTER("add_catalog");
 
   /*
     Read the catalog option file. It has the same structure
     and information as the database option file
   */
-  strxnmov(opt_path, sizeof(opt_path) - 1, datadir, MY_CATALOG_OPT_FILE,
-           NullS);
+  libstr[0]= FN_LIBCHAR; libstr[1]= 0;
+  strxnmov(opt_path, sizeof(opt_path) - 1, datadir, name->str, libstr,
+           MY_CATALOG_OPT_FILE, NullS);
   bzero(&create, sizeof(create));
   create.default_table_charset= default_charset_info;
   (void) load_opt(opt_path, &create, memroot, MY_UTF8_IS_UTF8MB3);
@@ -440,7 +474,7 @@ static bool add_catalog(MEM_ROOT *memroot, const char *datadir,
                         &cat, sizeof(*cat),
                         &ptr, (name->length+1)*2+1,
                         NullS))
-    return 1;
+    DBUG_RETURN(0);
   bzero((void*) cat, sizeof(*cat));
 
   memcpy(ptr, name->str, name->length+1);
@@ -470,10 +504,11 @@ static bool add_catalog(MEM_ROOT *memroot, const char *datadir,
   {
     cat->free();
     mysql_mutex_unlock(&LOCK_catalogs);
-    return 1;                               // End of memory
+    my_errno= 0;
+    DBUG_RETURN(0);                             // End of memory
   }
   mysql_mutex_unlock(&LOCK_catalogs);
-  return 0;
+  DBUG_RETURN(cat);
 }
 
 
@@ -481,6 +516,7 @@ static bool init_catalog_directories(const char *datadir)
 {
   MY_DIR *dirp;
   MEM_ROOT memroot;
+  MY_STAT stat_info;
   bool error= 1;
   DBUG_ENTER("init_catalog_directories");
 
@@ -513,10 +549,17 @@ static bool init_catalog_directories(const char *datadir)
         MY_S_ISDIR(file->mystat->st_mode) &&
         strcmp(file->name, default_catalog_name.str))
     {
-      LEX_CSTRING name= { file->name, strlen(file->name) };
-      if (add_catalog(&memroot, datadir, &name))
-        goto err;
-      free_root(&memroot, MY_MARK_BLOCKS_FREE); // Reuse memory
+      /* Check that 'mysql' directory exists */
+      char path[FN_REFLEN];
+      strxnmov(path, sizeof(path)-1, datadir, file->name, FN_ROOTDIR, "mysql",
+               NullS);
+      if (mysql_file_stat(key_file_misc, path, &stat_info, MYF(0)))
+      {
+        LEX_CSTRING name= { file->name, strlen(file->name) };
+        if (!add_catalog(&memroot, datadir, &name))
+          goto err;
+        free_root(&memroot, MY_MARK_BLOCKS_FREE); // Reuse memory
+      }
     }
   }
   error= 0;
@@ -626,13 +669,13 @@ maria_create_catalog_internal(THD *thd, const LEX_CSTRING *name,
                               Schema_specification_st *create_info,
                               bool silent)
 {
-  char	 path[FN_REFLEN+16];
+  char	 path[FN_REFLEN], path2[FN_REFLEN];
   MY_STAT stat_info;
   uint path_len;
   char tmp[SAFE_NAME_LEN+1];
   const char *norm= normalize_db_name(name->str, tmp, sizeof(tmp));
-  SQL_CATALOG *org_catalog;
-  bool err;
+  SQL_CATALOG *org_catalog, *new_catalog;
+  bool err, directory_exists= 0;
   DBUG_ENTER("maria_create_catalog_internal");
 
   org_catalog= thd->catalog;
@@ -657,21 +700,35 @@ maria_create_catalog_internal(THD *thd, const LEX_CSTRING *name,
       DBUG_RETURN(1);
     }
   }
-  else if (options.if_not_exists())
-  {
-    push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-                        ER_CATALOG_CREATE_EXISTS,
-                        ER_THD(thd, ER_DB_CREATE_EXISTS),
-                        name->str);
-    goto log_to_binlog;
-  }
   else
   {
-    my_error(ER_CATALOG_CREATE_EXISTS, MYF(0), name->str);
-    DBUG_RETURN(-1);
+    int length;
+    directory_exists= 1;
+    length= build_table_filename(&tmp_catalog, path2, sizeof(path2) - 1,
+                                 name->str, "mysql", "", 0);
+    path2[length]= 0;                     // Remove last '/' from path
+
+    /* Check if the directory is 'empty' (not configured for catalogs) */
+    if (mysql_file_stat(key_file_misc, path2, &stat_info, MYF(0)))
+    {
+      /* mysql directory exists -> catalog exists */
+      if (options.if_not_exists())
+      {
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                            ER_CATALOG_CREATE_EXISTS,
+                            ER_THD(thd, ER_DB_CREATE_EXISTS),
+                            name->str);
+        goto log_to_binlog;
+      }
+      else
+      {
+        my_error(ER_CATALOG_CREATE_EXISTS, MYF(0), name->str);
+        DBUG_RETURN(-1);
+      }
+    }
   }
 
-  if (my_mkdir(path, 0777, MYF(0)) < 0)
+  if (!directory_exists && my_mkdir(path, 0777, MYF(0)) < 0)
   {
     my_error(ER_CANT_CREATE_CATALOG, MYF(0), name->str, my_errno);
     DBUG_RETURN(-1);
@@ -686,24 +743,36 @@ maria_create_catalog_internal(THD *thd, const LEX_CSTRING *name,
       Restore things to beginning.
     */
     path[path_len]= 0;
-    if (rmdir(path) >= 0)
-      DBUG_RETURN(-1);
-    /*
-      We come here when we managed to create the database, but not the option
-      file.  In this case it's best to just continue as if nothing has
-      happened.  (This is a very unlikely senario)
-    */
-    thd->clear_error();
+    if (!directory_exists)
+      (void) rmdir(path);
+    DBUG_RETURN(-1);
   }
 
-  add_catalog(thd->mem_root, mysql_real_data_home, name);
+  /* Skip default catalog name as it is created at startup */
+  if (strcmp(name->str, default_catalog_name.str))
+  {
+    if (!(new_catalog= add_catalog(thd->mem_root, mysql_real_data_home, name)))
+    {
+      my_error(ER_CANT_CREATE_CATALOG, MYF(0), name->str,
+               HA_ERR_FOUND_DUPP_KEY);
+      DBUG_RETURN(1);
+    }
+  }
+
+  /*
+    We should not create catalog files when running bootstrap and
+    mariadb_install_db.
+  */
+  if (!opt_bootstrap)
+    if (add_catalog_tables(thd, new_catalog))
+      DBUG_RETURN(1);
 
   /* Log command to ddl log */
   backup_log_info ddl_log;
   bzero(&ddl_log, sizeof(ddl_log));
   ddl_log.query=                   { C_STRING_WITH_LEN("CREATE") };
   ddl_log.org_storage_engine_name= { C_STRING_WITH_LEN("CATALOG") };
-  ddl_log.catalog= get_catalog(name, 0);
+  ddl_log.catalog= new_catalog;
   if (ddl_log.catalog)
     backup_log_ddl(&ddl_log);
 
@@ -731,6 +800,8 @@ log_to_binlog:
 }
 
 
+#include "../scripts/mariadb_create_catalog_tables.c"
+
 int maria_create_catalog(THD *thd, const LEX_CSTRING *name,
                          DDL_options_st options,
                          const Schema_specification_st *create_info)
@@ -750,12 +821,114 @@ int maria_create_catalog(THD *thd, const LEX_CSTRING *name,
   return maria_create_catalog_internal(thd, name, options, &tmp, false);
 }
 
+
+static bool execute_queries(THD *thd, const char **queries)
+{
+  const char *query;
+  bool error= 0;
+  DBUG_ENTER("execute_queries");
+
+  while ((query= *queries++))
+  {
+    int length= strlen(query);
+    Parser_state parser_state;
+
+    thd->set_query_and_id((char*) query, length, thd->charset(),
+                          next_query_id());
+    thd->set_time();
+    if (parser_state.init(thd, thd->query(), length))
+    {
+      thd->protocol->end_statement();
+      error= 1;
+      break;
+    }
+    mysql_parse(thd, thd->query(), length, &parser_state);
+    error= thd->is_error();
+    thd->protocol->end_statement();
+    delete_explain_query(thd->lex);
+
+    if (unlikely(error))
+      break;
+
+    thd->reset_kill_query();  /* Ensure that killed_errmsg is released */
+    free_root(thd->mem_root,MYF(MY_KEEP_PREALLOC));
+    thd->lex->restore_set_statement_var();
+    thd->get_stmt_da()->reset_diagnostics_area();
+  }
+  DBUG_RETURN(error);
+}
+
+
+/**
+  Add all databases and tables needed by the catalog
+
+  @notes
+    This is done by a separate THD as the executed
+    statements may create new local variables and change
+    states.
+*/
+
+static int add_catalog_tables(THD *thd, SQL_CATALOG *catalog)
+{
+  Sub_statement_state statement_state;
+  int res;
+  SQL_CATALOG *org_catalog= thd->catalog;
+  LEX_CSTRING org_db= thd->db;
+  Protocol *org_protocol= thd->protocol;
+  MEM_ROOT *org_mem_root= thd->mem_root;
+  MEM_ROOT mem_root;
+  sql_digest_state *m_digest= thd->m_digest;
+  PSI_statement_locker *m_statement_psi= thd->m_statement_psi;
+  ulonglong option_bits= thd->variables.option_bits;
+  ulonglong sql_mode=    thd->variables.sql_mode;
+  DBUG_ENTER("add_catalog_tables");
+
+  /* Avoid sending 'ok' to the client for the executed statements */
+  thd->protocol= new Protocol_discard_all(thd);
+  /* Change mem_root to ensure memory used by caller is not freed */
+  thd->mem_root= &mem_root;
+  init_sql_alloc(key_memory_thd_main_mem_root, &mem_root,
+                 QUERY_ALLOC_BLOCK_SIZE, 0, MYF(MY_THREAD_SPECIFIC));
+  thd->m_statement_psi= 0;
+  thd->m_digest= 0;
+  thd->variables.option_bits&= ~(OPTION_BIN_LOG | OPTION_NOT_AUTOCOMMIT);
+  thd->variables.option_bits|= OPTION_LOG_OFF;
+  thd->variables.sql_mode= 0;                   // Disable ORACLE mode etc.
+
+  thd->catalog= catalog;
+  thd->db.str= 0;
+  thd->db.length=0;
+  thd->reset_sub_statement_state(&statement_state, 0);
+  res= execute_queries(thd, mariadb_create_catalog_tables);
+  thd->restore_sub_statement_state(&statement_state);
+
+  /* Restore changes done by the mariadb_create_catalog_tables */
+  thd->catalog= org_catalog;
+  thd->variables.sql_mode= sql_mode;
+  thd->variables.option_bits= option_bits;
+  thd->m_digest= m_digest;
+  thd->m_statement_psi= m_statement_psi;
+  thd->mem_root= org_mem_root;
+  delete thd->protocol;
+  thd->protocol= org_protocol;
+
+  /* Restore changes done by the mariadb_create_catalog_tables */
+  my_free((void*)thd->db.str);
+  thd->db= org_db;
+
+  /* Don't log this statement to slow log, log individual statements */
+  thd->enable_slow_log= 0;
+
+  DBUG_RETURN(res || thd->is_error());
+}
+
+
 /**
   Remove a catalog
   For now it only removes the catalog.log file and the catalog directory
 
   @param  thd        Thread handle
-  @param  catalog    Catalog name in the case given by user
+  @param  name       Catalog name in the case given by user
                      It's already validated and set to lower case
                      (if needed) when we come here
   @param  if_exists  Don't give error if catalog doesn't exists
@@ -777,6 +950,7 @@ rm_catalog_internal(THD *thd, const LEX_CSTRING *name, bool if_exists,
   char *normalized_name= (char*) normalize_db_name(name->str, tmp, sizeof(tmp));
   SQL_CATALOG *catalog, *org_catalog= thd->catalog;
   DBUG_ENTER("rm_catalog_internal");
+  DBUG_PRINT("enter", ("name: %s", name->str));
 
   if (normalized_name != tmp)
   {
@@ -799,9 +973,14 @@ rm_catalog_internal(THD *thd, const LEX_CSTRING *name, bool if_exists,
     my_error(ER_NO_SUCH_CATALOG, MYF(0), rm_catalog.str);
     DBUG_RETURN(1);
   }
+  if (catalog == org_catalog)
+  {
+    my_error(ER_CATALOG_CANNOT_DROP_CURRENT, MYF(0), rm_catalog.str);
+    DBUG_RETURN(1);
+  }
 
   /* See if the directory exists */
-  if (!(dirp= my_dir(path, MYF(MY_DONT_SORT))))
+  if (!(dirp= my_dir(path, MYF(MY_DONT_SORT | MY_WANT_STAT))))
   {
     if (!if_exists)
     {
@@ -819,18 +998,43 @@ rm_catalog_internal(THD *thd, const LEX_CSTRING *name, bool if_exists,
     }
   }
 
-  /* Check if catalog is empty */
+  /*
+    Remove all databases and files, but leave 'mysql' and CATALOG_OPT file
+    to be deleted last.
+  */
+  thd->catalog= catalog;
+
   for (size_t i= 0; i < dirp->number_of_files; i++)
   {
     FILEINFO *file= dirp->dir_entry + i;
+    char db_buff[FN_REFLEN+1];
+    LEX_CSTRING db;
+    db.str= db_buff;
 
     /* Ignore names starting with '.' or '#' and the catalog.opt file */
     if (strcmp(file->name, ".") &&
         strcmp(file->name, "..") &&
-        strcmp(file->name, MY_CATALOG_OPT_FILE))
+        strcmp(file->name, MY_CATALOG_OPT_FILE) &&
+        strcmp(file->name, MYSQL_SCHEMA_NAME.str))
     {
-      my_error(ER_CATALOG_NOT_EMPTY, MYF(0), rm_catalog.str);
-      goto err;
+      if (MY_S_ISDIR(file->mystat->st_mode))
+      {
+        uint errors;
+        db.length= strconvert(&my_charset_filename, file->name, FN_REFLEN,
+                              system_charset_info, db_buff,
+                              sizeof(db_buff)-1,
+                              &errors);
+        if (mariadb_drop_db_silent(thd, &db))
+          goto err;
+      }
+      else
+      {
+        if (mysql_file_delete_with_symlink(key_file_misc, file->name, "",
+                                           MYF(MY_WME)))
+        {
+          goto err;
+        }
+      }
     }
   }
 
@@ -841,6 +1045,12 @@ rm_catalog_internal(THD *thd, const LEX_CSTRING *name, bool if_exists,
     my_error(EE_DELETE, MYF(0), path, my_errno);
     goto err;
   }
+  build_table_filename(thd->catalog, path, sizeof(path) - 1,
+                       MYSQL_SCHEMA_NAME.str, "", "", 0);
+
+  if (!access(path,F_OK) &&
+      mariadb_drop_db_silent(thd, &MYSQL_SCHEMA_NAME))
+    goto err;
   if (rm_dir_w_symlink(rm_catalog.str, 1))
     goto err;
 
@@ -886,6 +1096,7 @@ log_to_binlog:
   my_ok(thd);
 
 err:
+  thd->catalog= org_catalog;
   my_dirend(dirp);
   DBUG_RETURN(error);
 }
@@ -893,8 +1104,6 @@ err:
 
 bool maria_rm_catalog(THD *thd, const LEX_CSTRING *catalog, bool if_exists)
 {
-  if (check_if_using_catalogs())
-    return 1;
   if (thd->slave_thread &&
       slave_ddl_exec_mode_options == SLAVE_EXEC_MODE_IDEMPOTENT)
     if_exists= true;

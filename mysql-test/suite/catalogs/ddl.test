@@ -1,0 +1,28 @@
+--source include/have_catalogs.inc
+
+--echo #
+--echo # Some simple tests with create and drop catalog;
+
+create catalog c1 comment "This is catalog c1" default character set utf8;
+show catalogs like "c1";
+show create catalog c1;
+create catalog if not exists c1;
+--error ER_CATALOG_CREATE_EXISTS
+create catalog c1;
+drop catalog c1;
+create catalog c1;
+drop catalog c1;
+
+--echo # Check that we can create a catalog even if the catalog directory exists
+
+--mkdir $MARIADB_TOPDIR/c2
+create catalog c2;
+drop catalog c2;
+--mkdir $MARIADB_TOPDIR/c2
+--mkdir $MARIADB_TOPDIR/c2/mysql
+--error ER_CATALOG_CREATE_EXISTS
+create catalog c2;
+--error ER_NO_SUCH_CATALOG
+drop catalog c2;
+--rmdir $MARIADB_TOPDIR/c2/mysql
+--rmdir $MARIADB_TOPDIR/c2

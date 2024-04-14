@@ -10798,6 +10798,8 @@ ER_CANT_CREATE_CATALOG
         eng "Can't create catalog '%-.192s' (errno: %M)"
 ER_CATALOG_DROP_EXISTS
         eng "Can't drop catalog '%-.192s'; catalog doesn't exist"
+ER_CATALOG_CANNOT_DROP_CURRENT
+        eng "Current catalog '%-.192s' cannot be dropped"
 ER_CATALOG_NOT_EMPTY
         eng "Catalog directory '%-.192s' is not empty"
 ER_RESERVED_CATALOG_CANNOT_BE_DROPPED

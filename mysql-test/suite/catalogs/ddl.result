@@ -1,0 +1,24 @@
+#
+# Some simple tests with create and drop catalog;
+create catalog c1 comment "This is catalog c1" default character set utf8;
+show catalogs like "c1";
+Catalog (c1)	Comment
+c1	This is catalog c1
+show create catalog c1;
+Catalog	Create Catalog
+c1	CREATE CATALOG `c1` DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci COMMENT 'This is catalog c1'
+create catalog if not exists c1;
+Warnings:
+Note	4198	Can't create database 'c1'; database exists
+create catalog c1;
+ERROR HY000: Can't create catalog 'c1'; catalog exists
+drop catalog c1;
+create catalog c1;
+drop catalog c1;
+# Check that we can create a catalog even if the catalog directory exists
+create catalog c2;
+drop catalog c2;
+create catalog c2;
+ERROR HY000: Can't create catalog 'c2'; catalog exists
+drop catalog c2;
+ERROR HY000: Catalog 'c2' does not exist

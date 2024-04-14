@@ -243,6 +243,8 @@ flush table mysql.proc;
 create database mysqltest;
 --echo # Corrupt mysql.proc to make it unusable by current version of server.
 alter table mysql.proc drop column security_type;
+--error ER_COL_COUNT_DOESNT_MATCH_CORRUPTED_V2
+CREATE FUNCTION f2() RETURNS INT RETURN 1;
 --echo # The below statement should not cause assertion failure.
 drop database mysqltest;
 

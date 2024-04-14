@@ -1705,31 +1705,6 @@ err:
 
 
 /**
-  This internal handler is used to trap errors from opening mysql.proc.
-*/
-
-class Lock_db_routines_error_handler : public Internal_error_handler
-{
-public:
-  bool handle_condition(THD *thd,
-                        uint sql_errno,
-                        const char* sqlstate,
-                        Sql_condition::enum_warning_level *level,
-                        const char* msg,
-                        Sql_condition ** cond_hdl)
-  {
-    if (sql_errno == ER_NO_SUCH_TABLE ||
-        sql_errno == ER_NO_SUCH_TABLE_IN_ENGINE ||
-        sql_errno == ER_CANNOT_LOAD_FROM_TABLE_V2 ||
-        sql_errno == ER_COL_COUNT_DOESNT_MATCH_PLEASE_UPDATE ||
-        sql_errno == ER_COL_COUNT_DOESNT_MATCH_CORRUPTED_V2)
-      return true;
-    return false;
-  }
-};
-
-
-/**
    Acquires exclusive metadata lock on all stored routines in the
    given database.
 
@@ -1763,7 +1738,7 @@ bool lock_db_routines(THD *thd, const char *db)
   {
     /*
       DROP DATABASE should not fail even if mysql.proc does not exist
-      or is outdated. We therefore only abort mysql_rm_db() if we
+      or is outdated. We therefore only abort mariadb_drop_db() if we
       have errors not handled by the error handler.
     */
     new_trans.restore_old_transaction();

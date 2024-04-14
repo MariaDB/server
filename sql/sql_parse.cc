@@ -39,7 +39,7 @@
 #include "sql_update.h"       // mysql_update, mysql_multi_update
 #include "sql_partition.h"    // struct partition_info
 #include "sql_db.h"           // mysql_change_db, mysql_create_db,
-                              // mysql_rm_db, mysql_upgrade_db,
+                              // mariadb_drop_db, mysql_upgrade_db,
                               // mysql_alter_db,
                               // check_db_dir_existence,
                               // my_dbopt_cleanup
@@ -5216,7 +5216,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
   }
   case SQLCOM_CREATE_CATALOG:
   {
-    if (prepare_catalog_action(thd, &lex->name))
+    if ((res= prepare_catalog_action(thd, &lex->name)))
       break;
 
     if ((res= lex->create_info.resolve_to_charset_collation_context(thd,
@@ -5236,6 +5236,13 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
 
     if (prepare_catalog_action(thd, &lex->name))
       break;
+
+    if (!strcmp(lex->name.str, default_catalog_name.str))
+    {
+      res= 1;
+      my_error(ER_RESERVED_CATALOG_CANNOT_BE_DROPPED, MYF(0), lex->name.str);
+      break;
+    }
 
     WSREP_TO_ISOLATION_BEGIN(lex->name.str, NULL, NULL);
 
@@ -5294,7 +5301,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
 
     WSREP_TO_ISOLATION_BEGIN(lex->name.str, NULL, NULL);
 
-    res= mysql_rm_db(thd, &lex->name, lex->if_exists());
+    res= mariadb_drop_db(thd, &lex->name, lex->if_exists());
     break;
   }
   case SQLCOM_ALTER_DB_UPGRADE:
@@ -5442,6 +5449,9 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
         check_global_access(thd,CREATE_USER_ACL))
       break;
 
+    if (thd->catalog->initialize_grants())
+      break;
+
     WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
 
     /* Conditionally writes to binlog */
@@ -5455,6 +5465,9 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
   {
     if (check_access(thd, DELETE_ACL, "mysql", NULL, NULL, 1, 1) &&
         check_global_access(thd,CREATE_USER_ACL))
+      break;
+
+    if (thd->catalog->initialize_grants())
       break;
 
     WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
@@ -5472,6 +5485,9 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
         check_global_access(thd,CREATE_USER_ACL))
       break;
 
+    if (thd->catalog->initialize_grants())
+      break;
+
     WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
 
     /* Conditionally writes to binlog */
@@ -5485,6 +5501,9 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
   }
   case SQLCOM_REVOKE_ALL:
   {
+    if (thd->catalog->initialize_grants())
+      break;
+
     if (check_access(thd, UPDATE_ACL, "mysql", NULL, NULL, 1, 1) &&
         check_global_access(thd,CREATE_USER_ACL))
       break;
@@ -5501,6 +5520,9 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
   case SQLCOM_GRANT_ROLE:
   {
     WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
+
+    if (thd->catalog->initialize_grants())
+      break;
 
     if (!(res= mysql_grant_role(thd, lex->users_list,
                                 lex->sql_command != SQLCOM_GRANT_ROLE)))

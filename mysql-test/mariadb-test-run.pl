@@ -138,6 +138,7 @@ our $client_plugindir;
 my $path_vardir_trace;          # unix formatted opt_vardir for trace files
 my $opt_tmpdir;                 # Path to use for tmp/ dir
 my $opt_tmpdir_pid;
+my $file_mysql_fix_privilege_tables;
 
 my $opt_start;
 my $opt_start_dirty;
@@ -419,6 +420,35 @@ sub main {
     mysql_install_db(default_mysqld(), "$opt_vardir/install.db");
     make_readonly("$opt_vardir/install.db");
   }
+
+  # ----------------------------------------------------
+  # Create internal mysql_fix_privilege_tables.sql file
+  # ----------------------------------------------------
+  my $file_system_tables_fix=
+    mtr_file_exists("$bindir/scripts/mysql_system_tables_fix.sql",
+		    "$bindir/share/mysql_system_tables_fix.sql",
+		    "$bindir/share/mariadb/mysql_system_tables_fix.sql",
+		    "$bindir/share/mysql/mysql_system_tables_fix.sql");
+  if ($file_system_tables_fix)
+  {
+    my $fix_sql_file= "$default_vardir/std_data/mysql_fix_privilege_tables.sql";
+    my $path= dirname($file_system_tables_fix);
+    if (-e "$path/mysql_system_tables.sql" &&
+        -e "$path/maria_def_system_tables.sql")
+    {
+      if (! -e $fix_sql_file)
+      {
+        mtr_appendfile_to_file($file_system_tables_fix, $fix_sql_file);
+        mtr_appendfile_to_file("$path/mysql_system_tables.sql",
+                               $fix_sql_file);
+        mtr_appendfile_to_file("$path/maria_def_system_tables.sql",
+                               $fix_sql_file);
+
+      }
+      $file_mysql_fix_privilege_tables= $fix_sql_file;
+    }
+  }
+
   if ($opt_dry_run)
   {
     for (@$tests) {
@@ -2193,15 +2223,7 @@ sub environment_setup {
       mtr_exe_maybe_exists("$bindir/tests$multiconfig/bug25714");
   $ENV{'MYSQL_BUG25714'}=  native_path($exe_bug25714);
 
-  # ----------------------------------------------------
-  # mysql_fix_privilege_tables.sql
-  # ----------------------------------------------------
-  my $file_mysql_fix_privilege_tables=
-    mtr_file_exists("$bindir/scripts/mysql_fix_privilege_tables.sql",
-		    "$bindir/share/mysql_fix_privilege_tables.sql",
-		    "$bindir/share/mariadb/mysql_fix_privilege_tables.sql",
-		    "$bindir/share/mysql/mysql_fix_privilege_tables.sql");
-  $ENV{'MYSQL_FIX_PRIVILEGE_TABLES'}=  $file_mysql_fix_privilege_tables;
+  $ENV{'MYSQL_FIX_PRIVILEGE_TABLES'}= $file_mysql_fix_privilege_tables;
 
   # ----------------------------------------------------
   # my_print_defaults
@@ -5103,7 +5125,7 @@ sub mysqld_arguments ($$$) {
       ; # Dont add --binlog-format when running without binlog
     }
     elsif ($arg eq "--loose-skip-log-bin" and
-           $mysqld->option("log-slave-updates"))
+           $mysqld->option("lo-gslave-updates"))
     {
       ; # Dont add --skip-log-bin when mysqld have --log-slave-updates in config
     }

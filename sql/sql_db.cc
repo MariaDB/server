@@ -65,9 +65,6 @@ static void mysql_change_db_impl(THD *thd,
                                  LEX_CSTRING *new_db_name,
                                  privilege_t new_db_access,
                                  CHARSET_INFO *new_db_charset);
-static bool mysql_rm_db_internal(THD *thd, const LEX_CSTRING *db,
-                                 bool if_exists, bool silent);
-
 
 /* Database options hash */
 static HASH dboptions;
@@ -252,7 +249,7 @@ uchar* dboptions_get_key(my_dbopt_t *opt, size_t *length,
 
 
 /*
-  Helper function to write a query to binlog used by mysql_rm_db()
+  Helper function to write a query to binlog used by mariadb_drop_db()
 */
 
 static inline int write_to_binlog(THD *thd, const char *query, size_t q_len,
@@ -580,7 +577,7 @@ bool load_opt(const char *path, Schema_specification_st *create,
         }
       }
       else if (!strncmp(buf, "comment", (pos-buf)))
-        create->schema_comment= memdup_lexcstring(root, pos, strlen(pos+1));
+        create->schema_comment= memdup_lexcstring(root, pos+1, strlen(pos+1));
     }
   }
   error= 0;
@@ -764,11 +761,13 @@ mysql_create_db_internal(THD *thd, const LEX_CSTRING *db,
   }
   else if (options.or_replace())
   {
-    if (mysql_rm_db_internal(thd, db, 0, true)) // Removing the old database
+    /* Remove the old database */
+    if (mariadb_drop_db_silent(thd, db))
       DBUG_RETURN(1);
+
     /*
       Reset the diagnostics m_status.
-      It might be set ot DA_OK in mysql_rm_db.
+      It might be set ot DA_OK in mariadb_drop_db.
     */
     thd->get_stmt_da()->reset_diagnostics_area();
     affected_rows= 2;
@@ -1035,8 +1034,13 @@ void drop_database_objects(THD *thd, const LEX_CSTRING *path,
 
   if (!rm_mysql_schema)
   {
+    /* Don't give errors if mysql.proc is deleted */
+    Lock_db_routines_error_handler err_handler;
     tmp_disable_binlog(thd);
+    thd->push_internal_handler(&err_handler);
     (void) sp_drop_db_routines(thd, db->str); /* @todo Do not ignore errors */
+    thd->pop_internal_handler();
+
 #ifdef HAVE_EVENT_SCHEDULER
     global_events.drop_schema_events(thd, db->str);
 #endif
@@ -1049,36 +1053,39 @@ void drop_database_objects(THD *thd, const LEX_CSTRING *path,
 /**
   Drop all tables, routines and events in a database and the database itself.
 
-  @param  thd        Thread handle
-  @param  db         Database name in the case given by user
-                     It's already validated and set to lower case
-                     (if needed) when we come here
-  @param  if_exists  Don't give error if database doesn't exists
-  @param  silent     Don't write the statement to the binary log and don't
-                     send ok packet to the client
+  @param  thd            Thread handle
+  @param  db             Database name in the case given by user
+                         It's already validated and set to lower case
+                         (if needed) when we come here
+  @param  if_exists      Don't give error if database doesn't exists
+  @param  ddl_log_state  For ddl crash recovery.
+  @param  res_tables     List of deleted tables
 
   @retval  false  OK (Database dropped)
   @retval  true   Error
+
+  @notes
+    binaryl log is not updated
+    Caller MUST call ddl_log_complete(ddl_log_state);
 */
 
-static bool
-mysql_rm_db_internal(THD *thd, const LEX_CSTRING *db, bool if_exists,
-                     bool silent)
+bool
+mariadb_drop_db(THD *thd, const LEX_CSTRING *db, bool if_exists,
+                DDL_LOG_STATE *ddl_log_state, TABLE_LIST **res_tables)
 {
-  ulong deleted_tables= 0;
   bool error= true, rm_mysql_schema;
   char	path[FN_REFLEN + 16];
   MY_DIR *dirp;
   uint path_length;
   TABLE_LIST *tables= NULL;
   TABLE_LIST *table;
-  DDL_LOG_STATE ddl_log_state(thd);
   Drop_table_error_handler err_handler;
   LEX_CSTRING rm_db;
   char db_tmp[SAFE_NAME_LEN+1];
   const char *dbnorm;
-  DBUG_ENTER("mysql_rm_db");
+  DBUG_ENTER("maria_drop_db");
 
+  *res_tables= 0;
   dbnorm= normalize_db_name(db->str, db_tmp, sizeof(db_tmp));
   lex_string_set(&rm_db, dbnorm);
 
@@ -1101,20 +1108,20 @@ mysql_rm_db_internal(THD *thd, const LEX_CSTRING *db, bool if_exists,
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
 			  ER_DB_DROP_EXISTS, ER_THD(thd, ER_DB_DROP_EXISTS),
                           db->str);
-      error= false;
-      goto update_binlog;
+      DBUG_RETURN(false);
     }
   }
 
   if (find_db_tables_and_rm_known_files(thd, dirp, dbnorm, path, &tables))
     goto exit;
+  *res_tables= tables;
 
   /*
     Disable drop of enabled log tables, must be done before name locking.
     This check is only needed if we are dropping the "mysql" database.
   */
   if ((rm_mysql_schema=
-        (my_strcasecmp(system_charset_info, MYSQL_SCHEMA_NAME.str, db->str) == 0)))
+       (!my_strcasecmp(system_charset_info, MYSQL_SCHEMA_NAME.str, db->str))))
   {
     for (table= tables; table; table= table->next_local)
       if (check_if_log_table(table, TRUE, "DROP"))
@@ -1144,19 +1151,16 @@ mysql_rm_db_internal(THD *thd, const LEX_CSTRING *db, bool if_exists,
   if (tables)
     mysql_ha_rm_tables(thd, tables);
 
-  for (table= tables; table; table= table->next_local)
-    deleted_tables++;
-
   thd->push_internal_handler(&err_handler);
   if (!thd->killed &&
       !(tables &&
-        mysql_rm_table_no_locks(thd, tables, &rm_db, &ddl_log_state, true, false,
-                                true, false, true, false)))
+        mysql_rm_table_no_locks(thd, tables, &rm_db, ddl_log_state, true,
+                                false, true, false, true, false)))
   {
     debug_crash_here("ddl_log_drop_after_drop_tables");
 
     LEX_CSTRING cpath{ path, path_length};
-    ddl_log_drop_db(&ddl_log_state, &rm_db, &cpath);
+    ddl_log_drop_db(ddl_log_state, &rm_db, &cpath);
 
     drop_database_objects(thd, &cpath, &rm_db, rm_mysql_schema);
 
@@ -1174,8 +1178,7 @@ mysql_rm_db_internal(THD *thd, const LEX_CSTRING *db, bool if_exists,
       thd->pop_internal_handler();
       my_error(EE_DELETE, MYF(0), path, my_errno);
       error= true;
-      ddl_log_complete(&ddl_log_state);
-      goto end;
+      goto exit;
     }
     del_dbopt(path);				// Remove dboption hash entry
     path[path_length]= '\0';				// Remove file name
@@ -1191,7 +1194,6 @@ mysql_rm_db_internal(THD *thd, const LEX_CSTRING *db, bool if_exists,
 
   thd->pop_internal_handler();
 
-update_binlog:
   if (likely(!error))
   {
     /* Log command to ddl log */
@@ -1204,7 +1206,44 @@ update_binlog:
     backup_log_ddl(&ddl_log);
   }
 
-  if (!silent && likely(!error))
+exit:
+  my_dirend(dirp);
+  DBUG_RETURN(error);
+}
+
+
+/**
+  Drop all tables, routines and events in a database and the database itself.
+
+  @param  thd        Thread handle
+  @param  db         Database name in the case given by user
+                     It's already validated and set to lower case
+                     (if needed) when we come here
+  @param  if_exists  Don't give error if database doesn't exists
+
+  This function does binary logging and sends ok/error to the client
+  Called from mysql_parse().
+
+  @retval  false  OK (Database dropped)
+  @retval  true   Error
+*/
+
+bool mariadb_drop_db(THD *thd, const LEX_CSTRING *db, bool if_exists)
+{
+  ulong deleted_tables= 0;
+  bool error= true;
+  DDL_LOG_STATE ddl_log_state(thd);
+  TABLE_LIST *tables;
+  DBUG_ENTER("mariadb_drop_db");
+
+  if (thd->slave_thread &&
+      slave_ddl_exec_mode_options == SLAVE_EXEC_MODE_IDEMPOTENT)
+    if_exists= true;
+
+  /* Drop the database and everything in it */
+  error= mariadb_drop_db(thd, db, if_exists, &ddl_log_state, &tables);
+
+  if (likely(!error))
   {
     const char *query;
     ulong query_length;
@@ -1244,11 +1283,14 @@ update_binlog:
         goto exit;
       }
     }
+    for (TABLE_LIST *table= tables; table; table= table->next_local)
+      deleted_tables++;
+
     thd->clear_error();
     thd->server_status|= SERVER_STATUS_DB_DROPPED;
     my_ok(thd, deleted_tables);
   }
-  else if (mysql_bin_log.is_open() && !silent)
+  else if (mysql_bin_log.is_open())
   {
     char *query, *query_pos, *query_end, *query_data_start;
     TABLE_LIST *tbl;
@@ -1323,18 +1365,25 @@ exit:
     mysql_change_db_impl(thd, NULL, NO_ACL, thd->variables.collation_server);
     thd->session_tracker.current_schema.mark_as_changed(thd);
   }
-end:
-  my_dirend(dirp);
   DBUG_RETURN(error);
 }
 
 
-bool mysql_rm_db(THD *thd, const LEX_CSTRING *db, bool if_exists)
+/**
+  Drop database. No logging, no user reply packet
+
+  @param  thd        Thread handle
+  @param  db         Database name in the case given by user
+*/
+
+bool mariadb_drop_db_silent(THD *thd, const LEX_CSTRING *db)
 {
-  if (thd->slave_thread &&
-      slave_ddl_exec_mode_options == SLAVE_EXEC_MODE_IDEMPOTENT)
-    if_exists= true;
-  return mysql_rm_db_internal(thd, db, if_exists, false);
+  DDL_LOG_STATE ddl_log_state(thd);
+  TABLE_LIST *tables;
+  bool error;
+  error= mariadb_drop_db(thd, db, 0, &ddl_log_state, &tables);
+  ddl_log_complete(&ddl_log_state);
+  return error;
 }
 
 
@@ -1352,8 +1401,14 @@ static bool find_db_tables_and_rm_known_files(THD *thd, MY_DIR *dirp,
   /* first, get the list of tables */
   Dynamic_array<LEX_CSTRING*> files(PSI_INSTRUMENT_MEM, dirp->number_of_files);
   Discovered_table_list tl(thd, &files);
-  if (ha_discover_table_names(thd, &db, dirp, &tl, true))
-    DBUG_RETURN(1);
+
+  /*
+    Don't discover performance_schema tables names as we get an error when
+    trying to delete them.
+  */
+  if (strcmp(dbname, PERFORMANCE_SCHEMA_DB_NAME.str))
+    if (ha_discover_table_names(thd, &db, dirp, &tl, true))
+      DBUG_RETURN(1);
 
   /* Now put the tables in the list */
   tot_list_next_local= tot_list_next_global= &tot_list;
@@ -2059,7 +2114,7 @@ bool mysql_upgrade_db(THD *thd, const LEX_CSTRING *old_db)
   /*
     Step3: move all remaining files to the new db's directory.
     Skip db opt file: it's been created by mysql_create_db() in
-    the new directory, and will be dropped by mysql_rm_db() in the old one.
+    the new directory, and will be dropped by mariadb_drop_db() in the old one.
     Trigger TRN and TRG files are be moved as regular files at the moment,
     without any special treatment.
 
@@ -2108,11 +2163,16 @@ bool mysql_upgrade_db(THD *thd, const LEX_CSTRING *old_db)
 
   /*
     Step7: drop the old database.
-    query_cache_invalidate(olddb) is done inside mysql_rm_db(), no need
+    query_cache_invalidate(old_db) is done inside mariadb_drop_db(), no need
     to execute them again.
-    mysql_rm_db() also "unuses" if we drop the current database.
   */
-  error= mysql_rm_db_internal(thd, old_db, 0, true);
+  error= mariadb_drop_db_silent(thd, old_db);
+  if (unlikely(thd->db.str && cmp_db_names(&thd->db, old_db) && !error))
+  {
+    mysql_change_db_impl(thd, NULL, NO_ACL, thd->variables.collation_server);
+    thd->session_tracker.current_schema.mark_as_changed(thd);
+  }
+
 
   /* Step8: logging */
   if (mysql_bin_log.is_open())

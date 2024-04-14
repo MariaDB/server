@@ -1010,12 +1010,13 @@ static void signal_connection_thd(struct st_connection *cn, int command)
 
 static int do_send_query(struct st_connection *cn, const char *q, int q_len)
 {
+  DBUG_ENTER("do_send_query");
   if (!cn->has_thread)
-    return mysql_send_query(cn->mysql, q, q_len);
+    DBUG_RETURN(mysql_send_query(cn->mysql, q, q_len));
   cn->cur_query= q;
   cn->cur_query_len= q_len;
   signal_connection_thd(cn, EMB_SEND_QUERY);
-  return 0;
+  DBUG_RETURN(0);
 }
 
 static int do_read_query_result(struct st_connection *cn)
@@ -5780,8 +5781,8 @@ void safe_connect(MYSQL* mysql, const char *name, const char *host,
   DBUG_ENTER("safe_connect");
 
   verbose_msg("Connecting to server %s:%d (socket %s) as '%s'"
-              ", connection '%s', attempt %d ...", 
-              host, port, sock, user, name, failed_attempts);
+              ", connection '%s', catalog: '%s', attempt %d ...",
+              host, port, sock, user, name, catalog, failed_attempts);
 
   mysql_options(mysql, MYSQL_OPT_CONNECT_ATTR_RESET, 0);
   mysql_options4(mysql, MYSQL_OPT_CONNECT_ATTR_ADD,
@@ -5855,7 +5856,8 @@ void safe_connect(MYSQL* mysql, const char *name, const char *host,
 int connect_n_handle_errors(struct st_command *command,
                             MYSQL* con, const char* host,
                             const char* user, const char* pass,
-                            const char* db, int port, const char* sock,
+                            const char *catalog, const char* db,
+                            int port, const char* sock,
                             my_bool default_db)
 {
   DYNAMIC_STRING *ds;
@@ -5897,6 +5899,10 @@ int connect_n_handle_errors(struct st_command *command,
 
   mysql_options(con, MYSQL_OPT_CONNECT_ATTR_RESET, 0);
   mysql_options4(con, MYSQL_OPT_CONNECT_ATTR_ADD, "program_name", "mysqltest");
+#ifdef MARIADB_DEFAULT_CATALOG
+  if (catalog)
+    mysql_optionsv(con, MARIADB_OPT_CATALOG, catalog);
+#endif
   while (!mysql_real_connect(con, host, user, pass,
                              (default_db ? "" : db),
                              port, (sock ? sock : 0),
@@ -5960,7 +5966,7 @@ do_handle_error:
 
   SYNOPSIS
   do_connect()
-  q	       called command
+  command       called command
 
   DESCRIPTION
   connect(<name>,<host>,<user>,[<pass>,[<db>,[<port>,<sock>[<opts>]]]]);
@@ -5999,8 +6005,10 @@ void do_connect(struct st_command *command)
   int write_timeout= 0;
   int connect_timeout= 0;
   char *csname=0;
+  const char *catalog= opt_catalog;
   struct st_connection* con_slot;
   my_bool default_db;
+  char catalog_name[65], *database_name, *ptr;
 
   static DYNAMIC_STRING ds_connection_name;
   static DYNAMIC_STRING ds_host;
@@ -6016,7 +6024,7 @@ void do_connect(struct st_command *command)
     { "host", ARG_STRING, TRUE, &ds_host, "Host to connect to" },
     { "user", ARG_STRING, FALSE, &ds_user, "User to connect as" },
     { "password", ARG_STRING, FALSE, &ds_password, "Password used when connecting" },
-    { "database", ARG_STRING, FALSE, &ds_database, "Database to select after connect" },
+    { "database", ARG_STRING, FALSE, &ds_database, "[Catalog.]Database to select after connect" },
     { "port", ARG_STRING, FALSE, &ds_port, "Port to connect to" },
     { "socket", ARG_STRING, FALSE, &ds_sock, "Socket to connect with" },
     { "options", ARG_STRING, FALSE, &ds_options, "Options to use while connecting" },
@@ -6214,6 +6222,20 @@ void do_connect(struct st_command *command)
   else
     default_db= 0;
 
+  database_name= ds_database.str;
+  if ((ptr= strchr(ds_database.str, '.')))
+  {
+    /* Database includes catalog, use it instead of default catalog */
+#ifdef USE_CATALOG_DATABASE
+    catalog= 0;
+#else
+    strmake(catalog_name, ds_database.str,
+            MY_MIN((size_t) (ptr - ds_database.str), sizeof(catalog_name)));
+    catalog= catalog_name;
+    database_name= ptr+1;
+#endif /* USE_CATALOG_DATABASE */
+  }
+
   if (opt_plugin_dir && *opt_plugin_dir)
     mysql_options(con_slot->mysql, MYSQL_PLUGIN_DIR, opt_plugin_dir);
 
@@ -6222,11 +6244,15 @@ void do_connect(struct st_command *command)
 
   /* Special database to allow one to connect without a database name */
   if (ds_database.length && !strcmp(ds_database.str,"*NO-ONE*"))
+  {
     dynstr_set(&ds_database, "");
+    database_name=ds_database.str;
+  }
 
   if (connect_n_handle_errors(command, con_slot->mysql,
                               ds_host.str,ds_user.str,
-                              ds_password.str, ds_database.str,
+                              ds_password.str,
+                              catalog, database_name,
                               con_port, ds_sock.str, default_db))
   {
     DBUG_PRINT("info", ("Inserting connection %s in connection pool",

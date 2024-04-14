@@ -20,12 +20,16 @@
 
 class THD;
 class SQL_CATALOG;
+class DDL_LOG_STATE;
 
 int mysql_create_db(THD *thd, const LEX_CSTRING *db, DDL_options_st options,
                     const Schema_specification_st *create);
 bool mysql_alter_db(THD *thd, const LEX_CSTRING *db,
                     const Schema_specification_st *create);
-bool mysql_rm_db(THD *thd, const LEX_CSTRING *db, bool if_exists);
+bool mariadb_drop_db(THD *thd, const LEX_CSTRING *db, bool if_exists,
+                     DDL_LOG_STATE *ddl_log_state, TABLE_LIST **tables);
+bool mariadb_drop_db(THD *thd, const LEX_CSTRING *db, bool if_exists);
+bool mariadb_drop_db_silent(THD *thd, const LEX_CSTRING *db);
 bool mysql_upgrade_db(THD *thd, const LEX_CSTRING *old_db);
 uint mysql_change_db(THD *thd, const LEX_CSTRING *new_db_name,
                      bool force_switch);

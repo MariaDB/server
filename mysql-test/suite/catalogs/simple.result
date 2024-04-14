@@ -3,9 +3,9 @@ catalog()
 def
 create catalog c1;
 show catalogs;
-Catalog
-c1
-def
+Catalog	Comment
+c1	
+def	default catalog
 show databases;
 Database
 information_schema
@@ -16,10 +16,10 @@ sys
 test
 create catalog c2;
 show catalogs;
-Catalog
-c1
-c2
-def
+Catalog	Comment
+c1	
+c2	
+def	default catalog
 show create catalog c2;
 Catalog	Create Catalog
 c2	CREATE CATALOG `c2` DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci
@@ -36,12 +36,23 @@ show create catalog c2;
 Catalog	Create Catalog
 c2	CREATE CATALOG `c2` DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci COMMENT 'This is a test catalog.'
 drop catalog c1;
+use catalog c2;
 drop catalog c2;
+ERROR HY000: Current catalog 'c2' cannot be dropped
 drop catalog def;
-ERROR HY000: Catalog directory 'def' is not empty
+ERROR HY000: Catalog 'def' is reserved and cannot be dropped
+use catalog def;
+drop catalog c2;
 #
 # Test status vars
 #
+# restart
+create catalog cat1;
+use catalog cat1;
+create user root@localhost;
+grant all privileges on *.* to root@localhost;
+create database test;
+use catalog def;
 connect con1,localhost,root,,cat1.test;
 use catalog cat1;
 flush status;
@@ -55,10 +66,11 @@ create database foo;
 use foo;
 select count(*) from mysql.user;
 count(*)
-8
+2
 select count(*) from mysql.global_priv;
 count(*)
-8
+2
+flush status;
 create table t1 (a int);
 drop table t1;
 disconnect con1;
@@ -72,25 +84,25 @@ Variable_name	Value
 Com_create_table	0
 show catalog status like "Com_create_table";
 Variable_name	Value
-Com_create_table	17
+Com_create_table	1
 show server status like "Com_create_table";
 Variable_name	Value
-Com_create_table	17
+Com_create_table	16
 show global status like "Com_create_table";
 Variable_name	Value
-Com_create_table	17
+Com_create_table	1
 select * from information_schema.session_status where variable_name="Com_create_table";
 VARIABLE_NAME	VARIABLE_VALUE
 COM_CREATE_TABLE	0
 select * from information_schema.catalog_status where variable_name="Com_create_table";
 VARIABLE_NAME	VARIABLE_VALUE
-COM_CREATE_TABLE	17
+COM_CREATE_TABLE	1
 select * from information_schema.global_status where variable_name="Com_create_table";
 VARIABLE_NAME	VARIABLE_VALUE
 COM_CREATE_TABLE	0
 select * from information_schema.server_status where variable_name="Com_create_table";
 VARIABLE_NAME	VARIABLE_VALUE
-COM_CREATE_TABLE	17
+COM_CREATE_TABLE	16
 drop database foo;
 use catalog def;
 show status like "Com_create_table";
@@ -98,40 +110,40 @@ Variable_name	Value
 Com_create_table	0
 show catalog status like "Com_create_table";
 Variable_name	Value
-Com_create_table	0
+Com_create_table	15
 show server status like "Com_create_table";
 Variable_name	Value
-Com_create_table	17
+Com_create_table	16
 show global status like "Com_create_table";
 Variable_name	Value
-Com_create_table	0
+Com_create_table	15
 select * from information_schema.session_status where variable_name="Com_create_table";
 VARIABLE_NAME	VARIABLE_VALUE
 COM_CREATE_TABLE	0
 select * from information_schema.catalog_status where variable_name="Com_create_table";
 VARIABLE_NAME	VARIABLE_VALUE
-COM_CREATE_TABLE	0
+COM_CREATE_TABLE	15
 select * from information_schema.global_status where variable_name="Com_create_table";
 VARIABLE_NAME	VARIABLE_VALUE
 COM_CREATE_TABLE	0
 select * from information_schema.server_status where variable_name="Com_create_table";
 VARIABLE_NAME	VARIABLE_VALUE
-COM_CREATE_TABLE	17
-use catalog cat1;
-show databases;
-Database
-information_schema
-mysql
-performance_schema
-sys
-test
-drop database test;
-drop database performance_schema;
-drop database sys;
-drop database mysql;
+COM_CREATE_TABLE	16
 drop catalog cat1;
+select catalog();
+catalog()
+def
 #
 # Test catalog variables
 #
 set @@max_prepared_stmt_count=1;
 ERROR HY000: Variable 'max_prepared_stmt_count' is a SERVER/CATALOG variable and should be set with SET SERVER or SET CATALOG
+#
+# Test wrong catalog names
+
+create catalog `a-b`;
+ERROR 42000: Incorrect catalog name 'a-b'
+create catalog ``;
+ERROR 42000: Incorrect catalog name ''
+create catalog aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa;
+ERROR 42000: Incorrect catalog name 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'

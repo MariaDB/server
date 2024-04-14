@@ -173,10 +173,10 @@ flush table mysql.proc;
 create database mysqltest;
 # Corrupt mysql.proc to make it unusable by current version of server.
 alter table mysql.proc drop column security_type;
+CREATE FUNCTION f2() RETURNS INT RETURN 1;
+ERROR HY000: Column count of mysql.proc is wrong. Expected 21, found 20. The table is probably corrupted
 # The below statement should not cause assertion failure.
 drop database mysqltest;
-Warnings:
-Error	1805	Column count of mysql.proc is wrong. Expected 21, found 20. The table is probably corrupted
 # Restore mysql.proc.
 drop table mysql.proc;
 #
@@ -192,8 +192,6 @@ CREATE PROCEDURE db1.p1() SET @foo = 10;
 # Modify a field of the table.
 ALTER TABLE mysql.proc MODIFY comment CHAR (32);
 DROP DATABASE db1;
-Warnings:
-Error	1728	Cannot load from mysql.proc. The table is probably corrupted
 # Restore mysql.proc
 DROP TABLE mysql.proc;
 RENAME TABLE proc_backup TO mysql.proc;

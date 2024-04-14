@@ -114,6 +114,7 @@ plugin/aws_key_management/aws_sdk_cpp
 plugin/aws_key_management/aws_sdk_cpp-prefix
 scripts/comp_sql
 scripts/make_binary_distribution
+scripts/mariadb_create_catalog_tables.c
 scripts/msql2mysql
 scripts/mysql_config
 scripts/mysql_config.pl
