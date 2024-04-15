@@ -690,6 +690,7 @@ int ha_partition::create_partitioning_metadata(const char *path,
   partition_element *part;
   DBUG_ENTER("ha_partition::create_partitioning_metadata");
 
+  mark_trx_read_write();
   /*
     We need to update total number of parts since we might write the handler
     file as part of a partition management command
