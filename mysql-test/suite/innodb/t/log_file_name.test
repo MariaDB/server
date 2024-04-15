@@ -205,7 +205,7 @@ print FILE "\0" x 16384;
 close(FILE);
 EOF
 
---exec echo "" > $MYSQLD_DATADIR/test/u2.ibd
+--write_line "" $MYSQLD_DATADIR/test/u2.ibd
 
 # TODO: Test with this, once
 # Bug#18131883 IMPROVE INNODB ERROR MESSAGES REGARDING FILES

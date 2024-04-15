@@ -38,7 +38,7 @@
 #    let SEARCH_FILE= $error_log;
 #    # Stop the server
 #    let $restart_file= $MYSQLTEST_VARDIR/tmp/mysqld.1.expect;
-#    --exec echo "wait" > $restart_file
+#    --write_line wait $restart_file
 #    --shutdown_server
 #    --source include/wait_until_disconnected.inc
 #

@@ -18,7 +18,7 @@ INSERT INTO t1(b) VALUES('one'), ('two'), ('three');
 
 --echo #
 --echo # Create a file called MYSQLD_DATADIR/test/t1.ibd
---exec echo "This is not t1.ibd" > $MYSQLD_DATADIR/test/t1.ibd
+--write_line "This is not t1.ibd" $MYSQLD_DATADIR/test/t1.ibd
 
 --echo # Directory listing of test/*.ibd
 --echo #

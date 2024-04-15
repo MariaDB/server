@@ -12,7 +12,7 @@ SET @old_slow_query_log= @@global.slow_query_log;
 
 call mtr.add_suppression(" Error reading file './client_test_db/test_frm_bug.frm'");
 call mtr.add_suppression(" IP address .* could not be resolved");
---exec echo "$MYSQL_CLIENT_TEST" > $MYSQLTEST_VARDIR/log/mysql_client_test_comp.out.log 2>&1
+--write_line "$MYSQL_CLIENT_TEST" $MYSQLTEST_VARDIR/log/mysql_client_test_comp.out.log
 --exec $MYSQL_CLIENT_TEST --getopt-ll-test=25600M >> $MYSQLTEST_VARDIR/log/mysql_client_test_comp.out.log 2>&1
 
 # End of test
