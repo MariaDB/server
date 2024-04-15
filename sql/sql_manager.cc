@@ -30,7 +30,7 @@
   Values for manager_thread_in_use: 0 means "not started". 1 means "started
   and active". 2 means "stopped".
 */
-static bool volatile manager_thread_in_use = 0;
+static int volatile manager_thread_in_use = 0;
 static bool abort_manager = false;
 
 pthread_t manager_thread;
