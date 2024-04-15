@@ -5416,6 +5416,18 @@ EXECUTE stmt USING DEFAULT;
 DEALLOCATE PREPARE stmt;
 DROP TABLE t1, t2;
 
+--echo # MDEV-33218: Assertion `active_arena->is_stmt_prepare_or_first_stmt_execute() || active_arena->state == Query_arena::STMT_SP_QUERY_ARGUMENTS' failed. in st_select_lex::fix_prepare_information
+CREATE TABLE t1 AS SELECT 1 f;
+PREPARE stmt FROM 'SHOW CREATE TABLE t1';
+DROP TABLE t1;
+--error ER_NO_SUCH_TABLE
+EXECUTE stmt;
+CREATE VIEW t1 AS SELECT 1;
+EXECUTE stmt;
+--echo # Clean up
+DEALLOCATE PREPARE stmt;
+DROP VIEW t1;
+
 --echo #
 --echo # End of 10.4 tests
 --echo #

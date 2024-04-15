@@ -1,5 +1,4 @@
 /*
-   Copyright (c) 2000, 2016, Oracle and/or its affiliates.
    Copyright (c) 2009, 2022, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
@@ -2367,6 +2366,11 @@ public:
     swap_variables(sp_cache*, sp_package_body_cache, rhs.sp_package_body_cache);
   }
   void sp_caches_clear();
+  /**
+    Clear content of sp related caches.
+    Don't delete cache objects itself.
+  */
+  void sp_caches_empty();
 };
 
 
@@ -2697,6 +2701,12 @@ public:
   bool create_tmp_table_for_derived;
 
   bool save_prep_leaf_list;
+
+  /**
+    The data member reset_sp_cache is to signal that content of sp_cache
+    must be reset (all items be removed from it).
+  */
+  bool reset_sp_cache;
 
   /* container for handler's private per-connection data */
   Ha_data ha_data[MAX_HA];
@@ -4936,11 +4946,29 @@ public:
   {
     if (global_system_variables.log_warnings > threshold)
     {
+      char real_ip_str[64];
+      real_ip_str[0]= 0;
+
+      /* For proxied connections, add the real IP to the warning message */
+      if (net.using_proxy_protocol && net.vio)
+      {
+        if(net.vio->localhost)
+          snprintf(real_ip_str, sizeof(real_ip_str), " real ip: 'localhost'");
+        else
+        {
+          char buf[INET6_ADDRSTRLEN];
+          if (!vio_getnameinfo((sockaddr *)&(net.vio->remote), buf,
+              sizeof(buf),NULL, 0, NI_NUMERICHOST))
+          {
+            snprintf(real_ip_str, sizeof(real_ip_str), " real ip: '%s'",buf);
+          }
+        }
+      }
       Security_context *sctx= &main_security_ctx;
       sql_print_warning(ER_THD(this, ER_NEW_ABORTING_CONNECTION),
                         thread_id, (db.str ? db.str : "unconnected"),
                         sctx->user ? sctx->user : "unauthenticated",
-                        sctx->host_or_ip, reason);
+                        sctx->host_or_ip, real_ip_str, reason);
     }
   }
 

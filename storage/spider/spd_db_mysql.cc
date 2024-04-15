@@ -7301,11 +7301,9 @@ int spider_mbase_share::init()
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
   }
 
-  if (keys > 0 &&
-    !(key_hint = new spider_string[keys])
-  ) {
-    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-  }
+  if (keys > 0)
+    if (!(key_hint = new spider_string[keys]))
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
   for (roop_count = 0; roop_count < keys; roop_count++)
   {
     key_hint[roop_count].init_calc_mem(SPD_MID_MBASE_SHARE_INIT_2);
@@ -7313,12 +7311,12 @@ int spider_mbase_share::init()
   }
   DBUG_PRINT("info",("spider key_hint=%p", key_hint));
 
-  if (
-    !(table_select = new spider_string[1]) ||
-    (keys > 0 &&
-      !(key_select = new spider_string[keys])
-    ) ||
-    (error_num = create_table_names_str()) ||
+  if (!(table_select = new spider_string[1]))
+    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+  if (keys > 0)
+    if (!(key_select = new spider_string[keys]))
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+  if ((error_num = create_table_names_str()) ||
     (table_share &&
       (
         (error_num = create_column_name_str()) ||
@@ -7469,11 +7467,18 @@ int spider_mbase_share::create_table_names_str()
   table_names_str = NULL;
   db_names_str = NULL;
   db_table_str = NULL;
-  if (
-    !(table_names_str = new spider_string[spider_share->all_link_count]) ||
-    !(db_names_str = new spider_string[spider_share->all_link_count]) ||
-    !(db_table_str = new spider_string[spider_share->all_link_count])
-  ) {
+  if (!(table_names_str = new spider_string[spider_share->all_link_count]))
+  {
+    error_num = HA_ERR_OUT_OF_MEM;
+    goto error;
+  }
+  if (!(db_names_str = new spider_string[spider_share->all_link_count]))
+  {
+    error_num = HA_ERR_OUT_OF_MEM;
+    goto error;
+  }
+  if (!(db_table_str = new spider_string[spider_share->all_link_count]))
+  {
     error_num = HA_ERR_OUT_OF_MEM;
     goto error;
   }
@@ -7624,11 +7629,9 @@ int spider_mbase_share::create_column_name_str()
   Field **field;
   TABLE_SHARE *table_share = spider_share->table_share;
   DBUG_ENTER("spider_mbase_share::create_column_name_str");
-  if (
-    table_share->fields &&
-    !(column_name_str = new spider_string[table_share->fields])
-  )
-    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+  if (table_share->fields)
+    if (!(column_name_str = new spider_string[table_share->fields]))
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
   for (field = table_share->field, str = column_name_str;
    *field; field++, str++)
   {

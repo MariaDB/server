@@ -2668,4 +2668,19 @@ DEALLOCATE PREPARE stmt;
 
 DROP TABLE t1,t2,t3;
 
+--echo #
+--echo # MDEV-33747: Optimization of (SELECT) IN (SELECT ...) executes subquery at prepare stage
+--echo #
+create table t1 (a int, b int);
+insert into t1 select seq, seq from seq_1_to_200;
+create table t2 as select * from t1;
+create table t3 as select * from t1;
+analyze table t1,t2,t3;
+select @@expensive_subquery_limit < 200 as DEFAULTS_ARE_SUITABLE;
+flush status;
+explain select * from t1 where a<3 or (select max(a) from t2) in (select b from t3);
+--echo # Must show 0. If this shows 200, this means subquery was executed and you have a bug:
+show status like 'Handler_read_rnd_next%';
+drop table t1,t2,t3;
+
 --echo # End of 10.4 tests

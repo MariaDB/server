@@ -3459,7 +3459,7 @@ open_and_process_routine(THD *thd, Query_tables_list *prelocking_ctx,
           DBUG_RETURN(TRUE);
 
         /* Ensures the routine is up-to-date and cached, if exists. */
-        if (rt->sp_cache_routine(thd, has_prelocking_list, &sp))
+        if (rt->sp_cache_routine(thd, &sp))
           DBUG_RETURN(TRUE);
 
         /* Remember the version of the routine in the parse tree. */
@@ -3500,7 +3500,7 @@ open_and_process_routine(THD *thd, Query_tables_list *prelocking_ctx,
           Validating routine version is unnecessary, since CALL
           does not affect the prepared statement prelocked list.
         */
-        if (rt->sp_cache_routine(thd, false, &sp))
+        if (rt->sp_cache_routine(thd, &sp))
           DBUG_RETURN(TRUE);
       }
     }
@@ -5492,13 +5492,23 @@ bool lock_tables(THD *thd, TABLE_LIST *tables, uint count, uint flags)
       }
     }
 
-    DEBUG_SYNC(thd, "before_lock_tables_takes_lock");
+#ifdef ENABLED_DEBUG_SYNC
+    if (!tables ||
+        !(strcmp(tables->db.str, "mysql") == 0 &&
+          strcmp(tables->table_name.str, "proc") == 0))
+      DEBUG_SYNC(thd, "before_lock_tables_takes_lock");
+#endif
 
     if (! (thd->lock= mysql_lock_tables(thd, start, (uint) (ptr - start),
                                         flags)))
       DBUG_RETURN(TRUE);
 
-    DEBUG_SYNC(thd, "after_lock_tables_takes_lock");
+#ifdef ENABLED_DEBUG_SYNC
+    if (!tables ||
+        !(strcmp(tables->db.str, "mysql") == 0 &&
+          strcmp(tables->table_name.str, "proc") == 0))
+      DEBUG_SYNC(thd, "after_lock_tables_takes_lock");
+#endif
 
     if (thd->lex->requires_prelocking() &&
         thd->lex->sql_command != SQLCOM_LOCK_TABLES)
