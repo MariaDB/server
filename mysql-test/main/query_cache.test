@@ -1803,6 +1803,41 @@ show status like "Qcache_queries_in_cache";
 DROP FUNCTION foo;
 drop table t1;
 
+
+--echo #
+--echo # MDEV-33861: main.query_cache fails with embedded after
+--echo # enabling WITH_PROTECT_STATEMENT_MEMROOT
+--echo #
+
+create table t1 (s1 int);
+--delimiter //
+create procedure f3 () begin
+select * from t1;
+end;
+//
+create procedure f4 () begin
+select * from t1;
+end;
+//
+--delimiter ;
+
+Call f4();
+
+cAll f3();
+
+insert into t1 values (2);
+
+caLl f3();
+
+drop procedure f3;
+drop procedure f4;
+drop table t1;
+
+
+--echo #
+--echo # End of 10.4 tests
+--echo #
+
 --echo restore defaults
 SET GLOBAL query_cache_type= default;
 SET GLOBAL query_cache_size=@save_query_cache_size;
