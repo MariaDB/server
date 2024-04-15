@@ -616,7 +616,7 @@ void replace_strings_append(struct st_replace *rep, DYNAMIC_STRING* ds,
 const char *from);
 
 ATTRIBUTE_NORETURN
-static void cleanup_and_exit(int exit_code);
+static void cleanup_and_exit(int exit_code, bool called_from_die);
 
 ATTRIBUTE_NORETURN
 static void really_die(const char *msg);
@@ -933,6 +933,7 @@ pthread_attr_t cn_thd_attrib;
 pthread_handler_t connection_thread(void *arg)
 {
   struct st_connection *cn= (struct st_connection*)arg;
+  DBUG_ENTER("connection_thread");
 
   mysql_thread_init();
   while (cn->command != EMB_END_CONNECTION)
@@ -944,6 +945,7 @@ pthread_handler_t connection_thread(void *arg)
         pthread_cond_wait(&cn->query_cond, &cn->query_mutex);
       pthread_mutex_unlock(&cn->query_mutex);
     }
+    DBUG_PRINT("info", ("executing command: %d", cn->command));
     switch (cn->command)
     {
       case EMB_END_CONNECTION:
@@ -964,24 +966,26 @@ pthread_handler_t connection_thread(void *arg)
         break;
       case EMB_CLOSE_STMT:
         cn->result= mysql_stmt_close(cn->stmt);
+        cn->stmt= 0;
         break;
       default:
         DBUG_ASSERT(0);
     }
-    cn->command= 0;
     pthread_mutex_lock(&cn->result_mutex);
     cn->query_done= 1;
+    cn->command= 0;
     pthread_cond_signal(&cn->result_cond);
     pthread_mutex_unlock(&cn->result_mutex);
   }
 
 end_thread:
-  cn->query_done= 1;
+  DBUG_ASSERT(cn->stmt == 0);
   mysql_close(cn->mysql);
   cn->mysql= 0;
+  cn->query_done= 1;
   mysql_thread_end();
   pthread_exit(0);
-  return 0;
+  DBUG_RETURN(0);
 }
 
 static void wait_query_thread_done(struct st_connection *con)
@@ -999,12 +1003,16 @@ static void wait_query_thread_done(struct st_connection *con)
 
 static void signal_connection_thd(struct st_connection *cn, int command)
 {
+  DBUG_ENTER("signal_connection_thd");
+  DBUG_PRINT("enter", ("command: %d", command));
+
   DBUG_ASSERT(cn->has_thread);
   cn->query_done= 0;
-  cn->command= command;
   pthread_mutex_lock(&cn->query_mutex);
+  cn->command= command;
   pthread_cond_signal(&cn->query_cond);
   pthread_mutex_unlock(&cn->query_mutex);
+  DBUG_VOID_RETURN;
 }
 
 
@@ -1066,27 +1074,38 @@ static int do_stmt_execute(struct st_connection *cn)
 
 static int do_stmt_close(struct st_connection *cn)
 {
-  /* The cn->stmt is already set. */
+  DBUG_ENTER("do_stmt_close");
   if (!cn->has_thread)
-    return mysql_stmt_close(cn->stmt);
+  {
+    /* The cn->stmt is already set. */
+    int res= mysql_stmt_close(cn->stmt);
+    cn->stmt= 0;
+    DBUG_RETURN(res);
+  }
+  wait_query_thread_done(cn);
   signal_connection_thd(cn, EMB_CLOSE_STMT);
   wait_query_thread_done(cn);
-  return cn->result;
+  DBUG_ASSERT(cn->stmt == 0);
+  DBUG_RETURN(cn->result);
 }
 
 
 static void emb_close_connection(struct st_connection *cn)
 {
+  DBUG_ENTER("emb_close_connection");
   if (!cn->has_thread)
-    return;
+    DBUG_VOID_RETURN;
   wait_query_thread_done(cn);
   signal_connection_thd(cn, EMB_END_CONNECTION);
   pthread_join(cn->tid, NULL);
   cn->has_thread= FALSE;
+  DBUG_ASSERT(cn->mysql == 0);
+  DBUG_ASSERT(cn->stmt == 0);
   pthread_mutex_destroy(&cn->query_mutex);
   pthread_cond_destroy(&cn->query_cond);
   pthread_mutex_destroy(&cn->result_mutex);
   pthread_cond_destroy(&cn->result_cond);
+  DBUG_VOID_RETURN;
 }
 
 
@@ -1110,7 +1129,13 @@ static void init_connection_thd(struct st_connection *cn)
 #define do_read_query_result(cn) mysql_read_query_result(cn->mysql)
 #define do_stmt_prepare(cn, q, q_len) mysql_stmt_prepare(cn->stmt, q, (ulong)q_len)
 #define do_stmt_execute(cn) mysql_stmt_execute(cn->stmt)
-#define do_stmt_close(cn) mysql_stmt_close(cn->stmt)
+
+static int do_stmt_close(struct st_connection *cn)
+{
+  int res= mysql_stmt_close(cn->stmt);
+  cn->stmt= 0;
+  return res;
+}
 
 #endif /*EMBEDDED_LIBRARY*/
 
@@ -1438,7 +1463,6 @@ void close_statements()
   {
     if (con->stmt)
       do_stmt_close(con);
-    con->stmt= 0;
   }
   DBUG_VOID_RETURN;
 }
@@ -1505,23 +1529,14 @@ void free_used_memory()
 }
 
 
-ATTRIBUTE_NORETURN static void cleanup_and_exit(int exit_code)
+ATTRIBUTE_NORETURN static void cleanup_and_exit(int exit_code,
+                                                bool called_from_die)
 {
   free_used_memory();
 
   /* Only call mysql_server_end if mysql_server_init has been called */
   if (server_initialized)
     mysql_server_end();
-
-  /*
-    mysqltest is fundamentally written in a way that makes impossible
-    to free all memory before exit (consider memory allocated
-    for frame local DYNAMIC_STRING's and die() invoked down the stack.
-
-    We close stderr here to stop unavoidable safemalloc reports
-    from polluting the output.
-  */
-  fclose(stderr);
 
   my_end(my_end_arg);
 
@@ -1542,6 +1557,11 @@ ATTRIBUTE_NORETURN static void cleanup_and_exit(int exit_code)
     }
   }
 
+  /*
+    Report memory leaks, if not called from 'die()', as die() will not release
+    all memory.
+  */
+  sf_leaking_memory= called_from_die;
   exit(exit_code);
 }
 
@@ -1608,7 +1628,7 @@ static void really_die(const char *msg)
     second time, just exit
   */
   if (dying)
-    cleanup_and_exit(1);
+    cleanup_and_exit(1, 1);
   dying= 1;
 
   log_file.show_tail(opt_tail_lines);
@@ -1620,7 +1640,7 @@ static void really_die(const char *msg)
   if (cur_con && !cur_con->pending)
     show_warnings_before_error(cur_con->mysql);
 
-  cleanup_and_exit(1);
+  cleanup_and_exit(1, 1);
 }
 
 void report_or_die(const char *fmt, ...)
@@ -1674,7 +1694,7 @@ void abort_not_supported_test(const char *fmt, ...)
   }
   va_end(args);
 
-  cleanup_and_exit(62);
+  cleanup_and_exit(62, 0);
 }
 
 
@@ -2220,14 +2240,14 @@ int dyn_string_cmp(DYNAMIC_STRING* ds, const char *fname)
   check_result
 
   RETURN VALUES
-  error - the function will not return
-
+  0  ok
+  1  error
 */
 
-void check_result()
+int check_result()
 {
   const char *mess= 0;
-
+  int error= 1;
   DBUG_ENTER("check_result");
   DBUG_ASSERT(result_file_name);
   DBUG_PRINT("enter", ("result_file_name: %s", result_file_name));
@@ -2235,7 +2255,10 @@ void check_result()
   switch (compare_files(log_file.file_name(), result_file_name)) {
   case RESULT_OK:
     if (!error_count)
+    {
+      error= 0;
       break; /* ok */
+    }
     mess= "Got errors while running test";
     /* Fallthrough */
   case RESULT_LENGTH_MISMATCH:
@@ -2274,14 +2297,13 @@ void check_result()
           log_file.file_name(), reject_file, errno);
 
     show_diff(NULL, result_file_name, reject_file);
-    die("%s", mess);
+    fprintf(stderr, "%s", mess);
     break;
   }
   default: /* impossible */
     die("Unknown error code from dyn_string_cmp()");
   }
-
-  DBUG_VOID_RETURN;
+  DBUG_RETURN(error);
 }
 
 
@@ -5199,7 +5221,11 @@ void do_shutdown_server(struct st_command *command)
   */
 
   if (timeout && mysql_shutdown(mysql, SHUTDOWN_DEFAULT))
-    die("mysql_shutdown failed");
+  {
+    handle_error(command, mysql_errno(mysql), mysql_error(mysql),
+                 mysql_sqlstate(mysql), &ds_res);
+    DBUG_VOID_RETURN;
+  }
 
   if (!timeout || wait_until_dead(pid, timeout))
   {
@@ -5627,7 +5653,6 @@ void do_close_connection(struct st_command *command)
 #endif /*!EMBEDDED_LIBRARY*/
   if (con->stmt)
     do_stmt_close(con);
-  con->stmt= 0;
 #ifdef EMBEDDED_LIBRARY
   /*
     As query could be still executed in a separate thread
@@ -7304,17 +7329,17 @@ get_one_option(const struct my_option *opt, const char *argument, const char *)
     break;
   case 'V':
     print_version();
-    exit(0);
+    cleanup_and_exit(0,0);
   case OPT_MYSQL_PROTOCOL:
 #ifndef EMBEDDED_LIBRARY
     if ((opt_protocol= find_type_with_warning(argument, &sql_protocol_typelib,
                                               opt->name)) <= 0)
-      exit(1);
+      cleanup_and_exit(1,0);
 #endif
     break;
   case '?':
     usage();
-    exit(0);
+    cleanup_and_exit(0,0);
   }
   return 0;
 }
@@ -7326,12 +7351,12 @@ int parse_args(int argc, char **argv)
   default_argv= argv;
 
   if ((handle_options(&argc, &argv, my_long_options, get_one_option)))
-    exit(1);
+    cleanup_and_exit(1, 0);
 
   if (argc > 1)
   {
     usage();
-    exit(1);
+    cleanup_and_exit(1, 0);
   }
   if (argc == 1)
     opt_db= *argv;
@@ -8191,7 +8216,7 @@ static int match_expected_error(struct st_command *command,
 
   SYNOPSIS
   handle_error()
-  q     - query context
+  command   - command
   err_errno - error number
   err_error - error message
   err_sqlstate - sql state
@@ -8441,7 +8466,7 @@ void run_query_stmt(struct st_connection *cn, struct st_command *command,
   my_bool ds_res_1st_execution_init = FALSE;
   my_bool compare_2nd_execution = TRUE;
   int query_match_ps2_re;
-
+  MYSQL_RES *res;
   DBUG_ENTER("run_query_stmt");
   DBUG_PRINT("query", ("'%-.60s'", query));
 
@@ -8627,10 +8652,13 @@ void run_query_stmt(struct st_connection *cn, struct st_command *command,
       The --enable_prepare_warnings command can be used to change this so
       that warnings from both the prepare and execute phase are shown.
     */
-    if ((mysql_stmt_result_metadata(stmt) != NULL) &&
-        !disable_warnings &&
-        !prepare_warnings_enabled)
-      dynstr_set(&ds_prepare_warnings, NULL);
+    if ((res= mysql_stmt_result_metadata(stmt)))
+    {
+      if (!disable_warnings &&
+          !prepare_warnings_enabled)
+        dynstr_set(&ds_prepare_warnings, NULL);
+      mysql_free_result(res);
+    }
 
     /*
       Fetch info before fetching warnings, since it will be reset
@@ -9725,6 +9753,7 @@ static sig_handler signal_handler(int sig)
   fflush(stderr);
   my_write_core(sig);
 #ifndef _WIN32
+  sf_leaking_memory= 1;
   exit(1);			// Shouldn't get here but just in case
 #endif
 }
@@ -9798,11 +9827,9 @@ int main(int argc, char **argv)
   uint command_executed= 0, last_command_executed= 0;
   char save_file[FN_REFLEN];
   bool empty_result= FALSE;
+  int error= 0;
   MY_INIT(argv[0]);
   DBUG_ENTER("main");
-
-  /* mysqltest has no way to free all its memory correctly */
-  sf_leaking_memory= 1;
 
   save_file[0]= 0;
   TMPDIR[0]= 0;
@@ -10482,7 +10509,7 @@ int main(int argc, char **argv)
     die("Test ended with parsing disabled");
 
   /*
-    The whole test has been executed _successfully_.
+    The whole test has been executed successfully.
     Time to compare result or save it to record file.
     The entire output from test is in the log file
   */
@@ -10505,7 +10532,7 @@ int main(int argc, char **argv)
       else
       {
 	/* Check that the output from test is equal to result file */
-	check_result();
+	error= check_result();
       }
     }
   }
@@ -10515,7 +10542,8 @@ int main(int argc, char **argv)
     if (! result_file_name || record ||
         compare_files (log_file.file_name(), result_file_name))
     {
-      die("The test didn't produce any output");
+      fprintf(stderr, "mysqltest: The test didn't produce any output\n");
+      error= 1;
     }
     else 
     {
@@ -10524,12 +10552,15 @@ int main(int argc, char **argv)
   }
 
   if (!command_executed && result_file_name && !empty_result)
-    die("No queries executed but non-empty result file found!");
+  {
+    fprintf(stderr, "mysqltest: No queries executed but non-empty result file found!\n");
+    error= 1;
+  }
 
-  verbose_msg("Test has succeeded!");
+  if (!error)
+    verbose_msg("Test has succeeded!");
   timer_output();
-  /* Yes, if we got this far the test has succeeded! Sakila smiles */
-  cleanup_and_exit(0);
+  cleanup_and_exit(error, 0);
   return 0; /* Keep compiler happy too */
 }
 

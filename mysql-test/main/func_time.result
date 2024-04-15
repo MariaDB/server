@@ -6373,3 +6373,57 @@ NULL
 SELECT FROM_UNIXTIME(LEAST(3696610869, NULL));
 FROM_UNIXTIME(LEAST(3696610869, NULL))
 NULL
+#
+# Start of 10.5 tests
+#
+#
+# MDEV-29149 Assertion `!is_valid_datetime() || fraction_remainder(((item->decimals) < (6) ? (item->decimals) : (6))) == 0' failed in Datetime_truncation_not_needed::Datetime_truncation_not_needed
+#
+SET @@timestamp= UNIX_TIMESTAMP('2022-07-21 23:00:00');
+SELECT DATE_SUB('2022-07-21 00:00:00', INTERVAL 800 HOUR) AS expected_result;
+expected_result
+2022-06-17 16:00:00
+SELECT
+IF(1,TIMEDIFF('38:59:59','839:00:00'),CAST('2022-12-12' AS DATE)) AS c1,
+IF(1,TIMEDIFF('-839:00:00','-38:59:59'),CAST('2022-12-12' AS DATE)) AS c2;
+c1	c2
+2022-06-17 16:00:00	2022-06-17 16:00:00
+Warnings:
+Warning	1292	Truncated incorrect time value: '839:00:00'
+Warning	1292	Truncated incorrect time value: '-839:00:00'
+SELECT
+IF(1,TIMEDIFF(385959,8390000),CAST('2022-12-12' AS DATE)) AS c1,
+IF(1,TIMEDIFF(-8390000,-385959),CAST('2022-12-12' AS DATE)) AS c2;
+c1	c2
+2022-06-17 16:00:00	2022-06-17 16:00:00
+Warnings:
+Warning	1292	Truncated incorrect time value: '8390000'
+Warning	1292	Truncated incorrect time value: '-8390000'
+SELECT
+TIMEDIFF('38:59:59','839:00:00') AS c1,
+CAST(TIMEDIFF('38:59:59','839:00:00') AS TIME(6)) AS c2,
+TIMEDIFF('839:00:00','38:59:59') AS c3,
+CAST(TIMEDIFF('839:00:00','38:59:59') AS TIME(6)) AS c4;
+c1	c2	c3	c4
+-800:00:00	-800:00:00.000000	800:00:00	800:00:00.000000
+Warnings:
+Warning	1292	Truncated incorrect time value: '839:00:00'
+Warning	1292	Truncated incorrect time value: '839:00:00'
+Warning	1292	Truncated incorrect time value: '839:00:00'
+Warning	1292	Truncated incorrect time value: '839:00:00'
+SELECT
+TIMEDIFF(385959,8390000) AS c1,
+CAST(TIMEDIFF(385959,8390000) AS TIME(6)) AS c2,
+TIMEDIFF(8390000,385959) AS c3,
+CAST(TIMEDIFF(8390000,385959) AS TIME(6)) AS c4;
+c1	c2	c3	c4
+-800:00:00	-800:00:00.000000	800:00:00	800:00:00.000000
+Warnings:
+Warning	1292	Truncated incorrect time value: '8390000'
+Warning	1292	Truncated incorrect time value: '8390000'
+Warning	1292	Truncated incorrect time value: '8390000'
+Warning	1292	Truncated incorrect time value: '8390000'
+SET @@timestamp= DEFAULT;
+#
+# End of 10.5 tests
+#

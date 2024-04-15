@@ -6520,5 +6520,25 @@ SELECT 1 COLLATE latin1_swedish_ci;
 ERROR 42000: COLLATION 'latin1_swedish_ci' is not valid for CHARACTER SET 'ucs2'
 SET NAMES utf8;
 #
+# MDEV-33772 Bad SEPARATOR value in GROUP_CONCAT on character set conversion
+#
+SET NAMES utf8mb3, @@collation_connection=ucs2_general_ci;
+CREATE TABLE t1 (c VARCHAR(10)) CHARACTER SET ucs2;
+INSERT INTO t1 VALUES ('a'),('A');
+CREATE OR REPLACE VIEW v1 AS
+SELECT COUNT(*) AS cnt, GROUP_CONCAT(c) AS c1 FROM t1 GROUP BY c;
+SELECT * FROM v1;
+cnt	c1
+2	a,A
+SELECT HEX(c1) FROM v1;
+HEX(c1)
+0061002C0041
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select count(0) AS `cnt`,group_concat(`t1`.`c` separator ',') AS `c1` from `t1` group by `t1`.`c`	utf8	ucs2_general_ci
+DROP VIEW v1;
+DROP TABLE t1;
+SET NAMES utf8mb3;
+#
 # End of 10.5 tests
 #

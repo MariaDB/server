@@ -4670,6 +4670,11 @@ void Item_func_dyncol_create::print_arguments(String *str,
       {
         str->append(STRING_WITH_LEN(" charset "));
         str->append(defs[i].cs->csname);
+        if (Charset(defs[i].cs).can_have_collate_clause())
+       {
+          str->append(STRING_WITH_LEN(" collate "));
+          str->append(defs[i].cs->name);
+        }
         str->append(' ');
       }
       break;
