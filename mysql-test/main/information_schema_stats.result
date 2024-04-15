@@ -39,6 +39,9 @@ id	first_name	last_name	address	phone	email
 select * from just_a_test force index(primary) where id=8;
 id	first_name	last_name	address	phone	email
 update just_a_test set first_name="unlucky" where id=5;
+select * from information_schema.table_statistics where table_schema='test' and table_name='just_a_test';
+TABLE_SCHEMA	TABLE_NAME	ROWS_READ	ROWS_CHANGED	ROWS_CHANGED_X_INDEXES	ROWS_INSERTED	ROWS_UPDATED	ROWS_DELETED	KEY_READ_HITS	KEY_READ_MISSES
+test	just_a_test	31	6	6	5	1	0	4	1
 delete from just_a_test where id=5;
 select * from information_schema.table_statistics where table_schema='test' and table_name='just_a_test';
 TABLE_SCHEMA	TABLE_NAME	ROWS_READ	ROWS_CHANGED	ROWS_CHANGED_X_INDEXES	ROWS_INSERTED	ROWS_UPDATED	ROWS_DELETED	KEY_READ_HITS	KEY_READ_MISSES

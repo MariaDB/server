@@ -48,7 +48,7 @@ static int table_stats_fill(THD *thd, TABLE_LIST *tables, COND *cond)
       continue;
 
     rows_changed= (rows_stats->inserted + rows_stats->updated +
-                   rows_stats->updated);
+                   rows_stats->deleted);
     table->field[0]->store(table_stats->table, schema_length,
                            system_charset_info);
     table->field[1]->store(table_stats->table + schema_length+1,

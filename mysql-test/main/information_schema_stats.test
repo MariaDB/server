@@ -27,6 +27,7 @@ select * from information_schema.index_statistics where table_schema='test' and 
 select * from just_a_test force index(primary) where id between 1 and 2;
 select * from just_a_test force index(primary) where id=8;
 update just_a_test set first_name="unlucky" where id=5;
+select * from information_schema.table_statistics where table_schema='test' and table_name='just_a_test';
 delete from just_a_test where id=5;
 select * from information_schema.table_statistics where table_schema='test' and table_name='just_a_test';
 select * from information_schema.index_statistics where table_schema='test' and table_name='just_a_test';
