@@ -862,7 +862,7 @@ EOF
                 exit 42
             fi
             CN=$("$OPENSSL_BINARY" x509 -noout -subject -in "$SSTCERT" | \
-                 tr ',' '\n' | grep -F 'CN =' | cut -d '=' -f2 | sed s/^\ // | \
+                 sed s/subject=// | tr ',' '\n' | grep -F 'CN =' | cut -d '=' -f2 | sed s/^\ // | \
                  sed s/\ %//)
         fi
         MY_SECRET="$(wsrep_gen_secret)"
