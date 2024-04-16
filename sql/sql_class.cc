@@ -495,10 +495,19 @@ long long thd_test_options(const THD *thd, long long test_options)
   return thd->variables.option_bits & test_options;
 }
 
+
+/*
+  @detail
+  Treat EXPLAIN ... like a SELECT.  
+  The idea is that for EXPLAIN UPDATE/DELETE/etc the optimizer may read
+  rows from tables but these reads should not acquire locks on the rows
+  read, like it's done for UPDATE/DELETE/etc.
+*/
+
 extern "C"
 int thd_sql_command(const THD *thd)
 {
-  return (int) thd->lex->sql_command;
+  return thd->lex->describe? SQLCOM_SELECT : (int)thd->lex->sql_command;
 }
 
 /*
