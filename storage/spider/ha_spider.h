@@ -140,11 +140,7 @@ public:
   bool               have_second_range;
   KEY_MULTI_RANGE    mrr_second_range;
   spider_string      *mrr_key_buff;
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000
   range_id_t         *multi_range_keys;
-#else
-  char               **multi_range_keys;
-#endif
 #else
   KEY_MULTI_RANGE    *multi_range_ranges;
 #endif
@@ -332,7 +328,6 @@ public:
   void reset_no_where_cond();
   bool check_no_where_cond();
 #ifdef HA_MRR_USE_DEFAULT_IMPL
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000
   ha_rows multi_range_read_info_const(
     uint keyno,
     RANGE_SEQ_IF *seq,
@@ -351,26 +346,6 @@ public:
     uint *flags,
     Cost_estimate *cost
   );
-#else
-  ha_rows multi_range_read_info_const(
-    uint keyno,
-    RANGE_SEQ_IF *seq,
-    void *seq_init_param,
-    uint n_ranges,
-    uint *bufsz,
-    uint *flags,
-    COST_VECT *cost
-  );
-  ha_rows multi_range_read_info(
-    uint keyno,
-    uint n_ranges,
-    uint keys,
-    uint key_parts,
-    uint *bufsz,
-    uint *flags,
-    COST_VECT *cost
-  );
-#endif
   int multi_range_read_init(
     RANGE_SEQ_IF *seq,
     void *seq_init_param,
@@ -378,7 +353,6 @@ public:
     uint mode,
     HANDLER_BUFFER *buf
   );
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000
   int multi_range_read_next(
     range_id_t *range_info
   );
@@ -388,17 +362,6 @@ public:
   int multi_range_read_next_next(
     range_id_t *range_info
   );
-#else
-  int multi_range_read_next(
-    char **range_info
-  );
-  int multi_range_read_next_first(
-    char **range_info
-  );
-  int multi_range_read_next_next(
-    char **range_info
-  );
-#endif
 #else
   int read_multi_range_first(
     KEY_MULTI_RANGE **found_range_p,
@@ -1251,3 +1214,26 @@ public:
   void bulk_access_end();
 #endif
 };
+
+
+/* This is a hack for ASAN
+ * Libraries such as libxml2 and libodbc do not like being unloaded before
+ * exit and will show as a leak in ASAN with no stack trace (as the plugin
+ * has been unloaded from memory).
+ *
+ * The below is designed to trick the compiler into adding a "UNIQUE" symbol
+ * which can be seen using:
+ * readelf -s storage/spider/ha_spider.so | grep UNIQUE
+ *
+ * Having this symbol means that the plugin remains in memory after dlclose()
+ * has been called. Thereby letting the libraries clean up properly.
+ */
+#if defined(__SANITIZE_ADDRESS__)
+__attribute__((__used__))
+inline int dummy(void)
+{
+  static int d;
+  d++;
+  return d;
+}
+#endif

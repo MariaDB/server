@@ -86,10 +86,8 @@ SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
 argument
 select `value` from `auto_test_remote2`.`tbl_a` where `value` = 5
 select `value2` from `auto_test_remote2`.`tbl_b` where `value2` = 5
-select sum('5') `sum(a.value)`,count('5') `count(b.value2)` from (select 1) t0 join (select 1) t1
 select `value` from `auto_test_remote2`.`tbl_a` where `value` = 5
 select `value2` from `auto_test_remote2`.`tbl_b` where `value2` = 5
-select sum('5') `sum(a.value)`,count('5') `count(b.value2)` from (select 1) t0 join (select 1) t1
 SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %'
 SELECT value FROM tbl_a ORDER BY value;
 value

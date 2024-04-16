@@ -22,17 +22,12 @@
 #include <my_global.h>
 #include "mysql_version.h"
 #include "spd_environ.h"
-#if MYSQL_VERSION_ID < 50500
-#include "mysql_priv.h"
-#include <mysql/plugin.h>
-#else
 #include "sql_priv.h"
 #include "probes_mysql.h"
 #include "sql_class.h"
 #include "key.h"
 #ifdef HANDLER_HAS_DIRECT_AGGREGATE
 #include "sql_select.h"
-#endif
 #endif
 #include "ha_partition.h"
 #include "spd_param.h"
@@ -48,15 +43,9 @@
 #include "spd_ping_table.h"
 #include "spd_malloc.h"
 
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100002
 #define SPIDER_CAN_BG_SEARCH (1LL << 37)
 #define SPIDER_CAN_BG_INSERT (1LL << 38)
 #define SPIDER_CAN_BG_UPDATE (1LL << 39)
-#else
-#define SPIDER_CAN_BG_SEARCH (LL(1) << 37)
-#define SPIDER_CAN_BG_INSERT (LL(1) << 38)
-#define SPIDER_CAN_BG_UPDATE (LL(1) << 39)
-#endif
 
 extern handlerton *spider_hton_ptr;
 extern SPIDER_DBTON spider_dbton[SPIDER_DBTON_SIZE];
@@ -1587,14 +1576,11 @@ int ha_spider::extra(
       if (!(wide_handler->trx = spider_get_trx(ha_thd(), TRUE, &error_num)))
         DBUG_RETURN(error_num);
       break;
-#if MYSQL_VERSION_ID < 50500
-#else
     case HA_EXTRA_ADD_CHILDREN_LIST:
       DBUG_PRINT("info",("spider HA_EXTRA_ADD_CHILDREN_LIST"));
       if (!(wide_handler->trx = spider_get_trx(ha_thd(), TRUE, &error_num)))
         DBUG_RETURN(error_num);
       break;
-#endif
 #if defined(HA_EXTRA_HAS_STARTING_ORDERED_INDEX_SCAN) || defined(HA_EXTRA_HAS_HA_EXTRA_USE_CMP_REF)
 #ifdef HA_EXTRA_HAS_STARTING_ORDERED_INDEX_SCAN
     case HA_EXTRA_STARTING_ORDERED_INDEX_SCAN:
@@ -4088,7 +4074,6 @@ bool ha_spider::check_no_where_cond()
 }
 
 #ifdef HA_MRR_USE_DEFAULT_IMPL
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000
 ha_rows ha_spider::multi_range_read_info_const(
   uint keyno,
   RANGE_SEQ_IF *seq,
@@ -4098,17 +4083,6 @@ ha_rows ha_spider::multi_range_read_info_const(
   uint *flags,
   Cost_estimate *cost
 )
-#else
-ha_rows ha_spider::multi_range_read_info_const(
-  uint keyno,
-  RANGE_SEQ_IF *seq,
-  void *seq_init_param,
-  uint n_ranges,
-  uint *bufsz,
-  uint *flags,
-  COST_VECT *cost
-)
-#endif
 {
   DBUG_ENTER("ha_spider::multi_range_read_info_const");
   DBUG_PRINT("info",("spider this=%p", this));
@@ -4153,7 +4127,6 @@ ha_rows ha_spider::multi_range_read_info_const(
   DBUG_RETURN(rows);
 }
 
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000
 ha_rows ha_spider::multi_range_read_info(
   uint keyno,
   uint n_ranges,
@@ -4163,17 +4136,6 @@ ha_rows ha_spider::multi_range_read_info(
   uint *flags,
   Cost_estimate *cost
 )
-#else
-ha_rows ha_spider::multi_range_read_info(
-  uint keyno,
-  uint n_ranges,
-  uint keys,
-  uint key_parts,
-  uint *bufsz,
-  uint *flags,
-  COST_VECT *cost
-)
-#endif
 {
   DBUG_ENTER("ha_spider::multi_range_read_info");
   DBUG_PRINT("info",("spider this=%p", this));
@@ -4246,15 +4208,9 @@ int ha_spider::multi_range_read_init(
 #endif
 
 #ifdef HA_MRR_USE_DEFAULT_IMPL
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000
 int ha_spider::multi_range_read_next_first(
   range_id_t *range_info
 )
-#else
-int ha_spider::multi_range_read_next_first(
-  char **range_info
-)
-#endif
 #else
 int ha_spider::read_multi_range_first_internal(
   uchar *buf,
@@ -4742,19 +4698,11 @@ int ha_spider::read_multi_range_first_internal(
       DBUG_PRINT("info",("spider free multi_range_keys=%p", multi_range_keys));
       spider_free(spider_current_trx, multi_range_keys, MYF(0));
     }
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000
     if (!(multi_range_keys = (range_id_t *)
       spider_malloc(spider_current_trx, SPD_MID_HA_SPIDER_MULTI_RANGE_READ_NEXT_FIRST_1, sizeof(range_id_t) *
         (multi_range_num < result_list.multi_split_read ?
           multi_range_num : result_list.multi_split_read), MYF(MY_WME)))
     )
-#else
-    if (!(multi_range_keys = (char **)
-      spider_malloc(spider_current_trx, SPD_MID_HA_SPIDER_MULTI_RANGE_READ_NEXT_FIRST_2, sizeof(char *) *
-        (multi_range_num < result_list.multi_split_read ?
-          multi_range_num : result_list.multi_split_read), MYF(MY_WME)))
-    )
-#endif
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
     DBUG_PRINT("info",("spider alloc multi_range_keys=%p", multi_range_keys));
     if (!mrr_key_buff)
@@ -4972,11 +4920,7 @@ int ha_spider::read_multi_range_first_internal(
           }
 
 #ifdef HA_MRR_USE_DEFAULT_IMPL
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000
           multi_range_keys[multi_range_cnt] = mrr_cur_range.ptr;
-#else
-          multi_range_keys[multi_range_cnt] = (char *) mrr_cur_range.ptr;
-#endif
 #endif
           if (bka_mode == 2)
           {
@@ -5099,11 +5043,7 @@ int ha_spider::read_multi_range_first_internal(
         {
 #ifdef HA_MRR_USE_DEFAULT_IMPL
           DBUG_PRINT("info",("spider range_res7=%d", range_res));
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000
           multi_range_keys[multi_range_cnt] = mrr_cur_range.ptr;
-#else
-          multi_range_keys[multi_range_cnt] = (char *) mrr_cur_range.ptr;
-#endif
 #endif
           if ((error_num = spider_db_append_select(this)))
             DBUG_RETURN(error_num);
@@ -5648,15 +5588,9 @@ int ha_spider::pre_multi_range_read_next(
   DBUG_RETURN(0);
 }
 
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000
 int ha_spider::multi_range_read_next(
   range_id_t *range_info
 )
-#else
-int ha_spider::multi_range_read_next(
-  char **range_info
-)
-#endif
 {
   int error_num;
   DBUG_ENTER("ha_spider::multi_range_read_next");
@@ -5734,15 +5668,9 @@ int ha_spider::read_multi_range_first(
 #endif
 
 #ifdef HA_MRR_USE_DEFAULT_IMPL
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000
 int ha_spider::multi_range_read_next_next(
   range_id_t *range_info
 )
-#else
-int ha_spider::multi_range_read_next_next(
-  char **range_info
-)
-#endif
 #else
 int ha_spider::read_multi_range_next(
   KEY_MULTI_RANGE **found_range_p
@@ -6460,11 +6388,7 @@ int ha_spider::read_multi_range_next(
           }
 
 #ifdef HA_MRR_USE_DEFAULT_IMPL
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000
           multi_range_keys[multi_range_cnt] = mrr_cur_range.ptr;
-#else
-          multi_range_keys[multi_range_cnt] = (char *) mrr_cur_range.ptr;
-#endif
 #endif
           if (bka_mode == 2)
           {
@@ -6585,11 +6509,7 @@ int ha_spider::read_multi_range_next(
 #endif
         {
 #ifdef HA_MRR_USE_DEFAULT_IMPL
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000
           multi_range_keys[multi_range_cnt] = mrr_cur_range.ptr;
-#else
-          multi_range_keys[multi_range_cnt] = (char *) mrr_cur_range.ptr;
-#endif
 #endif
           if ((error_num = spider_db_append_select(this)))
             DBUG_RETURN(error_num);
@@ -9687,19 +9607,10 @@ int ha_spider::write_row(
       bulk_access_pre_called = FALSE;
       DBUG_RETURN(spider_db_bulk_bulk_insert(this));
     }
-#if MYSQL_VERSION_ID < 50500
-    option_backup = thd->options;
-    thd->options &= ~OPTION_BIN_LOG;
-#else
     option_backup = thd->variables.option_bits;
     thd->variables.option_bits &= ~OPTION_BIN_LOG;
-#endif
     error_num = bulk_access_link_exec_tgt->spider->ha_write_row(buf);
-#if MYSQL_VERSION_ID < 50500
-    thd->options = option_backup;
-#else
     thd->variables.option_bits = option_backup;
-#endif
     DBUG_RETURN(error_num);
   }
 #endif
@@ -9712,11 +9623,6 @@ int ha_spider::write_row(
   }
 #ifndef SPIDER_WITHOUT_HA_STATISTIC_INCREMENT
   ha_statistic_increment(&SSV::ha_write_count);
-#endif
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000
-#else
-  if (table->timestamp_field_type & TIMESTAMP_AUTO_SET_ON_INSERT)
-    table->timestamp_field->set_time();
 #endif
   if (!bulk_insert)
     store_last_insert_id = 0;
@@ -9813,21 +9719,12 @@ int ha_spider::pre_write_row(
   THD *thd = wide_handler->trx->thd;
   DBUG_ENTER("ha_spider::pre_write_row");
   DBUG_PRINT("info",("spider this=%p", this));
-#if MYSQL_VERSION_ID < 50500
-  option_backup = thd->options;
-  thd->options &= ~OPTION_BIN_LOG;
-#else
   option_backup = thd->variables.option_bits;
   thd->variables.option_bits &= ~OPTION_BIN_LOG;
-#endif
   error_num = bulk_access_link_current->spider->ha_write_row(buf);
   bulk_access_link_current->spider->bulk_access_pre_called = TRUE;
   bulk_access_link_current->called = TRUE;
-#if MYSQL_VERSION_ID < 50500
-  thd->options = option_backup;
-#else
   thd->variables.option_bits = option_backup;
-#endif
   DBUG_RETURN(error_num);
 }
 #endif
@@ -9950,20 +9847,11 @@ int ha_spider::update_row(
     bulk_access_link_exec_tgt->called
   ) {
     ulonglong option_backup = 0;
-#if MYSQL_VERSION_ID < 50500
-    option_backup = thd->options;
-    thd->options &= ~OPTION_BIN_LOG;
-#else
     option_backup = thd->variables.option_bits;
     thd->variables.option_bits &= ~OPTION_BIN_LOG;
-#endif
     error_num = bulk_access_link_exec_tgt->spider->ha_update_row(
       old_data, new_data);
-#if MYSQL_VERSION_ID < 50500
-    thd->options = option_backup;
-#else
     thd->variables.option_bits = option_backup;
-#endif
     DBUG_RETURN(error_num);
   }
 #endif
@@ -9972,11 +9860,6 @@ int ha_spider::update_row(
 #endif
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
   do_direct_update = FALSE;
-#endif
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000
-#else
-  if (table->timestamp_field_type & TIMESTAMP_AUTO_SET_ON_UPDATE)
-    table->timestamp_field->set_time();
 #endif
   if ((error_num = spider_db_update(this, table, old_data)))
     DBUG_RETURN(check_error_mode(error_num));
@@ -10122,14 +10005,10 @@ int ha_spider::direct_update_rows_init(
     direct_update_fields
   ) {
     if (
-#if MYSQL_VERSION_ID < 50500
-      !thd->variables.engine_condition_pushdown ||
-#else
 #ifdef SPIDER_ENGINE_CONDITION_PUSHDOWN_IS_ALWAYS_ON
 #else
       !(thd->variables.optimizer_switch &
         OPTIMIZER_SWITCH_ENGINE_CONDITION_PUSHDOWN) ||
-#endif
 #endif
       !select_lex ||
       select_lex->table_list.elements != 1 ||
@@ -10297,14 +10176,10 @@ int ha_spider::direct_update_rows_init()
   if (wide_handler->direct_update_fields)
   {
     if (
-#if MYSQL_VERSION_ID < 50500
-      !thd->variables.engine_condition_pushdown ||
-#else
 #ifdef SPIDER_ENGINE_CONDITION_PUSHDOWN_IS_ALWAYS_ON
 #else
       !(thd->variables.optimizer_switch &
         OPTIMIZER_SWITCH_ENGINE_CONDITION_PUSHDOWN) ||
-#endif
 #endif
       !select_lex ||
       select_lex->table_list.elements != 1 ||
@@ -10639,19 +10514,10 @@ int ha_spider::delete_row(
     bulk_access_link_exec_tgt->called
   ) {
     ulonglong option_backup = 0;
-#if MYSQL_VERSION_ID < 50500
-    option_backup = thd->options;
-    thd->options &= ~OPTION_BIN_LOG;
-#else
     option_backup = thd->variables.option_bits;
     thd->variables.option_bits &= ~OPTION_BIN_LOG;
-#endif
     error_num = bulk_access_link_exec_tgt->spider->ha_delete_row(buf);
-#if MYSQL_VERSION_ID < 50500
-    thd->options = option_backup;
-#else
     thd->variables.option_bits = option_backup;
-#endif
     DBUG_RETURN(error_num);
   }
 #endif
@@ -10745,14 +10611,10 @@ int ha_spider::direct_delete_rows_init(
   if (!range_count)
   {
     if (
-#if MYSQL_VERSION_ID < 50500
-      !thd->variables.engine_condition_pushdown ||
-#else
 #ifdef SPIDER_ENGINE_CONDITION_PUSHDOWN_IS_ALWAYS_ON
 #else
       !(thd->variables.optimizer_switch &
         OPTIMIZER_SWITCH_ENGINE_CONDITION_PUSHDOWN) ||
-#endif
 #endif
       !select_lex ||
       select_lex->table_list.elements != 1 ||
@@ -10851,14 +10713,10 @@ int ha_spider::direct_delete_rows_init()
     wide_handler->cond_check = FALSE;
   spider_get_select_limit(this, &select_lex, &select_limit, &offset_limit);
   if (
-#if MYSQL_VERSION_ID < 50500
-    !thd->variables.engine_condition_pushdown ||
-#else
 #ifdef SPIDER_ENGINE_CONDITION_PUSHDOWN_IS_ALWAYS_ON
 #else
     !(thd->variables.optimizer_switch &
       OPTIMIZER_SWITCH_ENGINE_CONDITION_PUSHDOWN) ||
-#endif
 #endif
     !select_lex ||
     select_lex->table_list.elements != 1 ||
@@ -15698,13 +15556,8 @@ int ha_spider::bulk_tmp_table_rnd_next()
     if (tmp_table[roop_count])
     {
       if (
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 50200
         !(error_num = tmp_table[roop_count]->file->ha_rnd_next(
           tmp_table[roop_count]->record[0]))
-#else
-        !(error_num = tmp_table[roop_count]->file->rnd_next(
-          tmp_table[roop_count]->record[0]))
-#endif
       ) {
         DBUG_RETURN(error_num);
       }

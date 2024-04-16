@@ -61,6 +61,7 @@ alter table t1 discard tablespace;
 flush tables t2 for export;
 unlock tables;
 alter table t1 import tablespace;
+# restart
 select * from t1;
 z
 42

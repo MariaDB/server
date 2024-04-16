@@ -458,8 +458,15 @@ btr_pcur_t::restore_position(ulint restore_latch_mode, const char *file,
 
 			return restore_status::SAME_ALL;
 		}
-		if (n_matched_fields >= index->n_uniq)
-			ret_val= restore_status::SAME_UNIQ;
+		if (n_matched_fields >= index->n_uniq
+		    /* Unique indexes can contain "NULL" keys, and if all
+		    unique fields are NULL and not all tuple
+		    fields match to record fields, then treat it as if
+		    restored cursor position points to the record with
+		    not the same unique key. */
+		    && !(index->n_nullable
+			    && dtuple_contains_null(tuple, index->n_uniq)))
+			  ret_val= restore_status::SAME_UNIQ;
 	}
 
 	mem_heap_free(heap);

@@ -63,7 +63,6 @@ dict_mem_fill_index_struct(
 		& index->MAX_N_FIELDS;
 	/* The '1 +' above prevents allocation
 	of an empty mem block */
-	index->nulls_equal = false;
 #ifdef BTR_CUR_HASH_ADAPT
 #ifdef MYSQL_INDEX_DISABLE_AHI
 	index->disable_ahi = false;
