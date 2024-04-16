@@ -5806,12 +5806,6 @@ public:
     lex= backup_lex;
   }
 
-  bool should_collect_handler_stats() const
-  {
-    return (variables.log_slow_verbosity & LOG_SLOW_VERBOSITY_ENGINE) ||
-           lex->analyze_stmt;
-  }
-
   /* Return true if we should create a note when an unusable key is found */
   bool give_notes_for_unusable_keys()
   {
