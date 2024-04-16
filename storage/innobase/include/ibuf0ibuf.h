@@ -370,10 +370,11 @@ in DISCARD TABLESPACE, IMPORT TABLESPACE, or read-ahead.
 void ibuf_delete_for_discarded_space(ulint space);
 
 /** Contract the change buffer by reading pages to the buffer pool.
+@param slow_shutdown true, if called during slow shutdown
 @return a lower limit for the combined size in bytes of entries which
 will be merged from ibuf trees to the pages read
 @retval 0 if ibuf.empty */
-ulint ibuf_contract();
+ulint ibuf_contract(bool slow_shutdown);
 
 /** Contracts insert buffer trees by reading pages referring to space_id
 to the buffer pool.

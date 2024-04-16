@@ -24,6 +24,7 @@ Insert buffer
 Created 7/19/1997 Heikki Tuuri
 *******************************************************/
 
+#include <tuple>
 #include "ibuf0ibuf.h"
 #include "sync0sync.h"
 #include "btr0sea.h"
@@ -2331,9 +2332,11 @@ static void ibuf_delete_recs(const page_id_t page_id)
 loop:
   btr_pcur_t pcur;
   ibuf_mtr_start(&mtr);
-  if (btr_pcur_open(ibuf.index, &tuple, PAGE_CUR_GE, BTR_MODIFY_LEAF,
-                    &pcur, &mtr) != DB_SUCCESS)
+  if (btr_pcur_open_on_user_rec(ibuf.index, &tuple, PAGE_CUR_GE,
+                                BTR_MODIFY_LEAF, &pcur, &mtr) != DB_SUCCESS)
+  {
     goto func_exit;
+  }
   if (!btr_pcur_is_on_user_rec(&pcur))
   {
     ut_ad(btr_pcur_is_after_last_on_page(&pcur));
@@ -2370,7 +2373,8 @@ func_exit:
 
 /** Merge the change buffer to some pages. */
 static void ibuf_read_merge_pages(const uint32_t* space_ids,
-				  const uint32_t* page_nos, ulint n_stored)
+				  const uint32_t* page_nos, ulint n_stored,
+				  bool slow_shutdown_cleanup)
 {
 	for (ulint i = 0; i < n_stored; i++) {
 		const ulint space_id = space_ids[i];
@@ -2394,26 +2398,25 @@ tablespace_deleted:
 		if (UNIV_LIKELY(page_nos[i] < size)) {
 			mtr.start();
 			dberr_t err;
-			buf_block_t *block =
+			/* Load the page and apply change buffers. */
+			std::ignore =
 			buf_page_get_gen(page_id_t(space_id, page_nos[i]),
 					 zip_size, RW_X_LATCH, nullptr,
 					 BUF_GET_POSSIBLY_FREED,
 					 __FILE__, __LINE__, &mtr, &err, true);
-			bool remove = !block
-				|| fil_page_get_type(block->frame)
-				!= FIL_PAGE_INDEX
-				|| !page_is_leaf(block->frame);
 			mtr.commit();
 			if (err == DB_TABLESPACE_DELETED) {
 				goto tablespace_deleted;
 			}
-			if (!remove) {
-				continue;
-			}
 		}
 
-		if (srv_shutdown_state == SRV_SHUTDOWN_NONE
-		    || srv_fast_shutdown) {
+		/* During slow shutdown cleanup, we apply all pending IBUF
+		changes and need to cleanup any left-over IBUF records. There
+		are a few cases when the changes are already discarded and IBUF
+		bitmap is cleaned but we miss to delete the record. Even after
+		the issues are fixed, we need to keep this safety measure for
+		upgraded DBs with such left over records. */
+		if (!slow_shutdown_cleanup) {
 			continue;
 		}
 
@@ -2445,10 +2448,11 @@ tablespace_deleted:
 }
 
 /** Contract the change buffer by reading pages to the buffer pool.
+@param slow_shutdown true, if called during slow shutdown
 @return a lower limit for the combined size in bytes of entries which
 will be merged from ibuf trees to the pages read
 @retval 0 if ibuf.empty */
-ulint ibuf_contract()
+ulint ibuf_contract(bool slow_shutdown)
 {
 	if (UNIV_UNLIKELY(!ibuf.index)) return 0;
 	mtr_t		mtr;
@@ -2492,7 +2496,7 @@ ulint ibuf_contract()
 	ibuf_mtr_commit(&mtr);
 	btr_pcur_close(&pcur);
 
-	ibuf_read_merge_pages(space_ids, page_nos, n_pages);
+	ibuf_read_merge_pages(space_ids, page_nos, n_pages, slow_shutdown);
 
 	return(sum_sizes + 1);
 }
@@ -2574,7 +2578,7 @@ ibuf_merge_space(
 		}
 #endif /* UNIV_DEBUG */
 
-		ibuf_read_merge_pages(spaces, pages, n_pages);
+		ibuf_read_merge_pages(spaces, pages, n_pages, false);
 	}
 
 	return(n_pages);
@@ -2599,7 +2603,7 @@ ibuf_contract_after_insert(
 	ulint size;
 
 	do {
-		size = ibuf_contract();
+		size = ibuf_contract(false);
 		sum_sizes += size;
 	} while (size > 0 && sum_sizes < entry_size);
 }
@@ -3228,7 +3232,7 @@ ibuf_insert_low(
 #ifdef UNIV_IBUF_DEBUG
 		fputs("Ibuf too big\n", stderr);
 #endif
-		ibuf_contract();
+		ibuf_contract(false);
 
 		return(DB_STRONG_FAIL);
 	}
@@ -3478,7 +3482,7 @@ func_exit:
 #ifdef UNIV_IBUF_DEBUG
 		ut_a(n_stored <= IBUF_MAX_N_PAGES_MERGED);
 #endif
-		ibuf_read_merge_pages(space_ids, page_nos, n_stored);
+		ibuf_read_merge_pages(space_ids, page_nos, n_stored, false);
 	}
 
 	return(err);

@@ -657,8 +657,9 @@ user record satisfying the search condition, in the case PAGE_CUR_L or
 PAGE_CUR_LE, on the last user record. If no such user record exists, then
 in the first case sets the cursor after last in tree, and in the latter case
 before first in tree. The latching mode must be BTR_SEARCH_LEAF or
-BTR_MODIFY_LEAF. */
-void
+BTR_MODIFY_LEAF.
+@return DB_SUCCESS or error code */
+dberr_t
 btr_pcur_open_on_user_rec_func(
 /*===========================*/
 	dict_index_t*	index,		/*!< in: index */
@@ -672,8 +673,12 @@ btr_pcur_open_on_user_rec_func(
 	unsigned	line,		/*!< in: line where called */
 	mtr_t*		mtr)		/*!< in: mtr */
 {
-	btr_pcur_open_low(index, 0, tuple, mode, latch_mode, cursor,
-			  file, line, 0, mtr);
+	auto err = btr_pcur_open_low(index, 0, tuple, mode, latch_mode, cursor,
+				     file, line, 0, mtr);
+
+	if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
+		return err;
+	}
 
 	if ((mode == PAGE_CUR_GE) || (mode == PAGE_CUR_G)) {
 
@@ -688,4 +693,5 @@ btr_pcur_open_on_user_rec_func(
 
 		ut_error;
 	}
+	return DB_SUCCESS;
 }

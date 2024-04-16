@@ -1665,7 +1665,7 @@ void srv_shutdown(bool ibuf_merge)
 			ibuf_read_merge_pages() */
 			ibuf_max_size_update(0);
 			log_free_check();
-			n_read = ibuf_contract();
+			n_read = ibuf_contract(true);
 		}
 
 		if (n_tables_to_drop || ibuf_merge) {
