@@ -320,6 +320,12 @@ private:
   ssize_t m_n;
   /** Offset from where to read/write */
   os_offset_t m_offset;
+
+  /** Do the read/write
+  @param request The IO context and type
+  @param n       Number of bytes to read/write
+  @return the number of bytes read/written or negative value on error */
+  ssize_t execute_low(const IORequest& request, ssize_t n);
 };
 
 #ifndef _WIN32 /* On Microsoft Windows, mandatory locking is used */
@@ -673,30 +679,46 @@ os_file_create_subdirs_if_needed(
 
 /** Do the read/write
 @param[in]	request	The IO context and type
+@param[in]      n       Number of bytes to read/write
+@return the number of bytes read/written or negative value on error */
+ssize_t
+SyncFileIO::execute_low(const IORequest& request, ssize_t n)
+{
+  ut_ad(n > 0);
+  ut_ad(size_t(n) <= os_file_request_size_max);
+
+  if (request.is_read())
+    return IF_WIN(tpool::pread(m_fh, m_buf, n, m_offset), pread(m_fh, m_buf, n, m_offset));
+  return IF_WIN(tpool::pwrite(m_fh, m_buf, n, m_offset), pwrite(m_fh, m_buf, n, m_offset));
+}
+
+/** Do the read/write
+@param[in]	request	The IO context and type
 @return the number of bytes read/written or negative value on error */
 ssize_t
 SyncFileIO::execute(const IORequest& request)
 {
-	ssize_t	n_bytes;
-	ut_ad(m_n > 0);
-	ut_ad(size_t(m_n) <= os_file_request_size_max);
+  ssize_t n_bytes= 0;
+  ut_ad(m_n > 0);
 
-	if (request.is_read()) {
-#ifdef _WIN32
-		n_bytes = tpool::pread(m_fh, m_buf, m_n, m_offset);
-#else
-		n_bytes = pread(m_fh, m_buf, m_n, m_offset);
-#endif
-	} else {
-		ut_ad(request.is_write());
-#ifdef _WIN32
-		n_bytes = tpool::pwrite(m_fh, m_buf, m_n, m_offset);
-#else
-		n_bytes = pwrite(m_fh, m_buf, m_n, m_offset);
-#endif
-	}
+  while (size_t(m_n) > os_file_request_size_max)
+  {
+    ssize_t n_partial_bytes= execute_low(request, os_file_request_size_max);
+    if (n_partial_bytes < 0)
+      return n_partial_bytes;
+    n_bytes+= n_partial_bytes;
+    if (n_partial_bytes != os_file_request_size_max)
+      return n_bytes;
+    advance(os_file_request_size_max);
+  }
 
-	return(n_bytes);
+  if (ssize_t n= execute_low(request, m_n))
+  {
+    if (n < 0)
+      return n;
+    n_bytes += n;
+  }
+  return n_bytes;
 }
 
 #ifndef _WIN32
