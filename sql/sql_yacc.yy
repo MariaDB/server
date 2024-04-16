@@ -13559,7 +13559,8 @@ update:
               be too pessimistic. We will decrease lock level if possible in
               mysql_multi_update().
             */
-            slex->set_lock_for_tables($3, slex->table_list.elements == 1, false);
+            if (!Lex->describe)
+              slex->set_lock_for_tables($3, slex->table_list.elements == 1, false);
           }
           opt_where_clause opt_order_clause delete_limit_clause
           {
@@ -13615,8 +13616,11 @@ delete:
           {
             LEX *lex= Lex;
             lex->sql_command= SQLCOM_DELETE;
-            YYPS->m_lock_type= TL_WRITE_DEFAULT;
-            YYPS->m_mdl_type= MDL_SHARED_WRITE;
+            if (!lex->describe)
+            {
+              YYPS->m_lock_type= TL_WRITE_DEFAULT;
+              YYPS->m_mdl_type= MDL_SHARED_WRITE;
+            }
             if (Lex->main_select_push())
               MYSQL_YYABORT;
             mysql_init_select(lex);

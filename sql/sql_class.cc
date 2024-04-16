@@ -501,6 +501,21 @@ int thd_sql_command(const THD *thd)
   return (int) thd->lex->sql_command;
 }
 
+
+/*
+  This is just like thd_sql_command() but EXPLAIN is treated as SELECT.
+
+  The idea is that for EXPLAIN UPDATE/DELETE/etc the optimizer may read
+  rows from tables but these reads should not acquire locks on the rows
+  read, like it's done for UPDATE/DELETE/etc.
+*/
+
+extern "C"
+int thd_sql_command_for_locking(const THD *thd)
+{
+  return thd->lex->describe? SQLCOM_SELECT : (int)thd->lex->sql_command;
+}
+
 /*
   Returns options used with DDL's, like IF EXISTS etc...
   Will returns 'nonsense' if the command was not a DDL.

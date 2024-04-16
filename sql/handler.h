@@ -5527,4 +5527,7 @@ uint ha_count_rw_2pc(THD *thd, bool all);
 uint ha_check_and_coalesce_trx_read_only(THD *thd, Ha_trx_info *ha_list,
                                          bool all);
 
+extern "C"
+int thd_sql_command_for_locking(const THD *thd);
+
 #endif /* HANDLER_INCLUDED */
