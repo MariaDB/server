@@ -7412,9 +7412,6 @@ static int connect_to_master(THD* thd, MYSQL* mysql, Master_info* mi,
                   default_client_charset_info->csname);
   }
 
-  /* This one is not strictly needed but we have it here for completeness */
-  mysql_options(mysql, MYSQL_SET_CHARSET_DIR, (char *) charsets_dir);
-
   /* Set MYSQL_PLUGIN_DIR in case master asks for an external authentication plugin */
   if (opt_plugin_dir_ptr && *opt_plugin_dir_ptr)
     mysql_options(mysql, MYSQL_PLUGIN_DIR, opt_plugin_dir_ptr);
@@ -7557,8 +7554,6 @@ MYSQL *rpl_connect_master(MYSQL *mysql)
 #endif
 
   mysql_options(mysql, MYSQL_SET_CHARSET_NAME, default_charset_info->csname);
-  /* This one is not strictly needed but we have it here for completeness */
-  mysql_options(mysql, MYSQL_SET_CHARSET_DIR, (char *) charsets_dir);
 
   if (mi->user == NULL
       || mi->user[0] == 0
