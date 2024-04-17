@@ -1208,7 +1208,24 @@ sync_latch_meta_init()
 
 	LATCH_ADD_MUTEX(IBUF, SYNC_IBUF_MUTEX, ibuf_mutex_key);
 
-	LATCH_ADD_MUTEX(IBUF_PESSIMISTIC_INSERT, SYNC_IBUF_PESS_INSERT_MUTEX,
+	/* The actual order of acquisition of the IBUF pessimistic insert mutex
+	(SYNC_IBUF_PESS_INSERT_MUTEX) and IBUF header page latch
+	(SYNC_IBUF_HEADER) w.r.t space latch (SYNC_FSP) differs from the order
+	defined in sync0types.h. It was not discovered earlier as the path to
+	ibuf_remove_free_page was not covered by the mtr test. Ideal order and
+	one defined in sync0types.h is as follows.
+	SYNC_IBUF_HEADER -> SYNC_IBUF_PESS_INSERT_MUTEX -> SYNC_FSP
+
+	In ibuf_remove_free_page, we acquire space latch earlier and we have
+	the order as follows resulting in the assert with innodb_sync_debug=on.
+	SYNC_FSP -> SYNC_IBUF_HEADER -> SYNC_IBUF_PESS_INSERT_MUTEX
+
+	We do maintain this order in other places and there doesn't seem to be
+	any real issue here. To reduce impact in GA versions, we avoid doing
+	extensive changes in mutex ordering to match the current
+	SYNC_IBUF_PESS_INSERT_MUTEX order. Instead we relax the ordering check
+	for IBUF pessimistic insert mutex using SYNC_NO_ORDER_CHECK. */
+	LATCH_ADD_MUTEX(IBUF_PESSIMISTIC_INSERT, SYNC_NO_ORDER_CHECK,
 			ibuf_pessimistic_insert_mutex_key);
 
 	LATCH_ADD_MUTEX(PURGE_SYS_PQ, SYNC_PURGE_QUEUE,

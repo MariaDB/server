@@ -2011,6 +2011,11 @@ ibuf_free_excess_pages(void)
 	/* Free at most a few pages at a time, so that we do not delay the
 	requested service too much */
 
+	DBUG_EXECUTE_IF("ibuf_force_remove_free_page",
+		ibuf_remove_free_page();
+		return;
+	);
+
 	for (ulint i = 0; i < 4; i++) {
 
 		ibool	too_much_free;

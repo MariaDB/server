@@ -1,0 +1,2 @@
+--innodb-page-size=4k
+--innodb_sync_debug=on
