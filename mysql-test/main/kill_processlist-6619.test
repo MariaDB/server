@@ -4,9 +4,6 @@
 --source include/not_embedded.inc
 --source include/have_debug_sync.inc
 
-let $wait_condition=select count(*) = 1 from information_schema.processlist;
-source include/wait_condition.inc;
-
 # Ensure no lingering connections from an earlier test run, which can very
 # rarely still be visible in SHOW PROCESSLIST here.
 --let $wait_condition= SELECT COUNT(*) = 1 from information_schema.processlist
