@@ -2407,7 +2407,7 @@ rpl_parallel_thread_pool::copy_pool_for_pfs(Relay_log_info *rli)
 static bool handle_split_alter(rpl_parallel_entry *e,  
                                Gtid_log_event *gtid_ev,
                                //uint32 *idx,
-                               sched_bucket *ptr_cur_thr,
+                               rpl_parallel_entry::sched_bucket **ptr_cur_thr,
                                //choose_thread_internal specific
                                bool *did_enter_cond, rpl_group_info* rgi,
                                PSI_stage_info *old_stage)
@@ -2426,7 +2426,7 @@ static bool handle_split_alter(rpl_parallel_entry *e,
      j is needed for round robin scheduling, we will start with rpl_thread_idx
      go till rpl_thread_max and then start with 0 to rpl_thread_idx
     */
-    auto j= static_cast<uint32>(e->thread_sched_fifo->head() - rpl_threads); // formerly e->rpl_thread_idx;
+    auto j= static_cast<uint32>(e->thread_sched_fifo->head() - e->rpl_threads); // formerly e->rpl_thread_idx;
     for(uint i= 0; i < e->rpl_thread_max; i++)
     {
       if (!e->rpl_threads[j].thr ||
@@ -2449,18 +2449,19 @@ static bool handle_split_alter(rpl_parallel_entry *e,
 idx_found:
     //e->rpl_thread_idx= *idx;
     /* place the found *idx index into the head */
-    *ptr_cur_thr= e->rpl_threads[*idx]->unlink();
+    *ptr_cur_thr= &e->rpl_threads[*idx];
+    (*ptr_cur_thr)->unlink();
     e->thread_sched_fifo->append(*ptr_cur_thr);
     *ptr_cur_thr= e->thread_sched_fifo->head();
 
-    e->choose_thread_internal((*ptr_cur_thr)->thr, did_enter_cond, rgi,
+    e->choose_thread_internal(*ptr_cur_thr, did_enter_cond, rgi,
                               old_stage);
     thread_allocated= true;
     if (flags_extra & Gtid_log_event::FL_START_ALTER_E1)
     {
       mysql_mutex_assert_owner(&e->rpl_threads[*idx].thr->LOCK_rpl_thread);
-      e->rpl_threads[e->rpl_thread_idx].thr->current_start_alter_id= gtid_ev->seq_no;
-      e->rpl_threads[e->rpl_thread_idx].thr->current_start_alter_domain_id= 
+      e->rpl_threads[*idx].thr->current_start_alter_id= gtid_ev->seq_no;
+      e->rpl_threads[*idx].thr->current_start_alter_domain_id= 
                                                             gtid_ev->domain_id;
       /*
        We are locking LOCK_rpl_thread_pool becuase we are going to update
@@ -2616,8 +2617,6 @@ rpl_parallel_entry::choose_thread(rpl_group_info *rgi, bool *did_enter_cond,
                                   Gtid_log_event *gtid_ev)
 {
   sched_bucket *cur_thr;
-  Relay_log_info *rli= rgi->rli;
-  rpl_parallel_thread *thr;
 
   if (gtid_ev)
   {
@@ -2627,7 +2626,7 @@ rpl_parallel_entry::choose_thread(rpl_group_info *rgi, bool *did_enter_cond,
     //rpl_thread_idx will be updated handle_split_alter
     if (handle_split_alter(this, gtid_ev, &cur_thr, did_enter_cond, rgi,
                            old_stage))
-      return thr;
+      return cur_thr->thr;
 
     if (gtid_ev->flags2 &
         (Gtid_log_event::FL_COMPLETED_XA | Gtid_log_event::FL_PREPARED_XA))
@@ -2662,20 +2661,17 @@ rpl_parallel_entry::choose_thread(rpl_group_info *rgi, bool *did_enter_cond,
   else
     cur_thr= thread_sched_fifo->head();
 
-  thr= cur_thr->thr;
-
-  return choose_thread_internal(thr /*idx*/, did_enter_cond, rgi, old_stage);
+  return choose_thread_internal(cur_thr /*idx*/, did_enter_cond, rgi, old_stage);
 }
 
 rpl_parallel_thread *
-rpl_parallel_entry::choose_thread_internal(rpl_parallel_thread* thr,
+rpl_parallel_entry::choose_thread_internal(sched_bucket *cur_thr,
                                            bool *did_enter_cond,
                                            rpl_group_info *rgi,
                                            PSI_stage_info *old_stage)
 {
-  DBUG_ASSERT(thr);
-
   Relay_log_info *rli= rgi->rli;
+  rpl_parallel_thread *thr= cur_thr->thr;
 
   *did_enter_cond= false;
   mysql_mutex_lock(&thr->LOCK_rpl_thread);

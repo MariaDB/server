@@ -486,7 +486,8 @@ struct rpl_parallel_entry {
                                       PSI_stage_info *old_stage,
                                       Gtid_log_event *gtid_ev);
   rpl_parallel_thread *
-  choose_thread_internal(uint idx, bool *did_enter_cond, rpl_group_info *rgi,
+  choose_thread_internal(sched_bucket *cur_thr,
+                         bool *did_enter_cond, rpl_group_info *rgi,
                          PSI_stage_info *old_stage);
   int queue_master_restart(rpl_group_info *rgi,
                            Format_description_log_event *fdev);
