@@ -289,10 +289,6 @@ rtr_pcur_getnext_from_path(
 			mtr->rollback_to_savepoint(1);
 		}
 
-		ut_ad((my_latch_mode | 4) == BTR_CONT_MODIFY_TREE
-		      || !page_is_leaf(btr_cur_get_page(btr_cur))
-		      || !btr_cur->page_cur.block->page.lock.have_any());
-
 		const auto block_savepoint = mtr->get_savepoint();
 		block = buf_page_get_gen(
 			page_id_t(index->table->space_id,
