@@ -1108,10 +1108,8 @@ void wsrep_recover()
   }
 }
 
-
-void wsrep_stop_replication(THD *thd)
+static void wsrep_stop_replication_common(THD *thd)
 {
-  WSREP_INFO("Stop replication by %llu", (thd) ? thd->thread_id : 0);
   if (Wsrep_server_state::instance().state() !=
       Wsrep_server_state::s_disconnected)
   {
@@ -1124,10 +1122,10 @@ void wsrep_stop_replication(THD *thd)
     }
   }
 
-  /* my connection, should not terminate with wsrep_close_client_connection(),
-     make transaction to rollback
-  */
-  if (thd && !thd->wsrep_applier) trans_rollback(thd);
+  /* my connection, should not terminate with
+     wsrep_close_client_connections(), make transaction to rollback */
+  if (thd && !thd->wsrep_applier)
+    trans_rollback(thd);
   wsrep_close_client_connections(TRUE, thd);
 
   /* wait until appliers have stopped */
@@ -1136,26 +1134,16 @@ void wsrep_stop_replication(THD *thd)
   node_uuid= WSREP_UUID_UNDEFINED;
 }
 
+void wsrep_stop_replication(THD *thd)
+{
+  WSREP_INFO("Stop replication by %llu", (thd) ? thd->thread_id : 0);
+  wsrep_stop_replication_common(thd);
+}
+
 void wsrep_shutdown_replication()
 {
   WSREP_INFO("Shutdown replication");
-  if (Wsrep_server_state::instance().state() != wsrep::server_state::s_disconnected)
-  {
-    WSREP_DEBUG("Disconnect provider");
-    Wsrep_server_state::instance().disconnect();
-    if (Wsrep_server_state::instance().wait_until_state(
-            Wsrep_server_state::s_disconnected))
-    {
-      WSREP_WARN("Wsrep interrupted while waiting for disconnected state");
-    }
-  }
-
-  wsrep_close_client_connections(TRUE);
-
-  /* wait until appliers have stopped */
-  wsrep_wait_appliers_close(NULL);
-  node_uuid= WSREP_UUID_UNDEFINED;
-
+  wsrep_stop_replication_common(nullptr);
   /* Undocking the thread specific data. */
   set_current_thd(nullptr);
 }
@@ -3266,14 +3254,20 @@ static my_bool have_client_connections(THD *thd, void*)
 {
   DBUG_PRINT("quit",("Informing thread %lld that it's time to die",
                      (longlong) thd->thread_id));
-  if (is_client_connection(thd) &&
-      (thd->killed == KILL_CONNECTION ||
-       thd->killed == KILL_CONNECTION_HARD))
+  if (is_client_connection(thd))
   {
-    (void)abort_replicated(thd);
-    return 1;
+    if (thd->killed == KILL_CONNECTION ||
+        thd->killed == KILL_CONNECTION_HARD)
+    {
+      (void)abort_replicated(thd);
+      return true;
+    }
+    if (thd->get_stmt_da()->is_eof())
+    {
+      return true;
+    }
   }
-  return 0;
+  return false;
 }
 
 static void wsrep_close_thread(THD *thd)
@@ -3311,14 +3305,24 @@ static my_bool kill_all_threads(THD *thd, THD *caller_thd)
   /* We skip slave threads & scheduler on this first loop through. */
   if (is_client_connection(thd) && thd != caller_thd)
   {
+    if (thd->get_stmt_da()->is_eof())
+    {
+      return 0;
+    }
+
     if (is_replaying_connection(thd))
+    {
       thd->set_killed(KILL_CONNECTION_HARD);
-    else if (!abort_replicated(thd))
+      return 0;
+    }
+
+    if (!abort_replicated(thd))
     {
       /* replicated transactions must be skipped */
       WSREP_DEBUG("closing connection %lld", (longlong) thd->thread_id);
       /* instead of wsrep_close_thread() we do now  soft kill by THD::awake */
       thd->awake(KILL_CONNECTION_HARD);
+      return 0;
     }
   }
   return 0;
@@ -3330,6 +3334,7 @@ static my_bool kill_remaining_threads(THD *thd, THD *caller_thd)
   if (is_client_connection(thd) &&
       !abort_replicated(thd)    &&
       !is_replaying_connection(thd) &&
+      !thd->get_stmt_da()->is_eof() &&
       thd_is_connection_alive(thd) &&
       thd != caller_thd)
   {

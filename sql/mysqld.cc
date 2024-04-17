@@ -4013,8 +4013,9 @@ static int init_common_variables()
                      SQLCOM_END + 10);
 #endif
 
-  if (get_options(&remaining_argc, &remaining_argv))
-    exit(1);
+  int opt_err;
+  if ((opt_err= get_options(&remaining_argc, &remaining_argv)))
+    exit(opt_err);
   if (IS_SYSVAR_AUTOSIZE(&server_version_ptr))
     set_server_version(server_version, sizeof(server_version));
 

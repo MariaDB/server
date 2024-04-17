@@ -507,7 +507,7 @@ rtr_pcur_move_to_next(
 		mysql_mutex_unlock(&rtr_info->matches->rtr_match_mutex);
 
 		cursor->btr_cur.page_cur.rec = rec.r_rec;
-		cursor->btr_cur.page_cur.block = &rtr_info->matches->block;
+		cursor->btr_cur.page_cur.block = rtr_info->matches->block;
 
 		DEBUG_SYNC_C("rtr_pcur_move_to_next_return");
 		return(true);
@@ -1318,21 +1318,15 @@ rtr_create_rtr_info(
 	rtr_info->index = index;
 
 	if (init_matches) {
-		rtr_info->heap = mem_heap_create(sizeof(*(rtr_info->matches)));
 		rtr_info->matches = static_cast<matched_rec_t*>(
-					mem_heap_zalloc(
-						rtr_info->heap,
-						sizeof(*rtr_info->matches)));
+			ut_zalloc_nokey(sizeof *rtr_info->matches));
 
 		rtr_info->matches->matched_recs
 			= UT_NEW_NOKEY(rtr_rec_vector());
 
-		rtr_info->matches->bufp = page_align(rtr_info->matches->rec_buf
-						     + UNIV_PAGE_SIZE_MAX + 1);
 		mysql_mutex_init(rtr_match_mutex_key,
 				 &rtr_info->matches->rtr_match_mutex,
 				 nullptr);
-		rtr_info->matches->block.page.lock.init();
 	}
 
 	rtr_info->path = UT_NEW_NOKEY(rtr_node_path_t());
@@ -1451,18 +1445,16 @@ rtr_clean_rtr_info(
 
 	if (free_all) {
 		if (rtr_info->matches) {
-			if (rtr_info->matches->matched_recs != NULL) {
-				UT_DELETE(rtr_info->matches->matched_recs);
+			if (rtr_info->matches->block) {
+				buf_block_free(rtr_info->matches->block);
+				rtr_info->matches->block = nullptr;
 			}
 
-			rtr_info->matches->block.page.lock.free();
+			UT_DELETE(rtr_info->matches->matched_recs);
 
 			mysql_mutex_destroy(
 				&rtr_info->matches->rtr_match_mutex);
-		}
-
-		if (rtr_info->heap) {
-			mem_heap_free(rtr_info->heap);
+			ut_free(rtr_info->matches);
 		}
 
 		if (initialized) {
@@ -1572,7 +1564,7 @@ rtr_check_discard_page(
 		if (auto matches = rtr_info->matches) {
 			mysql_mutex_lock(&matches->rtr_match_mutex);
 
-			if (matches->block.page.id() == id) {
+			if (matches->block->page.id() == id) {
 				matches->matched_recs->clear();
 				matches->valid = false;
 			}
@@ -1766,7 +1758,7 @@ rtr_leaf_push_match_rec(
 	ulint		data_len;
 	rtr_rec_t	rtr_rec;
 
-	buf = match_rec->block.page.frame + match_rec->used;
+	buf = match_rec->block->page.frame + match_rec->used;
 	ut_ad(page_rec_is_leaf(rec));
 
 	copy = rec_copy(buf, rec, offsets);
@@ -1863,43 +1855,6 @@ rtr_non_leaf_insert_stack_push(
 				new_seq, level, child_no, my_cursor, mbr_inc);
 }
 
-/** Copy a buf_block_t, except "block->page.lock".
-@param[in,out]	matches	copy to match->block
-@param[in]	block	block to copy */
-static
-void
-rtr_copy_buf(
-	matched_rec_t*		matches,
-	const buf_block_t*	block)
-{
-	/* Copy all members of "block" to "matches->block" except "lock".
-	We skip "lock" because it is not used
-	from the dummy buf_block_t we create here and because memcpy()ing
-	it generates (valid) compiler warnings that the vtable pointer
-	will be copied. */
-	matches->block.page.lock.free();
-	new (&matches->block.page) buf_page_t(block->page);
-	matches->block.page.frame = block->page.frame;
-	matches->block.unzip_LRU = block->unzip_LRU;
-
-	ut_d(matches->block.in_unzip_LRU_list = block->in_unzip_LRU_list);
-	ut_d(matches->block.in_withdraw_list = block->in_withdraw_list);
-
-	/* Skip buf_block_t::lock */
-	matches->block.modify_clock = block->modify_clock;
-#ifdef BTR_CUR_HASH_ADAPT
-	matches->block.n_hash_helps = block->n_hash_helps;
-	matches->block.n_fields = block->n_fields;
-	matches->block.left_side = block->left_side;
-#if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
-	matches->block.n_pointers = 0;
-#endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
-	matches->block.curr_n_fields = block->curr_n_fields;
-	matches->block.curr_left_side = block->curr_left_side;
-	matches->block.index = block->index;
-#endif /* BTR_CUR_HASH_ADAPT */
-}
-
 /****************************************************************//**
 Generate a shadow copy of the page block header to save the
 matched records */
@@ -1913,16 +1868,18 @@ rtr_init_match(
 {
 	ut_ad(matches->matched_recs->empty());
 	matches->locked = false;
-	rtr_copy_buf(matches, block);
-	matches->block.page.frame = matches->bufp;
 	matches->valid = false;
+	if (!matches->block) {
+		matches->block = buf_block_alloc();
+	}
+
+	matches->block->page.init(buf_page_t::MEMORY, block->page.id());
 	/* We have to copy PAGE_*_SUPREMUM_END bytes so that we can
 	use infimum/supremum of this page as normal btr page for search. */
-	memcpy(matches->block.page.frame, page, page_is_comp(page)
-	       ? PAGE_NEW_SUPREMUM_END : PAGE_OLD_SUPREMUM_END);
 	matches->used = page_is_comp(page)
 				? PAGE_NEW_SUPREMUM_END
 				: PAGE_OLD_SUPREMUM_END;
+	memcpy(matches->block->page.frame, page, matches->used);
 #ifdef RTR_SEARCH_DIAGNOSTIC
 	ulint pageno = page_get_page_no(page);
 	fprintf(stderr, "INNODB_RTR: Searching leaf page %d\n",
@@ -2349,7 +2306,7 @@ rtr_cur_search_with_match(
 #endif /* UNIV_DEBUG */
 			/* Pop the last match record and position on it */
 			match_rec->matched_recs->pop_back();
-			page_cur_position(test_rec.r_rec, &match_rec->block,
+			page_cur_position(test_rec.r_rec, match_rec->block,
 					  cursor);
 		}
 	} else {

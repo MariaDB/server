@@ -3784,6 +3784,9 @@ sp_instr_stmt::execute(THD *thd, uint *nextp)
       thd->update_stats();
       thd->lex->sql_command= save_sql_command;
       *nextp= m_ip+1;
+#ifdef PROTECT_STATEMENT_MEMROOT
+      mark_as_qc_used();
+#endif
     }
     thd->set_query(query_backup);
     thd->query_name_consts= 0;

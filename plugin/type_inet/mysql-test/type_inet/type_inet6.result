@@ -2358,3 +2358,14 @@ Warning	1292	Incorrect inet6 value: ''
 Warning	1292	Incorrect inet6 value: ''
 Warning	1292	Incorrect inet6 value: ''
 DROP TABLE t1;
+#
+# MDEV-32458 ASAN unknown-crash in Inet6::ascii_to_fbt when casting character string to inet6
+#
+CREATE TABLE t1 (c CHAR(3));
+INSERT INTO t1 VALUES ('1:0'),('00:');
+SELECT * FROM t1 WHERE c>CAST('::1' AS INET6);
+c
+Warnings:
+Warning	1292	Incorrect inet6 value: '1:0'
+Warning	1292	Incorrect inet6 value: '00:'
+DROP TABLE t1;

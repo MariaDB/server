@@ -6127,7 +6127,6 @@ btr_store_big_rec_extern_fields(
 		for (ulint blob_npages = 0;; ++blob_npages) {
 			buf_block_t*	block;
 			const ulint	commit_freq = 4;
-			uint32_t	r_extents;
 
 			ut_ad(page_align(field_ref) == page_align(rec));
 
@@ -6162,23 +6161,17 @@ btr_store_big_rec_extern_fields(
 				hint_prev = rec_block->page.id().page_no();
 			}
 
-			error = fsp_reserve_free_extents(
-				&r_extents, index->table->space, 1,
-				FSP_BLOB, &mtr, 1);
-			if (UNIV_UNLIKELY(error != DB_SUCCESS)) {
-alloc_fail:
-				mtr.commit();
-				goto func_exit;
-			}
-
 			block = btr_page_alloc(index, hint_prev + 1,
 					       FSP_NO_DIR, 0, &mtr, &mtr,
 					       &error);
 
-			index->table->space->release_free_extents(r_extents);
 			if (!block) {
-				goto alloc_fail;
+alloc_fail:
+                                mtr.commit();
+				goto func_exit;
 			}
+
+			ut_a(block != NULL);
 
 			const uint32_t page_no = block->page.id().page_no();
 

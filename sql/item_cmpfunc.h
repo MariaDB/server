@@ -3529,13 +3529,11 @@ template <template<class> class LI, typename T> class Item_equal_iterator
 {
 protected:
   Item_equal *item_equal;
-  Item *curr_item;
+  Item *curr_item= nullptr;
 public:
-  Item_equal_iterator<LI,T>(Item_equal &item_eq) 
-    :LI<T> (item_eq.equal_items)
+  Item_equal_iterator(Item_equal &item_eq)
+    :LI<T> (item_eq.equal_items), item_equal(&item_eq)
   {
-    curr_item= NULL;
-    item_equal= &item_eq;
     if (item_eq.with_const)
     {
       LI<T> *list_it= this;

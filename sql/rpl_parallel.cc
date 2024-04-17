@@ -212,6 +212,13 @@ finish_event_group(rpl_parallel_thread *rpt, uint64 sub_id,
     signal_error_to_sql_driver_thread(thd, rgi, err);
   thd->wait_for_commit_ptr= NULL;
 
+  /*
+    Calls to check_duplicate_gtid() must match up with
+    record_and_update_gtid() (or release_domain_owner() in error case). This
+    assertion tries to catch any missing release of the domain.
+  */
+  DBUG_ASSERT(rgi->gtid_ignore_duplicate_state != rpl_group_info::GTID_DUPLICATE_OWNER);
+
   mysql_mutex_lock(&entry->LOCK_parallel_entry);
   /*
     We need to mark that this event group started its commit phase, in case we
@@ -875,7 +882,13 @@ do_retry:
     });
 #endif
 
-  rgi->cleanup_context(thd, 1);
+  /*
+    We are still applying the event group, even though we will roll it back
+    and retry it. So for --gtid-ignore-duplicates, keep ownership of the
+    domain during the retry so another master connection will not try to take
+    over and duplicate apply the same event group (MDEV-33475).
+  */
+  rgi->cleanup_context(thd, 1, 1 /* keep_domain_owner */);
   wait_for_pending_deadlock_kill(thd, rgi);
   thd->reset_killed();
   thd->clear_error();

@@ -17,17 +17,12 @@
 #include <my_global.h>
 #include "mysql_version.h"
 #include "spd_environ.h"
-#if MYSQL_VERSION_ID < 50500
-#include "mysql_priv.h"
-#include <mysql/plugin.h>
-#else
 #include "sql_priv.h"
 #include "probes_mysql.h"
 #include "sql_class.h"
 #include "key.h"
 #include "sql_base.h"
 #include "tztime.h"
-#endif
 #include "sql_select.h"
 #include "spd_err.h"
 #include "spd_param.h"
@@ -245,22 +240,8 @@ TABLE *spider_open_sys_table(
 ) {
   TABLE *table;
   TABLE_LIST tables;
-#if MYSQL_VERSION_ID < 50500
-  TABLE_SHARE *table_share;
-  char table_key[MAX_DBKEY_LENGTH];
-  uint table_key_length;
-#endif
   DBUG_ENTER("spider_open_sys_table");
 
-#if MYSQL_VERSION_ID < 50500
-  memset(&tables, 0, sizeof(TABLE_LIST));
-  SPIDER_TABLE_LIST_db_str(&tables) = (char*)"mysql";
-  SPIDER_TABLE_LIST_db_length(&tables) = sizeof("mysql") - 1;
-  SPIDER_TABLE_LIST_alias_str(&tables) =
-    SPIDER_TABLE_LIST_table_name_str(&tables) = (char *) table_name;
-  SPIDER_TABLE_LIST_table_name_length(&tables) = table_name_length;
-  tables.lock_type = (write ? TL_WRITE : TL_READ);
-#else
 #ifdef SPIDER_use_LEX_CSTRING_for_database_tablename_alias
   LEX_CSTRING db_name =
   {
@@ -278,18 +259,8 @@ TABLE *spider_open_sys_table(
     "mysql", sizeof("mysql") - 1, table_name, table_name_length, table_name,
     (write ? TL_WRITE : TL_READ));
 #endif
-#endif
 
-#if MYSQL_VERSION_ID < 50500
-  if (need_lock)
-  {
-#endif
-#if MYSQL_VERSION_ID < 50500
-    if (!(table = open_performance_schema_table(thd, &tables,
-      open_tables_backup)))
-#else
     if (!(table = spider_sys_open_table(thd, &tables, open_tables_backup)))
-#endif
     {
       my_printf_error(ER_SPIDER_CANT_OPEN_SYS_TABLE_NUM,
         ER_SPIDER_CANT_OPEN_SYS_TABLE_STR, MYF(0),
@@ -297,38 +268,6 @@ TABLE *spider_open_sys_table(
       *error_num = ER_SPIDER_CANT_OPEN_SYS_TABLE_NUM;
       DBUG_RETURN(NULL);
     }
-#if MYSQL_VERSION_ID < 50500
-  } else {
-    SPIDER_reset_n_backup_open_tables_state(thd, open_tables_backup, NULL);
-
-    if (!(table = (TABLE*) spider_malloc(spider_current_trx, SPD_MID_OPEN_SYS_TABLE_1,
-      sizeof(*table), MYF(MY_WME))))
-    {
-      *error_num = HA_ERR_OUT_OF_MEM;
-      goto error_malloc;
-    }
-
-    table_key_length =
-      create_table_def_key(thd, table_key, &tables, FALSE);
-
-    if (!(table_share = get_table_share(thd,
-      &tables, table_key, table_key_length, 0, error_num)))
-      goto error;
-    if (open_table_from_share(thd, table_share, tables.alias,
-      (uint) (HA_OPEN_KEYFILE | HA_OPEN_RNDFILE | HA_GET_INDEX),
-      READ_KEYINFO | COMPUTE_TYPES | EXTRA_RECORD,
-      (uint) HA_OPEN_IGNORE_IF_LOCKED | HA_OPEN_FROM_SQL_LAYER,
-      table, FALSE)
-    ) {
-      release_table_share(table_share, RELEASE_NORMAL);
-      my_printf_error(ER_SPIDER_CANT_OPEN_SYS_TABLE_NUM,
-        ER_SPIDER_CANT_OPEN_SYS_TABLE_STR, MYF(0),
-        "mysql", table_name);
-      *error_num = ER_SPIDER_CANT_OPEN_SYS_TABLE_NUM;
-      goto error;
-    }
-  }
-#endif
   switch (table_name_length)
   {
     case 9:
@@ -470,12 +409,6 @@ TABLE *spider_open_sys_table(
   }
   DBUG_RETURN(table);
 
-#if MYSQL_VERSION_ID < 50500
-error:
-  spider_free(spider_current_trx, table, MYF(0));
-error_malloc:
-  SPIDER_restore_backup_open_tables_state(thd, open_tables_backup);
-#endif
 error_col_num_chk:
   DBUG_RETURN(NULL);
 }
@@ -487,24 +420,10 @@ void spider_close_sys_table(
   bool need_lock
 ) {
   DBUG_ENTER("spider_close_sys_table");
-#if MYSQL_VERSION_ID < 50500
-  if (need_lock)
-  {
-    close_performance_schema_table(thd, open_tables_backup);
-  } else {
-    table->file->ha_reset();
-    closefrm(table, TRUE);
-    spider_free(spider_current_trx, table, MYF(0));
-    SPIDER_restore_backup_open_tables_state(thd, open_tables_backup);
-  }
-#else
   spider_sys_close_table(thd, open_tables_backup);
-#endif
   DBUG_VOID_RETURN;
 }
 
-#if MYSQL_VERSION_ID < 50500
-#else
 bool spider_sys_open_and_lock_tables(
   THD *thd,
   TABLE_LIST **tables,
@@ -572,7 +491,6 @@ void spider_sys_close_table(
   }
   DBUG_VOID_RETURN;
 }
-#endif
 
 int spider_sys_index_init(
   TABLE *table,
@@ -617,15 +535,9 @@ int spider_check_sys_table(
     table->key_info,
     table->key_info->key_length);
 
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 50200
   DBUG_RETURN(table->file->ha_index_read_idx_map(
     table->record[0], 0, (uchar *) table_key,
     HA_WHOLE_KEY, HA_READ_KEY_EXACT));
-#else
-  DBUG_RETURN(table->file->index_read_idx_map(
-    table->record[0], 0, (uchar *) table_key,
-    HA_WHOLE_KEY, HA_READ_KEY_EXACT));
-#endif
 }
 
 int spider_check_sys_table_with_find_flag(
@@ -641,15 +553,9 @@ int spider_check_sys_table_with_find_flag(
     table->key_info,
     table->key_info->key_length);
 
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 50200
   DBUG_RETURN(table->file->ha_index_read_idx_map(
     table->record[0], 0, (uchar *) table_key,
     HA_WHOLE_KEY, find_flag));
-#else
-  DBUG_RETURN(table->file->index_read_idx_map(
-    table->record[0], 0, (uchar *) table_key,
-    HA_WHOLE_KEY, find_flag));
-#endif
 }
 
 int spider_check_sys_table_for_update_all_columns(
@@ -664,17 +570,16 @@ int spider_check_sys_table_for_update_all_columns(
     table->key_info,
     table->key_info->key_length);
 
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 50200
   DBUG_RETURN(table->file->ha_index_read_idx_map(
     table->record[1], 0, (uchar *) table_key,
     HA_WHOLE_KEY, HA_READ_KEY_EXACT));
-#else
-  DBUG_RETURN(table->file->index_read_idx_map(
-    table->record[1], 0, (uchar *) table_key,
-    HA_WHOLE_KEY, HA_READ_KEY_EXACT));
-#endif
 }
 
+/*
+  Creates a key (`table_key') consisting of `col_count' key parts of
+  `idx'th index of the table, then positions an index cursor to that
+  key.
+*/
 int spider_get_sys_table_by_idx(
   TABLE *table,
   char *table_key,
@@ -707,26 +612,9 @@ int spider_get_sys_table_by_idx(
     key_length);
 
   if (
-/*
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 50200
-    (error_num = table->file->ha_index_read_idx_map(
-      table->record[0], idx, (uchar *) table_key,
-      make_prev_keypart_map(col_count), HA_READ_KEY_EXACT))
-#else
-    (error_num = table->file->index_read_idx_map(
-      table->record[0], idx, (uchar *) table_key,
-      make_prev_keypart_map(col_count), HA_READ_KEY_EXACT))
-#endif
-*/
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 50200
     (error_num = table->file->ha_index_read_map(
       table->record[0], (uchar *) table_key,
       make_prev_keypart_map(col_count), HA_READ_KEY_EXACT))
-#else
-    (error_num = table->file->index_read_map(
-      table->record[0], (uchar *) table_key,
-      make_prev_keypart_map(col_count), HA_READ_KEY_EXACT))
-#endif
   ) {
     spider_sys_index_end(table);
     DBUG_RETURN(error_num);
@@ -739,22 +627,15 @@ int spider_sys_index_next_same(
   char *table_key
 ) {
   DBUG_ENTER("spider_sys_index_next_same");
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 50200
   DBUG_RETURN(table->file->ha_index_next_same(
     table->record[0],
     (const uchar*) table_key,
     table->key_info->key_length));
-#else
-  DBUG_RETURN(table->file->index_next_same(
-    table->record[0],
-    (const uchar*) table_key,
-    table->key_info->key_length));
-#endif
 }
 
 int spider_sys_index_first(
   TABLE *table,
-  const int idx
+  const int idx                 /* which index to use */
 ) {
   int error_num;
   DBUG_ENTER("spider_sys_index_first");
@@ -762,11 +643,7 @@ int spider_sys_index_first(
     DBUG_RETURN(error_num);
 
   if (
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 50200
     (error_num = table->file->ha_index_first(table->record[0]))
-#else
-    (error_num = table->file->index_first(table->record[0]))
-#endif
   ) {
     spider_sys_index_end(table);
     DBUG_RETURN(error_num);
@@ -784,11 +661,7 @@ int spider_sys_index_last(
     DBUG_RETURN(error_num);
 
   if (
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 50200
     (error_num = table->file->ha_index_last(table->record[0]))
-#else
-    (error_num = table->file->index_last(table->record[0]))
-#endif
   ) {
     spider_sys_index_end(table);
     DBUG_RETURN(error_num);
@@ -800,11 +673,7 @@ int spider_sys_index_next(
   TABLE *table
 ) {
   DBUG_ENTER("spider_sys_index_next");
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 50200
   DBUG_RETURN(table->file->ha_index_next(table->record[0]));
-#else
-  DBUG_RETURN(table->file->index_next(table->record[0]));
-#endif
 }
 
 void spider_store_xa_pk(
@@ -1008,6 +877,10 @@ void spider_store_xa_member_info(
   DBUG_VOID_RETURN;
 }
 
+/*
+  Store db and table names from `name' to `table's corresponding
+  fields
+*/
 void spider_store_tables_name(
   TABLE *table,
   const char *name,
@@ -1589,12 +1462,6 @@ int spider_log_tables_link_failed(
   table->use_all_columns();
   spider_store_tables_name(table, name, name_length);
   spider_store_tables_link_idx(table, link_idx);
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000
-#else
-  if (table->field[SPIDER_LINK_FAILED_LOG_FAILED_TIME_POS] ==
-    table->timestamp_field)
-    table->timestamp_field->set_time();
-#endif
   if ((error_num = spider_write_sys_table_row(table)))
   {
     DBUG_RETURN(error_num);
@@ -1628,12 +1495,6 @@ int spider_log_xa_failed(
     (uint) strlen(status),
     system_charset_info);
 
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000
-#else
-  if (table->field[SPIDER_XA_FAILED_LOG_FAILED_TIME_POS] ==
-    table->timestamp_field)
-    table->timestamp_field->set_time();
-#endif
   if ((error_num = spider_write_sys_table_row(table)))
   {
     DBUG_RETURN(error_num);
@@ -2298,14 +2159,16 @@ int spider_get_sys_tables(
   DBUG_RETURN(0);
 }
 
+/* Read table info from mysql.spider_tables into a `SPIDER_SHARE' */
 int spider_get_sys_tables_connect_info(
-  TABLE *table,
-  SPIDER_SHARE *share,
-  int link_idx,
+  TABLE *table,                         /* The mysql.spider_tables table */
+  SPIDER_SHARE *share,                  /* The `SPIDER_SHARE' to
+                                        update info */
   MEM_ROOT *mem_root
 ) {
   char *ptr;
   int error_num = 0;
+  const int link_idx= 0;
   DBUG_ENTER("spider_get_sys_tables_connect_info");
   DBUG_PRINT("info",("spider link_idx:%d", link_idx));
   if ((ptr = get_field(mem_root, table->field[SPIDER_TABLES_PRIORITY_POS])))
@@ -2580,9 +2443,14 @@ int spider_get_sys_tables_monitoring_binlog_pos_at_failing(
   DBUG_RETURN(error_num);
 }
 
+/*
+  Read the link status from mysql.spider_tables into a `SPIDER_SHARE'
+  with default value 1 (`SPIDER_LINK_STATUS_OK')
+*/
 int spider_get_sys_tables_link_status(
-  TABLE *table,
-  SPIDER_SHARE *share,
+  TABLE *table,                        /* The mysql.spider_tables table */
+  SPIDER_SHARE *share,                 /* The share to read link
+                                       status into */
   int link_idx,
   MEM_ROOT *mem_root
 ) {
@@ -2756,11 +2624,17 @@ error:
   DBUG_RETURN(error_num);
 }
 
+/* Populate `mon_key' from the current row in `table' */
 int spider_get_sys_link_mon_key(
-  TABLE *table,
-  SPIDER_MON_KEY *mon_key,
+  TABLE *table,                 /* the mysql.spider_link_mon_servers
+                                table */
+  SPIDER_MON_KEY *mon_key,      /* output, to be populated in this
+                                function */
   MEM_ROOT *mem_root,
-  int *same
+  int *same                     /* output, true if the data from the
+                                current row in the table agrees with
+                                existing data in `mon_key' and false
+                                otherwise */
 ) {
   char *db_name, *table_name, *link_id;
   uint db_name_length, table_name_length, link_id_length;
@@ -2776,6 +2650,7 @@ int spider_get_sys_link_mon_key(
     DBUG_RETURN(ER_SPIDER_SYS_TABLE_VERSION_NUM);
   }
 
+  /* get data for `mon_key' from the table record */
   if (!(db_name=
         get_field(mem_root,
                   table->field[SPIDER_LINK_MON_SERVERS_DB_NAME_POS])))
@@ -2827,9 +2702,12 @@ int spider_get_sys_link_mon_key(
   DBUG_RETURN(0);
 }
 
+/* Get the server id from the spider_link_mon_servers table field */
 int spider_get_sys_link_mon_server_id(
-  TABLE *table,
-  uint32 *server_id,
+  TABLE *table,                        /* the
+                                       mysql.spider_link_mon_servers
+                                       table */
+  uint32 *server_id,                   /* output to server_id */
   MEM_ROOT *mem_root
 ) {
   char *ptr;
@@ -2843,14 +2721,17 @@ int spider_get_sys_link_mon_server_id(
   DBUG_RETURN(error_num);
 }
 
+/* Get connect info from the spider_link_mon_servers table fields */
 int spider_get_sys_link_mon_connect_info(
-  TABLE *table,
-  SPIDER_SHARE *share,
-  int link_idx,
+  TABLE *table,                           /* The
+                                          mysql.spider_link_mon_servers
+                                          table */
+  SPIDER_SHARE *share,                    /* The output spider_share */
   MEM_ROOT *mem_root
 ) {
   char *ptr;
   int error_num = 0;
+  const int link_idx= 0;
   DBUG_ENTER("spider_get_sys_link_mon_connect_info");
   if (
     !table->field[SPIDER_LINK_MON_SERVERS_SERVER_POS]->is_null() &&
@@ -3079,9 +2960,6 @@ int spider_get_link_statuses(
       if (
         (error_num == HA_ERR_KEY_NOT_FOUND || error_num == HA_ERR_END_OF_FILE)
       ) {
-/*
-        table->file->print_error(error_num, MYF(0));
-*/
         DBUG_RETURN(error_num);
       }
     } else if ((error_num =
@@ -3113,12 +2991,8 @@ int spider_sys_replace(
 
     if (table->file->ha_table_flags() & HA_DUPLICATE_POS)
     {
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 50200
       error_num = table->file->ha_rnd_pos(table->record[1],
         table->file->dup_ref);
-#else
-      error_num = table->file->rnd_pos(table->record[1], table->file->dup_ref);
-#endif
       if (error_num)
       {
         if (error_num == HA_ERR_RECORD_DELETED)
@@ -3131,13 +3005,8 @@ int spider_sys_replace(
 
       key_copy((uchar*)table_key, table->record[0],
         table->key_info + key_num, 0);
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 50200
       error_num = table->file->ha_index_read_idx_map(table->record[1], key_num,
         (const uchar*)table_key, HA_WHOLE_KEY, HA_READ_KEY_EXACT);
-#else
-      error_num = table->file->index_read_idx_map(table->record[1], key_num,
-        (const uchar*)table_key, HA_WHOLE_KEY, HA_READ_KEY_EXACT);
-#endif
       if (error_num)
       {
         if (error_num == HA_ERR_RECORD_DELETED)

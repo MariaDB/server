@@ -2252,6 +2252,7 @@ dispatch_command_return dispatch_command(enum enum_server_command command, THD *
     my_eof(thd);
     kill_mysql(thd);
     error=TRUE;
+    DBUG_EXECUTE_IF("simulate_slow_client_at_shutdown", my_sleep(2000000););
     break;
   }
 #endif
@@ -2409,6 +2410,11 @@ resume:
   }
 #endif /* WITH_WSREP */
 
+  if (thd->reset_sp_cache)
+  {
+    thd->sp_caches_empty();
+    thd->reset_sp_cache= false;
+  }
 
   if (do_end_of_statement)
   {
@@ -2485,6 +2491,7 @@ resume:
     MYSQL_COMMAND_DONE(res);
   }
   DEBUG_SYNC(thd,"dispatch_command_end");
+  DEBUG_SYNC(thd,"dispatch_command_end2");
 
   /* Check that some variables are reset properly */
   DBUG_ASSERT(thd->abort_on_warning == 0);
@@ -5883,7 +5890,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
       if (sph->sp_resolve_package_routine(thd, thd->lex->sphead,
                                           lex->spname, &sph, &pkgname))
         return true;
-      if (sph->sp_cache_routine(thd, lex->spname, false, &sp))
+      if (sph->sp_cache_routine(thd, lex->spname, &sp))
         goto error;
       if (!sp || sp->show_routine_code(thd))
       {

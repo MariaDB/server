@@ -2289,7 +2289,7 @@ void fil_space_crypt_close_tablespace(const fil_space_t *space)
 				   << space->chain.start->name << " ("
 				   << space->id << ") active threads "
 				   << crypt_data->rotate_state.active_threads
-				   << "flushing="
+				   << " flushing="
 				   << crypt_data->rotate_state.flushing << ".";
 			last = now;
 		}

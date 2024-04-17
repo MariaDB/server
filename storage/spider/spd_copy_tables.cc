@@ -18,17 +18,12 @@
 #include <my_global.h>
 #include "mysql_version.h"
 #include "spd_environ.h"
-#if MYSQL_VERSION_ID < 50500
-#include "mysql_priv.h"
-#include <mysql/plugin.h>
-#else
 #include "sql_priv.h"
 #include "probes_mysql.h"
 #include "sql_class.h"
 #include "sql_base.h"
 #include "sql_partition.h"
 #include "transaction.h"
-#endif
 #include "spd_err.h"
 #include "spd_param.h"
 #include "spd_db_include.h"
@@ -307,7 +302,7 @@ int spider_udf_get_copy_tgt_tables(
 
     if (
       (error_num = spider_get_sys_tables_connect_info(
-        table_tables, tmp_share, 0, mem_root)) ||
+        table_tables, tmp_share, mem_root)) ||
       (error_num = spider_get_sys_tables_link_status(
         table_tables, tmp_share, 0, mem_root)) ||
       (error_num = spider_get_sys_tables_link_idx(
@@ -745,13 +740,8 @@ long long spider_copy_tables_body(
     thd->handler_tables_hash.records != 0 ||
     thd->derived_tables != 0 ||
     thd->lock != 0 ||
-#if MYSQL_VERSION_ID < 50500
-    thd->locked_tables != 0 ||
-    thd->prelocked_mode != NON_PRELOCKED
-#else
     thd->locked_tables_list.locked_tables() ||
     thd->locked_tables_mode != LTM_NONE
-#endif
   ) {
     if (thd->open_tables != 0)
     {
@@ -774,18 +764,6 @@ long long spider_copy_tables_body(
       my_printf_error(ER_SPIDER_UDF_CANT_USE_IF_OPEN_TABLE_NUM,
         ER_SPIDER_UDF_CANT_USE_IF_OPEN_TABLE_STR_WITH_PTR, MYF(0),
         "thd->lock", thd->lock);
-#if MYSQL_VERSION_ID < 50500
-    } else if (thd->locked_tables != 0)
-    {
-      my_printf_error(ER_SPIDER_UDF_CANT_USE_IF_OPEN_TABLE_NUM,
-        ER_SPIDER_UDF_CANT_USE_IF_OPEN_TABLE_STR_WITH_PTR, MYF(0),
-        "thd->locked_tables", thd->locked_tables);
-    } else if (thd->prelocked_mode != NON_PRELOCKED)
-    {
-      my_printf_error(ER_SPIDER_UDF_CANT_USE_IF_OPEN_TABLE_NUM,
-        ER_SPIDER_UDF_CANT_USE_IF_OPEN_TABLE_STR_WITH_NUM, MYF(0),
-        "thd->prelocked_mode", (longlong) thd->prelocked_mode);
-#else
     } else if (thd->locked_tables_list.locked_tables())
     {
       my_printf_error(ER_SPIDER_UDF_CANT_USE_IF_OPEN_TABLE_NUM,
@@ -797,7 +775,6 @@ long long spider_copy_tables_body(
       my_printf_error(ER_SPIDER_UDF_CANT_USE_IF_OPEN_TABLE_NUM,
         ER_SPIDER_UDF_CANT_USE_IF_OPEN_TABLE_STR_WITH_NUM, MYF(0),
         "thd->locked_tables_mode", (longlong) thd->locked_tables_mode);
-#endif
     }
     goto error;
   }
@@ -889,9 +866,6 @@ long long spider_copy_tables_body(
   copy_tables->trx->trx_start = TRUE;
   copy_tables->trx->updated_in_this_trx = FALSE;
   DBUG_PRINT("info",("spider trx->updated_in_this_trx=FALSE"));
-#if MYSQL_VERSION_ID < 50500
-  if (open_and_lock_tables(thd, table_list))
-#else
     MDL_REQUEST_INIT(&table_list->mdl_request,
     MDL_key::TABLE,
     SPIDER_TABLE_LIST_db_str(table_list),
@@ -900,7 +874,6 @@ long long spider_copy_tables_body(
     MDL_TRANSACTION
   );
   if (open_and_lock_tables(thd, table_list, FALSE, 0))
-#endif
   {
     thd->m_reprepare_observer = reprepare_observer_backup;
     copy_tables->trx->trx_start = FALSE;
@@ -1003,7 +976,12 @@ long long spider_copy_tables_body(
   all_link_cnt =
     copy_tables->link_idx_count[0] + copy_tables->link_idx_count[1];
   if (
-    !(tmp_sql = new spider_string[all_link_cnt]) ||
+    !(tmp_sql = new spider_string[all_link_cnt])
+  ) {
+    my_error(ER_OUT_OF_RESOURCES, MYF(0), HA_ERR_OUT_OF_MEM);
+    goto error;
+  }
+  if (
     !(spider = new ha_spider[all_link_cnt])
   ) {
     my_error(ER_OUT_OF_RESOURCES, MYF(0), HA_ERR_OUT_OF_MEM);
@@ -1032,13 +1010,6 @@ long long spider_copy_tables_body(
     tmp_spider->share = table_conn->share;
     tmp_spider->wide_handler = wide_handler;
     wide_handler->trx = copy_tables->trx;
-/*
-    if (spider_db_append_set_names(table_conn->share))
-    {
-      my_error(ER_OUT_OF_RESOURCES, MYF(0), HA_ERR_OUT_OF_MEM);
-      goto error_append_set_names;
-    }
-*/
     tmp_spider->conns = &table_conn->conn;
     tmp_sql[roop_count].init_calc_mem(SPD_MID_COPY_TABLES_BODY_3);
     tmp_sql[roop_count].set_charset(copy_tables->access_charset);
@@ -1078,13 +1049,6 @@ long long spider_copy_tables_body(
     tmp_spider->share = table_conn->share;
     tmp_spider->wide_handler = wide_handler;
     wide_handler->trx = copy_tables->trx;
-/*
-    if (spider_db_append_set_names(table_conn->share))
-    {
-      my_error(ER_OUT_OF_RESOURCES, MYF(0), HA_ERR_OUT_OF_MEM);
-      goto error_append_set_names;
-    }
-*/
     tmp_spider->conns = &table_conn->conn;
     tmp_sql[roop_count].init_calc_mem(SPD_MID_COPY_TABLES_BODY_5);
     tmp_sql[roop_count].set_charset(copy_tables->access_charset);
@@ -1111,21 +1075,9 @@ long long spider_copy_tables_body(
     bulk_insert_rows)))
     goto error_db_udf_copy_tables;
 
-/*
-  for (table_conn = copy_tables->table_conn[0];
-    table_conn; table_conn = table_conn->next)
-    spider_db_free_set_names(table_conn->share);
-  for (table_conn = copy_tables->table_conn[1];
-    table_conn; table_conn = table_conn->next)
-    spider_db_free_set_names(table_conn->share);
-*/
   if (table_list->table)
   {
-#if MYSQL_VERSION_ID < 50500
-    ha_autocommit_or_rollback(thd, 0);
-#else
     (thd->is_error() ? trans_rollback_stmt(thd) : trans_commit_stmt(thd));
-#endif
     close_thread_tables(thd);
   }
   if (spider)
@@ -1143,8 +1095,7 @@ long long spider_copy_tables_body(
     }
     delete [] spider;
   }
-  if (tmp_sql)
-    delete [] tmp_sql;
+  delete [] tmp_sql;
   spider_udf_free_copy_tables_alloc(copy_tables);
 
   DBUG_RETURN(1);
@@ -1152,17 +1103,6 @@ long long spider_copy_tables_body(
 error_db_udf_copy_tables:
 error_create_dbton_handler:
 error_init_dbton_handler:
-/*
-error_append_set_names:
-*/
-/*
-  for (table_conn = copy_tables->table_conn[0];
-    table_conn; table_conn = table_conn->next)
-    spider_db_free_set_names(table_conn->share);
-  for (table_conn = copy_tables->table_conn[1];
-    table_conn; table_conn = table_conn->next)
-    spider_db_free_set_names(table_conn->share);
-*/
 error:
   if (spider)
   {
@@ -1183,11 +1123,7 @@ error:
   }
   if (table_list && table_list->table)
   {
-#if MYSQL_VERSION_ID < 50500
-    ha_autocommit_or_rollback(thd, 0);
-#else
     (thd->is_error() ? trans_rollback_stmt(thd) : trans_commit_stmt(thd));
-#endif
     close_thread_tables(thd);
   }
   if (spider)
