@@ -64,10 +64,6 @@ usr/share/mysql/policy/selinux/README # In MariaDB we don't want to use SELinux 
 usr/share/mysql/policy/selinux/mariadb-server.fc # In MariaDB we don't want to use SELinux at the moment
 usr/share/mysql/policy/selinux/mariadb-server.te # In MariaDB we don't want to use SELinux at the moment
 usr/share/mysql/policy/selinux/mariadb.te # In MariaDB we don't want to use SELinux at the moment
-usr/share/mysql/systemd/mariadb-extra@.socket # Installed by rules file
-usr/share/mysql/systemd/mariadb.service # Installed by rules file
-usr/share/mysql/systemd/mariadb@.service # Installed by rules file
-usr/share/mysql/systemd/mariadb@.socket # Installed by rules file
 usr/share/mysql/systemd/mysql.service  # Installed by rules file
 usr/share/mysql/systemd/mysqld.service  # Installed by rules file
 usr/share/mysql/systemd/use_galera_new_cluster.conf
