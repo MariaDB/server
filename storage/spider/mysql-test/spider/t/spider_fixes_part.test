@@ -495,6 +495,9 @@ if ($HAVE_PARTITION)
   {
     save_master_pos;
     --connection slave1_1
+    select sleep(60);
+    --let $sql_running = query_get_value("SHOW SLAVE STATUS", Slave_SQL_Running, 1)
+    --echo $sql_running
     sync_with_master;
     --connection master_1
     --disable_query_log
