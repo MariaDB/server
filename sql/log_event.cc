@@ -2458,10 +2458,10 @@ Gtid_log_event::Gtid_log_event(const uchar *buf, uint event_len,
     }
 
     if (flags_extra & FL_EXTRA_THREAD_ID &&
-        static_cast<uint>(buf - buf_0) <= event_len + 8)
+        static_cast<uint>(buf - buf_0) <= event_len + 4)
     {
-      thread_id= uint8korr(buf);
-      buf+= 8;
+      thread_id= uint4korr(buf);
+      buf+= 4;
     }
   }
   /*
