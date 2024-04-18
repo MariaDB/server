@@ -214,6 +214,7 @@ static void my_vidattr(chtype attrs)
 
 #include "completion_hash.h"
 #include <welcome_copyright_notice.h> // ORACLE_WELCOME_COPYRIGHT_NOTICE
+#include "hash.h"
 
 #define PROMPT_CHAR '\\'
 #define DEFAULT_DELIMITER ";"
@@ -302,6 +303,8 @@ unsigned short terminal_width= 80;
 static uint opt_protocol=0;
 static const char *opt_protocol_type= "";
 
+static HASH aliases;                            /* Aliases. */
+
 #include "sslopt-vars.h"
 
 const char *default_dbug_option="d:t:o,/tmp/mariadb.trace";
@@ -324,8 +327,11 @@ static int com_quit(String *str,char*),
 	   com_rehash(String *str, char*), com_tee(String *str, char*),
            com_notee(String *str, char*), com_charset(String *str,char*),
            com_prompt(String *str, char*), com_delimiter(String *str, char*),
-     com_warnings(String *str, char*), com_nowarnings(String *str, char*);
+     com_warnings(String *str, char*), com_nowarnings(String *str, char*),
+     com_alias(String *str, char*), com_unalias(String *str, char*);
 static int com_query_cost(String *str, char*);
+static int init_alias();
+static int deinit_alias();
 
 #ifdef USE_POPEN
 static int com_nopager(String *str, char*), com_pager(String *str, char*),
@@ -373,6 +379,7 @@ typedef struct {
 
 static COMMANDS commands[] = {
   { "?",      '?', com_help,   1, "Synonym for `help'." },
+  { "alias",  'a', com_alias,  1, "Print or add aliases." },
   { "clear",  'c', com_clear,  0, "Clear the current input statement."},
   { "connect",'r', com_connect,1,
     "Reconnect to the server. Optional arguments are db and host." },
@@ -408,6 +415,7 @@ static COMMANDS commands[] = {
 #endif
   { "tee",    'T', com_tee,    1, 
     "Set outfile [to_outfile]. Append everything into given outfile." },
+  { "unalias",'A', com_unalias,1, "Remove aliases." },
   { "use",    'u', com_use,    1,
     "Use another database. Takes database name as argument." },
   { "charset",    'C', com_charset,    1,
@@ -1285,6 +1293,10 @@ int main(int argc,char *argv[])
     my_end(0);
     exit(1);
   }
+
+  /* Init alias hash. */
+  init_alias();
+
   if (mysql_server_init(embedded_server_arg_count, embedded_server_args, 
                         (char**) embedded_server_groups))
   {
@@ -1392,6 +1404,7 @@ int main(int argc,char *argv[])
 	  "Type 'help;' or '\\h' for help. Type '\\c' to clear the current input statement.\n");
   put_info(buff,INFO_INFO);
   status.exit_status= read_and_execute(!status.batch);
+
   if (opt_outfile)
     end_tee();
   mysql_end(0);
@@ -1447,6 +1460,7 @@ sig_handler mysql_end(int sig)
   my_free(current_prompt);
   while (embedded_server_arg_count > 1)
     my_free(embedded_server_args[--embedded_server_arg_count]);
+  deinit_alias();
   mysql_server_end();
   free_defaults(defaults_argv);
   my_end(my_end_arg);
@@ -2591,9 +2605,16 @@ static bool add_line(String &buffer, char *line, size_t line_length,
           buffer.append(line, (uint) (out-line));
           out= line;
         }
-        
-        if ((*com->func)(&buffer,pos-1) > 0)
-          DBUG_RETURN(1);                       // Quit
+        /* Check which buffer to use as an argument for the call
+           to the function pointer of command. Buffer shouldn't have delimiter.
+           By default check if command processed is `go` which doesn't take any
+           parameter (`takes_params`) or if server side comment is applied.
+           If so use `pos` buffer, otherwise create buffer without delimiter.
+       */
+        if (*pos == 'g' || *pos == 'G' || (com->takes_params && ss_comment))
+          if ((*com->func)(&buffer, pos-1) > 0)
+            DBUG_RETURN(1);                       // Quit
+
         if (com->takes_params)
         {
           if (ss_comment)
@@ -2609,14 +2630,23 @@ static bool add_line(String &buffer, char *line, size_t line_length,
           }
           else
           {
-            for (pos++ ;
+            char *tmp_buffer= pos;
+            for (pos++;
                  *pos && (*pos != *delimiter ||
-                          !is_prefix(pos + 1, delimiter + 1)) ; pos++)
+                          !is_prefix(pos + 1, delimiter + 1)); pos++)
               ;	// Remove parameters
             if (!*pos)
               pos--;
             else 
               pos+= delimiter_length - 1; // Point at last delim char
+
+            if (*pos == *delimiter)
+              buffer.append(tmp_buffer, (uint32) (pos-tmp_buffer));
+            else
+              buffer.append(line, strlen(line));
+            if ((*com->func)(&buffer, buffer.c_ptr()) > 0)
+              DBUG_RETURN(1);                       // Quit
+            buffer.length(0);
           }
         }
       }
@@ -3460,11 +3490,19 @@ com_charset(String *buffer __attribute__((unused)), char *line)
   return 0;
 }
 
+
+typedef struct {
+  char *name;
+  size_t name_len;
+  char *value;
+} ALIAS;
+
+
 /*
   Execute command
   Returns: 0  if ok
           -1 if not fatal error
-	  1  if fatal error
+           1  if fatal error
 */
 
 
@@ -3478,6 +3516,8 @@ com_go(String *buffer,char *line __attribute__((unused)))
   ulong		warnings= 0;
   uint		error= 0;
   int           err= 0;
+  char          *alias_end= 0;
+  intptr_t       alias_len;
 
   interrupted_query= 0;
   if (!status.batch)
@@ -3502,12 +3542,31 @@ com_go(String *buffer,char *line __attribute__((unused)))
     buffer->length(0);				// Remove query on error
     return opt_reconnect ? -1 : 1;          // Fatal error
   }
+
+  if ((alias_end= strchr((char *)(buffer->ptr()), ' ')))
+    alias_len= (intptr_t)alias_end - (intptr_t)buffer->ptr();
+  else
+    alias_len= (intptr_t)buffer->length();
+
   if (verbose)
     (void) com_print(buffer,0);
 
+  ALIAS *alias_element= (ALIAS *) my_hash_search(&aliases, (const uchar*)
+                                                 buffer->ptr(), alias_len);
+  String aliased_buffer;
+  if (alias_element)
+  {
+    aliased_buffer.copy(alias_element->value, strlen(alias_element->value),
+                        charset_info);
+    aliased_buffer.append(alias_end, buffer->length() - alias_len);
+  }
+
   if (skip_updates &&
-      (buffer->length() < 4 || charset_info->strnncoll((const uchar*)buffer->ptr(),4,
-					               (const uchar*)"SET ",4)))
+      (buffer->length() < 4 ||
+      charset_info->strnncoll(alias_element ?
+                              (const uchar*) aliased_buffer.ptr() :
+                              (const uchar*) buffer->ptr(), 4,
+                              (const uchar*) "SET ",4)))
   {
     (void) put_info("Ignoring query to other database",INFO_INFO);
     return 0;
@@ -3515,8 +3574,12 @@ com_go(String *buffer,char *line __attribute__((unused)))
 
   timer= microsecond_interval_timer();
   executing_query= 1;
-  error= mysql_real_query_for_lazy(buffer->ptr(),buffer->length());
-  report_progress_end();
+  if(aliased_buffer.ptr())
+    error= mysql_real_query_for_lazy(aliased_buffer.ptr(),
+                                     aliased_buffer.length());
+  else
+    error= mysql_real_query_for_lazy(buffer->ptr(),buffer->length());
+report_progress_end();
 
 #ifdef HAVE_READLINE
   if (status.add_to_history) 
@@ -3560,9 +3623,9 @@ com_go(String *buffer,char *line __attribute__((unused)))
     /* Every branch must truncate buff. */
     if (result)
     {
-      if (!mysql_num_rows(result) && ! quick && !column_types_flag)
+      if (!mysql_num_rows(result) && !quick && !column_types_flag)
       {
-	strmov(buff, "Empty set");
+        strmov(buff, "Empty set");
         if (opt_xml)
         { 
           /*
@@ -5715,6 +5778,419 @@ static int com_prompt(String *buffer __attribute__((unused)),
     tee_fprintf(stdout, "Returning to default PROMPT of %s\n", default_prompt);
   else
     tee_fprintf(stdout, "PROMPT set to '%s'\n", current_prompt);
+  return 0;
+}
+
+static uchar *get_alias_key(const uchar *var, size_t *len,
+                            my_bool __attribute__((unused)) t)
+{
+  char *key;
+  key= ((ALIAS *)var)->name;
+  *len= ((ALIAS *)var)->name_len;
+  return (uchar *) key;
+}
+
+static void alias_free(void *v)
+{
+  ALIAS *alias= (ALIAS *) v;
+  my_free(alias->name);
+  my_free(alias->value);
+  my_free(alias);
+}
+
+static char *parse_alias_name(char *line, char **out, bool *is_valid)
+{
+  char *beg, *end, *pos, *name;
+  bool single_quoted= false, double_quoted= false, quoted= false;
+  size_t len;
+
+  *is_valid= false;
+  beg= pos= line;
+
+  if (*pos == '\'')
+  {
+    quoted= single_quoted= true;
+    pos++;
+    beg= pos;
+  }
+  else if (*pos == '\"')
+  {
+    quoted= double_quoted= true;
+    pos++;
+    beg= pos;
+  }
+
+  while ((my_isalnum(charset_info, *pos))           ||
+         (quoted && my_isspace(charset_info, *pos)) ||
+         *pos == '-'                                ||
+         *pos == '_')
+    pos++;
+
+  if (*pos)
+  {
+    /* Terminal characters. */
+    switch (*pos) {
+    case '=':                                     /* fallthrough */
+    case ' ':                                     /* fallthrough */
+    case '\t':
+      if (!quoted) *is_valid= true;
+      end= pos;
+      break;
+    case '\'':
+      if (single_quoted && (my_isspace(charset_info, *(pos + 1)) ||
+                            (*(pos + 1) == '=')                  ||
+                            (*(pos + 1) == 0)))
+      {
+        *is_valid= true;
+        end= pos;
+        pos++;
+        break;
+      }
+      while (!my_isspace(charset_info, *pos)) pos++;
+      end= pos;
+      break;
+    case '\"':
+      if (double_quoted && (my_isspace(charset_info, *(pos + 1)) ||
+                            (*(pos + 1) == '=')                  ||
+                            (*(pos + 1) == 0)))
+      {
+        *is_valid= true;
+        end= pos;
+        pos++;
+        break;
+      }
+      *is_valid= false;
+      while (!my_isspace(charset_info, *pos)) pos++;
+      end= pos;
+      break;
+    default:
+      /* Its an invalid entry. Lets move until we find a space. */
+      *is_valid= false;
+      while (!my_isspace(charset_info, *pos)) pos++;
+      end= pos;
+    }
+  }
+  else
+  {
+    /* We have reached the end. */
+    if (!quoted) *is_valid= true;
+    end= pos;
+  }
+
+  len= end - beg;
+  if (len == 0)
+  {
+    *is_valid= false;
+    *out= NULL;
+    return pos;
+  }
+  name= (char *) my_malloc(PSI_NOT_INSTRUMENTED, len + 1, MYF(MY_WME));
+  if (!name)
+  {
+    fprintf(stderr, "Couldn't allocate memory for alias name!\n");
+    exit(1);
+  }
+  memcpy(name, beg, len);
+  name[len]= 0;
+  *out= name;
+  return pos;
+}
+
+static char *parse_alias_value(char *line, char **out, bool *is_valid)
+{
+  char *beg, *end, *pos, *value;
+  bool single_quoted= false, double_quoted= false, quoted= false;
+  size_t len;
+
+  *is_valid= false;
+  beg= pos= line;
+
+  if (*pos == '\'')
+  {
+    quoted= single_quoted= true;
+    pos++;
+    beg= pos;
+  }
+  else if (*pos == '\"')
+  {
+    quoted= double_quoted= true;
+    pos++;
+    beg= pos;
+  }
+
+  while (*pos && my_isprint(charset_info, *pos))
+  {
+    if (!quoted && (*pos == ' ' || *pos == '\t'))
+      break;
+    else if (single_quoted && *pos == '\'' && *(pos - 1) != '\\')
+    {
+      quoted= false;
+      break;
+    }
+    else if (double_quoted && *pos == '\"' && *(pos - 1) != '\\')
+    {
+      quoted= false;
+      break;
+    }
+    pos++;
+  }
+
+  if (*pos)
+  {
+    switch (*pos) {
+    case ' ':
+      /* fallthrough */
+    case '\t':
+      if (!quoted) *is_valid= true;
+      end= pos;
+      break;
+    case '\'':
+      if (single_quoted && (my_isspace(charset_info, *(pos + 1)) ||
+                            *(pos + 1) == 0))
+      {
+        *is_valid= true;
+        end= pos;
+        pos++;
+        break;
+      }
+      while (!my_isspace(charset_info, *pos)) pos++;
+      end= pos;
+      break;
+    case '\"':
+      if (double_quoted && (my_isspace(charset_info, *(pos + 1)) ||
+                            *(pos + 1) == 0))
+      {
+        *is_valid= true;
+        end= pos;
+        pos++;
+        break;
+      }
+      while (!my_isspace(charset_info, *pos)) pos++;
+      end= pos;
+      break;
+    default:
+      /* Its an invalid entry. Lets move until we find a space. */
+      while (!my_isspace(charset_info, *pos)) pos++;
+      end= pos;
+    }
+  }
+  else
+  {
+    /* We have reached the end. */
+    if (!quoted) *is_valid= true;
+    end= pos;
+  }
+
+  len= end - beg;
+  value= (char *) my_malloc(PSI_NOT_INSTRUMENTED, len + 1, MYF(MY_WME));
+  if (!value)
+  {
+    fprintf(stderr, "Couldn't allocate memory for alias value!\n");
+    exit(1);
+  }
+  memcpy(value, beg, len);
+  value[len]= 0;
+  *out= value;
+  return pos;
+}
+
+static char *handle_next_alias(char *line, bool *error)
+{
+  ALIAS *alias;
+  char *name, *value, *pos;
+  bool is_valid;
+  size_t name_len;
+  uchar *record;
+
+  *error= false;
+
+  /* Parse the alias name. */
+  pos= parse_alias_name(line, &name, &is_valid);
+
+  if (!is_valid)
+  {
+    if (!name)
+      tee_fprintf(stdout, "alias: '%s': not found\n", pos);
+    else
+    {
+      tee_fprintf(stdout, "alias: '%s': invalid alias name\n", name);
+      my_free(name);
+    }
+
+    *error= true;
+  }
+  else
+  {
+    /* TODO: A non-alphanumeric alias name is invalid. */
+
+    /*
+      We have a valid alias name. Lets check if there is a value being
+      assigned to it. (Note: there mustn't be spaces around '='.)
+    */
+    name_len= strlen(name);
+
+    if (*pos == '=')
+    {
+      pos++;
+      while (my_isspace(charset_info,*pos)) pos++;
+      pos= parse_alias_value(pos, &value, &is_valid);
+
+      if (!is_valid)
+      {
+        tee_fprintf(stdout, "alias: '%s': invalid alias value\n", value);
+        my_free(value);
+      }
+      else
+      {
+        /*
+          We now have a valid name and value, let add/update the
+          aliases hash.
+        */
+
+        if ((record= my_hash_search(&aliases, (const uchar *) name, name_len)))
+        {
+          my_hash_delete(&aliases, record);
+        }
+        alias= (ALIAS *) my_malloc(PSI_NOT_INSTRUMENTED, sizeof(ALIAS), MYF(MY_WME));
+        alias->name= name;
+        alias->name_len= name_len;
+        alias->value= value;
+        my_hash_insert(&aliases, (uchar *) alias);
+      }
+    }
+    else
+    {
+      /* Only alias name specified, lookup, print its value and return. */
+      alias= (ALIAS *) my_hash_search(&aliases, (const uchar*) name,
+                                      name_len);
+      if (alias)
+      {
+        tee_fprintf(stdout, "alias  %s = '%s'\n", alias->name, alias->value);
+      }
+      else
+      {
+        tee_fprintf(stdout, "alias: '%s': not found\n", name);
+      }
+    }
+  }
+  return pos;
+}
+
+static char *handle_next_unalias(char *line, bool *error)
+{
+  char *name, *pos;
+  uchar *record;
+  bool is_valid;
+
+  /* Parse the alias name. */
+  pos= parse_alias_name(line, &name, &is_valid);
+
+  if (!is_valid)
+  {
+    tee_fprintf(stdout, "unalias: '%s': invalid alias name\n", name);
+    *error= true;
+  }
+  else
+  {
+    if ((record= my_hash_search(&aliases, (const uchar *) name, strlen(name))))
+      my_hash_delete(&aliases, record);
+    else
+      tee_fprintf(stdout, "unalias: '%s': not found\n", name);
+    *error= false;
+  }
+  return pos;
+}
+static int init_alias()
+{
+  /* Initialize the hash structure to store aliases. */
+  if (my_hash_init2(PSI_NOT_INSTRUMENTED, &aliases, 64, charset_info,
+                    64, 0, 0, get_alias_key, 0,
+                    alias_free, MYF(0)))
+  {
+    put_info("Couldn't initialize hash to store aliases.", INFO_ERROR);
+    free_defaults(defaults_argv);
+    my_end(0);
+    exit(1);
+  }
+
+  return 0;
+}
+
+static int deinit_alias()
+{
+  my_hash_free(&aliases);
+  return 0;
+}
+
+static int com_alias(String *buffer __attribute__((unused)),
+                     char *line)
+{
+  while (my_isspace(charset_info,*line))
+    line++;
+
+  char *ptr= strchr(line,' ');
+  bool unused;
+
+  /* Move past "alias" and spaces. */
+  if (ptr)
+    while (my_isspace(charset_info, *ptr)) ptr++;
+
+  if ((!ptr) || (*ptr == 0))
+  {
+    /* Only alias command specified, print all aliases and return. */
+    ALIAS *alias;
+    size_t i= 0;
+
+    while ((alias= (ALIAS *) my_hash_element(&aliases, i++)))
+      tee_fprintf(stdout, "alias %s = '%s'\n", alias->name, alias->value);
+    return 0;
+  }
+
+  if (*ptr == '=')
+  {
+    tee_fprintf(stdout, "alias: '%s': not found\n", ptr);
+    return 0;
+  }
+
+  /* There are more arguments to handle. */
+  while (*ptr)
+  {
+    ptr= handle_next_alias(ptr, &unused);
+
+    /* Bypass the spaces. */
+    while (*ptr && my_isspace(charset_info, *ptr)) ptr++;
+  }
+
+  return 0;
+}
+
+static int com_unalias(String *buffer __attribute__((unused)),
+                       char *line)
+{
+  char *ptr= line;
+  bool unused;
+
+  /* Move past "unalias" and spaces. */
+  if ((ptr= strchr(line, ' ')))
+  {
+    while (*ptr && my_isspace(charset_info, *ptr))
+      ptr ++;
+  }
+
+  if ((!ptr) || (*ptr == 0))
+  {
+    tee_fprintf(stdout, "unalias: no alias specified\n");
+    return 0;
+  }
+
+  /* There are more arguments to handle. */
+  while (*ptr)
+  {
+    ptr= handle_next_unalias(ptr, &unused);
+
+    /* Bypass the spaces. */
+    while (*ptr && my_isspace(charset_info, *ptr)) ptr ++;
+  }
   return 0;
 }
 
