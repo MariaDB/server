@@ -50,6 +50,8 @@ extern PSI_mutex_key spd_key_mutex_mon_list_update_status;
 extern PSI_mutex_key spd_key_mutex_mon_table_cache;
 #endif
 
+/* Array (of size `spider_udf_table_mon_mutex_count') of hashes of
+`SPIDER_TABLE_MON_LIST'. */
 HASH *spider_udf_table_mon_list_hash;
 uint spider_udf_table_mon_list_hash_id;
 const char *spider_udf_table_mon_list_hash_func_name;
@@ -59,23 +61,43 @@ pthread_mutex_t *spider_udf_table_mon_mutexes;
 pthread_cond_t *spider_udf_table_mon_conds;
 
 pthread_mutex_t spider_mon_table_cache_mutex;
+/* A cache to store distinct SPIDER_MON_KEYs with db name, table name
+and link id read from mysql.spider_link_mon_servers table. Initialised
+and populated in spider_init_ping_table_mon_cache(), and used in
+spider_ping_table_cache_compare(). The udf
+spider_flush_table_mon_cache is used to flag a initialisation. */
 DYNAMIC_ARRAY spider_mon_table_cache;
 uint spider_mon_table_cache_id;
 const char *spider_mon_table_cache_func_name;
 const char *spider_mon_table_cache_file_name;
 ulong spider_mon_table_cache_line_no;
-volatile ulonglong spider_mon_table_cache_version = 0;
-volatile ulonglong spider_mon_table_cache_version_req = 1;
+/* The mon table cache version, initialised at 0, and always no
+greater than spider_mon_table_cache_version_req. When the inequality
+is strict, an initialisation of spider_mon_table_cache will be
+triggered. */
+volatile ulonglong spider_mon_table_cache_version;
+/* The required mon table cache version, incremented by one by the
+udf spider_flush_table_mon_cache */
+volatile ulonglong spider_mon_table_cache_version_req;
 
+ /* Get or create a `SPIDER_TABLE_MON_LIST' for a key `str' */
 SPIDER_TABLE_MON_LIST *spider_get_ping_table_mon_list(
   SPIDER_TRX *trx,
   THD *thd,
-  spider_string *str,
+  spider_string *str,           /* The key to search in
+                                  `spider_udf_table_mon_list_hash',
+                                  usually in the format of
+                                  "./$db_name/$table_name000000000$link_idx" */
   uint conv_name_length,
   int link_idx,
   char *static_link_id,
   uint static_link_id_length,
-  uint32 server_id,
+  uint32 server_id,             /* The server id of the monitor
+                                  server, used for creating a new
+                                  table mon list having a
+                                  `SPIDER_TABLE_MON' corresponding to
+                                  the server id as the `current'
+                                  field */
   bool need_lock,
   int *error_num
 ) {
@@ -85,6 +107,7 @@ SPIDER_TABLE_MON_LIST *spider_get_ping_table_mon_list(
   ulonglong mon_table_cache_version;
   my_hash_value_type hash_value;
   DBUG_ENTER("spider_get_ping_table_mon_list");
+  /* Reset the cache if the version does not match the requirement */
   if (spider_mon_table_cache_version != spider_mon_table_cache_version_req)
   {
     SPD_INIT_ALLOC_ROOT(&mem_root, 4096, 0, MYF(MY_WME));
@@ -97,6 +120,9 @@ SPIDER_TABLE_MON_LIST *spider_get_ping_table_mon_list(
     free_root(&mem_root, MYF(0));
   }
 
+  /* Search for the table mon list in the hash, if one is not found or
+  if it is found but has the wrong cache version, create and
+  initialise a new one. */
   mutex_hash=
       spider_udf_calc_hash(str->c_ptr(), spider_udf_table_mon_mutex_count);
   DBUG_PRINT("info",("spider hash key=%s", str->c_ptr()));
@@ -113,12 +139,15 @@ SPIDER_TABLE_MON_LIST *spider_get_ping_table_mon_list(
       table_mon_list->mon_table_cache_version != mon_table_cache_version
   )
   {
+    /* If table_mon_list is found but the cache version does not
+    match, remove it from the hash and free it. */
     if (
       table_mon_list &&
       table_mon_list->mon_table_cache_version != mon_table_cache_version
     )
       spider_release_ping_table_mon_list_loop(mutex_hash, table_mon_list);
-
+    /* create and initialise `table_mon_list' and insert it into the
+    hash */
     if (!(table_mon_list = spider_get_ping_table_tgt(thd, str->c_ptr(),
       conv_name_length, link_idx, static_link_id, static_link_id_length,
       server_id, str, need_lock, error_num)))
@@ -240,6 +269,14 @@ int spider_release_ping_table_mon_list(
   DBUG_RETURN(0);
 }
 
+/*
+  Look for a `SPIDER_MON_KEY` in `spider_mon_table_cache' whose db and
+  table name and link_idx matching `name' and `link_idx' with wild
+  card matching. If a match is found, create `SPIDER_TABLE_MON's from
+  all rows in mysql.spider_link_mon_servers that match the info in the
+  `SPIDER_MON_KEY' and populate the `table_mon_list' with these
+  `SPIDER_TABLE_MON's.
+*/
 int spider_get_ping_table_mon(
   THD *thd,
   SPIDER_TABLE_MON_LIST *table_mon_list,
@@ -316,6 +353,8 @@ int spider_get_ping_table_mon(
   goto error;
 
 create_table_mon:
+  /* Find the first row in mysql.spider_link_mon_servers matching the
+  db name, table name and link_idx */
   if ((error_num = spider_get_sys_table_by_idx(table_link_mon, table_key,
     table_link_mon->s->primary_key, 3)))
   {
@@ -323,6 +362,9 @@ create_table_mon:
     goto error;
   }
 
+  /* create one `SPIDER_TABLE_MON' per row in
+  mysql.spider_link_mon_servers with matching db name, table name and
+  link_idx, and add it to `table_mon_list'. */
   do {
     if (!(table_mon = (SPIDER_TABLE_MON *)
       spider_bulk_malloc(spider_current_trx, SPD_MID_GET_PING_TABLE_MON_1, MYF(MY_WME | MY_ZEROFILL),
@@ -356,7 +398,7 @@ create_table_mon:
       (error_num = spider_get_sys_link_mon_server_id(
         table_link_mon, &table_mon->server_id, mem_root)) ||
       (error_num = spider_get_sys_link_mon_connect_info(
-        table_link_mon, tmp_share, 0, mem_root))
+        table_link_mon, tmp_share, mem_root))
     ) {
       table_link_mon->file->print_error(error_num, MYF(0));
       spider_sys_index_end(table_link_mon);
@@ -418,15 +460,21 @@ error:
   DBUG_RETURN(error_num);
 }
 
+/*
+  creates and return table_mon_list associated with table with `name'
+  and `link_idx'th link.
+*/
 SPIDER_TABLE_MON_LIST *spider_get_ping_table_tgt(
   THD *thd,
-  char *name,
+  char *name,                   /* The table name, usually fully qualified */
   uint name_length,
   int link_idx,
   char *static_link_id,
   uint static_link_id_length,
-  uint32 server_id,
-  spider_string *str,
+  uint32 server_id,             /* The server_id will determine the
+                                `current' field of the returned
+                                `SPIDER_TABLE_MON_LIST'. */
+  spider_string *str,           /* str->c_ptr() == name */
   bool need_lock,
   int *error_num
 ) {
@@ -471,6 +519,7 @@ SPIDER_TABLE_MON_LIST *spider_get_ping_table_tgt(
   memcpy(key_str, str->ptr(), table_mon_list->key_length);
   tmp_share->access_charset = thd->variables.character_set_client;
 
+  /* Open mysql.spider_tables */
   if (
     !(table_tables = spider_open_sys_table(
       thd, SPIDER_SYS_TABLES_TABLE_NAME_STR,
@@ -480,6 +529,8 @@ SPIDER_TABLE_MON_LIST *spider_get_ping_table_tgt(
     my_error(*error_num, MYF(0));
     goto error;
   }
+  /* store db and table names and link idx in mysql.spider_tables for
+  reading */
   spider_store_tables_name(table_tables, name, name_length);
   if (static_link_id)
   {
@@ -503,9 +554,10 @@ SPIDER_TABLE_MON_LIST *spider_get_ping_table_tgt(
       goto error;
     }
   }
+  /* Populate tmp_share with info read from mysql.spider_tables */
   if (
     (*error_num = spider_get_sys_tables_connect_info(
-      table_tables, tmp_share, 0, &mem_root)) ||
+      table_tables, tmp_share, &mem_root)) ||
     (*error_num = spider_get_sys_tables_link_status(
       table_tables, tmp_share, 0, &mem_root))
   ) {
@@ -527,9 +579,8 @@ SPIDER_TABLE_MON_LIST *spider_get_ping_table_tgt(
       tmp_share, name, name_length
     )) ||
     (*error_num = spider_create_conn_keys(tmp_share)) ||
-/*
-    (*error_num = spider_db_create_table_names_str(tmp_share)) ||
-*/
+    /* Pinally, populate `table_mon_list' with newly created
+    `SPIDER_TABLE_MON's */
     (*error_num = spider_get_ping_table_mon(
       thd, table_mon_list, name, name_length, link_idx, server_id, &mem_root,
       need_lock))
@@ -819,6 +870,11 @@ error_open_table_tables:
   DBUG_RETURN(error_num);
 }
 
+/*
+  Initialise `spider_mon_table_cache' by scanning the
+  mysql.spider_link_mon_servers table, creating distinct
+  `SPIDER_MON_KEY's with the info and inserting them into the cache.
+*/
 int spider_init_ping_table_mon_cache(
   THD *thd,
   MEM_ROOT *mem_root,
@@ -847,6 +903,7 @@ int spider_init_ping_table_mon_cache(
     /* reset */
     spider_mon_table_cache.elements = 0;
 
+    /* start at the first row */
     if ((error_num = spider_sys_index_first(table_link_mon,
       table_link_mon->s->primary_key)))
     {
@@ -863,10 +920,16 @@ int spider_init_ping_table_mon_cache(
       mon_key.table_name_length = SPIDER_SYS_LINK_MON_TABLE_TABLE_NAME_SIZE + 1;
       mon_key.link_id_length = SPIDER_SYS_LINK_MON_TABLE_LINK_ID_SIZE + 1;
       do {
+        /* update content of `mon_key' */
         if ((error_num = spider_get_sys_link_mon_key(table_link_mon, &mon_key,
           mem_root, &same)))
           goto error_get_sys_link_mon_key;
 
+        /* `mon_key' has changed content. since
+        mysql.spider_link_mon_servers is indexed by db_name,
+        table_name, link_idx, and server_id, it is possible that
+        different server_ids share the same mon_key which only has
+        db_name, table_name, link_idx */
         if (!same)
         {
           mon_key.sort = spider_calc_for_sort(3, mon_key.db_name,
@@ -937,6 +1000,13 @@ error_open_sys_table:
   DBUG_RETURN(error_num);
 }
 
+/*
+  Read from msyql.spider_link_mon_servers table fields the db name,
+  table name and link_id and search for them with wild card matching
+  in `spider_mon_table_cache'. store the db name, table name, and
+  link_id of the matching `SPIDER_MON_KEY' back to the table field on
+  success.
+*/
 int spider_ping_table_cache_compare(
   TABLE *table,
   MEM_ROOT *mem_root
@@ -1213,9 +1283,6 @@ long long spider_ping_table_body(
         DBUG_PRINT("info",("spider mon_table_result->result_status=SPIDER_LINK_MON_NG 2"));
         if (table_mon_list->mon_status != SPIDER_LINK_MON_NG)
         {
-/*
-          pthread_mutex_lock(&table_mon_list->update_status_mutex);
-*/
           pthread_mutex_lock(&spider_udf_table_mon_mutexes[table_mon_list->mutex_hash]);
           if (table_mon_list->mon_status != SPIDER_LINK_MON_NG)
           {
@@ -1230,9 +1297,6 @@ long long spider_ping_table_body(
               conv_name.c_ptr(), conv_name_length, link_idx, TRUE);
             status_changed_to_ng = TRUE;
           }
-/*
-          pthread_mutex_unlock(&table_mon_list->update_status_mutex);
-*/
           pthread_mutex_unlock(&spider_udf_table_mon_mutexes[table_mon_list->mutex_hash]);
           if (status_changed_to_ng)
           {
@@ -1286,9 +1350,6 @@ long long spider_ping_table_body(
           DBUG_PRINT("info",("spider mon_table_result->result_status=SPIDER_LINK_MON_NG 3"));
           if (table_mon_list->mon_status != SPIDER_LINK_MON_NG)
           {
-/*
-            pthread_mutex_lock(&table_mon_list->update_status_mutex);
-*/
             pthread_mutex_lock(&spider_udf_table_mon_mutexes[table_mon_list->mutex_hash]);
             if (table_mon_list->mon_status != SPIDER_LINK_MON_NG)
             {
@@ -1303,9 +1364,6 @@ long long spider_ping_table_body(
                 conv_name.c_ptr(), conv_name_length, link_idx, TRUE);
               status_changed_to_ng = TRUE;
             }
-/*
-            pthread_mutex_unlock(&table_mon_list->update_status_mutex);
-*/
             pthread_mutex_unlock(&spider_udf_table_mon_mutexes[table_mon_list->mutex_hash]);
             if (status_changed_to_ng)
             {
@@ -1349,9 +1407,6 @@ long long spider_ping_table_body(
             mon_table_result->result_status == SPIDER_LINK_MON_NG &&
             table_mon_list->mon_status != SPIDER_LINK_MON_NG
           ) {
-/*
-            pthread_mutex_lock(&table_mon_list->update_status_mutex);
-*/
             pthread_mutex_lock(&spider_udf_table_mon_mutexes[table_mon_list->mutex_hash]);
             if (table_mon_list->mon_status != SPIDER_LINK_MON_NG)
             {
@@ -1366,9 +1421,6 @@ long long spider_ping_table_body(
                 conv_name.c_ptr(), conv_name_length, link_idx, TRUE);
               status_changed_to_ng = TRUE;
             }
-/*
-            pthread_mutex_unlock(&table_mon_list->update_status_mutex);
-*/
             pthread_mutex_unlock(&spider_udf_table_mon_mutexes[table_mon_list->mutex_hash]);
             if (status_changed_to_ng)
             {
@@ -1539,9 +1591,9 @@ int spider_ping_table_mon_from_table(
   SPIDER_SHARE *share,
   int base_link_idx,
   uint32 server_id,
-  char *conv_name,
+  char *conv_name,              /* Usually fully qualified table name */
   uint conv_name_length,
-  int link_idx,
+  int link_idx,                 /* The link id to ping */
   char *where_clause,
   uint where_clause_length,
   long monitoring_kind,
@@ -1551,9 +1603,6 @@ int spider_ping_table_mon_from_table(
 ) {
   int error_num = 0, current_mon_count, flags;
   uint32 first_sid;
-/*
-  THD *thd = trx->thd;
-*/
   SPIDER_TABLE_MON_LIST *table_mon_list;
   SPIDER_TABLE_MON *table_mon;
   SPIDER_MON_TABLE_RESULT mon_table_result;
@@ -1622,6 +1671,7 @@ int spider_ping_table_mon_from_table(
   if (monitoring_flag & 1)
     flags |= SPIDER_UDF_PING_TABLE_USE_ALL_MONITORING_NODES;
 
+  /* Get or create `table_mon_list' for `conv_name_str'. */
   if (!(table_mon_list = spider_get_ping_table_mon_list(trx, thd,
     &conv_name_str, conv_name_length, link_idx,
     share->static_link_ids[link_idx],
@@ -1653,6 +1703,8 @@ int spider_ping_table_mon_from_table(
     table_mon = table_mon_list->current;
     first_sid = table_mon->server_id;
     current_mon_count = 1;
+    /* Call spider_ping_table on each table_mon of `table_mon_list',
+    until one succeeds */
     while (TRUE)
     {
       DBUG_PRINT("info",("spider thd->killed=%s",
@@ -1697,16 +1749,13 @@ int spider_ping_table_mon_from_table(
           if (!spider_db_udf_ping_table_mon_next(
             thd, table_mon, mon_conn, &mon_table_result, conv_name,
             conv_name_length, link_idx,
-            where_clause, where_clause_length, -1, table_mon_list->list_size,
+            where_clause, where_clause_length, /*first_sid=*/-1, table_mon_list->list_size,
             0, 0, 0, flags, monitoring_limit))
           {
             if (
               mon_table_result.result_status == SPIDER_LINK_MON_NG &&
               table_mon_list->mon_status != SPIDER_LINK_MON_NG
             ) {
-/*
-              pthread_mutex_lock(&table_mon_list->update_status_mutex);
-*/
               pthread_mutex_lock(&spider_udf_table_mon_mutexes[table_mon_list->mutex_hash]);
               if (table_mon_list->mon_status != SPIDER_LINK_MON_NG)
               {
@@ -1721,9 +1770,6 @@ int spider_ping_table_mon_from_table(
                 spider_sys_log_tables_link_failed(thd, conv_name,
                   conv_name_length, link_idx, need_lock);
               }
-/*
-              pthread_mutex_unlock(&table_mon_list->update_status_mutex);
-*/
               pthread_mutex_unlock(&spider_udf_table_mon_mutexes[table_mon_list->mutex_hash]);
             }
             table_mon_list->last_caller_result = mon_table_result.result_status;

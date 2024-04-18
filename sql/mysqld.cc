@@ -1783,7 +1783,8 @@ static void close_connections(void)
         "Delaying shutdown to await semi-sync ACK");
   }
 
-  Events::deinit();
+  if (Events::inited)
+    Events::stop();
   slave_prepare_for_shutdown();
   ack_receiver.stop();
 
@@ -1844,6 +1845,12 @@ static void close_connections(void)
     my_sleep(1000);
   }
   /* End of kill phase 2 */
+
+  /*
+    The signal thread can use server resources, e.g. when processing SIGHUP,
+    and it must end gracefully before clean_up()
+  */
+  wait_for_signal_thread_to_end();
 
   DBUG_PRINT("quit",("close_connections thread"));
   DBUG_VOID_RETURN;
@@ -1921,14 +1928,8 @@ extern "C" void unireg_abort(int exit_code)
 static void mysqld_exit(int exit_code)
 {
   DBUG_ENTER("mysqld_exit");
-  /*
-    Important note: we wait for the signal thread to end,
-    but if a kill -15 signal was sent, the signal thread did
-    spawn the kill_server_thread thread, which is running concurrently.
-  */
   rpl_deinit_gtid_waiting();
   rpl_deinit_gtid_slave_state();
-  wait_for_signal_thread_to_end();
 #ifdef WITH_WSREP
   wsrep_deinit_server();
   wsrep_sst_auth_free();
@@ -2010,6 +2011,9 @@ static void clean_up(bool print_message)
   free_status_vars();
   end_thr_alarm(1);			/* Free allocated memory */
   end_thr_timer();
+#ifndef EMBEDDED_LIBRARY
+  Events::deinit();
+#endif
   my_free_open_file_info();
   if (defaults_argv)
     free_defaults(defaults_argv);
@@ -2080,16 +2084,32 @@ static void clean_up(bool print_message)
 */
 static void wait_for_signal_thread_to_end()
 {
-  uint i;
+  uint i, n_waits= (DBUG_IF("force_sighup_processing_timeout") ? 5 : 100);
+  int err= 0;
   /*
     Wait up to 10 seconds for signal thread to die. We use this mainly to
     avoid getting warnings that my_thread_end has not been called
   */
-  for (i= 0 ; i < 100 && signal_thread_in_use; i++)
+  for (i= 0 ; i < n_waits && signal_thread_in_use; i++)
   {
-    if (pthread_kill(signal_thread, MYSQL_KILL_SIGNAL) == ESRCH)
+    err= pthread_kill(signal_thread, MYSQL_KILL_SIGNAL);
+    if (err)
       break;
-    my_sleep(100);				// Give it time to die
+    my_sleep(100000); // Give it time to die, .1s per iteration
+  }
+
+  if (err && err != ESRCH)
+  {
+    sql_print_error("Failed to send kill signal to signal handler thread, "
+                    "pthread_kill() errno: %d",
+                    err);
+  }
+
+  if (i == n_waits && signal_thread_in_use)
+  {
+    sql_print_warning("Signal handler thread did not exit in a timely manner. "
+                      "Continuing to wait for it to stop..");
+    pthread_join(signal_thread, NULL);
   }
 }
 #endif /*EMBEDDED_LIBRARY*/
@@ -3168,7 +3188,6 @@ static void start_signal_handler(void)
 
   (void) pthread_attr_init(&thr_attr);
   pthread_attr_setscope(&thr_attr,PTHREAD_SCOPE_SYSTEM);
-  (void) pthread_attr_setdetachstate(&thr_attr,PTHREAD_CREATE_DETACHED);
   (void) my_setstacksize(&thr_attr,my_thread_stack_size);
 
   mysql_mutex_lock(&LOCK_start_thread);
@@ -3186,18 +3205,6 @@ static void start_signal_handler(void)
   (void) pthread_attr_destroy(&thr_attr);
   DBUG_VOID_RETURN;
 }
-
-
-#if defined(USE_ONE_SIGNAL_HAND)
-pthread_handler_t kill_server_thread(void *arg __attribute__((unused)))
-{
-  my_thread_init();				// Initialize new thread
-  break_connect_loop();
-  my_thread_end();
-  pthread_exit(0);
-  return 0;
-}
-#endif
 
 
 /** This threads handles all signals and alarms. */
@@ -3256,7 +3263,7 @@ pthread_handler_t signal_hand(void *arg __attribute__((unused)))
     int origin;
 
     while ((error= my_sigwait(&set, &sig, &origin)) == EINTR) /* no-op */;
-    if (cleanup_done)
+    if (abort_loop)
     {
       DBUG_PRINT("quit",("signal_handler: calling my_thread_end()"));
       my_thread_end();
@@ -3279,18 +3286,8 @@ pthread_handler_t signal_hand(void *arg __attribute__((unused)))
       {
         /* Delete the instrumentation for the signal thread */
         PSI_CALL_delete_current_thread();
-#ifdef USE_ONE_SIGNAL_HAND
-	pthread_t tmp;
-        if (unlikely((error= mysql_thread_create(0, /* Not instrumented */
-                                                 &tmp, &connection_attrib,
-                                                 kill_server_thread,
-                                                 (void*) &sig))))
-          sql_print_error("Can't create thread to kill server (errno= %d)",
-                          error);
-#else
         my_sigset(sig, SIG_IGN);
         break_connect_loop(); // MIT THREAD has a alarm thread
-#endif
       }
       break;
     case SIGHUP:
@@ -4115,8 +4112,9 @@ static int init_common_variables()
                      SQLCOM_END + 10);
 #endif
 
-  if (get_options(&remaining_argc, &remaining_argv))
-    exit(1);
+  int opt_err;
+  if ((opt_err= get_options(&remaining_argc, &remaining_argv)))
+    exit(opt_err);
   if (IS_SYSVAR_AUTOSIZE(&server_version_ptr))
     set_server_version(server_version, sizeof(server_version));
 
@@ -4980,6 +4978,9 @@ static int init_server_components()
   error_handler_hook= my_message_sql;
   proc_info_hook= set_thd_stage_info;
 
+  /* Set up hook to handle disk full */
+  my_sleep_for_space= mariadb_sleep_for_space;
+
   /*
     Print source revision hash, as one of the first lines, if not the
     first in error log, for troubleshooting and debugging purposes
@@ -5484,6 +5485,10 @@ static int init_server_components()
   }
 #endif
 
+#ifndef EMBEDDED_LIBRARY
+  start_handle_manager();
+#endif
+
   tc_log= get_tc_log_implementation();
 
   if (tc_log->open(opt_bin_log ? opt_bin_logname : opt_tc_log_file))
@@ -5495,9 +5500,6 @@ static int init_server_components()
   if (ha_recover(0))
     unireg_abort(1);
 
-#ifndef EMBEDDED_LIBRARY
-  start_handle_manager();
-#endif
   if (opt_bin_log)
   {
     int error;
@@ -9296,6 +9298,7 @@ PSI_stage_info stage_user_lock= { 0, "User lock", 0};
 PSI_stage_info stage_user_sleep= { 0, "User sleep", 0};
 PSI_stage_info stage_verifying_table= { 0, "Verifying table", 0};
 PSI_stage_info stage_waiting_for_delay_list= { 0, "Waiting for delay_list", 0};
+PSI_stage_info stage_waiting_for_disk_space= {0, "Waiting for someone to free space", 0};
 PSI_stage_info stage_waiting_for_gtid_to_be_written_to_binary_log= { 0, "Waiting for GTID to be written to binary log", 0};
 PSI_stage_info stage_waiting_for_handler_insert= { 0, "Waiting for handler insert", 0};
 PSI_stage_info stage_waiting_for_handler_lock= { 0, "Waiting for handler lock", 0};

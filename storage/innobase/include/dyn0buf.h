@@ -149,8 +149,7 @@ public:
 		/** Storage */
 		byte		m_data[MAX_DATA_SIZE];
 
-		/** number of data bytes used in this block;
-		DYN_BLOCK_FULL_FLAG is set when the block becomes full */
+		/** number of data bytes used in this block */
 		uint32_t	m_used;
 
 		friend class mtr_buf_t;

@@ -2645,6 +2645,11 @@ Gtid_log_event::Gtid_log_event(const uchar *buf, uint event_len,
   }
   if (flags2 & (FL_PREPARED_XA | FL_COMPLETED_XA))
   {
+    if (event_len < static_cast<uint>(buf - buf_0) + 6)
+    {
+      seq_no= 0;
+      return;
+    }
     xid.formatID= uint4korr(buf);
     buf+= 4;
 
@@ -2653,6 +2658,11 @@ Gtid_log_event::Gtid_log_event(const uchar *buf, uint event_len,
     buf+= 2;
 
     long data_length= xid.bqual_length + xid.gtrid_length;
+    if (event_len < static_cast<uint>(buf - buf_0) + data_length)
+    {
+      seq_no= 0;
+      return;
+    }
     memcpy(xid.data, buf, data_length);
     buf+= data_length;
   }
@@ -2667,8 +2677,11 @@ Gtid_log_event::Gtid_log_event(const uchar *buf, uint event_len,
     */
     if (flags_extra & FL_EXTRA_MULTI_ENGINE_E1)
     {
-      DBUG_ASSERT(static_cast<uint>(buf - buf_0) < event_len);
-
+      if (event_len < static_cast<uint>(buf - buf_0) + 1)
+      {
+        seq_no= 0;
+        return;
+      }
       extra_engines= *buf++;
 
       DBUG_ASSERT(extra_engines > 0);

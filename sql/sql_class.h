@@ -1,5 +1,4 @@
 /*
-   Copyright (c) 2000, 2016, Oracle and/or its affiliates.
    Copyright (c) 2009, 2022, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
@@ -2470,6 +2469,11 @@ public:
     swap_variables(sp_cache*, sp_package_body_cache, rhs.sp_package_body_cache);
   }
   void sp_caches_clear();
+  /**
+    Clear content of sp related caches.
+    Don't delete cache objects itself.
+  */
+  void sp_caches_empty();
 };
 
 
@@ -2959,6 +2963,12 @@ public:
   bool create_tmp_table_for_derived;
 
   bool save_prep_leaf_list;
+
+  /**
+    The data member reset_sp_cache is to signal that content of sp_cache
+    must be reset (all items be removed from it).
+  */
+  bool reset_sp_cache;
 
   /* container for handler's private per-connection data */
   Ha_data ha_data[MAX_HA];
@@ -4834,24 +4844,24 @@ public:
   */
   bool copy_db_to(LEX_CSTRING *to)
   {
-    if (db.str == NULL)
+    if (db.str)
     {
-      /*
-        No default database is set. In this case if it's guaranteed that
-        no CTE can be used in the statement then we can throw an error right
-        now at the parser stage. Otherwise the decision about throwing such
-        a message must be postponed until a post-parser stage when we are able
-        to resolve all CTE names as we don't need this message to be thrown
-        for any CTE references.
-      */
-      if (!lex->with_cte_resolution)
-        my_message(ER_NO_DB_ERROR, ER(ER_NO_DB_ERROR), MYF(0));
-      return TRUE;
+      to->str= strmake(db.str, db.length);
+      to->length= db.length;
+      return to->str == NULL;                     /* True on error */
     }
 
-    to->str= strmake(db.str, db.length);
-    to->length= db.length;
-    return to->str == NULL;                     /* True on error */
+    /*
+      No default database is set. In this case if it's guaranteed that
+      no CTE can be used in the statement then we can throw an error right
+      now at the parser stage. Otherwise the decision about throwing such
+      a message must be postponed until a post-parser stage when we are able
+      to resolve all CTE names as we don't need this message to be thrown
+      for any CTE references.
+    */
+    if (!lex->with_cte_resolution)
+      my_message(ER_NO_DB_ERROR, ER(ER_NO_DB_ERROR), MYF(0));
+    return TRUE;
   }
   /* Get db name or "". Use for printing current db */
   const char *get_db()
@@ -8234,6 +8244,10 @@ public:
 #endif
   }
 };
+
+C_MODE_START
+void mariadb_sleep_for_space(unsigned int seconds);
+C_MODE_END
 
 #endif /* MYSQL_SERVER */
 #endif /* SQL_CLASS_INCLUDED */

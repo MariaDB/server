@@ -4423,6 +4423,13 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
              rli->last_inuse_relaylog->dequeued_count))) &&
           event_can_update_last_master_timestamp(ev))
       {
+        /*
+          This is the first event from the master after the slave was up to date
+          and has been waiting for new events.
+          We update last_master_timestamp before executing the event to not
+          have Seconds_after_master ==  0 while executing the event.
+          last_master_timestamp will be updated again when the event is commited.
+        */
         if (rli->last_master_timestamp < ev->when)
         {
           rli->last_master_timestamp= ev->when;
@@ -4459,7 +4466,7 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
           Seconds_Behind_Master is zero.
         */
         if (ev->get_type_code() != FORMAT_DESCRIPTION_EVENT &&
-            rli->last_master_timestamp < ev->when)
+            rli->last_master_timestamp < ev->when + (time_t) ev->exec_time)
           rli->last_master_timestamp= ev->when + (time_t) ev->exec_time;
 
         DBUG_ASSERT(rli->last_master_timestamp >= 0);

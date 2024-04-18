@@ -348,11 +348,12 @@ inline void mtr_t::memmove(const buf_block_t &b, ulint d, ulint s, ulint len)
   ut_ad(d >= 8);
   ut_ad(s >= 8);
   ut_ad(len);
-  ut_ad(s <= ulint(srv_page_size));
-  ut_ad(s + len <= ulint(srv_page_size));
+  ut_d(const ulint ps= srv_page_size);
+  ut_ad(s <= ps);
+  ut_ad(s + len <= ps);
   ut_ad(s != d);
-  ut_ad(d <= ulint(srv_page_size));
-  ut_ad(d + len <= ulint(srv_page_size));
+  ut_ad(d <= ps);
+  ut_ad(d + len <= ps);
 
   set_modified(b);
   if (!is_logged())
@@ -360,17 +361,17 @@ inline void mtr_t::memmove(const buf_block_t &b, ulint d, ulint s, ulint len)
   static_assert(MIN_4BYTE > UNIV_PAGE_SIZE_MAX, "consistency");
   size_t lenlen= (len < MIN_2BYTE ? 1 : len < MIN_3BYTE ? 2 : 3);
   /* The source offset is encoded relative to the destination offset,
-  with the sign in the least significant bit. */
-  if (s > d)
-    s= (s - d) << 1;
-  else
-    s= (d - s) << 1 | 1;
+  with the sign in the least significant bit.
+  Because the source offset 0 is not possible, our encoding
+  subtracts 1 from the offset. */
+  const uint16_t S= s > d
+    ? uint16_t((s - d - 1) << 1)
+    : uint16_t((d - s - 1) << 1 | 1);
   /* The source offset 0 is not possible. */
-  s-= 1 << 1;
-  size_t slen= (s < MIN_2BYTE ? 1 : s < MIN_3BYTE ? 2 : 3);
+  size_t slen= (S < MIN_2BYTE ? 1 : S < MIN_3BYTE ? 2 : 3);
   byte *l= log_write<MEMMOVE>(b.page.id(), &b.page, lenlen + slen, true, d);
   l= mlog_encode_varint(l, len);
-  l= mlog_encode_varint(l, s);
+  l= mlog_encode_varint(l, S);
   m_log.close(l);
   m_last_offset= static_cast<uint16_t>(d + len);
 }

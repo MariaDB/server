@@ -1138,7 +1138,7 @@ public:
   sp_instr(uint ip, sp_pcontext *ctx)
     :Query_arena(0, STMT_INITIALIZED_FOR_SP), marked(0), m_ip(ip), m_ctx(ctx)
 #ifdef PROTECT_STATEMENT_MEMROOT
-  , m_has_been_run(false)
+  , m_has_been_run(NON_RUN)
 #endif
   {}
 
@@ -1233,21 +1233,29 @@ public:
 #ifdef PROTECT_STATEMENT_MEMROOT
   bool has_been_run() const
   {
-    return m_has_been_run;
+    return m_has_been_run == RUN;
+  }
+
+  void mark_as_qc_used()
+  {
+    m_has_been_run= QC;
   }
 
   void mark_as_run()
   {
-    m_has_been_run= true;
+    if (m_has_been_run == QC)
+      m_has_been_run= NON_RUN; // answer was from WC => not really executed
+    else
+      m_has_been_run= RUN;
   }
 
   void mark_as_not_run()
   {
-    m_has_been_run= false;
+    m_has_been_run= NON_RUN;
   }
 
 private:
-  bool m_has_been_run;
+  enum {NON_RUN, QC, RUN} m_has_been_run;
 #endif
 }; // class sp_instr : public Sql_alloc
 

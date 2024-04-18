@@ -1509,9 +1509,10 @@ ibx_copy_incremental_over_full()
 		if (!(ret = backup_files_from_datadir(ds_data,
 						      xtrabackup_incremental_dir,
 						      "aws-kms-key")) ||
-		    !(ret = backup_files_from_datadir(ds_data,
-						      xtrabackup_incremental_dir,
-						      "aria_log")))
+                    (aria_log_dir_path &&
+		     !(ret = backup_files_from_datadir(ds_data,
+						       xtrabackup_incremental_dir,
+						       "aria_log"))))
 			goto cleanup;
 
 		/* copy supplementary files */
