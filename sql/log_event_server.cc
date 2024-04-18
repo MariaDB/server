@@ -2937,7 +2937,7 @@ Gtid_log_event::write(Log_event_writer *writer)
   uchar buf[GTID_HEADER_LEN + 2 + sizeof(XID)
             + 1 /* flags_extra: */
             + 4 /* Extra Engines */
-            + 8 /* FL_EXTRA_THREAD_ID */];
+            + 4 /* FL_EXTRA_THREAD_ID */];
   size_t write_len= 13;
 
   int8store(buf, seq_no);
@@ -2980,8 +2980,8 @@ Gtid_log_event::write(Log_event_writer *writer)
 
   if (flags_extra & FL_EXTRA_THREAD_ID)
   {
-    int8store(buf + write_len, thread_id);
-    write_len+= 8;
+    int4store(buf + write_len, thread_id);
+    write_len+= 4;
   }
 
   if (write_len < GTID_HEADER_LEN)
