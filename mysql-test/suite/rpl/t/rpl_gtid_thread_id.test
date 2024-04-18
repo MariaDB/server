@@ -116,6 +116,43 @@ insert into t1 values(4);
 --source include/start_slave.inc
 
 
+--echo #
+--echo # MDEV-33924: If psuedo_thread_id is set to 0, this should still be
+--echo # written and propagated to slaves
+--connection master
+--let datadir= `select @@datadir`
+--let filename= query_get_value(SHOW MASTER STATUS, File, 1)
+--let local=$datadir/$filename
+--let $old_pseudo_id= `SELECT @@SESSION.pseudo_thread_id`
+set @@pseudo_thread_id=0;
+insert into t1 values(33924);
+--echo # MYSQL_BINLOG local > primary_outfile
+--exec $MYSQL_BINLOG $local > $primary_outfile
+
+--let $assert_count= 1
+--let $assert_text= GTID event's thread_id should write pseudo_thread_id value of 0
+--let $assert_select=GTID [0-9]-[0-9]-[0-9].*thread_id=0\$
+--let $assert_file= $primary_outfile
+--source include/assert_grep.inc
+
+--sync_slave_with_master
+--connection slave
+--let datadir= `select @@datadir`
+--let filename= query_get_value(SHOW MASTER STATUS, File, 1)
+--let local=$datadir/$filename
+--echo # MYSQL_BINLOG local > replica_outfile
+--exec $MYSQL_BINLOG $local > $replica_outfile
+
+--let $assert_text= A 0 value for GTID event's thread_id should be propagated on replicas
+--let $assert_select=GTID [0-9]-[0-9]-[0-9].*thread_id=0\$
+--let $assert_file= $replica_outfile
+--source include/assert_grep.inc
+
+--disable_query_log
+--connection master
+--eval set @@pseudo_thread_id=$old_pseudo_id
+--enable_query_log
+
 
 --echo #
 --echo # Cleanup

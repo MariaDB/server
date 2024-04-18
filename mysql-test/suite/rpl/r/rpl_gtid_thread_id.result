@@ -43,6 +43,18 @@ include/stop_slave.inc
 SET @@GLOBAL.slave_parallel_threads=0;
 include/start_slave.inc
 #
+# MDEV-33924: If psuedo_thread_id is set to 0, this should still be
+# written and propagated to slaves
+connection master;
+set @@pseudo_thread_id=0;
+insert into t1 values(33924);
+# MYSQL_BINLOG local > primary_outfile
+include/assert_grep.inc [GTID event's thread_id should write pseudo_thread_id value of 0]
+connection slave;
+connection slave;
+# MYSQL_BINLOG local > replica_outfile
+include/assert_grep.inc [A 0 value for GTID event's thread_id should be propagated on replicas]
+#
 # Cleanup
 connection master;
 drop table t1;
