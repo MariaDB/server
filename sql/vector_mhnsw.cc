@@ -20,6 +20,7 @@
 #include "vector_mhnsw.h"
 
 #include "field.h"
+#include "hash.h"
 #include "item.h"
 #include "item_vectorfunc.h"
 #include "key.h"
@@ -29,32 +30,33 @@
 #include "sql_queue.h"
 #include "unireg.h"
 
-#define HNSW_MAX_M 100
+#define HNSW_MAX_M 10000
 
 const LEX_CSTRING mhnsw_hlindex_table={STRING_WITH_LEN("\
   CREATE TABLE i (                                      \
     layer int not null,                                 \
     src varbinary(255) not null,                        \
-    neighbors varbinary(1000) not null,                 \
+    neighbors varbinary(10000) not null,                 \
     index (layer, src))                                 \
 ")};
 
-struct NeighborArray
-{
-  uint8 num;
-  char neigh_ref[];
-};
 
 class FVectorRef
 {
 public:
   // Shallow ref copy. Used for other ref lookups in HashSet
   FVectorRef(uchar *ref, size_t ref_len): ref{ref}, ref_len{ref_len} {}
+  virtual ~FVectorRef() {}
 
   static uchar *get_key(const FVectorRef *elem, size_t *key_len, my_bool)
   {
     *key_len= elem->ref_len;
     return elem->ref;
+  }
+
+  static void free_vector(void *elem)
+  {
+    delete (FVectorRef *)elem;
   }
 
   size_t get_ref_len() const { return ref_len; }
@@ -96,13 +98,13 @@ public:
 
   FVector *deep_copy() const
   {
-      FVector *new_vec= new FVector();
-      new_vec->init(this->get_ref(),
-                    this->get_ref_len(),
-                    this->get_vec(),
-                    this->get_vec_len());
+    FVector *new_vec= new FVector();
+    new_vec->init(this->get_ref(),
+                  this->get_ref_len(),
+                  this->get_vec(),
+                  this->get_vec_len());
 
-      return new_vec;
+    return new_vec;
   }
 
   size_t get_vec_len() const { return vec_len; }
@@ -176,65 +178,53 @@ static bool select_neighbours(TABLE *source, TABLE *graph,
 
 
 static bool write_neighbours(TABLE *graph,
-                              size_t layer_number,
-                              const FVectorRef &source_node,
-                              const List<FVector> &new_neighbours)
+                             size_t layer_number,
+                             const FVectorRef &source_node,
+                             const List<FVector> &new_neighbours)
 {
   DBUG_ASSERT(new_neighbours.elements <= HNSW_MAX_M);
 
   // All ref should have same length
   uint ref_length= source_node.get_ref_len();
 
-  size_t totalSize= sizeof(struct NeighborArray)
-                      + new_neighbours.elements * ref_length;
+  size_t total_size= sizeof(uint16_t) + new_neighbours.elements * ref_length;
 
   // Allocate memory for the struct and the flexible array member
-  struct NeighborArray* neighbor_array= (NeighborArray*)alloca(totalSize);
-  neighbor_array->num= new_neighbours.elements;
+  char *neighbor_array_bytes= static_cast<char *>(alloca(total_size));
 
-  int i= 0;
+  DBUG_ASSERT(new_neighbours.elements <= INT16_MAX);
+  *(uint16_t *) neighbor_array_bytes= new_neighbours.elements;
+  char *pos= neighbor_array_bytes + sizeof(uint16_t);
   for (const auto &node: new_neighbours)
   {
-    if (node.get_ref_len() != ref_length)
-    {
-      // this should never happen
-      return true;
-    }
-    memcpy(neighbor_array->neigh_ref + i * ref_length, node.get_ref(),
-           node.get_ref_len());
-    i++;
+    DBUG_ASSERT(node.get_ref_len() == source_node.get_ref_len());
+    memcpy(pos, node.get_ref(), ref_length);
+    pos+= ref_length;
   }
 
   graph->field[0]->store(layer_number);
   graph->field[1]->store_binary(
     reinterpret_cast<const char *>(source_node.get_ref()),
-    source_node.get_ref_len());
+    ref_length);
   graph->field[2]->set_null();
 
   uchar *key= (uchar*)alloca(graph->key_info->key_length);
   key_copy(key, graph->record[0], graph->key_info, graph->key_info->key_length);
 
   int err= graph->file->ha_index_read_map(graph->record[1], key,
-                                           HA_WHOLE_KEY,
-                                           HA_READ_KEY_EXACT);
+                                          HA_WHOLE_KEY,
+                                          HA_READ_KEY_EXACT);
 
   // no record
-  if (err)
+  if (err == HA_ERR_KEY_NOT_FOUND)
   {
-    graph->field[2]->store_binary(
-      reinterpret_cast<const char *>(neighbor_array), totalSize);
+    graph->field[2]->store_binary(neighbor_array_bytes, total_size);
     graph->file->ha_write_row(graph->record[0]);
     return false;
   }
 
-  // record need update
-  if (cmp_record(graph, record[1]))
-  {
-    // TODO: error handle
-    graph->field[2]->store_binary(
-      reinterpret_cast<const char *>(neighbor_array), totalSize);
-    graph->file->ha_update_row(graph->record[1], graph->record[0]);
-  }
+  graph->field[2]->store_binary(neighbor_array_bytes, total_size);
+  graph->file->ha_update_row(graph->record[1], graph->record[0]);
 
   return false;
 }
@@ -247,9 +237,10 @@ static bool get_neighbours(TABLE *source,
                            const FVector &source_node,
                            List<FVector> *neighbours)
 {
+  // TODO(cvicentiu) This allocation need not happen in this function.
   uchar *key= (uchar*)alloca(graph->key_info->key_length);
 
-  graph->field[0]->store(layer_number, true);
+  graph->field[0]->store(layer_number);
   graph->field[1]->store_binary(
     reinterpret_cast<const char *>(source_node.get_ref()),
     source_node.get_ref_len());
@@ -257,7 +248,7 @@ static bool get_neighbours(TABLE *source,
   key_copy(key, graph->record[0],
            graph->key_info, graph->key_info->key_length);
   if ((graph->file->ha_index_read_map(graph->record[0], key,
-                                      (1 | 2),
+                                      HA_WHOLE_KEY,
                                       HA_READ_KEY_EXACT)))
     return true;
 
@@ -266,26 +257,28 @@ static bool get_neighbours(TABLE *source,
   String *str= graph->field[2]->val_str(&strbuf);
 
   // All ref should have same length
-  handler *h= source->file;
-  uint ref_length= h->ref_length;
-  NeighborArray * neigh_arr= (NeighborArray *)str->ptr();
-  uint8 number_of_neighbours= neigh_arr->num;
-  if (number_of_neighbours
-        != (str->length() - sizeof(NeighborArray)) / ref_length)
+  uint ref_length= source->file->ref_length;
+
+  const uchar *neigh_arr_bytes= reinterpret_cast<const uchar *>(str->ptr());
+  uint16_t number_of_neighbours=
+    *reinterpret_cast<const uint16_t*>(neigh_arr_bytes);
+  if (number_of_neighbours != (str->length() - sizeof(uint16_t)) / ref_length)
   {
     /*
       neighbours number does not match the data length,
       should not happen, possible corrupted HNSW index
     */
+    DBUG_ASSERT(0); // TODO(cvicentiu) remove this after testing.
     return true;
   }
 
-  for (uint i= 0; i < number_of_neighbours; i++)
+  uchar *pos = const_cast<uchar *>(neigh_arr_bytes) + sizeof(uint16_t);
+  for (uint16_t i= 0; i < number_of_neighbours; i++)
   {
-    FVectorRef ref{(uchar*)(neigh_arr->neigh_ref + i * ref_length),
-                   h->ref_length};
-    FVector *dst_node= get_fvector_from_source(source, vec_field, ref);
+    FVector *dst_node= get_fvector_from_source(source, vec_field,
+                                               {pos, ref_length});
     neighbours->push_back(dst_node);
+    pos+= ref_length;
   }
 
   return false;
@@ -302,26 +295,25 @@ static bool update_second_degree_neighbors(TABLE *source,
 {
   for (const FVector &neigh: neighbours)
   {
-    List<FVector> second_degree_neigh;
+    List<FVector> new_neighbours;
     get_neighbours(source, vec_field, graph, layer_number, neigh,
-                   &second_degree_neigh);
-    second_degree_neigh.push_back(source_node.deep_copy());
+                   &new_neighbours);
+    // TODO(cvicentiu) One doesn't need a deep copy, they're all just references;
+    // Why add the source node, shouldn't it come from source_node anyway?
+    new_neighbours.push_back(source_node.deep_copy());
 
-    if (second_degree_neigh.elements <= max_neighbours)
-    {
-      write_neighbours(graph, layer_number, neigh, second_degree_neigh);
-    }
-    else
+    write_neighbours(graph, layer_number, neigh, new_neighbours);
+    if (new_neighbours.elements > max_neighbours)
     {
       // shrink the neighbours
       List<FVector> selected;
-      select_neighbours(source, graph, neigh, second_degree_neigh,
+      select_neighbours(source, graph, neigh, new_neighbours,
                         max_neighbours, &selected);
       write_neighbours(graph, layer_number, neigh, selected);
     }
 
     // release memory
-    second_degree_neigh.delete_elements();
+    new_neighbours.delete_elements();
   }
 
   return false;
@@ -356,12 +348,16 @@ static bool search_layer(TABLE *source,
 {
   DBUG_ASSERT(start_nodes.elements > 0);
   // Result list must be empty, otherwise there's a risk of memory leak
-  assert(result->elements == 0);
+  DBUG_ASSERT(result->elements == 0);
 
   Queue<FVector, const FVector> candidates;
   Queue<FVector, const FVector> best;
-  Hash_set<FVectorRef> visited(PSI_INSTRUMENT_MEM, FVectorRef::get_key);
-  List<FVector> to_be_released;
+  //TODO(cvicentiu) Fix this hash method.
+  Hash_set<FVectorRef> visited(PSI_INSTRUMENT_MEM, &my_charset_bin,
+                               1000, 0, 0,
+                               (my_hash_get_key)FVectorRef::get_key,
+                               FVectorRef::free_vector,
+                               HASH_UNIQUE);
 
   candidates.init(1000, 0, false, cmp_vec, &target);
   best.init(1000, 0, true, cmp_vec, &target);
@@ -390,39 +386,34 @@ static bool search_layer(TABLE *source,
     List<FVector> neighbours;
     get_neighbours(source, vec_field, graph, layer, cur_vec, &neighbours);
 
-    for (const auto & neigh: neighbours)
+    for (const FVector &neigh: neighbours)
     {
       if (visited.find(&neigh))
       {
-        to_be_released.push_back((FVector*)&neigh);
         continue;
       }
 
-      visited.insert(&neigh);
+      FVector *clone= neigh.deep_copy();
+      visited.insert(clone);
       const FVector &furthest_best= *best.top();
       if (best.elements() < max_candidates_return)
       {
-        candidates.push(&neigh);
-        best.push(&neigh);
+        candidates.push(clone);
+        best.push(clone);
       }
       else if (target.distance_to(neigh) < target.distance_to(furthest_best))
       {
-        best.replace_top(&neigh);
-        to_be_released.push_back((FVector*)&furthest_best);
-        candidates.push(&neigh);
-      }
-      else{
-        to_be_released.push_back((FVector*)&neigh);
+        best.replace_top(clone);
+        candidates.push(clone);
       }
     }
+    neighbours.delete_elements();
   }
-
-  to_be_released.delete_elements();
 
   while (best.elements())
   {
     // TODO(cvicentiu) this is n*log(n), we need a queue iterator.
-    result->push_back(best.pop());
+    result->push_back(best.pop()->deep_copy());
   }
 
   return false;
@@ -456,7 +447,7 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
 
   const uint EF_CONSTRUCTION = 10; // max candidate list size to connect to.
   //const uint MAX_INSERT_NEIGHBOUR_CONNECTIONS = 10;
-  const uint MAX_NEIGHBORS_PER_LAYER = 10; //m
+  const uint MAX_NEIGHBORS_PER_LAYER = 50; //m
   const double NORMALIZATION_FACTOR = 1.2;
 
   if ((err= h->ha_rnd_init(1)))
@@ -475,8 +466,7 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
     }
     // First insert!
     h->position(table->record[0]);
-    FVectorRef ref{h->ref, h->ref_length};
-    write_neighbours(graph, 0, ref, {});
+    write_neighbours(graph, 0, {h->ref, h->ref_length}, {});
 
     h->ha_rnd_end();
     graph->file->ha_index_end();
@@ -497,7 +487,6 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
   double log= -std::log(new_num) * NORMALIZATION_FACTOR;
   longlong new_node_layer= std::floor(log);
 
-  List<FVector> candidates;
   List<FVector> start_nodes;
 
   String ref_str, *ref_ptr;
@@ -512,37 +501,40 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
   // TODO start_nodes needs to have one element in it.
   for (longlong cur_layer= max_layer; cur_layer > new_node_layer; cur_layer--)
   {
+    List<FVector> candidates;
     search_layer(table, vec_field, graph, target, start_nodes, 1, cur_layer,
                  &candidates);
     start_nodes.delete_elements();
-    start_nodes.push_back(std::move(candidates.pop()));
+    start_nodes.push_back(candidates.head()->deep_copy());
+    candidates.delete_elements();
   }
 
   for (longlong cur_layer= std::min(max_layer, new_node_layer);
        cur_layer >= 0; cur_layer--)
   {
+    List<FVector> candidates;
     List<FVector> neighbours;
     search_layer(table, vec_field, graph, target, start_nodes, EF_CONSTRUCTION,
                  cur_layer, &candidates);
     // release vectors
     start_nodes.delete_elements();
-    uint max_neighbours= (cur_layer == 0) ? (MAX_NEIGHBORS_PER_LAYER * 2)
+    uint max_neighbours= (cur_layer == 0) ? MAX_NEIGHBORS_PER_LAYER * 2
                                           : MAX_NEIGHBORS_PER_LAYER;
 
     select_neighbours(table, graph, target, candidates,
                       max_neighbours, &neighbours);
     update_neighbours(table, vec_field, graph, cur_layer, max_neighbours,
-    target, neighbours);
-    start_nodes= std::move(candidates);
-    candidates.empty();
+                      target, neighbours);
+    start_nodes= candidates;
   }
   start_nodes.delete_elements();
 
-  for (longlong cur_layer= max_layer + 1;
-       cur_layer <= new_node_layer; cur_layer++)
+  for (longlong cur_layer= max_layer + 1; cur_layer <= new_node_layer;
+       cur_layer++)
   {
     write_neighbours(graph, cur_layer, target, {});
   }
+
 
   h->ha_rnd_end();
   graph->file->ha_index_end();
@@ -609,21 +601,21 @@ int mhnsw_first(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit)
     search_layer(table, vec_field, graph, target, start_nodes, 1,
                  cur_layer, &candidates);
     start_nodes.delete_elements();
-    start_nodes.push_back(std::move(candidates.pop()));
+    start_nodes.push_back(candidates.head()->deep_copy());
+    candidates.delete_elements();
   }
 
-  const uint EF_SEARCH = 10;
-  search_layer(table, vec_field, graph, target, start_nodes, 
-               limit > EF_SEARCH ? limit : EF_SEARCH, 0, &candidates);
+  search_layer(table, vec_field, graph, target, start_nodes,
+               limit, 0, &candidates);
   start_nodes.delete_elements();
 
   // 8. return results
   FVectorRef **context= (FVectorRef**)table->in_use->alloc(
-    sizeof(FVectorRef**)*candidates.elements + 1);
+    sizeof(FVectorRef*) * (candidates.elements + 1));
   graph->context= context;
 
   FVectorRef **ptr= context + candidates.elements;
-  *ptr= 0;
+  *ptr= nullptr;
   while (candidates.elements)
     *--ptr= candidates.pop();
 
@@ -638,15 +630,16 @@ int mhnsw_first(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit)
 
 int mhnsw_next(TABLE *table)
 {
-  FVectorRef ***context= (FVectorRef***)&table->hlindex->context;
-  if (**context)
+  FVectorRef ***context= (FVectorRef ***)&table->hlindex->context;
+  FVectorRef *cur_vec= **context;
+  if (cur_vec)
   {
     int err= table->file->ha_rnd_pos(table->record[0],
-                                   (uchar *)(**context)->get_ref());
+                                     (uchar *)(cur_vec)->get_ref());
     // release vectors
-    delete (**context);
-    (*context)++;
+    delete cur_vec;
 
+    (*context)++;
     return err;
   }
   return HA_ERR_END_OF_FILE;
