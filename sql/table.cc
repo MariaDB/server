@@ -324,6 +324,8 @@ TABLE_CATEGORY get_table_category(const Lex_ident_db &db,
         name.streq(SLOW_LOG_NAME) ||
         name.streq(TRANSACTION_REG_NAME))
       return TABLE_CATEGORY_LOG;
+
+    return TABLE_CATEGORY_MYSQL;
   }
 
   return TABLE_CATEGORY_USER;

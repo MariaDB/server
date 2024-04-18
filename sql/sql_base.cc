@@ -2312,7 +2312,8 @@ retry_share:
     */
     enum enum_mdl_type mdl_type= MDL_BACKUP_DML;
 
-    if (table->s->table_category != TABLE_CATEGORY_USER)
+    if (table->s->table_category != TABLE_CATEGORY_USER &&
+        table->s->table_category != TABLE_CATEGORY_MYSQL)
       mdl_type= MDL_BACKUP_SYS_DML;
     else if (table->s->online_backup)
       mdl_type= MDL_BACKUP_TRANS_DML;

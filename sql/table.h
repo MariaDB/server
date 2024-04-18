@@ -490,6 +490,11 @@ enum enum_table_category
   */
   TABLE_CATEGORY_LOG=5,
 
+  /**
+     Other tables in the mysql schema, like global_priv and db
+  */
+  TABLE_CATEGORY_MYSQL= 6,
+
   /*
     Types below are read only tables, not affected by FLUSH TABLES or
     MDL locks.
@@ -514,7 +519,7 @@ enum enum_table_category
     to I_S tables in the table cache, which should use
     this table type.
   */
-  TABLE_CATEGORY_INFORMATION=6,
+  TABLE_CATEGORY_INFORMATION=7,
 
   /**
     Performance schema tables.
@@ -536,7 +541,7 @@ enum enum_table_category
     The server implementation perform writes.
     Performance tables are cached in the table cache.
   */
-  TABLE_CATEGORY_PERFORMANCE=7
+  TABLE_CATEGORY_PERFORMANCE=8
 };
 
 typedef enum enum_table_category TABLE_CATEGORY;

@@ -240,12 +240,18 @@ set @@global.general_log=@save_general_log;
 #
 create function f() returns int return (select 1 from performance_schema.threads);
 set global userstat= 1;
+create table t1 (a int primary key);
+insert into t1 values (1),(2);
+select * from t1 where a=1;
+a
+1
 select f() from information_schema.table_statistics;
 ERROR 21000: Subquery returns more than 1 row
 select f() from information_schema.index_statistics;
 ERROR 21000: Subquery returns more than 1 row
 set global userstat= 0;
 drop function f;
+drop table t1;
 #
 # End of 10.2 tests
 #

@@ -2145,11 +2145,8 @@ select Host, User from mysql.user limit 0;
 Host	User
 show open tables from mysql;
 Database	Table	In_use	Name_locked
-mysql	column_stats	0	0
 mysql	general_log	0	0
 mysql	global_priv	0	0
-mysql	index_stats	0	0
-mysql	table_stats	0	0
 mysql	user	0	0
 call proc_1();
 show open tables from mysql;
@@ -2159,11 +2156,8 @@ select Host, User from mysql.user limit 0;
 Host	User
 show open tables from mysql;
 Database	Table	In_use	Name_locked
-mysql	column_stats	0	0
 mysql	general_log	0	0
 mysql	global_priv	0	0
-mysql	index_stats	0	0
-mysql	table_stats	0	0
 mysql	user	0	0
 call proc_1();
 show open tables from mysql;
@@ -2173,11 +2167,8 @@ select Host, User from mysql.user limit 0;
 Host	User
 show open tables from mysql;
 Database	Table	In_use	Name_locked
-mysql	column_stats	0	0
 mysql	general_log	0	0
 mysql	global_priv	0	0
-mysql	index_stats	0	0
-mysql	table_stats	0	0
 mysql	user	0	0
 call proc_1();
 show open tables from mysql;
@@ -2187,11 +2178,8 @@ select Host, User from mysql.user limit 0;
 Host	User
 show open tables from mysql;
 Database	Table	In_use	Name_locked
-mysql	column_stats	0	0
 mysql	general_log	0	0
 mysql	global_priv	0	0
-mysql	index_stats	0	0
-mysql	table_stats	0	0
 mysql	user	0	0
 flush tables;
 create function func_1() returns int begin flush tables; return 1; end|
@@ -2206,11 +2194,8 @@ select Host, User from mysql.user limit 0;
 Host	User
 show open tables from mysql;
 Database	Table	In_use	Name_locked
-mysql	column_stats	0	0
 mysql	general_log	0	0
 mysql	global_priv	0	0
-mysql	index_stats	0	0
-mysql	table_stats	0	0
 mysql	user	0	0
 prepare abc from "flush tables";
 execute abc;
@@ -2221,11 +2206,8 @@ select Host, User from mysql.user limit 0;
 Host	User
 show open tables from mysql;
 Database	Table	In_use	Name_locked
-mysql	column_stats	0	0
 mysql	general_log	0	0
 mysql	global_priv	0	0
-mysql	index_stats	0	0
-mysql	table_stats	0	0
 mysql	user	0	0
 execute abc;
 show open tables from mysql;
@@ -2235,11 +2217,8 @@ select Host, User from mysql.user limit 0;
 Host	User
 show open tables from mysql;
 Database	Table	In_use	Name_locked
-mysql	column_stats	0	0
 mysql	general_log	0	0
 mysql	global_priv	0	0
-mysql	index_stats	0	0
-mysql	table_stats	0	0
 mysql	user	0	0
 execute abc;
 show open tables from mysql;
@@ -2249,11 +2228,8 @@ select Host, User from mysql.user limit 0;
 Host	User
 show open tables from mysql;
 Database	Table	In_use	Name_locked
-mysql	column_stats	0	0
 mysql	general_log	0	0
 mysql	global_priv	0	0
-mysql	index_stats	0	0
-mysql	table_stats	0	0
 mysql	user	0	0
 flush tables;
 deallocate prepare abc;
