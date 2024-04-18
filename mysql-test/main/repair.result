@@ -264,3 +264,17 @@ test.t1	repair	status	OK
 set myisam_repair_threads = default;
 drop table t1;
 # End of 10.2 tests
+#
+# MDEV-33826 Assertion `tl->table == __null' failed in
+# THD::open_temporary_table
+#
+CREATE TABLE t1 (i INT) ENGINE=InnoDB;
+CREATE TABLE t2 (i INT) ENGINE=InnoDB;
+CREATE TEMPORARY TABLE t3 (i INT);
+REPAIR TABLE t1,t2,t3;
+Table	Op	Msg_type	Msg_text
+test.t1	repair	status	OK
+test.t2	repair	status	OK
+test.t3	repair	status	OK
+DROP TABLE t1,t2,t3;
+# End of 11.5 tests

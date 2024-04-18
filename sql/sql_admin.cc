@@ -52,6 +52,7 @@ static bool admin_recreate_table(THD *thd, TABLE_LIST *table_list,
                                  bool table_copy)
 {
   bool result_code;
+  TABLE_LIST *save_next_global;
   DBUG_ENTER("admin_recreate_table");
 
   trans_rollback_stmt(thd);
@@ -69,9 +70,13 @@ static bool admin_recreate_table(THD *thd, TABLE_LIST *table_list,
 
   DEBUG_SYNC(thd, "ha_admin_try_alter");
   tmp_disable_binlog(thd); // binlogging is done by caller if wanted
+  /* Ignore if there is more than one table in the list */
+  save_next_global= table_list->next_global;
+  table_list->next_global= 0;
   result_code= (thd->open_temporary_tables(table_list) ||
                 mysql_recreate_table(thd, table_list, recreate_info,
                                      table_copy));
+  table_list->next_global= save_next_global;
   reenable_binlog(thd);
   /*
     mysql_recreate_table() can push OK or ERROR.

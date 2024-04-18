@@ -4,6 +4,7 @@
 
 --source include/have_sequence.inc
 --source include/default_charset.inc
+--source include/have_innodb.inc
 
 call mtr.add_suppression("character set is multi-byte");
 
@@ -278,3 +279,16 @@ set myisam_repair_threads = default;
 drop table t1;
 
 --echo # End of 10.2 tests
+
+--echo #
+--echo # MDEV-33826 Assertion `tl->table == __null' failed in
+--echo # THD::open_temporary_table
+--echo #
+
+CREATE TABLE t1 (i INT) ENGINE=InnoDB;
+CREATE TABLE t2 (i INT) ENGINE=InnoDB;
+CREATE TEMPORARY TABLE t3 (i INT);
+REPAIR TABLE t1,t2,t3;
+DROP TABLE t1,t2,t3;
+
+--echo # End of 11.5 tests
