@@ -2462,8 +2462,6 @@ Gtid_log_event::Gtid_log_event(const uchar *buf, uint event_len,
     {
       thread_id= uint8korr(buf);
       buf+= 8;
-
-      DBUG_ASSERT(thread_id > 0);
     }
   }
   /*
