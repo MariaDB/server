@@ -523,4 +523,15 @@ eval LOAD DATA INFILE '$MYSQLTEST_VARDIR/tmp/t.outfile' INTO TABLE t;
 COMMIT;
 DROP TABLE t;
 --remove_file $MYSQLTEST_VARDIR/tmp/t.outfile
+
+--echo #
+--echo #  MDEV-33934 Assertion `!check_foreigns' failed in
+--echo #    trx_t::bulk_insert_apply_for_table(dict_table_t*)
+--echo #
+CREATE TABLE t1(f1 INT,f2 INT,KEY(f1))engine=innodb;
+BEGIN;
+INSERT INTO t1 VALUES();
+SET STATEMENT FOREIGN_KEY_CHECKS=1 FOR SELECT * FROM t1;
+COMMIT;
+DROP TABLE t1;
 --echo # End of 10.11 tests
