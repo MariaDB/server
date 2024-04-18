@@ -3268,7 +3268,8 @@ read_statistics_for_tables(THD *thd, TABLE_LIST *tables, bool force_reload)
     TABLE_SHARE *table_share;
 
     /* Skip tables that can't have statistics. */
-    if (tl->is_view_or_derived() || !table || !(table_share= table->s))
+    if (tl->is_view_or_derived() || !table || !(table_share= table->s) ||
+        table_share->sequence)
       continue;
     /* Skip temporary tables */
     if (table_share->tmp_table != NO_TMP_TABLE)

@@ -17,7 +17,6 @@ Table	Op	Msg_type	Msg_text
 test.s1	optimize	note	The storage engine for the table doesn't support optimize
 analyze table s1;
 Table	Op	Msg_type	Msg_text
-test.s1	analyze	status	Engine-independent statistics collected
 test.s1	analyze	note	The storage engine for the table doesn't support analyze
 repair table s1;
 Table	Op	Msg_type	Msg_text

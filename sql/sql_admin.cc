@@ -924,7 +924,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
         appropriate action is to just not collect EITS stats for this command.
       */
       collect_eis=
-        (table->table->s->table_category == TABLE_CATEGORY_USER &&
+        (tab->s->table_category == TABLE_CATEGORY_USER && !tab->s->sequence &&
         !(lex->alter_info.partition_flags & ALTER_PARTITION_ADMIN) &&
          (check_eits_collection_allowed(thd) ||
           lex->with_persistent_for_clause));
