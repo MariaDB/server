@@ -151,20 +151,31 @@ select sformat('Change Order {1} {0}', 'second', 'first');
 echo #;
 echo # Failed Format Test Cases;
 echo #;
+--replace_regex /invalid format specifier/invalid type specifier/
 select sformat('Test {:c}', 'word');
 select sformat('Test {one} {two} {three}', 1, 2, 3);
 select sformat('Number {:{<}', 8);
 select sformat('Number {:10000000000}', 5);
 select sformat('1={1} 2={2} 0={0}', 0, 1);
+--replace_regex /invalid format specifier/precision not allowed for this argument type/
 select sformat('Number {:.2d}', 42);
+--replace_regex /invalid format specifier/invalid type specifier/
 select sformat('You scored {:.0%}', 0.25);
+--replace_regex /invalid format specifier/invalid type specifier/
 select sformat('You scored {:%}', 0.25);
+--replace_regex /invalid format specifier/invalid type specifier/
 select sformat('The price is {:f} dollars.', 45);
+--replace_regex /invalid format specifier/precision not allowed for this argument type/
 select sformat('The price is {:.2f} dollars.', 45);
+--replace_regex /invalid format specifier/invalid type specifier/
 select sformat('We have {:E} chickens.', 5);
+--replace_regex /invalid format specifier/invalid type specifier/
 select sformat('We have {:e} chickens.', 5);
+--replace_regex /invalid format specifier/invalid type specifier/
 select sformat('The universe is {:,} years old.', 13800000000);
+--replace_regex /invalid format specifier/invalid type specifier/
 select sformat('The universe is {:_} years old.', 13800000000);
+--replace_regex /invalid format specifier/format specifier requires numeric argument/
 select sformat('String {:-}', 'hello');
 
 echo #;
@@ -187,6 +198,7 @@ drop table t2;
 echo #;
 echo # Unsupported/disabled features;
 echo #;
+--replace_regex /invalid format specifier/invalid type specifier/
 select sformat('{:p}', '50');
 
 echo #;
@@ -206,6 +218,7 @@ echo # ps parameters;
 echo #;
 prepare s from 'select sformat("={:d}=", ?)';
 execute s using 100;
+--replace_regex /invalid format specifier/invalid type specifier/
 execute s using 'abc';
 
 echo #;
