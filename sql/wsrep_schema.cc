@@ -1252,15 +1252,21 @@ int Wsrep_schema::replay_transaction(THD* orig_thd,
   DBUG_ENTER("Wsrep_schema::replay_transaction");
   DBUG_ASSERT(!fragments.empty());
 
-  THD thd(next_thread_id(), true);
-  thd.thread_stack= (orig_thd ? orig_thd->thread_stack :
-                     (char*) &thd);
-  wsrep_assign_from_threadvars(&thd);
+  THD *thd= new THD(next_thread_id(), true);
+  if (!thd)
+  {
+    WSREP_WARN("Could not open allocate memory for THD");
+    DBUG_RETURN(1);
+  }
 
-  Wsrep_schema_impl::wsrep_off  wsrep_off(&thd);
-  Wsrep_schema_impl::binlog_off binlog_off(&thd);
-  Wsrep_schema_impl::sql_safe_updates sql_safe_updates(&thd);
-  Wsrep_schema_impl::thd_context_switch thd_context_switch(orig_thd, &thd);
+  thd->thread_stack= (orig_thd ? orig_thd->thread_stack :
+                      (char*) &thd);
+  wsrep_assign_from_threadvars(thd);
+
+  Wsrep_schema_impl::wsrep_off  wsrep_off(thd);
+  Wsrep_schema_impl::binlog_off binlog_off(thd);
+  Wsrep_schema_impl::sql_safe_updates sql_safe_updates(thd);
+  Wsrep_schema_impl::thd_context_switch thd_context_switch(orig_thd, thd);
 
   int ret= 1;
   int error;
@@ -1272,11 +1278,12 @@ int Wsrep_schema::replay_transaction(THD* orig_thd,
   for (std::vector<wsrep::seqno>::const_iterator i= fragments.begin();
        i != fragments.end(); ++i)
   {
-    Wsrep_schema_impl::init_stmt(&thd);
-    if ((error= Wsrep_schema_impl::open_for_read(&thd, sr_table_str.c_str(), &frag_table_l)))
+    Wsrep_schema_impl::init_stmt(thd);
+    if ((error= Wsrep_schema_impl::open_for_read(thd, sr_table_str.c_str(), &frag_table_l)))
     {
       WSREP_WARN("Could not open SR table for read: %d", error);
-      Wsrep_schema_impl::finish_stmt(&thd);
+      Wsrep_schema_impl::finish_stmt(thd);
+      my_free(thd);
       DBUG_RETURN(1);
     }
     frag_table= frag_table_l.table;
@@ -1308,7 +1315,7 @@ int Wsrep_schema::replay_transaction(THD* orig_thd,
     frag_table->field[4]->val_str(&buf);
 
     {
-      Wsrep_schema_impl::thd_context_switch thd_context_switch(&thd, orig_thd);
+      Wsrep_schema_impl::thd_context_switch thd_context_switch(thd, orig_thd);
 
       ret= wsrep_apply_events(orig_thd, rli, buf.ptr(), buf.length());
       if (ret)
@@ -1319,17 +1326,18 @@ int Wsrep_schema::replay_transaction(THD* orig_thd,
     }
 
     Wsrep_schema_impl::end_index_scan(frag_table);
-    Wsrep_schema_impl::finish_stmt(&thd);
+    Wsrep_schema_impl::finish_stmt(thd);
 
-    Wsrep_schema_impl::init_stmt(&thd);
+    Wsrep_schema_impl::init_stmt(thd);
 
-    if ((error= Wsrep_schema_impl::open_for_write(&thd,
+    if ((error= Wsrep_schema_impl::open_for_write(thd,
                                                   sr_table_str.c_str(),
                                                   &frag_table_l)))
     {
       WSREP_WARN("Could not open SR table for write: %d", error);
-      Wsrep_schema_impl::finish_stmt(&thd);
-      DBUG_RETURN(1);
+      Wsrep_schema_impl::finish_stmt(thd);
+      ret= 1;
+      break;
     }
     frag_table= frag_table_l.table;
 
@@ -1355,60 +1363,68 @@ int Wsrep_schema::replay_transaction(THD* orig_thd,
       break;
     }
     Wsrep_schema_impl::end_index_scan(frag_table);
-    Wsrep_schema_impl::finish_stmt(&thd);
+    Wsrep_schema_impl::finish_stmt(thd);
     my_free(key);
     key= NULL;
   }
 
   if (key)
     my_free(key);
+  delete thd;
   DBUG_RETURN(ret);
 }
+
 
 int Wsrep_schema::recover_sr_transactions(THD *orig_thd)
 {
   DBUG_ENTER("Wsrep_schema::recover_sr_transactions");
-  THD storage_thd(next_thread_id(), true);
-  storage_thd.thread_stack= (orig_thd ? orig_thd->thread_stack :
+
+  THD *storage_thd= new THD(next_thread_id(), true);
+  if (!storage_thd)
+  {
+    WSREP_WARN("Could not open allocate memory for THD");
+    DBUG_RETURN(1);
+  }
+  storage_thd->thread_stack= (orig_thd ? orig_thd->thread_stack :
                              (char*) &storage_thd);
-  wsrep_assign_from_threadvars(&storage_thd);
+  wsrep_assign_from_threadvars(storage_thd);
   TABLE* frag_table= 0;
   TABLE_LIST frag_table_l;
   TABLE* cluster_table= 0;
   TABLE_LIST cluster_table_l;
-  Wsrep_storage_service storage_service(&storage_thd);
-  Wsrep_schema_impl::binlog_off binlog_off(&storage_thd);
-  Wsrep_schema_impl::wsrep_off wsrep_off(&storage_thd);
-  Wsrep_schema_impl::sql_safe_updates sql_safe_updates(&storage_thd);
+  Wsrep_storage_service storage_service(storage_thd);
+  Wsrep_schema_impl::binlog_off binlog_off(storage_thd);
+  Wsrep_schema_impl::wsrep_off wsrep_off(storage_thd);
+  Wsrep_schema_impl::sql_safe_updates sql_safe_updates(storage_thd);
   Wsrep_schema_impl::thd_context_switch thd_context_switch(orig_thd,
-                                                           &storage_thd);
+                                                           storage_thd);
   Wsrep_server_state& server_state(Wsrep_server_state::instance());
 
   int ret= 1;
   int error;
   wsrep::id cluster_id;
 
-  Wsrep_schema_impl::init_stmt(&storage_thd);
-  storage_thd.wsrep_skip_locking= FALSE;
-  if (Wsrep_schema_impl::open_for_read(&storage_thd, cluster_table_str.c_str(),
+  Wsrep_schema_impl::init_stmt(storage_thd);
+  storage_thd->wsrep_skip_locking= FALSE;
+  if (Wsrep_schema_impl::open_for_read(storage_thd, cluster_table_str.c_str(),
                                        &cluster_table_l))
   {
-    Wsrep_schema_impl::finish_stmt(&storage_thd);
+    Wsrep_schema_impl::finish_stmt(storage_thd);
     DBUG_RETURN(1);
   }
   cluster_table= cluster_table_l.table;
 
   if (Wsrep_schema_impl::init_for_scan(cluster_table))
   {
-    Wsrep_schema_impl::finish_stmt(&storage_thd);
+    Wsrep_schema_impl::finish_stmt(storage_thd);
     DBUG_RETURN(1);
   }
 
   if ((error= Wsrep_schema_impl::next_record(cluster_table)))
   {
     Wsrep_schema_impl::end_scan(cluster_table);
-    Wsrep_schema_impl::finish_stmt(&storage_thd);
-    trans_commit(&storage_thd);
+    Wsrep_schema_impl::finish_stmt(storage_thd);
+    trans_commit(storage_thd);
     if (error == HA_ERR_END_OF_FILE)
     {
       WSREP_INFO("Cluster table is empty, not recovering transactions");
@@ -1423,20 +1439,20 @@ int Wsrep_schema::recover_sr_transactions(THD *orig_thd)
 
   Wsrep_schema_impl::scan(cluster_table, 0, cluster_id);
   Wsrep_schema_impl::end_scan(cluster_table);
-  Wsrep_schema_impl::finish_stmt(&storage_thd);
+  Wsrep_schema_impl::finish_stmt(storage_thd);
 
   std::ostringstream os;
   os << cluster_id;
   WSREP_INFO("Recovered cluster id %s", os.str().c_str());
 
-  storage_thd.wsrep_skip_locking= TRUE;
-  Wsrep_schema_impl::init_stmt(&storage_thd);
+  storage_thd->wsrep_skip_locking= TRUE;
+  Wsrep_schema_impl::init_stmt(storage_thd);
 
   /*
     Open the table for reading and writing so that fragments without
     valid seqno can be deleted.
   */
-  if (Wsrep_schema_impl::open_for_write(&storage_thd, sr_table_str.c_str(),
+  if (Wsrep_schema_impl::open_for_write(storage_thd, sr_table_str.c_str(),
                                         &frag_table_l))
   {
     WSREP_ERROR("Failed to open SR table for write");
@@ -1492,7 +1508,7 @@ int Wsrep_schema::recover_sr_transactions(THD *orig_thd)
                                                          transaction_id)))
       {
         DBUG_ASSERT(wsrep::starts_transaction(flags));
-        applier = wsrep_create_streaming_applier(&storage_thd, "recovery");
+        applier = wsrep_create_streaming_applier(storage_thd, "recovery");
         server_state.start_streaming_applier(server_id, transaction_id,
                                              applier);
         applier->start_transaction(wsrep::ws_handle(transaction_id, 0),
@@ -1520,9 +1536,10 @@ int Wsrep_schema::recover_sr_transactions(THD *orig_thd)
     }
   }
   Wsrep_schema_impl::end_scan(frag_table);
-  Wsrep_schema_impl::finish_stmt(&storage_thd);
-  trans_commit(&storage_thd);
-  storage_thd.set_mysys_var(0);
+  Wsrep_schema_impl::finish_stmt(storage_thd);
+  trans_commit(storage_thd);
+  storage_thd->set_mysys_var(0);
 out:
+  delete storage_thd;
   DBUG_RETURN(ret);
 }

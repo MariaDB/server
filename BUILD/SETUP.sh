@@ -267,6 +267,12 @@ if test `$CC -v 2>&1 | tail -1 | sed 's/ .*$//'` = 'gcc' ; then
   fi
 fi
 
+if test `$CC -v 2>&1 | head -1 | sed 's/ .*$//'` = 'clang' ; then
+    dbug_cflags="$dbug_cflags -Wframe-larger-than=16384 -fno-inline"
+    c_warnings="$c_warnings -Wframe-larger-than=16384"
+    cxx_warnings="$cxx_warnings -Wframe-larger-than=16384"
+fi
+
 
 # If ccache (a compiler cache which reduces build time)
 # (http://samba.org/ccache) is installed, use it.

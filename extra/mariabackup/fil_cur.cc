@@ -244,6 +244,9 @@ xb_fil_cur_open(
 	return(XB_FIL_CUR_SUCCESS);
 }
 
+/* Stack usage 131224 with clang */
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 static bool page_is_corrupted(const byte *page, ulint page_no,
 			      const xb_fil_cur_t *cursor,
 			      const fil_space_t *space)
@@ -347,6 +350,7 @@ static bool page_is_corrupted(const byte *page, ulint page_no,
 
 	return buf_page_is_corrupted(true, page, space->flags);
 }
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 /** Reads and verifies the next block of pages from the source
 file. Positions the cursor after the last read non-corrupted page.

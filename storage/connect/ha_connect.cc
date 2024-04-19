@@ -6448,6 +6448,9 @@ char *ha_connect::GetDBfromName(const char *name)
   ha_create_table() in handle.cc
 */
 
+/* Stack size 25608 in clang */
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 int ha_connect::create(const char *name, TABLE *table_arg,
                        HA_CREATE_INFO *create_info)
 {
@@ -6989,6 +6992,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
   table= st;
   DBUG_RETURN(rc);
 } // end of create
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 /**
   Used to check whether a file based outward table can be populated by
@@ -6996,6 +7000,10 @@ int ha_connect::create(const char *name, TABLE *table_arg,
   - file does not exist or is void
   - user has file privilege
 */
+
+/* Stack size 16664 in clang */
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 bool ha_connect::FileExists(const char *fn, bool bf)
 {
   if (!fn || !*fn)
@@ -7046,6 +7054,7 @@ bool ha_connect::FileExists(const char *fn, bool bf)
 
   return true;
 } // end of FileExists
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 // Called by SameString and NoFieldOptionChange
 bool ha_connect::CheckString(PCSZ str1, PCSZ str2)

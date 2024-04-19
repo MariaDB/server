@@ -267,6 +267,9 @@ ha_archive::ha_archive(handlerton *hton, TABLE_SHARE *table_arg)
   archive_reader_open= FALSE;
 }
 
+/* Stack size 50264 with clang */
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 int archive_discover(handlerton *hton, THD* thd, TABLE_SHARE *share)
 {
   DBUG_ENTER("archive_discover");
@@ -308,6 +311,7 @@ ret:
   my_free(frm_ptr);
   DBUG_RETURN(my_errno);
 }
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 /**
   @brief Read version 1 meta file (5.0 compatibility routine).
@@ -478,6 +482,10 @@ int ha_archive::read_data_header(azio_stream *file_to_read)
 
   See ha_example.cc for a longer description.
 */
+
+/* Stack size 49608 with clang */
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 Archive_share *ha_archive::get_share(const char *table_name, int *rc)
 {
   Archive_share *tmp_share;
@@ -540,6 +548,7 @@ err:
 
   DBUG_RETURN(tmp_share);
 }
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 
 int Archive_share::init_archive_writer()
@@ -761,6 +770,9 @@ int ha_archive::frm_compare(azio_stream *s)
   of creation.
 */
 
+/* Stack size 49608 with clang */
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 int ha_archive::create(const char *name, TABLE *table_arg,
                        HA_CREATE_INFO *create_info)
 {
@@ -876,6 +888,7 @@ error:
   /* Return error number, if we got one */
   DBUG_RETURN(error ? error : -1);
 }
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 /*
   This is where the actual row is written out.
@@ -1494,6 +1507,10 @@ int ha_archive::repair(THD* thd, HA_CHECK_OPT* check_opt)
   The table can become fragmented if data was inserted, read, and then
   inserted again. What we do is open up the file and recompress it completely. 
 */
+
+/* Stack size 50152 with clang */
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 int ha_archive::optimize(THD* thd, HA_CHECK_OPT* check_opt)
 {
   int rc= 0;
@@ -1619,6 +1636,7 @@ error:
 
   DBUG_RETURN(rc); 
 }
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 /* 
   Below is an example of how to setup row level locking.

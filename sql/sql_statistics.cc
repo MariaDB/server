@@ -2786,6 +2786,9 @@ int collect_statistics_for_table(THD *thd, TABLE *table)
   After having been updated the statistical system tables are closed.     
 */
 
+/* Stack usage 20248 from clang */
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 int update_statistics_for_table(THD *thd, TABLE *table)
 {
   TABLE_LIST tables[STATISTICS_TABLES];
@@ -2870,6 +2873,7 @@ int update_statistics_for_table(THD *thd, TABLE *table)
   new_trans.restore_old_transaction();
   DBUG_RETURN(rc);
 }
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 
 /**
@@ -3282,6 +3286,9 @@ end:
   The function is called when executing the statement DROP TABLE 'tab'.
 */
 
+/* Stack size 20248 with clang */
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 int delete_statistics_for_table(THD *thd, const LEX_CSTRING *db,
                                 const LEX_CSTRING *tab)
 {
@@ -3350,6 +3357,7 @@ int delete_statistics_for_table(THD *thd, const LEX_CSTRING *db,
   new_trans.restore_old_transaction();
   DBUG_RETURN(rc);
 }
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 
 /**
@@ -3894,6 +3902,9 @@ int rename_indexes_in_stat_table(THD *thd, TABLE *tab,
   The function is called when executing any statement that renames a table
 */
 
+/* Stack size 20968 with clang */
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 int rename_table_in_stat_tables(THD *thd, const LEX_CSTRING *db,
                                 const LEX_CSTRING *tab,
                                 const LEX_CSTRING *new_db,
@@ -3971,6 +3982,7 @@ int rename_table_in_stat_tables(THD *thd, const LEX_CSTRING *db,
   new_trans.restore_old_transaction();
   DBUG_RETURN(rc);
 }
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 
 /**

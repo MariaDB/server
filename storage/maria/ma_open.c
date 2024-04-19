@@ -1558,6 +1558,9 @@ uint _ma_state_info_write(MARIA_SHARE *share, uint pWrite)
      @retval 1      Error
 */
 
+/* Stack size 26376 from clang */
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 uint _ma_state_info_write_sub(File file, MARIA_STATE_INFO *state, uint pWrite)
 {
   uchar  buff[MARIA_STATE_INFO_SIZE + MARIA_STATE_EXTRA_SIZE];
@@ -1632,6 +1635,7 @@ uint _ma_state_info_write_sub(File file, MARIA_STATE_INFO *state, uint pWrite)
              MYF(MY_NABP));
   DBUG_RETURN(res != 0);
 }
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 
 static uchar *_ma_state_info_read(uchar *ptr, MARIA_STATE_INFO *state, myf flag)

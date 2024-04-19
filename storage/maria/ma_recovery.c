@@ -1163,11 +1163,12 @@ end:
 /*
   The record may come from REPAIR, ALTER TABLE ENABLE KEYS, OPTIMIZE.
 */
+
 prototype_redo_exec_hook(REDO_REPAIR_TABLE)
 {
   int error= 1;
   MARIA_HA *info;
-  HA_CHECK param;
+  HA_CHECK *param;
   char *name;
   my_bool quick_repair;
   DBUG_ENTER("exec_REDO_LOGREC_REDO_REPAIR_TABLE");
@@ -1199,35 +1200,39 @@ prototype_redo_exec_hook(REDO_REPAIR_TABLE)
   */
   tprint(tracef, "   repairing...\n");
 
-  maria_chk_init(&param);
-  param.isam_file_name= name= info->s->open_file_name.str;
-  param.testflag= uint8korr(rec->header + FILEID_STORE_SIZE);
-  param.tmpdir= maria_tmpdir;
-  param.max_trid= max_long_trid;
+  if (!(param= my_malloc(PSI_INSTRUMENT_ME, sizeof(*param), MYF(MY_WME))))
+    DBUG_RETURN(0);
+
+  maria_chk_init(param);
+  param->isam_file_name= name= info->s->open_file_name.str;
+  param->testflag= uint8korr(rec->header + FILEID_STORE_SIZE);
+  param->tmpdir= maria_tmpdir;
+  param->max_trid= max_long_trid;
   DBUG_ASSERT(maria_tmpdir);
 
   info->s->state.key_map= uint8korr(rec->header + FILEID_STORE_SIZE + 8);
-  quick_repair= MY_TEST(param.testflag & T_QUICK);
+  quick_repair= MY_TEST(param->testflag & T_QUICK);
 
-  if (param.testflag & T_REP_PARALLEL)
+  if (param->testflag & T_REP_PARALLEL)
   {
-    if (maria_repair_parallel(&param, info, name, quick_repair))
+    if (maria_repair_parallel(param, info, name, quick_repair))
       goto end;
   }
-  else if (param.testflag & T_REP_BY_SORT)
+  else if (param->testflag & T_REP_BY_SORT)
   {
-    if (maria_repair_by_sort(&param, info, name, quick_repair))
+    if (maria_repair_by_sort(param, info, name, quick_repair))
       goto end;
   }
-  else if (maria_repair(&param, info, name, quick_repair))
+  else if (maria_repair(param, info, name, quick_repair))
     goto end;
 
   if (_ma_update_state_lsns(info->s, rec->lsn, trnman_get_min_safe_trid(),
-                            TRUE, !(param.testflag & T_NO_CREATE_RENAME_LSN)))
+                            TRUE, !(param->testflag & T_NO_CREATE_RENAME_LSN)))
     goto end;
   error= 0;
 
 end:
+  my_free(param);
   DBUG_RETURN(error);
 }
 
@@ -2579,6 +2584,8 @@ prototype_undo_exec_hook(UNDO_BULK_INSERT)
   return error;
 }
 
+/* Stack size 18776 in clang. Ok as this is during recover */
+PRAGMA_DISABLE_CHECK_STACK_FRAME
 
 static int run_redo_phase(LSN lsn, LSN lsn_end, enum maria_apply_log_way apply)
 {
@@ -2822,6 +2829,7 @@ err:
   translog_free_record_header(&rec);
   DBUG_RETURN(1);
 }
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 
 /**
