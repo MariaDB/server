@@ -24,6 +24,7 @@ Insert buffer
 Created 7/19/1997 Heikki Tuuri
 *******************************************************/
 
+#include <tuple>
 #include "ibuf0ibuf.h"
 #include "btr0sea.h"
 
@@ -2323,7 +2324,8 @@ func_exit:
 
 /** Merge the change buffer to some pages. */
 static void ibuf_read_merge_pages(const uint32_t* space_ids,
-				  const uint32_t* page_nos, ulint n_stored)
+				  const uint32_t* page_nos, ulint n_stored,
+				  bool slow_shutdown_cleanup)
 {
 	for (ulint i = 0; i < n_stored; i++) {
 		const ulint space_id = space_ids[i];
@@ -2348,30 +2350,28 @@ tablespace_deleted:
 		if (UNIV_LIKELY(page_nos[i] < size)) {
 			mtr.start();
 			dberr_t err;
-			buf_block_t *block =
+			/* Load the page and apply change buffers. */
+			std::ignore =
 			buf_page_get_gen(page_id_t(space_id, page_nos[i]),
 					 zip_size, RW_X_LATCH, nullptr,
 					 BUF_GET_POSSIBLY_FREED,
 					 &mtr, &err, true);
-			bool remove = !block
-				|| fil_page_get_type(block->page.frame)
-				!= FIL_PAGE_INDEX
-				|| !page_is_leaf(block->page.frame);
 			mtr.commit();
 			if (err == DB_TABLESPACE_DELETED) {
 				s->x_unlock();
 				goto tablespace_deleted;
 			}
-			if (!remove) {
-				s->x_unlock();
-				continue;
-			}
 		}
 
 		s->x_unlock();
 
-		if (srv_shutdown_state == SRV_SHUTDOWN_NONE
-		    || srv_fast_shutdown) {
+		/* During slow shutdown cleanup, we apply all pending IBUF
+		changes and need to cleanup any left-over IBUF records. There
+		are a few cases when the changes are already discarded and IBUF
+		bitmap is cleaned but we miss to delete the record. Even after
+		the issues are fixed, we need to keep this safety measure for
+		upgraded DBs with such left over records. */
+		if (!slow_shutdown_cleanup) {
 			continue;
 		}
 
@@ -2442,7 +2442,7 @@ ATTRIBUTE_COLD ulint ibuf_contract()
 					    space_ids, page_nos, &n_pages);
 	ibuf_mtr_commit(&mtr);
 
-	ibuf_read_merge_pages(space_ids, page_nos, n_pages);
+	ibuf_read_merge_pages(space_ids, page_nos, n_pages, true);
 
 	return(sum_sizes + 1);
 }
@@ -2523,7 +2523,7 @@ ibuf_merge_space(
 		}
 #endif /* UNIV_DEBUG */
 
-		ibuf_read_merge_pages(spaces, pages, n_pages);
+		ibuf_read_merge_pages(spaces, pages, n_pages, false);
 	}
 
 	return(n_pages);

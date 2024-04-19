@@ -431,7 +431,8 @@ btr_pcur_open(
 }
 
 /** Open a cursor on the first user record satisfying the search condition;
-in case of no match, after the last index record. */
+in case of no match, after the last index record.
+@return DB_SUCCESS or error code */
 MY_ATTRIBUTE((nonnull, warn_unused_result))
 inline
 dberr_t
