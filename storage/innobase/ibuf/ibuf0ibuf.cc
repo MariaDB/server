@@ -1888,13 +1888,13 @@ early_exit:
 		return;
 	}
 
-	const auto root_savepoint = mtr.get_savepoint();
 	buf_block_t* root = ibuf_tree_root_get(&mtr);
 
 	if (UNIV_UNLIKELY(!root)) {
 		goto early_exit;
 	}
 
+	const auto root_savepoint = mtr.get_savepoint() - 1;
 	const uint32_t page_no = flst_get_last(PAGE_HEADER
 					       + PAGE_BTR_IBUF_FREE_LIST
 					       + root->page.frame).page;
