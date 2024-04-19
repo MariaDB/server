@@ -1733,7 +1733,7 @@ static ulint buf_flush_LRU(ulint max_n)
 }
 
 #ifdef HAVE_PMEM
-# include <libpmem.h>
+# include "cache.h"
 #endif
 
 /** Write checkpoint information to the log header and release mutex.
