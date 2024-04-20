@@ -987,7 +987,11 @@ int HCData::init ()
     bool not_equal= token_env != NULL && strcmp(token_env, token) != 0;
     if (token_env == NULL || not_equal)
     {
-      setenv("VAULT_TOKEN", token, 1);
+#if defined(HAVE_SETENV) || !defined(_WIN32)
+        setenv("VAULT_TOKEN", token, 1);
+#else
+        _putenv_s("VAULT_TOKEN", token);
+#endif
       if (not_equal)
       {
         my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
