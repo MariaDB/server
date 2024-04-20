@@ -22797,7 +22797,7 @@ create_internal_tmp_table_from_heap(THD *thd, TABLE *table,
     if (unlikely(thd->check_killed()))
       goto err_killed;
   }
-  if (!new_table.no_rows && new_table.file->ha_end_bulk_insert())
+  if (!new_table.no_rows && (write_err= new_table.file->ha_end_bulk_insert()))
     goto err;
   /* copy row that filled HEAP table */
   if (unlikely((write_err=new_table.file->ha_write_tmp_row(table->record[0]))))

@@ -2978,8 +2978,9 @@ err:
   if (got_error)
   {
     if (! param->error_printed)
-      _ma_check_print_error(param,"%d for record at pos %s",my_errno,
-		  llstr(sort_param.start_recpos,llbuff));
+      _ma_check_print_error(param,"Got error %d for record at pos %s when creating index",
+                            my_errno,
+                            llstr(sort_param.start_recpos,llbuff));
     (void)_ma_flush_table_files_before_swap(param, info);
     if (sort_info.new_info && sort_info.new_info != sort_info.info)
     {
@@ -4218,7 +4219,7 @@ err:
   if (got_error)
   {
     if (! param->error_printed)
-      _ma_check_print_error(param,"%d when fixing table",my_errno);
+      _ma_check_print_error(param,"Got error %d when trying to repair table",my_errno);
     (void)_ma_flush_table_files_before_swap(param, info);
     if (sort_info.new_info && sort_info.new_info != sort_info.info)
     {
@@ -4488,6 +4489,7 @@ int maria_repair_parallel(HA_CHECK *param, register MARIA_HA *info,
   for (i=key=0, istep=1 ; key < share->base.keys ;
        rec_per_key_part+=sort_param[i].keyinfo->keysegs, i+=istep, key++)
   {
+    sort_param[i].check_param= param;
     sort_param[i].key=key;
     sort_param[i].keyinfo=share->keyinfo+key;
     sort_param[i].seg=sort_param[i].keyinfo->seg;
@@ -4793,7 +4795,8 @@ err:
   if (got_error)
   {
     if (! param->error_printed)
-      _ma_check_print_error(param,"%d when fixing table",my_errno);
+      _ma_check_print_error(param,"Got error %d when repairing table with parallel repair",
+                            my_errno);
     (void)_ma_flush_table_files_before_swap(param, info);
     if (new_file >= 0)
     {

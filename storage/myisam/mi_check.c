@@ -2813,6 +2813,7 @@ int mi_repair_parallel(HA_CHECK *param, register MI_INFO *info,
   for (i=key=0, istep=1 ; key < share->base.keys ;
        rec_per_key_part+=sort_param[i].keyinfo->keysegs, i+=istep, key++)
   {
+    sort_param[i].check_param= param;
     sort_param[i].key=key;
     sort_param[i].keyinfo=share->keyinfo+key;
     sort_param[i].seg=sort_param[i].keyinfo->seg;

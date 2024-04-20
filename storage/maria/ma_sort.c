@@ -543,8 +543,16 @@ pthread_handler_t _ma_thr_find_all_keys(void *arg)
   MARIA_SORT_PARAM *sort_param= (MARIA_SORT_PARAM*) arg;
   my_bool error= FALSE;
   /* If my_thread_init fails */
-  if (my_thread_init() || _ma_thr_find_all_keys_exec(sort_param))
+  if (my_thread_init())
     error= TRUE;
+  else
+  {
+    HA_CHECK *check= sort_param->check_param;
+    if (check->init_repair_thread)
+      check->init_repair_thread(check->init_repair_thread_arg);
+    if (_ma_thr_find_all_keys_exec(sort_param))
+      error= TRUE;
+  }
 
   /*
      Thread must clean up after itself.

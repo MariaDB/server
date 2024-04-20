@@ -3760,7 +3760,7 @@ static void my_malloc_size_cb_func(long long size, my_bool is_thread_specific)
     DBUG_ASSERT((longlong) thd->status_var.local_memory_used >= 0 ||
                 !debug_assert_on_not_freed_memory);
   }
-  else if (likely(thd))
+  else if (likely(thd) && likely(!thd->shared_thd))
   {
     DBUG_PRINT("info", ("global thd memory_used: %lld  size: %lld",
                         (longlong) thd->status_var.global_memory_used, size));
@@ -3777,6 +3777,7 @@ static int temp_file_size_cb_func(struct tmp_file_tracking *track,
                                   int no_error)
 {
   THD *thd= current_thd;
+  int error= 0;
   longlong size_change= (longlong) (track->file_size -
                                     track->previous_file_size);
   DBUG_ENTER("temp_file_size_cb_func");
@@ -3794,6 +3795,8 @@ static int temp_file_size_cb_func(struct tmp_file_tracking *track,
       track->previous_file_size.
     */
     DBUG_ASSERT(thd->status_var.tmp_space_used >= track->previous_file_size);
+    if (unlikely(thd->shared_thd))
+      mysql_mutex_lock(&thd->LOCK_thd_data);
 
     global_tmp_space_used+= size_change;
     if (size_change > 0)
@@ -3805,14 +3808,16 @@ static int temp_file_size_cb_func(struct tmp_file_tracking *track,
           global_max_tmp_space_usage)
       {
         global_tmp_space_used-= size_change;
-        DBUG_RETURN(my_errno= EE_GLOBAL_TMP_SPACE_FULL);
+        error= my_errno= EE_GLOBAL_TMP_SPACE_FULL;
+        goto exit;
       }
       if (thd->status_var.tmp_space_used + size_change >
           thd->variables.max_tmp_space_usage && !no_error &&
           thd->variables.max_tmp_space_usage)
       {
         global_tmp_space_used-= size_change;
-        DBUG_RETURN(my_errno= EE_LOCAL_TMP_SPACE_FULL);
+        error= my_errno= EE_LOCAL_TMP_SPACE_FULL;
+        goto exit;
       }
       set_if_bigger(global_status_var.max_tmp_space_used, cached_space);
     }
@@ -3828,8 +3833,12 @@ static int temp_file_size_cb_func(struct tmp_file_tracking *track,
 
     /* Record that we have registered the change */
     track->previous_file_size= track->file_size;
+
+exit:
+    if (unlikely(thd->shared_thd))
+      mysql_mutex_unlock(&thd->LOCK_thd_data);
   }
-  DBUG_RETURN(0);
+  DBUG_RETURN(error);
 }
 
 int json_escape_string(const char *str,const char *str_end,

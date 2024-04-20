@@ -396,6 +396,7 @@ typedef struct st_maria_sort_param
   MEM_ROOT wordroot;
   uchar *record;
   MY_TMPDIR *tmpdir;
+  HA_CHECK *check_param;
 
   /* 
     The next two are used to collect statistics, see maria_update_key_parts for

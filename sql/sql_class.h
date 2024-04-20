@@ -3127,6 +3127,8 @@ public:
   Trans_binlog_info *semisync_info;
   /* If this is a semisync slave connection. */
   bool semi_sync_slave;
+  /* Several threads may share this thd. Used with parallel repair */
+  bool shared_thd;
   ulonglong client_capabilities;  /* What the client supports */
   ulong max_client_packet_length;
 

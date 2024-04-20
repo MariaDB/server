@@ -1635,6 +1635,19 @@ int ha_maria::optimize(THD * thd, HA_CHECK_OPT *check_opt)
   return error;
 }
 
+/*
+  Set current_thd() for parallel worker thread
+*/
+
+C_MODE_START
+void maria_setup_thd_for_repair_thread(void *arg)
+{
+  THD *thd= (THD*) arg;
+  DBUG_ASSERT(thd->shared_thd);
+  set_current_thd(thd);
+}
+C_MODE_END
+
 
 int ha_maria::repair(THD *thd, HA_CHECK *param, bool do_optimize)
 {
@@ -1726,8 +1739,17 @@ int ha_maria::repair(THD *thd, HA_CHECK *param, bool do_optimize)
         my_snprintf(buf, 40, "Repair with %d threads", my_count_bits(key_map));
         thd_proc_info(thd, buf);
         param->testflag|= T_REP_PARALLEL;
+        /*
+          Ensure that all threads are using the same THD. This is needed
+          to get limit of tmp files to work
+        */
+        param->init_repair_thread= maria_setup_thd_for_repair_thread;
+        param->init_repair_thread_arg= table->in_use;
+        /* Mark that multiple threads are using the thd */
+        table->in_use->shared_thd= 1;
         error= maria_repair_parallel(param, file, fixed_name,
                                      MY_TEST(param->testflag & T_QUICK));
+        table->in_use->shared_thd= 0;
         /* to reset proc_info, as it was pointing to local buffer */
         thd_proc_info(thd, "Repair done");
       }
@@ -2100,12 +2122,13 @@ int ha_maria::enable_indexes(key_map map, bool persist)
       This can be set when doing an ALTER TABLE and enabling unique keys
     */
     if ((error= (repair(thd, param, 0) != HA_ADMIN_OK)) && param->retry_repair &&
+        !file->s->internal_table &&
         (my_errno != HA_ERR_FOUND_DUPP_KEY ||
          !file->create_unique_index_by_sort))
     {
-      sql_print_warning("Warning: Enabling keys got errno %d on %s.%s, "
+      sql_print_warning("Warning: Enabling keys got errno %d on %s, "
                         "retrying",
-                        my_errno, param->db_name, param->table_name);
+                        my_errno, file->s->open_file_name);
       /* Repairing by sort failed. Now try standard repair method. */
       param->testflag &= ~T_REP_BY_SORT;
       file->state->records= start_rows;
@@ -2398,7 +2421,7 @@ int ha_maria::end_bulk_insert()
   can_enable_indexes= 0;
   if (first_error)
     my_errno= first_errno;
-  DBUG_RETURN(first_error);
+  DBUG_RETURN(first_errno);
 }
 
 

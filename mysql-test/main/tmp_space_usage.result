@@ -157,4 +157,24 @@ DROP TABLE t1;
 set max_tmp_session_space_usage = 1024*1024;
 select count(distinct concat(seq,repeat('x',1000))) from seq_1_to_1000;
 ERROR HY000: Global temporary space limit reached
+#
+# MDEV-33751 Assertion `thd' failed in int
+# temp_file_size_cb_func(tmp_file_tracking*, int)
+#
+set @@global.max_tmp_total_space_usage=64*1024*1024;
+set @@max_tmp_session_space_usage=1179648;
+select @@max_tmp_session_space_usage;
+@@max_tmp_session_space_usage
+1179648
+set @save_aria_repair_threads=@@aria_repair_threads;
+set @@aria_repair_threads=2;
+set @save_max_heap_table_size=@@max_heap_table_size;
+set @@max_heap_table_size=16777216;
+CREATE TABLE t1 (a CHAR(255),b INT,INDEX (b));
+INSERT INTO t1 SELECT SEQ,SEQ FROM seq_1_to_100000;
+SELECT * FROM t1 UNION SELECT * FROM t1;
+ERROR HY000: Local temporary space limit reached
+DROP TABLE t1;
+set @@aria_repair_threads=@save_aria_repair_threads;
+set @@max_heap_table_size=@save_max_heap_table_size;
 # End of 11.5 tests
