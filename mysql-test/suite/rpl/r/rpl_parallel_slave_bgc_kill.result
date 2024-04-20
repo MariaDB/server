@@ -206,10 +206,12 @@ RETURN x;
 END
 ||
 SET sql_log_bin=1;
+include/stop_slave_io.inc
 connection server_1;
 INSERT INTO t3 VALUES (49,0);
 connection server_2;
-START SLAVE SQL_THREAD;
+CHANGE MASTER TO master_use_gtid=no;
+include/start_slave.inc
 SELECT * FROM t3 WHERE a >= 40 ORDER BY a;
 a	b
 41	41
@@ -239,10 +241,6 @@ SET GLOBAL slave_parallel_threads=0;
 SET GLOBAL slave_parallel_threads=10;
 include/start_slave.inc
 *** 3. Same as (2), but not using gtid mode ***
-connection server_2;
-include/stop_slave.inc
-CHANGE MASTER TO master_use_gtid=no;
-include/start_slave.inc
 connection server_1;
 connection con_temp3;
 SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued1 WAIT_FOR master_cont1';
