@@ -1,0 +1,16 @@
+# These require a bigger thread stack
+--source include/not_asan.inc
+--source include/not_ubsan.inc
+--source include/not_msan.inc
+--source include/not_windows.inc
+
+--source include/have_innodb.inc
+
+# Just in case on some systems 131072 (which is usually allowed) does not work
+call mtr.add_suppression("option 'thread_stack': unsigned value 131072 adjusted to");
+
+CREATE TABLE t (a INT KEY) ENGINE=InnoDB;
+INSERT INTO t VALUES (1),(2);
+--error ER_DUP_ENTRY
+UPDATE t SET a=2;
+DROP TABLE t;

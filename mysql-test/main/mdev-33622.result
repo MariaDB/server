@@ -1,0 +1,6 @@
+call mtr.add_suppression("option 'thread_stack': unsigned value 131072 adjusted to");
+CREATE TABLE t (a INT KEY) ENGINE=InnoDB;
+INSERT INTO t VALUES (1),(2);
+UPDATE t SET a=2;
+ERROR 23000: Duplicate entry '2' for key 'PRIMARY'
+DROP TABLE t;
