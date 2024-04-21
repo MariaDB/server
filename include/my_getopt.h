@@ -133,6 +133,7 @@ double getopt_double_limit_value(double num, const struct my_option *optp,
 
 ulonglong getopt_double2ulonglong(double);
 double getopt_ulonglong2double(ulonglong);
+void my_getopt_init_one_value(const struct my_option *, void *, longlong);
 
 static inline void convert_underscore_to_dash(char *str, size_t len)
 {

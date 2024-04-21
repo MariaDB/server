@@ -36,7 +36,6 @@ static longlong getopt_ll(char *arg, const struct my_option *optp, int *err);
 static ulonglong getopt_ull(char *, const struct my_option *, int *);
 static double getopt_double(char *arg, const struct my_option *optp, int *err);
 static void init_variables(const struct my_option *, init_func_p);
-static void init_one_value(const struct my_option *, void *, longlong);
 static void fini_one_value(const struct my_option *, void *, longlong);
 static int setval(const struct my_option *, void *, char *, my_bool, const char *);
 static char *check_struct_option(char *cur_arg, char *key_name);
@@ -278,7 +277,7 @@ int handle_options(int *argc, char ***argv, const struct my_option *longopts,
   (*argc)--; /* Skip the program name */
   (*argv)++; /*      --- || ----      */
   if (my_handle_options_init_variables)
-    init_variables(longopts, init_one_value);
+    init_variables(longopts, my_getopt_init_one_value);
 
   is_cmdline_arg= !is_file_marker(**argv);
 
@@ -1381,13 +1380,13 @@ static double getopt_double(char *arg, const struct my_option *optp, int *err)
   Init one value to it's default values
 
   SYNOPSIS
-    init_one_value()
+    my_getopt_init_one_value()
     option              Option to initialize
     value               Pointer to variable
 */
 
-static void init_one_value(const struct my_option *option, void *variable,
-			   longlong value)
+void my_getopt_init_one_value(const struct my_option *option, void *variable,
+                              longlong value)
 {
   DBUG_ENTER("init_one_value");
   switch ((option->var_type & GET_TYPE_MASK)) {
@@ -1470,7 +1469,7 @@ static void init_one_value(const struct my_option *option, void *variable,
   Init one value to it's default values
 
   SYNOPSIS
-    init_one_value()
+    fini_one_value()
     option		Option to initialize
     value		Pointer to variable
 */

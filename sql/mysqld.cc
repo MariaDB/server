@@ -8059,6 +8059,8 @@ mysqld_get_one_option(const struct my_option *opt, const char *argument,
   case OPT_REMOVED_OPTION:
     sql_print_warning("'%s' was removed. It does nothing now and exists only "
                       "for compatibility with old my.cnf files.", opt->name);
+    /* Restore default value (to show that the option cannot be used) */
+    my_getopt_init_one_value(opt, opt->value, opt->def_value);
     break;
   case OPT_MYSQL_COMPATIBILITY:
     sql_print_warning("'%s' is MySQL 5.6 / 5.7 compatible option. Not used or "
