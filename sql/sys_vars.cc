@@ -2867,7 +2867,8 @@ static bool variable_is_ignored(sys_var *self, THD *thd, set_var *var)
 static Sys_var_enum Sys_alter_algorithm(
 	"alter_algorithm",
         UNUSED_HELP,
-	SESSION_VAR(alter_algorithm_unused), CMD_LINE(OPT_ARG),
+	SESSION_VAR(alter_algorithm_unused),
+        CMD_LINE(OPT_ARG, OPT_REMOVED_OPTION),
 	alter_algorithm_modes, DEFAULT(0),
         NO_MUTEX_GUARD, NOT_IN_BINLOG,
         ON_CHECK(variable_is_ignored), ON_UPDATE(0),
