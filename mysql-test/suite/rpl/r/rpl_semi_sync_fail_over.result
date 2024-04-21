@@ -117,13 +117,15 @@ connection server_2;
 #=================================================================
 connect  conn_client,127.0.0.1,root,,test,$SERVER_MYPORT_2,;
 SET DEBUG_SYNC= "commit_before_get_LOCK_commit_ordered SIGNAL con1_ready WAIT_FOR con1_go";
+SET DEBUG_SYNC= "commit_after_release_LOCK_after_binlog_sync WAIT_FOR con1_go1";
 SET STATEMENT server_id=1 FOR INSERT INTO t1 VALUES (4, REPEAT("x", 4100));
 connect  conn_client_2,127.0.0.1,root,,test,$SERVER_MYPORT_2,;
 SET DEBUG_SYNC= "now WAIT_FOR con1_ready";
-SET GLOBAL debug_dbug="d,Notify_binlog_EOF";
+SET DEBUG_SYNC= "commit_before_get_LOCK_after_binlog_sync SIGNAL con1_go";
+SET DEBUG_SYNC= "commit_before_get_LOCK_commit_ordered SIGNAL con2_ready";
 INSERT INTO t1 VALUES (5, REPEAT("x", 4100));
 connection server_2;
-SET DEBUG_SYNC= "now WAIT_FOR eof_reached";
+SET DEBUG_SYNC= "now WAIT_FOR con2_ready";
 # Kill the server
 connection server_1;
 include/wait_for_slave_param.inc [Slave_SQL_Running_State]
