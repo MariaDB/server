@@ -68,9 +68,7 @@ source include/wait_for_slave_param.inc;
 --error 2003
 --source include/stop_slave.inc
 
---let $assert_cond= COUNT(*) = $expected_rows_on_slave FROM t1
---let $assert_text= Table t1 should have $expected_rows_on_slave rows.
---source include/assert.inc
+--eval select count(*) 'on slave must be $expected_rows_on_slave' from t1
 
 SELECT @@GLOBAL.gtid_current_pos;
 
@@ -95,9 +93,7 @@ if (`SELECT strcmp("OFF", "$slave_semi_sync_status") != 0`)
   --die Slave started with skip-slave-start yet started with rpl_semi_sync_slave_status=ON
 }
 
---let $assert_cond= COUNT(*) = $expected_rows_on_master FROM t1
---let $assert_text= Table t1 should have $expected_rows_on_master rows.
---source include/assert.inc
+--eval select count(*) 'on master must be $expected_rows_on_master' from t1
 
 # Check error log for correct messages.
 let $log_error_ = $MYSQLTEST_VARDIR/log/mysqld.$server_to_crash.err;
