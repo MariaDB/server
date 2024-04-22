@@ -1,0 +1,40 @@
+call mtr.add_suppression("\\[Warning\\] Redirecting connection \\d+ via \\S+ to INSTANT_FAILOVER_TARGET=\\S+ \\(INSTANT_FAILOVER_MODE=\\w+\\)");
+Verify that a TCP connection works with --disable-follow-instant-failovers (before enabling instant failover)
+default_port_tcp_works
+1
+Verify that connections via local socket and extra port SUCCEED
+connection default;
+connect local_sock,localhost,root,,test;
+disconnect local_sock;
+connect tcp_sock,127.0.0.1,root,,test,$MASTER_EXTRA_PORT;
+disconnect tcp_sock;
+Enable instant failover in its default mode (ON)
+connection default;
+set global instant_failover_mode=ON;
+set global instant_failover_target="127.0.0.1:$MASTER_EXTRA_PORT"
+With --disable-follow-instant-failovers, connecting to the default port should now fail
+With --follow-instant-failovers (the client library default), this should redirect to the extra port
+connect OKAY,127.0.0.1,root,,test,$MASTER_MYPORT;
+disconnect OKAY;
+Setup a redirect loop, and verify that connections fail due to the loop
+connection default;
+set global instant_failover_target="127.0.0.1:$MASTER_MYPORT"
+connect(127.0.0.1,root,,test,MASTER_MYPORT,MASTER_MYSOCK);
+connect fail_con,127.0.0.1,root,,test,$MASTER_MYPORT;
+ERROR HY000: Too many instant failovers (>= 8)
+Change instant failover mode to ALL, and verify that even connections via local socket and extra port now FAIL due to the loop
+connection default;
+set global instant_failover_mode=ALL;
+connect(localhost,root,,test,MASTER_MYPORT,MASTER_MYSOCK);
+connect fail_con,localhost,root,,test;
+ERROR HY000: Too many instant failovers (>= 8)
+connect(127.0.0.1,root,,test,MASTER_EXTRA_PORT,MASTER_MYSOCK);
+connect fail_con,127.0.0.1,root,,test,$MASTER_EXTRA_PORT;
+ERROR HY000: Too many instant failovers (>= 8)
+Turn instant failover back off
+connection default;
+set global instant_failover_mode=OFF;
+set global instant_failover_target=DEFAULT;
+Connections should now succeed again, even with --disable-follow-instant-failovers
+default_port_tcp_works
+1
