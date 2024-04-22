@@ -8388,6 +8388,11 @@ int ha_partition::info(uint flag)
             unlock_auto_increment();
             DBUG_RETURN(error);
           }
+          if (file->stats.auto_increment_value == 0)
+          {
+            unlock_auto_increment();
+            DBUG_RETURN(HA_ERR_AUTOINC_ERANGE);
+          }
           set_if_bigger(auto_increment_value,
                         file->stats.auto_increment_value);
         } while (*(++file_array));
