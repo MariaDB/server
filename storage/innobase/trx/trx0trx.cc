@@ -1142,15 +1142,23 @@ inline void trx_t::write_serialisation_history(mtr_t *mtr)
     }
     else if (rseg->last_page_no == FIL_NULL)
     {
-      mysql_mutex_lock(&purge_sys.pq_mutex);
+      /* trx_sys.assign_new_trx_no() and
+      purge_sys.enqueue() must be invoked in the same
+      critical section protected with purge queue mutex to avoid rseg with
+      greater last commit number to be pushed to purge queue prior to rseg with
+      lesser last commit number. In other words pushing to purge queue must be
+      serialized along with assigning trx_no. Otherwise purge coordinator
+      thread can also fetch redo log records from rseg with greater last commit
+      number before rseg with lesser one. */
+      purge_sys.queue_lock();
       trx_sys.assign_new_trx_no(this);
       const trx_id_t end{rw_trx_hash_element->no};
+      rseg->last_page_no= undo->hdr_page_no;
       /* end cannot be less than anything in rseg. User threads only
       produce events when a rollback segment is empty. */
-      purge_sys.purge_queue.push(TrxUndoRsegs{end, *rseg});
-      mysql_mutex_unlock(&purge_sys.pq_mutex);
-      rseg->last_page_no= undo->hdr_page_no;
       rseg->set_last_commit(undo->hdr_offset, end);
+      purge_sys.enqueue(end, *rseg);
+      purge_sys.queue_unlock();
     }
     else
       trx_sys.assign_new_trx_no(this);

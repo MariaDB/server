@@ -4262,7 +4262,7 @@ static int test_plugin_options(MEM_ROOT *tmp_root, struct st_plugin_int *tmp,
 
     if (unlikely(error))
     {
-       sql_print_error("Parsing options for plugin '%s' failed.",
+       sql_print_error("Parsing options for plugin '%s' failed. Disabling plugin",
                        tmp->name.str);
        goto err;
     }

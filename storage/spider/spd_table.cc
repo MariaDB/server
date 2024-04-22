@@ -124,6 +124,11 @@ extern SPIDER_DBTON spider_dbton_mysql;
 extern SPIDER_DBTON spider_dbton_mariadb;
 SPIDER_THREAD *spider_table_sts_threads;
 SPIDER_THREAD *spider_table_crd_threads;
+extern volatile ulonglong spider_mon_table_cache_version;
+extern volatile ulonglong spider_mon_table_cache_version_req;
+extern ulonglong spider_conn_id;
+extern Time_zone *UTC;
+extern ulonglong spider_thread_id;
 
 #ifdef HAVE_PSI_INTERFACE
 PSI_mutex_key spd_key_mutex_tbl;
@@ -3468,11 +3473,13 @@ error_alloc_conn_string:
   DBUG_RETURN(error_num);
 }
 
+/* Set default connect info of a SPIDER_SHARE if needed */
 int spider_set_connect_info_default(
-  SPIDER_SHARE *share,
-  partition_element *part_elem,
-  partition_element *sub_elem,
-  TABLE_SHARE *table_share
+  SPIDER_SHARE *share,                /* The `SPIDER_SHARE' to set
+                                     default connect info */
+  partition_element *part_elem, /* partition info used as input */
+  partition_element *sub_elem,  /* subpartition info used as input */
+  TABLE_SHARE *table_share      /* table share info used as input */
 ) {
   bool check_socket;
   bool check_database;
@@ -3706,22 +3713,6 @@ int spider_set_connect_info_default(
       }
     }
 
-/*
-    if (!share->static_link_ids[roop_count])
-    {
-      DBUG_PRINT("info",("spider create default static_link_ids"));
-      share->static_link_ids_lengths[roop_count] =
-        SPIDER_DB_STATIC_LINK_ID_LEN;
-      if (
-        !(share->static_link_ids[roop_count] = spider_create_string(
-          SPIDER_DB_STATIC_LINK_ID_STR,
-          share->static_link_ids_lengths[roop_count]))
-      ) {
-        DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-      }
-    }
-*/
-
     if (port_has_default_value)
     {
       share->tgt_ports[roop_count] = MYSQL_PORT;
@@ -3811,7 +3802,11 @@ int spider_set_connect_info_default(
   DBUG_RETURN(0);
 }
 
-
+/*
+  This function is a no-op if all share->tgt_dbs and
+  share->tgt_table_names are non-null, otherwise it may assign them
+  with db_name and table_name
+*/
 int spider_set_connect_info_default_db_table(
   SPIDER_SHARE *share,
   const char *db_name,
@@ -3897,6 +3892,11 @@ int spider_set_connect_info_default_db_table(
   DBUG_RETURN(0);
 }
 
+/*
+  Parse `dbtable_name' into db name and table name, and call
+  spider_set_connect_info_default_db_table() to set the db/table name
+  values of `share' if needed
+*/
 int spider_set_connect_info_default_dbtable(
   SPIDER_SHARE *share,
   const char *dbtable_name,
@@ -4256,12 +4256,12 @@ SPIDER_SHARE *spider_create_share(
   share->table.key_info = table_share->key_info;
   share->table.read_set = &table_share->all_set;
 
-  if (table_share->keys > 0 &&
-    !(share->key_hint = new spider_string[table_share->keys])
-  ) {
-    *error_num = HA_ERR_OUT_OF_MEM;
-    goto error_init_hint_string;
-  }
+  if (table_share->keys > 0)
+    if (!(share->key_hint = new spider_string[table_share->keys]))
+    {
+      *error_num = HA_ERR_OUT_OF_MEM;
+      goto error_init_hint_string;
+    }
   for (roop_count = 0; roop_count < (int) table_share->keys; roop_count++)
     share->key_hint[roop_count].init_calc_mem(SPD_MID_CREATE_SHARE_2);
   DBUG_PRINT("info",("spider share->key_hint=%p", share->key_hint));
@@ -5797,7 +5797,7 @@ int spider_open_all_tables(
       (error_num = spider_get_sys_tables(
         table_tables, &db_name, &table_name, &mem_root)) ||
       (error_num = spider_get_sys_tables_connect_info(
-        table_tables, &tmp_share, 0, &mem_root)) ||
+        table_tables, &tmp_share, &mem_root)) ||
       (error_num = spider_set_connect_info_default(
         &tmp_share,
         NULL,
@@ -6084,7 +6084,11 @@ int spider_close_connection(
   }
 
   spider_rollback(spider_hton_ptr, thd, TRUE);
+
+  Dummy_error_handler deh; // suppress network errors at this stage
+  thd->push_internal_handler(&deh);
   spider_free_trx(trx, TRUE, false);
+  thd->pop_internal_handler();
 
   DBUG_RETURN(0);
 }
@@ -6346,6 +6350,12 @@ int spider_db_init(
   handlerton *spider_hton = (handlerton *)p;
   DBUG_ENTER("spider_db_init");
 
+  spider_mon_table_cache_version= 0;
+  spider_mon_table_cache_version_req= 1;
+  spider_conn_id= 1;
+  spider_conn_mutex_id= 0;
+  UTC = 0;
+  spider_thread_id = 1;
   const LEX_CSTRING aria_name={STRING_WITH_LEN("Aria")};
   if (!plugin_is_ready(&aria_name, MYSQL_STORAGE_ENGINE_PLUGIN))
     DBUG_RETURN(HA_ERR_RETRY_INIT);

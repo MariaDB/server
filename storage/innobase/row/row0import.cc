@@ -1855,14 +1855,39 @@ PageConverter::update_records(
 	bool	clust_index = m_index->m_srv_index == m_cluster_index;
 
 	/* This will also position the cursor on the first user record. */
+	rec_t* rec = m_rec_iter.open(block, m_index->m_srv_index);
 
-	if (!m_rec_iter.open(block, m_index->m_srv_index)) {
+	if (!rec) {
 		return DB_CORRUPTION;
 	}
 
+	ulint deleted;
+
+	if (!page_has_prev(block->page.frame)
+	    && m_index->m_srv_index->is_instant()) {
+		/* Expect to find the hidden metadata record */
+		if (page_rec_is_supremum(rec)) {
+			return DB_CORRUPTION;
+		}
+
+		const ulint info_bits = rec_get_info_bits(rec, comp);
+
+		if (!(info_bits & REC_INFO_MIN_REC_FLAG)) {
+			return DB_CORRUPTION;
+		}
+
+		if (!(info_bits & REC_INFO_DELETED_FLAG)
+		    != !m_index->m_srv_index->table->instant) {
+			return DB_CORRUPTION;
+		}
+
+		deleted = 0;
+		goto first;
+	}
+
 	while (!m_rec_iter.end()) {
-		rec_t*	rec = m_rec_iter.current();
-		ibool	deleted = rec_get_deleted_flag(rec, comp);
+		rec = m_rec_iter.current();
+		deleted = rec_get_deleted_flag(rec, comp);
 
 		/* For the clustered index we have to adjust the BLOB
 		reference and the system fields irrespective of the
@@ -1870,6 +1895,7 @@ PageConverter::update_records(
 		cluster records is required for purge to work later. */
 
 		if (deleted || clust_index) {
+first:
 			m_offsets = rec_get_offsets(
 				rec, m_index->m_srv_index, m_offsets,
 				m_index->m_srv_index->n_core_fields,
@@ -3298,7 +3324,7 @@ static dict_table_t *build_fts_hidden_table(
   return new_table;
 }
 
-/* find, parse instant metadata, performing variaous checks,
+/* find, parse instant metadata, performing various checks,
 and apply it to dict_table_t
 @return DB_SUCCESS or some error */
 static dberr_t handle_instant_metadata(dict_table_t *table,

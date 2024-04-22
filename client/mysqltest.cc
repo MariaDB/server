@@ -397,7 +397,7 @@ enum enum_commands {
   Q_IF,
   Q_DISABLE_PARSING, Q_ENABLE_PARSING,
   Q_REPLACE_REGEX, Q_REMOVE_FILE, Q_FILE_EXIST,
-  Q_WRITE_FILE, Q_COPY_FILE, Q_PERL, Q_DIE, Q_EXIT, Q_SKIP,
+  Q_WRITE_FILE, Q_WRITE_LINE, Q_COPY_FILE, Q_PERL, Q_DIE, Q_EXIT, Q_SKIP,
   Q_CHMOD_FILE, Q_APPEND_FILE, Q_CAT_FILE, Q_DIFF_FILES,
   Q_SEND_QUIT, Q_CHANGE_USER, Q_MKDIR, Q_RMDIR,
   Q_LIST_FILES, Q_LIST_FILES_WRITE_FILE, Q_LIST_FILES_APPEND_FILE,
@@ -500,6 +500,7 @@ const char *command_names[]=
   "remove_file",
   "file_exists",
   "write_file",
+  "write_line",
   "copy_file",
   "perl",
   "die",
@@ -1533,7 +1534,6 @@ void free_used_memory()
 #ifdef EMBEDDED_LIBRARY
 void ha_pre_shutdown();
 #endif
-
 
 ATTRIBUTE_NORETURN static void cleanup_and_exit(int exit_code,
                                                 bool called_from_die)
@@ -4369,6 +4369,49 @@ void do_write_file(struct st_command *command)
   do_write_file_command(command, FALSE);
 }
 
+/**
+  Write a line to the start of the file.
+  Truncates existing file, creates new one if it doesn't exist.
+
+  Usage
+  write_line <line> <filename>;
+
+  Example
+  --write_line restart $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+
+  @note Both the file and the line parameters are evaluated
+  (can be variables).
+
+  @note This is a better alternative to
+  exec echo > file, as it doesn't depend on shell,
+  and can better handle sporadic file access errors caused
+  by antivirus or backup software on Windows.
+*/
+void do_write_line(struct st_command *command)
+{
+  DYNAMIC_STRING ds_line;
+  DYNAMIC_STRING ds_filename;
+
+  struct command_arg write_line_args[] = {
+    { "line", ARG_STRING, FALSE, &ds_line, "line to add" },
+    { "filename", ARG_STRING, TRUE, &ds_filename, "File to write to" },
+  };
+  DBUG_ENTER("do_write_line");
+
+  check_command_args(command,
+                     command->first_argument,
+                     write_line_args,
+                     sizeof(write_line_args)/sizeof(struct command_arg),
+                     ' ');
+
+  if (bad_path(ds_filename.str))
+    DBUG_VOID_RETURN;
+  dynstr_append_mem(&ds_line, "\n", 1);
+  str_to_file2(ds_filename.str, ds_line.str, ds_line.length, FALSE);
+  dynstr_free(&ds_filename);
+  dynstr_free(&ds_line);
+  DBUG_VOID_RETURN;
+}
 
 /*
   SYNOPSIS
@@ -5286,7 +5329,11 @@ void do_shutdown_server(struct st_command *command)
   */
 
   if (timeout && mysql_shutdown(mysql, SHUTDOWN_DEFAULT))
-    die("mysql_shutdown failed");
+  {
+    handle_error(command, mysql_errno(mysql), mysql_error(mysql),
+                 mysql_sqlstate(mysql), &ds_res);
+    DBUG_VOID_RETURN;
+  }
 
   if (!timeout || wait_until_dead(pid, timeout))
   {
@@ -7495,7 +7542,7 @@ void str_to_file2(const char *fname, char *str, size_t size, my_bool append)
     die("Could not open '%s' for writing, errno: %d", buff, errno);
   if (append && my_seek(fd, 0, SEEK_END, MYF(0)) == MY_FILEPOS_ERROR)
     die("Could not find end of file '%s', errno: %d", buff, errno);
-  if (my_write(fd, (uchar*)str, size, MYF(MY_WME|MY_FNABP)))
+  if (size > 0 && my_write(fd, (uchar*)str, size, MYF(MY_WME|MY_FNABP)))
     die("write failed, errno: %d", errno);
   my_close(fd, MYF(0));
 }
@@ -8290,7 +8337,7 @@ static int match_expected_error(struct st_command *command,
 
   SYNOPSIS
   handle_error()
-  q     - query context
+  command   - command
   err_errno - error number
   err_error - error message
   err_sqlstate - sql state
@@ -10291,6 +10338,7 @@ int main(int argc, char **argv)
         break;
       case Q_FILE_EXIST: do_file_exist(command); break;
       case Q_WRITE_FILE: do_write_file(command); break;
+      case Q_WRITE_LINE: do_write_line(command); break;
       case Q_APPEND_FILE: do_append_file(command); break;
       case Q_DIFF_FILES: do_diff_files(command); break;
       case Q_SEND_QUIT: do_send_quit(command); break;

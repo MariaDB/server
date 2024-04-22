@@ -82,7 +82,6 @@ SELECT * FROM t;
 a	b
 10	20
 10	20
-disconnect consistent;
 connection default;
 TRUNCATE TABLE t;
 INSERT INTO t VALUES(NULL, 1), (2, 2);
@@ -99,10 +98,39 @@ a	b
 COMMIT;
 connection con_weird;
 COMMIT;
-disconnect con_weird;
 connection default;
 SELECT * FROM t;
 a	b
 10	1
 10	20
+DROP TABLE t;
+#
+# MDEV-33802 Weird read view after ROLLBACK of other transactions
+#
+CREATE TABLE t(a INT PRIMARY KEY, b INT UNIQUE) ENGINE=InnoDB;
+INSERT INTO t SET a=1;
+BEGIN;
+INSERT INTO t SET a=2;
+connection consistent;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+SELECT * FROM t FORCE INDEX (b) FOR UPDATE;
+ERROR HY000: Record has changed since last read in table 't'
+connection con_weird;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+SELECT * FROM t FORCE INDEX (b) FOR UPDATE;
+connection default;
+ROLLBACK;
+connection con_weird;
+a	b
+1	NULL
+SELECT * FROM t FORCE INDEX (b) FOR UPDATE;
+a	b
+1	NULL
+disconnect con_weird;
+connection consistent;
+SELECT * FROM t FORCE INDEX (b) FOR UPDATE;
+a	b
+1	NULL
+disconnect consistent;
+connection default;
 DROP TABLE t;

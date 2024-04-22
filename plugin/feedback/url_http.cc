@@ -37,8 +37,9 @@ static const uint FOR_WRITING= 1;
 class Url_http: public Url {
   protected:
   const LEX_STRING host, port, path;
-  bool ssl;
   LEX_STRING proxy_host, proxy_port;
+  my_socket fd;
+  bool ssl;
 
   bool use_proxy()
   {
@@ -47,7 +48,8 @@ class Url_http: public Url {
 
   Url_http(LEX_STRING &url_arg, LEX_STRING &host_arg,
           LEX_STRING &port_arg, LEX_STRING &path_arg, bool ssl_arg) :
-    Url(url_arg), host(host_arg), port(port_arg), path(path_arg), ssl(ssl_arg)
+    Url(url_arg), host(host_arg), port(port_arg), path(path_arg),
+    fd(INVALID_SOCKET), ssl(ssl_arg)
     {
       proxy_host.length= 0;
     }
@@ -60,6 +62,7 @@ class Url_http: public Url {
   }
 
   public:
+  void abort();
   int send(const char* data, size_t data_length);
   int set_proxy(const char *proxy, size_t proxy_len)
   {
@@ -158,13 +161,18 @@ Url* http_create(const char *url, size_t url_length)
   return new Url_http(full_url, host, port, path, ssl);
 }
 
+void Url_http::abort()
+{
+  if (fd != INVALID_SOCKET)
+    closesocket(fd); // interrupt I/O waits
+}
+
 /* do the vio_write and check that all data were sent ok */
 #define write_check(VIO, DATA, LEN)             \
   (vio_write((VIO), (uchar*)(DATA), (LEN)) != (LEN))
 
 int Url_http::send(const char* data, size_t data_length)
 {
-  my_socket fd= INVALID_SOCKET;
   char buf[1024];
   size_t len= 0;
 
@@ -180,6 +188,7 @@ int Url_http::send(const char* data, size_t data_length)
     return 1;
   }
 
+  DBUG_ASSERT(fd == INVALID_SOCKET);
   for (addr= addrs; addr != NULL; addr= addr->ai_next)
   {
     fd= socket(addr->ai_family, addr->ai_socktype, addr->ai_protocol);
@@ -208,6 +217,7 @@ int Url_http::send(const char* data, size_t data_length)
     sql_print_error("feedback plugin: vio_new failed for url '%s'",
                     full_url.str);
     closesocket(fd);
+    fd= INVALID_SOCKET;
     return 1;
   }
 
@@ -236,6 +246,7 @@ int Url_http::send(const char* data, size_t data_length)
         free_vio_ssl_acceptor_fd(ssl_fd);
       closesocket(fd);
       vio_delete(vio);
+      fd= INVALID_SOCKET;
       return 1;
     }
   }
@@ -334,6 +345,7 @@ int Url_http::send(const char* data, size_t data_length)
   }
 #endif
 
+  fd= INVALID_SOCKET;
   return res;
 }
 

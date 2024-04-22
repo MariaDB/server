@@ -23,7 +23,6 @@ flush privileges;
 
 select * from performance_schema.setup_consumers;
 
---echo # Switch to (con1, localhost, user1, , )
 connect (con1, localhost, user1, , );
 
 update performance_schema.threads
@@ -33,7 +32,6 @@ update performance_schema.threads
 let $con1_thread_id= `select THREAD_ID from performance_schema.threads
   where PROCESSLIST_ID = connection_id()`;
 
---echo # Switch to (con2, localhost, user2, , )
 connect (con2, localhost, user2, , );
 
 update performance_schema.threads
@@ -43,7 +41,6 @@ update performance_schema.threads
 let $con2_thread_id= `select THREAD_ID from performance_schema.threads
   where PROCESSLIST_ID = connection_id()`;
 
---echo # Switch to (con3, localhost, user3, , )
 connect (con3, localhost, user3, , );
 
 update performance_schema.threads
@@ -53,7 +50,6 @@ update performance_schema.threads
 let $con3_thread_id= `select THREAD_ID from performance_schema.threads
   where PROCESSLIST_ID = connection_id()`;
 
---echo # Switch to (con4, localhost, user4, , )
 connect (con4, localhost, user4, , );
 
 update performance_schema.threads
@@ -63,7 +59,6 @@ update performance_schema.threads
 let $con4_thread_id= `select THREAD_ID from performance_schema.threads
   where PROCESSLIST_ID = connection_id()`;
 
---echo # Switch to connection default
 --connection default
 
 truncate table performance_schema.events_transactions_current;
@@ -79,7 +74,6 @@ truncate table performance_schema.events_waits_current;
 truncate table performance_schema.events_waits_history;
 truncate table performance_schema.events_waits_history_long;
 
---echo # Switch to connection con1
 --connection con1
 
 XA START 'XA_CON1', 'XA_BQUAL', 12;
@@ -88,7 +82,6 @@ XA END 'XA_CON1', 'XA_BQUAL', 12;
 XA PREPARE 'XA_CON1', 'XA_BQUAL', 12;
 XA COMMIT 'XA_CON1', 'XA_BQUAL', 12;
 
---echo # Switch to connection con2
 --connection con2
 
 XA START 'XA_CON2', 'XA_BQUAL', 12;
@@ -97,7 +90,6 @@ XA END 'XA_CON2', 'XA_BQUAL', 12;
 XA PREPARE 'XA_CON2', 'XA_BQUAL', 12;
 XA COMMIT 'XA_CON2', 'XA_BQUAL', 12;
 
---echo # Switch to connection con3
 --connection con3
 
 XA START 'XA_CON3', 'XA_BQUAL', 12;
@@ -106,7 +98,6 @@ XA END 'XA_CON3', 'XA_BQUAL', 12;
 XA PREPARE 'XA_CON3', 'XA_BQUAL', 12;
 XA COMMIT 'XA_CON3', 'XA_BQUAL', 12;
 
---echo # Switch to connection con4
 --connection con4
 
 XA START 'XA_CON4', 'XA_BQUAL', 12;
@@ -117,165 +108,150 @@ XA COMMIT 'XA_CON4', 'XA_BQUAL', 12;
 
 --connection default
 
---disable_query_log
+echo ########################### Transactions user 1 - 1;
 
-echo "=========================== Transactions user 1";
-
-eval select XID_FORMAT_ID, XID_GTRID, XID_BQUAL from performance_schema.events_transactions_current
+evalp select /*1-1*/ XID_FORMAT_ID, XID_GTRID, XID_BQUAL from performance_schema.events_transactions_current
   where THREAD_ID = $con1_thread_id;
-eval select XID_FORMAT_ID, XID_GTRID, XID_BQUAL from performance_schema.events_transactions_history
+evalp select /*1-1*/ XID_FORMAT_ID, XID_GTRID, XID_BQUAL from performance_schema.events_transactions_history
   where THREAD_ID = $con1_thread_id;
-eval select XID_FORMAT_ID, XID_GTRID, XID_BQUAL from performance_schema.events_transactions_history_long
+evalp select /*1-1*/ XID_FORMAT_ID, XID_GTRID, XID_BQUAL from performance_schema.events_transactions_history_long
   where THREAD_ID = $con1_thread_id;
 
-echo "=========================== Transactions user 2";
+echo ########################### Transactions user 2 - 1;
 
-eval select XID_FORMAT_ID, XID_GTRID, XID_BQUAL from performance_schema.events_transactions_current
+evalp select /*2-1*/ XID_FORMAT_ID, XID_GTRID, XID_BQUAL from performance_schema.events_transactions_current
   where THREAD_ID = $con2_thread_id;
-eval select count(*) from performance_schema.events_transactions_history
+evalp select /*2-1*/ count(*) from performance_schema.events_transactions_history
   where THREAD_ID = $con2_thread_id;
-eval select count(*) from performance_schema.events_transactions_history_long
-  where THREAD_ID = $con2_thread_id;
-
-echo "=========================== Transactions user 3";
-
-eval select count(*) from performance_schema.events_transactions_current
-  where THREAD_ID = $con3_thread_id;
-eval select count(*) from performance_schema.events_transactions_history
-  where THREAD_ID = $con3_thread_id;
-eval select count(*) from performance_schema.events_transactions_history_long
-  where THREAD_ID = $con3_thread_id;
-
-echo "=========================== Transactions user 4";
-
-eval select count(*) from performance_schema.events_transactions_current
-  where THREAD_ID = $con4_thread_id;
-eval select count(*) from performance_schema.events_transactions_history
-  where THREAD_ID = $con4_thread_id;
-eval select count(*) from performance_schema.events_transactions_history_long
-  where THREAD_ID = $con4_thread_id;
-
-echo "=========================== Statements user 1";
-
-eval select EVENT_NAME, SQL_TEXT from performance_schema.events_statements_current
-  where THREAD_ID = $con1_thread_id
-  order by THREAD_ID, EVENT_ID;
-eval select EVENT_NAME, SQL_TEXT from performance_schema.events_statements_history
-  where THREAD_ID = $con1_thread_id
-  order by THREAD_ID, EVENT_ID;
-eval select EVENT_NAME, SQL_TEXT from performance_schema.events_statements_history_long
-  where THREAD_ID = $con1_thread_id
-  order by THREAD_ID, EVENT_ID;
-
-echo "=========================== Statements user 2";
-
-eval select EVENT_NAME, SQL_TEXT from performance_schema.events_statements_current
-  where THREAD_ID = $con2_thread_id
-  order by THREAD_ID, EVENT_ID;
-eval select count(*) from performance_schema.events_statements_history
-  where THREAD_ID = $con2_thread_id;
-eval select count(*) from performance_schema.events_statements_history_long
+evalp select /*2-1*/ count(*) from performance_schema.events_transactions_history_long
   where THREAD_ID = $con2_thread_id;
 
-echo "=========================== Statements user 3";
+echo ########################### Transactions user 3 - 1;
 
-eval select count(*) from performance_schema.events_statements_current
+evalp select /*3-1*/ count(*) from performance_schema.events_transactions_current
   where THREAD_ID = $con3_thread_id;
-eval select count(*) from performance_schema.events_statements_history
+evalp select /*3-1*/ count(*) from performance_schema.events_transactions_history
   where THREAD_ID = $con3_thread_id;
-eval select count(*) from performance_schema.events_statements_history_long
+evalp select /*3-1*/ count(*) from performance_schema.events_transactions_history_long
   where THREAD_ID = $con3_thread_id;
 
-echo "=========================== Statements user 4";
+echo ########################### Transactions user 4 - 1;
 
-eval select count(*) from performance_schema.events_statements_current
+evalp select /*4-1*/ count(*) from performance_schema.events_transactions_current
   where THREAD_ID = $con4_thread_id;
-eval select count(*) from performance_schema.events_statements_history
+evalp select /*4-1*/ count(*) from performance_schema.events_transactions_history
   where THREAD_ID = $con4_thread_id;
-eval select count(*) from performance_schema.events_statements_history_long
+evalp select /*4-1*/ count(*) from performance_schema.events_transactions_history_long
   where THREAD_ID = $con4_thread_id;
 
-echo "=========================== Stages user 1";
+echo ########################### Statements user 1 - 1;
 
-eval select EVENT_NAME from performance_schema.events_stages_current
-  where THREAD_ID = $con1_thread_id
-  order by THREAD_ID, EVENT_ID;
-eval select EVENT_NAME from performance_schema.events_stages_history
-  where THREAD_ID = $con1_thread_id
-  order by THREAD_ID, EVENT_ID;
-eval select EVENT_NAME from performance_schema.events_stages_history_long
-  where THREAD_ID = $con1_thread_id
-  order by THREAD_ID, EVENT_ID;
+evalp select /*1-1*/ EVENT_NAME, SQL_TEXT from performance_schema.events_statements_current
+  where THREAD_ID = $con1_thread_id order by THREAD_ID, EVENT_ID;
+evalp select /*1-1*/ EVENT_NAME, SQL_TEXT from performance_schema.events_statements_history
+  where THREAD_ID = $con1_thread_id order by THREAD_ID, EVENT_ID;
+evalp select /*1-1*/ EVENT_NAME, SQL_TEXT from performance_schema.events_statements_history_long
+  where THREAD_ID = $con1_thread_id order by THREAD_ID, EVENT_ID;
 
-echo "=========================== Stages user 2";
+echo ########################### Statements user 2 - 1;
 
-eval select EVENT_NAME from performance_schema.events_stages_current
-  where THREAD_ID = $con2_thread_id
-  order by THREAD_ID, EVENT_ID;
-eval select count(*) from performance_schema.events_stages_history
+evalp select /*2-1*/ EVENT_NAME, SQL_TEXT from performance_schema.events_statements_current
+  where THREAD_ID = $con2_thread_id order by THREAD_ID, EVENT_ID;
+evalp select /*2-1*/ count(*) from performance_schema.events_statements_history
   where THREAD_ID = $con2_thread_id;
-eval select count(*) from performance_schema.events_stages_history_long
+evalp select /*2-1*/ count(*) from performance_schema.events_statements_history_long
   where THREAD_ID = $con2_thread_id;
 
-echo "=========================== Stages user 3";
+echo ########################### Statements user 3 - 1;
 
-eval select count(*) from performance_schema.events_stages_current
+evalp select /*3-1*/ count(*) from performance_schema.events_statements_current
   where THREAD_ID = $con3_thread_id;
-eval select count(*) from performance_schema.events_stages_history
+evalp select /*3-1*/ count(*) from performance_schema.events_statements_history
   where THREAD_ID = $con3_thread_id;
-eval select count(*) from performance_schema.events_stages_history_long
+evalp select /*3-1*/ count(*) from performance_schema.events_statements_history_long
   where THREAD_ID = $con3_thread_id;
 
-echo "=========================== Stages user 4";
+echo ########################### Statements user 4 - 1;
 
-eval select count(*) from performance_schema.events_stages_current
+evalp select /*4-1*/ count(*) from performance_schema.events_statements_current
   where THREAD_ID = $con4_thread_id;
-eval select count(*) from performance_schema.events_stages_history
+evalp select /*4-1*/ count(*) from performance_schema.events_statements_history
   where THREAD_ID = $con4_thread_id;
-eval select count(*) from performance_schema.events_stages_history_long
+evalp select /*4-1*/ count(*) from performance_schema.events_statements_history_long
   where THREAD_ID = $con4_thread_id;
 
-echo "=========================== Waits user 1";
+echo ########################### Stages user 1 - 1;
 
-eval select EVENT_NAME from performance_schema.events_waits_current
-  where THREAD_ID = $con1_thread_id
-  order by THREAD_ID, EVENT_ID;
-eval select (count(*) > 5) as has_waits from performance_schema.events_waits_history
+evalp select /*1-1*/ EVENT_NAME from performance_schema.events_stages_current
+  where THREAD_ID = $con1_thread_id order by THREAD_ID, EVENT_ID;
+evalp select /*1-1*/ EVENT_NAME from performance_schema.events_stages_history
+  where THREAD_ID = $con1_thread_id order by THREAD_ID, EVENT_ID;
+evalp select /*1-1*/ EVENT_NAME from performance_schema.events_stages_history_long
+  where THREAD_ID = $con1_thread_id order by THREAD_ID, EVENT_ID;
+
+echo ########################### Stages user 2 - 1;
+
+evalp select /*2-1*/ EVENT_NAME from performance_schema.events_stages_current
+  where THREAD_ID = $con2_thread_id order by THREAD_ID, EVENT_ID;
+evalp select /*2-1*/ count(*) from performance_schema.events_stages_history
+  where THREAD_ID = $con2_thread_id;
+evalp select /*2-1*/ count(*) from performance_schema.events_stages_history_long
+  where THREAD_ID = $con2_thread_id;
+
+echo ########################### Stages user 3 - 1;
+
+evalp select /*3-1*/ count(*) from performance_schema.events_stages_current
+  where THREAD_ID = $con3_thread_id;
+evalp select /*3-1*/ count(*) from performance_schema.events_stages_history
+  where THREAD_ID = $con3_thread_id;
+evalp select /*3-1*/ count(*) from performance_schema.events_stages_history_long
+  where THREAD_ID = $con3_thread_id;
+
+echo ########################### Stages user 4 - 1;
+
+evalp select /*4-1*/ count(*) from performance_schema.events_stages_current
+  where THREAD_ID = $con4_thread_id;
+evalp select /*4-1*/ count(*) from performance_schema.events_stages_history
+  where THREAD_ID = $con4_thread_id;
+evalp select /*4-1*/ count(*) from performance_schema.events_stages_history_long
+  where THREAD_ID = $con4_thread_id;
+
+echo ########################### Waits user 1 - 1;
+
+evalp select /*1-1*/ EVENT_NAME from performance_schema.events_waits_current
+  where THREAD_ID = $con1_thread_id order by THREAD_ID, EVENT_ID;
+evalp select /*1-1*/ (count(*) > 5) as has_waits from performance_schema.events_waits_history
   where THREAD_ID = $con1_thread_id;
-eval select (count(*) > 15) as has_waits from performance_schema.events_waits_history_long
+evalp select /*1-1*/ (count(*) > 15) as has_waits from performance_schema.events_waits_history_long
   where THREAD_ID = $con1_thread_id;
 
-echo "=========================== Waits user 2";
+echo ########################### Waits user 2 - 1;
 
-eval select EVENT_NAME from performance_schema.events_waits_current
-  where THREAD_ID = $con2_thread_id
-  order by THREAD_ID, EVENT_ID;
-eval select count(*) from performance_schema.events_waits_history
+evalp select /*2-1*/ EVENT_NAME from performance_schema.events_waits_current
+  where THREAD_ID = $con2_thread_id order by THREAD_ID, EVENT_ID;
+evalp select /*2-1*/ count(*) from performance_schema.events_waits_history
   where THREAD_ID = $con2_thread_id;
-eval select count(*) from performance_schema.events_waits_history_long
+evalp select /*2-1*/ count(*) from performance_schema.events_waits_history_long
   where THREAD_ID = $con2_thread_id;
 
-echo "=========================== Waits user 3";
+echo ########################### Waits user 3 - 1;
 
-eval select count(*) from performance_schema.events_waits_current
+evalp select /*3-1*/ count(*) from performance_schema.events_waits_current
   where THREAD_ID = $con3_thread_id;
-eval select count(*) from performance_schema.events_waits_history
+evalp select /*3-1*/ count(*) from performance_schema.events_waits_history
   where THREAD_ID = $con3_thread_id;
-eval select count(*) from performance_schema.events_waits_history_long
+evalp select /*3-1*/ count(*) from performance_schema.events_waits_history_long
   where THREAD_ID = $con3_thread_id;
 
-echo "=========================== Waits user 4";
+echo ########################### Waits user 4 - 1;
 
-eval select count(*) from performance_schema.events_waits_current
+evalp select /*4-1*/ count(*) from performance_schema.events_waits_current
   where THREAD_ID = $con4_thread_id;
-eval select count(*) from performance_schema.events_waits_history
+evalp select /*4-1*/ count(*) from performance_schema.events_waits_history
   where THREAD_ID = $con4_thread_id;
-eval select count(*) from performance_schema.events_waits_history_long
+evalp select /*4-1*/ count(*) from performance_schema.events_waits_history_long
   where THREAD_ID = $con4_thread_id;
 
---enable_query_log
-
---echo # Switch to connection default, disable consumers
 --connection default
 
 update performance_schema.setup_consumers
@@ -296,7 +272,6 @@ truncate table performance_schema.events_waits_current;
 truncate table performance_schema.events_waits_history;
 truncate table performance_schema.events_waits_history_long;
 
---echo # Switch to connection con1
 --connection con1
 
 XA START 'XA_CON1', 'XA_BQUAL', 12;
@@ -305,7 +280,6 @@ XA END 'XA_CON1', 'XA_BQUAL', 12;
 XA PREPARE 'XA_CON1', 'XA_BQUAL', 12;
 XA COMMIT 'XA_CON1', 'XA_BQUAL', 12;
 
---echo # Switch to connection con2
 --connection con2
 
 XA START 'XA_CON2', 'XA_BQUAL', 12;
@@ -314,7 +288,6 @@ XA END 'XA_CON2', 'XA_BQUAL', 12;
 XA PREPARE 'XA_CON2', 'XA_BQUAL', 12;
 XA COMMIT 'XA_CON2', 'XA_BQUAL', 12;
 
---echo # Switch to connection con3
 --connection con3
 
 XA START 'XA_CON3', 'XA_BQUAL', 12;
@@ -323,7 +296,6 @@ XA END 'XA_CON3', 'XA_BQUAL', 12;
 XA PREPARE 'XA_CON3', 'XA_BQUAL', 12;
 XA COMMIT 'XA_CON3', 'XA_BQUAL', 12;
 
---echo # Switch to connection con4
 --connection con4
 
 XA START 'XA_CON4', 'XA_BQUAL', 12;
@@ -334,161 +306,150 @@ XA COMMIT 'XA_CON4', 'XA_BQUAL', 12;
 
 --connection default
 
---disable_query_log
+echo ########################### Transactions user 1 - 2;
 
-echo "=========================== Transactions user 1";
-
-eval select XID_FORMAT_ID, XID_GTRID, XID_BQUAL from performance_schema.events_transactions_current
+evalp select /*1-2*/ XID_FORMAT_ID, XID_GTRID, XID_BQUAL from performance_schema.events_transactions_current
   where THREAD_ID = $con1_thread_id;
-eval select count(*) from performance_schema.events_transactions_history
+evalp select /*1-2*/ count(*) from performance_schema.events_transactions_history
   where THREAD_ID = $con1_thread_id;
-eval select count(*) from performance_schema.events_transactions_history_long
+evalp select /*1-2*/ count(*) from performance_schema.events_transactions_history_long
   where THREAD_ID = $con1_thread_id;
 
-echo "=========================== Transactions user 2";
+echo ########################### Transactions user 2 - 2;
 
-eval select XID_FORMAT_ID, XID_GTRID, XID_BQUAL from performance_schema.events_transactions_current
+evalp select /*2-2*/ XID_FORMAT_ID, XID_GTRID, XID_BQUAL from performance_schema.events_transactions_current
   where THREAD_ID = $con2_thread_id;
-eval select count(*) from performance_schema.events_transactions_history
+evalp select /*2-2*/ count(*) from performance_schema.events_transactions_history
   where THREAD_ID = $con2_thread_id;
-eval select count(*) from performance_schema.events_transactions_history_long
+evalp select /*2-2*/ count(*) from performance_schema.events_transactions_history_long
   where THREAD_ID = $con2_thread_id;
 
-echo "=========================== Transactions user 3";
+echo ########################### Transactions user 3 - 2;
 
-eval select count(*) from performance_schema.events_transactions_current
+evalp select /*3-2*/ count(*) from performance_schema.events_transactions_current
   where THREAD_ID = $con3_thread_id;
-eval select count(*) from performance_schema.events_transactions_history
+evalp select /*3-2*/ count(*) from performance_schema.events_transactions_history
   where THREAD_ID = $con3_thread_id;
-eval select count(*) from performance_schema.events_transactions_history_long
+evalp select /*3-2*/ count(*) from performance_schema.events_transactions_history_long
   where THREAD_ID = $con3_thread_id;
 
-echo "=========================== Transactions user 4";
+echo ########################### Transactions user 4 - 2;
 
-eval select count(*) from performance_schema.events_transactions_current
+evalp select /*4-2*/ count(*) from performance_schema.events_transactions_current
   where THREAD_ID = $con4_thread_id;
-eval select count(*) from performance_schema.events_transactions_history
+evalp select /*4-2*/ count(*) from performance_schema.events_transactions_history
   where THREAD_ID = $con4_thread_id;
-eval select count(*) from performance_schema.events_transactions_history_long
+evalp select /*4-2*/ count(*) from performance_schema.events_transactions_history_long
   where THREAD_ID = $con4_thread_id;
 
-echo "=========================== Statements user 1";
+echo ########################### Statements user 1 - 2;
 
-eval select EVENT_NAME, SQL_TEXT from performance_schema.events_statements_current
-  where THREAD_ID = $con1_thread_id
-  order by THREAD_ID, EVENT_ID;
-eval select count(*) from performance_schema.events_statements_history
+evalp select /*1-2*/ EVENT_NAME, SQL_TEXT from performance_schema.events_statements_current
+  where THREAD_ID = $con1_thread_id order by THREAD_ID, EVENT_ID;
+evalp select /*1-2*/ count(*) from performance_schema.events_statements_history
   where THREAD_ID = $con1_thread_id;
-eval select count(*) from performance_schema.events_statements_history_long
-  where THREAD_ID = $con1_thread_id;
-
-echo "=========================== Statements user 2";
-
-eval select EVENT_NAME, SQL_TEXT from performance_schema.events_statements_current
-  where THREAD_ID = $con2_thread_id
-  order by THREAD_ID, EVENT_ID;
-eval select count(*) from performance_schema.events_statements_history
-  where THREAD_ID = $con2_thread_id;
-eval select count(*) from performance_schema.events_statements_history_long
-  where THREAD_ID = $con2_thread_id;
-
-echo "=========================== Statements user 3";
-
-eval select count(*) from performance_schema.events_statements_current
-  where THREAD_ID = $con3_thread_id;
-eval select count(*) from performance_schema.events_statements_history
-  where THREAD_ID = $con3_thread_id;
-eval select count(*) from performance_schema.events_statements_history_long
-  where THREAD_ID = $con3_thread_id;
-
-echo "=========================== Statements user 4";
-
-eval select count(*) from performance_schema.events_statements_current
-  where THREAD_ID = $con4_thread_id;
-eval select count(*) from performance_schema.events_statements_history
-  where THREAD_ID = $con4_thread_id;
-eval select count(*) from performance_schema.events_statements_history_long
-  where THREAD_ID = $con4_thread_id;
-
-echo "=========================== Stages user 1";
-
-eval select EVENT_NAME from performance_schema.events_stages_current
-  where THREAD_ID = $con1_thread_id
-  order by THREAD_ID, EVENT_ID;
-eval select count(*) from performance_schema.events_stages_history
-  where THREAD_ID = $con1_thread_id;
-eval select count(*) from performance_schema.events_stages_history_long
+evalp select /*1-2*/ count(*) from performance_schema.events_statements_history_long
   where THREAD_ID = $con1_thread_id;
 
-echo "=========================== Stages user 2";
+echo ########################### Statements user 2 - 2;
 
-eval select EVENT_NAME from performance_schema.events_stages_current
-  where THREAD_ID = $con2_thread_id
-  order by THREAD_ID, EVENT_ID;
-eval select count(*) from performance_schema.events_stages_history
+evalp select /*2-2*/ EVENT_NAME, SQL_TEXT from performance_schema.events_statements_current
+  where THREAD_ID = $con2_thread_id order by THREAD_ID, EVENT_ID;
+evalp select /*2-2*/ count(*) from performance_schema.events_statements_history
   where THREAD_ID = $con2_thread_id;
-eval select count(*) from performance_schema.events_stages_history_long
+evalp select /*2-2*/ count(*) from performance_schema.events_statements_history_long
   where THREAD_ID = $con2_thread_id;
 
-echo "=========================== Stages user 3";
+echo ########################### Statements user 3 - 2;
 
-eval select count(*) from performance_schema.events_stages_current
+evalp select /*3-2*/ count(*) from performance_schema.events_statements_current
   where THREAD_ID = $con3_thread_id;
-eval select count(*) from performance_schema.events_stages_history
+evalp select /*3-2*/ count(*) from performance_schema.events_statements_history
   where THREAD_ID = $con3_thread_id;
-eval select count(*) from performance_schema.events_stages_history_long
+evalp select /*3-2*/ count(*) from performance_schema.events_statements_history_long
   where THREAD_ID = $con3_thread_id;
 
-echo "=========================== Stages user 4";
+echo ########################### Statements user 4 - 2;
 
-eval select count(*) from performance_schema.events_stages_current
+evalp select /*4-2*/ count(*) from performance_schema.events_statements_current
   where THREAD_ID = $con4_thread_id;
-eval select count(*) from performance_schema.events_stages_history
+evalp select /*4-2*/ count(*) from performance_schema.events_statements_history
   where THREAD_ID = $con4_thread_id;
-eval select count(*) from performance_schema.events_stages_history_long
+evalp select /*4-2*/ count(*) from performance_schema.events_statements_history_long
   where THREAD_ID = $con4_thread_id;
 
-echo "=========================== Waits user 1";
+echo ########################### Stages user 1 - 2;
 
-eval select EVENT_NAME from performance_schema.events_waits_current
-  where THREAD_ID = $con1_thread_id
-  order by THREAD_ID, EVENT_ID;
-eval select count(*) as has_waits from performance_schema.events_waits_history
+evalp select /*1-2*/ EVENT_NAME from performance_schema.events_stages_current
+  where THREAD_ID = $con1_thread_id order by THREAD_ID, EVENT_ID;
+evalp select /*1-2*/ count(*) from performance_schema.events_stages_history
   where THREAD_ID = $con1_thread_id;
-eval select count(*) as has_waits from performance_schema.events_waits_history_long
+evalp select /*1-2*/ count(*) from performance_schema.events_stages_history_long
   where THREAD_ID = $con1_thread_id;
 
-echo "=========================== Waits user 2";
+echo ########################### Stages user 2 - 2;
 
-eval select EVENT_NAME from performance_schema.events_waits_current
-  where THREAD_ID = $con2_thread_id
-  order by THREAD_ID, EVENT_ID;
-eval select count(*) from performance_schema.events_waits_history
+evalp select /*2-2*/ EVENT_NAME from performance_schema.events_stages_current
+  where THREAD_ID = $con2_thread_id order by THREAD_ID, EVENT_ID;
+evalp select /*2-2*/ count(*) from performance_schema.events_stages_history
   where THREAD_ID = $con2_thread_id;
-eval select count(*) from performance_schema.events_waits_history_long
+evalp select /*2-2*/ count(*) from performance_schema.events_stages_history_long
   where THREAD_ID = $con2_thread_id;
 
-echo "=========================== Waits user 3";
+echo ########################### Stages user 3 - 2;
 
-eval select count(*) from performance_schema.events_waits_current
+evalp select /*3-2*/ count(*) from performance_schema.events_stages_current
   where THREAD_ID = $con3_thread_id;
-eval select count(*) from performance_schema.events_waits_history
+evalp select /*3-2*/ count(*) from performance_schema.events_stages_history
   where THREAD_ID = $con3_thread_id;
-eval select count(*) from performance_schema.events_waits_history_long
+evalp select /*3-2*/ count(*) from performance_schema.events_stages_history_long
   where THREAD_ID = $con3_thread_id;
 
-echo "=========================== Waits user 4";
+echo ########################### Stages user 4 - 2;
 
-eval select count(*) from performance_schema.events_waits_current
+evalp select /*4-2*/ count(*) from performance_schema.events_stages_current
   where THREAD_ID = $con4_thread_id;
-eval select count(*) from performance_schema.events_waits_history
+evalp select /*4-2*/ count(*) from performance_schema.events_stages_history
   where THREAD_ID = $con4_thread_id;
-eval select count(*) from performance_schema.events_waits_history_long
+evalp select /*4-2*/ count(*) from performance_schema.events_stages_history_long
   where THREAD_ID = $con4_thread_id;
 
---enable_query_log
+echo ########################### Waits user 1 - 2;
 
---echo # Switch to connection default, enable consumers
+evalp select /*1-2*/ EVENT_NAME from performance_schema.events_waits_current
+  where THREAD_ID = $con1_thread_id order by THREAD_ID, EVENT_ID;
+evalp select /*1-2*/ count(*) as has_waits from performance_schema.events_waits_history
+  where THREAD_ID = $con1_thread_id;
+evalp select /*1-2*/ count(*) as has_waits from performance_schema.events_waits_history_long
+  where THREAD_ID = $con1_thread_id;
+
+echo ########################### Waits user 2 - 2;
+
+evalp select /*2-2*/ EVENT_NAME from performance_schema.events_waits_current
+  where THREAD_ID = $con2_thread_id order by THREAD_ID, EVENT_ID;
+evalp select /*2-2*/ count(*) from performance_schema.events_waits_history
+  where THREAD_ID = $con2_thread_id;
+evalp select /*2-2*/ count(*) from performance_schema.events_waits_history_long
+  where THREAD_ID = $con2_thread_id;
+
+echo ########################### Waits user 3 - 2;
+
+evalp select /*3-2*/ count(*) from performance_schema.events_waits_current
+  where THREAD_ID = $con3_thread_id;
+evalp select /*3-2*/ count(*) from performance_schema.events_waits_history
+  where THREAD_ID = $con3_thread_id;
+evalp select /*3-2*/ count(*) from performance_schema.events_waits_history_long
+  where THREAD_ID = $con3_thread_id;
+
+echo ########################### Waits user 4 - 2;
+
+evalp select /*4-2*/ count(*) from performance_schema.events_waits_current
+  where THREAD_ID = $con4_thread_id;
+evalp select /*4-2*/ count(*) from performance_schema.events_waits_history
+  where THREAD_ID = $con4_thread_id;
+evalp select /*4-2*/ count(*) from performance_schema.events_waits_history_long
+  where THREAD_ID = $con4_thread_id;
+
 --connection default
 
 update performance_schema.setup_consumers
@@ -509,7 +470,6 @@ truncate table performance_schema.events_waits_current;
 truncate table performance_schema.events_waits_history;
 truncate table performance_schema.events_waits_history_long;
 
---echo # Switch to connection con1
 --connection con1
 
 XA START 'XA_CON1', 'XA_BQUAL', 12;
@@ -518,7 +478,6 @@ XA END 'XA_CON1', 'XA_BQUAL', 12;
 XA PREPARE 'XA_CON1', 'XA_BQUAL', 12;
 XA COMMIT 'XA_CON1', 'XA_BQUAL', 12;
 
---echo # Switch to connection con2
 --connection con2
 
 XA START 'XA_CON2', 'XA_BQUAL', 12;
@@ -527,7 +486,6 @@ XA END 'XA_CON2', 'XA_BQUAL', 12;
 XA PREPARE 'XA_CON2', 'XA_BQUAL', 12;
 XA COMMIT 'XA_CON2', 'XA_BQUAL', 12;
 
---echo # Switch to connection con3
 --connection con3
 
 XA START 'XA_CON3', 'XA_BQUAL', 12;
@@ -536,7 +494,6 @@ XA END 'XA_CON3', 'XA_BQUAL', 12;
 XA PREPARE 'XA_CON3', 'XA_BQUAL', 12;
 XA COMMIT 'XA_CON3', 'XA_BQUAL', 12;
 
---echo # Switch to connection con4
 --connection con4
 
 XA START 'XA_CON4', 'XA_BQUAL', 12;
@@ -547,165 +504,150 @@ XA COMMIT 'XA_CON4', 'XA_BQUAL', 12;
 
 --connection default
 
---disable_query_log
+echo ########################### Transactions user 1 - 3;
 
-echo "=========================== Transactions user 1";
-
-eval select XID_FORMAT_ID, XID_GTRID, XID_BQUAL from performance_schema.events_transactions_current
+evalp select /*1-3*/ XID_FORMAT_ID, XID_GTRID, XID_BQUAL from performance_schema.events_transactions_current
   where THREAD_ID = $con1_thread_id;
-eval select XID_FORMAT_ID, XID_GTRID, XID_BQUAL from performance_schema.events_transactions_history
+evalp select /*1-3*/ XID_FORMAT_ID, XID_GTRID, XID_BQUAL from performance_schema.events_transactions_history
   where THREAD_ID = $con1_thread_id;
-eval select XID_FORMAT_ID, XID_GTRID, XID_BQUAL from performance_schema.events_transactions_history_long
+evalp select /*1-3*/ XID_FORMAT_ID, XID_GTRID, XID_BQUAL from performance_schema.events_transactions_history_long
   where THREAD_ID = $con1_thread_id;
 
-echo "=========================== Transactions user 2";
+echo ########################### Transactions user 2 - 3;
 
-eval select XID_FORMAT_ID, XID_GTRID, XID_BQUAL from performance_schema.events_transactions_current
+evalp select /*2-3*/ XID_FORMAT_ID, XID_GTRID, XID_BQUAL from performance_schema.events_transactions_current
   where THREAD_ID = $con2_thread_id;
-eval select count(*) from performance_schema.events_transactions_history
+evalp select /*2-3*/ count(*) from performance_schema.events_transactions_history
   where THREAD_ID = $con2_thread_id;
-eval select count(*) from performance_schema.events_transactions_history_long
-  where THREAD_ID = $con2_thread_id;
-
-echo "=========================== Transactions user 3";
-
-eval select count(*) from performance_schema.events_transactions_current
-  where THREAD_ID = $con3_thread_id;
-eval select count(*) from performance_schema.events_transactions_history
-  where THREAD_ID = $con3_thread_id;
-eval select count(*) from performance_schema.events_transactions_history_long
-  where THREAD_ID = $con3_thread_id;
-
-echo "=========================== Transactions user 4";
-
-eval select count(*) from performance_schema.events_transactions_current
-  where THREAD_ID = $con4_thread_id;
-eval select count(*) from performance_schema.events_transactions_history
-  where THREAD_ID = $con4_thread_id;
-eval select count(*) from performance_schema.events_transactions_history_long
-  where THREAD_ID = $con4_thread_id;
-
-echo "=========================== Statements user 1";
-
-eval select EVENT_NAME, SQL_TEXT from performance_schema.events_statements_current
-  where THREAD_ID = $con1_thread_id
-  order by THREAD_ID, EVENT_ID;
-eval select EVENT_NAME, SQL_TEXT from performance_schema.events_statements_history
-  where THREAD_ID = $con1_thread_id
-  order by THREAD_ID, EVENT_ID;
-eval select EVENT_NAME, SQL_TEXT from performance_schema.events_statements_history_long
-  where THREAD_ID = $con1_thread_id
-  order by THREAD_ID, EVENT_ID;
-
-echo "=========================== Statements user 2";
-
-eval select EVENT_NAME, SQL_TEXT from performance_schema.events_statements_current
-  where THREAD_ID = $con2_thread_id
-  order by THREAD_ID, EVENT_ID;
-eval select count(*) from performance_schema.events_statements_history
-  where THREAD_ID = $con2_thread_id;
-eval select count(*) from performance_schema.events_statements_history_long
+evalp select /*2-3*/ count(*) from performance_schema.events_transactions_history_long
   where THREAD_ID = $con2_thread_id;
 
-echo "=========================== Statements user 3";
+echo ########################### Transactions user 3 - 3;
 
-eval select count(*) from performance_schema.events_statements_current
+evalp select /*3-3*/ count(*) from performance_schema.events_transactions_current
   where THREAD_ID = $con3_thread_id;
-eval select count(*) from performance_schema.events_statements_history
+evalp select /*3-3*/ count(*) from performance_schema.events_transactions_history
   where THREAD_ID = $con3_thread_id;
-eval select count(*) from performance_schema.events_statements_history_long
+evalp select /*3-3*/ count(*) from performance_schema.events_transactions_history_long
   where THREAD_ID = $con3_thread_id;
 
-echo "=========================== Statements user 4";
+echo ########################### Transactions user 4 - 3;
 
-eval select count(*) from performance_schema.events_statements_current
+evalp select /*4-3*/ count(*) from performance_schema.events_transactions_current
   where THREAD_ID = $con4_thread_id;
-eval select count(*) from performance_schema.events_statements_history
+evalp select /*4-3*/ count(*) from performance_schema.events_transactions_history
   where THREAD_ID = $con4_thread_id;
-eval select count(*) from performance_schema.events_statements_history_long
+evalp select /*4-3*/ count(*) from performance_schema.events_transactions_history_long
   where THREAD_ID = $con4_thread_id;
 
-echo "=========================== Stages user 1";
+echo ########################### Statements user 1 - 3;
 
-eval select EVENT_NAME from performance_schema.events_stages_current
-  where THREAD_ID = $con1_thread_id
-  order by THREAD_ID, EVENT_ID;
-eval select EVENT_NAME from performance_schema.events_stages_history
-  where THREAD_ID = $con1_thread_id
-  order by THREAD_ID, EVENT_ID;
-eval select EVENT_NAME from performance_schema.events_stages_history_long
-  where THREAD_ID = $con1_thread_id
-  order by THREAD_ID, EVENT_ID;
+evalp select /*1-3*/ EVENT_NAME, SQL_TEXT from performance_schema.events_statements_current
+  where THREAD_ID = $con1_thread_id order by THREAD_ID, EVENT_ID;
+evalp select /*1-3*/ EVENT_NAME, SQL_TEXT from performance_schema.events_statements_history
+  where THREAD_ID = $con1_thread_id order by THREAD_ID, EVENT_ID;
+evalp select /*1-3*/ EVENT_NAME, SQL_TEXT from performance_schema.events_statements_history_long
+  where THREAD_ID = $con1_thread_id order by THREAD_ID, EVENT_ID;
 
-echo "=========================== Stages user 2";
+echo ########################### Statements user 2 - 3;
 
-eval select EVENT_NAME from performance_schema.events_stages_current
-  where THREAD_ID = $con2_thread_id
-  order by THREAD_ID, EVENT_ID;
-eval select count(*) from performance_schema.events_stages_history
+evalp select /*2-3*/ EVENT_NAME, SQL_TEXT from performance_schema.events_statements_current
+  where THREAD_ID = $con2_thread_id order by THREAD_ID, EVENT_ID;
+evalp select /*2-3*/ count(*) from performance_schema.events_statements_history
   where THREAD_ID = $con2_thread_id;
-eval select count(*) from performance_schema.events_stages_history_long
+evalp select /*2-3*/ count(*) from performance_schema.events_statements_history_long
   where THREAD_ID = $con2_thread_id;
 
-echo "=========================== Stages user 3";
+echo ########################### Statements user 3 - 3;
 
-eval select count(*) from performance_schema.events_stages_current
+evalp select /*3-3*/ count(*) from performance_schema.events_statements_current
   where THREAD_ID = $con3_thread_id;
-eval select count(*) from performance_schema.events_stages_history
+evalp select /*3-3*/ count(*) from performance_schema.events_statements_history
   where THREAD_ID = $con3_thread_id;
-eval select count(*) from performance_schema.events_stages_history_long
+evalp select /*3-3*/ count(*) from performance_schema.events_statements_history_long
   where THREAD_ID = $con3_thread_id;
 
-echo "=========================== Stages user 4";
+echo ########################### Statements user 4 - 3;
 
-eval select count(*) from performance_schema.events_stages_current
+evalp select /*4-3*/ count(*) from performance_schema.events_statements_current
   where THREAD_ID = $con4_thread_id;
-eval select count(*) from performance_schema.events_stages_history
+evalp select /*4-3*/ count(*) from performance_schema.events_statements_history
   where THREAD_ID = $con4_thread_id;
-eval select count(*) from performance_schema.events_stages_history_long
+evalp select /*4-3*/ count(*) from performance_schema.events_statements_history_long
   where THREAD_ID = $con4_thread_id;
 
-echo "=========================== Waits user 1";
+echo ########################### Stages user 1 - 3;
 
-eval select EVENT_NAME from performance_schema.events_waits_current
-  where THREAD_ID = $con1_thread_id
-  order by THREAD_ID, EVENT_ID;
-eval select (count(*) > 5) as has_waits from performance_schema.events_waits_history
+evalp select /*1-3*/ EVENT_NAME from performance_schema.events_stages_current
+  where THREAD_ID = $con1_thread_id order by THREAD_ID, EVENT_ID;
+evalp select /*1-3*/ EVENT_NAME from performance_schema.events_stages_history
+  where THREAD_ID = $con1_thread_id order by THREAD_ID, EVENT_ID;
+evalp select /*1-3*/ EVENT_NAME from performance_schema.events_stages_history_long
+  where THREAD_ID = $con1_thread_id order by THREAD_ID, EVENT_ID;
+
+echo ########################### Stages user 2 - 3;
+
+evalp select /*2-3*/ EVENT_NAME from performance_schema.events_stages_current
+  where THREAD_ID = $con2_thread_id order by THREAD_ID, EVENT_ID;
+evalp select /*2-3*/ count(*) from performance_schema.events_stages_history
+  where THREAD_ID = $con2_thread_id;
+evalp select /*2-3*/ count(*) from performance_schema.events_stages_history_long
+  where THREAD_ID = $con2_thread_id;
+
+echo ########################### Stages user 3 - 3;
+
+evalp select /*3-3*/ count(*) from performance_schema.events_stages_current
+  where THREAD_ID = $con3_thread_id;
+evalp select /*3-3*/ count(*) from performance_schema.events_stages_history
+  where THREAD_ID = $con3_thread_id;
+evalp select /*3-3*/ count(*) from performance_schema.events_stages_history_long
+  where THREAD_ID = $con3_thread_id;
+
+echo ########################### Stages user 4 - 3;
+
+evalp select /*4-3*/ count(*) from performance_schema.events_stages_current
+  where THREAD_ID = $con4_thread_id;
+evalp select /*4-3*/ count(*) from performance_schema.events_stages_history
+  where THREAD_ID = $con4_thread_id;
+evalp select /*4-3*/ count(*) from performance_schema.events_stages_history_long
+  where THREAD_ID = $con4_thread_id;
+
+echo ########################### Waits user 1 - 3;
+
+evalp select /*1-3*/ EVENT_NAME from performance_schema.events_waits_current
+  where THREAD_ID = $con1_thread_id order by THREAD_ID, EVENT_ID;
+evalp select /*1-3*/ (count(*) > 5) as has_waits from performance_schema.events_waits_history
   where THREAD_ID = $con1_thread_id;
-eval select (count(*) > 15) as has_waits from performance_schema.events_waits_history_long
+evalp select /*1-3*/ (count(*) > 15) as has_waits from performance_schema.events_waits_history_long
   where THREAD_ID = $con1_thread_id;
 
-echo "=========================== Waits user 2";
+echo ########################### Waits user 2 - 3;
 
-eval select EVENT_NAME from performance_schema.events_waits_current
-  where THREAD_ID = $con2_thread_id
-  order by THREAD_ID, EVENT_ID;
-eval select count(*) from performance_schema.events_waits_history
+evalp select /*2-3*/ EVENT_NAME from performance_schema.events_waits_current
+  where THREAD_ID = $con2_thread_id order by THREAD_ID, EVENT_ID;
+evalp select /*2-3*/ count(*) from performance_schema.events_waits_history
   where THREAD_ID = $con2_thread_id;
-eval select count(*) from performance_schema.events_waits_history_long
+evalp select /*2-3*/ count(*) from performance_schema.events_waits_history_long
   where THREAD_ID = $con2_thread_id;
 
-echo "=========================== Waits user 3";
+echo ########################### Waits user 3 - 3;
 
-eval select count(*) from performance_schema.events_waits_current
+evalp select /*3-3*/ count(*) from performance_schema.events_waits_current
   where THREAD_ID = $con3_thread_id;
-eval select count(*) from performance_schema.events_waits_history
+evalp select /*3-3*/ count(*) from performance_schema.events_waits_history
   where THREAD_ID = $con3_thread_id;
-eval select count(*) from performance_schema.events_waits_history_long
+evalp select /*3-3*/ count(*) from performance_schema.events_waits_history_long
   where THREAD_ID = $con3_thread_id;
 
-echo "=========================== Waits user 4";
+echo ########################### Waits user 4 - 3;
 
-eval select count(*) from performance_schema.events_waits_current
+evalp select /*4-3*/ count(*) from performance_schema.events_waits_current
   where THREAD_ID = $con4_thread_id;
-eval select count(*) from performance_schema.events_waits_history
+evalp select /*4-3*/ count(*) from performance_schema.events_waits_history
   where THREAD_ID = $con4_thread_id;
-eval select count(*) from performance_schema.events_waits_history_long
+evalp select /*4-3*/ count(*) from performance_schema.events_waits_history_long
   where THREAD_ID = $con4_thread_id;
 
---enable_query_log
-
---echo # Switch to connection default
 --connection default
 
 revoke all privileges, grant option from user1@localhost;

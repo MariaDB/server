@@ -19,3 +19,5 @@ galera_ipv6_mariabackup_section : temporarily disabled at the request of Codersh
 # Opensuse/suse/rocky9/rocky84/rhel9/rhel8-ppc64le .. - all same IPv6 isn't configured right or skipping or galera
 galera_ipv6_rsync : Can't connect to server on '::1' (115)
 galera_ipv6_rsync_section : Can't connect to server on '::1' (115)
+MDEV-29171 : MDEV-33842 galera_3nodes.MDEV-29171 fails on shutdown_server
+GCF-354 : MDEV-25614 Galera test failure on GCF-354

@@ -199,8 +199,9 @@ OPTION(NOT_FOR_DISTRIBUTION "Allow linking with GPLv2-incompatible system librar
 #  Can be switched on only for debug build.
 #
 OPTION(WITH_PROTECT_STATEMENT_MEMROOT "Enable protection of statement's memory root after first SP/PS execution. Turned into account only for debug build" OFF)
-IF (CMAKE_BUILD_TYPE MATCHES "Debug" AND WITH_PROTECT_STATEMENT_MEMROOT)
-  ADD_DEFINITIONS(-DPROTECT_STATEMENT_MEMROOT)
+IF (WITH_PROTECT_STATEMENT_MEMROOT)
+  SET(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -DPROTECT_STATEMENT_MEMROOT")
+  SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DPROTECT_STATEMENT_MEMROOT")
 ENDIF()
 
 INCLUDE(check_compiler_flag)

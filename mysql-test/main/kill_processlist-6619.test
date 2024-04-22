@@ -4,23 +4,24 @@
 --source include/not_embedded.inc
 --source include/have_debug_sync.inc
 
-# This is to ensure that the following SHOW PROCESSLIST does not show the query
-SET DEBUG_SYNC='dispatch_command_end SIGNAL ready WAIT_FOR go';
---send select 1
+--disable_ps_protocol
+# Ensure no lingering connections from an earlier test run, which can very
+# rarely still be visible in SHOW PROCESSLIST here.
+--let $wait_condition= SELECT COUNT(*) = 1 from information_schema.processlist
+--source include/wait_condition.inc
 
 --connect (con1,localhost,root,,)
-SET DEBUG_SYNC='now wait_for ready';
-SET DEBUG_SYNC='now signal go';
-
 --let $con_id = `SELECT CONNECTION_ID()`
+
+let $wait_condition=select command = 'sleep' from information_schema.processlist where id != $con_id;
+source include/wait_condition.inc;
+
 --replace_result Execute Query
 --replace_column 1 # 3 # 6 # 7 #
 SHOW PROCESSLIST;
 SET DEBUG_SYNC='before_execute_sql_command SIGNAL ready WAIT_FOR go';
 send SHOW PROCESSLIST;
 --connection default
---reap
-
 # We must wait for the SHOW PROCESSLIST query to have started before sending
 # the kill. Otherwise, the KILL may be lost since it is reset at the start of
 # query execution.
@@ -34,9 +35,7 @@ reap;
 SET DEBUG_SYNC='reset';
 
 # Wait until default connection has reset query string
-let $wait_condition=
-  SELECT COUNT(*) = 1 from information_schema.processlist
-  WHERE info is NULL;
+let $wait_condition=select command = 'sleep' from information_schema.processlist where id != $con_id;
 --source include/wait_condition.inc
 
 --replace_result Execute Query

@@ -1745,6 +1745,7 @@ extern my_bool ma_yield_and_check_if_killed(MARIA_HA *info, int inx);
 extern my_bool ma_killed_standalone(MARIA_HA *);
 
 extern uint _ma_file_callback_to_id(void *callback_data);
+extern uint _ma_write_flags_callback(void *callback_data, myf flags);
 extern void free_maria_share(MARIA_SHARE *share);
 
 static inline void unmap_file(MARIA_HA *info __attribute__((unused)))
