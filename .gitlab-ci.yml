@@ -298,6 +298,7 @@ centos7:
       main.flush_logs_not_windows : query 'flush logs' succeeded - should have failed with error ER_CANT_CREATE_FILE (1004)
       main.mysql_upgrade_noengine : upgrade output order does not match the expected
       main.func_math              : MDEV-20966 - Wrong error code
+      main.ssl_autoverify         : See comments by dlenski@ on https://jira.mariadb.org/browse/MDEV-31855; almost everything about the "feature" AND the test are wrong
       " > skiplist
     - ./mtr --suite=main --force --parallel=auto --xml-report=$CI_PROJECT_DIR/junit.xml --skip-test-list=skiplist $RESTART_POLICY
 
