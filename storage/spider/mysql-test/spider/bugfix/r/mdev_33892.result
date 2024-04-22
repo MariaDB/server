@@ -1,0 +1,63 @@
+#
+# MDEV-28854 Spider: Disallow INSERT DELAYED on Spider table
+#
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+connection child2_1;
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+CREATE TABLE tbl_a (id BIGINT);
+INSERT INTO tbl_a VALUES (1), (1), (3), (3), (4), (5);
+connection child2_2;
+CREATE DATABASE auto_test_remote2;
+USE auto_test_remote2;
+CREATE TABLE tbl_b ( id BIGINT PRIMARY KEY);
+INSERT INTO tbl_b VALUES (1), (2), (3);
+connection master_1;
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+CREATE TABLE tbl_a (
+id BIGINT
+) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='table "tbl_a", srv "s_2_1"';
+CREATE TABLE tbl_b (
+id BIGINT PRIMARY KEY
+) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='table "tbl_b", srv "s_2_2"';
+SET @general_log_backup = @@global.general_log;
+SET @log_output_backup = @@global.log_output;
+SET @@global.general_log = 0;
+TRUNCATE TABLE mysql.general_log;
+SET @@global.log_output = "TABLE";
+SET GLOBAL spider_general_log= ON;
+SET @@global.general_log = 1;
+SELECT COUNT(1) FROM tbl_a l INNER JOIN tbl_b le ON l.id = le.id;
+COUNT(1)
+4
+SET @@global.general_log = 0;
+SET GLOBAL spider_general_log= OFF;
+SELECT argument FROM mysql.general_log WHERE argument LIKE '%select%';
+argument
+SELECT COUNT(1) FROM tbl_a l INNER JOIN tbl_b le ON l.id = le.id
+mysql localhost select `id` from `auto_test_remote`.`tbl_a` where (`id` is not null)
+mysql localhost select `id` from `auto_test_remote2`.`tbl_b` where `id` = 1
+mysql localhost select `id` from `auto_test_remote2`.`tbl_b` where `id` = 3
+mysql localhost select `id` from `auto_test_remote2`.`tbl_b` where `id` = 4
+mysql localhost select `id` from `auto_test_remote2`.`tbl_b` where `id` = 5
+connection master_1;
+TRUNCATE TABLE mysql.general_log;
+SET @@global.general_log = @general_log_backup;
+SET @@global.log_output = @log_output_backup;
+DROP DATABASE IF EXISTS auto_test_local;
+connection child2_1;
+DROP DATABASE IF EXISTS auto_test_remote;
+connection child2_2;
+DROP DATABASE IF EXISTS auto_test_remote2;
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
