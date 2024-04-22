@@ -226,3 +226,15 @@ SET default_storage_engine=default;
 DROP FUNCTION DML_FUNC;
 DROP PROCEDURE NESTED_PROC;
 DROP PROCEDURE PREPARE_EXECUTE_PROC;
+
+--echo #
+--echo # MDEV-33931 QUERY_RESPONSE_TIME counts SHOW statements and I_S queries
+--echo # as "writes"
+--echo #
+
+set global query_response_time_stats=1;
+flush query_response_time_read_write;
+select count(*) from information_schema.query_response_time_read_write where write_count > 0;
+select count(*) from information_schema.query_response_time_read_write where write_count > 0;
+select count(*) > 0 from information_schema.query_response_time_read_write where read_count > 0;
+set global query_response_time_stats= 0;
