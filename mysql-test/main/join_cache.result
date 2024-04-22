@@ -962,7 +962,7 @@ Klaipeda
 Panevezys
 # Part 2, join_cache_level=3, Query 7
 EXPLAIN
-SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage)
+SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage) as epx
 FROM Country LEFT JOIN CountryLanguage ON
 (CountryLanguage.Country=Country.Code AND Language='English')
 WHERE 
@@ -971,12 +971,12 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	Country	ALL	NULL	NULL	NULL	NULL	239	Using where
 1	SIMPLE	CountryLanguage	hash_ALL	PRIMARY	#hash#PRIMARY	33	world.Country.Code,const	984	Using where; Using join buffer (flat, BNLH join)
 # Part 2, join_cache_level=3, Query 8
-SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage)
+SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage) as epx
 FROM Country LEFT JOIN CountryLanguage ON
 (CountryLanguage.Country=Country.Code AND Language='English')
 WHERE 
 Country.Population > 10000000;
-Name	IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage)
+Name	epx
 Australia	81.2
 United Kingdom	97.3
 Canada	60.4
@@ -1170,7 +1170,7 @@ Klaipeda
 Panevezys
 # Part 2, join_cache_level=4, Query 7
 EXPLAIN
-SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage)
+SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage) as epx
 FROM Country LEFT JOIN CountryLanguage ON
 (CountryLanguage.Country=Country.Code AND Language='English')
 WHERE 
@@ -1179,12 +1179,12 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	Country	ALL	NULL	NULL	NULL	NULL	239	Using where
 1	SIMPLE	CountryLanguage	hash_ALL	PRIMARY	#hash#PRIMARY	33	world.Country.Code,const	984	Using where; Using join buffer (flat, BNLH join)
 # Part 2, join_cache_level=4, Query 8
-SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage)
+SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage) as epx
 FROM Country LEFT JOIN CountryLanguage ON
 (CountryLanguage.Country=Country.Code AND Language='English')
 WHERE 
 Country.Population > 10000000;
-Name	IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage)
+Name	epx
 Australia	81.2
 United Kingdom	97.3
 Canada	60.4
@@ -1434,7 +1434,7 @@ Klaipeda
 ?iauliai
 Panevezys
 EXPLAIN
-SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage)
+SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage) as epx
 FROM Country LEFT JOIN CountryLanguage ON
 (CountryLanguage.Country=Country.Code AND Language='English')
 WHERE 
@@ -1442,12 +1442,12 @@ Country.Population > 10000000;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	Country	ALL	NULL	NULL	NULL	NULL	239	Using where
 1	SIMPLE	CountryLanguage	eq_ref	PRIMARY	PRIMARY	33	world.Country.Code,const	1	Using where; Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
-SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage)
+SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage) as epx
 FROM Country LEFT JOIN CountryLanguage ON
 (CountryLanguage.Country=Country.Code AND Language='English')
 WHERE 
 Country.Population > 10000000;
-Name	IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage)
+Name	epx
 Australia	81.2
 United Kingdom	97.3
 Canada	60.4
@@ -1631,7 +1631,7 @@ Klaipeda
 ?iauliai
 Panevezys
 EXPLAIN
-SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage)
+SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage) as epx
 FROM Country LEFT JOIN CountryLanguage ON
 (CountryLanguage.Country=Country.Code AND Language='English')
 WHERE 
@@ -1639,12 +1639,12 @@ Country.Population > 10000000;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	Country	ALL	NULL	NULL	NULL	NULL	239	Using where
 1	SIMPLE	CountryLanguage	eq_ref	PRIMARY	PRIMARY	33	world.Country.Code,const	1	Using where; Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
-SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage)
+SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage) as epx
 FROM Country LEFT JOIN CountryLanguage ON
 (CountryLanguage.Country=Country.Code AND Language='English')
 WHERE 
 Country.Population > 10000000;
-Name	IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage)
+Name	epx
 Australia	81.2
 United Kingdom	97.3
 Canada	60.4
@@ -1828,7 +1828,7 @@ Klaipeda
 ?iauliai
 Panevezys
 EXPLAIN
-SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage)
+SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage) as epx
 FROM Country LEFT JOIN CountryLanguage ON
 (CountryLanguage.Country=Country.Code AND Language='English')
 WHERE 
@@ -1836,12 +1836,12 @@ Country.Population > 10000000;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	Country	ALL	NULL	NULL	NULL	NULL	239	Using where
 1	SIMPLE	CountryLanguage	eq_ref	PRIMARY	PRIMARY	33	world.Country.Code,const	1	Using where; Using join buffer (flat, BKAH join); Key-ordered Rowid-ordered scan
-SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage)
+SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage) as epx
 FROM Country LEFT JOIN CountryLanguage ON
 (CountryLanguage.Country=Country.Code AND Language='English')
 WHERE 
 Country.Population > 10000000;
-Name	IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage)
+Name	epx
 Australia	81.2
 United Kingdom	97.3
 Canada	60.4
@@ -2025,7 +2025,7 @@ Klaipeda
 ?iauliai
 Panevezys
 EXPLAIN
-SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage)
+SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage) as epx
 FROM Country LEFT JOIN CountryLanguage ON
 (CountryLanguage.Country=Country.Code AND Language='English')
 WHERE 
@@ -2033,12 +2033,12 @@ Country.Population > 10000000;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	Country	ALL	NULL	NULL	NULL	NULL	239	Using where
 1	SIMPLE	CountryLanguage	eq_ref	PRIMARY	PRIMARY	33	world.Country.Code,const	1	Using where; Using join buffer (flat, BKAH join); Key-ordered Rowid-ordered scan
-SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage)
+SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage) as epx
 FROM Country LEFT JOIN CountryLanguage ON
 (CountryLanguage.Country=Country.Code AND Language='English')
 WHERE 
 Country.Population > 10000000;
-Name	IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage)
+Name	epx
 Australia	81.2
 United Kingdom	97.3
 Canada	60.4
