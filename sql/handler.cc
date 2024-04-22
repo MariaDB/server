@@ -6995,7 +6995,6 @@ extern "C" check_result_t handler_index_cond_check(void* h_arg)
   check_result_t res;
 
   DEBUG_SYNC(thd, "handler_index_cond_check");
-  DBUG_ASSERT(h->handler_stats);
 
   enum thd_kill_levels killed= thd_kill_level(thd);
   if (unlikely(killed != THD_IS_NOT_KILLED))
@@ -7009,13 +7008,15 @@ extern "C" check_result_t handler_index_cond_check(void* h_arg)
   if (unlikely(h->end_range) && h->compare_key2(h->end_range) > 0)
     return CHECK_OUT_OF_RANGE;
   h->increment_statistics(&SSV::ha_icp_attempts);
-  h->handler_stats->icp_attempts++;
+  if (unlikely(h->handler_stats))
+    h->handler_stats->icp_attempts++;
   res= CHECK_NEG;
   if  (h->pushed_idx_cond->val_int())
   {
     res= CHECK_POS;
     h->fast_increment_statistics(&SSV::ha_icp_match);
-    h->handler_stats->icp_match++;
+    if (unlikely(h->handler_stats))
+      h->handler_stats->icp_match++;
   }
   return res;
 }
