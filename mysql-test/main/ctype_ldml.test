@@ -3,9 +3,6 @@
 --source include/have_utf16.inc
 --source include/have_utf32.inc
 
-#remove this include after fix MDEV-27871
---source include/no_view_protocol.inc
-
 --disable_query_log
 call mtr.add_suppression("Charset id.*trying to replace");
 --enable_query_log
@@ -70,25 +67,25 @@ select * from t1 where c1='b';
 drop table t1;
 
 # make sure utf8_test_ci is Unicode-5.0.0
-SELECT hex(weight_string(_utf8mb4'a' collate utf8mb4_test_ci));
-SELECT hex(weight_string(convert(_utf32 0x10002 using utf8mb4) collate utf8mb4_test_ci));
-SELECT hex(@a:=convert(_utf32 0x10400 using utf8mb4) collate utf8mb4_test_ci), hex(lower(@a));
-SELECT hex(@a:=convert(_utf32 0x10428 using utf8mb4) collate utf8mb4_test_ci), hex(upper(@a));
-SELECT hex(@a:=convert(_utf32 0x2C00 using utf8mb4) collate utf8mb4_test_ci), hex(lower(@a));
-SELECT hex(@a:=convert(_utf32 0x2C30 using utf8mb4) collate utf8mb4_test_ci), hex(upper(@a));
+SELECT hex(weight_string(_utf8mb4'a' collate utf8mb4_test_ci)) as exp;
+SELECT hex(weight_string(convert(_utf32 0x10002 using utf8mb4) collate utf8mb4_test_ci)) as exp;
+SELECT hex(@a:=convert(_utf32 0x10400 using utf8mb4) collate utf8mb4_test_ci), hex(lower(@a)) as exp;
+SELECT hex(@a:=convert(_utf32 0x10428 using utf8mb4) collate utf8mb4_test_ci), hex(upper(@a)) as exp;
+SELECT hex(@a:=convert(_utf32 0x2C00 using utf8mb4) collate utf8mb4_test_ci), hex(lower(@a)) as exp;
+SELECT hex(@a:=convert(_utf32 0x2C30 using utf8mb4) collate utf8mb4_test_ci), hex(upper(@a)) as exp;
 
 # check that it works with supplementary characters
-SELECT hex(weight_string(convert(_utf32 0x61 using utf8mb4) collate utf8mb4_test_ci));
-SELECT hex(weight_string(convert(_utf32 0x62 using utf8mb4) collate utf8mb4_test_ci));
-SELECT hex(weight_string(convert(_utf32 0x10062 using utf8mb4) collate utf8mb4_test_ci));
-SELECT hex(weight_string(convert(_utf32 0x10400 using utf8mb4) collate utf8mb4_test_ci));
-SELECT hex(weight_string(convert(_utf32 0x100400 using utf8mb4) collate utf8mb4_test_ci));
+SELECT hex(weight_string(convert(_utf32 0x61 using utf8mb4) collate utf8mb4_test_ci)) as exp;
+SELECT hex(weight_string(convert(_utf32 0x62 using utf8mb4) collate utf8mb4_test_ci)) as exp;
+SELECT hex(weight_string(convert(_utf32 0x10062 using utf8mb4) collate utf8mb4_test_ci)) as exp;
+SELECT hex(weight_string(convert(_utf32 0x10400 using utf8mb4) collate utf8mb4_test_ci)) as exp;
+SELECT hex(weight_string(convert(_utf32 0x100400 using utf8mb4) collate utf8mb4_test_ci)) as exp;
 
 # check contractions with non-ascii characters
-SELECT hex(weight_string(_utf8mb4 0x64 collate utf8mb4_test_ci));
-SELECT hex(weight_string(convert(_ucs2 0x0064017e using utf8mb4) collate utf8mb4_test_ci));
-SELECT hex(weight_string(convert(_ucs2 0x0044017e using utf8mb4) collate utf8mb4_test_ci));
-SELECT hex(weight_string(convert(_ucs2 0x0044017d using utf8mb4) collate utf8mb4_test_ci));
+SELECT hex(weight_string(_utf8mb4 0x64 collate utf8mb4_test_ci)) as exp;
+SELECT hex(weight_string(convert(_ucs2 0x0064017e using utf8mb4) collate utf8mb4_test_ci)) as exp;
+SELECT hex(weight_string(convert(_ucs2 0x0044017e using utf8mb4) collate utf8mb4_test_ci)) as exp;
+SELECT hex(weight_string(convert(_ucs2 0x0044017d using utf8mb4) collate utf8mb4_test_ci)) as exp;
 
 
 #
@@ -189,10 +186,12 @@ show collation like '%test%';
 show collation like 'ucs2_vn_ci';
 create table t1 (c1 char(1) character set ucs2 collate ucs2_vn_ci);
 insert into t1 values (0x0061);
+--disable_view_protocol
 --enable_metadata
 set @@character_set_results=NULL;
 select * from t1;
 --disable_metadata
+--enable_view_protocol
 drop table t1;
 
 #
@@ -212,12 +211,12 @@ show collation like 'utf8mb3_phone_ci';
 SET NAMES utf8;
 
 # make sure utf8mb4_test_400_ci is Unicode-4.0.0 based
-SELECT hex(weight_string(_utf8mb4'a' collate utf8mb4_test_400_ci));
-SELECT hex(weight_string(convert(_utf32 0x10002 using utf8mb4) collate utf8mb4_test_400_ci));
-SELECT hex(@a:=convert(_utf32 0x10400 using utf8mb4) collate utf8mb4_test_400_ci), hex(lower(@a));
-SELECT hex(@a:=convert(_utf32 0x10428 using utf8mb4) collate utf8mb4_test_400_ci), hex(upper(@a));
-SELECT hex(@a:=convert(_utf32 0x2C00 using utf8mb4) collate utf8mb4_test_400_ci), hex(lower(@a));
-SELECT hex(@a:=convert(_utf32 0x2C30 using utf8mb4) collate utf8mb4_test_400_ci), hex(upper(@a));
+SELECT hex(weight_string(_utf8mb4'a' collate utf8mb4_test_400_ci)) as exp;
+SELECT hex(weight_string(convert(_utf32 0x10002 using utf8mb4) collate utf8mb4_test_400_ci)) as exp;
+SELECT hex(@a:=convert(_utf32 0x10400 using utf8mb4) collate utf8mb4_test_400_ci), hex(lower(@a)) as exp;
+SELECT hex(@a:=convert(_utf32 0x10428 using utf8mb4) collate utf8mb4_test_400_ci), hex(upper(@a)) as exp;
+SELECT hex(@a:=convert(_utf32 0x2C00 using utf8mb4) collate utf8mb4_test_400_ci), hex(lower(@a)) as exp;
+SELECT hex(@a:=convert(_utf32 0x2C30 using utf8mb4) collate utf8mb4_test_400_ci), hex(upper(@a)) as exp;
 
 --echo #
 --echo # WL#5624 Collation customization improvements
@@ -281,9 +280,14 @@ DROP TABLE t1;
 SET NAMES utf8 COLLATE utf8_5624_2;
 SHOW WARNINGS;
 
+# "--view-protocol" generates a dublicate error message in ctype_ldml_log.err
+# In one of the following cases, the number of similar error messages is counted,
+# so doubling the error causes the case to fail
+--disable_view_protocol
 --error ER_UNKNOWN_COLLATION
 SELECT _utf8'test' COLLATE utf8_5624_2;
 SHOW WARNINGS;
+--enable_view_protocol
 
 --echo #
 --echo # WL#5624, reset before primary ignorable
@@ -354,7 +358,7 @@ INSERT INTO t1 VALUES
 SELECT HEX(WEIGHT_STRING(a)), HEX(CONVERT(a USING ucs2)), HEX(a)
 FROM t1 ORDER BY a, BINARY(a);
 SELECT HEX(WEIGHT_STRING(a)) as wa,
-GROUP_CONCAT(HEX(CONVERT(a USING ucs2)) ORDER BY LENGTH(a), BINARY a)
+GROUP_CONCAT(HEX(CONVERT(a USING ucs2)) ORDER BY LENGTH(a), BINARY a) as ha
 FROM t1 GROUP BY a ORDER BY a;
 DROP TABLE t1;
 
@@ -405,7 +409,6 @@ perl;
   print "Occurances : $count_error\n";
   close(FILE);
 EOF
-
 
 --echo #
 --echo # MDEV-8686 A user defined collation utf8_confusables doesn't work
@@ -509,6 +512,7 @@ SELECT HEX(a), REPLACE(a,' ','<SP>') FROM t1 ORDER BY a DESC;
 DROP TABLE t1;
 
 
+--disable_service_connection
 SET NAMES utf8 COLLATE utf8_czech_test_w2;
 CREATE TABLE t1 AS SELECT SPACE(10) AS c1 LIMIT 0;
 --source include/ctype_unicode_latin.inc
@@ -610,6 +614,7 @@ SELECT 'chž'< 'i';
 
 --error ER_UNKNOWN_COLLATION
 SELECT 'a' COLLATE utf8_czech_test_bad_w2;
+--enable_service_connection
 
 --echo #
 --echo # End of 10.2 tests

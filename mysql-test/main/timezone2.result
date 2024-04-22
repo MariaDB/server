@@ -2,18 +2,18 @@ drop table if exists t1, t2;
 drop function if exists f1;
 create table t1 (ts timestamp);
 set time_zone='+00:00';
-select unix_timestamp(utc_timestamp())-unix_timestamp(current_timestamp());
-unix_timestamp(utc_timestamp())-unix_timestamp(current_timestamp())
+select unix_timestamp(utc_timestamp())-unix_timestamp(current_timestamp()) as exp;
+exp
 0
 insert into t1 (ts) values ('2003-03-30 02:30:00');
 set time_zone='+10:30';
-select unix_timestamp(utc_timestamp())-unix_timestamp(current_timestamp());
-unix_timestamp(utc_timestamp())-unix_timestamp(current_timestamp())
+select unix_timestamp(utc_timestamp())-unix_timestamp(current_timestamp()) as exp;
+exp
 -37800
 insert into t1 (ts) values ('2003-03-30 02:30:00');
 set time_zone='-10:00';
-select unix_timestamp(utc_timestamp())-unix_timestamp(current_timestamp());
-unix_timestamp(utc_timestamp())-unix_timestamp(current_timestamp())
+select unix_timestamp(utc_timestamp())-unix_timestamp(current_timestamp()) as exp;
+exp
 36000
 insert into t1 (ts) values ('2003-03-30 02:30:00');
 select * from t1;
@@ -239,20 +239,20 @@ tz	convert_tz('2003-12-31 00:00:00',tz,'UTC')	convert_tz('2003-12-31 00:00:00','
 MET	2003-12-30 23:00:00	2003-12-31 01:00:00
 UTC	2003-12-31 00:00:00	2003-12-31 00:00:00
 drop table t1;
-select convert_tz('2003-12-31 04:00:00', NULL, 'UTC');
-convert_tz('2003-12-31 04:00:00', NULL, 'UTC')
+select convert_tz('2003-12-31 04:00:00', NULL, 'UTC') as exp;
+exp
 NULL
-select convert_tz('2003-12-31 04:00:00', 'SomeNotExistingTimeZone', 'UTC');
-convert_tz('2003-12-31 04:00:00', 'SomeNotExistingTimeZone', 'UTC')
+select convert_tz('2003-12-31 04:00:00', 'SomeNotExistingTimeZone', 'UTC') as exp;
+exp
 NULL
-select convert_tz('2003-12-31 04:00:00', 'MET', 'SomeNotExistingTimeZone');
-convert_tz('2003-12-31 04:00:00', 'MET', 'SomeNotExistingTimeZone')
+select convert_tz('2003-12-31 04:00:00', 'MET', 'SomeNotExistingTimeZone') as exp;
+exp
 NULL
-select convert_tz('2003-12-31 04:00:00', 'MET', NULL);
-convert_tz('2003-12-31 04:00:00', 'MET', NULL)
+select convert_tz('2003-12-31 04:00:00', 'MET', NULL) as exp;
+exp
 NULL
-select convert_tz( NULL, 'MET', 'UTC');
-convert_tz( NULL, 'MET', 'UTC')
+select convert_tz( NULL, 'MET', 'UTC') as exp;
+exp
 NULL
 create table t1 (ts timestamp);
 set timestamp=1000000000;
@@ -326,8 +326,8 @@ SET timestamp=DEFAULT;
 #
 # MDEV-5506 safe_mutex: Trying to lock unitialized mutex at safemalloc.c on server shutdown after SELECT with CONVERT_TZ
 #
-SELECT CONVERT_TZ('2001-10-08 00:00:00', MAKE_SET(0,'+01:00'), '+00:00' );
-CONVERT_TZ('2001-10-08 00:00:00', MAKE_SET(0,'+01:00'), '+00:00' )
+SELECT CONVERT_TZ('2001-10-08 00:00:00', MAKE_SET(0,'+01:00'), '+00:00' ) as exp;
+exp
 NULL
 #
 # End of 5.3 tests

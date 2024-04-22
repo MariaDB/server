@@ -2,9 +2,6 @@
 #  Window Functions Tests
 #
 --source include/no_valgrind_without_big.inc
-#remove this include after fix MDEV-27871, MDEV-27938
---source include/no_view_protocol.inc
-
 --source include/have_sequence.inc
 
 --disable_warnings
@@ -694,7 +691,7 @@ select
   a,
   count(col1) over (order by a
                     range between 0.1 preceding
-                                  and 0.1 following)
+                                  and 0.1 following) as count
 from t1;
 
 drop table t1;
@@ -787,38 +784,38 @@ insert into t1 values (2,2,'bar');
 --error ER_RANGE_FRAME_NEEDS_SIMPLE_ORDERBY
 select
   count(*) over (order by a,b
-                 range between unbounded preceding and current row)
+                 range between unbounded preceding and current row) as count
 from t1;
 
 --error ER_WRONG_TYPE_FOR_RANGE_FRAME
 select
   count(*) over (order by c
-                 range between unbounded preceding and current row)
+                 range between unbounded preceding and current row) as count
 from t1;
 
 --error ER_WRONG_TYPE_FOR_RANGE_FRAME
 select
   count(*) over (order by a
-                 range between 'abcd' preceding and current row)
+                 range between 'abcd' preceding and current row) as count
 from t1;
 
 --error ER_WRONG_TYPE_FOR_RANGE_FRAME
 select
   count(*) over (order by a
-                 range between current row and 'foo' following)
+                 range between current row and 'foo' following) as count
 from t1;
 
 --echo # Try range frame with invalid bounds
 --error ER_WRONG_TYPE_FOR_ROWS_FRAME
 select
   count(*) over (order by a
-                 rows between 0.5 preceding and current row)
+                 rows between 0.5 preceding and current row) as count
 from t1;
 
 --error ER_WRONG_TYPE_FOR_ROWS_FRAME
 select
   count(*) over (order by a
-                 rows between current row and 3.14 following)
+                 rows between current row and 3.14 following) as count
 from t1;
 
 --echo #
@@ -829,28 +826,28 @@ from t1;
 select
   count(*) over (order by a
                  rows between 1 preceding and 1 following
-                 exclude current row)
+                 exclude current row) as count
 from t1;
 
 --error ER_FRAME_EXCLUSION_NOT_SUPPORTED
 select
   count(*) over (order by a
                  range between 1 preceding and 1 following
-                 exclude ties)
+                 exclude ties) as count
 from t1;
 
 --error ER_FRAME_EXCLUSION_NOT_SUPPORTED
 select
   count(*) over (order by a
                  range between 1 preceding and 1 following
-                 exclude group)
+                 exclude group) as count
 from t1;
 
 # EXCLUDE NO OTHERS means 'don't exclude anything'
 select
   count(*) over (order by a
                  rows between 1 preceding and 1 following
-                 exclude no others)
+                 exclude no others) as count
 from t1;
 
 drop table t1;
@@ -1027,24 +1024,24 @@ insert into t1 values
 flush status;
 --sorted_result
 select
-  rank() over (partition by c order by a),
-  rank() over (partition by c order by b)
+  rank() over (partition by c order by a) as rank_a,
+  rank() over (partition by c order by b) as rank_b
 from t1;
 show status like '%sort%';
 
 flush status;
 --sorted_result
 select
-  rank() over (partition by c order by a),
-  rank() over (partition by c order by a)
+  rank() over (partition by c order by a) as rank_a,
+  rank() over (partition by c order by a) as rank_b
 from t1;
 show status like '%sort%';
 
 # Check using EXPLAIN FORMAT=JSON
 explain format=json
 select
-  rank() over (partition by c order by a),
-  rank() over (partition by c order by a)
+  rank() over (partition by c order by a) as rank_a,
+  rank() over (partition by c order by a) as rank_b
 from t1;
 
 explain format=json
@@ -1055,14 +1052,14 @@ from t1;
 
 explain format=json
 select
-  rank() over (partition by c order by a),
-  count(*) over (partition by c)
+  rank() over (partition by c order by a) as rank_a,
+  count(*) over (partition by c) as count_c
 from t1;
 
 explain format=json
 select
-  count(*) over (partition by c),
-  rank() over (partition by c order by a)
+  count(*) over (partition by c) as count_c,
+  rank() over (partition by c order by a) as rank_a
 from t1;
 
 drop table t1;
@@ -1137,12 +1134,12 @@ insert into t1 values (1, 4, 8);
 
 select
   pk, a,
-  sum(a) over (order by pk rows between 0 preceding and current row)
+  sum(a) over (order by pk rows between 0 preceding and current row) as sum
 from t1;
 
 select
   pk, a,
-  sum(a) over (order by pk rows between 1 preceding and 0 preceding)
+  sum(a) over (order by pk rows between 1 preceding and 0 preceding) as sum
 from t1;
 
 insert into t1 values (200, 1, 1);
@@ -1151,12 +1148,12 @@ insert into t1 values (200, 3, 4);
 insert into t1 values (200, 4, 8);
 select
   part_id, pk, a,
-  sum(a) over (partition by part_id order by pk rows between 0 preceding and current row)
+  sum(a) over (partition by part_id order by pk rows between 0 preceding and current row) as sum
 from t1;
 
 select
   part_id, pk, a,
-  sum(a) over (partition by part_id order by pk rows between 1 preceding and 0 preceding)
+  sum(a) over (partition by part_id order by pk rows between 1 preceding and 0 preceding) as sum
 from t1;
 
 drop table t1;
@@ -1177,10 +1174,10 @@ insert into t1 values
 (2000, 3),
 (2000, 3);
 
-select          rank() over (partition by part_id order by a) from t1;
-select distinct rank() over (partition by part_id order by a) from t1;
+select          rank() over (partition by part_id order by a) as rank from t1;
+select distinct rank() over (partition by part_id order by a) as rank from t1;
 explain format=json
-select distinct rank() over (partition by part_id order by a) from t1;
+select distinct rank() over (partition by part_id order by a) as rank from t1;
 
 drop table t1;
 
@@ -1237,7 +1234,7 @@ INSERT INTO `orders` VALUES (59940,238);
 SELECT o_custkey, avg(o_custkey) OVER (PARTITION BY abs(o_custkey)
                                        ORDER BY o_custkey
                                        RANGE BETWEEN 15 FOLLOWING
-                                                 AND 15 FOLLOWING) from orders;
+                                                 AND 15 FOLLOWING) as avg from orders;
 DROP table orders;
 
 --echo #
@@ -1374,9 +1371,9 @@ insert into t(a,b) values(1,1);
 insert into t(a,b) values(2,1);
 insert into t(a,b) values(0,1);
 SELECT (CASE WHEN sum(t.a) over (partition by t.b)=0 THEN null ELSE null END) AS a FROM t;
-SELECT ifnull(((t.a) / CASE WHEN sum(t.a) over(partition by t.b) =0 then null else null end) ,0) from t;
+SELECT ifnull(((t.a) / CASE WHEN sum(t.a) over(partition by t.b) =0 then null else null end) ,0)  as result from t;
 SELECT sum(t.a) over (partition by t.b order by a),
-       sqrt(ifnull((sum(t.a) over (partition by t.b order by a)), 0))
+       sqrt(ifnull((sum(t.a) over (partition by t.b order by a)), 0)) as sum
 from t;
 drop table t;
 
@@ -1460,11 +1457,11 @@ INSERT INTO t1 VALUES
 
 --sorted_result
 SELECT id, sum(a) OVER (PARTITION BY id 
-                       ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING)
+                       ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) as sum
 FROM t1;
 
 --sorted_result
-SELECT id, sum(a) OVER (ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING)
+SELECT id, sum(a) OVER (ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) as sum
 FROM t1;
 
 DROP TABLE t1;
@@ -1613,9 +1610,11 @@ select b, max(i+20) over (partition by b) as f
   from (select i+10 as i, b from t1) as tt
 order by i;
 
+--disable_view_protocol
 select max(i), max(i), sum(i), count(i)
   from t1 as tt
 group by b;
+--enable_view_protocol
 
 select max(i), min(sum(i)) over (partition by count(i)) f
   from t1 as tt
@@ -1629,9 +1628,11 @@ select max(i+10), min(sum(i)+10) over (partition by count(i)) f
   from t1 as tt
 group by b;
 
+--disable_view_protocol
 select max(i), max(i), sum(i), count(i)
   from (select i+10 as i, b from t1) as tt
 group by b;
+--enable_view_protocol
 
 select max(i), min(sum(i)) over (partition by count(i)) f
   from (select i+10 as i, b from t1) as tt
@@ -1946,7 +1947,7 @@ DROP TABLE t1;
 --echo #
 CREATE TABLE t1 (c CHAR(8)) ENGINE=MyISAM;
 INSERT IGNORE INTO t1 VALUES ('foo');
-SELECT ('bar',1) IN ( SELECT c, ROW_NUMBER() OVER (PARTITION BY c) FROM t1);
+SELECT ('bar',1) IN ( SELECT c, ROW_NUMBER() OVER (PARTITION BY c) FROM t1) as result;
 DROP TABLE t1;
 
 --echo #
@@ -1977,7 +1978,7 @@ DROP TABLE t1;
 
 CREATE TABLE t1 (dt DATETIME);
 INSERT INTO t1 VALUES ('2017-05-17');
-SELECT MAX(dt) OVER (ORDER BY dt ROWS BETWEEN 1 FOLLOWING AND 1 FOLLOWING) FROM t1;
+SELECT MAX(dt) OVER (ORDER BY dt ROWS BETWEEN 1 FOLLOWING AND 1 FOLLOWING) as result FROM t1;
 DROP TABLE t1;
 
 --echo #
@@ -2767,6 +2768,8 @@ FROM t1
 GROUP BY nullif(id, 15532);
 drop table t1;
 
+#Dublicate warnings
+--disable_view_protocol
 CREATE TABLE t1 ( a char(25), b text);
 INSERT INTO t1 VALUES ('foo','bar');
 
@@ -2778,6 +2781,7 @@ GROUP BY
   LEFT((SYSDATE()), 'foo')
 WITH ROLLUP;
 drop table t1;
+--enable_view_protocol
 
 --echo #
 --echo #

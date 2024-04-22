@@ -846,11 +846,8 @@ insert into t3 select a,a from t0;
 explain
 select * from t1 left join (t2 join t3 on t3.pk=1000) on t2.a=t1.a and t2.pk is null;
 
-#enable after fix MDEV-27871
---disable_view_protocol
-select JSON_DETAILED(JSON_EXTRACT(trace, '$**.mark_join_nest_as_const'))
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.mark_join_nest_as_const')) as jd
 from information_schema.optimizer_trace;
---enable_view_protocol
 
 drop table t0, t1, t2, t3;
 
@@ -858,8 +855,6 @@ drop table t0, t1, t2, t3;
 --echo # MDEV-23767: IN-to-subquery conversion is not visible in optimizer trace
 --echo #
 
-#enable after fix MDEV-27871
---disable_view_protocol
 create table t0 (a int);
 INSERT INTO t0 VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 
@@ -868,21 +863,20 @@ set in_predicate_conversion_threshold=3;
 
 explain select * from t0 where a in (1,2,3,4,5,6);
 
-select json_detailed(json_extract(trace, '$**.in_to_subquery_conversion'))
+select json_detailed(json_extract(trace, '$**.in_to_subquery_conversion')) as jd
 from information_schema.optimizer_trace;
 
 explain select * from t0 where a in (1,2,3,4,5,a+1);
 
-select json_detailed(json_extract(trace, '$**.in_to_subquery_conversion'))
+select json_detailed(json_extract(trace, '$**.in_to_subquery_conversion')) as jd
 from information_schema.optimizer_trace;
 
 explain select * from t0 where a in ('1','2','3','4','5','6');
-select json_detailed(json_extract(trace, '$**.in_to_subquery_conversion'))
+select json_detailed(json_extract(trace, '$**.in_to_subquery_conversion')) as jd
 from information_schema.optimizer_trace;
 
 set in_predicate_conversion_threshold=@tmp;
 drop table t0;
---enable_view_protocol
 
 --echo #
 --echo # MDEV-29298: INSERT ... SELECT Does not produce an optimizer trace

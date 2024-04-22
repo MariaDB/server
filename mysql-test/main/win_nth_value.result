@@ -75,9 +75,9 @@ pk	a	nth_value(pk, pk) over (partition by a order by pk)	nth_value(pk, a + 1) ov
 11	2	NULL	9
 select pk,
 a,
-nth_value(pk, 1) over (partition by a order by pk ROWS between 1 preceding and 1 following)
+nth_value(pk, 1) over (partition by a order by pk ROWS between 1 preceding and 1 following) as nth
 from t1;
-pk	a	nth_value(pk, 1) over (partition by a order by pk ROWS between 1 preceding and 1 following)
+pk	a	nth
 1	0	1
 2	0	1
 3	0	2
@@ -91,21 +91,21 @@ pk	a	nth_value(pk, 1) over (partition by a order by pk ROWS between 1 preceding 
 11	2	10
 select pk,
 a,
-nth_value(a, 1) over (order by a RANGE BETWEEN 1 preceding and 1 following),
-nth_value(a, 2) over (order by a RANGE BETWEEN 1 preceding and 1 following),
-nth_value(a, 3) over (order by a RANGE BETWEEN 1 preceding and 1 following),
-nth_value(a, 4) over (order by a RANGE BETWEEN 1 preceding and 1 following),
-nth_value(a, 5) over (order by a RANGE BETWEEN 1 preceding and 1 following),
-nth_value(a, 6) over (order by a RANGE BETWEEN 1 preceding and 1 following),
-nth_value(a, 7) over (order by a RANGE BETWEEN 1 preceding and 1 following),
-nth_value(a, 8) over (order by a RANGE BETWEEN 1 preceding and 1 following),
-nth_value(a, 9) over (order by a RANGE BETWEEN 1 preceding and 1 following),
-nth_value(a, 10) over (order by a RANGE BETWEEN 1 preceding and 1 following),
-nth_value(a, 11) over (order by a RANGE BETWEEN 1 preceding and 1 following),
-nth_value(a, 12) over (order by a RANGE BETWEEN 1 preceding and 1 following)
+nth_value(a, 1) over (order by a RANGE BETWEEN 1 preceding and 1 following) as nth1,
+nth_value(a, 2) over (order by a RANGE BETWEEN 1 preceding and 1 following) as nth2,
+nth_value(a, 3) over (order by a RANGE BETWEEN 1 preceding and 1 following) as nth3,
+nth_value(a, 4) over (order by a RANGE BETWEEN 1 preceding and 1 following) as nth4,
+nth_value(a, 5) over (order by a RANGE BETWEEN 1 preceding and 1 following) as nth5,
+nth_value(a, 6) over (order by a RANGE BETWEEN 1 preceding and 1 following) as nth6,
+nth_value(a, 7) over (order by a RANGE BETWEEN 1 preceding and 1 following) as nth7,
+nth_value(a, 8) over (order by a RANGE BETWEEN 1 preceding and 1 following) as nth8,
+nth_value(a, 9) over (order by a RANGE BETWEEN 1 preceding and 1 following) as nth9,
+nth_value(a, 10) over (order by a RANGE BETWEEN 1 preceding and 1 following) as nth10,
+nth_value(a, 11) over (order by a RANGE BETWEEN 1 preceding and 1 following) as nth11,
+nth_value(a, 12) over (order by a RANGE BETWEEN 1 preceding and 1 following) as nth12
 from t1
 order by pk asc;
-pk	a	nth_value(a, 1) over (order by a RANGE BETWEEN 1 preceding and 1 following)	nth_value(a, 2) over (order by a RANGE BETWEEN 1 preceding and 1 following)	nth_value(a, 3) over (order by a RANGE BETWEEN 1 preceding and 1 following)	nth_value(a, 4) over (order by a RANGE BETWEEN 1 preceding and 1 following)	nth_value(a, 5) over (order by a RANGE BETWEEN 1 preceding and 1 following)	nth_value(a, 6) over (order by a RANGE BETWEEN 1 preceding and 1 following)	nth_value(a, 7) over (order by a RANGE BETWEEN 1 preceding and 1 following)	nth_value(a, 8) over (order by a RANGE BETWEEN 1 preceding and 1 following)	nth_value(a, 9) over (order by a RANGE BETWEEN 1 preceding and 1 following)	nth_value(a, 10) over (order by a RANGE BETWEEN 1 preceding and 1 following)	nth_value(a, 11) over (order by a RANGE BETWEEN 1 preceding and 1 following)	nth_value(a, 12) over (order by a RANGE BETWEEN 1 preceding and 1 following)
+pk	a	nth1	nth2	nth3	nth4	nth5	nth6	nth7	nth8	nth9	nth10	nth11	nth12
 1	0	0	0	0	1	1	1	NULL	NULL	NULL	NULL	NULL	NULL
 2	0	0	0	0	1	1	1	NULL	NULL	NULL	NULL	NULL	NULL
 3	0	0	0	0	1	1	1	NULL	NULL	NULL	NULL	NULL	NULL
