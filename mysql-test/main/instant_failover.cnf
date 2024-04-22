@@ -1,0 +1,7 @@
+!include include/default_my.cnf
+
+[mysqld.1]
+extra-port=@ENV.MASTER_EXTRA_PORT
+
+[ENV]
+MASTER_EXTRA_PORT= @OPT.port
