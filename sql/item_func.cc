@@ -3022,7 +3022,7 @@ double Item_func_min_max::val_real_native()
 	value=tmp;
     }
     if ((null_value= args[i]->null_value))
-      break;
+      return 0;
   }
   return value;
 }
@@ -3043,7 +3043,7 @@ longlong Item_func_min_max::val_int_native()
 	value=tmp;
     }
     if ((null_value= args[i]->null_value))
-      break;
+      return 0;
   }
   return value;
 }
