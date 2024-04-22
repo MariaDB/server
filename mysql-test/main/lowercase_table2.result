@@ -377,3 +377,36 @@ SHOW CREATE DATABASE db1;
 Database	Create Database
 db1	CREATE DATABASE `db1` /*!40100 DEFAULT CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci */
 DROP DATABASE Db1;
+USE test;
+# End of 10.4 tests
+#
+# MDEV-32973 SHOW TABLES LIKE shows temporary tables with non-matching names
+#
+create temporary table t2 (a int);
+create temporary table T1 (a int);
+show tables;
+Tables_in_test
+t1
+t2
+show tables like 't1';
+Tables_in_test (t1)
+t1
+show tables like 'T1';
+Tables_in_test (T1)
+t1
+select table_name from information_schema.tables where table_schema='test'
+  and table_name='t1';
+table_name
+t1
+select table_name from information_schema.tables where table_schema='test'
+  and table_name='T1';
+table_name
+t1
+show tables like '_1';
+Tables_in_test (_1)
+t1
+show tables like 't%';
+Tables_in_test (t%)
+t1
+t2
+# End of 11.2 tests

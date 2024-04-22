@@ -5215,6 +5215,20 @@ public:
 };
 
 
+static bool wildcmpcs(const LEX_CSTRING &str, const LEX_CSTRING &pat)
+{
+  return table_alias_charset->wildcmp(str.str, str.str + str.length,
+                                      pat.str, pat.str + pat.length,
+                                      '\\', '_', '%');
+}
+
+static bool strcmpcs(const LEX_CSTRING &str, const LEX_CSTRING &pat)
+{
+  return table_alias_charset->strnncoll(str.str, str.length,
+                                        pat.str, pat.length, 0);
+}
+
+
 /**
   @brief          Fill I_S tables whose data are retrieved
                   from frm files and storage engine
@@ -5346,15 +5360,20 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
   {
     All_tmp_tables_list::Iterator it(*open_tables_state_backup.temporary_tables);
     TMP_TABLE_SHARE *share_temp;
-    const char *lookup_db= plan->lookup_field_vals.db_value.str;
-    int (*cmp)(CHARSET_INFO *, const char *, const char *)=
-      plan->lookup_field_vals.wild_db_value
-      ? wild_case_compare : system_charset_info->coll->strcasecmp;
+    bool (*cmp_db)(const LEX_CSTRING &, const LEX_CSTRING &)=
+      plan->lookup_field_vals.wild_db_value ? wildcmpcs : strcmpcs;
+    bool (*cmp_table)(const LEX_CSTRING &, const LEX_CSTRING &)=
+      plan->lookup_field_vals.wild_table_value ? wildcmpcs : strcmpcs;
     while ((share_temp= it++))
     {
-      if (lookup_db)
+      if (plan->lookup_field_vals.db_value.str)
       {
-        if (cmp(system_charset_info, share_temp->db.str, lookup_db))
+        if (cmp_db(share_temp->db, plan->lookup_field_vals.db_value))
+          continue;
+      }
+      if (plan->lookup_field_vals.table_value.str)
+      {
+        if (cmp_table(share_temp->table_name, plan->lookup_field_vals.table_value))
           continue;
       }
 
