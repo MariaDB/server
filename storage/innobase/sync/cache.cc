@@ -103,7 +103,7 @@ const pmem_control pmem;
 #else
 void pmem_persist(const void *buf, size_t size)
 {
-# ifdef __ppc64__
+# ifdef __PPC__
   for (uintptr_t u= uintptr_t(buf) & ~(CPU_LEVEL1_DCACHE_LINESIZE),
          end= uintptr_t(buf) + size;
        u < end; u+= CPU_LEVEL1_DCACHE_LINESIZE)
