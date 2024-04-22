@@ -4942,7 +4942,7 @@ int handler::check_long_hash_compatibility() const
 int handler::check_versioned_compatibility() const
 {
   /* Versioned timestamp extended in 11.4.0 for 64 bit systems */
-  if (table->s->mysql_version < 110400 && table->versioned() &&
+  if (table->s->mysql_version < 110500 && table->versioned() &&
       TIMESTAMP_MAX_YEAR == 2106)
     return HA_ADMIN_NEEDS_DATA_CONVERSION;
   return 0;
@@ -4952,9 +4952,9 @@ int handler::check_versioned_compatibility() const
 int handler::check_versioned_compatibility(uint mysql_version) const
 {
   /* Versioned timestamp extended in 11.4.0 for 64 bit systems */
-  if (mysql_version < 110400 && table->versioned() &&
+  if (mysql_version < 110500 && table->versioned() &&
       TIMESTAMP_MAX_YEAR == 2106)
-    return HA_ADMIN_NEEDS_ALTER;
+    return HA_ADMIN_NEEDS_DATA_CONVERSION;
   return 0;
 }
 
