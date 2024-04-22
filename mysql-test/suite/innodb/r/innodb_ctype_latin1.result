@@ -100,20 +100,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'latin1_swedish_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'latin1_swedish_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'latin1_swedish_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'latin1_swedish_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'latin1_swedish_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'latin1_swedish_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'latin1_swedish_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'latin1_swedish_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'latin1_swedish_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'latin1_swedish_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'latin1_swedish_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'latin1_swedish_nopad_ci', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'latin1_swedish_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'latin1_swedish_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'latin1_swedish_nopad_ci', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -237,20 +237,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'latin1_nopad_bin' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'latin1_nopad_bin' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'latin1_nopad_bin' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'latin1_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'latin1_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'latin1_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'latin1_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'latin1_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'latin1_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'latin1_nopad_bin', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'latin1_nopad_bin', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'latin1_nopad_bin', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'latin1_nopad_bin', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'latin1_nopad_bin', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'latin1_nopad_bin', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix

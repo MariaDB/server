@@ -100,20 +100,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'ucs2_unicode_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'ucs2_unicode_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'ucs2_unicode_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'ucs2_unicode_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'ucs2_unicode_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'ucs2_unicode_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'ucs2_unicode_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'ucs2_unicode_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'ucs2_unicode_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'ucs2_unicode_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'ucs2_unicode_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'ucs2_unicode_nopad_ci', 'abc  ')) as exp;
+exp
 0061006200630020
-SELECT HEX(GREATEST('abc ' COLLATE 'ucs2_unicode_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'ucs2_unicode_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'ucs2_unicode_nopad_ci', 'abc  ')) as exp;
+exp
 00610062006300200020
 #
 # Collation mix
@@ -238,20 +238,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'ucs2_unicode_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'ucs2_unicode_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'ucs2_unicode_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'ucs2_unicode_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'ucs2_unicode_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'ucs2_unicode_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'ucs2_unicode_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'ucs2_unicode_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'ucs2_unicode_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'ucs2_unicode_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'ucs2_unicode_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'ucs2_unicode_nopad_ci', 'abc  ')) as exp;
+exp
 0061006200630020
-SELECT HEX(GREATEST('abc ' COLLATE 'ucs2_unicode_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'ucs2_unicode_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'ucs2_unicode_nopad_ci', 'abc  ')) as exp;
+exp
 00610062006300200020
 #
 # Collation mix
@@ -377,20 +377,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'ucs2_unicode_520_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'ucs2_unicode_520_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'ucs2_unicode_520_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'ucs2_unicode_520_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'ucs2_unicode_520_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'ucs2_unicode_520_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'ucs2_unicode_520_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'ucs2_unicode_520_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'ucs2_unicode_520_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'ucs2_unicode_520_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'ucs2_unicode_520_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'ucs2_unicode_520_nopad_ci', 'abc  ')) as exp;
+exp
 0061006200630020
-SELECT HEX(GREATEST('abc ' COLLATE 'ucs2_unicode_520_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'ucs2_unicode_520_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'ucs2_unicode_520_nopad_ci', 'abc  ')) as exp;
+exp
 00610062006300200020
 #
 # Collation mix
@@ -515,20 +515,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'ucs2_unicode_520_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'ucs2_unicode_520_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'ucs2_unicode_520_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'ucs2_unicode_520_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'ucs2_unicode_520_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'ucs2_unicode_520_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'ucs2_unicode_520_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'ucs2_unicode_520_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'ucs2_unicode_520_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'ucs2_unicode_520_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'ucs2_unicode_520_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'ucs2_unicode_520_nopad_ci', 'abc  ')) as exp;
+exp
 0061006200630020
-SELECT HEX(GREATEST('abc ' COLLATE 'ucs2_unicode_520_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'ucs2_unicode_520_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'ucs2_unicode_520_nopad_ci', 'abc  ')) as exp;
+exp
 00610062006300200020
 #
 # Collation mix

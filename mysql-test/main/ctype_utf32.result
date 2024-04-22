@@ -70,29 +70,29 @@ hex(word2)
 00000420
 00002004
 DROP TABLE t1;
-SELECT hex(LPAD(_utf32 X'0420',10,_utf32 X'0421'));
-hex(LPAD(_utf32 X'0420',10,_utf32 X'0421'))
+SELECT hex(LPAD(_utf32 X'0420',10,_utf32 X'0421')) as exp;
+exp
 00000421000004210000042100000421000004210000042100000421000004210000042100000420
-SELECT hex(LPAD(_utf32 X'0420',10,_utf32 X'0000042100000422'));
-hex(LPAD(_utf32 X'0420',10,_utf32 X'0000042100000422'))
+SELECT hex(LPAD(_utf32 X'0420',10,_utf32 X'0000042100000422')) as exp;
+exp
 00000421000004220000042100000422000004210000042200000421000004220000042100000420
-SELECT hex(LPAD(_utf32 X'0420',10,_utf32 X'000004210000042200000423'));
-hex(LPAD(_utf32 X'0420',10,_utf32 X'000004210000042200000423'))
+SELECT hex(LPAD(_utf32 X'0420',10,_utf32 X'000004210000042200000423')) as exp;
+exp
 00000421000004220000042300000421000004220000042300000421000004220000042300000420
-SELECT hex(LPAD(_utf32 X'000004200000042100000422000004230000042400000425000004260000042700000428000004290000042A0000042B',10,_utf32 X'000004210000042200000423'));
-hex(LPAD(_utf32 X'000004200000042100000422000004230000042400000425000004260000042700000428000004290000042A0000042B',10,_utf32 X'000004210000042200000423'))
+SELECT hex(LPAD(_utf32 X'000004200000042100000422000004230000042400000425000004260000042700000428000004290000042A0000042B',10,_utf32 X'000004210000042200000423')) as exp;
+exp
 00000420000004210000042200000423000004240000042500000426000004270000042800000429
-SELECT hex(RPAD(_utf32 X'0420',10,_utf32 X'0421'));
-hex(RPAD(_utf32 X'0420',10,_utf32 X'0421'))
+SELECT hex(RPAD(_utf32 X'0420',10,_utf32 X'0421')) as exp;
+exp
 00000420000004210000042100000421000004210000042100000421000004210000042100000421
-SELECT hex(RPAD(_utf32 X'0420',10,_utf32 X'0000042100000422'));
-hex(RPAD(_utf32 X'0420',10,_utf32 X'0000042100000422'))
+SELECT hex(RPAD(_utf32 X'0420',10,_utf32 X'0000042100000422')) as exp;
+exp
 00000420000004210000042200000421000004220000042100000422000004210000042200000421
-SELECT hex(RPAD(_utf32 X'0420',10,_utf32 X'000004210000042200000423'));
-hex(RPAD(_utf32 X'0420',10,_utf32 X'000004210000042200000423'))
+SELECT hex(RPAD(_utf32 X'0420',10,_utf32 X'000004210000042200000423')) as exp;
+exp
 00000420000004210000042200000423000004210000042200000423000004210000042200000423
-SELECT hex(RPAD(_utf32 X'000004200000042100000422000004230000042400000425000004260000042700000428000004290000042A0000042B',10,_utf32 X'000004210000042200000423'));
-hex(RPAD(_utf32 X'000004200000042100000422000004230000042400000425000004260000042700000428000004290000042A0000042B',10,_utf32 X'000004210000042200000423'))
+SELECT hex(RPAD(_utf32 X'000004200000042100000422000004230000042400000425000004260000042700000428000004290000042A0000042B',10,_utf32 X'000004210000042200000423')) as exp;
+exp
 00000420000004210000042200000423000004240000042500000426000004270000042800000429
 CREATE TABLE t1 SELECT 
 LPAD(_utf32 X'0420',10,_utf32 X'0421') l,
@@ -329,11 +329,11 @@ SELECT * FROM t1 WHERE word LIKE _utf32 x'00000063000000610000005F';
 word
 cat
 DROP TABLE t1;
-select insert(_utf32 0x000000610000006200000063,10,2,_utf32 0x000000640000006500000066);
-insert(_utf32 0x000000610000006200000063,10,2,_utf32 0x000000640000006500000066)
+select insert(_utf32 0x000000610000006200000063,10,2,_utf32 0x000000640000006500000066) as exp;
+exp
 abc
-select insert(_utf32 0x000000610000006200000063,1,2,_utf32 0x000000640000006500000066);
-insert(_utf32 0x000000610000006200000063,1,2,_utf32 0x000000640000006500000066)
+select insert(_utf32 0x000000610000006200000063,1,2,_utf32 0x000000640000006500000066) as exp;
+exp
 defc
 SET NAMES latin1;
 CREATE TABLE t1 (
@@ -1642,8 +1642,8 @@ Warning	1260	Row 1 was cut by GROUP_CONCAT()
 #
 # incorrect charset for val_str_ascii
 #
-SELECT '2010-10-10 10:10:10' + INTERVAL GeometryType(GeomFromText('POINT(1 1)')) hour_second;
-'2010-10-10 10:10:10' + INTERVAL GeometryType(GeomFromText('POINT(1 1)')) hour_second
+SELECT '2010-10-10 10:10:10' + INTERVAL GeometryType(GeomFromText('POINT(1 1)')) hour_second as exp;
+exp
 2010-10-10 10:10:10
 #
 # MDEV-5745 analyze MySQL fix for bug#12368495
@@ -2410,20 +2410,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'utf32_general_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'utf32_general_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'utf32_general_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'utf32_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'utf32_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'utf32_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'utf32_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'utf32_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'utf32_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'utf32_general_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'utf32_general_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'utf32_general_nopad_ci', 'abc  ')) as exp;
+exp
 00000061000000620000006300000020
-SELECT HEX(GREATEST('abc ' COLLATE 'utf32_general_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'utf32_general_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'utf32_general_nopad_ci', 'abc  ')) as exp;
+exp
 0000006100000062000000630000002000000020
 #
 # Collation mix
@@ -2548,20 +2548,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'utf32_general_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'utf32_general_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'utf32_general_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'utf32_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'utf32_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'utf32_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'utf32_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'utf32_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'utf32_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'utf32_general_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'utf32_general_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'utf32_general_nopad_ci', 'abc  ')) as exp;
+exp
 00000061000000620000006300000020
-SELECT HEX(GREATEST('abc ' COLLATE 'utf32_general_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'utf32_general_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'utf32_general_nopad_ci', 'abc  ')) as exp;
+exp
 0000006100000062000000630000002000000020
 #
 # Collation mix
@@ -2687,20 +2687,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'utf32_nopad_bin' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'utf32_nopad_bin' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'utf32_nopad_bin' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'utf32_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'utf32_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'utf32_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'utf32_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'utf32_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'utf32_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'utf32_nopad_bin', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'utf32_nopad_bin', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'utf32_nopad_bin', 'abc  ')) as exp;
+exp
 00000061000000620000006300000020
-SELECT HEX(GREATEST('abc ' COLLATE 'utf32_nopad_bin', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'utf32_nopad_bin', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'utf32_nopad_bin', 'abc  ')) as exp;
+exp
 0000006100000062000000630000002000000020
 #
 # Collation mix
@@ -2825,20 +2825,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'utf32_nopad_bin' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'utf32_nopad_bin' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'utf32_nopad_bin' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'utf32_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'utf32_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'utf32_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'utf32_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'utf32_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'utf32_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'utf32_nopad_bin', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'utf32_nopad_bin', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'utf32_nopad_bin', 'abc  ')) as exp;
+exp
 00000061000000620000006300000020
-SELECT HEX(GREATEST('abc ' COLLATE 'utf32_nopad_bin', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'utf32_nopad_bin', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'utf32_nopad_bin', 'abc  ')) as exp;
+exp
 0000006100000062000000630000002000000020
 #
 # Collation mix

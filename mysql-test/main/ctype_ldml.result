@@ -80,50 +80,50 @@ select * from t1 where c1='b';
 c1
 a
 drop table t1;
-SELECT hex(weight_string(_utf8mb4'a' collate utf8mb4_test_ci));
-hex(weight_string(_utf8mb4'a' collate utf8mb4_test_ci))
+SELECT hex(weight_string(_utf8mb4'a' collate utf8mb4_test_ci)) as exp;
+exp
 120F
-SELECT hex(weight_string(convert(_utf32 0x10002 using utf8mb4) collate utf8mb4_test_ci));
-hex(weight_string(convert(_utf32 0x10002 using utf8mb4) collate utf8mb4_test_ci))
+SELECT hex(weight_string(convert(_utf32 0x10002 using utf8mb4) collate utf8mb4_test_ci)) as exp;
+exp
 314A
-SELECT hex(@a:=convert(_utf32 0x10400 using utf8mb4) collate utf8mb4_test_ci), hex(lower(@a));
-hex(@a:=convert(_utf32 0x10400 using utf8mb4) collate utf8mb4_test_ci)	hex(lower(@a))
+SELECT hex(@a:=convert(_utf32 0x10400 using utf8mb4) collate utf8mb4_test_ci), hex(lower(@a)) as exp;
+hex(@a:=convert(_utf32 0x10400 using utf8mb4) collate utf8mb4_test_ci)	exp
 F0909080	F09090A8
-SELECT hex(@a:=convert(_utf32 0x10428 using utf8mb4) collate utf8mb4_test_ci), hex(upper(@a));
-hex(@a:=convert(_utf32 0x10428 using utf8mb4) collate utf8mb4_test_ci)	hex(upper(@a))
+SELECT hex(@a:=convert(_utf32 0x10428 using utf8mb4) collate utf8mb4_test_ci), hex(upper(@a)) as exp;
+hex(@a:=convert(_utf32 0x10428 using utf8mb4) collate utf8mb4_test_ci)	exp
 F09090A8	F0909080
-SELECT hex(@a:=convert(_utf32 0x2C00 using utf8mb4) collate utf8mb4_test_ci), hex(lower(@a));
-hex(@a:=convert(_utf32 0x2C00 using utf8mb4) collate utf8mb4_test_ci)	hex(lower(@a))
+SELECT hex(@a:=convert(_utf32 0x2C00 using utf8mb4) collate utf8mb4_test_ci), hex(lower(@a)) as exp;
+hex(@a:=convert(_utf32 0x2C00 using utf8mb4) collate utf8mb4_test_ci)	exp
 E2B080	E2B0B0
-SELECT hex(@a:=convert(_utf32 0x2C30 using utf8mb4) collate utf8mb4_test_ci), hex(upper(@a));
-hex(@a:=convert(_utf32 0x2C30 using utf8mb4) collate utf8mb4_test_ci)	hex(upper(@a))
+SELECT hex(@a:=convert(_utf32 0x2C30 using utf8mb4) collate utf8mb4_test_ci), hex(upper(@a)) as exp;
+hex(@a:=convert(_utf32 0x2C30 using utf8mb4) collate utf8mb4_test_ci)	exp
 E2B0B0	E2B080
-SELECT hex(weight_string(convert(_utf32 0x61 using utf8mb4) collate utf8mb4_test_ci));
-hex(weight_string(convert(_utf32 0x61 using utf8mb4) collate utf8mb4_test_ci))
+SELECT hex(weight_string(convert(_utf32 0x61 using utf8mb4) collate utf8mb4_test_ci)) as exp;
+exp
 120F
-SELECT hex(weight_string(convert(_utf32 0x62 using utf8mb4) collate utf8mb4_test_ci));
-hex(weight_string(convert(_utf32 0x62 using utf8mb4) collate utf8mb4_test_ci))
+SELECT hex(weight_string(convert(_utf32 0x62 using utf8mb4) collate utf8mb4_test_ci)) as exp;
+exp
 120F
-SELECT hex(weight_string(convert(_utf32 0x10062 using utf8mb4) collate utf8mb4_test_ci));
-hex(weight_string(convert(_utf32 0x10062 using utf8mb4) collate utf8mb4_test_ci))
+SELECT hex(weight_string(convert(_utf32 0x10062 using utf8mb4) collate utf8mb4_test_ci)) as exp;
+exp
 120F
-SELECT hex(weight_string(convert(_utf32 0x10400 using utf8mb4) collate utf8mb4_test_ci));
-hex(weight_string(convert(_utf32 0x10400 using utf8mb4) collate utf8mb4_test_ci))
+SELECT hex(weight_string(convert(_utf32 0x10400 using utf8mb4) collate utf8mb4_test_ci)) as exp;
+exp
 30D2
-SELECT hex(weight_string(convert(_utf32 0x100400 using utf8mb4) collate utf8mb4_test_ci));
-hex(weight_string(convert(_utf32 0x100400 using utf8mb4) collate utf8mb4_test_ci))
+SELECT hex(weight_string(convert(_utf32 0x100400 using utf8mb4) collate utf8mb4_test_ci)) as exp;
+exp
 30D2
-SELECT hex(weight_string(_utf8mb4 0x64 collate utf8mb4_test_ci));
-hex(weight_string(_utf8mb4 0x64 collate utf8mb4_test_ci))
+SELECT hex(weight_string(_utf8mb4 0x64 collate utf8mb4_test_ci)) as exp;
+exp
 1250
-SELECT hex(weight_string(convert(_ucs2 0x0064017e using utf8mb4) collate utf8mb4_test_ci));
-hex(weight_string(convert(_ucs2 0x0064017e using utf8mb4) collate utf8mb4_test_ci))
+SELECT hex(weight_string(convert(_ucs2 0x0064017e using utf8mb4) collate utf8mb4_test_ci)) as exp;
+exp
 1251
-SELECT hex(weight_string(convert(_ucs2 0x0044017e using utf8mb4) collate utf8mb4_test_ci));
-hex(weight_string(convert(_ucs2 0x0044017e using utf8mb4) collate utf8mb4_test_ci))
+SELECT hex(weight_string(convert(_ucs2 0x0044017e using utf8mb4) collate utf8mb4_test_ci)) as exp;
+exp
 1251
-SELECT hex(weight_string(convert(_ucs2 0x0044017d using utf8mb4) collate utf8mb4_test_ci));
-hex(weight_string(convert(_ucs2 0x0044017d using utf8mb4) collate utf8mb4_test_ci))
+SELECT hex(weight_string(convert(_ucs2 0x0044017d using utf8mb4) collate utf8mb4_test_ci)) as exp;
+exp
 1251
 CREATE TABLE t1 (
 col1 varchar(100) character set utf8 collate utf8_test_ci
@@ -528,23 +528,23 @@ show collation like 'utf8mb3_phone_ci';
 Collation	Charset	Id	Default	Compiled	Sortlen
 utf8mb3_phone_ci	utf8mb3	352			8
 SET NAMES utf8;
-SELECT hex(weight_string(_utf8mb4'a' collate utf8mb4_test_400_ci));
-hex(weight_string(_utf8mb4'a' collate utf8mb4_test_400_ci))
+SELECT hex(weight_string(_utf8mb4'a' collate utf8mb4_test_400_ci)) as exp;
+exp
 0E33
-SELECT hex(weight_string(convert(_utf32 0x10002 using utf8mb4) collate utf8mb4_test_400_ci));
-hex(weight_string(convert(_utf32 0x10002 using utf8mb4) collate utf8mb4_test_400_ci))
+SELECT hex(weight_string(convert(_utf32 0x10002 using utf8mb4) collate utf8mb4_test_400_ci)) as exp;
+exp
 FFFD
-SELECT hex(@a:=convert(_utf32 0x10400 using utf8mb4) collate utf8mb4_test_400_ci), hex(lower(@a));
-hex(@a:=convert(_utf32 0x10400 using utf8mb4) collate utf8mb4_test_400_ci)	hex(lower(@a))
+SELECT hex(@a:=convert(_utf32 0x10400 using utf8mb4) collate utf8mb4_test_400_ci), hex(lower(@a)) as exp;
+hex(@a:=convert(_utf32 0x10400 using utf8mb4) collate utf8mb4_test_400_ci)	exp
 F0909080	F0909080
-SELECT hex(@a:=convert(_utf32 0x10428 using utf8mb4) collate utf8mb4_test_400_ci), hex(upper(@a));
-hex(@a:=convert(_utf32 0x10428 using utf8mb4) collate utf8mb4_test_400_ci)	hex(upper(@a))
+SELECT hex(@a:=convert(_utf32 0x10428 using utf8mb4) collate utf8mb4_test_400_ci), hex(upper(@a)) as exp;
+hex(@a:=convert(_utf32 0x10428 using utf8mb4) collate utf8mb4_test_400_ci)	exp
 F09090A8	F09090A8
-SELECT hex(@a:=convert(_utf32 0x2C00 using utf8mb4) collate utf8mb4_test_400_ci), hex(lower(@a));
-hex(@a:=convert(_utf32 0x2C00 using utf8mb4) collate utf8mb4_test_400_ci)	hex(lower(@a))
+SELECT hex(@a:=convert(_utf32 0x2C00 using utf8mb4) collate utf8mb4_test_400_ci), hex(lower(@a)) as exp;
+hex(@a:=convert(_utf32 0x2C00 using utf8mb4) collate utf8mb4_test_400_ci)	exp
 E2B080	E2B080
-SELECT hex(@a:=convert(_utf32 0x2C30 using utf8mb4) collate utf8mb4_test_400_ci), hex(upper(@a));
-hex(@a:=convert(_utf32 0x2C30 using utf8mb4) collate utf8mb4_test_400_ci)	hex(upper(@a))
+SELECT hex(@a:=convert(_utf32 0x2C30 using utf8mb4) collate utf8mb4_test_400_ci), hex(upper(@a)) as exp;
+hex(@a:=convert(_utf32 0x2C30 using utf8mb4) collate utf8mb4_test_400_ci)	exp
 E2B0B0	E2B0B0
 #
 # WL#5624 Collation customization improvements
@@ -1014,9 +1014,9 @@ HEX(WEIGHT_STRING(a))	HEX(CONVERT(a USING ucs2))	HEX(a)
 15D3	09B809CD	E0A6B8E0A78D
 15D4	09B909CD	E0A6B9E0A78D
 SELECT HEX(WEIGHT_STRING(a)) as wa,
-GROUP_CONCAT(HEX(CONVERT(a USING ucs2)) ORDER BY LENGTH(a), BINARY a)
+GROUP_CONCAT(HEX(CONVERT(a USING ucs2)) ORDER BY LENGTH(a), BINARY a) as ha
 FROM t1 GROUP BY a ORDER BY a;
-wa	GROUP_CONCAT(HEX(CONVERT(a USING ucs2)) ORDER BY LENGTH(a), BINARY a)
+wa	ha
 15A2	0985
 15A3	0986
 15A4	0987
