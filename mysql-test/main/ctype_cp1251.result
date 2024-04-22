@@ -1543,8 +1543,8 @@ t1	CREATE TABLE `t1` (
   `c1` varchar(10) CHARACTER SET cp1251 COLLATE cp1251_general_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
-select hex(concat(NumGeometries(MultiPointFromText('MULTIPOINT(0 0,10 10)'))));
-hex(concat(NumGeometries(MultiPointFromText('MULTIPOINT(0 0,10 10)'))))
+select hex(concat(NumGeometries(MultiPointFromText('MULTIPOINT(0 0,10 10)')))) as exp;
+exp
 32
 create table t1 as select concat(NumGeometries(MultiPointFromText('MULTIPOINT(0 0,10 10)'))) as c1;
 show create table t1;
@@ -1553,8 +1553,8 @@ t1	CREATE TABLE `t1` (
   `c1` varchar(10) CHARACTER SET cp1251 COLLATE cp1251_general_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
-select hex(concat(NumPoints(MultiPointFromText('LINESTRING(0 0,10 10)'))));
-hex(concat(NumPoints(MultiPointFromText('LINESTRING(0 0,10 10)'))))
+select hex(concat(NumPoints(MultiPointFromText('LINESTRING(0 0,10 10)')))) as exp;
+exp
 32
 create table t1 as select concat(NumPoints(MultiPointFromText('LINESTRING(0 0,10 10)'))) as c1;
 show create table t1;
@@ -1563,8 +1563,8 @@ t1	CREATE TABLE `t1` (
   `c1` varchar(10) CHARACTER SET cp1251 COLLATE cp1251_general_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
-select hex(concat(SRID(MultiPointFromText('MULTIPOINT(0 0,10 10)'))));
-hex(concat(SRID(MultiPointFromText('MULTIPOINT(0 0,10 10)'))))
+select hex(concat(SRID(MultiPointFromText('MULTIPOINT(0 0,10 10)')))) as exp;
+exp
 30
 create table t1 as select concat(SRID(MultiPointFromText('MULTIPOINT(0 0,10 10)'))) as c1;
 show create table t1;
@@ -1573,8 +1573,8 @@ t1	CREATE TABLE `t1` (
   `c1` varchar(10) CHARACTER SET cp1251 COLLATE cp1251_general_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
-select hex(concat(NumInteriorRings(PolygonFromText('POLYGON((0 0,50 0,50 50,0 50,0 0), (10 10,20 10,20 20,10 20,10 10))'))));
-hex(concat(NumInteriorRings(PolygonFromText('POLYGON((0 0,50 0,50 50,0 50,0 0), (10 10,20 10,20 20,10 20,10 10))'))))
+select hex(concat(NumInteriorRings(PolygonFromText('POLYGON((0 0,50 0,50 50,0 50,0 0), (10 10,20 10,20 20,10 20,10 10))')))) as exp;
+exp
 31
 create table t1 as select concat(NumInteriorRings(PolygonFromText('POLYGON((0 0,50 0,50 50,0 50,0 0), (10 10,20 10,20 20,10 20,10 10))'))) as c1;
 show create table t1;
@@ -1583,8 +1583,8 @@ t1	CREATE TABLE `t1` (
   `c1` varchar(10) CHARACTER SET cp1251 COLLATE cp1251_general_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
-select hex(concat(IsEmpty(GeomFromText('POINT(1 1)'))));
-hex(concat(IsEmpty(GeomFromText('POINT(1 1)'))))
+select hex(concat(IsEmpty(GeomFromText('POINT(1 1)')))) as exp;
+exp
 30
 create table t1 as select concat(IsEmpty(GeomFromText('Point(1 1)'))) as c1;
 show create table t1;
@@ -1593,8 +1593,8 @@ t1	CREATE TABLE `t1` (
   `c1` varchar(21) CHARACTER SET cp1251 COLLATE cp1251_general_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
-select hex(concat(IsSimple(GeomFromText('POINT(1 1)'))));
-hex(concat(IsSimple(GeomFromText('POINT(1 1)'))))
+select hex(concat(IsSimple(GeomFromText('POINT(1 1)')))) as exp;
+exp
 31
 create table t1 as select concat(IsSimple(GeomFromText('Point(1 1)'))) as c1;
 show create table t1;
@@ -1603,8 +1603,8 @@ t1	CREATE TABLE `t1` (
   `c1` varchar(2) CHARACTER SET cp1251 COLLATE cp1251_general_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
-select hex(concat(IsClosed(GeomFromText('LineString(1 1,2 2)'))));
-hex(concat(IsClosed(GeomFromText('LineString(1 1,2 2)'))))
+select hex(concat(IsClosed(GeomFromText('LineString(1 1,2 2)')))) as exp;
+exp
 30
 create table t1 as select concat(IsClosed(GeomFromText('LineString(1 1,2 2)'))) as c1;
 show create table t1;
@@ -1613,13 +1613,13 @@ t1	CREATE TABLE `t1` (
   `c1` varchar(2) CHARACTER SET cp1251 COLLATE cp1251_general_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
-select hex(concat(Equals(GeomFromText('Point(1 1)'),GeomFromText('Point(1 1)'))));
-hex(concat(Equals(GeomFromText('Point(1 1)'),GeomFromText('Point(1 1)'))))
+select hex(concat(Equals(GeomFromText('Point(1 1)'),GeomFromText('Point(1 1)')))) as exp;
+exp
 31
 create table t1 as select concat(Equals(GeomFromText('Point(1 1)'),GeomFromText('Point(1 1)'))) as c1;
 drop table t1;
-select hex(concat(x(GeomFromText('Point(1 2)'))));
-hex(concat(x(GeomFromText('Point(1 2)'))))
+select hex(concat(x(GeomFromText('Point(1 2)')))) as exp;
+exp
 31
 create table t1 as select concat(x(GeomFromText('Point(1 2)'))) as c1;
 show create table t1;
@@ -1628,8 +1628,8 @@ t1	CREATE TABLE `t1` (
   `c1` varchar(23) CHARACTER SET cp1251 COLLATE cp1251_general_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
-select hex(concat(y(GeomFromText('Point(1 2)'))));
-hex(concat(y(GeomFromText('Point(1 2)'))))
+select hex(concat(y(GeomFromText('Point(1 2)')))) as exp;
+exp
 32
 create table t1 as select concat(x(GeomFromText('Point(1 2)'))) as c1;
 show create table t1;
@@ -1638,8 +1638,8 @@ t1	CREATE TABLE `t1` (
   `c1` varchar(23) CHARACTER SET cp1251 COLLATE cp1251_general_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
-select hex(concat(GLength(GeomFromText('LineString(1 2,2 2)'))));
-hex(concat(GLength(GeomFromText('LineString(1 2,2 2)'))))
+select hex(concat(GLength(GeomFromText('LineString(1 2,2 2)')))) as exp;
+exp
 31
 create table t1 as select concat(GLength(GeomFromText('LineString(1 2, 2 2)'))) as c1;
 show create table t1;
@@ -1648,8 +1648,8 @@ t1	CREATE TABLE `t1` (
   `c1` varchar(23) CHARACTER SET cp1251 COLLATE cp1251_general_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
-select hex(concat(Area(GeomFromText('Polygon((0 0,1 0,1 1,0 1,0 0))'))));
-hex(concat(Area(GeomFromText('Polygon((0 0,1 0,1 1,0 1,0 0))'))))
+select hex(concat(Area(GeomFromText('Polygon((0 0,1 0,1 1,0 1,0 0))')))) as exp;
+exp
 31
 create table t1 as select concat(Area(GeomFromText('Polygon((0 0,1 0,1 1,0 1,0 0))'))) as c1;
 show create table t1;
@@ -1658,8 +1658,8 @@ t1	CREATE TABLE `t1` (
   `c1` varchar(23) CHARACTER SET cp1251 COLLATE cp1251_general_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
-select hex(concat(GeometryType(GeomFromText('Point(1 2)'))));
-hex(concat(GeometryType(GeomFromText('Point(1 2)'))))
+select hex(concat(GeometryType(GeomFromText('Point(1 2)')))) as exp;
+exp
 504F494E54
 create table t1 as select concat(GeometryType(GeomFromText('Point(1 2)'))) as c1;
 show create table t1;
@@ -1668,8 +1668,8 @@ t1	CREATE TABLE `t1` (
   `c1` varchar(20) CHARACTER SET cp1251 COLLATE cp1251_general_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
-select hex(concat(AsText(GeomFromText('Point(1 2)'))));
-hex(concat(AsText(GeomFromText('Point(1 2)'))))
+select hex(concat(AsText(GeomFromText('Point(1 2)')))) as exp;
+exp
 504F494E542831203229
 create table t1 as select concat(AsText(GeomFromText('Point(1 2)'))) as c1;
 show create table t1;
@@ -1938,8 +1938,8 @@ t1	CREATE TABLE `t1` (
   `c1` varchar(10) CHARACTER SET cp1251 COLLATE cp1251_general_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
-select hex(concat(timediff('2001-01-02 00:00:00', '2001-01-01 00:00:00')));
-hex(concat(timediff('2001-01-02 00:00:00', '2001-01-01 00:00:00')))
+select hex(concat(timediff('2001-01-02 00:00:00', '2001-01-01 00:00:00'))) as exp;
+exp
 32343A30303A3030
 create table t1 as select concat(timediff('2001-01-02 00:00:00', '2001-01-01 00:00:00')) as c1;
 show create table t1;
@@ -1978,8 +1978,8 @@ t1	CREATE TABLE `t1` (
   `c1` varchar(19) CHARACTER SET cp1251 COLLATE cp1251_general_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
-select hex(concat(convert_tz('2004-01-01 12:00:00','+10:00','-6:00')));
-hex(concat(convert_tz('2004-01-01 12:00:00','+10:00','-6:00')))
+select hex(concat(convert_tz('2004-01-01 12:00:00','+10:00','-6:00'))) as exp;
+exp
 323030332D31322D33312032303A30303A3030
 create table t1 as select concat(convert_tz('2004-01-01 12:00:00','+10:00','-6:00')) as c1;
 show create table t1;
@@ -1988,8 +1988,8 @@ t1	CREATE TABLE `t1` (
   `c1` varchar(19) CHARACTER SET cp1251 COLLATE cp1251_general_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
-select hex(concat(date_add('2004-01-01 12:00:00', interval 1 day)));
-hex(concat(date_add('2004-01-01 12:00:00', interval 1 day)))
+select hex(concat(date_add('2004-01-01 12:00:00', interval 1 day))) as exp;
+exp
 323030342D30312D30322031323A30303A3030
 create table t1 as select concat(date_add('2004-01-01 12:00:00', interval 1 day)) as c1;
 show create table t1;
