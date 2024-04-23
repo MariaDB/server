@@ -9214,9 +9214,11 @@ int Field_geom::store_decimal(const my_decimal *)
 
 int Field_geom::store(const char *from, size_t length, CHARSET_INFO *cs)
 {
+  /*
   if (!length)
     bzero(ptr, Field_blob::pack_length());
   else
+  */
   {
     if (from == Geometry::bad_geometry_data.ptr())
       goto err;
