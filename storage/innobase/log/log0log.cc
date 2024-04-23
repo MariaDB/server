@@ -178,7 +178,7 @@ void log_file_t::write(os_offset_t offset, span<const byte> buf) noexcept
 }
 
 #ifdef HAVE_PMEM
-# include <libpmem.h>
+# include "cache.h"
 
 /** Attempt to memory map a file.
 @param file  log file handle

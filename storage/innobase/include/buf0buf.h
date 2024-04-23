@@ -158,14 +158,25 @@ buf_block_free(
 #define buf_page_get(ID, SIZE, LA, MTR)					\
 	buf_page_get_gen(ID, SIZE, LA, NULL, BUF_GET, MTR)
 
-/** Try to acquire a page latch.
-@param rw_latch      RW_S_LATCH or RW_X_LATCH
+/** Try to buffer-fix a page.
 @param block         guessed block
+@param id            expected block->page.id()
+@return block if it was buffer-fixed
+@retval nullptr if the block no longer is valid */
+buf_block_t *buf_page_optimistic_fix(buf_block_t *block, page_id_t id)
+  MY_ATTRIBUTE((nonnull, warn_unused_result));
+
+/** Try to acquire a page latch after buf_page_optimistic_fix().
+@param block         buffer-fixed block
+@param rw_latch      RW_S_LATCH or RW_X_LATCH
 @param modify_clock  expected value of block->modify_clock
 @param mtr           mini-transaction
-@return whether the latch was acquired (the page is an allocated file page) */
-bool buf_page_optimistic_get(ulint rw_latch, buf_block_t *block,
-                             uint64_t modify_clock, mtr_t *mtr);
+@return block if the latch was acquired
+@retval nullptr if block->unfix() was called because it no longer is valid */
+buf_block_t *buf_page_optimistic_get(buf_block_t *block,
+                                     rw_lock_type_t rw_latch,
+                                     uint64_t modify_clock, mtr_t *mtr)
+  MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /** Try to S-latch a page.
 Suitable for using when holding the lock_sys latches (as it avoids deadlock).
@@ -290,15 +301,6 @@ on the block. */
 UNIV_INLINE
 void
 buf_block_modify_clock_inc(
-/*=======================*/
-	buf_block_t*	block);	/*!< in: block */
-/********************************************************************//**
-Returns the value of the modify clock. The caller must have an s-lock
-or x-lock on the block.
-@return value */
-UNIV_INLINE
-ib_uint64_t
-buf_block_get_modify_clock(
 /*=======================*/
 	buf_block_t*	block);	/*!< in: block */
 #endif /* !UNIV_INNOCHECKSUM */

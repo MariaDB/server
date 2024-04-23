@@ -3725,21 +3725,34 @@ Gtid_log_event::write()
     write_len= GTID_HEADER_LEN + 2;
   }
 
-  if (flags2 & (FL_PREPARED_XA | FL_COMPLETED_XA))
+  if (flags2 & (FL_PREPARED_XA | FL_COMPLETED_XA)
+      && !DBUG_IF("negate_xid_from_gtid"))
   {
     int4store(&buf[write_len],   xid.formatID);
     buf[write_len +4]=   (uchar) xid.gtrid_length;
     buf[write_len +4+1]= (uchar) xid.bqual_length;
     write_len+= 6;
     long data_length= xid.bqual_length + xid.gtrid_length;
-    memcpy(buf+write_len, xid.data, data_length);
-    write_len+= data_length;
+
+    if (!DBUG_IF("negate_xid_data_from_gtid"))
+    {
+      memcpy(buf+write_len, xid.data, data_length);
+      write_len+= data_length;
+    }
   }
+
+  DBUG_EXECUTE_IF("inject_fl_extra_multi_engine_into_gtid", {
+    flags_extra|= FL_EXTRA_MULTI_ENGINE_E1;
+  });
   if (flags_extra > 0)
   {
     buf[write_len]= flags_extra;
     write_len++;
   }
+  DBUG_EXECUTE_IF("inject_fl_extra_multi_engine_into_gtid", {
+    flags_extra&= ~FL_EXTRA_MULTI_ENGINE_E1;
+  });
+
   if (flags_extra & FL_EXTRA_MULTI_ENGINE_E1)
   {
     buf[write_len]= extra_engines;
@@ -4522,7 +4535,8 @@ int XA_prepare_log_event::do_commit()
   thd->lex->xid= &xid;
   if (!one_phase)
   {
-    if ((res= thd->wait_for_prior_commit()))
+    if (thd->is_current_stmt_binlog_disabled() &&
+        (res= thd->wait_for_prior_commit()))
       return res;
 
     thd->lex->sql_command= SQLCOM_XA_PREPARE;
@@ -6340,11 +6354,13 @@ static int rows_event_stmt_cleanup(rpl_group_info *rgi, THD * thd)
       Xid_log_event will come next which will, if some transactional engines
       are involved, commit the transaction and flush the pending event to the
       binlog.
-      If there was a deadlock the transaction should have been rolled back
-      already. So there should be no need to rollback the transaction.
+      We check for thd->transaction_rollback_request because it is possible
+      there was a deadlock that was ignored by slave-skip-errors. Normally, the
+      deadlock would have been rolled back already.
     */
-    DBUG_ASSERT(! thd->transaction_rollback_request);
-    error|= (int)(error ? trans_rollback_stmt(thd) : trans_commit_stmt(thd));
+    error|= (int) ((error || thd->transaction_rollback_request)
+                       ? trans_rollback_stmt(thd)
+                       : trans_commit_stmt(thd));
 
     /*
       Now what if this is not a transactional engine? we still need to
@@ -7966,6 +7982,7 @@ int Rows_log_event::update_sequence()
 #if defined(WITH_WSREP)
        ! WSREP(thd) &&
 #endif
+       table->in_use->rgi_slave &&
        !(table->in_use->rgi_slave->gtid_ev_flags2 & Gtid_log_event::FL_DDL) &&
        !(old_master=
          rpl_master_has_bug(thd->rgi_slave->rli,

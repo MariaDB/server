@@ -2009,7 +2009,6 @@ dict_index_add_to_cache(
 	new_index->n_fields = new_index->n_def;
 	new_index->trx_id = index->trx_id;
 	new_index->set_committed(index->is_committed());
-	new_index->nulls_equal = index->nulls_equal;
 
 	n_ord = new_index->n_uniq;
 	/* Flag the ordering columns and also set column max_prefix */

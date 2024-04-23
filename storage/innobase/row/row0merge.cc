@@ -5373,8 +5373,6 @@ dberr_t trx_t::bulk_insert_apply_for_table(dict_table_t *table)
 {
   if (UNIV_UNLIKELY(!bulk_insert))
     return DB_SUCCESS;
-  ut_ad(!check_unique_secondary);
-  ut_ad(!check_foreigns);
   auto it= mod_tables.find(table);
   if (it != mod_tables.end() && it->second.bulk_store)
     if (dberr_t err= it->second.write_bulk(table, this))

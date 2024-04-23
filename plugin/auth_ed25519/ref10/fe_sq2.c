@@ -1,5 +1,6 @@
 #include "fe.h"
 #include "crypto_int64.h"
+#include "crypto_uint64.h"
 
 /*
 h = 2 * f * f
@@ -106,16 +107,16 @@ void fe_sq2(fe h,const fe f)
   crypto_int64 h7 = f0f7_2+f1f6_2 +f2f5_2 +f3f4_2 +f8f9_38;
   crypto_int64 h8 = f0f8_2+f1f7_4 +f2f6_2 +f3f5_4 +f4f4   +f9f9_38;
   crypto_int64 h9 = f0f9_2+f1f8_2 +f2f7_2 +f3f6_2 +f4f5_2;
-  crypto_int64 carry0;
-  crypto_int64 carry1;
-  crypto_int64 carry2;
-  crypto_int64 carry3;
-  crypto_int64 carry4;
-  crypto_int64 carry5;
-  crypto_int64 carry6;
-  crypto_int64 carry7;
-  crypto_int64 carry8;
-  crypto_int64 carry9;
+  crypto_uint64 carry0;
+  crypto_uint64 carry1;
+  crypto_uint64 carry2;
+  crypto_uint64 carry3;
+  crypto_uint64 carry4;
+  crypto_uint64 carry5;
+  crypto_uint64 carry6;
+  crypto_uint64 carry7;
+  crypto_uint64 carry8;
+  crypto_uint64 carry9;
 
   h0 += h0;
   h1 += h1;

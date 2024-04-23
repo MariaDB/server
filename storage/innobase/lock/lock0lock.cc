@@ -5586,47 +5586,43 @@ lock_rec_insert_check_and_lock(
   return err;
 }
 
-/*********************************************************************//**
-Creates an explicit record lock for a running transaction that currently only
-has an implicit lock on the record. The transaction instance must have a
-reference count > 0 so that it can't be committed and freed before this
-function has completed. */
-static
-bool
-lock_rec_convert_impl_to_expl_for_trx(
-/*==================================*/
-	trx_t*			trx,	/*!< in/out: active transaction */
-	const page_id_t		id,	/*!< in: page identifier */
-	const rec_t*		rec,	/*!< in: user record on page */
-	dict_index_t*		index)	/*!< in: index of record */
+/** Create an explicit record lock for a transaction that currently only
+has an implicit lock on the record.
+@param trx   referenced, active transaction, or nullptr
+@param id    page identifier
+@param rec   record in the page
+@param index the index B-tree that the record belongs to
+@return trx, with the reference released */
+static trx_t *lock_rec_convert_impl_to_expl_for_trx(trx_t *trx,
+                                                    const page_id_t id,
+                                                    const rec_t *rec,
+                                                    dict_index_t *index)
 {
-  if (!trx)
-    return false;
-
-  ut_ad(trx->is_referenced());
-  ut_ad(page_rec_is_leaf(rec));
-  ut_ad(!rec_is_metadata(rec, *index));
-
-  DEBUG_SYNC_C("before_lock_rec_convert_impl_to_expl_for_trx");
-  ulint heap_no= page_rec_get_heap_no(rec);
-
+  if (trx)
   {
-    LockGuard g{lock_sys.rec_hash, id};
-    trx->mutex_lock();
-    ut_ad(!trx_state_eq(trx, TRX_STATE_NOT_STARTED));
+    ut_ad(trx->is_referenced());
+    ut_ad(page_rec_is_leaf(rec));
+    ut_ad(!rec_is_metadata(rec, *index));
 
-    if (!trx_state_eq(trx, TRX_STATE_COMMITTED_IN_MEMORY) &&
-        !lock_rec_has_expl(LOCK_X | LOCK_REC_NOT_GAP, g.cell(), id, heap_no,
-                           trx))
-      lock_rec_add_to_queue(LOCK_X | LOCK_REC_NOT_GAP, g.cell(), id,
-                            page_align(rec), heap_no, index, trx, true);
+    ulint heap_no= page_rec_get_heap_no(rec);
+
+    {
+      LockGuard g{lock_sys.rec_hash, id};
+      trx->mutex_lock();
+      ut_ad(!trx_state_eq(trx, TRX_STATE_NOT_STARTED));
+
+      if (!trx_state_eq(trx, TRX_STATE_COMMITTED_IN_MEMORY) &&
+          !lock_rec_has_expl(LOCK_X | LOCK_REC_NOT_GAP, g.cell(), id, heap_no,
+                             trx))
+        lock_rec_add_to_queue(LOCK_X | LOCK_REC_NOT_GAP, g.cell(), id,
+                              page_align(rec), heap_no, index, trx, true);
+    }
+
+    trx->release_reference();
+    trx->mutex_unlock();
   }
 
-  trx->mutex_unlock();
-  trx->release_reference();
-
-  DEBUG_SYNC_C("after_lock_rec_convert_impl_to_expl_for_trx");
-  return false;
+  return trx;
 }
 
 
@@ -5717,10 +5713,11 @@ should be created.
 @param[in]	rec		record on the leaf page
 @param[in]	index		the index of the record
 @param[in]	offsets		rec_get_offsets(rec,index)
-@return	whether caller_trx already holds an exclusive lock on rec */
+@return	unsafe pointer to a transaction that held an exclusive lock on rec
+@retval nullptr if no transaction held an exclusive lock */
 template<bool is_primary>
 static
-bool
+const trx_t *
 lock_rec_convert_impl_to_expl(
 	trx_t*			caller_trx,
 	page_id_t		id,
@@ -5744,10 +5741,10 @@ lock_rec_convert_impl_to_expl(
 		trx_id = lock_clust_rec_some_has_impl(rec, index, offsets);
 
 		if (trx_id == 0) {
-			return false;
+			return nullptr;
 		}
 		if (UNIV_UNLIKELY(trx_id == caller_trx->id)) {
-			return true;
+			return caller_trx;
 		}
 
 		trx = trx_sys.find(caller_trx, trx_id);
@@ -5758,7 +5755,7 @@ lock_rec_convert_impl_to_expl(
 						 offsets);
 		if (trx == caller_trx) {
 			trx->release_reference();
-			return true;
+			return trx;
 		}
 
 		ut_d(lock_rec_other_trx_holds_expl(caller_trx, trx, rec, id));
@@ -5803,11 +5800,18 @@ lock_clust_rec_modify_check_and_lock(
 	/* If a transaction has no explicit x-lock set on the record, set one
 	for it */
 
-	if (lock_rec_convert_impl_to_expl<true>(thr_get_trx(thr),
-						block->page.id(),
+	trx_t *trx = thr_get_trx(thr);
+	if (const trx_t *owner =
+	    lock_rec_convert_impl_to_expl<true>(trx, block->page.id(),
 						rec, index, offsets)) {
-		/* We already hold an implicit exclusive lock. */
-		return DB_SUCCESS;
+		if (owner == trx) {
+			/* We already hold an exclusive lock. */
+			return DB_SUCCESS;
+		}
+
+		if (trx->snapshot_isolation && trx->read_view.is_open()) {
+			return DB_RECORD_CHANGED;
+		}
 	}
 
 	err = lock_rec_lock(true, LOCK_X | LOCK_REC_NOT_GAP,
@@ -5970,12 +5974,19 @@ lock_sec_rec_read_check_and_lock(
 		return DB_SUCCESS;
 	}
 
-	if (!page_rec_is_supremum(rec)
-	    && lock_rec_convert_impl_to_expl<false>(
-		       trx, block->page.id(), rec, index, offsets)
-	    && gap_mode == LOCK_REC_NOT_GAP) {
-		/* We already hold an implicit exclusive lock. */
-		return DB_SUCCESS;
+	if (page_rec_is_supremum(rec)) {
+	} else if (const trx_t *owner =
+		   lock_rec_convert_impl_to_expl<false>(trx, block->page.id(),
+							rec, index, offsets)) {
+		if (owner == trx) {
+			if (gap_mode == LOCK_REC_NOT_GAP) {
+				/* We already hold an exclusive lock. */
+				return DB_SUCCESS;
+			}
+		} else if (trx->snapshot_isolation
+			   && trx->read_view.is_open()) {
+			return DB_RECORD_CHANGED;
+		}
 	}
 
 #ifdef WITH_WSREP
@@ -6055,13 +6066,20 @@ lock_clust_rec_read_check_and_lock(
 	ulint heap_no = page_rec_get_heap_no(rec);
 
 	trx_t *trx = thr_get_trx(thr);
-	if (!lock_table_has(trx, index->table, LOCK_X)
-	    && heap_no != PAGE_HEAP_NO_SUPREMUM
-	    && lock_rec_convert_impl_to_expl<true>(trx, id,
-						   rec, index, offsets)
-	    && gap_mode == LOCK_REC_NOT_GAP) {
-		/* We already hold an implicit exclusive lock. */
-		return DB_SUCCESS;
+	if (lock_table_has(trx, index->table, LOCK_X)
+	    || heap_no == PAGE_HEAP_NO_SUPREMUM) {
+	} else if (const trx_t *owner =
+		   lock_rec_convert_impl_to_expl<true>(trx, id,
+						       rec, index, offsets)) {
+		if (owner == trx) {
+			if (gap_mode == LOCK_REC_NOT_GAP) {
+				/* We already hold an exclusive lock. */
+				return DB_SUCCESS;
+			}
+		} else if (trx->snapshot_isolation
+			   && trx->read_view.is_open()) {
+			return DB_RECORD_CHANGED;
+		}
 	}
 
 	if (heap_no > PAGE_HEAP_NO_SUPREMUM && gap_mode != LOCK_GAP

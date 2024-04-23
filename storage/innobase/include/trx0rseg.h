@@ -170,19 +170,21 @@ public:
   /** Last not yet purged undo log header; FIL_NULL if all purged */
   uint32_t last_page_no;
 
-  /** trx_t::no | last_offset << 48 */
+  /** trx_t::no << 16 | last_offset */
   uint64_t last_commit_and_offset;
 
   /** @return the commit ID of the last committed transaction */
   trx_id_t last_trx_no() const
-  { return last_commit_and_offset & ((1ULL << 48) - 1); }
+  { return last_commit_and_offset >> 16; }
   /** @return header offset of the last committed transaction */
   uint16_t last_offset() const
-  { return static_cast<uint16_t>(last_commit_and_offset >> 48); }
+  {
+    return static_cast<uint16_t>(last_commit_and_offset);
+  }
 
   void set_last_commit(uint16_t last_offset, trx_id_t trx_no)
   {
-    last_commit_and_offset= static_cast<uint64_t>(last_offset) << 48 | trx_no;
+    last_commit_and_offset= trx_no << 16 | static_cast<uint64_t>(last_offset);
   }
 
   /** @return the page identifier */

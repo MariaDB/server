@@ -505,8 +505,8 @@ disconnect con1;
 connection default;
 connection con2;
 SHUTDOWN WAIT FOR ALL SLAVES;
-connection server_2;
-include/assert_grep.inc [Ensure the primary waited for the ACK of the killed thread]
+# Ensure the primary waited for the ACK of the killed thread
+FOUND 5 /Delaying shutdown to await semi-sync ACK/ in mysqld.1.err
 connection default;
 connection server_1;
 connection server_2;

@@ -628,7 +628,7 @@ void thread_pool_generic::check_idle(std::chrono::system_clock::time_point now)
   }
 
   /* Switch timer off after 1 minute of idle time */
-  if (now - idle_since > max_idle_time)
+  if (now - idle_since > max_idle_time && m_active_threads.empty())
   {
     idle_since= invalid_timestamp;
     switch_timer(timer_state_t::OFF);
@@ -729,6 +729,13 @@ bool thread_pool_generic::add_thread()
 
   if (n_threads >= m_max_threads)
     return false;
+
+  /*
+    Deadlock danger exists, so monitor pool health
+    with maintenance timer.
+  */
+  switch_timer(timer_state_t::ON);
+
   if (n_threads >= m_min_threads)
   {
     auto now = std::chrono::system_clock::now();
@@ -739,8 +746,6 @@ bool thread_pool_generic::add_thread()
         Throttle thread creation and wakeup deadlock detection timer,
         if is it off.
       */
-      switch_timer(timer_state_t::ON);
-
       return false;
     }
   }
@@ -801,6 +806,7 @@ thread_pool_generic::thread_pool_generic(int min_threads, int max_threads) :
   m_tasks_dequeued(),
   m_wakeups(),
   m_spurious_wakeups(),
+  m_timer_state(timer_state_t::ON),
   m_in_shutdown(),
   m_timestamp(),
   m_long_tasks_count(),
@@ -813,6 +819,7 @@ thread_pool_generic::thread_pool_generic(int min_threads, int max_threads) :
   m_maintenance_timer(thread_pool_generic::maintenance_func, this, nullptr)
 {
   set_concurrency();
+
   // start the timer
   m_maintenance_timer.set_time(0, (int)m_timer_interval.count());
 }

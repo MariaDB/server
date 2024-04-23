@@ -42,7 +42,7 @@ insert into ti set a=null;
 insert into tm set a=null;
 
 set @@global.debug_dbug="+d,crash_before_send_xid";
---exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--write_line wait $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 
 connection slave;
 let $do_domain_ids_before= query_get_value(SHOW SLAVE STATUS, Replicate_Do_Domain_Ids, 1);
@@ -64,7 +64,7 @@ connection master;
 --enable_reconnect
 --let $rpl_server_number=1
 --source include/rpl_start_server.inc
-#--exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+#--write_line restart $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 --source include/wait_until_connected_again.inc
 --echo # Master has restarted successfully
 save_master_pos;

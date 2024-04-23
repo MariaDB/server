@@ -488,4 +488,16 @@ BEGIN;
 LOAD DATA INFILE 'VARDIR/tmp/t.outfile' INTO TABLE t;
 COMMIT;
 DROP TABLE t;
+#
+#  MDEV-33934 Assertion `!check_foreigns' failed in
+#    trx_t::bulk_insert_apply_for_table(dict_table_t*)
+#
+CREATE TABLE t1(f1 INT,f2 INT,KEY(f1))engine=innodb;
+BEGIN;
+INSERT INTO t1 VALUES();
+SET STATEMENT FOREIGN_KEY_CHECKS=1 FOR SELECT * FROM t1;
+f1	f2
+NULL	NULL
+COMMIT;
+DROP TABLE t1;
 # End of 10.11 tests

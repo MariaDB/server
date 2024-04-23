@@ -51,12 +51,6 @@ ifeq (32,$(DEB_HOST_ARCH_BITS))
     CMAKEFLAGS += -DPLUGIN_ROCKSDB=NO
 endif
 
-# Only attempt to build with PMEM on archs that have package libpmem-dev available
-# See https://packages.debian.org/search?searchon=names&keywords=libpmem-dev
-ifneq (,$(filter $(DEB_HOST_ARCH),amd64 arm64 ppc64el riscv64))
-    CMAKEFLAGS += -DWITH_PMEM=ON
-endif
-
 # Add support for verbose builds
 MAKEFLAGS += VERBOSE=1
 

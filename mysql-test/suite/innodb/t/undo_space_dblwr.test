@@ -12,7 +12,7 @@ insert into t1 values (1, 1);
 # Slow shutdown and restart to make sure ibuf merge is finished
 SET GLOBAL innodb_fast_shutdown = 0;
 let $shutdown_timeout=;
-let $restart_parameters="--debug_dbug=+d,ib_log_checkpoint_avoid_hard --innodb_flush_sync=0";
+let $restart_parameters=--debug_dbug=+d,ib_log_checkpoint_avoid_hard --innodb_flush_sync=0;
 --source include/restart_mysqld.inc
 
 --source ../include/no_checkpoint_start.inc

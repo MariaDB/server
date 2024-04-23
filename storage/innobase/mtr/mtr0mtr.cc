@@ -1513,7 +1513,7 @@ void mtr_t::upgrade_buffer_fix(ulint savepoint, rw_lock_type_t rw_latch)
   ut_ad(slot.type == MTR_MEMO_BUF_FIX);
   buf_block_t *block= static_cast<buf_block_t*>(slot.object);
   ut_d(const auto state= block->page.state());
-  ut_ad(state > buf_page_t::UNFIXED);
+  ut_ad(state > buf_page_t::FREED);
   ut_ad(state > buf_page_t::WRITE_FIX || state < buf_page_t::READ_FIX);
   static_assert(int{MTR_MEMO_PAGE_S_FIX} == int{RW_S_LATCH}, "");
   static_assert(int{MTR_MEMO_PAGE_X_FIX} == int{RW_X_LATCH}, "");
