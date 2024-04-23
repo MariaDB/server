@@ -5371,8 +5371,6 @@ void trx_t::bulk_rollback_low()
 
 dberr_t trx_t::bulk_insert_apply_for_table(dict_table_t *table)
 {
-  if (UNIV_UNLIKELY(!bulk_insert))
-    return DB_SUCCESS;
   auto it= mod_tables.find(table);
   if (it != mod_tables.end())
   {
