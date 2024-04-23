@@ -63,7 +63,7 @@ SET(CPACK_COMPONENT_GROUP_MYSQLSERVER_DESCRIPTION "Install server")
 
  
  #Miscellaneous (hidden) components, part of server / or client programs
- FOREACH(comp connect-engine ClientPlugins gssapi-server gssapi-client aws-key-management rocksdb-engine)
+ FOREACH(comp connect-engine ClientPlugins gssapi-server gssapi-client aws-key-management rocksdb-engine plugin-hashicorp-key-management)
    STRING(TOUPPER "${comp}" comp)
    SET(CPACK_COMPONENT_${comp}_GROUP "MySQLServer")
    SET(CPACK_COMPONENT_${comp}_HIDDEN 1)

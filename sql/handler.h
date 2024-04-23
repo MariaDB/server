@@ -495,6 +495,12 @@ enum chf_create_flags {
 #define HA_LEX_CREATE_SEQUENCE  16U
 #define HA_VERSIONED_TABLE      32U
 #define HA_SKIP_KEY_SORT        64U
+/*
+  A temporary table that can be used by different threads, eg. replication
+  threads. This flag ensure that memory is not allocated with THREAD_SPECIFIC,
+  as we do for other temporary tables.
+*/
+#define HA_LEX_CREATE_GLOBAL_TMP_TABLE 128U
 
 #define HA_MAX_REC_LENGTH	65535
 
@@ -3361,6 +3367,7 @@ public:
                ("handler created F_UNLCK %d F_RDLCK %d F_WRLCK %d",
                 F_UNLCK, F_RDLCK, F_WRLCK));
     reset_statistics();
+    active_handler_stats.active= 0;
   }
   virtual ~handler(void)
   {
@@ -4093,7 +4100,6 @@ public:
   }
 
   virtual void update_create_info(HA_CREATE_INFO *create_info) {}
-  int check_old_types();
   virtual int assign_to_keycache(THD* thd, HA_CHECK_OPT* check_opt)
   { return HA_ADMIN_NOT_IMPLEMENTED; }
   virtual int preload_keys(THD* thd, HA_CHECK_OPT* check_opt)
@@ -4784,9 +4790,12 @@ public:
   }
   inline void ha_handler_stats_disable()
   {
-    handler_stats= 0;
-    active_handler_stats.active= 0;
-    handler_stats_updated();
+    if (handler_stats)
+    {
+      handler_stats= 0;
+      active_handler_stats.active= 0;
+      handler_stats_updated();
+    }
   }
 
 private:
@@ -4801,6 +4810,7 @@ private:
   }
 
 private:
+  bool check_old_types() const;
   void mark_trx_read_write_internal();
   bool check_table_binlog_row_based_internal();
 

@@ -864,6 +864,9 @@ my_error_innodb(
 	case DB_DEADLOCK:
 		my_error(ER_LOCK_DEADLOCK, MYF(0));
 		break;
+	case DB_RECORD_CHANGED:
+		my_error(ER_CHECKREAD, MYF(0), table);
+		break;
 	case DB_LOCK_WAIT_TIMEOUT:
 		my_error(ER_LOCK_WAIT_TIMEOUT, MYF(0));
 		break;
@@ -1725,11 +1728,9 @@ instant_alter_column_possible(
 			ut_ad(!is_null || nullable);
 			n_nullable += nullable;
 			n_add++;
-			uint l;
+			uint l = (*af)->pack_length();
 			switch ((*af)->type()) {
 			case MYSQL_TYPE_VARCHAR:
-				l = reinterpret_cast<const Field_varstring*>
-					(*af)->get_length();
 			variable_length:
 				if (l >= min_local_len) {
 					max_size += blob_prefix
@@ -1743,7 +1744,6 @@ instant_alter_column_possible(
 					if (!is_null) {
 						min_size += l;
 					}
-					l = (*af)->pack_length();
 					max_size += l;
 					lenlen += l > 255 ? 2 : 1;
 				}
@@ -1757,7 +1757,6 @@ instant_alter_column_possible(
 					((*af))->get_length();
 				goto variable_length;
 			default:
-				l = (*af)->pack_length();
 				if (l > 255 && ib_table.not_redundant()) {
 					goto variable_length;
 				}
@@ -2813,6 +2812,14 @@ cannot_create_many_fulltext_index:
 				online = false;
 			}
 		}
+	}
+
+	if (m_prebuilt->table->is_stats_table()) {
+		if (ha_alter_info->online) {
+			ha_alter_info->unsupported_reason =
+				table_share->table_name.str;
+		}
+		online= false;
 	}
 
 	// FIXME: implement Online DDL for system-versioned operations

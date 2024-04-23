@@ -467,3 +467,37 @@ DROP TABLE t1;
 CREATE TABLE t (a CHAR CHARACTER SET utf8) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
 INSERT t SELECT left(seq,1) FROM seq_1_to_43691;
 DROP TABLE t;
+#
+#  MDEV-32453  Bulk insert fails to apply when trigger
+#                  does insert operation
+#
+CREATE TABLE t(c INT)ENGINE=InnoDB;
+CREATE TRIGGER t2_ai AFTER INSERT ON t FOR EACH ROW SET @a:=(SELECT * FROM t);
+BEGIN;
+INSERT INTO t VALUES (1),(1);
+ERROR 21000: Subquery returns more than 1 row
+COMMIT;
+DROP TABLE t;
+#
+#  MDEV-33868 Assertion `trx->bulk_insert' failed in
+#             innodb_prepare_commit_versioned
+#
+CREATE TABLE t (id INT) ENGINE=InnoDB;
+select 1 into outfile "VARDIR/tmp/t.outfile";
+BEGIN;
+LOAD DATA INFILE 'VARDIR/tmp/t.outfile' INTO TABLE t;
+COMMIT;
+DROP TABLE t;
+#
+#  MDEV-33934 Assertion `!check_foreigns' failed in
+#    trx_t::bulk_insert_apply_for_table(dict_table_t*)
+#
+CREATE TABLE t1(f1 INT,f2 INT,KEY(f1))engine=innodb;
+BEGIN;
+INSERT INTO t1 VALUES();
+SET STATEMENT FOREIGN_KEY_CHECKS=1 FOR SELECT * FROM t1;
+f1	f2
+NULL	NULL
+COMMIT;
+DROP TABLE t1;
+# End of 10.11 tests

@@ -3733,7 +3733,16 @@ public:
   {
     return GTID_HEADER_LEN + ((flags2 & FL_GROUP_COMMIT_ID) ? 2 : 0);
   }
-  bool is_valid() const { return seq_no != 0; }
+
+  bool is_valid() const
+  {
+    /*
+      seq_no is set to 0 if the structure of a serialized GTID event does not
+      align with that as indicated by flags and extra_flags.
+    */
+    return seq_no != 0;
+  }
+
 #ifdef MYSQL_SERVER
   bool write();
   static int make_compatible_event(String *packet, bool *need_dummy_event,
@@ -5230,8 +5239,8 @@ protected:
   ulong       m_master_reclength; /* Length of record on master side */
 
   /* Bit buffers in the same memory as the class */
-  uint32    m_bitbuf[128/(sizeof(uint32)*8)];
-  uint32    m_bitbuf_ai[128/(sizeof(uint32)*8)];
+  my_bitmap_map  m_bitbuf[128/(sizeof(my_bitmap_map)*8)];
+  my_bitmap_map  m_bitbuf_ai[128/(sizeof(my_bitmap_map)*8)];
 
   uchar    *m_rows_buf;		/* The rows in packed format */
   uchar    *m_rows_cur;		/* One-after the end of the data */

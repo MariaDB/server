@@ -1138,6 +1138,7 @@ public:
   { return Type_handler_hybrid_field_type::type_handler(); }
   bool fix_length_and_dec_generic();
   bool fix_length_and_dec_numeric(const Type_handler *h);
+  bool fix_length_and_dec_sint_ge0();
   bool fix_length_and_dec_string();
 };
 

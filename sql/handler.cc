@@ -1617,6 +1617,29 @@ ha_check_and_coalesce_trx_read_only(THD *thd, Ha_trx_info *ha_list,
   return rw_ha_count;
 }
 
+#ifdef WITH_WSREP
+/**
+  Check if transaction contains storage engine not supporting
+  two-phase commit and transaction is read-write.
+
+  @retval
+    true Transaction contains storage engine not supporting
+         two phase commit and transaction is read-write
+  @retval
+    false otherwise
+*/
+static bool wsrep_have_no2pc_rw_ha(Ha_trx_info* ha_list)
+{
+  for (Ha_trx_info *ha_info=ha_list; ha_info; ha_info= ha_info->next())
+  {
+    handlerton *ht= ha_info->ht();
+    // Transaction is read-write and handler does not support 2pc
+    if (ha_info->is_trx_read_write() && ht->prepare==0)
+      return true;
+  }
+  return false;
+}
+#endif /* WITH_WSREP */
 
 /**
   @retval
@@ -1829,14 +1852,18 @@ int ha_commit_trans(THD *thd, bool all)
     */
     if (run_wsrep_hooks)
     {
-      // This commit involves more than one storage engine and requires
-      // two phases, but some engines don't support it.
-      // Issue a message to the client and roll back the transaction.
-      if (trans->no_2pc && rw_ha_count > 1)
+      // This commit involves storage engines that do not support two phases.
+      // We allow read only transactions to such storage engines but not
+      // read write transactions.
+      if (trans->no_2pc && rw_ha_count > 1 && wsrep_have_no2pc_rw_ha(trans->ha_list))
       {
-	// REPLACE|INSERT INTO ... SELECT uses TOI for MyISAM|Aria
-	if (WSREP(thd) && thd->wsrep_cs().mode() != wsrep::client_state::m_toi)
-	{
+        // This commit involves more than one storage engine and requires
+        // two phases, but some engines don't support it.
+        // Issue a message to the client and roll back the transaction.
+
+        // REPLACE|INSERT INTO ... SELECT uses TOI for MyISAM|Aria
+        if (WSREP(thd) && thd->wsrep_cs().mode() != wsrep::client_state::m_toi)
+        {
           my_message(ER_ERROR_DURING_COMMIT, "Transactional commit not supported "
                      "by involved engine(s)", MYF(0));
           error= 1;
@@ -3389,6 +3416,17 @@ int handler::ha_open(TABLE *table_arg, const char *name, int mode,
   DBUG_ASSERT(alloc_root_inited(&table->mem_root));
 
   set_partitions_to_open(partitions_to_open);
+  internal_tmp_table= MY_TEST(test_if_locked & HA_OPEN_INTERNAL_TABLE);
+
+  if (!internal_tmp_table && (test_if_locked & HA_OPEN_TMP_TABLE) &&
+      current_thd->slave_thread)
+  {
+    /*
+      This is a temporary table used by replication that is not attached
+      to a THD. Mark it as a global temporary table.
+    */
+    test_if_locked|= HA_OPEN_GLOBAL_TMP_TABLE;
+  }
 
   if (unlikely((error=open(name,mode,test_if_locked))))
   {
@@ -3434,7 +3472,6 @@ int handler::ha_open(TABLE *table_arg, const char *name, int mode,
     cached_table_flags= table_flags();
   }
   reset_statistics();
-  internal_tmp_table= MY_TEST(test_if_locked & HA_OPEN_INTERNAL_TABLE);
   DBUG_RETURN(error);
 }
 
@@ -4767,7 +4804,8 @@ int handler::ha_check_for_upgrade(HA_CHECK_OPT *check_opt)
   KEY *keyinfo, *keyend;
   KEY_PART_INFO *keypart, *keypartend;
 
-  if (table->s->incompatible_version)
+  if (table->s->incompatible_version ||
+      check_old_types())
     return HA_ADMIN_NEEDS_ALTER;
 
   if (!table->s->mysql_version)
@@ -4793,6 +4831,12 @@ int handler::ha_check_for_upgrade(HA_CHECK_OPT *check_opt)
       }
     }
   }
+
+  /*
+    True VARCHAR appeared in MySQL-5.0.3.
+    If the FRM is older than 5.0.3, force alter even if the check_old_type()
+    call above did not find data types that want upgrade.
+  */
   if (table->s->frm_version < FRM_VER_TRUE_VARCHAR)
     return HA_ADMIN_NEEDS_ALTER;
 
@@ -4806,26 +4850,15 @@ int handler::ha_check_for_upgrade(HA_CHECK_OPT *check_opt)
 }
 
 
-int handler::check_old_types()
+bool handler::check_old_types() const
 {
-  Field** field;
-
-  if (!table->s->mysql_version)
+  for (Field **field= table->field; (*field); field++)
   {
-    /* check for bad DECIMAL field */
-    for (field= table->field; (*field); field++)
-    {
-      if ((*field)->type() == MYSQL_TYPE_NEWDECIMAL)
-      {
-        return HA_ADMIN_NEEDS_ALTER;
-      }
-      if ((*field)->type() == MYSQL_TYPE_VAR_STRING)
-      {
-        return HA_ADMIN_NEEDS_ALTER;
-      }
-    }
+    const Type_handler *th= (*field)->type_handler();
+    if (th != th->type_handler_for_implicit_upgrade())
+      return true;
   }
-  return 0;
+  return false;
 }
 
 
@@ -5026,8 +5059,6 @@ int handler::ha_check(THD *thd, HA_CHECK_OPT *check_opt)
 
   if (table->s->mysql_version < MYSQL_VERSION_ID)
   {
-    if (unlikely((error= check_old_types())))
-      return error;
     error= ha_check_for_upgrade(check_opt);
     if (unlikely(error && (error != HA_ADMIN_NEEDS_CHECK)))
       return error;
@@ -5531,6 +5562,9 @@ handler::ha_create(const char *name, TABLE *form, HA_CREATE_INFO *info_arg)
 {
   DBUG_ASSERT(m_lock_type == F_UNLCK);
   mark_trx_read_write();
+  if ((info_arg->options & HA_LEX_CREATE_TMP_TABLE) &&
+      current_thd->slave_thread)
+    info_arg->options|= HA_LEX_CREATE_GLOBAL_TMP_TABLE;
   int error= create(name, form, info_arg);
   if (!error &&
       !(info_arg->options & (HA_LEX_CREATE_TMP_TABLE | HA_CREATE_TMP_ALTER)))
@@ -5558,8 +5592,6 @@ handler::ha_create_partitioning_metadata(const char *name,
   DBUG_ASSERT(m_lock_type == F_UNLCK ||
               (!old_name && strcmp(name, table_share->path.str)));
 
-
-  mark_trx_read_write();
   return create_partitioning_metadata(name, old_name, action_flag);
 }
 
@@ -7641,7 +7673,16 @@ int handler::ha_write_row(const uchar *buf)
               m_lock_type == F_WRLCK);
   DBUG_ENTER("handler::ha_write_row");
   DEBUG_SYNC_C("ha_write_row_start");
-
+#ifdef WITH_WSREP
+  DBUG_EXECUTE_IF("wsrep_ha_write_row",
+                  {
+                    const char act[]=
+                      "now "
+                      "SIGNAL wsrep_ha_write_row_reached "
+                      "WAIT_FOR wsrep_ha_write_row_continue";
+                    DBUG_ASSERT(!debug_sync_set_action(ha_thd(), STRING_WITH_LEN(act)));
+                  });
+#endif /* WITH_WSREP */
   if ((error= ha_check_overlaps(NULL, buf)))
     DBUG_RETURN(error);
 

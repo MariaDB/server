@@ -1,0 +1,425 @@
+--source include/have_aria.inc
+--source include/have_partition.inc
+--source include/have_debug.inc
+--source include/big_test.inc
+# This test timeouts with msan
+--source include/not_msan.inc
+
+--let $targetdir=$MYSQLTEST_VARDIR/tmp/backup
+--let $backup_stream=2
+--let $backup_dir=1
+--let $backup_variant=$backup_stream
+
+while ($backup_variant) {
+if ($backup_variant == $backup_stream) {
+--echo ###
+--echo # Test for backup to stream
+--echo #####
+}
+if ($backup_variant == $backup_dir) {
+--echo ###
+--echo # Test for backup to directory
+--echo #####
+}
+
+--echo ###
+--echo # Test for mix of online/offline backup tables
+--echo #####
+
+CREATE TABLE t_default(i INT PRIMARY KEY)
+	ENGINE ARIA;
+INSERT INTO t_default VALUES (1);
+
+CREATE TABLE t_tr_p_ch(i INT PRIMARY KEY)
+	ENGINE ARIA TRANSACTIONAL=1 ROW_FORMAT=PAGE PAGE_CHECKSUM=1;
+INSERT INTO t_tr_p_ch VALUES (1);
+
+CREATE TABLE t_tr_p_nch(i INT PRIMARY KEY)
+	ENGINE ARIA TRANSACTIONAL=1 ROW_FORMAT=PAGE PAGE_CHECKSUM=0;
+INSERT INTO t_tr_p_nch VALUES (1);
+
+CREATE TABLE t_p_ch(i INT PRIMARY KEY)
+	ENGINE ARIA TRANSACTIONAL=0 ROW_FORMAT=PAGE PAGE_CHECKSUM=1;
+INSERT INTO t_p_ch VALUES (1);
+
+CREATE TABLE t_p_nch(i INT PRIMARY KEY)
+	ENGINE ARIA TRANSACTIONAL=0 ROW_FORMAT=PAGE PAGE_CHECKSUM=0;
+INSERT INTO t_p_nch VALUES (1);
+
+CREATE TABLE t_fixed(i INT PRIMARY KEY)
+	ENGINE ARIA TRANSACTIONAL=0 ROW_FORMAT=FIXED PAGE_CHECKSUM=1;
+INSERT INTO t_fixed VALUES (1);
+
+CREATE TABLE t_dyn(i INT PRIMARY KEY)
+	ENGINE ARIA TRANSACTIONAL=0 ROW_FORMAT=DYNAMIC PAGE_CHECKSUM=1;
+INSERT INTO t_dyn VALUES (1);
+
+--echo # Test for partitioned table
+CREATE TABLE t_part_online(i INT PRIMARY KEY)
+	ENGINE ARIA TRANSACTIONAL = 1 PAGE_CHECKSUM = 1
+    PARTITION BY RANGE( i ) (
+        PARTITION p0 VALUES LESS THAN (10),
+        PARTITION p1 VALUES LESS THAN (20),
+        PARTITION p2 VALUES LESS THAN (30)
+    );
+
+INSERT INTO t_part_online VALUES(5);
+INSERT INTO t_part_online VALUES(15);
+INSERT INTO t_part_online VALUES(25);
+SELECT * FROM t_part_online;
+
+CREATE TABLE t_part_offline(i INT)
+	ENGINE ARIA TRANSACTIONAL = 0 PAGE_CHECKSUM = 0
+    PARTITION BY RANGE( i ) (
+        PARTITION p0 VALUES LESS THAN (10),
+        PARTITION p1 VALUES LESS THAN (20),
+        PARTITION p2 VALUES LESS THAN (30)
+    );
+
+INSERT INTO t_part_offline VALUES(5);
+INSERT INTO t_part_offline VALUES(15);
+INSERT INTO t_part_offline VALUES(25);
+
+--echo # Test for filename to tablename mapping
+CREATE TABLE `t 1 t-1`(i INT PRIMARY KEY)
+	ENGINE ARIA TRANSACTIONAL=1 ROW_FORMAT=PAGE PAGE_CHECKSUM=1;
+INSERT INTO `t 1 t-1` VALUES (1);
+
+CREATE TABLE `t-part online`(i INT PRIMARY KEY)
+	ENGINE ARIA TRANSACTIONAL = 1 PAGE_CHECKSUM = 1
+    PARTITION BY RANGE( i ) (
+        PARTITION p0 VALUES LESS THAN (10),
+        PARTITION p1 VALUES LESS THAN (20),
+        PARTITION p2 VALUES LESS THAN (30)
+    );
+
+INSERT INTO `t-part online` VALUES(5);
+INSERT INTO `t-part online` VALUES(15);
+INSERT INTO `t-part online` VALUES(25);
+
+
+--echo ###
+--echo # Test for redo log files backup;
+--echo #####
+CREATE TABLE t_logs_1(i INT)
+  ENGINE ARIA TRANSACTIONAL=1 ROW_FORMAT=PAGE PAGE_CHECKSUM=1;
+CREATE TABLE t_logs_2 LIKE t_logs_1;
+CREATE TABLE t_bulk_ins LIKE t_logs_1;
+INSERT INTO t_logs_1 VALUES
+  (0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+  (0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+  (0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+  (0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+  (0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+  (0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+  (0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+  (0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+  (0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+  (0), (1), (2), (3), (4), (5), (6), (7), (8), (9);
+--echo # Generate several log files
+--let $i = 0
+while ($i < 14) {
+INSERT INTO t_logs_1 SELECT * FROM t_logs_1;
+--inc $i
+}
+
+--echo ###
+--echo # Test for DML during backup for online backup
+--echo #####
+CREATE TABLE t_dml_ins(i INT PRIMARY KEY)
+	ENGINE ARIA TRANSACTIONAL=1 ROW_FORMAT=PAGE PAGE_CHECKSUM=1;
+INSERT INTO t_dml_ins VALUES(1);
+--let after_aria_table_copy_test_t_dml_ins=INSERT INTO test.t_dml_ins VALUES(2)
+CREATE TABLE t_dml_upd(i INT PRIMARY KEY)
+	ENGINE ARIA TRANSACTIONAL=1 ROW_FORMAT=PAGE PAGE_CHECKSUM=1;
+INSERT INTO t_dml_upd VALUES(1);
+--let after_aria_table_copy_test_t_dml_upd=UPDATE test.t_dml_upd SET i = 2
+CREATE TABLE t_dml_del(i INT PRIMARY KEY)
+	ENGINE ARIA TRANSACTIONAL=1 ROW_FORMAT=PAGE PAGE_CHECKSUM=1;
+INSERT INTO t_dml_del VALUES(1);
+--let after_aria_table_copy_test_t_dml_del=DELETE FROM test.t_dml_del
+
+--echo ###
+--echo # Test for DDL during backup for online backup
+--echo #####
+CREATE DATABASE test_for_db_drop;
+CREATE TABLE test_for_db_drop.t(i INT PRIMARY KEY) ENGINE ARIA;
+--let after_aria_table_copy_test_for_db_drop_t=DROP DATABASE test_for_db_drop
+CREATE TABLE t_db_create(i INT PRIMARY KEY) ENGINE ARIA;
+--let after_aria_table_copy_test_t_db_create=CREATE DATABASE test_for_db_create
+--sorted_result
+SHOW DATABASES;
+
+CREATE TABLE t_alter(i INT PRIMARY KEY) ENGINE ARIA;
+INSERT INTO t_alter VALUES (1);
+--let after_aria_table_copy_test_t_alter=ALTER TABLE test.t_alter ADD COLUMN c INT
+
+CREATE TABLE t_trunc(i INT PRIMARY KEY) ENGINE ARIA;
+INSERT INTO t_trunc VALUES (1);
+--let after_aria_table_copy_test_t_trunc=TRUNCATE TABLE test.t_trunc
+
+CREATE TABLE t_ch_i (i int(10), index(i) ) ENGINE=Aria;
+INSERT INTO t_ch_i VALUES(1);
+--let after_aria_table_copy_test_t_ch_i=ALTER TABLE test.t_ch_i DISABLE KEYS
+
+CREATE TABLE t_change_engine(i INT PRIMARY KEY) ENGINE InnoDB;
+INSERT INTO t_change_engine VALUES (1);
+--let after_aria_background=begin not atomic ALTER TABLE test.t_change_engine ENGINE = ARIA; INSERT INTO test.t_logs_1 SELECT * FROM test.t_logs_1; INSERT INTO test.t_bulk_ins SELECT * FROM test.t_logs_1; INSERT INTO test.t_logs_2 SET i = 1; end
+
+CREATE TABLE t_rename(i INT PRIMARY KEY) ENGINE ARIA;
+--let after_aria_table_copy_test_t_rename=RENAME TABLE test.t_rename TO test.t_rename_new
+CREATE DATABASE test_for_rename;
+CREATE TABLE t_rename_2(i INT PRIMARY KEY) ENGINE ARIA;
+--let after_aria_table_copy_test_t_rename_2=RENAME TABLE test.t_rename_2 TO test_for_rename.t_rename_new_2
+
+CREATE TABLE t_rename_3(i INT PRIMARY KEY) ENGINE ARIA;
+--let after_aria_table_copy_test_t_rename_3=begin not atomic RENAME TABLE test.t_rename_3 TO test.t_rename_new_3; RENAME TABLE test.t_rename_new_3 TO test.t_rename_new_new_3; end
+
+CREATE TABLE t_rename_4(i INT PRIMARY KEY) ENGINE ARIA;
+--let after_aria_table_copy_test_t_rename_4=begin not atomic RENAME TABLE test.t_rename_4 TO test.t_rename_new_4; RENAME TABLE test.t_rename_new_4 TO test.t_rename_new_new_4; RENAME TABLE test.t_rename_new_new_4 TO test.t_rename_new_4; end
+
+CREATE TABLE t_delete(i INT PRIMARY KEY) ENGINE ARIA;
+--let after_aria_table_copy_test_t_delete=DROP TABLE test.t_delete
+
+CREATE TABLE t_delete_2(i INT PRIMARY KEY) ENGINE ARIA;
+--let after_aria_table_copy_test_t_delete_2=ALTER TABLE test.t_delete_2 ENGINE=Innodb
+
+CREATE TABLE t_rename_alter(i INT PRIMARY KEY) ENGINE ARIA;
+--let after_aria_table_copy_test_t_rename_alter=begin not atomic RENAME TABLE test.t_rename_alter TO test.t_rename_alter_2; ALTER TABLE test.t_rename_alter_2 ADD COLUMN c INT; end
+
+CREATE TABLE t_rename_create(i INT PRIMARY KEY) ENGINE ARIA;
+--let after_aria_table_copy_test_t_rename_create=begin not atomic RENAME TABLE test.t_rename_create TO test.t_rename_create_new; CREATE TABLE test.t_rename_create(d INT PRIMARY KEY) ENGINE ARIA; end
+
+CREATE TABLE t_part_create(i INT PRIMARY KEY) ENGINE ARIA;
+--let after_aria_table_copy_test_t_part_create=create table test.t_part_create_2 (i int) engine=Aria PARTITION BY HASH(i) PARTITIONS 2
+
+CREATE TABLE t_part_add_part(i INT PRIMARY KEY) ENGINE ARIA;
+--let after_aria_table_copy_test_t_part_add_part=alter table test.t_part_add_part PARTITION BY HASH(i) PARTITIONS 2
+
+CREATE TABLE t_part_change_eng(i INT PRIMARY KEY) ENGINE ARIA PARTITION BY HASH(i) PARTITIONS 2;
+--let after_aria_table_copy_test_t_part_change_eng=alter table test.t_part_change_eng ENGINE=InnoDB
+
+CREATE TABLE t_part_change_eng_2(i INT PRIMARY KEY) ENGINE InnoDB PARTITION BY HASH(i) PARTITIONS 2;
+CREATE TABLE t_part_change_eng_3(i INT PRIMARY KEY) ENGINE Aria;
+--let after_aria_table_copy_test_t_part_change_eng_3=alter table test.t_part_change_eng_2 ENGINE=Aria
+
+CREATE TABLE t_part_alter(i INT PRIMARY KEY) ENGINE Aria PARTITION BY HASH(i) PARTITIONS 2;
+--let after_aria_table_copy_test_t_part_alter=alter table test.t_part_alter ADD COLUMN c INT
+
+CREATE TABLE t_part_alter_2(i INT PRIMARY KEY) ENGINE Aria PARTITION BY HASH(i) PARTITIONS 3;
+--let after_aria_table_copy_test_t_part_alter_2=alter table test.t_part_alter_2 COALESCE PARTITION 1
+
+CREATE TABLE t_part_drop(i INT PRIMARY KEY) ENGINE Aria PARTITION BY HASH(i) PARTITIONS 2;
+--let after_aria_table_copy_test_t_part_drop=DROP table test.t_part_drop
+
+CREATE TABLE t_part_rename(i INT PRIMARY KEY) ENGINE Aria PARTITION BY HASH(i) PARTITIONS 2;
+--let after_aria_table_copy_test_t_part_rename=RENAME TABLE test.t_part_rename TO test.t_part_rename_2
+
+CREATE TABLE t_part_rename_3(i INT PRIMARY KEY) ENGINE Aria PARTITION BY HASH(i) PARTITIONS 2;
+--let after_aria_table_copy_test_t_part_rename_3=RENAME TABLE test.t_part_rename_3 TO test_for_rename.t_part_rename_4
+
+CREATE TABLE t_part_rm_part(i INT PRIMARY KEY) ENGINE Aria PARTITION BY HASH(i) PARTITIONS 2;
+--let after_aria_table_copy_test_t_part_rm_part=begin not atomic ALTER TABLE test.t_part_rm_part REMOVE PARTITIONING; ALTER TABLE test.t_part_rm_part ADD COLUMN c INT; end
+
+SET SESSION debug_dbug="+d,maria_flush_whole_log";
+SET GLOBAL aria_checkpoint_interval=10000;
+
+--mkdir $targetdir
+
+if ($backup_variant == $backup_stream) {
+--echo ### Backup to stream
+--let $streamfile=$MYSQLTEST_VARDIR/tmp/backup.xb
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --parallel=10 --target-dir=$targetdir --dbug=+d,mariabackup_events --stream=xbstream > $streamfile 2>$targetdir/backup_stream.log;
+--disable_result_log
+exec $XBSTREAM -x -C $targetdir  < $streamfile;
+--enable_result_log
+}
+
+if ($backup_variant == $backup_dir) {
+--echo ### Backup to dir
+--disable_result_log
+--exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --parallel=10 --target-dir=$targetdir --dbug=+d,mariabackup_events
+--enable_result_log
+}
+
+--let $t_logs_1_records_count_before_backup=`SELECT COUNT(*) FROM t_logs_1`
+--let $t_logs_2_records_count_before_backup=`SELECT COUNT(*) FROM t_logs_2`
+--let $t_bulk_ins_records_count_before_backup=`SELECT COUNT(*) FROM t_bulk_ins`
+
+--echo # xtrabackup prepare
+--disable_result_log
+--exec $XTRABACKUP  --prepare --target-dir=$targetdir
+--source include/restart_and_restore.inc
+--enable_result_log
+
+--echo ### Result for DDL test
+SHOW CREATE TABLE t_alter;
+SELECT * FROM t_alter;
+SHOW CREATE TABLE t_change_engine;
+SELECT * FROM t_change_engine;
+SELECT * FROM t_trunc;
+SELECT * FROM t_ch_i;
+SELECT * FROM t_rename_new;
+SELECT * FROM test_for_rename.t_rename_new_2;
+SELECT * FROM t_rename_new_new_3;
+SELECT * FROM t_rename_new_4;
+--error ER_NO_SUCH_TABLE
+SELECT * FROM t_delete;
+SHOW CREATE TABLE t_delete_2;
+SELECT * FROM t_rename_alter_2;
+SELECT * FROM t_rename_create;
+SELECT * FROM t_rename_create_new;
+SHOW CREATE TABLE t_part_create_2;
+SELECT * FROM t_part_create_2;
+SHOW CREATE TABLE t_part_add_part;
+SELECT * FROM t_part_add_part;
+SHOW CREATE TABLE t_part_change_eng;
+SELECT * FROM t_part_change_eng;
+SHOW CREATE TABLE t_part_change_eng_2;
+SELECT * FROM t_part_change_eng_2;
+SELECT * FROM t_part_alter;
+SHOW CREATE TABLE t_part_alter_2;
+SELECT * FROM t_part_alter_2;
+--error ER_NO_SUCH_TABLE
+SELECT * FROM t_part_drop;
+--error ER_NO_SUCH_TABLE
+SELECT * FROM t_part_rename;
+SELECT * FROM t_part_rename_2;
+--error ER_NO_SUCH_TABLE
+SELECT * FROM t_part_rename_3;
+SELECT * FROM test_for_rename.t_part_rename_4;
+SHOW CREATE TABLE t_part_rm_part;
+SELECT * FROM t_part_rm_part;
+--sorted_result
+SHOW DATABASES;
+
+--echo ### Clean up for DDL test
+DROP DATABASE test_for_db_create;
+DROP TABLE t_db_create;
+DROP TABLE t_change_engine;
+DROP TABLE t_alter;
+DROP TABLE t_trunc;
+DROP TABLE t_ch_i;
+DROP TABLE t_rename_new;
+DROP TABLE t_rename_new_new_3;
+DROP TABLE t_rename_new_4;
+DROP TABLE t_delete_2;
+DROP TABLE t_rename_alter_2;
+DROP TABLE t_rename_create;
+DROP TABLE t_rename_create_new;
+DROP TABLE t_part_create;
+DROP TABLE t_part_create_2;
+DROP TABLE t_part_add_part;
+DROP TABLE t_part_change_eng;
+DROP TABLE t_part_change_eng_2;
+DROP TABLE t_part_change_eng_3;
+DROP TABLE t_part_alter;
+DROP TABLE t_part_alter_2;
+DROP TABLE t_part_rename_2;
+DROP TABLE t_part_rm_part;
+DROP DATABASE test_for_rename;
+--let after_aria_table_copy_test_for_db_drop_t=
+--let after_aria_table_copy_test_t_db_create=
+--let after_aria_table_copy_test_t_alter=
+--let after_aria_background=
+--let after_aria_table_copy_test_t_trunc=
+--let after_aria_table_copy_test_t_ch_i=
+--let after_aria_table_copy_test_t_rename=
+--let after_aria_table_copy_test_t_rename_2=
+--let after_aria_table_copy_test_t_rename_3=
+--let after_aria_table_copy_test_t_rename_4=
+--let after_aria_table_copy_test_t_delete=
+--let after_aria_table_copy_test_t_delete_2=
+--let after_aria_table_copy_test_t_rename_alter=
+--let after_aria_table_copy_test_t_rename_create=
+--let after_aria_table_copy_test_t_part_create=
+--let after_aria_table_copy_test_t_part_add_part=
+--let after_aria_table_copy_test_t_part_change_eng=
+--let after_aria_table_copy_test_t_part_change_eng_3=
+--let after_aria_table_copy_test_t_part_alter=
+--let after_aria_table_copy_test_t_part_alter_2=
+--let after_aria_table_copy_test_t_part_drop=
+--let after_aria_table_copy_test_t_part_rename=
+--let after_aria_table_copy_test_t_part_rename_3=
+--let after_aria_table_copy_test_t_part_rm_part=
+
+--echo ### Result for DML test
+SELECT * FROM t_dml_ins;
+SELECT * FROM t_dml_upd;
+SELECT * FROM t_dml_del;
+
+--echo ### Clean up for DML test
+DROP TABLE t_dml_ins;
+DROP TABLE t_dml_upd;
+DROP TABLE t_dml_del;
+--let after_aria_table_copy_test_t_dml_ins=
+--let after_aria_table_copy_test_t_dml_upd=
+--let after_aria_table_copy_test_t_dml_del=
+
+--echo ### Result for redo log files backup
+--let $t_logs_1_records_count_after_backup=`SELECT COUNT(*) FROM t_logs_1`
+--let $t_logs_2_records_count_after_backup=`SELECT COUNT(*) FROM t_logs_2`
+--let $t_bulk_ins_records_count_after_backup=`SELECT COUNT(*) FROM t_bulk_ins`
+if ($t_logs_1_records_count_after_backup == $t_logs_1_records_count_before_backup) {
+--echo # ok
+}
+if ($t_logs_1_records_count_after_backup != $t_logs_1_records_count_before_backup) {
+--echo # failed
+}
+if ($t_logs_2_records_count_after_backup == $t_logs_2_records_count_before_backup) {
+--echo # ok
+}
+if ($t_logs_2_records_count_after_backup != $t_logs_2_records_count_before_backup) {
+--echo # failed
+}
+if ($t_bulk_ins_records_count_after_backup == $t_bulk_ins_records_count_before_backup) {
+--echo # ok
+}
+if ($t_bulk_ins_records_count_after_backup != $t_bulk_ins_records_count_before_backup) {
+--echo # failed
+}
+
+--echo ### Cleanup for redo log files backup
+DROP TABLE t_logs_1;
+DROP TABLE t_logs_2;
+DROP TABLE t_bulk_ins;
+--let $t_logs_1_records_count_before_backup=
+--let $t_logs_1_records_count_after_backup=
+--let $t_logs_2_records_count_before_backup=
+--let $t_logs_2_records_count_after_backup=
+--let $t_bulk_ins_records_count_before_backup=
+--let $t_bulk_ins_records_count_after_backup=
+
+--echo ### Result for online/offline tables test
+SELECT * FROM t_default;
+SELECT * FROM t_tr_p_ch;
+SELECT * FROM t_tr_p_nch;
+SELECT * FROM t_p_ch;
+SELECT * FROM t_p_nch;
+SELECT * FROM t_fixed;
+SELECT * FROM t_dyn;
+SELECT * FROM t_part_online;
+SELECT * FROM t_part_offline;
+SELECT * FROM `t 1 t-1`;
+SELECT * FROM `t-part online`;
+
+--echo ### Cleanup for online/offline tables test
+DROP TABLE t_default;
+DROP TABLE t_tr_p_ch;
+DROP TABLE t_tr_p_nch;
+DROP TABLE t_p_ch;
+DROP TABLE t_p_nch;
+DROP TABLE t_fixed;
+DROP TABLE t_dyn;
+DROP TABLE t_part_online;
+DROP TABLE t_part_offline;
+DROP TABLE `t 1 t-1`;
+DROP TABLE `t-part online`;
+
+if ($backup_variant == $backup_stream) {
+--remove_file $streamfile
+}
+--rmdir $targetdir
+--dec $backup_variant
+}
+

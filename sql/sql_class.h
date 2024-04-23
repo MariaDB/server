@@ -1,5 +1,4 @@
 /*
-   Copyright (c) 2000, 2016, Oracle and/or its affiliates.
    Copyright (c) 2009, 2022, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
@@ -719,7 +718,7 @@ typedef struct system_variables
   ulonglong max_mem_used;
   /*
     A bitmap of OPTIMIZER_ADJ_* flags (defined in sql_priv.h).
-    See sql_vars.cc:adjust_secondary_key_cost for symbolic names.
+    See sys_vars.cc:adjust_secondary_key_cost for symbolic names.
   */
   ulonglong optimizer_adjust_secondary_key_costs;
 
@@ -1577,6 +1576,8 @@ public:
   */
   bool check_access(const privilege_t want_access, bool match_any = false);
   bool is_priv_user(const char *user, const char *host);
+  bool is_user_defined() const
+    { return user && user != delayed_user && user != slave_user; };
 };
 
 
@@ -2468,6 +2469,11 @@ public:
     swap_variables(sp_cache*, sp_package_body_cache, rhs.sp_package_body_cache);
   }
   void sp_caches_clear();
+  /**
+    Clear content of sp related caches.
+    Don't delete cache objects itself.
+  */
+  void sp_caches_empty();
 };
 
 
@@ -2957,6 +2963,12 @@ public:
   bool create_tmp_table_for_derived;
 
   bool save_prep_leaf_list;
+
+  /**
+    The data member reset_sp_cache is to signal that content of sp_cache
+    must be reset (all items be removed from it).
+  */
+  bool reset_sp_cache;
 
   /* container for handler's private per-connection data */
   Ha_data ha_data[MAX_HA];
@@ -4832,24 +4844,24 @@ public:
   */
   bool copy_db_to(LEX_CSTRING *to)
   {
-    if (db.str == NULL)
+    if (db.str)
     {
-      /*
-        No default database is set. In this case if it's guaranteed that
-        no CTE can be used in the statement then we can throw an error right
-        now at the parser stage. Otherwise the decision about throwing such
-        a message must be postponed until a post-parser stage when we are able
-        to resolve all CTE names as we don't need this message to be thrown
-        for any CTE references.
-      */
-      if (!lex->with_cte_resolution)
-        my_message(ER_NO_DB_ERROR, ER(ER_NO_DB_ERROR), MYF(0));
-      return TRUE;
+      to->str= strmake(db.str, db.length);
+      to->length= db.length;
+      return to->str == NULL;                     /* True on error */
     }
 
-    to->str= strmake(db.str, db.length);
-    to->length= db.length;
-    return to->str == NULL;                     /* True on error */
+    /*
+      No default database is set. In this case if it's guaranteed that
+      no CTE can be used in the statement then we can throw an error right
+      now at the parser stage. Otherwise the decision about throwing such
+      a message must be postponed until a post-parser stage when we are able
+      to resolve all CTE names as we don't need this message to be thrown
+      for any CTE references.
+    */
+    if (!lex->with_cte_resolution)
+      my_message(ER_NO_DB_ERROR, ER(ER_NO_DB_ERROR), MYF(0));
+    return TRUE;
   }
   /* Get db name or "". Use for printing current db */
   const char *get_db()
@@ -5190,11 +5202,29 @@ public:
   {
     if (global_system_variables.log_warnings > threshold)
     {
+      char real_ip_str[64];
+      real_ip_str[0]= 0;
+
+      /* For proxied connections, add the real IP to the warning message */
+      if (net.using_proxy_protocol && net.vio)
+      {
+        if(net.vio->localhost)
+          snprintf(real_ip_str, sizeof(real_ip_str), " real ip: 'localhost'");
+        else
+        {
+          char buf[INET6_ADDRSTRLEN];
+          if (!vio_getnameinfo((sockaddr *)&(net.vio->remote), buf,
+              sizeof(buf),NULL, 0, NI_NUMERICHOST))
+          {
+            snprintf(real_ip_str, sizeof(real_ip_str), " real ip: '%s'",buf);
+          }
+        }
+      }
       Security_context *sctx= &main_security_ctx;
       sql_print_warning(ER_THD(this, ER_NEW_ABORTING_CONNECTION),
                         thread_id, (db.str ? db.str : "unconnected"),
                         sctx->user ? sctx->user : "unauthenticated",
-                        sctx->host_or_ip, reason);
+                        sctx->host_or_ip, real_ip_str, reason);
     }
   }
 
@@ -5292,8 +5322,18 @@ public:
     Flag, mutex and condition for a thread to wait for a signal from another
     thread.
 
-    Currently used to wait for group commit to complete, can also be used for
-    other purposes.
+    Currently used to wait for group commit to complete, and COND_wakeup_ready
+    is used for threads to wait on semi-sync ACKs (though is protected by
+    Repl_semi_sync_master::LOCK_binlog). Note the following relationships
+    between these two use-cases when using
+    rpl_semi_sync_master_wait_point=AFTER_SYNC during group commit:
+      1) Non-leader threads use COND_wakeup_ready to wait for the leader thread
+         to complete binlog commit.
+      2) The leader thread uses COND_wakeup_ready to await ACKs from the
+         replica before signalling the non-leader threads to wake up.
+
+    With wait_point=AFTER_COMMIT, there is no overlap as binlogging has
+    finished, so COND_wakeup_ready is safe to re-use.
   */
   bool wakeup_ready;
   mysql_mutex_t LOCK_wakeup_ready;
@@ -5420,14 +5460,6 @@ public:
   void unregister_slave();
   bool is_binlog_dump_thread();
 #endif
-
-  /*
-    Indicates if this thread is suspended due to awaiting an ACK from a
-    replica. True if suspended, false otherwise.
-
-    Note that this variable is protected by Repl_semi_sync_master::LOCK_binlog
-  */
-  bool is_awaiting_semisync_ack;
 
   inline ulong wsrep_binlog_format(ulong binlog_format) const
   {
@@ -8177,6 +8209,10 @@ extern THD_list server_threads;
 
 void setup_tmp_table_column_bitmaps(TABLE *table, uchar *bitmaps,
                                     uint field_count);
+C_MODE_START
+void mariadb_sleep_for_space(unsigned int seconds);
+C_MODE_END
+
 #ifdef WITH_WSREP
 extern void wsrep_to_isolation_end(THD*);
 #endif

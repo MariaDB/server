@@ -259,6 +259,7 @@ inline void xdes_init(const buf_block_t &block, xdes_t *descr, mtr_t *mtr)
 }
 
 /** Mark a page used in an extent descriptor.
+@param[in]      space           tablespace
 @param[in,out]  seg_inode       segment inode
 @param[in,out]  iblock          segment inode page
 @param[in]      page            page number
@@ -268,8 +269,9 @@ inline void xdes_init(const buf_block_t &block, xdes_t *descr, mtr_t *mtr)
 @return error code */
 static MY_ATTRIBUTE((nonnull, warn_unused_result))
 dberr_t
-fseg_mark_page_used(fseg_inode_t *seg_inode, buf_block_t *iblock,
-                    ulint page, xdes_t *descr, buf_block_t *xdes, mtr_t *mtr)
+fseg_mark_page_used(const fil_space_t *space,
+                    fseg_inode_t *seg_inode, buf_block_t *iblock,
+                    uint32_t page, xdes_t *descr, buf_block_t *xdes, mtr_t *mtr)
 {
   ut_ad(fil_page_get_type(iblock->page.frame) == FIL_PAGE_INODE);
   ut_ad(!((page_offset(seg_inode) - FSEG_ARR_OFFSET) % FSEG_INODE_SIZE));
@@ -278,15 +280,16 @@ fseg_mark_page_used(fseg_inode_t *seg_inode, buf_block_t *iblock,
 
   const uint16_t xoffset= uint16_t(descr - xdes->page.frame + XDES_FLST_NODE);
   const uint16_t ioffset= uint16_t(seg_inode - iblock->page.frame);
+  const uint32_t limit= space->free_limit;
 
   if (!xdes_get_n_used(descr))
   {
     /* We move the extent from the free list to the NOT_FULL list */
     if (dberr_t err= flst_remove(iblock, uint16_t(FSEG_FREE + ioffset),
-                                 xdes, xoffset, mtr))
+                                 xdes, xoffset, limit, mtr))
       return err;
     if (dberr_t err= flst_add_last(iblock, uint16_t(FSEG_NOT_FULL + ioffset),
-                                   xdes, xoffset, mtr))
+                                   xdes, xoffset, limit, mtr))
       return err;
   }
 
@@ -303,10 +306,10 @@ fseg_mark_page_used(fseg_inode_t *seg_inode, buf_block_t *iblock,
   {
     /* We move the extent from the NOT_FULL list to the FULL list */
     if (dberr_t err= flst_remove(iblock, uint16_t(FSEG_NOT_FULL + ioffset),
-                                 xdes, xoffset, mtr))
+                                 xdes, xoffset, limit, mtr))
       return err;
     if (dberr_t err= flst_add_last(iblock, uint16_t(FSEG_FULL + ioffset),
-                                   xdes, xoffset, mtr))
+                                   xdes, xoffset, limit, mtr))
       return err;
     mtr->write<4>(*iblock, seg_inode + FSEG_NOT_FULL_N_USED,
                   not_full_n_used - FSP_EXTENT_SIZE);
@@ -884,7 +887,7 @@ fsp_fill_free_list(
       xdes_set_free<false>(*xdes, descr, FSP_IBUF_BITMAP_OFFSET, mtr);
       xdes_set_state(*xdes, descr, XDES_FREE_FRAG, mtr);
       if (dberr_t err= flst_add_last(header, FSP_HEADER_OFFSET + FSP_FREE_FRAG,
-                                     xdes, xoffset, mtr))
+                                     xdes, xoffset, space->free_limit, mtr))
         return err;
       byte *n_used= FSP_HEADER_OFFSET + FSP_FRAG_N_USED + header->page.frame;
       mtr->write<4>(*header, n_used, 2U + mach_read_from_4(n_used));
@@ -893,7 +896,7 @@ fsp_fill_free_list(
     {
       if (dberr_t err=
           flst_add_last(header, FSP_HEADER_OFFSET + FSP_FREE,
-                        xdes, xoffset, mtr))
+                        xdes, xoffset, space->free_limit, mtr))
         return err;
       count++;
     }
@@ -944,7 +947,11 @@ corrupted:
 		first = flst_get_first(FSP_HEADER_OFFSET + FSP_FREE
 				       + header->page.frame);
 
-		if (first.page == FIL_NULL) {
+		if (first.page >= space->free_limit) {
+			if (first.page != FIL_NULL) {
+				goto flst_corrupted;
+			}
+
 			*err = fsp_fill_free_list(false, space, header, mtr);
 			if (UNIV_UNLIKELY(*err != DB_SUCCESS)) {
 				goto corrupted;
@@ -955,6 +962,17 @@ corrupted:
 			if (first.page == FIL_NULL) {
 				return nullptr;	/* No free extents left */
 			}
+			if (first.page >= space->free_limit) {
+				goto flst_corrupted;
+			}
+		}
+
+		if (first.boffset < FSP_HEADER_OFFSET + FSP_HEADER_SIZE
+		    || first.boffset >= space->physical_size()
+		    - (XDES_SIZE + FIL_PAGE_DATA_END)) {
+		flst_corrupted:
+			*err = DB_CORRUPTION;
+			goto corrupted;
 		}
 
 		descr = xdes_lst_get_descriptor(*space, first, mtr,
@@ -967,7 +985,7 @@ corrupted:
 	*err = flst_remove(header, FSP_HEADER_OFFSET + FSP_FREE, desc_block,
 			   static_cast<uint16_t>(descr - desc_block->page.frame
 						 + XDES_FLST_NODE),
-			   mtr);
+			   space->free_limit, mtr);
 	if (UNIV_UNLIKELY(*err != DB_SUCCESS)) {
 		return nullptr;
 	}
@@ -984,11 +1002,12 @@ MY_ATTRIBUTE((nonnull, warn_unused_result))
 @param[in,out]	xdes	extent descriptor page
 @param[in,out]	descr	extent descriptor
 @param[in]	bit	slot to allocate in the extent
+@param[in]	space	tablespace
 @param[in,out]	mtr	mini-transaction
 @return error code */
 static dberr_t
 fsp_alloc_from_free_frag(buf_block_t *header, buf_block_t *xdes, xdes_t *descr,
-			 ulint bit, mtr_t *mtr)
+			 uint32_t bit, fil_space_t *space, mtr_t *mtr)
 {
   if (UNIV_UNLIKELY(xdes_get_state(descr) != XDES_FREE_FRAG ||
                     !xdes_is_free(descr, bit)))
@@ -1001,14 +1020,15 @@ fsp_alloc_from_free_frag(buf_block_t *header, buf_block_t *xdes, xdes_t *descr,
 
   if (xdes_is_full(descr))
   {
+    const uint32_t limit= space->free_limit;
     /* The fragment is full: move it to another list */
     const uint16_t xoffset=
       static_cast<uint16_t>(descr - xdes->page.frame + XDES_FLST_NODE);
     if (dberr_t err= flst_remove(header, FSP_HEADER_OFFSET + FSP_FREE_FRAG,
-                                 xdes, xoffset, mtr))
+                                 xdes, xoffset, limit, mtr))
       return err;
     if (dberr_t err= flst_add_last(header, FSP_HEADER_OFFSET + FSP_FULL_FRAG,
-                                   xdes, xoffset, mtr))
+                                   xdes, xoffset, limit, mtr))
       return err;
     xdes_set_state(*xdes, descr, XDES_FULL_FRAG, mtr);
     n_used-= FSP_EXTENT_SIZE;
@@ -1070,8 +1090,11 @@ buf_block_t *fsp_alloc_free_page(fil_space_t *space, uint32_t hint,
     /* Else take the first extent in free_frag list */
     fil_addr_t first = flst_get_first(FSP_HEADER_OFFSET + FSP_FREE_FRAG +
                                       block->page.frame);
-    if (first.page == FIL_NULL)
+    if (first.page >= space->free_limit)
     {
+      if (first.page != FIL_NULL)
+        goto flst_corrupted;
+
       /* There are no partially full fragments: allocate a free extent
       and add it to the FREE_FRAG list. NOTE that the allocation may
       have as a side-effect that an extent containing a descriptor
@@ -1082,13 +1105,23 @@ buf_block_t *fsp_alloc_free_page(fil_space_t *space, uint32_t hint,
         return nullptr;
       *err= flst_add_last(block, FSP_HEADER_OFFSET + FSP_FREE_FRAG, xdes,
                           static_cast<uint16_t>(descr - xdes->page.frame +
-                                                XDES_FLST_NODE), mtr);
+                                                XDES_FLST_NODE),
+                          space->free_limit, mtr);
       if (UNIV_UNLIKELY(*err != DB_SUCCESS))
         return nullptr;
       xdes_set_state(*xdes, descr, XDES_FREE_FRAG, mtr);
     }
     else
     {
+      if (first.boffset < FSP_HEADER_OFFSET + FSP_HEADER_SIZE ||
+          first.boffset >= space->physical_size() -
+          (XDES_SIZE + FIL_PAGE_DATA_END))
+      {
+      flst_corrupted:
+        *err= DB_CORRUPTION;
+        goto err_exit;
+      }
+
       descr= xdes_lst_get_descriptor(*space, first, mtr, &xdes, err);
       if (!descr)
         return nullptr;
@@ -1135,7 +1168,7 @@ buf_block_t *fsp_alloc_free_page(fil_space_t *space, uint32_t hint,
     }
   }
 
-  *err= fsp_alloc_from_free_frag(block, xdes, descr, free, mtr);
+  *err= fsp_alloc_from_free_frag(block, xdes, descr, free, space, mtr);
   if (UNIV_UNLIKELY(*err != DB_SUCCESS))
     goto corrupted;
   return fsp_page_create(space, page_no, init_mtr);
@@ -1174,7 +1207,8 @@ static dberr_t fsp_free_extent(fil_space_t* space, uint32_t offset,
   space->free_len++;
   return flst_add_last(block, FSP_HEADER_OFFSET + FSP_FREE,
                        xdes, static_cast<uint16_t>(descr - xdes->page.frame +
-                                                   XDES_FLST_NODE), mtr);
+                                                   XDES_FLST_NODE),
+                       space->free_limit, mtr);
 }
 
 MY_ATTRIBUTE((nonnull))
@@ -1228,16 +1262,17 @@ static dberr_t fsp_free_page(fil_space_t *space, uint32_t offset, mtr_t *mtr)
 
 	const uint16_t xoffset= static_cast<uint16_t>(descr - xdes->page.frame
 						      + XDES_FLST_NODE);
+	const uint32_t limit = space->free_limit;
 
 	if (state == XDES_FULL_FRAG) {
 		/* The fragment was full: move it to another list */
 		err = flst_remove(header, FSP_HEADER_OFFSET + FSP_FULL_FRAG,
-				  xdes, xoffset, mtr);
+				  xdes, xoffset, limit, mtr);
 		if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
 			return err;
 		}
 		err = flst_add_last(header, FSP_HEADER_OFFSET + FSP_FREE_FRAG,
-				    xdes, xoffset, mtr);
+				    xdes, xoffset, limit, mtr);
 		if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
 			return err;
 		}
@@ -1259,7 +1294,7 @@ static dberr_t fsp_free_page(fil_space_t *space, uint32_t offset, mtr_t *mtr)
 	if (!xdes_get_n_used(descr)) {
 		/* The extent has become free: move it to another list */
 		err = flst_remove(header, FSP_HEADER_OFFSET + FSP_FREE_FRAG,
-				  xdes, xoffset, mtr);
+				  xdes, xoffset, limit, mtr);
 		if (err == DB_SUCCESS) {
 			err = fsp_free_extent(space, offset, mtr);
 		}
@@ -1353,7 +1388,7 @@ static dberr_t fsp_alloc_seg_inode_page(fil_space_t *space,
 #endif
 
   return flst_add_last(header, FSP_HEADER_OFFSET + FSP_SEG_INODES_FREE,
-                       block, FSEG_INODE_PAGE_NODE, mtr);
+                       block, FSEG_INODE_PAGE_NODE, space->free_limit, mtr);
 }
 
 MY_ATTRIBUTE((nonnull, warn_unused_result))
@@ -1409,12 +1444,13 @@ fsp_alloc_seg_inode(fil_space_t *space, buf_block_t *header,
   {
     /* There are no other unused headers left on the page: move it
     to another list */
+    const uint32_t limit= space->free_limit;
     *err= flst_remove(header, FSP_HEADER_OFFSET + FSP_SEG_INODES_FREE,
-                      block, FSEG_INODE_PAGE_NODE, mtr);
+                      block, FSEG_INODE_PAGE_NODE, limit, mtr);
     if (UNIV_UNLIKELY(*err != DB_SUCCESS))
       return nullptr;
     *err= flst_add_last(header, FSP_HEADER_OFFSET + FSP_SEG_INODES_FULL,
-                        block, FSEG_INODE_PAGE_NODE, mtr);
+                        block, FSEG_INODE_PAGE_NODE, limit, mtr);
     if (UNIV_UNLIKELY(*err != DB_SUCCESS))
       return nullptr;
   }
@@ -1447,16 +1483,17 @@ static void fsp_free_seg_inode(fil_space_t *space, fseg_inode_t *inode,
   }
 
   const ulint physical_size= space->physical_size();
+  const uint32_t limit= space->free_limit;
 
   if (ULINT_UNDEFINED == fsp_seg_inode_page_find_free(iblock->page.frame, 0,
                                                       physical_size))
   {
     /* Move the page to another list */
     if (flst_remove(header, FSP_HEADER_OFFSET + FSP_SEG_INODES_FULL,
-                    iblock, FSEG_INODE_PAGE_NODE, mtr) != DB_SUCCESS)
+                    iblock, FSEG_INODE_PAGE_NODE, limit, mtr) != DB_SUCCESS)
       return;
     if (flst_add_last(header, FSP_HEADER_OFFSET + FSP_SEG_INODES_FREE,
-                      iblock, FSEG_INODE_PAGE_NODE, mtr) != DB_SUCCESS)
+                      iblock, FSEG_INODE_PAGE_NODE, limit, mtr) != DB_SUCCESS)
       return;
   }
 
@@ -1468,7 +1505,7 @@ static void fsp_free_seg_inode(fil_space_t *space, fseg_inode_t *inode,
 
   /* There are no other used headers left on the page: free it */
   if (flst_remove(header, FSP_HEADER_OFFSET + FSP_SEG_INODES_FREE,
-                  iblock, FSEG_INODE_PAGE_NODE, mtr) == DB_SUCCESS)
+                  iblock, FSEG_INODE_PAGE_NODE, limit, mtr) == DB_SUCCESS)
     fsp_free_page(space, iblock->page.id().page_no(), mtr);
 }
 
@@ -1841,7 +1878,8 @@ static dberr_t fseg_fill_free_list(const fseg_inode_t *inode,
                       static_cast<uint16_t>(inode - iblock->page.frame +
                                             FSEG_FREE), xdes,
                       static_cast<uint16_t>(descr - xdes->page.frame +
-                                            XDES_FLST_NODE), mtr))
+                                            XDES_FLST_NODE),
+                      space->free_limit, mtr))
       return err;
     xdes_set_state(*xdes, descr, XDES_FSEG, mtr);
     mtr->memcpy(*xdes, descr + XDES_ID, inode + FSEG_ID, 8);
@@ -1876,11 +1914,25 @@ fseg_alloc_free_extent(
   ut_ad(!memcmp(FSEG_MAGIC_N_BYTES, FSEG_MAGIC_N + inode, 4));
   ut_d(space->modify_check(*mtr));
 
+  if (UNIV_UNLIKELY(page_offset(inode) < FSEG_ARR_OFFSET))
+  {
+  corrupted:
+    *err= DB_CORRUPTION;
+    space->set_corrupted();
+    return nullptr;
+  }
+
   if (flst_get_len(inode + FSEG_FREE))
   {
+    const fil_addr_t first= flst_get_first(inode + FSEG_FREE);
+    if (first.page >= space->free_limit ||
+        first.boffset < FSP_HEADER_OFFSET + FSP_HEADER_SIZE ||
+        first.boffset >= space->physical_size() -
+        (XDES_SIZE + FIL_PAGE_DATA_END))
+      goto corrupted;
+
     /* Segment free list is not empty, allocate from it */
-    return xdes_lst_get_descriptor(*space, flst_get_first(inode + FSEG_FREE),
-                                   mtr, xdes, err);
+    return xdes_lst_get_descriptor(*space, first, mtr, xdes, err);
   }
 
   xdes_t* descr= fsp_alloc_free_extent(space, 0, xdes, mtr, err);
@@ -1892,7 +1944,8 @@ fseg_alloc_free_extent(
                       static_cast<uint16_t>(inode - iblock->page.frame +
                                             FSEG_FREE), *xdes,
                       static_cast<uint16_t>(descr - (*xdes)->page.frame +
-                                            XDES_FLST_NODE), mtr);
+                                            XDES_FLST_NODE),
+                      space->free_limit, mtr);
   if (UNIV_LIKELY(*err != DB_SUCCESS))
     return nullptr;
   /* Try to fill the segment free list */
@@ -1978,29 +2031,42 @@ fseg_alloc_free_page_low(
 		}
 	}
 
-	/* In the big if-else below we look for ret_page and ret_descr */
-	/*-------------------------------------------------------------*/
-	if ((xdes_get_state(descr) == XDES_FSEG)
-	    && mach_read_from_8(descr + XDES_ID) == seg_id
-	    && xdes_is_free(descr, hint % FSP_EXTENT_SIZE)) {
+	const uint32_t extent_size = FSP_EXTENT_SIZE;
+	ret_descr = descr;
+	/* Try to get the page from extent which belongs to segment */
+	if (xdes_get_state(descr) == XDES_FSEG
+	    && mach_read_from_8(descr + XDES_ID) == seg_id) {
+		/* Get the page from the segment extent */
+		if (xdes_is_free(descr, hint % extent_size)) {
 take_hinted_page:
-		/* 1. We can take the hinted page
-		=================================*/
-		ret_descr = descr;
-		ret_page = hint;
-		/* Skip the check for extending the tablespace. If the
-		page hint were not within the size of the tablespace,
-		we would have got (descr == NULL) above and reset the hint. */
-		goto got_hinted_page;
-		/*-----------------------------------------------------------*/
-	} else if (xdes_get_state(descr) == XDES_FREE
-		   && reserved - used < reserved / FSEG_FILLFACTOR
-		   && used >= FSEG_FRAG_LIMIT) {
+			ret_page = hint;
+			goto got_hinted_page;
+		} else if (!xdes_is_full(descr)) {
+			/* Take the page from the same extent as the
+			hinted page (and the extent already belongs to
+			the segment) */
+			ret_page = xdes_find_free(descr, hint % extent_size);
+			if (ret_page == FIL_NULL) {
+				ut_ad(!has_done_reservation);
+				return nullptr;
+			}
+			ret_page += xdes_get_offset(ret_descr);
+			goto alloc_done;
+		}
+	}
 
-		/* 2. We allocate the free extent from space and can take
-		=========================================================
-		the hinted page
-		===============*/
+	/** If the number of unused but reserved pages in a segment is
+	esser than minimum value of 1/8 of reserved pages or
+	4 * FSP_EXTENT_SIZE and there are at least half of extent size
+	used pages, then we allow a new empty extent to be added to
+	the segment in fseg_alloc_free_page_general(). Otherwise, we use
+	unused pages of the segment. */
+	if (used < extent_size / 2 ||
+            reserved - used >= reserved / 8 ||
+            reserved - used >= extent_size * 4) {
+	} else if (xdes_get_state(descr) == XDES_FREE) {
+		/* Allocate the free extent from space and can
+		take the hinted page */
 		ret_descr = fsp_alloc_free_extent(space, hint, &xdes,
 						  mtr, err);
 
@@ -2020,61 +2086,42 @@ take_hinted_page:
 					      + FSEG_FREE), xdes,
 			static_cast<uint16_t>(ret_descr
 					      - xdes->page.frame
-					      + XDES_FLST_NODE), mtr);
+					      + XDES_FLST_NODE),
+			space->free_limit, mtr);
 		if (UNIV_UNLIKELY(*err != DB_SUCCESS)) {
 			return nullptr;
 		}
 
 		/* Try to fill the segment free list */
 		*err = fseg_fill_free_list(seg_inode, iblock, space,
-					   hint + FSP_EXTENT_SIZE, mtr);
+					   hint + extent_size, mtr);
 		if (UNIV_UNLIKELY(*err != DB_SUCCESS)) {
 			return nullptr;
 		}
 		goto take_hinted_page;
-		/*-----------------------------------------------------------*/
-	} else if ((direction != FSP_NO_DIR)
-		   && ((reserved - used) < reserved / FSEG_FILLFACTOR)
-		   && (used >= FSEG_FRAG_LIMIT)
-		   && (ret_descr = fseg_alloc_free_extent(seg_inode, iblock,
-							  &xdes, space,
-							  mtr, err))) {
-		/* 3. We take any free extent (which was already assigned above
-		===============================================================
-		in the if-condition to ret_descr) and take the lowest or
-		========================================================
-		highest page in it, depending on the direction
-		==============================================*/
+	} else if (direction != FSP_NO_DIR) {
+
+		ret_descr = fseg_alloc_free_extent(seg_inode, iblock,
+						   &xdes, space, mtr, err);
+
+		if (!ret_descr) {
+			ut_ad(*err != DB_SUCCESS);
+			return nullptr;
+		}
+		/* Take any free extent (which was already assigned
+		above in the if-condition to ret_descr) and take the
+		lowest or highest page in it, depending on the direction */
 		ret_page = xdes_get_offset(ret_descr);
 
 		if (direction == FSP_DOWN) {
-			ret_page += FSP_EXTENT_SIZE - 1;
+			ret_page += extent_size - 1;
 		}
-		ut_ad(!has_done_reservation || ret_page != FIL_NULL);
-		/*-----------------------------------------------------------*/
-	} else if (UNIV_UNLIKELY(*err != DB_SUCCESS)) {
-		return nullptr;
-	} else if ((xdes_get_state(descr) == XDES_FSEG)
-		   && mach_read_from_8(descr + XDES_ID) == seg_id
-		   && (!xdes_is_full(descr))) {
+		goto alloc_done;
+	}
 
-		/* 4. We can take the page from the same extent as the
-		======================================================
-		hinted page (and the extent already belongs to the
-		==================================================
-		segment)
-		========*/
-		ret_descr = descr;
-		ret_page = xdes_find_free(ret_descr, hint % FSP_EXTENT_SIZE);
-		if (ret_page == FIL_NULL) {
-			ut_ad(!has_done_reservation);
-		} else {
-			ret_page += xdes_get_offset(ret_descr);
-		}
-		/*-----------------------------------------------------------*/
-	} else if (reserved - used > 0) {
-		/* 5. We take any unused page from the segment
-		==============================================*/
+	/* Try to take individual page from the segment	or tablespace */
+	if (reserved - used > 0) {
+		/* Take any unused page from the segment */
 		fil_addr_t	first;
 
 		if (flst_get_len(seg_inode + FSEG_NOT_FULL) > 0) {
@@ -2083,7 +2130,15 @@ take_hinted_page:
 			first = flst_get_first(seg_inode + FSEG_FREE);
 		} else {
 			ut_ad(!has_done_reservation);
-			return(NULL);
+			return nullptr;
+		}
+
+		if (first.page >= space->free_limit
+		    || first.boffset < FSP_HEADER_OFFSET + FSP_HEADER_SIZE
+		    || first.boffset >= space->physical_size()
+		    - (XDES_SIZE + FIL_PAGE_DATA_END)) {
+			*err= DB_CORRUPTION;
+			return nullptr;
 		}
 
 		ret_descr = xdes_lst_get_descriptor(*space, first, mtr, &xdes);
@@ -2097,10 +2152,9 @@ take_hinted_page:
 		} else {
 			ret_page += xdes_get_offset(ret_descr);
 		}
-		/*-----------------------------------------------------------*/
-	} else if (used < FSEG_FRAG_LIMIT) {
-		/* 6. We allocate an individual page from the space
-		===================================================*/
+
+	} else if (used < extent_size / 2) {
+		/* Allocate an individual page from the space */
 		buf_block_t* block = fsp_alloc_free_page(
 			space, hint, mtr, init_mtr, err);
 
@@ -2123,13 +2177,11 @@ take_hinted_page:
 		/* fsp_alloc_free_page() invoked fsp_init_file_page()
 		already. */
 		return(block);
-		/*-----------------------------------------------------------*/
 	} else {
-		/* 7. We allocate a new extent and take its first page
-		======================================================*/
+		/* In worst case, try to allocate a new extent
+		and take its first page */
 		ret_descr = fseg_alloc_free_extent(seg_inode, iblock, &xdes,
 						   space, mtr, err);
-
 		if (!ret_descr) {
 			ut_ad(!has_done_reservation || *err);
 			return nullptr;
@@ -2142,14 +2194,13 @@ take_hinted_page:
 		/* Page could not be allocated */
 
 		ut_ad(!has_done_reservation);
-		return(NULL);
+		return nullptr;
 	}
-
+alloc_done:
 	if (space->size <= ret_page && !is_predefined_tablespace(space->id)) {
 		/* It must be that we are extending a single-table
 		tablespace whose size is still < 64 pages */
-
-		if (ret_page >= FSP_EXTENT_SIZE) {
+		if (ret_page >= extent_size) {
 			sql_print_error("InnoDB: Trying to extend '%s'"
 					" by single page(s) though the"
 					" space size " UINT32PF "."
@@ -2157,33 +2208,34 @@ take_hinted_page:
 					space->chain.start->name, space->size,
 					ret_page);
 			ut_ad(!has_done_reservation);
-			return(NULL);
+			return nullptr;
 		}
 
 		if (!fsp_try_extend_data_file_with_pages(
 			    space, ret_page, header, mtr)) {
 			/* No disk space left */
 			ut_ad(!has_done_reservation);
-			return(NULL);
+			return nullptr;
 		}
 	}
 
-got_hinted_page:
-	/* ret_descr == NULL if the block was allocated from free_frag
-	(XDES_FREE_FRAG) */
+	/* Skip the check for extending the tablespace.
+	If the page hint were not within the size of the tablespace,
+	descr set to nullptr above and reset the hint and the block
+	was allocated from free_frag (XDES_FREE_FRAG) */
 	if (ret_descr != NULL) {
+got_hinted_page:
 		/* At this point we know the extent and the page offset.
 		The extent is still in the appropriate list (FSEG_NOT_FULL
 		or FSEG_FREE), and the page is not yet marked as used. */
-
 		ut_d(buf_block_t* xxdes);
 		ut_ad(xdes_get_descriptor(space, ret_page, mtr, err, &xxdes)
 		      == ret_descr);
 		ut_ad(xdes == xxdes);
-		ut_ad(xdes_is_free(ret_descr, ret_page % FSP_EXTENT_SIZE));
+		ut_ad(xdes_is_free(ret_descr, ret_page % extent_size));
 
-		*err = fseg_mark_page_used(seg_inode, iblock, ret_page,
-                                           ret_descr, xdes, mtr);
+		*err = fseg_mark_page_used(space, seg_inode, iblock, ret_page,
+					   ret_descr, xdes, mtr);
 		if (UNIV_UNLIKELY(*err != DB_SUCCESS)) {
 			return nullptr;
 		}
@@ -2524,18 +2576,19 @@ corrupted:
 	const uint16_t xoffset= uint16_t(descr - xdes->page.frame
 					 + XDES_FLST_NODE);
 	const uint16_t ioffset= uint16_t(seg_inode - iblock->page.frame);
+	const uint32_t limit = space->free_limit;
 
 	if (xdes_is_full(descr)) {
 		/* The fragment is full: move it to another list */
 		err = flst_remove(iblock,
 				  static_cast<uint16_t>(FSEG_FULL + ioffset),
-				  xdes, xoffset, mtr);
+				  xdes, xoffset, limit, mtr);
 		if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
 			return err;
 		}
 		err = flst_add_last(iblock, static_cast<uint16_t>(FSEG_NOT_FULL
 								  + ioffset),
-				    xdes, xoffset, mtr);
+				    xdes, xoffset, limit, mtr);
 		if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
 			return err;
 		}
@@ -2553,7 +2606,7 @@ corrupted:
 	if (!xdes_get_n_used(descr)) {
 		err = flst_remove(iblock, static_cast<uint16_t>(FSEG_NOT_FULL
 								+ ioffset),
-				  xdes, xoffset, mtr);
+				  xdes, xoffset, limit, mtr);
 		if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
 			return err;
 		}
@@ -2698,11 +2751,12 @@ fseg_free_extent(
 #endif /* BTR_CUR_HASH_ADAPT */
 
 	uint16_t lst;
+	uint32_t limit = space->free_limit;
 
 	if (xdes_is_full(descr)) {
 		lst = static_cast<uint16_t>(FSEG_FULL + ioffset);
 remove:
-		err = flst_remove(iblock, lst, xdes, xoffset, mtr);
+		err = flst_remove(iblock, lst, xdes, xoffset, limit, mtr);
 		if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
 			return err;
 		}
@@ -2712,7 +2766,7 @@ remove:
 	} else {
 		err = flst_remove(
 			iblock, static_cast<uint16_t>(FSEG_NOT_FULL + ioffset),
-			xdes, xoffset, mtr);
+			xdes, xoffset, limit, mtr);
 		if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
 			return err;
 		}
@@ -2962,7 +3016,10 @@ fseg_get_first_extent(
     return nullptr;
   }
 
-  if (first.page == FIL_NULL)
+  if (first.page >= space->free_limit ||
+      first.boffset < FSP_HEADER_OFFSET + FSP_HEADER_SIZE ||
+      first.boffset >= space->physical_size() -
+      (XDES_SIZE + FIL_PAGE_DATA_END))
     goto corrupted;
 
   return xdes_lst_get_descriptor(*space, first, mtr, nullptr, err);

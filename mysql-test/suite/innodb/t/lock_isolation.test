@@ -1,0 +1,149 @@
+--source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-26642 Weird SELECT view when a record is
+--echo #            modified to the same value by two transactions
+--echo # MDEV-32898 Phantom rows caused by updates of PRIMARY KEY
+--echo #
+
+CREATE TABLE t(a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t VALUES (1,1),(2,2);
+BEGIN; SELECT * FROM t LOCK IN SHARE MODE;
+--connect con_weird,localhost,root
+BEGIN;
+SELECT * FROM t;
+--connect consistent,localhost,root
+SET innodb_snapshot_isolation=ON;
+BEGIN;
+SELECT * FROM t;
+--connection default
+UPDATE t SET a=3 WHERE b=2;
+COMMIT;
+--connection consistent
+--error ER_CHECKREAD
+UPDATE t SET b=3;
+SELECT * FROM t;
+COMMIT;
+--connection con_weird
+UPDATE t SET b=3;
+SELECT * FROM t;
+COMMIT;
+--connection default
+SELECT * FROM t;
+DROP TABLE t;
+
+--echo #
+--echo # MDEV-26643 Inconsistent behaviors of UPDATE under
+--echo #            READ UNCOMMITTED and READ COMMITTED isolation level
+--echo #
+
+CREATE TABLE t(a INT, b INT) ENGINE=InnoDB;
+INSERT INTO t VALUES(NULL, 1), (2, 2);
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+BEGIN; UPDATE t SET a = 10;
+
+--connection consistent
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+--send UPDATE t SET b = 20 WHERE a
+
+--connection default
+let $wait_condition=
+  select count(*) = 1 from information_schema.processlist
+  where state = 'Updating'
+  and info = 'UPDATE t SET b = 20 WHERE a';
+--source include/wait_condition.inc
+
+COMMIT;
+
+--connection consistent
+--reap
+SELECT * FROM t;
+
+--connection default
+TRUNCATE TABLE t;
+INSERT INTO t VALUES(NULL, 1), (2, 2);
+BEGIN; UPDATE t SET a = 10;
+
+--connection consistent
+SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
+--send UPDATE t SET b = 20 WHERE a
+
+--connection default
+let $wait_condition=
+  select count(*) = 1 from information_schema.processlist
+  where info = 'UPDATE t SET b = 20 WHERE a';
+--source include/wait_condition.inc
+
+COMMIT;
+
+--connection consistent
+--reap
+SELECT * FROM t;
+
+--connection default
+TRUNCATE TABLE t;
+INSERT INTO t VALUES(NULL, 1), (2, 2);
+BEGIN; UPDATE t SET a = 10;
+
+--connection con_weird
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+send UPDATE t SET b = 20 WHERE a;
+
+--connection default
+let $wait_condition=
+  select count(*) = 1 from information_schema.processlist
+  where state = 'Updating'
+  and info = 'UPDATE t SET b = 20 WHERE a';
+--source include/wait_condition.inc
+
+SELECT * FROM t;
+COMMIT;
+
+--connection con_weird
+--reap
+COMMIT;
+
+--connection default
+SELECT * FROM t;
+DROP TABLE t;
+
+--echo #
+--echo # MDEV-33802 Weird read view after ROLLBACK of other transactions
+--echo #
+
+CREATE TABLE t(a INT PRIMARY KEY, b INT UNIQUE) ENGINE=InnoDB;
+INSERT INTO t SET a=1;
+
+BEGIN; INSERT INTO t SET a=2;
+
+--connection consistent
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+--disable_ps2_protocol
+--error ER_CHECKREAD
+SELECT * FROM t FORCE INDEX (b) FOR UPDATE;
+--enable_ps2_protocol
+
+--connection con_weird
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+send
+SELECT * FROM t FORCE INDEX (b) FOR UPDATE;
+
+--connection default
+let $wait_condition=
+  select count(*) = 1 from information_schema.processlist
+  where state = 'Sending data'
+  and info LIKE 'SELECT * FROM t %';
+--source include/wait_condition.inc
+ROLLBACK;
+
+--connection con_weird
+--reap
+SELECT * FROM t FORCE INDEX (b) FOR UPDATE;
+--disconnect con_weird
+
+--connection consistent
+SELECT * FROM t FORCE INDEX (b) FOR UPDATE;
+--disconnect consistent
+
+--connection default
+DROP TABLE t;

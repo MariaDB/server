@@ -2000,7 +2000,7 @@ row_ins_dupl_error_with_rec(
 	/* In a unique secondary index we allow equal key values if they
 	contain SQL NULLs */
 
-	if (!dict_index_is_clust(index) && !index->nulls_equal) {
+	if (!dict_index_is_clust(index)) {
 
 		for (i = 0; i < n_unique; i++) {
 			if (dfield_is_null(dtuple_get_nth_field(entry, i))) {
@@ -2102,16 +2102,8 @@ row_ins_scan_sec_index_for_duplicate(
 	/* If the secondary index is unique, but one of the fields in the
 	n_unique first fields is NULL, a unique key violation cannot occur,
 	since we define NULL != NULL in this case */
-
-	if (!index->nulls_equal) {
-		for (ulint i = 0; i < n_unique; i++) {
-			if (UNIV_SQL_NULL == dfield_get_len(
-					dtuple_get_nth_field(entry, i))) {
-
-				DBUG_RETURN(DB_SUCCESS);
-			}
-		}
-	}
+	if (index->n_nullable && dtuple_contains_null(entry, n_unique))
+		DBUG_RETURN(DB_SUCCESS);
 
 	/* Store old value on n_fields_cmp */
 
@@ -2569,12 +2561,6 @@ row_ins_index_entry_big_rec(
 	return(error);
 }
 
-#ifdef HAVE_REPLICATION /* Working around MDEV-24622 */
-extern "C" int thd_is_slave(const MYSQL_THD thd);
-#else
-# define thd_is_slave(thd) 0
-#endif
-
 #if defined __aarch64__&&defined __GNUC__&&__GNUC__==4&&!defined __clang__
 /* Avoid GCC 4.8.5 internal compiler error due to srw_mutex::wr_unlock().
 We would only need this for row_ins_clust_index_entry_low(),
@@ -2727,8 +2713,7 @@ err_exit:
 	    && !index->table->n_rec_locks
 	    && !index->table->is_active_ddl()
 	    && !index->table->has_spatial_index()
-	    && !index->table->versioned()
-	    && !thd_is_slave(trx->mysql_thd) /* FIXME: MDEV-24622 */) {
+	    && !index->table->versioned()) {
 		DEBUG_SYNC_C("empty_root_page_insert");
 
 		trx->bulk_insert = true;

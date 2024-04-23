@@ -79,7 +79,6 @@ typedef st_spider_result SPIDER_RESULT;
 #define SPIDER_SQL_HS_LTEQUAL_STR "<="
 #define SPIDER_SQL_HS_LTEQUAL_LEN (sizeof(SPIDER_SQL_HS_LTEQUAL_STR) - 1)
 
-#ifdef ITEM_FUNC_CASE_PARAMS_ARE_PUBLIC
 #define SPIDER_SQL_CASE_STR "case "
 #define SPIDER_SQL_CASE_LEN (sizeof(SPIDER_SQL_CASE_STR) - 1)
 #define SPIDER_SQL_WHEN_STR " when "
@@ -90,7 +89,6 @@ typedef st_spider_result SPIDER_RESULT;
 #define SPIDER_SQL_ELSE_LEN (sizeof(SPIDER_SQL_ELSE_STR) - 1)
 #define SPIDER_SQL_END_STR " end"
 #define SPIDER_SQL_END_LEN (sizeof(SPIDER_SQL_END_STR) - 1)
-#endif
 
 #define SPIDER_SQL_USING_STR " using "
 #define SPIDER_SQL_USING_LEN (sizeof(SPIDER_SQL_USING_STR) - 1)
@@ -1024,10 +1022,6 @@ public:
     Time_zone *time_zone,
     int *need_mon
   ) = 0;
-  virtual bool set_loop_check_in_bulk_sql();
-  virtual int set_loop_check(
-    int *need_mon
-  );
   virtual int fin_loop_check();
   virtual int show_master_status(
     SPIDER_TRX *trx,

@@ -634,7 +634,7 @@ SUCCESS
 drop table t2;
 set sql_mode=no_engine_substitution;
 create temporary table t2 (a int);
-call p_verify_status_increment(1, 0, 0, 0);
+call p_verify_status_increment(3, 0, 2, 0);
 SUCCESS
 
 set sql_mode=default;
@@ -643,8 +643,9 @@ set sql_mode=default;
 select f1();
 f1()
 2
-# Two commits because a binary log record is written
-call p_verify_status_increment(2, 0, 1, 0);
+# Two commits because a binary log record is written, and another two
+# as the function f1() is reloaded after creating temporary table.
+call p_verify_status_increment(4, 0, 3, 0);
 SUCCESS
 
 commit;
@@ -715,11 +716,11 @@ SUCCESS
 # 25. DDL: DROP TEMPORARY TABLE, does not start a transaction
 #
 drop temporary table t2;
-call p_verify_status_increment(1, 0, 1, 0);
+call p_verify_status_increment(3, 0, 2, 0);
 SUCCESS
 
 commit;
-call p_verify_status_increment(1, 0, 1, 0);
+call p_verify_status_increment(1, 0, 0, 0);
 SUCCESS
 
 # 26. Verify that SET AUTOCOMMIT issues an implicit commit
@@ -801,7 +802,7 @@ call p_verify_status_increment(0, 0, 0, 0);
 SUCCESS
 
 do (select f1() from t1 where a=2);
-call p_verify_status_increment(2, 2, 2, 2);
+call p_verify_status_increment(4, 2, 4, 2);
 SUCCESS
 
 commit;

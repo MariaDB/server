@@ -34,7 +34,6 @@ int Repl_semi_sync_slave::init_object()
   m_init_done = true;
 
   /* References to the parameter works after set_options(). */
-  set_slave_enabled(global_rpl_semi_sync_slave_enabled);
   set_trace_level(rpl_semi_sync_slave_trace_level);
   set_delay_master(rpl_semi_sync_slave_delay_master);
   set_kill_conn_timeout(rpl_semi_sync_slave_kill_conn_timeout);

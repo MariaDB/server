@@ -680,8 +680,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
 #ifdef HAVE_REPLICATION
    ,
    current_linfo(0),
-   slave_info(0),
-   is_awaiting_semisync_ack(0)
+   slave_info(0)
 #endif
 #ifdef WITH_WSREP
    ,
@@ -894,6 +893,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   prepare_derived_at_open= FALSE;
   create_tmp_table_for_derived= FALSE;
   save_prep_leaf_list= FALSE;
+  reset_sp_cache= false;
   org_charset= 0;
   /* Restore THR_THD */
   set_current_thd(old_THR_THD);
@@ -4479,7 +4479,7 @@ void Security_context::destroy()
     my_free((char*) host);
     host= NULL;
   }
-  if (user != delayed_user)
+  if (is_user_defined())
   {
     my_free((char*) user);
     user= NULL;
@@ -5300,14 +5300,6 @@ extern "C" enum enum_server_command thd_current_command(MYSQL_THD thd)
 {
   return thd->get_command();
 }
-
-#ifdef HAVE_REPLICATION /* Working around MDEV-24622 */
-/** @return whether the current thread is for applying binlog in a replica */
-extern "C" int thd_is_slave(const MYSQL_THD thd)
-{
-  return thd && thd->slave_thread;
-}
-#endif /* HAVE_REPLICATION */
 
 /* Returns high resolution timestamp for the start
   of the current query. */
@@ -8341,6 +8333,34 @@ wait_for_commit::unregister_wait_for_prior_commit2()
   wakeup_error= 0;
   mysql_mutex_unlock(&LOCK_wait_commit);
 }
+
+/*
+  Wait # seconds or until someone sends a signal (through kill)
+
+  Note that this must have same prototype as my_sleep_for_space()
+*/
+
+C_MODE_START
+
+void mariadb_sleep_for_space(unsigned int seconds)
+{
+  THD *thd= current_thd;
+  PSI_stage_info old_stage;
+  if (!thd)
+  {
+    sleep(seconds);
+    return;
+  }
+ mysql_mutex_lock(&thd->LOCK_wakeup_ready);
+  thd->ENTER_COND(&thd->COND_wakeup_ready, &thd->LOCK_wakeup_ready,
+                  &stage_waiting_for_disk_space, &old_stage);
+  if (!thd->killed)
+    mysql_cond_wait(&thd->COND_wakeup_ready, &thd->LOCK_wakeup_ready);
+  thd->EXIT_COND(&old_stage);
+  return;
+}
+
+C_MODE_END
 
 
 bool Discrete_intervals_list::append(ulonglong start, ulonglong val,

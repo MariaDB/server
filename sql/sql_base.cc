@@ -814,8 +814,10 @@ int close_thread_tables(THD *thd)
 {
   TABLE *table;
   int error= 0;
+  PSI_stage_info org_stage;
   DBUG_ENTER("close_thread_tables");
 
+  thd->backup_stage(&org_stage);
   THD_STAGE_INFO(thd, stage_closing_tables);
 
 #ifdef EXTRA_DEBUG
@@ -931,7 +933,10 @@ int close_thread_tables(THD *thd)
       we will exit this function a few lines below.
     */
     if (! thd->lex->requires_prelocking())
-      DBUG_RETURN(0);
+    {
+      error= 0;
+      goto end;
+    }
 
     /*
       We are in the top-level statement of a prelocked statement,
@@ -942,7 +947,10 @@ int close_thread_tables(THD *thd)
       thd->locked_tables_mode= LTM_LOCK_TABLES;
 
     if (thd->locked_tables_mode == LTM_LOCK_TABLES)
-      DBUG_RETURN(0);
+    {
+      error= 0;
+      goto end;
+    }
 
     thd->leave_locked_tables_mode();
 
@@ -971,6 +979,8 @@ int close_thread_tables(THD *thd)
   while (thd->open_tables)
     (void) close_thread_table(thd, &thd->open_tables);
 
+end:
+  THD_STAGE_INFO(thd, org_stage);
   DBUG_RETURN(error);
 }
 
@@ -3770,7 +3780,7 @@ open_and_process_routine(THD *thd, Query_tables_list *prelocking_ctx,
           DBUG_RETURN(TRUE);
 
         /* Ensures the routine is up-to-date and cached, if exists. */
-        if (rt->sp_cache_routine(thd, has_prelocking_list, &sp))
+        if (rt->sp_cache_routine(thd, &sp))
           DBUG_RETURN(TRUE);
 
         /* Remember the version of the routine in the parse tree. */
@@ -3811,7 +3821,7 @@ open_and_process_routine(THD *thd, Query_tables_list *prelocking_ctx,
           Validating routine version is unnecessary, since CALL
           does not affect the prepared statement prelocked list.
         */
-        if (rt->sp_cache_routine(thd, false, &sp))
+        if (rt->sp_cache_routine(thd, &sp))
           DBUG_RETURN(TRUE);
       }
     }
@@ -5005,6 +5015,9 @@ prepare_fk_prelocking_list(THD *thd, Query_tables_list *prelocking_ctx,
   Query_arena *arena, backup;
   TABLE *table= table_list->table;
 
+  if (!table->file->referenced_by_foreign_key())
+    DBUG_RETURN(FALSE);
+
   arena= thd->activate_stmt_arena_if_needed(&backup);
 
   table->file->get_parent_foreign_key_list(thd, &fk_list);
@@ -5090,16 +5103,12 @@ bool DML_prelocking_strategy::handle_table(THD *thd,
         return TRUE;
     }
 
-    if (table->file->referenced_by_foreign_key())
-    {
-      if (prepare_fk_prelocking_list(thd, prelocking_ctx, table_list,
-                                     need_prelocking,
-                                     table_list->trg_event_map))
-        return TRUE;
-    }
+    if (prepare_fk_prelocking_list(thd, prelocking_ctx, table_list,
+                                   need_prelocking,
+                                   table_list->trg_event_map))
+      return TRUE;
   }
-  else if (table_list->slave_fk_event_map &&
-           table->file->referenced_by_foreign_key())
+  else if (table_list->slave_fk_event_map)
   {
     if (prepare_fk_prelocking_list(thd, prelocking_ctx, table_list,
                                    need_prelocking,
@@ -5843,13 +5852,23 @@ bool lock_tables(THD *thd, TABLE_LIST *tables, uint count, uint flags)
       }
     }
 
-    DEBUG_SYNC(thd, "before_lock_tables_takes_lock");
+#ifdef ENABLED_DEBUG_SYNC
+    if (!tables ||
+        !(strcmp(tables->db.str, "mysql") == 0 &&
+          strcmp(tables->table_name.str, "proc") == 0))
+      DEBUG_SYNC(thd, "before_lock_tables_takes_lock");
+#endif
 
     if (! (thd->lock= mysql_lock_tables(thd, start, (uint) (ptr - start),
                                         flags)))
       DBUG_RETURN(TRUE);
 
-    DEBUG_SYNC(thd, "after_lock_tables_takes_lock");
+#ifdef ENABLED_DEBUG_SYNC
+    if (!tables ||
+        !(strcmp(tables->db.str, "mysql") == 0 &&
+          strcmp(tables->table_name.str, "proc") == 0))
+      DEBUG_SYNC(thd, "after_lock_tables_takes_lock");
+#endif
 
     if (thd->lex->requires_prelocking() &&
         thd->lex->sql_command != SQLCOM_LOCK_TABLES &&

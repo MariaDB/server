@@ -1404,7 +1404,13 @@ bool Item_in_optimizer::fix_left(THD *thd)
   eval_not_null_tables(NULL);
   with_flags|= (args[0]->with_flags |
                (args[1]->with_flags & item_with_t::SP_VAR));
-  if ((const_item_cache= args[0]->const_item()))
+
+  /*
+    If left expression is a constant, cache its value.
+    But don't do that if that involves computing a subquery, as we are in a
+    prepare-phase rewrite.
+  */
+  if ((const_item_cache= args[0]->const_item()) && !args[0]->with_subquery())
   {
     cache->store(args[0]);
     cache->cache_value();
@@ -6136,8 +6142,8 @@ bool Regexp_processor_pcre::compile(String *pattern, bool send_error)
     if (!stringcmp(pattern, &m_prev_pattern))
       return false;
     cleanup();
-    m_prev_pattern.copy(*pattern);
   }
+  m_prev_pattern.copy(*pattern);
 
   if (!(pattern= convert_if_needed(pattern, &pattern_converter)))
     return true;

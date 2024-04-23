@@ -754,6 +754,11 @@ typedef struct st_maria_share
   ulong max_pack_length;
   ulong state_diff_length;
   uint rec_reflength;			/* rec_reflength in use now */
+  /*
+    Extra flag to use for my_malloc(); set to MY_THREAD_SPECIFIC for temporary
+    tables whose memory allocation should be accounted to the current THD.
+  */
+  uint malloc_flag;
   uint keypage_header;
   uint32 ftkeys;			/* Number of distinct full-text keys
 						   + 1 */
@@ -1740,6 +1745,7 @@ extern my_bool ma_yield_and_check_if_killed(MARIA_HA *info, int inx);
 extern my_bool ma_killed_standalone(MARIA_HA *);
 
 extern uint _ma_file_callback_to_id(void *callback_data);
+extern uint _ma_write_flags_callback(void *callback_data, myf flags);
 extern void free_maria_share(MARIA_SHARE *share);
 
 static inline void unmap_file(MARIA_HA *info __attribute__((unused)))

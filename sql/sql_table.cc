@@ -1468,6 +1468,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
         temporary_table_was_dropped= 1;
       }
       is_temporary= 1;
+      thd->reset_sp_cache= true;
     }
 
     if ((drop_temporary && if_exists) || temporary_table_was_dropped)
@@ -1841,8 +1842,11 @@ report_error:
     }
     DBUG_PRINT("table", ("table: %p  s: %p", table->table,
                          table->table ?  table->table->s :  NULL));
+    if (is_temporary_table(table))
+      thd->reset_sp_cache= true;
   }
   DEBUG_SYNC(thd, "rm_table_no_locks_before_binlog");
+
   thd->used|= THD::THREAD_SPECIFIC_USED;
   error= 0;
 
@@ -4678,6 +4682,7 @@ int create_table_impl(THD *thd,
     if (is_trans != NULL)
       *is_trans= table->file->has_transactions();
 
+    thd->reset_sp_cache= true;
     thd->used|= THD::THREAD_SPECIFIC_USED;
     create_info->table= table;                  // Store pointer to table
   }
@@ -5166,7 +5171,8 @@ static bool make_unique_constraint_name(THD *thd, LEX_CSTRING *name,
     if (!check)                                 // Found unique name
     {
       name->length= (size_t) (real_end - buff);
-      name->str= strmake_root(thd->stmt_arena->mem_root, buff, name->length);
+      name->str= thd->strmake(buff, name->length);
+
       return (name->str == NULL);
     }
   }
@@ -6601,8 +6607,6 @@ static KEY *find_key_ci(const char *key_name, KEY *key_start, KEY *key_end)
 
    @param          thd                Thread
    @param          table              The original table.
-   @param          varchar            Indicates that new definition has new
-                                      VARCHAR column.
    @param[in/out]  ha_alter_info      Data structure which already contains
                                       basic information about create options,
                                       field and keys for the new version of
@@ -6637,7 +6641,7 @@ static KEY *find_key_ci(const char *key_name, KEY *key_start, KEY *key_end)
    @retval false success
 */
 
-static bool fill_alter_inplace_info(THD *thd, TABLE *table, bool varchar,
+static bool fill_alter_inplace_info(THD *thd, TABLE *table,
                                     Alter_inplace_info *ha_alter_info)
 {
   Field **f_ptr, *field;
@@ -6687,13 +6691,6 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table, bool varchar,
   if (alter_info->flags & ALTER_CHANGE_COLUMN)
     ha_alter_info->handler_flags|= ALTER_COLUMN_DEFAULT;
 
-  /*
-    If we altering table with old VARCHAR fields we will be automatically
-    upgrading VARCHAR column types.
-  */
-  if (table->s->frm_version < FRM_VER_TRUE_VARCHAR && varchar)
-    ha_alter_info->handler_flags|=  ALTER_STORED_COLUMN_TYPE;
-
   DBUG_PRINT("info", ("handler_flags: %llu", ha_alter_info->handler_flags));
 
   /*
@@ -6735,6 +6732,30 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table, bool varchar,
         Check if type of column has changed.
       */
       bool is_equal= field->is_equal(*new_field);
+
+      if (is_equal)
+      {
+        const Type_handler *th= field->type_handler();
+        if (th != th->type_handler_for_implicit_upgrade())
+        {
+          /*
+            The field data type says it wants upgrade.
+            This should not be possible:
+            - if this is a new column definition, e.g. from statements like:
+                ALTER TABLE t1 ADD a INT;
+                ALTER TABLE t1 MODIFY a INT;
+              then it's coming from the parser, which returns
+              only up-to-date data types.
+            - if this is an old column definition, e.g. from:
+                ALTER TABLE t1 COMMENT 'new comment';
+              it should have ealier called Column_definition_implicit_upgrade(),
+              which replaces old data types to up-to-date data types.
+          */
+          DBUG_ASSERT(0);
+          is_equal= false;
+        }
+      }
+
       if (!is_equal)
       {
         if (field->table->file->can_convert_nocopy(*field, *new_field))
@@ -9138,7 +9159,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       case Alter_drop::CHECK_CONSTRAINT:
       case Alter_drop::PERIOD:
         my_error(ER_CANT_DROP_FIELD_OR_KEY, MYF(0), drop->type_name(),
-                 alter_info->drop_list.head()->name);
+                 drop->name);
         goto err;
       case Alter_drop::FOREIGN_KEY:
         // Leave the DROP FOREIGN KEY names in the alter_info->drop_list.
@@ -10105,12 +10126,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
   */
   KEY *key_info;
   uint key_count;
-  /*
-    Remember if the new definition has new VARCHAR column;
-    create_info->varchar will be reset in create_table_impl()/
-    mysql_prepare_create_table().
-  */
-  bool varchar= create_info->varchar, table_creation_was_logged= 0;
+  bool table_creation_was_logged= 0;
   bool binlog_as_create_select= 0, log_if_exists= 0;
   uint tables_opened;
   handlerton *new_db_type= create_info->db_type, *old_db_type;
@@ -10242,14 +10258,14 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
     if we can support implementing storage engine.
   */
   if (WSREP(thd) && table && table->s->sequence &&
-      wsrep_check_sequence(thd, thd->lex->create_info.seq_create_info, used_engine))
+      wsrep_check_sequence(thd, create_info->seq_create_info, used_engine))
     DBUG_RETURN(TRUE);
 
-  if (WSREP(thd) &&
+  if (WSREP(thd) && table &&
       (thd->lex->sql_command == SQLCOM_ALTER_TABLE ||
        thd->lex->sql_command == SQLCOM_CREATE_INDEX ||
        thd->lex->sql_command == SQLCOM_DROP_INDEX) &&
-      !wsrep_should_replicate_ddl(thd, table_list->table->s->db_type()))
+      !wsrep_should_replicate_ddl(thd, table->s->db_type()))
     DBUG_RETURN(true);
 #endif /* WITH_WSREP */
 
@@ -10928,7 +10944,7 @@ do_continue:;
     bool use_inplace= true;
 
     /* Fill the Alter_inplace_info structure. */
-    if (fill_alter_inplace_info(thd, table, varchar, &ha_alter_info))
+    if (fill_alter_inplace_info(thd, table, &ha_alter_info))
       goto err_new_table_cleanup;
 
     alter_ctx.tmp_storage_engine_name_partitioned=
@@ -12721,12 +12737,10 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
               wsrep_check_sequence(thd, lex->create_info.seq_create_info, used_engine))
             DBUG_RETURN(true);
 
-          WSREP_TO_ISOLATION_BEGIN_ALTER(create_table->db.str,
-                                         create_table->table_name.str,
-                                         first_table, &alter_info, NULL,
-                                         &create_info)
-	  {
-	    WSREP_WARN("CREATE TABLE isolation failure");
+          WSREP_TO_ISOLATION_BEGIN_ALTER(create_table->db.str, create_table->table_name.str,
+                                         first_table, &alter_info, NULL, &create_info)
+          {
+            WSREP_WARN("CREATE TABLE isolation failure");
             res= true;
             goto end_with_restore_list;
           }

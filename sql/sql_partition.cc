@@ -1080,7 +1080,7 @@ void check_range_capable_PF(TABLE *table)
 
 static bool set_up_partition_bitmaps(THD *thd, partition_info *part_info)
 {
-  uint32 *bitmap_buf;
+  my_bitmap_map *bitmap_buf;
   uint bitmap_bits= part_info->num_subparts? 
                      (part_info->num_subparts* part_info->num_parts):
                       part_info->num_parts;
@@ -1091,14 +1091,15 @@ static bool set_up_partition_bitmaps(THD *thd, partition_info *part_info)
 
   /* Allocate for both read and lock_partitions */
   if (unlikely(!(bitmap_buf=
-                 (uint32*) alloc_root(&part_info->table->mem_root,
-                                      bitmap_bytes * 2))))
+                 (my_bitmap_map*) alloc_root(&part_info->table->mem_root,
+                                             bitmap_bytes * 2))))
     DBUG_RETURN(TRUE);
 
   my_bitmap_init(&part_info->read_partitions, bitmap_buf, bitmap_bits);
   /* Use the second half of the allocated buffer for lock_partitions */
-  my_bitmap_init(&part_info->lock_partitions, bitmap_buf + (bitmap_bytes / 4),
-              bitmap_bits);
+  my_bitmap_init(&part_info->lock_partitions,
+                 (my_bitmap_map*) (((char*) bitmap_buf) + bitmap_bytes),
+                 bitmap_bits);
   part_info->bitmaps_are_initialized= TRUE;
   part_info->set_partition_bitmaps(NULL);
   DBUG_RETURN(FALSE);
@@ -7752,7 +7753,7 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
         ERROR_INJECT("add_partition_1") ||
         mysql_write_frm(lpt, WFRM_WRITE_SHADOW) ||
         ERROR_INJECT("add_partition_2") ||
-        wait_while_table_is_used(thd, table, HA_EXTRA_NOT_USED) ||
+        wait_while_table_is_used(thd, table, HA_EXTRA_PREPARE_FOR_RENAME) ||
         ERROR_INJECT("add_partition_3") ||
         write_log_add_change_partition(lpt) ||
         ERROR_INJECT("add_partition_4") ||

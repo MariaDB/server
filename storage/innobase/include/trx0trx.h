@@ -785,13 +785,19 @@ public:
 	const char*	op_info;	/*!< English text describing the
 					current operation, or an empty
 					string */
-	uint		isolation_level;/*!< TRX_ISO_REPEATABLE_READ, ... */
-	bool		check_foreigns;	/*!< normally TRUE, but if the user
-					wants to suppress foreign key checks,
-					(in table imports, for example) we
-					set this FALSE */
+  /** TRX_ISO_REPEATABLE_READ, ... */
+  unsigned isolation_level:2;
+  /** when set, REPEATABLE READ will actually be Snapshot Isolation, due to
+  detecting write/write conflicts and disabling "semi-consistent read" */
+  unsigned snapshot_isolation:1;
+  /** normally set; "SET foreign_key_checks=0" can be issued to suppress
+  foreign key checks, in table imports, for example */
+  unsigned check_foreigns:1;
+  /** normally set; "SET unique_checks=0, foreign_key_checks=0"
+  enables bulk insert into an empty table */
+  unsigned check_unique_secondary:1;
   /** whether an insert into an empty table is active */
-  bool bulk_insert;
+  unsigned bulk_insert:1;
 	/*------------------------------*/
 	/* MySQL has a transaction coordinator to coordinate two phase
 	commit between multiple storage engines and the binary log. When
@@ -805,13 +811,6 @@ public:
 	/** whether this is holding the prepare mutex */
 	bool		active_commit_ordered;
 	/*------------------------------*/
-	bool		check_unique_secondary;
-					/*!< normally TRUE, but if the user
-					wants to speed up inserts by
-					suppressing unique key checks
-					for secondary indexes when we decide
-					if we can use the insert buffer for
-					them, we set this FALSE */
 	bool		flush_log_later;/* In 2PC, we hold the
 					prepare_commit mutex across
 					both phases. In that case, we
@@ -1189,10 +1188,16 @@ public:
     return UNIV_UNLIKELY(bulk_insert) ? bulk_insert_apply_low(): DB_SUCCESS;
   }
 
+  /** Do the bulk insert for the buffered insert operation of a table.
+  @param table bulk insert operation
+  @return DB_SUCCESS or error code. */
+  dberr_t bulk_insert_apply_for_table(dict_table_t *table);
 private:
   /** Apply the buffered bulk inserts. */
   dberr_t bulk_insert_apply_low();
 
+  /** Rollback the bulk insert operation for the transaction */
+  void bulk_rollback_low();
   /** Assign a rollback segment for modifying temporary tables.
   @return the assigned rollback segment */
   trx_rseg_t *assign_temp_rseg();

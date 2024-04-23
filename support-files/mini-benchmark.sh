@@ -1,6 +1,6 @@
 #!/bin/bash
 # Abort on errors
-set -e
+set -ex
 
 display_help() {
   echo "Usage: $(basename "$0") [-h] [--perf] [--perf-flamegraph]"
@@ -26,6 +26,8 @@ display_help() {
   echo "                     sysbench runs"
   echo "  --perf-flamegraph  record performance counters in perf.data.* and"
   echo "                     generate flamegraphs automatically"
+  echo "  --cpu-limit        upper limit on the number of CPU cycles (in billions) used for the benchmark"
+  echo "                     default: 750"
   echo "  -h, --help         display this help and exit"
 }
 
@@ -79,6 +81,11 @@ do
       PERF_RECORD=true
       shift
       ;;
+    --cpu-limit)
+      shift
+      CPU_CYCLE_LIMIT=$1
+      shift
+      ;;
     -*)
       echo "Error: Unknown option: $1" >&2
       ## or call function display_help
@@ -121,6 +128,12 @@ then
   exit 1
 fi
 
+if [ "$PERF" == true ] && [ "$PERF_RECORD" == true ]
+then
+  echo "ERROR: Cannot select both --perf and --perf-flamegraph options simultaneously. Please choose one or the other."
+  exit 1
+fi
+
 if [ "$PERF" == true ] || [ "$PERF_RECORD" == true ]
 then
   if [ ! -e /usr/bin/perf ]
@@ -158,28 +171,26 @@ then
   # shellcheck disable=SC2046
   debuginfo-install -y mariadb-server $(cat mariadbd-dependencies.txt)
 
-  perf record echo "testing perf" > /dev/null 2>&1
-  if [ $? -ne 0 ]
+  if ! (perf record echo "testing perf") > /dev/null 2>&1
   then
     echo "perf does not have permission to run on this system. Skipping."
-    PERF=""
+    PERF_COMMAND=""
   else
     echo "Using 'perf' to record performance counters in perf.data files"
-    PERF="perf record -g --freq=99 --output=perf.data --timestamp-filename --pid=$MARIADB_SERVER_PID --"
+    PERF_COMMAND="perf record -g --freq=99 --output=perf.data --timestamp-filename --pid=$MARIADB_SERVER_PID --"
   fi
 
-elif [ -e /usr/bin/perf ]
+elif [ "$PERF" == true ]
 then
   # If flamegraphs were not requested, log normal perf counters if possible
 
-  perf stat echo "testing perf" > /dev/null 2>&1
-  if [ $? -ne 0 ]
+  if ! (perf stat echo "testing perf") > /dev/null 2>&1
   then
     echo "perf does not have permission to run on this system. Skipping."
-    PERF=""
+    PERF_COMMAND=""
   else
     echo "Using 'perf' to log basic performance counters for benchmark"
-    PERF="perf stat -p $MARIADB_SERVER_PID --"
+    PERF_COMMAND="perf stat -p $MARIADB_SERVER_PID --"
   fi
 fi
 
@@ -222,7 +233,7 @@ do
   # Prepend command with perf if defined
   # Output stderr to stdout as perf outputs everything in stderr
   # shellcheck disable=SC2086
-  $PERF $TASKSET_SYSBENCH sysbench "$WORKLOAD" run --threads=$t --time=$DURATION --report-interval=10 2>&1 | tee sysbench-run-$t.log
+  $PERF_COMMAND $TASKSET_SYSBENCH sysbench "$WORKLOAD" run --threads=$t --time=$DURATION --report-interval=10 2>&1 | tee sysbench-run-$t.log
 done
 
 sysbench "$WORKLOAD" cleanup --tables=20 | tee sysbench-cleanup.log
@@ -243,12 +254,21 @@ then
   echo "Total: $(grep -h -e instructions sysbench-run-*.log | sort -k 1 | awk '{s+=$1}END{print s}')"
   echo # Newline improves readability
 
+  if [ -z "$CPU_CYCLE_LIMIT" ]
+  then 
+     # 04-04-2024: We found this to be an appropriate default limit after running a few benchmarks
+     # Configure the limit with --cpu-limit if needed
+    CPU_CYCLE_LIMIT=750
+  fi
+  CPU_CYCLE_LIMIT_LONG="${CPU_CYCLE_LIMIT}000000000"
+
   # Final verdict based on cpu cycle count
   RESULT="$(grep -h -e cycles sysbench-run-*.log | sort -k 1 | awk '{s+=$1}END{print s}')"
-  if [ "$RESULT" -gt 850 ]
+  if [ "$RESULT" -gt "$CPU_CYCLE_LIMIT_LONG" ]
   then
     echo # Newline improves readability
-    echo "Benchmark exceeded 850 billion cpu cycles, performance most likely regressed!"
+    echo "Benchmark exceeded the allowed limit of ${CPU_CYCLE_LIMIT} billion CPU cycles"
+    echo "Performance most likely regressed!"
     exit 1
   fi
 fi
@@ -290,4 +310,4 @@ case $RESULT in
 esac
 # Record the output into the log file, if requested
 ) 2>&1 | ($LOG && tee "$BENCHMARK_NAME"-"$TIMESTAMP".log)
-
+exit ${PIPESTATUS[0]} # Propagate errors in the sub-shell

@@ -219,4 +219,8 @@ connection master;
 -- CHANGE MASTER TO MASTER_LOG_FILE='master-bin.000002', MASTER_LOG_POS=BINLOG_START;
 connection slave;
 include/start_slave.inc
+connection master;
+connection slave;
+connection master;
+FOUND 1 matches in MDEV-33212.sql
 include/rpl_end.inc

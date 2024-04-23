@@ -542,7 +542,7 @@ int maria_reset(MARIA_HA *info)
 {
   int error= 0;
   MARIA_SHARE *share= info->s;
-  myf flag= MY_WME | (share->temporary ? MY_THREAD_SPECIFIC : 0);
+  myf flag= MY_WME | share->malloc_flag;
   DBUG_ENTER("maria_reset");
   /*
     Free buffers and reset the following flags:
@@ -599,6 +599,20 @@ uint _ma_file_callback_to_id(void *callback_data)
 {
   MARIA_SHARE *share= (MARIA_SHARE*) callback_data;
   return share ? share->id : 0;
+}
+
+/*
+  Disable MY_WAIT_IF_FULL flag for temporary tables
+
+  Temporary tables does not have MY_WAIT_IF_FULL in share->write_flags
+*/
+
+uint _ma_write_flags_callback(void *callback_data, myf flags)
+{
+  MARIA_SHARE *share= (MARIA_SHARE*) callback_data;
+  if (share)
+    flags&= ~(~share->write_flag & MY_WAIT_IF_FULL);
+  return flags;
 }
 
 

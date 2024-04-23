@@ -63,7 +63,7 @@ enum srv_flush_t
   SRV_LITTLESYNC,
   /** do not flush after writing */
   SRV_NOSYNC,
-  /** invoke os_file_set_nocache() on data files. This implies using
+  /** Open or create files with O_DIRECT. This implies using
   unbuffered I/O but still fdatasync(), because some filesystems might
   not flush meta-data on write completion */
   SRV_O_DIRECT,
@@ -1628,16 +1628,33 @@ void fil_close_tablespace(uint32_t id);
 /*******************************************************************//**
 Allocates and builds a file name from a path, a table or tablespace name
 and a suffix. The string must be freed by caller with ut_free().
-@param[in] path NULL or the directory path or the full path and filename.
+@param[in] path nullptr or the directory path or the full path and filename
 @param[in] name {} if path is full, or Table/Tablespace name
-@param[in] ext the file extension to use
-@param[in] trim_name true if the last name on the path should be trimmed.
+@param[in] extension the file extension to use
+@param[in] trim_name true if the last name on the path should be trimmed
 @return own: file name */
-char* fil_make_filepath(const char *path, const fil_space_t::name_type &name,
-                        ib_extention ext, bool trim_name);
+char* fil_make_filepath_low(const char *path,
+                            const fil_space_t::name_type &name,
+                            ib_extention extension, bool trim_name);
 
 char *fil_make_filepath(const char* path, const table_name_t name,
                         ib_extention suffix, bool strip_name);
+
+/** Wrapper function over fil_make_filepath_low to build file name.
+@param path nullptr or the directory path or the full path and filename
+@param name {} if path is full, or Table/Tablespace name
+@param extension the file extension to use
+@param trim_name true if the last name on the path should be trimmed
+@return own: file name */
+static inline char*
+fil_make_filepath(const char* path, const fil_space_t::name_type &name,
+                  ib_extention extension, bool trim_name)
+{
+  /* If we are going to strip a name off the path, there better be a
+  path and a new name to put back on. */
+  ut_ad(!trim_name || (path && name.data()));
+  return fil_make_filepath_low(path, name, extension, trim_name);
+}
 
 /** Create a tablespace file.
 @param[in]	space_id	Tablespace ID

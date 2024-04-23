@@ -399,6 +399,7 @@ private:
   */
   bool m_innodb;                        // Are all underlying handlers
                                         // InnoDB
+  bool m_myisammrg;                     // Are any of the handlers of type MERGE
   /*
     When calling extra(HA_EXTRA_CACHE) we do not pass this to the underlying
     handlers immediately. Instead we cache it and call the underlying
@@ -988,6 +989,10 @@ private:
                                           handler *file, uint *n);
   static const uint NO_CURRENT_PART_ID= NOT_A_PARTITION_ID;
   int loop_partitions(handler_callback callback, void *param);
+  int loop_partitions_over_map(const MY_BITMAP *map,
+                               handler_callback callback,
+                               void *param);
+  int loop_read_partitions(handler_callback callback, void *param);
   int loop_extra_alter(enum ha_extra_function operations);
   void late_extra_cache(uint partition_id);
   void late_extra_no_cache(uint partition_id);

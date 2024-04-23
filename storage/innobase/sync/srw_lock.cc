@@ -646,7 +646,9 @@ bool srw_lock_debug::have_rd() const noexcept
     readers_lock.wr_lock();
     bool found= r->find(pthread_self()) != r->end();
     readers_lock.wr_unlock();
+# ifndef SUX_LOCK_GENERIC
     ut_ad(!found || is_locked());
+# endif
     return found;
   }
   return false;
@@ -656,7 +658,9 @@ bool srw_lock_debug::have_wr() const noexcept
 {
   if (writer != pthread_self())
     return false;
+# ifndef SUX_LOCK_GENERIC
   ut_ad(is_write_locked());
+# endif
   return true;
 }
 

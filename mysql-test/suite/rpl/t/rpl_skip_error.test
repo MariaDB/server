@@ -3,7 +3,11 @@
 # Verify that --slave-skip-errors works correctly.  The error messages
 # specified by --slave-skip-errors on slave should be ignored.  If
 # such errors occur, they should not be reported and not cause the
-# slave to stop.
+# slave to stop. If a skipped-due-to-error statement is a part of a
+# larger transaction, and the error is not a deadlock error, the rest
+# of the transaction should still commit, with just the errored statement
+# ignored (note transactions which are skipped due to deadlocks are
+# rolled back fully, see rpl_temporary_error2_skip_all.test).
 #
 # ==== Method ====
 #
@@ -163,6 +167,42 @@ let $current_skipped_error= query_get_value(show global status like "Slave_skipp
 
 --echo **** We cannot execute a select as there are differences in the 
 --echo **** behavior between STMT and RBR.
+
+
+--echo ****
+--echo **** Ensure transactions which are skipped due to encountering a
+--echo **** non-deadlock error which is present in --slave-skip-errors result
+--echo **** in partially committed transactions
+# Slave will insert 3 first, and master will insert 3 within a larger trx
+--let $value_preexisting_on_slave= 3
+
+--connection master
+CREATE TABLE t3 (a INT UNIQUE) ENGINE=InnoDB;
+
+--sync_slave_with_master
+--connection slave
+--eval INSERT INTO t3 VALUES ($value_preexisting_on_slave)
+
+--connection master
+BEGIN;
+INSERT INTO t3 VALUES (1);
+INSERT INTO t3 VALUES (2);
+--eval INSERT INTO t3 VALUES ($value_preexisting_on_slave)
+INSERT INTO t3 VALUES (4);
+COMMIT;
+--sync_slave_with_master
+
+--echo **** Master and slave tables should have the same data, due to the
+--echo **** partially replicated transaction's data overlapping with the data
+--echo **** that pre-existed on the slave. That is, despite the transaction
+--echo **** consisting of 4 statements, the errored statement should be ignored
+--echo **** and the other 3 should commit successfully.
+let $diff_tables=master:t3,slave:t3;
+source include/diff_tables.inc;
+
+--connection master
+DROP TABLE t3;
+
 
 --echo ==== Clean Up ====
 

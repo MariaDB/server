@@ -63,7 +63,7 @@ pthread_mutex_t spider_open_conn_mutex;
 const char spider_dig_upper[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
 /* UTC time zone for timestamp columns */
-Time_zone *UTC = 0;
+Time_zone *UTC;
 
 int spider_db_connect(
   const SPIDER_SHARE *share,
@@ -344,7 +344,6 @@ int spider_db_conn_queue_action(
       ) ||
       (
         conn->loop_check_queue.records &&
-        conn->db_conn->set_loop_check_in_bulk_sql() &&
         (error_num = spider_dbton[conn->dbton_id].db_util->
           append_loop_check(&sql_str, conn))
       ) ||
@@ -440,13 +439,6 @@ int spider_db_conn_queue_action(
       (error_num = conn->db_conn->
         set_time_zone(conn->queued_time_zone_val,
         (int *) conn->need_mon))
-    ) {
-      DBUG_RETURN(error_num);
-    }
-    if (
-      conn->loop_check_queue.records &&
-      !conn->db_conn->set_loop_check_in_bulk_sql() &&
-      (error_num = conn->db_conn->set_loop_check((int *) conn->need_mon))
     ) {
       DBUG_RETURN(error_num);
     }

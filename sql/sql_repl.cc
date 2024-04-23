@@ -221,7 +221,7 @@ static int fake_rotate_event(binlog_send_info *info, ulonglong position,
   char* p = info->log_file_name+dirname_length(info->log_file_name);
   uint ident_len = (uint) strlen(p);
   String *packet= info->packet;
-  ha_checksum crc;
+  ha_checksum crc= 0;
 
   /* reset transmit packet for the fake rotate event below */
   if (reset_transmit_packet(info, info->flags, &ev_offset, &info->errmsg))
@@ -262,7 +262,7 @@ static int fake_gtid_list_event(binlog_send_info *info,
 {
   my_bool do_checksum;
   int err;
-  ha_checksum crc;
+  ha_checksum crc= 0;
   char buf[128];
   String str(buf, sizeof(buf), system_charset_info);
   String* packet= info->packet;
@@ -2828,12 +2828,6 @@ static int send_one_binlog_file(binlog_send_info *info,
      */
     if (send_events(info, log, linfo, end_pos))
       return 1;
-    DBUG_EXECUTE_IF("Notify_binlog_EOF",
-                    {
-                      const char act[]= "now signal eof_reached";
-                      DBUG_ASSERT(!debug_sync_set_action(current_thd,
-                                                         STRING_WITH_LEN(act)));
-                    };);
   }
 
   return 1;
@@ -3876,13 +3870,7 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
   if (lex_mi->use_gtid_opt == LEX_MASTER_INFO::LEX_GTID_SLAVE_POS)
     mi->using_gtid= Master_info::USE_GTID_SLAVE_POS;
   else if (lex_mi->use_gtid_opt == LEX_MASTER_INFO::LEX_GTID_CURRENT_POS)
-  {
     mi->using_gtid= Master_info::USE_GTID_CURRENT_POS;
-    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                        ER_WARN_DEPRECATED_SYNTAX_NO_REPLACEMENT,
-                        ER_THD(thd, ER_WARN_DEPRECATED_SYNTAX),
-                        "master_use_gtid=current_pos", "master_demote_to_slave=1");
-  }
   else if (lex_mi->use_gtid_opt == LEX_MASTER_INFO::LEX_GTID_NO ||
            lex_mi->log_file_name || lex_mi->pos ||
            lex_mi->relay_log_name || lex_mi->relay_log_pos)

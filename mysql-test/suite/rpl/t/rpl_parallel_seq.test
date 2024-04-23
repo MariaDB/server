@@ -195,4 +195,22 @@ DROP TABLE ti;
 
 --sync_slave_with_master
 
+# MDEV-31779 server crash in Rows_log_event::update_sequence at replaying binlog
+--connection master
+--let $binlog_file  = query_get_value(SHOW MASTER STATUS, File, 1)
+--let $binlog_start = query_get_value(SHOW MASTER STATUS, Position, 1)
+CREATE SEQUENCE s;
+--disable_ps2_protocol
+SELECT NEXTVAL(s);
+--enable_ps2_protocol
+flush binary logs;
+DROP SEQUENCE s;
+--exec $MYSQL_BINLOG $datadir/$binlog_file | $MYSQL test
+DROP SEQUENCE s;
+
+--sync_slave_with_master
+
+--connection master
+
+
 --source include/rpl_end.inc

@@ -267,7 +267,7 @@ extern time_t server_start_time, flush_status_time;
 extern char *opt_mysql_tmpdir, mysql_charsets_dir[];
 extern size_t mysql_unpacked_real_data_home_len;
 extern MYSQL_PLUGIN_IMPORT MY_TMPDIR mysql_tmpdir_list;
-extern const char *first_keyword, *delayed_user;
+extern const char *first_keyword, *delayed_user, *slave_user;
 extern MYSQL_PLUGIN_IMPORT const char  *my_localhost;
 extern MYSQL_PLUGIN_IMPORT const char **errmesg;			/* Error messages */
 extern const char *myisam_recover_options_str;
@@ -651,6 +651,7 @@ extern PSI_stage_info stage_user_sleep;
 extern PSI_stage_info stage_verifying_table;
 extern PSI_stage_info stage_waiting_for_ddl;
 extern PSI_stage_info stage_waiting_for_delay_list;
+extern PSI_stage_info stage_waiting_for_disk_space;
 extern PSI_stage_info stage_waiting_for_flush;
 extern PSI_stage_info stage_waiting_for_gtid_to_be_written_to_binary_log;
 extern PSI_stage_info stage_waiting_for_handler_insert;
