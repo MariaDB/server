@@ -103,7 +103,7 @@ const pmem_control pmem;
 #else
 void pmem_persist(const void *buf, size_t size)
 {
-# ifdef __PPC__
+# ifdef __powerpc64__
   for (uintptr_t u= uintptr_t(buf) & ~(CPU_LEVEL1_DCACHE_LINESIZE),
          end= uintptr_t(buf) + size;
        u < end; u+= CPU_LEVEL1_DCACHE_LINESIZE)
@@ -115,7 +115,7 @@ void pmem_persist(const void *buf, size_t size)
     Let us hope that having a recent enough GCC is an adequate proxy
     for having a recent enough assembler. */
 #  if __GNUC__ >= 11 || (defined __clang_major__ && __clang_major__ >= 12)
-    __asm__ __volatile__("dcbstps 0,%0" :: r(u) : "memory");
+    __asm__ __volatile__("dcbstps 0,%0" :: "r"(u) : "memory");
 #  else
     __asm__ __volatile__(".long (0x7cc000AC | %0 << 11)" :: "r"(u) : "memory");
 #  endif
