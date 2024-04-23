@@ -5374,13 +5374,15 @@ dberr_t trx_t::bulk_insert_apply_for_table(dict_table_t *table)
   if (UNIV_UNLIKELY(!bulk_insert))
     return DB_SUCCESS;
   auto it= mod_tables.find(table);
-  if (it != mod_tables.end() && it->second.bulk_store)
+  if (it != mod_tables.end())
+  {
     if (dberr_t err= it->second.write_bulk(table, this))
     {
       bulk_rollback_low();
       return err;
     }
-  it->second.end_bulk_insert();
+    it->second.end_bulk_insert();
+  }
   return DB_SUCCESS;
 }
 
