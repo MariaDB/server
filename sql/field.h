@@ -662,8 +662,8 @@ public:
      Retrieve the field metadata for fields.
   */
    CHARSET_INFO *m_cs; // NULL if not relevant
-   TYPELIB *m_enum_typelib; // NULL if not relevant
-   TYPELIB *m_set_typelib; // NULL if not relevant
+   const TYPELIB *m_enum_typelib; // NULL if not relevant
+   const TYPELIB *m_set_typelib; // NULL if not relevant
    binlog_sign_t m_signedness;
    uint16 m_metadata;
    uint8 m_metadata_size;
@@ -708,7 +708,7 @@ public:
    Binlog_type_info(uchar type_code, uint16 metadata,
                    uint8 metadata_size,
                    CHARSET_INFO *cs,
-                   TYPELIB *t_enum, TYPELIB *t_set)
+                   const TYPELIB *t_enum, const TYPELIB *t_set)
     :m_cs(cs),
      m_enum_typelib(t_enum),
      m_set_typelib(t_set),
@@ -1661,7 +1661,10 @@ public:
   virtual bool get_date(MYSQL_TIME *ltime, date_mode_t fuzzydate);
   virtual longlong val_datetime_packed(THD *thd);
   virtual longlong val_time_packed(THD *thd);
-  virtual const TYPELIB *get_typelib() const { return NULL; }
+  virtual const Type_extra_attributes type_extra_attributes() const
+  {
+    return Type_extra_attributes();
+  }
   virtual CHARSET_INFO *charset() const= 0;
   /* returns TRUE if the new charset differs. */
   virtual void change_charset(const DTCollation &new_cs) {}
@@ -4778,7 +4781,9 @@ private:
 };
 
 
-class Field_enum :public Field_str {
+class Field_enum :public Field_str,
+                  public Type_typelib_attributes
+{
   static void do_field_enum(const Copy_field *copy_field);
   longlong val_int(const uchar *) const;
   Data_type_compatibility can_optimize_range_or_keypart_ref(
@@ -4787,7 +4792,6 @@ class Field_enum :public Field_str {
 protected:
   uint packlength;
 public:
-  const TYPELIB *typelib;
   Field_enum(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
              uchar null_bit_arg,
              enum utype unireg_check_arg, const LEX_CSTRING *field_name_arg,
@@ -4796,7 +4800,8 @@ public:
              const DTCollation &collation)
     :Field_str(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
 	       unireg_check_arg, field_name_arg, collation),
-    packlength(packlength_arg),typelib(typelib_arg)
+     Type_typelib_attributes(typelib_arg),
+    packlength(packlength_arg)
   {
       flags|=ENUM_FLAG;
   }
@@ -4869,8 +4874,10 @@ public:
   /* enum and set are sorted as integers */
   CHARSET_INFO *sort_charset() const override { return &my_charset_bin; }
   decimal_digits_t decimals() const override { return 0; }
-  const TYPELIB *get_typelib() const override { return typelib; }
-
+  const Type_extra_attributes type_extra_attributes() const override
+  {
+    return Type_extra_attributes(m_typelib);
+  }
   uchar *pack(uchar *to, const uchar *from, uint max_length) override;
   const uchar *unpack(uchar *to, const uchar *from, const uchar *from_end,
                       uint param_data) override;
@@ -5198,7 +5205,7 @@ public:
 
 extern const LEX_CSTRING null_clex_str;
 
-class Column_definition_attributes
+class Column_definition_attributes: public Type_extra_attributes
 {
 public:
   /*
@@ -5206,17 +5213,13 @@ public:
     max number of characters.
   */
   ulonglong length;
-  const TYPELIB *interval;
   CHARSET_INFO *charset;
-  uint32 srid;
   uint32 pack_flag;
   decimal_digits_t decimals;
   Field::utype unireg_check;
   Column_definition_attributes()
    :length(0),
-    interval(NULL),
     charset(&my_charset_bin),
-    srid(0),
     pack_flag(0),
     decimals(0),
     unireg_check(Field::NONE)
@@ -5287,7 +5290,7 @@ class Column_definition: public Sql_alloc,
     const char **pos;
     uint *len;
     *max_length= *tot_length= 0;
-    for (pos= interval->type_names, len= interval->type_lengths;
+    for (pos= typelib()->type_names, len= typelib()->type_lengths;
          *pos ; pos++, len++)
     {
       size_t length= charset->numchars(*pos, *pos + *len);
@@ -5412,7 +5415,7 @@ public:
     if (real_field_type() == MYSQL_TYPE_SET)
     {
       calculate_interval_lengths(&dummy, &field_length);
-      length= field_length + (interval->count - 1);
+      length= field_length + (typelib()->count - 1);
     }
     else /* MYSQL_TYPE_ENUM */
     {
@@ -5516,15 +5519,14 @@ public:
   void set_type(const Column_definition &other)
   {
     set_handler(other.type_handler());
+    Type_extra_attributes::operator=(other);
     length= other.length;
     char_length= other.char_length;
     decimals= other.decimals;
     flags= other.flags;
     pack_length= other.pack_length;
     unireg_check= other.unireg_check;
-    interval= other.interval;
     charset= other.charset;
-    srid= other.srid;
     pack_flag= other.pack_flag;
   }
 

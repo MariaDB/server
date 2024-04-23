@@ -1328,7 +1328,14 @@ public:
   {
     return type_handler()->max_display_length(this);
   }
-  const TYPELIB *get_typelib() const override { return NULL; }
+  const Type_extra_attributes type_extra_attributes() const override
+  {
+    return Type_extra_attributes();
+  }
+  Type_extra_attributes *type_extra_attributes_addr() override
+  {
+    return nullptr;
+  }
   /* optimized setting of maybe_null without jumps. Minimizes code size */
   inline void set_maybe_null(bool maybe_null_arg)
   {
@@ -1366,11 +1373,6 @@ public:
   bool is_top_level_item() const
   { return (bool) (base_flags & item_base_t::AT_TOP_LEVEL); }
 
-  void set_typelib(const TYPELIB *typelib) override
-  {
-    // Non-field Items (e.g. hybrid functions) never have ENUM/SET types yet.
-    DBUG_ASSERT(0);
-  }
   Item_cache* get_cache(THD *thd) const
   {
     return type_handler()->Item_get_cache(thd, this);
@@ -3696,7 +3698,10 @@ public:
   Field *create_tmp_field_ex(MEM_ROOT *root,
                              TABLE *table, Tmp_field_src *src,
                              const Tmp_field_param *param) override;
-  const TYPELIB *get_typelib() const override { return field->get_typelib(); }
+  const Type_extra_attributes type_extra_attributes() const override
+  {
+    return field->type_extra_attributes();
+  }
   enum_monotonicity_info get_monotonicity_info() const override
   {
     return MONOTONIC_STRICT_INCREASING;
@@ -5731,9 +5736,9 @@ public:
   {
     return ref ? (*ref)->real_item() : this;
   }
-  const TYPELIB *get_typelib() const override
+  const Type_extra_attributes type_extra_attributes() const override
   {
-    return ref ? (*ref)->get_typelib() : NULL;
+    return ref ? (*ref)->type_extra_attributes() : Type_extra_attributes();
   }
 
   bool walk(Item_processor processor, bool walk_subquery, void *arg) override
@@ -7154,6 +7159,12 @@ public:
 
   const Type_handler *type_handler() const override
   { return Type_handler_hybrid_field_type::type_handler(); }
+  const Type_extra_attributes type_extra_attributes() const override
+  {
+    DBUG_ASSERT(fixed());
+    return example ? example->type_extra_attributes() :
+                     Type_extra_attributes();
+  }
   Field *create_tmp_field_ex(MEM_ROOT *root, TABLE *table, Tmp_field_src *src,
                              const Tmp_field_param *param) override
   {
@@ -7677,15 +7688,17 @@ public:
   Item_type_holder do not need cleanup() because its time of live limited by
   single SP/PS execution.
 */
-class Item_type_holder: public Item, public Type_handler_hybrid_field_type
+class Item_type_holder: public Item,
+                        public Type_handler_hybrid_field_type,
+                        public Type_extra_attributes
 {
-protected:
-  const TYPELIB *enum_set_typelib;
 public:
   Item_type_holder(THD *thd, Item *item, const Type_handler *handler,
-                   const Type_all_attributes *attr, bool maybe_null_arg)
-   :Item(thd), Type_handler_hybrid_field_type(handler),
-    enum_set_typelib(attr->get_typelib())
+                   const Type_all_attributes *attr,
+                   bool maybe_null_arg)
+   :Item(thd),
+    Type_handler_hybrid_field_type(handler),
+    Type_extra_attributes(attr->type_extra_attributes())
   {
     name= item->name;
     Type_std_attributes::set(*attr);
@@ -7705,7 +7718,14 @@ public:
   }
 
   Type type() const override { return TYPE_HOLDER; }
-  const TYPELIB *get_typelib() const override { return enum_set_typelib; }
+  Type_extra_attributes *type_extra_attributes_addr() override
+  {
+    return this;
+  }
+  const Type_extra_attributes type_extra_attributes() const override
+  {
+    return *this;
+  }
   /*
     When handling a query like this:
       VALUES ('') UNION VALUES( _utf16 0x0020 COLLATE utf16_bin);

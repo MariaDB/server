@@ -4037,6 +4037,8 @@ bool subselect_single_select_engine::fix_length_and_dec(Item_cache **row)
   if (set_row(select_lex->item_list, row))
     return TRUE;
   item->collation.set(row[0]->collation);
+  if (Type_extra_attributes *eattr= item->type_extra_attributes_addr())
+    eattr[0]= row[0]->type_extra_attributes();
   if (cols() != 1)
     maybe_null= 0;
   return FALSE;

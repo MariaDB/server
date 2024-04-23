@@ -6494,11 +6494,11 @@ real_type:
 
 srid_option:
           /* empty */
-          { Lex->last_field->srid= 0; }
+          { Lex->last_field->set_attr_uint32(0, 0); }
         |
           REF_SYSTEM_ID_SYM '=' NUM
           {
-            Lex->last_field->srid=atoi($3.str);
+            Lex->last_field->set_attr_uint32(0, (uint32) atoi($3.str));
           }
         ;
 

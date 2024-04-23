@@ -497,7 +497,8 @@ public:
   Functions whose returned field type is determined at fix_fields() time.
 */
 class Item_hybrid_func: public Item_func,
-                        public Type_handler_hybrid_field_type
+                        public Type_handler_hybrid_field_type,
+                        public Type_extra_attributes
 {
 protected:
   bool fix_attributes(Item **item, uint nitems);
@@ -512,6 +513,14 @@ public:
     :Item_func(thd, item), Type_handler_hybrid_field_type(item) { }
   const Type_handler *type_handler() const override
   { return Type_handler_hybrid_field_type::type_handler(); }
+  Type_extra_attributes *type_extra_attributes_addr() override
+  {
+    return this;
+  }
+  const Type_extra_attributes type_extra_attributes() const override
+  {
+    return *this;
+  }
   void fix_length_and_dec_long_or_longlong(uint char_length, bool unsigned_arg)
   {
     collation= DTCollation_numeric();

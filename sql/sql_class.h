@@ -8197,20 +8197,22 @@ public:
 class Type_holder: public Sql_alloc,
                    public Item_args,
                    public Type_handler_hybrid_field_type,
-                   public Type_all_attributes
+                   public Type_all_attributes,
+                   public Type_extra_attributes
 {
-  const TYPELIB *m_typelib;
   bool m_maybe_null;
 public:
   Type_holder()
-   :m_typelib(NULL),
-    m_maybe_null(false)
+  :m_maybe_null(false)
   { }
 
-  void set_type_maybe_null(bool maybe_null_arg) { m_maybe_null= maybe_null_arg; }
+  void set_type_maybe_null(bool maybe_null_arg) override
+  {
+    m_maybe_null= maybe_null_arg;
+  }
   bool get_maybe_null() const { return m_maybe_null; }
 
-  decimal_digits_t decimal_precision() const
+  decimal_digits_t decimal_precision() const override
   {
     /*
       Type_holder is not used directly to create fields, so
@@ -8222,13 +8224,13 @@ public:
     DBUG_ASSERT(0);
     return 0;
   }
-  void set_typelib(const TYPELIB *typelib)
+  Type_extra_attributes *type_extra_attributes_addr() override
   {
-    m_typelib= typelib;
+    return this;
   }
-  const TYPELIB *get_typelib() const
+  const Type_extra_attributes type_extra_attributes() const override
   {
-    return m_typelib;
+    return *this;
   }
 
   bool aggregate_attributes(THD *thd)

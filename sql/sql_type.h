@@ -3402,6 +3402,98 @@ public:
 };
 
 
+/*
+  A container for very specific data type attributes.
+  For now it prodives space for:
+  - one const pointer attributes
+  - one unt32 attribute
+*/
+class Type_extra_attributes
+{
+  const void *m_attr_const_void_ptr[1];
+  uint32 m_attr_uint32[1];
+public:
+  Type_extra_attributes()
+   :m_attr_const_void_ptr{0},
+    m_attr_uint32{0}
+  { }
+  Type_extra_attributes(const void *const_void_ptr)
+   :m_attr_const_void_ptr{const_void_ptr},
+    m_attr_uint32{0}
+  { }
+  /*
+    Generic const pointer attributes.
+    The ENUM and SET data types store TYPELIB information here.
+  */
+  Type_extra_attributes & set_attr_const_void_ptr(uint i, const void *value)
+  {
+    m_attr_const_void_ptr[i]= value;
+    return *this;
+  }
+  const void *get_attr_const_void_ptr(uint i) const
+  {
+    return m_attr_const_void_ptr[i];
+  }
+  /*
+    Generic uint32 attributes.
+    The GEOMETRY data type stores SRID here.
+  */
+  Type_extra_attributes & set_attr_uint32(uint i, uint32 value)
+  {
+    m_attr_uint32[i]= value;
+    return *this;
+  }
+  uint32 get_attr_uint32(uint i) const
+  {
+    return m_attr_uint32[i];
+  }
+  /*
+    Helper methods for TYPELIB attributes.
+    They are mostly needed to simplify the code
+    in Column_definition_attributes and Column_definition methods.
+    Eventually we should move this code into Type_typelib_attributes
+    and remove these methods.
+  */
+  Type_extra_attributes & set_typelib(const TYPELIB *typelib)
+  {
+    return set_attr_const_void_ptr(0, typelib);
+  }
+  const TYPELIB *typelib() const
+  {
+    return (const TYPELIB*) get_attr_const_void_ptr(0);
+  }
+};
+
+
+class Type_typelib_attributes
+{
+protected:
+  const TYPELIB *m_typelib;
+public:
+  Type_typelib_attributes()
+   :m_typelib(nullptr)
+  { }
+  Type_typelib_attributes(const TYPELIB *typelib)
+   :m_typelib(typelib)
+  { }
+  Type_typelib_attributes(const Type_extra_attributes &eattr)
+   :m_typelib((const TYPELIB *) eattr.get_attr_const_void_ptr(0))
+  { }
+  void store(Type_extra_attributes *to) const
+  {
+    to->set_attr_const_void_ptr(0, m_typelib);
+  }
+  const TYPELIB *typelib() const
+  {
+    return m_typelib;
+  }
+  void set_typelib(const TYPELIB *typelib)
+  {
+    m_typelib= typelib;
+  }
+};
+
+
 class Type_all_attributes: public Type_std_attributes
 {
 public:
@@ -3411,8 +3503,8 @@ public:
   virtual void set_type_maybe_null(bool maybe_null_arg)= 0;
   // Returns total number of decimal digits
   virtual decimal_digits_t decimal_precision() const= 0;
-  virtual const TYPELIB *get_typelib() const= 0;
-  virtual void set_typelib(const TYPELIB *typelib)= 0;
+  virtual Type_extra_attributes *type_extra_attributes_addr() = 0;
+  virtual const Type_extra_attributes type_extra_attributes() const= 0;
 };
 
 

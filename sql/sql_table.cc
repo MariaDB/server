@@ -2269,7 +2269,7 @@ bool Column_definition::prepare_stage2_typelib(const char *type_name,
   pack_flag= pack_length_to_packflag(pack_length) | field_flags;
   if (charset->state & MY_CS_BINSORT)
     pack_flag|= FIELDFLAG_BINARY;
-  return check_duplicates_in_interval(type_name, field_name.str, interval,
+  return check_duplicates_in_interval(type_name, field_name.str, typelib(),
                                       charset, dup_val_count);
 }
 
@@ -2537,13 +2537,13 @@ bool Column_definition::prepare_stage1_check_typelib_default()
     {
       char *not_used;
       uint not_used2;
-      find_set(interval, def->ptr(), def->length(),
+      find_set(typelib(), def->ptr(), def->length(),
                charset, &not_used, &not_used2, &not_found);
     }
     else /* MYSQL_TYPE_ENUM */
     {
       def->length(charset->lengthsp(def->ptr(), def->length()));
-      not_found= !find_type2(interval, def->ptr(), def->length(), charset);
+      not_found= !find_type2(typelib(), def->ptr(), def->length(), charset);
     }
   }
   if (not_found)

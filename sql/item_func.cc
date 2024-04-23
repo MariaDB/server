@@ -3295,8 +3295,8 @@ bool Item_func_find_in_set::fix_length_and_dec(THD *thd)
       {
         // find is not NULL pointer so args[0] is not a null-value
         DBUG_ASSERT(!args[0]->null_value);
-	enum_value= find_type(((Field_enum*) field)->typelib,find->ptr(),
-			      find->length(), 0);
+        enum_value= find_type(((Field_enum*) field)->typelib(), find->ptr(),
+                              find->length(), 0);
 	enum_bit=0;
 	if (enum_value)
 	  enum_bit= 1ULL << (enum_value-1);

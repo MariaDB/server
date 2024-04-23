@@ -2734,7 +2734,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     /* Convert pre-10.2.2 timestamps to use Field::default_value */
     name.str= fieldnames.type_names[i];
     name.length= strlen(name.str);
-    attr.interval= interval_nr ? share->intervals + interval_nr - 1 : NULL;
+    attr.set_typelib(interval_nr ? share->intervals + interval_nr - 1 : NULL);
     Record_addr addr(record + recpos, null_pos, null_bit_pos);
     *field_ptr= reg_field=
       attr.make_field(share, &share->mem_root, &addr, handler, &name, flags);
@@ -10573,7 +10573,7 @@ bool TR_table::check(bool error)
   }
 
   Field_enum *iso_level= static_cast<Field_enum *>(table->field[FLD_ISO_LEVEL]);
-  const st_typelib *typelib= iso_level->typelib;
+  const st_typelib *typelib= iso_level->typelib();
 
   if (typelib->count != 4)
     goto wrong_enum;

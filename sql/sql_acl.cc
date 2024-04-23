@@ -863,7 +863,7 @@ class Grant_table_base
     {
       Field *field= m_table->field[end_priv_columns];
       if (field->real_type() == MYSQL_TYPE_ENUM &&
-          static_cast<Field_enum*>(field)->typelib->count == 2)
+          static_cast<Field_enum*>(field)->typelib()->count == 2)
       {
         if (!start_priv_columns)
           start_priv_columns= end_priv_columns;
@@ -3052,7 +3052,7 @@ static privilege_t get_access(TABLE *form, uint fieldnr, uint *next_field)
 
   for (pos=form->field+fieldnr, bit=1;
        *pos && (*pos)->real_type() == MYSQL_TYPE_ENUM &&
-	 ((Field_enum*) (*pos))->typelib->count == 2 ;
+         ((Field_enum*) (*pos))->typelib()->count == 2 ;
        pos++, fieldnr++, bit<<=1)
   {
     if (get_YN_as_bool(*pos))

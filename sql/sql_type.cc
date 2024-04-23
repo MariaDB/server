@@ -2666,7 +2666,7 @@ Field *Type_handler_enum::make_conversion_table_field(MEM_ROOT *root,
          Field_enum(NULL, target->field_length,
                     (uchar *) "", 1, Field::NONE, &empty_clex_str,
                     metadata & 0x00ff/*pack_length()*/,
-                    ((const Field_enum*) target)->typelib, target->charset());
+                    ((const Field_enum*) target)->typelib(), target->charset());
 }
 
 
@@ -2682,7 +2682,7 @@ Field *Type_handler_set::make_conversion_table_field(MEM_ROOT *root,
          Field_set(NULL, target->field_length,
                    (uchar *) "", 1, Field::NONE, &empty_clex_str,
                    metadata & 0x00ff/*pack_length()*/,
-                   ((const Field_enum*) target)->typelib, target->charset());
+                   ((const Field_enum*) target)->typelib(), target->charset());
 }
 
 
@@ -2977,7 +2977,8 @@ void Type_handler_typelib::
                                               const Field *field) const
 {
   DBUG_ASSERT(def->flags & (ENUM_FLAG | SET_FLAG));
-  def->interval= field->get_typelib();
+  const Field_enum *field_enum= static_cast<const Field_enum*>(field);
+  field_enum->Type_typelib_attributes::store(def);
 }
 
 
@@ -3336,7 +3337,7 @@ bool Type_handler_set::
   if (def->prepare_stage2_typelib("SET", FIELDFLAG_BITFIELD, &dup_count))
     return true;
   /* Check that count of unique members is not more then 64 */
-  if (def->interval->count - dup_count > sizeof(longlong)*8)
+  if (def->typelib()->count - dup_count > sizeof(longlong)*8)
   {
      my_error(ER_TOO_BIG_SET, MYF(0), def->field_name.str);
      return true;
@@ -3549,14 +3550,14 @@ Type_handler_string_result::calc_key_length(const Column_definition &def) const
 
 uint Type_handler_enum::calc_key_length(const Column_definition &def) const
 {
-  DBUG_ASSERT(def.interval);
-  return get_enum_pack_length(def.interval->count);
+  DBUG_ASSERT(def.typelib());
+  return get_enum_pack_length(def.typelib()->count);
 }
 
 uint Type_handler_set::calc_key_length(const Column_definition &def) const
 {
-  DBUG_ASSERT(def.interval);
-  return get_set_pack_length(def.interval->count);
+  DBUG_ASSERT(def.typelib());
+  return get_set_pack_length(def.typelib()->count);
 }
 
 uint Type_handler_blob_common::calc_key_length(const Column_definition &def) const
@@ -3931,13 +3932,14 @@ Field *Type_handler_enum::make_table_field(MEM_ROOT *root,
                                            const Type_all_attributes &attr,
                                            TABLE_SHARE *share) const
 {
-  const TYPELIB *typelib= attr.get_typelib();
-  DBUG_ASSERT(typelib);
+  const Type_typelib_attributes typelib_attr(attr.type_extra_attributes());
+  DBUG_ASSERT(typelib_attr.typelib());
   return new (root)
          Field_enum(addr.ptr(), attr.max_length,
                     addr.null_ptr(), addr.null_bit(),
                     Field::NONE, name,
-                    get_enum_pack_length(typelib->count), typelib,
+                    get_enum_pack_length(typelib_attr.typelib()->count),
+                    typelib_attr.typelib(),
                     attr.collation);
 }
 
@@ -3949,13 +3951,14 @@ Field *Type_handler_set::make_table_field(MEM_ROOT *root,
                                           TABLE_SHARE *share) const
 
 {
-  const TYPELIB *typelib= attr.get_typelib();
-  DBUG_ASSERT(typelib);
+  const Type_typelib_attributes typelib_attr(attr.type_extra_attributes());
+  DBUG_ASSERT(typelib_attr.typelib());
   return new (root)
          Field_set(addr.ptr(), attr.max_length,
                    addr.null_ptr(), addr.null_bit(),
                    Field::NONE, name,
-                   get_enum_pack_length(typelib->count), typelib,
+                   get_enum_pack_length(typelib_attr.typelib()->count),
+                   typelib_attr.typelib(),
                    attr.collation);
 }
 
@@ -4694,8 +4697,8 @@ bool Type_handler_typelib::
   const TYPELIB *typelib= NULL;
   for (uint i= 0; i < nitems; i++)
   {
-    const TYPELIB *typelib2;
-    if ((typelib2= items[i]->get_typelib()))
+    const Type_extra_attributes eattr2= items[i]->type_extra_attributes();
+    if (eattr2.typelib())
     {
       if (typelib)
       {
@@ -4707,11 +4710,13 @@ bool Type_handler_typelib::
         handler->set_handler(&type_handler_varchar);
         return func->aggregate_attributes_string(func_name, items, nitems);
       }
-      typelib= typelib2;
+      typelib= eattr2.typelib();
     }
   }
   DBUG_ASSERT(typelib); // There must be at least one typelib
-  func->set_typelib(typelib);
+  Type_extra_attributes *eattr_addr= func->type_extra_attributes_addr();
+  if (eattr_addr)
+    eattr_addr->set_typelib(typelib);
   return func->aggregate_attributes_string(func_name, items, nitems);
 }
 
@@ -8536,7 +8541,7 @@ Field *Type_handler_enum::
   return new (mem_root)
     Field_enum(rec.ptr(), (uint32) attr->length, rec.null_ptr(), rec.null_bit(),
                attr->unireg_check, name, attr->pack_flag_to_pack_length(),
-               attr->interval, attr->charset);
+               attr->typelib(), attr->charset);
 }
 
 
@@ -8550,7 +8555,7 @@ Field *Type_handler_set::
   return new (mem_root)
     Field_set(rec.ptr(), (uint32) attr->length, rec.null_ptr(), rec.null_bit(),
               attr->unireg_check, name, attr->pack_flag_to_pack_length(),
-              attr->interval, attr->charset);
+              attr->typelib(), attr->charset);
 }
 
 

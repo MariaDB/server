@@ -294,7 +294,8 @@ public:
 /* single value subselect */
 
 class Item_cache;
-class Item_singlerow_subselect :public Item_subselect
+class Item_singlerow_subselect :public Item_subselect,
+                                public Type_extra_attributes
 {
 protected:
   Item_cache *value, **row;
@@ -319,6 +320,14 @@ public:
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override;
   const Type_handler *type_handler() const override;
   bool fix_length_and_dec() override;
+  Type_extra_attributes *type_extra_attributes_addr() override
+  {
+    return this;
+  }
+  const Type_extra_attributes type_extra_attributes() const override
+  {
+    return *this;
+  }
 
   uint cols() const override;
   Item* element_index(uint i) override

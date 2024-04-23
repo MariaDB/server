@@ -6248,7 +6248,7 @@ bool Table_map_log_event::init_column_name_field()
 bool Table_map_log_event::init_set_str_value_field()
 {
   StringBuffer<1024> buf;
-  TYPELIB *typelib;
+  const TYPELIB *typelib;
 
   /*
     SET string values are stored in the same format:
@@ -6278,7 +6278,7 @@ bool Table_map_log_event::init_set_str_value_field()
 bool Table_map_log_event::init_enum_str_value_field()
 {
   StringBuffer<1024> buf;
-  TYPELIB *typelib;
+  const TYPELIB *typelib;
 
   /* ENUM is same to SET columns, see comment in init_set_str_value_field */
   for (unsigned int i= 0 ; i < m_table->s->fields ; ++i)
