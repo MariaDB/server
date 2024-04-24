@@ -1205,11 +1205,11 @@ if [ "$WSREP_SST_OPT_ROLE" = 'donor' ]; then
     else # BYPASS FOR IST
 
         wsrep_log_info "Bypassing the SST for IST"
-        echo "continue" # now server can resume updating data
+        echo 'continue' # now server can resume updating data
 
         send_magic
 
-        echo "1" > "$DATA/$IST_FILE"
+        echo '1' > "$DATA/$IST_FILE"
 
         if [ -n "$scomp" ]; then
             tcmd="$scomp | $tcmd"
@@ -1320,7 +1320,7 @@ else # joiner
     check_round=0
     while check_pid "$SST_PID" 0; do
         wsrep_log_info "previous SST is not completed, waiting for it to exit"
-        check_round=$(( check_round + 1 ))
+        check_round=$(( check_round+1 ))
         if [ $check_round -eq 10 ]; then
             wsrep_log_error "previous SST script still running."
             exit 114 # EALREADY
@@ -1347,16 +1347,7 @@ else # joiner
         # backward-incompatible behavior:
         CN=""
         if [ -n "$tpem" ]; then
-            # find out my Common Name
-            get_openssl
-            if [ -z "$OPENSSL_BINARY" ]; then
-                wsrep_log_error \
-                    'openssl not found but it is required for authentication'
-                exit 42
-            fi
-            CN=$("$OPENSSL_BINARY" x509 -noout -subject -in "$tpem" | \
-                 tr ',' '\n' | grep -F 'CN =' | cut -d '=' -f2 | sed s/^\ // | \
-                 sed s/\ %//)
+            CN=$(openssl_getCN "$tpem")
         fi
         MY_SECRET="$(wsrep_gen_secret)"
         # Add authentication data to address
