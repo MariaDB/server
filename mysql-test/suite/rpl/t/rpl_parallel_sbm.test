@@ -1,9 +1,9 @@
 #
 #   Ensure that Seconds_Behind_Master works correctly on the parallel replica.
 #
---source include/master-slave.inc
 --source include/have_log_bin.inc
 --source include/have_debug.inc
+--source include/master-slave.inc
 
 --echo #
 --echo # MDEV-29639: Seconds_Behind_Master is incorrect for Delayed, Parallel Replicas
