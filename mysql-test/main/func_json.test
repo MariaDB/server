@@ -4087,5 +4087,15 @@ DROP TABLE t1;
 
 
 --echo #
+--echo # MDEV-31543: ASAN heap-buffer-overflow in strncpy when fetching keys using JSON_OBJECT_FILTER_KEYS function
+--echo #
+
+SET @arr1='[1,2,"c"]';
+SET character_set_database=ucs2;
+SET CHARACTER SET utf8;
+SET @obj1='{ "a": 1,"b": 2,"c": 3}';
+SELECT JSON_OBJECT_FILTER_KEYS (@obj1,@arr1);
+
+--echo #
 --echo # End of 11.2 Test
 --echo #
