@@ -910,6 +910,7 @@ bool purge_sys_t::choose_next_log()
       goto purge_nothing;
     const trx_undo_rec_t *undo_rec=
       trx_undo_page_get_first_rec(b, hdr_page_no, hdr_offset);
+    ut_a(undo_rec);
     if (!undo_rec)
     {
       if (mach_read_from_2(b->page.frame + hdr_offset + TRX_UNDO_NEXT_LOG))
