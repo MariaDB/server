@@ -711,7 +711,7 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
     if (optimizer_flag(thd, OPTIMIZER_SWITCH_SEMIJOIN) &&
         in_subs &&                                                    // 1
         !select_lex->is_part_of_union() &&                            // 2
-        !select_lex->group_list.elements && !join->order &&           // 3
+        /*!select_lex->group_list.elements && */ !join->order &&      // 3
         !join->having && !select_lex->with_sum_func &&                // 4
         in_subs->emb_on_expr_nest &&                                  // 5
         select_lex->outer_select()->join &&                           // 6
