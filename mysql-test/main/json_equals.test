@@ -15,14 +15,11 @@ select json_equals('{"a":[1, 2, 3]}', '{"a":[1, 2, 3, 4]}');
 
 select json_equals('{"a":[1, 2, 3]}', '{"a":[1, 2, 3]}');
 
-#enable after fix MDEV-27871
---disable_view_protocol
 select json_equals('{"țanțoș":[1, 2, "ț", {"some uâß€":"uâßr"}]}',
-                   '{"țanțoș":[1, 2, "ț", {"some uâß€":"uâßr"}]}');
+                   '{"țanțoș":[1, 2, "ț", {"some uâß€":"uâßr"}]}') as je;
 
 select json_equals('{"a" : [0.123456789123456789], "b" : [1, 2, 3]}',
-                   '{"b" : [1, 2, 3], "a" : [0.123456789123456789]}');
---enable_view_protocol
+                   '{"b" : [1, 2, 3], "a" : [0.123456789123456789]}') as je;
 
 --echo #
 --echo # Test max json depth for json_equals.
