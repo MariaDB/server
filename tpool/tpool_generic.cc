@@ -722,9 +722,6 @@ static int  throttling_interval_ms(size_t n_threads,size_t concurrency)
 /* Create a new worker.*/
 bool thread_pool_generic::add_thread()
 {
-  if (m_thread_creation_pending.test_and_set())
-    return false;
-
   size_t n_threads = thread_count();
 
   if (n_threads >= m_max_threads)
@@ -750,6 +747,14 @@ bool thread_pool_generic::add_thread()
     }
   }
 
+  /* Check and set "thread creation pending" flag before creating the thread. We
+  reset the flag in thread_pool_generic::worker_main in new thread created. The
+  flag must be reset back in case we fail to create the thread. If this flag is
+  not reset all future attempt to create thread for this pool would not work as
+  we would return from here. */
+  if (m_thread_creation_pending.test_and_set())
+    return false;
+
   worker_data *thread_data = m_thread_data_cache.get();
   m_active_threads.push_back(thread_data);
   try
@@ -769,6 +774,7 @@ bool thread_pool_generic::add_thread()
         "current number of threads in pool %zu\n", e.what(), thread_count());
       warning_written = true;
     }
+    m_thread_creation_pending.clear();
     return false;
   }
   return true;
