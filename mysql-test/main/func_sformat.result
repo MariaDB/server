@@ -418,8 +418,8 @@ select sformat('={}=', _ucs2 x'006100620063');
 sformat('={}=', _ucs2 x'006100620063')
 =abc=
 set names utf8;
-select sformat(_ucs2 x'003D007B007D003D', _ucs2 x'0442043504410442');
-sformat(_ucs2 x'003D007B007D003D', _ucs2 x'0442043504410442')
+select sformat(_ucs2 x'003D007B007D003D', _ucs2 x'0442043504410442') x;
+x
 =тест=
 select hex(sformat(_ucs2 x'003D007B007D003D', _ucs2 x'0442043504410442')) x;
 x

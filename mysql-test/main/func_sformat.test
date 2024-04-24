@@ -206,8 +206,10 @@ echo # ucs2 test;
 echo #;
 select sformat('={}=', _ucs2 x'006100620063');
 set names utf8;
-select sformat(_ucs2 x'003D007B007D003D', _ucs2 x'0442043504410442');
+--disable_service_connection
+select sformat(_ucs2 x'003D007B007D003D', _ucs2 x'0442043504410442') x;
 select hex(sformat(_ucs2 x'003D007B007D003D', _ucs2 x'0442043504410442')) x;
+--enable_service_connection
 create table t1 as select sformat(_ucs2 x'003D007B007D003D', _ucs2 x'0442043504410442') as x;
 show create table t1;
 drop table t1;
