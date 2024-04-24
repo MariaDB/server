@@ -14,14 +14,11 @@ select sformat(0);
 select sformat('C');
 select sformat(-4.2);
 select sformat(5, 5, 5);
-#enable after fix MDEV-27871
---disable_view_protocol
 select sformat('{} {}', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
---enable_view_protocol
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0) as result;
 select sformat('{{{}}}', 0);
 select sformat('{{{}{{', 0);
 select sformat('{{{{{}{{', 'param1');
@@ -39,8 +36,6 @@ select sformat('Float {} Boolean {} Number {}', 3.14159, True, -50);
 select sformat('SUM {} + {} = {}', 2, 3, 2+3);
 select sformat('Numbers {} {} {}', 1, 1.11, 1.111);
 select sformat('what {} is {}?', 'time', 'it');
-#enable after fix MDEV-27871
---disable_view_protocol
 select sformat('{} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {}
   {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {}
   {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {}
@@ -49,7 +44,7 @@ select sformat('{} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {
   33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57,
   58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82,
   83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105,
-  106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120);
+  106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120) as result;
 select sformat('{} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {}
   {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {}
   {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {}
@@ -61,8 +56,7 @@ select sformat('{} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {
   '69', '70', '71', '72', '73', '74', '75', '76', '77', '78', '79', '80', '81', '82', '83', '84',
   '85', '86', '87', '88', '89', '90', '91', '92', '93', '94', '95', '96', '97', '98', '99', '100',
   '101', '102', '103', '104', '105', '106', '107', '108', '109', '110', '111', '112', '113', '114',
-  '115', '116', '117', '118', '119', '120');
---enable_view_protocol
+  '115', '116', '117', '118', '119', '120') as result;
 
 echo #;
 echo # Error Test Cases;
@@ -92,10 +86,7 @@ insert into t2 values (0.0025, 25, 'A', DATE('2020-06-29')),
                       (0.0005,  5, 'B', DATE('2020-6-29')),
                       (5.5555, -5, 'C', DATE('200629')),
                       (-9,     -9, 'D', DATE('20*06*29'));
-#enable after fix MDEV-27871
---disable_view_protocol
-select sformat('p1 {:.4f} p2 {} p3 {} p4 {}', param1, param2, param3, param4) from t2;
---enable_view_protocol
+select sformat('p1 {:.4f} p2 {} p3 {} p4 {}', param1, param2, param3, param4) as result from t2;
 drop table t2;
 
 set names utf8;
@@ -155,12 +146,9 @@ select sformat('The binary version of {0} is {0:b}', 5);
 select sformat('{:+f}; {:+f}', 3.14, -3.14);
 select sformat('{: f}; {: f}', 3.14, -3.14);
 select sformat('{:-f}; {:-f}', 3.14, -3.14);
-#enable after fix MDEV-27871
---disable_view_protocol
-select sformat('The temperature is between {: } and {: } degrees celsius.', -3, 7);
-select sformat('The temperature is between {:-} and {:-} degrees celsius.', -3, 7);
-select sformat('The temperature is between {:+} and {:+} degrees celsius.', -3, 7);
---enable_view_protocol
+select sformat('The temperature is between {: } and {: } degrees celsius.', -3, 7) as result;
+select sformat('The temperature is between {:-} and {:-} degrees celsius.', -3, 7) as result;
+select sformat('The temperature is between {:+} and {:+} degrees celsius.', -3, 7) as result;
 #check after fix MDEV-29646
 --disable_view_protocol
 select sformat('We have {:<8} chickens.', 49);
@@ -218,11 +206,10 @@ echo # ucs2 test;
 echo #;
 select sformat('={}=', _ucs2 x'006100620063');
 set names utf8;
-select sformat(_ucs2 x'003D007B007D003D', _ucs2 x'0442043504410442');
-#enable after fix MDEV-27871
---disable_view_protocol
-select hex(sformat(_ucs2 x'003D007B007D003D', _ucs2 x'0442043504410442'));
---enable_view_protocol
+--disable_service_connection
+select sformat(_ucs2 x'003D007B007D003D', _ucs2 x'0442043504410442') as result;
+select hex(sformat(_ucs2 x'003D007B007D003D', _ucs2 x'0442043504410442')) as result;
+--enable_service_connection
 create table t1 as select sformat(_ucs2 x'003D007B007D003D', _ucs2 x'0442043504410442') as x;
 show create table t1;
 drop table t1;
