@@ -24,7 +24,7 @@ last revised in libpmem-1.12.0. */
 #include "cache.h"
 #include <cstdint>
 
-#if defined __x86_64__ || defined __aarch64__
+#if defined __x86_64__ || defined __aarch64__ || defined __powerpc64__
 # ifdef __x86_64__
 static void pmem_clflush(const void *buf, size_t size)
 {
@@ -96,14 +96,9 @@ static decltype(pmem_control::persist) pmem_persist_init()
 {
   return (getauxval(AT_HWCAP) & HWCAP_DCPOP) ? pmem_cvap : pmem_cvac;
 }
-# endif
-
-pmem_control::pmem_control() : persist(pmem_persist_init()) {}
-const pmem_control pmem;
-#else
-void pmem_persist(const void *buf, size_t size)
+# elif defined __powerpc64__
+static void pmem_phwsync(const void* buf, size_t size)
 {
-# ifdef __powerpc64__
   for (uintptr_t u= uintptr_t(buf) & ~(CPU_LEVEL1_DCACHE_LINESIZE),
          end= uintptr_t(buf) + size;
        u < end; u+= CPU_LEVEL1_DCACHE_LINESIZE)
@@ -126,7 +121,35 @@ void pmem_persist(const void *buf, size_t size)
 #  else
   __asm__ __volatile__(".long 0x7c80040a" ::: "memory");
 #  endif
-# elif defined __riscv && __riscv_xlen == 64
+}
+
+#  include <atomic>
+static void pmem_fence(const void*, size_t)
+{
+  std::atomic_thread_fence(std::memory_order_seq_cst);
+}
+
+#  include <sys/auxv.h>
+#  ifndef AT_HWCAP2
+#   define AT_HWCAP2 26
+#  endif
+#  ifndef PPC_FEATURE2_ARCH_3_1
+#   define PPC_FEATURE2_ARCH_3_1 4
+#  endif
+
+static decltype(pmem_control::persist) pmem_persist_init()
+{
+  return (getauxval(AT_HWCAP2) & PPC_FEATURE2_ARCH_3_1)
+    ? pmem_phwsync : pmem_fence;
+}
+# endif
+
+pmem_control::pmem_control() : persist(pmem_persist_init()) {}
+const pmem_control pmem;
+#else
+void pmem_persist(const void *buf, size_t size)
+{
+# if defined __riscv && __riscv_xlen == 64
   __asm__ __volatile__("fence w,w" ::: "memory");
 # elif defined __loongarch64
   __asm__ __volatile__("dbar 0" ::: "memory");
