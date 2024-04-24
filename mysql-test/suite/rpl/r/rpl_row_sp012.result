@@ -37,10 +37,9 @@ CALL test.p2();
 CURRENT_USER()	USER()
 root@localhost	user1@localhost
 connect  suser1,127.0.0.1,user1,,test,$SLAVE_MYPORT,;
-connection master;
 save_master_pos;
-connection suser1;
 sync_with_master;
+connection suser1;
 SELECT CURRENT_USER();
 CURRENT_USER()
 user1@localhost

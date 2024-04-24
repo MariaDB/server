@@ -12,7 +12,6 @@ save_master_pos;
 select * from t1;
 select * from t2;
 
-connection slave;
 sync_with_master;
 select * from t1;
 select * from t2;

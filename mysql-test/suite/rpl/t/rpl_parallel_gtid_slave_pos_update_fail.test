@@ -31,9 +31,9 @@ INSERT INTO t4 VALUES (1,NULL), (2,2), (3,NULL), (4,4), (5, NULL), (6, 6);
 --connect (con1,127.0.0.1,root,,test,$SERVER_MYPORT_1,)
 --connect (con2,127.0.0.1,root,,test,$SERVER_MYPORT_1,)
 --save_master_pos
-
---connection server_2
 --sync_with_master
+
+--connection slave_config
 --source include/stop_slave.inc
 
 # Create two transactions that can run in parallel on the slave but cause
@@ -57,10 +57,10 @@ REAP;
 --connection con2
 REAP;
 SET debug_sync='RESET';
---save_master_pos
 --let $last_gtid= `SELECT @@last_gtid`
+--save_master_pos
 
---connection server_2
+--connection slave_config
 # Disable the usual skip of gap locks for transactions that are run in
 # parallel, using DBUG. This allows the deadlock to occur, and this in turn
 # triggers a retry of the second transaction, and the code that was buggy and

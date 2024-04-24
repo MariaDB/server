@@ -13,8 +13,8 @@ INSERT INTO t4 VALUES (1,NULL), (2,2), (3,NULL), (4,4), (5, NULL), (6, 6);
 connect  con1,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
 connect  con2,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
 save_master_pos;
-connection server_2;
 sync_with_master;
+connection slave_config;
 include/stop_slave.inc
 connection con1;
 SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued1 WAIT_FOR master_cont1';
@@ -31,7 +31,7 @@ connection con1;
 connection con2;
 SET debug_sync='RESET';
 save_master_pos;
-connection server_2;
+connection slave_config;
 SET @old_dbug= @@GLOBAL.debug_dbug;
 SET GLOBAL debug_dbug="+d,disable_thd_need_ordering_with";
 include/start_slave.inc

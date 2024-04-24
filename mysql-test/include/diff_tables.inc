@@ -132,8 +132,9 @@ while ($_dt_tables)
             WHERE table_schema = '$_dt_database' AND table_name = '$_dt_table'`;
   if (!$_dt_order_by_length)
   {
+    let $catalog=`select catalog()`;
     --echo ERROR IN TEST: table $_dt_database.$_dt_table not found in INFORMATION_SCHEMA.COLUMNS. Did you misspell it?
-    --die ERROR IN TEST: table not found in INFORMATION_SCHEMA. Did you misspell it?
+    --die ERROR IN TEST: table $catalog.$_dt_database.$_dt_table not found in INFORMATION_SCHEMA. Did you misspell it?
   }
   --let $_dt_old_group_concat_max_len=
   # Increase group_concat_max_len if needed.

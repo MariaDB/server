@@ -5,7 +5,7 @@
 --source include/have_debug_sync.inc
 --source include/master-slave.inc
 
---connection server_2
+--connection slave_config
 --source include/stop_slave.inc
 CALL mtr.add_suppression("Commit failed due to failure of an earlier commit on which this one depends");
 SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
@@ -114,6 +114,7 @@ SELECT * FROM t2 WHERE a >= 40 ORDER BY a;
 SELECT * FROM t2 WHERE a >= 40 ORDER BY a;
 
 # Clean up.
+--connection slave_config
 --source include/stop_slave.inc
 SET GLOBAL debug_dbug=@old_dbug;
 SET DEBUG_SYNC= 'RESET';

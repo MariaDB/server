@@ -18,7 +18,7 @@ eval change master to master_port=$SLAVE_MYPORT;
 start slave;
 --source include/wait_for_slave_to_start.inc
 insert into t1 values (1);
-save_master_pos;
+save_master_pos slave;
 sync_with_master;
 select * from t1; # check that indeed 2 were inserted
 # We stop the slave before cleaning up otherwise we'll get

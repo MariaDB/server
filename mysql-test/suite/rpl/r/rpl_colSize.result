@@ -100,7 +100,6 @@ c VARCHAR(300),
 d CHAR(5)
 );
 sync_slave_with_master slave;
-connection slave;
 Alter varchar table on slave
 ALTER TABLE t1 CHANGE COLUMN a a VARCHAR(100);
 ALTER TABLE t1 CHANGE COLUMN b b VARCHAR(400);
@@ -124,7 +123,6 @@ t1	CREATE TABLE `t1` (
   `d` char(5) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 sync_slave_with_master slave;
-connection slave;
 Insert some values and select them on slave
 SELECT * FROM t1;
 a	b	c	d
@@ -148,7 +146,6 @@ d BIT(11),
 e BIT(11)
 );
 sync_slave_with_master slave;
-connection slave;
 Create bit table on slave
 DROP TABLE t1;
 CREATE TABLE t1 (
@@ -180,7 +177,6 @@ t1	CREATE TABLE `t1` (
   `e` bit(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 sync_slave_with_master slave;
-connection slave;
 Insert some values and select them on master
 SELECT BIN(a), BIN(b), BIN(c), BIN(d), BIN(e) FROM t1;
 BIN(a)	BIN(b)	BIN(c)	BIN(d)	BIN(e)

@@ -9,17 +9,36 @@
 --let $rpl_topology= 1->2->3
 --source include/rpl_init.inc
 
+--let $rpl_connection_name= master_config
+--let $rpl_server_number= 1
+--let $rpl_catalog=def
+--source include/rpl_connect.inc
+
 --let $rpl_connection_name= master
 --let $rpl_server_number= 1
+--let $rpl_catalog=$MARIADB_CATALOG
+--source include/rpl_connect.inc
+
+--let $rpl_connection_name= slave_config
+--let $rpl_server_number= 2
+--let $rpl_catalog=def
 --source include/rpl_connect.inc
 
 --let $rpl_connection_name= slave
 --let $rpl_server_number= 2
+--let $rpl_catalog=$MARIADB_CATALOG
 --source include/rpl_connect.inc
 
 --let $rpl_connection_name= slave2
 --let $rpl_server_number= 3
+--let $rpl_catalog=$MARIADB_CATALOG
 --source include/rpl_connect.inc
+
+--let $rpl_connection_name= slave2_config
+--let $rpl_server_number= 3
+--let $rpl_catalog=def
+--source include/rpl_connect.inc
+
 
 --connection master
 
@@ -39,10 +58,14 @@ insert into s1 values(-100,-1000,9223372036854775806,1,1,1000,0,0);
 insert into t1 select * from s1;
 select * from t1;
 --sync_slave_with_master
+--echo connection $CURRENT_CONNECTION
 select * from t1;
---sync_slave_with_master slave2
+--save_master_pos slave_config
+--sync_with_master 0,,slave2
+--echo connection $CURRENT_CONNECTION
 select * from t1;
 
+--connection slave2_config
 --let $binlog_file = LAST
 source include/show_binlog_events.inc;
 

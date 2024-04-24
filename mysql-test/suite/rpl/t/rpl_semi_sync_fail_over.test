@@ -11,15 +11,15 @@
 --source include/master-slave.inc
 
 # Initial slave
---connection server_2
+--connection slave_config
 --source include/stop_slave.inc
 
 # Initial master
---connection server_1
+--connection master
 RESET MASTER;
 SET @@global.max_binlog_size= 4096;
 
---connection server_2
+--connection slave_config
 RESET MASTER;
 SET @@global.max_binlog_size= 4096;
 set @@global.rpl_semi_sync_slave_enabled = 1;
@@ -35,8 +35,6 @@ set @@global.rpl_semi_sync_master_wait_point=AFTER_SYNC;
 CREATE TABLE t1 (a INT PRIMARY KEY, b MEDIUMTEXT) ENGINE=Innodb;
 INSERT INTO t1 VALUES (1, 'dummy1');
 --save_master_pos
-
---connection server_2
 --sync_with_master
 
 --connection server_1
@@ -67,17 +65,18 @@ INSERT INTO t1 VALUES (1, 'dummy1');
 --echo #
 --echo # Server_2 promoted as master will send 0-1-4 to new slave Server_1
 --echo #
---connection server_2
+--connection slave
 --let $rows_so_far=3
 --eval INSERT INTO t1 VALUES ($rows_so_far, 'dummy3')
---save_master_pos
+--save_master_pos slave
 --echo # The gtid state on current master must be equal to ...
 SHOW VARIABLES LIKE 'gtid_binlog_pos';
 SHOW VARIABLES LIKE 'gtid_binlog_state';
 SHOW VARIABLES LIKE 'gtid_slave_pos';
 
+--sync_with_master 0,,server_1
 --connection server_1
---sync_with_master
+
 --eval SELECT COUNT(*) = $rows_so_far as 'true' FROM t1
 --echo # ... the gtid states on the slave:
 SHOW VARIABLES LIKE 'gtid_slave_pos';
@@ -121,14 +120,15 @@ SHOW VARIABLES LIKE 'gtid_binlog_state';
 --connection server_1
 --let $rows_so_far=6
 --eval INSERT INTO t1 VALUES ($rows_so_far, 'dummy6')
---save_master_pos
+--save_master_pos server_1
 --echo # The gtid state on current master must be equal to ...
 SHOW VARIABLES LIKE 'gtid_binlog_pos';
 SHOW VARIABLES LIKE 'gtid_binlog_state';
 SHOW VARIABLES LIKE 'gtid_slave_pos';
 
 --connection server_2
---sync_with_master
+--sync_with_master 0,,server_2
+--connection server_2
 --eval SELECT COUNT(*) = $rows_so_far as 'true' FROM t1
 --echo # ... the gtid states on the slave:
 SHOW VARIABLES LIKE 'gtid_slave_pos';
@@ -190,6 +190,8 @@ SHOW VARIABLES LIKE 'gtid_binlog_state';
 --echo # Cleanup
 --echo #
 
+--source include/reconnect_master_connections.inc
+--connection master_config
 --source include/stop_slave.inc
 set global rpl_semi_sync_slave_enabled = 0;
 set global rpl_semi_sync_master_enabled = 0;
@@ -197,7 +199,9 @@ set global rpl_semi_sync_master_wait_point=default;
 RESET MASTER;
 RESET SLAVE;
 
---connection server_2
+let $rpl_server_number=2;
+--source include/rpl_reconnect.inc
+--connection slave_config
 RESET MASTER;
 RESET SLAVE;
 set @@global.rpl_semi_sync_master_enabled = 0;
@@ -207,15 +211,9 @@ evalp CHANGE MASTER TO master_host='127.0.0.1', master_port=$SERVER_MYPORT_1, ma
 set @@global.gtid_slave_pos=@@global.gtid_binlog_pos;
 --source include/start_slave.inc
 
---connection server_1
+--connection master
 DROP TABLE t1;
 --save_master_pos
-
---connection server_2
 --sync_with_master
-
-connection default;
---enable_reconnect
---source include/wait_until_connected_again.inc
 
 --source include/rpl_end.inc

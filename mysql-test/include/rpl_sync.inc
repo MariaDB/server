@@ -107,8 +107,9 @@ while ($_rpl_i) {
           }
           disable_connect_log;
           disable_query_log;
-          --sync_slave_with_master server_$_rpl_server
+          --sync_slave_with_master server_$_rpl_server server_$_rpl_prev_server
           enable_connect_log;
+          enable_query_log;
         }
         if (!$_rpl_slave_sql_running)
         {
@@ -135,7 +136,7 @@ while ($_rpl_i) {
         --echo syncing master_file='$_rpl_master_file' master_pos='$_rpl_master_pos'
       }
       disable_query_log;
-      --sync_slave_with_master server_$_rpl_server
+      --sync_slave_with_master server_$_rpl_server server_$_rpl_prev_server
       enable_query_log;
       enable_connect_log;
     }

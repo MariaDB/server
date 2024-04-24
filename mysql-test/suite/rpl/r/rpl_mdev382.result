@@ -15,6 +15,7 @@ Warnings:
 Warning	1196	Some non-transactional changed tables couldn't be rolled back
 insert into t1 values (3);
 commit;
+connection master_config;
 show binlog events  from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid_list	1	#	[]
@@ -35,7 +36,7 @@ master-bin.000001	#	Query	1	#	SET CATALOG `def`; use `test`; insert into t1 valu
 master-bin.000001	#	Xid	1	#	COMMIT /* XID */
 sync_slave_with_master;
 connection slave;
-connection slave;
+connection master_config;
 connection master;
 BEGIN;
 insert into t1 values(10);
@@ -63,6 +64,7 @@ savepoint `d``d`;
 insert into t1 values(18);
 COMMIT;
 set sql_quote_show_create = 1;
+connection master_config;
 show binlog events  from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	1	#	BEGIN GTID #-#-#
@@ -85,6 +87,7 @@ master-bin.000001	#	Query	1	#	SAVEPOINT `d``d`
 master-bin.000001	#	Query	1	#	SET CATALOG `def`; use `test`; insert into t1 values(18)
 master-bin.000001	#	Xid	1	#	COMMIT /* XID */
 *** Test correct USE statement in SHOW BINLOG EVENTS ***
+connection master_config;
 connection master;
 set sql_mode = 'ANSI_QUOTES';
 CREATE DATABASE "db1`; select 'oops!'";
@@ -93,6 +96,7 @@ CREATE TABLE t1 (a INT PRIMARY KEY) engine=MyISAM;
 INSERT INTO t1 VALUES (1);
 set sql_mode = '';
 INSERT INTO t1 VALUES (2);
+connection master_config;
 set sql_mode =  'ANSI_QUOTES';
 show binlog events  from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
@@ -133,10 +137,14 @@ master-bin.000001	#	Query	1	#	COMMIT
 master-bin.000001	#	Gtid	1	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	1	#	SET CATALOG `def`; use `db1``; select 'oops!'`; INSERT INTO t1 VALUES (2)
 master-bin.000001	#	Query	1	#	COMMIT
+connection master;
+set sql_mode = '';
 DROP TABLE t1;
 use test;
 ***Test LOAD DATA INFILE with various identifiers that need correct quoting ***
 use `db1``; select 'oops!'`;
+connection master_config;
+connection master;
 set timestamp=1000000000;
 CREATE TABLE `t``1` (`a``1` VARCHAR(4) PRIMARY KEY, `b``2` VARCHAR(3),
 `c``3` VARCHAR(7));
@@ -157,6 +165,7 @@ LOAD DATA INFILE 'MYSQLTEST_VARDIR/tmp/f''le.txt'
 SELECT * FROM `db1``; select 'oops!'`.`t``1`;
 a`1	b`2	c`3
 fo\o	bar	|b"a'z!
+connection master_config;
 show binlog events  from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	1	#	GTID #-#-#
@@ -227,6 +236,8 @@ connection master;
 drop table t1,t2;
 *** Test truncation of long SET expression in LOAD DATA ***
 CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(1000));
+connection master_config;
+connection master;
 LOAD DATA INFILE 'MYSQLTEST_VARDIR/tmp/file.txt' INTO TABLE t1
 FIELDS TERMINATED BY ','
   (a, @b) SET b = CONCAT(@b, '| 123456789A123456789B123456789C123456789D123456789E123456789F123456789G123456789H123456789I123456789J123456789K123456789L123456789M123456789N123456789O123456789P123456789Q123456789R123456789123456789T123456789U123456789V123456789W123456789X123456789Y123456789Z123456789|', @b);
@@ -234,6 +245,7 @@ SELECT * FROM t1 ORDER BY a;
 a	b
 1	X| 123456789A123456789B123456789C123456789D123456789E123456789F123456789G123456789H123456789I123456789J123456789K123456789L123456789M123456789N123456789O123456789P123456789Q123456789R123456789123456789T123456789U123456789V123456789W123456789X123456789Y123456789Z123456789|X
 2	A| 123456789A123456789B123456789C123456789D123456789E123456789F123456789G123456789H123456789I123456789J123456789K123456789L123456789M123456789N123456789O123456789P123456789Q123456789R123456789123456789T123456789U123456789V123456789W123456789X123456789Y123456789Z123456789|A
+connection master_config;
 show binlog events  from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	1	#	BEGIN GTID #-#-#
@@ -250,12 +262,15 @@ connection master;
 DROP TABLE t1;
 *** Test user variables whose names require correct quoting ***
 use `db1``; select 'oops!'`;
+connection master_config;
+connection master;
 CREATE TABLE t1 (a1 BIGINT PRIMARY KEY, a2 BIGINT, a3 BIGINT, a4 BIGINT UNSIGNED, b DOUBLE, c DECIMAL(65,10), d VARCHAR(100));
 INSERT INTO t1 VALUES (-9223372036854775808,42,9223372036854775807,18446744073709551615,-1234560123456789e110, -1234501234567890123456789012345678901234567890123456789.0123456789, REPEAT("x", 100));
 SELECT @`a``1`:=a1, @`a``2`:=a2, @`a``3`:=a3, @`a``4`:=a4, @`b```:=b, @```c`:=c, @```d```:=d FROM t1;
 @`a``1`:=a1	@`a``2`:=a2	@`a``3`:=a3	@`a``4`:=a4	@`b```:=b	@```c`:=c	@```d```:=d
 -9223372036854775808	42	9223372036854775807	18446744073709551615	-1.234560123456789e125	-1234501234567890123456789012345678901234567890123456789.0123456789	xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 INSERT INTO t1 VALUES (@`a``1`+1, @`a``2`*100, @`a``3`-1, @`a``4`-1, @`b```/2, @```c`, substr(@```d```, 2, 98));
+connection master_config;
 show binlog events  from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	1	#	GTID #-#-#
@@ -337,7 +352,7 @@ ERROR 42000: Cannot truncate a table referenced in a foreign key constraint (`db
 DROP TABLE `t``2`;
 DROP TABLE `t``1`;
 *** Test correct quoting of DELETE FROM statement binlogged for HEAP table that is emptied due to server restart
-connection slave;
+connection slave_config;
 include/stop_slave.inc
 connection master;
 CREATE TABLE `db1``; select 'oops!'`.`t``1` (`a``` INT PRIMARY KEY) ENGINE=heap;
@@ -347,21 +362,23 @@ a`
 1
 2
 5
-connection default;
-connection server_1;
+connection master_config;
+# Ensure that all connections to master are active again
 connection master;
 set timestamp=1000000000;
 # The table should be empty on the master.
+connection master_config;
+connection master;
 SELECT * FROM `db1``; select 'oops!'`.`t``1`;
 a`
 # The DELETE statement should be correctly quoted
+connection master_config;
 show binlog events in 'master-bin.000002' from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000002	#	Gtid	1	#	GTID #-#-#
 master-bin.000002	#	Query	1	#	DELETE FROM `db1``; select 'oops!'`.`t``1`
-connection slave;
+connection slave_config;
 include/start_slave.inc
-connection master;
 sync_slave_with_master;
 connection slave;
 # The table should be empty on the slave also.
@@ -376,7 +393,10 @@ use test;
 DROP DATABASE `db1``; select 'oops!'`;
 *** Test correct quoting of mysqlbinlog --rewrite-db option ***
 CREATE TABLE t1 (a INT PRIMARY KEY);
+connection master_config;
+connection master;
 INSERT INTO t1 VALUES(1);
+connection master_config;
 show binlog events in 'master-bin.000002' from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000002	#	Gtid	1	#	BEGIN GTID #-#-#
@@ -410,5 +430,6 @@ DELIMITER ;
 ROLLBACK /* added by mysqlbinlog */;
 /*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;
 /*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=0*/;
+connection master;
 DROP TABLE t1;
 include/rpl_end.inc

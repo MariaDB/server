@@ -12,7 +12,7 @@ change master to master_port=SLAVE_PORT;
 start slave;
 include/wait_for_slave_to_start.inc
 insert into t1 values (1);
-save_master_pos;
+save_master_pos slave;
 sync_with_master;
 select * from t1;
 n

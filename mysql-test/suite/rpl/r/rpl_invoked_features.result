@@ -268,7 +268,6 @@ a	b
 102	102
 103	103
 sync_slave_with_master slave;
-connection slave;
 
 SHOW TABLES LIKE 't%';
 Tables_in_test (t%)
@@ -440,7 +439,6 @@ UPDATE t13 SET c='';
 ALTER TABLE t3 ORDER BY a;
 ALTER TABLE t13 ORDER BY a;
 sync_slave_with_master slave;
-connection slave;
 
 
 connection master;
@@ -454,5 +452,4 @@ DROP FUNCTION IF EXISTS f2;
 DROP EVENT IF EXISTS e1;
 DROP EVENT IF EXISTS e11;
 sync_slave_with_master slave;
-connection slave;
 include/rpl_end.inc

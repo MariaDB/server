@@ -661,16 +661,17 @@ ERROR HY000: CHANGE MASTER TO option 'MASTER_DEMOTE_TO_SLAVE=TRUE' is missing re
 #
 connection master;
 # Restarting master without binary log
+# Ensure that all connections to master are active again
+connection master;
 CHANGE MASTER TO master_host='127.0.0.1', master_port=SLAVE_PORT, master_user='root', master_use_gtid=Slave_Pos, master_demote_to_slave=1;
 ERROR HY000: You are not using binary logging
 # Restarting master to re-enable binary log
-connection server_1;
-connection default;
+# Ensure that all connections to master are active again
 #
 # Error Case 3: Error when MASTER_DEMOTE_TO_SLAVE is provided a
 # non-boolean value.
 #
-connection master;
+connection master_config;
 CHANGE MASTER TO master_host='127.0.0.1', master_port=SLAVE_PORT, master_user='root', master_use_gtid=Slave_Pos, master_demote_to_slave=invalid;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'invalid' at line 1
 #
@@ -679,7 +680,7 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 connection master;
 DROP TABLE t1, t2, t3, t4, t5, t6;
 include/save_master_gtid.inc
-connection slave;
+connection slave_config;
 include/start_slave.inc
 include/sync_with_master_gtid.inc
 include/rpl_end.inc

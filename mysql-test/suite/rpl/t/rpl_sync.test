@@ -41,15 +41,13 @@
 
 call mtr.add_suppression('Attempting backtrace');
 call mtr.add_suppression("Recovery from master pos .* and file master-bin.000001");
-# Use innodb so we do not get "table should be repaired" issues.
-ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+--source include/alter_gtid_slave_pos.inc
 flush tables;
 CREATE TABLE t1(a INT, PRIMARY KEY(a)) engine=innodb;
 
 insert into t1(a) values(1);
 insert into t1(a) values(2);
 insert into t1(a) values(3);
-
 ########################################################################################
 #                             Case 1: Corrupt a relay-log.bin*
 ########################################################################################
@@ -66,7 +64,7 @@ insert into t1(a) values(5);
 insert into t1(a) values(6);
 
 --echo =====Removing relay log files and crashing/recoverying the slave=======;
-connection slave;
+connection slave_config;
 --source include/stop_slave_io.inc
 
 let $file= query_get_value("SHOW SLAVE STATUS", Relay_Log_File, 1);
@@ -91,17 +89,16 @@ FLUSH LOGS;
 --echo =====Dumping and comparing tables=======;
 --source include/start_slave.inc
 
-connection master;
 sync_slave_with_master;
 
-let $diff_tables=master:t1,slave:t1;
+let $diff_tables=default:t1,slave:t1;
 source include/diff_tables.inc;
 
 ########################################################################################
 #                             Case 2: Corrupt a master.info
 ########################################################################################
 --echo =====Corrupting the master.info=======;
-connection slave;
+connection slave_config;
 --source include/stop_slave.inc
 
 connection master;
@@ -138,9 +135,9 @@ FLUSH LOGS;
 --source include/rpl_reconnect.inc
 
 --echo =====Dumping and comparing tables=======;
+--connection slave_config
 --source include/start_slave.inc
 
-connection master;
 sync_slave_with_master;
 
 let $diff_tables=master:t1,slave:t1;
@@ -155,4 +152,3 @@ drop table t1;
 
 --remove_file $SLAVE_TOPDIR/master.backup
 --source include/rpl_end.inc
-

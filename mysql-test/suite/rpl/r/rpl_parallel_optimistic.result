@@ -1,13 +1,15 @@
-include/rpl_init.inc [topology=1->2]
+include/master-slave.inc
+[connection master]
 call mtr.add_suppression("Deadlock found when trying to get lock; try restarting transaction");
 call mtr.add_suppression("Can't find record in 't1'");
 call mtr.add_suppression("Can't find record in 't2'");
-connection server_1;
+connection master_config;
 ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+connection master;
 CREATE TABLE t1 (a int PRIMARY KEY, b INT) ENGINE=InnoDB;
 save_master_pos;
-connection server_2;
 sync_with_master;
+connection slave_config;
 SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
 include/stop_slave.inc
 SET GLOBAL slave_parallel_threads=10;
@@ -16,7 +18,7 @@ SET @old_parallel_mode=@@GLOBAL.slave_parallel_mode;
 SET GLOBAL slave_parallel_mode='optimistic';
 SET @old_gtid_cleanup_batch_size= @@GLOBAL.gtid_cleanup_batch_size;
 SET GLOBAL gtid_cleanup_batch_size= 1000000;
-connection server_1;
+connection master;
 INSERT INTO t1 VALUES(1,1);
 BEGIN;
 INSERT INTO t1 VALUES(2,1);
@@ -44,9 +46,10 @@ a	b
 1	2
 2	6
 3	3
-connection server_2;
+connection slave_config;
 include/start_slave.inc
 include/sync_with_master_gtid.inc
+connection slave;
 SELECT * FROM t1 ORDER BY a;
 a	b
 1	2
@@ -55,7 +58,7 @@ a	b
 *** Test a bunch of non-transactional/DDL event groups. ***
 connection server_2;
 include/stop_slave.inc
-connection server_1;
+connection master;
 INSERT INTO t1 VALUES (4,4);
 INSERT INTO t1 VALUES (5,5);
 CREATE TABLE t2 (a INT PRIMARY KEY) ENGINE=InnoDB;
@@ -108,9 +111,10 @@ c
 204
 205
 206
-connection server_2;
+connection slave_config;
 include/start_slave.inc
 include/sync_with_master_gtid.inc
+connection slave;
 SELECT * FROM t1 ORDER BY a;
 a	b
 1	2
@@ -135,15 +139,16 @@ c
 204
 205
 206
+connection slave_config;
 SELECT IF(COUNT(*) >= 30, "OK", CONCAT("Error: too few old rows found: ", COUNT(*)))
 FROM mysql.gtid_slave_pos;
 IF(COUNT(*) >= 30, "OK", CONCAT("Error: too few old rows found: ", COUNT(*)))
 OK
 SET GLOBAL gtid_cleanup_batch_size=1;
 *** Test @@skip_parallel_replication. ***
-connection server_2;
+connection slave_config;
 include/stop_slave.inc
-connection server_1;
+connection master;
 UPDATE t1 SET b=10 WHERE a=3;
 SET SESSION skip_parallel_replication=1;
 UPDATE t1 SET b=20 WHERE a=3;
@@ -164,9 +169,10 @@ a	b
 4	4
 5	5
 include/save_master_gtid.inc
-connection server_2;
+connection slave_config;
 include/start_slave.inc
 include/sync_with_master_gtid.inc
+connection slave;
 SELECT * FROM t1 ORDER BY a;
 a	b
 1	2
@@ -177,9 +183,9 @@ a	b
 status
 Ok, no retry
 *** Test that we do not replicate in parallel transactions that had row lock waits on the master ***
-connection server_2;
+connection slave_config;
 include/stop_slave.inc
-connection server_1;
+connection master;
 connect  m1,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
 connect  m2,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
 connect  m3,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
@@ -188,53 +194,53 @@ connect  m5,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
 connect  m6,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
 connect  m7,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
 connect  m8,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
-connection default;
+connection master;
 BEGIN;
 UPDATE t1 SET b=b+1 WHERE a=3;
 connection m1;
 SET debug_sync='thd_report_wait_for SIGNAL waiting1';
 UPDATE t1 SET b=1001 WHERE a=3;
-connection default;
+connection master;
 SET debug_sync='now WAIT_FOR waiting1';
 connection m2;
 BEGIN;
 UPDATE t1 SET b=1002 WHERE a=5;
 SET debug_sync='thd_report_wait_for SIGNAL waiting2';
 UPDATE t1 SET b=102 WHERE a=3;
-connection default;
+connection master;
 SET debug_sync='now WAIT_FOR waiting2';
 UPDATE t1 SET b=1000 WHERE a=1;
 connection m3;
 SET debug_sync='thd_report_wait_for SIGNAL waiting3';
 UPDATE t1 SET b=1003 WHERE a=5;
-connection default;
+connection master;
 SET debug_sync='now WAIT_FOR waiting3';
 connection m4;
 SET debug_sync='thd_report_wait_for SIGNAL waiting4';
 UPDATE t1 SET b=1004 WHERE a=3;
-connection default;
+connection master;
 SET debug_sync='now WAIT_FOR waiting4';
 connection m5;
 SET debug_sync='thd_report_wait_for SIGNAL waiting5';
 UPDATE t1 SET b=1005 WHERE a=5;
-connection default;
+connection master;
 SET debug_sync='now WAIT_FOR waiting5';
 connection m6;
 SET debug_sync='thd_report_wait_for SIGNAL waiting6';
 UPDATE t1 SET b=1006 WHERE a=1;
-connection default;
+connection master;
 SET debug_sync='now WAIT_FOR waiting6';
 connection m7;
 SET debug_sync='thd_report_wait_for SIGNAL waiting7';
 UPDATE t1 SET b=1007 WHERE a=5;
-connection default;
+connection master;
 SET debug_sync='now WAIT_FOR waiting7';
 connection m8;
 SET debug_sync='thd_report_wait_for SIGNAL waiting8';
 UPDATE t1 SET b=1008 WHERE a=3;
-connection default;
+connection master;
 SET debug_sync='now WAIT_FOR waiting8';
-connection default;
+connection master;
 COMMIT;
 connection m1;
 connection m2;
@@ -245,7 +251,7 @@ connection m5;
 connection m6;
 connection m7;
 connection m8;
-connection default;
+connection master;
 SET debug_sync='RESET';
 SELECT * FROM t1 ORDER BY a;
 a	b
@@ -255,9 +261,10 @@ a	b
 4	4
 5	1007
 include/save_master_gtid.inc
-connection server_2;
+connection slave_config;
 include/start_slave.inc
 include/sync_with_master_gtid.inc
+connection slave;
 SELECT * FROM t1 ORDER BY a;
 a	b
 1	1006
@@ -268,7 +275,7 @@ a	b
 status
 Ok, no retry
 *** Test that we replicate correctly when using READ COMMITTED and binlog_format=MIXED on the slave ***
-connection server_2;
+connection slave_config;
 include/stop_slave.inc
 SET @old_format= @@GLOBAL.binlog_format;
 SET GLOBAL binlog_format= MIXED;
@@ -276,7 +283,7 @@ SET @old_isolation= @@GLOBAL.tx_isolation;
 SET GLOBAL TRANSACTION ISOLATION LEVEL READ COMMITTED;
 SET GLOBAL slave_parallel_threads=0;
 SET GLOBAL slave_parallel_threads=10;
-connection server_1;
+connection master;
 DROP TABLE t1, t2;
 CREATE TABLE t1 (a int PRIMARY KEY, b INT) ENGINE=InnoDB;
 CREATE TABLE t2 (a int PRIMARY KEY, b INT) ENGINE=InnoDB;
@@ -320,9 +327,10 @@ a	b
 9	8
 10	10
 include/save_master_gtid.inc
-connection server_2;
+connection slave_config;
 include/start_slave.inc
 include/sync_with_master_gtid.inc
+connection slave;
 SELECT * FROM t1 ORDER BY a;
 a	b
 1	0
@@ -346,24 +354,26 @@ a	b
 8	7
 9	8
 10	10
+connection slave_config;
 include/stop_slave.inc
 SET GLOBAL binlog_format= @old_format;
 SET GLOBAL tx_isolation= @old_isolation;
 include/start_slave.inc
 *** MDEV-7888: ANALYZE TABLE does wakeup_subsequent_commits(), causing wrong binlog order and parallel replication hang ***
-connection server_1;
+connection master;
 DROP TABLE t1, t2, t3;
 CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
 CREATE TABLE t2 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
 CREATE TABLE t3 (a INT PRIMARY KEY, b INT) ENGINE=MyISAM;
 INSERT INTO t2 VALUES (1,1), (2,1), (3,1), (4,1), (5,1);
 include/save_master_gtid.inc
-connection server_2;
+connection slave_config;
 include/sync_with_master_gtid.inc
 include/stop_slave.inc
+connection slave;
 SET @old_debug= @@GLOBAL.debug_dbug;
 SET GLOBAL debug_dbug= '+d,inject_analyze_table_sleep';
-connection server_1;
+connection master;
 ALTER TABLE t2 COMMENT "123abc";
 ANALYZE TABLE t2;
 Table	Op	Msg_type	Msg_text
@@ -430,9 +440,10 @@ SELECT * FROM t3 ORDER BY a;
 a	b
 1	3
 include/save_master_gtid.inc
-connection server_2;
+connection slave_config;
 include/start_slave.inc
 include/sync_with_master_gtid.inc
+connection slave;
 SELECT * FROM t1 ORDER BY a;
 a	b
 1	2
@@ -467,15 +478,16 @@ a	b
 SELECT * FROM t3 ORDER BY a;
 a	b
 1	3
+connection slave_config;
 include/stop_slave.inc
 SET GLOBAL debug_dbug= @old_debug;
 include/start_slave.inc
 *** MDEV-7929: record_gtid() for non-transactional event group calls wakeup_subsequent_commits() too early, causing slave hang. ***
-connection server_2;
+connection slave_config;
 include/stop_slave.inc
 SET @old_dbug= @@GLOBAL.debug_dbug;
 SET GLOBAL debug_dbug= '+d,inject_record_gtid_serverid_100_sleep';
-connection server_1;
+connection master;
 ALTER TABLE t3 COMMENT "DDL statement 1";
 INSERT INTO t1 VALUES (30,0);
 INSERT INTO t1 VALUES (31,0);
@@ -509,9 +521,10 @@ a	b
 38	0
 39	0
 include/save_master_gtid.inc
-connection server_2;
+connection slave_config;
 include/start_slave.inc
 include/sync_with_master_gtid.inc
+connection slave;
 SELECT * FROM t1 WHERE a >= 30 ORDER BY a;
 a	b
 30	0
@@ -524,13 +537,13 @@ a	b
 37	0
 38	0
 39	0
+connection slave_config;
 include/stop_slave.inc
 SET GLOBAL debug_dbug= @old_debug;
 include/start_slave.inc
 *** MDEV-8113: ALTER TABLE causes slave hang in optimistic parallel replication ***
-connection server_2;
 include/stop_slave.inc
-connection server_1;
+connection master;
 ALTER TABLE t2 ADD c INT;
 INSERT INTO t2 (a,b) VALUES (50, 0);
 INSERT INTO t2 (a,b) VALUES (51, 1);
@@ -556,9 +569,10 @@ a	b
 58	8
 59	9
 include/save_master_gtid.inc
-connection server_2;
+connection slave_config;
 include/start_slave.inc
 include/sync_with_master_gtid.inc
+connection slave;
 SELECT * FROM t2 WHERE a >= 50 ORDER BY a;
 a	b
 50	0
@@ -572,9 +586,9 @@ a	b
 58	8
 59	9
 *** MDEV-8075: DROP TEMPORARY TABLE not marked as ddl, causing optimistic parallel replication to fail ***
-connection server_2;
+connection slave_config;
 include/stop_slave.inc
-connection server_1;
+connection master;
 INSERT INTO t1 VALUES (40, 10);
 CREATE TEMPORARY TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (41);
@@ -601,9 +615,10 @@ a	b
 57	7
 58	8
 59	9
-connection server_2;
+connection slave_config;
 include/start_slave.inc
 include/sync_with_master_gtid.inc
+connection slave;
 SELECT * FROM t1 WHERE a >= 40 ORDER BY a;
 a	b
 40	10
@@ -621,17 +636,17 @@ a	b
 57	7
 58	8
 59	9
-connection server_1;
+connection master;
 DELETE FROM t1;
 DELETE FROM t2;
 include/save_master_gtid.inc
-connection server_2;
+connection slave_config;
 include/sync_with_master_gtid.inc
-connection server_2;
+connection slave;
 set global log_warnings=2;
 BEGIN;
 INSERT INTO t1 SET a=1;
-connection server_1;
+connection master;
 SET @save.binlog_format=@@session.binlog_format;
 SET @@SESSION.binlog_format=row;
 BEGIN;
@@ -641,31 +656,32 @@ COMMIT;
 BEGIN;
 DELETE FROM t2;
 COMMIT;
-connection server_2;
-connection server_2;
+connection slave_config;
+connection slave;
 ROLLBACK;
-connection server_1;
+connection master;
 SET @@SESSION.binlog_format= @save.binlog_format;
 DELETE FROM t1;
 DELETE FROM t2;
 include/save_master_gtid.inc
-connection server_2;
+connection slave_config;
 include/sync_with_master_gtid.inc
-connection server_2;
+connection slave_config;
 include/stop_slave.inc
 set global log_warnings=default;
 SET GLOBAL slave_parallel_mode=@old_parallel_mode;
 SET GLOBAL slave_parallel_threads=@old_parallel_threads;
 include/start_slave.inc
-connection server_1;
+connection master;
 DROP TABLE t1, t2, t3;
 include/save_master_gtid.inc
-connection server_2;
+connection slave_config;
 include/sync_with_master_gtid.inc
 SELECT COUNT(*) <= 5*@@GLOBAL.gtid_cleanup_batch_size
 FROM mysql.gtid_slave_pos;
 COUNT(*) <= 5*@@GLOBAL.gtid_cleanup_batch_size
 1
+connection slave_config;
 SET GLOBAL gtid_cleanup_batch_size= @old_gtid_cleanup_batch_size;
-connection server_1;
+connection master;
 include/rpl_end.inc

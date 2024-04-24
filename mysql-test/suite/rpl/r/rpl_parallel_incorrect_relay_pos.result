@@ -1,7 +1,7 @@
 *** MDEV-7237: Parallel replication: incorrect relaylog position after stop/start the slave ***
 include/master-slave.inc
 [connection master]
-connection server_2;
+connection slave_config;
 include/stop_slave.inc
 CALL mtr.add_suppression("Commit failed due to failure of an earlier commit on which this one depends");
 SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
@@ -67,6 +67,7 @@ a
 44
 45
 46
+connection slave_config;
 include/stop_slave.inc
 SET GLOBAL debug_dbug=@old_dbug;
 SET DEBUG_SYNC= 'RESET';

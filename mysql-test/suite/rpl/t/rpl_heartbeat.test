@@ -9,8 +9,10 @@
 
 -- source include/have_log_bin.inc
 
-connect (master,localhost,root,,test,$MASTER_MYPORT,$MASTER_MYSOCK);
+connect (master,localhost,root,,def.test,$MASTER_MYPORT,$MASTER_MYSOCK);
+connect (master_config,localhost,root,,test,$MASTER_MYPORT,$MASTER_MYSOCK);
 connect (slave,localhost,root,,test,$SLAVE_MYPORT,$SLAVE_MYSOCK);
+connect (slave_config,localhost,root,,def.test,$SLAVE_MYPORT,$SLAVE_MYSOCK);
 
 connection master;
 reset master;

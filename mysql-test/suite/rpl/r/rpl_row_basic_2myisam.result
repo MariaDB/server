@@ -510,7 +510,6 @@ CREATE TABLE t1 (a TIMESTAMP, b DATETIME, c DATE);
 INSERT INTO t1 VALUES(
 '2005-11-14 01:01:01', '2005-11-14 01:01:02', '2005-11-14');
 sync_slave_with_master slave;
-connection slave;
 SELECT * FROM t1;
 a	b	c
 2005-11-14 01:01:01	2005-11-14 01:01:02	2005-11-14

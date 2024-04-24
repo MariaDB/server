@@ -12,8 +12,8 @@ CREATE TABLE t7 (a int PRIMARY KEY, b INT) ENGINE=InnoDB;
 CREATE TABLE t8 (a int PRIMARY KEY, b INT) ENGINE=InnoDB;
 --save_master_pos
 
---connection server_2
 --sync_with_master
+--connection slave_config
 --source include/stop_slave.inc
 SET @old_mode= @@GLOBAL.slave_parallel_mode;
 SET GLOBAL slave_parallel_mode='conservative';
@@ -247,11 +247,12 @@ SELECT * FROM t7 ORDER BY a;
 --source include/save_master_gtid.inc
 
 
---connection server_2
+--connection slave_config
 --source include/start_slave.inc
 --source include/sync_with_master_gtid.inc
 SELECT * FROM t7 ORDER BY a;
 
+--connection slave_config
 --source include/stop_slave.inc
 SET GLOBAL debug_dbug=@old_dbug;
 SET GLOBAL slave_parallel_mode=@old_mode;
@@ -262,7 +263,7 @@ SET GLOBAL slave_transaction_retries=@old_transaction_retries;
 --source include/start_slave.inc
 SET DEBUG_SYNC= 'RESET';
 
---connection server_1
+--connection master
 DROP TABLE t7,t8;
 SET DEBUG_SYNC= 'RESET';
 

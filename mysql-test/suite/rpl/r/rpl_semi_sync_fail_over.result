@@ -1,11 +1,11 @@
 include/master-slave.inc
 [connection master]
-connection server_2;
+connection slave_config;
 include/stop_slave.inc
-connection server_1;
+connection master;
 RESET MASTER;
 SET @@global.max_binlog_size= 4096;
-connection server_2;
+connection slave_config;
 RESET MASTER;
 SET @@global.max_binlog_size= 4096;
 set @@global.rpl_semi_sync_slave_enabled = 1;
@@ -19,7 +19,6 @@ set @@global.rpl_semi_sync_master_wait_point=AFTER_SYNC;
 CREATE TABLE t1 (a INT PRIMARY KEY, b MEDIUMTEXT) ENGINE=Innodb;
 INSERT INTO t1 VALUES (1, 'dummy1');
 save_master_pos;
-connection server_2;
 sync_with_master;
 connection server_1;
 #
@@ -66,9 +65,9 @@ include/start_slave.inc
 #
 # Server_2 promoted as master will send 0-1-4 to new slave Server_1
 #
-connection server_2;
+connection slave;
 INSERT INTO t1 VALUES (3, 'dummy3');
-save_master_pos;
+save_master_pos slave;
 # The gtid state on current master must be equal to ...
 SHOW VARIABLES LIKE 'gtid_binlog_pos';
 Variable_name	Value
@@ -79,8 +78,8 @@ gtid_binlog_state	0-1-4,0-2-5
 SHOW VARIABLES LIKE 'gtid_slave_pos';
 Variable_name	Value
 gtid_slave_pos	0-1-4
+sync_with_master 0,,server_1;
 connection server_1;
-sync_with_master;
 SELECT COUNT(*) = 3 as 'true' FROM t1;
 true
 1
@@ -148,7 +147,7 @@ include/start_slave.inc
 #
 connection server_1;
 INSERT INTO t1 VALUES (6, 'dummy6');
-save_master_pos;
+save_master_pos server_1;
 # The gtid state on current master must be equal to ...
 SHOW VARIABLES LIKE 'gtid_binlog_pos';
 Variable_name	Value
@@ -160,7 +159,8 @@ SHOW VARIABLES LIKE 'gtid_slave_pos';
 Variable_name	Value
 gtid_slave_pos	0-2-7
 connection server_2;
-sync_with_master;
+sync_with_master 0,,server_2;
+connection server_2;
 SELECT COUNT(*) = 6 as 'true' FROM t1;
 true
 1
@@ -258,13 +258,16 @@ gtid_binlog_state	0-1-9,0-2-10
 #
 # Cleanup
 #
+# Ensure that all connections to master are active again
+connection master_config;
 include/stop_slave.inc
 set global rpl_semi_sync_slave_enabled = 0;
 set global rpl_semi_sync_master_enabled = 0;
 set global rpl_semi_sync_master_wait_point=default;
 RESET MASTER;
 RESET SLAVE;
-connection server_2;
+include/rpl_reconnect.inc
+connection slave_config;
 RESET MASTER;
 RESET SLAVE;
 set @@global.rpl_semi_sync_master_enabled = 0;
@@ -273,10 +276,8 @@ set @@global.rpl_semi_sync_master_wait_point=default;
 CHANGE MASTER TO master_host='127.0.0.1', master_port=$SERVER_MYPORT_1, master_user='root', master_use_gtid=SLAVE_POS;
 set @@global.gtid_slave_pos=@@global.gtid_binlog_pos;
 include/start_slave.inc
-connection server_1;
+connection master;
 DROP TABLE t1;
 save_master_pos;
-connection server_2;
 sync_with_master;
-connection default;
 include/rpl_end.inc

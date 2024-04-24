@@ -4,7 +4,7 @@
 --source include/have_debug_sync.inc
 --source include/master-slave.inc
 
---connection server_2
+--connection slave_config
 SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
 SET @old_parallel_mode=@@GLOBAL.slave_parallel_mode;
 --source include/stop_slave.inc
@@ -144,6 +144,7 @@ SELECT * FROM t1 WHERE a>=50 ORDER BY a;
 SET DEBUG_SYNC="reset";
 
 # Re-spawn the worker threads to remove any DBUG injections or DEBUG_SYNC.
+--connection slave_config
 --source include/stop_slave.inc
 SET GLOBAL debug_dbug=@old_dbug;
 SET GLOBAL slave_parallel_mode=@old_parallel_mode;
@@ -169,7 +170,7 @@ SET GLOBAL slave_parallel_threads=10;
 --connect (con_temp3,127.0.0.1,root,,test,$SERVER_MYPORT_1,)
 --connect (con_temp4,127.0.0.1,root,,test,$SERVER_MYPORT_1,)
 
---connection server_2
+--connection slave_config
 --source include/stop_slave.inc
 SET @old_parallel_mode= @@GLOBAL.slave_parallel_mode;
 SET GLOBAL slave_parallel_mode='conservative';
@@ -265,13 +266,14 @@ SELECT * FROM t6 WHERE a>=60 ORDER BY a;
 SET DEBUG_SYNC="reset";
 
 # Clean up.
+--connection slave_config
 --source include/stop_slave.inc
 SET GLOBAL debug_dbug=@old_dbug;
 SET GLOBAL slave_parallel_mode=@old_parallel_mode;
 SET GLOBAL slave_parallel_threads=@old_parallel_threads;
 --source include/start_slave.inc
 
---connection server_1
+--connection master
 DROP function foo;
 DROP TABLE t1,t2,t6;
 --disconnect con_temp3

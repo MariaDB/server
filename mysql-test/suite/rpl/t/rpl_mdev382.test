@@ -23,15 +23,17 @@ rollback to savepoint `a``; create database couldbebadthingshere; savepoint ``du
 insert into t1 values (3);
 commit;
 
+--connection master_config
 --source include/show_binlog_events2.inc
 
 # This failed due to syntax error in query when the bug was not fixed.
 sync_slave_with_master;
-connection slave;
+
+connection master_config;
+let $binlog_start= query_get_value(SHOW MASTER STATUS, Position, 1);
 
 # Test some more combinations of ANSI_QUOTES and sql_quote_show_create
 connection master;
-let $binlog_start= query_get_value(SHOW MASTER STATUS, Position, 1);
 BEGIN;
 insert into t1 values(10);
 set sql_mode = 'ANSI_QUOTES';
@@ -59,11 +61,13 @@ insert into t1 values(18);
 COMMIT;
 set sql_quote_show_create = 1;
 
+--connection master_config
 --source include/show_binlog_events2.inc
 
 --echo *** Test correct USE statement in SHOW BINLOG EVENTS ***
-connection master;
+connection master_config;
 let $binlog_start= query_get_value(SHOW MASTER STATUS, Position, 1);
+connection master;
 set sql_mode = 'ANSI_QUOTES';
 CREATE DATABASE "db1`; select 'oops!'";
 use "db1`; select 'oops!'";
@@ -71,6 +75,7 @@ CREATE TABLE t1 (a INT PRIMARY KEY) engine=MyISAM;
 INSERT INTO t1 VALUES (1);
 set sql_mode = '';
 INSERT INTO t1 VALUES (2);
+--connection master_config
 set sql_mode =  'ANSI_QUOTES';
 --source include/show_binlog_events2.inc
 set sql_mode = '';
@@ -78,6 +83,8 @@ set sql_quote_show_create = 0;
 --source include/show_binlog_events2.inc
 set sql_quote_show_create = 1;
 --source include/show_binlog_events2.inc
+connection master;
+set sql_mode = '';
 DROP TABLE t1;
 
 use test;
@@ -90,7 +97,9 @@ use test;
 EOF
 
 use `db1``; select 'oops!'`;
+--connection master_config
 let $binlog_start= query_get_value(SHOW MASTER STATUS, Position, 1);
+--connection master
 set timestamp=1000000000;
 CREATE TABLE `t``1` (`a``1` VARCHAR(4) PRIMARY KEY, `b``2` VARCHAR(3),
     `c``3` VARCHAR(7));
@@ -111,10 +120,13 @@ eval LOAD DATA INFILE '$MYSQLTEST_VARDIR/tmp/f''le.txt'
   LINES TERMINATED BY '\\n'
   (`a``1`, `b``2`) SET `c``3` = concat('|', "b""a'z", "!");
 SELECT * FROM `db1``; select 'oops!'`.`t``1`;
-let $pos2= query_get_value(SHOW MASTER STATUS, Position, 1);
 
+--connection master_config
+let $pos2= query_get_value(SHOW MASTER STATUS, Position, 1);
 --source include/show_binlog_events2.inc
---replace_regex /LOCAL INFILE '.*SQL_LOAD.*' INTO/LOCAL INFILE '<name>' INTO/
+--let $_fix_catalog1=set CATALOG `$MARIADB_CATALOG`
+--replace_result $_fix_catalog1 "set CATALOG `def`"
+--replace_regex /LOCAL INFILE '.*SQL_LOAD.*' INTO/LOCAL INFILE '<name>' INTO/ 
 --exec $MYSQL_BINLOG --short-form --start-position=$binlog_start --stop-position=$pos2 $MARIADB_TOPDIR/master-bin.000001
 
 sync_slave_with_master;
@@ -136,15 +148,18 @@ CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(1000));
 2,A
 EOF
 
+--connection master_config
 let $binlog_start= query_get_value(SHOW MASTER STATUS, Position, 1);
 # The bug was that the SET expression was truncated to 256 bytes, so test with
 # an expression longer than that.
+--connection master
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 eval LOAD DATA INFILE '$load_file' INTO TABLE t1
   FIELDS TERMINATED BY ','
   (a, @b) SET b = CONCAT(@b, '| 123456789A123456789B123456789C123456789D123456789E123456789F123456789G123456789H123456789I123456789J123456789K123456789L123456789M123456789N123456789O123456789P123456789Q123456789R123456789123456789T123456789U123456789V123456789W123456789X123456789Y123456789Z123456789|', @b);
 
 SELECT * FROM t1 ORDER BY a;
+--connection master_config
 --source include/show_binlog_events2.inc
 
 sync_slave_with_master;
@@ -157,15 +172,20 @@ DROP TABLE t1;
 
 --echo *** Test user variables whose names require correct quoting ***
 use `db1``; select 'oops!'`;
+--connection master_config
 let $binlog_start= query_get_value(SHOW MASTER STATUS, Position, 1);
+--connection master
 CREATE TABLE t1 (a1 BIGINT PRIMARY KEY, a2 BIGINT, a3 BIGINT, a4 BIGINT UNSIGNED, b DOUBLE, c DECIMAL(65,10), d VARCHAR(100));
 INSERT INTO t1 VALUES (-9223372036854775808,42,9223372036854775807,18446744073709551615,-1234560123456789e110, -1234501234567890123456789012345678901234567890123456789.0123456789, REPEAT("x", 100));
 SELECT @`a``1`:=a1, @`a``2`:=a2, @`a``3`:=a3, @`a``4`:=a4, @`b```:=b, @```c`:=c, @```d```:=d FROM t1;
 INSERT INTO t1 VALUES (@`a``1`+1, @`a``2`*100, @`a``3`-1, @`a``4`-1, @`b```/2, @```c`, substr(@```d```, 2, 98));
+--connection master_config
 let $pos2= query_get_value(SHOW MASTER STATUS, Position, 1);
 
 --source include/show_binlog_events2.inc
 
+--let $_fix_catalog1=set CATALOG `$MARIADB_CATALOG`
+--replace_result $_fix_catalog1 "set CATALOG `def`"
 --exec $MYSQL_BINLOG --short-form --start-position=$binlog_start --stop-position=$pos2 $MARIADB_TOPDIR/master-bin.000001
 
 sync_slave_with_master;
@@ -189,7 +209,7 @@ DROP TABLE `t``1`;
 
 # Let's keep the slave stopped during master restart, to avoid any potential
 # races between slave reconnect and master restart.
-connection slave;
+--connection slave_config
 --source include/stop_slave.inc
 
 connection master;
@@ -204,36 +224,32 @@ SELECT * FROM `db1``; select 'oops!'`.`t``1` ORDER BY 1;
 wait-rpl_mdev382.test
 EOF
 
+--connection master_config
 --shutdown_server
 
 --append_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 restart-rpl_mdev382.test
 EOF
 
-connection default;
---enable_reconnect
---source include/wait_until_connected_again.inc
-# rpl_end.inc needs to use the connection server_1
-connection server_1;
---enable_reconnect
---source include/wait_until_connected_again.inc
+--source include/reconnect_master_connections.inc
+
 connection master;
---enable_reconnect
---source include/wait_until_connected_again.inc
 set timestamp=1000000000;
 
 --echo # The table should be empty on the master.
+--connection master_config
 let $binlog_file= master-bin.000002;
 let $binlog_start= query_get_value(SHOW MASTER STATUS, Position, 1);
+connection master;
 SELECT * FROM `db1``; select 'oops!'`.`t``1`;
 
 --echo # The DELETE statement should be correctly quoted
+--connection master_config
 --source include/show_binlog_events2.inc
 
-connection slave;
+connection slave_config;
 --source include/start_slave.inc
 
-connection master;
 sync_slave_with_master;
 --echo # The table should be empty on the slave also.
 SELECT * FROM `db1``; select 'oops!'`.`t``1`;
@@ -248,11 +264,17 @@ DROP DATABASE `db1``; select 'oops!'`;
 
 --echo *** Test correct quoting of mysqlbinlog --rewrite-db option ***
 CREATE TABLE t1 (a INT PRIMARY KEY);
+--connection master_config
 let $binlog_start= query_get_value(SHOW MASTER STATUS, Position, 1);
+--connection master
 INSERT INTO t1 VALUES(1);
+--connection master_config
 --source include/show_binlog_events2.inc
 let $pos2= query_get_value(SHOW MASTER STATUS, Position, 1);
+--let $_fix_catalog1=set CATALOG `$MARIADB_CATALOG`
+--replace_result $_fix_catalog1 "set CATALOG `def`"
 --exec $MYSQL_BINLOG --short-form --start-position=$binlog_start --stop-position=$pos2 --rewrite-db='test->ts`et' $MARIADB_TOPDIR/master-bin.000002
+--connection master
 DROP TABLE t1;
 
 --source include/rpl_end.inc

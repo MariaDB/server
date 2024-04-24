@@ -1,7 +1,10 @@
 include/rpl_init.inc [topology=1->2->3]
+include/rpl_connect.inc [creating master_config]
 include/rpl_connect.inc [creating master]
+include/rpl_connect.inc [creating slave_config]
 include/rpl_connect.inc [creating slave]
 include/rpl_connect.inc [creating slave2]
+include/rpl_connect.inc [creating slave2_config]
 connection master;
 set @@default_storage_engine="aria";
 CREATE SEQUENCE s1 cache=10;
@@ -47,6 +50,7 @@ next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_si
 -100	-1000	9223372036854775806	1	1	1000	0	0
 sync_slave_with_master;
 connection slave;
+connection slave
 select * from t1;
 next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
 1	1	9223372036854775806	1	1	10	0	0
@@ -55,8 +59,9 @@ next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_si
 5001	1	9223372036854775806	1	1	10	0	0
 -1	-1	9223372036854775806	-1	1	10	0	0
 -100	-1000	9223372036854775806	1	1	1000	0	0
-sync_slave_with_master slave2;
-connection slave2;
+save_master_pos slave_config;
+sync_with_master 0,,slave2;
+connection slave2
 select * from t1;
 next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
 1	1	9223372036854775806	1	1	10	0	0
@@ -65,6 +70,7 @@ next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_si
 5001	1	9223372036854775806	1	1	10	0	0
 -1	-1	9223372036854775806	-1	1	10	0	0
 -100	-1000	9223372036854775806	1	1	1000	0	0
+connection slave2_config;
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	GTID #-#-#

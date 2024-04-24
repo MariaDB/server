@@ -1,6 +1,5 @@
 # This test uses chmod, can't be run with root permissions
 -- source include/not_as_root.inc
-
 -- source include/have_log_bin.inc
 
 #
@@ -18,19 +17,20 @@
 -- source include/have_binlog_format_mixed_or_statement.inc
 
 connect (master,localhost,root,,test,$MASTER_MYPORT,$MASTER_MYSOCK);
+connect (master_config,localhost,root,,def.test,$MASTER_MYPORT,$MASTER_MYSOCK);
 connect (slave,localhost,root,,test,$SLAVE_MYPORT,$SLAVE_MYSOCK);
+connect (slave_config,localhost,root,,def.test,$SLAVE_MYPORT,$SLAVE_MYSOCK);
 source include/get_replication_datadir.inc;
 
 # Create empty file
-connection slave;
 write_file $SLAVE_TOPDIR/master.info;
 EOF
 chmod 0000 $SLAVE_TOPDIR/master.info;
-connection slave;
 
 CALL mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT.");
 # START SLAVE will fail because it can't read the file (mode 000)
 # (system error 13)
+--connection slave_config
 --replace_result $MYSQL_TEST_DIR TESTDIR
 --error 1105,1105,29
 start slave;

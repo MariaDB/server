@@ -14,14 +14,14 @@
 --source include/have_debug_sync.inc
 --source include/master-slave.inc
 
---connection server_2
+--connection slave_config
 SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
 --source include/stop_slave.inc
 SET GLOBAL slave_parallel_threads=10;
 CHANGE MASTER TO master_use_gtid=slave_pos;
 --source include/start_slave.inc
 
---connection server_1
+--connection master
 ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
 CREATE TABLE t4 (a INT PRIMARY KEY, b INT, KEY b_idx(b)) ENGINE=InnoDB;
 INSERT INTO t4 VALUES (1,NULL), (3,NULL), (4,4), (5, NULL), (6, 6);
@@ -29,7 +29,7 @@ INSERT INTO t4 VALUES (1,NULL), (3,NULL), (4,4), (5, NULL), (6, 6);
 --connect (con2,127.0.0.1,root,,test,$SERVER_MYPORT_1,)
 --source include/save_master_gtid.inc
 
---connection server_2
+--connection slave_config
 --source include/sync_with_master_gtid.inc
 --source include/stop_slave.inc
 SET @old_dbug= @@GLOBAL.debug_dbug;
@@ -76,6 +76,7 @@ SELECT * FROM t4 ORDER BY a;
 SET debug_sync= 'now SIGNAL cont';
 
 # Re-spawn the worker threads to remove any DBUG injections or DEBUG_SYNC.
+--connection slave_config
 --source include/stop_slave.inc
 SET GLOBAL debug_dbug=@old_dbug;
 SET GLOBAL binlog_format= @old_format;
@@ -83,7 +84,7 @@ SET GLOBAL slave_parallel_threads=@old_parallel_threads;
 --source include/start_slave.inc
 SET DEBUG_SYNC= 'RESET';
 
---connection server_1
+--connection master
 DROP TABLE t4;
 SET DEBUG_SYNC= 'RESET';
 --disconnect con1

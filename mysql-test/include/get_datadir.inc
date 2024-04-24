@@ -7,7 +7,6 @@
 # Sets the following variables
 # $MARIADB_TOPDIR   The data directory (select @@datadir)
 # $MARIADB_DATADIR  The directory of the current catalog
-# $MARIADB_CATALOG  The file name of the current catalog
 # $USING_CATALOGS   1 if catalogs, 0 if no catalogs
 # When mtr --catalogs are used TOPDIR and DATADIR are different
 

@@ -271,10 +271,11 @@ static int match_re(regex_t *, char *);
 static void free_re(void);
 
 static char *get_string(char **to_ptr, char **from_ptr,
-                        struct st_command *command);
+                        struct st_command *command, char sep);
 static int replace(DYNAMIC_STRING *ds_str,
                    const char *search_str, size_t search_len,
                    const char *replace_str, size_t replace_len);
+static void select_connection_name(const char *name, bool abort_if_not_found);
 
 static uint opt_protocol=0;
 
@@ -633,7 +634,7 @@ void do_eval(DYNAMIC_STRING *query_eval, const char *query,
 void str_to_file(const char *fname, char *str, size_t size);
 void str_to_file2(const char *fname, char *str, size_t size, my_bool append);
 
-void fix_win_paths(char *val, size_t len);
+void fix_win_paths(char *val);
 const char *get_errname_from_code (uint error_code);
 int multi_reg_replace(struct st_replace_regex* r,char* val);
 
@@ -1163,7 +1164,7 @@ void do_eval(DYNAMIC_STRING *query_eval, const char *query,
       break;
     }
   }
-  fix_win_paths(query_eval->str, query_eval->length);
+  fix_win_paths(query_eval->str);
   DBUG_VOID_RETURN;
 }
 
@@ -1300,7 +1301,7 @@ void check_command_args(struct st_command *command,
       /* Find real end of arg, terminated by "delimiter_arg" */
       /* This will do nothing if arg was not closed by quotes */
       while (*ptr && *ptr != delimiter_arg)
-        ptr++;      
+        ptr++;
 
       command->last_argument= (char*)ptr;
 
@@ -1328,7 +1329,6 @@ void check_command_args(struct st_command *command,
     if (arg->ds->length == 0 && arg->required)
       die("Missing required argument '%s' to command '%.*b'", arg->argname,
           command->first_word_len, command->query);
-
   }
   /* Check for too many arguments passed */
   ptr= command->last_argument;
@@ -2648,7 +2648,7 @@ void revert_properties()
 
   SYNOPSIS
   var_query_set()
-  var	        variable to set from query
+  var	      variable to set from query
   query       start of query string to execute
   query_end   end of the query string to execute
 
@@ -3144,7 +3144,7 @@ void open_file(const char *name)
       5.try in basedir
     */
 
-    fix_win_paths(curname, sizeof(curname));
+    fix_win_paths(curname);
 
     bool in_overlay= opt_overlay_dir &&
                      !strncmp(curname, opt_overlay_dir, overlay_dir_len);
@@ -4786,7 +4786,7 @@ void do_sync_with_master2(struct st_command *command, long offset,
 {
   MYSQL_RES *res;
   MYSQL_ROW row;
-  MYSQL *mysql= cur_con->mysql;
+  MYSQL *mysql;
   char query_buf[FN_REFLEN+128];
   int timeout= opt_wait_for_pos_timeout;
 
@@ -4797,6 +4797,7 @@ void do_sync_with_master2(struct st_command *command, long offset,
           master_pos.file, master_pos.pos + offset, timeout,
           connection_name);
 
+  mysql= cur_con->mysql;
   if (mysql_query(mysql, query_buf))
     die("failed in '%s': %d: %s", query_buf, mysql_errno(mysql),
         mysql_error(mysql));
@@ -4829,10 +4830,10 @@ void do_sync_with_master2(struct st_command *command, long offset,
         information is not initialized, the arguments are
         incorrect, or an error has occurred
       */
-      die("%.*b failed: '%s' returned NULL "          \
+      die("%.*b failed: '%s' on connection '%s' returned NULL "
           "indicating slave SQL thread failure",
-          command->first_word_len, command->query, query_buf);
-
+          command->first_word_len, command->query, query_buf,
+         cur_con->name);
     }
 
     if (result == -1)
@@ -4846,6 +4847,15 @@ void do_sync_with_master2(struct st_command *command, long offset,
 
   return;
 }
+
+
+/*
+  Sync slave with master
+
+  User arguments are (separated with ','):
+  - Offset to wait after 'master pos' (integer)
+  - Slave connection name (string)
+*/
 
 void do_sync_with_master(struct st_command *command)
 {
@@ -4872,7 +4882,12 @@ void do_sync_with_master(struct st_command *command)
         p++;
       start= buff= (char*)my_malloc(PSI_NOT_INSTRUMENTED, strlen(p)+1,
                                     MYF(MY_WME|MY_FAE));
-      get_string(&buff, &p, command);
+      get_string(&buff, &p, command, ',');
+    }
+    if (*p)
+    {
+      select_connection_name(p, 1);
+      p= strend(p);
     }
     command->last_argument= p;
   }
@@ -4892,8 +4907,8 @@ int do_save_master_pos()
   DBUG_ENTER("do_save_master_pos");
 
   if (mysql_query(mysql, query= "show master status"))
-    die("failed in 'show master status': %d %s",
-	mysql_errno(mysql), mysql_error(mysql));
+    die("failed in 'show master status': %d %s for connection %s",
+	mysql_errno(mysql), mysql_error(mysql), cur_con->name);
 
   if (!(res = mysql_store_result(mysql)))
     die("mysql_store_result() returned NULL for '%s'", query);
@@ -5205,7 +5220,7 @@ static int wait_until_dead(int pid, int timeout)
 void do_shutdown_server(struct st_command *command)
 {
   long timeout= opt_wait_for_pos_timeout ? opt_wait_for_pos_timeout / 5 : 300;
-  int pid;
+  int pid, error;
   DYNAMIC_STRING ds_pidfile_name;
   MYSQL* mysql = cur_con->mysql;
   static DYNAMIC_STRING ds_timeout;
@@ -5267,8 +5282,8 @@ void do_shutdown_server(struct st_command *command)
           - kill SIGKILL
   */
 
-  if (timeout && mysql_shutdown(mysql, SHUTDOWN_DEFAULT))
-    die("mysql_shutdown failed");
+  if (timeout && (error= mysql_shutdown(mysql, SHUTDOWN_DEFAULT)))
+    die("mysql_shutdown failed with error %s", mysql_error(mysql));
 
   if (!timeout || wait_until_dead(pid, timeout))
   {
@@ -5528,24 +5543,23 @@ void do_get_errcodes(struct st_command *command)
 
 
 /*
-  Get a string;  Return ptr to end of string
+  Get a string;  Return ptr to end of string and pointer to next argument
   Strings may be surrounded by " or '
 
   If string is a '$variable', return the value of the variable.
 */
 
 static char *get_string(char **to_ptr, char **from_ptr,
-                        struct st_command *command)
+                        struct st_command *command, char org_sep)
 {
-  char c, sep;
+  char c, sep= org_sep;
   char *to= *to_ptr, *from= *from_ptr, *start=to;
+  bool found_end= 0;
   DBUG_ENTER("get_string");
 
   /* Find separator */
   if (*from == '"' || *from == '\'')
     sep= *from++;
-  else
-    sep=' ';				/* Separated with space */
 
   for ( ; (c=*from) ; from++)
   {
@@ -5575,20 +5589,32 @@ static char *get_string(char **to_ptr, char **from_ptr,
     }
     else if (c == sep)
     {
-      if (c == ' ' || c != *++from)
+      if (c == ' ' || c == ',' || c != *++from)
+      {
+        found_end= 1;
 	break;				/* Found end of string */
-      *to++=c;				/* Copy duplicated separator */
+      }
+      *to++= c;				/* Copy duplicated separator */
     }
     else
-      *to++=c;
+      *to++= c;
   }
-  if (*from != ' ' && *from)
-    die("Wrong string argument in %s", command->query);
-
+  if (!found_end && sep != org_sep)
+  {
+    die("Wrong string argument in %s. Missing end '%c'", command->query,
+        sep);
+  }
+  if (*from)
+  {
+    if (*from != org_sep)
+      die("Wrong string argument in %s. Expected '%c' at %s.",
+          command->query, org_sep, from);
+    from++;
+  }
   while (my_isspace(charset_info,*from))	/* Point to next string */
     from++;
 
-  *to =0;				/* End of string marker */
+  *to= 0;				/* End of string marker */
   *to_ptr= to+1;			/* Store pointer to end */
   *from_ptr= from;
 
@@ -5624,14 +5650,23 @@ void set_current_connection(struct st_connection *con)
 }
 
 
-void select_connection_name(const char *name)
+void select_connection_name(const char *name, bool abort_if_not_found)
 {
   DBUG_ENTER("select_connection_name");
   DBUG_PRINT("enter",("name: '%s'", name));
   st_connection *con= find_connection_by_name(name);
 
   if (!con)
+  {
+    if (!abort_if_not_found)
+    {
+#ifdef GIVE_EXTRA_WARNINGS
+      fprintf(stdout, "connection '%s' not found in connection pool\n", name);
+#endif
+      DBUG_VOID_RETURN;
+    }
     die("connection '%s' not found in connection pool", name);
+  }
 
   set_current_connection(con);
 
@@ -5661,7 +5696,7 @@ void select_connection(struct st_command *command)
                      ' ');
 
   DBUG_PRINT("info", ("changing connection: %s", ds_connection.str));
-  select_connection_name(ds_connection.str);
+  select_connection_name(ds_connection.str, 1);
   dynstr_free(&ds_connection);
   DBUG_VOID_RETURN;
 }
@@ -7628,7 +7663,7 @@ void free_win_path_patterns()
   => all \ from c:\mysql\m... until next space is converted into /
 */
 
-void fix_win_paths(char *val, size_t len)
+void fix_win_paths(char *val)
 {
 #ifdef _WIN32
   uint i;
@@ -7654,7 +7689,7 @@ void fix_win_paths(char *val, size_t len)
       DBUG_PRINT("info", ("Converted \\ to /, p: %s", p));
     }
   }
-  DBUG_PRINT("exit", (" val: %s, len: %zu", val, len));
+  DBUG_PRINT("exit", (" val: %s", val));
   DBUG_VOID_RETURN;
 #endif
 }
@@ -9787,6 +9822,55 @@ static void init_signal_handling(void)
 
 #endif /* !_WIN32 */
 
+/*
+  Initialize the startup connection default or admin
+*/
+
+struct st_connection *init_start_connection(const char *name)
+{
+  struct st_connection *con= next_con++;
+
+  init_connection_thd(con);
+  if (! (con->mysql= mysql_init(0)))
+    die("Failed in mysql_init()");
+  if (opt_connect_timeout)
+    mysql_options(con->mysql, MYSQL_OPT_CONNECT_TIMEOUT,
+                  (void *) &opt_connect_timeout);
+  if (opt_compress)
+    mysql_options(con->mysql,MYSQL_OPT_COMPRESS,NullS);
+  mysql_options(con->mysql, MYSQL_SET_CHARSET_NAME,
+                charset_info->cs_name.str);
+  if (opt_charsets_dir)
+    mysql_options(con->mysql, MYSQL_SET_CHARSET_DIR,
+                  opt_charsets_dir);
+
+  if (opt_protocol)
+    mysql_options(con->mysql,MYSQL_OPT_PROTOCOL,(char*)&opt_protocol);
+
+  if (opt_plugin_dir && *opt_plugin_dir)
+    mysql_options(con->mysql, MYSQL_PLUGIN_DIR, opt_plugin_dir);
+
+#if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
+
+  if (opt_use_ssl)
+  {
+    mysql_ssl_set(con->mysql, opt_ssl_key, opt_ssl_cert, opt_ssl_ca,
+		  opt_ssl_capath, opt_ssl_cipher);
+    mysql_options(con->mysql, MYSQL_OPT_SSL_CRL, opt_ssl_crl);
+    mysql_options(con->mysql, MYSQL_OPT_SSL_CRLPATH, opt_ssl_crlpath);
+    mysql_options(con->mysql, MARIADB_OPT_TLS_VERSION, opt_tls_version);
+    mysql_options(con->mysql, MYSQL_OPT_SSL_VERIFY_SERVER_CERT,
+                  &opt_ssl_verify_server_cert);
+  }
+#endif
+
+  if (!(con->name = my_strdup(PSI_NOT_INSTRUMENTED, name, MYF(MY_WME))))
+    die("Out of memory");
+  mysql_options(con->mysql, MYSQL_OPT_NONBLOCK, 0);
+  return con;
+}
+
+
 int main(int argc, char **argv)
 {
   struct st_command *command;
@@ -9876,10 +9960,10 @@ int main(int argc, char **argv)
 
   /* Init connections, allocate 1 extra as buffer + 1 for default */
   connections= (struct st_connection*)
-    my_malloc(PSI_NOT_INSTRUMENTED, (opt_max_connections+2) * sizeof(struct st_connection),
+    my_malloc(PSI_NOT_INSTRUMENTED, (opt_max_connections+3) * sizeof(struct st_connection),
               MYF(MY_WME|MY_FAE|MY_ZEROFILL));
-  connections_end= connections + opt_max_connections +1;
-  next_con= connections + 1;
+  connections_end= connections + opt_max_connections + 2;
+  next_con= connections;
   
   var_set_int("$PS_PROTOCOL", ps_protocol);
   var_set_int("$NON_BLOCKING_API", non_blocking_api_enabled);
@@ -9922,47 +10006,17 @@ int main(int argc, char **argv)
   view_protocol_enabled= view_protocol;
   cursor_protocol_enabled= cursor_protocol;
 
-  st_connection *con= connections;
-  init_connection_thd(con);
-  if (! (con->mysql= mysql_init(0)))
-    die("Failed in mysql_init()");
-  if (opt_connect_timeout)
-    mysql_options(con->mysql, MYSQL_OPT_CONNECT_TIMEOUT,
-                  (void *) &opt_connect_timeout);
-  if (opt_compress)
-    mysql_options(con->mysql,MYSQL_OPT_COMPRESS,NullS);
-  mysql_options(con->mysql, MYSQL_SET_CHARSET_NAME,
-                charset_info->cs_name.str);
-  if (opt_charsets_dir)
-    mysql_options(con->mysql, MYSQL_SET_CHARSET_DIR,
-                  opt_charsets_dir);
-
-  if (opt_protocol)
-    mysql_options(con->mysql,MYSQL_OPT_PROTOCOL,(char*)&opt_protocol);
-
-  if (opt_plugin_dir && *opt_plugin_dir)
-    mysql_options(con->mysql, MYSQL_PLUGIN_DIR, opt_plugin_dir);
-
-#if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
-
-  if (opt_use_ssl)
-  {
-    mysql_ssl_set(con->mysql, opt_ssl_key, opt_ssl_cert, opt_ssl_ca,
-		  opt_ssl_capath, opt_ssl_cipher);
-    mysql_options(con->mysql, MYSQL_OPT_SSL_CRL, opt_ssl_crl);
-    mysql_options(con->mysql, MYSQL_OPT_SSL_CRLPATH, opt_ssl_crlpath);
-    mysql_options(con->mysql, MARIADB_OPT_TLS_VERSION, opt_tls_version);
-    mysql_options(con->mysql, MYSQL_OPT_SSL_VERIFY_SERVER_CERT,
-                  &opt_ssl_verify_server_cert);
-  }
-#endif
-
-  if (!(con->name = my_strdup(PSI_NOT_INSTRUMENTED, "default", MYF(MY_WME))))
-    die("Out of memory");
-  mysql_options(con->mysql, MYSQL_OPT_NONBLOCK, 0);
-
+  st_connection *con= init_start_connection("default");
   safe_connect(con->mysql, con->name, opt_host, opt_user, opt_pass,
                opt_catalog, opt_db, opt_port, unix_sock);
+
+  set_current_connection(con);
+
+#ifdef ADMIN_CONNECION
+  con= init_start_connection("admin");
+  safe_connect(con->mysql, con->name, opt_host, opt_user, opt_pass,
+               "def", opt_db, opt_port, unix_sock);
+#endif
 
   /* Use all time until exit if no explicit 'start_timer' */
   timer_start= timer_now();
@@ -9973,8 +10027,6 @@ int main(int argc, char **argv)
     - detect if there was never a command sent to the server
   */
   var_set_errno(-1);
-
-  set_current_connection(con);
 
   if (opt_prologue)
   {
@@ -10266,37 +10318,92 @@ int main(int argc, char **argv)
         break;
       case Q_SAVE_MASTER_POS:
       {
+        int save_disable_connect_log= disable_connect_log;
+        struct st_connection *org_con= cur_con;
+
+        disable_connect_log= 1;
         if (!disable_query_log)
         {
           dynstr_append_mem(&ds_res, command->query, command->query_len);
           dynstr_append(&ds_res, ";\n");
         }
+	if (*command->first_argument)
+	  select_connection(command);
+        else
+          select_connection_name("master_config", 0);
         do_save_master_pos();
+	if (!*command->first_argument)
+          set_current_connection(org_con);
+        disable_connect_log= save_disable_connect_log;
         break;
       }
       case Q_SYNC_WITH_MASTER:
       {
+        int save_disable_connect_log= disable_connect_log;
+        struct st_connection *org_con= cur_con, *slave_con;
+        /*
+          Uses argument, or 'slave_config' if no argument, for syncing.
+          If argument is given, continue with that connection,
+          otherwise revert to original connection
+        */
+        disable_connect_log= 1;
         if (!disable_query_log)
         {
           dynstr_append_mem(&ds_res, command->query, command->query_len);
           dynstr_append(&ds_res, ";\n");
         }
+        select_connection_name("slave_config", 0);
+        slave_con= cur_con;
         do_sync_with_master(command);
+        /*
+          Restore original connection if connection was not changed
+          by an argument to do_sync_with_master()
+        */
+        if (slave_con == cur_con)
+          set_current_connection(org_con);
+        disable_connect_log= save_disable_connect_log;
         break;
       }
       case Q_SYNC_SLAVE_WITH_MASTER:
       {
+        int save_disable_connect_log= disable_connect_log;
+        DYNAMIC_STRING ds_master, ds_slave;
+        const struct command_arg connection_args[] = {
+          { "slave", ARG_STRING, FALSE, &ds_slave,
+            "Name of slave connection to sync" },
+          { "master", ARG_STRING, FALSE, &ds_master,
+            "Name of the master connection" }
+        };
+        check_command_args(command, command->first_argument, connection_args,
+                           sizeof(connection_args)/sizeof(struct command_arg),
+                          ' ');
+
+        disable_connect_log= 1;
         if (!disable_query_log)
         {
           dynstr_append_mem(&ds_res, command->query, command->query_len);
           dynstr_append(&ds_res, ";\n");
         }
+        if (ds_master.length)
+          select_connection_name(ds_master.str, 1);
+        else
+          select_connection_name("master_config", 0);
 	do_save_master_pos();
-	if (*command->first_argument)
-	  select_connection(command);
+
+	if (ds_slave.length)
+          select_connection_name(ds_slave.str, 1);
 	else
-	  select_connection_name("slave");
+	  select_connection_name("slave_config",0);
 	do_sync_with_master2(command, 0, "");
+        /*
+          Log if we are changing connection to slave if there was no
+          argument for slave.
+        */
+        disable_connect_log= save_disable_connect_log;
+	if (!ds_slave.length)
+          select_connection_name("slave", 0);
+        dynstr_free(&ds_master);
+        dynstr_free(&ds_slave);
 	break;
       }
       case Q_COMMENT:
@@ -10634,13 +10741,13 @@ void do_get_replace_column(struct st_command *command)
   {
     char *to;
     uint column_number;
-    to= get_string(&buff, &from, command);
+    to= get_string(&buff, &from, command, ' ');
     if (!(column_number= atoi(to)) || column_number > MAX_COLUMNS)
       die("Wrong column number to replace_column in '%s'", command->query);
     if (!*from)
       die("Wrong number of arguments to replace_column in '%s'",
           command->query);
-    to= get_string(&buff, &from, command);
+    to= get_string(&buff, &from, command, ' ');
     my_free(replace_column[column_number-1]);
     replace_column[column_number-1]= my_strdup(PSI_NOT_INSTRUMENTED, to,
                                                MYF(MY_WME|MY_FAE));
@@ -10718,14 +10825,13 @@ static void insert_replace_args(struct st_command *command,
                                 MYF(MY_WME|MY_FAE));
   while (*from)
   {
-    char *to= buff;
-    to= get_string(&buff, &from, command);
+    char *to= get_string(&buff, &from, command, ' ');
     if (!*from)
       die("Wrong number of arguments to replace_result in '%s'",
           command->query);
-    fix_win_paths(to, from - to);
+    fix_win_paths(to);
     insert_pointer_name(from_array, to);
-    to= get_string(&buff, &from, command);
+    to= get_string(&buff, &from, command, ' ');
     insert_pointer_name(to_array,to);
   }
   my_free(start);
@@ -11943,7 +12049,7 @@ void replace_dynstr_append_mem(DYNAMIC_STRING *ds, const char *val, size_t len)
       memcpy(lower, val, len);
       lower[len]= 0;
     }
-    fix_win_paths(lower, len);
+    fix_win_paths(lower);
     val= lower;
   }
   

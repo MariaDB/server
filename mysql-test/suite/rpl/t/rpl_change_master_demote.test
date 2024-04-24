@@ -404,8 +404,8 @@ SELECT VARIABLE_NAME, GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHER
 --echo # Error Case 2: Error when MASTER_DEMOTE_TO_SLAVE=1 is used without
 --echo # binary logging enabled.
 --echo #
---connection master
 
+--connection master
 --echo # Restarting master without binary log
 --write_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 wait
@@ -415,8 +415,8 @@ EOF
 --append_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 restart: --skip-slave-start=1 --skip-log-bin
 EOF
---enable_reconnect
---source include/wait_until_connected_again.inc
+--source include/reconnect_master_connections.inc
+--connection master
 
 --replace_result $SLAVE_MYPORT SLAVE_PORT
 --error 1381
@@ -431,24 +431,15 @@ EOF
 --append_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 restart: --skip-slave-start=1
 EOF
---enable_reconnect
---source include/wait_until_connected_again.inc
 
---connection server_1
---enable_reconnect
---source include/wait_until_connected_again.inc
-
---connection default
---enable_reconnect
---source include/wait_until_connected_again.inc
-
+--source include/reconnect_master_connections.inc
 
 --echo #
 --echo # Error Case 3: Error when MASTER_DEMOTE_TO_SLAVE is provided a
 --echo # non-boolean value.
 --echo #
 
---connection master
+--connection master_config
 --replace_result $SLAVE_MYPORT SLAVE_PORT
 --error 1064
 --eval CHANGE MASTER TO master_host='127.0.0.1', master_port=$SLAVE_MYPORT, master_user='root', master_use_gtid=Slave_Pos, master_demote_to_slave=invalid
@@ -461,7 +452,7 @@ EOF
 DROP TABLE t1, t2, t3, t4, t5, t6;
 --source include/save_master_gtid.inc
 
---connection slave
+--connection slave_config
 --source include/start_slave.inc
 --source include/sync_with_master_gtid.inc
 

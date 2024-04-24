@@ -33,26 +33,40 @@ if ($rpl_server_count)
 }
 --source include/begin_include_file.inc
 
-
 --let $rpl_topology= 1->2
 --source include/rpl_init.inc
 
+--let $rpl_connection_name= master_config
+--let $rpl_server_number= 1
+--let $rpl_catalog=def
+--source include/rpl_connect.inc
+
 --let $rpl_connection_name= master
 --let $rpl_server_number= 1
+--let $rpl_catalog=$MARIADB_CATALOG
 --source include/rpl_connect.inc
 
 --let $rpl_connection_name= master1
 --let $rpl_server_number= 1
+--let $rpl_catalog=$MARIADB_CATALOG
+--source include/rpl_connect.inc
+
+--let $rpl_connection_name= slave_config
+--let $rpl_server_number= 2
+--let $rpl_catalog=def
 --source include/rpl_connect.inc
 
 --let $rpl_connection_name= slave
 --let $rpl_server_number= 2
+--let $rpl_catalog=$MARIADB_CATALOG
 --source include/rpl_connect.inc
 
 --let $rpl_connection_name= slave1
 --let $rpl_server_number= 2
+--let $rpl_catalog=$MARIADB_CATALOG
 --source include/rpl_connect.inc
 
+--let $rpl_catalog=
 --let $include_filename= master-slave.inc
 --source include/end_include_file.inc
 

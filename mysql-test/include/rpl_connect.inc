@@ -21,6 +21,8 @@
 #   $rpl_server_number
 #     The number of the server to connect to.
 #
+#   $rpl_catalog catalog name. 'def' is used if not set.
+#
 #   $rpl_debug
 #     See include/rpl_init.inc
 
@@ -46,13 +48,21 @@ if (!$_rpl_port)
   --die Not all SERVER_MYPORT_* environment variables are setup correctly.
 }
 
+--let $_rpl_catalog= $rpl_catalog
+--let $rpl_catalog=
+
+if (!$_rpl_catalog)
+{
+  --let $_rpl_catalog=def
+}
+
 # Create connection.
 if ($rpl_debug)
 {
-  --echo connect ($rpl_connection_name,127.0.0.1,root,,test,$_rpl_port,)
+  --echo connect ($rpl_connection_name,127.0.0.1,root,,$_rpl_catalog.test,$_rpl_port,)
 }
 disable_connect_log;
---connect ($rpl_connection_name,127.0.0.1,root,,test,$_rpl_port,)
+--connect ($rpl_connection_name,127.0.0.1,root,,$_rpl_catalog.test,$_rpl_port,)
 enable_connect_log;
 
 

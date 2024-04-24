@@ -361,12 +361,10 @@ connection server_1;
 DROP TABLE t1, t2, t3, t4;
 DROP function foo;
 sync_slave_with_master server_2;
-connection server_2;
 connection server_1;
 CREATE TABLE t1 (a int PRIMARY KEY, b INT) ENGINE=InnoDB;
 INSERT INTO t1 VALUES(100, 100);
 sync_slave_with_master server_2;
-connection server_2;
 include/stop_slave.inc
 SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
 SET @@GLOBAL.slave_parallel_threads=5;
@@ -419,5 +417,4 @@ include/start_slave.inc
 connection server_1;
 DROP TABLE t1;
 sync_slave_with_master server_2;
-connection server_2;
 include/rpl_end.inc

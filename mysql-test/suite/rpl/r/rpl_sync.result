@@ -18,7 +18,7 @@ insert into t1(a) values(4);
 insert into t1(a) values(5);
 insert into t1(a) values(6);
 =====Removing relay log files and crashing/recoverying the slave=======;
-connection slave;
+connection slave_config;
 include/stop_slave_io.inc
 SET SESSION debug_dbug="d,crash_before_rotate_relaylog";
 FLUSH LOGS;
@@ -26,12 +26,11 @@ ERROR HY000: Lost connection to server during query
 include/rpl_reconnect.inc
 =====Dumping and comparing tables=======;
 include/start_slave.inc
-connection master;
 sync_slave_with_master;
 connection slave;
-include/diff_tables.inc [master:t1,slave:t1]
+include/diff_tables.inc [default:t1,slave:t1]
 =====Corrupting the master.info=======;
-connection slave;
+connection slave_config;
 include/stop_slave.inc
 connection master;
 FLUSH LOGS;
@@ -44,8 +43,8 @@ FLUSH LOGS;
 ERROR HY000: Lost connection to server during query
 include/rpl_reconnect.inc
 =====Dumping and comparing tables=======;
+connection slave_config;
 include/start_slave.inc
-connection master;
 sync_slave_with_master;
 connection slave;
 include/diff_tables.inc [master:t1,slave:t1]

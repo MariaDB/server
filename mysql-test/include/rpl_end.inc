@@ -67,6 +67,7 @@ while ($_rpl_server)
 
   # Only check slave threads for error on hosts that were at some
   # point configured as slave.
+  --enable_reconnect
   --let $_tmp= query_get_value(SHOW SLAVE STATUS, Master_Host, 1)
   if ($_tmp != 'No such row')
   {

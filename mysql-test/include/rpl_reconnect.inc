@@ -47,6 +47,10 @@ if (!$_rpl_server_number)
   --source include/rpl_connection.inc
   --enable_reconnect
 
+  --let $rpl_connection_name= master_config
+  --source include/rpl_connection.inc
+  --enable_reconnect
+
   --let $rpl_connection_name= master
   --source include/rpl_connection.inc
   --enable_reconnect
@@ -59,6 +63,10 @@ if (!$_rpl_server_number)
 --dec $_rpl_server_number
 if (!$_rpl_server_number)
 {
+  --let $rpl_connection_name= slave_config
+  --source include/rpl_connection.inc
+  --enable_reconnect
+
   --let $rpl_connection_name= slave
   --source include/rpl_connection.inc
   --enable_reconnect
@@ -92,6 +100,11 @@ if (!$_rpl_server_number)
   --source include/wait_until_connected_again.inc
   --disable_reconnect
 
+  --let $rpl_connection_name= master_config
+  --source include/rpl_connection.inc
+  --source include/wait_until_connected_again.inc
+  --disable_reconnect
+
   --let $rpl_connection_name= master
   --source include/rpl_connection.inc
   --source include/wait_until_connected_again.inc
@@ -106,6 +119,11 @@ if (!$_rpl_server_number)
 --dec $_rpl_server_number
 if (!$_rpl_server_number)
 {
+  --let $rpl_connection_name= slave_config
+  --source include/rpl_connection.inc
+  --source include/wait_until_connected_again.inc
+  --disable_reconnect
+
   --let $rpl_connection_name= slave
   --source include/rpl_connection.inc
   --source include/wait_until_connected_again.inc

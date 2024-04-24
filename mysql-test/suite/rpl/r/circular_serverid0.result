@@ -11,7 +11,6 @@ connection M2;
 CREATE TABLE t1 (a INT AUTO_INCREMENT PRIMARY KEY, b VARCHAR(30000)) ENGINE=innodb;
 sync_slave_with_master M4;
 connection M4;
-connection M4;
 INSERT INTO `t1` VALUES (null, repeat('a', 1024)), (null, repeat('b', 1024));
 connection M2;
 SET debug_sync='now WAIT_FOR start_sql_thread';
@@ -22,9 +21,7 @@ slave-bin.000001	#	Gtid	#	#	GTID #-#-#
 slave-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; CREATE TABLE t1 (a INT AUTO_INCREMENT PRIMARY KEY, b VARCHAR(30000)) ENGINE=innodb
 SET debug_sync='now SIGNAL go_on_relay_logging';
 sync_slave_with_master M4;
-connection M4;
 sync_slave_with_master M2;
-connection M2;
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 slave-bin.000001	#	Gtid	#	#	GTID #-#-#

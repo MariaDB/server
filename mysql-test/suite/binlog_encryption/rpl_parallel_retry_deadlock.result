@@ -1,7 +1,7 @@
 *** MDEV-7326 Server deadlock in connection with parallel replication ***
 include/master-slave.inc
 [connection master]
-connection server_2;
+connection slave_config;
 SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
 SET @old_parallel_mode=@@GLOBAL.slave_parallel_mode;
 include/stop_slave.inc
@@ -102,6 +102,7 @@ a
 51
 52
 SET DEBUG_SYNC="reset";
+connection slave_config;
 include/stop_slave.inc
 SET GLOBAL debug_dbug=@old_dbug;
 SET GLOBAL slave_parallel_mode=@old_parallel_mode;
@@ -111,7 +112,7 @@ include/start_slave.inc
 *** MDEV-7326 Server deadlock in connection with parallel replication ***
 connect  con_temp3,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
 connect  con_temp4,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
-connection server_2;
+connection slave_config;
 include/stop_slave.inc
 SET @old_parallel_mode= @@GLOBAL.slave_parallel_mode;
 SET GLOBAL slave_parallel_mode='conservative';
@@ -190,12 +191,13 @@ SELECT * FROM t6 WHERE a>=60 ORDER BY a;
 a
 62
 SET DEBUG_SYNC="reset";
+connection slave_config;
 include/stop_slave.inc
 SET GLOBAL debug_dbug=@old_dbug;
 SET GLOBAL slave_parallel_mode=@old_parallel_mode;
 SET GLOBAL slave_parallel_threads=@old_parallel_threads;
 include/start_slave.inc
-connection server_1;
+connection master;
 DROP function foo;
 DROP TABLE t1,t2,t6;
 disconnect con_temp3;
