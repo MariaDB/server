@@ -123,6 +123,8 @@ error6:
   return TRUE;
 }
 
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 my_bool test_compare_operators(MY_BITMAP *map, uint bitsize)
 {
   uint i, j, test_bit1, test_bit2, test_bit3,test_bit4;
@@ -228,6 +230,8 @@ error5:
   test_bit1);
   return TRUE;
 }
+PRAGMA_REENABLE_CHECK_STACK_FRAME
+
 
 my_bool test_count_bits_set(MY_BITMAP *map, uint bitsize)
 {

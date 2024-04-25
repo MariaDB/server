@@ -86,6 +86,8 @@ void test_no_instruments()
   cleanup_instruments();
 }
 
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 void test_no_instances()
 {
   int rc;
@@ -245,6 +247,7 @@ void test_no_instances()
   cleanup_file_hash();
   cleanup_instruments();
 }
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 void test_with_instances()
 {

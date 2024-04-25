@@ -3269,7 +3269,6 @@ page_zip_validate_low(
 	ibool			sloppy)	/*!< in: FALSE=strict,
 					TRUE=ignore the MIN_REC_FLAG */
 {
-	page_zip_des_t	temp_page_zip;
 	ibool		valid;
 
 	if (memcmp(page_zip->data + FIL_PAGE_PREV, page + FIL_PAGE_PREV,
@@ -3310,7 +3309,7 @@ page_zip_validate_low(
 	MEM_CHECK_DEFINED(page, srv_page_size);
 	MEM_CHECK_DEFINED(page_zip->data, page_zip_get_size(page_zip));
 
-	temp_page_zip = *page_zip;
+	page_zip_des_t temp_page_zip(*page_zip);
 	valid = page_zip_decompress_low(&temp_page_zip, temp_page, TRUE);
 	if (!valid) {
 		fputs("page_zip_validate(): failed to decompress\n", stderr);

@@ -9130,6 +9130,9 @@ int spider_db_udf_ping_table_append_select(
   DBUG_RETURN(0);
 }
 
+/* Stack size 33032 with clang */
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 int spider_db_udf_ping_table_mon_next(
   THD *thd,
   SPIDER_TABLE_MON *table_mon,
@@ -9276,6 +9279,7 @@ int spider_db_udf_ping_table_mon_next(
   delete res;
   DBUG_RETURN(error_num);
 }
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 int spider_db_udf_copy_key_row(
   spider_string *str,

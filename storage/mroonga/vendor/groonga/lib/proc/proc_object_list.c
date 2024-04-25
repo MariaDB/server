@@ -18,6 +18,7 @@
 
 #include "../grn_proc.h"
 #include "../grn_db.h"
+#include <my_attribute.h>
 
 #include <groonga/plugin.h>
 
@@ -72,6 +73,8 @@ command_object_list_dump_flags(grn_ctx *ctx, grn_obj_spec *spec)
 
   GRN_OBJ_FIN(ctx, &flags);
 }
+
+PRAGMA_DISABLE_CHECK_STACK_FRAME
 
 static grn_obj *
 command_object_list(grn_ctx *ctx,
@@ -401,6 +404,7 @@ command_object_list(grn_ctx *ctx,
 
   return NULL;
 }
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 void
 grn_proc_init_object_list(grn_ctx *ctx)

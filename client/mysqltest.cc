@@ -78,7 +78,7 @@ static my_bool non_blocking_api_enabled= 0;
 #define MAX_DELIMITER_LENGTH 16
 #define DEFAULT_MAX_CONN        64
 
-#define DIE_BUFF_SIZE           256*1024
+#define DIE_BUFF_SIZE           15*1024
 
 #define RESULT_STRING_INIT_MEM 2048
 #define RESULT_STRING_INCREMENT_MEM 2048
