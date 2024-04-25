@@ -1612,7 +1612,7 @@ int multi_delete::do_table_deletes(TABLE *table, SORT_INFO *sort_info,
       during ha_delete_row.
       Also, don't execute the AFTER trigger if the row operation failed.
     */
-    if (unlikely(!local_error))
+    if (likely(!local_error))
     {
       deleted++;
       if (table->triggers &&
