@@ -35,9 +35,15 @@ static mysql_cond_t  COND_timer;
 static QUEUE timer_queue;
 pthread_t timer_thread;
 
+#if SIZEOF_VOIDP == 4
+/* 32 bit system, using old timestamp */
 #define set_max_time(abs_time) \
   { (abs_time)->MY_tv_sec= INT_MAX32; (abs_time)->MY_tv_nsec= 0; }
-
+#else
+/* 64 bit system. Use 4 byte unsigned timestamp */
+#define set_max_time(abs_time) \
+  { (abs_time)->MY_tv_sec= UINT_MAX32; (abs_time)->MY_tv_nsec= 0; }
+#endif
 
 static void *timer_handler(void *arg __attribute__((unused)));
 
