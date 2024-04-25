@@ -77,8 +77,8 @@ LOCK TABLES t1 WRITE;
 --source include/start_slave.inc
 
 --connection slave
---echo # Waiting for replica to resume the delay for the transaction
---let $wait_condition= SELECT count(*) FROM information_schema.processlist WHERE state LIKE 'Waiting until MASTER_DELAY seconds after master executed event';
+--echo # Waiting for replica to get blocked by the table lock
+--let $wait_condition= SELECT count(*) FROM information_schema.processlist WHERE state LIKE 'Waiting for table metadata lock';
 --source include/wait_condition.inc
 
 --echo # Sleeping 1s to increment SBM
