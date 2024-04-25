@@ -2708,7 +2708,9 @@ err_exit:
 	    && !index->table->skip_alter_undo
 	    && !index->table->n_rec_locks
 	    && !index->table->is_active_ddl()
-	    && !index->table->versioned()) {
+	    && !index->table->versioned()
+            && (!dict_table_is_partition(index->table)
+	        || thd_sql_command(trx->mysql_thd) == SQLCOM_INSERT)) {
 		DEBUG_SYNC_C("empty_root_page_insert");
 
 		if (!index->table->is_temporary()) {

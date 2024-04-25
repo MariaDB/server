@@ -251,4 +251,13 @@ c1
 1984
 3331
 DROP TABLE t1;
+#
+#  MDEV-33979 Disallow bulk insert operation during
+#      partition update statement
+#
+CREATE TABLE t1(a INT KEY)ENGINE=InnoDB
+PARTITION BY KEY(a) PARTITIONS 16;
+INSERT INTO t1 VALUES(1);
+UPDATE t1 SET a = 2 WHERE a = 1;
+DROP TABLE t1;
 # End of 10.6 tests
