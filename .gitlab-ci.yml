@@ -283,23 +283,20 @@ centos7:
       - rpm
       - builddir/_CPack_Packages/Linux/RPM/SPECS/
 
-.mysql-test-run: &mysql-test-run-def
-  stage: test
-  script:
+.mysql-test-run: &mysql-test-run-def |
     # Install packages so tests and the dependencies install
     # @TODO: RPM missing 'patch' and 'diff' as dependency, so installing it manually for now
-    - yum install -y rpm/*.rpm patch diffutils
+    yum install -y rpm/*.rpm patch diffutils
     # mtr expects to be launched in-place and with write access to it's own directories
-    - cd /usr/share/mariadb-test
+    cd /usr/share/mariadb-test
     # Skip failing tests
-    - |
-      echo "
+    echo "
       main.mysqldump : Field separator argument is not what is expected; check the manual when executing 'SELECT INTO OUTFILE'
       main.flush_logs_not_windows : query 'flush logs' succeeded - should have failed with error ER_CANT_CREATE_FILE (1004)
       main.mysql_upgrade_noengine : upgrade output order does not match the expected
       main.func_math              : MDEV-20966 - Wrong error code
-      " > skiplist
-    - ./mtr --suite=main --force --parallel=auto --xml-report=$CI_PROJECT_DIR/junit.xml --skip-test-list=skiplist $RESTART_POLICY
+    " > skiplist
+    $SIMULATE_TIME ./mtr --suite=main --force --parallel=auto --xml-report=$CI_PROJECT_DIR/junit.xml --skip-test-list=skiplist $MTR_FLAGS
 
 mysql-test-run:
   stage: test
@@ -307,7 +304,8 @@ mysql-test-run:
     - fedora
   needs:
     - fedora
-  <<: *mysql-test-run-def
+  script:
+    - *mysql-test-run-def
   artifacts:
     when: always  # Also show results when tests fail
     reports:
@@ -325,12 +323,13 @@ mysql-test-run:
 mysql-test-run-asan:
   stage: test
   variables:
-    RESTART_POLICY: "--force-restart"
+    MTR_FLAGS: "--force-restart"
   dependencies:
     - "fedora-sanitizer: [-DWITH_ASAN=YES]"
   needs:
     - "fedora-sanitizer: [-DWITH_ASAN=YES]"
-  <<: *mysql-test-run-def
+  script:
+    - *mysql-test-run-def
   allow_failure: true
   artifacts:
     when: always  # Also show results when tests fail
@@ -341,12 +340,13 @@ mysql-test-run-asan:
 mysql-test-run-tsan:
   stage: test
   variables:
-    RESTART_POLICY: "--force-restart"
+    MTR_FLAGS: "--force-restart"
   dependencies:
     - "fedora-sanitizer: [-DWITH_TSAN=YES]"
   needs:
     - "fedora-sanitizer: [-DWITH_TSAN=YES]"
-  <<: *mysql-test-run-def
+  script:
+    - *mysql-test-run-def
   allow_failure: true
   artifacts:
     when: always  # Also show results when tests fail
@@ -357,18 +357,41 @@ mysql-test-run-tsan:
 mysql-test-run-ubsan:
   stage: test
   variables:
-    RESTART_POLICY: "--force-restart"
+    MTR_FLAGS: "--force-restart"
   dependencies:
     - "fedora-sanitizer: [-DWITH_UBSAN=YES]"
   needs:
     - "fedora-sanitizer: [-DWITH_UBSAN=YES]"
-  <<: *mysql-test-run-def
+  script:
+    - *mysql-test-run-def
   allow_failure: true
   artifacts:
     when: always  # Also show results when tests fail
     reports:
       junit:
         - junit.xml
+
+mysql-test-run-future:
+  stage: test
+  variables:
+    MTR_FLAGS: "--max-test-fail=0"
+  dependencies:
+    - fedora
+  needs:
+    - fedora
+  script:
+    - yum install -y faketime
+    - *mysql-test-run-def
+  artifacts:
+    when: always  # Also show results when tests fail
+    reports:
+      junit:
+        - junit.xml
+  parallel:
+    matrix:
+    # The reason we test in two different future times is for the ability to separate between 
+    # failures pertaining to general time expiry issues and failures specific to the 32-bit time/Y2038 problem
+      - SIMULATE_TIME: ["faketime 2038-01-20",  "faketime 2038-01-18"]
 
 rpmlint:
   stage: test
