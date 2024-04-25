@@ -2734,7 +2734,7 @@ drop table t3|
 drop procedure if exists bug6857|
 create procedure bug6857()
 begin
-declare t0, t1 int;
+declare t0, t1 bigint;
 declare plus bool default 0;
 set t0 = unix_timestamp();
 select sleep(1.1);

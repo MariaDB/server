@@ -59,8 +59,8 @@ update t1 set f = 'foo';
 select * from t1;
 pk	f
 1	foo
-select pk, f, row_end > DATE'2030-01-01' from t1 for system_time all;
-pk	f	row_end > DATE'2030-01-01'
+select pk, f, row_end > DATE'2106-01-01' from t1 for system_time all;
+pk	f	row_end > DATE'2106-01-01'
 1	foo	1
 1	foo	0
 1	bar	0
