@@ -568,6 +568,9 @@ static int my_process_result(MYSQL *mysql_arg)
 #define MAX_RES_FIELDS 50
 #define MAX_FIELD_DATA_SIZE 255
 
+/* Stack usage 18888 with clang */
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 static int my_process_stmt_result(MYSQL_STMT *stmt)
 {
   int         field_count;
@@ -656,6 +659,7 @@ static int my_process_stmt_result(MYSQL_STMT *stmt)
   mysql_free_result(result);
   return row_count;
 }
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 
 /* Prepare statement, execute, and process result set for given query */

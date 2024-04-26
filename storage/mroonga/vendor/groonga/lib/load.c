@@ -20,6 +20,9 @@
 #include "grn_ctx_impl.h"
 #include "grn_db.h"
 #include "grn_util.h"
+#include <my_attribute.h>
+
+PRAGMA_DISABLE_CHECK_STACK_FRAME
 
 static void
 grn_loader_save_error(grn_ctx *ctx, grn_loader *loader)
@@ -1228,3 +1231,5 @@ grn_load(grn_ctx *ctx, grn_content_type input_type,
   }
   GRN_API_RETURN(ctx->rc);
 }
+
+PRAGMA_REENABLE_CHECK_STACK_FRAME
