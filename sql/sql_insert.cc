@@ -1881,7 +1881,7 @@ int write_record(THD *thd, TABLE *table, COPY_INFO *info, select_result *sink)
 	was used.  This ensures that we don't get a problem when the
 	whole range of the key has been used.
       */
-      if (info->handle_duplicates == DUP_REPLACE && table->next_number_field &&
+      if (info->handle_duplicates == DUP_REPLACE &&
           key_nr == table->s->next_number_index && insert_id_for_cur_row > 0)
 	goto err;
       if (table->file->has_dup_ref())

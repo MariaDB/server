@@ -503,7 +503,6 @@ start transaction;
 alter table tmp alter column a set default 8;
 unlock tables;
 drop table t2;
---source include/have_innodb.inc
 
 --echo #
 --echo # MDEV-22218 InnoDB: Failing assertion: node->pcur->rel_pos == BTR_PCUR_ON upon LOAD DATA with NO_BACKSLASH_ESCAPES in SQL_MODE and unique blob in table
@@ -641,7 +640,6 @@ create table t1 (c char(10),unique key a using hash (c(1)));
 insert into t1 values (0);
 check table t1 extended;
 drop table t1;
-
 
 --echo #
 --echo # MDEV-32837 long unique does not work like unique key when using replace

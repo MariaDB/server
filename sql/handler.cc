@@ -4915,8 +4915,7 @@ handler::ha_check_and_repair(THD *thd)
 int
 handler::ha_disable_indexes(uint mode)
 {
-  DBUG_ASSERT(table_share->tmp_table != NO_TMP_TABLE ||
-              m_lock_type != F_UNLCK);
+  DBUG_ASSERT(table->s->tmp_table != NO_TMP_TABLE || m_lock_type != F_UNLCK);
   mark_trx_read_write();
 
   return disable_indexes(mode);
@@ -4932,8 +4931,7 @@ handler::ha_disable_indexes(uint mode)
 int
 handler::ha_enable_indexes(uint mode)
 {
-  DBUG_ASSERT(table_share->tmp_table != NO_TMP_TABLE ||
-              m_lock_type != F_UNLCK);
+  DBUG_ASSERT(table->s->tmp_table != NO_TMP_TABLE || m_lock_type != F_UNLCK);
   mark_trx_read_write();
 
   return enable_indexes(mode);
