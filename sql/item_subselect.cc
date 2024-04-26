@@ -241,7 +241,7 @@ Item_subselect::select_transformer(JOIN *join)
 
 bool Item_subselect::fix_fields(THD *thd_param, Item **ref)
 {
-  char const *save_where= thd_param->where;
+  THD_WHERE save_where= thd_param->where;
   uint8 uncacheable;
   bool res;
 
@@ -320,7 +320,7 @@ bool Item_subselect::fix_fields(THD *thd_param, Item **ref)
       if (have_to_be_excluded)
 	engine->exclude();
       substitution= 0;
-      thd->where= "checking transformed subquery";
+      thd->where= THD_WHERE::CHECKING_TRANSFORMED_SUBQUERY;
       res= (*ref)->fix_fields_if_needed(thd, ref);
       goto end;
 
@@ -3403,13 +3403,13 @@ Item_in_subselect::select_in_like_transformer(JOIN *join)
 {
   Query_arena *arena= 0, backup;
   SELECT_LEX *current= thd->lex->current_select;
-  const char *save_where= thd->where;
+  THD_WHERE save_where= thd->where;
   bool trans_res= true;
   bool result;
 
   DBUG_ENTER("Item_in_subselect::select_in_like_transformer");
   DBUG_ASSERT(thd == join->thd);
-  thd->where= "IN/ALL/ANY subquery";
+  thd->where= THD_WHERE::IN_ALL_ANY_SUBQUERY;
 
   /*
     In some optimisation cases we will not need this Item_in_optimizer
@@ -3496,7 +3496,7 @@ bool Item_in_subselect::fix_fields(THD *thd_arg, Item **ref)
 {
   uint outer_cols_num;
   List<Item> *inner_cols;
-  char const *save_where= thd_arg->where;
+  THD_WHERE save_where= thd_arg->where;
   DBUG_ENTER("Item_in_subselect::fix_fields");
 
   thd= thd_arg;
@@ -3505,7 +3505,7 @@ bool Item_in_subselect::fix_fields(THD *thd_arg, Item **ref)
   if (test_strategy(SUBS_SEMI_JOIN))
     DBUG_RETURN( !( (*ref)= new (thd->mem_root) Item_int(thd, 1)) );
 
-  thd->where= "IN/ALL/ANY subquery";
+  thd->where= THD_WHERE::IN_ALL_ANY_SUBQUERY;
   /*
     Check if the outer and inner IN operands match in those cases when we
     will not perform IN=>EXISTS transformation. Currently this is when we
@@ -4016,7 +4016,7 @@ int join_read_next_same_or_null(READ_RECORD *info);
 
 int subselect_single_select_engine::exec()
 {
-  char const *save_where= thd->where;
+  THD_WHERE save_where= thd->where;
   SELECT_LEX *save_select= thd->lex->current_select;
   thd->lex->current_select= select_lex;
   DBUG_ENTER("subselect_single_select_engine::exec");
@@ -4137,7 +4137,7 @@ int subselect_single_select_engine::exec()
 
 int subselect_union_engine::exec()
 {
-  char const *save_where= thd->where;
+  THD_WHERE save_where= thd->where;
   int res= unit->exec();
   thd->where= save_where;
   return res;

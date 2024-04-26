@@ -80,7 +80,7 @@ a	b
 2	b
 1	a
 (select a,b from t1 limit 2)  union all (select a,b from t2 order by a limit 1) order by t1.b;
-ERROR 42000: Table 't1' from one of the SELECTs cannot be used in ORDER clause
+ERROR 42000: Table 't1' from one of the SELECTs cannot be used in order clause
 explain extended (select a,b from t1 limit 2)  union all (select a,b from t2 order by a limit 1) order by b desc;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	100.00	
@@ -493,7 +493,7 @@ drop temporary table t1;
 create table t1 select a from t1 union select a from t2;
 ERROR 42S01: Table 't1' already exists
 select a from t1 union select a from t2 order by t2.a;
-ERROR 42000: Table 't2' from one of the SELECTs cannot be used in ORDER clause
+ERROR 42000: Table 't2' from one of the SELECTs cannot be used in order clause
 drop table t1,t2;
 select length(version()) > 1 as `*` UNION select 2;
 *
