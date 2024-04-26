@@ -63,7 +63,7 @@ SELECT @@GLOBAL.replicate_rewrite_db;
 SELECT * FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES WHERE VARIABLE_NAME='replicate_rewrite_db';
 
 --echo # Check restart with appending the value
---let $restart_parameters = "--replicate_rewrite_db='X->Y'"
+--let $restart_parameters = --replicate_rewrite_db='X->Y'
 --source include/restart_mysqld.inc
 SELECT @@GLOBAL.replicate_rewrite_db;
 
@@ -76,9 +76,6 @@ SELECT @@GLOBAL.replicate_rewrite_db;
 --replace_regex /mysqld/mariadbd/ /\d\d\d\d-\d*-\d* *\d*:\d*:\d* \d* //
 --cat_file $MYSQL_TMP_DIR/mysqld--replicate.err
 # Restart the server with the default options
---let $restart_parameters = ""
+--let $restart_parameters =
 --source include/start_mysqld.inc
 SELECT @@GLOBAL.replicate_rewrite_db;
-
---echo # Cleanup.
-SET @@GLOBAL.replicate_rewrite_db = @save_replicate_rewrite_db;

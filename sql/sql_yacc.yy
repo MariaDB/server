@@ -80,6 +80,9 @@
 #pragma GCC diagnostic ignored "-Wunused-label" /* yyexhaustedlab: */
 #endif
 
+/* Stack size 28200 with clang for MYSQLparse() and ORAparse() */
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 int yylex(void *yylval, void *yythd);
 
 #define yyoverflow(A,B,C,D,E,F)               \

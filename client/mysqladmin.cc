@@ -1398,7 +1398,9 @@ static void usage(void)
   refresh		Flush all tables and close and open logfiles\n\
   shutdown		Take server down\n\
   status		Gives a short status message from the server\n\
+  start-all-slaves	Start all slaves\n\
   start-slave		Start slave\n\
+  stop-all-slaves	Stop all slaves\n\
   stop-slave		Stop slave\n\
   variables             Prints variables available\n\
   version		Get version info from server");

@@ -687,6 +687,8 @@ static my_bool pagecache_fwrite(PAGECACHE *pagecache,
   /* FIXME: ENGINE=Aria occasionally writes uninitialized data */
   __msan_unpoison(args.page, pagecache->block_size);
 #endif
+  /* Reset MY_WAIT_IF_FULL for temporary tables */
+  flags= _ma_write_flags_callback(filedesc->callback_data, flags);
   res= (int)my_pwrite(filedesc->file, args.page, pagecache->block_size,
                  ((my_off_t) pageno << pagecache->shift), flags);
   (*filedesc->post_write_hook)(res, &args);

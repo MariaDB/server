@@ -44,7 +44,9 @@ SET DEBUG_SYNC= "now WAIT_FOR con1_ready";
 connection server_2;
 include/wait_for_slave_param.inc [Slave_SQL_Running_State]
 include/stop_slave.inc
-include/assert.inc [Table t1 should have 2 rows.]
+select count(*) 'on slave must be 2' from t1;
+on slave must be 2
+2
 SELECT @@GLOBAL.gtid_current_pos;
 @@GLOBAL.gtid_current_pos
 0-1-4
@@ -52,7 +54,9 @@ SELECT @@GLOBAL.gtid_current_pos;
 connection server_1;
 # Ensuring variable rpl_semi_sync_slave_enabled is ON..
 # Ensuring status rpl_semi_sync_slave_status is OFF..
-include/assert.inc [Table t1 should have 1 rows.]
+select count(*) 'on master must be 1' from t1;
+on master must be 1
+1
 FOUND 1 /truncated binlog file:.*master.*000001/ in mysqld.1.err
 disconnect conn_client;
 connection server_2;
@@ -79,9 +83,9 @@ SHOW VARIABLES LIKE 'gtid_slave_pos';
 Variable_name	Value
 gtid_slave_pos	0-1-4
 connection server_1;
-SELECT COUNT(*) = 3 as 'true' FROM t1;
-true
-1
+SELECT COUNT(*) 'must be 3' FROM t1;
+must be 3
+3
 # ... the gtid states on the slave:
 SHOW VARIABLES LIKE 'gtid_slave_pos';
 Variable_name	Value
@@ -113,18 +117,22 @@ connection server_2;
 #=================================================================
 connect  conn_client,127.0.0.1,root,,test,$SERVER_MYPORT_2,;
 SET DEBUG_SYNC= "commit_before_get_LOCK_commit_ordered SIGNAL con1_ready WAIT_FOR con1_go";
+SET DEBUG_SYNC= "commit_after_release_LOCK_after_binlog_sync WAIT_FOR con1_go1";
 SET STATEMENT server_id=1 FOR INSERT INTO t1 VALUES (4, REPEAT("x", 4100));
 connect  conn_client_2,127.0.0.1,root,,test,$SERVER_MYPORT_2,;
 SET DEBUG_SYNC= "now WAIT_FOR con1_ready";
-SET GLOBAL debug_dbug="d,Notify_binlog_EOF";
+SET DEBUG_SYNC= "commit_before_get_LOCK_after_binlog_sync SIGNAL con1_go";
+SET DEBUG_SYNC= "commit_before_get_LOCK_commit_ordered SIGNAL con2_ready";
 INSERT INTO t1 VALUES (5, REPEAT("x", 4100));
 connection server_2;
-SET DEBUG_SYNC= "now WAIT_FOR eof_reached";
+SET DEBUG_SYNC= "now WAIT_FOR con2_ready";
 # Kill the server
 connection server_1;
 include/wait_for_slave_param.inc [Slave_SQL_Running_State]
 include/stop_slave.inc
-include/assert.inc [Table t1 should have 5 rows.]
+select count(*) 'on slave must be 5' from t1;
+on slave must be 5
+5
 SELECT @@GLOBAL.gtid_current_pos;
 @@GLOBAL.gtid_current_pos
 0-2-7
@@ -132,7 +140,9 @@ SELECT @@GLOBAL.gtid_current_pos;
 connection server_2;
 # Ensuring variable rpl_semi_sync_slave_enabled is ON..
 # Ensuring status rpl_semi_sync_slave_status is OFF..
-include/assert.inc [Table t1 should have 3 rows.]
+select count(*) 'on master must be 3' from t1;
+on master must be 3
+3
 FOUND 1 /truncated binlog file:.*slave.*000002.* to remove transactions starting from GTID 0-1-6/ in mysqld.2.err
 disconnect conn_client;
 connection server_1;
@@ -159,9 +169,9 @@ SHOW VARIABLES LIKE 'gtid_slave_pos';
 Variable_name	Value
 gtid_slave_pos	0-2-7
 connection server_2;
-SELECT COUNT(*) = 6 as 'true' FROM t1;
-true
-1
+SELECT COUNT(*) 'must be 6 as' FROM t1;
+must be 6 as
+6
 # ... the gtid states on the slave:
 SHOW VARIABLES LIKE 'gtid_slave_pos';
 Variable_name	Value
@@ -205,7 +215,9 @@ SET DEBUG_SYNC= "now WAIT_FOR con3_ready";
 connection server_2;
 include/wait_for_slave_param.inc [Slave_SQL_Running_State]
 include/stop_slave.inc
-include/assert.inc [Table t1 should have 7 rows.]
+select count(*) 'on slave must be 7' from t1;
+on slave must be 7
+7
 SELECT @@GLOBAL.gtid_current_pos;
 @@GLOBAL.gtid_current_pos
 0-1-9
@@ -213,7 +225,9 @@ SELECT @@GLOBAL.gtid_current_pos;
 connection server_1;
 # Ensuring variable rpl_semi_sync_slave_enabled is ON..
 # Ensuring status rpl_semi_sync_slave_status is OFF..
-include/assert.inc [Table t1 should have 6 rows.]
+select count(*) 'on master must be 6' from t1;
+on master must be 6
+6
 FOUND 1 /truncated binlog file:.*master.*000002.* to remove transactions starting from GTID 0-1-9/ in mysqld.1.err
 disconnect conn_client;
 connection server_2;
@@ -242,9 +256,9 @@ Variable_name	Value
 gtid_slave_pos	0-1-9
 connection server_1;
 include/sync_with_master_gtid.inc
-SELECT COUNT(*) = 8 as 'true' FROM t1;
-true
-1
+SELECT COUNT(*) 'must be 8' FROM t1;
+must be 8
+8
 # ... the gtid states on the slave:
 SHOW VARIABLES LIKE 'gtid_slave_pos';
 Variable_name	Value

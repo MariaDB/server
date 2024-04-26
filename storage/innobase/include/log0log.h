@@ -132,6 +132,9 @@ public:
 /** Redo log buffer */
 struct log_t
 {
+  /** The maximum buf_size */
+  static constexpr unsigned buf_size_max= os_file_request_size_max;
+
   /** The original (not version-tagged) InnoDB redo log format */
   static constexpr uint32_t FORMAT_3_23= 0;
   /** The MySQL 5.7.9/MariaDB 10.2.2 log format */
@@ -187,7 +190,7 @@ public:
   /** number of append_prepare_wait(); protected by lock_lsn() or lsn_lock */
   size_t waits;
   /** innodb_log_buffer_size (size of buf,flush_buf if !is_pmem(), in bytes) */
-  size_t buf_size;
+  unsigned buf_size;
   /** log file size in bytes, including the header */
   lsn_t file_size;
 
@@ -227,8 +230,6 @@ public:
 
   /** Last written LSN */
   lsn_t write_lsn;
-  /** recommended maximum buf_free size, after which the buffer is flushed */
-  size_t max_buf_free;
 
   /** buffer for writing data to ib_logfile0, or nullptr if is_pmem()
   In write_buf(), buf and flush_buf are swapped */
@@ -238,6 +239,10 @@ public:
   std::atomic<bool> need_checkpoint;
   /** whether a checkpoint is pending; protected by latch.wr_lock() */
   Atomic_relaxed<bool> checkpoint_pending;
+  /** next checkpoint number (protected by latch.wr_lock()) */
+  byte next_checkpoint_no;
+  /** recommended maximum buf_free size, after which the buffer is flushed */
+  unsigned max_buf_free;
   /** Log sequence number when a log file overwrite (broken crash recovery)
   was noticed. Protected by latch.wr_lock(). */
   lsn_t overwrite_warned;
@@ -246,8 +251,6 @@ public:
   Atomic_relaxed<lsn_t> last_checkpoint_lsn;
   /** next checkpoint LSN (protected by latch.wr_lock()) */
   lsn_t next_checkpoint_lsn;
-  /** next checkpoint number (protected by latch.wr_lock()) */
-  ulint next_checkpoint_no;
 
   /** Log file */
   log_file_t log;
@@ -322,6 +325,7 @@ public:
   /** whether there is capacity in the log buffer */
   bool buf_free_ok() const noexcept
   {
+    ut_ad(!is_pmem());
     return (buf_free.load(std::memory_order_relaxed) & ~buf_free_LOCK) <
       max_buf_free;
   }

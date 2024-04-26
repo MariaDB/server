@@ -48,6 +48,13 @@ IF(UNIX)
     IF(HAVE_LIBNUMA)
       LINK_LIBRARIES(numa)
     ENDIF()
+    IF(CMAKE_SIZEOF_VOID_P EQUAL 8)
+      IF(CMAKE_SYSTEM_PROCESSOR MATCHES "(aarch|AARCH|p(ower)?pc|x86_|amd)64")
+        OPTION(WITH_INNODB_PMEM "Support memory-mapped InnoDB redo log" ON)
+      ELSE() # Disable by default on ISA that are not covered by our CI
+        OPTION(WITH_INNODB_PMEM "Support memory-mapped InnoDB redo log" OFF)
+      ENDIF()
+    ENDIF()
   ENDIF()
 ENDIF()
 
@@ -133,7 +140,6 @@ SET(INNOBASE_SOURCES
 	btr/btr0pcur.cc
 	btr/btr0sea.cc
 	btr/btr0defragment.cc
-	buf/buf0block_hint.cc
 	buf/buf0buddy.cc
 	buf/buf0buf.cc
 	buf/buf0dblwr.cc
@@ -427,18 +433,9 @@ SET(INNOBASE_SOURCES
 	ut/ut0vec.cc
 	ut/ut0wqueue.cc)
 
-OPTION(WITH_PMEM "Support redo log in persistent memory" OFF)
-FIND_PACKAGE(PMEM)
-IF(PMEM_FOUND)
-  INCLUDE_DIRECTORIES(${PMEM_INCLUDES})
-  ADD_COMPILE_FLAGS(log/log0log.cc log/log0recv.cc
-    buf/buf0flu.cc mtr/mtr0mtr.cc trx/trx0trx.cc srv/srv0start.cc
-    COMPILE_FLAGS "-DHAVE_PMEM")
-  SET(PMEM_LIBRARY ${PMEM_LIBRARIES})
-ELSE()
-  IF(WITH_PMEM)
-    MESSAGE(FATAL_ERROR "WITH_PMEM=ON cannot be satisfied")
-  ENDIF()
+IF(WITH_INNODB_PMEM)
+  ADD_DEFINITIONS(-DHAVE_PMEM)
+  SET(INNOBASE_SOURCES ${INNOBASE_SOURCES} include/cache.h sync/cache.cc)
 ENDIF()
 
 MYSQL_ADD_PLUGIN(innobase ${INNOBASE_SOURCES} STORAGE_ENGINE
@@ -446,7 +443,6 @@ MYSQL_ADD_PLUGIN(innobase ${INNOBASE_SOURCES} STORAGE_ENGINE
   DEFAULT RECOMPILE_FOR_EMBEDDED
   LINK_LIBRARIES
 	${ZLIB_LIBRARY}
-	${PMEM_LIBRARY}
 	${NUMA_LIBRARY}
 	${LIBSYSTEMD}
 	${LINKER_SCRIPT})

@@ -1947,8 +1947,8 @@ execute dump_hosts;
 HOST	CURRENT_CONNECTIONS	TOTAL_CONNECTIONS
 localhost	6	6
 disconnect con1;
-disconnect con5;
 connection default;
+disconnect con5;
 "================== con1/con5 disconnected =================="
 "================== Step 10 =================="
 call dump_thread();

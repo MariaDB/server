@@ -889,6 +889,7 @@ static int disable_binlog()
   return run_query("SET SQL_LOG_BIN=0", 0);
 }
 
+
 static int handle_request_for_tables(char *tables, size_t length,
                                      my_bool view, my_bool dont_quote)
 {
@@ -1020,7 +1021,10 @@ static void insert_table_name(DYNAMIC_ARRAY *arr, char *in, size_t dblen)
   insert_dynamic(arr, (uchar*) buf);
 }
 
-static void print_result()
+/* Ok as mysqlcheck is not multi threaded */
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
+static void __attribute__((noinline)) print_result()
 {
   MYSQL_RES *res;
   MYSQL_ROW row;
@@ -1111,6 +1115,7 @@ static void print_result()
   mysql_free_result(res);
   DBUG_VOID_RETURN;
 }
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 
 static int dbConnect(char *host, char *user, char *passwd)

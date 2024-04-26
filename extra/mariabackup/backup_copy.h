@@ -23,9 +23,9 @@ equal_paths(const char *first, const char *second);
 
 /** Start --backup */
 bool backup_files(ds_ctxt *ds_data, const char *from);
-/** Release resources after backup_start() */
+/** Release resources after backup_files() */
 void backup_release();
-/** Finish after backup_start() and backup_release() */
+/** Finish after backup_files() and backup_release() */
 bool backup_finish(ds_ctxt *ds_data);
 bool
 apply_log_finish();

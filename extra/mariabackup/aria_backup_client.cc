@@ -752,7 +752,7 @@ repeat:
 			goto exit;
 		}
 		DBUG_ASSERT(file_offset <= static_cast<my_off_t>(stat_info.st_size));
-		to_copy_size = static_cast<my_off_t>(stat_info.st_size) - file_offset;
+		to_copy_size = static_cast<size_t>(stat_info.st_size - file_offset);
 		to_copy_size = to_copy_size >= TRANSLOG_PAGE_SIZE ?
 			(align_down(to_copy_size, TRANSLOG_PAGE_SIZE) - TRANSLOG_PAGE_SIZE) : 0;
 	}

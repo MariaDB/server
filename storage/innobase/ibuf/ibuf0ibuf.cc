@@ -288,7 +288,8 @@ func_exit:
       buf_page_get_gen(page_id_t{0, page_no}, 0, RW_X_LATCH, nullptr, BUF_GET,
                        &mtr, &err))
     err= flst_remove(root, PAGE_HEADER + PAGE_BTR_IBUF_FREE_LIST,
-                     block, PAGE_HEADER + PAGE_BTR_IBUF_FREE_LIST_NODE, &mtr);
+                     block, PAGE_HEADER + PAGE_BTR_IBUF_FREE_LIST_NODE,
+                     fil_system.sys_space->free_limit, &mtr);
 
   if (err == DB_SUCCESS)
     buf_page_free(fil_system.sys_space, page_no, &mtr);

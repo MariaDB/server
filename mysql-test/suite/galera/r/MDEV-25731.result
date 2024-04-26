@@ -17,8 +17,11 @@ SELECT COUNT(*) AS EXPECT_6 FROM t1;
 EXPECT_6
 6
 connection node_1;
-ALTER TABLE t1 ENGINE=InnoDB;
+ALTER TABLE t1 ENGINE=Aria;
+SET GLOBAL wsrep_mode=REPLICATE_ARIA;
 LOAD DATA INFILE '../../std_data/mdev-25731.dat' IGNORE INTO TABLE t1 LINES TERMINATED BY '\n';
+Warnings:
+Warning	1235	wsrep_load_data_splitting for other than InnoDB tables
 SELECT COUNT(*) AS EXPECT_12 FROM t1;
 EXPECT_12
 12
@@ -26,6 +29,16 @@ connection node_2;
 SELECT COUNT(*) AS EXPECT_12 FROM t1;
 EXPECT_12
 12
+connection node_1;
+ALTER TABLE t1 ENGINE=InnoDB;
+LOAD DATA INFILE '../../std_data/mdev-25731.dat' IGNORE INTO TABLE t1 LINES TERMINATED BY '\n';
+SELECT COUNT(*) AS EXPECT_18 FROM t1;
+EXPECT_18
+18
+connection node_2;
+SELECT COUNT(*) AS EXPECT_18 FROM t1;
+EXPECT_18
+18
 connection node_1;
 DROP TABLE t1;
 SET GLOBAL wsrep_load_data_splitting=OFF;

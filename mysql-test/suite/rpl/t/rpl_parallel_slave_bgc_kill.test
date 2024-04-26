@@ -295,13 +295,14 @@ CREATE FUNCTION foo(x INT, d1 VARCHAR(500), d2 VARCHAR(500))
 ||
 --delimiter ;
 SET sql_log_bin=1;
-
+--source include/stop_slave_io.inc
 --connection server_1
 INSERT INTO t3 VALUES (49,0);
 --save_master_pos
 
 --connection server_2
-START SLAVE SQL_THREAD;
+CHANGE MASTER TO master_use_gtid=no;
+--source include/start_slave.inc
 --sync_with_master
 SELECT * FROM t3 WHERE a >= 40 ORDER BY a;
 # Restore the foo() function.
@@ -333,11 +334,6 @@ SET GLOBAL slave_parallel_threads=10;
 
 
 --echo *** 3. Same as (2), but not using gtid mode ***
-
---connection server_2
---source include/stop_slave.inc
-CHANGE MASTER TO master_use_gtid=no;
---source include/start_slave.inc
 
 --connection server_1
 # Set up three transactions on the master that will be group-committed

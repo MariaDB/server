@@ -1728,11 +1728,9 @@ instant_alter_column_possible(
 			ut_ad(!is_null || nullable);
 			n_nullable += nullable;
 			n_add++;
-			uint l;
+			uint l = (*af)->pack_length();
 			switch ((*af)->type()) {
 			case MYSQL_TYPE_VARCHAR:
-				l = reinterpret_cast<const Field_varstring*>
-					(*af)->get_length();
 			variable_length:
 				if (l >= min_local_len) {
 					max_size += blob_prefix
@@ -1746,7 +1744,6 @@ instant_alter_column_possible(
 					if (!is_null) {
 						min_size += l;
 					}
-					l = (*af)->pack_length();
 					max_size += l;
 					lenlen += l > 255 ? 2 : 1;
 				}
@@ -1760,7 +1757,6 @@ instant_alter_column_possible(
 					((*af))->get_length();
 				goto variable_length;
 			default:
-				l = (*af)->pack_length();
 				if (l > 255 && ib_table.not_redundant()) {
 					goto variable_length;
 				}

@@ -693,6 +693,7 @@ int ha_partition::create_partitioning_metadata(const char *path,
   partition_element *part;
   DBUG_ENTER("ha_partition::create_partitioning_metadata");
 
+  mark_trx_read_write();
   /*
     We need to update total number of parts since we might write the handler
     file as part of a partition management command
@@ -8643,7 +8644,7 @@ int ha_partition::info(uint flag)
                         file->stats.auto_increment_value);
         } while (*(++file_array));
 
-        DBUG_ASSERT(auto_increment_value);
+        DBUG_ASSERT(!all_parts_opened || auto_increment_value);
         stats.auto_increment_value= auto_increment_value;
         if (all_parts_opened && auto_inc_is_first_in_idx)
         {
@@ -10950,18 +10951,19 @@ int ha_partition::update_next_auto_inc_val()
 
 bool ha_partition::need_info_for_auto_inc()
 {
-  handler **file= m_file;
   DBUG_ENTER("ha_partition::need_info_for_auto_inc");
 
-  do
+  for (uint i= bitmap_get_first_set(&m_locked_partitions);
+       i < m_tot_parts;
+       i= bitmap_get_next_set(&m_locked_partitions, i))
   {
-    if ((*file)->need_info_for_auto_inc())
+    if ((m_file[i])->need_info_for_auto_inc())
     {
       /* We have to get new auto_increment values from handler */
       part_share->auto_inc_initialized= FALSE;
       DBUG_RETURN(TRUE);
     }
-  } while (*(++file));
+  }
   DBUG_RETURN(FALSE);
 }
 

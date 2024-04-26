@@ -10,6 +10,8 @@ select length(@obj), length(@arr);
 length(@obj)	length(@arr)
 5000009	5000009
 set max_statement_time=0.0001;
+SET @old_debug= @@debug_dbug;
+SET debug_dbug='+d,debug_max_statement_time exceeded';
 select json_array_append(@arr, '$[0]', 1);
 ERROR 70100: Query execution was interrupted (max_statement_time exceeded)
 select json_array_insert(@arr, '$[0]', 1);
@@ -34,6 +36,7 @@ select json_replace(@obj,'$.foo',1);
 ERROR 70100: Query execution was interrupted (max_statement_time exceeded)
 select json_set(@arr,'$[1000]',1);
 ERROR 70100: Query execution was interrupted (max_statement_time exceeded)
+SET debug_dbug= @old_debug;
 disconnect u;
 connection default;
 set global max_allowed_packet=default;

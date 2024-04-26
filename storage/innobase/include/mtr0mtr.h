@@ -686,6 +686,13 @@ private:
   /** Encrypt the log */
   ATTRIBUTE_NOINLINE void encrypt();
 
+  /** Commit the mini-transaction log.
+  @tparam pmem log_sys.is_pmem()
+  @param mtr   mini-transaction
+  @param lsns  {start_lsn,flush_ahead} */
+  template<bool pmem>
+  static void commit_log(mtr_t *mtr, std::pair<lsn_t,page_flush_ahead> lsns);
+
   /** Append the redo log records to the redo log buffer.
   @return {start_lsn,flush_ahead} */
   std::pair<lsn_t,page_flush_ahead> do_write();
@@ -699,6 +706,8 @@ private:
   template<bool spin,bool pmem> static
   std::pair<lsn_t,page_flush_ahead> finish_writer(mtr_t *mtr, size_t len);
 
+  /** The applicable variant of commit_log() */
+  static void (*commit_logger)(mtr_t *, std::pair<lsn_t,page_flush_ahead>);
   /** The applicable variant of finish_writer() */
   static std::pair<lsn_t,page_flush_ahead> (*finisher)(mtr_t *, size_t);
 

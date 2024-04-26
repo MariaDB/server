@@ -41,7 +41,7 @@ extern struct charset_info_st *spd_charset_utf8mb3_bin;
 extern handlerton *spider_hton_ptr;
 extern SPIDER_DBTON spider_dbton[SPIDER_DBTON_SIZE];
 pthread_mutex_t spider_thread_id_mutex;
-ulonglong spider_thread_id = 1;
+ulonglong spider_thread_id;
 
 #ifdef HAVE_PSI_INTERFACE
 extern PSI_mutex_key spd_key_mutex_udf_table;

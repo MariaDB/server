@@ -564,6 +564,10 @@ private:
 
     Guarded by data_lock. Written by the sql thread.  Read by client
     threads executing SHOW SLAVE STATUS.
+
+    This is calculated as:
+    clock_time_for_event_on_master + clock_difference_between_master_and_slave +
+    SQL_DELAY.
   */
   time_t sql_delay_end;
 
@@ -959,7 +963,7 @@ struct rpl_group_info
   }
 
   void clear_tables_to_lock();
-  void cleanup_context(THD *, bool);
+  void cleanup_context(THD *, bool, bool keep_domain_owner= false);
   void slave_close_thread_tables(THD *);
   void mark_start_commit_no_lock();
   void mark_start_commit();

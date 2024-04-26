@@ -1260,26 +1260,21 @@ bool st_select_lex_unit::join_union_item_types(THD *thd_arg,
 }
 
 
-bool init_item_int(THD* thd, Item_int* &item)
+static bool init_item_int(THD* thd, Item_int* &item)
 {
   if (!item)
   {
-    Query_arena *arena, backup_arena;
-    arena= thd->activate_stmt_arena_if_needed(&backup_arena);
-
     item= new (thd->mem_root) Item_int(thd, 0);
 
-    if (arena)
-      thd->restore_active_arena(arena, &backup_arena);
-
     if (!item)
-    return false;
+      return true;
   }
   else
   {
     item->value= 0;
   }
-  return true;
+
+  return false;
 }
 
 
@@ -1759,8 +1754,12 @@ cont:
 
       for(uint i= 0; i< hidden; i++)
       {
-        init_item_int(thd, addon_fields[i]);
-        types.push_front(addon_fields[i]);
+        if (init_item_int(thd, addon_fields[i]) ||
+            types.push_front(addon_fields[i]))
+        {
+          types.empty();
+          goto err;
+        }
         addon_fields[i]->name.str= i ? "__CNT_1" : "__CNT_2";
         addon_fields[i]->name.length= 7;
       }

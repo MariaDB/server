@@ -1119,6 +1119,16 @@ select json_arrayagg('ä'), json_objectagg(1, 'ä');
 --enable_service_connection
 
 --echo #
+--echo # MDEV-31402: SIGSEGV in json_get_path_next | Item_func_json_extract::read_json
+--echo #
+
+CREATE TABLE t (id CHAR AS (JSON_COMPACT (JSON_EXTRACT(doc,"$._id"))) UNIQUE KEY,doc JSON,CONSTRAINT notnu CHECK (id IS NOT NULL));
+--error ER_DATA_TOO_LONG
+INSERT INTO t (doc) VALUES ('{ "_id" : { "$oid" : "0ca0b0f0" },"a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" :0} ] } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] }');
+
+DROP TABLE t;
+
+--echo #
 --echo # End of 10.5 tests
 --echo #
 

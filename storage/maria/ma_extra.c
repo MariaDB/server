@@ -610,6 +610,20 @@ uint _ma_file_callback_to_id(void *callback_data)
   return share ? share->id : 0;
 }
 
+/*
+  Disable MY_WAIT_IF_FULL flag for temporary tables
+
+  Temporary tables does not have MY_WAIT_IF_FULL in share->write_flags
+*/
+
+uint _ma_write_flags_callback(void *callback_data, myf flags)
+{
+  MARIA_SHARE *share= (MARIA_SHARE*) callback_data;
+  if (share)
+    flags&= ~(~share->write_flag & MY_WAIT_IF_FULL);
+  return flags;
+}
+
 
 /**
    @brief flushes the data and/or index file of a table
