@@ -1245,7 +1245,7 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
 
     if (vers_conditions.is_set() && vers_conditions.type != SYSTEM_TIME_HISTORY)
     {
-      thd->where= "FOR SYSTEM_TIME";
+      thd->where= THD_WHERE::FOR_SYSTEM_TIME;
       /* TODO: do resolve fix_length_and_dec(), fix_fields(). This requires
         storing vers_conditions as Item and make some magic related to
         vers_system_time_t/VERS_TRX_ID at stage of fix_fields()
@@ -1530,7 +1530,7 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
   {
     nesting_map save_allow_sum_func= thd->lex->allow_sum_func;
     thd->lex->allow_sum_func.set_bit(select_lex->nest_level);
-    thd->where= "order clause";
+    thd->where= THD_WHERE::ORDER_CLAUSE;
     for (ORDER *order= select_lex->order_list.first; order; order= order->next)
     {
       /* Don't add the order items to all fields. Just resolve them to ensure
@@ -1546,7 +1546,7 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
   if (having)
   {
     nesting_map save_allow_sum_func= thd->lex->allow_sum_func;
-    thd->where="having clause";
+    thd->where= THD_WHERE::HAVING_CLAUSE;
     thd->lex->allow_sum_func.set_bit(select_lex_arg->nest_level);
     select_lex->having_fix_field= 1;
     /*
@@ -25986,7 +25986,7 @@ find_order_in_list(THD *thd, Ref_ptr_array ref_pointer_array,
     if (!count || count > fields.elements)
     {
       my_error(ER_BAD_FIELD_ERROR, MYF(0),
-               order_item->full_name(), thd->where);
+               order_item->full_name(), thd_where(thd));
       return TRUE;
     }
     thd->change_item_tree((Item **)&order->item, (Item *)&ref_pointer_array[count - 1]);
@@ -26065,7 +26065,7 @@ find_order_in_list(THD *thd, Ref_ptr_array ref_pointer_array,
                           ER_NON_UNIQ_ERROR,
                           ER_THD(thd, ER_NON_UNIQ_ERROR),
                           ((Item_ident*) order_item)->field_name.str,
-                          thd->where);
+                          thd_where(thd));
     }
   }
   else if (from_window_spec)
@@ -26135,7 +26135,7 @@ int setup_order(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
   SELECT_LEX *select = thd->lex->current_select;
   enum_parsing_place context_analysis_place=
                      thd->lex->current_select->context_analysis_place;
-  thd->where="order clause";
+  thd->where= THD_WHERE::ORDER_CLAUSE;
   const bool for_union= select->master_unit()->is_unit_op() &&
     select == select->master_unit()->fake_select_lex;
   for (uint number = 1; order; order=order->next, number++)
@@ -26214,7 +26214,7 @@ setup_group(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
 
   uint org_fields=all_fields.elements;
 
-  thd->where="group statement";
+  thd->where= THD_WHERE::GROUP_STATEMENT;
   for (ord= order; ord; ord= ord->next)
   {
     if (find_order_in_list(thd, ref_pointer_array, tables, ord, fields,
@@ -26332,7 +26332,7 @@ setup_new_fields(THD *thd, List<Item> &fields,
       new_field->item=item;			/* Change to shared Item */
     else
     {
-      thd->where="procedure list";
+      thd->where= THD_WHERE::PROCEDURE_LIST;
       if ((*new_field->item)->fix_fields(thd, new_field->item))
 	DBUG_RETURN(1); /* purecov: inspected */
       all_fields.push_front(*new_field->item, thd->mem_root);

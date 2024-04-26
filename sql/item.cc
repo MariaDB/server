@@ -2184,6 +2184,36 @@ bool Item_name_const::fix_fields(THD *thd, Item **ref)
     my_error(ER_RESERVED_SYNTAX, MYF(0), "NAME_CONST");
     return TRUE;
   }
+
+  /*
+    If we have either of the following:
+      ... WHERE foo=NAME_CONST(...)
+      ... JOIN ... ON foo=NAME_CONST(...)
+    then we have an opportunity to unwrap the NAME_CONST and
+    use the enclosed value directly, replacing NAME_CONST in
+    the parse tree with the value it encloses.
+  */
+  if ((thd->where == THD_WHERE::WHERE_CLAUSE ||
+       thd->where == THD_WHERE::ON_CLAUSE) &&
+      (value_item->type() == FUNC_ITEM ||
+       value_item->type() == CONST_ITEM))
+  {
+    thd->change_item_tree(ref, value_item);
+
+    /*
+      We're replacing NAME_CONST('name', value_item) with value_item.
+      Only a few constants and functions are possible as value_item, see
+      Create_func_name_const::create_2_arg.
+      Set the value_item's coercibility to be the same as NAME_CONST(...)
+      would have (see how it's set a few lines below).
+    */
+    if (value_item->collation.derivation != DERIVATION_NUMERIC)
+      value_item->collation.set(value_item->collation.collation,
+                                DERIVATION_IMPLICIT);
+    return FALSE;
+  }
+  // else, could not unwrap, fall back to default handling below.
+
   if (value_item->collation.derivation == DERIVATION_NUMERIC)
     collation= DTCollation_numeric();
   else
@@ -5528,7 +5558,7 @@ static Item** find_field_in_group_list(Item *find_item, ORDER *group_list)
         is ambiguous.
       */
       my_error(ER_NON_UNIQ_ERROR, MYF(0),
-               find_item->full_name(), current_thd->where);
+               find_item->full_name(), thd_where(current_thd));
       return NULL;
     }
   }
@@ -5613,7 +5643,7 @@ resolve_ref_in_select_and_group(THD *thd, Item_ident *ref, SELECT_LEX *select)
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                           ER_NON_UNIQ_ERROR,
                           ER_THD(thd,ER_NON_UNIQ_ERROR), ref->full_name(),
-                          thd->where);
+                          thd_where(thd));
 
     }
   }
@@ -5947,7 +5977,7 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
     if (upward_lookup)
     {
       // We can't say exactly what absent table or field
-      my_error(ER_BAD_FIELD_ERROR, MYF(0), full_name(), thd->where);
+      my_error(ER_BAD_FIELD_ERROR, MYF(0), full_name(), thd_where(thd));
     }
     else
     {
@@ -6174,7 +6204,7 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
             {
               /* The column to which we link isn't valid. */
               my_error(ER_BAD_FIELD_ERROR, MYF(0), (*res)->name.str,
-                       thd->where);
+                       thd_where(thd));
               return(1);
             }
 
@@ -6219,7 +6249,7 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
 
       if (unlikely(!select))
       {
-        my_error(ER_BAD_FIELD_ERROR, MYF(0), full_name(), thd->where);
+        my_error(ER_BAD_FIELD_ERROR, MYF(0), full_name(), thd_where(thd));
         goto error;
       }
       if ((ret= fix_outer_field(thd, &from_field, reference)) < 0)
@@ -8163,7 +8193,7 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
       if (unlikely(!outer_context))
       {
         /* The current reference cannot be resolved in this query. */
-        my_error(ER_BAD_FIELD_ERROR,MYF(0), full_name(), thd->where);
+        my_error(ER_BAD_FIELD_ERROR,MYF(0), full_name(), thd_where(thd));
         goto error;
       }
 
@@ -8314,7 +8344,7 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
       {
         /* The item was not a table field and not a reference */
         my_error(ER_BAD_FIELD_ERROR, MYF(0),
-                 this->full_name(), thd->where);
+                 this->full_name(), thd_where(thd));
         goto error;
       }
       /* Should be checked in resolve_ref_in_select_and_group(). */

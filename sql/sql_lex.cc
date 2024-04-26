@@ -8147,7 +8147,7 @@ bool LEX::check_expr_allows_fields_or_error(THD *thd, const char *name) const
 {
   if (select_stack_top > 0)
     return false; // OK, fields are allowed
-  my_error(ER_BAD_FIELD_ERROR, MYF(0), name, thd->where);
+  my_error(ER_BAD_FIELD_ERROR, MYF(0), name, thd_where(thd));
   return true;    // Error, fields are not allowed
 }
 
@@ -8170,7 +8170,7 @@ Item *LEX::create_item_ident_nospvar(THD *thd,
 
   if (unlikely(current_select->no_table_names_allowed))
   {
-    my_error(ER_TABLENAME_NOT_ALLOWED_HERE, MYF(0), a->str, thd->where);
+    my_error(ER_TABLENAME_NOT_ALLOWED_HERE, MYF(0), a->str, thd_where(thd));
     return NULL;
   }
 
@@ -8385,7 +8385,7 @@ Item *LEX::create_item_ident(THD *thd,
 
   if (current_select->no_table_names_allowed)
   {
-    my_error(ER_TABLENAME_NOT_ALLOWED_HERE, MYF(0), b->str, thd->where);
+    my_error(ER_TABLENAME_NOT_ALLOWED_HERE, MYF(0), b->str, thd_where(thd));
     return NULL;
   }
 
