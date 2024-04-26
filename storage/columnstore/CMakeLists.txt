@@ -15,7 +15,7 @@ IF(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" OR
 CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64")
 
     # https://jira.mariadb.org/browse/MCOL-5611
-    FIND_PACKAGE(Boost COMPONENTS system filesystem thread regex date_time chrono atomic)
+    FIND_PACKAGE(Boost 1.53 COMPONENTS system filesystem thread regex date_time chrono atomic)
     IF (${Boost_MAJOR_VERSION}.${Boost_MINOR_VERSION} VERSION_GREATER "1.79")
         MESSAGE_ONCE(CS_NO_BOOST "Boost Libraries >= 1.80.0 not supported!")
         return()
