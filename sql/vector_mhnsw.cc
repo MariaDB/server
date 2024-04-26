@@ -159,6 +159,11 @@ static bool select_neighbours(TABLE *source, TABLE *graph,
                               size_t max_neighbour_connections,
                               List<FVector> *neighbours)
 {
+  /*
+    TODO: If the input neighbours list is already sorted in search_layer, then
+    no need to do additional queue build steps here.
+   */
+
   Queue<FVector, const FVector> pq;
   pq.init(candidates.elements, 0, 0, cmp_vec, &target);
 
@@ -445,9 +450,6 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
   if (res->length() == 0 || res->length() % 4)
     return 1;
 
-  const uint EF_CONSTRUCTION = 10; // max candidate list size to connect to.
-  //const uint MAX_INSERT_NEIGHBOUR_CONNECTIONS = 10;
-  const uint MAX_NEIGHBORS_PER_LAYER = 50; //m
   const double NORMALIZATION_FACTOR = 1.2;
 
   if ((err= h->ha_rnd_init(1)))
@@ -514,12 +516,15 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
   {
     List<FVector> candidates;
     List<FVector> neighbours;
-    search_layer(table, vec_field, graph, target, start_nodes, EF_CONSTRUCTION,
+    search_layer(table, vec_field, graph, target, start_nodes,
+                 table->in_use->variables.hnsw_ef_constructor,
                  cur_layer, &candidates);
     // release vectors
     start_nodes.delete_elements();
-    uint max_neighbours= (cur_layer == 0) ? MAX_NEIGHBORS_PER_LAYER * 2
-                                          : MAX_NEIGHBORS_PER_LAYER;
+
+    uint max_neighbours= (cur_layer == 0) ?
+     table->in_use->variables.hnsw_max_connection_per_layer * 2
+     : table->in_use->variables.hnsw_max_connection_per_layer;
 
     select_neighbours(table, graph, target, candidates,
                       max_neighbours, &neighbours);
@@ -605,18 +610,29 @@ int mhnsw_first(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit)
     candidates.delete_elements();
   }
 
+  ulonglong ef_search= MY_MAX(
+    table->in_use->variables.hnsw_ef_search, limit);
   search_layer(table, vec_field, graph, target, start_nodes,
-               limit, 0, &candidates);
+               ef_search, 0, &candidates);
   start_nodes.delete_elements();
 
   // 8. return results
+
+  // only keep top K
+  ulonglong element_num= candidates.elements;
+  while (element_num > limit)
+  {
+    candidates.pop();
+    element_num--;
+  }
+
   FVectorRef **context= (FVectorRef**)table->in_use->alloc(
-    sizeof(FVectorRef*) * (candidates.elements + 1));
+    sizeof(FVectorRef*) * (element_num + 1));
   graph->context= context;
 
-  FVectorRef **ptr= context + candidates.elements;
+  FVectorRef **ptr= context + element_num;
   *ptr= nullptr;
-  while (candidates.elements)
+  while (element_num--)
     *--ptr= candidates.pop();
 
   err= mhnsw_next(table);
