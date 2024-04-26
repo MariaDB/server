@@ -3,15 +3,13 @@ select if(variable_value > '','yes','no') as 'have_ssl'
   from information_schema.session_status
 where variable_name='ssl_cipher';
 mysql --ssl-ca=cacert.pem -e "call test.have_ssl()"
-have_ssl
-no
+ERROR 2026 (HY000): Client requires TLS/SSL, but the server does not support it
 mysql --ssl -e "call test.have_ssl()"
-have_ssl
-no
+ERROR 2026 (HY000): Client requires TLS/SSL, but the server does not support it
 mysql --ssl-ca=cacert.pem --ssl-verify-server-cert -e "call test.have_ssl()"
-ERROR 2026 (HY000): TLS/SSL error: SSL is required, but the server does not support it
+ERROR 2026 (HY000): Client requires TLS/SSL, but the server does not support it
 mysql --ssl --ssl-verify-server-cert -e "call test.have_ssl()"
-ERROR 2026 (HY000): TLS/SSL error: SSL is required, but the server does not support it
+ERROR 2026 (HY000): Client requires TLS/SSL, but the server does not support it
 #
 # MDEV-27105 --ssl option set as default for mariadb CLI
 #

@@ -733,9 +733,9 @@ create user ser@localhost identified by "ass";
 --echo MYSQL --disable-ssl-verify-server-cert -e "\\s"
 --replace_regex /^.[^S].*// /\b[-A-Z_0-9]+,/XXX,/
 --exec $MYSQL -user -pass --disable-ssl-verify-server-cert -e "\\s"
---echo MYSQL --ssl-verify-server-cert -e "\\s"
+--echo MYSQL --ssl-verify-server-cert --ssl-ca=cacert.pem -e "\\s"
 --replace_regex /^.[^S].*// /\b[-A-Z_0-9]+,/XXX,/
---exec $MYSQL -user -pass --ssl-verify-server-cert -e "\\s"
+--exec $MYSQL -user -pass --ssl-verify-server-cert --ssl-ca=$MYSQL_TEST_DIR/std_data/cacert.pem -e "\\s"
 drop user ser@localhost;
 
 --echo #

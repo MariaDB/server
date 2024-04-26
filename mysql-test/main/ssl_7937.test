@@ -26,6 +26,14 @@ if($is_win)
 {
   let $host=--host=127.0.0.2;
 }
+
+# The replace_regex below replaces
+# "self signed certificate in certificate chain" with "Failed to verify the server certificate"
+#
+# This replacement was added in 6484288cd260cc9ad34d93a35502e66c034f01a7, and it
+# is intended to paper over a difference between various versions of OpenSSL (and its derivatives)
+# in terms of exactly what error message is printed in case of a TLS error caused by a
+# self-signed certificate.
 --echo mysql --ssl --ssl-verify-server-cert -e "call test.have_ssl()"
 --replace_regex /TLS\/SSL error.*certificate[^\n]*/TLS\/SSL error: Failed to verify the server certificate/
 --exec $MYSQL --protocol tcp $host --ssl --ssl-verify-server-cert -e "call test.have_ssl()" 2>&1

@@ -649,7 +649,7 @@ MYSQL --disable-ssl-verify-server-cert -e "\s"
 SSL:			Cipher in use is XXX, cert is UNKNOWN
 
 
-MYSQL --ssl-verify-server-cert -e "\s"
+MYSQL --ssl-verify-server-cert --ssl-ca=cacert.pem -e "\s"
 
 SSL:			Cipher in use is XXX, cert is OK
 
