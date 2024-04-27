@@ -4909,32 +4909,48 @@ handler::ha_check_and_repair(THD *thd)
 /**
   Disable indexes: public interface.
 
+  @param map            has 0 for all indexes that should be disabled
+  @param persist        indexes should stay disabled after server restart
+
+  Currently engines don't support disabling an arbitrary subset of indexes.
+
+  In particular, if the change is persistent:
+  * auto-increment index should not be disabled
+  * unique indexes should not be disabled
+
+  if unique or auto-increment indexes are disabled (non-persistently),
+  the caller should only insert data that does not require
+  auto-inc generation and does not violate uniqueness
+
   @sa handler::disable_indexes()
 */
 
 int
-handler::ha_disable_indexes(uint mode)
+handler::ha_disable_indexes(key_map map, bool persist)
 {
   DBUG_ASSERT(table->s->tmp_table != NO_TMP_TABLE || m_lock_type != F_UNLCK);
   mark_trx_read_write();
 
-  return disable_indexes(mode);
+  return disable_indexes(map, persist);
 }
 
 
 /**
   Enable indexes: public interface.
 
+  @param map            has 1 for all indexes that should be enabled
+  @param persist        indexes should stay enabled after server restart
+
   @sa handler::enable_indexes()
 */
 
 int
-handler::ha_enable_indexes(uint mode)
+handler::ha_enable_indexes(key_map map, bool persist)
 {
   DBUG_ASSERT(table->s->tmp_table != NO_TMP_TABLE || m_lock_type != F_UNLCK);
   mark_trx_read_write();
 
-  return enable_indexes(mode);
+  return enable_indexes(map, persist);
 }
 
 

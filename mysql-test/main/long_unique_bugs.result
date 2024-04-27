@@ -717,4 +717,16 @@ a	b
 update t1 set b='A' where a=1;
 ERROR 23000: Duplicate entry 'A' for key 'b'
 drop table t1;
+#
+# MDEV-25102 UNIQUE USING HASH error after ALTER ... DISABLE KEYS
+#
+create table t1 (i int, unique key (i) using hash);
+alter table t1 disable keys;
+insert into t1 values (1),(2);
+insert into t1 values (1);
+ERROR 23000: Duplicate entry '1' for key 'i'
+alter table t1 enable keys;
+insert into t1 values (2);
+ERROR 23000: Duplicate entry '2' for key 'i'
+drop table t1;
 # End of 10.5 tests

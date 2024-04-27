@@ -1664,10 +1664,10 @@ bool ha_partition::is_crashed() const
 int ha_partition::prepare_new_partition(TABLE *tbl,
                                         HA_CREATE_INFO *create_info,
                                         handler *file, const char *part_name,
-                                        partition_element *p_elem,
-                                        uint disable_non_uniq_indexes)
+                                        partition_element *p_elem)
 {
   int error;
+  key_map keys_in_use= table->s->keys_in_use;
   DBUG_ENTER("prepare_new_partition");
 
   /*
@@ -1723,8 +1723,8 @@ int ha_partition::prepare_new_partition(TABLE *tbl,
     goto error_external_lock;
   DBUG_PRINT("info", ("partition %s external locked", part_name));
 
-  if (disable_non_uniq_indexes)
-    file->ha_disable_indexes(HA_KEY_SWITCH_NONUNIQ_SAVE);
+  if (!keys_in_use.is_prefix(table->s->keys))
+    file->ha_disable_indexes(keys_in_use, true);
 
   DBUG_RETURN(0);
 error_external_lock:
@@ -2020,13 +2020,6 @@ int ha_partition::change_partitions(HA_CREATE_INFO *create_info,
       calls
   */
 
-  /*
-     Before creating new partitions check whether indexes are disabled
-     in the  partitions.
-  */
-
-  uint disable_non_uniq_indexes= indexes_are_disabled();
-
   i= 0;
   part_count= 0;
   part_it.rewind();
@@ -2068,8 +2061,7 @@ int ha_partition::change_partitions(HA_CREATE_INFO *create_info,
                         prepare_new_partition(table, create_info,
                                               new_file_array[part],
                                               (const char *)part_name_buff,
-                                              sub_elem,
-                                              disable_non_uniq_indexes))))
+                                              sub_elem))))
           {
             cleanup_new_partition(part_count);
             DBUG_RETURN(error);
@@ -2095,8 +2087,7 @@ int ha_partition::change_partitions(HA_CREATE_INFO *create_info,
                       prepare_new_partition(table, create_info,
                                             new_file_array[i],
                                             (const char *)part_name_buff,
-                                            part_elem,
-                                            disable_non_uniq_indexes))))
+                                            part_elem))))
         {
           cleanup_new_partition(part_count);
           DBUG_RETURN(error);
@@ -11054,7 +11045,7 @@ int ha_partition::calculate_checksum()
     != 0                      Error
 */
 
-int ha_partition::disable_indexes(uint mode)
+int ha_partition::disable_indexes(key_map map, bool persist)
 {
   handler **file;
   int error= 0;
@@ -11062,7 +11053,7 @@ int ha_partition::disable_indexes(uint mode)
   DBUG_ASSERT(bitmap_is_set_all(&(m_part_info->lock_partitions)));
   for (file= m_file; *file; file++)
   {
-    if (unlikely((error= (*file)->ha_disable_indexes(mode))))
+    if (unlikely((error= (*file)->ha_disable_indexes(map, persist))))
       break;
   }
   return error;
@@ -11079,7 +11070,7 @@ int ha_partition::disable_indexes(uint mode)
     != 0                      Error
 */
 
-int ha_partition::enable_indexes(uint mode)
+int ha_partition::enable_indexes(key_map map, bool persist)
 {
   handler **file;
   int error= 0;
@@ -11087,7 +11078,7 @@ int ha_partition::enable_indexes(uint mode)
   DBUG_ASSERT(bitmap_is_set_all(&(m_part_info->lock_partitions)));
   for (file= m_file; *file; file++)
   {
-    if (unlikely((error= (*file)->ha_enable_indexes(mode))))
+    if (unlikely((error= (*file)->ha_enable_indexes(map, persist))))
       break;
   }
   return error;

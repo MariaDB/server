@@ -9226,7 +9226,8 @@ bool TABLE::insert_all_rows_into_tmp_table(THD *thd,
   }
    
   if (file->indexes_are_disabled())
-    tmp_table->file->ha_disable_indexes(HA_KEY_SWITCH_ALL);
+    tmp_table->file->ha_disable_indexes(key_map(0), false);
+
   file->ha_index_or_rnd_end();
 
   if (unlikely(file->ha_rnd_init_with_error(1)))

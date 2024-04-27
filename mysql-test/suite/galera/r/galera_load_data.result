@@ -26,8 +26,6 @@ PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=1324 DEFAULT CHARSET=utf8 ROW_FORMAT=COMPRESSED;
 LOCK TABLES cardtest_tbl WRITE;
 ALTER TABLE cardtest_tbl DISABLE KEYS;
-Warnings:
-Note	1031	Storage engine InnoDB of the table `cardtest02`.`cardtest_tbl` doesn't have this option
 INSERT INTO cardtest_tbl VALUES
 (1,1,'','',1,1466430455,1471454450,NULL,10.00000,1,NULL,'','',NULL,NULL,1,NULL,NULL),
 (2,1,'','',1,1466430455,1471454450,NULL,10.00000,1,NULL,'','',NULL,NULL,1,NULL,NULL),
