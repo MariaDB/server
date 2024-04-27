@@ -640,5 +640,6 @@ public:
   { return get_item_copy<Item_func_json_objectagg>(thd, this); }
 };
 
+extern bool is_json_type(const Item *item);
 
 #endif /* ITEM_JSONFUNC_INCLUDED */
