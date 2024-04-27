@@ -8748,6 +8748,9 @@ ha_innobase::delete_row(
 	ut_ad(!trx->is_bulk_insert());
 	error = row_update_for_mysql(m_prebuilt);
 
+	ut_ad(error != DB_DUPLICATE_KEY);
+	ut_ad(error != DB_FOREIGN_DUPLICATE_KEY);
+
 #ifdef WITH_WSREP
 	if (error == DB_SUCCESS && trx->is_wsrep()
 	    && wsrep_thd_is_local(m_user_thd)
