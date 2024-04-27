@@ -308,6 +308,7 @@ int TABLE::delete_row(bool treat_versioned)
 {
   int err= 0;
   uchar *del_buf= record[replace ? 1 : 0];
+
   bool delete_row= !treat_versioned
                    || in_use->lex->vers_conditions.delete_history
                    || versioned(VERS_TRX_ID)
@@ -325,7 +326,14 @@ int TABLE::delete_row(bool treat_versioned)
       store_record(this, record[1]);
     }
     vers_update_end();
-    err= file->ha_update_row(record[1], record[0]);
+
+    Field *row_start= vers_start_field();
+    Field *row_end= vers_end_field();
+    // Don't make history row with negative lifetime
+    delete_row= row_start->cmp(row_start->ptr, row_end->ptr) > 0;
+
+    if (likely(!delete_row))
+      err= file->ha_update_row(record[1], record[0]);
     if (unlikely(err))
     {
       /*
@@ -342,10 +350,10 @@ int TABLE::delete_row(bool treat_versioned)
                   || err == HA_ERR_FOREIGN_DUPLICATE_KEY;
       if (!delete_row)
         return err;
-
-      if (!replace)
-        del_buf= record[1];
     }
+
+    if (delete_row)
+      del_buf= record[1];
 
     if (replace)
       restore_record(this, record[2]);
