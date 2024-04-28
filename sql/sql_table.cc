@@ -11776,7 +11776,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to, bool ignore,
 
     if (make_unversioned)
     {
-      if (!from_row_end->is_max())
+      if (!from_row_end->is_max(from_row_end->ptr))
         continue; // Drop history rows.
     }
 

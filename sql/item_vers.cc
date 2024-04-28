@@ -31,7 +31,7 @@ bool Item_func_history::val_bool()
   Item_field *f= static_cast<Item_field *>(args[0]);
   DBUG_ASSERT(f->fixed);
   DBUG_ASSERT(f->field->flags & VERS_ROW_END);
-  return !f->field->is_max();
+  return !f->field->is_max(f->field->ptr);
 }
 
 void Item_func_history::print(String *str, enum_query_type query_type)

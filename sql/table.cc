@@ -6170,7 +6170,7 @@ int TABLE::verify_constraints(bool ignore_failure)
   if (check_constraints &&
       !(in_use->variables.option_bits & OPTION_NO_CHECK_CONSTRAINT_CHECKS))
   {
-    if (versioned() && !vers_end_field()->is_max())
+    if (versioned() && !vers_end_field()->is_max(vers_end_field()->ptr))
       return VIEW_CHECK_OK;
     for (Virtual_column_info **chk= check_constraints ; *chk ; chk++)
     {
@@ -7295,6 +7295,11 @@ static void do_mark_index_columns(TABLE *table, uint index,
       table->s->primary_key != MAX_KEY && table->s->primary_key != index)
     do_mark_index_columns(table, table->s->primary_key, bitmap, read);
 
+  if (table->versioned(VERS_TRX_ID))
+  {
+    table->vers_start_field()->register_field_in_read_map();
+    table->vers_end_field()->register_field_in_read_map();
+  }
 }
 /*
   mark columns used by key, but don't reset other fields
