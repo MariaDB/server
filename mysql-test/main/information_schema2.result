@@ -25,3 +25,14 @@ t3
 t4
 drop table t1, t2, t3, t4;
 # End of 5.5 tests
+# INFORMATION_SCHEMA.STATISTICS doesn't show if the index is disabled
+create table t1 (a int, key(a));
+select index_name, comment from information_schema.statistics where table_schema='test' and table_name='t1';
+index_name	comment
+a	
+alter table t1 disable keys;
+select index_name, comment from information_schema.statistics where table_schema='test' and table_name='t1';
+index_name	comment
+a	disabled
+drop table t1;
+# End of 10.5 tests
