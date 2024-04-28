@@ -2,6 +2,10 @@
 --source include/count_sessions.inc
 --source include/default_charset.inc
 
+--disable_query_log
+call mtr.add_suppression("InnoDB: check table ... extended is not supported by scn");
+--enable_query_log
+
 SET GLOBAL innodb_stats_persistent = 0;
 
 --echo #

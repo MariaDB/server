@@ -41,6 +41,7 @@ Created 11/5/1995 Heikki Tuuri
 #include "srv0srv.h"
 #include "transactional_lock_guard.h"
 #include <ostream>
+#include <unordered_map>
 
 /** @name Modes for buf_page_get_gen */
 /* @{ */
@@ -808,6 +809,9 @@ public:
   unsigned is_accessed() const { ut_ad(in_file()); return access_time; }
 };
 
+using LazyCleanoutRecs=
+    std::unordered_map<rec_t *, std::tuple<ulint, trx_id_t, trx_id_t>>;
+
 /** The buffer control block structure */
 
 struct buf_block_t{
@@ -950,6 +954,105 @@ struct buf_block_t{
   @param zip_size ROW_FORMAT=COMPRESSED page size, or 0
   @param state    initial state() */
   void initialise(const page_id_t page_id, ulint zip_size, uint32_t state);
+
+#ifdef WITH_INNODB_SCN
+  struct BufLazyCleanoutRecs
+  {
+    srw_mutex mutex;
+    /** The record position set that need to write back SCN
+    into record with redo log, added while reading record  */
+    LazyCleanoutRecs lazy_recs;
+    BufLazyCleanoutRecs()
+    {
+      memset(reinterpret_cast<void *>(&mutex), 0, sizeof(mutex));
+      mutex.init();
+      lazy_recs.clear();
+    }
+    ~BufLazyCleanoutRecs()
+    {
+      mutex.destroy();
+    }
+  };
+  mutable BufLazyCleanoutRecs *buf_lazy_recs;
+
+  void init_lazy_recs()
+  {
+    if (!buf_lazy_recs)
+    {
+      buf_lazy_recs= UT_NEW(BufLazyCleanoutRecs(), PSI_NOT_INSTRUMENTED);
+    }
+  }
+
+  void destroy_lazy_recs()
+  {
+    if (buf_lazy_recs)
+    {
+      UT_DELETE(buf_lazy_recs);
+      buf_lazy_recs= nullptr;
+    }
+  }
+
+  /** Clear the set */
+  void clear_cursor() const
+  {
+    if (likely(buf_lazy_recs))
+    {
+      buf_lazy_recs->mutex.wr_lock();
+      buf_lazy_recs->lazy_recs.clear();
+      buf_lazy_recs->mutex.wr_unlock();
+    }
+  }
+
+  void clear_cursor_no_mutex() { buf_lazy_recs->lazy_recs.clear(); }
+
+  /** Add record to set */
+  bool add_lazy_cursor(rec_t *rec, ulint trx_id_offset, trx_id_t id,
+                       trx_id_t scn)
+  {
+    ut_ad(innodb_use_scn);
+    bool ret= false;
+    if (likely(buf_lazy_recs))
+    {
+      buf_lazy_recs->mutex.wr_lock();
+      buf_lazy_recs->lazy_recs.insert(
+          std::make_pair(rec, std::make_tuple(trx_id_offset, id, scn)));
+      buf_lazy_recs->mutex.wr_unlock();
+      ret= true;
+    }
+    return ret;
+  }
+
+  void copy_and_free(LazyCleanoutRecs &recs)
+  {
+    if (likely(buf_lazy_recs))
+    {
+      buf_lazy_recs->mutex.wr_lock();
+      buf_lazy_recs->lazy_recs.swap(recs);
+      buf_lazy_recs->lazy_recs.clear();
+      buf_lazy_recs->mutex.wr_unlock();
+    }
+  }
+
+  /** Check if cursor cache is empty */
+  bool is_cursor_empty()
+  {
+    bool ret= true;
+    if (likely(buf_lazy_recs))
+    {
+      buf_lazy_recs->mutex.wr_lock();
+      ret= buf_lazy_recs->lazy_recs.empty();
+      buf_lazy_recs->mutex.wr_unlock();
+    }
+    return ret;
+  }
+
+  /** Get the space id of the current buffer block.
+  @return space id of the current buffer block. */
+  uint32_t get_space_id() const { return page.id().space(); }
+  /** Get the page no of the current buffer block.
+  @return page no of the current buffer block. */
+  uint32_t get_page_no() const { return page.id().page_no(); }
+#endif
 };
 
 /**********************************************************************//**

@@ -2725,6 +2725,9 @@ err_exit:
 	    && !index->table->is_active_ddl()
 	    && !index->table->has_spatial_index()
 	    && !index->table->versioned()
+#ifdef WITH_INNODB_SCN
+	    && !innodb_use_scn
+#endif
 	    && !thd_is_slave(trx->mysql_thd) /* FIXME: MDEV-24622 */) {
 		DEBUG_SYNC_C("empty_root_page_insert");
 

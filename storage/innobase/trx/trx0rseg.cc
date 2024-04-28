@@ -598,6 +598,11 @@ dberr_t trx_rseg_array_init()
 				max_trx_id = mach_read_from_8(
 					TRX_SYS + TRX_SYS_TRX_ID_STORE
 					+ sys->page.frame);
+#ifdef WITH_INNODB_SCN
+				bool start_from_scn = max_trx_id & (1ULL << TRX_SYS_TRX_ID_SCN_BIT_POS);
+				max_trx_id = max_trx_id & (~(1ULL << TRX_SYS_TRX_ID_SCN_BIT_POS));
+				trx_sys.set_start_from_scn(start_from_scn);
+#endif
 				trx_rseg_init_binlog_info(sys->page.frame);
 #ifdef WITH_WSREP
 				wsrep_sys_xid.set(&trx_sys.recovered_wsrep_xid);
@@ -686,6 +691,9 @@ dberr_t trx_rseg_array_init()
 #endif
 
 	trx_sys.init_max_trx_id(max_trx_id + 1);
+#ifdef WITH_INNODB_SCN
+	scn_mgr.set_startup_scn(trx_sys.get_max_trx_scn());
+#endif
 	return DB_SUCCESS;
 }
 

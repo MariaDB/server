@@ -2298,6 +2298,9 @@ page_cur_delete_rec(
 	consistency checks would fail for the dummy block that is being
 	used during IMPORT TABLESPACE. */
 	block->modify_clock++;
+#ifdef WITH_INNODB_SCN
+  block->clear_cursor();
+#endif
 
 	/* Find the next and the previous record. Note that the cursor is
 	left at the next record. */

@@ -22,6 +22,7 @@ DELETE FROM t1;
 
 connection prevent_purge;
 COMMIT;
+sleep 2;
 START TRANSACTION WITH CONSISTENT SNAPSHOT;
 connection default;
 

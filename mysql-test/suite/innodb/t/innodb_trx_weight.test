@@ -7,6 +7,8 @@
 #
 
 -- source include/have_innodb.inc
+# the optimization of inserting into empty table is not supported by scn
+--source include/have_innodb_scn_off.inc
 
 SET default_storage_engine=InnoDB;
 

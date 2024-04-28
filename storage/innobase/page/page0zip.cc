@@ -4654,3 +4654,33 @@ bool page_zip_verify_checksum(const byte *data, size_t size)
 
 	return FALSE;
 }
+
+#ifndef UNIV_INNOCHECKSUM
+void page_zip_write_scn(buf_block_t *block, byte *rec, ulint trx_id_offset,
+                        mtr_t *mtr)
+{
+  page_zip_des_t* const page_zip = &block->page.zip;
+
+  ut_d(const page_t* const page = block->page.frame);
+  ut_ad(page_align(rec) == page);
+  ut_ad(page_simple_validate_new(page));
+  ut_ad(page_zip_simple_validate(page_zip));
+  ut_ad(page_zip_get_size(page_zip)
+	      > PAGE_DATA + page_zip_dir_size(page_zip));
+
+  ut_ad(page_zip->m_start >= PAGE_DATA);
+  ut_ad(page_zip_header_cmp(page_zip, page));
+
+  ut_ad(page_is_leaf(page));
+  MEM_CHECK_DEFINED(page_zip->data, page_zip_get_size(page_zip));
+  constexpr ulint sys_len = DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN;
+  const ulint heap_no = rec_get_heap_no_new(rec);
+  ut_ad(heap_no >= PAGE_HEAP_NO_USER_LOW);
+  byte* storage = page_zip_dir_start(page_zip) - (heap_no - 1) * sys_len;
+  compile_time_assert(DATA_TRX_ID + 1 == DATA_ROLL_PTR);
+  mtr->zmemcpy(*block, storage, rec + trx_id_offset, DATA_TRX_ID_LEN);
+#if defined UNIV_DEBUG || defined UNIV_ZIP_DEBUG
+  ut_a(!memcmp(storage, rec + trx_id_offset, DATA_TRX_ID_LEN));
+#endif /* UNIV_DEBUG || UNIV_ZIP_DEBUG */
+}
+#endif
