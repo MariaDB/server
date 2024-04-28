@@ -30,6 +30,8 @@ FLUSH NO_WRITE_TO_BINLOG BINARY LOGS;
 PURGE BINARY LOGS TO 'slave-bin.000002';
 --echo *** Must preserve slave-bin.000001, as trx 't1' is pending.
 --source include/show_binary_logs.inc
+--echo *** Must show trx 't1' on slave.
+XA RECOVER;
 
 --connection master1
 XA START "t2";
@@ -56,6 +58,8 @@ FLUSH NO_WRITE_TO_BINLOG BINARY LOGS;
 PURGE BINARY LOGS TO 'slave-bin.000003';
 --echo *** Must remove slave-bin.000001, but preserve slave-bin.000002 as trx 't2' is still pending.
 --source include/show_binary_logs.inc
+--echo *** Must show trx 't2' on slave.
+XA RECOVER;
 
 --connection master1
 XA COMMIT "t2";
@@ -72,6 +76,8 @@ SELECT * FROM t1 ORDER BY a,b,c;
 PURGE BINARY LOGS TO 'master-bin.000002';
 --echo *** Must remove master-bin.000001, as trx 't1' and 't2' have been rolled back
 --source include/show_binary_logs.inc
+--echo *** Must show no trx on slave.
+XA RECOVER;
 
 
 # Cleanup

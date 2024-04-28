@@ -39,6 +39,8 @@ struct XID_STATE {
   enum xa_states get_state_code() const;
 };
 
+#define SQL_XIDSIZE (XIDDATASIZE * 2 + 8 + MY_INT64_NUM_DECIMAL_DIGITS)
+
 void xid_cache_init(void);
 void xid_cache_free(void);
 bool xid_cache_insert(XID *xid);
@@ -51,6 +53,7 @@ bool trans_xa_prepare(THD *thd);
 bool trans_xa_commit(THD *thd);
 bool trans_xa_rollback(THD *thd);
 bool trans_xa_detach(THD *thd);
+uint xa_get_sql_xid(XID *xid, char *buf);
 bool mysql_xa_recover(THD *thd);
 
 #endif /* XA_INCLUDED */

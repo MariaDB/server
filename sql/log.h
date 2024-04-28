@@ -415,6 +415,7 @@ class binlog_cache_mngr;
 class binlog_cache_data;
 struct rpl_gtid;
 struct wait_for_commit;
+class Protocol;
 
 class MYSQL_BIN_LOG: public TC_LOG, private MYSQL_LOG
 {
@@ -861,7 +862,7 @@ public:
   bool write_incident(THD *thd);
   void write_binlog_checkpoint_event_already_locked(const char *name, uint len);
   int  write_cache(THD *thd, IO_CACHE *cache);
-  int write_xa_prepare(THD *thd, IO_CACHE *cache, XID *xid);
+  int write_xa_prepare(THD *thd, IO_CACHE *cache, XID *xid, uchar xa_flag);
   void set_write_error(THD *thd, bool is_transactional);
   bool check_write_error(THD *thd);
   bool check_cache_error(THD *thd, binlog_cache_data *cache_data);
@@ -880,7 +881,11 @@ public:
   void mark_xids_active(ulong cookie, uint int_xid_count, uint ext_xid_count);
   void mark_xid_done(ulong cookie, uint int_xid_count, uint ext_xid_count,
                      bool write_checkpoint);
-  int insert_prepared_xid(XID *xid, size_t binlog_offset);
+  int insert_prepared_xid(XID *xid, size_t binlog_offset, uchar xa_flag);
+  my_bool enumerate_binlog_only_xa(Protocol *protocol, CHARSET_INFO *data_cs,
+                                   my_bool verbose,
+                                   my_bool (*cb)(XID *, char *, uint,
+                                                 Protocol *, CHARSET_INFO *));
   int binlog_commit_prepared_xa(THD *thd, handlerton *hton, XID *xid);
   int write_xa_prepared_event(THD *thd, const MYSQL_XID *mxid,
                               const uchar *trx_data, size_t len);

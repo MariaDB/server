@@ -5596,7 +5596,8 @@ public:
   static constexpr uchar FL_XA_SLAVE_BINLOGGED = 0;
 
 #ifdef MYSQL_SERVER
-  Xa_prepared_trx_log_event(THD* thd, IO_CACHE *trx_cache, const XID *xid);
+  Xa_prepared_trx_log_event(THD* thd, IO_CACHE *trx_cache, const XID *xid,
+                            bool slave_only);
 #ifdef HAVE_REPLICATION
   void pack_info(Protocol* protocol);
 #endif /* HAVE_REPLICATION */

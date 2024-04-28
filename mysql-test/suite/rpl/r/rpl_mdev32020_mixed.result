@@ -37,6 +37,10 @@ show binary logs;
 Log_name	File_size
 slave-bin.000001	#
 slave-bin.000002	#
+*** Must show trx 't1' on slave.
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
+1	2	0	t1
 connection master1;
 XA START "t2";
 UPDATE t1 FORCE INDEX (i2) SET c=c+1 WHERE a=1 AND b=2;
@@ -76,6 +80,10 @@ show binary logs;
 Log_name	File_size
 slave-bin.000002	#
 slave-bin.000003	#
+*** Must show trx 't2' on slave.
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
+1	2	0	t2
 connection master1;
 XA COMMIT "t2";
 connection master;
@@ -106,6 +114,9 @@ PURGE BINARY LOGS TO 'master-bin.000002';
 show binary logs;
 Log_name	File_size
 master-bin.000002	#
+*** Must show no trx on slave.
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
 connection master;
 DROP TABLE t1;
 connection slave;

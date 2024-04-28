@@ -2025,6 +2025,42 @@ static int binlog_xa_recover_dummy(handlerton *hton __attribute__((unused)),
 }
 
 
+my_bool
+MYSQL_BIN_LOG::enumerate_binlog_only_xa(Protocol *protocol, CHARSET_INFO *data_cs,
+                                        my_bool verbose,
+                                        my_bool (*cb)(XID *, char *, uint,
+                                                      Protocol *, CHARSET_INFO *))
+{
+  mysql_mutex_lock(&LOCK_xid_list);
+  xa_prepared *p= xa_list_start;
+  my_bool res= FALSE;
+  while (p)
+  {
+    if (p->flags & (1 << xa_prepared::FL_BINLOG_ONLY))
+    {
+      char *data;
+      uint len;
+      char buf[SQL_XIDSIZE];
+      if (verbose)
+      {
+        len= xa_get_sql_xid(&p->xid, buf);
+        data= buf;
+      }
+      else
+      {
+        len = p->xid.gtrid_length + p->xid.bqual_length;
+        data= p->xid.data;
+      }
+      if ((res= (*cb)(&p->xid, data, len, protocol, data_cs)))
+        break;
+    }
+    p= p->next;
+  }
+  mysql_mutex_unlock(&LOCK_xid_list);
+  return res;
+}
+
+
 static int binlog_commit_by_xid(handlerton *hton, XID *xid)
 {
   THD *thd= current_thd;
@@ -7779,23 +7815,27 @@ int MYSQL_BIN_LOG::write_cache(THD *thd, IO_CACHE *cache)
   Write the trx_cache into the binlog for user XA PREPARE, to preserve the
   binlog state for a later XA COMMIT.
 */
-int MYSQL_BIN_LOG::write_xa_prepare(THD *thd, IO_CACHE *cache, XID *xid)
+int MYSQL_BIN_LOG::write_xa_prepare(THD *thd, IO_CACHE *cache, XID *xid,
+                                    uchar xa_flag)
 {
   DBUG_ENTER("MYSQL_BIN_LOG::write_xa_prepare");
 
   mysql_mutex_assert_owner(&LOCK_log);
-  Xa_prepared_trx_log_event xa_prepared_ev(thd, cache, xid);
+  DBUG_ASSERT(xa_flag == FL_XA_PREPARE_IN_ENGINE ||
+              xa_flag == FL_XA_PREPARE_BINLOG_ONLY);
+  Xa_prepared_trx_log_event xa_prepared_ev(thd, cache, xid,
+                                           (xa_flag == FL_XA_PREPARE_BINLOG_ONLY));
   xa_prepared_ev.set_direct_logging();
   my_off_t binlog_offset= my_b_tell(&log_file);
   if (write_event(&xa_prepared_ev) ||
-      insert_prepared_xid(xid, binlog_offset))
+      insert_prepared_xid(xid, binlog_offset, xa_flag))
     DBUG_RETURN(1);
   DBUG_RETURN(0);
 }
 
 
 int
-MYSQL_BIN_LOG::insert_prepared_xid(XID *xid, size_t binlog_offset)
+MYSQL_BIN_LOG::insert_prepared_xid(XID *xid, size_t binlog_offset, uchar xa_flag)
 {
   mysql_mutex_assert_owner(&LOCK_log);
 
@@ -7806,7 +7846,8 @@ MYSQL_BIN_LOG::insert_prepared_xid(XID *xid, size_t binlog_offset)
   p->binlog_offset= binlog_offset;
   strmake_buf(p->binlog_file, log_file_name);
   p->binlog_id= current_binlog_id;
-  p->flags= 0;
+  p->flags= (xa_flag == FL_XA_PREPARE_BINLOG_ONLY ?
+             (1 << xa_prepared::FL_BINLOG_ONLY) : 0);
 
   /* Insert entry at the end of the list. */
   p->next= nullptr;
@@ -8969,7 +9010,8 @@ MYSQL_BIN_LOG::write_transaction_or_stmt(group_commit_entry *entry,
     {
     case FL_XA_PREPARE_IN_ENGINE:
     case FL_XA_PREPARE_BINLOG_ONLY:
-      err= write_xa_prepare(thd, mngr->get_binlog_cache_log(TRUE), entry->xid);
+      err= write_xa_prepare(thd, mngr->get_binlog_cache_log(TRUE), entry->xid,
+                            entry->xa_flag);
       break;
     case FL_XA_ROLLBACK:
       /* Just empty event group to mark the XID as completed. */

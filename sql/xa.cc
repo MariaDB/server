@@ -948,10 +948,9 @@ static const char xid_needs_conv[128]=
   'gtrid', 'bqual', formatID
   see xid_t::get_sql_string() for details.
 */
-#define SQL_XIDSIZE (XIDDATASIZE * 2 + 8 + MY_INT64_NUM_DECIMAL_DIGITS)
 
 /* The 'buf' has to have space for at least SQL_XIDSIZE bytes. */
-static uint get_sql_xid(XID *xid, char *buf)
+uint xa_get_sql_xid(XID *xid, char *buf)
 {
   int tot_len= xid->gtrid_length + xid->bqual_length;
   int i;
@@ -1024,19 +1023,24 @@ static uint get_sql_xid(XID *xid, char *buf)
     It can be easily fixed later, if necessary.
 */
 
+static my_bool xa_recover_sender(XID *xid, char *data, uint data_len,
+                                 Protocol *protocol, CHARSET_INFO *data_cs)
+{
+  protocol->prepare_for_resend();
+  protocol->store_longlong((longlong) xid->formatID, FALSE);
+  protocol->store_longlong((longlong) xid->gtrid_length, FALSE);
+  protocol->store_longlong((longlong) xid->bqual_length, FALSE);
+  protocol->store(data, data_len, data_cs);
+  return protocol->write();
+}
+
+
 static my_bool xa_recover_callback(XID_cache_element *xs, Protocol *protocol,
                   char *data, uint data_len, CHARSET_INFO *data_cs)
 {
-  if (xs->xa_state == XA_PREPARED)
-  {
-    protocol->prepare_for_resend();
-    protocol->store_longlong((longlong) xs->xid.formatID, FALSE);
-    protocol->store_longlong((longlong) xs->xid.gtrid_length, FALSE);
-    protocol->store_longlong((longlong) xs->xid.bqual_length, FALSE);
-    protocol->store(data, data_len, data_cs);
-    if (protocol->write())
-      return TRUE;
-  }
+  if (xs->xa_state == XA_PREPARED &&
+      xa_recover_sender(&xs->xid, data, data_len, protocol, data_cs))
+    return TRUE;
   return FALSE;
 }
 
@@ -1053,7 +1057,7 @@ static my_bool xa_recover_callback_verbose(XID_cache_element *xs,
                                            Protocol *protocol)
 {
   char buf[SQL_XIDSIZE];
-  uint len= get_sql_xid(&xs->xid, buf);
+  uint len= xa_get_sql_xid(&xs->xid, buf);
   return xa_recover_callback(xs, protocol, buf, len,
                              &my_charset_utf8mb3_general_ci);
 }
@@ -1103,6 +1107,15 @@ bool mysql_xa_recover(THD *thd)
 
   if (xid_cache_iterate(thd, action, protocol))
     DBUG_RETURN(1);
+  if (mysql_bin_log.is_open())
+  {
+    CHARSET_INFO *data_cs=
+      (thd->lex->verbose ? &my_charset_bin : &my_charset_utf8mb3_general_ci);
+    if (mysql_bin_log.enumerate_binlog_only_xa(protocol, data_cs,
+                                               thd->lex->verbose,
+                                               xa_recover_sender))
+      DBUG_RETURN(1);
+  }
   my_eof(thd);
   DBUG_RETURN(0);
 }

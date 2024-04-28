@@ -8480,8 +8480,9 @@ uint8 Update_rows_log_event::get_trg_event_map()
 
 
 Xa_prepared_trx_log_event::Xa_prepared_trx_log_event(
-  THD* thd, IO_CACHE *trx_cache, const XID *xid_arg)
-  : Log_event(thd, 0, true), flags2(0)
+  THD* thd, IO_CACHE *trx_cache, const XID *xid_arg, bool slave_only)
+  : Log_event(thd, 0, true),
+    flags2(slave_only ? (1 << FL_XA_SLAVE_BINLOGGED) : 0)
 {
   xid.formatID= xid_arg->formatID;
   xid.gtrid_length= xid_arg->gtrid_length;
