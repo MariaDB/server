@@ -198,7 +198,7 @@ ENDIF()
 OPTION (WITH_UNIT_TESTS "Compile MySQL with unit tests" ON)
 
 IF (WITHOUT_SERVER)
-  SET (SKIP_COMPONENTS "Server|IniFiles|SuportFiles|Readme")
+  SET (SKIP_COMPONENTS "Server|IniFiles|SupportFiles|Readme")
 ELSE()
   SET (SKIP_COMPONENTS "N-O-N-E")
 ENDIF()
