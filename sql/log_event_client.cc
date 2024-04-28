@@ -3961,7 +3961,9 @@ Xa_prepared_trx_log_event::print(FILE* file,
     print_header(&cache, print_event_info, FALSE);
     serialize_xid(buf, xid.formatID, xid.gtrid_length, xid.bqual_length,
                   xid.data);
-    if (my_b_printf(&cache, "\tXa prepared trx %s\n", buf))
+    if (my_b_printf(&cache, "\tXa prepared trx %s%s\n", buf,
+                    (flags2 & (1 << FL_XA_SLAVE_BINLOGGED) ?
+                     " SLAVE_BINLOGGED" : "")))
       goto error;
   }
   return cache.flush_data();

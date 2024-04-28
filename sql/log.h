@@ -486,8 +486,14 @@ class MYSQL_BIN_LOG: public TC_LOG, private MYSQL_LOG
     ulong binlog_id;
     /* ToDo: Is binlog_id enough, to find the filename ? */
     /* ToDo: Or maybe just have a pointer to the filename in binlog_xid_count_list, that list keeps entries around for checkpoints as long as they are needed. */
-    char binlog_file[FN_REFLEN];
     size_t binlog_offset;
+    char binlog_file[FN_REFLEN];
+    uchar flags;
+    /*
+      When set, bit 0 / FL_BINLOG_ONLY means this XA was only binlogged so far,
+      not yet applied in any engine.
+    */
+    static constexpr uchar FL_BINLOG_ONLY= 0;
   };
 
   /*
@@ -586,6 +592,13 @@ class MYSQL_BIN_LOG: public TC_LOG, private MYSQL_LOG
   void trx_group_commit_leader(group_commit_entry *leader);
   bool is_xidlist_idle_nolock();
 public:
+  /* Flags for group_commit_entry::xa_flag */
+  static constexpr uchar FL_NONE= 0;
+  static constexpr uchar FL_XA_COMMIT= 1;
+  static constexpr uchar FL_XA_ROLLBACK= 2;
+  static constexpr uchar FL_XA_PREPARE_IN_ENGINE= 3;
+  static constexpr uchar FL_XA_PREPARE_BINLOG_ONLY= 4;
+
   /*
     A list of struct xid_count_per_binlog is used to keep track of how many
     XIDs are in prepared, but not committed, state in each binlog. And how
@@ -738,7 +751,8 @@ public:
                     bool need_prepare_ordered, bool need_commit_ordered);
   int unlog(ulong cookie, my_xid xid);
   void commit_checkpoint_notify(void *cookie);
-  int recover_update_xa_xid(MEM_ROOT *mem_root, HASH *xa_xids, MYSQL_XID *xid,
+  int recover_update_xa_xid(MEM_ROOT *mem_root, HASH *xa_xids,
+                            MYSQL_XID *xid, uchar flags2,
                             xid_count_per_binlog *binlog_entry,
                             my_off_t binlog_offset,
                             bool first_round, bool is_commit);
@@ -847,7 +861,7 @@ public:
   bool write_incident(THD *thd);
   void write_binlog_checkpoint_event_already_locked(const char *name, uint len);
   int  write_cache(THD *thd, IO_CACHE *cache);
-  int write_xa_prepare(THD *thd, IO_CACHE *cache);
+  int write_xa_prepare(THD *thd, IO_CACHE *cache, XID *xid);
   void set_write_error(THD *thd, bool is_transactional);
   bool check_write_error(THD *thd);
   bool check_cache_error(THD *thd, binlog_cache_data *cache_data);
@@ -868,12 +882,12 @@ public:
                      bool write_checkpoint);
   int insert_prepared_xid(XID *xid, size_t binlog_offset);
   int binlog_commit_prepared_xa(THD *thd, handlerton *hton, XID *xid);
-  int write_xa_prepared_event_to_cache(THD *thd,
-                                       Xa_prepared_trx_log_event *xev);
-  int binlog_trx_cache(THD *thd);
+  int write_xa_prepared_event(THD *thd, const MYSQL_XID *mxid,
+                              const uchar *trx_data, size_t len);
+  int binlog_trx_cache_for_xa_prepare(THD *thd, XID *xid);
   int read_xa_to_trx_cache(THD *thd, xa_prepared *prepared_trx,
                            binlog_cache_mngr *cache_mngr);
-  void ext_xa_complete_commit(XID *xid);
+  void ext_xa_complete(XID *xid);
   void make_log_name(char* buf, const char* log_ident);
   bool is_active(const char* log_file_name);
   bool can_purge_log(const char *log_file_name);

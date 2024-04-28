@@ -4045,9 +4045,11 @@ Xa_prepared_trx_log_event::Xa_prepared_trx_log_event(
   uint32 const post_header_len=
     descr_event->post_header_len[XA_PREPARED_TRX_EVENT-1];
   uint32 header_len= common_header_len + post_header_len;
-  xid.formatID= uint4korr(buf + common_header_len);
-  xid.gtrid_length= buf[common_header_len + 4];
-  xid.bqual_length= buf[common_header_len + 5];
+  flags2= buf[common_header_len];
+  xid.formatID= uint4korr(buf + common_header_len + 1);
+  xid.gtrid_length= buf[common_header_len + 5];
+  xid.bqual_length= buf[common_header_len + 6];
+  DBUG_ASSERT(header_len == common_header_len + 7);
   uint32 xid_len= xid.gtrid_length + xid.bqual_length;
   uint32 data_offset= header_len + xid_len;
 

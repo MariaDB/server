@@ -3075,6 +3075,7 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
     e->current_sub_id= rgi->gtid_sub_id;
     ++e->count_queued_event_groups;
   }
+  // ToDo: What to do about Xa_prepared_trx? They do not have a GTID. But they are kind of like an event group by themselves anyway, though they cannot conflict with anything else, they are only binlogged. They still need to participate in wait_for_prior_commit() and wakeup_subsequent_commits().
   else if (!is_group_event)
   {
     int err;

@@ -2113,6 +2113,17 @@ int ha_rollback_trans(THD *thd, bool all)
     trans->ha_list= 0;
     trans->no_2pc=0;
   }
+  else if (thd->rgi_slave && thd->rgi_slave->gtid_xid)
+  {
+    /// ToDo: This condition should go instead in the replication layer, eg. in Query_log_event::do_apply_event() for example, which really doesn't need to parse the "ROLLBACK" and then later try to discover in generic code that this is actually a slave ROLLBACK that needs to be binlogged to cancel the pending XA PREPARE in the binlog.
+    int err= binlog_hton->rollback(binlog_hton, thd, all);
+    if (err)
+    {
+      my_error(ER_ERROR_DURING_ROLLBACK, MYF(0), err);
+      error= 1;
+    }
+    status_var_increment(thd->status_var.ha_rollback_count);
+  }
 
 #ifdef WITH_WSREP
   if (thd->is_error())

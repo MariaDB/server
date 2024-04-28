@@ -8481,7 +8481,7 @@ uint8 Update_rows_log_event::get_trg_event_map()
 
 Xa_prepared_trx_log_event::Xa_prepared_trx_log_event(
   THD* thd, IO_CACHE *trx_cache, const XID *xid_arg)
-  : Log_event(thd, 0, true)
+  : Log_event(thd, 0, true), flags2(0)
 {
   xid.formatID= xid_arg->formatID;
   xid.gtrid_length= xid_arg->gtrid_length;
@@ -8506,9 +8506,11 @@ bool
 Xa_prepared_trx_log_event::write()
 {
   uchar buf[XA_PREPARED_TRX_HEADER_LEN];
-  int4store(buf, xid.formatID);
-  buf[4]= xid.gtrid_length;
-  buf[5]= xid.bqual_length;
+  buf[0] = flags2;
+  int4store(buf + 1, xid.formatID);
+  buf[5]= xid.gtrid_length;
+  buf[6]= xid.bqual_length;
+  DBUG_ASSERT(XA_PREPARED_TRX_HEADER_LEN == 7);
   return write_header(get_data_size()) ||
     write_data(buf, XA_PREPARED_TRX_HEADER_LEN) ||
     write_data((const uchar *)&xid.data, xid.gtrid_length + xid.bqual_length) ||
@@ -8533,14 +8535,21 @@ int
 Xa_prepared_trx_log_event::do_apply_event(rpl_group_info *rgi)
 {
   int err;
+
+  /*
+    Mark that this is binlogged by the slave, to be applied in engine(s)
+    later when replicating COMMIT or when prmoting slave as a master.
+  */
+  flags2|= (1 << FL_XA_SLAVE_BINLOGGED);
+
   /* ToDo: Could set THD::query to "XA PREPARE <tid>" for SHOW PROCESSLIST? */
 
   /* ToDo: Don't binlog if I have it already - will be visible in some in-memory info. Maybe this could even go higher, when queueing the event, not sure. */
-  if ((err= mysql_bin_log.write_xa_prepared_event_to_cache(rgi->thd, this)))
+  if ((err= mysql_bin_log.write_xa_prepared_event(
+              rgi->thd, &xid, trx_cache_data, trx_cache_len)))
     return err;
-  return mysql_bin_log.binlog_trx_cache(rgi->thd);
-  /* ToDo: Something needs to handle binlog checkpointing about this binlog remaining for as long as needed. Maybe that needs to go in the above function, which then becomes specific for xa prepared? */
   /* ToDo: How to update the slave (non-gtid) position here? Maybe it's handled by do_update_pos()? But it needs to consider this a "committed event group". */
+  return 0;
 }
 #endif
 

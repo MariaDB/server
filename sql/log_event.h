@@ -223,7 +223,7 @@ class String;
 #define GTID_LIST_HEADER_LEN   4
 #define START_ENCRYPTION_HEADER_LEN 0
 #define XA_PREPARE_HEADER_LEN 0
-#define XA_PREPARED_TRX_HEADER_LEN (4 + 1 + 1)
+#define XA_PREPARED_TRX_HEADER_LEN (1 + 4 + 1 + 1)
 
 /* 
   Max number of possible extra bytes in a replication event compared to a
@@ -5532,6 +5532,15 @@ private:
   </tr>
 
   <tr>
+    <td>flags2</td>
+    <td>1 byte bitfield</td>
+    <td>Bit 0 set indicates this event was binlogged by the replication slave
+    and is not yet applied in the engine; it will be applied normally when
+    replicating the associated COMMIT, or alternatively can be recovered with
+    XA PREPARE [XID] if the slave is promoted as new master.</td>
+  </tr>
+
+  <tr>
     <td>xid_format_id</td>
     <td>4 bytes unsigned integer</td>
     <td>The formatID component of the XA XID.</td>
@@ -5583,6 +5592,8 @@ public:
   MYSQL_XID xid;
   uchar *trx_cache_data;
   size_t trx_cache_len;
+  uchar flags2;
+  static constexpr uchar FL_XA_SLAVE_BINLOGGED = 0;
 
 #ifdef MYSQL_SERVER
   Xa_prepared_trx_log_event(THD* thd, IO_CACHE *trx_cache, const XID *xid);

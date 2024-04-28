@@ -2,6 +2,7 @@
 --source include/have_binlog_format_mixed.inc
 --source include/not_valgrind.inc
 
+--source include/wait_for_binlog_checkpoint.inc
 CALL mtr.add_suppression("Found 1 prepared XA transactions");
 CREATE TABLE t1(a INT PRIMARY KEY) ENGINE=InnoDB;
 
@@ -17,6 +18,12 @@ INSERT INTO t1 VALUES (2);
 XA END 'b';
 XA PREPARE 'b';
 
+--connect(con2,localhost,root,,)
+XA START 'd';
+INSERT INTO t1 VALUES (4);
+XA END 'd';
+XA PREPARE 'd';
+
 --connection default
 FLUSH NO_WRITE_TO_BINLOG BINARY LOGS;
 
@@ -26,8 +33,18 @@ XA END 'c';
 XA PREPARE 'c';
 XA COMMIT 'c';
 
+--connection con2
+XA ROLLBACK 'd';
+--disconnect con1
+--disconnect con2
+--connection default
+
 --source include/restart_mysqld.inc
 
+--let $binlog_file= master-bin.000001
+--source include/show_binlog_events.inc
+--let $binlog_file= master-bin.000002
+--source include/show_binlog_events.inc
 PURGE BINARY LOGS TO 'master-bin.000003';
 --echo *** Must preserver master-bin.000001, as it contains prepared-but-not-committed trx 'b'
 --source include/show_binary_logs.inc
@@ -39,6 +56,9 @@ SELECT * FROM t1 ORDER BY a;
 PURGE BINARY LOGS TO 'master-bin.000003';
 --echo *** Must preserve only master-bin.000003, as all prepared trx are now committed
 --source include/show_binary_logs.inc
+--source include/wait_for_binlog_checkpoint.inc
+--let $binlog_file= master-bin.000003
+--source include/show_binlog_events.inc
 
 # Cleanup.
 

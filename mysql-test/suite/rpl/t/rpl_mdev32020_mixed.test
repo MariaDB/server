@@ -1,0 +1,93 @@
+--source include/have_innodb.inc
+--source include/have_binlog_format_mixed.inc
+--source include/master-slave.inc
+
+--connection master
+
+CREATE TABLE t1 (a int, b int, c int,
+  INDEX i1(a),
+  INDEX i2(b))
+  ENGINE=InnoDB;
+
+INSERT INTO t1 VALUES
+  (1,1,0), (1,2,0),
+  (2,1,0), (2,2,0);
+--sync_slave_with_master
+
+--connection master
+XA START "t1";
+UPDATE t1 FORCE INDEX (i2) SET c=c+1 WHERE a=1 AND b=1;
+XA END "t1";
+XA PREPARE "t1";
+
+--connection master1
+--save_master_pos
+--connection slave
+--sync_with_master
+FLUSH NO_WRITE_TO_BINLOG BINARY LOGS;
+--let $binlog_file= slave-bin.000001
+--source include/show_binlog_events.inc
+PURGE BINARY LOGS TO 'slave-bin.000002';
+--echo *** Must preserve slave-bin.000001, as trx 't1' is pending.
+--source include/show_binary_logs.inc
+
+--connection master1
+XA START "t2";
+UPDATE t1 FORCE INDEX (i2) SET c=c+1 WHERE a=1 AND b=2;
+XA END "t2";
+XA PREPARE "t2";
+
+--connect(con1,localhost,root,,)
+FLUSH NO_WRITE_TO_BINLOG BINARY LOGS;
+PURGE BINARY LOGS TO 'master-bin.000002';
+--let $binlog_file= master-bin.000001
+--source include/show_binlog_events.inc
+--echo *** Must preserver master-bin.000001, as it contains prepared-but-not-committed trx 't1' and 't2'
+--source include/show_binary_logs.inc
+--save_master_pos
+--disconnect con1
+
+--connection master
+XA ROLLBACK "t1";
+
+--sync_slave_with_master
+--source include/wait_for_binlog_checkpoint.inc
+FLUSH NO_WRITE_TO_BINLOG BINARY LOGS;
+PURGE BINARY LOGS TO 'slave-bin.000003';
+--echo *** Must remove slave-bin.000001, but preserve slave-bin.000002 as trx 't2' is still pending.
+--source include/show_binary_logs.inc
+
+--connection master1
+XA COMMIT "t2";
+
+--connection master
+SELECT * FROM t1 ORDER BY a,b,c;
+--let $binlog_file= master-bin.000002
+--source include/show_binlog_events.inc
+
+--sync_slave_with_master
+SELECT * FROM t1 ORDER BY a,b,c;
+
+--connection master
+PURGE BINARY LOGS TO 'master-bin.000002';
+--echo *** Must remove master-bin.000001, as trx 't1' and 't2' have been rolled back
+--source include/show_binary_logs.inc
+
+
+# Cleanup
+--connection master
+DROP TABLE t1;
+
+--sync_slave_with_master
+FLUSH NO_WRITE_TO_BINLOG BINARY LOGS;
+--source include/wait_for_binlog_checkpoint.inc
+--let $binlog_file= slave-bin.000002
+--source include/show_binlog_events.inc
+--let $binlog_file= slave-bin.000003
+--source include/show_binlog_events.inc
+PURGE BINARY LOGS TO 'slave-bin.000004';
+--echo *** Must remove slave-bin.000002 and slave-bin.000003, as now there are no pending trx
+--source include/show_binary_logs.inc
+
+
+--source include/rpl_end.inc
