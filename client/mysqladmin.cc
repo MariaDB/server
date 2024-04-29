@@ -92,7 +92,8 @@ enum commands {
   ADMIN_FLUSH_TABLE_STATISTICS, ADMIN_FLUSH_INDEX_STATISTICS,
   ADMIN_FLUSH_USER_STATISTICS, ADMIN_FLUSH_CLIENT_STATISTICS,
   ADMIN_FLUSH_USER_RESOURCES,
-  ADMIN_FLUSH_ALL_STATUS, ADMIN_FLUSH_ALL_STATISTICS, ADMIN_FLUSH_SSL
+  ADMIN_FLUSH_ALL_STATUS, ADMIN_FLUSH_ALL_STATISTICS, ADMIN_FLUSH_SSL,
+  ADMIN_TLS_INFO
 };
 static const char *command_names[]= {
   "create",               "drop",                "shutdown",
@@ -108,6 +109,7 @@ static const char *command_names[]= {
   "flush-table-statistics", "flush-index-statistics",
   "flush-user-statistics", "flush-client-statistics", "flush-user-resources",
   "flush-all-status", "flush-all-statistics", "flush-ssl",
+  "tls-info",
   NullS
 };
 
@@ -770,6 +772,40 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
 	my_printf_error(0, "refresh failed; error: '%s'", error_flags,
 			mysql_error(mysql));
 	return -1;
+      }
+      break;
+    case ADMIN_TLS_INFO:
+      if (mysql_get_ssl_cipher(mysql))
+      {
+        MARIADB_X509_INFO *info;
+        new_line=1;
+        char *version;
+
+        printf("Cipher suite:\t%s\n", mysql_get_ssl_cipher(mysql));
+        mariadb_get_infov(mysql, MARIADB_CONNECTION_TLS_VERSION, &version);
+        printf("TLS version:\t%s\n\n", version);
+
+        mariadb_get_infov(mysql, MARIADB_TLS_PEER_CERT_INFO, &info);
+        if (info)
+        {
+          printf("Peer certificate information:\n\n");
+          printf("Version:\t%d\n", info->version);
+          printf("Issuer:\t\t%s\n\n", info->issuer);
+          printf("Subject:\t%s\n\n", info->subject);
+          printf("Valid not before:\t%04d-%02d-%02d %02d:%02d\n", info->not_before.tm_year + 1900,
+                  info->not_before.tm_mon + 1, info->not_before.tm_mday,
+                  info->not_before.tm_hour, info->not_before.tm_min);
+          printf("Valid not after:\t%04d-%02d-%02d %02d:%02d\n\n", info->not_after.tm_year + 1900,
+                  info->not_after.tm_mon + 1, info->not_after.tm_mday,
+                  info->not_after.tm_hour, info->not_after.tm_min);
+          printf("SHA256 fingerprint: %s\n", info->fingerprint);
+        } else {
+	        my_printf_error(0, "Unable to retrieve peer certificate", 0);
+          return 1;
+        }
+      } else {
+	      my_printf_error(0, "No TLS connection", 0);
+        return 1;
       }
       break;
     case ADMIN_VER:
