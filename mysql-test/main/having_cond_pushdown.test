@@ -1485,4 +1485,14 @@ SELECT a,b FROM t1 GROUP BY a,b HAVING a = (b IS NULL);
 
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-19520 pushdown_from_having_into_where() not calling fix_fields()
+--echo #  correctly
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (0),(1);
+SELECT a FROM t1 GROUP BY a HAVING NOT a;
+DROP TABLE t1;
+
 --echo End of 10.4 tests

@@ -4969,4 +4969,14 @@ SELECT a,b FROM t1 GROUP BY a,b HAVING a = (b IS NULL);
 a	b
 0	11
 DROP TABLE t1;
+#
+# MDEV-19520 pushdown_from_having_into_where() not calling fix_fields()
+#  correctly
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (0),(1);
+SELECT a FROM t1 GROUP BY a HAVING NOT a;
+a
+0
+DROP TABLE t1;
 End of 10.4 tests
