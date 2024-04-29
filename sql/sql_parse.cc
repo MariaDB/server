@@ -4717,6 +4717,13 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
           thd->wsrep_consistency_check= NO_CONSISTENCY_CHECK;
         }
 
+	/* Only TOI allowed to !InnoDB tables */
+	if (!is_innodb && wsrep_OSU_method_get(thd) != WSREP_OSU_TOI)
+	{
+	  my_error(ER_NOT_SUPPORTED_YET, MYF(0), "RSU on this table engine");
+	  break;
+	}
+
         // For !InnoDB we start TOI if it is not yet started and hope for the best
         if (!is_innodb && !wsrep_toi)
         {
