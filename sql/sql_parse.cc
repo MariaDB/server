@@ -4746,7 +4746,10 @@ mysql_execute_command(THD *thd)
 #ifdef WITH_WSREP
       if (wsrep && !first_table->view)
       {
-        bool is_innodb= (first_table->table->file->ht->db_type == DB_TYPE_INNODB);
+	/* If table is partitioned we need to find out underlying handlerton */
+        bool is_innodb= (first_table->table->file->partition_ht() ?
+			 first_table->table->file->partition_ht()->db_type == DB_TYPE_INNODB :
+			 first_table->table->file->ht->db_type == DB_TYPE_INNODB);
 
         // For consistency check inserted table needs to be InnoDB
         if (!is_innodb && thd->wsrep_consistency_check != NO_CONSISTENCY_CHECK)
@@ -4757,6 +4760,13 @@ mysql_execute_command(THD *thd)
                               " for InnoDB tables.");
           thd->wsrep_consistency_check= NO_CONSISTENCY_CHECK;
         }
+
+	/* Only TOI allowed to !InnoDB tables */
+	if (!is_innodb && wsrep_OSU_method_get(thd) != WSREP_OSU_TOI)
+	{
+	  my_error(ER_NOT_SUPPORTED_YET, MYF(0), "RSU on this table engine");
+	  break;
+	}
 
         // For !InnoDB we start TOI if it is not yet started and hope for the best
         if (!is_innodb && !wsrep_toi)

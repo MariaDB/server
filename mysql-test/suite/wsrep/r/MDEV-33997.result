@@ -1,0 +1,38 @@
+SET SESSION wsrep_osu_method=RSU;
+SET autocommit=0;
+CREATE TABLE t (c INT) ENGINE=INNODB PARTITION BY KEY(c) PARTITIONS 2;
+INSERT INTO t VALUES (1);
+INSERT INTO t SELECT 1 ;
+COMMIT;
+SELECT * FROM t;
+c
+1
+1
+DROP TABLE t;
+SET autocommit=1;
+SET SESSION wsrep_osu_method=RSU;
+CREATE TABLE t (c INT) ENGINE=INNODB PARTITION BY KEY(c) PARTITIONS 2;
+INSERT INTO t SELECT 1 ;
+SELECT * FROM t;
+c
+1
+DROP TABLE t;
+SET autocommit=1;
+SET SESSION wsrep_osu_method=RSU;
+CREATE TABLE t (c INT) ENGINE=MYISAM PARTITION BY KEY(c) PARTITIONS 2;
+INSERT INTO t SELECT 1 ;
+ERROR 42000: This version of MariaDB doesn't yet support 'RSU on this table engine'
+SELECT * FROM t;
+c
+DROP TABLE t;
+SET SESSION wsrep_osu_method=RSU;
+SET autocommit=0;
+CREATE TABLE t (c INT) ENGINE=MYISAM PARTITION BY KEY(c) PARTITIONS 2;
+INSERT INTO t VALUES (1);
+INSERT INTO t SELECT 1 ;
+ERROR 42000: This version of MariaDB doesn't yet support 'RSU on this table engine'
+COMMIT;
+SELECT * FROM t;
+c
+1
+DROP TABLE t;

@@ -1,0 +1,49 @@
+--source include/have_wsrep.inc
+--source include/have_innodb.inc
+--source include/have_wsrep_provider.inc
+--source include/have_partition.inc
+#
+# MDEV-33997: Assertion `((WSREP_PROVIDER_EXISTS_ && this->variables.wsrep_on) && wsrep_emulate_bin_log) || mysql_bin_log.is_open()' failed in int THD::binlog_write_row(TABLE*, bool, const uchar*)
+#
+SET SESSION wsrep_osu_method=RSU;
+SET autocommit=0;
+
+CREATE TABLE t (c INT) ENGINE=INNODB PARTITION BY KEY(c) PARTITIONS 2;
+INSERT INTO t VALUES (1);
+INSERT INTO t SELECT 1 ;
+COMMIT;
+SELECT * FROM t;
+DROP TABLE t;
+
+#
+# MDEV-27296 : Assertion `((thd && (WSREP_PROVIDER_EXISTS_ && thd->variables.wsrep_on)) && wsrep_emulate_bin_log) || mysql_bin_log.is_open()' failed
+# Second test case
+#
+SET autocommit=1;
+SET SESSION wsrep_osu_method=RSU;
+CREATE TABLE t (c INT) ENGINE=INNODB PARTITION BY KEY(c) PARTITIONS 2;
+INSERT INTO t SELECT 1 ;
+SELECT * FROM t;
+DROP TABLE t;
+
+#
+# We should not allow RSU for MyISAM
+#
+SET autocommit=1;
+SET SESSION wsrep_osu_method=RSU;
+CREATE TABLE t (c INT) ENGINE=MYISAM PARTITION BY KEY(c) PARTITIONS 2;
+--error ER_NOT_SUPPORTED_YET
+INSERT INTO t SELECT 1 ;
+SELECT * FROM t;
+DROP TABLE t;
+
+SET SESSION wsrep_osu_method=RSU;
+SET autocommit=0;
+
+CREATE TABLE t (c INT) ENGINE=MYISAM PARTITION BY KEY(c) PARTITIONS 2;
+INSERT INTO t VALUES (1);
+--error ER_NOT_SUPPORTED_YET
+INSERT INTO t SELECT 1 ;
+COMMIT;
+SELECT * FROM t;
+DROP TABLE t;

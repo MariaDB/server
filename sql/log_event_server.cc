@@ -5495,13 +5495,15 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
 #ifdef WITH_WSREP
       if (WSREP(thd))
       {
-        WSREP_WARN("BF applier failed to open_and_lock_tables: %u, fatal: %d "
+        WSREP_WARN("BF applier thread=%lu failed to open_and_lock_tables for "
+                   "%s, fatal: %d "
                    "wsrep = (exec_mode: %d conflict_state: %d seqno: %lld)",
-                    thd->get_stmt_da()->sql_errno(),
-                    thd->is_fatal_error,
-                    thd->wsrep_cs().mode(),
-                    thd->wsrep_trx().state(),
-                    (long long) wsrep_thd_trx_seqno(thd));
+                   thd_get_thread_id(thd),
+                   thd->get_stmt_da()->message(),
+                   thd->is_fatal_error,
+                   thd->wsrep_cs().mode(),
+                   thd->wsrep_trx().state(),
+                   wsrep_thd_trx_seqno(thd));
       }
 #endif /* WITH_WSREP */
       if (thd->is_error() &&
