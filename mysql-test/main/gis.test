@@ -3499,6 +3499,18 @@ DROP TABLE t2,t3,t4,t5,t6,t7,t8,t9;
 DROP VIEW v2,v3,v4,v5,v6,v7,v8,v9;
 DROP TABLE t1;
 
+
+--echo #
+--echo # MDEV-34025 Virtual columns do not check assignment cast validity
+--echo #
+
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+CREATE TABLE t1 (a INT, b POINT GENERATED ALWAYS AS (a));
+
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+CREATE TABLE t1 (a POINT, b INT GENERATED ALWAYS AS (a));
+
+
 --echo #
 --echo # End of 11.5 tests
 --echo #

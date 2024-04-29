@@ -5501,5 +5501,12 @@ DROP TABLE t2,t3,t4,t5,t6,t7,t8,t9;
 DROP VIEW v2,v3,v4,v5,v6,v7,v8,v9;
 DROP TABLE t1;
 #
+# MDEV-34025 Virtual columns do not check assignment cast validity
+#
+CREATE TABLE t1 (a INT, b POINT GENERATED ALWAYS AS (a));
+ERROR HY000: Cannot cast 'int' as 'point' in assignment of `test`.`t1`.`b`
+CREATE TABLE t1 (a POINT, b INT GENERATED ALWAYS AS (a));
+ERROR HY000: Cannot cast 'point' as 'int' in assignment of `test`.`t1`.`b`
+#
 # End of 11.5 tests
 #

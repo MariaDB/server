@@ -1237,7 +1237,9 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
         Set table->map to non-zero temporarily.
       */
       table->map= 1;
-      if (vcol && field_ptr[0]->check_vcol_sql_mode_dependency(thd, mode))
+      if (vcol &&
+          (field_ptr[0]->check_vcol_sql_mode_dependency(thd, mode) ||
+           vcol->expr->check_assignability_to(field_ptr[0], false)))
       {
         DBUG_ASSERT(thd->is_error());
         *error_reported= true;
