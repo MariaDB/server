@@ -9234,6 +9234,7 @@ push_new_name_resolution_context(THD *thd,
 
 /**
   Fix condition which contains only field (f turns to  f <> 0 )
+    or only contains the function NOT field (not f turns to  f == 0)
 
   @param cond            The condition to fix
 
@@ -9248,6 +9249,21 @@ Item *normalize_cond(THD *thd, Item *cond)
     if (type == Item::FIELD_ITEM || type == Item::REF_ITEM)
     {
       cond= new (thd->mem_root) Item_func_ne(thd, cond, new (thd->mem_root) Item_int(thd, 0));
+    }
+    else
+    {
+      if (type == Item::FUNC_ITEM)
+      {
+        Item_func *func_item= (Item_func *)cond;
+        if (func_item->functype() == Item_func::NOT_FUNC)
+        {
+          Item *arg= func_item->arguments()[0];
+          if (arg->type() == Item::FIELD_ITEM ||
+              arg->type() == Item::REF_ITEM)
+            cond= new (thd->mem_root) Item_func_eq(thd, arg,
+                                          new (thd->mem_root) Item_int(thd, 0));
+        }
+      }
     }
   }
   return cond;
