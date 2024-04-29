@@ -15036,7 +15036,11 @@ finish:
 /**
   Check whether an equality can be used to build multiple equalities.
 
-    This function first checks whether the equality (left_item=right_item)
+    This function first checks whether the left_item or the right_item
+    contains subqueries, and if so, it will return false, as we do not
+    want to create multiple pointers to items with subqueries during
+    the equality propagation.
+    It then checks whether the equality (left_item=right_item)
     is a simple equality i.e. the one that equates a field with another field
     or a constant (field=field_item or field=const_item).
     If this is the case the function looks for a multiple equality
@@ -15311,6 +15315,29 @@ bool check_simple_equality(THD *thd, const Item::Context &ctx,
                                                                  const_item);
       if (!const_item2)
         return false;
+
+      /* If the const item is a subquery and cheap, create an Item
+      wrapping its value instead to construct the multiple
+      equality. */
+      if (const_item2->with_subquery() && !const_item2->is_expensive())
+      {
+        /* If the field type is a timestamp, then create an
+        Item_copy_timestamp to avoid losing info with daylight saving
+        time which happens if an Item_cache_timestamp were created. */
+        if (orig_field_item->field_type() == MYSQL_TYPE_TIMESTAMP)
+        {
+          const_item2=
+            new (thd->mem_root) Item_copy_timestamp(thd, const_item2);
+          ((Item_copy_timestamp *) const_item2)->copy();
+        }
+        else
+        {
+          const_item2=
+            orig_field_item->type_handler()->
+            make_const_item_for_comparison(thd, const_item2, orig_field_item);
+          const_item2->unsigned_flag= const_item->unsigned_flag;
+        }
+      }
 
       if (item_equal)
       {

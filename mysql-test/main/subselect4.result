@@ -3255,7 +3255,7 @@ EXPLAIN
       "access_type": "ALL",
       "rows": 3,
       "filtered": 100,
-      "attached_condition": "t1.a = <cache>((<in_optimizer>((subquery#2),<exists>(subquery#3))) + 1)"
+      "attached_condition": "t1.a = 2"
     },
     "subqueries": [
       {

@@ -6350,17 +6350,20 @@ public:
 class Item_copy_timestamp: public Item_copy
 {
   Timestamp_or_zero_datetime m_value;
+  bool copied= false;
   bool sane() const { return !null_value || m_value.is_zero_datetime(); }
 public:
   Item_copy_timestamp(THD *thd, Item *arg): Item_copy(thd, arg) { }
   const Type_handler *type_handler() const override
   { return &type_handler_timestamp2; }
+  bool const_item() const override { return copied; }
   void copy() override
   {
     Timestamp_or_zero_datetime_native_null tmp(current_thd, item, false);
     null_value= tmp.is_null();
     m_value= tmp.is_null() ? Timestamp_or_zero_datetime() :
                              Timestamp_or_zero_datetime(tmp);
+    copied= true;
   }
   int save_in_field(Field *field, bool) override
   {
