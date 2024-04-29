@@ -49,16 +49,16 @@ MACRO(BUNDLE_PCRE2)
     SET(pcre2_flags${v} "${pcre2_flags${v}} -std=c99 ")
     IF(MSVC)
       # Suppress a warning
-      STRING(APPEND pcre2_flags${v} " /wd4244 " )
+      STRING(APPEND pcre2_flags${v} " /wd4244 /wd4267 " )
       # Disable asan support
-      STRING(REPLACE "-fsanitize=address" "" pcre2_flags${v} "${CMAKE_C_FLAGS${v}}")
+      STRING(REPLACE "-fsanitize=address" "" pcre2_flags${v} "${pcre2_flags${v}}")
     ENDIF()
   ENDFOREACH()
   ExternalProject_Add(
     pcre2
     PREFIX   "${dir}"
-    URL "https://github.com/PCRE2Project/pcre2/releases/download/pcre2-10.42/pcre2-10.42.zip"
-    URL_MD5 fe90992fbfb03f854bd9f344074f49eb
+    URL "https://github.com/PCRE2Project/pcre2/releases/download/pcre2-10.43/pcre2-10.43.zip"
+    URL_MD5 b58f050f2fdd6f2ca5774a2975377a85
     INSTALL_COMMAND ""
     CMAKE_ARGS
       "-DCMAKE_WARN_DEPRECATED=FALSE"

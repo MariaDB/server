@@ -276,7 +276,6 @@ void mtr_t::commit_shrink(fil_space_t &space, uint32_t size)
   ut_ad(!is_inside_ibuf());
   ut_ad(!high_level_read_only);
   ut_ad(m_modifications);
-  ut_ad(m_made_dirty);
   ut_ad(!m_memo.empty());
   ut_ad(!recv_recovery_is_on());
   ut_ad(m_log_mode == MTR_LOG_ALL);

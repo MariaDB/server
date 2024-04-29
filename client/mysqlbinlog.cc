@@ -3024,7 +3024,8 @@ int main(int argc, char** argv)
   {
     if (!opt_version)
     {
-      usage();
+      error("Please provide the log file(s). Run with '--help' for usage "
+            "instructions.");
       retval= ERROR_STOP;
     }
     goto err;
