@@ -8,5 +8,6 @@ plugins,^
 mariabackup,^
 roles,^
 auth_gssapi,^
+query_response_time,^
 rocksdb,^
 sysschema
