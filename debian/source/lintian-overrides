@@ -2,9 +2,6 @@
 mariadb source: package-uses-deprecated-debhelper-compat-version 9
 # Necessary for drop-in-place-replacement upgrades on mysql-server/-client
 # since package breaks/replaces these but at the same time also provides them
-version-substvar-for-external-package Replaces ${source:Version} libmariadb-dev -> libmysqlclient-dev [debian/control:74]
-version-substvar-for-external-package Replaces ${source:Version} libmariadb-dev -> libmysqld-dev [debian/control:74]
-# These are left for reason version-substvar-for-external-package 
 version-substvar-for-external-package Conflicts ${source:Version} libmariadb-dev-compat -> libmariadbclient-dev [*]
 version-substvar-for-external-package Replaces ${source:Version} libmariadb-dev-compat -> libmariadbclient-dev [*]
 # New Lintian syntax (from version 2.115)
@@ -14,3 +11,7 @@ missing-build-dependency-for-dh-addon systemd (does not satisfy debhelper:any (>
 # Should in some point reviewd what should we done
 dependency-is-not-multi-archified libmariadb-dev-compat depends on libmariadb-dev (multi-arch: no)
 dependency-is-not-multi-archified mariadb-plugin-gssapi-client depends on mariadb-client (multi-arch: no)
+# These are for purpose
+version-substvar-for-external-package Replaces ${source:Version} libmariadb-dev -> libmysqlclient-dev [debian/control:*]
+version-substvar-for-external-package Replaces ${source:Version} libmariadb-dev -> libmysqld-dev [debian/control:*]
+version-substvar-for-external-package Replaces ${source:Version} libmariadbd-dev -> libmariadbclient-dev [debian/control:*]
