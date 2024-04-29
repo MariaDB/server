@@ -112,6 +112,7 @@ enum options_client
   OPT_IGNORE_SERVER_IDS,
   OPT_DO_SERVER_IDS,
   OPT_SSL_FP, OPT_SSL_FPLIST,
+  OPT_TLS_CERT_INFO,
   OPT_MAX_CLIENT_OPTION /* should be always the last */
 };
 
