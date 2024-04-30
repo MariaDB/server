@@ -7436,6 +7436,7 @@ error_handled:
 		row_mysql_lock_data_dictionary(ctx->trx);
 	} else {
 		row_merge_drop_indexes(ctx->trx, user_table, true);
+		user_table->indexes.start->online_log = nullptr;
 		ctx->trx->commit();
 	}
 
