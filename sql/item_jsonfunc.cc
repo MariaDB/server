@@ -893,15 +893,16 @@ bool Item_func_json_extract::fix_length_and_dec()
 }
 
 
-static bool path_exact(const json_path_with_flags *paths_list, int n_paths,
+static int path_exact(const json_path_with_flags *paths_list, int n_paths,
                        const json_path_t *p, json_value_types vt)
 {
+  int count_path= 0;
   for (; n_paths > 0; n_paths--, paths_list++)
   {
     if (json_path_compare(&paths_list->p, p, vt) == 0)
-      return TRUE;
+      count_path++;
   }
-  return FALSE;
+  return count_path;
 }
 
 
@@ -925,7 +926,7 @@ String *Item_func_json_extract::read_json(String *str,
   json_engine_t je, sav_je;
   json_path_t p;
   const uchar *value;
-  int not_first_value= 0;
+  int not_first_value= 0, count_path= 0;
   uint n_arg;
   size_t v_len;
   int possible_multiple_values;
@@ -972,7 +973,7 @@ String *Item_func_json_extract::read_json(String *str,
 
   while (json_get_path_next(&je, &p) == 0)
   {
-    if (!path_exact(paths, arg_count-1, &p, je.value_type))
+    if (!(count_path= path_exact(paths, arg_count-1, &p, je.value_type)))
       continue;
 
     value= je.value_begin;
@@ -1002,9 +1003,12 @@ String *Item_func_json_extract::read_json(String *str,
         je= sav_je;
     }
 
-    if ((not_first_value && str->append(", ", 2)) ||
-        str->append((const char *) value, v_len))
-      goto error; /* Out of memory. */
+    for (int count= 0; count < count_path; count++)
+    {
+      if (str->append((const char *) value, v_len) ||
+          str->append(", ", 2))
+        goto error; /* Out of memory. */
+    }
 
     not_first_value= 1;
 
@@ -1025,6 +1029,11 @@ String *Item_func_json_extract::read_json(String *str,
     goto return_null;
   }
 
+  if (str->length()>2)
+  {
+    str->chop();
+    str->chop();
+  }
   if (possible_multiple_values && str->append("]", 1))
     goto error; /* Out of memory. */
 
@@ -2971,6 +2980,12 @@ String *Item_func_json_type::val_str(String *str)
     break;
   }
 
+  /* ensure the json is at least valid. */
+  while(json_scan_next(&je) == 0) {}
+
+  if (je.s.error)
+    goto error;
+
   str->set(type, strlen(type), &my_charset_utf8mb3_general_ci);
   return str;
 
@@ -3317,6 +3332,7 @@ String *Item_func_json_remove::val_str(String *str)
     {
       if (je.s.error)
         goto js_error;
+      continue;
     }
 
     if (json_read_value(&je))
