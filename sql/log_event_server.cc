@@ -4209,6 +4209,19 @@ int XA_prepare_log_event::do_commit()
   else
     res= trans_xa_commit(thd);
 
+  if (thd->rgi_slave->is_parallel_exec)
+  {
+    /*
+      Since the transaction is prepared/committed without updating the GTID pos
+      (MDEV-32020...), we need here to clear any pending deadlock kill.
+      Otherwise if the kill happened after the prepare/commit completed, it
+      might end up killing the subsequent GTID position update, causing the
+      slave to fail with error.
+    */
+    wait_for_pending_deadlock_kill(thd, thd->rgi_slave);
+    thd->reset_killed();
+  }
+
   return res;
 }
 #endif // HAVE_REPLICATION
