@@ -6847,6 +6847,7 @@ int spider_db_done(
   pthread_attr_destroy(&spider_pt_attr);
 #endif
 
+  spider_hton_ptr= NULL;
   for (roop_count = 0; roop_count < SPIDER_MEM_CALC_LIST_NUM; roop_count++)
   {
     if (spider_alloc_func_name[roop_count])
