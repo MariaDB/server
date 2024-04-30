@@ -7560,7 +7560,15 @@ invalid:
 	}
 	ut_free(buf2);
 
+	DBUG_EXECUTE_IF("undo_space_read_fail",
+			if (space_id == srv_undo_space_id_start) {
+				goto wrong_space_id;
+			});
+
 	if (UNIV_UNLIKELY(space_id != space->id)) {
+#ifndef DBUG_OFF
+wrong_space_id:
+#endif
 		ib::error() << "Expected tablespace id " << space->id
 			<< " but found " << space_id
 			<< " in the file " << name;

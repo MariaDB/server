@@ -100,6 +100,7 @@ Created 2/16/1996 Heikki Tuuri
 #include "zlib.h"
 #include "ut0crc32.h"
 #include "btr0scrub.h"
+#include "log.h"
 
 /** Log sequence number immediately after startup */
 lsn_t	srv_start_lsn;
@@ -656,10 +657,11 @@ static bool srv_undo_tablespace_open(const char* name, ulint space_id,
 	pfs_os_file_t	fh;
 	bool		success;
 	char		undo_name[sizeof "innodb_undo000"];
+	ulint		n_retries = 5;
 
 	snprintf(undo_name, sizeof(undo_name),
 		 "innodb_undo%03u", static_cast<unsigned>(space_id));
-
+undo_retry:
 	fh = os_file_create(
 		innodb_data_file_key, name, OS_FILE_OPEN
 		| OS_FILE_ON_ERROR_NO_EXIT | OS_FILE_ON_ERROR_SILENT,
@@ -715,6 +717,15 @@ static bool srv_undo_tablespace_open(const char* name, ulint space_id,
 	}
 
 	mutex_exit(&fil_system.mutex);
+
+	if (!success && n_retries &&
+	    srv_operation == SRV_OPERATION_BACKUP) {
+		sql_print_information("InnoDB: Retrying to read undo "
+				      "tablespace %s", undo_name);
+		fil_space_free(space_id, false);
+		n_retries--;
+		goto undo_retry;
+	}
 
 	return success;
 }

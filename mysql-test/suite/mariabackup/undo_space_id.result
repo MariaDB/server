@@ -11,3 +11,10 @@ undo004
 undo003
 undo004
 DROP TABLE t1;
+#
+#  MDEV-33980  mariadb-backup --backup is missing
+#       retry logic for undo tablespaces
+#
+# xtrabackup backup
+# Display undo log files from target directory
+FOUND 5 /Retrying to read undo tablespace*/ in backup.log
