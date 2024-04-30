@@ -154,7 +154,7 @@ char *guess_malloc_library();
 void sf_report_leaked_memory(my_thread_id id);
 int sf_sanity();
 extern my_thread_id (*sf_malloc_dbug_id)(void);
-#define SAFEMALLOC_REPORT_MEMORY(X) sf_report_leaked_memory(X)
+#define SAFEMALLOC_REPORT_MEMORY(X) if (!sf_leaking_memory) sf_report_leaked_memory(X)
 #else
 #define SAFEMALLOC_REPORT_MEMORY(X) do {} while(0)
 #endif

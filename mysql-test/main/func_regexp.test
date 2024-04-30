@@ -121,4 +121,16 @@ select 'foo' regexp x from t1 order by x asc;
 select 'foo' regexp x from t1 order by x desc;
 drop table t1;
 
+--echo #
+--echo # MDEV-21076 NOT NULL and UNIQUE constraints cause SUM() to yield an incorrect result
+--echo #
+
+CREATE TABLE t0(c0 INT NOT NULL, c1 CHAR UNIQUE);
+INSERT INTO t0 VALUES (0, 1);
+INSERT INTO t0 VALUES (0, '');
+SELECT (c1 RLIKE c1), (c0 IS NULL) FROM t0;
+SELECT SUM(a.t) FROM (SELECT (c1 RLIKE c1) = (c0 IS NULL) as t FROM t0) as a;
+DROP TABLE t0;
+
+
 --echo # End of 10.5 tests

@@ -2713,7 +2713,9 @@ err_exit:
 	    && !index->table->n_rec_locks
 	    && !index->table->is_active_ddl()
 	    && !index->table->has_spatial_index()
-	    && !index->table->versioned()) {
+	    && !index->table->versioned()
+            && (!dict_table_is_partition(index->table)
+	        || thd_sql_command(trx->mysql_thd) == SQLCOM_INSERT)) {
 		DEBUG_SYNC_C("empty_root_page_insert");
 
 		trx->bulk_insert = true;

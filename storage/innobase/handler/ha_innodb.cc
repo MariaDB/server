@@ -8713,6 +8713,7 @@ ha_innobase::delete_row(
 		: PLAIN_DELETE;
 	trx->fts_next_doc_id = 0;
 
+	ut_ad(!trx->is_bulk_insert());
 	error = row_update_for_mysql(m_prebuilt);
 
 #ifdef WITH_WSREP

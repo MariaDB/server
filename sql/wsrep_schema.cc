@@ -1265,25 +1265,12 @@ int Wsrep_schema::remove_fragments(THD* thd,
   DBUG_RETURN(ret);
 }
 
-int Wsrep_schema::replay_transaction(THD* orig_thd,
-                                     Relay_log_info* rli,
-                                     const wsrep::ws_meta& ws_meta,
-                                     const std::vector<wsrep::seqno>& fragments)
+static int replay_transaction(THD* thd,
+                              THD* orig_thd,
+                              Relay_log_info* rli,
+                              const wsrep::ws_meta& ws_meta,
+                              const std::vector<wsrep::seqno>& fragments)
 {
-  DBUG_ENTER("Wsrep_schema::replay_transaction");
-  DBUG_ASSERT(!fragments.empty());
-
-  THD *thd= new THD(next_thread_id(), true);
-  if (!thd)
-  {
-    WSREP_WARN("Could not open allocate memory for THD");
-    DBUG_RETURN(1);
-  }
-
-  thd->thread_stack= (orig_thd ? orig_thd->thread_stack :
-                      (char*) &thd);
-  wsrep_assign_from_threadvars(thd);
-
   Wsrep_schema_impl::wsrep_off  wsrep_off(thd);
   Wsrep_schema_impl::binlog_off binlog_off(thd);
   Wsrep_schema_impl::sql_safe_updates sql_safe_updates(thd);
@@ -1304,8 +1291,7 @@ int Wsrep_schema::replay_transaction(THD* orig_thd,
     {
       WSREP_WARN("Could not open SR table for read: %d", error);
       Wsrep_schema_impl::finish_stmt(thd);
-      my_free(thd);
-      DBUG_RETURN(1);
+      return 1;
     }
     frag_table= frag_table_l.table;
 
@@ -1391,24 +1377,36 @@ int Wsrep_schema::replay_transaction(THD* orig_thd,
 
   if (key)
     my_free(key);
+
+  return ret;
+}
+
+int Wsrep_schema::replay_transaction(THD* orig_thd,
+                                     Relay_log_info* rli,
+                                     const wsrep::ws_meta& ws_meta,
+                                     const std::vector<wsrep::seqno>& fragments)
+{
+  DBUG_ENTER("Wsrep_schema::replay_transaction");
+  DBUG_ASSERT(!fragments.empty());
+
+  THD *thd= new THD(next_thread_id(), true);
+  if (!thd)
+  {
+    WSREP_WARN("Could not allocate memory for THD");
+    DBUG_RETURN(1);
+  }
+
+  thd->thread_stack= (orig_thd ? orig_thd->thread_stack : (char *) &thd);
+  wsrep_assign_from_threadvars(thd);
+
+  int ret= ::replay_transaction(thd, orig_thd, rli, ws_meta, fragments);
+
   delete thd;
   DBUG_RETURN(ret);
 }
 
-
-int Wsrep_schema::recover_sr_transactions(THD *orig_thd)
+static int recover_sr_transactions(THD* storage_thd, THD* orig_thd)
 {
-  DBUG_ENTER("Wsrep_schema::recover_sr_transactions");
-
-  THD *storage_thd= new THD(next_thread_id(), true);
-  if (!storage_thd)
-  {
-    WSREP_WARN("Could not open allocate memory for THD");
-    DBUG_RETURN(1);
-  }
-  storage_thd->thread_stack= (orig_thd ? orig_thd->thread_stack :
-                             (char*) &storage_thd);
-  wsrep_assign_from_threadvars(storage_thd);
   TABLE* frag_table= 0;
   TABLE_LIST frag_table_l;
   TABLE* cluster_table= 0;
@@ -1431,14 +1429,14 @@ int Wsrep_schema::recover_sr_transactions(THD *orig_thd)
                                        &cluster_table_l))
   {
     Wsrep_schema_impl::finish_stmt(storage_thd);
-    DBUG_RETURN(1);
+    return 1;
   }
   cluster_table= cluster_table_l.table;
 
   if (Wsrep_schema_impl::init_for_scan(cluster_table))
   {
     Wsrep_schema_impl::finish_stmt(storage_thd);
-    DBUG_RETURN(1);
+    return 1;
   }
 
   if ((error= Wsrep_schema_impl::next_record(cluster_table)))
@@ -1449,12 +1447,12 @@ int Wsrep_schema::recover_sr_transactions(THD *orig_thd)
     if (error == HA_ERR_END_OF_FILE)
     {
       WSREP_INFO("Cluster table is empty, not recovering transactions");
-      DBUG_RETURN(0);
+      return 0;
     }
     else
     {
       WSREP_ERROR("Failed to read cluster table: %d", error);
-      DBUG_RETURN(1);
+      return 1;
     }
   }
 
@@ -1561,6 +1559,25 @@ int Wsrep_schema::recover_sr_transactions(THD *orig_thd)
   trans_commit(storage_thd);
   storage_thd->set_mysys_var(0);
 out:
+  return ret;
+}
+
+int Wsrep_schema::recover_sr_transactions(THD *orig_thd)
+{
+  DBUG_ENTER("Wsrep_schema::recover_sr_transactions");
+
+  THD *storage_thd= new THD(next_thread_id(), true);
+  if (!storage_thd)
+  {
+    WSREP_WARN("Could not allocate memory for THD");
+    DBUG_RETURN(1);
+  }
+  storage_thd->thread_stack=
+      (orig_thd ? orig_thd->thread_stack : (char *) &storage_thd);
+  wsrep_assign_from_threadvars(storage_thd);
+
+  int ret= ::recover_sr_transactions(storage_thd, orig_thd);
+
   delete storage_thd;
   DBUG_RETURN(ret);
 }

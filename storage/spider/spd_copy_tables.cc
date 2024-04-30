@@ -1146,12 +1146,20 @@ error:
   DBUG_RETURN(0);
 }
 
+#undef my_error
+extern "C" void my_error(unsigned int nr, unsigned long MyFlags, ...);
+
 my_bool spider_copy_tables_init_body(
   UDF_INIT *initid,
   UDF_ARGS *args,
   char *message
 ) {
   DBUG_ENTER("spider_copy_tables_init_body");
+  if (!spider_hton_ptr)
+  {
+    my_error(ER_PLUGIN_IS_NOT_LOADED, MYF(0), "SPIDER");
+    goto error;
+  }
   if (args->arg_count != 3 && args->arg_count != 4)
   {
     strcpy(message, "spider_copy_tables() requires 3 or 4 arguments");

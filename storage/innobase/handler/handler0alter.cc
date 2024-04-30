@@ -10249,6 +10249,7 @@ when rebuilding the table.
 @param ctx In-place ALTER TABLE context
 @param altered_table MySQL table that is being altered
 @param old_table MySQL table as it is before the ALTER operation
+@param statistics_exist whether to update InnoDB persistent statistics
 @param trx Data dictionary transaction
 @param table_name Table name in MySQL
 @retval true Failure
@@ -10522,6 +10523,7 @@ when not rebuilding the table.
 @param ha_alter_info Data used during in-place alter
 @param ctx In-place ALTER TABLE context
 @param old_table MySQL table as it is before the ALTER operation
+@param statistics_exist whether to update InnoDB persistent statistics
 @param trx Data dictionary transaction
 @param table_name Table name in MySQL
 @retval true Failure
@@ -10535,6 +10537,7 @@ commit_try_norebuild(
 	ha_innobase_inplace_ctx*ctx,
 	TABLE*			altered_table,
 	const TABLE*		old_table,
+	bool			statistics_exist,
 	trx_t*			trx,
 	const char*		table_name)
 {
@@ -10649,6 +10652,10 @@ commit_try_norebuild(
 			goto handle_error;
 		}
 
+		if (!statistics_exist) {
+			continue;
+		}
+
 		error = dict_stats_delete_from_index_stats(db, table,
 							   index->name, trx);
 		switch (error) {
@@ -10660,7 +10667,8 @@ commit_try_norebuild(
 		}
 	}
 
-	if (const size_t size = ha_alter_info->rename_keys.size()) {
+	if (!statistics_exist) {
+	} else if (const size_t size = ha_alter_info->rename_keys.size()) {
 		char tmp_name[5];
 		char db[MAX_DB_UTF8_LEN], table[MAX_TABLE_UTF8_LEN];
 
@@ -11407,6 +11415,8 @@ err_index:
 		}
 	}
 
+	DEBUG_SYNC(m_user_thd, "innodb_commit_inplace_before_lock");
+
 	DBUG_EXECUTE_IF("stats_lock_fail",
 			error = DB_LOCK_WAIT_TIMEOUT;
 			trx_rollback_for_mysql(trx););
@@ -11490,7 +11500,9 @@ fail:
 				goto fail;
 			}
 		} else if (commit_try_norebuild(ha_alter_info, ctx,
-						altered_table, table, trx,
+						altered_table, table,
+						table_stats && index_stats,
+						trx,
 						table_share->table_name.str)) {
 			goto fail;
 		}
