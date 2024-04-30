@@ -2579,7 +2579,15 @@ ignore_unfixed:
 		in buf_page_t::read_complete() or
 		buf_pool_t::corrupted_evict(), or
 		after buf_zip_decompress() in this function. */
-		block->page.lock.s_lock();
+		if (rw_latch != RW_NO_LATCH) {
+			block->page.lock.s_lock();
+		} else if (!block->page.lock.s_lock_try()) {
+			/* For RW_NO_LATCH, we should not try to acquire S or X
+			latch directly as we could be violating the latching
+			order resulting in deadlock. Instead we try latching the
+			page and retry in case of a failure. */
+			goto wait_for_read;
+		}
 		state = block->page.state();
 		ut_ad(state < buf_page_t::READ_FIX
 		      || state >= buf_page_t::WRITE_FIX);
@@ -2587,15 +2595,15 @@ ignore_unfixed:
 		block->page.lock.s_unlock();
 
 		if (UNIV_UNLIKELY(state < buf_page_t::UNFIXED)) {
-			block->page.unfix();
 			if (UNIV_UNLIKELY(id == page_id)) {
 				/* The page read was completed, and
 				another thread marked the page as free
 				while we were waiting. */
-				goto ignore_unfixed;
+				goto ignore_block;
 			}
 
 			ut_ad(id == page_id_t{~0ULL});
+			block->page.unfix();
 
 			if (++retries < BUF_PAGE_READ_MAX_RETRIES) {
 				goto loop;
@@ -2634,6 +2642,7 @@ free_unfixed_block:
 	if (UNIV_UNLIKELY(!block->page.frame)) {
 		if (!block->page.lock.x_lock_try()) {
 wait_for_unzip:
+wait_for_read:
 			/* The page is being read or written, or
 			another thread is executing buf_zip_decompress()
 			in buf_page_get_low() on it. */
