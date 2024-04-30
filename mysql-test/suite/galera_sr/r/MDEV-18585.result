@@ -12,7 +12,7 @@ SET SESSION wsrep_trx_fragment_size=1;
 INSERT INTO t1 VALUES (5), (6);
 SET SESSION wsrep_trx_fragment_unit=default;
 SET SESSION wsrep_trx_fragment_size=default;
-SHOW BINLOG EVENTS IN 'mysqld-bin.000002' FROM 530;
+SHOW BINLOG EVENTS IN 'mysqld-bin.000002' FROM 527;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 mysqld-bin.000002	#	Gtid	1	#	BEGIN GTID 0-1-2
 mysqld-bin.000002	#	Annotate_rows	1	#	INSERT INTO t1 VALUES (1), (2)

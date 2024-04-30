@@ -37,7 +37,7 @@ KEY `v1` (`v1`)
 INSERT INTO t1 VALUES (0,repeat("a",3000));
 show status like "binlog_disk_use";
 Variable_name	Value
-Binlog_disk_use	3869
+Binlog_disk_use	3863
 # First binary should be binary.000004
 show binary logs;
 Log_name	File_size
@@ -98,7 +98,7 @@ Log_name	File_size
 binary.000002	#
 show status like "binlog_disk_use";
 Variable_name	Value
-Binlog_disk_use	3650
+Binlog_disk_use	3647
 INSERT INTO t1 VALUES (7,repeat("g",3000));
 # binary.000001 should be deleted now
 show binary logs;
@@ -107,7 +107,7 @@ binary.000002	#
 binary.000003	#
 show status like "binlog_disk_use";
 Variable_name	Value
-Binlog_disk_use	7344
+Binlog_disk_use	7338
 FLUSH LOGS;
 FLUSH LOGS;
 # binary.000002 should be deleted now
