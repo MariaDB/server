@@ -503,4 +503,46 @@ SELECT * FROM t1 WHERE t1.a IN (SELECT b FROM
 
 DROP TABLE t1, t2, t3;
 
+--echo #
+--echo # MDEV-23878: Wrong result with semi-join and splittable derived table
+--echo #
+
+CREATE TABLE t1 (
+  groupId int,
+  id int unsigned,
+  PRIMARY KEY (groupId, id)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+
+INSERT INTO t1 VALUES
+  (8,1),(8,2),(8,3),(8,4),(8,5),(8,6),(8,7),(8,8),(8,9),(8,10),
+  (8,11),(8,12),(8,13),(8,14),(8,15),(8,16),(8,17),(8,18),(8,19);
+
+let $query=
+SELECT COUNT(*) AS cnt FROM t1
+JOIN
+(
+  SELECT groupId, id
+  FROM t1
+  WHERE id IN (1,2,3,4,5,6)
+  GROUP BY groupId, id
+) AS t2
+USING (groupId, id)
+WHERE id IN (1,2,3,4,5,6,7,8);
+
+let $tvc_conversion_threshold =
+  set statement in_predicate_conversion_threshold=2 for;
+
+eval $tvc_conversion_threshold $query;
+eval $tvc_conversion_threshold EXPLAIN $query;
+
+let $no_split_materialized_loosescan=
+  set statement optimizer_switch='split_materialized=off, loosescan=off' for;
+
+# Correct result with split materializied optimization disabled
+eval $no_split_materialized_loosescan
+  $tvc_conversion_threshold
+  $query;
+
+DROP TABLE t1;
+
 --echo # End of 10.4 tests
