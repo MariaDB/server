@@ -1789,6 +1789,9 @@ error:
   DBUG_RETURN(0);
 }
 
+#undef my_error
+extern "C" void my_error(unsigned int nr, unsigned long MyFlags, ...);
+
 my_bool spider_direct_sql_init_body(
   UDF_INIT *initid,
   UDF_ARGS *args,
@@ -1797,6 +1800,11 @@ my_bool spider_direct_sql_init_body(
 ) {
   SPIDER_BG_DIRECT_SQL *bg_direct_sql;
   DBUG_ENTER("spider_direct_sql_init_body");
+  if (!spider_hton_ptr)
+  {
+    my_error(ER_PLUGIN_IS_NOT_LOADED, MYF(0), "SPIDER");
+    goto error;
+  }
   if (args->arg_count != 3)
   {
     strcpy(message, "spider_(bg)_direct_sql() requires 3 arguments");
