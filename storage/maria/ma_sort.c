@@ -281,7 +281,12 @@ int _ma_create_index_by_sort(MARIA_SORT_PARAM *info, my_bool no_messages,
       printf("  - Last merge and dumping keys\n"); /* purecov: tested */
     if (merge_index(info,keys,sort_keys,dynamic_element(&buffpek,0,BUFFPEK *),
                     maxbuffer,&tempfile))
+    {
+      const char *format= "Got error %M when merging index";
+      _ma_check_print_error(info->sort_info->param,
+                            format, (int) my_errno);
       goto err;					/* purecov: inspected */
+    }
   }
 
   if (flush_maria_ft_buf(info) || _ma_flush_pending_blocks(info))

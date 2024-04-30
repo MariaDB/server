@@ -94,9 +94,6 @@ drop table t1,t2;
 SET @@max_tmp_session_space_usage= 64*1024;
 set @@binlog_format="statement";
 CREATE OR REPLACE TABLE t1 (a INT, b INT);
-select benchmark(1,1);
-benchmark(1,1)
-0
 INSERT INTO t1 SELECT seq, seq FROM seq_1_to_100000;
 ALTER TABLE t1 ORDER BY a, b;
 ERROR HY000: Local temporary space limit reached
@@ -161,6 +158,7 @@ ERROR HY000: Global temporary space limit reached
 # MDEV-33751 Assertion `thd' failed in int
 # temp_file_size_cb_func(tmp_file_tracking*, int)
 #
+set @save_max_tmp_total_space_usage=@@global.max_tmp_total_space_usage;
 set @@global.max_tmp_total_space_usage=64*1024*1024;
 set @@max_tmp_session_space_usage=1179648;
 select @@max_tmp_session_space_usage;
@@ -177,4 +175,21 @@ ERROR HY000: Local temporary space limit reached
 DROP TABLE t1;
 set @@aria_repair_threads=@save_aria_repair_threads;
 set @@max_heap_table_size=@save_max_heap_table_size;
+set @@global.max_tmp_total_space_usage=@save_max_tmp_total_space_usage;
+#
+# MDEV-34016 Assertion `info->key_del_used == 0' failed in maria_close
+# with limited tmp space
+#
+set @save_max_tmp_total_space_usage=@@global.max_tmp_total_space_usage;
+connect c1, localhost, root,,;
+CREATE TABLE t1 (a varchar(1024)) engine=aria;
+INSERT INTO t1 VALUES ('this'),('is'),('just'),('a'),('filling'),('for'),(REPEAT('a',500));
+set @@global.max_tmp_total_space_usage=2*1024*1024;
+SET max_tmp_session_space_usage= 1024*1024, max_heap_table_size= 4*1024*1024;
+SELECT DISTINCT a, seq FROM t1 JOIN seq_1_to_600;
+ERROR HY000: Got error 200 "Local temporary space limit reached" when merging index
+DROP TABLE t1;
+connection default;
+disconnect c1;
+set @@global.max_tmp_total_space_usage=@save_max_tmp_total_space_usage;
 # End of 11.5 tests

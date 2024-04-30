@@ -393,7 +393,7 @@ int _ma_dispose(register MARIA_HA *info, my_off_t pos, my_bool page_not_read)
   single _ma_log_new()) call).
 
   @return
-    HA_OFFSET_ERROR     File is full or page read error
+    HA_OFFSET_ERROR     File is full or page read error or tmp space full
     #		        Page address to use
 */
 
@@ -414,6 +414,7 @@ my_off_t _ma_new(register MARIA_HA *info, int level,
     {
       my_errno=HA_ERR_INDEX_FILE_FULL;
       mysql_mutex_unlock(&share->intern_lock);
+      _ma_unlock_key_del(info);
       DBUG_RETURN(HA_OFFSET_ERROR);
     }
     share->state.state.key_file_length+= block_size;
@@ -422,6 +423,7 @@ my_off_t _ma_new(register MARIA_HA *info, int level,
                                  share->state.state.key_file_length))
     {
       mysql_mutex_unlock(&share->intern_lock);
+      _ma_unlock_key_del(info);
       DBUG_RETURN(HA_OFFSET_ERROR);
     }
     /* Following is for not transactional tables */

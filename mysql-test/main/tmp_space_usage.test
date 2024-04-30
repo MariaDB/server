@@ -142,7 +142,6 @@ SET @@max_tmp_session_space_usage= 64*1024;
 set @@binlog_format="statement";
 
 CREATE OR REPLACE TABLE t1 (a INT, b INT);
-select benchmark(1,1);
 INSERT INTO t1 SELECT seq, seq FROM seq_1_to_100000;
 --error 41
 ALTER TABLE t1 ORDER BY a, b;
@@ -214,7 +213,8 @@ select count(distinct concat(seq,repeat('x',1000))) from seq_1_to_1000;
 --echo # temp_file_size_cb_func(tmp_file_tracking*, int)
 --echo #
 
-set @@global.max_tmp_session_space_usage=64*1024*1024;
+set @save_max_tmp_total_space_usage=@@global.max_tmp_total_space_usage;
+set @@global.max_tmp_total_space_usage=64*1024*1024;
 set @@max_tmp_session_space_usage=1179648;
 select @@max_tmp_session_space_usage;
 set @save_aria_repair_threads=@@aria_repair_threads;
@@ -230,5 +230,24 @@ DROP TABLE t1;
 
 set @@aria_repair_threads=@save_aria_repair_threads;
 set @@max_heap_table_size=@save_max_heap_table_size;
+set @@global.max_tmp_total_space_usage=@save_max_tmp_total_space_usage;
+
+--echo #
+--echo # MDEV-34016 Assertion `info->key_del_used == 0' failed in maria_close
+--echo # with limited tmp space
+--echo #
+
+set @save_max_tmp_total_space_usage=@@global.max_tmp_total_space_usage;
+connect(c1, localhost, root,,);
+CREATE TABLE t1 (a varchar(1024)) engine=aria;
+INSERT INTO t1 VALUES ('this'),('is'),('just'),('a'),('filling'),('for'),(REPEAT('a',500));
+set @@global.max_tmp_total_space_usage=2*1024*1024;
+SET max_tmp_session_space_usage= 1024*1024, max_heap_table_size= 4*1024*1024;
+--error ER_NOT_KEYFILE
+SELECT DISTINCT a, seq FROM t1 JOIN seq_1_to_600;
+DROP TABLE t1;
+connection default;
+disconnect c1;
+set @@global.max_tmp_total_space_usage=@save_max_tmp_total_space_usage;
 
 --echo # End of 11.5 tests
