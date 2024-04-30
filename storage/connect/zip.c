@@ -814,71 +814,66 @@ local int LoadCentralDirectoryRecord(zip64_internal* pziinit) {
 
 /************************************************************/
 extern zipFile ZEXPORT zipOpen3(const void *pathname, int append, zipcharpc* globalcomment, zlib_filefunc64_32_def* pzlib_filefunc64_32_def) {
-    zip64_internal ziinit;
     zip64_internal* zi;
     int err=ZIP_OK;
 
-    ziinit.z_filefunc.zseek32_file = NULL;
-    ziinit.z_filefunc.ztell32_file = NULL;
-    if (pzlib_filefunc64_32_def==NULL)
-        fill_fopen64_filefunc(&ziinit.z_filefunc.zfile_func64);
-    else
-        ziinit.z_filefunc = *pzlib_filefunc64_32_def;
+    if (!(zi = (zip64_internal*)ALLOC(sizeof(zip64_internal))))
+      return NULL;
 
-    ziinit.filestream = ZOPEN64(ziinit.z_filefunc,
+    zi->z_filefunc.zseek32_file = NULL;
+    zi->z_filefunc.ztell32_file = NULL;
+    if (pzlib_filefunc64_32_def==NULL)
+        fill_fopen64_filefunc(&zi->z_filefunc.zfile_func64);
+    else
+        zi->z_filefunc = *pzlib_filefunc64_32_def;
+
+    zi->filestream = ZOPEN64(zi->z_filefunc,
                   pathname,
                   (append == APPEND_STATUS_CREATE) ?
                   (ZLIB_FILEFUNC_MODE_READ | ZLIB_FILEFUNC_MODE_WRITE | ZLIB_FILEFUNC_MODE_CREATE) :
                     (ZLIB_FILEFUNC_MODE_READ | ZLIB_FILEFUNC_MODE_WRITE | ZLIB_FILEFUNC_MODE_EXISTING));
 
-    if (ziinit.filestream == NULL)
-        return NULL;
-
-    if (append == APPEND_STATUS_CREATEAFTER)
-        ZSEEK64(ziinit.z_filefunc,ziinit.filestream,0,SEEK_END);
-
-    ziinit.begin_pos = ZTELL64(ziinit.z_filefunc,ziinit.filestream);
-    ziinit.in_opened_file_inzip = 0;
-    ziinit.ci.stream_initialised = 0;
-    ziinit.number_entry = 0;
-    ziinit.add_position_when_writing_offset = 0;
-    init_linkedlist(&(ziinit.central_dir));
-
-
-
-    zi = (zip64_internal*)ALLOC(sizeof(zip64_internal));
-    if (zi==NULL)
+    if (zi->filestream == NULL)
     {
-        ZCLOSE64(ziinit.z_filefunc,ziinit.filestream);
+        free(zi);
         return NULL;
     }
 
+    if (append == APPEND_STATUS_CREATEAFTER)
+        ZSEEK64(zi->z_filefunc,zi->filestream,0,SEEK_END);
+
+    zi->begin_pos = ZTELL64(zi->z_filefunc,zi->filestream);
+    zi->in_opened_file_inzip = 0;
+    zi->ci.stream_initialised = 0;
+    zi->number_entry = 0;
+    zi->add_position_when_writing_offset = 0;
+    init_linkedlist(&(zi->central_dir));
+
     /* now we add file in a zipfile */
 #    ifndef NO_ADDFILEINEXISTINGZIP
-    ziinit.globalcomment = NULL;
+    zi->globalcomment = NULL;
     if (append == APPEND_STATUS_ADDINZIP)
     {
       // Read and Cache Central Directory Records
-      err = LoadCentralDirectoryRecord(&ziinit);
+      err = LoadCentralDirectoryRecord(zi);
     }
 
     if (globalcomment)
     {
-      *globalcomment = ziinit.globalcomment;
+      *globalcomment = zi->globalcomment;
     }
 #    endif /* !NO_ADDFILEINEXISTINGZIP*/
 
     if (err != ZIP_OK)
     {
 #    ifndef NO_ADDFILEINEXISTINGZIP
-        free(ziinit.globalcomment);
+        free(zi->globalcomment);
 #    endif /* !NO_ADDFILEINEXISTINGZIP*/
         free(zi);
         return NULL;
     }
     else
     {
-        *zi = ziinit;
         return (zipFile)zi;
     }
 }

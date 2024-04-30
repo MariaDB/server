@@ -2688,6 +2688,11 @@ Gtid_log_event::Gtid_log_event(const uchar *buf, uint event_len,
     }
     if (flags_extra & (FL_COMMIT_ALTER_E1 | FL_ROLLBACK_ALTER_E1))
     {
+      if (event_len < static_cast<uint>(buf - buf_0) + 8)
+      {
+        seq_no= 0;
+        return;
+      }
       sa_seq_no= uint8korr(buf);
       buf+= 8;
     }

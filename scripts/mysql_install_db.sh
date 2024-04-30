@@ -347,7 +347,7 @@ then
   bindir="$basedir/@INSTALL_BINDIR@"
   resolveip="$bindir/resolveip"
   mysqld="$basedir/@INSTALL_SBINDIR@/mariadbd"
-  langdir="$basedir/share/english"
+  langdir="$basedir/@INSTALL_MYSQLSHAREDIR@/english"
   srcpkgdatadir="$basedir/@INSTALL_MYSQLSHAREDIR@"
   buildpkgdatadir="$basedir/@INSTALL_MYSQLSHAREDIR@"
   plugindir="$basedir/@INSTALL_PLUGINDIR@"

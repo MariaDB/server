@@ -19,7 +19,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #pragma once
 #include <cstddef>
 
-#if defined __x86_64__ || defined __aarch64__
+#if defined __x86_64__ || defined __aarch64__ || defined __powerpc64__
 struct pmem_control
 {
   void (*persist)(const void *, size_t);

@@ -1649,6 +1649,9 @@ drop_primary_key_list(void)
   return 0;
 }
 
+
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 static int
 create_schema(MYSQL *mysql, const char *db, statement *stmt, 
               option_string *engine_stmt)
@@ -1744,6 +1747,7 @@ limit_not_met:
 
   DBUG_RETURN(0);
 }
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 static int
 drop_schema(MYSQL *mysql, const char *db)

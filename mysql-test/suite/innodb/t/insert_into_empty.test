@@ -534,4 +534,15 @@ INSERT INTO t1 VALUES();
 SET STATEMENT FOREIGN_KEY_CHECKS=1 FOR SELECT * FROM t1;
 COMMIT;
 DROP TABLE t1;
+
+--echo #
+--echo #  MDEV-33970  Assertion `!m.first->second.is_bulk_insert()'
+--echo #         failed in trx_undo_report_row_operation()
+--echo #
+CREATE TABLE t1(c1 INT,c2 CHAR) ENGINE=INNODB PARTITION BY KEY(c1) PARTITIONS 2;
+begin;
+INSERT INTO t1 VALUES(2,0);
+DELETE FROM t1;
+commit;
+DROP TABLE t1;
 --echo # End of 10.11 tests
