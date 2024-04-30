@@ -1633,7 +1633,7 @@ null_return:
   `CONVERT(arg USING charset)` is actually a general purpose string
   expression, not a JSON expression.
 */
-static bool is_json_type(const Item *item)
+bool is_json_type(const Item *item)
 {
   for ( ; ; )
   {
