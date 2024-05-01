@@ -2822,6 +2822,12 @@ public:
       return Datetime::zero();
     return Timestamp::to_datetime(thd);
   }
+  Datetime to_datetime(const Time_zone *tz, date_conv_mode_t mode) const
+  {
+    if (is_zero_datetime())
+      return (mode & TIME_NO_ZERO_DATE) ? Datetime() : Datetime::zero();
+    return Datetime(tv_sec, tv_usec, tz);
+  }
   bool is_zero_datetime() const { return m_is_zero_datetime; }
   void trunc(uint decimals)
   {
@@ -3071,6 +3077,21 @@ public:
   { }
   static const CHARSET_INFO *charset_info() { return &my_charset_numeric; }
   static const DTCollation & singleton();
+};
+
+
+class Type_time_zone_attributes
+{
+protected:
+  const Time_zone *m_time_zone;
+public:
+  Type_time_zone_attributes()
+   :m_time_zone(nullptr)
+  { }
+  const Time_zone *time_zone() const
+  {
+    return m_time_zone;
+  }
 };
 
 
@@ -3650,6 +3671,7 @@ protected:
   bool Column_definition_prepare_stage2_legacy_real(Column_definition *c,
                                                     enum_field_types type)
                                                     const;
+  const Type_handler *aggregate_for_result_traditional_upgrade() const;
 public:
   static const Type_handler *handler_by_name(THD *thd, const LEX_CSTRING &name);
   static const Type_handler *handler_by_name_or_error(THD *thd,
@@ -3884,6 +3906,8 @@ public:
   virtual bool can_return_extract_source(interval_type type) const;
   virtual bool is_bool_type() const { return false; }
   virtual bool is_general_purpose_string_type() const { return false; }
+  virtual Session_env_dependency::Param type_conversion_dependency_from(
+                                              const Type_handler *from) const;
   virtual uint Item_time_precision(THD *thd, Item *item) const;
   virtual uint Item_datetime_precision(THD *thd, Item *item) const;
   virtual uint Item_decimal_scale(const Item *item) const;
@@ -5864,6 +5888,35 @@ public:
 };
 
 
+// Hystorically UNIX_TIMESTAMP() creates a BIGINT(17) column
+class Type_handler_unix_timestamp: public Type_handler_longlong
+{
+public:
+  /*
+    Override type_handler_unsigned() and type_handler_signed() to avoid
+    switching to general purpose integer data types when mixing two
+    unix_timestamp arguments for a result (COALESCE, CASE THEN etc).
+    This makes Item_hybrid_func_fix_attributes() preserve the unix_timestamp
+    data type, e.g.:
+      COALESCE(unix_timestamp_arg1, unix_timestamp_arg2) -> unix_timestamp.
+  */
+  const Type_handler *type_handler_unsigned() const override
+  {
+    return this;
+  }
+  const Type_handler *type_handler_signed() const override
+  {
+    return this;
+  }
+
+  bool Item_func_round_fix_length_and_dec(Item_func_round *item)
+                                                  const override;
+
+  // Override Item_save_in_field to store in a special way into TIMESTAMP fields
+  int Item_save_in_field(Item *, Field *, bool) const override;
+};
+
+
 class Type_handler_vers_trx_id: public Type_handler_ulonglong
 {
 public:
@@ -6668,6 +6721,9 @@ public:
   {
     return true;
   }
+  Session_env_dependency::Param type_conversion_dependency_from(
+                                                       const Type_handler *to)
+                                                       const override;
   void Column_definition_implicit_upgrade(Column_definition *c) const override;
   bool
   Column_definition_attributes_frm_unpack(Column_definition_attributes *attr,
@@ -6881,6 +6937,20 @@ public:
                                    const Bit_addr &bit,
                                    const Column_definition_attributes *attr,
                                    uint32 flags) const override;
+};
+
+
+class Type_handler_unix_timestampf: public Type_handler_newdecimal
+{
+public:
+  bool Item_func_round_fix_length_and_dec(Item_func_round *item)
+                                                  const override;
+
+  bool Item_func_int_val_fix_length_and_dec(Item_func_int_val *item)
+                                                  const override;
+
+  // Override Item_save_in_field to store in a special way into TIMESTAMP fields
+  int Item_save_in_field(Item *, Field *, bool) const override;
 };
 
 
@@ -7642,6 +7712,9 @@ extern Named_type_handler<Type_handler_vers_trx_id> type_handler_vers_trx_id;
 
 extern MYSQL_PLUGIN_IMPORT Named_type_handler<Type_handler_newdecimal>  type_handler_newdecimal;
 extern Named_type_handler<Type_handler_olddecimal>  type_handler_olddecimal;
+
+extern MYSQL_PLUGIN_IMPORT Named_type_handler<Type_handler_unix_timestamp>   type_handler_unix_timestamp;
+extern MYSQL_PLUGIN_IMPORT Named_type_handler<Type_handler_unix_timestampf>  type_handler_unix_timestampf;
 
 extern Named_type_handler<Type_handler_year>        type_handler_year;
 extern Named_type_handler<Type_handler_year>        type_handler_year2;

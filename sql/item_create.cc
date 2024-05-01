@@ -5283,6 +5283,13 @@ Create_func_unix_timestamp::create_native(THD *thd, const LEX_CSTRING *name,
     func= new (thd->mem_root) Item_func_unix_timestamp(thd, param_1);
     break;
   }
+  case 2:
+  {
+    Item *param_1= item_list->pop();
+    Item *param_2= item_list->pop();
+    func= new (thd->mem_root) Item_func_unix_timestamp(thd, param_1, param_2);
+    break;
+  }
   default:
   {
     my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);

@@ -1,0 +1,157 @@
+--echo #
+--echo # Start of 10.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-34037 DATETIME <-> TIMESTAMP conversion in a virtual column corrups the table on @@time_zone change
+--echo #
+
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT unix_timestamp(ROW(1,1));
+
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+SELECT unix_timestamp(NULL, '+01:00');
+
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+SELECT unix_timestamp('2001-01-01 00:00:00', '+01:00');
+
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+SELECT unix_timestamp(CAST('2001-01-01 00:00:00' AS DATETIME), 1);
+
+CREATE TABLE t1 (a TIMESTAMP);
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+SELECT unix_timestamp(a, '+01:00') FROM t1;
+DROP TABLE t1;
+
+--error ER_STD_INVALID_ARGUMENT
+SELECT unix_timestamp(CAST('2001-01-01 00:00:00' AS DATETIME), concat('+01:00'));
+
+--error ER_UNKNOWN_TIME_ZONE
+SELECT unix_timestamp(CAST('2001-01-01 00:00:00' AS DATETIME), 'UnknownTimeZone');
+
+SELECT unix_timestamp(CAST('2001-01-01 00:00:00' AS DATETIME), '+00:00') AS c1;
+
+SELECT unix_timestamp(CAST('2001-01-01 00:00:00' AS DATETIME), 'SYSTEM') IS NOT NULL AS c1;
+
+SET time_zone='+04:00';
+CREATE TABLE t1 (a DATETIME);
+INSERT INTO t1 VALUES ('2001-01-01 10:00:00');
+CREATE VIEW v1 AS SELECT a, unix_timestamp(a,'+00:00') AS uts00 FROM t1;
+SHOW CREATE VIEW v1;
+SELECT a, uts00, from_unixtime(uts00) FROM v1;
+SET time_zone='+01:00';
+SELECT a, uts00, from_unixtime(uts00) FROM v1;
+DROP TABLE t1;
+DROP VIEW v1;
+SET time_zone=DEFAULT;
+
+
+# Make sure there is no NO_ZERO_DATE in sql_mode.
+# unix_timestamp('0000-00-00 00:00:00', 'tz') should return NULL
+# no matter what sql_mode is.
+
+SET sql_mode='';
+SET time_zone='+04:00';
+
+CREATE TABLE t1 (a DATETIME);
+INSERT INTO t1 VALUES
+('0000-00-00 00:00:00'),
+('2001-01-01 10:00:00'),
+('3001-01-01 10:00:00');
+--vertical_results
+SELECT
+  a,
+  unix_timestamp(a),
+  unix_timestamp(a,'+00:00'),
+  unix_timestamp(a,'+01:00'),
+  unix_timestamp(a,'+02:00'),
+  unix_timestamp(a,'+03:00'),
+  unix_timestamp(a,'+04:00'),
+  unix_timestamp(a,'+05:00'),
+  unix_timestamp(a,'+06:00'),
+  unix_timestamp(a,'+07:00'),
+  unix_timestamp(a,'+08:00')
+FROM t1 ORDER BY a;
+--horizontal_results
+DROP TABLE t1;
+
+CREATE TABLE t1 (a DATETIME(6));
+INSERT INTO t1 VALUES
+('0000-00-00 00:00:00.000000'),
+('2001-01-01 10:00:00.999999'),
+('3001-01-01 10:00:00.999999');
+--vertical_results
+SELECT
+  a,
+  unix_timestamp(a),
+  unix_timestamp(a,'+00:00'),
+  unix_timestamp(a,'+01:00'),
+  unix_timestamp(a,'+02:00'),
+  unix_timestamp(a,'+03:00'),
+  unix_timestamp(a,'+04:00'),
+  unix_timestamp(a,'+05:00'),
+  unix_timestamp(a,'+06:00'),
+  unix_timestamp(a,'+07:00'),
+  unix_timestamp(a,'+08:00')
+FROM t1 ORDER BY a;
+--horizontal_results
+DROP TABLE t1;
+
+--echo # Corner cases
+
+SET time_zone='+00:00';
+
+# Valid values - a little bit after '1970-01-01 00:00:00 +00:00'
+CREATE TABLE t1 (id INT, a TIMESTAMP NULL);
+INSERT INTO t1 VALUES (11, UNIX_TIMESTAMP(FROM_UNIXTIME(0),'-01:00'));
+INSERT INTO t1 VALUES (12, UNIX_TIMESTAMP(FROM_UNIXTIME(0),'-02:00'));
+INSERT INTO t1 VALUES (13, UNIX_TIMESTAMP(FROM_UNIXTIME(0),'-08:00'));
+INSERT INTO t1 VALUES (14, UNIX_TIMESTAMP(FROM_UNIXTIME(0),'-12:00'));
+SELECT * FROM t1;
+DROP TABLE t1;
+
+# '1970-01-01 00:00:00 +00:00' and '0000-00-00 00:00:00'
+SELECT
+  FROM_UNIXTIME(0) AS c0,
+  UNIX_TIMESTAMP(FROM_UNIXTIME(0)) AS c1,
+  UNIX_TIMESTAMP(FROM_UNIXTIME(0),'+00:00') AS c2;
+CREATE TABLE t1 (id INT, a TIMESTAMP NULL);
+# All INSERT statements below re-interpret '1970-01-01 00:00:00 +00:00'
+# as zero date '0000-00-00 00:00:00' with warnings.
+# This is a legacy behavior. The new UNIX_TIMESTAMP() overload works similar.
+# Note, UNIX_TIMESTAMP(timestamp_field_with_zero_datetime) returns 0,
+# prodiving a round trip for 0:
+# SET timestamp_field_with_zero_datetimp=UNIX_TIMESTAMP(FROM_UNIXTIME(0)) -> zero datetime
+# SELECT UNIX_TIMESTAMP(timestamp_field_with_zero_datetimp) FROM t1; --> 0
+INSERT INTO t1 VALUES (30, '1970-01-01 00:00:00');
+INSERT INTO t1 VALUES (31, UNIX_TIMESTAMP('1970-01-01 00:00:00'));
+INSERT INTO t1 VALUES (32, UNIX_TIMESTAMP(FROM_UNIXTIME(0)));
+INSERT INTO t1 VALUES (33, UNIX_TIMESTAMP(FROM_UNIXTIME(0),'+00:00'));
+SELECT * FROM t1;
+DROP TABLE t1;
+
+# Invalid values - before '1970-01-01 00:00:00 +00:00' - evaluate to NULL
+CREATE TABLE t1 (id INT, a TIMESTAMP NULL);
+SELECT
+  UNIX_TIMESTAMP(FROM_UNIXTIME(0),'+01:00'),
+  UNIX_TIMESTAMP(FROM_UNIXTIME(0),'+02:00'),
+  UNIX_TIMESTAMP(FROM_UNIXTIME(0),'+08:00'),
+  UNIX_TIMESTAMP(FROM_UNIXTIME(0),'+12:00');
+# and get inserted as NULL into the table
+# There are no warnings because UNIX_TIMESTAMP() does not produce
+# warnings when returning NULL, neither with one nor with two arguments
+INSERT INTO t1 VALUES (40, UNIX_TIMESTAMP('1960-01-01 00:00:00'));
+INSERT INTO t1 VALUES (41, UNIX_TIMESTAMP(FROM_UNIXTIME(0),'+01:00'));
+INSERT INTO t1 VALUES (42, UNIX_TIMESTAMP(FROM_UNIXTIME(0),'+02:00'));
+INSERT INTO t1 VALUES (43, UNIX_TIMESTAMP(FROM_UNIXTIME(0),'+08:00'));
+INSERT INTO t1 VALUES (44, UNIX_TIMESTAMP(FROM_UNIXTIME(0),'+12:00'));
+SELECT * FROM t1;
+DROP TABLE t1;
+
+
+SET time_zone=DEFAULT;
+SET sql_mode=DEFAULT;
+
+--echo #
+--echo # End of 10.5 tests
+--echo #

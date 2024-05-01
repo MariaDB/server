@@ -14,7 +14,25 @@
  1	1	1
  2	2	1
  3	3	1
-@@ -464,7 +462,6 @@
+@@ -369,17 +367,7 @@
+ v1 bigint unsigned as (a ^ row_start) unique,
+ v2 bigint unsigned as (a ^ row_end) unique
+ ) engine=innodb with system versioning;
+-Warnings:
+-Warning	1901	Function or expression '`a` ^ `row_start`' cannot be used in the GENERATED ALWAYS AS clause of `v1`
+-Warning	1105	TIMESTAMP to DATETIME conversion depends on @@time_zone. For safe conversion use: CAST(timestamp_expr at time zone 'tz' as datetime)
+-Warning	1901	Function or expression '`a` ^ `row_end`' cannot be used in the GENERATED ALWAYS AS clause of `v2`
+-Warning	1105	TIMESTAMP to DATETIME conversion depends on @@time_zone. For safe conversion use: CAST(timestamp_expr at time zone 'tz' as datetime)
+ insert into t1 (a) values (1), (2);
+-Warnings:
+-Warning	1901	Function or expression '`a` ^ `row_start`' cannot be used in the GENERATED ALWAYS AS clause of `v1`
+-Warning	1105	TIMESTAMP to DATETIME conversion depends on @@time_zone. For safe conversion use: CAST(timestamp_expr at time zone 'tz' as datetime)
+-Warning	1901	Function or expression '`a` ^ `row_end`' cannot be used in the GENERATED ALWAYS AS clause of `v2`
+-Warning	1105	TIMESTAMP to DATETIME conversion depends on @@time_zone. For safe conversion use: CAST(timestamp_expr at time zone 'tz' as datetime)
+ update ignore t1 set a= 3;
+ delete history from t1;
+ drop table t1;
+@@ -488,7 +476,6 @@
  select nid, nstate, check_row(row_start, row_end) from t1 for system_time all order by row_start, row_end;
  nid	nstate	check_row(row_start, row_end)
  1	1	HISTORICAL ROW

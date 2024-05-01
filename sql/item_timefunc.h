@@ -480,8 +480,7 @@ class Item_func_dayname :public Item_str_func
 class Item_func_seconds_hybrid: public Item_func_numhybrid
 {
 public:
-  Item_func_seconds_hybrid(THD *thd): Item_func_numhybrid(thd) {}
-  Item_func_seconds_hybrid(THD *thd, Item *a): Item_func_numhybrid(thd, a) {}
+  using Item_func_numhybrid::Item_func_numhybrid;
   void fix_length_and_dec_generic(uint dec)
   {
     DBUG_ASSERT(dec <= TIME_SECOND_PART_DIGITS);
@@ -503,13 +502,17 @@ public:
 };
 
 
-class Item_func_unix_timestamp :public Item_func_seconds_hybrid
+class Item_func_unix_timestamp :public Item_func_seconds_hybrid,
+                                public Type_time_zone_attributes
 {
+  bool check_arguments() const;
   bool get_timestamp_value(my_time_t *seconds, ulong *second_part);
 public:
   Item_func_unix_timestamp(THD *thd): Item_func_seconds_hybrid(thd) {}
   Item_func_unix_timestamp(THD *thd, Item *a):
     Item_func_seconds_hybrid(thd, a) {}
+  Item_func_unix_timestamp(THD *thd, Item *a, Item *b):
+    Item_func_seconds_hybrid(thd, a, b) {}
   const char *func_name() const { return "unix_timestamp"; }
   enum_monotonicity_info get_monotonicity_info() const;
   longlong val_int_endpoint(bool left_endp, bool *incl_endp);
@@ -529,12 +532,8 @@ public:
       return FALSE;
     return mark_unsupported_function(func_name(), "()", arg, VCOL_TIME_FUNC);
   }
-  bool fix_length_and_dec()
-  {
-    fix_length_and_dec_generic(arg_count ?
-                               args[0]->datetime_precision(current_thd) : 0);
-    return FALSE;
-  }
+  bool fix_length_and_dec();
+  Session_env_dependency value_depends_on_session_env() const;
   longlong int_op();
   my_decimal *decimal_op(my_decimal* buf);
   Item *get_copy(THD *thd)
@@ -1165,15 +1164,23 @@ public:
 };
 
 
-class Item_datetime_typecast :public Item_datetimefunc
+class Item_datetime_typecast :public Item_datetimefunc,
+                              public Type_time_zone_attributes
 {
+  bool check_arguments() const;
+  void print_with_at_time_zone(String *str, enum_query_type query_type);
 public:
   Item_datetime_typecast(THD *thd, Item *a, uint dec_arg):
     Item_datetimefunc(thd, a) { decimals= dec_arg; }
+  void set_time_zone(const Time_zone *tz)
+  {
+    m_time_zone= tz;
+  }
   const char *func_name() const { return "cast_as_datetime"; }
   void print(String *str, enum_query_type query_type)
   {
-    print_cast_temporal(str, query_type);
+    m_time_zone ? print_with_at_time_zone(str, query_type) :
+                  print_cast_temporal(str, query_type);
   }
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate);
   bool fix_length_and_dec()
@@ -1182,6 +1189,7 @@ public:
            Item_datetime_typecast_fix_length_and_dec(this);
   }
   Sql_mode_dependency value_depends_on_sql_mode() const;
+  Session_env_dependency value_depends_on_session_env() const;
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_datetime_typecast>(thd, this); }
 };

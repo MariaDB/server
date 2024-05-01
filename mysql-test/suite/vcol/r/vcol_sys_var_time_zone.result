@@ -1,0 +1,352 @@
+#
+# Start of 10.5 tests
+#
+#
+# MDEV-34037 DATETIME <-> TIMESTAMP conversion in a virtual column corrups the table on @@time_zone change
+#
+# Without indexes the conversion to TIMESTAMP and from TIMESTAMP
+# works without errors or wanings
+CREATE TABLE t1
+(
+a DATETIME,
+v TIMESTAMP GENERATED ALWAYS AS (a)
+);
+DROP TABLE t1;
+CREATE TABLE t1
+(
+a TIMESTAMP,
+v DATETIME GENERATED ALWAYS AS (a)
+);
+DROP TABLE t1;
+CREATE TABLE t1
+(
+a DECIMAL(32,0),
+v TIMESTAMP GENERATED ALWAYS AS (a)
+);
+DROP TABLE t1;
+CREATE TABLE t1
+(
+a TIMESTAMP,
+v DECIMAL(32,0) GENERATED ALWAYS AS (a)
+);
+DROP TABLE t1;
+#
+# TIMESTAMP -> not-TIMESTAMP depends on @@time_zone.
+#
+CREATE TABLE t1
+(
+a TIMESTAMP,
+v DATETIME GENERATED ALWAYS AS (a),
+KEY(v)
+);
+Warnings:
+Warning	1901	Function or expression '`a`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	TIMESTAMP to DATETIME conversion depends on @@time_zone. For safe conversion use: CAST(timestamp_expr at time zone 'tz' as datetime)
+DROP TABLE t1;
+CREATE OR REPLACE TABLE t1 (
+a TIMESTAMP,
+v DECIMAL(32,0) GENERATED ALWAYS AS (a),
+KEY(v)
+);
+Warnings:
+Warning	1901	Function or expression '`a`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	TIMESTAMP to DATETIME conversion depends on @@time_zone. For safe conversion use: CAST(timestamp_expr at time zone 'tz' as datetime)
+DROP TABLE t1;
+CREATE OR REPLACE TABLE t1 (
+a TIMESTAMP,
+v VARCHAR(64) GENERATED ALWAYS AS (a),
+KEY(v)
+);
+Warnings:
+Warning	1901	Function or expression '`a`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	TIMESTAMP to DATETIME conversion depends on @@time_zone. For safe conversion use: CAST(timestamp_expr at time zone 'tz' as datetime)
+DROP TABLE t1;
+#
+# not-TIMESTAMP -> TIMESTAMP depends on @@time_zone.
+#
+CREATE OR REPLACE TABLE t1 (
+a DECIMAL(32,0),
+v TIMESTAMP GENERATED ALWAYS AS (a),
+KEY(v)
+);
+Warnings:
+Warning	1901	Function or expression '`a`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	DATETIME to TIMESTAMP conversion depends on @@time_zone For safe conversion use: unix_timestamp(datetime_expr, 'tz')
+DROP TABLE t1;
+CREATE TABLE t1
+(
+a DATETIME,
+v TIMESTAMP GENERATED ALWAYS AS (a),
+KEY(v)
+);
+Warnings:
+Warning	1901	Function or expression '`a`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	DATETIME to TIMESTAMP conversion depends on @@time_zone For safe conversion use: unix_timestamp(datetime_expr, 'tz')
+DROP TABLE t1;
+CREATE TABLE t1
+(
+a VARCHAR(64),
+v TIMESTAMP GENERATED ALWAYS AS (a),
+KEY(v)
+);
+ERROR HY000: Function or expression '`a`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+SHOW WARNINGS;
+Level	Code	Message
+Error	1901	Function or expression '`a`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value TIME_ROUND_FRACTIONAL
+CREATE TABLE t1
+(
+a VARCHAR(64),
+v TIMESTAMP GENERATED ALWAYS AS (ROUND(a)),
+KEY(v)
+);
+Warnings:
+Warning	1901	Function or expression 'round(`a`,0)' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	DATETIME to TIMESTAMP conversion depends on @@time_zone For safe conversion use: unix_timestamp(datetime_expr, 'tz')
+DROP TABLE t1;
+#
+# cast(timestamp_expr at time zone 'TZ' as datetime)
+# removes the dependency on @@time_zone
+# and allows the conversion from TIMESTAMP to DATETIME.
+#
+SET time_zone='+04:00';
+CREATE TABLE t1
+(
+a TIMESTAMP,
+vd DATETIME GENERATED ALWAYS AS (cast(a at time zone '+01:00' as datetime)),
+KEY(vd)
+);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `vd` datetime GENERATED ALWAYS AS (cast(`a` at time zone '+01:00' as datetime)) VIRTUAL,
+  KEY `vd` (`vd`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+INSERT INTO t1 (a) VALUES ('2001-01-01 00:00:00');
+SET time_zone='+08:00';
+SELECT * FROM t1;
+a	2001-01-01 04:00:00
+vd	2000-12-31 21:00:00
+SET time_zone='+04:00';
+SELECT * FROM t1;
+a	2001-01-01 00:00:00
+vd	2000-12-31 21:00:00
+SET time_zone='+02:00';
+SELECT * FROM t1;
+a	2000-12-31 22:00:00
+vd	2000-12-31 21:00:00
+SET time_zone='+01:00';
+SELECT * FROM t1;
+a	2000-12-31 21:00:00
+vd	2000-12-31 21:00:00
+SET time_zone='+00:00';
+SELECT * FROM t1;
+a	2000-12-31 20:00:00
+vd	2000-12-31 21:00:00
+SET time_zone='-01:00';
+SELECT * FROM t1;
+a	2000-12-31 19:00:00
+vd	2000-12-31 21:00:00
+SET time_zone='-02:00';
+SELECT * FROM t1;
+a	2000-12-31 18:00:00
+vd	2000-12-31 21:00:00
+SET time_zone='-04:00';
+SELECT * FROM t1;
+a	2000-12-31 16:00:00
+vd	2000-12-31 21:00:00
+SET time_zone='-08:00';
+SELECT * FROM t1;
+a	2000-12-31 12:00:00
+vd	2000-12-31 21:00:00
+DROP TABLE t1;
+SET time_zone=DEFAULT;
+SET time_zone='+04:00';
+CREATE TABLE t1
+(
+a TIMESTAMP(6),
+vd DECIMAL(32,6) GENERATED ALWAYS AS (cast(a at time zone '+01:00' as datetime(6))),
+KEY(vd)
+);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` timestamp(6) NOT NULL DEFAULT current_timestamp(6) ON UPDATE current_timestamp(6),
+  `vd` decimal(32,6) GENERATED ALWAYS AS (cast(`a` at time zone '+01:00' as datetime(6))) VIRTUAL,
+  KEY `vd` (`vd`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+INSERT INTO t1 (a) VALUES ('2001-01-01 00:00:00.123456');
+SET time_zone='+08:00';
+SELECT * FROM t1;
+a	2001-01-01 04:00:00.123456
+vd	20001231210000.123456
+SET time_zone='+04:00';
+SELECT * FROM t1;
+a	2001-01-01 00:00:00.123456
+vd	20001231210000.123456
+SET time_zone='+02:00';
+SELECT * FROM t1;
+a	2000-12-31 22:00:00.123456
+vd	20001231210000.123456
+SET time_zone='+01:00';
+SELECT * FROM t1;
+a	2000-12-31 21:00:00.123456
+vd	20001231210000.123456
+SET time_zone='+00:00';
+SELECT * FROM t1;
+a	2000-12-31 20:00:00.123456
+vd	20001231210000.123456
+SET time_zone='-01:00';
+SELECT * FROM t1;
+a	2000-12-31 19:00:00.123456
+vd	20001231210000.123456
+SET time_zone='-02:00';
+SELECT * FROM t1;
+a	2000-12-31 18:00:00.123456
+vd	20001231210000.123456
+SET time_zone='-04:00';
+SELECT * FROM t1;
+a	2000-12-31 16:00:00.123456
+vd	20001231210000.123456
+SET time_zone='-08:00';
+SELECT * FROM t1;
+a	2000-12-31 12:00:00.123456
+vd	20001231210000.123456
+DROP TABLE t1;
+SET time_zone=DEFAULT;
+#
+# unix_timestamp(datetime_expr,'TZ') removes the dependency on @@time_zone
+# and allows the conversion from DATETIME to TIMESTAMP.
+#
+SET time_zone='+04:00';
+CREATE TABLE t1
+(
+a DATETIME,
+v TIMESTAMP GENERATED ALWAYS AS (UNIX_TIMESTAMP(a, '+01:00')),
+u BIGINT GENERATED ALWAYS AS (UNIX_TIMESTAMP(v)),
+KEY(v)
+);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` datetime DEFAULT NULL,
+  `v` timestamp GENERATED ALWAYS AS (unix_timestamp(`a`,'+01:00')) VIRTUAL,
+  `u` bigint(20) GENERATED ALWAYS AS (unix_timestamp(`v`)) VIRTUAL,
+  KEY `v` (`v`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+INSERT INTO t1 (a) VALUES ('2001-01-01 00:00:00');
+SET time_zone='+08:00';
+SELECT * FROM t1;
+a	2001-01-01 00:00:00
+v	2001-01-01 07:00:00
+u	978303600
+SET time_zone='+04:00';
+SELECT * FROM t1;
+a	2001-01-01 00:00:00
+v	2001-01-01 03:00:00
+u	978303600
+SET time_zone='+02:00';
+SELECT * FROM t1;
+a	2001-01-01 00:00:00
+v	2001-01-01 01:00:00
+u	978303600
+SET time_zone='+01:00';
+SELECT * FROM t1;
+a	2001-01-01 00:00:00
+v	2001-01-01 00:00:00
+u	978303600
+SET time_zone='+00:00';
+SELECT * FROM t1;
+a	2001-01-01 00:00:00
+v	2000-12-31 23:00:00
+u	978303600
+SET time_zone='-01:00';
+SELECT * FROM t1;
+a	2001-01-01 00:00:00
+v	2000-12-31 22:00:00
+u	978303600
+SET time_zone='-02:00';
+SELECT * FROM t1;
+a	2001-01-01 00:00:00
+v	2000-12-31 21:00:00
+u	978303600
+SET time_zone='-04:00';
+SELECT * FROM t1;
+a	2001-01-01 00:00:00
+v	2000-12-31 19:00:00
+u	978303600
+SET time_zone='-08:00';
+SELECT * FROM t1;
+a	2001-01-01 00:00:00
+v	2000-12-31 15:00:00
+u	978303600
+DROP TABLE t1;
+SET time_zone=DEFAULT;
+SET time_zone='+04:00';
+CREATE TABLE t1
+(
+a DECIMAL(32,6),
+v TIMESTAMP(6) GENERATED ALWAYS AS (UNIX_TIMESTAMP(CAST(a AS DATETIME(6)), '+01:00')),
+u DECIMAL(32,6) GENERATED ALWAYS AS (UNIX_TIMESTAMP(v)),
+KEY(v)
+);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` decimal(32,6) DEFAULT NULL,
+  `v` timestamp(6) GENERATED ALWAYS AS (unix_timestamp(cast(`a` as datetime(6)),'+01:00')) VIRTUAL,
+  `u` decimal(32,6) GENERATED ALWAYS AS (unix_timestamp(`v`)) VIRTUAL,
+  KEY `v` (`v`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+INSERT INTO t1 (a) VALUES (20010101000000.123456);
+SET time_zone='+08:00';
+SELECT * FROM t1;
+a	20010101000000.123456
+v	2001-01-01 07:00:00.123456
+u	978303600.123456
+SET time_zone='+04:00';
+SELECT * FROM t1;
+a	20010101000000.123456
+v	2001-01-01 03:00:00.123456
+u	978303600.123456
+SET time_zone='+02:00';
+SELECT * FROM t1;
+a	20010101000000.123456
+v	2001-01-01 01:00:00.123456
+u	978303600.123456
+SET time_zone='+01:00';
+SELECT * FROM t1;
+a	20010101000000.123456
+v	2001-01-01 00:00:00.123456
+u	978303600.123456
+SET time_zone='+00:00';
+SELECT * FROM t1;
+a	20010101000000.123456
+v	2000-12-31 23:00:00.123456
+u	978303600.123456
+SET time_zone='-01:00';
+SELECT * FROM t1;
+a	20010101000000.123456
+v	2000-12-31 22:00:00.123456
+u	978303600.123456
+SET time_zone='-02:00';
+SELECT * FROM t1;
+a	20010101000000.123456
+v	2000-12-31 21:00:00.123456
+u	978303600.123456
+SET time_zone='-04:00';
+SELECT * FROM t1;
+a	20010101000000.123456
+v	2000-12-31 19:00:00.123456
+u	978303600.123456
+SET time_zone='-08:00';
+SELECT * FROM t1;
+a	20010101000000.123456
+v	2000-12-31 15:00:00.123456
+u	978303600.123456
+DROP TABLE t1;
+SET time_zone=DEFAULT;
+#
+# End of 10.5 tests
+#

@@ -519,7 +519,7 @@ select from_unixtime();
 -- error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
 select from_unixtime(1, 2, 3);
 
--- error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+-- error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
 select unix_timestamp(1, 2);
 
 -- error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT

@@ -617,6 +617,10 @@ SET time_zone=DEFAULT;
 --echo #
 
 --echo #
+--echo # Start of 10.5 tests
+--echo #
+
+--echo #
 --echo # MDEV-27101 Subquery using the ALL keyword on TIMESTAMP columns produces a wrong result
 --echo #
 
@@ -630,3 +634,50 @@ SELECT a, UNIX_TIMESTAMP(a) FROM t1 ORDER BY a;
 SELECT a, UNIX_TIMESTAMP(a) FROM t1 WHERE a <= ALL (SELECT * FROM t1);
 SELECT a, UNIX_TIMESTAMP(a) FROM t1 WHERE a >= ALL (SELECT * FROM t1);
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-34037 DATETIME <-> TIMESTAMP conversion in a virtual column corrups the table on @@time_zone change
+--echo #
+
+SET time_zone='Europe/Moscow';
+CREATE TABLE t1 (a DATETIME, comment VARCHAR(30));
+INSERT INTO t1 VALUES
+('2000-03-26 01:59:59', 'spring-forward -00:00:01'),
+('2000-03-26 02:00:00', 'spring-forward gap first'),
+('2000-03-26 02:30:00', 'spring-forward gap mid'),
+('2000-03-26 02:59:59', 'spring-forward gap last'),
+('2000-03-26 03:00:00', 'spring-forward +00:00:00'),
+('2000-03-26 03:00:01', 'spring-forward +00:00:01'),
+('2023-10-29 01:59:59', 'fall-back -00:00:01'),
+('2023-10-29 02:00:00', 'fall-back dup first'),
+('2023-10-29 02:30:00', 'fall-back dup mid'),
+('2023-10-29 02:59:59', 'fall-back dup last'),
+('2023-10-29 03:00:00', 'fall-back +02:00:00'),
+('2023-10-29 03:00:01', 'fall-back +02:00:01');
+
+SELECT
+  a,
+  unix_timestamp(a) AS uts,
+  unix_timestamp(a,'Europe/Moscow') AS utsz,
+  comment
+FROM t1 ORDER BY a;
+
+SELECT
+  a,
+  unix_timestamp(a)-unix_timestamp(a,'+00:00') AS tzoffs,
+  comment
+FROM t1 ORDER BY a;
+
+SET time_zone='+00:00';
+SELECT
+  a,
+  unix_timestamp(a,'Europe/Moscow')-unix_timestamp(a) AS tzoffs,
+  comment
+FROM t1 ORDER BY a;
+
+DROP TABLE t1;
+SET time_zone=DEFAULT;
+
+--echo #
+--echo # End of 10.5 tests
+--echo #

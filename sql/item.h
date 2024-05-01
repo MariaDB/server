@@ -1566,6 +1566,10 @@ public:
   {
     return Sql_mode_dependency();
   }
+  virtual Session_env_dependency value_depends_on_session_env() const
+  {
+    return Session_env_dependency();
+  }
 
   int save_time_in_field(Field *field, bool no_conversions);
   int save_date_in_field(Field *field, bool no_conversions);
@@ -2757,6 +2761,9 @@ public:
   inline uint argument_count() const { return arg_count; }
   inline void remove_arguments() { arg_count=0; }
   Sql_mode_dependency value_depends_on_sql_mode_bit_or() const;
+  Session_env_dependency value_depends_on_session_env_bit_or() const;
+  Session_env_dependency::Param conversion_depends_on_session_env_bit_or(
+                                                const Type_handler *to) const;
 };
 
 
@@ -5359,6 +5366,20 @@ public:
   Sql_mode_dependency value_depends_on_sql_mode() const override
   {
     return Item_args::value_depends_on_sql_mode_bit_or().soft_to_hard();
+  }
+  Session_env_dependency value_depends_on_session_env() const override
+  {
+    /*
+      Collect dependencies from all arguments, with soft_to_hard() escalation.
+      Add data type conversion soft dependencies. This assumes that by default
+      a function:
+      - does not remove a dependency on the session environment
+      - thinks that all arguments will be converted from their data types
+        to the result data type
+    */
+    return Item_args::value_depends_on_session_env_bit_or().soft_to_hard() |
+           Session_env_dependency(0,
+           Item_args::conversion_depends_on_session_env_bit_or(type_handler()));
   }
 };
 

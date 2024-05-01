@@ -932,6 +932,19 @@ static enum_field_types field_types_merge_rules [FIELDTYPE_NUM][FIELDTYPE_NUM]=
 
 
 const Type_handler *
+Type_handler::aggregate_for_result_traditional_upgrade() const
+{
+  switch (field_type()) {
+  case MYSQL_TYPE_DECIMAL:     return &type_handler_newdecimal;
+  case MYSQL_TYPE_DATE:        return &type_handler_newdate;
+  case MYSQL_TYPE_VAR_STRING:  return &type_handler_varchar;
+  default: break;
+  }
+  return this;
+}
+
+
+const Type_handler *
 Type_handler::aggregate_for_result_traditional(const Type_handler *a,
                                                const Type_handler *b)
 {
@@ -939,7 +952,11 @@ Type_handler::aggregate_for_result_traditional(const Type_handler *a,
   {
     /*
       If two traditional handlers are equal, quickly return "a".
-      Some handlers (e.g. Type_handler_bool) pretend to be traditional,
+      Some handlers:
+       - Type_handler_bool
+       - Type_handler_unix_timestamp
+       - Type_handler_unix_timestampf
+      pretend to be traditional,
       but in fact they are not traditional in full extent, they are
       only sub-types for now (and don't have a corresponding Field_xxx yet).
       Here we preserve such handlers during aggregation.
@@ -948,14 +965,30 @@ Type_handler::aggregate_for_result_traditional(const Type_handler *a,
       Need to do this conversion for deprecated data types,
       similar to what field_type_merge_rules[][] does.
     */
-    switch (a->field_type()) {
-    case MYSQL_TYPE_DECIMAL:     return &type_handler_newdecimal;
-    case MYSQL_TYPE_DATE:        return &type_handler_newdate;
-    case MYSQL_TYPE_VAR_STRING:  return &type_handler_varchar;
-    default: break;
-    }
-    return a;
+    return a->aggregate_for_result_traditional_upgrade();
   }
+
+  /*
+    In case of a mixture of some data type T and an explicit NULL, return T.
+    Like in case of two equal data types, let's upgrade deprecated ones.
+    Examples:
+      COALESCE(unix_timestamp, NULL)  -> unix_timestamp
+      COALESCE(newdecimal, NULL)      -> newdecimal
+      COALESCE(olddecimal, NULL)      -> newdecimal     (notice upgrade)
+      COALESCE(varchar_mysql41, NULL) -> varstring      (notice upgrade)
+  */
+  if (a == &type_handler_null)
+    return b->aggregate_for_result_traditional_upgrade();
+  if (b == &type_handler_null)
+    return a->aggregate_for_result_traditional_upgrade();
+
+  // Special case: a mix of unix_timestamp(0) and unix_timestamp(N>0)
+  if ((a == &type_handler_unix_timestamp &&
+       b == &type_handler_unix_timestampf) ||
+      (a == &type_handler_unix_timestampf &&
+       b == &type_handler_unix_timestamp))
+    return &type_handler_unix_timestampf;
+
   enum_field_types ta= a->traditional_merge_field_type();
   enum_field_types tb= b->traditional_merge_field_type();
   enum_field_types res= field_types_merge_rules[merge_type2index(ta)]
@@ -1497,6 +1530,21 @@ bool Field::check_vcol_sql_mode_dependency(THD *thd, vcol_init_mode mode) const
       bool error= (mode & VCOL_INIT_DEPENDENCY_FAILURE_IS_ERROR) != 0;
       error_generated_column_function_is_not_allowed(thd, error);
       dep.push_dependency_warnings(thd);
+      return error;
+    }
+    Session_env_dependency env_dep_value=
+      vcol_info->expr->value_depends_on_session_env();
+    Session_env_dependency env_dep_cnv(0,
+                                       type_handler()->
+                                         type_conversion_dependency_from(
+                                           vcol_info->expr->type_handler()));
+    Session_env_dependency env_dep= env_dep_value | env_dep_cnv;
+    if (env_dep)
+    {
+      // Will be changed to error in 11.6
+      bool error= false;//(mode & VCOL_INIT_DEPENDENCY_FAILURE_IS_ERROR) != 0;
+      error_generated_column_function_is_not_allowed(thd, error);
+      env_dep.push_dependency_warnings(thd, vcol_info->expr);
       return error;
     }
   }

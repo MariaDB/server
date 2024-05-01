@@ -79,6 +79,10 @@ d timestamp(6) generated always as row start,
 e timestamp(6) generated always as row end,
 period for system_time(d,e)
 ) with system versioning;
+Warnings:
+Warning	1901	Function or expression '`a` + interval 1 month' cannot be used in the GENERATED ALWAYS AS clause of `c`
+Warning	1105	TIMESTAMP to DATETIME conversion depends on @@time_zone. For safe conversion use: CAST(timestamp_expr at time zone 'tz' as datetime)
+Warning	1105	DATETIME to TIMESTAMP conversion depends on @@time_zone For safe conversion use: unix_timestamp(datetime_expr, 'tz')
 show columns from t1;
 Field	Type	Null	Key	Default	Extra
 a	timestamp(6)	NO		current_timestamp(6)	on update current_timestamp(6)
@@ -86,6 +90,10 @@ b	timestamp(6)	YES		NULL	VIRTUAL GENERATED
 c	timestamp(6)	YES		NULL	STORED GENERATED
 d	timestamp(6)	NO		NULL	STORED GENERATED
 e	timestamp(6)	NO		NULL	STORED GENERATED
+Warnings:
+Warning	1901	Function or expression '`a` + interval 1 month' cannot be used in the GENERATED ALWAYS AS clause of `c`
+Warning	1105	TIMESTAMP to DATETIME conversion depends on @@time_zone. For safe conversion use: CAST(timestamp_expr at time zone 'tz' as datetime)
+Warning	1105	DATETIME to TIMESTAMP conversion depends on @@time_zone For safe conversion use: unix_timestamp(datetime_expr, 'tz')
 select table_catalog,table_schema,table_name,column_name,ordinal_position,column_default,is_nullable,data_type,character_maximum_length,character_octet_length,numeric_precision,numeric_scale,datetime_precision,character_set_name,collation_name,column_type,column_key,extra,column_comment,is_generated,generation_expression,'---' from information_schema.columns where table_name='t1';
 table_catalog	def
 table_schema	test
@@ -197,4 +205,14 @@ column_comment
 is_generated	ALWAYS
 generation_expression	ROW END
 ---	---
+Warnings:
+Level	Warning
+Code	1901
+Message	Function or expression '`a` + interval 1 month' cannot be used in the GENERATED ALWAYS AS clause of `c`
+Level	Warning
+Code	1105
+Message	TIMESTAMP to DATETIME conversion depends on @@time_zone. For safe conversion use: CAST(timestamp_expr at time zone 'tz' as datetime)
+Level	Warning
+Code	1105
+Message	DATETIME to TIMESTAMP conversion depends on @@time_zone For safe conversion use: unix_timestamp(datetime_expr, 'tz')
 drop table t1;

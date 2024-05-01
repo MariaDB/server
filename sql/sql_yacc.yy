@@ -68,6 +68,7 @@
 #include "sql_sequence.h"
 #include "my_base.h"
 #include "sql_type_json.h"
+#include "tztime.h"
 
 /* this is to get the bison compilation windows warnings out */
 #ifdef _MSC_VER
@@ -240,6 +241,7 @@ void _CONCAT_UNDERSCORED(turn_parser_debug_on,yyparse)()
   const Type_handler *type_handler;
   const class Sp_handler *sp_handler;
   CHARSET_INFO *charset;
+  const Time_zone *time_zone;
   Condition_information_item *cond_info_item;
   DYNCALL_CREATE_DEF *dyncol_def;
   Diagnostics_information *diag_info;
@@ -695,6 +697,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd> XOR
 %token  <kwd> YEAR_MONTH_SYM
 %token  <kwd> ZEROFILL
+%token  <kwd> ZONE_SYM
 
 
 /*
@@ -1642,6 +1645,10 @@ rule:
         collation_name_or_default
         opt_load_data_charset
         UNDERSCORE_CHARSET
+
+%type <time_zone>
+        time_zone_name
+        time_zone_specifier
 
 %type <select_lex> subselect
         query_specification
@@ -5900,6 +5907,22 @@ default_collation:
           }
         ;
 
+time_zone_name:
+          TEXT_STRING_sys
+          {
+            String str($1.str, $1.length, system_charset_info);
+            if (!($$= my_tz_find(thd, &str)))
+              my_yyabort_error((ER_UNKNOWN_TIME_ZONE, MYF(0), $1.str));
+          }
+        ;
+
+time_zone_specifier:
+          TIME_SYM ZONE_SYM time_zone_name
+          {
+            $$= $3;
+          }
+        ;
+
 storage_engines:
           ident_or_text
           {
@@ -10001,6 +10024,14 @@ column_default_non_parenthesized_expr:
             if (unlikely(!($$= $5.create_typecast_item_or_error(thd, $3,
                                                                 Lex->charset))))
               MYSQL_YYABORT;
+          }
+        | CAST_SYM '(' expr AT_SYM time_zone_specifier AS DATETIME opt_field_length ')'
+          {
+            if (!($$= type_handler_datetime2.create_typecast_item(
+                        thd, $3, Type_cast_attributes(nullptr, $8, nullptr))))
+               MYSQL_YYABORT;
+            DBUG_ASSERT(dynamic_cast<Item_datetime_typecast*>($$));
+            static_cast<Item_datetime_typecast*>($$)->set_time_zone($5);
           }
         | CASE_SYM when_list_opt_else END
           {
@@ -16064,6 +16095,7 @@ keyword_sp_var_and_label:
         | X509_SYM
         | XML_SYM
         | VIA_SYM
+        | ZONE_SYM
         ;
 
 

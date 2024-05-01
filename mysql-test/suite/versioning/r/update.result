@@ -369,7 +369,17 @@ period for system_time (row_start, row_end),
 v1 bigint unsigned as (a ^ row_start) unique,
 v2 bigint unsigned as (a ^ row_end) unique
 ) engine=innodb with system versioning;
+Warnings:
+Warning	1901	Function or expression '`a` ^ `row_start`' cannot be used in the GENERATED ALWAYS AS clause of `v1`
+Warning	1105	TIMESTAMP to DATETIME conversion depends on @@time_zone. For safe conversion use: CAST(timestamp_expr at time zone 'tz' as datetime)
+Warning	1901	Function or expression '`a` ^ `row_end`' cannot be used in the GENERATED ALWAYS AS clause of `v2`
+Warning	1105	TIMESTAMP to DATETIME conversion depends on @@time_zone. For safe conversion use: CAST(timestamp_expr at time zone 'tz' as datetime)
 insert into t1 (a) values (1), (2);
+Warnings:
+Warning	1901	Function or expression '`a` ^ `row_start`' cannot be used in the GENERATED ALWAYS AS clause of `v1`
+Warning	1105	TIMESTAMP to DATETIME conversion depends on @@time_zone. For safe conversion use: CAST(timestamp_expr at time zone 'tz' as datetime)
+Warning	1901	Function or expression '`a` ^ `row_end`' cannot be used in the GENERATED ALWAYS AS clause of `v2`
+Warning	1105	TIMESTAMP to DATETIME conversion depends on @@time_zone. For safe conversion use: CAST(timestamp_expr at time zone 'tz' as datetime)
 update ignore t1 set a= 3;
 delete history from t1;
 drop table t1;

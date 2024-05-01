@@ -54,6 +54,9 @@ Named_type_handler<Type_handler_float> type_handler_float("float");
 Named_type_handler<Type_handler_double> type_handler_double("double");
 Named_type_handler<Type_handler_bit> type_handler_bit("bit");
 
+Named_type_handler<Type_handler_unix_timestamp>  type_handler_unix_timestamp("unix_timestamp");
+Named_type_handler<Type_handler_unix_timestampf> type_handler_unix_timestampf("unix_timestamp");
+
 Named_type_handler<Type_handler_olddecimal> type_handler_olddecimal("decimal");
 Named_type_handler<Type_handler_newdecimal> type_handler_newdecimal("decimal");
 
@@ -2046,7 +2049,8 @@ Type_collection_std::aggregate_for_min_max(const Type_handler *ha,
   if ((a == INT_RESULT || a == DECIMAL_RESULT) &&
       (b == INT_RESULT || b == DECIMAL_RESULT))
   {
-    return &type_handler_newdecimal;
+    // type_handler_newdecimal or type_handler_unix_timestampf
+    return Type_collection_std::aggregate_for_result(ha, hb);
   }
   // Preserve FLOAT if two FLOATs, set to DOUBLE otherwise.
   if (ha == &type_handler_float && hb == &type_handler_float)
@@ -4369,6 +4373,40 @@ int Type_handler_int_result::Item_save_in_field(Item *item, Field *field,
 }
 
 
+int Type_handler_unix_timestamp::Item_save_in_field(Item *item, Field *field,
+                                                    bool no_conversions) const
+{
+  DBUG_ASSERT(item->decimals == 0);
+  if (field->type_handler()->type_handler_for_native_format() ==
+      &type_handler_timestamp2)
+  {
+    const Timeval tv((my_time_t) item->val_int(), 0);
+    if (item->null_value)
+      return set_field_to_null_with_conversions(field, no_conversions);
+    field->set_notnull();
+    return field->store_timestamp_dec(tv, 0/*decimals*/);
+  }
+  return item->save_int_in_field(field, no_conversions);
+}
+
+
+int Type_handler_unix_timestampf::Item_save_in_field(Item *item, Field *field,
+                                                     bool no_conversions) const
+{
+  DBUG_ASSERT(item->decimals <= TIME_SECOND_PART_DIGITS);
+  if (field->type_handler()->type_handler_for_native_format() ==
+      &type_handler_timestamp2)
+  {
+    const VSec9 tmp(current_thd, item, "unix_timestamp", TIMESTAMP_MAX_VALUE);
+    if (tmp.is_null())
+      return set_field_to_null_with_conversions(field, no_conversions);
+    field->set_notnull();
+    const Timeval tv((my_time_t) tmp.sec(), (ulong) tmp.usec());
+    return field->store_timestamp_dec(tv, item->decimals);
+  }
+  return item->save_decimal_in_field(field, no_conversions);
+}
+
 /***********************************************************************/
 
 bool Type_handler_row::set_comparator_func(Arg_comparator *cmp) const
@@ -6400,6 +6438,19 @@ bool Type_handler_int_result::
 }
 
 
+bool Type_handler_unix_timestamp::Item_func_round_fix_length_and_dec(
+                                                  Item_func_round *item) const
+{
+  item->fix_arg_int(this, item->arguments()[0], false);
+  /*
+    If the length increses, item->fix_arg_int() chooses some general
+    purpose integer data type. Switch the data type handler back to "this".
+  */
+  item->set_handler(this);
+  return false;
+}
+
+
 bool Type_handler_long_ge0::
        Item_func_round_fix_length_and_dec(Item_func_round *item) const
 {
@@ -6453,6 +6504,21 @@ bool Type_handler_decimal_result::
        Item_func_round_fix_length_and_dec(Item_func_round *item) const
 {
   item->fix_arg_decimal();
+  return false;
+}
+
+
+bool Type_handler_unix_timestampf::Item_func_round_fix_length_and_dec(
+                                                  Item_func_round *item) const
+{
+  item->fix_arg_decimal();
+  /*
+    Preserve the type_handler_unix_timestampf data type in suitable cases.
+    Stay with double or decimal otherwise.
+  */
+  if (item->type_handler() == &type_handler_newdecimal &&
+      item->decimals <= TIME_SECOND_PART_DIGITS)
+    item->set_handler(this);
   return false;
 }
 
@@ -6565,6 +6631,27 @@ bool Type_handler_decimal_result::
        Item_func_int_val_fix_length_and_dec(Item_func_int_val *item) const
 {
   item->fix_length_and_dec_int_or_decimal();
+  return false;
+}
+
+
+bool Type_handler_unix_timestampf::Item_func_int_val_fix_length_and_dec(
+                                                Item_func_int_val *item) const
+{
+  item->fix_length_and_dec_int_or_decimal();
+  /*
+    The above method call can change the data type handler to
+    type_handler_newdecimal in cases when the length can increase
+    and non of the integer data types can fit the result.
+    A unix_timestamp value even after length increase should
+    always fit into longlong, which is a storage for
+    type_handler_unix_timestamp.
+    The assert means that the result always fits into longlong.
+    Otherwise, we'd need to switch to &type_handler_unix_timestampf here.
+  */
+  DBUG_ASSERT(item->type_handler() != &type_handler_newdecimal);
+  DBUG_ASSERT(item->decimals == 0);
+  item->set_handler(&type_handler_unix_timestamp);
   return false;
 }
 
@@ -6880,6 +6967,15 @@ bool Type_handler::
             item->decimals;
   item->fix_attributes_temporal(MAX_DATETIME_WIDTH, dec);
   item->maybe_null= true;
+  if (item->time_zone()) // CAST(timestamp_expr AT TIME ZONE 'tz' AS DATETIME)
+  {
+    if (type_handler_for_native_format() != &type_handler_timestamp2)
+    {
+      my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+               name().ptr(), item->func_name());
+      return true;
+    }
+  }
   return false;
 }
 
@@ -9511,6 +9607,30 @@ bool Type_handler::can_return_extract_source(interval_type int_type) const
 {
   return type_collection() == &type_collection_std;
 }
+
+
+Session_env_dependency::Param
+Type_handler::type_conversion_dependency_from(const Type_handler *from) const
+{
+  const Type_handler *fmt= from->type_handler_for_native_format();
+  return fmt == &type_handler_timestamp2 ?
+         Session_env_dependency::SYS_VAR_TIME_ZONE_GMT_SEC_TO_TIME :
+         Session_env_dependency::NONE;
+}
+
+
+Session_env_dependency::Param
+Type_handler_timestamp_common::type_conversion_dependency_from(
+                                 const Type_handler *from) const
+{
+  const Type_handler *fmt= from->type_handler_for_native_format();
+  return fmt == &type_handler_timestamp2 ||
+         fmt == &type_handler_unix_timestamp ||
+         fmt == &type_handler_unix_timestampf ?
+         Session_env_dependency::NONE :
+         Session_env_dependency::SYS_VAR_TIME_ZONE_TIME_TO_GMT_SEC;
+}
+
 
 /***************************************************************************/
 

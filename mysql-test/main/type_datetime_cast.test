@@ -1,0 +1,158 @@
+--echo #
+--echo # Start of 10.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-34037 DATETIME <-> TIMESTAMP conversion in a virtual column corrups the table on @@time_zone change
+--echo #
+
+--error ER_UNKNOWN_TIME_ZONE
+SELECT CAST(1 at time zone 'UnknownTimeZone' AS DATETIME);
+
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT CAST(1 at time zone '+00:00' AS DATETIME);
+
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT CAST('2001-01-01 10:00:00' at time zone '+00:00' AS DATETIME);
+
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT CAST(CAST('2001-01-01 10:00:00' AS DATETIME) at time zone '+00:00' AS DATETIME);
+
+# Make sure there is no NO_ZERO_DATE in sql_mode
+# CAST(ts AT TIME ZONE 'tz' AS DATETIME) returns NULL for zero date
+# no matter what sql_mode is.
+# The true "AT TIME ZONE" expression should return NULL for zero date
+# when we implement it.
+
+SET sql_mode='';
+SET time_zone='+00:00';
+CREATE TABLE t1 (a TIMESTAMP);
+INSERT INTO t1 VALUES ('0000-00-00 00:00:00');
+INSERT INTO t1 VALUES ('2001-01-01 00:00:00');
+--vertical_results
+SELECT
+  a,
+  CAST(a at time zone '-08:00' AS DATETIME) AS a_m0800,
+  CAST(a at time zone '-04:00' AS DATETIME) AS a_m0400,
+  CAST(a at time zone '-01:00' AS DATETIME) AS a_m0100,
+  CAST(a at time zone '+00:00' AS DATETIME) AS a_p0000,
+  CAST(a at time zone '+01:00' AS DATETIME) AS a_p0100,
+  CAST(a at time zone '+04:00' AS DATETIME) AS a_p0400,
+  CAST(a at time zone '+08:00' AS DATETIME) AS a_p0800
+FROM t1;
+SELECT
+  unix_timestamp(a) AS ut_a,
+  unix_timestamp(CAST(a at time zone '-08:00' AS DATETIME)) AS ut_a_m0800,
+  unix_timestamp(CAST(a at time zone '-04:00' AS DATETIME)) AS ut_a_m0400,
+  unix_timestamp(CAST(a at time zone '-01:00' AS DATETIME)) AS ut_a_m0100,
+  unix_timestamp(CAST(a at time zone '+00:00' AS DATETIME)) AS ut_a_p0000,
+  unix_timestamp(CAST(a at time zone '+01:00' AS DATETIME)) AS ut_a_p0100,
+  unix_timestamp(CAST(a at time zone '+04:00' AS DATETIME)) AS ut_a_p0400,
+  unix_timestamp(CAST(a at time zone '+08:00' AS DATETIME)) AS ut_a_p0800
+FROM t1;
+--horizontal_results
+DROP TABLE t1;
+SET time_zone=DEFAULT;
+SET sql_mode='';
+
+SET time_zone='+00:00';
+CREATE TABLE t1 (a TIMESTAMP);
+INSERT INTO t1 VALUES ('0000-00-00 00:00:00');
+INSERT INTO t1 VALUES ('2001-01-01 00:00:00');
+CREATE VIEW v1 AS
+SELECT a, CAST(a at time zone '+04:00' AS datetime) AS a_p0400
+FROM t1;
+SHOW CREATE VIEW v1;
+SELECT * FROM v1;
+SET time_zone='+01:00';
+SELECT * FROM v1;
+DROP VIEW v1;
+DROP TABLE t1;
+SET time_zone=DEFAULT;
+
+SET time_zone='+00:00';
+CREATE TABLE t1 (a TIMESTAMP(6));
+INSERT INTO t1 VALUES ('0000-00-00 00:00:00.000000');
+INSERT INTO t1 VALUES ('2001-01-01 00:00:00.123456');
+CREATE VIEW v1 AS
+SELECT a, CAST(a at time zone '+04:00' AS datetime(6)) AS a_p0400
+FROM t1;
+SHOW CREATE VIEW v1;
+SELECT * FROM v1;
+SET time_zone='+01:00';
+SELECT * FROM v1;
+DROP VIEW v1;
+DROP TABLE t1;
+SET time_zone=DEFAULT;
+
+# Corner cases
+SET sql_mode='';
+SET time_zone='+00:00';
+
+CREATE TABLE t1 (a TIMESTAMP(6) NULL);
+INSERT INTO t1 VALUES
+('0000-00-00 00:00:00.000000'),
+('1970-01-01 00:00:00.000001'),
+('1970-01-01 00:00:01.000000');
+--vertical_results
+SELECT
+  a,
+  CAST(a at time zone '-12:00' as datetime(6)) AS a_m1200,
+  CAST(a at time zone '-08:00' as datetime(6)) AS a_m0800,
+  CAST(a at time zone '-04:00' as datetime(6)) AS a_m0400,
+  CAST(a at time zone '-02:00' as datetime(6)) AS a_m0200,
+  CAST(a at time zone '-01:00' as datetime(6)) AS a_m0100,
+  CAST(a at time zone '+00:00' as datetime(6)) AS a_p0000,
+  CAST(a at time zone '+01:00' as datetime(6)) AS a_p0100,
+  CAST(a at time zone '+02:00' as datetime(6)) AS a_p0200,
+  CAST(a at time zone '+04:00' as datetime(6)) AS a_p0400,
+  CAST(a at time zone '+08:00' as datetime(6)) AS a_p0800,
+  CAST(a at time zone '+12:00' as datetime(6)) AS a_p1200
+FROM t1;
+--horizontal_results
+
+SET time_zone='+01:00';
+--vertical_results
+SELECT
+  a,
+  CAST(a at time zone '-12:00' as datetime(6)) AS a_m1200,
+  CAST(a at time zone '-08:00' as datetime(6)) AS a_m0800,
+  CAST(a at time zone '-04:00' as datetime(6)) AS a_m0400,
+  CAST(a at time zone '-02:00' as datetime(6)) AS a_m0200,
+  CAST(a at time zone '-01:00' as datetime(6)) AS a_m0100,
+  CAST(a at time zone '+00:00' as datetime(6)) AS a_p0000,
+  CAST(a at time zone '+01:00' as datetime(6)) AS a_p0100,
+  CAST(a at time zone '+02:00' as datetime(6)) AS a_p0200,
+  CAST(a at time zone '+04:00' as datetime(6)) AS a_p0400,
+  CAST(a at time zone '+08:00' as datetime(6)) AS a_p0800,
+  CAST(a at time zone '+12:00' as datetime(6)) AS a_p1200
+FROM t1;
+--horizontal_results
+
+SET time_zone='-01:00';
+--vertical_results
+SELECT
+  a,
+  CAST(a at time zone '-12:00' as datetime(6)) AS a_m1200,
+  CAST(a at time zone '-08:00' as datetime(6)) AS a_m0800,
+  CAST(a at time zone '-04:00' as datetime(6)) AS a_m0400,
+  CAST(a at time zone '-02:00' as datetime(6)) AS a_m0200,
+  CAST(a at time zone '-01:00' as datetime(6)) AS a_m0100,
+  CAST(a at time zone '+00:00' as datetime(6)) AS a_p0000,
+  CAST(a at time zone '+01:00' as datetime(6)) AS a_p0100,
+  CAST(a at time zone '+02:00' as datetime(6)) AS a_p0200,
+  CAST(a at time zone '+04:00' as datetime(6)) AS a_p0400,
+  CAST(a at time zone '+08:00' as datetime(6)) AS a_p0800,
+  CAST(a at time zone '+12:00' as datetime(6)) AS a_p1200
+FROM t1;
+--horizontal_results
+
+
+DROP TABLE t1;
+
+SET time_zone=DEFAULT;
+SET sql_mode=DEFAULT;
+
+--echo #
+--echo # End of 10.5 tests
+--echo #

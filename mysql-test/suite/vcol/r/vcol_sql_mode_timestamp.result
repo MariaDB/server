@@ -19,6 +19,9 @@ d DATETIME,
 v TIMESTAMP(4) AS ('2001-01-01 10:20:30.1234') VIRTUAL,
 KEY(v,d)
 );
+Warnings:
+Warning	1901	Function or expression ''2001-01-01 10:20:30.1234'' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	DATETIME to TIMESTAMP conversion depends on @@time_zone For safe conversion use: unix_timestamp(datetime_expr, 'tz')
 DROP TABLE t1;
 # OK: lower FSP + no virtual index
 CREATE TABLE t1 (
@@ -63,7 +66,15 @@ d DATETIME,
 v TIMESTAMP(3) AS (ROUND(t,3)) VIRTUAL,
 KEY(v,d)
 );
+Warnings:
+Warning	1901	Function or expression 'round(`t`,3)' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	TIMESTAMP to DATETIME conversion depends on @@time_zone. For safe conversion use: CAST(timestamp_expr at time zone 'tz' as datetime)
+Warning	1105	DATETIME to TIMESTAMP conversion depends on @@time_zone For safe conversion use: unix_timestamp(datetime_expr, 'tz')
 INSERT IGNORE INTO t1 (t,d) VALUES ('2006-03-01 12:44:34.0496','2029-10-10 21:27:53');
+Warnings:
+Warning	1901	Function or expression 'round(`t`,3)' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	TIMESTAMP to DATETIME conversion depends on @@time_zone. For safe conversion use: CAST(timestamp_expr at time zone 'tz' as datetime)
+Warning	1105	DATETIME to TIMESTAMP conversion depends on @@time_zone For safe conversion use: unix_timestamp(datetime_expr, 'tz')
 SELECT * FROM t1;
 t	d	v
 2006-03-01 12:44:34.0496	2029-10-10 21:27:53	2006-03-01 12:44:34.050
@@ -79,7 +90,15 @@ d DATETIME,
 v TIMESTAMP(3) AS (TRUNCATE(t,3)) VIRTUAL,
 KEY(v,d)
 );
+Warnings:
+Warning	1901	Function or expression 'truncate(`t`,3)' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	TIMESTAMP to DATETIME conversion depends on @@time_zone. For safe conversion use: CAST(timestamp_expr at time zone 'tz' as datetime)
+Warning	1105	DATETIME to TIMESTAMP conversion depends on @@time_zone For safe conversion use: unix_timestamp(datetime_expr, 'tz')
 INSERT IGNORE INTO t1 (t,d) VALUES ('2006-03-01 12:44:34.0496','2029-10-10 21:27:53');
+Warnings:
+Warning	1901	Function or expression 'truncate(`t`,3)' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	TIMESTAMP to DATETIME conversion depends on @@time_zone. For safe conversion use: CAST(timestamp_expr at time zone 'tz' as datetime)
+Warning	1105	DATETIME to TIMESTAMP conversion depends on @@time_zone For safe conversion use: unix_timestamp(datetime_expr, 'tz')
 SELECT * FROM t1;
 t	d	v
 2006-03-01 12:44:34.0496	2029-10-10 21:27:53	2006-03-01 12:44:34.049

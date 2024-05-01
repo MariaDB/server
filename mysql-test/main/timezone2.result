@@ -655,6 +655,9 @@ SET time_zone=DEFAULT;
 # End of 10.4 tests
 #
 #
+# Start of 10.5 tests
+#
+#
 # MDEV-27101 Subquery using the ALL keyword on TIMESTAMP columns produces a wrong result
 #
 SET time_zone='Europe/Moscow';
@@ -676,3 +679,82 @@ SELECT a, UNIX_TIMESTAMP(a) FROM t1 WHERE a >= ALL (SELECT * FROM t1);
 a	UNIX_TIMESTAMP(a)
 2010-10-31 02:25:25	1288481125
 DROP TABLE t1;
+#
+# MDEV-34037 DATETIME <-> TIMESTAMP conversion in a virtual column corrups the table on @@time_zone change
+#
+SET time_zone='Europe/Moscow';
+CREATE TABLE t1 (a DATETIME, comment VARCHAR(30));
+INSERT INTO t1 VALUES
+('2000-03-26 01:59:59', 'spring-forward -00:00:01'),
+('2000-03-26 02:00:00', 'spring-forward gap first'),
+('2000-03-26 02:30:00', 'spring-forward gap mid'),
+('2000-03-26 02:59:59', 'spring-forward gap last'),
+('2000-03-26 03:00:00', 'spring-forward +00:00:00'),
+('2000-03-26 03:00:01', 'spring-forward +00:00:01'),
+('2023-10-29 01:59:59', 'fall-back -00:00:01'),
+('2023-10-29 02:00:00', 'fall-back dup first'),
+('2023-10-29 02:30:00', 'fall-back dup mid'),
+('2023-10-29 02:59:59', 'fall-back dup last'),
+('2023-10-29 03:00:00', 'fall-back +02:00:00'),
+('2023-10-29 03:00:01', 'fall-back +02:00:01');
+SELECT
+a,
+unix_timestamp(a) AS uts,
+unix_timestamp(a,'Europe/Moscow') AS utsz,
+comment
+FROM t1 ORDER BY a;
+a	uts	utsz	comment
+2000-03-26 01:59:59	954025199	954025199	spring-forward -00:00:01
+2000-03-26 02:00:00	954025200	954025200	spring-forward gap first
+2000-03-26 02:30:00	954025200	954025200	spring-forward gap mid
+2000-03-26 02:59:59	954025200	954025200	spring-forward gap last
+2000-03-26 03:00:00	954025200	954025200	spring-forward +00:00:00
+2000-03-26 03:00:01	954025201	954025201	spring-forward +00:00:01
+2023-10-29 01:59:59	1698530399	1698530399	fall-back -00:00:01
+2023-10-29 02:00:00	1698530400	1698530400	fall-back dup first
+2023-10-29 02:30:00	1698532200	1698532200	fall-back dup mid
+2023-10-29 02:59:59	1698533999	1698533999	fall-back dup last
+2023-10-29 03:00:00	1698537600	1698537600	fall-back +02:00:00
+2023-10-29 03:00:01	1698537601	1698537601	fall-back +02:00:01
+SELECT
+a,
+unix_timestamp(a)-unix_timestamp(a,'+00:00') AS tzoffs,
+comment
+FROM t1 ORDER BY a;
+a	tzoffs	comment
+2000-03-26 01:59:59	-10800	spring-forward -00:00:01
+2000-03-26 02:00:00	-10800	spring-forward gap first
+2000-03-26 02:30:00	-12600	spring-forward gap mid
+2000-03-26 02:59:59	-14399	spring-forward gap last
+2000-03-26 03:00:00	-14400	spring-forward +00:00:00
+2000-03-26 03:00:01	-14400	spring-forward +00:00:01
+2023-10-29 01:59:59	-14400	fall-back -00:00:01
+2023-10-29 02:00:00	-14400	fall-back dup first
+2023-10-29 02:30:00	-14400	fall-back dup mid
+2023-10-29 02:59:59	-14400	fall-back dup last
+2023-10-29 03:00:00	-10800	fall-back +02:00:00
+2023-10-29 03:00:01	-10800	fall-back +02:00:01
+SET time_zone='+00:00';
+SELECT
+a,
+unix_timestamp(a,'Europe/Moscow')-unix_timestamp(a) AS tzoffs,
+comment
+FROM t1 ORDER BY a;
+a	tzoffs	comment
+2000-03-26 01:59:59	-10800	spring-forward -00:00:01
+2000-03-26 02:00:00	-10800	spring-forward gap first
+2000-03-26 02:30:00	-12600	spring-forward gap mid
+2000-03-26 02:59:59	-14399	spring-forward gap last
+2000-03-26 03:00:00	-14400	spring-forward +00:00:00
+2000-03-26 03:00:01	-14400	spring-forward +00:00:01
+2023-10-29 01:59:59	-14400	fall-back -00:00:01
+2023-10-29 02:00:00	-14400	fall-back dup first
+2023-10-29 02:30:00	-14400	fall-back dup mid
+2023-10-29 02:59:59	-14400	fall-back dup last
+2023-10-29 03:00:00	-10800	fall-back +02:00:00
+2023-10-29 03:00:01	-10800	fall-back +02:00:01
+DROP TABLE t1;
+SET time_zone=DEFAULT;
+#
+# End of 10.5 tests
+#

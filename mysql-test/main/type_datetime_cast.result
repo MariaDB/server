@@ -1,0 +1,283 @@
+#
+# Start of 10.5 tests
+#
+#
+# MDEV-34037 DATETIME <-> TIMESTAMP conversion in a virtual column corrups the table on @@time_zone change
+#
+SELECT CAST(1 at time zone 'UnknownTimeZone' AS DATETIME);
+ERROR HY000: Unknown or incorrect time zone: 'UnknownTimeZone'
+SELECT CAST(1 at time zone '+00:00' AS DATETIME);
+ERROR HY000: Illegal parameter data type int for operation 'cast_as_datetime'
+SELECT CAST('2001-01-01 10:00:00' at time zone '+00:00' AS DATETIME);
+ERROR HY000: Illegal parameter data type varchar for operation 'cast_as_datetime'
+SELECT CAST(CAST('2001-01-01 10:00:00' AS DATETIME) at time zone '+00:00' AS DATETIME);
+ERROR HY000: Illegal parameter data type datetime for operation 'cast_as_datetime'
+SET sql_mode='';
+SET time_zone='+00:00';
+CREATE TABLE t1 (a TIMESTAMP);
+INSERT INTO t1 VALUES ('0000-00-00 00:00:00');
+INSERT INTO t1 VALUES ('2001-01-01 00:00:00');
+SELECT
+a,
+CAST(a at time zone '-08:00' AS DATETIME) AS a_m0800,
+CAST(a at time zone '-04:00' AS DATETIME) AS a_m0400,
+CAST(a at time zone '-01:00' AS DATETIME) AS a_m0100,
+CAST(a at time zone '+00:00' AS DATETIME) AS a_p0000,
+CAST(a at time zone '+01:00' AS DATETIME) AS a_p0100,
+CAST(a at time zone '+04:00' AS DATETIME) AS a_p0400,
+CAST(a at time zone '+08:00' AS DATETIME) AS a_p0800
+FROM t1;
+a	0000-00-00 00:00:00
+a_m0800	NULL
+a_m0400	NULL
+a_m0100	NULL
+a_p0000	NULL
+a_p0100	NULL
+a_p0400	NULL
+a_p0800	NULL
+a	2001-01-01 00:00:00
+a_m0800	2000-12-31 16:00:00
+a_m0400	2000-12-31 20:00:00
+a_m0100	2000-12-31 23:00:00
+a_p0000	2001-01-01 00:00:00
+a_p0100	2001-01-01 01:00:00
+a_p0400	2001-01-01 04:00:00
+a_p0800	2001-01-01 08:00:00
+SELECT
+unix_timestamp(a) AS ut_a,
+unix_timestamp(CAST(a at time zone '-08:00' AS DATETIME)) AS ut_a_m0800,
+unix_timestamp(CAST(a at time zone '-04:00' AS DATETIME)) AS ut_a_m0400,
+unix_timestamp(CAST(a at time zone '-01:00' AS DATETIME)) AS ut_a_m0100,
+unix_timestamp(CAST(a at time zone '+00:00' AS DATETIME)) AS ut_a_p0000,
+unix_timestamp(CAST(a at time zone '+01:00' AS DATETIME)) AS ut_a_p0100,
+unix_timestamp(CAST(a at time zone '+04:00' AS DATETIME)) AS ut_a_p0400,
+unix_timestamp(CAST(a at time zone '+08:00' AS DATETIME)) AS ut_a_p0800
+FROM t1;
+ut_a	0
+ut_a_m0800	NULL
+ut_a_m0400	NULL
+ut_a_m0100	NULL
+ut_a_p0000	NULL
+ut_a_p0100	NULL
+ut_a_p0400	NULL
+ut_a_p0800	NULL
+ut_a	978307200
+ut_a_m0800	978278400
+ut_a_m0400	978292800
+ut_a_m0100	978303600
+ut_a_p0000	978307200
+ut_a_p0100	978310800
+ut_a_p0400	978321600
+ut_a_p0800	978336000
+DROP TABLE t1;
+SET time_zone=DEFAULT;
+SET sql_mode='';
+SET time_zone='+00:00';
+CREATE TABLE t1 (a TIMESTAMP);
+INSERT INTO t1 VALUES ('0000-00-00 00:00:00');
+INSERT INTO t1 VALUES ('2001-01-01 00:00:00');
+CREATE VIEW v1 AS
+SELECT a, CAST(a at time zone '+04:00' AS datetime) AS a_p0400
+FROM t1;
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`a` AS `a`,cast(`t1`.`a` at time zone '+04:00' as datetime) AS `a_p0400` from `t1`	latin1	latin1_swedish_ci
+SELECT * FROM v1;
+a	a_p0400
+0000-00-00 00:00:00	NULL
+2001-01-01 00:00:00	2001-01-01 04:00:00
+SET time_zone='+01:00';
+SELECT * FROM v1;
+a	a_p0400
+0000-00-00 00:00:00	NULL
+2001-01-01 01:00:00	2001-01-01 04:00:00
+DROP VIEW v1;
+DROP TABLE t1;
+SET time_zone=DEFAULT;
+SET time_zone='+00:00';
+CREATE TABLE t1 (a TIMESTAMP(6));
+INSERT INTO t1 VALUES ('0000-00-00 00:00:00.000000');
+INSERT INTO t1 VALUES ('2001-01-01 00:00:00.123456');
+CREATE VIEW v1 AS
+SELECT a, CAST(a at time zone '+04:00' AS datetime(6)) AS a_p0400
+FROM t1;
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`a` AS `a`,cast(`t1`.`a` at time zone '+04:00' as datetime(6)) AS `a_p0400` from `t1`	latin1	latin1_swedish_ci
+SELECT * FROM v1;
+a	a_p0400
+0000-00-00 00:00:00.000000	NULL
+2001-01-01 00:00:00.123456	2001-01-01 04:00:00.123456
+SET time_zone='+01:00';
+SELECT * FROM v1;
+a	a_p0400
+0000-00-00 00:00:00.000000	NULL
+2001-01-01 01:00:00.123456	2001-01-01 04:00:00.123456
+DROP VIEW v1;
+DROP TABLE t1;
+SET time_zone=DEFAULT;
+SET sql_mode='';
+SET time_zone='+00:00';
+CREATE TABLE t1 (a TIMESTAMP(6) NULL);
+INSERT INTO t1 VALUES
+('0000-00-00 00:00:00.000000'),
+('1970-01-01 00:00:00.000001'),
+('1970-01-01 00:00:01.000000');
+SELECT
+a,
+CAST(a at time zone '-12:00' as datetime(6)) AS a_m1200,
+CAST(a at time zone '-08:00' as datetime(6)) AS a_m0800,
+CAST(a at time zone '-04:00' as datetime(6)) AS a_m0400,
+CAST(a at time zone '-02:00' as datetime(6)) AS a_m0200,
+CAST(a at time zone '-01:00' as datetime(6)) AS a_m0100,
+CAST(a at time zone '+00:00' as datetime(6)) AS a_p0000,
+CAST(a at time zone '+01:00' as datetime(6)) AS a_p0100,
+CAST(a at time zone '+02:00' as datetime(6)) AS a_p0200,
+CAST(a at time zone '+04:00' as datetime(6)) AS a_p0400,
+CAST(a at time zone '+08:00' as datetime(6)) AS a_p0800,
+CAST(a at time zone '+12:00' as datetime(6)) AS a_p1200
+FROM t1;
+a	0000-00-00 00:00:00.000000
+a_m1200	NULL
+a_m0800	NULL
+a_m0400	NULL
+a_m0200	NULL
+a_m0100	NULL
+a_p0000	NULL
+a_p0100	NULL
+a_p0200	NULL
+a_p0400	NULL
+a_p0800	NULL
+a_p1200	NULL
+a	1970-01-01 00:00:00.000001
+a_m1200	1969-12-31 12:00:00.000001
+a_m0800	1969-12-31 16:00:00.000001
+a_m0400	1969-12-31 20:00:00.000001
+a_m0200	1969-12-31 22:00:00.000001
+a_m0100	1969-12-31 23:00:00.000001
+a_p0000	1970-01-01 00:00:00.000001
+a_p0100	1970-01-01 01:00:00.000001
+a_p0200	1970-01-01 02:00:00.000001
+a_p0400	1970-01-01 04:00:00.000001
+a_p0800	1970-01-01 08:00:00.000001
+a_p1200	1970-01-01 12:00:00.000001
+a	1970-01-01 00:00:01.000000
+a_m1200	1969-12-31 12:00:01.000000
+a_m0800	1969-12-31 16:00:01.000000
+a_m0400	1969-12-31 20:00:01.000000
+a_m0200	1969-12-31 22:00:01.000000
+a_m0100	1969-12-31 23:00:01.000000
+a_p0000	1970-01-01 00:00:01.000000
+a_p0100	1970-01-01 01:00:01.000000
+a_p0200	1970-01-01 02:00:01.000000
+a_p0400	1970-01-01 04:00:01.000000
+a_p0800	1970-01-01 08:00:01.000000
+a_p1200	1970-01-01 12:00:01.000000
+SET time_zone='+01:00';
+SELECT
+a,
+CAST(a at time zone '-12:00' as datetime(6)) AS a_m1200,
+CAST(a at time zone '-08:00' as datetime(6)) AS a_m0800,
+CAST(a at time zone '-04:00' as datetime(6)) AS a_m0400,
+CAST(a at time zone '-02:00' as datetime(6)) AS a_m0200,
+CAST(a at time zone '-01:00' as datetime(6)) AS a_m0100,
+CAST(a at time zone '+00:00' as datetime(6)) AS a_p0000,
+CAST(a at time zone '+01:00' as datetime(6)) AS a_p0100,
+CAST(a at time zone '+02:00' as datetime(6)) AS a_p0200,
+CAST(a at time zone '+04:00' as datetime(6)) AS a_p0400,
+CAST(a at time zone '+08:00' as datetime(6)) AS a_p0800,
+CAST(a at time zone '+12:00' as datetime(6)) AS a_p1200
+FROM t1;
+a	0000-00-00 00:00:00.000000
+a_m1200	NULL
+a_m0800	NULL
+a_m0400	NULL
+a_m0200	NULL
+a_m0100	NULL
+a_p0000	NULL
+a_p0100	NULL
+a_p0200	NULL
+a_p0400	NULL
+a_p0800	NULL
+a_p1200	NULL
+a	1970-01-01 01:00:00.000001
+a_m1200	1969-12-31 12:00:00.000001
+a_m0800	1969-12-31 16:00:00.000001
+a_m0400	1969-12-31 20:00:00.000001
+a_m0200	1969-12-31 22:00:00.000001
+a_m0100	1969-12-31 23:00:00.000001
+a_p0000	1970-01-01 00:00:00.000001
+a_p0100	1970-01-01 01:00:00.000001
+a_p0200	1970-01-01 02:00:00.000001
+a_p0400	1970-01-01 04:00:00.000001
+a_p0800	1970-01-01 08:00:00.000001
+a_p1200	1970-01-01 12:00:00.000001
+a	1970-01-01 01:00:01.000000
+a_m1200	1969-12-31 12:00:01.000000
+a_m0800	1969-12-31 16:00:01.000000
+a_m0400	1969-12-31 20:00:01.000000
+a_m0200	1969-12-31 22:00:01.000000
+a_m0100	1969-12-31 23:00:01.000000
+a_p0000	1970-01-01 00:00:01.000000
+a_p0100	1970-01-01 01:00:01.000000
+a_p0200	1970-01-01 02:00:01.000000
+a_p0400	1970-01-01 04:00:01.000000
+a_p0800	1970-01-01 08:00:01.000000
+a_p1200	1970-01-01 12:00:01.000000
+SET time_zone='-01:00';
+SELECT
+a,
+CAST(a at time zone '-12:00' as datetime(6)) AS a_m1200,
+CAST(a at time zone '-08:00' as datetime(6)) AS a_m0800,
+CAST(a at time zone '-04:00' as datetime(6)) AS a_m0400,
+CAST(a at time zone '-02:00' as datetime(6)) AS a_m0200,
+CAST(a at time zone '-01:00' as datetime(6)) AS a_m0100,
+CAST(a at time zone '+00:00' as datetime(6)) AS a_p0000,
+CAST(a at time zone '+01:00' as datetime(6)) AS a_p0100,
+CAST(a at time zone '+02:00' as datetime(6)) AS a_p0200,
+CAST(a at time zone '+04:00' as datetime(6)) AS a_p0400,
+CAST(a at time zone '+08:00' as datetime(6)) AS a_p0800,
+CAST(a at time zone '+12:00' as datetime(6)) AS a_p1200
+FROM t1;
+a	0000-00-00 00:00:00.000000
+a_m1200	NULL
+a_m0800	NULL
+a_m0400	NULL
+a_m0200	NULL
+a_m0100	NULL
+a_p0000	NULL
+a_p0100	NULL
+a_p0200	NULL
+a_p0400	NULL
+a_p0800	NULL
+a_p1200	NULL
+a	1969-12-31 23:00:00.000001
+a_m1200	1969-12-31 12:00:00.000001
+a_m0800	1969-12-31 16:00:00.000001
+a_m0400	1969-12-31 20:00:00.000001
+a_m0200	1969-12-31 22:00:00.000001
+a_m0100	1969-12-31 23:00:00.000001
+a_p0000	1970-01-01 00:00:00.000001
+a_p0100	1970-01-01 01:00:00.000001
+a_p0200	1970-01-01 02:00:00.000001
+a_p0400	1970-01-01 04:00:00.000001
+a_p0800	1970-01-01 08:00:00.000001
+a_p1200	1970-01-01 12:00:00.000001
+a	1969-12-31 23:00:01.000000
+a_m1200	1969-12-31 12:00:01.000000
+a_m0800	1969-12-31 16:00:01.000000
+a_m0400	1969-12-31 20:00:01.000000
+a_m0200	1969-12-31 22:00:01.000000
+a_m0100	1969-12-31 23:00:01.000000
+a_p0000	1970-01-01 00:00:01.000000
+a_p0100	1970-01-01 01:00:01.000000
+a_p0200	1970-01-01 02:00:01.000000
+a_p0400	1970-01-01 04:00:01.000000
+a_p0800	1970-01-01 08:00:01.000000
+a_p1200	1970-01-01 12:00:01.000000
+DROP TABLE t1;
+SET time_zone=DEFAULT;
+SET sql_mode=DEFAULT;
+#
+# End of 10.5 tests
+#

@@ -544,7 +544,15 @@ b BLOB,
 c TIMESTAMP GENERATED ALWAYS AS (GREATEST(a, '2000-01-01 00:00:00')) VIRTUAL,
 UNIQUE KEY(c)
 );
+Warnings:
+Warning	1901	Function or expression 'greatest(`a`,'2000-01-01 00:00:00')' cannot be used in the GENERATED ALWAYS AS clause of `c`
+Warning	1105	TIMESTAMP to DATETIME conversion depends on @@time_zone. For safe conversion use: CAST(timestamp_expr at time zone 'tz' as datetime)
+Warning	1105	DATETIME to TIMESTAMP conversion depends on @@time_zone For safe conversion use: unix_timestamp(datetime_expr, 'tz')
 INSERT INTO t(b) VALUES ('');
+Warnings:
+Warning	1901	Function or expression 'greatest(`a`,'2000-01-01 00:00:00')' cannot be used in the GENERATED ALWAYS AS clause of `c`
+Warning	1105	TIMESTAMP to DATETIME conversion depends on @@time_zone. For safe conversion use: CAST(timestamp_expr at time zone 'tz' as datetime)
+Warning	1105	DATETIME to TIMESTAMP conversion depends on @@time_zone For safe conversion use: unix_timestamp(datetime_expr, 'tz')
 UPDATE t SET a='2001-01-01 00:00:00';
 SELECT c FROM t;
 c

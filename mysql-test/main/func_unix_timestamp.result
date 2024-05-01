@@ -1,0 +1,217 @@
+#
+# Start of 10.5 tests
+#
+#
+# MDEV-34037 DATETIME <-> TIMESTAMP conversion in a virtual column corrups the table on @@time_zone change
+#
+SELECT unix_timestamp(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'unix_timestamp'
+SELECT unix_timestamp(NULL, '+01:00');
+ERROR HY000: Illegal parameter data types null and varchar for operation 'unix_timestamp'
+SELECT unix_timestamp('2001-01-01 00:00:00', '+01:00');
+ERROR HY000: Illegal parameter data types varchar and varchar for operation 'unix_timestamp'
+SELECT unix_timestamp(CAST('2001-01-01 00:00:00' AS DATETIME), 1);
+ERROR HY000: Illegal parameter data types datetime and int for operation 'unix_timestamp'
+CREATE TABLE t1 (a TIMESTAMP);
+SELECT unix_timestamp(a, '+01:00') FROM t1;
+ERROR HY000: Illegal parameter data types timestamp and varchar for operation 'unix_timestamp'
+DROP TABLE t1;
+SELECT unix_timestamp(CAST('2001-01-01 00:00:00' AS DATETIME), concat('+01:00'));
+ERROR HY000: Invalid argument error: concat('+01:00') in function unix_timestamp.
+SELECT unix_timestamp(CAST('2001-01-01 00:00:00' AS DATETIME), 'UnknownTimeZone');
+ERROR HY000: Unknown or incorrect time zone: 'UnknownTimeZone'
+SELECT unix_timestamp(CAST('2001-01-01 00:00:00' AS DATETIME), '+00:00') AS c1;
+c1
+978307200
+SELECT unix_timestamp(CAST('2001-01-01 00:00:00' AS DATETIME), 'SYSTEM') IS NOT NULL AS c1;
+c1
+1
+SET time_zone='+04:00';
+CREATE TABLE t1 (a DATETIME);
+INSERT INTO t1 VALUES ('2001-01-01 10:00:00');
+CREATE VIEW v1 AS SELECT a, unix_timestamp(a,'+00:00') AS uts00 FROM t1;
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`a` AS `a`,unix_timestamp(`t1`.`a`,'+00:00') AS `uts00` from `t1`	latin1	latin1_swedish_ci
+SELECT a, uts00, from_unixtime(uts00) FROM v1;
+a	uts00	from_unixtime(uts00)
+2001-01-01 10:00:00	978343200	2001-01-01 14:00:00
+SET time_zone='+01:00';
+SELECT a, uts00, from_unixtime(uts00) FROM v1;
+a	uts00	from_unixtime(uts00)
+2001-01-01 10:00:00	978343200	2001-01-01 11:00:00
+DROP TABLE t1;
+DROP VIEW v1;
+SET time_zone=DEFAULT;
+SET sql_mode='';
+SET time_zone='+04:00';
+CREATE TABLE t1 (a DATETIME);
+INSERT INTO t1 VALUES
+('0000-00-00 00:00:00'),
+('2001-01-01 10:00:00'),
+('3001-01-01 10:00:00');
+SELECT
+a,
+unix_timestamp(a),
+unix_timestamp(a,'+00:00'),
+unix_timestamp(a,'+01:00'),
+unix_timestamp(a,'+02:00'),
+unix_timestamp(a,'+03:00'),
+unix_timestamp(a,'+04:00'),
+unix_timestamp(a,'+05:00'),
+unix_timestamp(a,'+06:00'),
+unix_timestamp(a,'+07:00'),
+unix_timestamp(a,'+08:00')
+FROM t1 ORDER BY a;
+a	0000-00-00 00:00:00
+unix_timestamp(a)	NULL
+unix_timestamp(a,'+00:00')	NULL
+unix_timestamp(a,'+01:00')	NULL
+unix_timestamp(a,'+02:00')	NULL
+unix_timestamp(a,'+03:00')	NULL
+unix_timestamp(a,'+04:00')	NULL
+unix_timestamp(a,'+05:00')	NULL
+unix_timestamp(a,'+06:00')	NULL
+unix_timestamp(a,'+07:00')	NULL
+unix_timestamp(a,'+08:00')	NULL
+a	2001-01-01 10:00:00
+unix_timestamp(a)	978328800
+unix_timestamp(a,'+00:00')	978343200
+unix_timestamp(a,'+01:00')	978339600
+unix_timestamp(a,'+02:00')	978336000
+unix_timestamp(a,'+03:00')	978332400
+unix_timestamp(a,'+04:00')	978328800
+unix_timestamp(a,'+05:00')	978325200
+unix_timestamp(a,'+06:00')	978321600
+unix_timestamp(a,'+07:00')	978318000
+unix_timestamp(a,'+08:00')	978314400
+a	3001-01-01 10:00:00
+unix_timestamp(a)	NULL
+unix_timestamp(a,'+00:00')	NULL
+unix_timestamp(a,'+01:00')	NULL
+unix_timestamp(a,'+02:00')	NULL
+unix_timestamp(a,'+03:00')	NULL
+unix_timestamp(a,'+04:00')	NULL
+unix_timestamp(a,'+05:00')	NULL
+unix_timestamp(a,'+06:00')	NULL
+unix_timestamp(a,'+07:00')	NULL
+unix_timestamp(a,'+08:00')	NULL
+DROP TABLE t1;
+CREATE TABLE t1 (a DATETIME(6));
+INSERT INTO t1 VALUES
+('0000-00-00 00:00:00.000000'),
+('2001-01-01 10:00:00.999999'),
+('3001-01-01 10:00:00.999999');
+SELECT
+a,
+unix_timestamp(a),
+unix_timestamp(a,'+00:00'),
+unix_timestamp(a,'+01:00'),
+unix_timestamp(a,'+02:00'),
+unix_timestamp(a,'+03:00'),
+unix_timestamp(a,'+04:00'),
+unix_timestamp(a,'+05:00'),
+unix_timestamp(a,'+06:00'),
+unix_timestamp(a,'+07:00'),
+unix_timestamp(a,'+08:00')
+FROM t1 ORDER BY a;
+a	0000-00-00 00:00:00.000000
+unix_timestamp(a)	NULL
+unix_timestamp(a,'+00:00')	NULL
+unix_timestamp(a,'+01:00')	NULL
+unix_timestamp(a,'+02:00')	NULL
+unix_timestamp(a,'+03:00')	NULL
+unix_timestamp(a,'+04:00')	NULL
+unix_timestamp(a,'+05:00')	NULL
+unix_timestamp(a,'+06:00')	NULL
+unix_timestamp(a,'+07:00')	NULL
+unix_timestamp(a,'+08:00')	NULL
+a	2001-01-01 10:00:00.999999
+unix_timestamp(a)	978328800.999999
+unix_timestamp(a,'+00:00')	978343200.999999
+unix_timestamp(a,'+01:00')	978339600.999999
+unix_timestamp(a,'+02:00')	978336000.999999
+unix_timestamp(a,'+03:00')	978332400.999999
+unix_timestamp(a,'+04:00')	978328800.999999
+unix_timestamp(a,'+05:00')	978325200.999999
+unix_timestamp(a,'+06:00')	978321600.999999
+unix_timestamp(a,'+07:00')	978318000.999999
+unix_timestamp(a,'+08:00')	978314400.999999
+a	3001-01-01 10:00:00.999999
+unix_timestamp(a)	NULL
+unix_timestamp(a,'+00:00')	NULL
+unix_timestamp(a,'+01:00')	NULL
+unix_timestamp(a,'+02:00')	NULL
+unix_timestamp(a,'+03:00')	NULL
+unix_timestamp(a,'+04:00')	NULL
+unix_timestamp(a,'+05:00')	NULL
+unix_timestamp(a,'+06:00')	NULL
+unix_timestamp(a,'+07:00')	NULL
+unix_timestamp(a,'+08:00')	NULL
+DROP TABLE t1;
+# Corner cases
+SET time_zone='+00:00';
+CREATE TABLE t1 (id INT, a TIMESTAMP NULL);
+INSERT INTO t1 VALUES (11, UNIX_TIMESTAMP(FROM_UNIXTIME(0),'-01:00'));
+INSERT INTO t1 VALUES (12, UNIX_TIMESTAMP(FROM_UNIXTIME(0),'-02:00'));
+INSERT INTO t1 VALUES (13, UNIX_TIMESTAMP(FROM_UNIXTIME(0),'-08:00'));
+INSERT INTO t1 VALUES (14, UNIX_TIMESTAMP(FROM_UNIXTIME(0),'-12:00'));
+SELECT * FROM t1;
+id	a
+11	1970-01-01 01:00:00
+12	1970-01-01 02:00:00
+13	1970-01-01 08:00:00
+14	1970-01-01 12:00:00
+DROP TABLE t1;
+SELECT
+FROM_UNIXTIME(0) AS c0,
+UNIX_TIMESTAMP(FROM_UNIXTIME(0)) AS c1,
+UNIX_TIMESTAMP(FROM_UNIXTIME(0),'+00:00') AS c2;
+c0	c1	c2
+1970-01-01 00:00:00	0	0
+CREATE TABLE t1 (id INT, a TIMESTAMP NULL);
+INSERT INTO t1 VALUES (30, '1970-01-01 00:00:00');
+Warnings:
+Warning	1264	Out of range value for column 'a' at row 1
+INSERT INTO t1 VALUES (31, UNIX_TIMESTAMP('1970-01-01 00:00:00'));
+Warnings:
+Warning	1264	Out of range value for column 'a' at row 1
+INSERT INTO t1 VALUES (32, UNIX_TIMESTAMP(FROM_UNIXTIME(0)));
+Warnings:
+Warning	1264	Out of range value for column 'a' at row 1
+INSERT INTO t1 VALUES (33, UNIX_TIMESTAMP(FROM_UNIXTIME(0),'+00:00'));
+Warnings:
+Warning	1264	Out of range value for column 'a' at row 1
+SELECT * FROM t1;
+id	a
+30	0000-00-00 00:00:00
+31	0000-00-00 00:00:00
+32	0000-00-00 00:00:00
+33	0000-00-00 00:00:00
+DROP TABLE t1;
+CREATE TABLE t1 (id INT, a TIMESTAMP NULL);
+SELECT
+UNIX_TIMESTAMP(FROM_UNIXTIME(0),'+01:00'),
+UNIX_TIMESTAMP(FROM_UNIXTIME(0),'+02:00'),
+UNIX_TIMESTAMP(FROM_UNIXTIME(0),'+08:00'),
+UNIX_TIMESTAMP(FROM_UNIXTIME(0),'+12:00');
+UNIX_TIMESTAMP(FROM_UNIXTIME(0),'+01:00')	UNIX_TIMESTAMP(FROM_UNIXTIME(0),'+02:00')	UNIX_TIMESTAMP(FROM_UNIXTIME(0),'+08:00')	UNIX_TIMESTAMP(FROM_UNIXTIME(0),'+12:00')
+NULL	NULL	NULL	NULL
+INSERT INTO t1 VALUES (40, UNIX_TIMESTAMP('1960-01-01 00:00:00'));
+INSERT INTO t1 VALUES (41, UNIX_TIMESTAMP(FROM_UNIXTIME(0),'+01:00'));
+INSERT INTO t1 VALUES (42, UNIX_TIMESTAMP(FROM_UNIXTIME(0),'+02:00'));
+INSERT INTO t1 VALUES (43, UNIX_TIMESTAMP(FROM_UNIXTIME(0),'+08:00'));
+INSERT INTO t1 VALUES (44, UNIX_TIMESTAMP(FROM_UNIXTIME(0),'+12:00'));
+SELECT * FROM t1;
+id	a
+40	NULL
+41	NULL
+42	NULL
+43	NULL
+44	NULL
+DROP TABLE t1;
+SET time_zone=DEFAULT;
+SET sql_mode=DEFAULT;
+#
+# End of 10.5 tests
+#

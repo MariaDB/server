@@ -1,0 +1,201 @@
+#
+# Start of 10.5 tests
+#
+#
+# MDEV-34037 DATETIME <-> TIMESTAMP conversion in a virtual column corrups the table on @@time_zone change
+#
+SET time_zone='+00:00';
+SELECT unix_timestamp('2001-01-01 10:00:00')=ROW(1,1);
+ERROR HY000: Illegal parameter data types unix_timestamp and row for operation '='
+SELECT unix_timestamp('2001-01-01 10:00:00') BETWEEN POINT(1,1) AND POINT(1,1);
+ERROR HY000: Illegal parameter data types unix_timestamp and point for operation 'between'
+SELECT unix_timestamp('2001-01-01 10:00:00') IN (POINT(1,1), POINT(1,1));
+ERROR HY000: Illegal parameter data types unix_timestamp and point for operation 'in'
+SELECT COALESCE(unix_timestamp('2001-01-01 10:00:00'),ROW(1,1));
+ERROR 21000: Operand should contain 1 column(s)
+SELECT LEAST(unix_timestamp('2001-01-01 10:00:00'),ROW(1,1));
+ERROR HY000: Illegal parameter data types unix_timestamp and row for operation 'least'
+SELECT -unix_timestamp('2001-01-01 10:00:00')=ROW(1,1);
+ERROR HY000: Illegal parameter data types bigint and row for operation '='
+SELECT -unix_timestamp('2001-01-01 10:00:00.123')=ROW(1,1);
+ERROR HY000: Illegal parameter data types decimal and row for operation '='
+SELECT abs(unix_timestamp('2001-01-01 10:00:00'))=ROW(1,1);
+ERROR HY000: Illegal parameter data types bigint and row for operation '='
+SELECT abs(unix_timestamp('2001-01-01 10:00:00.123'))=ROW(1,1);
+ERROR HY000: Illegal parameter data types decimal and row for operation '='
+SELECT cast(unix_timestamp('2001-01-01 10:00:00') as signed)=ROW(1,1);
+ERROR HY000: Illegal parameter data types bigint and row for operation '='
+SELECT cast(unix_timestamp('2001-01-01 10:00:00.123') as signed)=ROW(1,1);
+ERROR HY000: Illegal parameter data types bigint and row for operation '='
+SELECT cast(unix_timestamp('2001-01-01 10:00:00') as unsigned)=ROW(1,1);
+ERROR HY000: Illegal parameter data types bigint unsigned and row for operation '='
+SELECT cast(unix_timestamp('2001-01-01 10:00:00.123') as unsigned)=ROW(1,1);
+ERROR HY000: Illegal parameter data types bigint unsigned and row for operation '='
+SELECT cast(unix_timestamp('2001-01-01 10:00:00') as decimal(10,3))=ROW(1,1);
+ERROR HY000: Illegal parameter data types decimal and row for operation '='
+SELECT cast(unix_timestamp('2001-01-01 10:00:00.123') as decimal(10,3))=ROW(1,1);
+ERROR HY000: Illegal parameter data types decimal and row for operation '='
+SELECT (unix_timestamp('1971-01-01 10:00:00') * unix_timestamp('1970-01-01 10:00:00')) = ROW(1,1);
+ERROR HY000: Illegal parameter data types bigint and row for operation '='
+SELECT (unix_timestamp('1971-01-01 10:00:00') / unix_timestamp('1970-01-01 10:00:00')) = ROW(1,1);
+ERROR HY000: Illegal parameter data types decimal and row for operation '='
+SELECT (unix_timestamp('1971-01-01 10:00:00') div unix_timestamp('1970-01-01 10:00:00')) = ROW(1,1);
+ERROR HY000: Illegal parameter data types bigint and row for operation '='
+SELECT (unix_timestamp('1971-01-01 10:00:00') mod unix_timestamp('1970-01-01 10:00:00')) = ROW(1,1);
+ERROR HY000: Illegal parameter data types bigint and row for operation '='
+SELECT (unix_timestamp('1971-01-01 10:00:00') + unix_timestamp('1970-01-01 10:00:00')) = ROW(1,1);
+ERROR HY000: Illegal parameter data types bigint and row for operation '='
+SELECT (unix_timestamp('1971-01-01 10:00:00') - unix_timestamp('1970-01-01 10:00:00')) = ROW(1,1);
+ERROR HY000: Illegal parameter data types bigint and row for operation '='
+SELECT (unix_timestamp('1971-01-01 10:00:00.123') * unix_timestamp('1970-01-01 10:00:00.123')) = ROW(1,1);
+ERROR HY000: Illegal parameter data types decimal and row for operation '='
+SELECT (unix_timestamp('1971-01-01 10:00:00.123') / unix_timestamp('1970-01-01 10:00:00.123')) = ROW(1,1);
+ERROR HY000: Illegal parameter data types decimal and row for operation '='
+SELECT (unix_timestamp('1971-01-01 10:00:00.123') div unix_timestamp('1970-01-01 10:00:00.123')) = ROW(1,1);
+ERROR HY000: Illegal parameter data types bigint and row for operation '='
+SELECT (unix_timestamp('1971-01-01 10:00:00.123') mod unix_timestamp('1970-01-01 10:00:00.123')) = ROW(1,1);
+ERROR HY000: Illegal parameter data types decimal and row for operation '='
+SELECT (unix_timestamp('1971-01-01 10:00:00.123') + unix_timestamp('1970-01-01 10:00:00.123')) = ROW(1,1);
+ERROR HY000: Illegal parameter data types decimal and row for operation '='
+SELECT (unix_timestamp('1971-01-01 10:00:00.123') - unix_timestamp('1970-01-01 10:00:00.123')) = ROW(1,1);
+ERROR HY000: Illegal parameter data types decimal and row for operation '='
+SELECT round(unix_timestamp('2001-01-01 10:00:00'))=ROW(1,1);
+ERROR HY000: Illegal parameter data types unix_timestamp and row for operation '='
+SELECT truncate(unix_timestamp('2001-01-01 10:00:00'),0)=ROW(1,1);
+ERROR HY000: Illegal parameter data types unix_timestamp and row for operation '='
+SELECT ceiling(unix_timestamp('2001-01-01 10:00:00'))=ROW(1,1);
+ERROR HY000: Illegal parameter data types unix_timestamp and row for operation '='
+SELECT floor(unix_timestamp('2001-01-01 10:00:00'))=ROW(1,1);
+ERROR HY000: Illegal parameter data types unix_timestamp and row for operation '='
+SELECT round(unix_timestamp(cast('2001-01-01 10:00:00' as datetime),'+00:00'))=ROW(1,1);
+ERROR HY000: Illegal parameter data types unix_timestamp and row for operation '='
+SELECT truncate(unix_timestamp(cast('2001-01-01 10:00:00' as datetime),'+00:00'),0)=ROW(1,1);
+ERROR HY000: Illegal parameter data types unix_timestamp and row for operation '='
+SELECT ceiling(unix_timestamp(cast('2001-01-01 10:00:00' as datetime),'+00:00'))=ROW(1,1);
+ERROR HY000: Illegal parameter data types unix_timestamp and row for operation '='
+SELECT floor(unix_timestamp(cast('2001-01-01 10:00:00' as datetime),'+00:00'))=ROW(1,1);
+ERROR HY000: Illegal parameter data types unix_timestamp and row for operation '='
+SELECT round(unix_timestamp('2001-01-01 10:00:00.123'))=ROW(1,1);
+ERROR HY000: Illegal parameter data types unix_timestamp and row for operation '='
+SELECT truncate(unix_timestamp('2001-01-01 10:00:00.123'),0)=ROW(1,1);
+ERROR HY000: Illegal parameter data types unix_timestamp and row for operation '='
+SELECT ceiling(unix_timestamp('2001-01-01 10:00:00.123'))=ROW(1,1);
+ERROR HY000: Illegal parameter data types unix_timestamp and row for operation '='
+SELECT floor(unix_timestamp('2001-01-01 10:00:00.123'))=ROW(1,1);
+ERROR HY000: Illegal parameter data types unix_timestamp and row for operation '='
+SELECT round(unix_timestamp(cast('2001-01-01 10:00:00.123' as datetime(6)),'+00:00'))=ROW(1,1);
+ERROR HY000: Illegal parameter data types unix_timestamp and row for operation '='
+SELECT truncate(unix_timestamp(cast('2001-01-01 10:00:00.123' as datetime(6)),'+00:00'),0)=ROW(1,1);
+ERROR HY000: Illegal parameter data types unix_timestamp and row for operation '='
+SELECT ceiling(unix_timestamp(cast('2001-01-01 10:00:00.123' as datetime(6)),'+00:00'))=ROW(1,1);
+ERROR HY000: Illegal parameter data types unix_timestamp and row for operation '='
+SELECT floor(unix_timestamp(cast('2001-01-01 10:00:00.123' as datetime(6)),'+00:00'))=ROW(1,1);
+ERROR HY000: Illegal parameter data types unix_timestamp and row for operation '='
+CREATE TABLE t1 (id INT, a TIMESTAMP);
+INSERT INTO t1 VALUES (10, round(unix_timestamp('2001-01-01 10:00:00.123')));
+INSERT INTO t1 VALUES (20, truncate(unix_timestamp('2001-01-01 10:00:00.123'),0));
+INSERT INTO t1 VALUES (30, floor(unix_timestamp('2001-01-01 10:00:00.123')));
+INSERT INTO t1 VALUES (40, ceiling(unix_timestamp('2001-01-01 10:00:00.123')));
+SELECT * FROM t1 ORDER BY id;
+id	a
+10	2001-01-01 10:00:00
+20	2001-01-01 10:00:00
+30	2001-01-01 10:00:00
+40	2001-01-01 10:00:01
+DROP TABLE t1;
+CREATE TABLE t1 (id INT, a TIMESTAMP(3));
+INSERT INTO t1 VALUES (10, round(unix_timestamp(CAST('2001-01-01 11:00:00.123' AS DATETIME(3)),'+01:00')));
+INSERT INTO t1 VALUES (20, truncate(unix_timestamp(CAST('2001-01-01 11:00:00.123' AS DATETIME(3)),'+01:00'),0));
+INSERT INTO t1 VALUES (30, floor(unix_timestamp(CAST('2001-01-01 11:00:00.123' AS DATETIME(3)),'+01:00')));
+INSERT INTO t1 VALUES (40, ceiling(unix_timestamp(CAST('2001-01-01 11:00:00.123' AS DATETIME(3)),'+01:00')));
+SELECT * FROM t1 ORDER BY id;
+id	a
+10	2001-01-01 10:00:00.000
+20	2001-01-01 10:00:00.000
+30	2001-01-01 10:00:00.000
+40	2001-01-01 10:00:01.000
+DROP TABLE t1;
+SELECT round(unix_timestamp('2001-01-01 10:00:00.123'), null)=ROW(1,1);
+ERROR HY000: Illegal parameter data types double and row for operation '='
+SELECT round(unix_timestamp('2001-01-01 10:00:00.123'), 7)=ROW(1,1);
+ERROR HY000: Illegal parameter data types decimal and row for operation '='
+SET time_zone=DEFAULT;
+SET time_zone='+00:00';
+CREATE TABLE t1 (a TIMESTAMP);
+INSERT INTO t1 VALUES (unix_timestamp(cast('2001-01-01 10:00:00' AS datetime),'+00:00'));
+INSERT INTO t1 VALUES (unix_timestamp(cast('2001-01-01 11:00:00' AS datetime),'+01:00'));
+INSERT INTO t1 VALUES (unix_timestamp(cast('2001-01-01 12:00:00' AS datetime),'+02:00'));
+INSERT INTO t1 VALUES (coalesce(unix_timestamp(cast('2001-01-01 10:00:00' AS datetime),'+00:00')));
+INSERT INTO t1 VALUES (coalesce(unix_timestamp(cast('2001-01-01 11:00:00' AS datetime),'+01:00')));
+INSERT INTO t1 VALUES (coalesce(unix_timestamp(cast('2001-01-01 12:00:00' AS datetime),'+02:00')));
+INSERT INTO t1 VALUES (coalesce(unix_timestamp(cast('2001-01-01 13:00:00' AS datetime),'+03:00'),
+NULL));
+INSERT INTO t1 VALUES (coalesce(NULL,
+unix_timestamp(cast('2001-01-01 13:00:00' AS datetime),'+03:00')));
+INSERT INTO t1 VALUES (coalesce(unix_timestamp(cast('2001-01-01 13:00:00' AS datetime),'+03:00'),
+unix_timestamp(cast('2001-01-01 13:00:00' AS datetime),'+04:00')));
+INSERT INTO t1 VALUES (least(unix_timestamp(cast('2001-01-01 10:00:00' AS datetime),'+00:00'),
+unix_timestamp(cast('2001-01-01 10:00:00' AS datetime),'-01:00')));
+SELECT a, unix_timestamp(a) FROM t1;
+a	unix_timestamp(a)
+2001-01-01 10:00:00	978343200
+2001-01-01 10:00:00	978343200
+2001-01-01 10:00:00	978343200
+2001-01-01 10:00:00	978343200
+2001-01-01 10:00:00	978343200
+2001-01-01 10:00:00	978343200
+2001-01-01 10:00:00	978343200
+2001-01-01 10:00:00	978343200
+2001-01-01 10:00:00	978343200
+2001-01-01 10:00:00	978343200
+DROP TABLE t1;
+SET time_zone=DEFAULT;
+SET time_zone='+00:00';
+CREATE TABLE t1 (a TIMESTAMP(6));
+INSERT INTO t1 VALUES (unix_timestamp(cast('2001-01-01 10:00:00.999999' AS datetime(6)),'+00:00'));
+INSERT INTO t1 VALUES (unix_timestamp(cast('2001-01-01 11:00:00.999999' AS datetime(6)),'+01:00'));
+INSERT INTO t1 VALUES (unix_timestamp(cast('2001-01-01 12:00:00.999999' AS datetime(6)),'+02:00'));
+INSERT INTO t1 VALUES (coalesce(unix_timestamp(cast('2001-01-01 10:00:00.999999' AS datetime(6)),'+00:00')));
+INSERT INTO t1 VALUES (coalesce(unix_timestamp(cast('2001-01-01 11:00:00.999999' AS datetime(6)),'+01:00')));
+INSERT INTO t1 VALUES (coalesce(unix_timestamp(cast('2001-01-01 12:00:00.999999' AS datetime(6)),'+02:00')));
+INSERT INTO t1 VALUES (coalesce(unix_timestamp(cast('2001-01-01 13:00:00.999999' AS datetime(6)),'+03:00'),
+NULL));
+INSERT INTO t1 VALUES (coalesce(NULL,
+unix_timestamp(cast('2001-01-01 13:00:00.999999' AS datetime(6)),'+03:00')));
+INSERT INTO t1 VALUES (coalesce(unix_timestamp(cast('2001-01-01 13:00:00.999999' AS datetime(6)),'+03:00'),
+unix_timestamp(cast('2001-01-01 13:00:00.999999' AS datetime(6)),'+04:00')));
+INSERT INTO t1 VALUES (least(unix_timestamp(cast('2001-01-01 10:00:00.999999' AS datetime(6)),'+00:00'),
+unix_timestamp(cast('2001-01-01 10:00:00.999999' AS datetime(6)),'-01:00')));
+SELECT a, unix_timestamp(a) FROM t1;
+a	unix_timestamp(a)
+2001-01-01 10:00:00.999999	978343200.999999
+2001-01-01 10:00:00.999999	978343200.999999
+2001-01-01 10:00:00.999999	978343200.999999
+2001-01-01 10:00:00.999999	978343200.999999
+2001-01-01 10:00:00.999999	978343200.999999
+2001-01-01 10:00:00.999999	978343200.999999
+2001-01-01 10:00:00.999999	978343200.999999
+2001-01-01 10:00:00.999999	978343200.999999
+2001-01-01 10:00:00.999999	978343200.999999
+2001-01-01 10:00:00.999999	978343200.999999
+DROP TABLE t1;
+CREATE TABLE t1 (a TIMESTAMP(6));
+INSERT INTO t1 VALUES (coalesce(unix_timestamp(cast('2001-01-01 13:00:00' AS datetime),'+03:00'),
+unix_timestamp(cast('2001-01-01 13:00:00.999999' AS datetime(6)),'+04:00')));
+INSERT INTO t1 VALUES (coalesce(unix_timestamp(cast('2001-01-01 13:00:00.999999' AS datetime(6)),'+03:00'),
+unix_timestamp(cast('2001-01-01 13:00:00' AS datetime),'+04:00')));
+INSERT INTO t1 VALUES (least(unix_timestamp(cast('2001-01-01 13:00:00' AS datetime),'+03:00'),
+unix_timestamp(cast('2001-01-01 13:00:00.999999' AS datetime(6)),'-04:00')));
+INSERT INTO t1 VALUES (least(unix_timestamp(cast('2001-01-01 13:00:00.999999' AS datetime(6)),'+03:00'),
+unix_timestamp(cast('2001-01-01 13:00:00' AS datetime),'-04:00')));
+SELECT a, unix_timestamp(a) FROM t1;
+a	unix_timestamp(a)
+2001-01-01 10:00:00.000000	978343200.000000
+2001-01-01 10:00:00.999999	978343200.999999
+2001-01-01 10:00:00.000000	978343200.000000
+2001-01-01 10:00:00.999999	978343200.999999
+DROP TABLE t1;
+SET time_zone=DEFAULT;
+#
+# End of 10.5 tests
+#

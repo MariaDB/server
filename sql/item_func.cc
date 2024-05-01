@@ -613,6 +613,26 @@ Sql_mode_dependency Item_args::value_depends_on_sql_mode_bit_or() const
 }
 
 
+Session_env_dependency Item_args::value_depends_on_session_env_bit_or() const
+{
+  Session_env_dependency res;
+  for (uint i= 0; i < arg_count; i++)
+    res|= args[i]->value_depends_on_session_env();
+  return res;
+}
+
+
+Session_env_dependency::Param
+Item_args::conversion_depends_on_session_env_bit_or(const Type_handler *to)
+                                                                      const
+{
+  ulonglong res= Session_env_dependency::NONE;
+  for (uint i= 0; i < arg_count; i++)
+    res|= to->type_conversion_dependency_from(args[i]->type_handler());
+  return (Session_env_dependency::Param) res;
+}
+
+
 /**
   See comments in Item_cond::split_sum_func()
 */

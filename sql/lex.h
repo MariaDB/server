@@ -731,6 +731,7 @@ SYMBOL symbols[] = {
   { "YEAR",		SYM(YEAR_SYM)},
   { "YEAR_MONTH",	SYM(YEAR_MONTH_SYM)},
   { "ZEROFILL",		SYM(ZEROFILL)},
+  { "ZONE",             SYM(ZONE_SYM)},
   { "||",		SYM(OR2_SYM)}
 };
 

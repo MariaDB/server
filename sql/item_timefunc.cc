@@ -1208,10 +1208,124 @@ longlong Item_func_year::val_int_endpoint(bool left_endp, bool *incl_endp)
 }
 
 
+/*
+  Overloads:
+  - UNIX_TIMESTAMP()
+    returns the current unix timestamp
+
+  - UNIX_TIMESTAMP(loose_datetime)
+    Converts args[0] to a unix timestamp using @@time_zone
+    args[0] must be a DATETIME or anything which can be converted to DATETIME.
+
+  - UNIX_TIMESTAMP(strict_datetime, 'constant string with tzname')
+    Converts args[0] to a unix timestamp using the time zone in args[1].
+    args[0] must be strictly a DATETIME (e.g. TIMESTAMP is now allowed)
+    args[1] must be a string literal with a valid time zone name.
+*/
+bool Item_func_unix_timestamp::check_arguments() const
+{
+  DBUG_ASSERT(arg_count <= 2);
+  if (arg_count == 0)
+    return false;
+  if (arg_count == 1) // UNIX_TIMESTAMP(loose_datetime)
+    return args[0]->check_type_can_return_date(func_name());
+
+  // UNIX_TIMESTAMP(strict_datetime, 'constant string with tzname')
+  const Type_handler *th[2]= {args[0]->type_handler(),
+                              args[1]->type_handler()};
+  if (!dynamic_cast<const Type_handler_datetime_common*>(th[0]) ||
+      !dynamic_cast<const Type_handler_general_purpose_string*>(th[1]))
+  {
+    my_error(ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION, MYF(0),
+             th[0]->name().ptr(), th[1]->name().ptr(), func_name());
+    return true;
+  }
+  if (!dynamic_cast<const Item_literal*>(args[1]))
+  {
+    const Item::Print tmp(args[1], QT_ORDINARY);
+    my_error(ER_STD_INVALID_ARGUMENT, MYF(0),
+             ErrConvString(&tmp).ptr(), func_name());
+    return true;
+  }
+  return false;
+}
+
+
+bool Item_func_unix_timestamp::fix_length_and_dec()
+{
+  maybe_null= true;
+  decimals= arg_count ? args[0]->datetime_precision(current_thd) : 0;
+  max_length=17 + (decimals ? decimals + 1 : 0);
+  if (decimals)
+    set_handler(&type_handler_unix_timestampf);
+  else
+    set_handler(&type_handler_unix_timestamp);
+  if (arg_count == 2) // UNIX_TIMESTAMP(strict_datetime, 'tzname')
+  {
+    // check_arguments() previously checked args[1] to be a string literal
+    DBUG_ASSERT(args[1]->const_item() && !args[1]->is_expensive());
+    StringBuffer<64> buffer;
+    String *str= args[1]->val_str_ascii(&buffer);
+    if (!(m_time_zone= my_tz_find(current_thd, str)))
+    {
+      ErrConvString errstr(str);
+      my_error(ER_UNKNOWN_TIME_ZONE, MYF(0), errstr.ptr());
+    }
+  }
+  return false;
+}
+
+
+Session_env_dependency
+Item_func_unix_timestamp::value_depends_on_session_env() const
+{
+  const Type_handler *th0= args[0]->type_handler();
+  if (!m_time_zone)
+  {
+    /*
+      unix_timestamp(expr) implicitly converts args[0] to TIMESTAMP
+      and then takes its timeval value.
+    */
+    return args[0]->value_depends_on_session_env().soft_to_hard() |
+           Session_env_dependency(0, type_handler_timestamp2.
+                                       type_conversion_dependency_from(th0));
+  }
+  /*
+    unix_timestamp(datetime_expr,'tz') does not depend on @@time_zone.
+    Data types other than DATETIME are not allowed in this overload.
+    Propagate argument dependencies only, but do not add its own dependency.
+  */
+  DBUG_ASSERT(arg_count == 2);
+  DBUG_ASSERT(dynamic_cast<const Type_handler_datetime_common*>(th0));
+  return args[0]->value_depends_on_session_env().soft_to_hard();
+}
+
+
 bool Item_func_unix_timestamp::get_timestamp_value(my_time_t *seconds,
                                                    ulong *second_part)
 {
   DBUG_ASSERT(fixed == 1);
+
+  if (arg_count == 2) // UNIX_TIMESTAMP(strict_datetime, 'tzname')
+  {
+    /*
+      Return NULL in case of a zero date no matter what sql_mode is.
+      This expression is a recommended expression for virtual columns
+      when a TIMESTAMP virtual column is generated from a DATETIME column.
+      It must stay independent from sql_mode and other system variables.
+    */
+    DBUG_ASSERT(m_time_zone);
+    THD *thd= current_thd;
+    const Datetime dt(thd, args[0], Datetime::Options(TIME_NO_ZEROS, thd));
+    if ((null_value= !dt.is_valid_datetime()))
+      return true;
+    uint error_code= 0;
+    *seconds= m_time_zone->TIME_to_gmt_sec(dt.get_mysql_time(), &error_code);
+    *second_part= dt.get_mysql_time()->second_part;
+    // ER_WARN_INVALID_TIMESTAMP is OK (a spring-forward DST gap was adjusted)
+    return null_value= (error_code == ER_WARN_DATA_OUT_OF_RANGE);
+  }
+
   if (args[0]->type() == FIELD_ITEM)
   {						// Optimize timestamp field
     Field *field=((Item_field*) args[0])->field;
@@ -2246,9 +2360,16 @@ bool Item_char_typecast::eq(const Item *item, bool binary_cmp) const
 
 void Item_func::print_cast_temporal(String *str, enum_query_type query_type)
 {
-  char buf[32];
   str->append(STRING_WITH_LEN("cast("));
   args[0]->print(str, query_type);
+  print_cast_temporal_append_as(str);
+  str->append(')');
+}
+
+
+void Item_func::print_cast_temporal_append_as(String *str) const
+{
+  char buf[32];
   str->append(STRING_WITH_LEN(" as "));
   const Name name= type_handler()->name();
   str->append(name.ptr(), name.length());
@@ -2258,7 +2379,6 @@ void Item_func::print_cast_temporal(String *str, enum_query_type query_type)
     str->append(llstr(decimals, buf));
     str->append(')');
   }
-  str->append(')');
 }
 
 
@@ -2580,8 +2700,58 @@ bool Item_date_typecast::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzy
 }
 
 
+void Item_datetime_typecast::print_with_at_time_zone(String *str,
+                                                     enum_query_type query_type)
+{
+  DBUG_ASSERT(m_time_zone);
+  str->append(STRING_WITH_LEN("cast("));
+  args[0]->print_parenthesised(str, query_type, COLLATE_PRECEDENCE);
+  str->append(STRING_WITH_LEN(" at time zone '"));
+  str->append(m_time_zone->get_name()[0]);
+  str->append(STRING_WITH_LEN("'"));
+  print_cast_temporal_append_as(str);
+  str->append(')');
+}
+
+
+bool Item_datetime_typecast::check_arguments() const
+{
+  if (!m_time_zone)
+    return args[0]->check_type_can_return_date(func_name());
+
+  // CAST(timestamp_expr at time zone 'tz' as datetime)
+  const Type_handler *th0= args[0]->type_handler();
+  if (th0->type_handler_for_native_format() != &type_handler_timestamp2)
+  {
+    my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+             th0->name().ptr(), func_name());
+    return true;
+  }
+  return false;
+}
+
+
 bool Item_datetime_typecast::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
+  if (m_time_zone)
+  {
+    // CAST(timestamp_expr at time zone 'tz' as datetime)
+    const Timestamp_or_zero_datetime_native_null nts(thd, args[0]);
+    /*
+      Return NULL in case of a zero date no matter what sql_mode is.
+      This expression is a recommended expression for virtual columns
+      when a DATETIME virtual column is generated from a TIMESTAMP column.
+      It must stay independent from sql_mode and other system variables.
+    */
+    if ((null_value= (nts.is_null() || nts.is_zero_datetime())))
+      return true;
+    const Timestamp_or_zero_datetime ts(nts);
+    Datetime *dt= new(ltime) Datetime(ts.to_datetime(m_time_zone,
+                                                 date_conv_mode_t(fuzzydate)));
+    int warn;
+    dt->round(thd, decimals, time_round_mode_t(fuzzydate), &warn);
+    return (null_value= !dt->is_valid_datetime());
+  }
   date_mode_t tmp= (fuzzydate | sql_mode_for_dates(thd)) & ~TIME_TIME_ONLY;
   // Force rounding if the current sql_mode says so
   Datetime::Options opt(date_conv_mode_t(tmp), thd);
@@ -2596,6 +2766,23 @@ Sql_mode_dependency Item_datetime_typecast::value_depends_on_sql_mode() const
   return Item_datetimefunc::value_depends_on_sql_mode() |
          Sql_mode_dependency(decimals < args[0]->decimals ?
                              MODE_TIME_ROUND_FRACTIONAL : 0, 0);
+}
+
+
+Session_env_dependency
+Item_datetime_typecast::value_depends_on_session_env() const
+{
+  if (!m_time_zone)
+    return Item_datetimefunc::value_depends_on_session_env();
+  /*
+    CAST(timestamp_expr at time zone 'tz' as datetime)
+    does not depend on @@time_zone.
+    Data types other than TIMESTAMP are not allowed in this overload.
+    Propagate argument dependencies only, but do not add its own dependency.
+  */
+  DBUG_ASSERT(args[0]->type_handler()->type_handler_for_native_format() ==
+              &type_handler_timestamp2);
+  return args[0]->value_depends_on_session_env().soft_to_hard();
 }
 
 

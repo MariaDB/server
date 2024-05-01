@@ -56,6 +56,7 @@ protected:
   bool check_argument_types_can_return_date(uint start, uint end) const;
   bool check_argument_types_can_return_time(uint start, uint end) const;
   void print_cast_temporal(String *str, enum_query_type query_type);
+  void print_cast_temporal_append_as(String *str) const;
 
   void print_schema_qualified_name(String *to,
                                    const LEX_CSTRING &schema_name,

@@ -412,7 +412,7 @@ ERROR 42000: Incorrect parameter count in the call to native function 'from_unix
 select from_unixtime(1, 2, 3);
 ERROR 42000: Incorrect parameter count in the call to native function 'from_unixtime'
 select unix_timestamp(1, 2);
-ERROR 42000: Incorrect parameter count in the call to native function 'unix_timestamp'
+ERROR HY000: Illegal parameter data types int and int for operation 'unix_timestamp'
 select greatest();
 ERROR 42000: Incorrect parameter count in the call to native function 'greatest'
 select greatest(12);

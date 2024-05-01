@@ -6,7 +6,7 @@ set sql_mode='';
 create table t1 (
 a date not null,
 b mediumtext generated always as ((a not in (a,a))) virtual,
-c timestamp generated always as ((a not in (b,b))) stored
+c datetime generated always as ((a not in (b,b))) stored
 );
 insert t1(a) values(7777777777);
 Warnings:
