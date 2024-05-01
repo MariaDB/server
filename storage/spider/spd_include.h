@@ -879,6 +879,10 @@ enum spider_hnd_stage {
   SPD_HND_STAGE_CLEAR_TOP_TABLE_FIELDS
 };
 
+/*
+  A wide handler is shared among ha_spider of partitions of the same
+  table. It is owned by the last partition.
+*/
 typedef struct st_spider_wide_handler
 {
   spider_hnd_stage   stage;

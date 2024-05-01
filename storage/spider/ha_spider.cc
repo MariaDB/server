@@ -614,7 +614,8 @@ error_get_share:
     owner->wide_handler = NULL;
     owner->wide_handler_owner = FALSE;
   }
-  wide_handler = NULL;
+  if (!wide_handler_owner)
+    wide_handler = NULL;
 error_wide_handler_alloc:
   DBUG_RETURN(error_num);
 }
