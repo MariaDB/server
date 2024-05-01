@@ -640,4 +640,24 @@ DELETE a1 FROM t1 AS a1,t1 AS a2 WHERE a1.a=a2.a;
 DROP TABLE t1;
 SET sort_buffer_size= @sort_buffer_size_save;
 
+--echo #
+--echo # MDEV-33988 DELETE to support table aliases
+--echo #
+
+CREATE TABLE t1 (c1 INT);
+INSERT INTO t1 VALUES (1), (2);
+SELECT * FROM t1;
+
+DELETE FROM t1 AS a1 WHERE a1.c1 = 2;
+SELECT * FROM t1;
+
+CREATE TABLE t2 (c2 INT);
+INSERT INTO t2 VALUES (1), (2);
+SELECT * FROM t2;
+
+DELETE FROM t2 a2 WHERE NOT EXISTS (SELECT * FROM t1 WHERE t1.c1 = a2.c2);
+SELECT * FROM t2;
+
+DROP TABLE t1, t2;
+
 --echo # End of 10.11 tests
