@@ -257,3 +257,50 @@ select * from t2;
 deallocate prepare stmt;
 
 drop table t1,t2;
+
+--echo # End of 11.1
+
+--echo #
+--echo # MDEV-33988 DELETE (single table) to support table aliases
+--echo #
+
+create table t1 (c1 int, c2 int, c3 int);
+insert into t1 values
+  (1,1,1), (1,2,2), (1,3,3), (2,1,4), (2,2,5), (2,3,6), (2,5,7), (3,5,8);
+create table t2 (id int auto_increment primary key, a int, key(a));
+insert into t2(a) values (3), (5), (-1);
+
+--echo # 1. The alias in delete coincides with the table name in IN subquery.
+
+explain extended
+delete from t1 t2 where t2.c1 in (select a from t2);
+delete from t1 t2 where t2.c1 in (select a from t2);
+
+select * from t1;
+
+--echo # 2. The alias in delete is different from the alias in IN subquery
+
+explain extended
+delete from t1 t_x where t_x.c2 IN (select a from t2 as t_y);
+delete from t1 t_x where t_x.c2 IN (select a from t2 as t_y);
+
+select * from t1;
+
+--echo # 3. The alias in delete is the same as the alias in IN subquery.
+
+explain extended
+delete from t1 as t_x where t_x.c3 IN (select a from t2 t_x);
+delete from t1 as t_x where t_x.c3 IN (select a from t2 t_x);
+
+select * from t1;
+
+--echo # 4. The table in delete is the alias in IN subquery
+
+explain extended
+delete from t1 t2 where t2.c1 IN (select a -1  from t2 as t1);
+delete from t1 t2 where t2.c1 IN (select a -1  from t2 as t1);
+select * from t1;
+
+drop table t1, t2;
+
+--echo # End of 11.4

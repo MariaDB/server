@@ -2006,3 +2006,41 @@ drop table t1;
 #
 # End of 10.4 tests
 #
+#
+# MDEV-33988 DELETE (single table) to support table aliases
+#
+CREATE TABLE `t1` (
+`id` int(11) default NULL
+)
+PARTITION BY RANGE (id) (
+PARTITION p0 VALUES LESS THAN (6),
+PARTITION p1 VALUES LESS THAN (11),
+PARTITION p2 VALUES LESS THAN (16),
+PARTITION p3 VALUES LESS THAN (21));
+INSERT INTO `t1` VALUES (1), (2), (3), (4), (5), (6), (7), (8), (9), (10),
+(11), (12), (13), (14), (15), (16), (17), (18), (19), (20);
+DELETE FROM t1 AS a PARTITION(p0) WHERE a.id % 2 = 0;
+SELECT * FROM t1 ORDER BY id;
+id
+1
+3
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+DROP TABLE t1;
+#
+# End of 11.4 tests
+#
