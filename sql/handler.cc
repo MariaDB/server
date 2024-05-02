@@ -7082,7 +7082,7 @@ int handler::check_duplicate_long_entries_update(const uchar *new_rec)
           So also check for that too
         */
         if((field->is_null(0) != field->is_null(reclength)) ||
-                               field->cmp_binary_offset(reclength))
+                               field->cmp_offset(reclength))
         {
           if((error= check_duplicate_long_entry_key(new_rec, i)))
             return error;

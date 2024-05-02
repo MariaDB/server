@@ -694,5 +694,27 @@ Hrecvx_0004ln-00	1
 Hrecvx_0004mm-00	2
 drop table t;
 #
-# End of 10.5 tests
+# MDEV-29345 update case insensitive (large) unique key with insensitive change of value - duplicate key
 #
+create table t1 (a int, b text, unique (b));
+insert ignore t1 values (1, 'a'), (2, 'A');
+Warnings:
+Warning	1062	Duplicate entry 'A' for key 'b'
+select * from t1;
+a	b
+1	a
+update t1 set b='A' where a=1;
+select * from t1;
+a	b
+1	A
+drop table t1;
+create table t1 (a int, b blob, unique (b));
+insert t1 values (1, 'a'), (2, 'A');
+select * from t1;
+a	b
+1	a
+2	A
+update t1 set b='A' where a=1;
+ERROR 23000: Duplicate entry 'A' for key 'b'
+drop table t1;
+# End of 10.5 tests

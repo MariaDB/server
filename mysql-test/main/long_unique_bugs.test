@@ -671,5 +671,20 @@ insert into t values ('Hrecvx_0004mm-00',2)
 select * from t;
 drop table t;
 --echo #
---echo # End of 10.5 tests
+--echo # MDEV-29345 update case insensitive (large) unique key with insensitive change of value - duplicate key
 --echo #
+create table t1 (a int, b text, unique (b));
+insert ignore t1 values (1, 'a'), (2, 'A');
+select * from t1;
+update t1 set b='A' where a=1;
+select * from t1;
+drop table t1;
+
+create table t1 (a int, b blob, unique (b));
+insert t1 values (1, 'a'), (2, 'A');
+select * from t1;
+--error ER_DUP_ENTRY
+update t1 set b='A' where a=1;
+drop table t1;
+
+--echo # End of 10.5 tests
