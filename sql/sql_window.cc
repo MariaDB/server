@@ -2859,6 +2859,7 @@ bool compute_window_func(THD *thd,
 {
   List_iterator_fast<Item_window_func> iter_win_funcs(window_functions);
   List_iterator_fast<Cursor_manager> iter_cursor_managers(cursor_managers);
+  bool ret= false;
   uint err;
 
   READ_RECORD info;
@@ -2921,19 +2922,27 @@ bool compute_window_func(THD *thd,
       /* Check if we found any error in the window function while adding values
          through cursors. */
       if (unlikely(thd->is_error() || thd->is_killed()))
+      {
+        ret= true;
         break;
+      }
 
       /* Return to current row after notifying cursors for each window
          function. */
       if (tbl->file->ha_rnd_pos(tbl->record[0], rowid_buf))
-        return true;
+      {
+        ret= true;
+        break;
+      }
     }
 
     /* We now have computed values for each window function. They can now
        be saved in the current row. */
     if (save_window_function_values(window_functions, tbl, rowid_buf))
-      return true;
-
+    {
+      ret= true;
+      break;
+    }
     rownum++;
   }
 
@@ -2941,7 +2950,7 @@ bool compute_window_func(THD *thd,
   partition_trackers.delete_elements();
   end_read_record(&info);
 
-  return false;
+  return ret;
 }
 
 /* Make a list that is a concation of two lists of ORDER elements */

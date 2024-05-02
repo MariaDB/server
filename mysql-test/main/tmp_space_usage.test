@@ -250,4 +250,13 @@ connection default;
 disconnect c1;
 set @@global.max_tmp_total_space_usage=@save_max_tmp_total_space_usage;
 
+--echo #
+--echo # MDEV-34054
+--echo # Memory leak in Window_func_runner::exec after encountering
+--echo # "temporary space limit reached" error
+
+SET max_tmp_session_space_usage= 64*1024;
+--error 200
+SELECT MIN(VARIABLE_VALUE) OVER (), NTILE(1) OVER (), MAX(VARIABLE_NAME) OVER () FROM information_schema.SESSION_STATUS;
+
 --echo # End of 11.5 tests
