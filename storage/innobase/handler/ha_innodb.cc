@@ -5814,6 +5814,7 @@ ha_innobase::open(const char* name, int, uint)
 	/* Will be allocated if it is needed in ::update_row() */
 	m_upd_buf = NULL;
 	m_upd_buf_size = 0;
+	m_disable_rowid_filter = false;
 
 	char*	is_part = is_partition(norm_name);
 	THD*	thd = ha_thd();
@@ -7286,7 +7287,8 @@ ha_innobase::build_template(
 	/* Below we check column by column if we need to access
 	the clustered index. */
 
-	if (pushed_rowid_filter && rowid_filter_is_active) {
+	if (pushed_rowid_filter && rowid_filter_is_active
+	    && !m_disable_rowid_filter) {
 		fetch_primary_key_cols = TRUE;
 		m_prebuilt->pk_filter = this;
 	} else {
@@ -7343,7 +7345,8 @@ ha_innobase::build_template(
 	simplified to handle both. It should handle the issues. */
 
 	const bool pushed_down = active_index != MAX_KEY
-				 && active_index == pushed_idx_cond_keyno;
+				 && active_index == pushed_idx_cond_keyno
+				 && !m_disable_rowid_filter;
 
 	m_prebuilt->idx_cond = pushed_down ? this : nullptr;
 
@@ -9375,6 +9378,11 @@ ha_innobase::rnd_init(
 {
 	int		err;
 
+	/* Don't use rowid filter when doing full table scan or rnd_pos calls.*/
+	if (!scan) {
+		m_disable_rowid_filter = true;
+	}
+
 	/* Store the active index value so that we can restore the original
 	value after a scan */
 
@@ -9383,6 +9391,12 @@ ha_innobase::rnd_init(
 	} else {
 		err = change_active_index(m_primary_key);
 	}
+
+	if (err && !scan) {
+		/* Restore the original value in case of error */
+		m_disable_rowid_filter = false;
+	}
+
 
 	/* Don't use semi-consistent read in random row reads (by position).
 	This means we must disable semi_consistent_read if scan is false */
@@ -9404,6 +9418,7 @@ int
 ha_innobase::rnd_end(void)
 /*======================*/
 {
+	m_disable_rowid_filter = false;
 	return(index_end());
 }
 
@@ -9455,6 +9470,7 @@ ha_innobase::rnd_pos(
 	/* Note that we assume the length of the row reference is fixed
 	for the table, and it is == ref_length */
 
+	DBUG_ASSERT(m_disable_rowid_filter == true);
 	int	error = index_read(buf, pos, (uint)ref_length, HA_READ_KEY_EXACT);
 
 	if (error != 0) {
