@@ -3282,10 +3282,12 @@ handlerton *ha_partition::get_def_part_engine(const char *name)
       goto err;
     if (state.st_size <= 64)
       goto err;
-    if (!(frm_image= (uchar*)my_malloc(key_memory_Partition_share,
-                                       state.st_size, MYF(MY_WME))))
+    if ((ulonglong)state.st_size >= SIZE_T_MAX) /* Whole file need to fit into memory*/
       goto err;
-    if (mysql_file_read(file, frm_image, state.st_size, MYF(MY_NABP)))
+    if (!(frm_image= (uchar*)my_malloc(key_memory_Partition_share,
+                                       (size_t)state.st_size, MYF(MY_WME))))
+      goto err;
+    if (mysql_file_read(file, frm_image, (size_t)state.st_size, MYF(MY_NABP)))
       goto err;
 
     if (frm_image[64] != '/')
