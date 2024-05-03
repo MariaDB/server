@@ -199,4 +199,18 @@ set @@global.max_tmp_total_space_usage=@save_max_tmp_total_space_usage;
 SET max_tmp_session_space_usage= 64*1024;
 SELECT MIN(VARIABLE_VALUE) OVER (), NTILE(1) OVER (), MAX(VARIABLE_NAME) OVER () FROM information_schema.SESSION_STATUS;
 ERROR HY000: Local temporary space limit reached
+#
+# MDEV-34060 Unexpected behavior upon reading I_S.ALL_PLUGINS under
+# limited tmp space
+#
+connect c1, localhost, root,,;
+set @@binlog_format=row;
+CREATE OR REPLACE TABLE t1 (a DATETIME) ENGINE=MyISAM;
+INSERT INTO t1 SELECT NOW() FROM seq_1_to_6000;
+SET max_tmp_session_space_usage = 64*1024;
+SELECT * FROM information_schema.ALL_PLUGINS LIMIT 2;
+ERROR HY000: Local temporary space limit reached
+drop table t1;
+connection default;
+disconnect c1;
 # End of 11.5 tests

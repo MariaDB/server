@@ -259,4 +259,20 @@ SET max_tmp_session_space_usage= 64*1024;
 --error 200
 SELECT MIN(VARIABLE_VALUE) OVER (), NTILE(1) OVER (), MAX(VARIABLE_NAME) OVER () FROM information_schema.SESSION_STATUS;
 
+--echo #
+--echo # MDEV-34060 Unexpected behavior upon reading I_S.ALL_PLUGINS under
+--echo # limited tmp space
+--echo #
+
+connect(c1, localhost, root,,);
+set @@binlog_format=row;
+CREATE OR REPLACE TABLE t1 (a DATETIME) ENGINE=MyISAM;
+INSERT INTO t1 SELECT NOW() FROM seq_1_to_6000;
+SET max_tmp_session_space_usage = 64*1024;
+--error 200
+SELECT * FROM information_schema.ALL_PLUGINS LIMIT 2;
+drop table t1;
+connection default;
+disconnect c1;
+
 --echo # End of 11.5 tests
