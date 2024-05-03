@@ -543,7 +543,7 @@ static my_bool read_mysql_plugin_info(struct st_plugin_dl *plugin_dl,
   /* Determine interface version */
   if (!sym)
   {
-    my_error(ER_CANT_FIND_DL_ENTRY, MyFlags, plugin_interface_version_sym);
+    my_error(ER_CANT_FIND_DL_ENTRY, MyFlags, plugin_interface_version_sym, dlpath);
     DBUG_RETURN(TRUE);
   }
   plugin_dl->mariaversion= 0;
@@ -559,7 +559,7 @@ static my_bool read_mysql_plugin_info(struct st_plugin_dl *plugin_dl,
   /* Find plugin declarations */
   if (!(sym= dlsym(plugin_dl->handle, plugin_declarations_sym)))
   {
-    my_error(ER_CANT_FIND_DL_ENTRY, MyFlags, plugin_declarations_sym);
+    my_error(ER_CANT_FIND_DL_ENTRY, MyFlags, plugin_declarations_sym, dlpath);
     DBUG_RETURN(TRUE);
   }
 
@@ -663,7 +663,7 @@ static my_bool read_maria_plugin_info(struct st_plugin_dl *plugin_dl,
       version we try mysql version.
     */
     my_error(ER_CANT_FIND_DL_ENTRY, MyFlags,
-                 maria_plugin_interface_version_sym);
+             maria_plugin_interface_version_sym, dlpath);
     DBUG_RETURN(TRUE);
   }
   plugin_dl->mariaversion= *(int *)sym;
@@ -679,7 +679,7 @@ static my_bool read_maria_plugin_info(struct st_plugin_dl *plugin_dl,
   /* Find plugin declarations */
   if (!(sym= dlsym(plugin_dl->handle, maria_plugin_declarations_sym)))
   {
-    my_error(ER_CANT_FIND_DL_ENTRY, MyFlags, maria_plugin_declarations_sym);
+    my_error(ER_CANT_FIND_DL_ENTRY, MyFlags, maria_plugin_declarations_sym, dlpath);
     DBUG_RETURN(TRUE);
   }
   if (plugin_dl->mariaversion != MARIA_PLUGIN_INTERFACE_VERSION)
@@ -692,7 +692,8 @@ static my_bool read_maria_plugin_info(struct st_plugin_dl *plugin_dl,
       sizeof_st_plugin= *(int *)sym;
     else
     {
-      my_error(ER_CANT_FIND_DL_ENTRY, MyFlags, maria_sizeof_st_plugin_sym);
+      my_error(ER_CANT_FIND_DL_ENTRY, MyFlags, maria_sizeof_st_plugin_sym,
+               dlpath);
       DBUG_RETURN(TRUE);
     }
 
@@ -1221,7 +1222,7 @@ err:
   DBUG_ASSERT(!name->str || !dupes); // dupes is ONLY for name->str == 0
 
   if (errs == 0 && oks == 0 && !dupes) // no plugin was found
-    my_error(ER_CANT_FIND_DL_ENTRY, MyFlags, name->str);
+    my_error(ER_PLUGIN_IS_NOT_LOADED, MyFlags, name->str);
 
   plugin_dl_del(tmp.plugin_dl);
   if (errs > 0 || oks + dupes == 0)

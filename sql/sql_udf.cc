@@ -98,7 +98,7 @@ static const char *init_syms(udf_func *tmp, char *nm)
     if (!opt_allow_suspicious_udfs)
       return nm;
     if (thd->variables.log_warnings)
-      sql_print_warning(ER_THD(thd, ER_CANT_FIND_DL_ENTRY), nm);
+      sql_print_warning(ER_THD(thd, ER_CANT_FIND_DL_ENTRY), nm, tmp->name.str);
   }
   return 0;
 }
@@ -265,7 +265,8 @@ void udf_init()
       const char *missing;
       if ((missing= init_syms(tmp, buf)))
       {
-        sql_print_error(ER_THD(new_thd, ER_CANT_FIND_DL_ENTRY), missing);
+        sql_print_error(ER_THD(new_thd, ER_CANT_FIND_DL_ENTRY), missing,
+                        tmp->name.str);
         del_udf(tmp);
         if (new_dl)
           dlclose(dl);
@@ -605,7 +606,7 @@ int mysql_create_function(THD *thd,udf_func *udf)
     const char *missing;
     if ((missing= init_syms(udf, buf)))
     {
-      my_error(ER_CANT_FIND_DL_ENTRY, MYF(0), missing);
+      my_error(ER_CANT_FIND_DL_ENTRY, MYF(0), missing, udf->dl);
       goto err;
     }
   }
