@@ -3895,7 +3895,7 @@ apply_event_and_update_pos_apply(Log_event* ev, THD* thd, rpl_group_info *rgi,
           if (thd->system_thread == SYSTEM_THREAD_SLAVE_SQL &&
               ((rli->mi->using_parallel() &&
                 rli->mi->parallel_mode <= SLAVE_PARALLEL_CONSERVATIVE) ||
-               wsrep_ready == 0)) {
+                !wsrep_ready_get())) {
             rli->abort_slave= 1;
             rli->report(ERROR_LEVEL, ER_UNKNOWN_COM_ERROR, rgi->gtid_info(),
                         "Node has dropped from cluster");
