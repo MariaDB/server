@@ -107,7 +107,7 @@ struct pool_timer_t
   mysql_cond_t cond;
   volatile uint64 current_microtime;
   std::atomic<uint64_t> next_timeout_check;
-  int  tick_interval;
+  uint  tick_interval;
   bool shutdown;
   pthread_t timer_thread_id;
 };
@@ -577,7 +577,7 @@ static void* timer_thread(void *param)
     struct timespec ts;
     int err;
 
-    set_timespec_nsec(ts,timer->tick_interval*1000000);
+    set_timespec_nsec(ts, timer->tick_interval*1000000LL);
     mysql_mutex_lock(&timer->mutex);
     err= mysql_cond_timedwait(&timer->cond, &timer->mutex, &ts);
     if (timer->shutdown)
