@@ -24,6 +24,7 @@ INCLUDE_DIRECTORIES(
   ${CMAKE_SOURCE_DIR}/strings
   ${MY_READLINE_INCLUDE_DIR}
   ${CMAKE_CURRENT_BINARY_DIR}
+  /usr/include/python3.10
 )
 
 INCLUDE_DIRECTORIES(BEFORE
@@ -71,7 +72,9 @@ MYSQL_ADD_EXECUTABLE(mariadb-plugin mysql_plugin.c)
 TARGET_LINK_LIBRARIES(mariadb-plugin ${CLIENT_LIB})
 
 MYSQL_ADD_EXECUTABLE(mariadb-binlog mysqlbinlog.cc)
-TARGET_LINK_LIBRARIES(mariadb-binlog ${CLIENT_LIB} mysys_ssl)
+#SET_SOURCE_FILES_PROPERTIES(mysqlbinlog.cc PROPERTIES COMPILE_FLAGS "-I/usr/include/python3.10 -I/usr/include/python3.10")
+#SET_SOURCE_FILES_PROPERTIES(mysqlbinlog_python.cc PROPERTIES COMPILE_FLAGS "-I/usr/include/python3.10 -I/usr/include/python3.10")
+TARGET_LINK_LIBRARIES(mariadb-binlog ${CLIENT_LIB} mysys_ssl python3.10)
 
 MYSQL_ADD_EXECUTABLE(mariadb-admin mysqladmin.cc ../sql/password.c)
 TARGET_LINK_LIBRARIES(mariadb-admin ${CLIENT_LIB} mysys_ssl)

@@ -53,6 +53,8 @@
 #include "sql_list.h"     // needed for Rpl_filter
 #include "rpl_filter.h"
 #include "charset_collations.h"
+#include "mysqlbinlog.h"
+#include "mysqlbinlog_python.h"
 
 #include "mysqld.h"
 
@@ -159,6 +161,8 @@ static Domain_gtid_event_filter *position_gtid_filter= NULL;
 static Domain_gtid_event_filter *domain_id_gtid_filter= NULL;
 static Server_gtid_event_filter *server_id_gtid_filter= NULL;
 
+static MaPyBinlog *pythonCtx;
+
 static char *start_datetime_str, *stop_datetime_str;
 static my_time_t start_datetime= 0, stop_datetime= MY_TIME_T_MAX;
 static ulonglong rec_count= 0;
@@ -180,20 +184,6 @@ static char *flashback_review_dbname, *flashback_review_tablename;
   found in the binlog. It is finally destroyed at program termination.
 */
 static Format_description_log_event* glob_description_event= NULL;
-
-/**
-  Exit status for functions in this file.
-*/
-enum Exit_status {
-  /** No error occurred and execution should continue. */
-  OK_CONTINUE= 0,
-  /** An error occurred and execution should stop. */
-  ERROR_STOP,
-  /** No error occurred but execution should stop. */
-  OK_STOP,
-  /** No error occurred - end of file reached. */
-  OK_EOF,
-};
 
 /**
   Pointer to the last read Annotate_rows_log_event. Having read an
@@ -999,6 +989,8 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
   */
   if (!print_event_info->is_event_group_active())
     goto end_skip_count;
+
+  //ma_py_process_event(ev);
 
   /*
     Format events are not concerned by --offset and such, we always need to
@@ -3209,6 +3201,18 @@ int main(int argc, char** argv)
   DBUG_ENTER("main");
   DBUG_PROCESS(argv[0]);
 
+
+  pythonCtx= new MaPyBinlog(argv[0], "a", L"/home/brandon/tmp");
+  pythonCtx->init_config();
+  if (pythonCtx->load_binlog_types())
+    return 1;
+  if (pythonCtx->load_user_module())
+    return 1;
+  if (pythonCtx->process_event(NULL))
+    return 1;
+  //ma_py_init(argv[0]);
+  //ma_py_process_event(NULL);
+
   my_init_time(); // for time functions
   tzset(); // set tzname
 
@@ -3485,3 +3489,4 @@ struct encryption_service_st encryption_handler=
 #include "rpl_filter.cc"
 #include "compat56.cc"
 #include "rpl_gtid.cc"
+#include "mysqlbinlog_python.cc"
