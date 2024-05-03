@@ -1,6 +1,6 @@
---- sysvars_innodb.result
-+++ sysvars_innodb.result
-@@ -47,7 +47,7 @@
+--- a/mysql-test/suite/sys_vars/r/sysvars_innodb.result
++++ b/mysql-test/suite/sys_vars/r/sysvars_innodb.result
+@@ -47,7 +47,7 @@ VARIABLE_NAME	INNODB_ADAPTIVE_HASH_INDEX_PARTS
  SESSION_VALUE	NULL
  DEFAULT_VALUE	8
  VARIABLE_SCOPE	GLOBAL
@@ -9,7 +9,7 @@
  VARIABLE_COMMENT	Number of InnoDB Adaptive Hash Index Partitions (default 8)
  NUMERIC_MIN_VALUE	1
  NUMERIC_MAX_VALUE	512
-@@ -71,7 +71,7 @@
+@@ -71,7 +71,7 @@ VARIABLE_NAME	INNODB_AUTOINC_LOCK_MODE
  SESSION_VALUE	NULL
  DEFAULT_VALUE	1
  VARIABLE_SCOPE	GLOBAL
@@ -18,7 +18,7 @@
  VARIABLE_COMMENT	The AUTOINC lock modes supported by InnoDB: 0 => Old style AUTOINC locking (for backward compatibility); 1 => New style AUTOINC locking; 2 => No AUTOINC locking (unsafe for SBR)
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	2
-@@ -83,10 +83,10 @@
+@@ -83,10 +83,10 @@ VARIABLE_NAME	INNODB_BUFFER_POOL_CHUNK_SIZE
  SESSION_VALUE	NULL
  DEFAULT_VALUE	0
  VARIABLE_SCOPE	GLOBAL
@@ -31,7 +31,7 @@
  NUMERIC_BLOCK_SIZE	1048576
  ENUM_VALUE_LIST	NULL
  READ_ONLY	YES
-@@ -119,7 +119,7 @@
+@@ -119,7 +119,7 @@ VARIABLE_NAME	INNODB_BUFFER_POOL_DUMP_PCT
  SESSION_VALUE	NULL
  DEFAULT_VALUE	25
  VARIABLE_SCOPE	GLOBAL
@@ -40,16 +40,16 @@
  VARIABLE_COMMENT	Dump only the hottest N% of each buffer pool, defaults to 25
  NUMERIC_MIN_VALUE	1
  NUMERIC_MAX_VALUE	100
-@@ -203,7 +203,7 @@
+@@ -203,7 +203,7 @@ VARIABLE_NAME	INNODB_BUF_DUMP_STATUS_FREQUENCY
  SESSION_VALUE	NULL
  DEFAULT_VALUE	0
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT UNSIGNED
 +VARIABLE_TYPE	INT UNSIGNED
- VARIABLE_COMMENT	A number between [0, 100] that tells how oftern buffer pool dump status in percentages should be printed. E.g. 10 means that buffer pool dump status is printed when every 10% of number of buffer pool pages are dumped. Default is 0 (only start and end status is printed)
+ VARIABLE_COMMENT	A number that tells how often buffer pool dump status in percentages should be printed. E.g. 10 means that buffer pool dump status is printed when every 10% of number of buffer pool pages are dumped. Default is 0 (only start and end status is printed)
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	100
-@@ -275,7 +275,7 @@
+@@ -275,7 +275,7 @@ VARIABLE_NAME	INNODB_COMPRESSION_FAILURE_THRESHOLD_PCT
  SESSION_VALUE	NULL
  DEFAULT_VALUE	5
  VARIABLE_SCOPE	GLOBAL
@@ -58,7 +58,7 @@
  VARIABLE_COMMENT	If the compression failure rate of a table is greater than this number more padding is added to the pages to reduce the failures. A value of zero implies no padding
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	100
-@@ -299,7 +299,7 @@
+@@ -299,7 +299,7 @@ VARIABLE_NAME	INNODB_COMPRESSION_PAD_PCT_MAX
  SESSION_VALUE	NULL
  DEFAULT_VALUE	50
  VARIABLE_SCOPE	GLOBAL
@@ -67,7 +67,7 @@
  VARIABLE_COMMENT	Percentage of empty space on a data page that can be reserved to make the page compressible
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	75
-@@ -527,7 +527,7 @@
+@@ -527,7 +527,7 @@ VARIABLE_NAME	INNODB_FATAL_SEMAPHORE_WAIT_THRESHOLD
  SESSION_VALUE	NULL
  DEFAULT_VALUE	600
  VARIABLE_SCOPE	GLOBAL
@@ -76,7 +76,7 @@
  VARIABLE_COMMENT	Maximum number of seconds that semaphore times out in InnoDB
  NUMERIC_MIN_VALUE	1
  NUMERIC_MAX_VALUE	4294967295
-@@ -575,7 +575,7 @@
+@@ -575,7 +575,7 @@ VARIABLE_NAME	INNODB_FLUSHING_AVG_LOOPS
  SESSION_VALUE	NULL
  DEFAULT_VALUE	30
  VARIABLE_SCOPE	GLOBAL
@@ -85,7 +85,7 @@
  VARIABLE_COMMENT	Number of iterations over which the background flushing is averaged
  NUMERIC_MIN_VALUE	1
  NUMERIC_MAX_VALUE	1000
-@@ -599,7 +599,7 @@
+@@ -599,7 +599,7 @@ VARIABLE_NAME	INNODB_FLUSH_LOG_AT_TRX_COMMIT
  SESSION_VALUE	NULL
  DEFAULT_VALUE	1
  VARIABLE_SCOPE	GLOBAL
@@ -94,7 +94,7 @@
  VARIABLE_COMMENT	Controls the durability/speed trade-off for commits. Set to 0 (write and flush redo log to disk only once per second), 1 (flush to disk at each commit), 2 (write to log at commit but flush to disk only once per second) or 3 (flush to disk at prepare and at commit, slower and usually redundant). 1 and 3 guarantees that after a crash, committed transactions will not be lost and will be consistent with the binlog and other transactional engines. 2 can get inconsistent and lose transactions if there is a power failure or kernel crash but not if mysqld crashes. 0 has no guarantees in case of crash. 0 and 2 can be faster than 1 or 3
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	3
-@@ -623,7 +623,7 @@
+@@ -623,7 +623,7 @@ VARIABLE_NAME	INNODB_FLUSH_NEIGHBORS
  SESSION_VALUE	NULL
  DEFAULT_VALUE	1
  VARIABLE_SCOPE	GLOBAL
@@ -103,7 +103,7 @@
  VARIABLE_COMMENT	Set to 0 (don't flush neighbors from buffer pool), 1 (flush contiguous neighbors from buffer pool) or 2 (flush neighbors from buffer pool), when flushing a block
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	2
-@@ -659,7 +659,7 @@
+@@ -659,7 +659,7 @@ VARIABLE_NAME	INNODB_FORCE_RECOVERY
  SESSION_VALUE	NULL
  DEFAULT_VALUE	0
  VARIABLE_SCOPE	GLOBAL
@@ -112,7 +112,7 @@
  VARIABLE_COMMENT	Helps to save your data in case the disk image of the database becomes corrupt. Value 5 can return bogus data, and 6 can permanently corrupt data
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	6
-@@ -683,10 +683,10 @@
+@@ -683,10 +683,10 @@ VARIABLE_NAME	INNODB_FT_CACHE_SIZE
  SESSION_VALUE	NULL
  DEFAULT_VALUE	8000000
  VARIABLE_SCOPE	GLOBAL
@@ -125,7 +125,7 @@
  NUMERIC_BLOCK_SIZE	0
  ENUM_VALUE_LIST	NULL
  READ_ONLY	NO
-@@ -719,7 +719,7 @@
+@@ -719,7 +719,7 @@ VARIABLE_NAME	INNODB_FT_MAX_TOKEN_SIZE
  SESSION_VALUE	NULL
  DEFAULT_VALUE	84
  VARIABLE_SCOPE	GLOBAL
@@ -134,7 +134,7 @@
  VARIABLE_COMMENT	InnoDB Fulltext search maximum token size in characters
  NUMERIC_MIN_VALUE	10
  NUMERIC_MAX_VALUE	84
-@@ -731,7 +731,7 @@
+@@ -731,7 +731,7 @@ VARIABLE_NAME	INNODB_FT_MIN_TOKEN_SIZE
  SESSION_VALUE	NULL
  DEFAULT_VALUE	3
  VARIABLE_SCOPE	GLOBAL
@@ -143,7 +143,7 @@
  VARIABLE_COMMENT	InnoDB Fulltext search minimum token size in characters
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	16
-@@ -743,7 +743,7 @@
+@@ -743,7 +743,7 @@ VARIABLE_NAME	INNODB_FT_NUM_WORD_OPTIMIZE
  SESSION_VALUE	NULL
  DEFAULT_VALUE	2000
  VARIABLE_SCOPE	GLOBAL
@@ -152,7 +152,7 @@
  VARIABLE_COMMENT	InnoDB Fulltext search number of words to optimize for each optimize table call
  NUMERIC_MIN_VALUE	1000
  NUMERIC_MAX_VALUE	10000
-@@ -755,10 +755,10 @@
+@@ -755,10 +755,10 @@ VARIABLE_NAME	INNODB_FT_RESULT_CACHE_LIMIT
  SESSION_VALUE	NULL
  DEFAULT_VALUE	2000000000
  VARIABLE_SCOPE	GLOBAL
@@ -165,7 +165,7 @@
  NUMERIC_BLOCK_SIZE	0
  ENUM_VALUE_LIST	NULL
  READ_ONLY	NO
-@@ -779,7 +779,7 @@
+@@ -779,7 +779,7 @@ VARIABLE_NAME	INNODB_FT_SORT_PLL_DEGREE
  SESSION_VALUE	NULL
  DEFAULT_VALUE	2
  VARIABLE_SCOPE	GLOBAL
@@ -174,7 +174,7 @@
  VARIABLE_COMMENT	InnoDB Fulltext search parallel sort degree, will round up to nearest power of 2 number
  NUMERIC_MIN_VALUE	1
  NUMERIC_MAX_VALUE	16
-@@ -791,10 +791,10 @@
+@@ -791,10 +791,10 @@ VARIABLE_NAME	INNODB_FT_TOTAL_CACHE_SIZE
  SESSION_VALUE	NULL
  DEFAULT_VALUE	640000000
  VARIABLE_SCOPE	GLOBAL
@@ -187,7 +187,7 @@
  NUMERIC_BLOCK_SIZE	0
  ENUM_VALUE_LIST	NULL
  READ_ONLY	NO
-@@ -839,22 +839,22 @@
+@@ -839,22 +839,22 @@ VARIABLE_NAME	INNODB_IO_CAPACITY
  SESSION_VALUE	NULL
  DEFAULT_VALUE	200
  VARIABLE_SCOPE	GLOBAL
@@ -300,7 +300,7 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT UNSIGNED
 +VARIABLE_TYPE	INT UNSIGNED
- VARIABLE_COMMENT	Deprecated parameter with no effect
+ VARIABLE_COMMENT	Unused
  NUMERIC_MIN_VALUE	1
  NUMERIC_MAX_VALUE	128
 @@ -1259,7 +1259,7 @@

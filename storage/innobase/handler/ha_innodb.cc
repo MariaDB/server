@@ -19312,8 +19312,7 @@ static my_bool innodb_prefix_index_cluster_optimization;
 static MYSQL_SYSVAR_BOOL(prefix_index_cluster_optimization,
   innodb_prefix_index_cluster_optimization,
   PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_DEPRECATED,
-  "Deprecated parameter with no effect",
-  nullptr, nullptr, TRUE);
+  "Unused", nullptr, nullptr, FALSE);
 
 static MYSQL_SYSVAR_STR(data_file_path, innobase_data_file_path,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
@@ -19350,7 +19349,7 @@ static ulong innodb_purge_rseg_truncate_frequency;
 static MYSQL_SYSVAR_ULONG(purge_rseg_truncate_frequency,
   innodb_purge_rseg_truncate_frequency,
   PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_DEPRECATED,
-  "Deprecated parameter with no effect",
+  "Unused",
   NULL, NULL, 128, 1, 128, 0);
 
 static void innodb_undo_log_truncate_update(THD *thd, struct st_mysql_sys_var*,
@@ -19424,7 +19423,7 @@ static MYSQL_SYSVAR_ENUM(stats_method, srv_innodb_stats_method,
 
 static MYSQL_SYSVAR_ULONG(buf_dump_status_frequency, srv_buf_dump_status_frequency,
   PLUGIN_VAR_RQCMDARG,
-  "A number between [0, 100] that tells how oftern buffer pool dump status "
+  "A number that tells how often buffer pool dump status "
   "in percentages should be printed. E.g. 10 means that buffer pool dump "
   "status is printed when every 10% of number of buffer pool pages are "
   "dumped. Default is 0 (only start and end status is printed)",
@@ -19639,7 +19638,7 @@ static MYSQL_SYSVAR_BOOL(immediate_scrub_data_uncompressed,
 
 static MYSQL_SYSVAR_BOOL(encrypt_temporary_tables, innodb_encrypt_temporary_tables,
   PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,
-  "Enrypt the temporary table data",
+  "Encrypt the temporary table data",
   NULL, NULL, false);
 
 static MYSQL_SYSVAR_BOOL(truncate_temporary_tablespace_now,

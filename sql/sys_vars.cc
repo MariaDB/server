@@ -510,7 +510,7 @@ static Sys_var_mybool Sys_automatic_sp_privileges(
 static Sys_var_ulong Sys_back_log(
        "back_log", "The number of outstanding connection requests "
        "MariaDB can have. This comes into play when the main MariaDB thread "
-       "gets very many connection requests in a very short time",
+       "gets many connection requests in a very short time",
        AUTO_SET READ_ONLY GLOBAL_VAR(back_log), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, 65535), DEFAULT(150), BLOCK_SIZE(1));
 
@@ -693,13 +693,11 @@ static Sys_var_on_access<Sys_var_enum,
                          PRIV_SET_SYSTEM_VAR_BINLOG_FORMAT,
                          PRIV_SET_SYSTEM_VAR_BINLOG_FORMAT>
 Sys_binlog_format(
-       "binlog_format", "What form of binary logging the master will "
-       "use: either ROW for row-based binary logging, STATEMENT "
-       "for statement-based binary logging, or MIXED. MIXED is statement-"
-       "based binary logging except for those statements where only row-"
-       "based is correct: those which involve user-defined functions (i.e. "
-       "UDFs) or the UUID() function; for those, row-based binary logging is "
-       "automatically used",
+       "binlog_format", "The binary logging format the master will "
+       "use: ROW for row-based binary logging (safer), STATEMENT "
+       "for statement-based binary logging (smaller binary logs), MIXED "
+       "for statement-based binary logging when it's safe with fall back "
+       "to row-based otherwise",
        SESSION_VAR(binlog_format), CMD_LINE(REQUIRED_ARG, OPT_BINLOG_FORMAT),
        binlog_format_names, DEFAULT(BINLOG_FORMAT_MIXED),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(binlog_format_check),
@@ -750,7 +748,7 @@ static Sys_var_bit Sys_explicit_defaults_for_timestamp(
 
 static Sys_var_ulonglong Sys_bulk_insert_buff_size(
        "bulk_insert_buffer_size", "Size of tree cache used in bulk "
-       "insert optimisation. Note that this is a limit per thread!",
+       "insert optimization. Note that this is a limit per thread",
        SESSION_VAR(bulk_insert_buff_size), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, SIZE_T_MAX), DEFAULT(8192*1024), BLOCK_SIZE(1));
 
@@ -1042,7 +1040,7 @@ static Sys_var_on_access_global<Sys_var_ulong,
                                 PRIV_SET_SYSTEM_GLOBAL_VAR_CONNECT_TIMEOUT>
 Sys_connect_timeout(
        "connect_timeout",
-       "The number of seconds the mysqld server is waiting for a connect "
+       "The number of seconds the MariaDB server is waiting for a connect "
        "packet before responding with 'Bad handshake'",
        GLOBAL_VAR(connect_timeout), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(2, LONG_TIMEOUT), DEFAULT(CONNECT_TIMEOUT), BLOCK_SIZE(1));
@@ -1457,9 +1455,8 @@ static Sys_var_ulonglong Sys_join_buffer_size(
 
 static Sys_var_keycache Sys_key_buffer_size(
        "key_buffer_size", "The size of the buffer used for "
-       "index blocks for MyISAM tables. Increase this to get better index "
-       "handling (for all reads and multiple writes) to as much as you can "
-       "afford",
+       "index blocks for MyISAM tables. Increase this to get faster index "
+       "handling",
        KEYCACHE_VAR(param_buff_size),
        CMD_LINE(REQUIRED_ARG, OPT_KEY_BUFFER_SIZE),
        VALID_RANGE(0, SIZE_T_MAX), DEFAULT(KEY_CACHE_SIZE),
@@ -1508,7 +1505,7 @@ static Sys_var_keycache Sys_key_cache_file_hash_size(
 
 static Sys_var_mybool Sys_large_files_support(
        "large_files_support",
-       "Whether mysqld was compiled with options for large file support",
+       "Whether mariadbd was compiled with options for large file support",
        READ_ONLY GLOBAL_VAR(opt_large_files),
        CMD_LINE_HELP_ONLY, DEFAULT(sizeof(my_off_t) > 4));
 
@@ -1544,7 +1541,7 @@ static Sys_var_ulong Sys_lock_wait_timeout(
 #ifdef HAVE_MLOCKALL
 static Sys_var_mybool Sys_locked_in_memory(
        "locked_in_memory",
-       "Whether mysqld was locked in memory with --memlock",
+       "Whether mariadbd process was locked in memory with --memlock",
        READ_ONLY GLOBAL_VAR(locked_in_memory), NO_CMD_LINE, DEFAULT(FALSE));
 #endif
 
@@ -1564,7 +1561,7 @@ static Sys_var_on_access_global<Sys_var_uint,
                             PRIV_SET_SYSTEM_GLOBAL_VAR_LOG_BIN_COMPRESS_MIN_LEN>
 Sys_log_bin_compress_min_len(
   "log_bin_compress_min_len",
-  "Minimum length of sql statement(in statement mode) or record(in row mode)"
+  "Minimum length of sql statement (in statement mode) or record (in row mode) "
   "that can be compressed",
   GLOBAL_VAR(opt_bin_log_compress_min_len),
   CMD_LINE(OPT_ARG), VALID_RANGE(10, 1024), DEFAULT(256), BLOCK_SIZE(1));
@@ -1619,7 +1616,7 @@ static Sys_var_bit Sys_log_slow_slave_statements(
 
 static Sys_var_ulong Sys_log_warnings(
        "log_warnings",
-       "Log some non critical warnings to the error log."
+       "Log some non-critical warnings to the error log. "
        "Value can be between 0 and 11. Higher values mean more verbosity",
        SESSION_VAR(log_warnings),
        CMD_LINE(OPT_ARG, 'W'),
@@ -1907,14 +1904,16 @@ static Sys_var_ulong Sys_metadata_locks_cache_size(
        "metadata_locks_cache_size", "Unused",
        READ_ONLY GLOBAL_VAR(mdl_locks_cache_size), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(1, 1024*1024), DEFAULT(1024),
-       BLOCK_SIZE(1));
+       BLOCK_SIZE(1), NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(0),
+       DEPRECATED(1105, ""));
 
 static ulong mdl_locks_hash_partitions;
 static Sys_var_ulong Sys_metadata_locks_hash_instances(
        "metadata_locks_hash_instances", "Unused",
        READ_ONLY GLOBAL_VAR(mdl_locks_hash_partitions), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(1, 1024), DEFAULT(8),
-       BLOCK_SIZE(1));
+       BLOCK_SIZE(1), NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(0),
+       DEPRECATED(1105, ""));
 
 static Sys_var_on_access_session<Sys_var_ulonglong,
                                  PRIV_SET_SYSTEM_SESSION_VAR_PSEUDO_THREAD_ID>
@@ -2003,7 +2002,7 @@ Sys_gtid_seq_no(
 #ifdef HAVE_REPLICATION
 static unsigned char opt_gtid_binlog_pos_dummy;
 static Sys_var_gtid_binlog_pos Sys_gtid_binlog_pos(
-       "gtid_binlog_pos", "Last GTID logged to the binary log, per replication"
+       "gtid_binlog_pos", "Last GTID logged to the binary log, per replication "
        "domain",
        READ_ONLY GLOBAL_VAR(opt_gtid_binlog_pos_dummy), NO_CMD_LINE);
 
@@ -2852,9 +2851,9 @@ export sys_var *Sys_old_passwords_ptr= &Sys_old_passwords; // for sql_acl.cc
 
 static Sys_var_ulong Sys_open_files_limit(
        "open_files_limit",
-       "If this is not 0, then mysqld will use this value to reserve file "
+       "If this is not 0, then mariadbd will use this value to reserve file "
        "descriptors to use with setrlimit(). If this value is 0 or autoset "
-       "then mysqld will reserve max_connections*5 or max_connections + "
+       "then mariadbd will reserve max_connections*5 or max_connections + "
        "table_cache*2 (whichever is larger) number of file descriptors",
        AUTO_SET READ_ONLY GLOBAL_VAR(open_files_limit), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, OS_FILE_LIMIT), DEFAULT(0), BLOCK_SIZE(1));
@@ -2893,7 +2892,7 @@ static Sys_var_ulong Sys_optimizer_use_condition_selectivity(
        "not backed by any index to calculate the cardinality of a partial join, "
        "4 - use histograms to calculate selectivity of range conditions that "
        "are not backed by any index to calculate the cardinality of "
-       "a partial join."
+       "a partial join. "
        "5 - additionally use selectivity of certain non-range predicates "
        "calculated on record samples",
        SESSION_VAR(optimizer_use_condition_selectivity), CMD_LINE(REQUIRED_ARG),
@@ -2997,7 +2996,7 @@ static Sys_var_ulong Sys_optimizer_adjust_secondary_key_costs(
     DEPRECATED(1100, ""));
 
 static Sys_var_charptr_fscs Sys_pid_file(
-       "pid_file", "Pid file used by safe_mysqld",
+       "pid_file", "Pid file used by mariadbd-safe",
        READ_ONLY GLOBAL_VAR(pidfile_name_ptr), CMD_LINE(REQUIRED_ARG),
        DEFAULT(0));
 
@@ -3783,7 +3782,7 @@ static Sys_var_on_access_global<Sys_var_uint,
                PRIV_SET_SYSTEM_GLOBAL_VAR_RPL_SEMI_SYNC_SLAVE_KILL_CONN_TIMEOUT>
 Sys_semisync_slave_kill_conn_timeout(
        "rpl_semi_sync_slave_kill_conn_timeout",
-       "Timeout for the mysql connection used to kill the slave io_thread's "
+       "Timeout for the MariaDB connection used to kill the slave io_thread's "
        "connection on master. This timeout comes into play when stop slave "
        "is executed",
        GLOBAL_VAR(rpl_semi_sync_slave_kill_conn_timeout),
@@ -4187,8 +4186,10 @@ static Sys_var_on_access_global<Sys_var_enum,
                                 PRIV_SET_SYSTEM_GLOBAL_VAR_THREAD_POOL>
 Sys_thread_pool_priority(
   "thread_pool_priority",
-  "Threadpool priority. High priority connections usually start executing earlier than low priority."
-  "If priority set to 'auto', the the actual priority(low or high) is determined based on whether or not connection is inside transaction",
+  "Threadpool priority. High priority connections usually start executing "
+  "earlier than low priority. If priority set to 'auto', the the actual "
+  "priority(low or high) is determined based on whether or not connection "
+  "is inside transaction",
   SESSION_VAR(threadpool_priority), CMD_LINE(REQUIRED_ARG),
   threadpool_priority_names, DEFAULT(TP_PRIORITY_AUTO));
 
@@ -4196,7 +4197,7 @@ static Sys_var_on_access_global<Sys_var_uint,
                                 PRIV_SET_SYSTEM_GLOBAL_VAR_THREAD_POOL>
 Sys_threadpool_idle_thread_timeout(
   "thread_pool_idle_timeout",
-  "Timeout in seconds for an idle thread in the thread pool."
+  "Timeout in seconds for an idle thread in the thread pool. "
   "Worker thread will be shut down after timeout",
   GLOBAL_VAR(threadpool_idle_timeout), CMD_LINE(REQUIRED_ARG),
   VALID_RANGE(1, UINT_MAX), DEFAULT(60), BLOCK_SIZE(1)
@@ -4225,8 +4226,8 @@ static Sys_var_on_access_global<Sys_var_uint,
                                 PRIV_SET_SYSTEM_GLOBAL_VAR_THREAD_POOL>
 Sys_threadpool_stall_limit(
  "thread_pool_stall_limit",
- "Maximum query execution time in milliseconds,"
- "before an executing non-yielding thread is considered stalled."
+ "Maximum query execution time in milliseconds, "
+ "before an executing non-yielding thread is considered stalled. "
  "If a worker thread is stalled, additional worker thread "
  "may be created to handle remaining clients",
   GLOBAL_VAR(threadpool_stall_limit), CMD_LINE(REQUIRED_ARG),
@@ -4292,8 +4293,7 @@ static bool check_tx_isolation(sys_var *self, THD *thd, set_var *var)
 
 // NO_CMD_LINE - different name of the option
 static Sys_var_tx_isolation Sys_tx_isolation(
-       "tx_isolation", "Default transaction isolation level."
-       "This variable is deprecated and will be removed in a future release",
+       "tx_isolation", "Default transaction isolation level",
        SESSION_VAR(tx_isolation), NO_CMD_LINE,
        tx_isolation_names, DEFAULT(ISO_REPEATABLE_READ),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_tx_isolation),
@@ -4352,8 +4352,7 @@ static Sys_var_tx_read_only Sys_tx_read_only(
        "tx_read_only", "Default transaction access mode. If set to OFF, "
        "the default, access is read/write. If set to ON, access is read-only. "
        "The SET TRANSACTION statement can also change the value of this variable. "
-       "See SET TRANSACTION and START TRANSACTION."
-       "This variable is deprecated and will be removed in a future release",
+       "See SET TRANSACTION and START TRANSACTION",
        SESSION_VAR(tx_read_only), NO_CMD_LINE, DEFAULT(0),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_tx_read_only),
        ON_UPDATE(0), DEPRECATED(1101, "transaction_read_only"));
@@ -4530,11 +4529,11 @@ static Sys_var_on_access_global<Sys_var_pluginlist,
                                PRIV_SET_SYSTEM_GLOBAL_VAR_GTID_POS_AUTO_ENGINES>
 Sys_gtid_pos_auto_engines(
        "gtid_pos_auto_engines",
-       "List of engines for which to automatically create a "
-       "mysql.gtid_slave_pos_ENGINE table, if a transaction using that engine "
-       "is replicated. This can be used to avoid introducing cross-engine "
-       "transactions, if engines are used different from that used by table "
-       "mysql.gtid_slave_pos",
+       "List of engines for which a dedicated mysql.gtid_slave_pos_ENGINE "
+       "table is created automatically, if a transaction using that engine "
+       "is replicated. This helps to avoid cross-engine "
+       "transactions, as would be the case when user tables and "
+       "mysql.gtid_slave_pos were created in different transactional engines",
        GLOBAL_VAR(opt_gtid_pos_auto_plugins), NO_CMD_LINE,
        DEFAULT(&gtid_pos_auto_engines),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_gtid_pos_auto_engines));
@@ -4618,9 +4617,10 @@ static bool fix_autocommit(sys_var *self, THD *thd, enum_var_type type)
 
 static Sys_var_bit Sys_autocommit(
        "autocommit", "If set to 1, the default, all queries are committed "
-       "immediately. If set to 0, they are only committed upon a COMMIT statement"
-       ", or rolled back with a ROLLBACK statement. If autocommit is set to 0, "
-       "and then changed to 1, all open transactions are immediately committed",
+       "immediately. If set to 0, they are only committed upon a COMMIT "
+       "statement, or rolled back with a ROLLBACK statement. If autocommit is "
+       "set to 0, and then changed to 1, all open transactions are immediately "
+       "committed",
        NO_SET_STMT SESSION_VAR(option_bits), NO_CMD_LINE,
        OPTION_AUTOCOMMIT, DEFAULT(TRUE),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(fix_autocommit));
@@ -5137,9 +5137,9 @@ Sys_proxy_protocol_networks(
     "proxy_protocol_networks", "Enable proxy protocol for these source "
     "networks. The syntax is a comma separated list of IPv4 and IPv6 "
     "networks. If the network doesn't contain mask, it is considered to be "
-    "a single host. \"*\" represents all networks and must the only "
-    "directive on the line. String \"localhost\" represents non-TCP "
-    "local connections (Unix domain socket, Windows named pipe or shared memory)",
+    "a single host. \"*\" represents all networks and must be the only "
+    "directive on the line. String \"localhost\" represents non-TCP local "
+    "connections (Unix domain socket, Windows named pipe or shared memory)",
     GLOBAL_VAR(my_proxy_protocol_networks), CMD_LINE(REQUIRED_ARG),
     DEFAULT(""), NO_MUTEX_GUARD, NOT_IN_BINLOG,
     ON_CHECK(check_proxy_protocol_networks), ON_UPDATE(fix_proxy_protocol_networks));
@@ -5319,7 +5319,7 @@ static Sys_var_have Sys_have_rtree_keys(
 static Sys_var_have Sys_have_ssl(
        "have_ssl", "If the server supports secure connections, will be set to YES, "
        "otherwise will be set to NO. If set to DISABLED, the server was compiled with "
-       "TLS support, but was not started with TLS support (see the mysqld options). "
+       "TLS support, but was not started with TLS support (see the mariadbd options). "
        "See also have_openssl",
        READ_ONLY GLOBAL_VAR(have_ssl), NO_CMD_LINE);
 
@@ -5360,7 +5360,7 @@ static bool fix_log_state(sys_var *self, THD *thd, enum_var_type type);
 static Sys_var_mybool Sys_general_log(
        "general_log", "Log connections and queries to a table or log file. "
        "Defaults logging to a file 'hostname'.log or a table mysql.general_log"
-       "if --log-output=TABLE is used",
+       " if --log-output=TABLE is used",
        GLOBAL_VAR(opt_log), CMD_LINE(OPT_ARG),
        DEFAULT(FALSE), NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
        ON_UPDATE(fix_log_state));
@@ -5682,7 +5682,7 @@ static Sys_var_binlog_filter Sys_binlog_do_db(
 static Sys_var_rpl_filter Sys_replicate_rewrite_db(
        "replicate_rewrite_db", OPT_REPLICATE_REWRITE_DB,
        "Tells the slave to replicate binlog events "
-       "into a different database than their original target on the master."
+       "into a different database than their original target on the master. "
        "Example: replicate-rewrite-db=master_db_name->slave_db_name",
        PRIV_SET_SYSTEM_GLOBAL_VAR_REPLICATE_REWRITE_DB);
 
@@ -6342,7 +6342,8 @@ static Sys_var_mybool Sys_wsrep_log_conflicts(
        GLOBAL_VAR(wsrep_log_conflicts), CMD_LINE(OPT_ARG), DEFAULT(FALSE));
 
 static Sys_var_ulong Sys_wsrep_mysql_replication_bundle(
-      "wsrep_mysql_replication_bundle", "mysql replication group commit",
+      "wsrep_mysql_replication_bundle",
+      "Number of replication events that are grouped together",
        GLOBAL_VAR(wsrep_mysql_replication_bundle), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, 1000), DEFAULT(0), BLOCK_SIZE(1));
 
@@ -6461,23 +6462,25 @@ vio_keepalive_opts opt_vio_keepalive;
 
 static Sys_var_int Sys_keepalive_time(
        "tcp_keepalive_time",
-       "Timeout, in seconds, with no activity until the first TCP keep-alive packet is sent."
-       "If set to 0, system dependent default is used",
+       "Timeout, in seconds, with no activity until the first TCP keep-alive "
+       "packet is sent. If set to 0, system dependent default is used",
        AUTO_SET GLOBAL_VAR(opt_vio_keepalive.idle),
        CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, INT_MAX32/1000), DEFAULT(0),
        BLOCK_SIZE(1));
 
 static Sys_var_int Sys_keepalive_interval(
        "tcp_keepalive_interval",
-       "The interval, in seconds, between when successive keep-alive packets are sent if no acknowledgement is received."
-       "If set to 0, system dependent default is used",
+       "The interval, in seconds, between when successive keep-alive packets "
+       "are sent if no acknowledgement is received. If set to 0, system "
+       "dependent default is used",
        AUTO_SET GLOBAL_VAR(opt_vio_keepalive.interval),
        CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, INT_MAX32/1000), DEFAULT(0),
        BLOCK_SIZE(1));
 
 static Sys_var_int Sys_keepalive_probes(
        "tcp_keepalive_probes",
-       "The number of unacknowledged probes to send before considering the connection dead and notifying the application layer."
+       "The number of unacknowledged probes to send before considering the "
+       "connection dead and notifying the application layer. "
        "If set to 0, system dependent default is used",
        AUTO_SET GLOBAL_VAR(opt_vio_keepalive.probes),
        CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, INT_MAX32/1000), DEFAULT(0),
@@ -6596,7 +6599,10 @@ static const char *log_slow_filter_names[]=
 
 static Sys_var_set Sys_log_slow_filter(
        "log_slow_filter",
-       "Log only certain types of queries to the slow log. If variable empty all kind of queries are logged.  All types are bound by slow_query_time, except 'not_using_index' which is always logged if enabled",
+       "Log only certain types of queries to the slow log. If variable "
+       "is empty all kinds of queries are logged.  All types are bound by "
+       "slow_query_time, except 'not_using_index' which is always logged "
+       "if enabled",
        SESSION_VAR(log_slow_filter), CMD_LINE(REQUIRED_ARG),
        log_slow_filter_names,
        /* by default we log all queries except 'not_using_index' */
@@ -6870,12 +6876,11 @@ Sys_binlog_row_image(
        "before and after image are logged. 'FULL_NODUP', means that all "
        "columns are logged in before image, but only changed columns or all "
        "columns of inserted record are logged in after image, "
-       "'NOBLOB', means that mysqld avoids logging "
+       "'NOBLOB', means that MariaDB avoids logging "
        "blob columns whenever possible (eg, blob column was not changed or "
        "is not part of primary key). 'MINIMAL', means that a PK equivalent (PK "
        "columns or full row if there is no PK in the table) is logged in the "
-       "before image, and only changed columns are logged in the after image. "
-       "(Default: FULL)",
+       "before image, and only changed columns are logged in the after image",
        SESSION_VAR(binlog_row_image), CMD_LINE(REQUIRED_ARG),
        binlog_row_image_names, DEFAULT(BINLOG_ROW_IMAGE_FULL));
 
@@ -6884,10 +6889,10 @@ static Sys_var_on_access_global<Sys_var_enum,
                                 PRIV_SET_SYSTEM_GLOBAL_VAR_BINLOG_ROW_METADATA>
 Sys_binlog_row_metadata(
        "binlog_row_metadata",
-       "Controls whether metadata is logged using FULL , MINIMAL format and NO_LOG."
-       "FULL causes all metadata to be logged; MINIMAL means that only "
-       "metadata actually required by slave is logged; NO_LOG NO metadata will be logged."
-       "Default: NO_LOG",
+       "Controls whether metadata is logged using FULL , MINIMAL format and "
+       "NO_LOG. FULL causes all metadata to be logged; MINIMAL means that only "
+       "metadata actually required by slave is logged; NO_LOG NO metadata will "
+       "be logged",
        GLOBAL_VAR(binlog_row_metadata), CMD_LINE(REQUIRED_ARG),
        binlog_row_metadata_names, DEFAULT(Table_map_log_event::BINLOG_ROW_METADATA_NO_LOG),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(NULL),
@@ -7119,7 +7124,7 @@ static Sys_var_enum Sys_session_track_transaction_info(
        "STATE to track just transaction state (Is there an active transaction? "
        "Does it have any data? etc.); CHARACTERISTICS to track transaction "
        "state and report all statements needed to start a transaction with "
-       "the same characteristics (isolation level, read only/read write,"
+       "the same characteristics (isolation level, read only/read write, "
        "snapshot - but not any work done / data modified within the "
        "transaction)",
        SESSION_VAR(session_track_transaction_info),
@@ -7255,7 +7260,7 @@ static Sys_var_engine_optimizer_cost Sys_optimizer_key_copy_cost(
 
 static Sys_var_engine_optimizer_cost Sys_optimizer_index_block_copy_cost(
   "optimizer_index_block_copy_cost",
-  "Cost of copying a key block from the cache to intern storage as part of "
+  "Cost of copying a key block from the cache to internal storage as part of "
   "an index scan",
   COST_VAR(index_block_copy_cost),
   CMD_LINE(REQUIRED_ARG, OPT_COSTS_INDEX_BLOCK_COPY_COST),

@@ -87,7 +87,7 @@ static MYSQL_SYSVAR_BOOL(use_mmap, opt_myisam_use_mmap, PLUGIN_VAR_NOCMDARG,
 
 static MYSQL_SYSVAR_ULONGLONG(mmap_size, myisam_mmap_size,
   PLUGIN_VAR_RQCMDARG|PLUGIN_VAR_READONLY, "Restricts the total memory "
-  "used for memory mapping of MySQL tables", NULL, NULL,
+  "used for memory mapping of MyISAM tables", NULL, NULL,
   SIZE_T_MAX, MEMMAP_EXTRA_MARGIN, SIZE_T_MAX, 1);
 
 static MYSQL_THDVAR_ENUM(stats_method, PLUGIN_VAR_RQCMDARG,

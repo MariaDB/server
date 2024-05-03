@@ -1,5 +1,5 @@
---- sysvars_server_embedded.result	2024-02-15 09:34:10.105925200 +0100
-+++ sysvars_server_embedded,32bit.result	2024-02-15 13:49:05.823558727 +0100
+--- a/mysql-test/suite/sys_vars/r/sysvars_server_embedded.result
++++ b/mysql-test/suite/sys_vars/r/sysvars_server_embedded.result
 @@ -44,7 +44,7 @@
  COMMAND_LINE_ARGUMENT	REQUIRED
  VARIABLE_NAME	ARIA_BLOCK_SIZE
@@ -127,7 +127,7 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT UNSIGNED
 +VARIABLE_TYPE	INT UNSIGNED
- VARIABLE_COMMENT	The number of outstanding connection requests MariaDB can have. This comes into play when the main MariaDB thread gets very many connection requests in a very short time
+ VARIABLE_COMMENT	The number of outstanding connection requests MariaDB can have. This comes into play when the main MariaDB thread gets many connection requests in a very short time
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	65535
 @@ -357,7 +357,7 @@
@@ -193,7 +193,7 @@
  READ_ONLY	NO
 @@ -527,7 +527,7 @@
  VARIABLE_TYPE	BIGINT UNSIGNED
- VARIABLE_COMMENT	Size of tree cache used in bulk insert optimisation. Note that this is a limit per thread!
+ VARIABLE_COMMENT	Size of tree cache used in bulk insert optimization. Note that this is a limit per thread
  NUMERIC_MIN_VALUE	0
 -NUMERIC_MAX_VALUE	18446744073709551615
 +NUMERIC_MAX_VALUE	4294967295
@@ -206,7 +206,7 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT UNSIGNED
 +VARIABLE_TYPE	INT UNSIGNED
- VARIABLE_COMMENT	The number of seconds the mysqld server is waiting for a connect packet before responding with 'Bad handshake'
+ VARIABLE_COMMENT	The number of seconds the MariaDB server is waiting for a connect packet before responding with 'Bad handshake'
  NUMERIC_MIN_VALUE	2
  NUMERIC_MAX_VALUE	31536000
 @@ -754,7 +754,7 @@
@@ -382,7 +382,7 @@
  NUMERIC_MAX_VALUE	8
 @@ -1467,7 +1467,7 @@
  VARIABLE_TYPE	BIGINT UNSIGNED
- VARIABLE_COMMENT	The size of the buffer used for index blocks for MyISAM tables. Increase this to get better index handling (for all reads and multiple writes) to as much as you can afford
+ VARIABLE_COMMENT	The size of the buffer used for index blocks for MyISAM tables. Increase this to get faster index handling
  NUMERIC_MIN_VALUE	0
 -NUMERIC_MAX_VALUE	18446744073709551615
 +NUMERIC_MAX_VALUE	4294967295
@@ -431,7 +431,7 @@
  VARIABLE_SCOPE	SESSION
 -VARIABLE_TYPE	BIGINT UNSIGNED
 +VARIABLE_TYPE	INT UNSIGNED
- VARIABLE_COMMENT	Log some non critical warnings to the error log.Value can be between 0 and 11. Higher values mean more verbosity
+ VARIABLE_COMMENT	Log some non-critical warnings to the error log. Value can be between 0 and 11. Higher values mean more verbosity
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	4294967295
 @@ -1874,7 +1874,7 @@
@@ -640,7 +640,7 @@
  NUMERIC_MAX_VALUE	7
 @@ -2197,7 +2197,7 @@
  VARIABLE_TYPE	BIGINT UNSIGNED
- VARIABLE_COMMENT	Restricts the total memory used for memory mapping of MySQL tables
+ VARIABLE_COMMENT	Restricts the total memory used for memory mapping of MyISAM tables
  NUMERIC_MIN_VALUE	7
 -NUMERIC_MAX_VALUE	18446744073709551615
 +NUMERIC_MAX_VALUE	4294967295
@@ -711,7 +711,7 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT UNSIGNED
 +VARIABLE_TYPE	INT UNSIGNED
- VARIABLE_COMMENT	If this is not 0, then mysqld will use this value to reserve file descriptors to use with setrlimit(). If this value is 0 or autoset then mysqld will reserve max_connections*5 or max_connections + table_cache*2 (whichever is larger) number of file descriptors
+ VARIABLE_COMMENT	If this is not 0, then mariadbd will use this value to reserve file descriptors to use with setrlimit(). If this value is 0 or autoset then mariadbd will reserve max_connections*5 or max_connections + table_cache*2 (whichever is larger) number of file descriptors
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	4294967295
 @@ -2354,7 +2354,7 @@
@@ -795,7 +795,7 @@
  VARIABLE_SCOPE	SESSION
 -VARIABLE_TYPE	BIGINT UNSIGNED
 +VARIABLE_TYPE	INT UNSIGNED
- VARIABLE_COMMENT	Controls selectivity of which conditions the optimizer takes into account to calculate cardinality of a partial join when it searches for the best execution plan Meaning: 1 - use selectivity of index backed range conditions to calculate the cardinality of a partial join if the last joined table is accessed by full table scan or an index scan, 2 - use selectivity of index backed range conditions to calculate the cardinality of a partial join in any case, 3 - additionally always use selectivity of range conditions that are not backed by any index to calculate the cardinality of a partial join, 4 - use histograms to calculate selectivity of range conditions that are not backed by any index to calculate the cardinality of a partial join.5 - additionally use selectivity of certain non-range predicates calculated on record samples
+ VARIABLE_COMMENT	Controls selectivity of which conditions the optimizer takes into account to calculate cardinality of a partial join when it searches for the best execution plan Meaning: 1 - use selectivity of index backed range conditions to calculate the cardinality of a partial join if the last joined table is accessed by full table scan or an index scan, 2 - use selectivity of index backed range conditions to calculate the cardinality of a partial join in any case, 3 - additionally always use selectivity of range conditions that are not backed by any index to calculate the cardinality of a partial join, 4 - use histograms to calculate selectivity of range conditions that are not backed by any index to calculate the cardinality of a partial join. 5 - additionally use selectivity of certain non-range predicates calculated on record samples
  NUMERIC_MIN_VALUE	1
  NUMERIC_MAX_VALUE	5
 @@ -2614,7 +2614,7 @@
