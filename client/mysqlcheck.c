@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2001, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2012, MariaDB
+   Copyright (c) 2010, 2024, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -81,11 +81,11 @@ static struct my_option my_long_options[] =
    "Instead of issuing one query for each table, use one query per database, naming all tables in the database in a comma-separated list.",
    &opt_all_in_1, &opt_all_in_1, 0, GET_BOOL, NO_ARG, 0, 0, 0,
    0, 0, 0},
-  {"auto-repair", OPT_AUTO_REPAIR,
+  {"auto-repair", 0,
    "If a checked table is corrupted, automatically fix it. Repairing will be done after all tables have been checked, if corrupted ones were found.",
    &opt_auto_repair, &opt_auto_repair, 0, GET_BOOL, NO_ARG, 0,
    0, 0, 0, 0, 0},
-  {"character-sets-dir", OPT_CHARSETS_DIR,
+  {"character-sets-dir", 0,
    "Directory for character set files.", (char**) &charsets_dir,
    (char**) &charsets_dir, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"check", 'c', "Check table for errors.", 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0,
@@ -96,7 +96,7 @@ static struct my_option my_long_options[] =
   {"check-upgrade", 'g',
    "Check tables for version-dependent changes. May be used with --auto-repair to correct tables requiring version-dependent updates.",
    0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"compress", OPT_COMPRESS, "Use compression in server/client protocol.",
+  {"compress", 0, "Use compression in server/client protocol.",
    &opt_compress, &opt_compress, 0, GET_BOOL, NO_ARG, 0, 0, 0,
    0, 0, 0},
   {"databases", 'B',
@@ -110,16 +110,16 @@ static struct my_option my_long_options[] =
   {"debug", '#', "Output debug log. Often this is 'd:t:o,filename'.",
    0, 0, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
 #endif
-  {"debug-check", OPT_DEBUG_CHECK, "Check memory and open file usage at exit.",
+  {"debug-check", 0, "Check memory and open file usage at exit.",
    &debug_check_flag, &debug_check_flag, 0,
    GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"debug-info", OPT_DEBUG_INFO, "Print some debug info at exit.",
+  {"debug-info", 0, "Print some debug info at exit.",
    &debug_info_flag, &debug_info_flag,
    0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"default-character-set", OPT_DEFAULT_CHARSET,
+  {"default-character-set", 0,
    "Set the default character set.", &default_charset,
    &default_charset, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"default_auth", OPT_DEFAULT_AUTH,
+  {"default_auth", 0,
    "Default authentication client-side plugin to use.",
    &opt_default_auth, &opt_default_auth, 0,
    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
@@ -139,7 +139,7 @@ static struct my_option my_long_options[] =
    "If you are using this option with CHECK TABLE, it will ensure that the table is 100 percent consistent, but will take a long time. If you are using this option with REPAIR TABLE, it will force using old slow repair with keycache method, instead of much faster repair by sorting.",
    &opt_extended, &opt_extended, 0, GET_BOOL, NO_ARG, 0, 0, 0,
    0, 0, 0},
-  {"flush", OPT_FLUSH_TABLES, "Flush each table after check. This is useful if you don't want to have the checked tables take up space in the caches after the check",
+  {"flush", 0, "Flush each table after check. This is useful if you don't want to have the checked tables take up space in the caches after the check",
    &opt_flush_tables, &opt_flush_tables, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0,
    0, 0 },
   {"help", '?', "Display this help message and exit.", 0, 0, 0, GET_NO_ARG,
@@ -149,7 +149,7 @@ static struct my_option my_long_options[] =
   {"medium-check", 'm',
    "Faster than extended-check, but only finds 99.99 percent of all errors. Should be good enough for most cases.",
    0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"write-binlog", OPT_WRITE_BINLOG,
+  {"write-binlog", 0,
    "Log ANALYZE, OPTIMIZE and REPAIR TABLE commands. Use --skip-write-binlog "
    "when commands should not be sent to replication slaves.",
    &opt_write_binlog, &opt_write_binlog, 0, GET_BOOL, NO_ARG,
@@ -167,7 +167,7 @@ static struct my_option my_long_options[] =
   {"pipe", 'W', "Use named pipes to connect to server.", 0, 0, 0, GET_NO_ARG,
    NO_ARG, 0, 0, 0, 0, 0, 0},
 #endif
-  {"plugin_dir", OPT_PLUGIN_DIR, "Directory for client-side plugins.",
+  {"plugin_dir", 0, "Directory for client-side plugins.",
    &opt_plugin_dir, &opt_plugin_dir, 0,
    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"port", 'P', "Port number to use for connection or 0 for default to, in "
@@ -198,7 +198,7 @@ static struct my_option my_long_options[] =
 #include <sslopt-longopts.h>
   {"tables", OPT_TABLES, "Overrides option --databases (-B).", 0, 0, 0,
    GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"use-frm", OPT_FRM,
+  {"use-frm", 0,
    "When used with REPAIR, get table structure from .frm file, so the table can be repaired even if .MYI header is corrupted.",
    &opt_frm, &opt_frm, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0,
    0},
