@@ -41,6 +41,31 @@ typedef struct Trans_binlog_info {
 
 struct Slave_info
 {
+public:
+  enum synchronization_status {
+    /*
+      Binlog dump thread is initializing, we don't yet know the synchronization
+      status
+    */
+    SYNC_STATE_INITIALIZING,
+
+    /*
+      Slave is asynchronous, so Gtid_State_Ack will not be updated
+    */
+    SYNC_STATE_ASYNCHRONOUS,
+
+    /*
+      Slave is configured for semi-sync, but connected with an old state, and
+      is catching up now
+    */
+    SYNC_STATE_SEMI_SYNC_STALE,
+
+    /*
+      Slave is configured for semi-sync, and is readily ACKing new transactions
+    */
+    SYNC_STATE_SEMI_SYNC_ACTIVE
+  };
+
   uint32 server_id;
   uint32 master_id;
   char host[HOSTNAME_LENGTH*SYSTEM_CHARSET_MBMAXLEN+1];
@@ -52,10 +77,32 @@ struct Slave_info
 */
   Trans_binlog_info gtid_state_sent;
   Trans_binlog_info gtid_state_ack;
-  /* semi_sync_trans_status is the status on the replica and represents
-     the status of the latest transaction event from the primary
+  /*
+    Whether or not the slave has been sent the last known transaction in the
+    binary log
   */
-  bool semi_sync_trans_status;
+  bool is_slave_caught_up;
+  synchronization_status sync_status;
+
+  const char *get_sync_status_str() const
+  {
+    const char *ret;
+    switch (sync_status)
+    {
+      case SYNC_STATE_INITIALIZING:
+        ret= "Initializing";
+        break;
+      case SYNC_STATE_ASYNCHRONOUS:
+        ret= "Asynchronous";
+        break;
+      case SYNC_STATE_SEMI_SYNC_STALE:
+        ret= "Semi-sync Stale";
+        break;
+      default:
+        ret= "Semi-sync Active";
+    }
+    return ret;
+  }
 };
 
 
@@ -554,7 +601,7 @@ class Repl_semi_sync_master
    * received replies from the slave indicating that it already get the events.
    *
    * Input:
-   *  replica_thd   - (IN)  replica thread slave info
+   *  slave_info    - (IN)  info of the slave which sent the ACK
    *  log_file_name - (IN)  binlog file name
    *  end_offset    - (IN)  the offset in the binlog file up to which we have
    *                        the replies from the slave
@@ -562,7 +609,7 @@ class Repl_semi_sync_master
    * Return:
    *  0: success;  non-zero: error
    */
-  int report_reply_binlog(Slave_info *replica_thd_si, const char* log_file_name,
+  int report_reply_binlog(Slave_info *slave_info, const char* log_file_name,
                           my_off_t end_offset);
 
   /* Commit a transaction in the final step.  This function is called from

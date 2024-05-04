@@ -350,7 +350,7 @@ void Ack_receiver::run()
           */
           DBUG_EXECUTE_IF("pause_ack_thread_on_next_ack",
             {
-              const char act[]= "now SIGNAL pause_ack_reply_to_binlog WAIT_FOR unpause_ack_reply_to_binlog";
+              const char act[]= "now SIGNAL pause_ack_reply_to_binlog WAIT_FOR resume_ack_thread";
               DBUG_ASSERT(!debug_sync_set_action(thd, STRING_WITH_LEN(act)));
               DBUG_SET("-d,pause_ack_thread_on_next_ack");
             };);

@@ -118,7 +118,7 @@ int THD::register_slave(uchar *packet, size_t packet_length)
     return 1;
   memset(si->gtid_state_sent.log_file, '\0', FN_REFLEN);
   memset(si->gtid_state_ack.log_file, '\0', FN_REFLEN);
-  si->semi_sync_trans_status= false;
+  si->sync_status= Slave_info::SYNC_STATE_INITIALIZING;
 
   variables.server_id= si->server_id= uint4korr(p);
   p+= 4;
@@ -171,10 +171,9 @@ static my_bool show_slave_hosts_callback(THD *thd, Protocol *protocol)
 {
   my_bool res= FALSE;
   mysql_mutex_lock(&thd->LOCK_thd_data);
-  String gtid_sent[GTID_MAX_STR_LENGTH];
-  String gtid_ack[GTID_MAX_STR_LENGTH];
-  const char *sync_str_opt[]= {"asynchronous","semi-sync active","semi-sync stale"};
-  char *sync_str= (char *)sync_str_opt[0];
+  String gtid_sent, gtid_ack;
+  const char *sync_str;
+  const char *err_msg= NULL;
   if (const Slave_info *si= thd->slave_info)
   {
     protocol->prepare_for_resend();
@@ -185,20 +184,52 @@ static my_bool show_slave_hosts_callback(THD *thd, Protocol *protocol)
       protocol->store(si->user, safe_strlen(si->user), &my_charset_bin);
       protocol->store(si->password, safe_strlen(si->password), &my_charset_bin);
     }
-    gtid_state_from_binlog_pos(si->gtid_state_sent.log_file,
-                               (uint32)si->gtid_state_sent.log_pos, gtid_sent);
-    if (rpl_semi_sync_master_enabled && thd->semi_sync_slave)
-    {
-      gtid_state_from_binlog_pos(si->gtid_state_ack.log_file,
-                                 (uint32)si->gtid_state_ack.log_pos, gtid_ack);
-      sync_str= si->semi_sync_trans_status ?
-                  (char *)sync_str_opt[1] :(char *)sync_str_opt[2];
-    }
     protocol->store((uint32) si->port);
     protocol->store(si->master_id);
-    protocol->store(gtid_sent);
-    protocol->store(gtid_ack);
+
+    if (gtid_state_from_binlog_pos(si->gtid_state_sent.log_file,
+                                   (uint32) si->gtid_state_sent.log_pos,
+                                   &gtid_sent, &err_msg))
+    {
+      gtid_sent.length(0);
+      DBUG_ASSERT(err_msg);
+      if (global_system_variables.log_warnings >= 2)
+        push_warning_printf(
+            current_thd, Sql_condition::WARN_LEVEL_WARN,
+            ER_MASTER_CANNOT_RECONSTRUCT_GTID_STATE_FOR_BINLOG_POS,
+            ER_THD(current_thd,
+                   ER_MASTER_CANNOT_RECONSTRUCT_GTID_STATE_FOR_BINLOG_POS),
+            si->gtid_state_sent.log_pos, si->gtid_state_sent.log_file,
+            err_msg);
+    }
+    protocol->store(&gtid_sent);
+
+    if (rpl_semi_sync_master_enabled && thd->semi_sync_slave)
+    {
+      if (gtid_state_from_binlog_pos(si->gtid_state_ack.log_file,
+                                     (uint32) si->gtid_state_ack.log_pos,
+                                     &gtid_ack, &err_msg))
+      {
+        gtid_ack.length(0);
+        DBUG_ASSERT(err_msg);
+
+        if (global_system_variables.log_warnings >= 2)
+        {
+          push_warning_printf(
+              current_thd, Sql_condition::WARN_LEVEL_WARN,
+              ER_MASTER_CANNOT_RECONSTRUCT_GTID_STATE_FOR_BINLOG_POS,
+              ER_THD(current_thd,
+                     ER_MASTER_CANNOT_RECONSTRUCT_GTID_STATE_FOR_BINLOG_POS),
+              si->gtid_state_ack.log_pos, si->gtid_state_ack.log_file,
+              err_msg);
+        }
+      }
+    }
+    protocol->store(&gtid_ack);
+
+    sync_str= si->get_sync_status_str();
     protocol->store(sync_str, safe_strlen(sync_str), &my_charset_bin);
+
     res= protocol->write();
   }
   mysql_mutex_unlock(&thd->LOCK_thd_data);

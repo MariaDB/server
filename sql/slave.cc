@@ -5107,7 +5107,6 @@ Stopping slave I/O thread due to out-of-memory error from master");
         {
           const char act[]= "now SIGNAL at_slave_reply WAIT_FOR reply_ack_to_master";
           DBUG_ASSERT(!debug_sync_set_action(thd, STRING_WITH_LEN(act)));
-          DBUG_SET("-d,synchronize_semisync_slave_reply");
         };);
 #endif
         if (repl_semisync_slave.slave_reply(mi))

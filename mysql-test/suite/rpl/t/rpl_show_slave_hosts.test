@@ -9,17 +9,10 @@
 # Remove the "Rpl_recovery_rank" column from SHOW SLAVE HOSTS, It is not
 # implemented.
 #######################################################################
-source include/master-slave.inc;
-connect (slave2,127.0.0.1,root,,test,$SLAVE_MYPORT2,);
+--let $rpl_topology= 1->2,1->3
+--source include/rpl_init.inc
 
-connection slave2;
-RESET SLAVE;
---replace_result $MASTER_MYPORT MASTER_PORT
---eval CHANGE MASTER TO master_host='127.0.0.1',master_port=$MASTER_MYPORT,master_user='root', master_ssl_verify_server_cert=0
-START SLAVE IO_THREAD;
-source include/wait_for_slave_io_to_start.inc;
-
-connection master;
+connection server_1;
 let $show_statement= SHOW SLAVE HOSTS;
 let $field= Server_id;
 # 3 is server_id of slave2.
@@ -30,14 +23,13 @@ source include/wait_show_condition.inc;
 # HOSTS, when that slave is much slower to register due to thread scheduling.
 let $condition= ='2';
 source include/wait_show_condition.inc;
---replace_column 3 'SLAVE_PORT'
---replace_result $SLAVE_MYPORT SLAVE_PORT $DEFAULT_MASTER_PORT DEFAULT_PORT
+--replace_result $SLAVE_MYPORT SLAVE_PORT $SERVER_MYPORT_3 SLAVE2_PORT $DEFAULT_MASTER_PORT DEFAULT_PORT
 SHOW SLAVE HOSTS;
 
-connection slave2;
+connection server_3;
 --source include/stop_slave_io.inc
 
-connection master;
+connection server_1;
 let $show_statement= SHOW SLAVE HOSTS;
 let $field= Server_id;
 # 3 is server_id of slave2.
@@ -54,6 +46,23 @@ SHOW SLAVE HOSTS;
 --echo # MDEV-21322: report slave progress to the primary
 --echo #
 
+--echo #
+--echo # 21322.0: Test case set-up
+--echo #
+connection server_1;
+set sql_log_bin=0;
+call mtr.add_suppression("Got an error reading communication packets");
+call mtr.add_suppression("Semi-sync master failed on net_flush");
+set sql_log_bin=1;
+set @save_primary_dbug= @@global.debug_dbug;
+set @save_semisync_timeout= @@global.rpl_semi_sync_master_timeout;
+set @save_semisync_master_enabled= @@global.rpl_semi_sync_master_enabled;
+create table t1 (a int);
+
+connection server_2;
+set @save_s2_debug= @@GLOBAL.debug_dbug;
+set @save_semisync_server_2_enabled= @@global.rpl_semi_sync_master_enabled;
+set sql_log_bin=0;
 call mtr.add_suppression('Slave I/O: Relay log write failure: could not queue event from master.*');
 call mtr.add_suppression('Slave I/O: Replication event checksum verification failed while reading from network.*');
 call mtr.add_suppression('Replication event checksum verification failed');
@@ -63,772 +72,712 @@ call mtr.add_suppression('event read from binlog did not pass crc check');
 call mtr.add_suppression('Event crc check failed! Most likely there is event corruption');
 call mtr.add_suppression('Slave SQL: Error initializing relay log position: I/O error reading event at position .*, error.* 1593');
 call mtr.add_suppression("Semi-sync slave .* reply");
+set sql_log_bin=1;
 
-select @@global.rpl_semi_sync_master_wait_point;
-reset master;
+connection server_3;
+set @save_s3_debug= @@GLOBAL.debug_dbug;
+set @save_semisync_server_3_enabled= @@global.rpl_semi_sync_master_enabled;
+set sql_log_bin=0;
+call mtr.add_suppression('Slave I/O: Relay log write failure: could not queue event from master.*');
+call mtr.add_suppression('Slave I/O: Replication event checksum verification failed while reading from network.*');
+call mtr.add_suppression('Replication event checksum verification failed');
+call mtr.add_suppression("Timeout waiting for reply of binlog*");
+call mtr.add_suppression('Found invalid event in binary log');
+call mtr.add_suppression('event read from binlog did not pass crc check');
+call mtr.add_suppression('Event crc check failed! Most likely there is event corruption');
+call mtr.add_suppression('Slave SQL: Error initializing relay log position: I/O error reading event at position .*, error.* 1593');
+call mtr.add_suppression("Semi-sync slave .* reply");
+set sql_log_bin=1;
 
---echo # Test 1: Primary has not enabled semisync
---echo # Note:   even if not enabled semisync we are expecting to see following
---echo #         columns:
---echo #         `Server_id`,`Host Port`,`Master_id`,`Gtid_State_Sent`,`Gtid_State_Ack`,`Sync`,
---echo #         where replica with `server_id=2` is already connected
---echo # -----------------------------------------------------------------------
+--connection server_1
+--source include/save_master_gtid.inc
+--connection server_2
+--source include/sync_with_master_gtid.inc
+
+
+--echo #
+--echo # 21322.1: In a fresh replication state with semi-sync disabled,
+--echo # the Sync_Status column should reflect an asynchronous replication
+--echo # state, and Gtid_State_Sent/Ack should start, and only Gtid_State_Sent
+--echo # should update with new transaction. Note only server_2 is currently
+--echo # connected.
+--echo #
+--connection server_1
 --replace_result $SLAVE_MYPORT SLAVE_PORT $DEFAULT_MASTER_PORT DEFAULT_PORT
 SHOW SLAVE HOSTS;
+insert into t1 values (1);
+--source include/save_master_gtid.inc
+--connection server_2
+--source include/sync_with_master_gtid.inc
 
---echo # Test 2: Primary enabled semisync
---echo # Note:   it should be the same as test 1
---echo # -----------------------------------------------------------------------
-set global rpl_semi_sync_master_enabled = 1;
+--connection server_1
+--echo # Gtid_State_Sent should be updated for new transaction
+--replace_result $SLAVE_MYPORT SLAVE_PORT $DEFAULT_MASTER_PORT DEFAULT_PORT
+SHOW SLAVE HOSTS;
+--let $master_gtid= `SELECT @@gtid_binlog_pos`
+--let $gtid_sent= query_get_value(show slave hosts, Gtid_State_Sent, 1)
+if (`SELECT strcmp("$master_gtid","$gtid_sent") != 0`)
+{
+  --echo # Master gtid_binlog_pos: $master_gtid
+  --echo # Gtid_State_Sent: $gtid_sent
+  --die Master did not update Gtid_State_Sent for asynchronous replica
+}
+
+
+--echo #
+--echo # 21322.2: When only the primary enables semi-sync, Sync_Status should
+--echo # still be asynchronous
+--echo #
+--connection server_1
+set global rpl_semi_sync_master_enabled= 1;
 show variables like 'rpl_semi_sync_master_enabled';
 --replace_result $SLAVE_MYPORT SLAVE_PORT $DEFAULT_MASTER_PORT DEFAULT_PORT
 SHOW SLAVE HOSTS;
 
 
---echo # Test 3: Replica (server_id=2) enabled semisync
---echo # Note:   No new GTIDs, so expected empty `Gtid_State_Sent`,`Gtid_State_Ack`
---echo # -----------------------------------------------------------------------
-connection slave;
+--echo #
+--echo # 21322.3: Finalizing the semi-sync connection on server_2 (i.e. by
+--echo # enabling it on the slave) should update Sync_Status to semi-sync
+--echo # active, as the slave is up-to-date.
+--echo #
+
+--connection server_2
 --source include/stop_slave.inc
---source include/reset_slave.inc
 set global rpl_semi_sync_slave_enabled = 1;
 --source include/start_slave.inc
-show variables like 'rpl_semi_sync_slave_enabled';
-# Check on replica number of ACKs
-show status like "Rpl_semi_sync_slave_send_ack";
 
-connection master;
+--connection server_1
 let $status_var= Rpl_semi_sync_master_clients;
 let $status_var_value= 1;
 source include/wait_for_status_var.inc;
---replace_result $SLAVE_MYPORT SLAVE_PORT $DEFAULT_MASTER_PORT DEFAULT_PORT
+
+--replace_result $SLAVE_MYPORT SLAVE_PORT $SERVER_MYPORT_3 SLAVE2_PORT $DEFAULT_MASTER_PORT DEFAULT_PORT
 SHOW REPLICA HOSTS;
 
 
---echo # Test 4: Make new events - generate new GTID
---echo # Note 1: Create 2 events on primary. Replica is already connected
---echo # Note 2: `Gtid_State_Sent` and `Gtid_State_Ack` should have event group
---echo # -----------------------------------------------------------------------
-# Write 2 new events
-create table t(t int);
-insert into t values (1);
+--echo #
+--echo # 21322.4: After new semi-sync transactions are ACKed,
+--echo # Gtid_State_Sent/Ack should match gtid_binlog_pos, and Sync_Status
+--echo # should read that semi-sync is active
+--echo #
+--connection server_1
+--let $nextval= `SELECT max(a)+1 from t1`
+--eval insert into t1 values ($nextval)
+--source include/save_master_gtid.inc
+--connection server_2
+--source include/sync_with_master_gtid.inc
 
-show status like 'Rpl_semi_sync_master_status';
-show status like 'Rpl_semi_sync_master_clients';
-show status like 'Rpl_semi_sync_master_no_tx';
-# There are 2 events
-show status like 'Rpl_semi_sync_master_yes_tx';
-# Here we should get `Gtid_State_Sent` and `Gtid_State_Ack`
---source include/save_master_gtid.inc # Saves the gtid into $master_pos
-let $show_statement= SHOW REPLICA HOSTS;
-let $field= Gtid_State_Sent;
-let $condition= LIKE '%$master_pos%';
-let $wait_for_all= 1;
-source include/wait_show_condition.inc;
---replace_result $SLAVE_MYPORT SLAVE_PORT $DEFAULT_MASTER_PORT DEFAULT_PORT
+--connection server_1
+--let $master_gtid= `SELECT @@gtid_binlog_pos`
+
+--echo # Ensuring master gtid_binlog_pos matches Gtid_State_Sent
+--let $gtid_sent= query_get_value(show slave hosts, Gtid_State_Sent, 1)
+if (`SELECT strcmp("$master_gtid","$gtid_sent") != 0`)
+{
+  --echo # Master gtid_binlog_pos: $master_gtid
+  --echo # Gtid_State_Sent: $gtid_sent
+  --die Master's gtid_binlog_pos should match Gtid_State_Sent, but doesn't
+}
+
+--echo # Ensuring master gtid_binlog_pos matches Gtid_State_Ack
+--let $gtid_ack= query_get_value(show slave hosts, Gtid_State_Ack, 1)
+if (`SELECT strcmp("$master_gtid","$gtid_ack") != 0`)
+{
+  --echo # Master gtid_binlog_pos: $master_gtid
+  --echo # Gtid_State_Ack: $gtid_ack
+  --die Master's gtid_binlog_pos should match Gtid_State_Ack, but doesn't
+}
+
+--echo # Ensuring Sync_Status is semi-sync active
+--let $sync_status= query_get_value(show slave hosts, Sync_Status, 1)
+if (`SELECT strcmp("$sync_status","semi-sync active") != 0`)
+{
+  --echo # Sync_Status: $sync_status
+  --die Incorrect value for Sync_Status, should be "semi-sync active"
+}
+
+--replace_result $SLAVE_MYPORT SLAVE_PORT $SERVER_MYPORT_3 SLAVE2_PORT $DEFAULT_MASTER_PORT DEFAULT_PORT
 SHOW REPLICA HOSTS;
-show status like 'Rpl_semi_sync_master_clients';
-show status like 'Rpl_semi_sync_master_yes_tx';
-show status like 'Rpl_semi_sync_master_no_tx';
-show status like 'Rpl_semi_sync_master_request_ack';
-show status like 'Rpl_semi_sync_master_get_ack';
 
-connection slave;
-# Check the table on slave
---let $diff_tables=master:test.t,slave:test.t
---source include/diff_tables.inc
 
-# Check on replica number of ACKs
-show status like "Rpl_semi_sync_slave_send_ack";
+--echo #
+--echo # 21322.5: When connecting a new slave (server_id 3) which initially has
+--echo # semi-sync disabled, SHOW SLAVE HOSTS on the master should show its
+--echo # Sync_Status as asynchronous (while server_id 2 is still semi-sync
+--echo # active).
+--echo #
+# Iniital replication state on server_3 is off
+connection server_3;
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
 
---echo # Test 5: Enable semi-sync for slave2
---echo # Note 1: Replica (`server_id=3`) should be started and semi-sync enabled
---echo # Note 2: In semi-sync replication ACK thread (on primary),
---echo #         waits only on single replica to respond about received events.
---echo # Note 3: Since `Gtid_State_Ack` is received for 2 events
---echo #         from `server_id=2` in previous test and there is no new event
---echo #         in this test, primary is resending old transactions,
---echo #         we are expecting empty `Gtid_State_Ack` for `server_id=3`
---echo #         in show statement (see Note 2).
---echo # -----------------------------------------------------------------------
-# Replica is already stopped
-connection slave2;
+connection server_1;
+--replace_result $SLAVE_MYPORT SLAVE_PORT $SERVER_MYPORT_3 SLAVE2_PORT $DEFAULT_MASTER_PORT DEFAULT_PORT
+SHOW REPLICA HOSTS;
+
+--echo #
+--echo # 21322.6: Reconnecting server_3 as a semi-sync enabled replica should
+--echo # result in a Sync_Status reflecting active semi-sync
+--echo #
+
+connection server_3;
+--source include/stop_slave.inc
 set global rpl_semi_sync_slave_enabled = 1;
 --source include/start_slave.inc
-show variables like 'rpl_semi_sync_slave_enabled';
-show status like "Rpl_semi_sync_slave_send_ack";
 
-connection master;
-# - Check number of semi-sync replicas - 2 should be connected
+connection server_1;
 let $status_var= Rpl_semi_sync_master_clients;
 let $status_var_value= 2;
 source include/wait_for_status_var.inc;
 show status like 'Rpl_semi_sync_master_clients';
---replace_column 3 'SLAVE_PORT'
---replace_result $SLAVE_MYPORT SLAVE_PORT $DEFAULT_MASTER_PORT DEFAULT_PORT
+--replace_result $SLAVE_MYPORT SLAVE_PORT $SERVER_MYPORT_3 SLAVE2_PORT $DEFAULT_MASTER_PORT DEFAULT_PORT
 SHOW REPLICA HOSTS;
 
-connection slave2;
-# Check the table on slave2
---let $diff_tables=master:test.t,slave:test.t,slave2:test.t
---source include/diff_tables.inc
 
-# Check on replica 2 number of ACKs (should be 0, since replica 1 already sent)
-show status like "Rpl_semi_sync_slave_send_ack";
+--echo #
+--echo # 21322.7: New transactions on the master should update Gtid_State_Sent
+--echo # when sent to the slave, and Gtid_State_Ack once receiving an ACK
+--echo #
 
-connection slave;
-let $slave1_sent_ack= query_get_value(show status like 'Rpl_semi_sync_slave_send_ack', Value, 1);
-# Check on replica 1 number of ACKs
-show status like "Rpl_semi_sync_slave_send_ack";
+--connection server_2
+let $server_2_sent_ack= query_get_value(show status like 'Rpl_semi_sync_slave_send_ack', Value, 1);
 
---echo # Test 6: Create new transactions on primary
---echo # Note:   New transactions on primary are sent to replicas
---echo #         and connected replicas (`server_id=2` and `server_id=3`)
---echo #         should sync to the GTID state on primary.
---echo # -----------------------------------------------------------------------
-connection master;
-# Check old counters for _get_ack and _request_ack on primary
-show status like 'Rpl_semi_sync_master_request_ack';
-show status like 'Rpl_semi_sync_master_get_ack';
-let $master_get_ack_num= query_get_value(show status like 'Rpl_semi_sync_master_get_ack', Value, 1);
-let $master_request_ack_num= query_get_value(show status like 'Rpl_semi_sync_master_request_ack', Value, 1);
-
-# In this test there are 2 active replicas and 1 transactions.
-# Using DBUG_SYNC(pause_ack_thread_on_next_ack)
-# test will ensure that we should wait on single ACK from active replica.
---let $save_primary_dbug= `SELECT @@GLOBAL.DEBUG_DBUG`
-SET @@GLOBAL.DEBUG_DBUG="d,pause_ack_thread_on_next_ack";
-SELECT @@GLOBAL.DEBUG_DBUG;
+--connection server_1
+SET @@GLOBAL.debug_dbug="+d,pause_ack_thread_on_next_ack";
 
 # Write the new event
-create table t2(t2 int);
-# It may happen that rpl_semi_sync_master_no_transactions increments for above
-# query.
+--connection default
+--let $old_binlog_gtid= `SELECT @@gtid_binlog_pos`
+--let $nextval= `SELECT max(a)+1 from t1`
+--send_eval insert into t1 values ($nextval)
 
+--connection server_1
+--echo # waiting for pause_ack_reply_to_binlog
 SET debug_sync='now WAIT_FOR pause_ack_reply_to_binlog';
+--let $new_binlog_gtid= `SELECT @@gtid_binlog_pos`
 
-# In this point master_request_ack should be incremented
-# Check number of received transactions and requested ACKs
-let $status_var= Rpl_semi_sync_master_request_ack;
-let $status_var_value= `SELECT $master_request_ack_num + 1`;
-source include/wait_for_status_var.inc;
---echo "Waited on master_request_ack"
-
-# In this test we did not check for `Rpl_semi_sync_master_get_ack`, since it gets
-# incremented for each event that is sent to the replica, that needs an ack.
-# Primary sends event to one replica and gets ACK, before the replica even tries
-# sending the event to the other replica, after which other replica sends ACK
-# for the same event, so increment for `$master_get_ack_num` below would be 4.
-# However this can fail on bb, where increment can be 4 or 3.
-# It was tried to add `Rpl_semi_sync_master_net_waits` but increment was 3,
-# so could not create stable test.
-# Instead use latest value obtained for the status `Rpl_semi_sync_master_get_ack`.
-
-# Result show statement
---source include/save_master_gtid.inc #Saves the gtid into $master_pos
+--echo # Waiting for Gtid_State_Sent to reflect latest transaction for all replicas..
 let $show_statement= SHOW REPLICA HOSTS;
 let $field= Gtid_State_Sent;
-let $condition= LIKE '%$master_pos%';
+let $condition= LIKE '$new_binlog_gtid';
 let $wait_for_all= 1;
 source include/wait_show_condition.inc;
---echo "Waited on Gtid_State_Sent be sent to all replicas
---replace_column 3 'SLAVE_PORT'
---replace_result $SLAVE_MYPORT SLAVE_PORT $DEFAULT_MASTER_PORT DEFAULT_PORT
+
+--echo # Ensuring Gtid_State_Ack is not yet updated (as ACK thread is paused)
+--let $gtid_ack= query_get_value(show slave hosts, Gtid_State_Ack, 1)
+if (`SELECT strcmp("$old_master_gtid","$gtid_ack") != 0`)
+{
+  --echo # Master gtid_binlog_pos: $master_gtid
+  --echo # Gtid_State_Ack: $gtid_ack
+  --die Gtid_State_Ack should not yet reflect the GTID of the new transaction
+}
+
+--replace_result $SLAVE_MYPORT SLAVE_PORT $SERVER_MYPORT_3 SLAVE2_PORT $DEFAULT_MASTER_PORT DEFAULT_PORT
 SHOW REPLICA HOSTS;
 
---echo # The test disables master
---echo # Wait on master to be started.
-let $status_var= Rpl_semi_sync_master_status;
-let $status_var_value= ON; 
-source include/wait_for_status_var.inc;
-show status like 'Rpl_semi_sync_master_status';
-show variables like 'rpl_semi_sync_master_enabled';
+--connection server_1
+SET debug_sync='now SIGNAL resume_ack_thread';
 
---echo # Check statuses on slave - should not be OFF
-connection slave;
-let $status_var= rpl_semi_sync_slave_status;
-let $status_var_value= ON;
-source include/wait_for_status_var.inc;
-show variables like 'rpl_semi_sync_slave_status';
-show variables like 'rpl_semi_sync_slave_enabled';
+--connection default
+--reap
+--connection server_1
 
-connection slave2;
-let $status_var= rpl_semi_sync_slave_status;
-let $status_var_value= ON;
-source include/wait_for_status_var.inc;
-show variables like 'rpl_semi_sync_slave_status';
-show variables like 'rpl_semi_sync_slave_enabled';
+--echo # Waiting for Gtid_State_Ack to reflect latest transaction for all replicas..
+let $show_statement= SHOW REPLICA HOSTS;
+let $field= Gtid_State_Ack;
+let $condition= LIKE '$new_binlog_gtid';
+let $wait_for_all= 1;
+source include/wait_show_condition.inc;
 
-connection master;
+--replace_result $SLAVE_MYPORT SLAVE_PORT $SERVER_MYPORT_3 SLAVE2_PORT $DEFAULT_MASTER_PORT DEFAULT_PORT $new_binlog_gtid NEW_GTID
+SHOW REPLICA HOSTS;
 
---echo # Check that number of active transactions shouldn't be incremented yet
-let $status_var= Rpl_semi_sync_master_yes_tx;
-let $status_var_comparsion= >=;
-let $status_var_value= `SELECT $master_request_ack_num`;
-source include/wait_for_status_var.inc;
---echo # Check that number of active transaction is not yet incremented
-show status like 'Rpl_semi_sync_master_yes_tx';
-
---echo # Check condition (get ack) before getting the ACK increment
-show status like 'Rpl_semi_sync_master_get_ack';
-
-SET debug_sync='now SIGNAL unpause_ack_reply_to_binlog';
-
---echo # ---- Send ACK ----
---echo # Wait on master's get_ACK incremented
---echo # Get ack incremented after dbug point (it may be 3 or 4 so we used >=)
-let $status_var= Rpl_semi_sync_master_get_ack;
-let $status_var_comparsion= >=;
-let $status_var_value= `SELECT $master_get_ack_num + 1`;
-source include/wait_for_status_var.inc;
-show status like 'Rpl_semi_sync_master_get_ack';
-
---echo # Reset debug sync on primary
---eval SET @@GLOBAL.debug_dbug= "$save_primary_dbug"
+--echo # Reset debug state
+SET @@GLOBAL.debug_dbug= @save_primary_dbug;
 SET debug_sync='RESET';
-SELECT @@GLOBAL.debug_dbug;
-
-# Here we know that there will be both active replicas,
-# where at least one has sent ACK and master got the ack.
-# If the transaction is not committed on primary we may get new master_get_ack_num
-# from other replica
-# Result show statement
---source include/save_master_gtid.inc #Saves the gtid into $master_pos
-let $show_statement= SHOW REPLICA HOSTS;
-let $field= Gtid_State_Ack;
-let $condition= LIKE '%$master_pos%';
-let $wait_for_all= 0;
-# we have to reset comparision
-let $status_var_comparsion= =;
-source include/wait_show_condition.inc;
---echo # Waited on Gtid_State_Ack be obtained to single replica
-
---replace_column 3 'SLAVE_PORT'
---replace_result $SLAVE_MYPORT SLAVE_PORT $DEFAULT_MASTER_PORT DEFAULT_PORT
-SHOW REPLICA HOSTS;
-
-show status like 'Rpl_semi_sync_master_request_ack';
-show status like 'Rpl_semi_sync_master_get_ack';
-# Determine binlog_dump_thread_count, number of connected semi-sync replica
-show status like "Slaves_connected";
-
-# Update ACK get/request number
-let $master_request_ack_num= `SELECT $master_request_ack_num + 1`;
-# Here we may have get increment by 4 or by 3 for `rpl_semi_sync_master_get_ack`,
-# so instead of manual increment, get the returned value of status.
-let $master_get_ack_num= query_get_value(show status like 'Rpl_semi_sync_master_get_ack', Value, 1);
-
-connection slave;
-# It may happen that `Rpl_semi_sync_slave_send_ack` of slave2's (server_id=3)
-# is incremented instead of slave's (server_id=2), or both (as in our case).
-# We will validate only incremente for slave (server_id=2)
-
---echo # Check send ACKs on replica server_id=2
-let $status_var= Rpl_semi_sync_slave_send_ack;
-let $status_var_value= `SELECT $slave1_sent_ack + 1`;
-source include/wait_for_status_var.inc;
-show status like "Rpl_semi_sync_slave_send_ack";
-
-# Check ACKs on on replica server_id=3:
-# 2 ACKs are already sent by server_id=2
-# On some bb slave2 increments send_ack by 1 instead of by 2
-# so let's not show it here.
-
---echo # Test 7: Simulate stop of the IO thread of replica
---echo # Note 1: Stopping the IO thread will unregister replica from master info
---echo #         so for `server_id=2`, `rpl_semi_sync_slave_status` will be `OFF`
---echo #         and so should not be visible in show statement output.
---echo # Note 2: New event will be created and successfully sent and acked by `server_id=3`
---echo # Note 3: Starting the IO thread again for `server_id=2` will enable `rpl_semi_sync_slave_status`,
---echo #         but since there is no new transaction and `ack` counter is reseted,
---echo #         `Gtid_State_Sent` and `Gtid_State_Ack` will be empty.
---echo # Note 4: When synching replica with primary, primary will resent the old
---echo #         transaction, so `Gtid_State_Sent` will be the same event group
---echo #         as `server_id=3`(replica that ACKed the transaction), but since
---echo #         there is no new transaction on primary `Gtid_State_Ack` will
---echo #         remain empty.
---echo # -----------------------------------------------------------------------
-connection master;
---echo # Check request_ack before stopping the slave
-show variables like 'Rpl_semi_sync_master_request_ack';
-
-connection slave;
-show variables like 'rpl_semi_sync_slave_enabled';
-show variables like 'rpl_semi_sync_slave_status';
-
-STOP SLAVE IO_THREAD;
---source include/wait_for_slave_io_to_stop.inc
-
-let $status_var= rpl_semi_sync_slave_status;
-let $status_var_value= OFF;
-source include/wait_for_status_var.inc;
---echo # Semi-sync disabled on server_id=2
-
-show variables like 'rpl_semi_sync_slave_status';
---echo # slave_send_ack should be reseted when replica IO thread starts.
---echo # Here we are checking it holds the same value as before stopping the IO thread.
-# Check slave_send_ack is reseted when replica is stopped
-show status like "Rpl_semi_sync_slave_send_ack";
-
-connection master;
-# Note: without waiting that master [un]registers replica, multiple rows (cached) for
-# the same replica may be showed in show replica hosts statement
-# in case if `Rpl_semi_sync_master_clients` is used, so use `Slaves_connected`
-# for the wait condition.
-let $status_var= Slaves_connected;
-let $status_var_value= 1;
-source include/wait_for_status_var.inc;
-show status like "Slaves_connected";
-
---echo # Check request_ack after stopping the slave
-show variables like 'Rpl_semi_sync_master_request_ack';
-
---echo # Initial show statement, without server_id=2
---replace_column 3 'SLAVE_PORT'
---replace_result $SLAVE_MYPORT SLAVE_PORT $DEFAULT_MASTER_PORT DEFAULT_PORT
-# Show statement should not show server_id=2
-SHOW REPLICA HOSTS;
-
-connection master;
---echo # Check master status before new event test 7
-let $status_var= Rpl_semi_sync_master_status;
-let $status_var_value= ON; 
-source include/wait_for_status_var.inc;
-show status like 'Rpl_semi_sync_master_status';
-show variables like 'rpl_semi_sync_master_enabled';
-
-# Write the new event
-INSERT INTO t VALUES (10);
-
---echo # Wait on transaction/request/ack and show them
-
-let $status_var= Rpl_semi_sync_master_get_ack;
-let $status_var_value= `SELECT $master_get_ack_num + 1`;
-source include/wait_for_status_var.inc;
-show status like 'Rpl_semi_sync_master_get_ack';
-
-let $status_var= Rpl_semi_sync_master_request_ack;
-let $status_var_value= `SELECT $master_request_ack_num + 1`;
-source include/wait_for_status_var.inc;
-show variables like 'Rpl_semi_sync_master_request_ack';
-
---echo # Transaction is not incremented and it should (TODO after MDEV-33615)
-# let $status_var= Rpl_semi_sync_master_yes_tx;
-# let $status_var_value= `SELECT $master_request_ack_num + 1`;
-# source include/wait_for_status_var.inc;
-show variables like 'Rpl_semi_sync_master_yes_tx';
-show variables like 'Rpl_semi_sync_master_no_tx';
 
 
-# Update ACK get/request number
-let $master_request_ack_num= `SELECT $master_request_ack_num + 1`;
-let $master_get_ack_num= `SELECT $master_get_ack_num + 1`;
+--echo #
+--echo # 21322.8: Holding one replica's ACK (server_2) should result in
+--echo # Gtid_State_Ack of server_3 updating to the most recent GTID, while
+--echo # server_id 2 has the old GTID.
+--echo #
 
-# Result show statement
---replace_column 3 'SLAVE_PORT'
---replace_result $SLAVE_MYPORT SLAVE_PORT $DEFAULT_MASTER_PORT DEFAULT_PORT
-SHOW REPLICA HOSTS;
+--connection server_2
+--source include/stop_slave.inc
+set @@GLOBAL.debug_dbug="+d,synchronize_semisync_slave_reply";
+--source include/start_slave.inc
 
-connection slave;
-START SLAVE IO_THREAD;
---source include/wait_for_slave_io_to_start.inc
-
-# Wait on the slave status change
-let $status_var= rpl_semi_sync_slave_status;
-let $status_var_value= ON;
-source include/wait_for_status_var.inc;
-show variables like 'rpl_semi_sync_slave_status';
-show variables like 'rpl_semi_sync_slave_enabled';
-# Check slave_send_ack is still reseted
-show status like "Rpl_semi_sync_slave_send_ack";
-
-connection master;
-let $status_var= Slaves_connected;
+--connection server_1
+--echo # Waiting for master to recognize slave restart..
+let $status_var= Rpl_semi_sync_master_clients;
 let $status_var_value= 2;
 source include/wait_for_status_var.inc;
-show status like "Slaves_connected";
 
-# It may happen that primary does not resend the transaction and that
-# `Slaves_connected` is 2 and `rpl_semi_sync_master_clients` is still 1
-# Ensure with waiting on ACK
---source include/save_master_gtid.inc #Saves the gtid into $master_pos
+--let $nextval= `SELECT max(a)+1 from t1`
+--eval insert into t1 values ($nextval)
+--let $binlog_gtid= `SELECT @@gtid_binlog_pos`
+
+--connection server_2
+set debug_sync= "now WAIT_FOR at_slave_reply";
+
+--connection server_1
+--echo # Waiting for Gtid_State_Sent to reflect latest transaction for all replicas..
 let $show_statement= SHOW REPLICA HOSTS;
 let $field= Gtid_State_Sent;
-let $condition= LIKE '%$master_pos%';
+let $condition= LIKE '$binlog_gtid';
 let $wait_for_all= 1;
 source include/wait_show_condition.inc;
 
-let $status_var= Rpl_semi_sync_master_clients;
-let $status_var_value= 2;
-source include/wait_for_status_var.inc;
-show status like 'Rpl_semi_sync_master_clients';
-
---replace_column 3 'SLAVE_PORT'
---replace_result $SLAVE_MYPORT SLAVE_PORT $DEFAULT_MASTER_PORT DEFAULT_PORT
+--echo # Only server_3 should have the new GTID, server_2 should not due to debug_sync holding off the ACK
+--replace_result $SLAVE_MYPORT SLAVE_PORT $SERVER_MYPORT_3 SLAVE2_PORT $DEFAULT_MASTER_PORT DEFAULT_PORT $binlog_gtid NEW_GTID
 SHOW REPLICA HOSTS;
 
---echo "Sync replica with master"
-sync_slave_with_master;
+--connection server_2
+--echo # Resume slave so it can ACK the transaction
+set debug_sync= "now SIGNAL reply_ack_to_master";
 
-connection master;
-# After sync slave with master, the number of semi_sync clients is incremented
-let $status_var= Rpl_semi_sync_master_clients;
-let $status_var_value= 2;
-source include/wait_for_status_var.inc;
-show status like 'Rpl_semi_sync_master_clients';
+--echo # Waiting for Gtid_State_Ack to reflect latest transaction for all replicas..
+let $show_statement= SHOW REPLICA HOSTS;
+let $field= Gtid_State_Ack;
+let $condition= LIKE '$binlog_gtid';
+let $wait_for_all= 1;
+source include/wait_show_condition.inc;
 
-# Primary did resend transactions:
-# `Gtid_state_ack` for `server_id=2` should be NULL, since no new events are active
---replace_column 3 'SLAVE_PORT'
---replace_result $SLAVE_MYPORT SLAVE_PORT $DEFAULT_MASTER_PORT DEFAULT_PORT
+--connection server_1
+--replace_result $SLAVE_MYPORT SLAVE_PORT $SERVER_MYPORT_3 SLAVE2_PORT $DEFAULT_MASTER_PORT DEFAULT_PORT $binlog_gtid NEW_GTID
 SHOW REPLICA HOSTS;
 
-# Master's get ACK and request ACK should be the same as before
-let $status_var= Rpl_semi_sync_master_get_ack;
-let $status_var_value= $master_get_ack_num;
-source include/wait_for_status_var.inc;
-let $status_var= Rpl_semi_sync_master_request_ack;
-let $status_var_value= $master_request_ack_num;
-source include/wait_for_status_var.inc;
-show status like "Rpl_semi_sync_master_get_ack";
-show status like "Rpl_semi_sync_master_request_ack";
+--connection server_2
+--source include/stop_slave.inc
+set @@GLOBAL.debug_dbug= @save_s2_debug;
+--source include/start_slave.inc
 
---echo # Test 8: Replica `server_id=2` failure with `corrupt_queue_event`
---echo # Note 1: Simulate replicas failure by making replica busy.
---echo #         Consequence is that replica will be unregistered and that is why
---echo #         we need to wait that replica unregisters (`Slaves_connected`).
---echo #         By creating new event, only active replicas should respond
---echo #         (`server_id=3`) with ACK
---echo # Note 2: In order not to show old result from `server_id=2`,from busy replica
---echo #         we have to *wait* that binlog_dump_thread_count shows status 
---echo #         `Slaves_connected` decreased and after that check show statement.
---echo # -----------------------------------------------------------------------
-connection slave;
---let $sav_server_2_dbug= `SELECT @@GLOBAL.debug_dbug`
+--connection server_1
+--source include/save_master_gtid.inc
+--connection server_2
+--source include/sync_with_master_gtid.inc
+--connection server_3
+--source include/sync_with_master_gtid.inc
+
+
+--echo #
+--echo # 21322.9: If a server is behind when connecting to a primary (i.e. the
+--echo # primary has newer transactions), the replica Sync_Status should
+--echo # present as semi-sync stale and the Gtid_State_Ack should not populate
+--echo # until it has reached Semi-Sync Active
+--echo #
+
+--connection server_2
+--source include/stop_slave.inc
+
+--connection server_1
+--let $nextval= `SELECT max(a)+1 from t1`
+--eval insert into t1 values ($nextval)
+--source include/save_master_gtid.inc
+--let $binlog_gtid= `SELECT @@gtid_binlog_pos`
+--echo # Pause dump_thread of server_2 (server_3 won't be affected as it has
+--echo # already successfully ACKed the new transaction)
+set @@global.debug_dbug= "+d,pause_dump_thread_after_sending_next_full_trx";
+
+--connection server_2
+--source include/start_slave.inc
+
+--connection server_1
+set debug_sync= 'now WAIT_FOR dump_thread_paused';
+
+--echo # Ensure Gtid_State_Sent is updated to represent new transaction has
+--echo # been sent to both replicas
+let $show_statement= SHOW REPLICA HOSTS;
+let $field= Gtid_State_Sent;
+let $condition= LIKE '$binlog_gtid';
+let $wait_for_all= 1;
+source include/wait_show_condition.inc;
+
+--echo # Ensure Sync_Status is Semi-sync Stale for the debug_sync held dump
+--echo # thread, as it hasn't yet got "up-to-date"
+let $show_statement= SHOW REPLICA HOSTS;
+let $field= Sync_Status;
+let $condition= LIKE 'Semi-sync Stale';
+let $wait_for_all= 0;
+source include/wait_show_condition.inc;
+
+set debug_sync= 'now SIGNAL dump_thread_continue';
+
+--echo # Ensure Sync_Status will automatically update to Semi-sync Active
+--echo # once the last stale transaction has finished sending
+let $show_statement= SHOW REPLICA HOSTS;
+let $field= Sync_Status;
+let $condition= LIKE 'Semi-sync Active';
+let $wait_for_all= 1;
+source include/wait_show_condition.inc;
+
+set @@global.debug_dbug= @save_primary_dbug;
+
+--source include/save_master_gtid.inc
+--connection server_2
+--source include/sync_with_master_gtid.inc
+--connection server_3
+--source include/sync_with_master_gtid.inc
+
+
+--echo #
+--echo # 21322.10a: If one replica errors (i.e. server_2 by injecting
+--echo # corrupt_queue_event with debug_dbug), it shouldn't send its ACK,
+--echo # and server_3 does ACK; then Gtid_State_Sent should still reflect the
+--echo # new transaction for each replica, but Gtid_State_Ack should only be
+--echo # updated by the successful transaction. When the errored replica
+--echo # reconnects, it shouldn't ACK the transaction, so its on-reconnect
+--echo # Gtid_State_Ack value should be empty, but still have a Sync_Status
+--echo # of "Semi-sync Active" when it receives the latest transaction, as it
+--echo # will be ready to ACK new transactions going forward.
+--echo #
+--connection server_2
+--source include/stop_slave.inc
 SET @@GLOBAL.debug_dbug= "+d,corrupt_queue_event";
+--source include/start_slave.inc
 
-connection master;
-# Write the new event
-INSERT INTO t VALUES (3);
-
-# Wait on master's get/request ACK num
-let $status_var= Rpl_semi_sync_master_get_ack;
-let $status_var_value= `SELECT $master_get_ack_num + 1`;
-source include/wait_for_status_var.inc;
-let $status_var= Rpl_semi_sync_master_request_ack;
-let $status_var_value= `SELECT $master_request_ack_num + 1`;
-source include/wait_for_status_var.inc;
-let $status_var= Slaves_connected;
-let $status_var_value= 1;
-source include/wait_for_status_var.inc;
-show status like "Rpl_semi_sync_master_get_ack";
-show status like "Rpl_semi_sync_master_request_ack";
-show status like "Slaves_connected";
-# Update get/request ACK number
-let $master_request_ack_num= `SELECT $master_request_ack_num + 1`;
-let $master_get_ack_num= `SELECT $master_get_ack_num + 1`;
-
---source include/save_master_gtid.inc #Saves the gtid into $master_pos
-let $show_statement= SHOW REPLICA HOSTS;
-let $field= Gtid_State_Ack;
-let $condition= LIKE '%$master_pos%';
-let $wait_for_all= 1;
-source include/wait_show_condition.inc;
---replace_column 3 'SLAVE_PORT'
---replace_result $SLAVE_MYPORT SLAVE_PORT $DEFAULT_MASTER_PORT DEFAULT_PORT
-SHOW REPLICA HOSTS;
-
-# Setting the old value for debug_dbug will not start the slave
-connection slave;
---eval SET @@GLOBAL.debug_dbug= "$sav_server_2_dbug"
-
-connection master;
-let $status_var= Slaves_connected;
-let $status_var_value= 1;
-source include/wait_for_status_var.inc;
-show status like "Slaves_connected";
-show status like 'Rpl_semi_sync_master_clients';
-# Result show statement should be the same as before
---connection master
---source include/save_master_gtid.inc # Saves the gtid into $master_pos
-let $show_statement= SHOW REPLICA HOSTS;
-let $field= Gtid_State_Ack;
-let $condition= LIKE '%$master_pos%';
-source include/wait_show_condition.inc;
-
---echo # Test 9: Stop `server_id=3`
---echo # Note:   Check that no replicas get new generated event, so show statement
---echo #         is expected to be empty.
---echo # -----------------------------------------------------------------------
-connection slave2;
+--echo # Set-up server_3 for 9b (so we don't have to restart the slave)
+--connection server_3
 --source include/stop_slave.inc
-# Check slave_send_ack is reseted when replica is stopped
-show status like "Rpl_semi_sync_slave_send_ack";
---source include/reset_slave.inc
-# Check slave_send_ack is reseted when replica is reseted
-show status like "Rpl_semi_sync_slave_send_ack";
-
-connection master;
-# Here both replicas are off and primary will wait on ACK timeout (default 10),
-# and turn-off semi-sync status, so let's decrease timeout.
---let $save_default_master_timeout= `SELECT @@GLOBAL.rpl_semi_sync_master_timeout`
-select @@global.rpl_semi_sync_master_timeout;
-set @@global.rpl_semi_sync_master_timeout= 2000;
-select @@global.rpl_semi_sync_master_timeout;
-
-let $status_var= Slaves_connected;
-let $status_var_value= 0;
-source include/wait_for_status_var.inc;
-show status like "Slaves_connected";
-
-# get_ack and request_ack stay the same
-let $status_var= Rpl_semi_sync_master_get_ack;
-let $status_var_value= $master_get_ack_num;
-source include/wait_for_status_var.inc;
-
-let $status_var= Rpl_semi_sync_master_request_ack;
-let $status_var_value= $master_request_ack_num;
-source include/wait_for_status_var.inc;
-
-show status like 'Rpl_semi_sync_master_no_tx';
-show status like 'Rpl_semi_sync_master_yes_tx';
-show status like 'Rpl_semi_sync_master_clients';
-show status like 'rpl_semi_sync_master_get_ack';
-show status like 'Rpl_semi_sync_master_request_ack';
-show status like 'Rpl_semi_sync_master_status';
-
-# Write the new event
-INSERT INTO t VALUES (5);
-
-# When there are no semi-sync replicas and new event, master will wait timeout,
-# (set by 2[s]) and will disable master status, because commit ACK has not occured
-let $status_var= Rpl_semi_sync_master_status;
-let $status_var_value= OFF;
-source include/wait_for_status_var.inc;
-show status like 'Rpl_semi_sync_master_status';
-show status like 'Rpl_semi_sync_master_no_tx';
-show status like 'Rpl_semi_sync_master_yes_tx';
-show status like 'Rpl_semi_sync_master_request_ack';
-show status like 'rpl_semi_sync_master_get_ack';
-
---replace_column 3 'SLAVE_PORT'
---replace_result $SLAVE_MYPORT SLAVE_PORT $DEFAULT_MASTER_PORT DEFAULT_PORT
-SHOW REPLICA HOSTS;
-
---echo # Start slaves again
-connection slave;
+set @@GLOBAL.debug_dbug="+d,synchronize_semisync_slave_reply";
 --source include/start_slave.inc
-let $status_var= rpl_semi_sync_slave_status;
-let $status_var_value= ON;
-source include/wait_for_status_var.inc;
-show status like 'rpl_semi_sync_slave%';
---sync_with_master
 
-connection slave2;
---source include/start_slave.inc
-let $status_var= rpl_semi_sync_slave_status;
-let $status_var_value= ON;
-source include/wait_for_status_var.inc;
-show status like 'rpl_semi_sync_slave%';
---sync_with_master
-
---echo # sync with master, should ENABLE master_status
-connection master;
-let $status_var= Rpl_semi_sync_master_status;
-let $status_var_value= ON;
-source include/wait_for_status_var.inc;
-show status like 'Rpl_semi_sync_master_status';
-
-# There will be 2 get ACKS from 2 replicas for 1 event
-let $status_var= Rpl_semi_sync_master_get_ack;
-let $status_var_value= `SELECT $master_get_ack_num + 1`;
+--connection server_1
+--echo # Waiting for master to recognize slave restarts..
+let $status_var= Rpl_semi_sync_master_clients;
+let $status_var_value= 2;
 source include/wait_for_status_var.inc;
 
-let $status_var= Rpl_semi_sync_master_request_ack;
-let $status_var_value= `SELECT $master_request_ack_num + 1`;
-source include/wait_for_status_var.inc;
-show status like 'Rpl_semi_sync_master_yes_tx';
+--connection server_1
+--let $nextval= `SELECT max(a)+1 from t1`
+--send_eval insert into t1 values ($nextval)
 
-# Update ACK get/request number
-let $master_request_ack_num= `SELECT $master_request_ack_num + 1`;
-let $master_get_ack_num= `SELECT $master_get_ack_num + 1`;
+--echo # Debug_sync is irrelevant to this testcase (10a) but we must do it to
+--echo # allow server_3 to ACK now (Note debug_sync is needed for 10b)
+--connection server_3
+set debug_sync= "now WAIT_FOR at_slave_reply";
+set debug_sync= "now SIGNAL reply_ack_to_master";
 
---echo # Test 10: Testing `rpl_semi_sync_master_timeout=0`
---echo # Note 1:  For asynchronous replication `Gtid_state_sent` is not null,
---echo #          but `Gtid_state_ack` is null.
---echo # Note 2:  We want that `rpl_semi_sync_master_timeout=0` be edge case,
---echo #          by mimicking asynchronous replication, as semi-sync stalled
---echo #          replication type, for which `Gtid_state_ack` should reflect
---echo #          the latest received transaction by the replica[s].
---echo #          Also `rpl_semi_sync_master_status` has
---echo #          to remain `ON`, instead switching off, so instead of
---echo #          no waiting on ACK, primary must wait on ACK from replica.
---echo # Note 3:  With this option we want `Gtid_state_ack` to reflect
---echo #          the latest received transaction by the replica[s].
---echo # -----------------------------------------------------------------------
-# Test DBUG_SYNC by stopping the slave and testing the new sync point
-# Note we need to stop both slaves in order to control sent ACK for new active transaction
+--connection server_1
+--reap
+--let $binlog_gtid= `SELECT @@gtid_binlog_pos`
+--source include/save_master_gtid.inc
 
---echo # Initial number of ACK get/requests
-show status like 'rpl_semi_sync_master_get_ack';
-show status like 'rpl_semi_sync_master_request_ack';
-show variables like 'rpl_semi_sync_master_enabled';
-
-# Master status must be `ON`
-let $status_var= rpl_semi_sync_master_status;
-let $status_var_value= ON;
-source include/wait_for_status_var.inc;
-show status like 'rpl_semi_sync_master_status';
-
-set global rpl_semi_sync_master_timeout=0;
-select @@global.rpl_semi_sync_master_timeout;
-# here rpl_semi_sync_master_status=0 means async is taking place (no wait on ACK from slave)
-show variables like 'rpl_semi_sync_master_timeout';
-
-connection slave;
---source include/stop_slave.inc
---let $save_server_2_dbug= `SELECT @@GLOBAL.DEBUG_DBUG`
-SET @@GLOBAL.DEBUG_DBUG="d,synchronize_semisync_slave_reply";
---source include/start_slave.inc
-let $status_var= rpl_semi_sync_slave_status;
-let $status_var_value= ON;
-source include/wait_for_status_var.inc;
-show status like 'rpl_semi_sync_slave%';
-
-connection slave2;
---source include/stop_slave.inc
---let $save_server_3_dbug= `SELECT @@GLOBAL.DEBUG_DBUG`
-SET @@GLOBAL.DEBUG_DBUG="d,synchronize_semisync_slave_reply";
---source include/start_slave.inc
-let $status_var= rpl_semi_sync_slave_status;
-let $status_var_value= ON;
-source include/wait_for_status_var.inc;
-show status like 'rpl_semi_sync_slave%';
-
-connection master;
-# Write event
-INSERT INTO t values (1111);
-
---echo # Both replicas are stopped with synchronization point after master's new event
---connection slave
-SET debug_sync='now WAIT_FOR at_slave_reply';
-
---connection slave2
-SET debug_sync='now WAIT_FOR at_slave_reply';
-
---connection master
-# There will be no GET ACK so good enough to check
-# if the initial `rpl_semi_sync_master_get_ack` is observed
-let $status_var= rpl_semi_sync_master_get_ack;
-let $status_var_value= `SELECT $master_get_ack_num`;
-source include/wait_for_status_var.inc;
-show status like 'rpl_semi_sync_master_get_ack';
-
-# Checking show statement:
-# `Gtid_State_Sent` > `Gtid_State_Ack` (ACK is empty)
---echo # `Gtid_State_Sent` event sent from primary
---source include/save_master_gtid.inc # Saves the gtid into $master_pos
+--echo # Waiting for Gtid_State_Sent to reflect latest transaction for all replicas..
 let $show_statement= SHOW REPLICA HOSTS;
 let $field= Gtid_State_Sent;
-let $condition= LIKE '%$master_pos%';
+let $condition= LIKE '$binlog_gtid';
 let $wait_for_all= 1;
 source include/wait_show_condition.inc;
---replace_column 3 'SLAVE_PORT'
---replace_result $SLAVE_MYPORT SLAVE_PORT $DEFAULT_MASTER_PORT DEFAULT_PORT
+
+--connection server_2
+--let $slave_io_errno= 1595
+--source include/wait_for_slave_io_error.inc
+set @@GLOBAL.debug_dbug= @save_s2_debug;
+
+--connection server_1
+--echo # Only server_3 should have the new GTID, server_2 should not due to corrupt_queue_event
+--replace_result $SLAVE_MYPORT SLAVE_PORT $SERVER_MYPORT_3 SLAVE2_PORT $DEFAULT_MASTER_PORT DEFAULT_PORT $binlog_gtid NEW_GTID
 SHOW REPLICA HOSTS;
 
-# Allow server_id= 2 to send the ACK
-connection slave;
-SET debug_sync='now SIGNAL reply_ack_to_master';
+--connection server_2
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
 
---echo # Replica server_2 has sent ACK
-# It may be race condition, so wait on proper master GTID for replica 2
-# We have to ensure that at least 1 row has latest GTID as ACK
-# Problem occured that `Gtid_State_Sent` was delayed record
-# Note we need `wait_for_all` be 0 since
-# not all rows will have condition fullfiled
---connection master
---source include/save_master_gtid.inc # Saves the gtid into $master_pos
+--connection server_1
+--echo # With replica restarted/synced, its Gtid_State_Ack should be empty with Sync_Status semi-sync active
+--replace_result $SLAVE_MYPORT SLAVE_PORT $SERVER_MYPORT_3 SLAVE2_PORT $DEFAULT_MASTER_PORT DEFAULT_PORT
+SHOW REPLICA HOSTS;
+
+
+--echo #
+--echo # 21322.10b: Succeeding the previous 9a test, if server_3 now stalls
+--echo # (i.e. using debug_sync), then the previously errored server_2 should
+--echo # receive and ACK new transactions as a "lone" replica, and update its
+--echo # Gtid_State_* columns appropriately, whereas server_3's Gtid_State_Ack
+--echo # column should not be updated.
+--echo #
+
+--let $old_binlog_gtid= `SELECT @@gtid_binlog_pos`
+--let $nextval= `SELECT max(a)+1 from t1`
+--eval insert into t1 values ($nextval)
+--let $new_binlog_gtid= `SELECT @@gtid_binlog_pos`
+--source include/save_master_gtid.inc
+
+--connection server_2
+--source include/sync_with_master_gtid.inc
+
+--echo # Waiting for Gtid_State_Sent to reflect latest transaction for all replicas..
 let $show_statement= SHOW REPLICA HOSTS;
-let $field= Gtid_State_Ack;
-let $condition= LIKE '%$master_pos%';
-let $wait_for_all= 0;
+let $field= Gtid_State_Sent;
+let $condition= LIKE '$new_binlog_gtid';
+let $wait_for_all= 1;
 source include/wait_show_condition.inc;
 
-let $status_var= rpl_semi_sync_master_get_ack;
-let $status_var_value= `SELECT $master_get_ack_num + 1`;
+--connection server_3
+set debug_sync= "now WAIT_FOR at_slave_reply";
+
+--connection server_1
+--echo # Only server_2 should have the new GTID ACKed, server_3 should not due to stall
+--replace_result $SLAVE_MYPORT SLAVE_PORT $SERVER_MYPORT_3 SLAVE2_PORT $DEFAULT_MASTER_PORT DEFAULT_PORT $new_binlog_gtid NEW_GTID $old_binlog_gtid OLD_GTID
+SHOW REPLICA HOSTS;
+
+--echo # Resume server_3
+--connection server_3
+set debug_sync= "now SIGNAL reply_ack_to_master";
+--source include/sync_with_master_gtid.inc
+
+--source include/stop_slave.inc
+set @@GLOBAL.debug_dbug= @save_s3_debug;
+--source include/start_slave.inc
+
+
+--echo #
+--echo # 21322.11: Configuration rpl_semi_sync_master_timeout of 0 should
+--echo # have transaction behavior match asynchronous behavior (i.e. trxs don't
+--echo # need to wait for ACKs), yet the slave should still send ACKs as a
+--echo # normal semi-sync replica, and Gtid_State_Ack should still be updated
+--echo # accordingly.
+--echo #
+--echo #  The actual behavior tested in this case is as follows:
+--echo # a) Transactions won't await ACKs to complete
+--echo # b) Semi-sync remains ON when a transaction completes without an ACK
+--echo # c) Gtid_State_Ack is updated accordingly for each replica's ACK (even
+--echo #    when it is behind). Here, we hold both replicas using DEBUG_SYNC to
+--echo #    not send their ACKs, meanwhile, we continue creating transactions
+--echo #    on the primary.
+--echo # d) If a "very lagged" replica sends an ACK for a transaction from a
+--echo #    purged binlog, the Gtid_State_Ack value should be updated to
+--echo #    "UNKNOWN", with an error message stating its binlog coordinate
+--echo #    (i.e. filename and position).
+--echo #
+
+--connection server_1
+set global rpl_semi_sync_master_timeout=0;
+
+--connection server_2
+--source include/stop_slave.inc
+SET @@GLOBAL.DEBUG_DBUG="+d,synchronize_semisync_slave_reply";
+--source include/start_slave.inc
+--connection server_3
+--source include/stop_slave.inc
+SET @@GLOBAL.DEBUG_DBUG="+d,synchronize_semisync_slave_reply";
+--source include/start_slave.inc
+
+--connection server_1
+--echo # Waiting for master to recognize slave restarts..
+let $status_var= Rpl_semi_sync_master_clients;
+let $status_var_value= 2;
 source include/wait_for_status_var.inc;
-# Update master's get ACK number
-let $master_get_ack_num= `SELECT $master_get_ack_num + 1`;
-show status like 'rpl_semi_sync_master_get_ack';
---replace_column 3 'SLAVE_PORT'
---replace_result $SLAVE_MYPORT SLAVE_PORT $DEFAULT_MASTER_PORT DEFAULT_PORT
-SHOW REPLICA HOSTS;
 
-# Allow server_id= 3 to send the ACK
-connection slave2;
-SET debug_sync='now SIGNAL reply_ack_to_master';
+--echo #
+--echo # 21322.11.a
+connection server_1;
+--let $yes_tx_orig= query_get_value(show status like 'Rpl_semi_sync_master_yes_tx', Value, 1)
+--let $no_tx_orig= query_get_value(show status like 'Rpl_semi_sync_master_no_tx', Value, 1)
+--let $nextval= `SELECT max(a)+1 from t1`
+--eval insert into t1 values ($nextval)
+--let $trx1_gtid= `SELECT @@gtid_binlog_pos`
 
---echo # Replica server_3 has sent ACK
-# GTID_sent == GTID_ack (already sent by server_id=2)
-# It may be race condition, so wait on proper master GTID for replica 3
-# We have to ensure that at least 1 row has latest GTID as ACK
---connection master
---source include/save_master_gtid.inc # Saves the gtid into $master_pos
+--echo # Waiting for Gtid_State_Sent to reflect latest transaction for all replicas..
 let $show_statement= SHOW REPLICA HOSTS;
-let $field= Gtid_State_Ack;
-let $condition= LIKE '%$master_pos%';
-let $wait_for_all= 0;
+let $field= Gtid_State_Sent;
+let $condition= LIKE '$trx1_gtid';
+let $wait_for_all= 1;
 source include/wait_show_condition.inc;
 
-# Here we will not check the since primary may or may not receive the get ACK
-# from second replica, if it already received the same number of requested ACKs.
---replace_column 3 'SLAVE_PORT'
---replace_result $SLAVE_MYPORT SLAVE_PORT $DEFAULT_MASTER_PORT DEFAULT_PORT
-SHOW REPLICA HOSTS;
+--connection server_2
+SET debug_sync='now WAIT_FOR at_slave_reply';
+--connection server_3
+SET debug_sync='now WAIT_FOR at_slave_reply';
 
-sync_slave_with_master slave2;
-
---echo # Sync server_3 with master should return the same result as before
-connection master;
---source include/save_master_gtid.inc # Saves the gtid into $master_pos
+--echo # Gtid_State_Ack should be empty for both replicas (as they were restarted)..
+--let $binlog_gtid= `SELECT @@gtid_binlog_pos`
 let $show_statement= SHOW REPLICA HOSTS;
 let $field= Gtid_State_Ack;
-let $condition= LIKE '%$master_pos%';
-let $wait_for_all= 0;
+let $condition= = '';
+let $wait_for_all= 1;
 source include/wait_show_condition.inc;
---replace_column 3 'SLAVE_PORT'
---replace_result $SLAVE_MYPORT SLAVE_PORT $DEFAULT_MASTER_PORT DEFAULT_PORT
+
+--echo #
+--echo # 21322.11.b
+--connection server_1
+--echo # Ensuring semi-sync status on primary is correct..
+--let $yes_tx_post_commit= query_get_value(show status like 'Rpl_semi_sync_master_yes_tx', Value, 1)
+if ($yes_tx_orig != $yes_tx_post_commit)
+{
+  --echo # yes_tx original: $yes_tx_orig
+  --echo # yes_tx after commit: $yes_tx_post_commit
+  --die Rpl_semi_sync_master_yes_tx should not have changed when Rpl_semi_sync_master_timeout is 0
+}
+--let $no_tx_post_commit= query_get_value(show status like 'Rpl_semi_sync_master_no_tx', Value, 1)
+if ($no_tx_orig != $no_tx_post_commit)
+{
+  --echo # no_tx original: $no_tx_orig
+  --echo # no_tx after commit: $no_tx_post_commit
+  --die Rpl_semi_sync_master_no_tx should not have changed when Rpl_semi_sync_master_timeout is 0
+}
+--let $master_semisync_status= query_get_value(show status like 'Rpl_semi_sync_master_status', Value, 1)
+if (`SELECT strcmp('$master_semisync_status','ON') != 0`)
+{
+  --die Master semi-sync status was disabled after transaction
+}
+
+--echo #
+--echo # 21322.11.c
+--connection server_1
+--let $nextval= `SELECT max(a)+1 from t1`
+--eval insert into t1 values ($nextval)
+--let $trx2_gtid= `SELECT @@gtid_binlog_pos`
+--source include/save_master_gtid.inc
+
+--echo # Waiting for Gtid_State_Sent to reflect latest transaction for all replicas..
+let $show_statement= SHOW REPLICA HOSTS;
+let $field= Gtid_State_Sent;
+let $condition= LIKE '$trx2_gtid';
+let $wait_for_all= 1;
+source include/wait_show_condition.inc;
+
+--connection server_1
+--echo # server_2 and 3 should both show an empty ACK state
+--replace_result $SLAVE_MYPORT SLAVE_PORT $SERVER_MYPORT_3 SLAVE2_PORT $DEFAULT_MASTER_PORT DEFAULT_PORT $trx1_gtid TRX1_GTID $trx2_gtid TRX2_GTID
 SHOW REPLICA HOSTS;
 
---echo # cleanup
---echo # -------------------------------------------
-connection master;
---eval SET @@GLOBAL.rpl_semi_sync_master_timeout= $save_default_master_timeout
-SET GLOBAL rpl_semi_sync_master_enabled = 0;
-drop table t;
-drop table t2;
+--echo # Let server_2 ACK just the first transaction
+--connection server_2
+set debug_sync= "now SIGNAL reply_ack_to_master";
+set debug_sync= "now WAIT_FOR at_slave_reply";
+
+--connection server_1
+--echo # server_2 should show ACKed trx1, server_3 should still show empty ACK state
+--replace_result $SLAVE_MYPORT SLAVE_PORT $SERVER_MYPORT_3 SLAVE2_PORT $DEFAULT_MASTER_PORT DEFAULT_PORT $trx1_gtid TRX1_GTID $trx2_gtid TRX2_GTID
+SHOW REPLICA HOSTS;
+
+--echo # Let server_2 ACK the second transaction
+--connection server_2
+set debug_sync= "now SIGNAL reply_ack_to_master";
+--source include/sync_with_master_gtid.inc
+
+--connection server_1
+--echo # server_2 should show ACKed trx2, server_3 should still show empty ACK state
+--replace_result $SLAVE_MYPORT SLAVE_PORT $SERVER_MYPORT_3 SLAVE2_PORT $DEFAULT_MASTER_PORT DEFAULT_PORT $trx1_gtid TRX1_GTID $trx2_gtid TRX2_GTID
+SHOW REPLICA HOSTS;
+
+--echo # Let server_3 now ACK the first transaction
+--connection server_3
+set debug_sync= "now SIGNAL reply_ack_to_master";
+set debug_sync= "now WAIT_FOR at_slave_reply";
+
+--connection server_1
+--echo # server_2 should show ACKed trx2, server_3 should show ACKed trx1
+--replace_result $SLAVE_MYPORT SLAVE_PORT $SERVER_MYPORT_3 SLAVE2_PORT $DEFAULT_MASTER_PORT DEFAULT_PORT $trx1_gtid TRX1_GTID $trx2_gtid TRX2_GTID
+SHOW REPLICA HOSTS;
+
+--echo # Let server_3 ACK the second transaction
+--connection server_3
+set debug_sync= "now SIGNAL reply_ack_to_master";
+--source include/sync_with_master_gtid.inc
+
+--connection server_1
+--echo # server_2 and 3 should both show ACKed trx2
+--replace_result $SLAVE_MYPORT SLAVE_PORT $SERVER_MYPORT_3 SLAVE2_PORT $DEFAULT_MASTER_PORT DEFAULT_PORT $trx1_gtid TRX1_GTID $trx2_gtid TRX2_GTID
+SHOW REPLICA HOSTS;
+
+
+--echo #
+--echo # 21322.11.d
+--connection server_1
+--let $trx2_binlog_file= query_get_value(SHOW BINARY LOGS, Log_name, 1)
+--let $trx2_binlog_pos= query_get_value(SHOW BINARY LOGS, File_size, 1)
+FLUSH LOGS;
+--let $nextval= `SELECT max(a)+1 from t1`
+--eval insert into t1 values ($nextval)
+--let $trx3_gtid= `SELECT @@gtid_binlog_pos`
+--source include/save_master_gtid.inc
+
+--echo # Waiting for Gtid_State_Sent to reflect latest transaction for all replicas..
+let $show_statement= SHOW REPLICA HOSTS;
+let $field= Gtid_State_Sent;
+let $condition= LIKE '$trx3_gtid';
+let $wait_for_all= 1;
+source include/wait_show_condition.inc;
+
+--connection server_2
+set debug_sync= "now WAIT_FOR at_slave_reply";
+--connection server_3
+set debug_sync= "now WAIT_FOR at_slave_reply";
+
+--connection server_1
+--echo # server_2 and 3 should both show ACKed TRX2 (with TRX3 Sent)
+--replace_result $SLAVE_MYPORT SLAVE_PORT $SERVER_MYPORT_3 SLAVE2_PORT $DEFAULT_MASTER_PORT DEFAULT_PORT $trx2_gtid TRX2_GTID $trx3_gtid TRX3_GTID
+SHOW REPLICA HOSTS;
+
+--let $purge_to_binlog= query_get_value(SHOW MASTER STATUS, File, 1)
+--let $purge_binlogs_to=$purge_to_binlog
+--source include/wait_for_purge.inc
+
+--echo # Master should warn that the binary log which contains the last ACKed
+--echo # binlog coordinates has been purged, and clear Gtid_State_Ack
+--enable_warnings
+--replace_result $SLAVE_MYPORT SLAVE_PORT $SERVER_MYPORT_3 SLAVE2_PORT $DEFAULT_MASTER_PORT DEFAULT_PORT $trx2_gtid TRX2_GTID $trx3_gtid TRX3_GTID $trx2_binlog_file TRX2_BINLOG_FILE $trx2_binlog_pos TRX2_BINLOG_POS
+SHOW REPLICA HOSTS;
+
+--echo # Let servers ACK new transaction
+--connection server_2
+set debug_sync= "now SIGNAL reply_ack_to_master";
+--connection server_3
+set debug_sync= "now SIGNAL reply_ack_to_master";
+
+--connection server_1
+--echo # Waiting for Gtid_State_Ack to reflect latest transaction for all replicas..
+let $show_statement= SHOW REPLICA HOSTS;
+let $field= Gtid_State_Ack;
+let $condition= LIKE '$trx3_gtid';
+let $wait_for_all= 1;
+source include/wait_show_condition.inc;
+
+--echo # Gtid_State_Ack should now show the latest transaction GTID
+--replace_result $SLAVE_MYPORT SLAVE_PORT $SERVER_MYPORT_3 SLAVE2_PORT $DEFAULT_MASTER_PORT DEFAULT_PORT $trx2_gtid TRX2_GTID $trx3_gtid TRX3_GTID
+SHOW REPLICA HOSTS;
+--disable_warnings
+
+--connection server_2
+--source include/sync_with_master_gtid.inc
+--connection server_3
+--source include/sync_with_master_gtid.inc
+
+
+--echo #
+--echo # MDEV-21322 Cleanup
+connection server_1;
+set @@global.debug_dbug= @save_primary_dbug;
+set @@global.rpl_semi_sync_master_timeout= @save_semisync_timeout;
+set @@global.rpl_semi_sync_master_enabled= @save_semisync_master_enabled;
+
+drop table t1;
 --source include/save_master_gtid.inc
 --save_master_pos
 
-connection slave;
+connection server_2;
 --source include/sync_with_master_gtid.inc
 --source include/stop_slave.inc
+set @@global.rpl_semi_sync_slave_enabled= @save_semisync_server_2_enabled;
 --eval SET @@GLOBAL.debug_dbug= "$save_server_2_dbug"
 SET debug_sync='RESET';
-set global rpl_semi_sync_slave_enabled = 0;
 --source include/start_slave.inc
-show variables like 'rpl_semi_sync_slave_enabled';
 
-connection slave2;
+connection server_3;
 --source include/sync_with_master_gtid.inc
 --source include/stop_slave.inc
-set global rpl_semi_sync_slave_enabled = 0;
+set @@global.rpl_semi_sync_slave_enabled= @save_semisync_server_3_enabled;
 --eval SET @@GLOBAL.debug_dbug= "$save_server_3_dbug"
 SET debug_sync='RESET';
 --source include/start_slave.inc
-show variables like 'rpl_semi_sync_slave_enabled';
---source include/stop_slave.inc
 
-# End of tests
+--echo #
+--echo # End of MDEV-21322 tests
+--echo #
+
+# End of rpl_show_slave_hosts.test
 --source include/rpl_end.inc

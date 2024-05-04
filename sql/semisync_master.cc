@@ -593,7 +593,7 @@ l_end:
   DBUG_RETURN(result);
 }
 
-int Repl_semi_sync_master::report_reply_binlog(Slave_info *replica_thd_si,
+int Repl_semi_sync_master::report_reply_binlog(Slave_info *slave_info,
                                                const char *log_file_name,
                                                my_off_t log_file_pos)
 {
@@ -614,7 +614,7 @@ int Repl_semi_sync_master::report_reply_binlog(Slave_info *replica_thd_si,
 
   if (!is_on())
     /* We check to see whether we can switch semi-sync ON. */
-    try_switch_on(replica_thd_si->server_id, log_file_name, log_file_pos);
+    try_switch_on(slave_info->server_id, log_file_name, log_file_pos);
 
   /* The position should increase monotonically, if there is only one
    * thread sending the binlog to the slave.
@@ -674,8 +674,8 @@ int Repl_semi_sync_master::report_reply_binlog(Slave_info *replica_thd_si,
     }
   }
 
-  strncpy(replica_thd_si->gtid_state_ack.log_file, log_file_name, strlen(log_file_name));
-  replica_thd_si->gtid_state_ack.log_pos= log_file_pos;
+  strncpy(slave_info->gtid_state_ack.log_file, log_file_name, strlen(log_file_name));
+  slave_info->gtid_state_ack.log_pos= log_file_pos;
 
  l_end:
   unlock();
@@ -816,8 +816,10 @@ int Repl_semi_sync_master::commit_trx(const char* trx_wait_binlog_name,
   bool success= 0;
   DBUG_ENTER("Repl_semi_sync_master::commit_trx");
 
-  if (!rpl_semi_sync_master_clients && !rpl_semi_sync_master_wait_no_slave &&
-      !m_wait_timeout)
+  if (!m_wait_timeout)
+    DBUG_RETURN(0);
+
+  if (!rpl_semi_sync_master_clients && !rpl_semi_sync_master_wait_no_slave)
   {
     rpl_semi_sync_master_no_transactions++;
     DBUG_RETURN(0);
@@ -935,17 +937,6 @@ int Repl_semi_sync_master::commit_trx(const char* trx_wait_binlog_name,
 
       set_thd_awaiting_semisync_ack(thd, FALSE);
       rpl_semi_sync_master_wait_sessions--;
-#ifdef ENABLED_DEBUG_SYNC
-        /*
-          For debug symbol `pause_ack_thread_on_next_ack ` it will happen that
-          master status will be OFF so make sure to start it again.
-        */
-        DBUG_EXECUTE_IF("pause_ack_thread_on_next_ack",
-          {
-            DBUG_PRINT("pause_ack_thread_on_next_ack", ("now"));
-            goto l_end;
-          });
-#endif
       if (wait_result != 0)
       {
         /* This is a real wait timeout. */
@@ -1173,7 +1164,16 @@ int Repl_semi_sync_master::update_sync_header(THD* thd, unsigned char *packet,
                           (ulong)log_file_pos, sync, (int)is_on()));
   *need_sync= sync;
 
+
  l_end:
+  if (is_on())
+  {
+    thd->slave_info->sync_status=
+        sync ? thd->slave_info->sync_status=
+                   Slave_info::SYNC_STATE_SEMI_SYNC_ACTIVE
+             : thd->slave_info->sync_status=
+                   Slave_info::SYNC_STATE_SEMI_SYNC_STALE;
+  }
   unlock();
 
   /*
