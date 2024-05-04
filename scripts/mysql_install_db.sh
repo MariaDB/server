@@ -47,7 +47,7 @@ dirname0=`dirname $0 2>/dev/null`
 dirname0=`dirname $dirname0 2>/dev/null`
 
 case "$0" in
-  *mysqld_install_db)
+  *mysql_install_db)
     echo "$0: Deprecated program name. It will be removed in a future release, use 'mariadb-install-db' instead" 1>&2
     ;;
 esac
