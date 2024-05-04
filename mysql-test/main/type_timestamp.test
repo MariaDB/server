@@ -921,5 +921,25 @@ show create table t1;
 drop table t1;
 
 --echo #
+--echo # MDEV-34069 Zero datetime reinterprets as '1970-01-01 00:00:00' on field_datetime=field_timestamp
+--echo #
+
+SET sql_mode='';
+SET time_zone='+00:00';
+CREATE TABLE t1 (a TIMESTAMP);
+INSERT INTO t1 VALUES ('0000-00-00 00:00:00');
+SELECT * FROM t1;
+CREATE TABLE t2 (a DATETIME);
+INSERT INTO t2 SELECT a FROM t1;
+SELECT * FROM t2;
+SET sql_mode='NO_ZERO_DATE,NO_ZERO_IN_DATE';
+INSERT INTO t2 VALUES ('0000-00-00 00:00:00');
+INSERT INTO t2 SELECT a FROM t1;
+SELECT * FROM t2;
+DROP TABLE t2, t1;
+SET time_zone=DEFAULT;
+SET sql_mode=DEFAULT;
+
+--echo #
 --echo # End of 10.5 tests
 --echo #
