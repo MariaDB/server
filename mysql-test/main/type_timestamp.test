@@ -941,5 +941,16 @@ SET time_zone=DEFAULT;
 SET sql_mode=DEFAULT;
 
 --echo #
+--echo # MDEV-34061 unix_timestamp(coalesce(timestamp_column)) returns NULL on '1970-01-01 00:00:00.000001'
+--echo #
+
+SET time_zone='+00:00';
+CREATE TABLE t1 (a TIMESTAMP(6) NULL);
+INSERT INTO t1 VALUES ('1970-01-01 00:00:00.000001');
+SELECT unix_timestamp(a) AS c1, unix_timestamp(coalesce(a)) AS c2 FROM t1;
+DROP TABLE t1;
+SET time_zone=DEFAULT;
+
+--echo #
 --echo # End of 10.5 tests
 --echo #

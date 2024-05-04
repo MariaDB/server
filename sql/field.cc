@@ -5698,8 +5698,10 @@ my_time_t Field_timestampf::get_timestamp(const uchar *pos,
 bool Field_timestampf::val_native(Native *to)
 {
   DBUG_ASSERT(marked_for_read());
+  char zero[8]= "\0\0\0\0\0\0\0";
+  DBUG_ASSERT(pack_length () <= sizeof(zero));
   // Check if it's '0000-00-00 00:00:00' rather than a real timestamp
-  if (ptr[0] == 0 && ptr[1] == 0 && ptr[2] == 0 && ptr[3] == 0)
+  if (!memcmp(ptr, zero, pack_length()))
   {
     to->length(0);
     return false;
