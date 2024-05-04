@@ -86,6 +86,7 @@ class Explain_node : public Sql_alloc
 public:
   Explain_node(MEM_ROOT *root) :
     cache_tracker(NULL),
+    subq_materialization(NULL),
     connection_type(EXPLAIN_NODE_OTHER),
     children(root)
   {}
@@ -115,6 +116,12 @@ public:
   */
   Expression_cache_tracker* cache_tracker;
 
+  /**
+    If not NULL, this node is a SELECT (or UNION) in a materialized
+    IN-subquery.
+  */
+  Explain_subq_materialization* subq_materialization;
+
   /*
     How this node is connected to its parent.
     (NOTE: EXPLAIN_NODE_NON_MERGED_SJ is set very late currently)
@@ -143,6 +150,8 @@ public:
   void print_explain_json_for_children(Explain_query *query,
                                        Json_writer *writer, bool is_analyze);
   bool print_explain_json_cache(Json_writer *writer, bool is_analyze);
+  bool print_explain_json_subq_materialization(Json_writer *writer,
+                                               bool is_analyze);
   virtual ~Explain_node() = default;
 };
 
@@ -1002,5 +1011,27 @@ public:
                           bool is_analyze) override;
 };
 
+
+/*
+  EXPLAIN data structure for subquery materialization.
+
+  All decisions are made at execution time so here we just store the tracker
+  that has all the info.
+*/
+
+class Explain_subq_materialization : public Sql_alloc
+{
+public:
+  Explain_subq_materialization(MEM_ROOT *mem_root)
+    : tracker(mem_root)
+  {}
+
+  Subq_materialization_tracker *get_tracker() { return &tracker; }
+
+  void print_explain_json(Json_writer *writer, bool is_analyze);
+
+private:
+  Subq_materialization_tracker tracker;
+};
 
 #endif //SQL_EXPLAIN_INCLUDED

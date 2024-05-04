@@ -1134,15 +1134,17 @@ EXPLAIN
           "filtered": 100,
           "materialized": {
             "unique": 1,
-            "query_block": {
-              "select_id": 2,
-              "temporary_table": {
-                "table": {
-                  "table_name": "t2",
-                  "access_type": "ALL",
-                  "rows": 4,
-                  "filtered": 100,
-                  "attached_condition": "t2.x < 5 and t2.x > 1"
+            "materialization": {
+              "query_block": {
+                "select_id": 2,
+                "temporary_table": {
+                  "table": {
+                    "table_name": "t2",
+                    "access_type": "ALL",
+                    "rows": 4,
+                    "filtered": 100,
+                    "attached_condition": "t2.x < 5 and t2.x > 1"
+                  }
                 }
               }
             }
@@ -1183,15 +1185,17 @@ EXPLAIN
           "filtered": 100,
           "materialized": {
             "unique": 1,
-            "query_block": {
-              "select_id": 3,
-              "temporary_table": {
-                "table": {
-                  "table_name": "t2",
-                  "access_type": "ALL",
-                  "rows": 4,
-                  "filtered": 100,
-                  "attached_condition": "t2.x < 5 and t2.x > 1"
+            "materialization": {
+              "query_block": {
+                "select_id": 3,
+                "temporary_table": {
+                  "table": {
+                    "table_name": "t2",
+                    "access_type": "ALL",
+                    "rows": 4,
+                    "filtered": 100,
+                    "attached_condition": "t2.x < 5 and t2.x > 1"
+                  }
                 }
               }
             }
@@ -1257,16 +1261,18 @@ EXPLAIN
           "filtered": 100,
           "materialized": {
             "unique": 1,
-            "query_block": {
-              "select_id": 2,
-              "having_condition": "`MAX(t2.y)` < 14",
-              "temporary_table": {
-                "table": {
-                  "table_name": "t2",
-                  "access_type": "ALL",
-                  "rows": 4,
-                  "filtered": 100,
-                  "attached_condition": "t2.x < 5"
+            "materialization": {
+              "query_block": {
+                "select_id": 2,
+                "having_condition": "`MAX(t2.y)` < 14",
+                "temporary_table": {
+                  "table": {
+                    "table_name": "t2",
+                    "access_type": "ALL",
+                    "rows": 4,
+                    "filtered": 100,
+                    "attached_condition": "t2.x < 5"
+                  }
                 }
               }
             }
@@ -1307,16 +1313,18 @@ EXPLAIN
           "filtered": 100,
           "materialized": {
             "unique": 1,
-            "query_block": {
-              "select_id": 3,
-              "having_condition": "`MAX(t2.y)` < 14",
-              "temporary_table": {
-                "table": {
-                  "table_name": "t2",
-                  "access_type": "ALL",
-                  "rows": 4,
-                  "filtered": 100,
-                  "attached_condition": "t2.x < 5"
+            "materialization": {
+              "query_block": {
+                "select_id": 3,
+                "having_condition": "`MAX(t2.y)` < 14",
+                "temporary_table": {
+                  "table": {
+                    "table_name": "t2",
+                    "access_type": "ALL",
+                    "rows": 4,
+                    "filtered": 100,
+                    "attached_condition": "t2.x < 5"
+                  }
                 }
               }
             }

@@ -1729,6 +1729,11 @@ bool JOIN::build_explain()
         curr_tab->tracker= tmp->get_using_temporary_read_tracker();
     }
   }
+  if (is_in_subquery())
+  {
+    Item_in_subselect *subq= unit->item->get_IN_subquery();
+    subq->init_subq_materialization_tracker(thd);
+  }
   DBUG_RETURN(0);
 }
 
