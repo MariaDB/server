@@ -2769,9 +2769,7 @@ static void initialize_readline ()
   array of matches, or NULL if there aren't any.
 */
 
-static char **new_mysql_completion(const char *text,
-                                   int start __attribute__((unused)),
-                                   int end __attribute__((unused)))
+static char **new_mysql_completion(const char *text, int, int)
 {
   if (!status.batch && !quick)
 #if defined(USE_NEW_READLINE_INTERFACE)
@@ -3094,8 +3092,7 @@ static void print_help_item(MYSQL_ROW *cur, int num_name, int num_cat, char *las
 }
 
 
-static int com_server_help(String *buffer __attribute__((unused)),
-			   char *line __attribute__((unused)), char *help_arg)
+static int com_server_help(String *buffer, char *, char *help_arg)
 {
   MYSQL_ROW cur;
   const char *server_cmd;
@@ -3197,18 +3194,16 @@ err:
   return error;
 }
 
-static int
-com_help(String *buffer __attribute__((unused)),
-	 char *line __attribute__((unused)))
+static int com_help(String *buffer, char *line)
 {
   int i, j;
   char * help_arg= strchr(line,' '), buff[32], *end;
   if (help_arg)
   {
-    while (my_isspace(charset_info,*help_arg))
+    while (my_isspace(charset_info, *help_arg))
       help_arg++;
 	if (*help_arg)	  
-	  return com_server_help(buffer,line,help_arg);
+	  return com_server_help(buffer, line, help_arg);
   }
 
   put_info("\nGeneral information about MariaDB can be found at\n"
@@ -3231,9 +3226,7 @@ com_help(String *buffer __attribute__((unused)),
 }
 
 
-	/* ARGSUSED */
-static int
-com_clear(String *buffer,char *line __attribute__((unused)))
+static int com_clear(String *buffer,char *)
 {
 #ifdef HAVE_READLINE
   if (status.add_to_history)
@@ -3243,9 +3236,7 @@ com_clear(String *buffer,char *line __attribute__((unused)))
   return 0;
 }
 
-	/* ARGSUSED */
-static int
-com_charset(String *buffer __attribute__((unused)), char *line)
+static int com_charset(String *, char *line)
 {
   char buff[256], *param;
   CHARSET_INFO * new_cs;
@@ -3276,8 +3267,7 @@ com_charset(String *buffer __attribute__((unused)), char *line)
 */
 
 
-static int
-com_go(String *buffer,char *line __attribute__((unused)))
+static int com_go(String *buffer, char *)
 {
   char		buff[200]; /* about 110 chars used so far */
   char		time_buff[53+3+1]; /* time max + space & parens + NUL */
@@ -3856,9 +3846,7 @@ tee_print_sized_data(const char *data, unsigned int data_length, unsigned int to
 }
 
 
-
-static void
-print_table_data_html(MYSQL_RES *result)
+static void print_table_data_html(MYSQL_RES *result)
 {
   MYSQL_ROW	cur;
   MYSQL_FIELD	*field;
@@ -4154,15 +4142,13 @@ print_tab_data(MYSQL_RES *result)
   }
 }
 
-static int
-com_tee(String *buffer __attribute__((unused)),
-        char *line __attribute__((unused)))
+static int com_tee(String *, char *line)
 {
   char file_name[FN_REFLEN], *end, *param;
 
   if (status.batch)
     return 0;
-  while (my_isspace(charset_info,*line))
+  while (my_isspace(charset_info, *line))
     line++;
   if (!(param = strchr(line, ' '))) // if outfile wasn't given, use the default
   {
@@ -4199,9 +4185,7 @@ com_tee(String *buffer __attribute__((unused)),
 }
 
 
-static int
-com_notee(String *buffer __attribute__((unused)),
-	  char *line __attribute__((unused)))
+static int com_notee(String *, char *)
 {
   if (opt_outfile)
     end_tee();
@@ -4214,9 +4198,7 @@ com_notee(String *buffer __attribute__((unused)),
 */
 
 #ifdef USE_POPEN
-static int
-com_pager(String *buffer __attribute__((unused)),
-          char *line __attribute__((unused)))
+static int com_pager(String *, char *line)
 {
   char pager_name[FN_REFLEN], *end, *param;
 
@@ -4258,9 +4240,7 @@ com_pager(String *buffer __attribute__((unused)),
 }
 
 
-static int
-com_nopager(String *buffer __attribute__((unused)),
-	    char *line __attribute__((unused)))
+static int com_nopager(String *, char *)
 {
   strmov(pager, "stdout");
   opt_nopager=1;
@@ -4272,7 +4252,7 @@ com_nopager(String *buffer __attribute__((unused)),
 
 #ifdef USE_POPEN
 static int
-com_edit(String *buffer,char *line __attribute__((unused)))
+com_edit(String *buffer,char *)
 {
   char	filename[FN_REFLEN],buff[160];
   int	fd,tmp,error;
@@ -4319,17 +4299,15 @@ err:
 
 /* If arg is given, exit without errors. This happens on command 'quit' */
 
-static int
-com_quit(String *buffer __attribute__((unused)),
-	 char *line __attribute__((unused)))
+static int com_quit(String *, char *)
 {
   status.exit_status=0;
   return 1;
 }
 
 static int
-com_rehash(String *buffer __attribute__((unused)),
-	 char *line __attribute__((unused)))
+com_rehash(String *,
+	 char *)
 {
 #ifdef HAVE_READLINE
   build_completion_hash(1, 0);
@@ -4339,9 +4317,7 @@ com_rehash(String *buffer __attribute__((unused)),
 
 
 #ifdef USE_POPEN
-static int
-com_shell(String *buffer __attribute__((unused)),
-          char *line __attribute__((unused)))
+static int com_shell(String *, char *line)
 {
   char *shell_cmd;
 
@@ -4367,8 +4343,7 @@ com_shell(String *buffer __attribute__((unused)),
 #endif
 
 
-static int
-com_print(String *buffer,char *line __attribute__((unused)))
+static int com_print(String *buffer,char *)
 {
   tee_puts("--------------", stdout);
   (void) tee_fputs(buffer->c_ptr(), stdout);
@@ -4378,9 +4353,8 @@ com_print(String *buffer,char *line __attribute__((unused)))
   return 0;					/* If empty buffer */
 }
 
-	/* ARGSUSED */
-static int
-com_connect(String *buffer, char *line)
+
+static int com_connect(String *buffer, char *line)
 {
   char *tmp, buff[256];
   my_bool save_rehash= opt_rehash;
@@ -4433,8 +4407,7 @@ com_connect(String *buffer, char *line)
 }
 
 
-static int com_source(String *buffer __attribute__((unused)),
-                      char *line)
+static int com_source(String *, char *line)
 {
   char source_name[FN_REFLEN], *end, *param;
   LINE_BUFFER *line_buff;
@@ -4498,9 +4471,7 @@ static int com_source(String *buffer __attribute__((unused)),
 }
 
 
-	/* ARGSUSED */
-static int
-com_delimiter(String *buffer __attribute__((unused)), char *line)
+static int com_delimiter(String *, char *line)
 {
   char buff[256], *tmp;
 
@@ -4527,9 +4498,7 @@ com_delimiter(String *buffer __attribute__((unused)), char *line)
   return 0;
 }
 
-	/* ARGSUSED */
-static int
-com_use(String *buffer __attribute__((unused)), char *line)
+static int com_use(String *, char *line)
 {
   char *tmp, buff[FN_REFLEN + 1];
   int select_db;
@@ -4602,18 +4571,14 @@ com_use(String *buffer __attribute__((unused)), char *line)
   return 0;
 }
 
-static int
-com_warnings(String *buffer __attribute__((unused)),
-   char *line __attribute__((unused)))
+static int com_warnings(String *, char *)
 {
   show_warnings = 1;
   put_info("Show warnings enabled.",INFO_INFO);
   return 0;
 }
 
-static int
-com_nowarnings(String *buffer __attribute__((unused)),
-   char *line __attribute__((unused)))
+static int com_nowarnings(String *, char *)
 {
   show_warnings = 0;
   put_info("Show warnings disabled.",INFO_INFO);
@@ -4858,10 +4823,7 @@ sql_connect(char *host,char *database,char *user,char *password,uint silent)
 }
 
 
-
-static int
-com_status(String *buffer __attribute__((unused)),
-	   char *line __attribute__((unused)))
+static int com_status(String *, char *)
 {
   const char *status_str;
   char buff[40];
@@ -4985,8 +4947,7 @@ select_limit, max_join_size);
   return 0;
 }
 
-static const char *
-server_version_string(MYSQL *con)
+static const char * server_version_string(MYSQL *con)
 {
   /* Only one thread calls this, so no synchronization is needed */
   if (server_version == NULL)
@@ -5111,8 +5072,7 @@ put_info(const char *str,INFO_TYPE info_type, uint error, const char *sqlstate)
 }
 
 
-static int
-put_error(MYSQL *con)
+static int put_error(MYSQL *con)
 {
   return put_info(mysql_error(con), INFO_ERROR, mysql_errno(con),
 		  mysql_sqlstate(con));
@@ -5178,7 +5138,7 @@ void tee_putc(int c, FILE *file)
 
   len("4294967296 days, 23 hours, 59 minutes, 60.000 seconds")  ->  53
 */
-static void nice_time(double sec,char *buff,bool part_second)
+static void nice_time(double sec, char *buff, bool part_second)
 {
   ulong tmp;
   if (sec >= 3600.0*24)
@@ -5429,8 +5389,7 @@ static void init_username()
   }
 }
 
-static int com_prompt(String *buffer __attribute__((unused)),
-                      char *line)
+static int com_prompt(String *, char *line)
 {
   char *ptr=strchr(line, ' ');
   prompt_counter = 0;
