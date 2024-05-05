@@ -1154,9 +1154,6 @@ error:
   DBUG_RETURN(0);
 }
 
-#undef my_error
-extern "C" void my_error(unsigned int nr, unsigned long MyFlags, ...);
-
 my_bool spider_copy_tables_init_body(
   UDF_INIT *initid,
   UDF_ARGS *args,
@@ -1165,7 +1162,7 @@ my_bool spider_copy_tables_init_body(
   DBUG_ENTER("spider_copy_tables_init_body");
   if (!spider_hton_ptr)
   {
-    my_error(ER_PLUGIN_IS_NOT_LOADED, MYF(0), "SPIDER");
+    strcpy(message, "Plugin 'SPIDER' is not loaded");
     goto error;
   }
   if (args->arg_count != 3 && args->arg_count != 4)

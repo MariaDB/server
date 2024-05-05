@@ -1,13 +1,13 @@
 CREATE FUNCTION spider_direct_sql RETURNS INT SONAME 'ha_spider.so';
---error ER_PLUGIN_IS_NOT_LOADED
+--error ER_CANT_INITIALIZE_UDF
 SELECT spider_direct_sql ('SELECT * FROM s','a','srv "b"');
 
 CREATE FUNCTION spider_bg_direct_sql RETURNS INT SONAME 'ha_spider.so';
---error ER_PLUGIN_IS_NOT_LOADED
+--error ER_CANT_INITIALIZE_UDF
 SELECT spider_bg_direct_sql ('SELECT * FROM s','a','srv "b"');
 
 CREATE FUNCTION spider_copy_tables RETURNS INT SONAME 'ha_spider.so';
---error ER_PLUGIN_IS_NOT_LOADED
+--error ER_CANT_INITIALIZE_UDF
 SELECT spider_copy_tables ('t', '0', '0');
 
 # spider_flush_table_mon_cache does not require spider init to function
