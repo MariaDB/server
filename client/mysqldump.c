@@ -753,56 +753,59 @@ static void write_header(FILE *sql_file, const char *db_name)
     fputs(">\n", sql_file);
     check_io(sql_file);
   }
-  else if (!opt_compact)
+  else
   {
-    print_comment(sql_file, 0,
-                  "-- MariaDB dump %s  Distrib %s, for %s (%s)\n--\n",
-                  DUMP_VERSION, MYSQL_SERVER_VERSION, SYSTEM_TYPE,
-                  MACHINE_TYPE);
-    print_comment(sql_file, 0, "-- Host: %s    ",
-                  fix_for_comment(current_host ? current_host : "localhost"));
-    print_comment(sql_file, 0, "Database: %s\n",
-                  fix_for_comment(db_name ? db_name : ""));
-    print_comment(sql_file, 0,
-                  "-- ------------------------------------------------------\n"
-                 );
-    print_comment(sql_file, 0, "-- Server version\t%s\n",
-                  mysql_get_server_info(&mysql_connection));
-
-    if (!opt_logging)
-      fprintf(sql_file,
-"\n/*M!100101 SET LOCAL SQL_LOG_OFF=0, LOCAL SLOW_QUERY_LOG=0 */;");
-
-    if (opt_set_charset)
-      fprintf(sql_file,
-"\n/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;"
-"\n/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;"
-"\n/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;"
-"\n/*!40101 SET NAMES %s */;\n",default_charset);
-
-    if (opt_tz_utc)
+    fprintf(sql_file, "/*!999999\\- enable the sandbox mode */ \n");
+    if (!opt_compact)
     {
-      fprintf(sql_file, "/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;\n");
-      fprintf(sql_file, "/*!40103 SET TIME_ZONE='+00:00' */;\n");
-    }
+      print_comment(sql_file, 0,
+                    "-- MariaDB dump %s  Distrib %s, for %s (%s)\n--\n",
+                    DUMP_VERSION, MYSQL_SERVER_VERSION, SYSTEM_TYPE,
+                    MACHINE_TYPE);
+      print_comment(sql_file, 0, "-- Host: %s    ",
+                    fix_for_comment(current_host ? current_host : "localhost"));
+      print_comment(sql_file, 0, "Database: %s\n",
+                    fix_for_comment(db_name ? db_name : ""));
+      print_comment(sql_file, 0,
+                    "-- ------------------------------------------------------\n"
+                   );
+      print_comment(sql_file, 0, "-- Server version\t%s\n",
+                    mysql_get_server_info(&mysql_connection));
 
-    if (!path)
-    {
-      if (!opt_no_create_info)
+      if (!opt_logging)
+        fprintf(sql_file,
+          "\n/*M!100101 SET LOCAL SQL_LOG_OFF=0, LOCAL SLOW_QUERY_LOG=0 */;");
+
+      if (opt_set_charset)
+        fprintf(sql_file,
+          "\n/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;"
+          "\n/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;"
+          "\n/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;"
+          "\n/*!40101 SET NAMES %s */;\n",default_charset);
+
+      if (opt_tz_utc)
       {
-        /* We don't need unique checks as the table is created just before */
-        fprintf(md_result_file,"\
-/*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;\n");
+        fprintf(sql_file, "/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;\n");
+        fprintf(sql_file, "/*!40103 SET TIME_ZONE='+00:00' */;\n");
       }
-      fprintf(md_result_file,"\
-/*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;\n\
-");
+
+      if (!path)
+      {
+        if (!opt_no_create_info)
+        {
+          /* We don't need unique checks as the table is created just before */
+          fprintf(md_result_file,
+            "/*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;\n");
+        }
+        fprintf(md_result_file,
+          "/*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;\n");
+      }
+      fprintf(sql_file,
+              "/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='%s%s%s' */;\n"
+              "/*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;\n",
+              path?"":"NO_AUTO_VALUE_ON_ZERO",compatible_mode_normal_str[0]==0?"":",",
+              compatible_mode_normal_str);
     }
-    fprintf(sql_file,
-            "/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='%s%s%s' */;\n"
-            "/*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;\n",
-            path?"":"NO_AUTO_VALUE_ON_ZERO",compatible_mode_normal_str[0]==0?"":",",
-            compatible_mode_normal_str);
     check_io(sql_file);
   }
 } /* write_header */
