@@ -5400,31 +5400,32 @@ thd_rpl_deadlock_check(MYSQL_THD thd, MYSQL_THD other_thd)
     return 0;
   if (!rgi->is_parallel_exec)
     return 0;
-  if (rgi->rli == other_rgi->rli)
+  if (rgi->rli == other_rgi->rli &&
+      rgi->current_gtid.domain_id == other_rgi->current_gtid.domain_id)
   {
     /*
-      Within the same master connection, we can compare transaction order on
-      the GTID sub_id, and rollback the later transaction to allow the earlier
-      transaction to commit first.
+      Within the same master connection and domain, we can compare transaction
+      order on the GTID sub_id, and rollback the later transaction to allow the
+      earlier transaction to commit first.
     */
-    if (!rgi->gtid_sub_id || !other_rgi->gtid_sub_id)
-      return 0;
-    if (rgi->gtid_sub_id > other_rgi->gtid_sub_id)
+    if (!rgi->gtid_sub_id || !other_rgi->gtid_sub_id ||
+        rgi->gtid_sub_id > other_rgi->gtid_sub_id)
       return 0;
   }
   else
   {
     /*
-      Lock conflicts between different master connection should usually not
-      occur, but could still happen if user is running some special setup that
-      tolerates conflicting updates (or in case of user error). We do not have a
-      pre-defined ordering of transactions in this case, but we still need to
-      handle conflicts in _some_ way to avoid undetected deadlocks and hangs.
+      Lock conflicts between different master connections or domains should
+      usually not occur, but could still happen if user is running some
+      special setup that tolerates conflicting updates (or in case of user
+      error). We do not have a pre-defined ordering of transactions in this
+      case, but we still need to handle conflicts in _some_ way to avoid
+      undetected deadlocks and hangs.
 
       We do this by rolling back and retrying any transaction that is being
       _optimistically_ applied. This can be overly conservative in some cases,
-      but should be fine as conflicts between different master connections are
-      not expected to be common. And it ensures that we won't end up in a
+      but should be fine as conflicts between different master connections /
+      domains are not common. And it ensures that we won't end up in a
       deadlock and hang due to a transaction doing wait_for_prior_commit while
       holding locks that block something in another master connection.
     */
