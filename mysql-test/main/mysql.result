@@ -633,3 +633,27 @@ drop table t1;
 WARNING: option '--enable-cleartext-plugin' is obsolete.
 1
 1
+# End of 10.3 tests
+#
+# MDEV-21778 Disable system commands in mysql/mariadb client
+#
+ERROR at line 1: Not allowed in the sandbox mode
+1
+ERROR at line 1: Not allowed in the sandbox mode
+2
+ERROR at line 1: Not allowed in the sandbox mode
+3
+1
+entering sandbox
+system
+tee
+source
+^^^
+2
+entering sandbox
+system
+tee
+source
+^^^
+3
+# End of 10.5 tests

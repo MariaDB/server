@@ -136,7 +136,7 @@ typedef struct st_status
   ulong query_start_line;
   char *file_name;
   LINE_BUFFER *line_buff;
-  bool batch,add_to_history;
+  bool batch, add_to_history, sandbox;
 } STATUS;
 
 
@@ -154,7 +154,7 @@ static my_bool ignore_errors=0,wait_flag=0,quick=0,
 	       vertical=0, line_numbers=1, column_names=1,opt_html=0,
                opt_xml=0,opt_nopager=1, opt_outfile=0, named_cmds= 0,
 	       tty_password= 0, opt_nobeep=0, opt_reconnect=1,
-	       opt_secure_auth= 0,
+               opt_secure_auth= 0,
                default_pager_set= 0, opt_sigint_ignore= 0,
                auto_vertical_output= 0,
                show_warnings= 0, executing_query= 0,
@@ -235,7 +235,8 @@ static int com_quit(String *str,char*),
 	   com_rehash(String *str, char*), com_tee(String *str, char*),
            com_notee(String *str, char*), com_charset(String *str,char*),
            com_prompt(String *str, char*), com_delimiter(String *str, char*),
-     com_warnings(String *str, char*), com_nowarnings(String *str, char*);
+     com_warnings(String *str, char*), com_nowarnings(String *str, char*),
+     com_sandbox(String *str, char*);
 
 #ifdef USE_POPEN
 static int com_nopager(String *str, char*), com_pager(String *str, char*),
@@ -311,6 +312,8 @@ static COMMANDS commands[] = {
   { "prompt", 'R', com_prompt, 1, "Change your mysql prompt."},
   { "quit",   'q', com_quit,   0, "Quit mysql." },
   { "rehash", '#', com_rehash, 0, "Rebuild completion hash." },
+  { "sandbox", '-', com_sandbox, 0,
+    "Disallow commands that access the file system (except \\P without an argument and \\e)." },
   { "source", '.', com_source, 1,
     "Execute an SQL script file. Takes a file name as an argument."},
   { "status", 's', com_status, 0, "Get status information from the server."},
@@ -1675,6 +1678,8 @@ static struct my_option my_long_options[] =
    &safe_updates, &safe_updates, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"i-am-a-dummy", 'U', "Synonym for option --safe-updates, -U.",
    &safe_updates, &safe_updates, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+  {"sandbox", 0, "Disallow commands that access the file system (except \\P without an argument and \\e).",
+   &status.sandbox, &status.sandbox, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"secure-auth", 0, "Refuse client connecting to server if it"
     " uses old (pre-4.1.1) protocol.", &opt_secure_auth,
     &opt_secure_auth, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
@@ -4146,6 +4151,8 @@ static int com_tee(String *, char *line)
 {
   char file_name[FN_REFLEN], *end, *param;
 
+  if (status.sandbox)
+    return put_info("Not allowed in the sandbox mode", INFO_ERROR, 0);
   if (status.batch)
     return 0;
   while (my_isspace(charset_info, *line))
@@ -4226,6 +4233,8 @@ static int com_pager(String *, char *line)
   }
   else
   {
+    if (status.sandbox)
+      return put_info("Not allowed in the sandbox mode", INFO_ERROR, 0);
     end= strmake_buf(pager_name, param);
     while (end > pager_name && (my_isspace(charset_info,end[-1]) || 
                                 my_iscntrl(charset_info,end[-1])))
@@ -4320,6 +4329,9 @@ com_rehash(String *,
 static int com_shell(String *, char *line)
 {
   char *shell_cmd;
+
+  if (status.sandbox)
+    return put_info("Not allowed in the sandbox mode", INFO_ERROR, 0);
 
   /* Skip space from line begin */
   while (my_isspace(charset_info, *line))
@@ -4416,6 +4428,9 @@ static int com_source(String *, char *line)
   FILE *sql_file;
   my_bool save_ignore_errors;
 
+  if (status.sandbox)
+    return put_info("Not allowed in the sandbox mode", INFO_ERROR, 0);
+
   /* Skip space from file name */
   while (my_isspace(charset_info,*line))
     line++;
@@ -4450,6 +4465,7 @@ static int com_source(String *, char *line)
   bfill((char*) &status,sizeof(status),(char) 0);
 
   status.batch=old_status.batch;		// Run in batch mode
+  status.sandbox=old_status.sandbox;
   status.line_buff=line_buff;
   status.file_name=source_name;
   glob_buffer.length(0);			// Empty command buffer
@@ -4568,6 +4584,13 @@ static int com_use(String *, char *line)
   }
 
   put_info("Database changed",INFO_INFO);
+  return 0;
+}
+
+static int com_sandbox(String *, char *)
+{
+  status.sandbox= 1;
+  put_info("Sandbox mode.", INFO_INFO);
   return 0;
 }
 
