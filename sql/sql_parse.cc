@@ -5993,6 +5993,24 @@ finish:
   thd->wsrep_PA_safe= true;
 #endif /* WITH_WSREP */
 
+  /*
+    Reset the connection_name to contain a null string, if the
+    pointer points to the same space as that of the system variable
+    default_master_connection.
+
+    We do this because the system variable may be updated which could
+    free the pointer and create a new one, causing use-after-free for
+    re-execution of prepared statements and stored procedures where
+    the LEX may be reused.
+
+    This allows connection_name to be set again be to the system
+    variable pointer in the next call of this function (see earlier in
+    this function), after any possible updates to the system variable.
+  */
+  if (thd->lex->mi.connection_name.str ==
+      thd->variables.default_master_connection.str)
+    thd->lex->mi.connection_name= null_clex_str;
+
   if (lex->sql_command != SQLCOM_SET_OPTION)
     DEBUG_SYNC(thd, "end_of_statement");
   DBUG_RETURN(res || thd->is_error());
