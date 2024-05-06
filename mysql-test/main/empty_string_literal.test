@@ -25,3 +25,5 @@ flush tables;
 update t1 set a = 2;
 show create table t1;
 drop table t1;
+--disable_view_protocol
+--enable_view_protocol
