@@ -87,6 +87,7 @@ compact_deletes: MDEV-12663 : rocksdb.compact_deletes times out and causes other
 blind_delete_without_tx_api: MDEV-12286: rocksdb.blind_delete_without_tx_api test fails
 information_schema: MDEV-14372: unstable testcase
 
+bloomfilter2: MDEV-33789: rocksdb.bloomfilter2 failed on amd64-debian-12-rocksdb
 ##
 ## Tests that fail for some other reason
 ##
