@@ -41,16 +41,16 @@ MACRO(BUNDLE_PCRE2)
     SET(byproducts ${byproducts} BUILD_BYPRODUCTS ${file} ${file_d})
     SET_TARGET_PROPERTIES(${lib} PROPERTIES IMPORTED_LOCATION ${file})
   ENDFOREACH()
+
   FOREACH(v "" "_DEBUG" "_RELWITHDEBINFO" "_RELEASE" "_MINSIZEREL")
-    STRING(REPLACE "/WX" "" pcre2_flags${v} "${CMAKE_C_FLAGS${v}}")
-    SET(pcre2_flags${v} "${pcre2_flags${v}} -std=c99 ")
+    SET(pcre2_flags${v} "${CMAKE_C_FLAGS${v}}")
     IF(MSVC)
+      STRING(REPLACE "/WX" "" pcre2_flags${v} "${pcre2_flags${v}}")
       # Suppress a warning
       STRING(APPEND pcre2_flags${v} " /wd4244 /wd4267 " )
-      # Disable asan support
-      STRING(REPLACE "-fsanitize=address" "" pcre2_flags${v} "${pcre2_flags${v}}")
     ENDIF()
   ENDFOREACH()
+
   ExternalProject_Add(
     pcre2
     PREFIX   "${dir}"

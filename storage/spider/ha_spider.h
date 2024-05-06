@@ -791,10 +791,10 @@ public:
   bool auto_repair() const;
 #endif
   int disable_indexes(
-    uint mode
+    key_map map, bool persist
   );
   int enable_indexes(
-    uint mode
+    key_map map, bool persist
   );
   int check(
     THD* thd,

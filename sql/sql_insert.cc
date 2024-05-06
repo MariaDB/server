@@ -1881,14 +1881,31 @@ int write_record(THD *thd, TABLE *table, COPY_INFO *info, select_result *sink)
 	was used.  This ensures that we don't get a problem when the
 	whole range of the key has been used.
       */
-      if (info->handle_duplicates == DUP_REPLACE && table->next_number_field &&
+      if (info->handle_duplicates == DUP_REPLACE &&
           key_nr == table->s->next_number_index && insert_id_for_cur_row > 0)
 	goto err;
-      if (table->file->ha_table_flags() & HA_DUPLICATE_POS)
+      if (table->file->has_dup_ref())
       {
+        /*
+          If engine doesn't support HA_DUPLICATE_POS, the handler may init to
+          INDEX, but dup_ref could also be set by lookup_handled (and then,
+          lookup_errkey is set, f.ex. long unique duplicate).
+
+          In such case, handler would stay uninitialized, so do it here.
+         */
+        bool init_lookup_handler= table->file->lookup_errkey != (uint)-1 &&
+                                  table->file->inited == handler::NONE;
+        if (init_lookup_handler && table->file->ha_rnd_init_with_error(false))
+          goto err;
+
         DBUG_ASSERT(table->file->inited == handler::RND);
-	if (table->file->ha_rnd_pos(table->record[1],table->file->dup_ref))
-	  goto err;
+	int rnd_pos_err= table->file->ha_rnd_pos(table->record[1],
+                                                 table->file->dup_ref);
+
+        if (init_lookup_handler)
+          table->file->ha_rnd_end();
+        if (rnd_pos_err)
+          goto err;
       }
       else
       {

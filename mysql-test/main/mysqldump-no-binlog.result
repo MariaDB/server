@@ -1,1 +1,2 @@
 mariadb-dump: Error: Binlogging on server not active
+/*!999999\- enable the sandbox mode */ 

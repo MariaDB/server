@@ -1927,6 +1927,7 @@ extern "C" void unireg_abort(int exit_code)
   wsrep_sst_auth_free();
 #endif // WITH_WSREP
 
+  wait_for_signal_thread_to_end();
   clean_up(!opt_abort && (exit_code || !opt_bootstrap)); /* purecov: inspected */
   DBUG_PRINT("quit",("done with cleanup in unireg_abort"));
   mysqld_exit(exit_code);
@@ -8241,7 +8242,7 @@ mysqld_get_one_option(const struct my_option *opt, const char *argument,
   case (int) OPT_SAFE:
     opt_specialflag|= SPECIAL_SAFE_MODE | SPECIAL_NO_NEW_FUNC;
     SYSVAR_AUTOSIZE(delay_key_write_options, (uint) DELAY_KEY_WRITE_NONE);
-    SYSVAR_AUTOSIZE(myisam_recover_options, HA_RECOVER_DEFAULT);
+    myisam_recover_options= HA_RECOVER_DEFAULT;
     ha_open_options&= ~(HA_OPEN_DELAY_KEY_WRITE);
 #ifdef HAVE_QUERY_CACHE
     SYSVAR_AUTOSIZE(query_cache_size, 0);

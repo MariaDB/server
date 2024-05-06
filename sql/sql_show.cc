@@ -9400,7 +9400,7 @@ ST_FIELD_INFO stat_fields_info[]=
   Column("PACKED",        Varchar(10), NULLABLE, "Packed",      OPEN_FRM_ONLY),
   Column("NULLABLE",      Varchar(3),  NOT_NULL, "Null",        OPEN_FRM_ONLY),
   Column("INDEX_TYPE",    Varchar(16), NOT_NULL, "Index_type",  OPEN_FULL_TABLE),
-  Column("COMMENT",       Varchar(16), NULLABLE, "Comment",     OPEN_FRM_ONLY),
+  Column("COMMENT",       Varchar(16), NULLABLE, "Comment",     OPEN_FULL_TABLE),
   Column("INDEX_COMMENT", Varchar(INDEX_COMMENT_MAXLEN),
                                        NOT_NULL, "Index_comment",OPEN_FRM_ONLY),
   CEnd()
@@ -9942,6 +9942,7 @@ ST_SCHEMA_TABLE schema_tables[]=
 int initialize_schema_table(st_plugin_int *plugin)
 {
   ST_SCHEMA_TABLE *schema_table;
+  int err;
   DBUG_ENTER("initialize_schema_table");
 
   if (!(schema_table= (ST_SCHEMA_TABLE *)my_malloc(key_memory_ST_SCHEMA_TABLE,
@@ -9958,12 +9959,15 @@ int initialize_schema_table(st_plugin_int *plugin)
     /* Make the name available to the init() function. */
     schema_table->table_name= plugin->name.str;
 
-    if (plugin->plugin->init(schema_table))
+    if ((err= plugin->plugin->init(schema_table)))
     {
-      sql_print_error("Plugin '%s' init function returned error.",
-                      plugin->name.str);
+      if (err != HA_ERR_RETRY_INIT)
+        sql_print_error("Plugin '%s' init function returned error.",
+                        plugin->name.str);
       plugin->data= NULL;
       my_free(schema_table);
+      if (err == HA_ERR_RETRY_INIT)
+        DBUG_RETURN(err);
       DBUG_RETURN(1);
     }
 

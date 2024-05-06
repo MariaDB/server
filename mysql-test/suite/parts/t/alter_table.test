@@ -1,13 +1,13 @@
 #
-# General errors with ALTER TABLE and partitions that doesn't have to be run
+# General bugs with ALTER TABLE and partitions that doesn't have to be run
 # on all engines
 #
 
 --source include/have_partition.inc
 
-#
-# MDEV-22649 SIGSEGV in ha_partition::create_partitioning_metadata on ALTER
-#
+--echo #
+--echo # MDEV-22649 SIGSEGV in ha_partition::create_partitioning_metadata on ALTER
+--echo #
 
 set @save_alter_algorithm= @@session.alter_algorithm;
 SET SESSION alter_algorithm=4;
@@ -19,18 +19,18 @@ DROP table if exists t1;
 set @@session.alter_algorithm= @save_alter_algorithm;
 
 
-#
-# MDEV-22804 SIGSEGV in ha_partition::create_partitioning_metadata |
-# ERROR 1507 (HY000): Error in list of partitions to DROP
-#
+--echo #
+--echo # MDEV-22804 SIGSEGV in ha_partition::create_partitioning_metadata |
+--echo # ERROR 1507 (HY000): Error in list of partitions to DROP
+--echo #
 
 CREATE TABLE t1 (a INT) PARTITION BY RANGE(a) SUBPARTITION BY HASH(a) (PARTITION p VALUES LESS THAN (5) (SUBPARTITION sp, SUBPARTITION sp1), PARTITION p1 VALUES LESS THAN MAXVALUE (SUBPARTITION sp2, SUBPARTITION sp3));
 ALTER TABLE t1 DROP PARTITION p;
 DROP TABLE if exists t1;
 
-#
-# MDEV-23357 Server crashes in Sql_cmd_alter_table_exchange_partition::exchange_partition
-#
+--echo #
+--echo # MDEV-23357 Server crashes in Sql_cmd_alter_table_exchange_partition::exchange_partition
+--echo #
 CREATE TABLE t1 (i INT);
 CREATE VIEW v1 as SELECT * FROM t1;
 CREATE TABLE t2 (i INT);
@@ -38,3 +38,18 @@ CREATE TABLE t2 (i INT);
 ALTER TABLE v1 EXCHANGE PARTITION p2 WITH TABLE t2 ;
 DROP VIEW v1;
 DROP TABLE t1, t2;
+
+--echo #
+--echo # MDEV-25102 UNIQUE USING HASH error after ALTER ... DISABLE KEYS
+--echo #
+create table t1 (i1 int primary key, i2 int, d1 date, key(i2))
+partition by hash(i1) partitions 3;
+insert into t1 values(0, 1, '2010-10-10');
+select index_name, comment from information_schema.statistics where table_schema='test' and table_name='t1';
+alter table t1 disable keys;
+select index_name, comment from information_schema.statistics where table_schema='test' and table_name='t1';
+alter table t1 add partition (partition p4);
+select index_name, comment from information_schema.statistics where table_schema='test' and table_name='t1';
+drop table t1;
+
+--echo # End of 10.5 tests

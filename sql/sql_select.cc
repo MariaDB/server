@@ -20401,7 +20401,7 @@ create_internal_tmp_table_from_heap(THD *thd, TABLE *table,
   if (open_tmp_table(&new_table))
     goto err1;
   if (table->file->indexes_are_disabled())
-    new_table.file->ha_disable_indexes(HA_KEY_SWITCH_ALL);
+    new_table.file->ha_disable_indexes(key_map(0), false);
   table->file->ha_index_or_rnd_end();
   if (table->file->ha_rnd_init_with_error(1))
     DBUG_RETURN(1);

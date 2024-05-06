@@ -506,11 +506,6 @@ public:
     m_flags&= ~flag;
   }
 
-  /**
-    Text used in THD::proc_info when the slave SQL thread is delaying.
-  */
-  static const char *const state_delaying_string;
-
   bool flush();
 
   /**
@@ -533,7 +528,7 @@ public:
   {
     mysql_mutex_assert_owner(&data_lock);
     sql_delay_end= delay_end;
-    thd_proc_info(sql_driver_thd, state_delaying_string);
+    THD_STAGE_INFO(sql_driver_thd, stage_sql_thd_waiting_until_delay);
   }
 
   int32 get_sql_delay() { return sql_delay; }

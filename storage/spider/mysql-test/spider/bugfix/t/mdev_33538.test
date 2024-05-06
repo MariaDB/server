@@ -1,0 +1,2 @@
+# we check that information_schema.SPIDER_ALLOC_MEM exists
+show create table information_schema.SPIDER_ALLOC_MEM;

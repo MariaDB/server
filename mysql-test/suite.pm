@@ -4,14 +4,7 @@ use My::Platform;
 @ISA = qw(My::Suite);
 
 sub skip_combinations {
-  my @combinations;
-
-  # disable innodb combinations for configurations that were not built
-  push @combinations, 'innodb_plugin' unless $ENV{HA_INNODB_SO};
-
-  push @combinations, 'innodb' unless $::mysqld_variables{'innodb'} eq "ON";
-
-  my %skip = ( 'include/have_innodb.combinations' => [ @combinations ]);
+  my %skip;
 
   $skip{'include/innodb_encrypt_log.combinations'} = [ 'crypt' ]
                 unless $ENV{DEBUG_KEY_MANAGEMENT_SO};

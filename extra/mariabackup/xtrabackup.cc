@@ -4,7 +4,7 @@ MariaBackup: hot backup tool for InnoDB
 Originally Created 3/3/2009 Yasufumi Kinoshita
 Written by Alexey Kopytov, Aleksandr Kuzminsky, Stewart Smith, Vadim Tkachenko,
 Yasufumi Kinoshita, Ignacio Nin and Baron Schwartz.
-(c) 2017, 2022, MariaDB Corporation.
+(c) 2017, 2024, MariaDB Corporation.
 Portions written by Marko Mäkelä.
 
 This program is free software; you can redistribute it and/or modify
@@ -370,6 +370,7 @@ my_bool opt_no_backup_locks = FALSE;
 my_bool opt_decompress = FALSE;
 my_bool opt_remove_original;
 my_bool opt_log_innodb_page_corruption;
+my_bool tty_password= FALSE;
 
 my_bool opt_lock_ddl_per_table = FALSE;
 static my_bool opt_check_privileges;
@@ -1367,7 +1368,7 @@ struct my_option xb_client_options[]= {
      "This option specifies the password to use "
      "when connecting to the database. It accepts a string argument.  "
      "See mysql --help for details.",
-     0, 0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+     0, 0, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
 
     {"protocol", OPT_PROTOCOL,
      "The protocol to use for connection (tcp, socket, pipe, memory).", 0, 0,
@@ -1683,7 +1684,7 @@ struct my_option xb_server_options[] =
    &aria_log_dir_path, &aria_log_dir_path,
    0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 
-  {"open_files_limit", OPT_OPEN_FILES_LIMIT, "the maximum number of file "
+  {"open_files_limit", 0, "the maximum number of file "
    "descriptors to reserve with setrlimit().",
    (G_PTR*) &xb_open_files_limit, (G_PTR*) &xb_open_files_limit, 0, GET_ULONG,
    REQUIRED_ARG, 0, 0, UINT_MAX, 0, 1, 0},
@@ -2043,6 +2044,7 @@ xb_get_one_option(const struct my_option *opt,
     break;
   case 'p':
     opt_password = argument;
+    tty_password = argument == NULL;
     break;
   case OPT_PROTOCOL:
     if (argument)
@@ -6749,6 +6751,8 @@ void handle_options(int argc, char **argv, char ***argv_server,
           if (*start)
             start[1]= 0;
         }
+        else if (tty_password)
+          opt_password= my_get_tty_password(NullS);
 
         /* 4) Process --mysqld-args options, ignore unknown options */
 
