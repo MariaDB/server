@@ -1118,7 +1118,7 @@ static ulint btr_node_ptr_max_size(const dict_index_t* index)
 		/* Determine the maximum length of the index field. */
 
 		field_max_size = dict_col_get_fixed_size(col, comp);
-		if (field_max_size) {
+		if (field_max_size && field->fixed_len) {
 			/* dict_index_add_col() should guarantee this */
 			ut_ad(!field->prefix_len
 			      || field->fixed_len == field->prefix_len);

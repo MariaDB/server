@@ -177,8 +177,7 @@ int wsrep_apply_events(THD*        thd,
       break;
     }
 
-
-    if (!thd->variables.gtid_seq_no && wsrep_thd_is_toi(thd) && 
+    if (!thd->variables.gtid_seq_no && wsrep_thd_is_toi(thd) &&
         (ev->get_type_code() == QUERY_EVENT))
     { 
       uint64 seqno= wsrep_gtid_server.seqno_inc();
@@ -188,18 +187,10 @@ int wsrep_apply_events(THD*        thd,
         thd->variables.gtid_seq_no= seqno;
       }
     }
+
     /* Use the original server id for logging. */
     thd->set_server_id(ev->server_id);
-    thd->set_time();                            // time the query
-    thd->transaction->start_time.reset(thd);
     thd->lex->current_select= 0;
-    if (!ev->when)
-    {
-      my_hrtime_t hrtime= my_hrtime();
-      ev->when= hrtime_to_my_time(hrtime);
-      ev->when_sec_part= hrtime_sec_part(hrtime);
-    }
-
     thd->variables.option_bits=
       (thd->variables.option_bits & ~OPTION_SKIP_REPLICATION) |
       (ev->flags & LOG_EVENT_SKIP_REPLICATION_F ?  OPTION_SKIP_REPLICATION : 0);

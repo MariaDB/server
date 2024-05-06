@@ -1717,7 +1717,10 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
   */
   if (is_trans_keyword() || rpl_filter->db_ok(thd->db.str))
   {
-    thd->set_time(when, when_sec_part);
+#ifdef WITH_WSREP
+    if (!wsrep_thd_is_applying(thd))
+#endif
+      thd->set_time(when, when_sec_part);
     thd->set_query_and_id((char*)query_arg, q_len_arg,
                           thd->charset(), next_query_id());
     thd->variables.pseudo_thread_id= thread_id;		// for temp tables
@@ -2817,7 +2820,7 @@ int Load_log_event::do_apply_event(NET* net, rpl_group_info *rgi,
   thd->lex->local_file= local_fname;
   thd->reset_for_next_command(0);               // Errors are cleared above
 
-   /*
+  /*
     We test replicate_*_db rules. Note that we have already prepared
     the file to load, even if we are going to ignore and delete it
     now. So it is possible that we did a lot of disk writes for
@@ -2830,7 +2833,6 @@ int Load_log_event::do_apply_event(NET* net, rpl_group_info *rgi,
     filtering in the I/O thread (more efficient: no disk writes at
     all).
 
-
     Note:   We do not need to execute reset_one_shot_variables() if this
             db_ok() test fails.
     Reason: The db stored in binlog events is the same for SET and for
@@ -2842,7 +2844,10 @@ int Load_log_event::do_apply_event(NET* net, rpl_group_info *rgi,
   */
   if (rpl_filter->db_ok(thd->db.str))
   {
-    thd->set_time(when, when_sec_part);
+#ifdef WITH_WSREP
+    if (!wsrep_thd_is_applying(thd))
+#endif
+      thd->set_time(when, when_sec_part);
     thd->set_query_id(next_query_id());
     thd->get_stmt_da()->opt_clear_warning_info(thd->query_id);
 
@@ -5675,23 +5680,26 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
       TIMESTAMP column to a table with one.
       So we call set_time(), like in SBR. Presently it changes nothing.
     */
-    thd->set_time(when, when_sec_part);
+#ifdef WITH_WSREP
+    if (!wsrep_thd_is_applying(thd))
+#endif
+      thd->set_time(when, when_sec_part);
 
-     if (m_width == table->s->fields && bitmap_is_set_all(&m_cols))
+    if (m_width == table->s->fields && bitmap_is_set_all(&m_cols))
       set_flags(COMPLETE_ROWS_F);
 
-    /* 
+    /*
       Set tables write and read sets.
-      
+
       Read_set contains all slave columns (in case we are going to fetch
-      a complete record from slave)
-      
-      Write_set equals the m_cols bitmap sent from master but it can be 
-      longer if slave has extra columns. 
-     */ 
+      a complete record from slave).
+
+      Write_set equals the m_cols bitmap sent from master but it can be
+      longer if slave has extra columns.
+    */
 
     DBUG_PRINT_BITSET("debug", "Setting table's read_set from: %s", &m_cols);
-    
+
     bitmap_set_all(table->read_set);
     if (get_general_type_code() == DELETE_ROWS_EVENT ||
         get_general_type_code() == UPDATE_ROWS_EVENT)
