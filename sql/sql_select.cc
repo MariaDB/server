@@ -2312,8 +2312,12 @@ JOIN::optimize_inner()
     DBUG_RETURN(1);
   }
   if (select_lex->with_rownum && ! order && ! group_list &&
-      !select_distinct && conds && select_lex == unit->global_parameters())
+      !select_distinct && conds && select_lex == unit->global_parameters() &&
+      select_lex->first_rownum_optimization)
+  {
     optimize_rownum(thd, unit, conds);
+    select_lex->first_rownum_optimization= false;
+  }
 
   having= optimize_cond(this, having, join_list, TRUE,
                         &having_value, &having_equal);
