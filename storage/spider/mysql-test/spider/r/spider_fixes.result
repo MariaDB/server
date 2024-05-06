@@ -8,6 +8,7 @@ child3_1
 child3_2
 child3_3
 for slave1_1
+include/start_slave.inc
 
 drop and create databases
 connection master_1;
