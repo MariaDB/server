@@ -250,6 +250,7 @@ drop sequence s;
 --echo #
 --echo # MDEV-33348 ALTER TABLE lock waiting stages are indistinguishable
 --echo #
+--disable_view_protocol
 --connect (con2, localhost, root,,)
 
 create or replace table t1 (a int);
@@ -284,6 +285,7 @@ reap;
 
 drop table t1;
 --disconnect con2
+--enable_view_protocol
 
 --echo #
 --echo # End of 11.2 tests
