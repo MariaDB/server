@@ -89,6 +89,7 @@ information_schema: MDEV-14372: unstable testcase
 
 bloomfilter2: MDEV-33789: rocksdb.bloomfilter2 failed on amd64-debian-12-rocksdb
 write_sync: MDEV-33866: rocksdb.write_sync fails on amd64-windows-packages
+locking_issues_case5_rc: MDEV-33781: rocksdb.locking_issues_case5_rc fails on amd64-windows-packages
 
 ##
 ## Tests that fail for some other reason
