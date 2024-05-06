@@ -489,7 +489,6 @@ static ulint srv_undo_tablespace_open(bool create, const char* name, ulint i)
   char undo_name[sizeof "innodb_undo000"];
   ulint space_id= 0;
   ulint fsp_flags= 0;
-  ulint n_retries= 5;
 
   if (create)
   {
@@ -506,7 +505,6 @@ static ulint srv_undo_tablespace_open(bool create, const char* name, ulint i)
     }
   }
 
-undo_retry:
   pfs_os_file_t fh= os_file_create(innodb_data_file_key, name, OS_FILE_OPEN |
                                    OS_FILE_ON_ERROR_NO_EXIT |
                                    OS_FILE_ON_ERROR_SILENT,
@@ -516,6 +514,7 @@ undo_retry:
   if (!success)
     return 0;
 
+  ulint n_retries = 5;
   os_offset_t size= os_file_get_size(fh);
   ut_a(size != os_offset_t(-1));
 
@@ -523,14 +522,24 @@ undo_retry:
   {
     page_t *page= static_cast<byte*>(aligned_malloc(srv_page_size,
                                                     srv_page_size));
+undo_retry:
     if (os_file_read(IORequestRead, fh, page, 0, srv_page_size) !=
         DB_SUCCESS)
     {
 err_exit:
+      if (n_retries && srv_operation == SRV_OPERATION_BACKUP)
+      {
+        sql_print_information("InnoDB: Retrying to read undo "
+                              "tablespace %s", name);
+        n_retries--;
+        goto undo_retry;
+      }
       ib::error() << "Unable to read first page of file " << name;
       aligned_free(page);
       return ULINT_UNDEFINED;
     }
+
+    DBUG_EXECUTE_IF("undo_space_read_fail", goto err_exit;);
 
     uint32_t id= mach_read_from_4(FIL_PAGE_SPACE_ID + page);
     if (id == 0 || id >= SRV_SPACE_ID_UPPER_BOUND ||
@@ -576,7 +585,7 @@ err_exit:
     space->set_sizes(SRV_UNDO_TABLESPACE_SIZE_IN_PAGES);
     space->size= file->size= uint32_t(size >> srv_page_size_shift);
   }
-  else if (!(success = file->read_page0()))
+  else if (!file->read_page0())
   {
     os_file_close(file->handle);
     file->handle= OS_FILE_CLOSED;
@@ -585,18 +594,7 @@ err_exit:
   }
 
   mutex_exit(&fil_system.mutex);
-
-  if (!success && n_retries &&
-      srv_operation == SRV_OPERATION_BACKUP)
-  {
-    sql_print_information("InnoDB: Retrying to read undo "
-			  "tablespace %s", undo_name);
-    fil_space_free(space_id, false);
-    n_retries--;
-    goto undo_retry;
-  }
-
-  return success ? space_id : ULINT_UNDEFINED;
+  return space_id;
 }
 
 /** Check if undo tablespaces and redo log files exist before creating a
