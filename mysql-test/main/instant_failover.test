@@ -1,0 +1,64 @@
+# We need to ignore the redirection warnings in the server logs, e.g.
+# "Redirecting connection N via SSL/TLS to INSTANT_FAILOVER_TARGET=127.0.0.1:$MASTER_EXTRA_PORT (INSTANT_FAILOVER_MODE=ON)"
+call mtr.add_suppression("\\[Warning\\] Redirecting connection \\d+ via \\S+ to INSTANT_FAILOVER_TARGET=\\S+ \\(INSTANT_FAILOVER_MODE=\\w+\\)");
+
+##########
+--echo Verify that a TCP connection works with --disable-follow-instant-failovers (before enabling instant failover)
+--exec $MYSQL --disable-follow-instant-failovers --host=127.0.0.1 --port=$MASTER_MYPORT test -e "select 1 as default_port_tcp_works"
+
+--echo Verify that connections via local socket and extra port SUCCEED
+--connection default
+--connect local_sock,localhost,root,,test
+--disconnect local_sock
+--connect tcp_sock,127.0.0.1,root,,test,$MASTER_EXTRA_PORT
+--disconnect tcp_sock
+
+##########
+--echo Enable instant failover in its default mode (ON)
+--connection default
+set global instant_failover_mode=ON;
+--echo set global instant_failover_target="127.0.0.1:\$MASTER_EXTRA_PORT"
+--disable_query_log
+--eval set global instant_failover_target="127.0.0.1:$MASTER_EXTRA_PORT"
+--enable_query_log
+
+##########
+--echo With --disable-follow-instant-failovers, connecting to the default port should now fail
+--error 1
+--exec $MYSQL --disable-follow-instant-failovers --host=127.0.0.1 --port=$MASTER_MYPORT test -e "select 1"
+
+--echo With --follow-instant-failovers (the client library default), this should redirect to the extra port
+--connect OKAY,127.0.0.1,root,,test,$MASTER_MYPORT
+--disconnect OKAY
+
+##########
+--echo Setup a redirect loop, and verify that connections fail due to the loop
+--connection default
+--echo set global instant_failover_target="127.0.0.1:\$MASTER_MYPORT"
+--disable_query_log
+--eval set global instant_failover_target="127.0.0.1:$MASTER_MYPORT"
+--enable_query_log
+--replace_result $MASTER_MYSOCK MASTER_MYSOCK $MASTER_MYPORT MASTER_MYPORT
+--error ER_INSTANT_FAILOVER
+--connect fail_con,127.0.0.1,root,,test,$MASTER_MYPORT
+
+##########
+--echo Change instant failover mode to ALL, and verify that even connections via local socket and extra port now FAIL due to the loop
+--connection default
+set global instant_failover_mode=ALL;
+--replace_result $MASTER_MYSOCK MASTER_MYSOCK $MASTER_MYPORT MASTER_MYPORT
+--error ER_INSTANT_FAILOVER
+--connect fail_con,localhost,root,,test
+--replace_result $MASTER_MYSOCK MASTER_MYSOCK $MASTER_EXTRA_PORT MASTER_EXTRA_PORT
+--error ER_INSTANT_FAILOVER
+--connect fail_con,127.0.0.1,root,,test,$MASTER_EXTRA_PORT
+
+##########
+--echo Turn instant failover back off
+--connection default
+set global instant_failover_mode=OFF;
+set global instant_failover_target=DEFAULT;
+
+--echo Connections should now succeed again, even with --disable-follow-instant-failovers
+--error 0
+--exec $MYSQL --disable-follow-instant-failovers --host=127.0.0.1 --port=$MASTER_MYPORT test -e "select 1 as default_port_tcp_works"

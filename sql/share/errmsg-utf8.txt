@@ -12280,3 +12280,7 @@ ER_SEQUENCE_TABLE_CANNOT_HAVE_ANY_CONSTRAINTS
         eng "Sequence tables cannot have any constraints"
 ER_SEQUENCE_TABLE_ORDER_BY
         eng "ORDER BY"
+ER_INSTANT_FAILOVER
+        eng "|Server is directing clients to the alternative server '%1$s'|%1$s"
+        fra "|Ce serveur dirige ses clients vers le serveur alternatif '%1$s'|%1$s"
+        spa "|Este servidor está dirigiendo sus clientes al servidor alternativo '%1$s'|%1$s"

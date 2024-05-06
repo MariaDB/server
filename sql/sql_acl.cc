@@ -13904,6 +13904,84 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
   char *end;
   DBUG_ASSERT(mpvio->status == MPVIO_EXT::FAILURE);
 
+  enum enum_vio_type type= vio_type(thd->net.vio);
+  bool local_connection= (type == VIO_TYPE_SOCKET) || (type == VIO_TYPE_NAMEDPIPE);
+  uint16_t server_port = 0;
+  bool is_extra_port= FALSE;
+
+  if (!local_connection) {
+    /* We want to determine if the client is connecting to the TCP
+     * port optionally configured via the system variable
+     * EXTRA_PORT. This is intended for emergency/administrative
+     * use. (See
+     * https://mariadb.com/kb/en/thread-pool-in-mariadb/#configuring-the-extra-port)
+     *
+     * Based on its name and usage elsewhere in the server codebase,
+     * I expected that the net->vio->mysql_socket data structure
+     * would be populated at this point, including the member
+     * .is_extra_port whose name suggests it is precisely intended
+     * to convey this information.
+     *
+     * However, debugging with GDB demonstrates that
+     * net->vio->mysql_socket is NOT reliably populated, and in
+     * particular .is_extra_port appears to have the value 127
+     * regardless of whether client has connected via the extra
+     * port, or not.
+     *
+     * This means that we need to compare the local socket
+     * address to mysqld_extra_port (which holds the value of the
+     * EXTRA_PORT system vairable).
+     *
+     * That leads to another data structure which is inexplicably
+     * unpopulated at this point: net->vio->local. Since we cannot
+     * rely on that data structure either, we have to populate it
+     * ourselves here.
+     *
+     * FIXME: If net->vio->mysql_socket were sanely and reliably
+     * populated here, this entire 'if'-block could be replaced
+     * with:
+     *
+     *   is_extra_port= net->vio->mysql_socket->is_extra_port.
+     */
+
+    union _sockaddr_ipv46 {
+      struct sockaddr_storage _nvl; /* This is the actual type of net->vio->local */
+      struct sockaddr_in inaddr;
+      struct sockaddr_in6 in6addr;
+      struct sockaddr addr;
+    } *a = (union _sockaddr_ipv46 *)&net->vio->local;
+
+    if (a->_nvl.ss_family == AF_UNSPEC)
+    {
+      /* FIXME: If we could rely on net->vio->local having already
+       * been populated, we could remove this entire 'if' block.
+       */
+      socklen_t addrlen = sizeof(a->_nvl);
+      memset(a, 0, addrlen);
+      if (mysql_socket_getsockname(net->vio->mysql_socket, &a->addr, &addrlen) == -1)
+        DBUG_PRINT("error", ("mysql_socket_getsockname(net->vio->mysql_socket.fd = %d) failed: errno = %d",
+                             net->vio->mysql_socket.fd, errno));
+      else if (a->addr.sa_family != AF_INET && a->addr.sa_family != AF_INET6)
+        DBUG_PRINT("error", ("mysql_socket_getsockname(net->vio->mysql_socket.fd = %d) unexpectedly returned non-IP address family: %d",
+                             net->vio->mysql_socket.fd, a->addr.sa_family));
+    }
+
+    if (a->_nvl.ss_family == AF_INET || a->_nvl.ss_family == AF_INET6) {
+      server_port= ntohs(a->addr.sa_family == AF_INET
+                         ? a->inaddr.sin_port
+                         : a->in6addr.sin6_port);
+      DBUG_PRINT("info", ("Client has connected via TCP/IP port %d (EXTRA_PORT is %d)",
+                          server_port, mysqld_extra_port));
+
+      /* FIXME: Should we set net->vio->mysql_socket.is_extra_port directly,
+       * or will that have unintended side effects?
+       *
+       * Err on the side of caution and simply set a local variable.
+       */
+      is_extra_port= (server_port == mysqld_extra_port);
+    }
+  }
+
   if (pkt_len < MIN_HANDSHAKE_SIZE)
     return packet_error;
 
@@ -13978,6 +14056,42 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
     my_error(ER_SECURE_TRANSPORT_REQUIRED, MYF(0));
 
     return packet_error;
+  }
+
+  /* If the server is configured to redirect clients to another server (pre-authentication),
+   * then send an error packet to signal that here.
+   *
+   * FIXME: it makes absolutely no sense for this pre-authentication redirection mechanism
+   *   to be invoked HERE, in the middle of the authentication process. Unfortunately, the
+   *   existing code structure deeply entangles two logically separate concerns:
+   *
+   *   1) Encrypting and authenticating the client->server connection at the TRANSPORT layer
+   *      using TLS/SSL (TLS stands for TRANSPORT-layer security).
+   *   2) Negotiating an appropriate APPLICATION-layer authentication mode, and then
+   *      authenticating the client.
+   *
+   *   It would be much more logical, simple, and universal to do this redirection right at
+   *   the beginning of sql_authenticate(), but -- because of the above entangling -- the
+   *   transport layer encryption has not yet been enabled at that point.
+   *
+   *   This means that a client which expects a secured transport SHOULD NOT trust any
+   *   redirection message (or any other error message) which it receives prior to the
+   *   the TLS handshake; existing clients DO present such errors as trustworthy, which is
+   *   a security vulnerability that needs a separate fix (see more details at
+   *   https://jira.mariadb.org/browse/CONC-648).
+   */
+
+  if (instant_failover_mode == INSTANT_FAILOVER_MODE_ALL ||
+      (instant_failover_mode == INSTANT_FAILOVER_MODE_ON && !local_connection && !is_extra_port))
+  {
+    sql_print_warning("Redirecting connection %lld via %s to INSTANT_FAILOVER_TARGET=%s (INSTANT_FAILOVER_MODE=%s)",
+                      thd->thread_id, safe_vio_type_name(thd->net.vio), instant_failover_target,
+                      (instant_failover_mode == INSTANT_FAILOVER_MODE_ON ? "ON" : "ALL"));
+    DBUG_PRINT("info", ("redirecting connection %lld via %s to INSTANT_FAILOVER_TARGET=%s (INSTANT_FAILOVER_MODE=%s)",
+                        thd->thread_id, safe_vio_type_name(thd->net.vio), instant_failover_target,
+                        (instant_failover_mode == INSTANT_FAILOVER_MODE_ON ? "ON" : "ALL")));
+    my_error(ER_INSTANT_FAILOVER, MYF(0), instant_failover_target);
+    DBUG_RETURN(packet_error);
   }
 
   if (client_capabilities & CLIENT_PROTOCOL_41)

@@ -1526,6 +1526,12 @@ static Atomic_counter<uint> extra_connection_count;
 
 my_bool opt_gtid_strict_mode= FALSE;
 
+/**
+ Instant failover
+ */
+
+const char *instant_failover_target = NullS;
+ulong instant_failover_mode= INSTANT_FAILOVER_MODE_OFF;
 
 /* Function declarations */
 
