@@ -176,8 +176,18 @@ case "${1:-''}" in
     # Start MariaDB!
     /usr/bin/mariadbd-safe "${@:2}" 2>&1 >/dev/null | $ERR_LOGGER &
 
-    for _ in $(seq 1 "${MYSQLD_STARTUP_TIMEOUT:-30}")
+    # Make sure that there is some default
+    # 30 seconds is fine default for starting
+    # maximum is one hour if there is gigantic
+    # database
+    MARIADB_STARTUP_TIMEOUT=${MYSQLD_STARTUP_TIMEOUT:-30}
+
+    for i in {1..3600}
     do
+      if [ "${i}" -gt "${MARIADB_STARTUP_TIMEOUT}" ]
+      then
+        break
+      fi
       sleep 1
       if mariadbd_status check_alive nowarn
       then
