@@ -9639,8 +9639,8 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     if (thd->mdl_context.acquire_locks(&alter_ctx->fk_mdl_reqs,
                                        thd->variables.lock_wait_timeout))
     {
-      push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE, ER_UNKNOWN_ERROR,
-                          "Could not lock referenced tables");
+      push_warning(thd, Sql_condition::WARN_LEVEL_NOTE, ER_FK_MDL_REFERENCED,
+                   ER_THD(thd, ER_FK_MDL_REFERENCED));
       goto err;
     }
     /** Preacquire shares to get ER_NO_SUCH_TABLE before copy data */

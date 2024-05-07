@@ -938,6 +938,13 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
         compl_result_code= result_code= HA_ADMIN_FAILED;
       }
     }
+    else if (operator_func == &handler::ha_repair)
+    {
+      if (table->table->s->fk_check_consistency(thd, true))
+      {
+        compl_result_code= result_code= HA_ADMIN_FAILED;
+      }
+    }
 
     if (result_code == HA_ADMIN_OK)
     {    
