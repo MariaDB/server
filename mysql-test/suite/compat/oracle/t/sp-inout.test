@@ -730,7 +730,7 @@ $$
 DELIMITER ;$$
 
 set @a = 4;
-INSERT INTO Persons SELECT 4, 'DDD', PKG2.func(@a);
+INSERT INTO Persons SELECT 4, 'DDD', pkg2.func(@a);
 SELECT * FROM Persons;
 DROP TABLE Persons;
 DROP PACKAGE pkg2;
@@ -770,7 +770,7 @@ DELIMITER ;$$
 SELECT * FROM Persons;
 set @a = 0;
 --error ER_SF_OUT_INOUT_ARG_NOT_ALLOWED
-INSERT INTO Persons SELECT 5, 'EEE', PKG2.func(@a);
+INSERT INTO Persons SELECT 5, 'EEE', pkg2.func(@a);
 DROP TABLE Persons;
 DROP PACKAGE pkg2;
 
@@ -808,7 +808,7 @@ DELIMITER ;$$
 
 SELECT * FROM Persons;
 set @a = 4;
-DELETE FROM Persons WHERE ID = PKG2.func(@a);
+DELETE FROM Persons WHERE ID = pkg2.func(@a);
 SELECT * FROM Persons;
 DROP TABLE Persons;
 DROP PACKAGE pkg2;
@@ -849,7 +849,7 @@ DELIMITER ;$$
 SELECT * FROM Persons;
 set @a = 0;
 --error ER_SF_OUT_INOUT_ARG_NOT_ALLOWED
-DELETE FROM Persons WHERE ID = PKG2.func(@a);
+DELETE FROM Persons WHERE ID = pkg2.func(@a);
 DROP TABLE Persons;
 DROP PACKAGE pkg2;
 

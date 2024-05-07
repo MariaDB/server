@@ -2207,5 +2207,17 @@ Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` >= TIMESTAMP/*WITH LOCAL TIME ZONE*/'2024-01-01 00:00:00.000000'
 DROP TABLE t1;
 #
+# MDEV-34085 Server crash ASAN used-after-poison upon 2nd execution of PS with erroneous timestamp conversion
+#
+CREATE TABLE t1 (a int, b timestamp);
+INSERT INTO t1 VALUES (1,'2000-01-01'),(2,'2001-12-31');
+PREPARE stmt FROM 'UPDATE t1 SET a = 0 WHERE 1 IN (SELECT b FROM t1)';
+EXECUTE stmt;
+ERROR 22007: Truncated incorrect datetime value: '1'
+EXECUTE stmt;
+ERROR 22007: Truncated incorrect datetime value: '1'
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1;
+#
 # End of 11.3 tests
 #
