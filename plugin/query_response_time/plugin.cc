@@ -1,5 +1,5 @@
 /* Copyright (C) 2013 Percona and Sergey Vojtovich
-   Copyright (C) 2023 MariaDB Foundation
+   Copyright (C) 2024 MariaDB Foundation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -61,10 +61,10 @@ static MYSQL_SYSVAR_BOOL(stats, opt_query_response_time_stats,
        "Enable or disable query response time statistics collecting",
        NULL, NULL, FALSE);
 static MYSQL_SYSVAR_BOOL(flush, opt_query_response_time_flush,
-       PLUGIN_VAR_NOCMDOPT,
+       PLUGIN_VAR_NOCMDOPT | PLUGIN_VAR_DEPRECATED,
        "Update of this variable flushes statistics and re-reads "
-       "query_response_time_range_base. Deprecated. "
-       "Use \"FLUSH query_response_time\" instead",
+       "query_response_time_range_base. Compatibility variable, "
+       "use FLUSH QUERY_RESPONSE_TIME instead",
        NULL, query_response_time_flush_update, FALSE);
 #ifndef DBUG_OFF
 static MYSQL_THDVAR_ULONGLONG(exec_time_debug, PLUGIN_VAR_NOCMDOPT,

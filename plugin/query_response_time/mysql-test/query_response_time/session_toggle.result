@@ -4,6 +4,8 @@
 SET @saved_query_response_time_stats = @@GLOBAL.query_response_time_stats;
 SET @saved_query_response_time_flush = @@GLOBAL.query_response_time_flush;
 SET GLOBAL query_response_time_flush= 'ON';
+Warnings:
+Warning	1287	'@@query_response_time_flush' is deprecated and will be removed in a future release
 SELECT SUM(COUNT),1 FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME;
 SUM(COUNT)	1
 0	1
@@ -123,4 +125,6 @@ disconnect con3;
 connection default;
 # Cleanup
 SET GLOBAL query_response_time_flush = @saved_query_response_time_flush;
+Warnings:
+Warning	1287	'@@query_response_time_flush' is deprecated and will be removed in a future release
 SET GLOBAL query_response_time_stats = @saved_query_response_time_stats;
