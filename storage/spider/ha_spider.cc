@@ -9396,18 +9396,6 @@ int ha_spider::update_auto_increment()
   DBUG_ENTER("ha_spider::update_auto_increment");
   DBUG_PRINT("info",("spider this=%p", this));
   force_auto_increment = TRUE;
-/*
-  if (
-    next_insert_id >= auto_inc_interval_for_cur_row.maximum() &&
-    wide_handler->trx->thd->auto_inc_intervals_forced.get_current()
-  ) {
-    force_auto_increment = TRUE;
-    DBUG_PRINT("info",("spider force_auto_increment=TRUE"));
-  } else {
-    force_auto_increment = FALSE;
-    DBUG_PRINT("info",("spider force_auto_increment=FALSE"));
-  }
-*/
   DBUG_PRINT("info",("spider auto_increment_mode=%d",
     auto_increment_mode));
   DBUG_PRINT("info",("spider next_number_field=%lld",
@@ -9662,7 +9650,12 @@ int ha_spider::write_row(
         pthread_mutex_lock(&share->lgtm_tblhnd_share->auto_increment_mutex);
         if (!share->lgtm_tblhnd_share->auto_increment_init)
         {
-          info(HA_STATUS_AUTO);
+          if ((error_num= info(HA_STATUS_AUTO)))
+          {
+            pthread_mutex_unlock(
+              &share->lgtm_tblhnd_share->auto_increment_mutex);
+            DBUG_RETURN(error_num);
+          }
           share->lgtm_tblhnd_share->auto_increment_lclval =
             stats.auto_increment_value;
           share->lgtm_tblhnd_share->auto_increment_init = TRUE;
