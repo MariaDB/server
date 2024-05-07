@@ -4404,6 +4404,9 @@ int Xid_apply_log_event::do_apply_event(rpl_group_info *rgi)
   thd->wsrep_affected_rows= 0;
 #endif
 
+#ifndef DBUG_OFF
+  bool record_gtid_delayed_for_xa= false;
+#endif
   if (rgi->gtid_pending)
   {
     sub_id= rgi->gtid_sub_id;
@@ -4422,6 +4425,10 @@ int Xid_apply_log_event::do_apply_event(rpl_group_info *rgi)
                         return 1;
                       });
     }
+#ifndef DBUG_OFF
+    else
+      record_gtid_delayed_for_xa= true;
+#endif
   }
 
   general_log_print(thd, COM_QUERY, get_query());
@@ -4430,6 +4437,22 @@ int Xid_apply_log_event::do_apply_event(rpl_group_info *rgi)
   if (!res && rgi->gtid_pending)
   {
     DBUG_ASSERT(!thd->transaction->xid_state.is_explicit_XA());
+
+    DBUG_ASSERT(record_gtid_delayed_for_xa);
+    if (thd->rgi_slave->is_parallel_exec)
+    {
+      /*
+        With XA, since the transaction is prepared/committed without updating
+        the GTID pos (MDEV-32020...), we need here to clear any pending
+        deadlock kill.
+
+        Otherwise if the kill happened after the prepare/commit completed, it
+        might end up killing the subsequent GTID position update, causing the
+        slave to fail with error.
+      */
+      wait_for_pending_deadlock_kill(thd, thd->rgi_slave);
+      thd->reset_killed();
+    }
 
     if ((err= do_record_gtid(thd, rgi, false, &hton, true)))
       return err;

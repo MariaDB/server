@@ -6,6 +6,8 @@ connection master;
 ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
 connection slave;
 include/stop_slave.inc
+SET @old_transaction_retries                 = @@GLOBAL.slave_transaction_retries;
+SET @@global.slave_transaction_retries       = 1000;
 SET @old_parallel_threads                    = @@GLOBAL.slave_parallel_threads;
 SET @old_slave_domain_parallel_threads       = @@GLOBAL.slave_domain_parallel_threads;
 SET @@global.slave_parallel_threads          = 5;
@@ -45,6 +47,7 @@ include/stop_slave.inc
 SET @@global.slave_parallel_mode           = @old_parallel_mode;
 SET @@global.slave_parallel_threads        = @old_parallel_threads;
 SET @@global.slave_domain_parallel_threads = @old_slave_domain_parallel_threads;
+SET @@global.slave_transaction_retries     = @old_transaction_retries;
 include/start_slave.inc
 connection master;
 DROP TABLE t1;

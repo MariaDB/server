@@ -22,6 +22,12 @@ ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
 --connection slave
 --sync_with_master
 --source include/stop_slave.inc
+# This test runs huge number of transactions independently in parallel that
+# all conflict on a single row. This requires a large number of retries, as a
+# transaction can repeatedly conflict/deadlock with a large number of other
+# transactions (in a different domain) one by one.
+SET @old_transaction_retries                 = @@GLOBAL.slave_transaction_retries;
+SET @@global.slave_transaction_retries       = 1000;
 SET @old_parallel_threads                    = @@GLOBAL.slave_parallel_threads;
 SET @old_slave_domain_parallel_threads       = @@GLOBAL.slave_domain_parallel_threads;
 SET @@global.slave_parallel_threads          = 5;
@@ -161,6 +167,7 @@ SET @@global.slave_parallel_mode     = 'optimistic';
 SET @@global.slave_parallel_mode           = @old_parallel_mode;
 SET @@global.slave_parallel_threads        = @old_parallel_threads;
 SET @@global.slave_domain_parallel_threads = @old_slave_domain_parallel_threads;
+SET @@global.slave_transaction_retries     = @old_transaction_retries;
 --source include/start_slave.inc
 
 --connection master
