@@ -12260,3 +12260,29 @@ ER_JSON_SCHEMA_KEYWORD_UNSUPPORTED
         sw "%s neno kuu halitumiki"
 ER_JSON_NO_VARIABLE_SCHEMA
         eng "Variable schema is not supported."
+ER_FK_MDL_REFERENCED
+        eng "Could not metadata-lock referenced tables"
+ER_FK_NOT_EXISTS
+        eng "Foreign table `%s.%s` not exists"
+ER_FK_REF_NOT_EXISTS
+        eng "Referenced table `%s.%s` not exists"
+ER_FK_NOT_REFERS
+        eng "Foreign table `%s.%s` does not refer this table"
+ER_FK_REF_NOT_REFERS
+        eng "Referenced table `%s.%s` does not refer this table"
+ER_FK_NOT_MATCHES
+        eng "Foreign table `%s.%s` does not match foreign keys with referenced keys"
+ER_FK_REF_NOT_MATCHES
+        eng "Referenced table `%s.%s` does not match referenced keys with foreign keys"
+WARN_FK_FOUND
+        eng "Found %u foreign keys"
+WARN_FK_FOUND_REFERENCES
+        eng "Found %u referenced keys"
+WARN_FK_FOUND_SELFREFS
+        eng "Found %u self-references"
+WARN_FK_UPDATED_SHARES
+        eng "Updated %u referenced shares"
+ER_FK_WRONG_SELFREF
+        eng "Self-reference in foreign list `%s.%s` does not point to this table"
+ER_FK_UNEXPECTED_SELFREFS
+        eng "Found %u self-references in referenced list (must be 0)"
