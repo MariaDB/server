@@ -344,8 +344,8 @@ create or replace table t1 (id int primary key);
 # Since there is no reference hints in t1 now we cannot detect ER_ROW_IS_REFERENCED_2
 drop table t1;
 create or replace table t1 (id int primary key);
-check tables t1, ch1;
-repair tables t1, ch1;
+# Reference hints updated from repaired foreign tables
+repair table ch1;
 --error ER_ROW_IS_REFERENCED_2
 drop table t1;
 
