@@ -1,5 +1,8 @@
 --source include/not_valgrind.inc
+# We cannot use ps2 protocol as the test is counting number of executions
 --disable_ps2_protocol
+# View protocol disabled as it remove the tag from the SELECT query
+--disable_view_protocol
 
 #
 # Test log_slow_always_query_time variable usage
