@@ -7781,7 +7781,7 @@ Type_handler_datetime_common::convert_item_for_comparison(
                           Sql_condition **cond_hdl)
     {
       hit++;
-      return *level == Sql_condition::WARN_LEVEL_WARN;
+      return *level >= Sql_condition::WARN_LEVEL_WARN;
     }
   } cnt_handler;
 
