@@ -1,16 +1,16 @@
 let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
-CREATE user backup@localhost;
+CREATE user backup@localhost IDENTIFIED BY 'xyz';
 
 # backup possible for unprivileges user, with --no-lock
 --disable_result_log
-exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup -ubackup --no-lock  --target-dir=$targetdir;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup -ubackup -pxyz --no-lock  --target-dir=$targetdir;
 --enable_result_log
 rmdir $targetdir;
 
 # backup fails without --no-lock, because of FTWRL
 --disable_result_log
 error 1;
-exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup -ubackup --target-dir=$targetdir > $MYSQLTEST_VARDIR/tmp/backup.log 2>&1;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup -ubackup -pxyz --target-dir=$targetdir > $MYSQLTEST_VARDIR/tmp/backup.log 2>&1;
 --enable_result_log
 
 let SEARCH_FILE=$MYSQLTEST_VARDIR/tmp/backup.log;
@@ -23,7 +23,7 @@ let SEARCH_FILE=$MYSQLTEST_VARDIR/tmp/backup.log;
 # backup succeeds with RELOAD privilege
 GRANT RELOAD, PROCESS on *.* to backup@localhost;
 --disable_result_log
-exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup -ubackup --target-dir=$targetdir;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --user=backup --password=xyz --target-dir=$targetdir;
 --enable_result_log
 rmdir $targetdir;
 
@@ -31,7 +31,7 @@ rmdir $targetdir;
 # --slave-info and galera info require REPLICA MONITOR
 --disable_result_log
 error 1;
-exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup -ubackup --slave-info  --target-dir=$targetdir > $MYSQLTEST_VARDIR/tmp/backup.log 2>&1;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --user backup --password xyz --slave-info  --target-dir=$targetdir > $MYSQLTEST_VARDIR/tmp/backup.log 2>&1;
 --enable_result_log
 rmdir $targetdir;
 
@@ -40,7 +40,7 @@ rmdir $targetdir;
 
 GRANT REPLICA MONITOR ON *.* TO backup@localhost;
 --disable_result_log
-exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup -ubackup --slave-info --target-dir=$targetdir;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup -ubackup -pxyz --slave-info --target-dir=$targetdir;
 --enable_result_log
 rmdir $targetdir;
 REVOKE REPLICA MONITOR ON *.* FROM backup@localhost;
@@ -50,7 +50,7 @@ REVOKE REPLICA MONITOR ON *.* FROM backup@localhost;
 
 # kill-long-query-type=(not empty) requires CONNECTION ADMIN
 --disable_result_log
---exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup -ubackup --kill-long-query-type=ALL --kill-long-queries-timeout=4 --target-dir=$targetdir > $MYSQLTEST_VARDIR/tmp/backup.log 2>&1;
+--exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup -ubackup -pxyz --kill-long-query-type=ALL --kill-long-queries-timeout=4 --target-dir=$targetdir > $MYSQLTEST_VARDIR/tmp/backup.log 2>&1;
 --enable_result_log
 rmdir $targetdir;
 
@@ -59,14 +59,14 @@ rmdir $targetdir;
 
 GRANT CONNECTION ADMIN ON *.* TO backup@localhost;
 --disable_result_log
-exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup -ubackup  --kill-long-query-type=all --kill-long-queries-timeout=1 --target-dir=$targetdir;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --user=backup --password=xyz --kill-long-query-type=all --kill-long-queries-timeout=1 --target-dir=$targetdir;
 --enable_result_log
 rmdir $targetdir;
 
 # --safe-slave-backup requires REPLICATION SLAVE ADMIN, and REPLICA MONITOR
 --disable_result_log
 error 1;
-exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup -ubackup --safe-slave-backup --target-dir=$targetdir > $MYSQLTEST_VARDIR/tmp/backup.log;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --user backup --password xyz --safe-slave-backup --target-dir=$targetdir > $MYSQLTEST_VARDIR/tmp/backup.log;
 --enable_result_log
 rmdir $targetdir;
 
@@ -78,7 +78,7 @@ rmdir $targetdir;
 GRANT REPLICATION SLAVE ADMIN ON *.* TO backup@localhost;
 GRANT REPLICA MONITOR ON *.* TO backup@localhost;
 --disable_result_log
-exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup -ubackup --safe-slave-backup --target-dir=$targetdir;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup -ubackup -pxyz --safe-slave-backup --target-dir=$targetdir;
 --enable_result_log
 rmdir $targetdir;
 
