@@ -3515,8 +3515,6 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     like mysql_audit_plugin.
   */
   thd->last_sql_command= lex->sql_command;
-  thd->stmt_changes_data|= (sql_command_flags[lex->sql_command] &
-                            CF_CHANGES_DATA);
 
   /*
     Reset warning count for each query that uses tables

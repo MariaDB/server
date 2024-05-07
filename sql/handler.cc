@@ -5288,7 +5288,6 @@ void handler::mark_trx_read_write_internal()
     if (table_share == NULL || table_share->tmp_table == NO_TMP_TABLE)
       ha_info->set_trx_read_write();
   }
-  thd->stmt_changes_data= 1;
 }
 
 

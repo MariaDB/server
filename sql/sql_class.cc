@@ -661,7 +661,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
    bootstrap(0),
    derived_tables_processing(FALSE),
    waiting_on_group_commit(FALSE), has_waiter(FALSE),
-   spcont(NULL),
+   last_sql_command(SQLCOM_END), spcont(NULL),
    m_parser_state(NULL),
 #ifndef EMBEDDED_LIBRARY
    audit_plugin_version(-1),
@@ -6034,7 +6034,6 @@ void THD::store_slow_query_state(Sub_statement_state *backup)
   backup->tmp_tables_size=         tmp_tables_size;
   backup->tmp_tables_used=         tmp_tables_used;
   backup->handler_stats=           handler_stats;
-  backup->stmt_changes_data=       stmt_changes_data;
 }
 
 /* Reset variables related to slow query log */
@@ -6063,7 +6062,6 @@ void THD::reset_slow_query_state(Sub_statement_state *backup)
   }
   if ((variables.log_slow_verbosity & LOG_SLOW_VERBOSITY_ENGINE))
     handler_stats.reset();
-  stmt_changes_data=            0;      // Can be used by audit plugins
 }
 
 /*
@@ -6095,7 +6093,6 @@ void THD::add_slow_query_state(Sub_statement_state *backup)
   }
   if ((variables.log_slow_verbosity & LOG_SLOW_VERBOSITY_ENGINE))
     handler_stats.add(&backup->handler_stats);
-  stmt_changes_data|=            backup->stmt_changes_data;
 }
 
 

@@ -231,7 +231,9 @@ static void query_response_time_audit_notify(MYSQL_THD thd,
   if (event_general->event_subclass == MYSQL_AUDIT_GENERAL_STATUS &&
       query_response_time_should_log(thd))
   {
-    QUERY_TYPE query_type= (thd->stmt_changes_data ? WRITE : READ);
+    bool stmt_changes_data= is_update_query(thd->last_sql_command)
+                         || thd->transaction->stmt.is_trx_read_write();
+    QUERY_TYPE query_type= stmt_changes_data ? WRITE : READ;
 #ifndef DBUG_OFF
     if (THDVAR(thd, exec_time_debug))
     {
