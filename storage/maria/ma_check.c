@@ -2505,6 +2505,11 @@ static int initialize_variables_for_repair(HA_CHECK *param,
   maria_versioning(info, 0);
   /* remember original number of rows */
   *info->state= info->s->state.state;
+  if (share->data_file_type == BLOCK_RECORD)
+    share->state.state.data_file_length= MY_ALIGN(sort_info->filelength,
+                                                  share->block_size);
+  else
+    share->state.state.data_file_length= sort_info->filelength;
   return 0;
 }
 
@@ -2741,7 +2746,7 @@ int maria_repair(HA_CHECK *param, register MARIA_HA *info,
                       READ_CACHE, share->pack.header_length, 1, MYF(MY_WME)))
       goto err;
   }
-  if (sort_info.new_info->s->data_file_type != BLOCK_RECORD)
+  if (!block_record)
   {
     /* When writing to not block records, we need a write buffer */
     if (!rep_quick)
@@ -2754,7 +2759,7 @@ int maria_repair(HA_CHECK *param, register MARIA_HA *info,
       sort_info.new_info->opt_flag|=WRITE_CACHE_USED;
     }
   }
-  else if (block_record)
+  else
   {
     scan_inited= 1;
     if (maria_scan_init(sort_info.info))
@@ -4102,6 +4107,9 @@ int maria_repair_by_sort(HA_CHECK *param, register MARIA_HA *info,
         _ma_check_print_error(param, "Couldn't change to new data file");
         goto err;
       }
+      /* Inform sort_delete_record that we are using the new file */
+      sort_info.new_info->dfile.file= info->rec_cache.file= info->dfile.file;
+
       if (param->testflag & T_UNPACK)
         restore_data_file_type(share);
 
