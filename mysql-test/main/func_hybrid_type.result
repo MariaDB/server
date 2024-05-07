@@ -3419,8 +3419,8 @@ DROP TABLE t1;
 #
 # MDEV-9653 Assertion `length || !scale' failed in uint my_decimal_length_to_precision(uint, uint, bool)
 #
-SELECT CASE 0 WHEN 1 THEN (CASE 2 WHEN 3 THEN NULL END) WHEN 4 THEN 5 END;
-CASE 0 WHEN 1 THEN (CASE 2 WHEN 3 THEN NULL END) WHEN 4 THEN 5 END
+SELECT CASE 0 WHEN 1 THEN (CASE 2 WHEN 3 THEN NULL END) WHEN 4 THEN 5 END as exp;
+exp
 NULL
 SELECT CASE 0 WHEN 1 THEN (COALESCE(NULL)) WHEN 4 THEN 5 END;
 CASE 0 WHEN 1 THEN (COALESCE(NULL)) WHEN 4 THEN 5 END
@@ -4152,7 +4152,7 @@ ERROR HY000: Illegal parameter data types bigint unsigned and row for operation 
 # COALESCE
 CREATE TABLE t1 (a TINYINT UNSIGNED, b TINYINT);
 SELECT COALESCE(a,a)=ROW(1,1) FROM t1;
-ERROR HY000: Illegal parameter data types tiny unsigned and row for operation '='
+ERROR HY000: Illegal parameter data types tinyint unsigned and row for operation '='
 SELECT COALESCE(b,b)=ROW(1,1) FROM t1;
 ERROR HY000: Illegal parameter data types tinyint and row for operation '='
 DROP TABLE t1;
@@ -4282,7 +4282,7 @@ DROP TABLE t1;
 # SUM
 CREATE TABLE t1 (a TINYINT UNSIGNED, b TINYINT);
 SELECT MAX(a)=ROW(1,1) FROM t1;
-ERROR HY000: Illegal parameter data types tiny unsigned and row for operation '='
+ERROR HY000: Illegal parameter data types tinyint unsigned and row for operation '='
 SELECT MAX(b)=ROW(1,1) FROM t1;
 ERROR HY000: Illegal parameter data types tinyint and row for operation '='
 DROP TABLE t1;

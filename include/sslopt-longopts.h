@@ -52,11 +52,15 @@
    0, 0, 0, 0, 0, 0},
 
 #ifdef MYSQL_CLIENT
+  {"ssl-fp", OPT_SSL_FP, "Server certificate fingerprint (implies --ssl).",
+   &opt_ssl_fp, &opt_ssl_fp, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"ssl-fplist", OPT_SSL_FPLIST, "File with accepted server certificate "
+   "fingerprints, one per line (implies --ssl).",
+   &opt_ssl_fplist, &opt_ssl_fplist, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"ssl-verify-server-cert", OPT_SSL_VERIFY_SERVER_CERT,
-   "Verify server's \"Common Name\" in its cert against hostname used "
-   "when connecting. This option is disabled by default.",
+   "Verify server's certificate to prevent man-in-the-middle attacks",
    &opt_ssl_verify_server_cert, &opt_ssl_verify_server_cert,
-   0, GET_BOOL, OPT_ARG, 0, 0, 0, 0, 0, 0},
+   0, GET_BOOL, OPT_ARG, 2, 0, 0, 0, 0, 0},
 #endif
 #endif /* HAVE_OPENSSL */
 #endif /* SSLOPT_LONGOPTS_INCLUDED */

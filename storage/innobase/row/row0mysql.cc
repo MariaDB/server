@@ -81,7 +81,7 @@ static void row_mysql_delay_if_needed()
     const lsn_t lsn= log_sys.get_lsn();
     if ((lsn - last) / 4 >= max_age / 5)
       buf_flush_ahead(last + max_age / 5, false);
-    srv_wake_purge_thread_if_not_active();
+    purge_sys.wake_if_not_active();
     std::this_thread::sleep_for(std::chrono::microseconds(delay));
   }
 }
@@ -2595,17 +2595,16 @@ row_rename_table_for_mysql(
 		/* Check for the table using lower
 		case name, including the partition
 		separator "P" */
-		memcpy(par_case_name, old_name,
-			strlen(old_name));
-		par_case_name[strlen(old_name)] = 0;
-		innobase_casedn_str(par_case_name);
+		system_charset_info->casedn_z(
+				old_name, strlen(old_name),
+				par_case_name, sizeof(par_case_name));
 #else
 		/* On Windows platfrom, check
 		whether there exists table name in
 		system table whose name is
 		not being normalized to lower case */
 		normalize_table_name_c_low(
-			par_case_name, old_name, FALSE);
+			par_case_name, sizeof(par_case_name), old_name, FALSE);
 #endif
 		table = dict_table_open_on_name(par_case_name, true,
 						DICT_ERR_IGNORE_FK_NOKEY);

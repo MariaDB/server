@@ -267,6 +267,7 @@ sub using_extern { return (keys %opts_extern > 0);};
 
 our $opt_fast= 0;
 our $opt_force= 0;
+our $opt_skip_not_found= 0;
 our $opt_mem= $ENV{'MTR_MEM'};
 our $opt_clean_vardir= $ENV{'MTR_CLEAN_VARDIR'};
 
@@ -1085,13 +1086,6 @@ sub run_worker ($) {
 }
 
 
-sub ignore_option {
-  my ($opt, $value)= @_;
-  mtr_report("Ignoring option '$opt'");
-}
-
-
-
 # Setup any paths that are $opt_vardir related
 sub set_vardir {
   ($opt_vardir)= @_;
@@ -1181,6 +1175,7 @@ sub command_line_setup {
 
              # Control what test suites or cases to run
              'force+'                   => \$opt_force,
+             'skip-not-found'           => \$opt_skip_not_found,
              'suite|suites=s'           => \$opt_suites,
              'skip-rpl'                 => \&collect_option,
              'skip-test=s'              => \&collect_option,
@@ -1189,8 +1184,6 @@ sub command_line_setup {
              'big-test+'                => \$opt_big_test,
 	     'combination=s'            => \@opt_combinations,
              'experimental=s'           => \@opt_experimentals,
-	     # skip-im is deprecated and silently ignored
-	     'skip-im'                  => \&ignore_option,
              'staging-run'              => \$opt_staging_run,
 
              # Specify ports
@@ -3118,6 +3111,7 @@ sub mysql_install_db {
   mtr_add_arg($args, "--core-file");
   mtr_add_arg($args, "--console");
   mtr_add_arg($args, "--character-set-server=latin1");
+  mtr_add_arg($args, "--disable-performance-schema");
 
   if ( $opt_debug )
   {
@@ -4471,6 +4465,7 @@ sub extract_warning_lines ($$) {
      qr/InnoDB: Warning: a long semaphore wait:/,
      qr/InnoDB: Dumping buffer pool.*/,
      qr/InnoDB: Buffer pool.*/,
+     qr/InnoDB: Could not free any blocks in the buffer pool!/,
      qr/InnoDB: Warning: Writer thread is waiting this semaphore:/,
      qr/InnoDB: innodb_open_files .* should not be greater than/,
      qr/Slave: Unknown table 't1' .* 1051/,
@@ -4523,7 +4518,7 @@ sub extract_warning_lines ($$) {
      qr|InnoDB: io_setup\(\) failed with EAGAIN|,
      qr|io_uring_queue_init\(\) failed with|,
      qr|InnoDB: liburing disabled|,
-     qr/InnoDB: Failed to set (O_DIRECT|DIRECTIO_ON) on file/,
+     qr/InnoDB: Failed to set O_DIRECT on file/,
      qr|setrlimit could not change the size of core files to 'infinity';|,
      qr|feedback plugin: failed to retrieve the MAC address|,
      qr|Plugin 'FEEDBACK' init function returned error|,
@@ -5029,6 +5024,7 @@ sub mysqld_stop {
   mtr_add_arg($args, "--host=%s", $mysqld->value('#host'));
   mtr_add_arg($args, "--connect_timeout=20");
   mtr_add_arg($args, "--protocol=tcp");
+  mtr_add_arg($args, "--disable-ssl-verify-server-cert");
 
   mtr_add_arg($args, "shutdown");
 
@@ -5892,6 +5888,8 @@ Options to control what test suites or cases to run
                         the execution will continue from the next test file.
                         When specified twice, execution will continue executing
                         the failed test file from the next command.
+  skip-not-found        It is not an error if a test was not found in a
+                        specified test suite. Test will be marked as skipped.
   do-test=PREFIX or REGEX
                         Run test cases which name are prefixed with PREFIX
                         or fulfills REGEX

@@ -29,11 +29,13 @@
 #include <mysql_com.h>                  /* USERNAME_LENGTH */
 #include "sql_bitmap.h"
 #include "lex_charset.h"
+#include "lex_ident.h"
 
 struct TABLE;
 class Type_handler;
 class Field;
 class Index_statistics;
+struct Lex_ident_cli_st;
 
 class THD;
 
@@ -132,7 +134,7 @@ typedef struct st_key {
   key_map overlapped;
   /* Set of keys constraint correlated with this key */
   key_map constraint_correlated;
-  LEX_CSTRING name;
+  Lex_ident_column name;
   enum  ha_key_alg algorithm;
   /*
     Note that parser is used when the table is opened for use, and
@@ -321,11 +323,26 @@ typedef struct  user_conn {
   uint conn_per_hour, updates, questions;
   /* Maximum amount of resources which account is allowed to consume. */
   USER_RESOURCES user_resources;
+
+  /*
+    The CHARSET_INFO used for hashes to compare the entire 'user\0hash' key.
+    Eventually we should fix it as follows:
+    - the user part should be hashed and compared case sensitively,
+    - the host part should be hashed and compared case insensitively.
+  */
+  static CHARSET_INFO *user_host_key_charset_info_for_hash()
+  {
+    return &my_charset_utf8mb3_general1400_as_ci;
+  }
 } USER_CONN;
 
 typedef struct st_user_stats
 {
   char user[MY_MAX(USERNAME_LENGTH, LIST_PROCESS_HOST_LEN) + 1];
+  static CHARSET_INFO *user_key_charset_info_for_hash()
+  {
+    return &my_charset_utf8mb3_general1400_as_ci;
+  }
   // Account name the user is mapped to when this is a user from mapped_user.
   // Otherwise, the same value as user.
   char priv_user[MY_MAX(USERNAME_LENGTH, LIST_PROCESS_HOST_LEN) + 1];
@@ -873,12 +890,9 @@ public:
   {
     m_index= 0;
     m_target_bound= 0;
+    m_cursor_offset= 0;
     m_direction= 0;
     m_implicit_cursor= false;
-  }
-  void init(const Lex_for_loop_st &other)
-  {
-    *this= other;
   }
   bool is_for_loop_cursor() const { return m_target_bound == NULL; }
   bool is_for_loop_explicit_cursor() const
@@ -908,12 +922,6 @@ public:
   }
   Item *make_item_func_trim_std(THD *thd) const;
   Item *make_item_func_trim_oracle(THD *thd) const;
-  /*
-    This method is still used to handle LTRIM and RTRIM,
-    while the special syntax TRIM(... BOTH|LEADING|TRAILING)
-    is now handled by Schema::make_item_func_trim().
-  */
-  Item *make_item_func_trim(THD *thd) const;
 };
 
 
@@ -1040,6 +1048,31 @@ public:
   explicit Timeval(const timeval &tv)
    :timeval(tv)
   { }
+};
+
+
+/*
+  A value that's either a Timeval or SQL NULL
+*/
+
+class Timeval_null: protected Timeval
+{
+  bool m_is_null;
+public:
+  Timeval_null()
+   :Timeval(0, 0),
+    m_is_null(true)
+  { }
+  Timeval_null(const my_time_t sec, ulong usec)
+   :Timeval(sec, usec),
+    m_is_null(false)
+  { }
+  const Timeval & to_timeval() const
+  {
+    DBUG_ASSERT(!m_is_null);
+    return *this;
+  }
+  bool is_null() const { return m_is_null; }
 };
 
 

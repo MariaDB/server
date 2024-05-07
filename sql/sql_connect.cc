@@ -323,7 +323,8 @@ void init_max_user_conn(void)
 {
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   my_hash_init(key_memory_user_conn, &hash_user_connections,
-               system_charset_info, max_connections, 0, 0, (my_hash_get_key)
+               USER_CONN::user_host_key_charset_info_for_hash(),
+               max_connections, 0, 0, (my_hash_get_key)
                get_key_conn, (my_hash_free_key) free_user, 0);
 #endif
 }
@@ -483,14 +484,18 @@ void init_user_stats(USER_STATS *user_stats,
 
 void init_global_user_stats(void)
 {
-  my_hash_init(PSI_INSTRUMENT_ME, &global_user_stats, system_charset_info, max_connections,
+  my_hash_init(PSI_INSTRUMENT_ME, &global_user_stats,
+               USER_STATS::user_key_charset_info_for_hash(),
+               max_connections,
                0, 0, (my_hash_get_key) get_key_user_stats,
                (my_hash_free_key) free_user_stats, 0);
 }
 
 void init_global_client_stats(void)
 {
-  my_hash_init(PSI_INSTRUMENT_ME, &global_client_stats, system_charset_info, max_connections,
+  my_hash_init(PSI_INSTRUMENT_ME, &global_client_stats,
+               USER_STATS::user_key_charset_info_for_hash(),
+               max_connections,
                0, 0, (my_hash_get_key) get_key_user_stats,
                (my_hash_free_key) free_user_stats, 0);
 }
@@ -509,7 +514,8 @@ extern "C" void free_table_stats(TABLE_STATS* table_stats)
 
 void init_global_table_stats(void)
 {
-  my_hash_init(PSI_INSTRUMENT_ME, &global_table_stats, system_charset_info,
+  my_hash_init(PSI_INSTRUMENT_ME, &global_table_stats,
+               Lex_ident_fs::charset_info(),
                max_connections, 0, 0, (my_hash_get_key) get_key_table_stats,
                (my_hash_free_key) free_table_stats, 0);
 }
@@ -528,7 +534,8 @@ extern "C" void free_index_stats(INDEX_STATS* index_stats)
 
 void init_global_index_stats(void)
 {
-  my_hash_init(PSI_INSTRUMENT_ME, &global_index_stats, system_charset_info,
+  my_hash_init(PSI_INSTRUMENT_ME, &global_index_stats,
+               Lex_ident_fs::charset_info(),
                max_connections, 0, 0, (my_hash_get_key) get_key_index_stats,
                (my_hash_free_key) free_index_stats, 0);
 }
@@ -779,6 +786,10 @@ void update_global_user_stats(THD *thd, bool create_user, time_t now)
 bool thd_init_client_charset(THD *thd, uint cs_number)
 {
   CHARSET_INFO *cs;
+
+  // Test a non-default collation ID. See also comments in this function below.
+  DBUG_EXECUTE_IF("thd_init_client_charset_utf8mb3_bin", cs_number= 83;);
+
   /*
    Use server character set and collation if
    - opt_character_set_client_handshake is not set
@@ -801,9 +812,25 @@ bool thd_init_client_charset(THD *thd, uint cs_number)
                cs->cs_name.str);
       return true;
     }
-    Sql_used used;
-    cs= global_system_variables.character_set_collations.
-          get_collation_for_charset(&used, cs);
+    /*
+      Some connectors (e.g. JDBC, Node.js) can send non-default collation IDs
+      in the handshake packet, to set @@collation_connection right during
+      handshake. Although this is a non-documenting feature,
+      for better backward compatibility with such connectors let's:
+      a. resolve only default collations according to @@character_set_collations
+      b. preserve non-default collations as is
+
+      Perhaps eventually we should change (b) also to resolve non-default
+      collations accoding to @@character_set_collations. Clients that used to
+      send a non-default collation ID in the handshake packet will have to set
+      @@character_set_collations instead.
+    */
+    if (cs->state & MY_CS_PRIMARY)
+    {
+      Sql_used used;
+      cs= global_system_variables.character_set_collations.
+            get_collation_for_charset(&used, cs);
+    }
     thd->org_charset= cs;
     thd->update_charset(cs,cs,cs);
   }
@@ -1147,6 +1174,7 @@ static bool login_connection(THD *thd)
   my_net_set_write_timeout(net, connect_timeout);
 
   error= check_connection(thd);
+  thd->session_tracker.sysvars.mark_all_as_changed(thd);
   thd->protocol->end_statement();
 
   if (unlikely(error))
@@ -1242,8 +1270,7 @@ void prepare_new_connection_state(THD* thd)
     embedded server library.
     TODO: refactor this to avoid code duplication there
   */
-  thd->proc_info= 0;
-  thd->set_command(COM_SLEEP);
+  thd->mark_connection_idle();
   thd->init_for_queries();
 
   if (opt_init_connect.length &&

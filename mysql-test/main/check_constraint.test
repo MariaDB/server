@@ -232,6 +232,23 @@ show create table t1;
 drop table t1;
 
 --echo #
+--echo # MDEV-32586 incorrect error about cyclic reference about JSON type virtual column
+--echo #
+
+create table t1 (a int, b json as (a));
+drop table t1;
+
+create table t1 (a int, b int as (a) check (b > 0));
+insert t1 (a) values (1);
+--error ER_CONSTRAINT_FAILED
+insert t1 (a) values (-1);
+drop table t1;
+
+--echo #
+--echo # End of 10.4 tests
+--echo #
+
+--echo #
 --echo # MDEV-32439 INSERT IGNORE VALUES (one row) errors on constraint
 --echo #
 

@@ -2676,12 +2676,12 @@ explain partitions
 select * from t1 X, t1 Y 
 where X.b = Y.b and (X.a=1 or X.a=2) and (Y.a=2 or Y.a=3);
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	X	p1,p2	range	a,b	a	4	NULL	4	Using where
+1	SIMPLE	X	p1,p2	range	a,b	a	4	NULL	4	Using index condition
 1	SIMPLE	Y	p2,p3	ref	a,b	b	4	test.X.b	1	Using where
 explain partitions
 select * from t1 X, t1 Y where X.a = Y.a and (X.a=1 or X.a=2);
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	X	p1,p2	range	a	a	4	NULL	4	Using where
+1	SIMPLE	X	p1,p2	range	a	a	4	NULL	4	Using index condition
 1	SIMPLE	Y	p1,p2	ref	a	a	4	test.X.a	1	
 drop table t1;
 create table t1 (a int) partition by hash(a) partitions 20;
@@ -2920,12 +2920,12 @@ id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	p0,p1,p2,p3,p4	ALL	b	NULL	NULL	NULL	910	Using where
 explain extended select * from t2 where b > 5 and b < 7;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t2	range	b	b	5	NULL	77	100.00	Using where
+1	SIMPLE	t2	range	b	b	5	NULL	77	100.00	Using index condition
 Warnings:
 Note	1003	select `test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b` from `test`.`t2` where `test`.`t2`.`b` > 5 and `test`.`t2`.`b` < 7
 explain partitions select * from t2 where b > 5 and b < 7;
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	p0,p1,p2,p3,p4	range	b	b	5	NULL	77	Using where
+1	SIMPLE	t2	p0,p1,p2,p3,p4	range	b	b	5	NULL	77	Using index condition
 explain extended select * from t2 where b > 0 and b < 5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	ALL	b	NULL	NULL	NULL	910	41.87	Using where
@@ -3372,46 +3372,46 @@ id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 EXPLAIN PARTITIONS SELECT * FROM t1 WHERE c1 = 1 AND c2 <= 1;
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p1	range	PRIMARY	PRIMARY	8	NULL	1	Using where
+1	SIMPLE	t1	p1	range	PRIMARY	PRIMARY	8	NULL	1	Using index condition
 EXPLAIN PARTITIONS SELECT * FROM t1 WHERE c1 = 1 AND c2 = 1;
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	p1	const	PRIMARY	PRIMARY	8	const,const	1	
 EXPLAIN PARTITIONS SELECT * FROM t1 WHERE c1 = 1 AND c2 >= 1;
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p1,p2	range	PRIMARY	PRIMARY	8	NULL	3	Using where
+1	SIMPLE	t1	p1,p2	range	PRIMARY	PRIMARY	8	NULL	3	Using index condition
 EXPLAIN PARTITIONS SELECT * FROM t1 WHERE c1 = 1 AND c2 > 1;
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p1,p2	range	PRIMARY	PRIMARY	8	NULL	2	Using where
+1	SIMPLE	t1	p1,p2	range	PRIMARY	PRIMARY	8	NULL	2	Using index condition
 EXPLAIN PARTITIONS SELECT * FROM t1 WHERE c1 = 1 AND c2 < 3;
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p1	range	PRIMARY	PRIMARY	8	NULL	2	Using where
+1	SIMPLE	t1	p1	range	PRIMARY	PRIMARY	8	NULL	2	Using index condition
 EXPLAIN PARTITIONS SELECT * FROM t1 WHERE c1 = 1 AND c2 <= 3;
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p1,p2	range	PRIMARY	PRIMARY	8	NULL	3	Using where
+1	SIMPLE	t1	p1,p2	range	PRIMARY	PRIMARY	8	NULL	3	Using index condition
 EXPLAIN PARTITIONS SELECT * FROM t1 WHERE c1 = 2 AND c2 <= 3;
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p1,p2	range	PRIMARY	PRIMARY	8	NULL	2	Using where
+1	SIMPLE	t1	p1,p2	range	PRIMARY	PRIMARY	8	NULL	2	Using index condition
 EXPLAIN PARTITIONS SELECT * FROM t1 WHERE c1 = 2 AND c2 = 3;
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	p2	const	PRIMARY	PRIMARY	8	const,const	1	
 EXPLAIN PARTITIONS SELECT * FROM t1 WHERE c1 = 2 AND c2 >= 3;
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p2	range	PRIMARY	PRIMARY	8	NULL	2	Using where
+1	SIMPLE	t1	p2	range	PRIMARY	PRIMARY	8	NULL	2	Using index condition
 EXPLAIN PARTITIONS SELECT * FROM t1 WHERE c1 = 2 AND c2 > 3;
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p2	range	PRIMARY	PRIMARY	8	NULL	1	Using where
+1	SIMPLE	t1	p2	range	PRIMARY	PRIMARY	8	NULL	1	Using index condition
 EXPLAIN PARTITIONS SELECT * FROM t1 WHERE c1 = 2 AND c2 < 4;
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p1,p2	range	PRIMARY	PRIMARY	8	NULL	2	Using where
+1	SIMPLE	t1	p1,p2	range	PRIMARY	PRIMARY	8	NULL	2	Using index condition
 EXPLAIN PARTITIONS SELECT * FROM t1 WHERE c1 = 2 AND c2 <= 4;
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p1,p2	range	PRIMARY	PRIMARY	8	NULL	3	Using where
+1	SIMPLE	t1	p1,p2	range	PRIMARY	PRIMARY	8	NULL	3	Using index condition
 EXPLAIN PARTITIONS SELECT * FROM t1 WHERE c1 = 2 AND c2 = 4;
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	p2	const	PRIMARY	PRIMARY	8	const,const	1	
 EXPLAIN PARTITIONS SELECT * FROM t1 WHERE c1 = 2 AND c2 >= 4;
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p2	range	PRIMARY	PRIMARY	8	NULL	1	Using where
+1	SIMPLE	t1	p2	range	PRIMARY	PRIMARY	8	NULL	1	Using index condition
 EXPLAIN PARTITIONS SELECT * FROM t1 WHERE c1 = 2 AND c2 > 4;
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
@@ -3529,3 +3529,17 @@ id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t3	p3	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
 1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (incremental, BNL join)
 drop table t0,t1,t2,t3;
+#
+# End of 10.3 tests
+#
+#
+# MDEV-24283 Assertion `bitmap_is_set(&m_part_info->read_partitions, m_part_spec.start_part)' failed in ha_partition::handle_ordered_index_scan
+#
+create table t1 (c int key) partition by list (c) (partition p values in (0));
+select max(c) from t1 where c>0;
+max(c)
+NULL
+drop table t1;
+#
+# End of 10.4 tests
+#

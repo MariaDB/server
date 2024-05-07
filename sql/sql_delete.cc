@@ -511,9 +511,9 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
   select=make_select(table, 0, 0, conds, (SORT_INFO*) 0, 0, &error);
   if (unlikely(error))
     DBUG_RETURN(TRUE);
-  if (unlikely((select && select->check_quick(thd, safe_update, limit)) ||
-               table->stat_records() == 0 ||
-               !limit))
+  if ((select && select->check_quick(thd, safe_update, limit,
+                                     Item_func::BITMAP_ALL)) || !limit ||
+      table->stat_records() == 0)
   {
     query_plan.set_impossible_where();
     if (thd->lex->describe || thd->lex->analyze_stmt)
@@ -841,7 +841,7 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
 
       if (likely(!error))
       {
-	deleted++;
+        deleted++;
         if (!delete_history && table->triggers &&
             table->triggers->process_triggers(thd, TRG_EVENT_DELETE,
                                               TRG_ACTION_AFTER, FALSE))
@@ -849,15 +849,15 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
           error= 1;
           break;
         }
-	if (!--limit && using_limit)
-	{
-	  error= -1;
-	  break;
-	}
+        if (!--limit && using_limit)
+        {
+          error= -1;
+          break;
+        }
       }
       else
       {
-	table->file->print_error(error,
+        table->file->print_error(error,
                                  MYF(thd->lex->ignore ? ME_WARNING : 0));
         if (thd->is_error())
         {
@@ -947,7 +947,7 @@ cleanup:
 
       if (log_result > 0)
       {
-	error=1;
+        error=1;
       }
     }
   }
@@ -958,6 +958,8 @@ cleanup:
   {
     if (thd->lex->analyze_stmt)
       goto send_nothing_and_leave;
+
+    thd->collect_unit_results(0, deleted);
 
     if (returning)
       result->send_eof();
@@ -1060,6 +1062,13 @@ multi_delete::initialize_tables(JOIN *join)
   {
     TABLE_LIST *tbl= walk->correspondent_table->find_table_for_update();
     tables_to_delete_from|= tbl->table->map;
+
+    /*
+      Ensure that filesort re-reads the row from the engine before
+      delete is called.
+    */
+    join->map2table[tbl->table->tablenr]->keep_current_rowid= true;
+
     if (delete_while_scanning &&
         unique_table(thd, tbl, join->tables_list, 0))
     {

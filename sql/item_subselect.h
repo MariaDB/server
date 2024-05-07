@@ -294,7 +294,8 @@ public:
 /* single value subselect */
 
 class Item_cache;
-class Item_singlerow_subselect :public Item_subselect
+class Item_singlerow_subselect :public Item_subselect,
+                                public Type_extra_attributes
 {
 protected:
   Item_cache *value, **row;
@@ -319,6 +320,14 @@ public:
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override;
   const Type_handler *type_handler() const override;
   bool fix_length_and_dec() override;
+  Type_extra_attributes *type_extra_attributes_addr() override
+  {
+    return this;
+  }
+  const Type_extra_attributes type_extra_attributes() const override
+  {
+    return *this;
+  }
 
   uint cols() const override;
   Item* element_index(uint i) override
@@ -874,7 +883,11 @@ public:
   virtual bool change_result(Item_subselect *si,
                              select_result_interceptor *result,
                              bool temp= FALSE)= 0;
-  virtual bool no_tables()= 0;
+  virtual bool no_tables() const = 0;
+  /*
+    Return true we can guarantee that the subquery will always return one row.
+  */
+  virtual bool always_returns_one_row() const { return false; }
   virtual bool is_executed() const { return FALSE; }
   /* Check if subquery produced any rows during last query execution */
   virtual bool no_rows() = 0;
@@ -895,25 +908,26 @@ public:
   subselect_single_select_engine(st_select_lex *select,
 				 select_result_interceptor *result,
 				 Item_subselect *item);
-  void cleanup();
-  int prepare(THD *thd);
-  bool fix_length_and_dec(Item_cache** row);
-  int exec();
-  uint cols() const;
-  uint8 uncacheable();
-  void exclude();
-  table_map upper_select_const_tables();
-  void print (String *str, enum_query_type query_type);
+  void cleanup() override;
+  int prepare(THD *thd) override;
+  bool fix_length_and_dec(Item_cache** row) override;
+  int exec() override;
+  uint cols() const override;
+  uint8 uncacheable() override;
+  void exclude() override;
+  table_map upper_select_const_tables() override;
+  void print(String *str, enum_query_type query_type) override;
   bool change_result(Item_subselect *si,
                      select_result_interceptor *result,
-                     bool temp);
-  bool no_tables();
-  bool may_be_null();
-  bool is_executed() const { return executed; }
-  bool no_rows();
-  virtual enum_engine_type engine_type() { return SINGLE_SELECT_ENGINE; }
-  int get_identifier();
-  void force_reexecution();
+                     bool temp) override;
+  bool no_tables() const override;
+  bool always_returns_one_row() const override;
+  bool may_be_null() override;
+  bool is_executed() const override { return executed; }
+  bool no_rows() override;
+  enum_engine_type engine_type() override { return SINGLE_SELECT_ENGINE; }
+  int get_identifier() override;
+  void force_reexecution() override;
   void change_select(st_select_lex *new_select) { select_lex= new_select; }
 
   friend class subselect_hash_sj_engine;
@@ -932,23 +946,23 @@ public:
   subselect_union_engine(st_select_lex_unit *u,
 			 select_result_interceptor *result,
 			 Item_subselect *item);
-  void cleanup();
-  int prepare(THD *);
-  bool fix_length_and_dec(Item_cache** row);
-  int exec();
-  uint cols() const;
-  uint8 uncacheable();
-  void exclude();
-  table_map upper_select_const_tables();
-  void print (String *str, enum_query_type query_type);
+  void cleanup() override;
+  int prepare(THD *) override;
+  bool fix_length_and_dec(Item_cache** row) override;
+  int exec() override;
+  uint cols() const override;
+  uint8 uncacheable() override;
+  void exclude() override;
+  table_map upper_select_const_tables() override;
+  void print(String *str, enum_query_type query_type) override;
   bool change_result(Item_subselect *si,
                      select_result_interceptor *result,
-                     bool temp= FALSE);
-  bool no_tables();
-  bool is_executed() const;
-  void force_reexecution();
-  bool no_rows();
-  virtual enum_engine_type engine_type() { return UNION_ENGINE; }
+                     bool temp= FALSE) override;
+  bool no_tables() const override;
+  bool is_executed() const override;
+  void force_reexecution() override;
+  bool no_rows() override;
+  enum_engine_type engine_type() override { return UNION_ENGINE; }
 };
 
 
@@ -993,24 +1007,24 @@ public:
     DBUG_ASSERT(subs);
   }
   ~subselect_uniquesubquery_engine();
-  void cleanup();
-  int prepare(THD *);
-  bool fix_length_and_dec(Item_cache** row);
-  int exec();
-  uint cols() const { return 1; }
-  uint8 uncacheable() { return UNCACHEABLE_DEPENDENT_INJECTED; }
-  void exclude();
-  table_map upper_select_const_tables() { return 0; }
-  void print (String *str, enum_query_type query_type);
+  void cleanup() override;
+  int prepare(THD *) override;
+  bool fix_length_and_dec(Item_cache** row) override;
+  int exec() override;
+  uint cols() const override { return 1; }
+  uint8 uncacheable() override { return UNCACHEABLE_DEPENDENT_INJECTED; }
+  void exclude() override;
+  table_map upper_select_const_tables() override { return 0; }
+  void print(String *str, enum_query_type query_type) override;
   bool change_result(Item_subselect *si,
                      select_result_interceptor *result,
-                     bool temp= FALSE);
-  bool no_tables();
+                     bool temp= FALSE) override;
+  bool no_tables() const override;
   int index_lookup(); /* TIMOUR: this method needs refactoring. */
   int scan_table();
   bool copy_ref_key(bool skip_constants);
-  bool no_rows() { return empty_result_set; }
-  virtual enum_engine_type engine_type() { return UNIQUESUBQUERY_ENGINE; }
+  bool no_rows() override { return empty_result_set; }
+  enum_engine_type engine_type() override { return UNIQUESUBQUERY_ENGINE; }
 };
 
 
@@ -1131,26 +1145,26 @@ public:
   ~subselect_hash_sj_engine();
 
   bool init(List<Item> *tmp_columns, uint subquery_id);
-  void cleanup();
-  int prepare(THD *);
-  int exec();
-  void print(String *str, enum_query_type query_type);
-  uint cols() const { return materialize_engine->cols(); }
-  uint8 uncacheable() { return materialize_engine->uncacheable(); }
-  table_map upper_select_const_tables() { return 0; }
-  bool no_rows() { return !tmp_table->file->stats.records; }
-  virtual enum_engine_type engine_type() { return HASH_SJ_ENGINE; }
+  void cleanup() override;
+  int prepare(THD *) override;
+  int exec() override;
+  void print(String *str, enum_query_type query_type) override;
+  uint cols() const override { return materialize_engine->cols(); }
+  uint8 uncacheable() override { return materialize_engine->uncacheable(); }
+  table_map upper_select_const_tables() override { return 0; }
+  bool no_rows() override { return !tmp_table->file->stats.records; }
+  enum_engine_type engine_type() override { return HASH_SJ_ENGINE; }
   /*
     TODO: factor out all these methods in a base subselect_index_engine class
     because all of them have dummy implementations and should never be called.
   */
-  bool fix_length_and_dec(Item_cache** row);//=>base class
-  void exclude(); //=>base class
+  bool fix_length_and_dec(Item_cache** row) override;//=>base class
+  void exclude() override; //=>base class
   //=>base class
   bool change_result(Item_subselect *si,
                      select_result_interceptor *result,
-                     bool temp= FALSE);
-  bool no_tables();//=>base class
+                     bool temp= FALSE) override;
+  bool no_tables() const override;//=>base class
 
 protected:
   /* The engine used to compute the IN predicate. */
@@ -1416,19 +1430,20 @@ public:
                                  bool has_covering_null_row_arg,
                                  bool has_covering_null_columns_arg,
                                  uint count_columns_with_nulls_arg);
-  int prepare(THD *thd_arg) { set_thd(thd_arg); return 0; }
-  int exec();
-  bool fix_length_and_dec(Item_cache**) { return FALSE; }
-  uint cols() const { /* TODO: what is the correct value? */ return 1; }
-  uint8 uncacheable() { return UNCACHEABLE_DEPENDENT; }
-  void exclude() {}
-  table_map upper_select_const_tables() { return 0; }
+  int prepare(THD *thd_arg) override { set_thd(thd_arg); return 0; }
+  int exec() override;
+  bool fix_length_and_dec(Item_cache**) override { return FALSE; }
+  uint cols() const override
+  { /* TODO: what is the correct value? */ return 1; }
+  uint8 uncacheable() override { return UNCACHEABLE_DEPENDENT; }
+  void exclude() override {}
+  table_map upper_select_const_tables() override { return 0; }
   bool change_result(Item_subselect*,
                      select_result_interceptor*,
-                     bool temp= FALSE)
+                     bool temp= FALSE) override
   { DBUG_ASSERT(FALSE); return false; }
-  bool no_tables() { return false; }
-  bool no_rows()
+  bool no_tables() const override { return false; }
+  bool no_rows() override
   {
     /*
       TODO: It is completely unclear what is the semantics of this
@@ -1438,7 +1453,7 @@ public:
     */
     return !(item->get_IN_subquery()->null_value);
   }
-  void print(String*, enum_query_type);
+  void print(String*, enum_query_type) override;
 
   friend void subselect_hash_sj_engine::cleanup();
 };

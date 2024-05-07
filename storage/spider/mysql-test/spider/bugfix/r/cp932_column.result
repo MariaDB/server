@@ -31,6 +31,8 @@ txt_utf8 char(8) NOT NULL,
 txt_cp932 char(8) NOT NULL COLLATE cp932_japanese_ci,
 PRIMARY KEY (pkey)
 ) MASTER_1_ENGINE DEFAULT CHARACTER SET utf8 MASTER_1_COMMENT_2_1
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 INSERT INTO tbl_a (pkey,txt_utf8,txt_cp932) VALUES (0,'',''),(1,'',''),(2,'',''),(3,'',''),(4,'',''),(5,'',''),(6,'',''),(7,'',''),(8,'',''),(9,'','');
 FLUSH TABLES;
 

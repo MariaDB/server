@@ -91,7 +91,13 @@ static inline bool wsrep_is_real(THD* thd, bool all)
  */
 static inline bool wsrep_has_changes(THD* thd)
 {
-  return (thd->wsrep_trx().is_empty() == false);
+  // Transaction has changes to replicate if it
+  // has appended one or more certification keys,
+  // and has actual changes to replicate in binlog
+  // cache. Except for streaming replication,
+  // where commit message may have no payload.
+  return !thd->wsrep_trx().is_empty() &&
+    (!wsrep_is_binlog_cache_empty(thd) || thd->wsrep_trx().is_streaming());
 }
 
 /*
@@ -196,6 +202,11 @@ static inline bool wsrep_run_commit_hook(THD* thd, bool all)
                        wsrep_is_active(thd), wsrep_is_real(thd, all),
                        wsrep_has_changes(thd), wsrep_thd_is_applying(thd),
                        wsrep_is_ordered(thd)));
+
+  /* skipping non-wsrep threads */
+  if (!WSREP(thd))
+    DBUG_RETURN(false);
+
   /* Is MST commit or autocommit? */
   bool ret= wsrep_is_active(thd) && wsrep_is_real(thd, all);
   /* Do not commit if we are aborting */

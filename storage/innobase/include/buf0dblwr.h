@@ -105,7 +105,8 @@ public:
   If we are upgrading from a version before MySQL 4.1, then this
   function performs the necessary update operations to support
   innodb_file_per_table. If we are in a crash recovery, this function
-  loads the pages from double write buffer into memory.
+  loads the pages from double write buffer which are not older than
+  the checkpoint into memory.
   @param file File handle
   @param path Path name of file
   @return DB_SUCCESS or error code */

@@ -16,7 +16,7 @@
 
 INCLUDE_DIRECTORIES(
   ${CMAKE_SOURCE_DIR}/include
-  ${PCRE_INCLUDES}
+  ${PCRE_INCLUDE_DIRS}
   ${CMAKE_SOURCE_DIR}/mysys_ssl
   ${ZLIB_INCLUDE_DIR}
   ${SSL_INCLUDE_DIRS}
@@ -53,7 +53,7 @@ SET_TARGET_PROPERTIES(mariadb-test PROPERTIES ENABLE_EXPORTS TRUE)
 MYSQL_ADD_EXECUTABLE(mariadb-check mysqlcheck.c)
 TARGET_LINK_LIBRARIES(mariadb-check ${CLIENT_LIB})
 
-MYSQL_ADD_EXECUTABLE(mariadb-dump mysqldump.c ../sql-common/my_user.c)
+MYSQL_ADD_EXECUTABLE(mariadb-dump mysqldump.cc ../sql-common/my_user.c connection_pool.cc)
 TARGET_LINK_LIBRARIES(mariadb-dump ${CLIENT_LIB})
 
 MYSQL_ADD_EXECUTABLE(mariadb-import mysqlimport.c)

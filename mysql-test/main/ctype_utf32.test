@@ -1040,15 +1040,17 @@ SELECT CAST(CONVERT('1Ĳ3' USING utf32) AS SIGNED);
 --echo #
 --echo # MDEV-9711 NO PAD Collatons
 --echo #
-SET character_set_connection=utf32;
+SET collation_connection=utf32_general_nopad_ci;
 let $coll='utf32_general_nopad_ci';
 let $coll_pad='utf32_general_ci';
 --source include/ctype_pad_all_engines.inc
+--source include/ctype_like.inc
 
+SET collation_connection=utf32_nopad_bin;
 let $coll='utf32_nopad_bin';
 let $coll_pad='utf32_bin';
 --source include/ctype_pad_all_engines.inc
-
+--source include/ctype_like.inc
 
 --echo #
 --echo # MDEV-22111 ERROR 1064 & 1033 and SIGSEGV on CREATE TABLE w/ various charsets on 10.4/5 optimized builds | Assertion `(uint) (table_check_constraints - share->check_constraints) == (uint) (share->table_check_constraints - share->field_check_constraints)' failed
@@ -1120,6 +1122,48 @@ SELECT HEX(OCT(a)) FROM t;
 DROP TABLE t;
 SET NAMES utf8;
 
+--echo #
+--echo # MDEV-28835 Assertion `(length % 4) == 0' failed in my_lengthsp_utf32 on INSERT
+--echo #
+
+# --view-protocol does not yet work well with character set introducers
+
+--disable_view_protocol
+
+SET sql_mode='',character_set_connection=utf32;
+CREATE TABLE t (c ENUM ('','')) CHARACTER SET utf32;
+INSERT INTO t VALUES (DATE_FORMAT('2004-02-02','%W'));
+DROP TABLE t;
+SET sql_mode=DEFAULT;
+
+--echo # utf32 format, utf32 result
+SELECT DATE_FORMAT('2004-02-02','%W');
+SELECT HEX(DATE_FORMAT('2004-02-02','%W'));
+SELECT DATE_FORMAT(TIME'-01:01:01','%h');
+SELECT HEX(DATE_FORMAT(TIME'-01:01:01','%h'));
+
+--echo # utf8 format, utf32 result
+SELECT DATE_FORMAT('2004-02-02',_utf8'%W');
+SELECT HEX(DATE_FORMAT('2004-02-02',_utf8'%W'));
+SELECT DATE_FORMAT(TIME'-01:01:01',_utf8'%h');
+SELECT HEX(DATE_FORMAT(TIME'-01:01:01',_utf8'%h'));
+
+--echo # utf32 format, utf8 result
+SET NAMES utf8;
+SELECT DATE_FORMAT('2004-02-02',CONVERT('%W' USING utf32));
+SELECT HEX(DATE_FORMAT('2004-02-02',CONVERT('%W' USING utf32)));
+SELECT DATE_FORMAT(TIME'-01:01:01',CONVERT('%h' USING utf32));
+SELECT HEX(DATE_FORMAT(TIME'-01:01:01',CONVERT('%h' USING utf32)));
+
+--echo # non-BMP characters in format, utf8mb3 result
+--echo # expect non-convertable characters to be replaced to '?'
+SET NAMES utf8mb3;
+SET @format= CONCAT(CONVERT('%h' USING utf32),
+                    _utf32 0x0010FFFF /*a non-BMP character*/,
+                    CONVERT('%i' USING utf32));
+SELECT DATE_FORMAT(TIME'11:22:33',@format);
+SELECT HEX(DATE_FORMAT(TIME'11:22:33',@format));
+--enable_view_protocol
 
 --echo #
 --echo # End of 10.4 tests

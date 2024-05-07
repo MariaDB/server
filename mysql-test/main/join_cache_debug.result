@@ -1,0 +1,131 @@
+#
+# MDEV-32351: Significant slowdown for query with many outer joins
+#
+CREATE TABLE t1 (b int NOT NULL, PRIMARY KEY (b)) ENGINE=MYISAM;
+INSERT INTO t1 select seq from seq_1_to_10000;
+CREATE TABLE t2 (b int NOT NULL, d varchar(255), KEY (b)) ENGINE=MYISAM ;
+INSERT INTO t2 VALUES (1,1),(2,2),(3,3);
+CREATE TABLE t3 (c int NOT NULL, PRIMARY KEY (c)) ENGINE=MYISAM ;
+INSERT INTO t3 select seq from seq_1_to_3000;
+CREATE TABLE t4 (c int NOT NULL, PRIMARY KEY (c)) ENGINE=MYISAM;
+INSERT INTO t4 select seq from seq_1_to_3000;
+ANALYZE TABLE t1,t2,t3,t4;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+test.t3	analyze	status	Engine-independent statistics collected
+test.t3	analyze	status	OK
+test.t4	analyze	status	Engine-independent statistics collected
+test.t4	analyze	status	OK
+create table t1_t2 as
+select 
+t1.b as t1_b, t2.b as t2_b, t2.d as t2_d
+FROM t1
+LEFT JOIN t2 ON t1.b = t2.b;
+SET statement debug_dbug='+d,analyze_print_r_unpack_ops' for
+analyze
+format=json
+SELECT COUNT(*)
+FROM t1_t2
+LEFT JOIN t3 ON t2_d = t3.c
+LEFT JOIN t4 ON t3.c=1
+select '$js' as JSON;
+JSON
+{
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
+  "query_block": {
+    "select_id": 1,
+    "cost": "REPLACED",
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "const_condition": "1",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1_t2",
+          "access_type": "ALL",
+          "loops": 1,
+          "r_loops": 1,
+          "rows": 10000,
+          "r_rows": 10000,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_total_filtered": 100,
+          "r_filtered": 100
+        }
+      },
+      {
+        "table": {
+          "table_name": "t3",
+          "access_type": "eq_ref",
+          "possible_keys": ["PRIMARY"],
+          "key": "PRIMARY",
+          "key_length": "4",
+          "used_key_parts": ["c"],
+          "ref": ["test.t1_t2.t2_d"],
+          "loops": 10000,
+          "r_loops": 10000,
+          "r_table_loops": 3,
+          "rows": 1,
+          "r_rows": 0.0003,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_total_filtered": 100,
+          "attached_condition": "trigcond(t1_t2.t2_d = t3.c and trigcond(t1_t2.t2_d is not null))",
+          "r_filtered": 100,
+          "using_index": true
+        }
+      },
+      {
+        "block-nl-join": {
+          "table": {
+            "table_name": "t4",
+            "access_type": "index",
+            "key": "PRIMARY",
+            "key_length": "4",
+            "used_key_parts": ["c"],
+            "loops": 10000,
+            "r_loops": 1,
+            "rows": 3000,
+            "r_rows": 3000,
+            "cost": "REPLACED",
+            "r_table_time_ms": "REPLACED",
+            "r_other_time_ms": "REPLACED",
+            "r_engine_stats": REPLACED,
+            "filtered": 100,
+            "r_total_filtered": 100,
+            "r_filtered": 100,
+            "using_index": true
+          },
+          "buffer_type": "flat",
+          "buffer_size": "256Kb",
+          "join_type": "BNL",
+          "attached_condition": "trigcond(trigcond(t3.c = 1))",
+          "r_loops": 10000,
+          "r_filtered": 0.04333,
+          "r_unpack_time_ms": "REPLACED",
+          "r_unpack_ops": 3000,
+          "r_other_time_ms": "REPLACED",
+          "r_effective_rows": 3000
+        }
+      }
+    ]
+  }
+}
+# This must show 3000, not 30000000:
+select json_extract('$js', '\$**.r_unpack_ops') as R_UNPACK_OPS;
+R_UNPACK_OPS
+[3000]
+SET debug_dbug=@old_debug;
+drop table t1,t2,t3,t4;
+drop table t1_t2;

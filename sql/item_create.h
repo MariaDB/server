@@ -239,8 +239,8 @@ public:
     @return An item representing the parsed function call
   */
   virtual Item *create_with_db(THD *thd,
-                               const LEX_CSTRING *db,
-                               const LEX_CSTRING *name,
+                               const Lex_ident_db_normalized &db,
+                               const Lex_ident_routine &name,
                                bool use_explicit_name,
                                List<Item> *item_list) = 0;
 
@@ -324,6 +324,12 @@ public:
   bool init(size_t count);
   bool append(const Native_func_registry array[], size_t count);
   bool remove(const Native_func_registry array[], size_t count);
+  bool replace(const Native_func_registry array[], size_t count)
+  {
+    DBUG_ENTER("Native_functions_hash::replace");
+    remove(array, count);
+    DBUG_RETURN(append(array, count));
+  }
   void cleanup();
   /**
     Find the native function builder associated with a given function name.
@@ -335,6 +341,7 @@ public:
 };
 
 extern MYSQL_PLUGIN_IMPORT Native_functions_hash native_functions_hash;
+extern MYSQL_PLUGIN_IMPORT Native_functions_hash native_functions_hash_oracle;
 
 extern const Native_func_registry func_array[];
 extern const size_t func_array_length;
@@ -377,4 +384,3 @@ public:
 
 
 #endif
-

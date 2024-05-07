@@ -20,6 +20,8 @@ USE auto_test_local;
 CREATE TABLE tbl_a (
 a CHAR(255)
 ) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='table "tbl_a", srv "s_2_1"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 SET sql_mode='';
 INSERT INTO tbl_a VALUES ("this will be truncated");
 NOT FOUND /\[WARN SPIDER RESULT\].* Warning 1265 Data truncated for column 'a' at row 1.*/ in mysqld.1.1.err

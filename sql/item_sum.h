@@ -1172,7 +1172,10 @@ public:
   {
     return get_arg(0)->real_type_handler();
   }
-  const TYPELIB *get_typelib() const  override { return args[0]->get_typelib(); }
+  const Type_extra_attributes type_extra_attributes() const override
+  {
+    return args[0]->type_extra_attributes();
+  }
   void update_field() override;
   void min_max_update_str_field();
   void min_max_update_real_field();

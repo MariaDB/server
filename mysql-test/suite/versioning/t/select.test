@@ -6,6 +6,8 @@ if (`SELECT $PS_PROTOCOL != 0`)
 --source suite/versioning/common.inc
 --source include/default_optimizer_switch.inc
 
+--let $replace_regex_tsltz6= /TIMESTAMP..WITH LOCAL TIME ZONE..'....-..-.. ..:..:..[.]......'/TIMESTAMP\/*WITH LOCAL TIME ZONE*\/'YYYY-MM-DD hh:ss:mm:.uuuuuu'/
+
 SET @saved_stats_persistent = @@GLOBAL.innodb_stats_persistent;
 SET GLOBAL innodb_stats_persistent = OFF;
 
@@ -98,11 +100,14 @@ delete from t1;
 delete from t2;
 
 #384
+--replace_regex $replace_regex_tsltz6
 explain extended select * from (select t1.x as IJ2_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 inner join t2 on t1.x = t2.x)
 for system_time as of timestamp @t0 as t;
+--replace_regex $replace_regex_tsltz6
 explain extended select * from (select t1.x as LJ2_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 left join t2 on t1.x = t2.x)
 for system_time as of timestamp @t0 as t;
 #383
+--replace_regex $replace_regex_tsltz6
 explain extended select * from (select t1.x as RJ2_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 right join t2 on t1.x = t2.x)
 for system_time as of timestamp @t0 as t;
 
@@ -314,7 +319,7 @@ select * from t1 where (a, 2) in ((1, 1), (2, 2)) and b = 1;
 --echo ### Issue #398, NOW is now non-magic
 create or replace table t1 (x int) with system versioning;
 select * from t1 for system_time as of current_timestamp;
---error ER_BAD_FIELD_ERROR
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
 select * from t1 for system_time as of now;
 
 --echo ### Issue #405, NATURAL JOIN failure
@@ -486,5 +491,15 @@ call verify_trt_dummy(34);
 --disable_prepare_warnings
 
 SET GLOBAL innodb_stats_persistent = @saved_stats_persistent;
+
+--echo #
+--echo # MDEV-32082 Server crash in find_field_in_table
+--echo #
+create table t0 (c0 int) with system versioning;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+select x0 from (
+  select c0 x0 from t0
+) for system_time as of nowasdf deriv;
+drop table t0;
 
 -- source suite/versioning/common_finish.inc

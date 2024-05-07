@@ -266,11 +266,26 @@ class Item_json_str_multipath: public Item_json_func
 protected:
   json_path_with_flags *paths;
   String *tmp_paths;
+private:
+  /**
+    Number of paths returned by calling virtual method get_n_paths() and
+    remembered inside fix_fields(). It is used by the virtual destructor
+    ~Item_json_str_multipath() to iterate along allocated memory chunks stored
+    in the array tmp_paths and free every of them. The virtual method
+    get_n_paths() can't be used for this goal from within virtual destructor.
+    We could get rid of the virtual method get_n_paths() and store the number
+    of paths directly in the constructor of classes derived from the class
+    Item_json_str_multipath but presence of the method get_n_paths() allows
+    to check invariant that the number of arguments not changed between
+    sequential runs of the same prepared statement that seems to be useful.
+  */
+  uint n_paths;
 public:
   Item_json_str_multipath(THD *thd, List<Item> &list):
-    Item_json_func(thd, list), tmp_paths(0) {}
+    Item_json_func(thd, list), paths(NULL), tmp_paths(0), n_paths(0) {}
+  virtual ~Item_json_str_multipath();
+
   bool fix_fields(THD *thd, Item **ref);
-  void cleanup();
   virtual uint get_n_paths() const = 0;
 };
 
@@ -337,6 +352,7 @@ protected:
 public:
   Item_func_json_contains_path(THD *thd, List<Item> &list):
     Item_bool_func(thd, list), tmp_paths(0) {}
+  virtual ~Item_func_json_contains_path();
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("json_contains_path") };
@@ -344,7 +360,6 @@ public:
   }
   bool fix_fields(THD *thd, Item **ref) override;
   bool fix_length_and_dec(THD *thd) override;
-  void cleanup() override;
   longlong val_int() override;
   Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_json_contains_path>(thd, this); }
@@ -726,6 +741,7 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("json_arrayagg(") };
     return name;
   }
+  bool fix_fields(THD *thd, Item **ref) override;
   enum Sumfunctype sum_func() const override { return JSON_ARRAYAGG_FUNC; }
 
   String* val_str(String *str) override;
@@ -869,9 +885,10 @@ protected:
   bool hash_inited, root_inited;
   HASH items;
   MEM_ROOT hash_root;
+  bool parse_for_each_row;
 public:
   Item_func_json_array_intersect(THD *thd, Item *a, Item *b):
-    Item_str_func(thd, a, b) { hash_inited= root_inited= false; }
+    Item_str_func(thd, a, b) { hash_inited= root_inited= parse_for_each_row= false; }
   String *val_str(String *) override;
   bool fix_length_and_dec(THD *thd) override;
   LEX_CSTRING func_name_cstring() const override
@@ -889,6 +906,7 @@ public:
     if (root_inited)
       free_root(&hash_root, MYF(0));
   }
+  void prepare_json_and_create_hash(json_engine_t *je1, String *js);
 };
 
 class Item_func_json_object_filter_keys: public Item_str_func

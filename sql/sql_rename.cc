@@ -234,7 +234,7 @@ do_rename_temporary(THD *thd, TABLE_LIST *ren_table, TABLE_LIST *new_table)
 
 struct rename_param
 {
-  LEX_CSTRING old_alias, new_alias;
+  Lex_ident_table old_alias, new_alias;
   LEX_CUSTRING old_version;
   handlerton *from_table_hton;
 };
@@ -260,10 +260,10 @@ struct rename_param
 
 static int
 check_rename(THD *thd, rename_param *param,
-             TABLE_LIST *ren_table,
-             const LEX_CSTRING *new_db,
-             const LEX_CSTRING *new_table_name,
-             const LEX_CSTRING *new_table_alias,
+             const TABLE_LIST *ren_table,
+             const Lex_ident_db &new_db,
+             const Lex_ident_table &new_table_name,
+             const Lex_ident_table &new_table_alias,
              bool if_exists)
 {
   DBUG_ENTER("check_rename");
@@ -273,12 +273,12 @@ check_rename(THD *thd, rename_param *param,
   if (lower_case_table_names == 2)
   {
     param->old_alias= ren_table->alias;
-    param->new_alias= *new_table_alias;
+    param->new_alias= new_table_alias;
   }
   else
   {
     param->old_alias= ren_table->table_name;
-    param->new_alias= *new_table_name;
+    param->new_alias= new_table_name;
   }
   DBUG_ASSERT(param->new_alias.str);
 
@@ -304,7 +304,7 @@ check_rename(THD *thd, rename_param *param,
     DBUG_RETURN(-1);
   }
 
-  if (ha_table_exists(thd, new_db, &param->new_alias, NULL, NULL, 0))
+  if (ha_table_exists(thd, &new_db, &param->new_alias, NULL, NULL, 0))
   {
     my_error(ER_TABLE_EXISTS_ERROR, MYF(0), param->new_alias.str);
     DBUG_RETURN(1);                     // This can't be skipped
@@ -335,19 +335,18 @@ check_rename(THD *thd, rename_param *param,
 */
 
 static bool
-do_rename(THD *thd, rename_param *param, DDL_LOG_STATE *ddl_log_state,
-          TABLE_LIST *ren_table, const LEX_CSTRING *new_db,
+do_rename(THD *thd, const rename_param *param, DDL_LOG_STATE *ddl_log_state,
+          TABLE_LIST *ren_table, const Lex_ident_db *new_db,
           bool skip_error, bool *force_if_exists)
 {
   int rc= 1;
   handlerton *hton;
-  LEX_CSTRING *old_alias, *new_alias;
   TRIGGER_RENAME_PARAM rename_param;
   DBUG_ENTER("do_rename");
   DBUG_PRINT("enter", ("skip_error: %d", (int) skip_error));
 
-  old_alias= &param->old_alias;
-  new_alias= &param->new_alias;
+  const Lex_ident_table * const old_alias= &param->old_alias;
+  const Lex_ident_table * const new_alias= &param->new_alias;
   hton=      param->from_table_hton;
 
   DBUG_ASSERT(!thd->locked_tables_mode);
@@ -367,11 +366,11 @@ do_rename(THD *thd, rename_param *param, DDL_LOG_STATE *ddl_log_state,
 
     /* Check if we can rename triggers */
     if (Table_triggers_list::prepare_for_rename(thd, &rename_param,
-                                                &ren_table->db,
-                                                old_alias,
-                                                &ren_table->table_name,
-                                                new_db,
-                                                new_alias))
+                                                ren_table->db,
+                                                *old_alias,
+                                                ren_table->table_name,
+                                                *new_db,
+                                                *new_alias))
       DBUG_RETURN(!skip_error);
 
     thd->replication_flags= 0;
@@ -523,9 +522,9 @@ rename_tables(THD *thd, TABLE_LIST *table_list, DDL_LOG_STATE *ddl_log_state,
     {
       int error;
       rename_param param;
-      error= check_rename(thd, &param, ren_table, &new_table->db,
-                          &new_table->table_name,
-                          &new_table->alias, (skip_error || if_exists));
+      error= check_rename(thd, &param, ren_table, new_table->db,
+                          new_table->table_name,
+                          new_table->alias, (skip_error || if_exists));
       if (error < 0)
         continue;                               // Ignore rename (if exists)
       if (error > 0)

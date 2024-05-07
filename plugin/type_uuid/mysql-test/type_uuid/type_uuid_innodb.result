@@ -113,7 +113,7 @@ EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=CAST('00000000-0000-0000-0000-00000000
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ref	a	a	17	const	1	100.00	Using where; Using index
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = UUID'00000000-0000-0000-0000-0000000000ff'
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = uuid'00000000-0000-0000-0000-0000000000ff'
 DROP TABLE t1;
 CREATE OR REPLACE TABLE t1 (a UUID,KEY(a));
 SHOW CREATE TABLE t1;
@@ -195,6 +195,8 @@ EXPLAIN SELECT * FROM t2 JOIN t1 ON ( t1.pk > t2.d);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	1	
 1	SIMPLE	t2	ALL	d	NULL	NULL	NULL	1	Using where
+Warnings:
+Note	1105	Cannot use key `d` part[0] for lookup: `test`.`t2`.`d` of type `blob` < "'00000000-0000-0000-0000-000000000000'" of type `uuid`
 UPDATE t2 JOIN t1 ON ( t1.pk > t2.d) SET t1.c = 1;
 ERROR 22007: Incorrect uuid value: '2'
 DROP TABLE t1, t2;

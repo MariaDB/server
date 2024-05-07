@@ -43,7 +43,7 @@ Named_type_handler<Type_handler_short> type_handler_sshort("smallint");
 Named_type_handler<Type_handler_long> type_handler_slong("int");
 Named_type_handler<Type_handler_int24> type_handler_sint24("mediumint");
 Named_type_handler<Type_handler_longlong> type_handler_slonglong("bigint");
-Named_type_handler<Type_handler_utiny> type_handler_utiny("tiny unsigned");
+Named_type_handler<Type_handler_utiny> type_handler_utiny("tinyint unsigned");
 Named_type_handler<Type_handler_ushort> type_handler_ushort("smallint unsigned");
 Named_type_handler<Type_handler_ulong> type_handler_ulong("int unsigned");
 Named_type_handler<Type_handler_uint24> type_handler_uint24("mediumint unsigned");
@@ -1446,22 +1446,6 @@ Type_handler_string_result::charset_for_protocol(const Item *item) const
 }
 
 
-const Type_handler *
-Type_handler::get_handler_by_cmp_type(Item_result type)
-{
-  switch (type) {
-  case REAL_RESULT:       return &type_handler_double;
-  case INT_RESULT:        return &type_handler_slonglong;
-  case DECIMAL_RESULT:    return &type_handler_newdecimal;
-  case STRING_RESULT:     return &type_handler_long_blob;
-  case TIME_RESULT:       return &type_handler_datetime;
-  case ROW_RESULT:        return &type_handler_row;
-  }
-  DBUG_ASSERT(0);
-  return &type_handler_string;
-}
-
-
 /*
   If we have a mixture of:
   - a MariaDB standard (built-in permanent) data type, and
@@ -1823,6 +1807,7 @@ Type_handler::bit_and_int_mixture_handler(uint max_char_length)
              Note, independently from "treat_bit_as_number":
              - a single BIT argument gives BIT as a result
              - two BIT couterparts give BIT as a result
+             - (BIT + explicit NULL) or (explicit NULL + BIT) give BIT
 
   @details This function aggregates field types from the array of items.
     Found type is supposed to be used later as the result field type
@@ -1854,8 +1839,11 @@ aggregate_for_result(const LEX_CSTRING &funcname, Item **items, uint nitems,
   {
     const Type_handler *cur= items[i]->type_handler();
     set_if_bigger(max_display_length, items[i]->max_display_length());
-    if (treat_bit_as_number &&
-        ((type_handler() == &type_handler_bit) ^ (cur == &type_handler_bit)))
+    uint bit_count= (type_handler() == &type_handler_bit) +
+                    (cur == &type_handler_bit);
+    uint null_count= (type_handler() == &type_handler_null) +
+                     (cur == &type_handler_null);
+    if (treat_bit_as_number && bit_count == 1 && null_count == 0)
     {
       bit_and_non_bit_mixture_found= true;
       if (type_handler() == &type_handler_bit)
@@ -2251,6 +2239,34 @@ Type_handler::get_handler_by_real_type(enum_field_types type)
   case MYSQL_TYPE_NEWDATE:     return &type_handler_newdate;
   };
   return NULL;
+}
+
+
+const Type_handler *
+Type_handler::handler_by_log_event_data_type(THD *thd,
+                                             const Log_event_data_type &type)
+{
+  if (type.data_type_name().length)
+  {
+    const Type_handler *th= handler_by_name(thd, type.data_type_name());
+    if (th)
+      return th;
+  }
+  switch (type.type()) {
+  case STRING_RESULT:
+  case ROW_RESULT:
+  case TIME_RESULT:
+    break;
+  case REAL_RESULT:
+    return &type_handler_double;
+  case INT_RESULT:
+    if (type.is_unsigned())
+      return &type_handler_ulonglong;
+    return &type_handler_slonglong;
+  case DECIMAL_RESULT:
+    return &type_handler_newdecimal;
+  }
+  return &type_handler_long_blob;
 }
 
 
@@ -2650,7 +2666,7 @@ Field *Type_handler_enum::make_conversion_table_field(MEM_ROOT *root,
          Field_enum(NULL, target->field_length,
                     (uchar *) "", 1, Field::NONE, &empty_clex_str,
                     metadata & 0x00ff/*pack_length()*/,
-                    ((const Field_enum*) target)->typelib, target->charset());
+                    ((const Field_enum*) target)->typelib(), target->charset());
 }
 
 
@@ -2666,7 +2682,7 @@ Field *Type_handler_set::make_conversion_table_field(MEM_ROOT *root,
          Field_set(NULL, target->field_length,
                    (uchar *) "", 1, Field::NONE, &empty_clex_str,
                    metadata & 0x00ff/*pack_length()*/,
-                   ((const Field_enum*) target)->typelib, target->charset());
+                   ((const Field_enum*) target)->typelib(), target->charset());
 }
 
 
@@ -2686,7 +2702,7 @@ Field *Type_handler_enum::make_schema_field(MEM_ROOT *root, TABLE *table,
                     addr.null_ptr(), addr.null_bit(),
                     Field::NONE, &name,
                     get_enum_pack_length(typelib->count),
-                    typelib, system_charset_info);
+                    typelib, system_charset_info_for_i_s);
 
 }
 
@@ -2961,7 +2977,8 @@ void Type_handler_typelib::
                                               const Field *field) const
 {
   DBUG_ASSERT(def->flags & (ENUM_FLAG | SET_FLAG));
-  def->interval= field->get_typelib();
+  const Field_enum *field_enum= static_cast<const Field_enum*>(field);
+  field_enum->Type_typelib_attributes::store(def);
 }
 
 
@@ -3320,7 +3337,7 @@ bool Type_handler_set::
   if (def->prepare_stage2_typelib("SET", FIELDFLAG_BITFIELD, &dup_count))
     return true;
   /* Check that count of unique members is not more then 64 */
-  if (def->interval->count - dup_count > sizeof(longlong)*8)
+  if (def->typelib()->count - dup_count > sizeof(longlong)*8)
   {
      my_error(ER_TOO_BIG_SET, MYF(0), def->field_name.str);
      return true;
@@ -3533,14 +3550,14 @@ Type_handler_string_result::calc_key_length(const Column_definition &def) const
 
 uint Type_handler_enum::calc_key_length(const Column_definition &def) const
 {
-  DBUG_ASSERT(def.interval);
-  return get_enum_pack_length(def.interval->count);
+  DBUG_ASSERT(def.typelib());
+  return get_enum_pack_length(def.typelib()->count);
 }
 
 uint Type_handler_set::calc_key_length(const Column_definition &def) const
 {
-  DBUG_ASSERT(def.interval);
-  return get_set_pack_length(def.interval->count);
+  DBUG_ASSERT(def.typelib());
+  return get_set_pack_length(def.typelib()->count);
 }
 
 uint Type_handler_blob_common::calc_key_length(const Column_definition &def) const
@@ -3915,13 +3932,14 @@ Field *Type_handler_enum::make_table_field(MEM_ROOT *root,
                                            const Type_all_attributes &attr,
                                            TABLE_SHARE *share) const
 {
-  const TYPELIB *typelib= attr.get_typelib();
-  DBUG_ASSERT(typelib);
+  const Type_typelib_attributes typelib_attr(attr.type_extra_attributes());
+  DBUG_ASSERT(typelib_attr.typelib());
   return new (root)
          Field_enum(addr.ptr(), attr.max_length,
                     addr.null_ptr(), addr.null_bit(),
                     Field::NONE, name,
-                    get_enum_pack_length(typelib->count), typelib,
+                    get_enum_pack_length(typelib_attr.typelib()->count),
+                    typelib_attr.typelib(),
                     attr.collation);
 }
 
@@ -3933,13 +3951,14 @@ Field *Type_handler_set::make_table_field(MEM_ROOT *root,
                                           TABLE_SHARE *share) const
 
 {
-  const TYPELIB *typelib= attr.get_typelib();
-  DBUG_ASSERT(typelib);
+  const Type_typelib_attributes typelib_attr(attr.type_extra_attributes());
+  DBUG_ASSERT(typelib_attr.typelib());
   return new (root)
          Field_set(addr.ptr(), attr.max_length,
                    addr.null_ptr(), addr.null_bit(),
                    Field::NONE, name,
-                   get_enum_pack_length(typelib->count), typelib,
+                   get_enum_pack_length(typelib_attr.typelib()->count),
+                   typelib_attr.typelib(),
                    attr.collation);
 }
 
@@ -4015,7 +4034,7 @@ Field *Type_handler_varchar::make_schema_field(MEM_ROOT *root, TABLE *table,
   {
     Field *field= new (root)
       Field_blob(addr.ptr(), addr.null_ptr(), addr.null_bit(), Field::NONE,
-                 &name, table->s, 4, system_charset_info);
+                 &name, table->s, 4, system_charset_info_for_i_s);
     if (field)
       field->field_length= octet_length;
     return field;
@@ -4027,7 +4046,7 @@ Field *Type_handler_varchar::make_schema_field(MEM_ROOT *root, TABLE *table,
                       HA_VARCHAR_PACKLENGTH(octet_length),
                       addr.null_ptr(), addr.null_bit(),
                       Field::NONE, &name,
-                      table->s, system_charset_info);
+                      table->s, system_charset_info_for_i_s);
   }
 }
 
@@ -4574,7 +4593,34 @@ Type_handler_timestamp_common::create_item_copy(THD *thd, Item *item) const
 
 /*************************************************************************/
 
+/*
+  This method handles YEAR and BIT data types.
+  It does not switch the data type to DECIAMAL on a
+  unsigned_flag mistmatch. This important for combinations
+  like YEAR+NULL, BIT+NULL.
+*/
 bool Type_handler_int_result::
+       Item_hybrid_func_fix_attributes(THD *thd,
+                                       const LEX_CSTRING &name,
+                                       Type_handler_hybrid_field_type *handler,
+                                       Type_all_attributes *func,
+                                       Item **items, uint nitems) const
+{
+  func->aggregate_attributes_int(items, nitems);
+  return false;
+}
+
+
+/*
+  This method handles general purpose integer data types
+    TINYINT, SHORTINT, MEDIUNINT, BIGINT.
+  It switches to DECIMAL in case if a mismatch in unsigned_flag found.
+
+  Note, we should fix this to ignore all items with
+  type_handler()==&type_handler_null.
+  It's too late for 10.4. Let's do it eventually in a higher version.
+*/
+bool Type_handler_general_purpose_int::
        Item_hybrid_func_fix_attributes(THD *thd,
                                        const LEX_CSTRING &name,
                                        Type_handler_hybrid_field_type *handler,
@@ -4651,8 +4697,8 @@ bool Type_handler_typelib::
   const TYPELIB *typelib= NULL;
   for (uint i= 0; i < nitems; i++)
   {
-    const TYPELIB *typelib2;
-    if ((typelib2= items[i]->get_typelib()))
+    const Type_extra_attributes eattr2= items[i]->type_extra_attributes();
+    if (eattr2.typelib())
     {
       if (typelib)
       {
@@ -4664,11 +4710,13 @@ bool Type_handler_typelib::
         handler->set_handler(&type_handler_varchar);
         return func->aggregate_attributes_string(func_name, items, nitems);
       }
-      typelib= typelib2;
+      typelib= eattr2.typelib();
     }
   }
   DBUG_ASSERT(typelib); // There must be at least one typelib
-  func->set_typelib(typelib);
+  Type_extra_attributes *eattr_addr= func->type_extra_attributes_addr();
+  if (eattr_addr)
+    eattr_addr->set_typelib(typelib);
   return func->aggregate_attributes_string(func_name, items, nitems);
 }
 
@@ -5640,6 +5688,14 @@ Type_handler_string_result::Item_func_hybrid_field_type_get_date(
   String *res= item->str_op(&tmp);
   DBUG_ASSERT((res == NULL) == item->null_value);
   new(ltime) Temporal_hybrid(thd, warn, res, mode);
+}
+
+/***************************************************************************/
+
+bool Type_handler::Item_bool_rowready_func2_fix_length_and_dec(THD *thd,
+                                          Item_bool_rowready_func2 *func) const
+{
+  return func->fix_length_and_dec_generic(thd, this);
 }
 
 /***************************************************************************/
@@ -7665,6 +7721,104 @@ Item *Type_handler_row::
 
 /***************************************************************************/
 
+/*
+  Check if in a predicate like:
+
+     WHERE timestamp_arg=datetime_arg
+
+  we can replace DATETIME comparison to TIMESTAMP comparison,
+  to avoid slow TIMESTAMP->DATETIME data type conversion per row.
+
+  TIMESTAMP and DATETIME are compared as DATETIME historically.
+  This may be inefficient, because involves a conversion of
+  the TIMESTAMP side to DATETIME per row.
+  The conversion happens in Timezone::gmt_sec_to_TIME().
+  E.g. in case of the SYSTEM timezone, it calls localtime_r(),
+  which is known to be slow.
+
+  It's generally not possible to compare TIMESTAMP and DATETIME
+  as TIMESTAMP without behavior change, because:
+  - DATETIME has a wider range.
+  - Two different TIMESTAMP values can have the same DATETIME value
+    near the "fall back" DST change, as well as for leap seconds.
+  - There are DATETIME gaps during the "spring forward" DST switch.
+
+  However, if the DATETIME side is a constant, then we can compare
+  it to TIMESTAMP as TIMESTAMP in many cases. The DATETIME argument can
+  be converted once to TIMESTAMP, so no data type conversion will
+  happen per row. This is faster for big tables.
+
+  The comparison predicates must satisfy the following conditions:
+    1. There must be a proper data type combination:
+       - other must be of the TIMESTAMP data type
+       - subject must be of the DATETIME data type,
+         or can convert to DATETIME.
+    2. subject must be a constant
+    3. subject must convert to TIMESTAMP safely
+       (without time zone anomalies near its value)
+*/
+
+Item *
+Type_handler_datetime_common::convert_item_for_comparison(
+                                                        THD *thd,
+                                                        Item *subject,
+                                                        const Item *counterpart)
+                                                        const
+{
+  if (!dynamic_cast<const Type_handler_timestamp_common*>(
+                                                 counterpart->type_handler()) ||
+      !subject->type_handler()->can_return_date())
+    return subject;
+
+  struct Count_handler : public Internal_error_handler
+  {
+    uint hit= 0;
+    bool handle_condition(THD *thd,
+                          uint sql_errno,
+                          const char *sqlstate,
+                          Sql_condition::enum_warning_level *level,
+                          const char *msg,
+                          Sql_condition **cond_hdl)
+    {
+      hit++;
+      return *level == Sql_condition::WARN_LEVEL_WARN;
+    }
+  } cnt_handler;
+
+  // Suppress and count warnings
+  thd->push_internal_handler(&cnt_handler);
+  Datetime dt(thd, subject, Timestamp::DatetimeOptions(thd));
+  thd->pop_internal_handler();
+
+  if (!dt.is_valid_datetime() || cnt_handler.hit)
+  {
+    /*
+      SQL NULL DATETIME, or a DATETIME with zeros in YYYYMMDD,
+      or warnings during DATETIME evaluation.
+    */
+    return subject;
+  }
+
+  // '0000-00-00 00:00:00' is a special valid MariaDB TIMESTAMP value
+  if (!non_zero_date(dt.get_mysql_time()))
+    return new (thd->mem_root) Item_timestamp_literal(thd,
+                                          Timestamp_or_zero_datetime::zero(),
+                                          subject->datetime_precision(thd));
+
+  const Timeval_null tv(thd->safe_timeval_replacement_for_nonzero_datetime(dt));
+  if (tv.is_null())
+    return subject; // Time zone anomalies found around "dt"
+
+  // Should be safe to convert
+  const Timestamp_or_zero_datetime ts(Timestamp(tv.to_timeval()));
+  return new (thd->mem_root) Item_timestamp_literal(thd,
+                                          ts,
+                                          subject->datetime_precision(thd));
+}
+
+
+/***************************************************************************/
+
 static const char* item_name(Item *a, String *str)
 {
   if (a->name.str)
@@ -8387,7 +8541,7 @@ Field *Type_handler_enum::
   return new (mem_root)
     Field_enum(rec.ptr(), (uint32) attr->length, rec.null_ptr(), rec.null_bit(),
                attr->unireg_check, name, attr->pack_flag_to_pack_length(),
-               attr->interval, attr->charset);
+               attr->typelib(), attr->charset);
 }
 
 
@@ -8401,7 +8555,7 @@ Field *Type_handler_set::
   return new (mem_root)
     Field_set(rec.ptr(), (uint32) attr->length, rec.null_ptr(), rec.null_bit(),
               attr->unireg_check, name, attr->pack_flag_to_pack_length(),
-              attr->interval, attr->charset);
+              attr->typelib(), attr->charset);
 }
 
 
@@ -8662,6 +8816,43 @@ Type_handler_temporal_result::Item_const_eq(const Item_const *a,
           a->get_type_all_attributes_from_const()->decimals ==
           b->get_type_all_attributes_from_const()->decimals);
 }
+
+
+/*
+  @brief
+    Check if two costant timestamp values are identical.
+
+  @return
+    true <=> *a and *b are identical
+*/
+bool
+Type_handler_timestamp_common::Item_const_eq(const Item_const *a,
+                                             const Item_const *b,
+                                             bool binary_cmp) const
+{
+  /*
+    In a condition like:
+      WHERE IF(a='2001-01-01 00:00:00',1,0)=IF(a='2001-01-01 00:00:00',1,0);
+    Item_func_eq::fix_length_and_dec() calls get_timestamp_item_for_comparison()
+    which replaces string literals '2001-01-01 00:00:00' with
+    Item_timestamp_literal instances, which later during remove_eq_conds()
+    come to here.
+
+    Note, Item_param bound to TIMESTAMP is not detected here,
+    so trivial conditions of this kind do not get eliminated:
+      DECLARE ts TIMESTAMP DEFAULT (SELECT MAX(ts_col) FROM t1);
+      EXECUTE IMMEDIATE
+        'SELECT * FROM t1 WHERE COALESCE(ts_col,?)<=>COALESCE(ts_col,?)'
+         USING ts, ts;
+    It should be fixed by MDEV-14271.
+  */
+  const Item_timestamp_literal *ta, *tb;
+  if (!(ta= dynamic_cast<const Item_timestamp_literal*>(a)) ||
+      !(tb= dynamic_cast<const Item_timestamp_literal*>(b)))
+    return false;
+  return !ta->value().cmp(tb->value());
+}
+
 
 /***************************************************************************/
 

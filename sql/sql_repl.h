@@ -38,12 +38,12 @@ int reset_master(THD* thd, rpl_gtid *init_state, uint32 init_state_len,
                  ulong next_log_number);
 bool purge_master_logs(THD* thd, const char* to_log);
 bool purge_master_logs_before_date(THD* thd, time_t purge_time);
-bool log_in_use(const char* log_name);
+bool log_in_use(const char* log_name, uint min_connections);
 void adjust_linfo_offsets(my_off_t purge_offset);
 void show_binlogs_get_fields(THD *thd, List<Item> *field_list);
 bool show_binlogs(THD* thd);
 extern int init_master_info(Master_info* mi);
-void kill_zombie_dump_threads(uint32 slave_server_id);
+bool kill_zombie_dump_threads(THD *thd, uint32 slave_server_id);
 int check_binlog_magic(IO_CACHE* log, const char** errmsg);
 int compare_log_name(const char *log_1, const char *log_2);
 

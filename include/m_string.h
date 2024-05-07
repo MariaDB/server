@@ -74,6 +74,7 @@ extern "C" {
 #endif
 
 /* Declared in int2str() */
+extern const char _dig_vec_base62[];
 extern const char _dig_vec_upper[];
 extern const char _dig_vec_lower[];
 
@@ -218,6 +219,15 @@ template<typename T> inline constexpr const char *_swl_check(T s)
 #define LEX_STRING_WITH_LEN(X) (X).str, (X).length
 
 typedef struct st_mysql_const_lex_string LEX_CSTRING;
+
+#ifdef  __cplusplus
+static inline constexpr
+LEX_CSTRING operator"" _LEX_CSTRING(const char *str, size_t length)
+{
+  return LEX_CSTRING{str, length};
+}
+#endif /* __cplusplus */
+
 
 /* A variant with const and unsigned */
 struct st_mysql_const_unsigned_lex_string

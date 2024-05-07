@@ -2,6 +2,9 @@
 # This test is slow on buildbot.
 --source include/big_test.inc
 
+SET @save_stats_persistent = @@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent = 0;
+
 FLUSH TABLES;
 
 let $MYSQLD_TMPDIR = `SELECT @@tmpdir`;
@@ -222,3 +225,4 @@ SELECT * FROM t1;
 DROP TABLE t1;
 
 SET GLOBAL innodb_compression_algorithm=@save_algo;
+SET GLOBAL innodb_stats_persistent = @save_stats_persistent;

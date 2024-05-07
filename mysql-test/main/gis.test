@@ -1,5 +1,5 @@
 -- source include/have_geometry.inc
-
+-- source include/not_embedded.inc
 
 #
 # Spatial objects
@@ -83,11 +83,15 @@ SELECT fid, Dimension(g) FROM gis_geometry;
 SELECT fid, GeometryType(g) FROM gis_geometry;
 SELECT fid, IsEmpty(g) FROM gis_geometry;
 SELECT fid, AsText(Envelope(g)) FROM gis_geometry;
+--disable_view_protocol
 explain extended select Dimension(g), GeometryType(g), IsEmpty(g), AsText(Envelope(g)) from gis_geometry;
+--enable_view_protocol
 
 SELECT fid, X(g) FROM gis_point;
 SELECT fid, Y(g) FROM gis_point;
+--disable_view_protocol
 explain extended select X(g),Y(g) FROM gis_point;
+--enable_view_protocol
 
 SELECT fid, AsText(StartPoint(g)) FROM gis_line;
 SELECT fid, AsText(EndPoint(g)) FROM gis_line;
@@ -95,7 +99,9 @@ SELECT fid, GLength(g) FROM gis_line;
 SELECT fid, NumPoints(g) FROM gis_line;
 SELECT fid, AsText(PointN(g, 2)) FROM gis_line;
 SELECT fid, IsClosed(g) FROM gis_line;
+--disable_view_protocol
 explain extended select AsText(StartPoint(g)),AsText(EndPoint(g)),GLength(g),NumPoints(g),AsText(PointN(g, 2)),IsClosed(g) FROM gis_line;
+--enable_view_protocol
 
 SELECT fid, AsText(Centroid(g)) FROM gis_polygon;
 SELECT fid, Area(g) FROM gis_polygon;
@@ -113,14 +119,18 @@ SELECT fid, NumGeometries(g) from gis_multi_point;
 SELECT fid, NumGeometries(g) from gis_multi_line;
 SELECT fid, NumGeometries(g) from gis_multi_polygon;
 SELECT fid, NumGeometries(g) from gis_geometrycollection;
+--disable_view_protocol
 explain extended SELECT fid, NumGeometries(g) from gis_multi_point;
+--enable_view_protocol
 
 SELECT fid, AsText(GeometryN(g, 2)) from gis_multi_point;
 SELECT fid, AsText(GeometryN(g, 2)) from gis_multi_line;
 SELECT fid, AsText(GeometryN(g, 2)) from gis_multi_polygon;
 SELECT fid, AsText(GeometryN(g, 2)) from gis_geometrycollection;
 SELECT fid, AsText(GeometryN(g, 1)) from gis_geometrycollection;
+--disable_view_protocol
 explain extended SELECT fid, AsText(GeometryN(g, 2)) from gis_multi_point;
+--enable_view_protocol
 
 #query plan for view protocol doesn't contain database name
 --disable_view_protocol
@@ -157,13 +167,18 @@ ALTER TABLE t1 ADD fid INT NOT NULL;
 SHOW FIELDS FROM t1;
 DROP TABLE t1;
 
-SELECT AsText(GeometryFromWKB(AsWKB(GeometryFromText('POINT(1 4)'))));
+SELECT AsText(GeometryFromWKB(AsWKB(GeometryFromText('POINT(1 4)')))) as exp;
+--disable_view_protocol
 explain extended SELECT AsText(GeometryFromWKB(AsWKB(GeometryFromText('POINT(1 4)'))));
 explain extended SELECT AsText(GeometryFromWKB(AsWKB(PointFromText('POINT(1 4)'))));
+--enable_view_protocol
 SELECT SRID(GeomFromText('LineString(1 1,2 2)',101));
+
+--disable_view_protocol
 explain extended SELECT SRID(GeomFromText('LineString(1 1,2 2)',101));
 #select issimple(MultiPoint(Point(3, 6), Point(4, 10))), issimple(Point(3, 6)),issimple(PolygonFromText('POLYGON((10 10,20 10,20 20,10 20,10 10))')),issimple(GeometryFromText('POINT(1 4)')), issimple(AsWKB(GeometryFromText('POINT(1 4)')));
 explain extended select issimple(MultiPoint(Point(3, 6), Point(4, 10))), issimple(Point(3, 6));
+--enable_view_protocol
 
 create table t1 (a geometry not null);
 insert into t1 values (GeomFromText('Point(1 2)'));
@@ -380,10 +395,10 @@ insert into t1 values (pointfromtext('point(1,1)'));
 
 drop table t1;
 
-#enable after fix MDEV-27871
+#enable after MDEV-32456
 --disable_view_protocol
-select (asWKT(geomfromwkb((0x000000000140240000000000004024000000000000))));
-select (asWKT(geomfromwkb((0x010100000000000000000024400000000000002440))));
+select (asWKT(geomfromwkb((0x000000000140240000000000004024000000000000)))) as exp;
+select (asWKT(geomfromwkb((0x010100000000000000000024400000000000002440)))) as exp;
 --enable_view_protocol
 
 --enable_metadata
@@ -846,30 +861,27 @@ select astext(0x0100000000030000000100000000000010);
 select astext(st_centroid(0x0100000000030000000100000000000010));
 select astext(st_exteriorring(0x0100000000030000000100000000000010));
 select envelope(0x0100000000030000000100000000000010);
-#enable after fix MDEV-27871
---disable_view_protocol
-select geometryn(0x0100000000070000000100000001030000000200000000000000ffff0000, 1);
-select geometryn(0x0100000000070000000100000001030000000200000000000000ffffff0f, 1);
+select geometryn(0x0100000000070000000100000001030000000200000000000000ffff0000, 1) as exp;
+select geometryn(0x0100000000070000000100000001030000000200000000000000ffffff0f, 1) as exp;
 
 --echo #
 --echo # MDEV-4296 Assertion `n_linear_rings > 0' fails in Gis_polygon::centroid_xy
 --echo #
 
-SELECT Centroid( AsBinary( LineString(Point(0,0), Point(0,0), Point(0,0) )));
+SELECT Centroid( AsBinary( LineString(Point(0,0), Point(0,0), Point(0,0) ))) as exp;
 
 --echo #
 --echo # MDEV-4295 Server crashes in get_point on a query with Area, AsBinary, MultiPoint
 --echo #
-SELECT Area(AsBinary(MultiPoint(Point(0,9), Point(0,1), Point(2,2))));
+SELECT Area(AsBinary(MultiPoint(Point(0,9), Point(0,1), Point(2,2)))) as exp;
 --echo End of 5.1 tests
 
 #bug 850775 ST_AREA does not work on GEOMETRYCOLLECTIONs in maria-5.3-gis
-select ST_AREA(ST_GEOMCOLLFROMTEXT(' GEOMETRYCOLLECTION(LINESTRING(100 100, 31 10, 77 80), POLYGON((0 0,4 7,1 1,0 0)), POINT(20 20))'));
+select ST_AREA(ST_GEOMCOLLFROMTEXT(' GEOMETRYCOLLECTION(LINESTRING(100 100, 31 10, 77 80), POLYGON((0 0,4 7,1 1,0 0)), POINT(20 20))')) as exp;
 
 #bug 855336 ST_LENGTH does not work on GEOMETRYCOLLECTIONs
-select ST_LENGTH(ST_GEOMCOLLFROMTEXT(' GEOMETRYCOLLECTION(LINESTRING(100 100, 100 30, 20 30), POINT(3 3), LINESTRING(20 20, 30 20))'));
+select ST_LENGTH(ST_GEOMCOLLFROMTEXT(' GEOMETRYCOLLECTION(LINESTRING(100 100, 100 30, 20 30), POINT(3 3), LINESTRING(20 20, 30 20))')) as exp;
 
---enable_view_protocol
 
 # Conformance tests
 #
@@ -1178,19 +1190,14 @@ SELECT AsText(EndPoint(centerline))
 FROM road_segments 
 WHERE fid = 102; 
 
-#enable after fix MDEV-27871
---disable_view_protocol
-
-SELECT IsClosed(LineFromWKB(AsBinary(Boundary(boundary)),SRID(boundary))) 
+SELECT IsClosed(LineFromWKB(AsBinary(Boundary(boundary)),SRID(boundary))) as exp 
 FROM named_places 
 WHERE name = 'Goose Island'; 
 
 --echo # Conformance Item T20 
-SELECT IsRing(LineFromWKB(AsBinary(Boundary(boundary)),SRID(boundary))) 
+SELECT IsRing(LineFromWKB(AsBinary(Boundary(boundary)),SRID(boundary))) as exp 
 FROM named_places 
 WHERE name = 'Goose Island'; 
-
---enable_view_protocol
 
 --echo # Conformance Item T21 
 SELECT GLength(centerline) 
@@ -1272,15 +1279,11 @@ SELECT Area(shores)
 FROM ponds 
 WHERE fid = 120; 
 
-#enable after fix MDEV-27871
---disable_view_protocol
-
 --echo # Conformance Item T37 
 SELECT ST_Equals(boundary, 
-PolyFromText('POLYGON( ( 67 13, 67 18, 59 18, 59 13, 67 13) )',1)) 
+PolyFromText('POLYGON( ( 67 13, 67 18, 59 18, 59 13, 67 13) )',1)) as exp 
 FROM named_places 
 WHERE name = 'Goose Island'; 
---enable_view_protocol
 
 --echo # Conformance Item T38 
 SELECT ST_Disjoint(centerlines, boundary) 
@@ -1312,16 +1315,11 @@ FROM road_segments, divided_routes
 WHERE road_segments.fid = 102 
 AND divided_routes.name = 'Route 75'; 
 
-#enable after fix MDEV-27871
---disable_view_protocol
-
 --echo # Conformance Item T43 
-SELECT ST_Intersects(road_segments.centerline, divided_routes.centerlines) 
+SELECT ST_Intersects(road_segments.centerline, divided_routes.centerlines) as exp 
 FROM road_segments, divided_routes 
 WHERE road_segments.fid = 102 
 AND divided_routes.name = 'Route 75'; 
-
---enable_view_protocol
 
 --echo # Conformance Item T44 
 SELECT ST_Contains(forests.boundary, named_places.boundary) 
@@ -1382,20 +1380,17 @@ USE test;
 --echo # BUG #1043845 st_distance() results are incorrect depending on variable order
 --echo #
 
-#enable after fix MDEV-27871
---disable_view_protocol
 select st_distance(geomfromtext('LINESTRING(-95.9673005697771 36.13509598461,
                                             -95.9673057475387 36.1344478941074,
                                             -95.9673063519371 36.134484524621,
                                             -95.9673049102515 36.1343976584193)'),
-  geomfromtext('point(-95.96269500000000000000 36.14181833333330000000)')) ;
+  geomfromtext('point(-95.96269500000000000000 36.14181833333330000000)')) as exp ;
 select st_distance(geomfromtext('point(-95.96269500000000000000 36.14181833333330000000)'),
   geomfromtext('LINESTRING(-95.9673005697771 36.13509598461,
                            -95.9673057475387 36.1344478941074,
                            -95.9673063519371 36.134484524621,
-                           -95.9673049102515 36.1343976584193) ')) ;
+                           -95.9673049102515 36.1343976584193) ')) as exp ;
 
---enable_view_protocol
 
 --echo #
 --echo # MDEV-4310 geometry function equals hangs forever.
@@ -1457,16 +1452,13 @@ SELECT ASTEXT(0x0100000000030000000100000000000010);
 --echo #should not crash
 SELECT ENVELOPE(0x0100000000030000000100000000000010);
 
-#enable after fix MDEV-27871
---disable_view_protocol
 --echo #should not crash
 SELECT
-  GEOMETRYN(0x0100000000070000000100000001030000000200000000000000ffff0000, 1);
+  GEOMETRYN(0x0100000000070000000100000001030000000200000000000000ffff0000, 1) as exp;
 
 --echo #should not crash
 SELECT
-  GEOMETRYN(0x0100000000070000000100000001030000000200000000000000ffffff0f, 1);
---enable_view_protocol
+  GEOMETRYN(0x0100000000070000000100000001030000000200000000000000ffffff0f, 1) as exp;
 
 --echo #
 --echo # MDEV-3819 missing constraints for spatial column types
@@ -1480,10 +1472,7 @@ drop table t1;
 #
 # MDEV-7516 Assertion `!cur_p->event' failed in Gcalc_scan_iterator::arrange_event(int, int)
 #
-#enable after fix MDEV-27871
---disable_view_protocol
-SELECT st_astext(ST_Buffer(ST_PolygonFromText('POLYGON((3 5, 2 4, 2 5, 3 5))'), -100));
---enable_view_protocol
+SELECT st_astext(ST_Buffer(ST_PolygonFromText('POLYGON((3 5, 2 4, 2 5, 3 5))'), -100)) as exp;
 
 #
 # MDEV-7779 View definition changes upon creation
@@ -1579,15 +1568,12 @@ drop table t1;
 --echo # MDEV-7510 GIS: IsRing returns false for a primitive triangle.
 --echo #
 select ST_IsRing(ST_LineFromText('LINESTRING(0 0,0 10,10 10,0 0)'));
-#enable after fix MDEV-27871
---disable_view_protocol
-select ST_IsRing(ST_LineFromText('LINESTRING(0 0,0 10,10 10,-10 -10, 0 -10, 0 0)'));
+select ST_IsRing(ST_LineFromText('LINESTRING(0 0,0 10,10 10,-10 -10, 0 -10, 0 0)')) as exp;
 
 --echo #
 --echo # MDEV-7514 GIS: PointOnSurface returns NULL instead of the point.
 --echo #
-SELECT ST_GEOMETRYTYPE(ST_PointOnSurface(ST_PolyFromText('POLYGON((-70.916 42.1002,-70.9468 42.0946,-70.9754 42.0875,-70.9749 42.0879,-70.9759 42.0897,-70.916 42.1002))')));
---enable_view_protocol
+SELECT ST_GEOMETRYTYPE(ST_PointOnSurface(ST_PolyFromText('POLYGON((-70.916 42.1002,-70.9468 42.0946,-70.9754 42.0875,-70.9749 42.0879,-70.9759 42.0897,-70.916 42.1002))'))) as exp;
 
 --echo #
 --echo # MDEV-7529 GIS: ST_Relate returns unexpected results for POINT relations
@@ -3388,7 +3374,143 @@ SELECT BIT_OR(a) FROM t1;
 SELECT BIT_XOR(a) FROM t1;
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-27666 User variable not parsed as geometry variable in geometry function.
+--echo #
+
+set @g= point(1, 1);
+select ST_AsWKT(GeometryCollection(Point(44, 6), @g));
+set @g=  "just a string";
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+select ST_AsWKT(GeometryCollection(Point(44, 6), @g));
+
+SET @g= LineString(Point(0,0), Point(0,1));
+SELECT AsText(PointN(@g, 1));
+SELECT AsText(PointN(@g, 2));
+
+SET @g= Point(1, 1);
+CREATE TABLE t1 AS SELECT @g AS g;
+SHOW CREATE TABLE t1;
+SELECT AsText(g) FROM t1;
+DROP TABLE t1;
+
+SET @g= MultiPoint(Point(1, 1), Point(-1,-1));
+CREATE TABLE t1 AS SELECT @g AS g;
+SHOW CREATE TABLE t1;
+SELECT AsText(g) FROM t1;
+DROP TABLE t1;
+
+SET @g= LineString(Point(1, 1), Point(2,2));
+CREATE TABLE t1 AS SELECT @g AS g;
+SHOW CREATE TABLE t1;
+SELECT AsText(g) FROM t1;
+DROP TABLE t1;
+
+SET @g= MultiLineString(LineString(Point(1, 1), Point(2,2)),
+                        LineString(Point(-1, -1), Point(-2,-2)));
+CREATE TABLE t1 AS SELECT @g AS g;
+SHOW CREATE TABLE t1;
+SELECT AsText(g) FROM t1;
+DROP TABLE t1;
+
+SET @g= Polygon(LineString(Point(0, 0), Point(30, 0), Point(30, 30), Point(0, 0)));
+CREATE TABLE t1 AS SELECT @g AS g;
+SHOW CREATE TABLE t1;
+SELECT AsText(g) FROM t1;
+DROP TABLE t1;
+
+SET @g= MultiPolygon(Polygon(LineString(Point(0, 3), Point(3, 3),
+                                        Point(3, 0), Point(0, 3))));
+CREATE TABLE t1 AS SELECT @g AS g;
+SHOW CREATE TABLE t1;
+SELECT AsText(g) FROM t1;
+DROP TABLE t1;
+
+SET @g= GeometryCollection(Point(44, 6), LineString(Point(3, 6), Point(7, 9)));
+CREATE TABLE t1 AS SELECT @g AS g;
+SHOW CREATE TABLE t1;
+SELECT AsText(g) FROM t1;
+DROP TABLE t1;
+
+SET @g= GeometryFromText('POINT(1 1)');
+CREATE TABLE t1 AS SELECT @g AS g;
+SHOW CREATE TABLE t1;
+SELECT AsText(g) FROM t1;
+DROP TABLE t1;
 
 --echo #
 --echo # End of 10.5 tests
+--echo #
+
+--echo #
+--echo # Start of 11.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-12668 SRID is not preserved in UNION, VIEW, MIN, MAX
+--echo #
+
+CREATE TABLE t1 (a POINT REF_SYSTEM_ID=0, b POINT REF_SYSTEM_ID=102);
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+SELECT a FROM t1 UNION SELECT b FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a POINT REF_SYSTEM_ID=101, b POINT REF_SYSTEM_ID=102);
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+SELECT a FROM t1 UNION SELECT b FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a POINT REF_SYSTEM_ID=101, b POINT REF_SYSTEM_ID=101);
+
+CREATE TABLE t2 AS SELECT a, b FROM t1;
+CREATE VIEW  v2 AS SELECT a, b FROM t1;
+
+CREATE TABLE t3 AS SELECT a FROM t1 UNION SELECT b FROM t1;
+CREATE VIEW  v3 AS SELECT a FROM t1 UNION SELECT b FROM t1;
+
+CREATE TABLE t4 AS SELECT COALESCE(a,b) AS a FROM t1;
+CREATE VIEW  v4 AS SELECT COALESCE(a,b) AS a FROM t1;
+
+CREATE TABLE t5 AS SELECT LEAST(a,b) AS a FROM t1;
+CREATE VIEW  v5 AS SELECT LEAST(a,b) AS a FROM t1;
+
+CREATE TABLE t6 AS SELECT MIN(a) AS a FROM t1;
+CREATE VIEW  v6 AS SELECT MIN(a) AS a FROM t1;
+
+CREATE TABLE t7 AS SELECT MIN(a) AS a FROM t1 UNION SELECT b FROM v2;
+CREATE VIEW  v7 AS SELECT MIN(a) AS a FROM t1 UNION SELECT b FROM v2;
+
+CREATE TABLE t8 AS SELECT (SELECT a FROM t1) AS a;
+CREATE  VIEW v8 AS SELECT (SELECT a FROM t1) AS a;
+
+CREATE TABLE t9 AS VALUES ((SELECT MAX(a) FROM t1)),(((SELECT MIN(b) FROM t1)));
+CREATE VIEW  v9 AS VALUES ((SELECT MAX(a) FROM t1)),(((SELECT MIN(b) FROM t1)));
+
+SELECT
+  G_TABLE_NAME, G_GEOMETRY_COLUMN, SRID
+FROM
+  INFORMATION_SCHEMA.GEOMETRY_COLUMNS
+WHERE
+  F_TABLE_SCHEMA='test'
+ORDER
+  BY G_TABLE_NAME, G_GEOMETRY_COLUMN;
+
+DROP TABLE t2,t3,t4,t5,t6,t7,t8,t9;
+DROP VIEW v2,v3,v4,v5,v6,v7,v8,v9;
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-34025 Virtual columns do not check assignment cast validity
+--echo #
+
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+CREATE TABLE t1 (a INT, b POINT GENERATED ALWAYS AS (a));
+
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+CREATE TABLE t1 (a POINT, b INT GENERATED ALWAYS AS (a));
+
+
+--echo #
+--echo # End of 11.5 tests
 --echo #

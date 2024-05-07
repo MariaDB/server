@@ -4305,5 +4305,63 @@ SELECT * FROM information_schema.statistics JOIN information_schema.COLUMNS USIN
 --enable_result_log
 
 --echo #
+--echo # MDEV-32351: Join buffer used for outer join with ON condition
+--echo #             depending only on outer tables
+--echo #
+
+--source include/have_sequence.inc
+
+CREATE TABLE t1 (b int NOT NULL, PRIMARY KEY (b)) ENGINE=MYISAM;
+INSERT INTO t1 select seq from seq_1_to_10000;
+CREATE TABLE t2 (b int NOT NULL, d varchar(255), KEY (b)) ENGINE=MYISAM ;
+INSERT INTO t2 VALUES (1,1),(2,2),(3,3);
+CREATE TABLE t3 (c int NOT NULL, PRIMARY KEY (c)) ENGINE=MYISAM ;
+INSERT INTO t3 select seq from seq_1_to_3000;
+CREATE TABLE t4 (c int NOT NULL, PRIMARY KEY (c)) ENGINE=MYISAM;
+INSERT INTO t4 select seq from seq_1_to_3000;
+ANALYZE TABLE t1,t2,t3,t4;
+
+let $q1=
+SELECT COUNT(*)
+FROM t1
+     LEFT JOIN t2 ON t1.b = t2.b
+     LEFT JOIN t3 ON t2.d = t3.c
+     LEFT JOIN t4 ON t3.c=1;
+
+set join_cache_level=0;
+eval EXPLAIN $q1;
+eval $q1;
+set join_cache_level=default;
+eval EXPLAIN $q1;
+eval $q1;
+
+DROP TABLE t1,t2,t3,t4;
+
+CREATE TABLE t1 (b int NOT NULL, PRIMARY KEY (b));
+INSERT INTO t1 select seq from seq_1_to_10;
+CREATE TABLE t2 (b int NOT NULL, d varchar(255), KEY (b)) ;
+INSERT INTO t2 VALUES (1,1),(2,2),(3,3);
+CREATE TABLE t3 (c int NOT NULL, PRIMARY KEY (c)) ;
+INSERT INTO t3 select seq from seq_1_to_3;
+CREATE TABLE t4 (c int NOT NULL, PRIMARY KEY (c)) ;
+INSERT INTO t4 select seq from seq_1_to_3;
+
+let $q2=
+SELECT *
+FROM t1
+     LEFT JOIN t2 ON t1.b = t2.b
+     LEFT JOIN t3 ON t2.d = t3.c
+     LEFT JOIN t4 ON t3.c=1;
+
+set join_cache_level=0;
+eval EXPLAIN $q2;
+eval $q2;
+set join_cache_level=default;
+eval EXPLAIN $q2;
+eval $q2;
+
+DROP TABLE t1,t2,t3,t4;
+
+--echo #
 --echo # End of 10.4 tests
 --echo #

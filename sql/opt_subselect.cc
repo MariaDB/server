@@ -439,7 +439,7 @@ tables. Note that this will disallow handling of cases like (CASE-FOR-SUBST).
 Currently, solution #2 is implemented.
 */
 
-LEX_CSTRING weedout_key= {STRING_WITH_LEN("weedout_key")};
+static const Lex_ident_column weedout_key= "weedout_key"_Lex_ident_column;
 
 static
 bool subquery_types_allow_materialization(THD *thd, Item_in_subselect *in_subs);
@@ -708,6 +708,14 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
       {
         my_error(ER_OPERAND_COLUMNS, MYF(0), ncols);
         DBUG_RETURN(-1);
+      }
+
+      uint cols_num= in_subs->left_exp()->cols();
+      for (uint i= 0; i < cols_num; i++)
+      {
+        if (select_lex->ref_pointer_array[i]->
+           check_cols(in_subs->left_exp()->element_index(i)->cols()))
+             DBUG_RETURN(-1);
       }
     }
 
@@ -1750,7 +1758,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
     {
       TABLE_LIST *outer_tbl= subq_pred->emb_on_expr_nest;
       TABLE_LIST *wrap_nest;
-      LEX_CSTRING sj_wrap_name= { STRING_WITH_LEN("(sj-wrap)") };
+      const Lex_ident_table sj_wrap_name= "(sj-wrap)"_Lex_ident_table;
       /*
         We're dealing with
 
@@ -1815,7 +1823,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
 
   TABLE_LIST *sj_nest;
   NESTED_JOIN *nested_join;
-  LEX_CSTRING sj_nest_name= { STRING_WITH_LEN("(sj-nest)") };
+  const Lex_ident_table sj_nest_name= "(sj-nest)"_Lex_ident_table;
   if (!(sj_nest= alloc_join_nest(thd)))
   {
     DBUG_RETURN(TRUE);

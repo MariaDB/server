@@ -444,7 +444,7 @@ CREATE PACKAGE BODY test2 AS
 PROCEDURE p2 AS BEGIN NULL; END;
 END;
 $$
-ERROR HY000: Subroutine 'test.test2.p1' is declared in the package specification but is not defined in the package body
+ERROR HY000: PROCEDURE `test.test2.p1` is declared in the package specification but is not defined in the package body
 DROP PACKAGE test2;
 CREATE PACKAGE test2 AS
 FUNCTION f1 RETURN INT;
@@ -454,7 +454,7 @@ CREATE PACKAGE BODY test2 AS
 FUNCTION f2 RETURN INT AS BEGIN RETURN 10; END;
 END;
 $$
-ERROR HY000: Subroutine 'test.test2.f1' is declared in the package specification but is not defined in the package body
+ERROR HY000: FUNCTION `test.test2.f1` is declared in the package specification but is not defined in the package body
 DROP PACKAGE test2;
 CREATE PACKAGE test2 AS
 PROCEDURE p1;
@@ -464,7 +464,7 @@ CREATE PACKAGE BODY test2 AS
 FUNCTION p1 RETURN INT AS BEGIN RETURN 10; END;
 END;
 $$
-ERROR HY000: Subroutine 'test.test2.p1' is declared in the package specification but is not defined in the package body
+ERROR HY000: PROCEDURE `test.test2.p1` is declared in the package specification but is not defined in the package body
 DROP PACKAGE test2;
 CREATE PACKAGE test2 AS
 PROCEDURE p1;
@@ -474,7 +474,7 @@ CREATE PACKAGE BODY test2 AS
 PROCEDURE p1(a INT) AS BEGIN NULL; END; -- Notice different prototype
 END;
 $$
-ERROR HY000: Subroutine 'test.test2.p1' is declared in the package specification but is not defined in the package body
+ERROR HY000: PROCEDURE `test.test2.p1` is declared in the package specification but is not defined in the package body
 DROP PACKAGE test2;
 #
 # Forward declarations in CREATE PACKAGE BODY with missing implementations
@@ -488,13 +488,13 @@ PROCEDURE p1 AS BEGIN NULL; END;
 PROCEDURE p2;
 END;
 $$
-ERROR HY000: Subroutine 'test.test2.p2' has a forward declaration but is not defined
+ERROR HY000: PROCEDURE `test.test2.p2` has a forward declaration but is not defined
 CREATE PACKAGE BODY test2 AS
 FUNCTION f1 RETURN INT;
 PROCEDURE p1 AS BEGIN NULL; END;
 END;
 $$
-ERROR HY000: Subroutine 'test.test2.f1' has a forward declaration but is not defined
+ERROR HY000: FUNCTION `test.test2.f1` has a forward declaration but is not defined
 DROP PACKAGE test2;
 #
 # Creating a new package
@@ -3148,7 +3148,24 @@ collation_connection	latin1_swedish_ci
 DROP VIEW v_test;
 SET sql_mode=DEFAULT;
 CREATE VIEW v_test AS SELECT 1 AS c1 FROM DUAL WHERE 1=test1.f_test();
-ERROR 42000: FUNCTION test1.f_test does not exist
+SELECT * FROM v_test;
+c1
+1
+SHOW CREATE VIEW v_test;
+View	v_test
+Create View	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v_test` AS select 1 AS `c1` from DUAL  where 1 = `test`.`test1`.`f_test`()
+character_set_client	latin1
+collation_connection	latin1_swedish_ci
+SET sql_mode=ORACLE;
+SELECT * FROM v_test;
+c1
+1
+SHOW CREATE VIEW v_test;
+View	v_test
+Create View	CREATE VIEW "v_test" AS select 1 AS "c1" from DUAL  where 1 = "test"."test1"."f_test"()
+character_set_client	latin1
+collation_connection	latin1_swedish_ci
+DROP VIEW v_test;
 SET sql_mode=ORACLE;
 CREATE VIEW v_test AS SELECT 1 AS c1 FROM DUAL WHERE 1=test.test1.f_test();
 SELECT * FROM v_test;

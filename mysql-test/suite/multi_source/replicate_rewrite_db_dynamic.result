@@ -3,8 +3,8 @@ connect  server_2,127.0.0.1,root,,,$SERVER_MYPORT_2;
 connect  server_3,127.0.0.1,root,,,$SERVER_MYPORT_3;
 # Connect the slave (server_3) to two masters (server_1 and server_2)
 connection server_3;
-CHANGE MASTER 'm1' TO master_port=MYPORT_1, master_host='127.0.0.1', master_user='root';
-CHANGE MASTER 'm2' TO master_port=MYPORT_2, master_host='127.0.0.1', master_user='root';
+CHANGE MASTER 'm1' TO master_port=MYPORT_1, master_host='127.0.0.1', master_user='root', master_ssl_verify_server_cert=0;
+CHANGE MASTER 'm2' TO master_port=MYPORT_2, master_host='127.0.0.1', master_user='root', master_ssl_verify_server_cert=0;
 # Apply events from server_1 (m1) into m1_test
 create database m1_test;
 SET @@global.'m1'.replicate_rewrite_db='test->m1_test';

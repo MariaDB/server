@@ -79,8 +79,8 @@ call add_data();
 call add_data();
 set sort_buffer_size = 1024;
 flush status;
-select o_custkey, Avg(o_custkey) OVER ( ORDER BY o_custkey ) from orders;
-o_custkey	Avg(o_custkey) OVER ( ORDER BY o_custkey )
+select o_custkey, Avg(o_custkey) OVER ( ORDER BY o_custkey ) as exp from orders;
+o_custkey	exp
 593	593
 593	593
 892	742.5
@@ -196,14 +196,14 @@ o_custkey	Avg(o_custkey) OVER ( ORDER BY o_custkey )
 14935	7440.456140350877
 14935	7440.456140350877
 select variable_name,
-case when variable_value > 0 then 'WITH PASSES' else 'NO PASSES' end
+case when variable_value > 0 then 'WITH PASSES' else 'NO PASSES' end as exp
 from information_schema.session_status
 where variable_name like 'Sort_merge_passes';
-variable_name	case when variable_value > 0 then 'WITH PASSES' else 'NO PASSES' end
+variable_name	exp
 SORT_MERGE_PASSES	WITH PASSES
 flush status;
-select o_custkey, Avg(o_custkey) OVER ( ORDER BY o_custkey RANGE CURRENT ROW ) from orders;
-o_custkey	Avg(o_custkey) OVER ( ORDER BY o_custkey RANGE CURRENT ROW )
+select o_custkey, Avg(o_custkey) OVER ( ORDER BY o_custkey RANGE CURRENT ROW ) as exp from orders;
+o_custkey	exp
 593	593
 593	593
 892	892
@@ -319,10 +319,10 @@ o_custkey	Avg(o_custkey) OVER ( ORDER BY o_custkey RANGE CURRENT ROW )
 14935	14935
 14935	14935
 select variable_name,
-case when variable_value > 0 then 'WITH PASSES' else 'NO PASSES' end
+case when variable_value > 0 then 'WITH PASSES' else 'NO PASSES' end as exp
 from information_schema.session_status
 where variable_name like 'Sort_merge_passes';
-variable_name	case when variable_value > 0 then 'WITH PASSES' else 'NO PASSES' end
+variable_name	exp
 SORT_MERGE_PASSES	WITH PASSES
 drop table orders;
 drop procedure add_data;

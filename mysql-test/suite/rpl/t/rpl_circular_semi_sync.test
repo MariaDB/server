@@ -7,6 +7,9 @@
 --source include/have_binlog_format_mixed.inc
 --source include/master-slave.inc
 
+connection server_2;
+call mtr.add_suppression("Timeout waiting for reply of binlog");
+
 # The following tests prove
 # A.
 # no out-of-order gtid error is done to the stict gtid mode semisync
@@ -52,7 +55,7 @@ INSERT INTO t1(a) VALUES (1);
 set @@global.gtid_strict_mode = true;
 set @@global.rpl_semi_sync_slave_enabled = 1;
 
-evalp CHANGE MASTER TO master_host='127.0.0.1', master_port=$SERVER_MYPORT_2, master_user='root', master_use_gtid=SLAVE_POS;
+evalp CHANGE MASTER TO master_host='127.0.0.1', master_port=$SERVER_MYPORT_2, master_user='root', master_ssl_verify_server_cert=0, master_use_gtid=SLAVE_POS;
 --source include/start_slave.inc
 --echo ... is done.
 
@@ -66,10 +69,18 @@ evalp CHANGE MASTER TO master_host='127.0.0.1', master_port=$SERVER_MYPORT_2, ma
 --connection server_2
 set @@global.gtid_strict_mode = true;
 set @@global.rpl_semi_sync_master_enabled = 1;
+
+# The following command is likely to cause the slave master is not yet setup
+# for semi-sync
+
 INSERT INTO t1(a) VALUES (2);
 --source include/save_master_gtid.inc
 
 --connection server_1
+# Update slave to notice that server_2 now has rpl_semi_sync_master_enabled
+--source include/stop_slave.inc
+--source include/start_slave.inc
+
 --echo #
 --echo # the successful sync is a required proof
 --echo #

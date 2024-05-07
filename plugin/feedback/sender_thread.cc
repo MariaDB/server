@@ -96,8 +96,8 @@ static int prepare_for_fill(TABLE_LIST *tables)
 
   thd->mysys_var->current_cond= &sleep_condition;
   thd->mysys_var->current_mutex= &sleep_mutex;
+  thd->mark_connection_idle();
   thd->proc_info="feedback";
-  thd->set_command(COM_SLEEP);
   thd->system_thread= SYSTEM_THREAD_EVENT_WORKER; // whatever
   thd->set_time();
   thd->init_for_queries();
@@ -110,7 +110,7 @@ static int prepare_for_fill(TABLE_LIST *tables)
   lex_start(thd);
   thd->lex->init_select();
 
-  LEX_CSTRING tbl_name= {i_s_feedback->table_name, strlen(i_s_feedback->table_name) };
+  const LEX_CSTRING tbl_name= i_s_feedback->table_name;
 
   tables->init_one_table(&INFORMATION_SCHEMA_NAME, &tbl_name, 0, TL_READ);
   tables->schema_table= i_s_feedback;

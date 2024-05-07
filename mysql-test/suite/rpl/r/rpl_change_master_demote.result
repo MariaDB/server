@@ -24,7 +24,7 @@ GTID_CURRENT_POS
 GTID_SLAVE_POS	
 # First ensure gtid_slave_pos after master_demote_to_slave matches
 # gtid_current_pos calculation
-CHANGE MASTER TO master_host='127.0.0.1', master_port=SLAVE_PORT, master_user='root', master_use_gtid=slave_pos, master_demote_to_slave=1 ;
+CHANGE MASTER TO master_host='127.0.0.1', master_port=SLAVE_PORT, master_user='root', master_ssl_verify_server_cert=0, master_use_gtid=slave_pos, master_demote_to_slave=1 ;
 SELECT VARIABLE_NAME, GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME LIKE 'gtid_binlog_pos' OR VARIABLE_NAME LIKE 'gtid_slave_pos' OR VARIABLE_NAME LIKE 'gtid_current_pos' ORDER BY VARIABLE_NAME ASC;
 VARIABLE_NAME	GLOBAL_VALUE
 GTID_BINLOG_POS	
@@ -58,6 +58,7 @@ GTID_SLAVE_POS	0-2-3
 connection master;
 connection slave;
 CHANGE MASTER TO master_host='127.0.0.1', master_port=MASTER_PORT, master_user='root', master_use_gtid=slave_pos, master_demote_to_slave=1;
+connection master;
 #
 # Test Case 2: If gtid_slave_pos is empty, gtid_binlog_pos will
 # completely overwrite it with MASTER_DEMOTE_TO_SLAVE=1.
@@ -90,7 +91,7 @@ GTID_CURRENT_POS	0-1-2
 GTID_SLAVE_POS	
 # First ensure gtid_slave_pos after master_demote_to_slave matches
 # gtid_current_pos calculation
-CHANGE MASTER TO master_host='127.0.0.1', master_port=SLAVE_PORT, master_user='root', master_use_gtid=slave_pos, master_demote_to_slave=1 ;
+CHANGE MASTER TO master_host='127.0.0.1', master_port=SLAVE_PORT, master_user='root', master_ssl_verify_server_cert=0, master_use_gtid=slave_pos, master_demote_to_slave=1 ;
 SELECT VARIABLE_NAME, GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME LIKE 'gtid_binlog_pos' OR VARIABLE_NAME LIKE 'gtid_slave_pos' OR VARIABLE_NAME LIKE 'gtid_current_pos' ORDER BY VARIABLE_NAME ASC;
 VARIABLE_NAME	GLOBAL_VALUE
 GTID_BINLOG_POS	0-1-2
@@ -124,6 +125,7 @@ GTID_SLAVE_POS	0-2-5
 connection master;
 connection slave;
 CHANGE MASTER TO master_host='127.0.0.1', master_port=MASTER_PORT, master_user='root', master_use_gtid=slave_pos, master_demote_to_slave=1;
+connection master;
 #
 # Test Case 3: Using a single domain id, if neither gtid_slave_pos nor
 # gtid_binlog_pos are empty, and gtid_binlog_pos is more recent, then
@@ -149,7 +151,7 @@ GTID_CURRENT_POS	0-1-6
 GTID_SLAVE_POS	0-2-5
 # First ensure gtid_slave_pos after master_demote_to_slave matches
 # gtid_current_pos calculation
-CHANGE MASTER TO master_host='127.0.0.1', master_port=SLAVE_PORT, master_user='root', master_use_gtid=slave_pos, master_demote_to_slave=1 ;
+CHANGE MASTER TO master_host='127.0.0.1', master_port=SLAVE_PORT, master_user='root', master_ssl_verify_server_cert=0, master_use_gtid=slave_pos, master_demote_to_slave=1 ;
 SELECT VARIABLE_NAME, GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME LIKE 'gtid_binlog_pos' OR VARIABLE_NAME LIKE 'gtid_slave_pos' OR VARIABLE_NAME LIKE 'gtid_current_pos' ORDER BY VARIABLE_NAME ASC;
 VARIABLE_NAME	GLOBAL_VALUE
 GTID_BINLOG_POS	0-1-6
@@ -183,6 +185,7 @@ GTID_SLAVE_POS	0-2-9
 connection master;
 connection slave;
 CHANGE MASTER TO master_host='127.0.0.1', master_port=MASTER_PORT, master_user='root', master_use_gtid=slave_pos, master_demote_to_slave=1;
+connection master;
 #
 # Test Case 4: If gtid_slave_pos and gtid_binlog_pos are equivalent,
 # MASTER_DEMOTE_TO_SLAVE=1 will not change gtid_slave_pos.
@@ -210,7 +213,7 @@ GTID_CURRENT_POS	0-1-10
 GTID_SLAVE_POS	0-1-10
 # First ensure gtid_slave_pos after master_demote_to_slave matches
 # gtid_current_pos calculation
-CHANGE MASTER TO master_host='127.0.0.1', master_port=SLAVE_PORT, master_user='root', master_use_gtid=slave_pos, master_demote_to_slave=1 ;
+CHANGE MASTER TO master_host='127.0.0.1', master_port=SLAVE_PORT, master_user='root', master_ssl_verify_server_cert=0, master_use_gtid=slave_pos, master_demote_to_slave=1 ;
 SELECT VARIABLE_NAME, GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME LIKE 'gtid_binlog_pos' OR VARIABLE_NAME LIKE 'gtid_slave_pos' OR VARIABLE_NAME LIKE 'gtid_current_pos' ORDER BY VARIABLE_NAME ASC;
 VARIABLE_NAME	GLOBAL_VALUE
 GTID_BINLOG_POS	0-1-10
@@ -244,6 +247,7 @@ GTID_SLAVE_POS	0-2-13
 connection master;
 connection slave;
 CHANGE MASTER TO master_host='127.0.0.1', master_port=MASTER_PORT, master_user='root', master_use_gtid=slave_pos, master_demote_to_slave=1;
+connection master;
 #
 # Test Case 5: If a new domain id is added into gtid_binlog_pos while
 # gtid_slave_pos already has a state, MASTER_DEMOTE_TO_SLAVE=1 will
@@ -274,7 +278,7 @@ GTID_CURRENT_POS	0-1-14,1-1-2
 GTID_SLAVE_POS	0-2-13
 # First ensure gtid_slave_pos after master_demote_to_slave matches
 # gtid_current_pos calculation
-CHANGE MASTER TO master_host='127.0.0.1', master_port=SLAVE_PORT, master_user='root', master_use_gtid=slave_pos, master_demote_to_slave=1 ;
+CHANGE MASTER TO master_host='127.0.0.1', master_port=SLAVE_PORT, master_user='root', master_ssl_verify_server_cert=0, master_use_gtid=slave_pos, master_demote_to_slave=1 ;
 SELECT VARIABLE_NAME, GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME LIKE 'gtid_binlog_pos' OR VARIABLE_NAME LIKE 'gtid_slave_pos' OR VARIABLE_NAME LIKE 'gtid_current_pos' ORDER BY VARIABLE_NAME ASC;
 VARIABLE_NAME	GLOBAL_VALUE
 GTID_BINLOG_POS	0-1-14,1-1-2
@@ -308,6 +312,7 @@ GTID_SLAVE_POS	0-2-17,1-1-2
 connection master;
 connection slave;
 CHANGE MASTER TO master_host='127.0.0.1', master_port=MASTER_PORT, master_user='root', master_use_gtid=slave_pos, master_demote_to_slave=1;
+connection master;
 #
 # Test Case 6: If gtid_slave_pos has multiple GTID positions and
 # gtid_binlog_pos contains updates on existing domain ids, new
@@ -356,7 +361,7 @@ GTID_CURRENT_POS	0-1-18,1-1-2,2-1-2
 GTID_SLAVE_POS	0-1-18,1-1-2
 # First ensure gtid_slave_pos after master_demote_to_slave matches
 # gtid_current_pos calculation
-CHANGE MASTER TO master_host='127.0.0.1', master_port=SLAVE_PORT, master_user='root', master_use_gtid=slave_pos, master_demote_to_slave=1 ;
+CHANGE MASTER TO master_host='127.0.0.1', master_port=SLAVE_PORT, master_user='root', master_ssl_verify_server_cert=0, master_use_gtid=slave_pos, master_demote_to_slave=1 ;
 SELECT VARIABLE_NAME, GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME LIKE 'gtid_binlog_pos' OR VARIABLE_NAME LIKE 'gtid_slave_pos' OR VARIABLE_NAME LIKE 'gtid_current_pos' ORDER BY VARIABLE_NAME ASC;
 VARIABLE_NAME	GLOBAL_VALUE
 GTID_BINLOG_POS	0-1-18,1-3-4,2-1-2,4-3-2
@@ -390,6 +395,7 @@ GTID_SLAVE_POS	0-2-21,1-3-4,2-1-2,4-3-2
 connection master;
 connection slave;
 CHANGE MASTER TO master_host='127.0.0.1', master_port=MASTER_PORT, master_user='root', master_use_gtid=slave_pos, master_demote_to_slave=1;
+connection master;
 #
 # Test Case 7: If MASTER_DEMOTE_TO_SLAVE=1 is combined with
 # IGNORE_DOMAIN_IDS such that gtid_binlog_pos has more recent GTIDs
@@ -421,7 +427,7 @@ GTID_CURRENT_POS	0-2-21,1-3-4,2-1-3,3-1-2,4-3-2
 GTID_SLAVE_POS	0-2-21,1-3-4,2-1-2,4-3-2
 # First ensure gtid_slave_pos after master_demote_to_slave matches
 # gtid_current_pos calculation
-CHANGE MASTER TO master_host='127.0.0.1', master_port=SLAVE_PORT, master_user='root', master_use_gtid=slave_pos, master_demote_to_slave=1 , ignore_domain_ids=(2,3);
+CHANGE MASTER TO master_host='127.0.0.1', master_port=SLAVE_PORT, master_user='root', master_ssl_verify_server_cert=0, master_use_gtid=slave_pos, master_demote_to_slave=1 , ignore_domain_ids=(2,3);
 SELECT VARIABLE_NAME, GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME LIKE 'gtid_binlog_pos' OR VARIABLE_NAME LIKE 'gtid_slave_pos' OR VARIABLE_NAME LIKE 'gtid_current_pos' ORDER BY VARIABLE_NAME ASC;
 VARIABLE_NAME	GLOBAL_VALUE
 GTID_BINLOG_POS	0-1-18,1-3-4,2-1-3,3-1-2,4-3-2
@@ -455,6 +461,7 @@ GTID_SLAVE_POS	0-2-24,1-3-4,2-1-3,3-1-2,4-3-2
 connection master;
 connection slave;
 CHANGE MASTER TO master_host='127.0.0.1', master_port=MASTER_PORT, master_user='root', master_use_gtid=slave_pos, master_demote_to_slave=1;
+connection master;
 #
 # Test Case 8: If gtid_binlog_pos is more recent than gtid_slave_pos,
 # and MASTER_DEMOTE_TO_SLAVE=1 is combined with a later call to
@@ -520,7 +527,7 @@ GTID_CURRENT_POS	0-1-26,1-3-4,2-1-3,3-1-2,4-3-2
 GTID_SLAVE_POS	0-1-26,1-3-4,2-1-3,3-1-2,4-3-2
 # First ensure gtid_slave_pos after master_demote_to_slave matches
 # gtid_current_pos calculation
-CHANGE MASTER TO master_host='127.0.0.1', master_port=SLAVE_PORT, master_user='root', master_use_gtid=slave_pos, master_demote_to_slave=1 , ignore_domain_ids=(2,3);
+CHANGE MASTER TO master_host='127.0.0.1', master_port=SLAVE_PORT, master_user='root', master_ssl_verify_server_cert=0, master_use_gtid=slave_pos, master_demote_to_slave=1 , ignore_domain_ids=(2,3);
 SELECT VARIABLE_NAME, GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME LIKE 'gtid_binlog_pos' OR VARIABLE_NAME LIKE 'gtid_slave_pos' OR VARIABLE_NAME LIKE 'gtid_current_pos' ORDER BY VARIABLE_NAME ASC;
 VARIABLE_NAME	GLOBAL_VALUE
 GTID_BINLOG_POS	0-1-26,1-3-4,2-1-3,3-1-2,4-3-2
@@ -556,6 +563,7 @@ GTID_SLAVE_POS	0-2-29,1-3-4,2-1-3,3-1-2,4-3-2
 connection master;
 connection slave;
 CHANGE MASTER TO master_host='127.0.0.1', master_port=MASTER_PORT, master_user='root', master_use_gtid=slave_pos, master_demote_to_slave=1;
+connection master;
 # Demote master to slave with the more recent gtid_slave_pos
 connection master;
 CHANGE MASTER TO master_host='127.0.0.1', master_port=SLAVE_PORT, master_user='root', master_use_gtid=slave_pos, master_demote_to_slave=1;
@@ -585,7 +593,7 @@ GTID_CURRENT_POS	0-2-29,1-3-4,2-1-3,3-1-2,4-3-2
 GTID_SLAVE_POS	0-2-29,1-3-4,2-1-3,3-1-2,4-3-2
 # First ensure gtid_slave_pos after master_demote_to_slave matches
 # gtid_current_pos calculation
-CHANGE MASTER TO master_host='127.0.0.1', master_port=SLAVE_PORT, master_user='root', master_use_gtid=slave_pos, master_demote_to_slave=1 , ignore_domain_ids=(2,3);
+CHANGE MASTER TO master_host='127.0.0.1', master_port=SLAVE_PORT, master_user='root', master_ssl_verify_server_cert=0, master_use_gtid=slave_pos, master_demote_to_slave=1 , ignore_domain_ids=(2,3);
 SELECT VARIABLE_NAME, GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME LIKE 'gtid_binlog_pos' OR VARIABLE_NAME LIKE 'gtid_slave_pos' OR VARIABLE_NAME LIKE 'gtid_current_pos' ORDER BY VARIABLE_NAME ASC;
 VARIABLE_NAME	GLOBAL_VALUE
 GTID_BINLOG_POS	0-1-26,1-3-4,2-1-3,3-1-2,4-3-2
@@ -619,6 +627,7 @@ GTID_SLAVE_POS	0-2-32,1-3-4,2-1-3,3-1-2,4-3-2
 connection master;
 connection slave;
 CHANGE MASTER TO master_host='127.0.0.1', master_port=MASTER_PORT, master_user='root', master_use_gtid=slave_pos, master_demote_to_slave=1;
+connection master;
 # Tag gtid_slave_pos now (before binlog updates) for later comparison
 connection master;
 # In domain 1, make gtid_slave_pos < gtid_binlog_pos

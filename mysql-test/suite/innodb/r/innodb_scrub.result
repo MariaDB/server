@@ -1,6 +1,6 @@
 CREATE TABLE t1(f1 int auto_increment primary key,
 f2 varchar(256),
-f3 text) engine = innodb;
+f3 text) engine = innodb stats_persistent=0;
 FLUSH TABLE t1 FOR EXPORT;
 UNLOCK TABLES;
 FOUND 500500 /unicycle|repairman/ in t1.ibd

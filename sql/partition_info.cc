@@ -34,7 +34,6 @@
 #include "lock.h"
 #include "table.h"
 #include "sql_class.h"
-#include "vers_string.h"
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
 #include "ha_partition.h"
@@ -319,7 +318,7 @@ char *partition_info::create_default_partition_names(THD *thd, uint part_no,
   {
     do
     {
-      if (make_partition_name(move_ptr, (start_no + i)))
+      if (!make_partition_name(move_ptr, (start_no + i)).str)
         DBUG_RETURN(NULL);
       move_ptr+= MAX_PART_NAME_SIZE;
     } while (++i < num_parts_arg);
@@ -428,7 +427,7 @@ bool partition_info::set_up_default_partitions(THD *thd, handler *file,
                (!partitions.push_back(part_elem))))
     {
       part_elem->engine_type= default_engine_type;
-      part_elem->partition_name= default_name;
+      part_elem->partition_name= Lex_cstring_strlen(default_name);
       part_elem->id= i;
       default_name+=MAX_PART_NAME_SIZE;
       if (part_type == VERSIONING_PARTITION)
@@ -437,7 +436,7 @@ bool partition_info::set_up_default_partitions(THD *thd, handler *file,
           part_elem->type= partition_element::HISTORY;
         } else {
           part_elem->type= partition_element::CURRENT;
-          part_elem->partition_name= "pn";
+          part_elem->partition_name= Lex_ident_partition("pn"_LEX_CSTRING);
         }
       }
     }
@@ -501,11 +500,11 @@ bool partition_info::set_up_default_subpartitions(THD *thd, handler *file,
           (!part_elem->subpartitions.push_back(subpart_elem))))
       {
         char *ptr= create_default_subpartition_name(thd, j,
-                                                    part_elem->partition_name);
+                                                part_elem->partition_name.str);
         if (!ptr)
           goto end;
         subpart_elem->engine_type= default_engine_type;
-        subpart_elem->partition_name= ptr;
+        subpart_elem->partition_name= Lex_cstring_strlen(ptr);
       }
       else
         goto end;
@@ -573,7 +572,6 @@ bool partition_info::set_up_defaults_for_partitioning(THD *thd, handler *file,
 
 const char* partition_info::find_duplicate_field()
 {
-  const char *field_name_outer, *field_name_inner;
   List_iterator<const char> it_outer(part_field_list);
   uint num_fields= part_field_list.elements;
   uint i,j;
@@ -581,18 +579,16 @@ const char* partition_info::find_duplicate_field()
 
   for (i= 0; i < num_fields; i++)
   {
-    field_name_outer= it_outer++;
+    const Lex_ident_partition field_name_outer= Lex_cstring_strlen(it_outer++);
     List_iterator<const char> it_inner(part_field_list);
     for (j= 0; j < num_fields; j++)
     {
-      field_name_inner= it_inner++;
+      const char *field_name_inner= it_inner++;
       if (i >= j)
         continue;
-      if (!(my_strcasecmp(system_charset_info,
-                          field_name_outer,
-                          field_name_inner)))
+      if (field_name_outer.streq(Lex_cstring_strlen(field_name_inner)))
       {
-        DBUG_RETURN(field_name_outer);
+        DBUG_RETURN(field_name_outer.str);
       }
     }
   }
@@ -615,10 +611,10 @@ const char* partition_info::find_duplicate_field()
   a partition is given for a subpartitioned table, part_elem will be
   the partition, but part_id will be NOT_A_PARTITION_ID and file_name not set.
 */
-partition_element *partition_info::get_part_elem(const char *partition_name,
-                                                 char *file_name,
-                                                 size_t file_name_size,
-                                                 uint32 *part_id)
+partition_element *
+partition_info::get_part_elem(const Lex_ident_partition &partition_name,
+                              char *file_name, size_t file_name_size,
+                              uint32 *part_id)
 {
   List_iterator<partition_element> part_it(partitions);
   uint i= 0;
@@ -635,8 +631,7 @@ partition_element *partition_info::get_part_elem(const char *partition_name,
       do
       {
         partition_element *sub_part_elem= sub_part_it++;
-        if (!my_strcasecmp(system_charset_info,
-                           sub_part_elem->partition_name, partition_name))
+        if (sub_part_elem->partition_name.streq(partition_name))
         {
           if (file_name)
             if (create_subpartition_name(file_name, file_name_size, "",
@@ -649,12 +644,10 @@ partition_element *partition_info::get_part_elem(const char *partition_name,
       } while (++j < num_subparts);
 
       /* Naming a partition (first level) on a subpartitioned table. */
-      if (!my_strcasecmp(system_charset_info,
-                            part_elem->partition_name, partition_name))
+      if (part_elem->partition_name.streq(partition_name))
         DBUG_RETURN(part_elem);
     }
-    else if (!my_strcasecmp(system_charset_info,
-                            part_elem->partition_name, partition_name))
+    else if (part_elem->partition_name.streq(partition_name))
     {
       if (file_name)
         if (create_partition_name(file_name, file_name_size, "",
@@ -714,7 +707,9 @@ char *partition_info::find_duplicate_name()
   max_names= num_parts;
   if (is_sub_partitioned())
     max_names+= num_parts * num_subparts;
-  if (my_hash_init(PSI_INSTRUMENT_ME, &partition_names, system_charset_info, max_names, 0, 0,
+  if (my_hash_init(PSI_INSTRUMENT_ME, &partition_names,
+                   Lex_ident_partition::charset_info(),
+                   max_names, 0, 0,
                    (my_hash_get_key) get_part_name_from_elem, 0, HASH_UNIQUE))
   {
     DBUG_ASSERT(0);
@@ -723,7 +718,7 @@ char *partition_info::find_duplicate_name()
   }
   while ((p_elem= (parts_it++)))
   {
-    curr_name= (const uchar*) p_elem->partition_name;
+    curr_name= (const uchar*) p_elem->partition_name.str;
     if (my_hash_insert(&partition_names, curr_name))
       goto error;
 
@@ -733,7 +728,7 @@ char *partition_info::find_duplicate_name()
       partition_element *subp_elem;
       while ((subp_elem= (subparts_it++)))
       {
-        curr_name= (const uchar*) subp_elem->partition_name;
+        curr_name= (const uchar*) subp_elem->partition_name.str;
         if (my_hash_insert(&partition_names, curr_name))
           goto error;
       }
@@ -763,15 +758,14 @@ bool partition_info::has_unique_name(partition_element *element)
 {
   DBUG_ENTER("partition_info::has_unique_name");
   
-  const char *name_to_check= element->partition_name;
   List_iterator<partition_element> parts_it(partitions);
   
   partition_element *el;
   while ((el= (parts_it++)))
   {
-    if (!(my_strcasecmp(system_charset_info, el->partition_name, 
-                        name_to_check)) && el != element)
-        DBUG_RETURN(FALSE);
+    if (element->partition_name.streq(el->partition_name) &&
+        el != element)
+      DBUG_RETURN(FALSE);
 
     if (!el->subpartitions.is_empty()) 
     {
@@ -779,9 +773,9 @@ bool partition_info::has_unique_name(partition_element *element)
       List_iterator<partition_element> subparts_it(el->subpartitions);
       while ((sub_el= (subparts_it++)))
       {
-        if (!(my_strcasecmp(system_charset_info, sub_el->partition_name, 
-                            name_to_check)) && sub_el != element)
-            DBUG_RETURN(FALSE);
+        if (element->partition_name.streq(sub_el->partition_name) &&
+            sub_el != element)
+          DBUG_RETURN(FALSE);
       }
     }
   } 
@@ -880,7 +874,7 @@ bool partition_info::vers_set_hist_part(THD *thd, uint *create_count)
       {
         my_error(WARN_VERS_PART_FULL, MYF(ME_WARNING|ME_ERROR_LOG),
                 table->s->db.str, table->s->table_name.str,
-                vers_info->hist_part->partition_name, "INTERVAL");
+                vers_info->hist_part->partition_name.str, "INTERVAL");
       }
     }
   }
@@ -1042,11 +1036,11 @@ void partition_info::vers_check_limit(THD *thd)
                         WARN_VERS_PART_FULL,
                         ER_THD(thd, WARN_VERS_PART_FULL),
                         table->s->db.str, table->s->table_name.str,
-                        vers_info->hist_part->partition_name, "LIMIT");
+                        vers_info->hist_part->partition_name.str, "LIMIT");
 
     sql_print_warning(ER_THD(thd, WARN_VERS_PART_FULL),
                       table->s->db.str, table->s->table_name.str,
-                      vers_info->hist_part->partition_name, "LIMIT");
+                      vers_info->hist_part->partition_name.str, "LIMIT");
   }
 }
 
@@ -1403,8 +1397,7 @@ bool partition_info::check_partition_info(THD *thd, handlerton **eng_type,
           num_parts_not_set++;
           part_elem->engine_type= default_engine_type;
         }
-        if (check_table_name(part_elem->partition_name,
-                             strlen(part_elem->partition_name), FALSE))
+        if (Lex_ident_table::check_name(part_elem->partition_name, false))
         {
           my_error(ER_WRONG_PARTITION_NAME, MYF(0));
           goto end;
@@ -1422,8 +1415,7 @@ bool partition_info::check_partition_info(THD *thd, handlerton **eng_type,
         {
           sub_elem= sub_it++;
           warn_if_dir_in_part_elem(thd, sub_elem);
-          if (check_table_name(sub_elem->partition_name,
-                               strlen(sub_elem->partition_name), FALSE))
+          if (Lex_ident_table::check_name(sub_elem->partition_name, false))
           {
             my_error(ER_WRONG_PARTITION_NAME, MYF(0));
             goto end;
@@ -2164,7 +2156,7 @@ int partition_info::fix_partition_values(THD *thd,
   else if (item_expr->result_type() != INT_RESULT)
   {
     my_error(ER_VALUES_IS_NOT_INT_TYPE_ERROR, MYF(0),
-             part_elem->partition_name);
+             part_elem->partition_name.str);
     DBUG_RETURN(TRUE);
   }
   if (part_type == RANGE_PARTITION)
@@ -2558,9 +2550,8 @@ bool partition_info::has_same_partitioning(partition_info *new_part_info)
   while ((old_name= old_field_name_it++))
   {
     new_name= new_field_name_it++;
-    if (!new_name || my_strcasecmp(system_charset_info,
-                                   new_name,
-                                   old_name))
+    if (!new_name || !Lex_ident_partition(Lex_cstring_strlen(new_name)).
+                        streq(Lex_cstring_strlen(old_name)))
       DBUG_RETURN(false);
   }
 
@@ -2573,9 +2564,8 @@ bool partition_info::has_same_partitioning(partition_info *new_part_info)
     while ((old_name= old_field_name_it++))
     {
       new_name= new_field_name_it++;
-      if (!new_name || my_strcasecmp(system_charset_info,
-                                     new_name,
-                                     old_name))
+      if (!new_name || !Lex_ident_partition(Lex_cstring_strlen(new_name)).
+                          streq(Lex_cstring_strlen(old_name)))
         DBUG_RETURN(false);
     }
   }
@@ -2604,8 +2594,8 @@ bool partition_info::has_same_partitioning(partition_info *new_part_info)
         part_state must be PART_NORMAL!
       */
       if (!part_elem || !new_part_elem ||
-          strcmp(part_elem->partition_name,
-                 new_part_elem->partition_name) ||
+          strcmp(part_elem->partition_name.str,
+                 new_part_elem->partition_name.str) ||
           part_elem->part_state != PART_NORMAL ||
           new_part_elem->part_state != PART_NORMAL ||
           part_elem->max_value != new_part_elem->max_value ||
@@ -2666,8 +2656,8 @@ bool partition_info::has_same_partitioning(partition_info *new_part_info)
                 sub_part_elem->engine_type != new_sub_part_elem->engine_type)
               DBUG_RETURN(false);
 
-            if (strcmp(sub_part_elem->partition_name,
-                       new_sub_part_elem->partition_name) ||
+            if (strcmp(sub_part_elem->partition_name.str,
+                       new_sub_part_elem->partition_name.str) ||
                 sub_part_elem->part_state != PART_NORMAL ||
                 new_sub_part_elem->part_state != PART_NORMAL ||
                 sub_part_elem->part_min_rows !=

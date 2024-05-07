@@ -28,11 +28,16 @@
 #include <hash.h>
 #include "sql_connect.h"
 #include "thread_cache.h"
-#if defined(HAVE_MALLINFO) && defined(HAVE_MALLOC_H)
+
+#if defined(HAVE_MALLOC_H)
 #include <malloc.h>
-#elif defined(HAVE_MALLINFO) && defined(HAVE_SYS_MALLOC_H)
+#endif
+
+#if defined(HAVE_SYS_MALLOC_H)
 #include <sys/malloc.h>
-#elif defined(HAVE_MALLOC_ZONE)
+#endif
+
+#if defined(HAVE_MALLOC_ZONE)
 #include <malloc/malloc.h>
 #endif
 

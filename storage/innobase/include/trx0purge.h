@@ -31,6 +31,7 @@ Created 3/26/1996 Heikki Tuuri
 #include "srw_lock.h"
 
 #include <queue>
+#include <unordered_map>
 
 /** Prepend the history list with an undo log.
 Remove the undo log segment from the rseg slot if it is too big for reuse.
@@ -109,7 +110,8 @@ struct TrxUndoRsegsIterator {
 	TrxUndoRsegsIterator();
 	/** Sets the next rseg to purge in purge_sys.
 	Executed in the purge coordinator thread.
-	@return whether anything is to be purged */
+	@retval false when nothing is to be purged
+	@retval true  when purge_sys.rseg->latch was locked */
 	inline bool set_next();
 
 private:
@@ -126,6 +128,7 @@ private:
 /** The control structure used in the purge operation */
 class purge_sys_t
 {
+  friend TrxUndoRsegsIterator;
 public:
   /** latch protecting view, m_enabled */
   alignas(CPU_LEVEL1_DCACHE_LINESIZE) mutable srw_spin_lock latch;
@@ -133,8 +136,23 @@ private:
   /** Read view at the start of a purge batch. Any encountered index records
   that are older than view will be removed. */
   ReadViewBase view;
+  /** whether the subsystem has been initialized */
+  bool m_initialized{false};
   /** whether purge is enabled; protected by latch and std::atomic */
-  std::atomic<bool> m_enabled;
+  std::atomic<bool> m_enabled{false};
+  /** The primary candidate for iterator::free_history() is
+  rseg=trx_sys.rseg_array[skipped_rseg]. This field may be changed
+  after invoking rseg.set_skip_allocation() and rseg.clear_skip_allocation()
+  and while holding the exclusive rseg.latch.
+
+  This may only be 0 if innodb_undo_tablespaces=0, because rollback segment
+  0 always resides in the system tablespace and would never be used when
+  dedicated undo tablespaces are in use. */
+  Atomic_relaxed<uint8_t> skipped_rseg;
+public:
+  /** whether purge is active (may hold table handles) */
+  std::atomic<bool> m_active{false};
+private:
   /** number of pending stop() calls without resume() */
   Atomic_counter<uint32_t> m_paused;
   /** number of stop_SYS() calls without resume_SYS() */
@@ -147,7 +165,34 @@ private:
   /** Read view at the end of a purge batch (copied from view). Any undo pages
   containing records older than end_view may be freed. */
   ReadViewBase end_view;
+
+  struct hasher
+  {
+    size_t operator()(const page_id_t &id) const { return size_t(id.raw()); }
+  };
+
+  using unordered_map =
+    std::unordered_map<const page_id_t, buf_block_t*, hasher,
+#if defined __GNUC__ && __GNUC__ == 4 && __GNUC_MINOR__ >= 8
+                       std::equal_to<page_id_t>
+                       /* GCC 4.8.5 would fail to find a matching allocator */
+#else
+                       std::equal_to<page_id_t>,
+                       ut_allocator<std::pair<const page_id_t, buf_block_t*>>
+#endif
+                       >;
+  /** map of buffer-fixed undo log pages processed during a purge batch */
+  unordered_map pages;
 public:
+  /** @return the number of processed undo pages */
+  size_t n_pages_handled() const { return pages.size(); }
+
+  /** Look up an undo log page.
+  @param id    undo page identifier
+  @return undo page
+  @retval nullptr in case the page is corrupted */
+  buf_block_t *get_page(page_id_t id);
+
 	que_t*		query;		/*!< The query graph which will do the
 					parallelized purge operation */
 
@@ -161,6 +206,14 @@ public:
 			return undo_no <= other.undo_no;
 		}
 
+		/** Remove unnecessary history data from a rollback segment.
+		@param rseg   rollback segment
+		@return error code */
+		inline dberr_t free_history_rseg(trx_rseg_t &rseg) const;
+
+		/** Free the undo pages up to this. */
+		dberr_t free_history() const;
+
 		/** trx_t::no of the committed transaction */
 		trx_id_t	trx_no;
 		/** The record number within the committed transaction's undo
@@ -172,13 +225,15 @@ public:
 	committed transaction. */
 	iterator	tail;
 	/** The head of the purge queue; any older undo logs of committed
-	transactions may be discarded (history list truncation). */
+	transactions may be discarded (history list truncation).
+	Protected by latch. */
 	iterator	head;
 	/*-----------------------------*/
 	bool		next_stored;	/*!< whether rseg holds the next record
 					to purge */
 	trx_rseg_t*	rseg;		/*!< Rollback segment for the next undo
 					record to purge */
+private:
 	uint32_t	page_no;	/*!< Page number for the next undo
 					record to purge, page number of the
 					log header, if dummy record */
@@ -193,31 +248,21 @@ public:
 	TrxUndoRsegsIterator
 			rseg_iter;	/*!< Iterator to get the next rseg
 					to process */
-
+public:
 	purge_pq_t	purge_queue;	/*!< Binary min-heap, ordered on
 					TrxUndoRsegs::trx_no. It is protected
 					by the pq_mutex */
 	mysql_mutex_t	pq_mutex;	/*!< Mutex protecting purge_queue */
 
-	/** Undo tablespace file truncation (only accessed by the
-	srv_purge_coordinator_thread) */
-	struct {
-		/** The undo tablespace that is currently being truncated */
-		fil_space_t*	current;
-		/** The undo tablespace that was last truncated */
-		fil_space_t*	last;
-	} truncate;
-
-	/** Heap for reading the undo log records */
-	mem_heap_t*	heap;
-  /**
-    Constructor.
-
-    Some members may require late initialisation, thus we just mark object as
-    uninitialised. Real initialisation happens in create().
-  */
-
-  purge_sys_t(): m_enabled(false), heap(nullptr) {}
+  /** innodb_undo_log_truncate=ON state;
+  only modified by purge_coordinator_callback() */
+  struct {
+    /** The undo tablespace that is currently being truncated */
+    Atomic_relaxed<fil_space_t*> current;
+    /** The number of the undo tablespace that was last truncated,
+    relative from srv_undo_space_id_start */
+    uint32_t last;
+  } truncate_undo_space;
 
   /** Create the instance */
   void create();
@@ -231,12 +276,12 @@ public:
   bool paused()
   { return m_paused != 0; }
 
-  /** Enable purge at startup. Not protected by latch; the main thread
-  will wait for purge_sys.enabled() in srv_start() */
+  /** Enable purge at startup. */
   void coordinator_startup()
   {
     ut_ad(!enabled());
     m_enabled.store(true, std::memory_order_relaxed);
+    wake_if_not_active();
   }
 
   /** Disable purge at shutdown */
@@ -247,33 +292,56 @@ public:
   }
 
   /** @return whether the purge tasks are active */
-  bool running() const;
+  static bool running();
+
   /** Stop purge during FLUSH TABLES FOR EXPORT. */
   void stop();
   /** Resume purge at UNLOCK TABLES after FLUSH TABLES FOR EXPORT */
   void resume();
 
+  /** Close and reopen all tables in case of a MDL conflict with DDL */
+  dict_table_t *close_and_reopen(table_id_t id, THD *thd, MDL_ticket **mdl);
 private:
-  void wait_SYS();
-  void wait_FTS();
+  /** Suspend purge during a DDL operation on FULLTEXT INDEX tables */
+  void wait_FTS(bool also_sys);
 public:
   /** Suspend purge in data dictionary tables */
-  void stop_SYS();
+  void stop_SYS() { m_SYS_paused++; }
   /** Resume purge in data dictionary tables */
   static void resume_SYS(void *);
-  /** @return whether stop_SYS() is in effect */
-  bool must_wait_SYS() const { return m_SYS_paused; }
-  /** check stop_SYS() */
-  void check_stop_SYS() { if (must_wait_SYS()) wait_SYS(); }
 
   /** Pause purge during a DDL operation that could drop FTS_ tables. */
-  void stop_FTS() { m_FTS_paused++; }
+  void stop_FTS();
   /** Resume purge after stop_FTS(). */
   void resume_FTS() { ut_d(const auto p=) m_FTS_paused--; ut_ad(p); }
   /** @return whether stop_SYS() is in effect */
   bool must_wait_FTS() const { return m_FTS_paused; }
-  /** check stop_SYS() */
-  void check_stop_FTS() { if (must_wait_FTS()) wait_FTS(); }
+
+private:
+  /**
+  Get the next record to purge and update the info in the purge system.
+  @param roll_ptr           undo log pointer to the record
+  @return buffer-fixed reference to undo log record
+  @retval {nullptr,1} if the whole undo log can skipped in purge
+  @retval {nullptr,0} if nothing is left, or on corruption */
+  inline trx_purge_rec_t get_next_rec(roll_ptr_t roll_ptr);
+
+  /** Choose the next undo log to purge.
+  @return whether anything is to be purged */
+  bool choose_next_log();
+
+  /** Update the last not yet purged history log info in rseg when
+  we have purged a whole undo log. Advances also purge_trx_no
+  past the purged log. */
+  void rseg_get_next_history_log();
+
+public:
+  /**
+  Fetch the next undo log record from the history list to purge.
+  @return buffer-fixed reference to undo log record
+  @retval {nullptr,1} if the whole undo log can skipped in purge
+  @retval {nullptr,0} if nothing is left, or on corruption */
+  inline trx_purge_rec_t fetch_next_rec();
 
   /** Determine if the history of a transaction is purgeable.
   @param trx_id  transaction identifier
@@ -304,10 +372,32 @@ public:
     typically via purge_sys_t::view_guard. */
     return view.sees(id);
   }
+
+private:
+  /** Enable the use of a rollback segment and advance skipped_rseg,
+  after iterator::free_history_rseg() had invoked
+  rseg.set_skip_allocation(). */
+  inline void rseg_enable(trx_rseg_t &rseg);
+
+  /** Try to start truncating a tablespace.
+  @param id        undo tablespace identifier
+  @param size      the maximum desired undo tablespace size, in pages
+  @return undo tablespace whose truncation was started
+  @retval nullptr  if truncation is not currently possible */
+  inline fil_space_t *undo_truncate_try(uint32_t id, uint32_t size);
+public:
+  /** Check if innodb_undo_log_truncate=ON needs to be handled.
+  This is only to be called by purge_coordinator_callback().
+  @return undo tablespace chosen by innodb_undo_log_truncate=ON
+  @retval nullptr if truncation is not currently possible */
+  fil_space_t *truncating_tablespace();
+
   /** A wrapper around trx_sys_t::clone_oldest_view(). */
   template<bool also_end_view= false>
   void clone_oldest_view()
   {
+    if (!also_end_view)
+      wait_FTS(true);
     latch.wr_lock(SRW_LOCK_CALL);
     trx_sys.clone_oldest_view(&view);
     if (also_end_view)
@@ -316,8 +406,13 @@ public:
     latch.wr_unlock();
   }
 
-  /** Update end_view at the end of a purge batch. */
-  inline void clone_end_view();
+  /** Wake up the purge threads if there is work to do. */
+  void wake_if_not_active();
+
+  /** Release undo pages and update end_view at the end of a purge batch.
+  @retval false when nothing is to be purged
+  @retval true  when purge_sys.rseg->latch was locked  */
+  inline void batch_cleanup(const iterator &head);
 
   struct view_guard
   {

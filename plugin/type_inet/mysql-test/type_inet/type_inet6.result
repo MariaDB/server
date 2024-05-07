@@ -35,6 +35,8 @@ PRIVILEGES	#
 COLUMN_COMMENT	
 IS_GENERATED	NEVER
 GENERATION_EXPRESSION	NULL
+IS_SYSTEM_TIME_PERIOD_START	NO
+IS_SYSTEM_TIME_PERIOD_END	NO
 DROP TABLE t1;
 CREATE TABLE t1 (a INET6);
 INSERT INTO t1 VALUES ('::1');
@@ -95,6 +97,8 @@ PRIVILEGES	#
 COLUMN_COMMENT	
 IS_GENERATED	NEVER
 GENERATION_EXPRESSION	NULL
+IS_SYSTEM_TIME_PERIOD_START	NO
+IS_SYSTEM_TIME_PERIOD_END	NO
 TABLE_CATALOG	def
 TABLE_SCHEMA	test
 TABLE_NAME	t1
@@ -117,6 +121,8 @@ PRIVILEGES	#
 COLUMN_COMMENT	
 IS_GENERATED	NEVER
 GENERATION_EXPRESSION	NULL
+IS_SYSTEM_TIME_PERIOD_START	NO
+IS_SYSTEM_TIME_PERIOD_END	NO
 TABLE_CATALOG	def
 TABLE_SCHEMA	test
 TABLE_NAME	t1
@@ -139,6 +145,8 @@ PRIVILEGES	#
 COLUMN_COMMENT	
 IS_GENERATED	NEVER
 GENERATION_EXPRESSION	NULL
+IS_SYSTEM_TIME_PERIOD_START	NO
+IS_SYSTEM_TIME_PERIOD_END	NO
 TABLE_CATALOG	def
 TABLE_SCHEMA	test
 TABLE_NAME	t1
@@ -161,6 +169,8 @@ PRIVILEGES	#
 COLUMN_COMMENT	
 IS_GENERATED	NEVER
 GENERATION_EXPRESSION	NULL
+IS_SYSTEM_TIME_PERIOD_START	NO
+IS_SYSTEM_TIME_PERIOD_END	NO
 TABLE_CATALOG	def
 TABLE_SCHEMA	test
 TABLE_NAME	t1
@@ -183,6 +193,8 @@ PRIVILEGES	#
 COLUMN_COMMENT	
 IS_GENERATED	NEVER
 GENERATION_EXPRESSION	NULL
+IS_SYSTEM_TIME_PERIOD_START	NO
+IS_SYSTEM_TIME_PERIOD_END	NO
 DROP TABLE t1;
 CREATE TABLE t1 (c1 INET6 DEFAULT 0x00);
 ERROR 42000: Invalid default value for 'c1'
@@ -1283,7 +1295,7 @@ EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=COALESCE(CAST('::1' AS INET6)) AND id>
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = INET6'::1' and `test`.`t1`.`id` > 0
+Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = inet6'::1' and `test`.`t1`.`id` > 0
 DROP TABLE t1;
 #
 # Optimizer: equal field propagation
@@ -1296,14 +1308,14 @@ AND LENGTH(CONCAT(a,RAND()))>1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = INET6'::1' and octet_length(concat(INET6'::1',rand())) > 1
+Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = inet6'::1' and octet_length(concat(inet6'::1',rand())) > 1
 EXPLAIN EXTENDED SELECT * FROM t1
 WHERE a=COALESCE(CAST('::1' AS INET6))
 AND LENGTH(a)>1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = INET6'::1'
+Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = inet6'::1'
 DROP TABLE t1;
 #
 # Optimizer: equal expression propagation
@@ -2281,6 +2293,81 @@ INSERT INTO t1 VALUES ('::');
 SELECT * FROM t1 WHERE a IN ('','::1');
 a
 Warnings:
+Warning	1292	Incorrect inet6 value: ''
+DROP TABLE t1;
+#
+# MDEV-32879 Server crash in my_decimal::operator= or unexpected ER_DUP_ENTRY upon comparison with INET6 and similar types
+#
+CREATE TABLE t1 (a CHAR(36) NOT NULL, b INET6 NOT NULL, c DATETIME(6) NOT NULL);
+INSERT INTO t1 VALUES ('','::','2000-01-01'),('','::','1900-01-01');
+SELECT c + (b = a) AS f, GROUP_CONCAT(c) FROM t1 GROUP BY f;
+f	GROUP_CONCAT(c)
+NULL	2000-01-01 00:00:00.000000,1900-01-01 00:00:00.000000
+Warnings:
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+DROP TABLE t1;
+CREATE TABLE t1 (a CHAR(36) NOT NULL, b INET6 NOT NULL, c DATETIME(6) NOT NULL);
+INSERT INTO t1 VALUES ('','::','2000-01-01'),('','::','1900-01-01');
+SELECT c + (b = a) AS f, COUNT(c) FROM t1 GROUP BY f;
+f	COUNT(c)
+NULL	2
+Warnings:
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+DROP TABLE t1;
+CREATE OR REPLACE TABLE t1 (a CHAR(36) NOT NULL, b INET6 NOT NULL, c DATETIME(6) NOT NULL);
+INSERT INTO t1 VALUES ('','::','2000-01-01'),('','::','1900-01-01');
+SELECT c + (b = a) AS f FROM t1 ORDER BY f;
+f
+NULL
+NULL
+Warnings:
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+DROP TABLE t1;
+CREATE OR REPLACE TABLE t1 (a CHAR(36) NOT NULL, b INET6 NOT NULL);
+INSERT INTO t1 VALUES ('','::'),('','::');
+SELECT 1.00 + (b = a) AS f FROM t1 ORDER BY f;
+f
+NULL
+NULL
+Warnings:
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+SELECT 1.00 + (b BETWEEN a AND '') AS f FROM t1 ORDER BY f;
+f
+NULL
+NULL
+Warnings:
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+SELECT 1.00 + (b IN (a,'')) AS f FROM t1 ORDER BY f;
+f
+NULL
+NULL
+Warnings:
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
 Warning	1292	Incorrect inet6 value: ''
 DROP TABLE t1;
 #

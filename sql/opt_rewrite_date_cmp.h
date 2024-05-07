@@ -82,8 +82,15 @@ private:
                                     const Type_handler *comparison_type,
                                     Item_func::Functype *out_func_type) const;
   void rewrite_le_gt_lt_ge();
-  Item *create_start_bound();
-  Item *create_end_bound();
+  Item *create_bound(uint month, uint day, const TimeOfDay6 &td) const;
+  Item *create_start_bound() const
+  {
+    return create_bound(1, 1, TimeOfDay6());
+  }
+  Item *create_end_bound() const
+  {
+    return create_bound(12, 31, TimeOfDay6::end_of_day(field_ref->decimals));
+  }
   Item *create_cmp_func(Item_func::Functype func_type, Item *arg1, Item *arg2);
 
   THD *thd= nullptr;

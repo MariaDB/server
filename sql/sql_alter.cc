@@ -356,9 +356,7 @@ bool Alter_info::add_stat_drop_index(THD *thd, const LEX_CSTRING *key_name)
     KEY *key_info= original_table->key_info;
     for (uint i= 0; i < original_table->s->keys; i++, key_info++)
     {
-      if (key_info->name.length &&
-          !lex_string_cmp(system_charset_info, &key_info->name,
-                          key_name))
+      if (key_info->name.length && key_info->name.streq(*key_name))
         return add_stat_drop_index(key_info, false, thd->mem_root);
     }
   }
@@ -415,7 +413,7 @@ Alter_table_ctx::Alter_table_ctx(THD *thd, TABLE_LIST *table_list,
   table_name= table_list->table_name;
   alias= (lower_case_table_names == 2) ? table_list->alias : table_name;
 
-  if (!new_db.str || !my_strcasecmp(table_alias_charset, new_db.str, db.str))
+  if (!new_db.str || new_db.streq(db))
     new_db= db;
 
   if (new_name.str)
@@ -424,22 +422,23 @@ Alter_table_ctx::Alter_table_ctx(THD *thd, TABLE_LIST *table_list,
 
     if (lower_case_table_names == 1) // Convert new_name/new_alias to lower
     {
-      new_name.length= my_casedn_str(files_charset_info, (char*) new_name.str);
+      new_name= Lex_ident_table(new_name_buff.copy_casedn(files_charset_info,
+                                                          new_name).
+                                                to_lex_cstring());
       new_alias= new_name;
     }
     else if (lower_case_table_names == 2) // Convert new_name to lower case
     {
-      new_alias.str=    new_alias_buff;
-      new_alias.length= new_name.length;
-      strmov(new_alias_buff, new_name.str);
-      new_name.length= my_casedn_str(files_charset_info, (char*) new_name.str);
-
+      new_alias= new_name;
+      new_name= Lex_ident_table(new_name_buff.copy_casedn(files_charset_info,
+                                                          new_name).
+                                                to_lex_cstring());
     }
     else
       new_alias= new_name; // LCTN=0 => case sensitive + case preserving
 
     if (!is_database_changed() &&
-        !my_strcasecmp(table_alias_charset, new_name.str, table_name.str))
+        new_name.streq(table_name))
     {
       /*
         Source and destination table names are equal:
@@ -461,7 +460,10 @@ Alter_table_ctx::Alter_table_ctx(THD *thd, TABLE_LIST *table_list,
                                tmp_file_prefix, current_pid, thd->thread_id);
   /* Safety fix for InnoDB */
   if (lower_case_table_names)
-    tmp_name.length= my_casedn_str(files_charset_info, tmp_name_buff);
+  {
+    // Ok to latin1, as the file name is in the form '#sql-alter-abc-def'
+    tmp_name.length= my_casedn_str_latin1(tmp_name_buff);
+  }
 
   if (table_list->table->s->tmp_table == NO_TMP_TABLE)
   {
@@ -634,25 +636,12 @@ bool Sql_cmd_alter_table::execute(THD *thd)
 
   if (check_grant(thd, priv_needed, first_table, FALSE, UINT_MAX, FALSE))
     DBUG_RETURN(TRUE);                  /* purecov: inspected */
+
 #ifdef WITH_WSREP
   if (WSREP(thd) &&
       (!thd->is_current_stmt_binlog_format_row() ||
        !thd->find_temporary_table(first_table)))
   {
-    wsrep::key_array keys;
-    wsrep_append_fk_parent_table(thd, first_table, &keys);
-
-    WSREP_TO_ISOLATION_BEGIN_ALTER(lex->name.str ? select_lex->db.str
-                                   : first_table->db.str,
-                                   lex->name.str ? lex->name.str
-                                   : first_table->table_name.str,
-                                   first_table, &alter_info, &keys,
-                                   used_engine ? &create_info : nullptr)
-    {
-      WSREP_WARN("ALTER TABLE isolation failure");
-      DBUG_RETURN(TRUE);
-    }
-
     /*
       It makes sense to set auto_increment_* to defaults in TOI operations.
       Must be done before wsrep_TOI_begin() since Query_log_event encapsulating
@@ -665,6 +654,22 @@ bool Sql_cmd_alter_table::execute(THD *thd)
       thd->variables.auto_increment_offset = 1;
       thd->variables.auto_increment_increment = 1;
     }
+
+    wsrep::key_array keys;
+    if (!wsrep_append_fk_parent_table(thd, first_table, &keys))
+    {
+      WSREP_TO_ISOLATION_BEGIN_ALTER(lex->name.str ? select_lex->db.str
+                                     : first_table->db.str,
+                                     lex->name.str ? lex->name.str
+                                     : first_table->table_name.str,
+                                     first_table, &alter_info, &keys,
+                                     used_engine ? &create_info : nullptr)
+      {
+        WSREP_WARN("ALTER TABLE isolation failure");
+        DBUG_RETURN(TRUE);
+      }
+    }
+    DEBUG_SYNC(thd, "wsrep_alter_table_after_toi");
   }
 #endif
 

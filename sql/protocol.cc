@@ -414,7 +414,6 @@ static bool write_eof_packet(THD *thd, NET *net,
 
 bool Protocol::net_send_error_packet(THD *thd, uint sql_errno, const char *err,
                                      const char* sqlstate)
-
 {
   NET *net= &thd->net;
   uint length;
@@ -594,6 +593,7 @@ void Protocol::end_statement()
 
   switch (thd->get_stmt_da()->status()) {
   case Diagnostics_area::DA_ERROR:
+    thd->stop_collecting_unit_results();
     /* The query failed, send error to log and abort bootstrap. */
     error= send_error(thd->get_stmt_da()->sql_errno(),
                       thd->get_stmt_da()->message(),
@@ -601,12 +601,36 @@ void Protocol::end_statement()
     break;
   case Diagnostics_area::DA_EOF:
   case Diagnostics_area::DA_EOF_BULK:
-    error= send_eof(thd->server_status,
+    if (thd->need_report_unit_results()) {
+      // bulk returning result-set, like INSERT ... RETURNING
+      // result is already send, needs an EOF with MORE_RESULT_EXISTS
+      // before sending unit result-set
+      error= send_eof(thd->server_status | SERVER_MORE_RESULTS_EXISTS,
+                          thd->get_stmt_da()->statement_warn_count());
+      if (thd->report_collected_unit_results() && thd->is_error())
+        error= send_error(thd->get_stmt_da()->sql_errno(),
+                          thd->get_stmt_da()->message(),
+                          thd->get_stmt_da()->get_sqlstate());
+      else
+        error= send_eof(thd->server_status,
+                    thd->get_stmt_da()->statement_warn_count());
+    }
+    else
+      error= send_eof(thd->server_status,
                     thd->get_stmt_da()->statement_warn_count());
     break;
   case Diagnostics_area::DA_OK:
   case Diagnostics_area::DA_OK_BULK:
-    error= send_ok(thd->server_status,
+    if (thd->report_collected_unit_results())
+      if (thd->is_error())
+        error= send_error(thd->get_stmt_da()->sql_errno(),
+                        thd->get_stmt_da()->message(),
+                        thd->get_stmt_da()->get_sqlstate());
+      else
+        error= send_eof(thd->server_status,
+                     thd->get_stmt_da()->statement_warn_count());
+    else
+      error= send_ok(thd->server_status,
                    thd->get_stmt_da()->statement_warn_count(),
                    thd->get_stmt_da()->affected_rows(),
                    thd->get_stmt_da()->last_insert_id(),
@@ -616,6 +640,7 @@ void Protocol::end_statement()
     break;
   case Diagnostics_area::DA_EMPTY:
   default:
+    thd->stop_collecting_unit_results();
     DBUG_ASSERT(0);
     error= send_ok(thd->server_status, 0, 0, 0, NULL);
     break;

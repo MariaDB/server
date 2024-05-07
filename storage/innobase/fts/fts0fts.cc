@@ -1609,9 +1609,10 @@ and common table associated with the fts table.
 			already stopped*/
 void purge_sys_t::stop_FTS(const dict_table_t &table, bool already_stopped)
 {
-  dict_sys.lock(SRW_LOCK_CALL);
   if (!already_stopped)
     purge_sys.stop_FTS();
+
+  dict_sys.lock(SRW_LOCK_CALL);
 
   fts_table_t fts_table;
   char table_name[MAX_FULL_NAME_LEN];
@@ -1954,14 +1955,16 @@ fts_create_common_tables(
 	}
 
 	if (table->versioned()) {
-		index = dict_mem_index_create(table, FTS_DOC_ID_INDEX_NAME,
+		index = dict_mem_index_create(table,
+					      FTS_DOC_ID_INDEX.str,
 					      DICT_UNIQUE, 2);
-		dict_mem_index_add_field(index, FTS_DOC_ID_COL_NAME, 0);
-		dict_mem_index_add_field(index, table->cols[table->vers_end].name(*table), 0);
+		dict_mem_index_add_field(index, FTS_DOC_ID.str, 0);
+		dict_mem_index_add_field(index, table->cols[table->vers_end].name(*table).str, 0);
 	} else {
-		index = dict_mem_index_create(table, FTS_DOC_ID_INDEX_NAME,
+		index = dict_mem_index_create(table,
+					      FTS_DOC_ID_INDEX.str,
 					      DICT_UNIQUE, 1);
-		dict_mem_index_add_field(index, FTS_DOC_ID_COL_NAME, 0);
+		dict_mem_index_add_field(index, FTS_DOC_ID.str, 0);
 	}
 
 	error =	row_create_index_for_mysql(index, trx, NULL,
@@ -3613,8 +3616,9 @@ fts_get_max_doc_id(
 
 	dfield = dict_index_get_nth_field(index, 0);
 
-#if 0 /* This can fail when renaming a column to FTS_DOC_ID_COL_NAME. */
-	ut_ad(innobase_strcasecmp(FTS_DOC_ID_COL_NAME, dfield->name) == 0);
+#if 0 /* This can fail when renaming a column to FTS_DOC_ID. */
+	ut_ad(Lex_ident_column(Lex_cstring_strlen(dfield->name)).
+		streq(FTS_DOC_ID));
 #endif
 
 	mtr.start();
@@ -3730,7 +3734,8 @@ fts_doc_fetch_by_doc_id(
 					"  END IF;\n"
 					"END LOOP;\n"
 					"CLOSE c;",
-					select_str, FTS_DOC_ID_COL_NAME));
+					select_str,
+					FTS_DOC_ID.str));
 		} else {
 			ut_ad(option == FTS_FETCH_DOC_BY_ID_LARGE);
 
@@ -3766,8 +3771,9 @@ fts_doc_fetch_by_doc_id(
 					"  END IF;\n"
 					"END LOOP;\n"
 					"CLOSE c;",
-					FTS_DOC_ID_COL_NAME,
-					select_str, FTS_DOC_ID_COL_NAME));
+					FTS_DOC_ID.str,
+					select_str,
+					FTS_DOC_ID.str));
 		}
 		if (get_doc) {
 			get_doc->get_document_graph = graph;
@@ -4255,6 +4261,11 @@ fts_sync(
 
 	mysql_mutex_lock(&cache->lock);
 
+	if (cache->total_size == 0) {
+                mysql_mutex_unlock(&cache->lock);
+		return DB_SUCCESS;
+	}
+
 	/* Check if cache is being synced.
 	Note: we release cache lock in fts_sync_write_words() to
 	avoid long wait for the lock by other threads. */
@@ -4421,7 +4432,6 @@ fts_add_token(
 		fts_string_t	t_str;
 		fts_token_t*	token;
 		ib_rbt_bound_t	parent;
-		ulint		newlen;
 
 		heap = static_cast<mem_heap_t*>(result_doc->self_heap->arg);
 
@@ -4437,24 +4447,19 @@ fts_add_token(
 		if (my_binary_compare(result_doc->charset)) {
 			memcpy(t_str.f_str, str.f_str, str.f_len);
 			t_str.f_str[str.f_len]= 0;
-			newlen= str.f_len;
+			t_str.f_len= str.f_len;
 		} else {
-			newlen = innobase_fts_casedn_str(
-				result_doc->charset, (char*) str.f_str, str.f_len,
-				(char*) t_str.f_str, t_str.f_len);
+			t_str.f_len= result_doc->charset->casedn_z(
+					(const char*) str.f_str, str.f_len,
+					(char *) t_str.f_str, t_str.f_len);
 		}
-
-		t_str.f_len = newlen;
-		t_str.f_str[newlen] = 0;
 
 		/* Add the word to the document statistics. If the word
 		hasn't been seen before we create a new entry for it. */
 		if (rbt_search(result_doc->tokens, &parent, &t_str) != 0) {
 			fts_token_t	new_token;
 
-			new_token.text.f_len = newlen;
-			new_token.text.f_str = t_str.f_str;
-			new_token.text.f_n_char = t_str.f_n_char;
+			new_token.text = t_str;
 
 			new_token.positions = ib_vector_create(
 				result_doc->self_heap, sizeof(ulint), 32);
@@ -5208,7 +5213,7 @@ fts_add_doc_id_column(
 {
 	dict_mem_table_add_col(
 		table, heap,
-		FTS_DOC_ID_COL_NAME,
+		FTS_DOC_ID.str,
 		DATA_INT,
 		dtype_form_prtype(
 			DATA_NOT_NULL | DATA_UNSIGNED
@@ -5763,7 +5768,7 @@ fts_valid_stopword_table(
 
 		return(NULL);
 	} else {
-		if (strcmp(dict_table_get_col_name(table, 0), "value")) {
+		if (strcmp(dict_table_get_col_name(table, 0).str, "value")) {
 			ib::error() << "Invalid column name for stopword"
 				" table " << stopword_table_name << ". Its"
 				" first column must be named as 'value'.";
@@ -5788,7 +5793,7 @@ fts_valid_stopword_table(
 
 	if (row_end) {
 		*row_end = table->versioned()
-			? dict_table_get_col_name(table, table->vers_end)
+			? dict_table_get_col_name(table, table->vers_end).str
 			: "value"; /* for fts_load_user_stopword() */
 	}
 

@@ -21,8 +21,10 @@
 #include "rpl_constants.h"
 
 class Relay_log_info;
+class Gtid_index_writer;
 
 class Format_description_log_event;
+class Gtid_log_event;
 
 bool reopen_fstreams(const char *filename, FILE *outstream, FILE *errstream);
 void setup_log_handling();
@@ -240,6 +242,7 @@ extern TC_LOG_DUMMY tc_log_dummy;
 #define LOG_CLOSE_TO_BE_OPENED	2
 #define LOG_CLOSE_STOP_EVENT	4
 #define LOG_CLOSE_DELAYED_CLOSE 8
+#define LOG_CLOSE_SYNC_GTID_INDEX 16
 
 /* 
   Maximum unique log filename extension.
@@ -361,13 +364,13 @@ struct Rows_event_factory
 {
   int type_code;
 
-  Rows_log_event *(*create)(THD*, TABLE*, ulong, bool is_transactional);
+  Rows_log_event *(*create)(THD*, TABLE*, ulonglong, bool is_transactional);
 
   template<class RowsEventT>
   static Rows_event_factory get()
   {
     return { RowsEventT::TYPE_CODE,
-             [](THD* thd, TABLE* table, ulong flags, bool is_transactional)
+             [](THD* thd, TABLE* table, ulonglong flags, bool is_transactional)
                      -> Rows_log_event*
              {
                return new RowsEventT(thd, table, flags, is_transactional);
@@ -402,6 +405,7 @@ public:
                                        bool is_transactional);
   void set_write_error(THD *thd, bool is_transactional);
   static bool check_write_error(THD *thd);
+  static bool check_cache_error(THD *thd, binlog_cache_data *cache_data);
   int write_cache(THD *thd, binlog_cache_data *cache_data);
   int write_cache_raw(THD *thd, IO_CACHE *cache);
   char* get_name() { return name; }
@@ -665,6 +669,7 @@ class MYSQL_BIN_LOG: public TC_LOG, private Event_log
   mysql_cond_t  COND_xid_list;
   mysql_cond_t  COND_relay_log_updated, COND_bin_log_updated;
   ulonglong bytes_written;
+  ulonglong binlog_space_total;
   IO_CACHE index_file;
   char index_file_name[FN_REFLEN];
   /*
@@ -710,6 +715,9 @@ class MYSQL_BIN_LOG: public TC_LOG, private Event_log
   ulonglong group_commit_trigger_count, group_commit_trigger_timeout;
   ulonglong group_commit_trigger_lock_wait;
 
+  /* Binlog GTID index. */
+  Gtid_index_writer *gtid_index;
+
   /* pointer to the sync period variable, for binlog this will be
      sync_binlog_period, for relay log this will be
      sync_relay_log_period
@@ -718,6 +726,13 @@ class MYSQL_BIN_LOG: public TC_LOG, private Event_log
   uint sync_counter;
   bool state_file_deleted;
   bool binlog_state_recover_done;
+
+  Gtid_index_writer *recover_gtid_index_start(const char *base_name,
+                                              my_off_t offset);
+  void recover_gtid_index_process(Gtid_index_writer *gi, my_off_t offset,
+                                  const rpl_gtid *gtid);
+  void recover_gtid_index_end(Gtid_index_writer *gi);
+  void recover_gtid_index_abort(Gtid_index_writer *gi);
 
   inline uint get_sync_period()
   {
@@ -732,13 +747,15 @@ class MYSQL_BIN_LOG: public TC_LOG, private Event_log
   */
   int new_file_impl();
   void do_checkpoint_request(ulong binlog_id);
-  void purge();
   int write_transaction_or_stmt(group_commit_entry *entry, uint64 commit_id);
   int queue_for_group_commit(group_commit_entry *entry);
   bool write_transaction_to_binlog_events(group_commit_entry *entry);
   void trx_group_commit_leader(group_commit_entry *leader);
   bool is_xidlist_idle_nolock();
+  void update_gtid_index(uint32 offset, rpl_gtid gtid);
+
 public:
+  void purge(bool all);
   int new_file_without_locking();
   /*
     A list of struct xid_count_per_binlog is used to keep track of how many
@@ -758,11 +775,8 @@ public:
     ulong binlog_id;
     /* Total prepared XIDs and pending checkpoint requests in this binlog. */
     long xid_count;
-    long notify_count;
-    /* For linking in requests to the binlog background thread. */
-    xid_count_per_binlog *next_in_queue;
     xid_count_per_binlog(char *log_file_name, uint log_file_name_len)
-      :binlog_id(0), xid_count(0), notify_count(0)
+      :binlog_id(0), xid_count(0)
     {
       binlog_name_len= log_file_name_len;
       binlog_name= (char *) my_malloc(PSI_INSTRUMENT_ME, binlog_name_len, MYF(MY_ZEROFILL));
@@ -989,6 +1003,7 @@ public:
   bool write_incident(THD *thd);
   void write_binlog_checkpoint_event_already_locked(const char *name, uint len);
   bool write_table_map(THD *thd, TABLE *table, bool with_annotate);
+
   void start_union_events(THD *thd, query_id_t query_id_param);
   void stop_union_events(THD *thd);
   bool is_query_in_union(THD *thd, query_id_t query_id_param);
@@ -1033,6 +1048,22 @@ public:
                  ulonglong *decrease_log_space);
   int purge_logs_before_date(time_t purge_time);
   int purge_first_log(Relay_log_info* rli, bool included);
+  int count_binlog_space();
+  void count_binlog_space_with_mutex()
+  {
+    mysql_mutex_lock(&LOCK_index);
+    count_binlog_space();
+    mysql_mutex_unlock(&LOCK_index);
+  }
+  ulonglong get_binlog_space_total();
+  int real_purge_logs_by_size(ulonglong binlog_pos);
+  inline int purge_logs_by_size(ulonglong binlog_pos)
+  {
+    if (is_relay_log || ! binlog_space_limit ||
+        binlog_space_total + binlog_pos <= binlog_space_limit)
+      return 0;
+    return real_purge_logs_by_size(binlog_pos);
+  }
   int set_purge_index_file_name(const char *base_file_name);
   int open_purge_index_file(bool destroy);
   bool truncate_and_remove_binlogs(const char *truncate_file,
@@ -1349,9 +1380,8 @@ int binlog_flush_pending_rows_event(THD *thd, bool stmt_end,
                                     binlog_cache_data *cache_data);
 Rows_log_event* binlog_get_pending_rows_event(binlog_cache_mngr *cache_mngr,
                                               bool use_trans_cache);
-int binlog_log_row_online_alter(TABLE* table, const uchar *before_record,
-                                const uchar *after_record, Log_func *log_func);
-online_alter_cache_data *online_alter_binlog_get_cache_data(THD *thd, TABLE *table);
+int online_alter_log_row(TABLE* table, const uchar *before_record,
+                         const uchar *after_record, Log_func *log_func);
 binlog_cache_data* binlog_get_cache_data(binlog_cache_mngr *cache_mngr,
                                          bool use_trans_cache);
 
@@ -1432,6 +1462,7 @@ static inline TC_LOG *get_tc_log_implementation()
 
 #ifdef WITH_WSREP
 IO_CACHE* wsrep_get_cache(THD *, bool);
+bool wsrep_is_binlog_cache_empty(THD *);
 void wsrep_thd_binlog_trx_reset(THD * thd);
 void wsrep_thd_binlog_stmt_rollback(THD * thd);
 #endif /* WITH_WSREP */
@@ -1445,8 +1476,4 @@ int binlog_commit_by_xid(handlerton *hton, XID *xid);
 int binlog_rollback_by_xid(handlerton *hton, XID *xid);
 bool write_bin_log_start_alter(THD *thd, bool& partial_alter,
                                uint64 start_alter_id, bool log_if_exists);
-
-int online_alter_savepoint_set(THD *thd, LEX_CSTRING name);
-int online_alter_savepoint_rollback(THD *thd, LEX_CSTRING name);
-
 #endif /* LOG_H */

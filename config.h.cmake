@@ -30,6 +30,7 @@
 #cmakedefine HAVE_DLFCN_H 1
 #cmakedefine HAVE_EXECINFO_H 1
 #cmakedefine HAVE_FCNTL_H 1
+#cmakedefine HAVE_FCNTL_DIRECT 1
 #cmakedefine HAVE_FENV_H 1
 #cmakedefine HAVE_FLOAT_H 1
 #cmakedefine HAVE_FNMATCH_H 1
@@ -72,6 +73,7 @@
 #cmakedefine HAVE_SYS_IOCTL_H 1
 #cmakedefine HAVE_SYS_MALLOC_H 1
 #cmakedefine HAVE_SYS_MMAN_H 1
+#cmakedefine HAVE_SYS_MNTENT_H 1
 #cmakedefine HAVE_SYS_NDIR_H 1
 #cmakedefine HAVE_SYS_PTE_H 1
 #cmakedefine HAVE_SYS_PTEM_H 1
@@ -231,7 +233,6 @@
 #cmakedefine HAVE_STRTOUL 1
 #cmakedefine HAVE_STRTOULL 1
 #cmakedefine HAVE_TELL 1
-#cmakedefine HAVE_THR_SETCONCURRENCY 1
 #cmakedefine HAVE_THR_YIELD 1
 #cmakedefine HAVE_TIME 1
 #cmakedefine HAVE_TIMES 1
@@ -254,6 +255,7 @@
 #cmakedefine HAVE_SOCKADDR_IN6_SIN6_LEN 1
 #cmakedefine STRUCT_TIMESPEC_HAS_TV_SEC 1
 #cmakedefine STRUCT_TIMESPEC_HAS_TV_NSEC 1
+#cmakedefine STRUCT_TM_HAS_TM_GMTOFF 1
 
 /* this means that valgrind headers and macros are available */
 #cmakedefine HAVE_VALGRIND_MEMCHECK_H 1

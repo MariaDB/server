@@ -694,8 +694,8 @@ dict_mem_table_col_rename(
 /*======================*/
 	dict_table_t*	table,	/*!< in/out: table */
 	ulint		nth_col,/*!< in: column index */
-	const char*	from,	/*!< in: old column name */
-	const char*	to,	/*!< in: new column name */
+	const LEX_CSTRING &from,/*!< in: old column name */
+	const LEX_CSTRING &to,	/*!< in: new column name */
 	bool		is_virtual)
 				/*!< in: if this is a virtual column */
 {
@@ -710,10 +710,10 @@ dict_mem_table_col_rename(
 		s += len + 1;
 	}
 
-	ut_ad(!my_strcasecmp(system_charset_info, from, s));
+	ut_ad(Lex_ident_column(from).streq(Lex_cstring_strlen(s)));
 
 	dict_mem_table_col_rename_low(table, static_cast<unsigned>(nth_col),
-				      to, s, is_virtual);
+				      to.str, s, is_virtual);
 }
 
 /**********************************************************************//**
@@ -816,27 +816,15 @@ lower_case_table_names.  If that is 0 or 1, foreign_table_name_lookup
 will point to foreign_table_name.  If 2, then another string is
 allocated from foreign->heap and set to lower case. */
 void
-dict_mem_foreign_table_name_lookup_set(
-/*===================================*/
-	dict_foreign_t*	foreign,	/*!< in/out: foreign struct */
-	ibool		do_alloc)	/*!< in: is an alloc needed */
+dict_foreign_t::foreign_table_name_lookup_set()
 {
 	if (lower_case_table_names == 2) {
-		if (do_alloc) {
-			ulint	len;
-
-			len = strlen(foreign->foreign_table_name) + 1;
-
-			foreign->foreign_table_name_lookup =
-				static_cast<char*>(
-					mem_heap_alloc(foreign->heap, len));
-		}
-		strcpy(foreign->foreign_table_name_lookup,
-		       foreign->foreign_table_name);
-		innobase_casedn_str(foreign->foreign_table_name_lookup);
+		LEX_STRING str= mem_heap_alloc_casedn_z(heap,
+				system_charset_info,
+				Lex_cstring_strlen(foreign_table_name));
+		foreign_table_name_lookup= str.str;
 	} else {
-		foreign->foreign_table_name_lookup
-			= foreign->foreign_table_name;
+		foreign_table_name_lookup = foreign_table_name;
 	}
 }
 
@@ -846,27 +834,15 @@ lower_case_table_names.  If that is 0 or 1, referenced_table_name_lookup
 will point to referenced_table_name.  If 2, then another string is
 allocated from foreign->heap and set to lower case. */
 void
-dict_mem_referenced_table_name_lookup_set(
-/*======================================*/
-	dict_foreign_t*	foreign,	/*!< in/out: foreign struct */
-	ibool		do_alloc)	/*!< in: is an alloc needed */
+dict_foreign_t::referenced_table_name_lookup_set()
 {
 	if (lower_case_table_names == 2) {
-		if (do_alloc) {
-			ulint	len;
-
-			len = strlen(foreign->referenced_table_name) + 1;
-
-			foreign->referenced_table_name_lookup =
-				static_cast<char*>(
-					mem_heap_alloc(foreign->heap, len));
-		}
-		strcpy(foreign->referenced_table_name_lookup,
-		       foreign->referenced_table_name);
-		innobase_casedn_str(foreign->referenced_table_name_lookup);
+		LEX_STRING str= mem_heap_alloc_casedn_z(heap,
+				system_charset_info,
+				Lex_cstring_strlen(referenced_table_name));
+		referenced_table_name_lookup = str.str;
 	} else {
-		foreign->referenced_table_name_lookup
-			= foreign->referenced_table_name;
+		referenced_table_name_lookup = referenced_table_name;
 	}
 }
 
@@ -963,7 +939,7 @@ dict_mem_fill_vcol_set_for_base_col(
 		for (ulint j = 0; j < unsigned{v_col->num_base}; j++) {
 			if (strcmp(col_name, dict_table_get_col_name(
 					table,
-					v_col->base_col[j]->ind)) == 0) {
+					v_col->base_col[j]->ind).str) == 0) {
 
 				if (*v_cols == NULL) {
 					*v_cols = UT_NEW_NOKEY(dict_vcol_set());

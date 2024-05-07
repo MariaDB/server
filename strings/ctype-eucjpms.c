@@ -67508,7 +67508,6 @@ static MY_COLLATION_HANDLER my_collation_eucjpms_japanese_ci_handler =
     my_strnxfrmlen_simple,
     my_like_range_mb,   /* like_range   */
     my_wildcmp_mb,	/* wildcmp      */
-    my_strcasecmp_mb,
     my_instr_mb,
     my_hash_sort_simple,
     my_propagate_simple,
@@ -67529,7 +67528,6 @@ static MY_COLLATION_HANDLER my_collation_eucjpms_bin_handler =
     my_strnxfrmlen_simple,
     my_like_range_mb,
     my_wildcmp_mb_bin,
-    my_strcasecmp_mb_bin,
     my_instr_mb,
     my_hash_sort_mb_bin,
     my_propagate_simple,
@@ -67550,7 +67548,6 @@ static MY_COLLATION_HANDLER my_collation_eucjpms_japanese_nopad_ci_handler =
     my_strnxfrmlen_simple,
     my_like_range_mb,   /* like_range   */
     my_wildcmp_mb,	/* wildcmp      */
-    my_strcasecmp_mb,
     my_instr_mb,
     my_hash_sort_simple_nopad,
     my_propagate_simple,
@@ -67571,7 +67568,6 @@ static MY_COLLATION_HANDLER my_collation_eucjpms_nopad_bin_handler =
     my_strnxfrmlen_simple,
     my_like_range_mb,
     my_wildcmp_mb_bin,
-    my_strcasecmp_mb_bin,
     my_instr_mb,
     my_hash_sort_mb_nopad_bin,
     my_propagate_simple,
@@ -67592,8 +67588,6 @@ static MY_CHARSET_HANDLER my_charset_handler=
     my_mb_wc_eucjpms,   /* mb_wc       */
     my_wc_mb_eucjpms,   /* wc_mb       */
     my_mb_ctype_mb,
-    my_caseup_str_mb,
-    my_casedn_str_mb,
     my_caseup_ujis,
     my_casedn_ujis,
     my_snprintf_8bit,

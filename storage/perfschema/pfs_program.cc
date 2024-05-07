@@ -118,31 +118,21 @@ static void set_program_key(PFS_program_key *key,
    */
 
   char *ptr= &key->m_hash_key[0];
+  const char *end= ptr + sizeof(key->m_hash_key) - 1;
 
   ptr[0]= object_type;
   ptr++;
 
   if (object_name_length > 0)
-  {
-    char tmp_object_name[COL_OBJECT_NAME_SIZE + 1];
-    memcpy(tmp_object_name, object_name, object_name_length);
-    tmp_object_name[object_name_length]= '\0';
-    my_casedn_str(system_charset_info, tmp_object_name);
-    memcpy(ptr, tmp_object_name, object_name_length);
-    ptr+= object_name_length;
-  }
+    ptr+= system_charset_info->casedn(object_name, object_name_length,
+                                      ptr, end - ptr);
   ptr[0]= 0;
   ptr++;
 
   if (schema_name_length > 0)
-  {
-    char tmp_schema_name[COL_OBJECT_SCHEMA_SIZE + 1];
-    memcpy(tmp_schema_name, schema_name, schema_name_length);
-    tmp_schema_name[schema_name_length]='\0';
-    my_casedn_str(system_charset_info, tmp_schema_name);
-    memcpy(ptr, tmp_schema_name, schema_name_length);
-    ptr+= schema_name_length;
-  }
+    ptr+= system_charset_info->opt_casedn(schema_name, schema_name_length,
+                                          ptr, end - ptr,
+                                          lower_case_table_names);
   ptr[0]= 0;
   ptr++;
 

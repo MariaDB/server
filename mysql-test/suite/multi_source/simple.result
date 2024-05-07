@@ -2,8 +2,8 @@ connect  slave,127.0.0.1,root,,,$SERVER_MYPORT_3;
 connect  master1,127.0.0.1,root,,,$SERVER_MYPORT_1;
 connect  master2,127.0.0.1,root,,,$SERVER_MYPORT_2;
 connection slave;
-change master 'slave1' to master_port=MYPORT_1, master_host='127.0.0.1', master_user='root';
-change master 'slave2' to master_port=MYPORT_2, master_host='127.0.0.1', master_user='root';
+change master 'slave1' to master_port=MYPORT_1, master_host='127.0.0.1', master_user='root', master_ssl_verify_server_cert=0;
+change master 'slave2' to master_port=MYPORT_2, master_host='127.0.0.1', master_user='root', master_ssl_verify_server_cert=0;
 start slave 'slave1';
 set default_master_connection = 'slave1';
 include/wait_for_slave_to_start.inc
@@ -47,7 +47,7 @@ Relay_Log_Space	<relay_log_space1>
 Until_Condition	None
 Until_Log_File	
 Until_Log_Pos	0
-Master_SSL_Allowed	No
+Master_SSL_Allowed	Yes
 Master_SSL_CA_File	
 Master_SSL_CA_Path	
 Master_SSL_Cert	
@@ -109,7 +109,7 @@ Relay_Log_Space	<relay_log_space1>
 Until_Condition	None
 Until_Log_File	
 Until_Log_Pos	0
-Master_SSL_Allowed	No
+Master_SSL_Allowed	Yes
 Master_SSL_CA_File	
 Master_SSL_CA_Path	
 Master_SSL_Cert	
@@ -151,7 +151,7 @@ HOST	127.0.0.1
 PORT	#
 USER	root
 USING_GTID	SLAVE_POS
-SSL_ALLOWED	NO
+SSL_ALLOWED	YES
 SSL_CA_FILE	
 SSL_CA_PATH	
 SSL_CERTIFICATE	
@@ -171,7 +171,7 @@ HOST	127.0.0.1
 PORT	#
 USER	root
 USING_GTID	SLAVE_POS
-SSL_ALLOWED	NO
+SSL_ALLOWED	YES
 SSL_CA_FILE	
 SSL_CA_PATH	
 SSL_CERTIFICATE	
@@ -236,7 +236,7 @@ Relay_Log_Space	<relay_log_space1>
 Until_Condition	None
 Until_Log_File	
 Until_Log_Pos	0
-Master_SSL_Allowed	No
+Master_SSL_Allowed	Yes
 Master_SSL_CA_File	
 Master_SSL_CA_Path	
 Master_SSL_Cert	
@@ -294,7 +294,7 @@ Relay_Log_Space	<relay_log_space1>
 Until_Condition	None
 Until_Log_File	
 Until_Log_Pos	0
-Master_SSL_Allowed	No
+Master_SSL_Allowed	Yes
 Master_SSL_CA_File	
 Master_SSL_CA_Path	
 Master_SSL_Cert	
@@ -356,7 +356,7 @@ Relay_Log_Space	<relay_log_space1>
 Until_Condition	None
 Until_Log_File	
 Until_Log_Pos	0
-Master_SSL_Allowed	No
+Master_SSL_Allowed	Yes
 Master_SSL_CA_File	
 Master_SSL_CA_Path	
 Master_SSL_Cert	
@@ -420,7 +420,7 @@ Relay_Log_Space	<relay_log_space1>
 Until_Condition	None
 Until_Log_File	
 Until_Log_Pos	0
-Master_SSL_Allowed	No
+Master_SSL_Allowed	Yes
 Master_SSL_CA_File	
 Master_SSL_CA_Path	
 Master_SSL_Cert	
@@ -486,7 +486,7 @@ Relay_Log_Space	<relay_log_space1>
 Until_Condition	None
 Until_Log_File	
 Until_Log_Pos	0
-Master_SSL_Allowed	No
+Master_SSL_Allowed	Yes
 Master_SSL_CA_File	
 Master_SSL_CA_Path	
 Master_SSL_Cert	

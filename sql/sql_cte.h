@@ -36,7 +36,7 @@ struct st_unit_ctxt_elem;
 class With_element_head : public Sql_alloc
 {
   /* The name of the defined CTE */
-  LEX_CSTRING *query_name;
+  const Lex_ident_with_element query_name;
 
 public:
   /*
@@ -47,7 +47,7 @@ public:
   */
   TABLE_CHAIN tables_pos;
 
-  With_element_head(LEX_CSTRING *name)
+  With_element_head(const Lex_ident_with_element &name)
     : query_name(name)
   {
     tables_pos.set_start_pos(0);
@@ -224,8 +224,8 @@ public:
       level(0), rec_result(NULL)
   { unit->with_element= this; }
 
-  LEX_CSTRING *get_name() { return head->query_name; }
-  const char *get_name_str() { return get_name()->str; }
+  const Lex_ident_with_element get_name() const { return head->query_name; }
+  const char *get_name_str() const { return get_name().str; }
 
   void set_tables_start_pos(TABLE_LIST **pos)
   { head->tables_pos.set_start_pos(pos); }
@@ -325,7 +325,8 @@ public:
 
   friend
   bool LEX::resolve_references_to_cte(TABLE_LIST *tables,
-                                      TABLE_LIST **tables_last);
+                                      TABLE_LIST **tables_last,
+                                      st_select_lex_unit *excl_spec);
 };
 
 const uint max_number_of_elements_in_with_clause= sizeof(table_map)*8;
@@ -425,7 +426,8 @@ public:
 
   void move_anchors_ahead();
 
-  With_element *find_table_def(TABLE_LIST *table, With_element *barrier);
+  With_element *find_table_def(TABLE_LIST *table, With_element *barrier,
+                               st_select_lex_unit *excl_spec);
 
   With_element *find_table_def_in_with_clauses(TABLE_LIST *table);
 

@@ -19,7 +19,7 @@ set global debug_dbug='+d,auth_invalid_plugin';
 create user 'bad' identified by 'worse';
 --replace_regex /loaded: [^\n]*/loaded: invalid plugin name/
 --error 1
---exec $MYSQL --default-auth=mysql_old_password --user=bad --password=worse 2>&1
+--exec $MYSQL --default-auth=ed25519 --user=bad --password=worse 2>&1
 set global debug_dbug=@old_dbug;
 drop user bad;
 
@@ -37,3 +37,24 @@ set global debug_dbug='+d,poison_srv_handshake_scramble_len';
 --error 2027
 connect con2,localhost,root;
 set global debug_dbug=@old_dbug;
+
+
+--echo #
+--echo # Start of 11.2 tests
+--echo #
+
+--echo #
+--echo # MDEV-33182 Server assertion fails when trying to test the connection with DBeaver
+--echo #
+
+SET global debug_dbug='+d,thd_init_client_charset_utf8mb3_bin';
+connect con1,localhost,root;
+connection con1;
+SHOW VARIABLES LIKE 'collation%';
+disconnect con1;
+connection default;
+SET global debug_dbug=@old_debug;
+
+--echo #
+--echo # End of 11.2 tests
+--echo #

@@ -73,22 +73,8 @@
 bool local_and_remote_names_mismatch(const TABLE_SHARE *tbl_share,
                                      const FEDERATEDX_SHARE *fshare)
 {
-
-  if (lower_case_table_names)
-  {
-    if (strcasecmp(fshare->database, tbl_share->db.str) != 0)
-      return true;
-  }
-  else
-  {
-    if (strncmp(fshare->database, tbl_share->db.str, tbl_share->db.length) != 0)
-      return true;
-  }
-
-  return my_strnncoll(system_charset_info, (uchar *) fshare->table_name,
-                      strlen(fshare->table_name),
-                      (uchar *) tbl_share->table_name.str,
-                      tbl_share->table_name.length) != 0;
+  return !tbl_share->db.streq(Lex_cstring_strlen(fshare->database)) ||
+         !tbl_share->table_name.streq(Lex_cstring_strlen(fshare->table_name));
 }
 
 
@@ -276,18 +262,6 @@ federatedx_handler_base::federatedx_handler_base(THD *thd_arg, TABLE *tbl_arg)
    query_table(tbl_arg)
 {}
 
-ha_federatedx_select_handler::ha_federatedx_select_handler(
-    THD *thd, SELECT_LEX *select_lex, TABLE *tbl)
-  : select_handler(thd, federatedx_hton, select_lex),
-    federatedx_handler_base(thd, tbl)
-{
-  query.length(0);
-  select_lex->print(thd, &query,
-                    enum_query_type(QT_VIEW_INTERNAL |
-                                    QT_ITEM_ORIGINAL_FUNC_NULLIF |
-                                    QT_PARSABLE));
-}
-
 ha_federatedx_select_handler::~ha_federatedx_select_handler() = default;
 
 ha_federatedx_select_handler::ha_federatedx_select_handler(
@@ -296,10 +270,7 @@ ha_federatedx_select_handler::ha_federatedx_select_handler(
     federatedx_handler_base(thd, tbl)
 {
   query.length(0);
-  lex_unit->print(&query,
-                  enum_query_type(QT_VIEW_INTERNAL | QT_SELECT_ONLY |
-                                  QT_ITEM_ORIGINAL_FUNC_NULLIF |
-                                  QT_PARSABLE));
+  lex_unit->print(&query, PRINT_QUERY_TYPE);
 }
 
 ha_federatedx_select_handler::ha_federatedx_select_handler(
@@ -308,10 +279,31 @@ ha_federatedx_select_handler::ha_federatedx_select_handler(
       federatedx_handler_base(thd, tbl)
 {
   query.length(0);
-  select_lex->print(thd, &query,
-                    enum_query_type(QT_VIEW_INTERNAL | QT_SELECT_ONLY |
-                                    QT_ITEM_ORIGINAL_FUNC_NULLIF |
-                                    QT_PARSABLE));
+  if (get_pushdown_type() == select_pushdown_type::SINGLE_SELECT)
+  {
+    /*
+      Must use SELECT_LEX_UNIT::print() instead of SELECT_LEX::print() here
+      to print possible CTEs which are stored at SELECT_LEX_UNIT::with_clause
+    */
+    select_lex->master_unit()->print(&query, PRINT_QUERY_TYPE);
+  }
+  else if (get_pushdown_type() == select_pushdown_type::PART_OF_UNIT)
+  {
+    /*
+      CTEs are not supported for partial select pushdown so use
+      SELECT_LEX::print() here
+    */
+    select_lex->print(thd, &query, PRINT_QUERY_TYPE);
+  }
+  else
+  {
+    /*
+      Other select_pushdown_types are not allowed in this constructor.
+      The case of select_pushdown_type::WHOLE_UNIT is handled at another
+      overload of the constuctor
+    */
+    DBUG_ASSERT(0);
+  }
 }
 
 int federatedx_handler_base::init_scan_()

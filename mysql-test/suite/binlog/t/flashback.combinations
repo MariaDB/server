@@ -1,0 +1,4 @@
+[use_full_mode]
+binlog_row_image=FULL
+[use_full_nodup_mode]
+binlog_row_image=FULL_NODUP

@@ -107,7 +107,7 @@ character-set-collations = utf8mb4=uca1400_ai_ci
 # you can put MariaDB-only options here
 [mariadbd]
 
-# This group is only read by MariaDB-11.4 servers.
+# This group is only read by MariaDB-11.5 servers.
 # If you use the same .cnf file for MariaDB of different versions,
 # use this group for options that older servers don't understand
-[mariadb-11.4]
+[mariadb-11.5]

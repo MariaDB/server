@@ -39,6 +39,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include <innodb_priv.h>
 #include <strfunc.h>
 #include <sql_acl.h>
+#include <lex_ident.h>
 #include <sql_class.h>
 #include <sql_show.h>
 #include <sql_table.h>
@@ -243,7 +244,7 @@ static void innodb_max_purge_lag_wait_update(THD *thd, st_mysql_sys_var *,
     const lsn_t lsn= log_sys.get_lsn();
     if ((lsn - last) / 4 >= max_age / 5)
       buf_flush_ahead(last + max_age / 5, false);
-    srv_wake_purge_thread_if_not_active();
+    purge_sys.wake_if_not_active();
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
   }
   mysql_mutex_lock(&LOCK_global_system_variables);
@@ -526,7 +527,6 @@ mysql_pfs_key_t	trx_pool_manager_mutex_key;
 mysql_pfs_key_t	lock_wait_mutex_key;
 mysql_pfs_key_t	trx_sys_mutex_key;
 mysql_pfs_key_t	srv_threads_mutex_key;
-mysql_pfs_key_t	tpool_cache_mutex_key;
 
 /* all_innodb_mutexes array contains mutexes that are
 performance schema instrumented if "UNIV_PFS_MUTEX"
@@ -558,7 +558,6 @@ static PSI_mutex_info all_innodb_mutexes[] = {
 	PSI_KEY(rtr_match_mutex),
 	PSI_KEY(rtr_path_mutex),
 	PSI_KEY(trx_sys_mutex),
-	PSI_KEY(tpool_cache_mutex),
 };
 # endif /* UNIV_PFS_MUTEX */
 
@@ -886,6 +885,32 @@ static SHOW_VAR innodb_status_variables[]= {
   {"adaptive_hash_non_hash_searches",
   &export_vars.innodb_ahi_miss, SHOW_SIZE_T},
 #endif
+  {"async_reads_pending",
+  &export_vars.async_read_stats.pending_ops, SHOW_SIZE_T},
+  {"async_reads_tasks_running",
+  &export_vars.async_read_stats.completion_stats.tasks_running, SHOW_SIZE_T},
+  {"async_reads_total_count",
+  &export_vars.async_read_stats.completion_stats.total_tasks_executed,SHOW_ULONGLONG},
+  {"async_reads_total_enqueues",
+  &export_vars.async_read_stats.completion_stats.total_tasks_enqueued,SHOW_ULONGLONG},
+  {"async_reads_queue_size",
+  &export_vars.async_read_stats.completion_stats.queue_size, SHOW_SIZE_T},
+  {"async_reads_wait_slot_sec",
+  &export_vars.async_read_stats.slot_wait_time_sec, SHOW_DOUBLE},
+
+  {"async_writes_pending",
+  &export_vars.async_write_stats.pending_ops,SHOW_SIZE_T},
+  {"async_writes_tasks_running",
+  &export_vars.async_write_stats.completion_stats.tasks_running, SHOW_SIZE_T},
+  {"async_writes_total_count",
+  &export_vars.async_write_stats.completion_stats.total_tasks_executed, SHOW_ULONGLONG},
+  {"async_writes_total_enqueues",
+  &export_vars.async_write_stats.completion_stats.total_tasks_enqueued, SHOW_ULONGLONG},
+  {"async_writes_queue_size",
+  &export_vars.async_write_stats.completion_stats.queue_size, SHOW_SIZE_T},
+  {"async_writes_wait_slot_sec",
+   &export_vars.async_write_stats.slot_wait_time_sec, SHOW_DOUBLE},
+
   {"background_log_sync", &srv_log_writes_and_flush, SHOW_SIZE_T},
   {"buffer_pool_dump_status",
   (char*) &export_vars.innodb_buffer_pool_dump_status,	  SHOW_CHAR},
@@ -1270,17 +1295,18 @@ static void innodb_drop_database(handlerton*, char *path)
     len++;
 
   ptr++;
+  size_t casedn_nbytes= len * system_charset_info->casedn_multiply();
   char *namebuf= static_cast<char*>
-    (my_malloc(PSI_INSTRUMENT_ME, len + 2, MYF(0)));
+    (my_malloc(PSI_INSTRUMENT_ME, casedn_nbytes + 2, MYF(0)));
   if (!namebuf)
     return;
+#ifndef _WIN32
   memcpy(namebuf, ptr, len);
+#else /*_WIN32*/
+  len= system_charset_info->casedn(ptr, len, namebuf, casedn_nbytes);
+#endif /* _WIN32 */
   namebuf[len] = '/';
   namebuf[len + 1] = '\0';
-
-#ifdef _WIN32
-  innobase_casedn_str(namebuf);
-#endif /* _WIN32 */
 
   THD * const thd= current_thd;
   trx_t *trx= innobase_trx_allocate(thd);
@@ -1532,7 +1558,8 @@ static void innodb_drop_database(handlerton*, char *path)
       os_file_close(detached);
 
     /* Any changes must be persisted before we return. */
-    log_write_up_to(mtr.commit_lsn(), true);
+    if (mtr.commit_lsn())
+      log_write_up_to(mtr.commit_lsn(), true);
   }
 
   my_free(namebuf);
@@ -1879,8 +1906,17 @@ static int innobase_wsrep_set_checkpoint(handlerton *hton, const XID *xid);
 static int innobase_wsrep_get_checkpoint(handlerton* hton, XID* xid);
 #endif /* WITH_WSREP */
 
-#define normalize_table_name(a,b) \
-	normalize_table_name_c_low(a,b,IF_WIN(true,false))
+
+static inline size_t
+normalize_table_name(
+	char*		norm_name,
+	size_t		norm_name_size,
+	const char*	name)
+{
+	return normalize_table_name_c_low(norm_name, norm_name_size,
+					name, IF_WIN(true,false));
+}
+
 
 ulonglong ha_innobase::table_version() const
 {
@@ -1906,7 +1942,7 @@ static int innodb_check_version(handlerton *hton, const char *path,
     DBUG_RETURN(0);
 
   char norm_path[FN_REFLEN];
-  normalize_table_name(norm_path, path);
+  normalize_table_name(norm_path, sizeof(norm_path), path);
 
   if (dict_table_t *table= dict_table_open_on_name(norm_path, false,
                                                    DICT_ERR_IGNORE_NONE))
@@ -2037,7 +2073,7 @@ all_fail:
   ut_d(purge_sys.resume_FTS());
 }
 
-static void innodb_ddl_recovery_done(handlerton*)
+static int innodb_ddl_recovery_done(handlerton*)
 {
   ut_ad(!ddl_recovery_done);
   ut_d(ddl_recovery_done= true);
@@ -2047,9 +2083,8 @@ static void innodb_ddl_recovery_done(handlerton*)
     if (srv_start_after_restore && !high_level_read_only)
       drop_garbage_tables_after_restore();
     srv_init_purge_tasks();
-    purge_sys.coordinator_startup();
-    srv_wake_purge_thread_if_not_active();
   }
+  return 0;
 }
 
 /********************************************************************//**
@@ -2390,27 +2425,6 @@ innobase_convert_from_id(
 	strconvert(cs, from, FN_REFLEN, system_charset_info, to, (uint) len, &errors);
 }
 
-/******************************************************************//**
-Compares NUL-terminated UTF-8 strings case insensitively.
-@return 0 if a=b, <0 if a<b, >1 if a>b */
-int
-innobase_strcasecmp(
-/*================*/
-	const char*	a,	/*!< in: first string to compare */
-	const char*	b)	/*!< in: second string to compare */
-{
-	if (!a) {
-		if (!b) {
-			return(0);
-		} else {
-			return(-1);
-		}
-	} else if (!b) {
-		return(1);
-	}
-
-	return(my_strcasecmp(system_charset_info, a, b));
-}
 
 /******************************************************************//**
 Compares NUL-terminated UTF-8 strings case insensitively. The
@@ -2436,16 +2450,6 @@ innobase_basename(
 	const char*	name = base_name(path_name);
 
 	return((name) ? name : "null");
-}
-
-/******************************************************************//**
-Makes all characters in a NUL-terminated UTF-8 string lower case. */
-void
-innobase_casedn_str(
-/*================*/
-	char*	a)	/*!< in/out: string to put in lower case */
-{
-	my_casedn_str(system_charset_info, a);
 }
 
 /** Determines the current SQL statement.
@@ -3256,7 +3260,7 @@ innobase_query_caching_of_table_permitted(
 	}
 
 	/* Normalize the table name to InnoDB format */
-	normalize_table_name(norm_name, full_name);
+	normalize_table_name(norm_name, sizeof(norm_name), full_name);
 
 	innobase_register_trx(innodb_hton_ptr, thd, trx);
 
@@ -3964,7 +3968,7 @@ static int innodb_init_params()
 	} else if (innodb_flush_method >= 4 /* O_DIRECT */
 		   IF_WIN(&& innodb_flush_method < 8 /* normal */,)) {
 		/* O_DIRECT and similar settings do nothing */
-#ifndef _WIN32
+#ifdef HAVE_FCNTL_DIRECT
 	} else if (srv_use_atomic_writes && my_may_have_atomic_write) {
 		/* If atomic writes are enabled, do the same as with
 		innodb_flush_method=O_DIRECT: retain the default settings */
@@ -3983,11 +3987,6 @@ static int innodb_init_params()
 	}
 skip_buffering_tweak:
 #endif
-
-	if (srv_read_only_mode) {
-		ib::info() << "Started in read only mode";
-		srv_use_doublewrite_buf = FALSE;
-	}
 
 #ifdef HAVE_URING
 	if (srv_use_native_aio && io_uring_may_be_unsafe) {
@@ -4239,6 +4238,11 @@ innobase_end(handlerton*, ha_panic_function)
 		 	}
 		}
 
+		/* Do system tablespace truncation during slow shutdown */
+		if (!srv_fast_shutdown
+		    && srv_operation == SRV_OPERATION_NORMAL) {
+			fsp_system_tablespace_truncate();
+		}
 
 		innodb_shutdown();
 		mysql_mutex_destroy(&log_requests.mutex);
@@ -5173,21 +5177,22 @@ table name always to lower case if "set_lower_case" is set to TRUE.
 @param[out]	norm_name	Normalized name, null-terminated.
 @param[in]	name		Name to normalize.
 @param[in]	set_lower_case	True if we also should fold to lower case. */
-void
+size_t
 normalize_table_name_c_low(
 /*=======================*/
 	char*           norm_name,      /* out: normalized name as a
 					null-terminated string */
+	size_t          norm_name_size, /*!< in: number of bytes available
+					in norm_name*/
 	const char*     name,           /* in: table name string */
 	bool            set_lower_case) /* in: TRUE if we want to set
 					 name to lower case */
 {
-	char*	name_ptr;
+	const char* name_ptr;
 	ulint	name_len;
-	char*	db_ptr;
+	const char* db_ptr;
 	ulint	db_len;
-	char*	ptr;
-	ulint	norm_len;
+	const char* ptr;
 
 	/* Scan name from the end */
 
@@ -5217,28 +5222,15 @@ normalize_table_name_c_low(
 	}
 
 	db_ptr = ptr + 1;
-
-	norm_len = db_len + name_len + sizeof "/";
-	ut_a(norm_len < FN_REFLEN - 1);
-
-	memcpy(norm_name, db_ptr, db_len);
-
-	norm_name[db_len] = '/';
-
-	/* Copy the name and null-byte. */
-	memcpy(norm_name + db_len + 1, name_ptr, name_len + 1);
-
-	if (set_lower_case) {
-		innobase_casedn_str(norm_name);
-	}
+	return Identifier_chain2({db_ptr, db_len}, {name_ptr, name_len}).
+		make_sep_name_opt_casedn(norm_name, norm_name_size, '/',
+					set_lower_case);
 }
 
 create_table_info_t::create_table_info_t(
 	THD*		thd,
 	const TABLE*	form,
 	HA_CREATE_INFO*	create_info,
-	char*		table_name,
-	char*		remote_path,
 	bool		file_per_table,
 	trx_t*		trx)
 	: m_thd(thd),
@@ -5246,11 +5238,12 @@ create_table_info_t::create_table_info_t(
 	  m_form(form),
 	  m_default_row_format(innodb_default_row_format),
 	  m_create_info(create_info),
-	  m_table_name(table_name), m_table(NULL),
-	  m_remote_path(remote_path),
+	  m_table(NULL),
 	  m_innodb_file_per_table(file_per_table),
 	  m_creating_stub(thd_ddl_options(thd)->import_tablespace())
 {
+  m_table_name[0]= '\0';
+  m_remote_path[0]= '\0';
 }
 
 #if !defined(DBUG_OFF)
@@ -5308,7 +5301,7 @@ test_normalize_table_name_low()
 		       test_data[i][0], test_data[i][1]);
 
 		normalize_table_name_c_low(
-			norm_name, test_data[i][0], FALSE);
+			norm_name, sizeof(norm_name), test_data[i][0], FALSE);
 
 		if (strcmp(norm_name, test_data[i][1]) == 0) {
 			printf("ok\n");
@@ -5624,11 +5617,10 @@ innobase_build_v_templ(
 			if (z >= ib_table->n_v_def) {
 				name = add_v->v_col_name[z - ib_table->n_v_def];
 			} else {
-				name = dict_table_get_v_col_name(ib_table, z);
+				name = dict_table_get_v_col_name(ib_table, z).str;
 			}
 
-			ut_ad(!my_strcasecmp(system_charset_info, name,
-					     field->field_name.str));
+			ut_ad(field->field_name.streq(Lex_cstring_strlen(name)));
 #endif
 			const dict_v_col_t*	vcol;
 
@@ -5659,10 +5651,8 @@ innobase_build_v_templ(
 			dict_col_t*   col = dict_table_get_nth_col(
 						ib_table, j);
 
-			ut_ad(!my_strcasecmp(system_charset_info,
-					     dict_table_get_col_name(
-						     ib_table, j),
-					     field->field_name.str));
+			ut_ad(field->field_name.streq(
+				  dict_table_get_col_name(ib_table, j)));
 
 			s_templ->vtempl[j] = static_cast<
 				mysql_row_templ_t*>(
@@ -5856,7 +5846,7 @@ ha_innobase::open(const char* name, int, uint)
 
 	DBUG_ENTER("ha_innobase::open");
 
-	normalize_table_name(norm_name, name);
+	normalize_table_name(norm_name, sizeof(norm_name), name);
 
 	m_user_thd = NULL;
 
@@ -6189,15 +6179,17 @@ ha_innobase::open_dict_table(
 			/* Check for the table using lower
 			case name, including the partition
 			separator "P" */
-			strcpy(par_case_name, norm_name);
-			innobase_casedn_str(par_case_name);
+			system_charset_info->casedn_z(
+				norm_name, strlen(norm_name),
+				par_case_name, sizeof(par_case_name));
 #else
 			/* On Windows platfrom, check
 			whether there exists table name in
 			system table whose name is
 			not being normalized to lower case */
 			normalize_table_name_c_low(
-				par_case_name, table_name, false);
+				par_case_name, sizeof(par_case_name),
+				table_name, false);
 #endif
 			/* FIXME: try_drop_aborted */
 			ib_table = dict_table_open_on_name(
@@ -6408,32 +6400,9 @@ innobase_fts_text_cmp(
 	const fts_string_t*	s1 = (const fts_string_t*) p1;
 	const fts_string_t*	s2 = (const fts_string_t*) p2;
 
-	return(ha_compare_text(
-		charset, s1->f_str, static_cast<uint>(s1->f_len),
-		s2->f_str, static_cast<uint>(s2->f_len), 0));
-}
-
-/******************************************************************//**
-compare two character string case insensitively according to their charset. */
-int
-innobase_fts_text_case_cmp(
-/*=======================*/
-	const void*	cs,		/*!< in: Character set */
-	const void*     p1,		/*!< in: key */
-	const void*     p2)		/*!< in: node */
-{
-	const CHARSET_INFO*	charset = (const CHARSET_INFO*) cs;
-	const fts_string_t*	s1 = (const fts_string_t*) p1;
-	const fts_string_t*	s2 = (const fts_string_t*) p2;
-	ulint			newlen;
-
-	my_casedn_str(charset, (char*) s2->f_str);
-
-	newlen = strlen((const char*) s2->f_str);
-
-	return(ha_compare_text(
-		charset, s1->f_str, static_cast<uint>(s1->f_len),
-		s2->f_str, static_cast<uint>(newlen), 0));
+	return(ha_compare_word(charset,
+		s1->f_str, static_cast<uint>(s1->f_len),
+		s2->f_str, static_cast<uint>(s2->f_len)));
 }
 
 /******************************************************************//**
@@ -6478,35 +6447,13 @@ innobase_fts_text_cmp_prefix(
 	const fts_string_t*	s2 = (const fts_string_t*) p2;
 	int			result;
 
-	result = ha_compare_text(
-		charset, s2->f_str, static_cast<uint>(s2->f_len),
-		s1->f_str, static_cast<uint>(s1->f_len), 1);
+	result = ha_compare_word_prefix(charset,
+		s2->f_str, static_cast<uint>(s2->f_len),
+		s1->f_str, static_cast<uint>(s1->f_len));
 
-	/* We switched s1, s2 position in ha_compare_text. So we need
+	/* We switched s1, s2 position in the above call. So we need
 	to negate the result */
 	return(-result);
-}
-
-/******************************************************************//**
-Makes all characters in a string lower case. */
-size_t
-innobase_fts_casedn_str(
-/*====================*/
-	CHARSET_INFO*	cs,	/*!< in: Character set */
-	char*		src,	/*!< in: string to put in lower case */
-	size_t		src_len,/*!< in: input string length */
-	char*		dst,	/*!< in: buffer for result string */
-	size_t		dst_len)/*!< in: buffer size */
-{
-	if (cs->casedn_multiply() == 1) {
-		memcpy(dst, src, src_len);
-		dst[src_len] = 0;
-		my_casedn_str(cs, dst);
-
-		return(strlen(dst));
-	} else {
-		return(cs->casedn(src, src_len, dst, dst_len));
-	}
 }
 
 #define true_word_char(c, ch) ((c) & (_MY_U | _MY_L | _MY_NMR) || (ch) == '_')
@@ -7139,7 +7086,7 @@ build_template_field(
 		/* If clustered index record field is not found, lets print out
 		field names and all the rest to understand why field is not found. */
 		if (templ->clust_rec_field_no == ULINT_UNDEFINED) {
-			const char* tb_col_name = dict_table_get_col_name(clust_index->table, i);
+			const char* tb_col_name = dict_table_get_col_name(clust_index->table, i).str;
 			dict_field_t* field=NULL;
 			size_t size = 0;
 
@@ -7800,20 +7747,6 @@ ha_innobase::write_row(
 #endif
 
 		if ((error_result = update_auto_increment())) {
-			/* We don't want to mask autoinc overflow errors. */
-
-			/* Handle the case where the AUTOINC sub-system
-			failed during initialization. */
-			if (m_prebuilt->autoinc_error == DB_UNSUPPORTED) {
-				error_result = ER_AUTOINC_READ_FAILED;
-				/* Set the error message to report too. */
-				my_error(ER_AUTOINC_READ_FAILED, MYF(0));
-				goto func_exit;
-			} else if (m_prebuilt->autoinc_error != DB_SUCCESS) {
-				error = m_prebuilt->autoinc_error;
-				goto report_error;
-			}
-
 			/* MySQL errors are passed straight back. */
 			goto func_exit;
 		}
@@ -7951,7 +7884,6 @@ set_max_autoinc:
 		}
 	}
 
-report_error:
 	/* Cleanup and exit. */
 	if (error == DB_TABLESPACE_DELETED) {
 		ib_senderrf(
@@ -8162,8 +8094,7 @@ calc_row_difference(
 
 		if (field_mysql_type == MYSQL_TYPE_LONGLONG
 		    && prebuilt->table->fts
-		    && innobase_strcasecmp(
-			field->field_name.str, FTS_DOC_ID_COL_NAME) == 0) {
+		    && field->field_name.streq(FTS_DOC_ID)) {
 			doc_id = mach_read_uint64_little_endian(n_ptr);
 			if (doc_id == 0) {
 				return(DB_FTS_INVALID_DOCID);
@@ -9222,7 +9153,7 @@ ha_innobase::change_active_index(
 			if (m_prebuilt->read_just_key
 			    && bitmap_is_set(table->read_set, i)
 			    && !strcmp(table->s->field[i]->field_name.str,
-				       FTS_DOC_ID_COL_NAME)) {
+				       FTS_DOC_ID.str)) {
 				m_prebuilt->fts_doc_id_in_read_set = true;
 				break;
 			}
@@ -9711,7 +9642,7 @@ innobase_fts_create_doc_id_key(
 	dict_field_t*	field = dict_index_get_nth_field(index, 0);
         ut_a(field->col->mtype == DATA_INT);
 	ut_ad(sizeof(*doc_id) == field->fixed_len);
-	ut_ad(!strcmp(index->name, FTS_DOC_ID_INDEX_NAME));
+	ut_ad(!strcmp(index->name, FTS_DOC_ID_INDEX.str));
 #endif /* UNIV_DEBUG */
 
 	/* Convert to storage byte order */
@@ -10009,7 +9940,8 @@ wsrep_append_foreign_key(
 	int i = 0;
 
 	while (idx != NULL && idx != idx_target) {
-		if (innobase_strcasecmp (idx->name, innobase_index_reserve_name) != 0) {
+		if (!Lex_ident_column(Lex_cstring_strlen(idx->name)).
+		      streq(GEN_CLUST_INDEX)) {
 			i++;
 		}
 		idx = UT_LIST_GET_NEXT(indexes, idx);
@@ -10428,8 +10360,7 @@ create_table_check_doc_id_col(
 
 		auto col_len = field->pack_length();
 
-		if (innobase_strcasecmp(field->field_name.str,
-					FTS_DOC_ID_COL_NAME) == 0) {
+		if (field->field_name.streq(FTS_DOC_ID)) {
 
 			/* Note the name is case sensitive due to
 			our internal query parser */
@@ -10437,7 +10368,7 @@ create_table_check_doc_id_col(
 			    && !field->real_maybe_null()
 			    && col_len == sizeof(doc_id_t)
 			    && (strcmp(field->field_name.str,
-				      FTS_DOC_ID_COL_NAME) == 0)) {
+				      FTS_DOC_ID.str) == 0)) {
 				*doc_id_col = i;
 			} else {
 				push_warning_printf(
@@ -10516,9 +10447,9 @@ innodb_base_col_setup(
 			ulint   z;
 
 			for (z = 0; z < table->n_cols; z++) {
-				const char* name = dict_table_get_col_name(table, z);
-				if (!innobase_strcasecmp(name,
-						base_field->field_name.str)) {
+				const Lex_cstring name =
+					dict_table_get_col_name(table, z);
+				if (base_field->field_name.streq(name)) {
 					break;
 				}
 			}
@@ -10554,10 +10485,9 @@ innodb_base_col_setup_for_stored(
 		    && bitmap_is_set(&field->table->tmp_set, i)) {
 			ulint	z;
 			for (z = 0; z < table->n_cols; z++) {
-				const char* name = dict_table_get_col_name(
-						table, z);
-				if (!innobase_strcasecmp(
-					name, base_field->field_name.str)) {
+				const Lex_cstring name =
+					dict_table_get_col_name(table, z);
+				if (base_field->field_name.streq(name)) {
 					break;
 				}
 			}
@@ -10758,7 +10688,7 @@ err_col:
 
 		/* First check whether the column to be added has a
 		system reserved name. */
-		if (dict_col_name_is_reserved(field->field_name.str)){
+		if (dict_col_name_is_reserved(field->field_name)){
 			my_error(ER_WRONG_COLUMN_NAME, MYF(0),
 				 field->field_name.str);
 			goto err_col;
@@ -10923,7 +10853,7 @@ create_index(
 	key = form->key_info + key_num;
 
 	/* Assert that "GEN_CLUST_INDEX" cannot be used as non-primary index */
-	ut_a(innobase_strcasecmp(key->name.str, innobase_index_reserve_name) != 0);
+	ut_a(!key->name.streq(GEN_CLUST_INDEX));
 	const ha_table_option_struct& o = *form->s->option_struct;
 
 	if (key->flags & (HA_SPATIAL | HA_FULLTEXT)) {
@@ -11607,7 +11537,7 @@ bool create_table_info_t::innobase_table_flags()
 			}
 		}
 
-		if (innobase_strcasecmp(key->name.str, FTS_DOC_ID_INDEX_NAME)) {
+		if (!key->name.streq(FTS_DOC_ID_INDEX)) {
 			continue;
 		}
 
@@ -11615,9 +11545,9 @@ bool create_table_info_t::innobase_table_flags()
 		if (!(key->flags & HA_NOSAME)
 		    || key->user_defined_key_parts != fts_n_uniq
 		    || (key->key_part[0].key_part_flag & HA_REVERSE_SORT)
-		    || strcmp(key->name.str, FTS_DOC_ID_INDEX_NAME)
+		    || strcmp(key->name.str, FTS_DOC_ID_INDEX.str)
 		    || strcmp(key->key_part[0].field->field_name.str,
-			      FTS_DOC_ID_COL_NAME)) {
+			      FTS_DOC_ID.str)) {
 			fts_doc_id_index_bad = key->name.str;
 		}
 
@@ -11805,8 +11735,6 @@ index_bad:
 
 	/* Set the flags2 when create table or alter tables */
 	m_flags2 |= DICT_TF2_FTS_AUX_HEX_NAME;
-	DBUG_EXECUTE_IF("innodb_test_wrong_fts_aux_table_name",
-			m_flags2 &= ~DICT_TF2_FTS_AUX_HEX_NAME;);
 
 	DBUG_RETURN(true);
 }
@@ -11914,6 +11842,7 @@ innobase_parse_hint_from_comment(
 				continue;
 			}
 
+			const Lex_cstring_strlen index_name(index->name);
 			for (uint i = 0; i < table_share->keys; i++) {
 				if (is_found[i]) {
 					continue;
@@ -11921,8 +11850,7 @@ innobase_parse_hint_from_comment(
 
 				KEY*	key_info = &table_share->key_info[i];
 
-				if (innobase_strcasecmp(
-					index->name, key_info->name.str) == 0) {
+				if (key_info->name.streq(index_name)) {
 
 					dict_index_set_merge_threshold(
 						index,
@@ -11957,6 +11885,7 @@ innobase_parse_hint_from_comment(
 			continue;
 		}
 
+		const Lex_cstring_strlen index_name(index->name);
 		for (uint i = 0; i < table_share->keys; i++) {
 			if (is_found[i]) {
 				continue;
@@ -11964,9 +11893,7 @@ innobase_parse_hint_from_comment(
 
 			KEY*	key_info = &table_share->key_info[i];
 
-			if (innobase_strcasecmp(
-				index->name, key_info->name.str) == 0) {
-
+			if (key_info->name.streq(index_name)) {
 				/* x-lock index is needed to exclude concurrent
 				pessimistic tree operations */
 				index->lock.x_lock(SRW_LOCK_CALL);
@@ -12072,7 +11999,7 @@ int create_table_info_t::prepare_create_table(const char* name, bool strict)
 
 	set_tablespace_type(false);
 
-	normalize_table_name(m_table_name, name);
+	normalize_table_name(m_table_name, sizeof(m_table_name), name);
 
 	/* Validate table options not handled by the SQL-parser */
 	if (check_table_options()) {
@@ -12172,7 +12099,7 @@ foreign_push_index_error(trx_t* trx, const char* operation,
 		col_name = field->col->is_virtual()
 				   ? "(null)"
 				   : dict_table_get_col_name(
-					   table, dict_col_get_no(field->col));
+					   table, dict_col_get_no(field->col)).str;
 		ib_foreign_warn(
 			trx, DB_CANNOT_ADD_CONSTRAINT, create_name,
 			"%s table %s with foreign key %s constraint"
@@ -12194,24 +12121,27 @@ static bool
 find_col(dict_table_t* table, const char** name)
 {
 	ulint i;
+	const Lex_ident_column outer_name = Lex_cstring_strlen(*name);
 	for (i = 0; i < dict_table_get_n_cols(table); i++) {
 
-		const char* col_name = dict_table_get_col_name(table, i);
+		const Lex_ident_column inner_name =
+		  dict_table_get_col_name(table, i);
 
-		if (0 == innobase_strcasecmp(col_name, *name)) {
+		if (outer_name.streq(inner_name)) {
 			/* Found */
-			strcpy((char*)*name, col_name);
+			strcpy((char*)*name, inner_name.str);
 			return true;
 		}
 	}
 
 	for (i = 0; i < dict_table_get_n_v_cols(table); i++) {
 
-		const char* col_name = dict_table_get_v_col_name(table, i);
+		const Lex_ident_column inner_name =
+		  dict_table_get_v_col_name(table, i);
 
-		if (0 == innobase_strcasecmp(col_name, *name)) {
+		if (outer_name.streq(inner_name)) {
 			/* Found */
-			strcpy((char*)*name, col_name);
+			strcpy((char*)*name, inner_name.str);
 			return true;
 		}
 	}
@@ -12474,7 +12404,7 @@ create_table_info_t::create_foreign_keys()
 			return (DB_OUT_OF_MEMORY);
 		}
 
-		dict_mem_foreign_table_name_lookup_set(foreign, TRUE);
+		foreign->foreign_table_name_lookup_set();
 
 		foreign->foreign_index = index;
 		foreign->n_fields      = i & dict_index_t::MAX_N_FIELDS;
@@ -12581,7 +12511,7 @@ create_table_info_t::create_foreign_keys()
 		}
 
 		foreign->referenced_index = index;
-		dict_mem_referenced_table_name_lookup_set(foreign, TRUE);
+		foreign->referenced_table_name_lookup_set();
 
 		foreign->referenced_col_names = static_cast<const char**>(
 			mem_heap_alloc(foreign->heap, i * sizeof(void*)));
@@ -12607,7 +12537,7 @@ create_table_info_t::create_foreign_keys()
 						= dict_table_get_col_name(
 							foreign->foreign_index
 								->table,
-							dict_col_get_no(col));
+							dict_col_get_no(col)).str;
 
 					/* It is not sensible to define SET
 					NULL
@@ -12735,7 +12665,7 @@ int create_table_info_t::create_table(bool create_fk)
 		by InnoDB */
 		ulint flags = m_table->flags;
 		dict_index_t* index = dict_mem_index_create(
-			m_table, innobase_index_reserve_name,
+			m_table, GEN_CLUST_INDEX.str,
 			DICT_CLUSTERED, 0);
 		const ha_table_option_struct& o = *m_form->s->option_struct;
 		error = convert_error_code_to_mysql(
@@ -12780,7 +12710,7 @@ int create_table_info_t::create_table(bool create_fk)
 					    " the index definition to"
 					    " make sure it is of correct"
 					    " type\n",
-					    FTS_DOC_ID_INDEX_NAME,
+					    FTS_DOC_ID_INDEX.str,
 					    m_table->name.m_name);
 
 			if (m_table->fts) {
@@ -12789,7 +12719,7 @@ int create_table_info_t::create_table(bool create_fk)
 			}
 
 			my_error(ER_WRONG_NAME_FOR_INDEX, MYF(0),
-				 FTS_DOC_ID_INDEX_NAME);
+				 FTS_DOC_ID_INDEX.str);
 			DBUG_RETURN(-1);
 		case FTS_EXIST_DOC_ID_INDEX:
 		case FTS_NOT_EXIST_DOC_ID_INDEX:
@@ -13133,10 +13063,10 @@ void create_table_info_t::create_table_update_dict(dict_table_t *table,
   {
     if (!table->fts_doc_id_index)
       table->fts_doc_id_index=
-        dict_table_get_index_on_name(table, FTS_DOC_ID_INDEX_NAME);
+        dict_table_get_index_on_name(table, FTS_DOC_ID_INDEX.str);
     else
       DBUG_ASSERT(table->fts_doc_id_index ==
-                  dict_table_get_index_on_name(table, FTS_DOC_ID_INDEX_NAME));
+                  dict_table_get_index_on_name(table, FTS_DOC_ID_INDEX.str));
   }
 
   DBUG_ASSERT(!table->fts == !table->fts_doc_id_index);
@@ -13196,16 +13126,12 @@ int
 ha_innobase::create(const char *name, TABLE *form, HA_CREATE_INFO *create_info,
                     bool file_per_table, trx_t *trx= nullptr)
 {
-  char norm_name[FN_REFLEN];	/* {database}/{tablename} */
-  char remote_path[FN_REFLEN];	/* Absolute path of table */
-
   DBUG_ENTER("ha_innobase::create");
   DBUG_ASSERT(form->s == table_share);
   DBUG_ASSERT(table_share->table_type == TABLE_TYPE_SEQUENCE ||
               table_share->table_type == TABLE_TYPE_NORMAL);
 
-  create_table_info_t info(ha_thd(), form, create_info, norm_name,
-                           remote_path, file_per_table, trx);
+  create_table_info_t info(ha_thd(), form, create_info, file_per_table, trx);
 
   int error= info.initialize();
   if (!error)
@@ -13428,16 +13354,18 @@ int ha_innobase::delete_table(const char *name)
 
   {
     char norm_name[FN_REFLEN];
-    normalize_table_name(norm_name, name);
-    span<const char> n{norm_name, strlen(norm_name)};
+    size_t norm_len= normalize_table_name_c_low(norm_name, sizeof(norm_name),
+    						name, IF_WIN(true,false));
+    span<const char> n{norm_name, norm_len};
 
     dict_sys.lock(SRW_LOCK_CALL);
     table= dict_sys.load_table(n, DICT_ERR_IGNORE_DROP);
 #ifdef WITH_PARTITION_STORAGE_ENGINE
     if (!table && lower_case_table_names == 1 && is_partition(norm_name))
     {
-      IF_WIN(normalize_table_name_c_low(norm_name, name, false),
-             innobase_casedn_str(norm_name));
+      norm_len= normalize_table_name_c_low(norm_name, sizeof(norm_name),
+      					name, IF_WIN(false, true));
+      n= {norm_name, norm_len};
       table= dict_sys.load_table(n, DICT_ERR_IGNORE_DROP);
     }
 #endif
@@ -13745,8 +13673,8 @@ static dberr_t innobase_rename_table(trx_t *trx, const char *from,
 
 	ut_ad(!srv_read_only_mode);
 
-	normalize_table_name(norm_to, to);
-	normalize_table_name(norm_from, from);
+	normalize_table_name(norm_to, sizeof(norm_to), to);
+	normalize_table_name(norm_from, sizeof(norm_from), from);
 
 	DEBUG_SYNC_C("innodb_rename_table_ready");
 
@@ -13765,15 +13693,17 @@ static dberr_t innobase_rename_table(trx_t *trx, const char *from,
 				/* Check for the table using lower
 				case name, including the partition
 				separator "P" */
-				strcpy(par_case_name, norm_from);
-				innobase_casedn_str(par_case_name);
+				system_charset_info->casedn_z(
+					norm_from, strlen(norm_from),
+					par_case_name, sizeof(par_case_name));
 #else
 				/* On Windows platfrom, check
 				whether there exists table name in
 				system table whose name is
 				not being normalized to lower case */
 				normalize_table_name_c_low(
-					par_case_name, from, false);
+					par_case_name, sizeof(par_case_name),
+					from, false);
 #endif /* _WIN32 */
 				trx_start_if_not_started(trx, true);
 				error = row_rename_table_for_mysql(
@@ -14084,8 +14014,8 @@ ha_innobase::rename_table(
 	char norm_from[MAX_FULL_NAME_LEN];
 	char norm_to[MAX_FULL_NAME_LEN];
 
-	normalize_table_name(norm_from, from);
-	normalize_table_name(norm_to, to);
+	normalize_table_name(norm_from, sizeof(norm_from), from);
+	normalize_table_name(norm_to, sizeof(norm_to), to);
 
 	dberr_t error = DB_SUCCESS;
 	const bool from_temp = dict_table_t::is_temporary_name(norm_from);
@@ -14745,12 +14675,7 @@ ha_innobase::info_low(
 	DBUG_ASSERT(ib_table->get_ref_count() > 0);
 
 	if (!ib_table->is_readable()) {
-		ib_table->stats_mutex_lock();
-		ib_table->stat_initialized = true;
-		ib_table->stat_n_rows = 0;
-		ib_table->stat_clustered_index_size = 0;
-		ib_table->stat_sum_of_other_index_sizes = 0;
-		ib_table->stats_mutex_unlock();
+		dict_stats_empty_table(ib_table);
 	}
 
 	if (flag & HA_STATUS_TIME) {
@@ -15631,15 +15556,17 @@ ha_innobase::extra(
 {
 	/* Warning: since it is not sure that MariaDB calls external_lock()
 	before calling this function, m_prebuilt->trx can be obsolete! */
-	trx_t* trx = check_trx_exists(ha_thd());
+	trx_t* trx;
 
 	switch (operation) {
 	case HA_EXTRA_FLUSH:
+		(void)check_trx_exists(ha_thd());
 		if (m_prebuilt->blob_heap) {
 			row_mysql_prebuilt_free_blob_heap(m_prebuilt);
 		}
 		break;
 	case HA_EXTRA_RESET_STATE:
+		trx = check_trx_exists(ha_thd());
 		reset_template();
 		trx->duplicates = 0;
 	stmt_boundary:
@@ -15648,18 +15575,23 @@ ha_innobase::extra(
 		trx->bulk_insert = false;
 		break;
 	case HA_EXTRA_NO_KEYREAD:
+		(void)check_trx_exists(ha_thd());
 		m_prebuilt->read_just_key = 0;
 		break;
 	case HA_EXTRA_KEYREAD:
+		(void)check_trx_exists(ha_thd());
 		m_prebuilt->read_just_key = 1;
 		break;
 	case HA_EXTRA_KEYREAD_PRESERVE_FIELDS:
+		(void)check_trx_exists(ha_thd());
 		m_prebuilt->keep_other_fields_on_keyread = 1;
 		break;
 	case HA_EXTRA_INSERT_WITH_UPDATE:
+		trx = check_trx_exists(ha_thd());
 		trx->duplicates |= TRX_DUP_IGNORE;
 		goto stmt_boundary;
 	case HA_EXTRA_NO_IGNORE_DUP_KEY:
+		trx = check_trx_exists(ha_thd());
 		trx->duplicates &= ~TRX_DUP_IGNORE;
 		if (trx->is_bulk_insert()) {
 			/* Allow a subsequent INSERT into an empty table
@@ -15671,9 +15603,11 @@ ha_innobase::extra(
 		}
 		goto stmt_boundary;
 	case HA_EXTRA_WRITE_CAN_REPLACE:
+		trx = check_trx_exists(ha_thd());
 		trx->duplicates |= TRX_DUP_REPLACE;
 		goto stmt_boundary;
 	case HA_EXTRA_WRITE_CANNOT_REPLACE:
+		trx = check_trx_exists(ha_thd());
 		trx->duplicates &= ~TRX_DUP_REPLACE;
 		if (trx->is_bulk_insert()) {
 			/* Allow a subsequent INSERT into an empty table
@@ -15682,6 +15616,7 @@ ha_innobase::extra(
 		}
 		goto stmt_boundary;
 	case HA_EXTRA_BEGIN_ALTER_COPY:
+		trx = check_trx_exists(ha_thd());
 		m_prebuilt->table->skip_alter_undo = 1;
 		if (m_prebuilt->table->is_temporary()
 		    || !m_prebuilt->table->versioned_by_id()) {
@@ -15694,8 +15629,10 @@ ha_innobase::extra(
 			.first->second.set_versioned(0);
 		break;
 	case HA_EXTRA_END_ALTER_COPY:
+		trx = check_trx_exists(ha_thd());
 		m_prebuilt->table->skip_alter_undo = 0;
-		if (!m_prebuilt->table->is_temporary()) {
+		if (!m_prebuilt->table->is_temporary()
+		    && !high_level_read_only) {
 			log_buffer_flush_to_disk();
 		}
 		break;
@@ -16176,7 +16113,7 @@ innodb_show_status(
 		DBUG_RETURN(0);
 	}
 
-	srv_wake_purge_thread_if_not_active();
+	purge_sys.wake_if_not_active();
 
 	/* We let the InnoDB Monitor to output at most MAX_STATUS_SIZE
 	bytes of text. */
@@ -17661,6 +17598,7 @@ innodb_monitor_id_by_name_get(
 	const char*	name)	/*!< in: monitor counter namer */
 {
 	ut_a(name);
+	const Lex_ident_column ident = Lex_cstring_strlen(name);
 
 	/* Search for wild character '%' in the name, if
 	found, we treat it as a wildcard match. We do not search for
@@ -17673,8 +17611,8 @@ innodb_monitor_id_by_name_get(
 
 	/* Not wildcard match, check for an exact match */
 	for (ulint i = 0; i < NUM_MONITOR; i++) {
-		if (!innobase_strcasecmp(
-			name, srv_mon_get_name(static_cast<monitor_id_t>(i)))) {
+		if (ident.streq(Lex_cstring_strlen(
+			srv_mon_get_name(static_cast<monitor_id_t>(i))))) {
 			return(i);
 		}
 	}
@@ -18098,8 +18036,7 @@ innobase_index_name_is_reserved(
 	for (key_num = 0; key_num < num_of_keys; key_num++) {
 		key = &key_info[key_num];
 
-		if (innobase_strcasecmp(key->name.str,
-					innobase_index_reserve_name) == 0) {
+		if (key->name.streq(GEN_CLUST_INDEX)) {
 			/* Push warning to mysql */
 			push_warning_printf(thd,
 					    Sql_condition::WARN_LEVEL_WARN,
@@ -18108,10 +18045,10 @@ innobase_index_name_is_reserved(
 					    " '%s'. The name is reserved"
 					    " for the system default primary"
 					    " index.",
-					    innobase_index_reserve_name);
+					    GEN_CLUST_INDEX.str);
 
 			my_error(ER_WRONG_NAME_FOR_INDEX, MYF(0),
-				 innobase_index_reserve_name);
+				 GEN_CLUST_INDEX.str);
 
 			return(true);
 		}
@@ -18207,11 +18144,18 @@ static
 void
 buf_flush_list_now_set(THD*, st_mysql_sys_var*, void*, const void* save)
 {
-	if (*(my_bool*) save) {
-		mysql_mutex_unlock(&LOCK_global_system_variables);
-		buf_flush_sync();
-		mysql_mutex_lock(&LOCK_global_system_variables);
-	}
+  if (!*(my_bool*) save)
+    return;
+  const uint s= srv_fil_make_page_dirty_debug;
+  mysql_mutex_unlock(&LOCK_global_system_variables);
+  if (s)
+    buf_flush_sync();
+  else
+  {
+    while (buf_flush_list_space(fil_system.sys_space, nullptr));
+    os_aio_wait_until_no_pending_writes(true);
+  }
+  mysql_mutex_lock(&LOCK_global_system_variables);
 }
 
 /** Override current MERGE_THRESHOLD setting for all indexes at dictionary
@@ -18501,7 +18445,8 @@ static
 void
 innodb_trunc_temp_space_update(THD*, st_mysql_sys_var*, void*, const void* save)
 {
-  if (!*static_cast<const my_bool*>(save))
+  /* Temp tablespace is not initialized in read only mode. */
+  if (!*static_cast<const my_bool*>(save) || srv_read_only_mode)
     return;
   mysql_mutex_unlock(&LOCK_global_system_variables);
   fsp_shrink_temp_space();
@@ -18777,9 +18722,9 @@ static MYSQL_SYSVAR_ULONG(purge_batch_size, srv_purge_batch_size,
   PLUGIN_VAR_OPCMDARG,
   "Number of UNDO log pages to purge in one batch from the history list.",
   NULL, NULL,
-  300,			/* Default setting */
+  1000,			/* Default setting */
   1,			/* Minimum value */
-  5000, 0);		/* Maximum value */
+  innodb_purge_batch_size_MAX, 0);
 
 extern void srv_update_purge_thread_count(uint n);
 
@@ -19303,18 +19248,19 @@ static MYSQL_SYSVAR_ULONGLONG(max_undo_log_size, srv_max_undo_log_size,
   10 << 20, 10 << 20,
   1ULL << (32 + UNIV_PAGE_SIZE_SHIFT_MAX), 0);
 
+static ulong innodb_purge_rseg_truncate_frequency;
+
 static MYSQL_SYSVAR_ULONG(purge_rseg_truncate_frequency,
-  srv_purge_rseg_truncate_frequency,
-  PLUGIN_VAR_OPCMDARG,
-  "Dictates rate at which UNDO records are purged. Value N means"
-  " purge rollback segment(s) on every Nth iteration of purge invocation",
+  innodb_purge_rseg_truncate_frequency,
+  PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_DEPRECATED,
+  "Deprecated parameter with no effect",
   NULL, NULL, 128, 1, 128, 0);
 
 static void innodb_undo_log_truncate_update(THD *thd, struct st_mysql_sys_var*,
                                             void*, const void *save)
 {
   if ((srv_undo_log_truncate= *static_cast<const my_bool*>(save)))
-    srv_wake_purge_thread_if_not_active();
+    purge_sys.wake_if_not_active();
 }
 
 static MYSQL_SYSVAR_BOOL(undo_log_truncate, srv_undo_log_truncate,
@@ -19948,30 +19894,6 @@ static TABLE* innodb_find_table_for_vc(THD* thd, dict_table_t* table)
 	return mysql_table;
 }
 
-/** Only used by the purge thread
-@param[in,out]	table       table whose virtual column template to be built */
-TABLE* innobase_init_vc_templ(dict_table_t* table)
-{
-	DBUG_ENTER("innobase_init_vc_templ");
-
-	ut_ad(table->vc_templ == NULL);
-
-	TABLE	*mysql_table= innodb_find_table_for_vc(current_thd, table);
-
-	ut_ad(mysql_table);
-	if (!mysql_table) {
-		DBUG_RETURN(NULL);
-	}
-
-	dict_vcol_templ_t* vc_templ = UT_NEW_NOKEY(dict_vcol_templ_t());
-
-	dict_sys.lock(SRW_LOCK_CALL);
-	table->vc_templ = vc_templ;
-	innobase_build_v_templ(mysql_table, table, vc_templ, nullptr, true);
-	dict_sys.unlock();
-	DBUG_RETURN(mysql_table);
-}
-
 /** Change dbname and table name in table->vc_templ.
 @param[in,out]	table	the table whose virtual column template
 dbname and tbname to be renamed. */
@@ -20527,6 +20449,10 @@ Compare_keys ha_innobase::compare_key_parts(
       return Compare_keys::NotEqual;
 
     if (old_part.length >= new_part.length)
+      return Compare_keys::NotEqual;
+
+    if (old_part.length == old_field.key_length() &&
+        new_part.length != new_field.length)
       return Compare_keys::NotEqual;
 
     return Compare_keys::EqualButKeyPartLength;

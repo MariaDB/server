@@ -794,10 +794,11 @@ static bool check_charset(sys_var *self, THD *thd, set_var *var)
     {
       ErrConvString err(res); /* Get utf8 '\0' terminated string */
       myf utf8_flag= thd->get_utf8_flag();
-      if (!(var->save_result.ptr= get_charset_by_csname(err.ptr(),
+      Lex_cstring csname= err.lex_cstring();
+      if (!(var->save_result.ptr= get_charset_by_csname(csname.str,
                                                              MY_CS_PRIMARY,
                                                              MYF(utf8_flag))) &&
-          !(var->save_result.ptr= get_old_charset_by_name(err.ptr())))
+          !(var->save_result.ptr= get_old_charset_by_name(csname)))
       {
         my_error(ER_UNKNOWN_CHARACTER_SET, MYF(0), err.ptr());
         return true;
@@ -838,7 +839,7 @@ static bool check_charset_not_null(sys_var *self, THD *thd, set_var *var)
 static Sys_var_struct Sys_character_set_system(
        "character_set_system", "The character set used by the server "
        "for storing identifiers",
-       READ_ONLY GLOBAL_VAR(system_charset_info), NO_CMD_LINE,
+       READ_ONLY GLOBAL_VAR(system_charset_info_for_i_s), NO_CMD_LINE,
        offsetof(CHARSET_INFO, cs_name.str), DEFAULT(0));
 
 static Sys_var_struct Sys_character_set_server(
@@ -1051,8 +1052,13 @@ static Sys_var_charptr_fscs Sys_datadir(
        CMD_LINE(REQUIRED_ARG, 'h'), DEFAULT(mysql_real_data_home));
 
 #ifndef DBUG_OFF
+static Sys_var_dbug Sys_dbug(
+       "debug", "Built-in DBUG debugger", sys_var::SESSION,
+       CMD_LINE(OPT_ARG, '#'), DEFAULT(""), NO_MUTEX_GUARD, NOT_IN_BINLOG,
+       ON_CHECK(check_has_super));
+
 static Sys_var_dbug Sys_debug_dbug(
-       "debug_dbug", "Built-in DBUG debugger", sys_var::SESSION,
+       "debug_dbug", "Built-in DBUG debugger. Alias for --debug", sys_var::SESSION,
        CMD_LINE(OPT_ARG, '#'), DEFAULT(""), NO_MUTEX_GUARD, NOT_IN_BINLOG,
        ON_CHECK(check_has_super));
 #endif
@@ -1241,6 +1247,68 @@ Sys_binlog_expire_logs_seconds(
        CMD_LINE(REQUIRED_ARG, OPT_BINLOG_EXPIRE_LOGS_SECONDS),
        VALID_RANGE(0, 8553600), DEFAULT(0), BLOCK_SIZE(1), NO_MUTEX_GUARD,
        NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(copy_to_expire_logs_days));
+
+
+static bool update_binlog_space_limit(sys_var *, THD *,
+                                      enum_var_type type)
+{
+#ifdef HAVE_REPLICATION
+  /* Refresh summary of binlog sizes */
+  mysql_bin_log.lock_index();
+  binlog_space_limit= internal_binlog_space_limit;
+  slave_connections_needed_for_purge=
+    internal_slave_connections_needed_for_purge;
+
+  if (opt_bin_log)
+  {
+    if (binlog_space_limit)
+      mysql_bin_log.count_binlog_space();
+    /* Inform can_purge_log() that it should do a recheck of log_in_use() */
+    sending_new_binlog_file++;
+     mysql_bin_log.unlock_index();
+    mysql_bin_log.purge(1);
+    return 0;
+  }
+  mysql_bin_log.unlock_index();
+#endif
+  return 0;
+}
+
+static Sys_var_on_access_global<Sys_var_ulonglong,
+                                PRIV_SET_SYSTEM_GLOBAL_VAR_MAX_BINLOG_CACHE_SIZE>
+Sys_max_binlog_total_size(
+      "max_binlog_total_size",
+      "Maximum space to use for all binary logs. Extra logs are deleted on "
+      "server start, log rotation, FLUSH LOGS or when writing to binlog. "
+      "Default is 0, which means no size restrictions. "
+      "See also slave_connections_needed_for_purge",
+      GLOBAL_VAR(internal_binlog_space_limit), CMD_LINE(REQUIRED_ARG),
+      VALID_RANGE(0, ULONGLONG_MAX), DEFAULT(0), BLOCK_SIZE(1),
+      NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
+      ON_UPDATE(update_binlog_space_limit));
+
+static Sys_var_on_access_global<Sys_var_ulonglong,
+                                PRIV_SET_SYSTEM_GLOBAL_VAR_MAX_BINLOG_CACHE_SIZE>
+Sys_binlog_space_limit(
+      "binlog_space_limit",
+      "Alias for max_binlog_total_size. Compatibility with Percona server.",
+      GLOBAL_VAR(internal_binlog_space_limit), CMD_LINE(REQUIRED_ARG),
+      VALID_RANGE(0, ULONGLONG_MAX), DEFAULT(0), BLOCK_SIZE(1),
+      NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
+      ON_UPDATE(update_binlog_space_limit));
+
+static Sys_var_on_access_global<Sys_var_uint,
+                                PRIV_SET_SYSTEM_GLOBAL_VAR_MAX_BINLOG_CACHE_SIZE>
+Sys_slave_connections_needed_for_purge(
+      "slave_connections_needed_for_purge",
+      "Minimum number of connected slaves required for automatic binary "
+      "log purge with max_binlog_total_size, binlog_expire_logs_seconds "
+      "or binlog_expire_logs_days.",
+       GLOBAL_VAR(internal_slave_connections_needed_for_purge),
+       CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, UINT_MAX), DEFAULT(1), BLOCK_SIZE(1),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
+       ON_UPDATE(update_binlog_space_limit));
 
 static Sys_var_mybool Sys_flush(
        "flush", "Flush MyISAM tables to disk between SQL commands",
@@ -1551,7 +1619,7 @@ static Sys_var_bit Sys_log_slow_slave_statements(
 
 static Sys_var_ulong Sys_log_warnings(
        "log_warnings",
-       "Log some not critical warnings to the general log file."
+       "Log some non critical warnings to the error log."
        "Value can be between 0 and 11. Higher values mean more verbosity",
        SESSION_VAR(log_warnings),
        CMD_LINE(OPT_ARG, 'W'),
@@ -2880,8 +2948,9 @@ export const char *optimizer_switch_names[]=
   "condition_pushdown_from_having",
   "not_null_range_scan",
   "hash_join_cardinality",
+  "cset_narrowing",
   "sargable_casefold",
-  "default", 
+  "default",
   NullS
 };
 static bool check_legal_optimizer_switch(sys_var *self, THD *thd,
@@ -2918,6 +2987,14 @@ static Sys_var_ulong Sys_optimizer_trace_max_mem_size(
     "Maximum allowed size of an optimizer trace",
     SESSION_VAR(optimizer_trace_max_mem_size), CMD_LINE(REQUIRED_ARG),
     VALID_RANGE(0, ULONG_MAX), DEFAULT(1024 * 1024), BLOCK_SIZE(1));
+
+static Sys_var_ulong Sys_optimizer_adjust_secondary_key_costs(
+    "optimizer_adjust_secondary_key_costs",
+    "Unused, will be removed.",
+    SESSION_VAR(optimizer_adjust_secondary_key_costs), CMD_LINE(REQUIRED_ARG),
+    VALID_RANGE(0, 2), DEFAULT(0), BLOCK_SIZE(1),
+    NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(0),
+    DEPRECATED(1100, ""));
 
 static Sys_var_charptr_fscs Sys_pid_file(
        "pid_file", "Pid file used by safe_mysqld",
@@ -3328,8 +3405,9 @@ Sys_secure_auth(
        "secure_auth",
        "Disallow authentication for accounts that have old (pre-4.1) "
        "passwords",
-       GLOBAL_VAR(opt_secure_auth), CMD_LINE(OPT_ARG),
-       DEFAULT(TRUE));
+       GLOBAL_VAR(opt_secure_auth), CMD_LINE(OPT_ARG, OPT_SECURE_AUTH),
+       DEFAULT(TRUE), NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(0),
+       DEPRECATED(1006, ""));
 
 static bool check_require_secure_transport(sys_var *self, THD *thd, set_var *var)
 {
@@ -3592,13 +3670,6 @@ static bool fix_rpl_semi_sync_master_wait_point(sys_var *self, THD *thd,
   return false;
 }
 
-static bool fix_rpl_semi_sync_master_wait_no_slave(sys_var *self, THD *thd,
-                                                   enum_var_type type)
-{
-  repl_semisync_master.check_and_switch();
-  return false;
-}
-
 static Sys_var_on_access_global<Sys_var_mybool,
                         PRIV_SET_SYSTEM_GLOBAL_VAR_RPL_SEMI_SYNC_MASTER_ENABLED>
 Sys_semisync_master_enabled(
@@ -3625,12 +3696,11 @@ static Sys_var_on_access_global<Sys_var_mybool,
                   PRIV_SET_SYSTEM_GLOBAL_VAR_RPL_SEMI_SYNC_MASTER_WAIT_NO_SLAVE>
 Sys_semisync_master_wait_no_slave(
        "rpl_semi_sync_master_wait_no_slave",
-       "Wait until timeout when no semi-synchronous replication slave "
-       "available (enabled by default).",
+       "Wait until timeout when no semi-synchronous replication slave is "
+       "available.",
        GLOBAL_VAR(rpl_semi_sync_master_wait_no_slave),
        CMD_LINE(OPT_ARG), DEFAULT(TRUE),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
-       ON_UPDATE(fix_rpl_semi_sync_master_wait_no_slave));
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0));
 
 static Sys_var_on_access_global<Sys_var_ulong,
                     PRIV_SET_SYSTEM_GLOBAL_VAR_RPL_SEMI_SYNC_MASTER_TRACE_LEVEL>
@@ -3656,13 +3726,6 @@ Sys_semisync_master_wait_point(
        repl_semisync_wait_point, DEFAULT(1),
        NO_MUTEX_GUARD, NOT_IN_BINLOG,ON_CHECK(0),
        ON_UPDATE(fix_rpl_semi_sync_master_wait_point));
-
-static bool fix_rpl_semi_sync_slave_enabled(sys_var *self, THD *thd,
-                                            enum_var_type type)
-{
-  repl_semisync_slave.set_slave_enabled(rpl_semi_sync_slave_enabled != 0);
-  return false;
-}
 
 static bool fix_rpl_semi_sync_slave_trace_level(sys_var *self, THD *thd,
                                                 enum_var_type type)
@@ -3691,10 +3754,9 @@ static Sys_var_on_access_global<Sys_var_mybool,
 Sys_semisync_slave_enabled(
        "rpl_semi_sync_slave_enabled",
        "Enable semi-synchronous replication slave (disabled by default).",
-       GLOBAL_VAR(rpl_semi_sync_slave_enabled),
+       GLOBAL_VAR(global_rpl_semi_sync_slave_enabled),
        CMD_LINE(OPT_ARG), DEFAULT(FALSE),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
-       ON_UPDATE(fix_rpl_semi_sync_slave_enabled));
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0));
 
 static Sys_var_on_access_global<Sys_var_ulong,
                     PRIV_SET_SYSTEM_GLOBAL_VAR_RPL_SEMI_SYNC_SLAVE_TRACE_LEVEL>
@@ -3880,6 +3942,7 @@ static const char *old_mode_names[]=
   "UTF8_IS_UTF8MB3",
   "IGNORE_INDEX_ONLY_FOR_JOIN",         // deprecated since 11.3
   "COMPAT_5_1_CHECKSUM",                // deprecated since 11.3
+  "NO_NULL_COLLATION_IDS",              // deprecated since 11.3
   "LOCK_ALTER_TABLE_COPY",              // deprecated since 11.3
   0
 };
@@ -4669,7 +4732,9 @@ static Sys_var_bit Sys_sql_notes(
        "See also note_verbosity, which allows one to define with notes are "
        "sent.",
        SESSION_VAR(option_bits), NO_CMD_LINE, OPTION_SQL_NOTES,
-       DEFAULT(TRUE));
+       DEFAULT(TRUE),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(0),
+       DEPRECATED(1103, "'@@note_verbosity'"));
 
 static Sys_var_bit Sys_auto_is_null(
        "sql_auto_is_null", "If set to 1, the query SELECT * FROM table_name WHERE "
@@ -5692,7 +5757,7 @@ Sys_slave_net_timeout(
 */
 
 ulonglong Sys_var_multi_source_ulonglong::
-get_master_info_ulonglong_value(THD *thd, ptrdiff_t offset) const
+get_master_info_ulonglong_value(THD *thd) const
 {
   Master_info *mi;
   ulonglong res= 0;                                  // Default value
@@ -5700,7 +5765,7 @@ get_master_info_ulonglong_value(THD *thd, ptrdiff_t offset) const
   if ((mi= get_master_info(&thd->variables.default_master_connection,
                            Sql_condition::WARN_LEVEL_WARN)))
   {
-    res= *((ulonglong*) (((uchar*) mi) + master_info_offset));
+    res= (mi->*mi_accessor_func)();
     mi->release();
   }
   mysql_mutex_lock(&LOCK_global_system_variables);
@@ -5770,7 +5835,7 @@ static bool update_slave_skip_counter(sys_var *self, THD *thd, Master_info *mi)
 static Sys_var_multi_source_ulonglong Sys_slave_skip_counter(
        "sql_slave_skip_counter", "Skip the next N events from the master log",
        SESSION_VAR(slave_skip_counter), NO_CMD_LINE,
-       MASTER_INFO_VAR(rli.slave_skip_counter),
+       &Master_info::get_slave_skip_counter,
        VALID_RANGE(0, UINT_MAX), DEFAULT(0), BLOCK_SIZE(1),
        ON_UPDATE(update_slave_skip_counter));
 
@@ -5786,7 +5851,7 @@ static Sys_var_multi_source_ulonglong Sys_max_relay_log_size(
        "relay log will be rotated automatically when the size exceeds this "
        "value.  If 0 at startup, it's set to max_binlog_size",
        SESSION_VAR(max_relay_log_size), CMD_LINE(REQUIRED_ARG),
-       MASTER_INFO_VAR(rli.max_relay_log_size),
+       &Master_info::get_max_relay_log_size,
        VALID_RANGE(0, 1024L*1024*1024), DEFAULT(0), BLOCK_SIZE(IO_SIZE),
        ON_UPDATE(update_max_relay_log_size));
 
@@ -5897,7 +5962,7 @@ static bool check_locale(sys_var *self, THD *thd, set_var *var)
     String str(buff, sizeof(buff), system_charset_info), *res;
     if (!(res=var->value->val_str(&str)))
       return true;
-    else if (!(locale= my_locale_by_name(res->c_ptr_safe())))
+    else if (!(locale= my_locale_by_name(res->to_lex_cstring())))
     {
       ErrConvString err(res);
       my_error(ER_UNKNOWN_LOCALE, MYF(0), err.ptr());
@@ -6280,13 +6345,6 @@ static Sys_var_ulong Sys_wsrep_mysql_replication_bundle(
       "wsrep_mysql_replication_bundle", "mysql replication group commit ",
        GLOBAL_VAR(wsrep_mysql_replication_bundle), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, 1000), DEFAULT(0), BLOCK_SIZE(1));
-
-static Sys_var_mybool Sys_wsrep_load_data_splitting(
-       "wsrep_load_data_splitting", "To commit LOAD DATA "
-       "transaction after every 10K rows inserted (deprecated)",
-       GLOBAL_VAR(wsrep_load_data_splitting), 
-       CMD_LINE(OPT_ARG), DEFAULT(0), NO_MUTEX_GUARD, NOT_IN_BINLOG,
-       ON_CHECK(0), ON_UPDATE(0), DEPRECATED(1004, ""));
 
 static Sys_var_mybool Sys_wsrep_slave_FK_checks(
        "wsrep_slave_FK_checks", "Should slave thread do "
@@ -6834,6 +6892,36 @@ Sys_binlog_row_metadata(
        binlog_row_metadata_names, DEFAULT(Table_map_log_event::BINLOG_ROW_METADATA_NO_LOG),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(NULL),
        ON_UPDATE(NULL));
+
+
+static Sys_var_on_access_global<Sys_var_mybool,
+                           PRIV_SET_SYSTEM_GLOBAL_VAR_BINLOG_GTID_INDEX>
+Sys_binlog_gtid_index(
+       "binlog_gtid_index",
+       "Enable the creation of a GTID index for every binlog file, and the use "
+       "of such index for speeding up GTID lookup in the binlog.",
+       GLOBAL_VAR(opt_binlog_gtid_index), CMD_LINE(OPT_ARG),
+       DEFAULT(TRUE));
+
+
+static Sys_var_on_access_global<Sys_var_uint,
+                        PRIV_SET_SYSTEM_GLOBAL_VAR_BINLOG_GTID_INDEX_PAGE_SIZE>
+Sys_binlog_gtid_index_page_size(
+       "binlog_gtid_index_page_size",
+       "Page size to use for the binlog GTID index.",
+       GLOBAL_VAR(opt_binlog_gtid_index_page_size), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(64, 1<<24), DEFAULT(4096), BLOCK_SIZE(1));
+
+
+static Sys_var_on_access_global<Sys_var_uint,
+                        PRIV_SET_SYSTEM_GLOBAL_VAR_BINLOG_GTID_INDEX_SPAN_MIN>
+Sys_binlog_gtid_index_span_min(
+       "binlog_gtid_index_span_min",
+       "Control sparseness of the binlog GTID index. If set to N, at most one "
+       "index record will be added for every N bytes of binlog file written, "
+       "to reduce the size of the index. Normally does not need tuning.",
+       GLOBAL_VAR(opt_binlog_gtid_index_span_min), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(1, 1024*1024L*1024L), DEFAULT(65536), BLOCK_SIZE(1));
 
 
 static bool check_pseudo_slave_mode(sys_var *self, THD *thd, set_var *var)

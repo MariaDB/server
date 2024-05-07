@@ -51,7 +51,7 @@ get_collation_number_internal(const char *name)
        cs++)
   {
     if (cs[0] && cs[0]->coll_name.str &&
-        !my_strcasecmp(&my_charset_latin1, cs[0]->coll_name.str, name))
+        !my_strcasecmp_latin1(cs[0]->coll_name.str, name))
       return cs[0]->number;
   }  
   return 0;
@@ -780,7 +780,7 @@ get_charset_number_internal(const char *charset_name, uint cs_flags)
        cs++)
   {
     if ( cs[0] && cs[0]->cs_name.str && (cs[0]->state & cs_flags) &&
-         !my_strcasecmp(&my_charset_latin1, cs[0]->cs_name.str, charset_name))
+         !my_strcasecmp_latin1(cs[0]->cs_name.str, charset_name))
       return cs[0]->number;
   }  
   return 0;
@@ -795,7 +795,7 @@ uint get_charset_number(const char *charset_name, uint cs_flags, myf flags)
   my_pthread_once(&charsets_initialized, init_available_charsets);
   if ((id= get_charset_number_internal(charset_name, cs_flags)))
     return id;
-  if ((charset_name= !my_strcasecmp(&my_charset_latin1, charset_name, "utf8") ?
+  if ((charset_name= !my_strcasecmp_latin1(charset_name, "utf8") ?
                       new_charset_name : NULL))
     return get_charset_number_internal(charset_name, cs_flags);
   return 0;

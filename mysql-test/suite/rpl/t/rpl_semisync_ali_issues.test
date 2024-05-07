@@ -16,7 +16,6 @@ CALL mtr.add_suppression("Failed on request_dump()*");
 CALL mtr.add_suppression("Semi-sync master failed on*");
 CALL mtr.add_suppression("Master command COM_BINLOG_DUMP failed*");
 CALL mtr.add_suppression("on master failed*");
-CALL mtr.add_suppression("Master server does not support semi-sync*");
 CALL mtr.add_suppression("Semi-sync slave net_flush*");
 CALL mtr.add_suppression("Failed to flush master info*");
 CALL mtr.add_suppression("Request to stop slave SQL Thread received while apply*");
@@ -424,6 +423,5 @@ SET GLOBAL rpl_semi_sync_master_enabled = 0;
 DROP TABLE t1;
 connection slave;
 SET GLOBAL rpl_semi_sync_slave_enabled = 0;
-stop slave;start slave;
 
 --source include/rpl_end.inc

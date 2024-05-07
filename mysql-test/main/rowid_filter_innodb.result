@@ -152,15 +152,18 @@ ANALYZE
           "loops": 1,
           "r_loops": 1,
           "rows": 349,
+          "r_index_rows": 349,
           "r_rows": 34,
           "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "r_engine_stats": REPLACED,
           "filtered": 8.492922783,
-          "r_filtered": 100,
+          "r_total_filtered": 9.742120344,
           "index_condition": "lineitem.l_quantity > 47",
-          "attached_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-06-30'"
+          "r_icp_filtered": 100,
+          "attached_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-06-30'",
+          "r_filtered": 100
         }
       }
     ]
@@ -267,15 +270,18 @@ ANALYZE
           "loops": 1,
           "r_loops": 1,
           "rows": 349,
+          "r_index_rows": 349,
           "r_rows": 349,
           "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "r_engine_stats": REPLACED,
           "filtered": 8.492922783,
-          "r_filtered": 9.742120344,
+          "r_total_filtered": 9.742120344,
           "index_condition": "lineitem.l_quantity > 47",
-          "attached_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-06-30'"
+          "r_icp_filtered": 100,
+          "attached_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-06-30'",
+          "r_filtered": 9.742120344
         }
       }
     ]
@@ -420,8 +426,9 @@ ANALYZE
           "r_other_time_ms": "REPLACED",
           "r_engine_stats": REPLACED,
           "filtered": 100,
-          "r_filtered": 100,
+          "r_total_filtered": 100,
           "attached_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-01-31'",
+          "r_filtered": 100,
           "using_index": true
         }
       },
@@ -444,8 +451,9 @@ ANALYZE
           "r_other_time_ms": "REPLACED",
           "r_engine_stats": REPLACED,
           "filtered": 4.733333111,
-          "r_filtered": 11.2244898,
-          "attached_condition": "orders.o_totalprice between 200000 and 230000"
+          "r_total_filtered": 11.2244898,
+          "attached_condition": "orders.o_totalprice between 200000 and 230000",
+          "r_filtered": 11.2244898
         }
       }
     ]
@@ -568,8 +576,9 @@ ANALYZE
           "r_other_time_ms": "REPLACED",
           "r_engine_stats": REPLACED,
           "filtered": 100,
-          "r_filtered": 100,
+          "r_total_filtered": 100,
           "attached_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-01-31'",
+          "r_filtered": 100,
           "using_index": true
         }
       },
@@ -592,8 +601,9 @@ ANALYZE
           "r_other_time_ms": "REPLACED",
           "r_engine_stats": REPLACED,
           "filtered": 4.733333111,
-          "r_filtered": 11.2244898,
-          "attached_condition": "orders.o_totalprice between 200000 and 230000"
+          "r_total_filtered": 11.2244898,
+          "attached_condition": "orders.o_totalprice between 200000 and 230000",
+          "r_filtered": 11.2244898
         }
       }
     ]
@@ -737,15 +747,18 @@ ANALYZE
           "loops": 1,
           "r_loops": 1,
           "rows": 349,
+          "r_index_rows": 349,
           "r_rows": 34,
           "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "r_engine_stats": REPLACED,
           "filtered": 8.492922783,
-          "r_filtered": 100,
+          "r_total_filtered": 9.742120344,
           "index_condition": "lineitem.l_quantity > 47",
-          "attached_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-06-30'"
+          "r_icp_filtered": 100,
+          "attached_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-06-30'",
+          "r_filtered": 100
         }
       },
       {
@@ -766,8 +779,9 @@ ANALYZE
           "r_other_time_ms": "REPLACED",
           "r_engine_stats": REPLACED,
           "filtered": 9.600000381,
-          "r_filtered": 26.47058824,
-          "attached_condition": "orders.o_totalprice between 180000 and 230000"
+          "r_total_filtered": 26.47058824,
+          "attached_condition": "orders.o_totalprice between 180000 and 230000",
+          "r_filtered": 26.47058824
         }
       }
     ]
@@ -889,8 +903,9 @@ ANALYZE
           "r_other_time_ms": "REPLACED",
           "r_engine_stats": REPLACED,
           "filtered": 100,
-          "r_filtered": 100,
+          "r_total_filtered": 100,
           "attached_condition": "orders.o_totalprice between 180000 and 230000",
+          "r_filtered": 100,
           "using_index": true
         }
       },
@@ -918,8 +933,9 @@ ANALYZE
           "r_other_time_ms": "REPLACED",
           "r_engine_stats": REPLACED,
           "filtered": 0.493593663,
-          "r_filtered": 0.943396226,
-          "attached_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-06-30' and lineitem.l_quantity > 47"
+          "r_total_filtered": 0.943396226,
+          "attached_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-06-30' and lineitem.l_quantity > 47",
+          "r_filtered": 0.943396226
         }
       }
     ]
@@ -1044,8 +1060,9 @@ ANALYZE
           "r_other_time_ms": "REPLACED",
           "r_engine_stats": REPLACED,
           "filtered": 100,
-          "r_filtered": 100,
+          "r_total_filtered": 100,
           "attached_condition": "orders.o_totalprice between 200000 and 230000",
+          "r_filtered": 100,
           "using_index": true
         }
       },
@@ -1072,8 +1089,9 @@ ANALYZE
           "r_other_time_ms": "REPLACED",
           "r_engine_stats": REPLACED,
           "filtered": 8.492922783,
-          "r_filtered": 7.773109244,
-          "attached_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-06-30'"
+          "r_total_filtered": 7.773109244,
+          "attached_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-06-30'",
+          "r_filtered": 7.773109244
         }
       }
     ]
@@ -1217,8 +1235,9 @@ ANALYZE
           "r_other_time_ms": "REPLACED",
           "r_engine_stats": REPLACED,
           "filtered": 100,
-          "r_filtered": 100,
+          "r_total_filtered": 100,
           "attached_condition": "orders.o_totalprice between 200000 and 230000",
+          "r_filtered": 100,
           "using_index": true
         }
       },
@@ -1245,8 +1264,9 @@ ANALYZE
           "r_other_time_ms": "REPLACED",
           "r_engine_stats": REPLACED,
           "filtered": 8.492922783,
-          "r_filtered": 7.773109244,
-          "attached_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-06-30'"
+          "r_total_filtered": 7.773109244,
+          "attached_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-06-30'",
+          "r_filtered": 7.773109244
         }
       }
     ]
@@ -1406,15 +1426,18 @@ ANALYZE
           "loops": 1,
           "r_loops": 1,
           "rows": 18,
+          "r_index_rows": 18,
           "r_rows": 18,
           "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "r_engine_stats": REPLACED,
           "filtered": 0.566194832,
-          "r_filtered": 38.88888889,
+          "r_total_filtered": 38.88888889,
           "index_condition": "lineitem.l_receiptDATE between '1996-10-05' and '1996-10-10'",
-          "attached_condition": "lineitem.l_shipDATE between '1996-10-01' and '1996-10-10'"
+          "r_icp_filtered": 100,
+          "attached_condition": "lineitem.l_shipDATE between '1996-10-01' and '1996-10-10'",
+          "r_filtered": 38.88888889
         }
       },
       {
@@ -1435,8 +1458,9 @@ ANALYZE
           "r_other_time_ms": "REPLACED",
           "r_engine_stats": REPLACED,
           "filtered": 5.666666508,
-          "r_filtered": 14.28571429,
-          "attached_condition": "orders.o_totalprice between 200000 and 250000"
+          "r_total_filtered": 14.28571429,
+          "attached_condition": "orders.o_totalprice between 200000 and 250000",
+          "r_filtered": 14.28571429
         }
       }
     ]
@@ -1555,15 +1579,18 @@ ANALYZE
           "loops": 1,
           "r_loops": 1,
           "rows": 18,
+          "r_index_rows": 18,
           "r_rows": 18,
           "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "r_engine_stats": REPLACED,
           "filtered": 0.566194832,
-          "r_filtered": 38.88888889,
+          "r_total_filtered": 38.88888889,
           "index_condition": "lineitem.l_receiptDATE between '1996-10-05' and '1996-10-10'",
-          "attached_condition": "lineitem.l_shipDATE between '1996-10-01' and '1996-10-10'"
+          "r_icp_filtered": 100,
+          "attached_condition": "lineitem.l_shipDATE between '1996-10-01' and '1996-10-10'",
+          "r_filtered": 38.88888889
         }
       },
       {
@@ -1584,8 +1611,9 @@ ANALYZE
           "r_other_time_ms": "REPLACED",
           "r_engine_stats": REPLACED,
           "filtered": 5.666666508,
-          "r_filtered": 14.28571429,
-          "attached_condition": "orders.o_totalprice between 200000 and 250000"
+          "r_total_filtered": 14.28571429,
+          "attached_condition": "orders.o_totalprice between 200000 and 250000",
+          "r_filtered": 14.28571429
         }
       }
     ]
@@ -1704,15 +1732,18 @@ ANALYZE
           "loops": 1,
           "r_loops": 1,
           "rows": 41,
+          "r_index_rows": 41,
           "r_rows": 41,
           "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "r_engine_stats": REPLACED,
           "filtered": 3.333333254,
-          "r_filtered": 2.43902439,
+          "r_total_filtered": 2.43902439,
           "index_condition": "orders.o_totaldiscount between 18000 and 20000",
-          "attached_condition": "orders.o_totalprice between 200000 and 220000"
+          "r_icp_filtered": 100,
+          "attached_condition": "orders.o_totalprice between 200000 and 220000",
+          "r_filtered": 2.43902439
         }
       },
       {
@@ -1738,8 +1769,9 @@ ANALYZE
           "r_other_time_ms": "REPLACED",
           "r_engine_stats": REPLACED,
           "filtered": 3.047460556,
-          "r_filtered": 66.66666667,
-          "attached_condition": "lineitem.l_shipDATE between '1996-10-01' and '1996-12-01'"
+          "r_total_filtered": 66.66666667,
+          "attached_condition": "lineitem.l_shipDATE between '1996-10-01' and '1996-12-01'",
+          "r_filtered": 66.66666667
         }
       }
     ]
@@ -1854,15 +1886,18 @@ ANALYZE
           "loops": 1,
           "r_loops": 1,
           "rows": 41,
+          "r_index_rows": 41,
           "r_rows": 41,
           "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "r_engine_stats": REPLACED,
           "filtered": 3.333333254,
-          "r_filtered": 2.43902439,
+          "r_total_filtered": 2.43902439,
           "index_condition": "orders.o_totaldiscount between 18000 and 20000",
-          "attached_condition": "orders.o_totalprice between 200000 and 220000"
+          "r_icp_filtered": 100,
+          "attached_condition": "orders.o_totalprice between 200000 and 220000",
+          "r_filtered": 2.43902439
         }
       },
       {
@@ -1888,8 +1923,9 @@ ANALYZE
           "r_other_time_ms": "REPLACED",
           "r_engine_stats": REPLACED,
           "filtered": 3.047460556,
-          "r_filtered": 66.66666667,
-          "attached_condition": "lineitem.l_shipDATE between '1996-10-01' and '1996-12-01'"
+          "r_total_filtered": 66.66666667,
+          "attached_condition": "lineitem.l_shipDATE between '1996-10-01' and '1996-12-01'",
+          "r_filtered": 66.66666667
         }
       }
     ]
@@ -2017,6 +2053,7 @@ ANALYZE
           "loops": 1,
           "r_loops": 1,
           "rows": 41,
+          "r_index_rows": 41,
           "r_rows": 41,
           "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
@@ -2025,9 +2062,11 @@ ANALYZE
             "pages_accessed": 84
           },
           "filtered": "REPLACED",
-          "r_filtered": 2.43902439,
+          "r_total_filtered": 2.43902439,
           "index_condition": "orders.o_totaldiscount between 18000 and 20000",
-          "attached_condition": "orders.o_totalprice between 200000 and 220000 and orders.o_orderDATE between '1992-12-01' and '1997-01-01'"
+          "r_icp_filtered": 100,
+          "attached_condition": "orders.o_totalprice between 200000 and 220000 and orders.o_orderDATE between '1992-12-01' and '1997-01-01'",
+          "r_filtered": 2.43902439
         }
       },
       {
@@ -2055,8 +2094,9 @@ ANALYZE
             "pages_accessed": 3
           },
           "filtered": "REPLACED",
-          "r_filtered": 66.66666667,
-          "attached_condition": "lineitem.l_shipDATE between '1996-10-01' and '1996-12-01'"
+          "r_total_filtered": 66.66666667,
+          "attached_condition": "lineitem.l_shipDATE between '1996-10-01' and '1996-12-01'",
+          "r_filtered": 66.66666667
         }
       }
     ]
@@ -2181,6 +2221,7 @@ ANALYZE
           "loops": 1,
           "r_loops": 1,
           "rows": 41,
+          "r_index_rows": 41,
           "r_rows": 41,
           "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
@@ -2189,9 +2230,11 @@ ANALYZE
             "pages_accessed": 84
           },
           "filtered": "REPLACED",
-          "r_filtered": 2.43902439,
+          "r_total_filtered": 2.43902439,
           "index_condition": "orders.o_totaldiscount between 18000 and 20000",
-          "attached_condition": "orders.o_totalprice between 200000 and 220000 and orders.o_orderDATE between '1992-12-01' and '1997-01-01'"
+          "r_icp_filtered": 100,
+          "attached_condition": "orders.o_totalprice between 200000 and 220000 and orders.o_orderDATE between '1992-12-01' and '1997-01-01'",
+          "r_filtered": 2.43902439
         }
       },
       {
@@ -2219,8 +2262,9 @@ ANALYZE
             "pages_accessed": 3
           },
           "filtered": "REPLACED",
-          "r_filtered": 66.66666667,
-          "attached_condition": "lineitem.l_shipDATE between '1996-10-01' and '1996-12-01'"
+          "r_total_filtered": 66.66666667,
+          "attached_condition": "lineitem.l_shipDATE between '1996-10-01' and '1996-12-01'",
+          "r_filtered": 66.66666667
         }
       }
     ]
@@ -2470,6 +2514,35 @@ SELECT a FROM t1 WHERE c < 'e' AND b > 't' ORDER BY a;
 a
 1
 5
+#
+# MDEV-25163 Rowid filter does not process storage engine error correctly.
+#
+CREATE TABLE two(tw int) Engine=MyISAM;
+INSERT INTO two VALUES (1),(2);
+SET GLOBAL innodb_stats_persistent= OFF;
+EXPLAIN EXTENDED
+SELECT a FROM t1 WHERE c < 'e' AND b > 't' ORDER BY a FOR UPDATE;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range|filter	b,c	b|c	13|1027	NULL	5 (21%)	20.83	Using index condition; Using where; Using filesort; Using rowid filter
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`c` < 'e' and `test`.`t1`.`b` > 't' order by `test`.`t1`.`a` for update
+EXPLAIN EXTENDED
+SELECT a FROM t1,two WHERE c < 'e' AND b > 't' ORDER BY a FOR UPDATE;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range|filter	b,c	b|c	13|1027	NULL	5 (21%)	20.83	Using index condition; Using where; Using temporary; Using filesort; Using rowid filter
+1	SIMPLE	two	ALL	NULL	NULL	NULL	NULL	2	100.00	Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` join `test`.`two` where `test`.`t1`.`c` < 'e' and `test`.`t1`.`b` > 't' order by `test`.`t1`.`a` for update
+SET @saved_dbug = @@SESSION.debug_dbug;
+SET debug_dbug = '+d,innodb_report_deadlock';
+SELECT a FROM t1 WHERE c < 'e' AND b > 't' ORDER BY a FOR UPDATE;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+SET debug_dbug = @saved_dbug;
+SET debug_dbug = '+d,innodb_report_deadlock';
+SELECT a FROM t1,two WHERE c < 'e' AND b > 't' ORDER BY a FOR UPDATE;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+SET debug_dbug = @saved_dbug;
+DROP TABLE two;
 DROP TABLE t1;
 SET GLOBAL innodb_stats_persistent= @stats.save;
 #
@@ -2888,7 +2961,7 @@ ORDER BY timestamp DESC;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	ixEventWhoisDomainDomain,ixEventWhoisDomainTimestamp	NULL	NULL	NULL	60	22.22	Using where; Using filesort
 Warnings:
-Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`domain` AS `domain`,`test`.`t1`.`registrant_name` AS `registrant_name`,`test`.`t1`.`registrant_organization` AS `registrant_organization`,`test`.`t1`.`registrant_street1` AS `registrant_street1`,`test`.`t1`.`registrant_street2` AS `registrant_street2`,`test`.`t1`.`registrant_street3` AS `registrant_street3`,`test`.`t1`.`registrant_street4` AS `registrant_street4`,`test`.`t1`.`registrant_street5` AS `registrant_street5`,`test`.`t1`.`registrant_city` AS `registrant_city`,`test`.`t1`.`registrant_postal_code` AS `registrant_postal_code`,`test`.`t1`.`registrant_country` AS `registrant_country`,`test`.`t1`.`registrant_email` AS `registrant_email`,`test`.`t1`.`registrant_telephone` AS `registrant_telephone`,`test`.`t1`.`administrative_name` AS `administrative_name`,`test`.`t1`.`administrative_organization` AS `administrative_organization`,`test`.`t1`.`administrative_street1` AS `administrative_street1`,`test`.`t1`.`administrative_street2` AS `administrative_street2`,`test`.`t1`.`administrative_street3` AS `administrative_street3`,`test`.`t1`.`administrative_street4` AS `administrative_street4`,`test`.`t1`.`administrative_street5` AS `administrative_street5`,`test`.`t1`.`administrative_city` AS `administrative_city`,`test`.`t1`.`administrative_postal_code` AS `administrative_postal_code`,`test`.`t1`.`administrative_country` AS `administrative_country`,`test`.`t1`.`administrative_email` AS `administrative_email`,`test`.`t1`.`administrative_telephone` AS `administrative_telephone`,`test`.`t1`.`technical_name` AS `technical_name`,`test`.`t1`.`technical_organization` AS `technical_organization`,`test`.`t1`.`technical_street1` AS `technical_street1`,`test`.`t1`.`technical_street2` AS `technical_street2`,`test`.`t1`.`technical_street3` AS `technical_street3`,`test`.`t1`.`technical_street4` AS `technical_street4`,`test`.`t1`.`technical_street5` AS `technical_street5`,`test`.`t1`.`technical_city` AS `technical_city`,`test`.`t1`.`technical_postal_code` AS `technical_postal_code`,`test`.`t1`.`technical_country` AS `technical_country`,`test`.`t1`.`technical_email` AS `technical_email`,`test`.`t1`.`technical_telephone` AS `technical_telephone`,`test`.`t1`.`json` AS `json`,`test`.`t1`.`timestamp` AS `timestamp` from `test`.`t1` where `test`.`t1`.`domain` = 'www.mailhost.i-dev.fr' and `test`.`t1`.`timestamp` >= <cache>('2017-01-30 08:24:51' + interval -1 month) order by `test`.`t1`.`timestamp` desc
+Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`domain` AS `domain`,`test`.`t1`.`registrant_name` AS `registrant_name`,`test`.`t1`.`registrant_organization` AS `registrant_organization`,`test`.`t1`.`registrant_street1` AS `registrant_street1`,`test`.`t1`.`registrant_street2` AS `registrant_street2`,`test`.`t1`.`registrant_street3` AS `registrant_street3`,`test`.`t1`.`registrant_street4` AS `registrant_street4`,`test`.`t1`.`registrant_street5` AS `registrant_street5`,`test`.`t1`.`registrant_city` AS `registrant_city`,`test`.`t1`.`registrant_postal_code` AS `registrant_postal_code`,`test`.`t1`.`registrant_country` AS `registrant_country`,`test`.`t1`.`registrant_email` AS `registrant_email`,`test`.`t1`.`registrant_telephone` AS `registrant_telephone`,`test`.`t1`.`administrative_name` AS `administrative_name`,`test`.`t1`.`administrative_organization` AS `administrative_organization`,`test`.`t1`.`administrative_street1` AS `administrative_street1`,`test`.`t1`.`administrative_street2` AS `administrative_street2`,`test`.`t1`.`administrative_street3` AS `administrative_street3`,`test`.`t1`.`administrative_street4` AS `administrative_street4`,`test`.`t1`.`administrative_street5` AS `administrative_street5`,`test`.`t1`.`administrative_city` AS `administrative_city`,`test`.`t1`.`administrative_postal_code` AS `administrative_postal_code`,`test`.`t1`.`administrative_country` AS `administrative_country`,`test`.`t1`.`administrative_email` AS `administrative_email`,`test`.`t1`.`administrative_telephone` AS `administrative_telephone`,`test`.`t1`.`technical_name` AS `technical_name`,`test`.`t1`.`technical_organization` AS `technical_organization`,`test`.`t1`.`technical_street1` AS `technical_street1`,`test`.`t1`.`technical_street2` AS `technical_street2`,`test`.`t1`.`technical_street3` AS `technical_street3`,`test`.`t1`.`technical_street4` AS `technical_street4`,`test`.`t1`.`technical_street5` AS `technical_street5`,`test`.`t1`.`technical_city` AS `technical_city`,`test`.`t1`.`technical_postal_code` AS `technical_postal_code`,`test`.`t1`.`technical_country` AS `technical_country`,`test`.`t1`.`technical_email` AS `technical_email`,`test`.`t1`.`technical_telephone` AS `technical_telephone`,`test`.`t1`.`json` AS `json`,`test`.`t1`.`timestamp` AS `timestamp` from `test`.`t1` where `test`.`t1`.`domain` = 'www.mailhost.i-dev.fr' and `test`.`t1`.`timestamp` >= TIMESTAMP/*WITH LOCAL TIME ZONE*/'2016-12-30 08:24:51' order by `test`.`t1`.`timestamp` desc
 SET optimizer_switch=@save_optimizer_switch;
 DROP TABLE t1;
 #
@@ -3347,8 +3420,9 @@ ANALYZE
           "r_other_time_ms": "REPLACED",
           "r_engine_stats": REPLACED,
           "filtered": 100,
-          "r_filtered": 100,
+          "r_total_filtered": 100,
           "attached_condition": "t.tp = 121 and t.rid = 'B5FCC8C7111E4E3CBC21AAF5012F59C2'",
+          "r_filtered": 100,
           "using_index": true
         }
       },
@@ -3371,6 +3445,7 @@ ANALYZE
             "r_other_time_ms": "REPLACED",
             "r_engine_stats": REPLACED,
             "filtered": 100,
+            "r_total_filtered": 100,
             "r_filtered": 100
           },
           "buffer_type": "flat",
@@ -3411,12 +3486,14 @@ ANALYZE
             "loops": 3.5384,
             "r_loops": 1,
             "rows": 24,
+            "r_index_rows": 80,
             "r_rows": 32,
             "cost": "REPLACED",
             "r_table_time_ms": "REPLACED",
             "r_other_time_ms": "REPLACED",
             "r_engine_stats": REPLACED,
             "filtered": 14.46428585,
+            "r_total_filtered": 40,
             "r_filtered": 100
           },
           "buffer_type": "incremental",

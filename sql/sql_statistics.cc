@@ -73,11 +73,11 @@ static const uint STATISTICS_TABLES= 3;
   The names of the statistical tables in this array must correspond the
   definitions of the tables in the file ../scripts/mysql_system_tables.sql
 */
-static const LEX_CSTRING stat_table_name[STATISTICS_TABLES]=
+static const Lex_ident_table stat_table_name[STATISTICS_TABLES]=
 {
-  { STRING_WITH_LEN("table_stats") },
-  { STRING_WITH_LEN("column_stats") },
-  { STRING_WITH_LEN("index_stats") }
+  "table_stats"_Lex_ident_table,
+  "column_stats"_Lex_ident_table,
+  "index_stats"_Lex_ident_table,
 };
 
 
@@ -3240,7 +3240,8 @@ void TABLE_STATISTICS_CB::update_stats_in_table(TABLE *table)
   for ( ; *field_ptr; field_ptr++, column_stats++)
     (*field_ptr)->read_stats= column_stats;
   /* Mark that stats are now usable */
-  table->stats_is_read= true;
+  table->stats_is_read= (table->stats_cb->stats_available !=
+                         TABLE_STAT_NO_STATS);
 }
 
 
@@ -3295,7 +3296,7 @@ read_statistics_for_tables(THD *thd, TABLE_LIST *tables, bool force_reload)
         statistics_for_tables_is_needed= true;
       }
     }
-    else if (is_stat_table(&tl->db, &tl->alias))
+    else if (is_stat_table(tl->db, tl->alias))
       found_stat_table= true;
   }
 
@@ -3361,8 +3362,6 @@ read_statistics_for_tables(THD *thd, TABLE_LIST *tables, bool force_reload)
       }
       mysql_mutex_unlock(&table_share->LOCK_statistics);
       table->stats_cb->update_stats_in_table(table);
-      table->stats_is_read= (stats_cb->stats_available !=
-                             TABLE_STAT_NO_STATS);
     }
   }
 
@@ -4450,15 +4449,15 @@ double Histogram_binary::range_selectivity(Field *field,
 /*
   Check whether the table is one of the persistent statistical tables.
 */
-bool is_stat_table(const LEX_CSTRING *db, LEX_CSTRING *table)
+bool is_stat_table(const Lex_ident_db &db, const Lex_ident_table &table)
 {
-  DBUG_ASSERT(db->str && table->str);
+  DBUG_ASSERT(db.str && table.str);
 
-  if (!my_strcasecmp(table_alias_charset, db->str, MYSQL_SCHEMA_NAME.str))
+  if (db.streq(MYSQL_SCHEMA_NAME))
   {
     for (uint i= 0; i < STATISTICS_TABLES; i ++)
     {
-      if (!my_strcasecmp(table_alias_charset, table->str, stat_table_name[i].str))
+      if (table.streq(stat_table_name[i]))
         return true;
     }
   }

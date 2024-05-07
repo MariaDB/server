@@ -590,7 +590,7 @@ public:
   bool automatic_name;
   bool if_not_exists;
   Item *expr;
-  Lex_ident name;                               /* Name of constraint */
+  Lex_ident_column name;                        /* Name of constraint */
   /* see VCOL_* (VCOL_FIELD_REF, ...) */
   uint flags;
 
@@ -662,8 +662,8 @@ public:
      Retrieve the field metadata for fields.
   */
    CHARSET_INFO *m_cs; // NULL if not relevant
-   TYPELIB *m_enum_typelib; // NULL if not relevant
-   TYPELIB *m_set_typelib; // NULL if not relevant
+   const TYPELIB *m_enum_typelib; // NULL if not relevant
+   const TYPELIB *m_set_typelib; // NULL if not relevant
    binlog_sign_t m_signedness;
    uint16 m_metadata;
    uint8 m_metadata_size;
@@ -708,7 +708,7 @@ public:
    Binlog_type_info(uchar type_code, uint16 metadata,
                    uint8 metadata_size,
                    CHARSET_INFO *cs,
-                   TYPELIB *t_enum, TYPELIB *t_set)
+                   const TYPELIB *t_enum, const TYPELIB *t_set)
     :m_cs(cs),
      m_enum_typelib(t_enum),
      m_set_typelib(t_set),
@@ -803,7 +803,7 @@ public:
   TABLE *table;                                 // Pointer for table
   TABLE *orig_table;                            // Pointer to original table
   const char * const *table_name;               // Pointer to alias in TABLE
-  LEX_CSTRING field_name;
+  Lex_ident_column field_name;
   LEX_CSTRING comment;
   /** reference to the list of options or NULL */
   engine_option_value *option_list;
@@ -991,6 +991,14 @@ public:
     DBUG_ASSERT(ls.length < UINT_MAX32);
     return store(ls.str, (uint) ls.length, cs);
   }
+  int store_ident(const Lex_ident_ci &str)
+  {
+    return store(str, str.charset_info());
+  }
+  int store_ident(const Lex_ident_fs &str)
+  {
+    return store(str, str.charset_info());
+  }
 
   /*
     @brief
@@ -1085,6 +1093,14 @@ public:
     @retval                true  (EOM)
   */
   bool val_str_nopad(MEM_ROOT *mem_root, LEX_CSTRING *to);
+  /*
+    Return the field value as a LEX_CSTRING.
+  */
+  Lex_cstring val_lex_cstring(String *buffer)
+  {
+    String *res= val_str(buffer);
+    return res ? res->to_lex_cstring() : Lex_cstring();
+  }
   fast_field_copier get_fast_field_copier(const Field *from);
   /*
    str_needs_quotes() returns TRUE if the value returned by val_str() needs
@@ -1645,7 +1661,10 @@ public:
   virtual bool get_date(MYSQL_TIME *ltime, date_mode_t fuzzydate);
   virtual longlong val_datetime_packed(THD *thd);
   virtual longlong val_time_packed(THD *thd);
-  virtual const TYPELIB *get_typelib() const { return NULL; }
+  virtual const Type_extra_attributes type_extra_attributes() const
+  {
+    return Type_extra_attributes();
+  }
   virtual CHARSET_INFO *charset() const= 0;
   /* returns TRUE if the new charset differs. */
   virtual void change_charset(const DTCollation &new_cs) {}
@@ -1662,6 +1681,7 @@ public:
   void print_key_value_binary(String *out, const uchar* key, uint32 length);
   void raise_note_cannot_use_key_part(THD *thd, uint keynr, uint part,
                                       const LEX_CSTRING &op,
+                                      CHARSET_INFO *op_collation,
                                       Item *value,
                                       const Data_type_compatibility reason)
                                       const;
@@ -1839,6 +1859,16 @@ public:
   bool vers_sys_field() const
   {
     return flags & (VERS_ROW_START | VERS_ROW_END);
+  }
+
+  bool vers_sys_start() const
+  {
+    return flags & VERS_ROW_START;
+  }
+
+  bool vers_sys_end() const
+  {
+    return flags & VERS_ROW_END;
   }
 
   bool vers_update_unversioned() const
@@ -2142,7 +2172,7 @@ public:
 	    const LEX_CSTRING *field_name_arg,
 	    const DTCollation &collation);
   decimal_digits_t decimals() const override
-  { return is_created_from_null_item ? 0 : NOT_FIXED_DEC; }
+  { return is_created_from_null_item ? 0 : DECIMAL_NOT_SPECIFIED; }
   int  save_in_field(Field *to) override { return save_in_field_str(to); }
   bool memcpy_field_possible(const Field *from) const override
   {
@@ -2312,7 +2342,7 @@ public:
   Information_schema_numeric_attributes
     information_schema_numeric_attributes() const override
   {
-    return dec == NOT_FIXED_DEC ?
+    return dec == DECIMAL_NOT_SPECIFIED ?
                   Information_schema_numeric_attributes(field_length) :
                   Information_schema_numeric_attributes(field_length, dec);
   }
@@ -2884,6 +2914,8 @@ public:
      integers. But in all other cases we treat it as TIME_RESULT! */
 };
 
+static inline decimal_digits_t fix_dec_arg(decimal_digits_t dec_arg)
+{ return dec_arg >= FLOATING_POINT_DECIMALS ? DECIMAL_NOT_SPECIFIED : dec_arg; }
 
 class Field_float final :public Field_real {
 public:
@@ -2893,19 +2925,13 @@ public:
               decimal_digits_t dec_arg,bool zero_arg,bool unsigned_arg)
     :Field_real(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
                 unireg_check_arg, field_name_arg,
-                dec_arg, zero_arg, unsigned_arg)
-    {
-      if (dec_arg >= FLOATING_POINT_DECIMALS)
-        dec_arg= NOT_FIXED_DEC;
-    }
+                fix_dec_arg(dec_arg), zero_arg, unsigned_arg)
+    { }
   Field_float(uint32 len_arg, bool maybe_null_arg,
               const LEX_CSTRING *field_name_arg, decimal_digits_t dec_arg)
     :Field_real((uchar*) 0, len_arg, maybe_null_arg ? (uchar*) "": 0, (uint) 0,
-                NONE, field_name_arg, dec_arg, 0, 0)
-    {
-      if (dec_arg >= FLOATING_POINT_DECIMALS)
-        dec_arg= NOT_FIXED_DEC;
-    }
+                NONE, field_name_arg, fix_dec_arg(dec_arg), 0, 0)
+    { }
   const Type_handler *type_handler() const override
   { return &type_handler_float; }
   enum ha_base_keytype key_type() const override { return HA_KEYTYPE_FLOAT; }
@@ -2941,28 +2967,20 @@ public:
 	       decimal_digits_t dec_arg,bool zero_arg,bool unsigned_arg)
     :Field_real(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
                 unireg_check_arg, field_name_arg,
-                dec_arg, zero_arg, unsigned_arg)
-    {
-      if (dec_arg >= FLOATING_POINT_DECIMALS)
-        dec_arg= NOT_FIXED_DEC;
-    }
+                fix_dec_arg(dec_arg), zero_arg, unsigned_arg)
+    { }
   Field_double(uint32 len_arg, bool maybe_null_arg,
                const LEX_CSTRING *field_name_arg, decimal_digits_t dec_arg)
     :Field_real((uchar*) 0, len_arg, maybe_null_arg ? (uchar*) "" : 0, (uint) 0,
-                NONE, field_name_arg, dec_arg, 0, 0)
-    {
-      if (dec_arg >= FLOATING_POINT_DECIMALS)
-        dec_arg= NOT_FIXED_DEC;
-    }
+                NONE, field_name_arg, fix_dec_arg(dec_arg), 0, 0)
+    { }
   Field_double(uint32 len_arg, bool maybe_null_arg,
                const LEX_CSTRING *field_name_arg,
 	       decimal_digits_t dec_arg, bool not_fixed_arg)
     :Field_real((uchar*) 0, len_arg, maybe_null_arg ? (uchar*) "" : 0, (uint) 0,
-                NONE, field_name_arg, dec_arg, 0, 0)
+                NONE, field_name_arg, fix_dec_arg(dec_arg), 0, 0)
     {
       not_fixed= not_fixed_arg;
-      if (dec_arg >= FLOATING_POINT_DECIMALS)
-        dec_arg= NOT_FIXED_DEC;
     }
   void init_for_tmp_table(Field *org_field, TABLE *new_table) override
   {
@@ -4094,6 +4112,8 @@ public:
   String *val_str(String *, String *) override;
   my_decimal *val_decimal(my_decimal *) override;
   int cmp(const uchar *,const uchar *) const override;
+  int cmp_prefix(const uchar *a, const uchar *b, size_t prefix_char_len) const
+    override;
   void sort_string(uchar *buff,uint length) override;
   void update_data_type_statistics(Data_type_statistics *st) const override
   {
@@ -4116,9 +4136,6 @@ public:
   bool compatible_field_size(uint field_metadata, const Relay_log_info *rli,
                              uint16 mflags, int *order_var) const override;
   uint row_pack_length() const override { return field_length; }
-  int pack_cmp(const uchar *a,const uchar *b,uint key_length,
-               bool insert_or_update);
-  int pack_cmp(const uchar *b,uint key_length,bool insert_or_update);
   uint packed_col_length(const uchar *to, uint length) override;
   uint max_packed_col_length(uint max_length) override;
   uint size_of() const override { return sizeof *this; }
@@ -4764,7 +4781,9 @@ private:
 };
 
 
-class Field_enum :public Field_str {
+class Field_enum :public Field_str,
+                  public Type_typelib_attributes
+{
   static void do_field_enum(const Copy_field *copy_field);
   longlong val_int(const uchar *) const;
   Data_type_compatibility can_optimize_range_or_keypart_ref(
@@ -4773,7 +4792,6 @@ class Field_enum :public Field_str {
 protected:
   uint packlength;
 public:
-  const TYPELIB *typelib;
   Field_enum(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
              uchar null_bit_arg,
              enum utype unireg_check_arg, const LEX_CSTRING *field_name_arg,
@@ -4782,7 +4800,8 @@ public:
              const DTCollation &collation)
     :Field_str(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
 	       unireg_check_arg, field_name_arg, collation),
-    packlength(packlength_arg),typelib(typelib_arg)
+     Type_typelib_attributes(typelib_arg),
+    packlength(packlength_arg)
   {
       flags|=ENUM_FLAG;
   }
@@ -4855,8 +4874,10 @@ public:
   /* enum and set are sorted as integers */
   CHARSET_INFO *sort_charset() const override { return &my_charset_bin; }
   decimal_digits_t decimals() const override { return 0; }
-  const TYPELIB *get_typelib() const override { return typelib; }
-
+  const Type_extra_attributes type_extra_attributes() const override
+  {
+    return Type_extra_attributes(m_typelib);
+  }
   uchar *pack(uchar *to, const uchar *from, uint max_length) override;
   const uchar *unpack(uchar *to, const uchar *from, const uchar *from_end,
                       uint param_data) override;
@@ -5184,7 +5205,7 @@ public:
 
 extern const LEX_CSTRING null_clex_str;
 
-class Column_definition_attributes
+class Column_definition_attributes: public Type_extra_attributes
 {
 public:
   /*
@@ -5192,17 +5213,13 @@ public:
     max number of characters.
   */
   ulonglong length;
-  const TYPELIB *interval;
   CHARSET_INFO *charset;
-  uint32 srid;
   uint32 pack_flag;
   decimal_digits_t decimals;
   Field::utype unireg_check;
   Column_definition_attributes()
    :length(0),
-    interval(NULL),
     charset(&my_charset_bin),
-    srid(0),
     pack_flag(0),
     decimals(0),
     unireg_check(Field::NONE)
@@ -5273,7 +5290,7 @@ class Column_definition: public Sql_alloc,
     const char **pos;
     uint *len;
     *max_length= *tot_length= 0;
-    for (pos= interval->type_names, len= interval->type_lengths;
+    for (pos= typelib()->type_names, len= typelib()->type_lengths;
          *pos ; pos++, len++)
     {
       size_t length= charset->numchars(*pos, *pos + *len);
@@ -5287,7 +5304,7 @@ class Column_definition: public Sql_alloc,
   const Type_handler *field_type() const; // Prevent using this
   Compression_method *compression_method_ptr;
 public:
-  Lex_ident   field_name;
+  Lex_ident_column field_name;
   LEX_CSTRING comment;			// Comment for field
   enum enum_column_versioning
   {
@@ -5398,7 +5415,7 @@ public:
     if (real_field_type() == MYSQL_TYPE_SET)
     {
       calculate_interval_lengths(&dummy, &field_length);
-      length= field_length + (interval->count - 1);
+      length= field_length + (typelib()->count - 1);
     }
     else /* MYSQL_TYPE_ENUM */
     {
@@ -5502,15 +5519,14 @@ public:
   void set_type(const Column_definition &other)
   {
     set_handler(other.type_handler());
+    Type_extra_attributes::operator=(other);
     length= other.length;
     char_length= other.char_length;
     decimals= other.decimals;
     flags= other.flags;
     pack_length= other.pack_length;
     unireg_check= other.unireg_check;
-    interval= other.interval;
     charset= other.charset;
-    srid= other.srid;
     pack_flag= other.pack_flag;
   }
 
@@ -5520,10 +5536,6 @@ public:
     *this= *def;
   }
   bool set_compressed(const char *method);
-  bool set_compressed_deprecated(THD *thd, const char *method);
-  bool set_compressed_deprecated_column_attribute(THD *thd,
-                                                  const char *pos,
-                                                  const char *method);
   void set_compression_method(Compression_method *compression_method_arg)
   { compression_method_ptr= compression_method_arg; }
   Compression_method *compression_method() const
@@ -5715,15 +5727,15 @@ public:
 inline bool Row_definition_list::eq_name(const Spvar_definition *def,
                                          const LEX_CSTRING *name) const
 {
-  return def->field_name.length == name->length && my_strcasecmp(system_charset_info, def->field_name.str, name->str) == 0;
+  return def->field_name.streq(*name);
 }
 
 
 class Create_field :public Column_definition
 {
 public:
-  LEX_CSTRING change;			// Old column name if column is renamed by ALTER
-  LEX_CSTRING after;			// Put column after this one
+  Lex_ident_column change;		// Old column name if column is renamed by ALTER
+  Lex_ident_column after;		// Put column after this one
   Field *field;				// For alter table
   const TYPELIB *save_interval;         // Temporary copy for the above
                                         // Used only for UCS2 intervals
@@ -5738,17 +5750,13 @@ public:
     Column_definition(),
     field(0), option_struct(NULL),
     create_if_not_exists(false)
-  {
-    change= after= null_clex_str;
-  }
+  { }
   Create_field(THD *thd, Field *old_field, Field *orig_field):
     Column_definition(thd, old_field, orig_field),
     change(old_field->field_name),
     field(old_field), option_struct(old_field->option_struct),
     create_if_not_exists(false)
-  {
-    after= null_clex_str;
-  }
+  { }
   /* Used to make a clone of this object for ALTER/CREATE TABLE */
   Create_field *clone(MEM_ROOT *mem_root) const;
   static void upgrade_data_types(List<Create_field> &list)
@@ -5908,7 +5916,7 @@ enum_field_types get_blob_type_from_length(ulong length);
 int set_field_to_null(Field *field);
 int set_field_to_null_with_conversions(Field *field, bool no_conversions);
 int convert_null_to_field_value_or_error(Field *field);
-bool check_expression(Virtual_column_info *vcol, const LEX_CSTRING *name,
+bool check_expression(Virtual_column_info *vcol, const Lex_ident_column &name,
                       enum_vcol_info_type type, Alter_info *alter_info= NULL);
 
 /*

@@ -472,14 +472,12 @@ row_merge_fts_doc_tokenize(
 	ulint		len;
 	row_merge_buf_t* buf;
 	dfield_t*	field;
-	fts_string_t	t_str;
 	ibool		buf_full = FALSE;
-	byte		str_buf[FTS_MAX_WORD_LEN + 1];
+	CharBuffer<FTS_MAX_WORD_LEN> str_buf;
 	ulint		data_size[FTS_NUM_AUX_INDEX];
 	ulint		n_tuple[FTS_NUM_AUX_INDEX];
 	st_mysql_ftparser*	parser;
 
-	t_str.f_n_char = 0;
 	t_ctx->buf_used = 0;
 
 	memset(n_tuple, 0, FTS_NUM_AUX_INDEX * sizeof(ulint));
@@ -489,7 +487,10 @@ row_merge_fts_doc_tokenize(
 
 	/* Tokenize the data and add each word string, its corresponding
 	doc id and position to sort buffer */
-	while (t_ctx->processed_len < doc->text.f_len) {
+	while (parser
+               ? (!t_ctx->processed_len
+                  || UT_LIST_GET_LEN(t_ctx->fts_token_list))
+               : t_ctx->processed_len < doc->text.f_len) {
 		ulint		idx = 0;
 		ulint		cur_len;
 		doc_id_t	write_doc_id;
@@ -541,11 +542,8 @@ row_merge_fts_doc_tokenize(
 			continue;
 		}
 
-		t_str.f_len = innobase_fts_casedn_str(
-			doc->charset, (char*) str.f_str, str.f_len,
-			(char*) &str_buf, FTS_MAX_WORD_LEN + 1);
-
-		t_str.f_str = (byte*) &str_buf;
+		str_buf.copy_casedn(doc->charset,
+			LEX_CSTRING{(const char *) str.f_str, str.f_len});
 
 		/* if "cached_stopword" is defined, ignore words in the
 		stopword list */
@@ -563,8 +561,8 @@ row_merge_fts_doc_tokenize(
 
 		/* There are FTS_NUM_AUX_INDEX auxiliary tables, find
 		out which sort buffer to put this word record in */
-		t_ctx->buf_used = fts_select_index(
-			doc->charset, t_str.f_str, t_str.f_len);
+		t_ctx->buf_used = fts_select_index(doc->charset,
+			(const byte*) str_buf.ptr(), str_buf.length());
 
 		buf = sort_buf[t_ctx->buf_used];
 
@@ -578,7 +576,7 @@ row_merge_fts_doc_tokenize(
 				       FTS_NUM_FIELDS_SORT * sizeof *field));
 
 		/* The first field is the tokenized word */
-		dfield_set_data(field, t_str.f_str, t_str.f_len);
+		dfield_set_data(field, str_buf.ptr(), str_buf.length());
 		len = dfield_get_len(field);
 
 		dict_col_copy_type(dict_index_get_nth_col(buf->index, 0), &field->type);
@@ -829,7 +827,8 @@ loop:
 			/* Not yet finish processing the "doc" on hand,
 			continue processing it */
 			ut_ad(doc.text.f_str);
-			ut_ad(t_ctx.processed_len < doc.text.f_len);
+			ut_ad(buf[0]->index->parser
+			      || t_ctx.processed_len < doc.text.f_len);
 		}
 
 		processed = row_merge_fts_doc_tokenize(
@@ -839,7 +838,8 @@ loop:
 
 		/* Current sort buffer full, need to recycle */
 		if (!processed) {
-			ut_ad(t_ctx.processed_len < doc.text.f_len);
+			ut_ad(buf[0]->index->parser
+			      || t_ctx.processed_len < doc.text.f_len);
 			ut_ad(t_ctx.rows_added[t_ctx.buf_used]);
 			break;
 		}
@@ -1625,9 +1625,6 @@ row_fts_merge_insert(
 	/* We should set the flags2 with aux_table_name here,
 	in order to get the correct aux table names. */
 	index->table->flags2 |= DICT_TF2_FTS_AUX_HEX_NAME;
-	DBUG_EXECUTE_IF("innodb_test_wrong_fts_aux_table_name",
-			index->table->flags2 &= ~DICT_TF2_FTS_AUX_HEX_NAME
-			& ((1U << DICT_TF2_BITS) - 1););
 	fts_table.type = FTS_INDEX_TABLE;
 	fts_table.index_id = index->id;
 	fts_table.table_id = table->id;

@@ -181,6 +181,8 @@ static constexpr unsigned DDL_LOG_BACKUP_OFFSET_POS= 8;
 /* Sum of the above variables */
 static constexpr unsigned DDL_LOG_HEADER_SIZE= 4+2+2+1;
 
+static void ddl_log_free_lists();
+
 /**
   Sync the ddl log file.
 
@@ -734,6 +736,7 @@ static bool create_ddl_log()
   char file_name[FN_REFLEN];
   DBUG_ENTER("create_ddl_log");
 
+  ddl_log_free_lists();
   global_ddl_log.open= 0;
   global_ddl_log.created= 1;
   global_ddl_log.num_entries= 0;
@@ -1146,22 +1149,23 @@ static void execute_rename_table(DDL_LOG_ENTRY *ddl_log_entry, handler *file,
 static void rename_triggers(THD *thd, DDL_LOG_ENTRY *ddl_log_entry,
                             bool swap_tables)
 {
-  LEX_CSTRING to_table, from_table, to_db, from_db, from_converted_name;
+  Lex_ident_table to_table, from_table, from_converted_name;
+  Lex_ident_db to_db, from_db;
   char to_path[FN_REFLEN+1], from_path[FN_REFLEN+1], conv_path[FN_REFLEN+1];
 
   if (!swap_tables)
   {
-    from_db=    ddl_log_entry->db;
-    from_table= ddl_log_entry->name;
-    to_db=      ddl_log_entry->from_db;
-    to_table=   ddl_log_entry->from_name;
+    from_db=    Lex_ident_db(ddl_log_entry->db);
+    from_table= Lex_ident_table(ddl_log_entry->name);
+    to_db=      Lex_ident_db(ddl_log_entry->from_db);
+    to_table=   Lex_ident_table(ddl_log_entry->from_name);
   }
   else
   {
-    from_db=    ddl_log_entry->from_db;
-    from_table= ddl_log_entry->from_name;
-    to_db=      ddl_log_entry->db;
-    to_table=   ddl_log_entry->extra_name;
+    from_db=    Lex_ident_db(ddl_log_entry->from_db);
+    from_table= Lex_ident_table(ddl_log_entry->from_name);
+    to_db=      Lex_ident_db(ddl_log_entry->db);
+    to_table=   Lex_ident_table(ddl_log_entry->extra_name);
   }
 
   build_filename_and_delete_tmp_file(from_path, sizeof(from_path),
@@ -1211,11 +1215,11 @@ static void rename_triggers(THD *thd, DDL_LOG_ENTRY *ddl_log_entry,
 
     (void) Table_triggers_list::prepare_for_rename(thd,
                                                    &trigger_param,
-                                                   &from_db,
-                                                   &from_table,
-                                                   &from_converted_name,
-                                                   &to_db,
-                                                   &to_table);
+                                                   from_db,
+                                                   from_table,
+                                                   from_converted_name,
+                                                   to_db,
+                                                   to_table);
     (void) Table_triggers_list::change_table_name(thd,
                                                   &trigger_param,
                                                   &from_db,
@@ -1707,9 +1711,7 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
 
     switch (ddl_log_entry->phase) {
     case DDL_DROP_DB_PHASE_INIT:
-      drop_database_objects(thd, &path, &db,
-                            !my_strcasecmp(system_charset_info,
-                                           MYSQL_SCHEMA_NAME.str, db.str));
+      drop_database_objects(thd, &path, &db, MYSQL_SCHEMA_NAME.streq(db));
 
       strxnmov(to_path, sizeof(to_path)-1, path.str, MY_DB_OPT_FILE, NullS);
       mysql_file_delete_with_symlink(key_file_misc, to_path, "", MYF(0));
@@ -2828,24 +2830,11 @@ int ddl_log_execute_recovery()
 }
 
 
-/**
-  Release all memory allocated to the ddl log and delete the ddl log
-*/
-
-void ddl_log_release()
+static void ddl_log_free_lists()
 {
-  char file_name[FN_REFLEN];
-  DDL_LOG_MEMORY_ENTRY *free_list;
-  DDL_LOG_MEMORY_ENTRY *used_list;
-  DBUG_ENTER("ddl_log_release");
+  DDL_LOG_MEMORY_ENTRY *free_list= global_ddl_log.first_free;
+  DDL_LOG_MEMORY_ENTRY *used_list= global_ddl_log.first_used;
 
-  if (!global_ddl_log.initialized)
-    DBUG_VOID_RETURN;
-
-  global_ddl_log.initialized= 0;
-
-  free_list= global_ddl_log.first_free;
-  used_list= global_ddl_log.first_used;
   while (used_list)
   {
     DDL_LOG_MEMORY_ENTRY *tmp= used_list->next_log_entry;
@@ -2858,6 +2847,25 @@ void ddl_log_release()
     my_free(free_list);
     free_list= tmp;
   }
+  global_ddl_log.first_free= global_ddl_log.first_used= 0;
+}
+
+
+/**
+  Release all memory allocated to the ddl log and delete the ddl log
+*/
+
+void ddl_log_release()
+{
+  char file_name[FN_REFLEN];
+  DBUG_ENTER("ddl_log_release");
+
+  if (!global_ddl_log.initialized)
+    DBUG_VOID_RETURN;
+
+  global_ddl_log.initialized= 0;
+  ddl_log_free_lists();
+
   my_free(global_ddl_log.file_entry_buf);
   global_ddl_log.file_entry_buf= 0;
   close_ddl_log();

@@ -516,6 +516,22 @@ bool Session_sysvars_tracker::store(THD *thd, String *buf)
   return false;
 }
 
+/* Parse all session track system variables if not parsed yet. */
+void Session_sysvars_tracker::maybe_parse_all(THD *thd)
+{
+  if (!m_parsed)
+  {
+    DBUG_ASSERT(thd->variables.session_track_system_variables);
+    LEX_STRING tmp= { thd->variables.session_track_system_variables,
+                      strlen(thd->variables.session_track_system_variables) };
+    if (orig_list.parse_var_list(thd, tmp, true, thd->charset()))
+    {
+      orig_list.reinit();
+      return;
+    }
+    m_parsed= true;
+  }
+}
 
 /**
   Mark the system variable as changed.
@@ -530,18 +546,7 @@ void Session_sysvars_tracker::mark_as_changed(THD *thd, const sys_var *var)
   if (!is_enabled())
     return;
 
-  if (!m_parsed)
-  {
-    DBUG_ASSERT(thd->variables.session_track_system_variables);
-    LEX_STRING tmp= { thd->variables.session_track_system_variables,
-                      strlen(thd->variables.session_track_system_variables) };
-    if (orig_list.parse_var_list(thd, tmp, true, thd->charset()))
-    {
-      orig_list.reinit();
-      return;
-    }
-    m_parsed= true;
-  }
+  maybe_parse_all(thd);
 
   /*
     Check if the specified system variable is being tracked, if so
@@ -550,6 +555,23 @@ void Session_sysvars_tracker::mark_as_changed(THD *thd, const sys_var *var)
   if (orig_list.is_enabled() && (node= orig_list.insert_or_search(var)))
   {
     node->m_changed= true;
+    set_changed(thd);
+  }
+}
+
+/**
+  Mark all session tracking system variables as changed.
+*/
+void Session_sysvars_tracker::mark_all_as_changed(THD *thd)
+{
+  if (!is_enabled())
+    return;
+
+  maybe_parse_all(thd);
+
+  for (ulong i= 0; i < orig_list.size(); i++)
+  {
+    orig_list.at(i)->m_changed= true;
     set_changed(thd);
   }
 }

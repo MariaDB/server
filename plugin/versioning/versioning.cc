@@ -23,7 +23,6 @@
 #include "sql_class.h"
 #include "item.h"
 #include "table.h"
-#include "vers_string.h"
 
 /* System Versioning: TRT_TRX_ID(), TRT_COMMIT_ID(), TRT_BEGIN_TS(), TRT_COMMIT_TS(), TRT_ISO_LEVEL() */
 template <TR_table::field_id_t TRT_FIELD>

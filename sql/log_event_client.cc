@@ -951,8 +951,7 @@ size_t
 Rows_log_event::print_verbose_one_row(IO_CACHE *file, table_def *td,
                                       PRINT_EVENT_INFO *print_event_info,
                                       MY_BITMAP *cols_bitmap,
-                                      const uchar *value, const uchar *prefix,
-                                      const my_bool no_fill_output)
+                                      const uchar *value, const uchar *prefix)
 {
   const uchar *value0= value;
   const uchar *null_bits= value;
@@ -972,8 +971,7 @@ Rows_log_event::print_verbose_one_row(IO_CACHE *file, table_def *td,
 
   value+= (bitmap_bits_set(cols_bitmap) + 7) / 8;
 
-  if (!no_fill_output)
-    if (my_b_printf(file, "%s", prefix))
+  if (my_b_printf(file, "%s", prefix))
       goto err;
 
   for (uint i= 0; i < (uint)td->size(); i ++)
@@ -985,25 +983,22 @@ Rows_log_event::print_verbose_one_row(IO_CACHE *file, table_def *td,
     if (bitmap_is_set(cols_bitmap, i) == 0)
       continue;
 
-    if (!no_fill_output)
-      if (my_b_printf(file, "###   @%d=", static_cast<int>(i + 1)))
-        goto err;
+    if (my_b_printf(file, "###   @%d=", static_cast<int>(i + 1)))
+      goto err;
 
     if (!is_null)
     {
       size_t fsize= td->calc_field_size((uint)i, (uchar*) value);
       if (value + fsize > m_rows_end)
       {
-        if (!no_fill_output)
-          if (my_b_printf(file, "***Corrupted replication event was detected."
-                          " Not printing the value***\n"))
-            goto err;
+        if (my_b_printf(file, "***Corrupted replication event was detected."
+                        " Not printing the value***\n"))
+          goto err;
         value+= fsize;
         return 0;
       }
     }
 
-    if (!no_fill_output)
     {
       size= log_event_print_value(file, print_event_info, is_null? NULL: value,
                                   td->type(i), td->field_metadata(i),
@@ -1055,16 +1050,6 @@ Rows_log_event::print_verbose_one_row(IO_CACHE *file, table_def *td,
       }
 #endif
     }
-    else
-    {
-      IO_CACHE tmp_cache;
-      open_cached_file(&tmp_cache, NULL, NULL, 0, MYF(MY_WME | MY_NABP));
-      size= log_event_print_value(&tmp_cache, print_event_info,
-                                  is_null ? NULL: value,
-                                  td->type(i), td->field_metadata(i),
-                                  typestr, sizeof(typestr));
-      close_cached_file(&tmp_cache);
-    }
 
     if (!size)
       goto err;
@@ -1072,7 +1057,7 @@ Rows_log_event::print_verbose_one_row(IO_CACHE *file, table_def *td,
     if (!is_null)
       value+= size;
 
-    if (print_event_info->verbose > 1 && !no_fill_output)
+    if (print_event_info->verbose > 1)
     {
       if (my_b_write(file, (uchar*)" /* ", 4) ||
           my_b_printf(file, "%s ", typestr) ||
@@ -1083,9 +1068,8 @@ Rows_log_event::print_verbose_one_row(IO_CACHE *file, table_def *td,
         goto err;
     }
 
-    if (!no_fill_output)
-      if (my_b_write_byte(file, '\n'))
-        goto err;
+    if (my_b_write_byte(file, '\n'))
+      goto err;
 
     null_bit_index++;
   }
@@ -1095,6 +1079,42 @@ err:
   return 0;
 }
 
+/**
+  Construct a row image according to field information.
+
+  @param[in] cols_bitmap  The bitmap of row columns
+  @param[in] fields       Values of columns used to construct a row image.
+  @buf[out]  buf          Where the row image stored.
+ */
+static uchar *fill_row_image(const MY_BITMAP *cols_bitmap,
+                             const Rows_log_event::Field_info *fields,
+                             uchar *buf)
+{
+  uchar *null_bits= buf;
+  uint nulls_bit_index= 0;
+  size_t null_bytes= (bitmap_bits_set(cols_bitmap) + 7) / 8;
+
+  memset(null_bits, 0, null_bytes);
+  buf+= null_bytes;;
+
+  for (uint i= 0; i < cols_bitmap->n_bits; i ++)
+  {
+    if (!bitmap_is_set(cols_bitmap, i)) continue;
+
+    if (fields[i].pos)  // Field is not null
+    {
+      memcpy(buf, fields[i].pos, fields[i].length);
+      buf+= fields[i].length;
+    }
+    else
+    {
+      // set the null bit
+      null_bits[nulls_bit_index / 8]|=  (1 << (nulls_bit_index % 8));
+    }
+    nulls_bit_index++;
+  }
+  return buf;
+}
 
 /**
   Exchange the SET part and WHERE part for the Update events.
@@ -1111,8 +1131,9 @@ void Rows_log_event::change_to_flashback_event(PRINT_EVENT_INFO *print_event_inf
   Table_map_log_event *map;
   table_def *td;
   DYNAMIC_ARRAY rows_arr;
-  uchar *swap_buff1;
   uchar *rows_pos= rows_buff + m_rows_before_size;
+  Field_info *ai_fields= nullptr;
+  Field_info *bi_fields= nullptr;
 
   if (!(map= print_event_info->m_table_map.get_table(m_table_id)) ||
       !(td= map->create_table_def()))
@@ -1124,66 +1145,96 @@ void Rows_log_event::change_to_flashback_event(PRINT_EVENT_INFO *print_event_inf
 
   (void) my_init_dynamic_array(PSI_NOT_INSTRUMENTED, &rows_arr, sizeof(LEX_STRING), 8, 8, MYF(0));
 
+  if (get_general_type_code() == UPDATE_ROWS_EVENT ||
+      get_general_type_code() == UPDATE_ROWS_EVENT_V1)
+  {
+    if (!bitmap_is_set_all(&m_cols_ai))
+    {
+      ai_fields= (Field_info *) my_malloc(PSI_NOT_INSTRUMENTED,
+                                          sizeof(Field_info) * td->size(),
+                                          MYF(MY_ZEROFILL));
+      bi_fields= (Field_info *) my_malloc(PSI_NOT_INSTRUMENTED,
+                                          sizeof(Field_info) * td->size(),
+                                          MYF(MY_ZEROFILL));
+      if (!ai_fields || !bi_fields)
+      {
+        fprintf(stderr, "\nError: Out of memory. "
+                "Could not exchange to flashback event.\n");
+        exit(1);
+      }
+    }
+  }
+
   for (uchar *value= m_rows_buf; value < m_rows_end; )
   {
     uchar *start_pos= value;
     size_t length1= 0;
-    if (!(length1= print_verbose_one_row(NULL, td, print_event_info,
-                                         &m_cols, value,
-                                         (const uchar*) "", TRUE)))
+    if (!(length1= calc_row_event_length(td, &m_cols, value, bi_fields)))
     {
       fprintf(stderr, "\nError row length: %zu\n", length1);
       exit(1);
     }
     value+= length1;
 
-    swap_buff1= (uchar *) my_malloc(PSI_NOT_INSTRUMENTED, length1, MYF(0));
-    if (!swap_buff1)
-    {
-      fprintf(stderr, "\nError: Out of memory. "
-              "Could not exchange to flashback event.\n");
-      exit(1);
-    }
-    memcpy(swap_buff1, start_pos, length1);
-
     // For Update_event, we have the second part
     size_t length2= 0;
     if (ev_type == UPDATE_ROWS_EVENT ||
         ev_type == UPDATE_ROWS_EVENT_V1)
     {
-      if (!(length2= print_verbose_one_row(NULL, td, print_event_info,
-                                           &m_cols, value,
-                                           (const uchar*) "", TRUE)))
+      if (!(length2= calc_row_event_length(td, &m_cols_ai, value, ai_fields)))
       {
         fprintf(stderr, "\nError row length: %zu\n", length2);
         exit(1);
       }
       value+= length2;
-
-      void *swap_buff2= my_malloc(PSI_NOT_INSTRUMENTED, length2, MYF(0));
-      if (!swap_buff2)
-      {
-        fprintf(stderr, "\nError: Out of memory. "
-                "Could not exchange to flashback event.\n");
-        exit(1);
-      }
-      memcpy(swap_buff2, start_pos + length1, length2); // WHERE part
-
-      /* Swap SET and WHERE part */
-      memcpy(start_pos, swap_buff2, length2);
-      memcpy(start_pos + length2, swap_buff1, length1);
-      my_free(swap_buff2);
     }
-
-    my_free(swap_buff1);
 
     /* Copying one row into a buff, and pushing into the array */
     LEX_STRING one_row;
 
     one_row.length= length1 + length2;
-    one_row.str=    (char *) my_malloc(PSI_NOT_INSTRUMENTED, one_row.length, MYF(0));
-    memcpy(one_row.str, start_pos, one_row.length);
-    if (one_row.str == NULL || push_dynamic(&rows_arr, (uchar *) &one_row))
+    one_row.str= (char *) my_malloc(PSI_NOT_INSTRUMENTED, one_row.length, MYF(0));
+    if (!one_row.str)
+    {
+      fprintf(stderr, "\nError: Out of memory. "
+              "Could not exchange to flashback event.\n");
+      exit(1);
+    }
+
+    if (length2 != 0) // It has before and after image
+    {
+      if (!bi_fields)
+      {
+        // Both bi and ai inclues all columns, Swap WHERE and SET Part
+        memcpy(one_row.str, start_pos + length1, length2);
+        memcpy(one_row.str+length2, start_pos, length1);
+      }
+      else
+      {
+        for (uint i= 0; i < (uint)td->size(); i ++)
+        {
+          // swap after and before image columns
+          if (bitmap_is_set(&m_cols, i) && bitmap_is_set(&m_cols_ai, i))
+          {
+            Field_info tmp_field= bi_fields[i];
+            bi_fields[i]= ai_fields[i];
+            ai_fields[i]= tmp_field;
+          }
+        }
+
+        // Recreate the before and after image
+        uchar *pos= (uchar*)one_row.str;
+        pos= fill_row_image(&m_cols, bi_fields, pos);
+        pos= fill_row_image(&m_cols_ai, ai_fields, pos);
+        assert(pos == (uchar*)one_row.str + one_row.length);
+      }
+    }
+    else
+    {
+      memcpy(one_row.str, start_pos, one_row.length);
+    }
+
+    if (push_dynamic(&rows_arr, (uchar *) &one_row))
     {
       fprintf(stderr, "\nError: Out of memory. "
               "Could not push flashback event into array.\n");
@@ -1203,6 +1254,11 @@ void Rows_log_event::change_to_flashback_event(PRINT_EVENT_INFO *print_event_inf
   delete_dynamic(&rows_arr);
 
 end:
+  if (bi_fields)
+  {
+    my_free(bi_fields);
+    my_free(ai_fields);
+  }
   delete td;
 }
 
@@ -1323,12 +1379,22 @@ static size_t calc_field_event_length(const uchar *ptr, uint type, uint meta)
   return 0;
 }
 
+/**
+  It parses a row image and returns its length and information of
+  columns if 'fields' is not null.
 
+  @param[in]  td           Table definition of the row image
+  @param[in]  cols_bitmap  It marks the columns present in the row image
+  @param[in]  value        The row image which will be parsed
+  @param[out] fields       Returns field information of the parsed row image.
+
+  @return  length of the parsed row image if succeeds, otherwise 0 is returned.
+ */
 size_t
 Rows_log_event::calc_row_event_length(table_def *td,
-                                      PRINT_EVENT_INFO *print_event_info,
                                       MY_BITMAP *cols_bitmap,
-                                      const uchar *value)
+                                      const uchar *value,
+                                      Field_info *fields)
 {
   const uchar *value0= value;
   const uchar *null_bits= value;
@@ -1361,7 +1427,18 @@ Rows_log_event::calc_row_event_length(table_def *td,
       if (!(size= calc_field_event_length(value, td->type(i),
                                           td->field_metadata(i))))
         return 0;
+
+      if (fields)
+      {
+        fields[i].pos= value;
+        fields[i].length= size;
+      }
+
       value+= size;
+    }
+    else if (fields)
+    {
+      fields[i].pos= NULL;
     }
     null_bit_index++;
   }
@@ -1409,8 +1486,7 @@ void Rows_log_event::count_row_events(PRINT_EVENT_INFO *print_event_info)
     print_event_info->row_events++;
 
     /* Print the first image */
-    if (!(length= calc_row_event_length(td, print_event_info,
-                                        &m_cols, value)))
+    if (!(length= calc_row_event_length(td, &m_cols, value, NULL)))
       break;
     value+= length;
     DBUG_ASSERT(value <= m_rows_end);
@@ -1418,8 +1494,7 @@ void Rows_log_event::count_row_events(PRINT_EVENT_INFO *print_event_info)
     /* Print the second image (for UPDATE only) */
     if (row_events == 2)
     {
-      if (!(length= calc_row_event_length(td, print_event_info,
-                                          &m_cols_ai, value)))
+      if (!(length= calc_row_event_length(td, &m_cols_ai, value, NULL)))
         break;
       value+= length;
       DBUG_ASSERT(value <= m_rows_end);
@@ -1466,7 +1541,7 @@ bool Rows_log_event::print_verbose(IO_CACHE *file,
       */
       const int buff_len= 2 + (256 * 2) + 1;
       char buff[buff_len];
-      str_to_hex(buff, (const char*) &m_extra_row_data[EXTRA_ROW_INFO_HDR_BYTES],
+      str_to_hex(buff, &m_extra_row_data[EXTRA_ROW_INFO_HDR_BYTES],
                  extra_payload_len);
       if (my_b_printf(file, "%s", buff))
         goto err;
@@ -1503,8 +1578,9 @@ bool Rows_log_event::print_verbose(IO_CACHE *file,
   if (!(map= print_event_info->m_table_map.get_table(m_table_id)) ||
       !(td= map->create_table_def()))
   {
-    return (my_b_printf(file, "### Row event for unknown table #%lu",
-                        (ulong) m_table_id));
+    char llbuff[22];
+    return (my_b_printf(file, "### Row event for unknown table #%s",
+                        ullstr(m_table_id, llbuff)));
   }
 
   /* If the write rows event contained no values for the AI */
@@ -2404,7 +2480,7 @@ bool User_var_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
   }
   else
   {
-    switch (type) {
+    switch (m_type) {
     case REAL_RESULT:
       double real_val;
       char real_buf[FMT_G_BUFSIZE(14)];
@@ -2416,8 +2492,7 @@ bool User_var_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
       break;
     case INT_RESULT:
       char int_buf[22];
-      longlong10_to_str(uint8korr(val), int_buf, 
-                        ((flags & User_var_log_event::UNSIGNED_F) ? 10 : -10));
+      longlong10_to_str(uint8korr(val), int_buf,  is_unsigned() ? 10 : -10);
       if (my_b_printf(&cache, ":=%s%s\n", int_buf,
                       print_event_info->delimiter))
         goto err;
@@ -2465,14 +2540,14 @@ bool User_var_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
       hex_str= (char *) my_malloc(PSI_NOT_INSTRUMENTED, 2 * val_len + 1 + 3, MYF(MY_WME));
       if (!hex_str)
         goto err;
-      str_to_hex(hex_str, val, val_len);
+      str_to_hex(hex_str, (uchar*)val, val_len);
       /*
         For proper behaviour when mysqlbinlog|mysql, we need to explicitly
         specify the variable's collation. It will however cause problems when
         people want to mysqlbinlog|mysql into another server not supporting the
         character set. But there's not much to do about this and it's unlikely.
       */
-      if (!(cs= get_charset(charset_number, MYF(0))))
+      if (!(cs= get_charset(m_charset_number, MYF(0))))
       {        /*
           Generate an unusable command (=> syntax error) is probably the best
           thing we can do here.
@@ -3761,6 +3836,12 @@ Gtid_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
     if (flags_extra & FL_ROLLBACK_ALTER_E1)
       if (my_b_printf(&cache, " ROLLBACK ALTER id= %lu", sa_seq_no))
         goto err;
+    if (flags_extra & FL_EXTRA_THREAD_ID)
+    {
+      longlong10_to_str(thread_id, buf2, 10);
+      if (my_b_printf(&cache, " thread_id=%s", buf2))
+        goto err;
+    }
     if (my_b_printf(&cache, "\n"))
       goto err;
 

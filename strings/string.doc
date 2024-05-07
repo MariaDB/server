@@ -22,8 +22,8 @@ Speciella användbara nya string-rutiner:
   the destination string "dst" followed by a terminating NUL.  The
   result is normally a pointer to this NUL character, but if the radix
   is dud the result will be NullS and nothing will be changed.
-  If radix is -2..-36, val is taken to be SIGNED.
-  If radix is  2.. 36, val is taken to be UNSIGNED.
+  If radix is -2..-62, val is taken to be SIGNED.
+  If radix is  2.. 62, val is taken to be UNSIGNED.
   That is, val is signed if and only if radix is.  You will normally
   use radix -10 only through itoa and ltoa, for radix 2, 8, or 16
   unsigned is what you generally want.
@@ -133,8 +133,6 @@ I mysys:
 
  void caseup _A((string str,uint length));
  void casedn _A((string str,uint length));
- void caseup_str _A((string str));
- void casedn_str _A((string str));
  Converts strings or part of string to upper or lower-case.
 
  void case_sort _A((string str,uint length));
@@ -143,8 +141,3 @@ I mysys:
 
  string strcfind(str,search)
  find string in another with no case_sensivity
-
- my_strcasecmp(s,t)
- Compare strings without regarding to case
- - For many strings it quicker to forst use case_sort on all strings and
-   then compare them with strcmp().

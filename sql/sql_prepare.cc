@@ -130,6 +130,7 @@ static const uint PARAMETER_FLAG_UNSIGNED= 128U << 8;
 #include "wsrep_mysqld.h"
 #include "wsrep_trans_observer.h"
 #endif /* WITH_WSREP */
+#include "sql_audit.h"    // mysql_audit_release
 #include "xa.h"           // xa_recover_get_fields
 #include "sql_audit.h"    // mysql_audit_release
 
@@ -179,7 +180,7 @@ public:
   /*
     The following data member is wholly for debugging purpose.
     It can be used for possible crash analysis to determine how many times
-    the stored routine was executed before the mem_root marked read_only
+    the stored routine was executed before the mem_root marked ROOT_FLAG_READ_ONLY
     was requested for a memory chunk. Additionally, a value of this data
     member is output to the log with DBUG_PRINT.
   */
@@ -222,7 +223,7 @@ public:
                     uchar *packet_arg, uchar *packet_end_arg);
   bool execute_bulk_loop(String *expanded_query,
                          bool open_cursor,
-                         uchar *packet_arg, uchar *packet_end_arg);
+                         uchar *packet_arg, uchar *packet_end_arg, bool multiple_ok_request);
   bool execute_server_runnable(Server_runnable *server_runnable);
   my_bool set_bulk_parameters(bool reset);
   bool bulk_iterations() { return iterations; };
@@ -276,7 +277,6 @@ private:
 
 
 class Ed_connection;
-
 
 /******************************************************************************
   Implementation
@@ -3099,7 +3099,8 @@ static void mysql_stmt_execute_common(THD *thd,
                                       uchar *packet_end,
                                       ulong cursor_flags,
                                       bool iteration,
-                                      bool types);
+                                      bool types,
+                                      bool send_all_ok);
 
 /**
   COM_STMT_EXECUTE handler: execute a previously prepared statement.
@@ -3137,7 +3138,7 @@ void mysqld_stmt_execute(THD *thd, char *packet_arg, uint packet_length)
   packet+= 9;                               /* stmt_id + 5 bytes of flags */
 
   mysql_stmt_execute_common(thd, stmt_id, packet, packet_end, flags, FALSE,
-  FALSE);
+    FALSE, FALSE);
   DBUG_VOID_RETURN;
 }
 
@@ -3164,9 +3165,9 @@ void mysqld_stmt_bulk_execute(THD *thd, char *packet_arg, uint packet_length)
   uchar *packet= (uchar*)packet_arg; // GCC 4.0.1 workaround
   DBUG_ENTER("mysqld_stmt_execute_bulk");
 
-  const uint packet_header_lenght= 4 + 2; //ID & 2 bytes of flags
+  const uint packet_header_length= 4 + 2; //ID & 2 bytes of flags
 
-  if (packet_length < packet_header_lenght)
+  if (packet_length < packet_header_length)
   {
     my_error(ER_MALFORMED_PACKET, MYF(0));
     DBUG_VOID_RETURN;
@@ -3185,7 +3186,7 @@ void mysqld_stmt_bulk_execute(THD *thd, char *packet_arg, uint packet_length)
     DBUG_VOID_RETURN;
   }
   /* Check for implemented parameters */
-  if (flags & (~STMT_BULK_FLAG_CLIENT_SEND_TYPES))
+  if (flags & (~(STMT_BULK_FLAG_CLIENT_SEND_TYPES | STMT_BULK_FLAG_SEND_UNIT_RESULTS)))
   {
     DBUG_PRINT("error", ("unsupported bulk execute flags %x", flags));
     my_error(ER_UNSUPPORTED_PS, MYF(0));
@@ -3193,9 +3194,10 @@ void mysqld_stmt_bulk_execute(THD *thd, char *packet_arg, uint packet_length)
   }
 
   /* stmt id and two bytes of flags */
-  packet+= packet_header_lenght;
+  packet+= packet_header_length;
   mysql_stmt_execute_common(thd, stmt_id, packet, packet_end, 0, TRUE,
-                            (flags & STMT_BULK_FLAG_CLIENT_SEND_TYPES));
+                            (flags & STMT_BULK_FLAG_CLIENT_SEND_TYPES),
+                            (flags & STMT_BULK_FLAG_SEND_UNIT_RESULTS));
   DBUG_VOID_RETURN;
 }
 
@@ -3283,13 +3285,14 @@ stmt_execute_packet_sanity_check(Prepared_statement *stmt,
 /**
   Common part of prepared statement execution
 
-  @param thd             THD handle
-  @param stmt_id         id of the prepared statement
-  @param paket           packet with parameters to bind
-  @param packet_end      pointer to the byte after parameters end
-  @param cursor_flags    cursor flags
-  @param bulk_op         id it bulk operation
-  @param read_types      flag say that types muast been read
+  @param thd                THD handle
+  @param stmt_id            id of the prepared statement
+  @param paket              packet with parameters to bind
+  @param packet_end         pointer to the byte after parameters end
+  @param cursor_flags       cursor flags
+  @param bulk_op            is it bulk operation
+  @param read_types         flag say that types must been read
+  @param send_unit_results  send a result-set with all insert IDs and affected rows
 */
 
 static void mysql_stmt_execute_common(THD *thd,
@@ -3298,7 +3301,8 @@ static void mysql_stmt_execute_common(THD *thd,
                                       uchar *packet_end,
                                       ulong cursor_flags,
                                       bool bulk_op,
-                                      bool read_types)
+                                      bool read_types,
+                                      bool send_unit_results)
 {
   /* Query text for binary, general or slow log, if any of them is open */
   String expanded_query;
@@ -3367,7 +3371,7 @@ static void mysql_stmt_execute_common(THD *thd,
   if (!bulk_op)
     stmt->execute_loop(&expanded_query, open_cursor, packet, packet_end);
   else
-    stmt->execute_bulk_loop(&expanded_query, open_cursor, packet, packet_end);
+    stmt->execute_bulk_loop(&expanded_query, open_cursor, packet, packet_end, send_unit_results);
 
   thd->cur_stmt= save_cur_stmt;
   thd->protocol= save_protocol;
@@ -3482,7 +3486,7 @@ void mysql_sql_stmt_execute(THD *thd)
   thd->free_items();    // Free items created by execute_loop()
   /*
     Now restore the "external" (e.g. "SET STATEMENT") Item list.
-    It will be freed normaly in THD::cleanup_after_query().
+    It will be freed normally in THD::cleanup_after_query().
   */
   thd->free_list= free_list_backup;
 
@@ -3849,6 +3853,7 @@ static bool execute_server_code(THD *thd,
                                 const char *sql_text, size_t sql_len)
 {
   PSI_statement_locker *parent_locker;
+  Reprepare_observer *reprepare_observer;
   bool error;
   query_id_t save_query_id= thd->query_id;
   query_id_t next_id= next_query_id();
@@ -3873,27 +3878,32 @@ static bool execute_server_code(THD *thd,
 
   parent_locker= thd->m_statement_psi;
   thd->m_statement_psi= NULL;
+  reprepare_observer= thd->m_reprepare_observer;
+  thd->m_reprepare_observer= NULL;
   error= mysql_execute_command(thd);
   thd->m_statement_psi= parent_locker;
+  thd->m_reprepare_observer= reprepare_observer;
 
   /* report error issued during command execution */
   if (likely(error == 0) && thd->spcont == NULL)
-    general_log_write(thd, COM_QUERY,
-                      thd->query(), thd->query_length());
+    general_log_write(thd, COM_QUERY, thd->query(), thd->query_length());
 
 end:
   thd->lex->restore_set_statement_var();
   thd->query_id= save_query_id;
   delete_explain_query(thd->lex);
+
   lex_end(thd->lex);
 
   return error;
 }
 
+
 bool Execute_sql_statement::execute_server_code(THD *thd)
 {
   return ::execute_server_code(thd, m_sql_text.str, m_sql_text.length);
 }
+
 
 /***************************************************************************
  Prepared_statement
@@ -4445,7 +4455,7 @@ reexecute:
     the error stack.
   */
 
-  if (sql_command_flags[lex->sql_command] & CF_REEXECUTION_FRAGILE)
+  if (sql_command_flags() & CF_REEXECUTION_FRAGILE)
   {
     reprepare_observer.reset_reprepare_observer();
     DBUG_ASSERT(thd->m_reprepare_observer == NULL);
@@ -4457,7 +4467,7 @@ reexecute:
   thd->m_reprepare_observer= NULL;
 
   if (unlikely(error) &&
-      (sql_command_flags[lex->sql_command] & CF_REEXECUTION_FRAGILE) &&
+      (sql_command_flags() & CF_REEXECUTION_FRAGILE) &&
       !thd->is_fatal_error && !thd->killed &&
       reprepare_observer.is_invalidated() &&
       reprepare_observer.can_retry())
@@ -4472,7 +4482,7 @@ reexecute:
 #ifdef PROTECT_STATEMENT_MEMROOT
       // There was reprepare so the counter of runs should be reset
       executed_counter= 0;
-      mem_root->read_only= 0;
+      mem_root->flags &= ~ROOT_FLAG_READ_ONLY;
 #endif
       goto reexecute;
     }
@@ -4481,7 +4491,7 @@ reexecute:
 #ifdef PROTECT_STATEMENT_MEMROOT
   if (!error)
   {
-    mem_root->read_only= 1;
+    mem_root->flags |= ROOT_FLAG_READ_ONLY;
     ++executed_counter;
 
     DBUG_PRINT("info", ("execute counter: %lu", executed_counter));
@@ -4490,7 +4500,7 @@ reexecute:
   {
     // Error on call shouldn't be counted as a normal run
     executed_counter= 0;
-    mem_root->read_only= 0;
+    mem_root->flags &= ~ROOT_FLAG_READ_ONLY;
   }
 #endif
 
@@ -4545,7 +4555,8 @@ bool
 Prepared_statement::execute_bulk_loop(String *expanded_query,
                                       bool open_cursor,
                                       uchar *packet_arg,
-                                      uchar *packet_end_arg)
+                                      uchar *packet_end_arg,
+                                      bool send_unit_results)
 {
   Reprepare_observer reprepare_observer;
   unsigned char *readbuff= NULL;
@@ -4572,17 +4583,24 @@ Prepared_statement::execute_bulk_loop(String *expanded_query,
     goto err;
   }
 
-  if (!(sql_command_flags[lex->sql_command] & CF_PS_ARRAY_BINDING_SAFE))
+  if (!(sql_command_flags() & CF_PS_ARRAY_BINDING_SAFE))
   {
     DBUG_PRINT("error", ("Command is not supported in bulk execution."));
     my_error(ER_UNSUPPORTED_PS, MYF(0));
     goto err;
   }
+
+  if (send_unit_results && thd->init_collecting_unit_results())
+  {
+    DBUG_PRINT("error", ("Error initializing array."));
+    return TRUE;
+  }
+
   /*
      Here second buffer for not optimized commands,
-     optimized commands do it inside thier internal loop.
+     optimized commands do it inside their internal loop.
   */
-  if (!(sql_command_flags[lex->sql_command] & CF_PS_ARRAY_BINDING_OPTIMIZED) &&
+  if (!(sql_command_flags() & CF_PS_ARRAY_BINDING_OPTIMIZED) &&
       this->lex->has_returning())
   {
     // Above check can be true for SELECT in future
@@ -4613,9 +4631,9 @@ Prepared_statement::execute_bulk_loop(String *expanded_query,
   {
     /*
       Here we set parameters for not optimized commands,
-      optimized commands do it inside thier internal loop.
+      optimized commands do it inside their internal loop.
     */
-    if (!(sql_command_flags[lex->sql_command] & CF_PS_ARRAY_BINDING_OPTIMIZED))
+    if (!(sql_command_flags() & CF_PS_ARRAY_BINDING_OPTIMIZED))
     {
       if (set_bulk_parameters(TRUE))
       {
@@ -4638,7 +4656,7 @@ reexecute:
       the error stack.
     */
 
-    if (sql_command_flags[lex->sql_command] & CF_REEXECUTION_FRAGILE)
+    if (sql_command_flags() & CF_REEXECUTION_FRAGILE)
     {
       reprepare_observer.reset_reprepare_observer();
       DBUG_ASSERT(thd->m_reprepare_observer == NULL);
@@ -4650,14 +4668,13 @@ reexecute:
     thd->m_reprepare_observer= NULL;
 
 #ifdef WITH_WSREP
-    if (!(sql_command_flags[lex->sql_command] & CF_PS_ARRAY_BINDING_OPTIMIZED) &&
-	WSREP(thd))
+    if (!(sql_command_flags() & CF_PS_ARRAY_BINDING_OPTIMIZED) && WSREP(thd))
     {
       if (wsrep_after_statement(thd))
       {
         /*
           Re-execution success is unlikely after an error from
-          wsrep_after_statement(), so retrun error immediately.
+          wsrep_after_statement(), so return error immediately.
         */
         thd->get_stmt_da()->reset_diagnostics_area();
         wsrep_override_error(thd, thd->wsrep_cs().current_error(),
@@ -4667,7 +4684,7 @@ reexecute:
     else
 #endif /* WITH_WSREP */
     if (unlikely(error) &&
-        (sql_command_flags[lex->sql_command] & CF_REEXECUTION_FRAGILE) &&
+        (sql_command_flags() & CF_REEXECUTION_FRAGILE) &&
         !thd->is_fatal_error && !thd->killed &&
         reprepare_observer.is_invalidated() &&
         reprepare_observer.can_retry())
@@ -5885,7 +5902,8 @@ bool Protocol_local::send_result_set_metadata(List<Item> *list, uint flags)
 
   for (uint pos= 0 ; (item= it++); pos++)
   {
-    if (store_item_metadata(thd, item, pos))
+    Send_field sf(thd, item);
+    if (store_field_metadata(thd, sf, item->charset_for_protocol(), pos))
       goto err;
   }
 
@@ -6277,10 +6295,9 @@ extern "C" MYSQL *mysql_real_connect_local(MYSQL *mysql)
     new_thd->security_ctx->skip_grants();
     new_thd->query_cache_is_applicable= 0;
     new_thd->variables.wsrep_on= 0;
+    new_thd->client_capabilities= client_flag;
     new_thd->variables.sql_log_bin= 0;
     new_thd->set_binlog_bit();
-    new_thd->client_capabilities= client_flag;
-
     /*
       TOSO: decide if we should turn the auditing off
       for such threads.
@@ -6311,4 +6328,3 @@ extern "C" MYSQL *mysql_real_connect_local(MYSQL *mysql)
   DBUG_PRINT("exit",("Mysql handler: %p", mysql));
   DBUG_RETURN(mysql);
 }
-

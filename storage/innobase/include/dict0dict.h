@@ -132,7 +132,7 @@ enum dict_table_op_t {
 @param[in]      table_op        operation to perform when opening
 @return table object after locking MDL shared
 @retval NULL if the table is not readable, or if trylock && MDL blocked */
-template<bool trylock, bool purge_thd= false>
+template<bool trylock>
 dict_table_t*
 dict_acquire_mdl_shared(dict_table_t *table,
                         THD *thd,
@@ -146,7 +146,6 @@ dict_acquire_mdl_shared(dict_table_t *table,
 @param[in,out]  thd             background thread, or NULL to not acquire MDL
 @param[out]     mdl             mdl ticket, or NULL
 @return table, NULL if does not exist */
-template<bool purge_thd= false>
 dict_table_t*
 dict_table_open_on_id(table_id_t table_id, bool dict_locked,
                       dict_table_op_t table_op, THD *thd= nullptr,
@@ -310,7 +309,7 @@ TRUE.
 ibool
 dict_col_name_is_reserved(
 /*======================*/
-	const char*	name)	/*!< in: column name */
+	const LEX_CSTRING &name)	/*!< in: column name */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 /** Unconditionally set the AUTO_INCREMENT counter.
 @param[in,out]	table	table or partition
@@ -522,7 +521,7 @@ dict_foreign_find_index(
 @param[in]	table		table object
 @param[in]	col_nr		virtual column number(nth virtual column)
 @return column name. */
-const char*
+Lex_ident_column
 dict_table_get_v_col_name(
 	const dict_table_t*	table,
 	ulint			col_nr);
@@ -536,7 +535,7 @@ otherwise table->n_def */
 ulint
 dict_table_has_column(
 	const dict_table_t*	table,
-	const char*		col_name,
+	const LEX_CSTRING	&col_name,
 	ulint			col_nr = 0);
 
 /**********************************************************************//**
@@ -765,7 +764,7 @@ dict_table_get_sys_col(
 @param[in]	col_nr	column number in table
 @return	column name */
 inline
-const char*
+Lex_ident_column
 dict_table_get_col_name(const dict_table_t* table, ulint col_nr)
 {
 	return(dict_table_get_nth_col(table, col_nr)->name(*table));

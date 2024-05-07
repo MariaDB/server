@@ -18,13 +18,13 @@ set global slave_parallel_threads=10;
 eval change master 'master1' to
 master_port=$SERVER_MYPORT_1,
 master_host='127.0.0.1',
-master_user='root';
+master_user='root', master_ssl_verify_server_cert=0;
 
 --replace_result $SERVER_MYPORT_2 MYPORT_2
 eval change master 'master2' to
 master_port=$SERVER_MYPORT_2,
 master_host='127.0.0.1',
-master_user='root';
+master_user='root', master_ssl_verify_server_cert=0;
 
 
 #start all slaves

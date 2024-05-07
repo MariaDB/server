@@ -20,7 +20,7 @@ INSERT INTO t1 VALUES (1);
 CALL mtr.add_suppression("Slave: Failed to open mysql.gtid_slave_pos");
 --let $slave_sql_errno=1944
 --source include/wait_for_slave_sql_error.inc
-
+--let $rpl_only_running_threads= 1
 --source include/stop_slave.inc
 ALTER TABLE mysql.gtid_slave_pos CHANGE seq_no seq_no BIGINT UNSIGNED NOT NULL;
 ALTER TABLE mysql.gtid_slave_pos DROP PRIMARY KEY;

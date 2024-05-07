@@ -507,7 +507,6 @@ bool Sql_cmd_alter_table_exchange_partition::
   TABLE_LIST *swap_table_list;
   handlerton *table_hton;
   partition_element *part_elem;
-  const char *partition_name;
   char temp_name[FN_REFLEN+1];
   char part_file_name[2*FN_REFLEN+1];
   char swap_file_name[FN_REFLEN+1];
@@ -629,10 +628,10 @@ bool Sql_cmd_alter_table_exchange_partition::
   ddl_log.new_table_id.length= MY_UUID_SIZE;
 
   /* set lock pruning on first table */
-  partition_name= alter_info->partition_names.head();
+  const Lex_cstring_strlen partition_name= alter_info->partition_names.head();
   if (unlikely(table_list->table->part_info->
-               set_named_partition_bitmap(partition_name,
-                                          strlen(partition_name))))
+               set_named_partition_bitmap(partition_name.str,
+                                          partition_name.length)))
     DBUG_RETURN(true);
 
   if (unlikely(lock_tables(thd, table_list, table_counter, 0)))
@@ -657,7 +656,10 @@ bool Sql_cmd_alter_table_exchange_partition::
   my_snprintf(temp_name, sizeof(temp_name), "%s-exchange-%lx-%llx",
               tmp_file_prefix, current_pid, thd->thread_id);
   if (lower_case_table_names)
-    my_casedn_str(files_charset_info, temp_name);
+  {
+    // Ok to use latin1 as the file name is in the form '#sql-exchange-abc-def'
+    my_casedn_str_latin1(temp_name);
+  }
   build_table_filename(temp_file_name, sizeof(temp_file_name),
                        table_list->next_local->db.str,
                        temp_name, "", FN_IS_TMP);
@@ -1020,7 +1022,7 @@ bool alter_partition_convert_in(ALTER_PARTITION_PARAM_TYPE *lpt)
   const char *path= lpt->table_list->table->s->path.str;
   TABLE_LIST *table_from= lpt->table_list->next_local;
 
-  const char *partition_name=
+  const Lex_ident_partition &partition_name=
     thd->lex->part_info->curr_part_elem->partition_name;
 
   if (create_partition_name(part_file_name, sizeof(part_file_name), path,

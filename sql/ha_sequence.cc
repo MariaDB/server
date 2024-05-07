@@ -227,7 +227,7 @@ int ha_sequence::write_row(const uchar *buf)
     int error= 0;
     /* This is called from alter table */
     tmp_seq.read_fields(table);
-    if (tmp_seq.check_and_adjust(0))
+    if (tmp_seq.check_and_adjust(thd, 0))
       DBUG_RETURN(HA_ERR_SEQUENCE_INVALID_DATA);
     sequence->copy(&tmp_seq);
     if (likely(!(error= file->write_row(buf))))
@@ -260,7 +260,7 @@ int ha_sequence::write_row(const uchar *buf)
         DBUG_RETURN(ER_LOCK_WAIT_TIMEOUT);
 
     tmp_seq.read_fields(table);
-    if (tmp_seq.check_and_adjust(0))
+    if (tmp_seq.check_and_adjust(thd, 0))
       DBUG_RETURN(HA_ERR_SEQUENCE_INVALID_DATA);
 
     /*
@@ -271,13 +271,26 @@ int ha_sequence::write_row(const uchar *buf)
   }
 
 #ifdef WITH_WSREP
-  /* We need to start Galera transaction for select NEXT VALUE FOR
-  sequence if it is not yet started. Note that ALTER is handled
-  as TOI. */
-  if (WSREP_ON && WSREP(thd) &&
-      !thd->wsrep_trx().active() &&
-      wsrep_thd_is_local(thd))
-    wsrep_start_transaction(thd, thd->wsrep_next_trx_id());
+  if (WSREP_ON && WSREP(thd) && wsrep_thd_is_local(thd))
+  {
+    if (sequence_locked &&
+        (wsrep_thd_is_SR(thd) || wsrep_streaming_enabled(thd)))
+    {
+      my_error(ER_NOT_SUPPORTED_YET, MYF(0),
+               "SEQUENCEs with streaming replication in Galera cluster");
+      DBUG_RETURN(HA_ERR_UNSUPPORTED);
+    }
+
+    /*
+       We need to start Galera transaction for select NEXT VALUE FOR
+       sequence if it is not yet started. Note that ALTER is handled
+       as TOI.
+    */
+    if (!thd->wsrep_trx().active())
+    {
+      wsrep_start_transaction(thd, thd->wsrep_next_trx_id());
+    }
+  }
 #endif
 
   if (likely(!(error= file->update_first_row(buf))))

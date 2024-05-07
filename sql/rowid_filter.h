@@ -213,6 +213,11 @@ protected:
   Rowid_filter_tracker *tracker;
 
 public:
+  enum build_return_code {
+    SUCCESS,
+    NON_FATAL_ERROR,
+    FATAL_ERROR,
+  };
   Rowid_filter(Rowid_filter_container *container_arg)
     : container(container_arg) {}
 
@@ -220,7 +225,7 @@ public:
     Build the filter :
     fill it with info on the set of elements placed there
   */
-  virtual bool build() = 0;
+  virtual build_return_code build() = 0;
 
   /*
     Check whether an element is in the filter.
@@ -265,7 +270,7 @@ public:
 
   ~Range_rowid_filter();
 
-  bool build() override { return fill(); }
+  build_return_code build() override;
 
   bool check(char *elem) override
   {
@@ -275,8 +280,6 @@ public:
     tracker->increment_checked_elements_count(was_checked);
     return was_checked;
   }
-
-  bool fill();
 
   SQL_SELECT *get_select() { return select; }
 };

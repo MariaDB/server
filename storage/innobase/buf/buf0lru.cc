@@ -60,10 +60,6 @@ static constexpr ulint BUF_LRU_OLD_TOLERANCE = 20;
 frames in the buffer pool, we set this to TRUE */
 static bool buf_lru_switched_on_innodb_mon = false;
 
-/** True if diagnostic message about difficult to find free blocks
-in the buffer bool has already printed. */
-static bool	buf_lru_free_blocks_error_printed;
-
 /******************************************************************//**
 These statistics are not 'of' LRU but 'for' LRU.  We keep count of I/O
 and page_zip_decompress() operations.  Based on the statistics,
@@ -409,6 +405,7 @@ got_mutex:
 	buf_LRU_check_size_of_non_data_objects();
 	buf_block_t* block;
 
+	IF_DBUG(static bool buf_lru_free_blocks_error_printed,);
 	DBUG_EXECUTE_IF("ib_lru_force_no_free_page",
 		if (!buf_lru_free_blocks_error_printed) {
 			n_iterations = 21;
@@ -419,9 +416,25 @@ retry:
 	/* If there is a block in the free list, take it */
 	if ((block = buf_LRU_get_free_only()) != nullptr) {
 got_block:
+		const ulint LRU_size = UT_LIST_GET_LEN(buf_pool.LRU);
+		const ulint available = UT_LIST_GET_LEN(buf_pool.free);
+		const ulint scan_depth = srv_LRU_scan_depth / 2;
+		ut_ad(LRU_size <= BUF_LRU_MIN_LEN || available >= scan_depth
+		      || buf_pool.need_LRU_eviction());
+
 		if (UNIV_LIKELY(get != have_mutex)) {
 			mysql_mutex_unlock(&buf_pool.mutex);
 		}
+
+		if (UNIV_UNLIKELY(available < scan_depth)
+		    && LRU_size > BUF_LRU_MIN_LEN) {
+			mysql_mutex_lock(&buf_pool.flush_list_mutex);
+			if (!buf_pool.page_cleaner_active()) {
+				buf_pool.page_cleaner_wakeup(true);
+			}
+			mysql_mutex_unlock(&buf_pool.flush_list_mutex);
+		}
+
 		block->page.zip.clear();
 		return block;
 	}
@@ -452,10 +465,11 @@ got_block:
 		if ((block = buf_LRU_get_free_only()) != nullptr) {
 			goto got_block;
 		}
+		const bool wake = buf_pool.need_LRU_eviction();
 		mysql_mutex_unlock(&buf_pool.mutex);
 		mysql_mutex_lock(&buf_pool.flush_list_mutex);
 		const auto n_flush = buf_pool.n_flush();
-		if (!buf_pool.try_LRU_scan) {
+		if (wake && !buf_pool.page_cleaner_active()) {
 			buf_pool.page_cleaner_wakeup(true);
 		}
 		mysql_mutex_unlock(&buf_pool.flush_list_mutex);
@@ -474,9 +488,10 @@ not_found:
 		MONITOR_INC( MONITOR_LRU_GET_FREE_WAITS );
 	}
 
-	if (n_iterations == 21 && !buf_lru_free_blocks_error_printed
-	    && srv_buf_pool_old_size == srv_buf_pool_size) {
-		buf_lru_free_blocks_error_printed = true;
+	if (n_iterations == 21
+	    && srv_buf_pool_old_size == srv_buf_pool_size
+	    && buf_pool.LRU_warned.test_and_set(std::memory_order_acquire)) {
+		IF_DBUG(buf_lru_free_blocks_error_printed = true,);
 		mysql_mutex_unlock(&buf_pool.mutex);
 		ib::warn() << "Difficult to find free blocks in the buffer pool"
 			" (" << n_iterations << " search iterations)! "
@@ -794,6 +809,14 @@ void buf_page_make_young(buf_page_t *bpage)
   mysql_mutex_unlock(&buf_pool.mutex);
 }
 
+bool buf_page_make_young_if_needed(buf_page_t *bpage)
+{
+  const bool not_first{bpage->set_accessed()};
+  if (UNIV_UNLIKELY(buf_page_peek_if_too_old(bpage)))
+    buf_page_make_young(bpage);
+  return not_first;
+}
+
 /** Try to free a block. If bpage is a descriptor of a compressed-only
 ROW_FORMAT=COMPRESSED page, the buf_page_t object will be freed as well.
 The caller must hold buf_pool.mutex.
@@ -815,7 +838,7 @@ bool buf_LRU_free_page(buf_page_t *bpage, bool zip)
 
 	/* We must hold an exclusive hash_lock to prevent
 	bpage->can_relocate() from changing due to a concurrent
-	execution of buf_page_get_low(). */
+	execution of buf_page_get_gen(). */
 	buf_pool_t::hash_chain& chain= buf_pool.page_hash.cell_get(id.fold());
 	page_hash_latch& hash_lock = buf_pool.page_hash.lock_get(chain);
 	/* We cannot use transactional_lock_guard here,

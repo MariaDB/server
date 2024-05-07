@@ -1635,11 +1635,12 @@ mysql> select * from schema_object_overview;
 10 rows in set (1.58 sec)
 ```
 
-#### table_privileges
+#### privileges_by_table_by_level
 
 ##### Description
 
--- Shows privileges on existing tables and views granted at all possible levels:
+-- Shows granted privileges broken down by table on which they allow access
+-- and level on which they were granted:
 -- - user_privileges
 -- - schema_privileges
 -- - table_privileges
@@ -1647,7 +1648,7 @@ mysql> select * from schema_object_overview;
 ##### Structure
 
 ```SQL
-MariaDB [test]> desc sys.table_privileges;
+MariaDB [test]> desc sys.privileges_by_table_by_level;
 +--------------+--------------+------+-----+---------+-------+
 | Field        | Type         | Null | Key | Default | Extra |
 +--------------+--------------+------+-----+---------+-------+
@@ -1663,7 +1664,7 @@ MariaDB [test]> desc sys.table_privileges;
 ##### Example
 
 ```SQL
-mysql> select * from sys.table_privileges;
+mysql> select * from sys.privileges_by_table_by_level;
 +--------------+------------+--------------------+----------------+--------+
 | TABLE_SCHEMA | TABLE_NAME | GRANTEE            | PRIVILEGE_TYPE | LEVEL  |
 +--------------+------------+--------------------+----------------+--------+

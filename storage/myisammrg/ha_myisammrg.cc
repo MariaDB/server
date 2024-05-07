@@ -231,13 +231,8 @@ extern "C" int myisammrg_parent_open_callback(void *callback_param,
   ha_myisammrg  *ha_myrg= (ha_myisammrg*) callback_param;
   TABLE         *parent= ha_myrg->table_ptr();
   Mrg_child_def *mrg_child_def;
-  char          *db;
-  char          *table_name;
-  size_t        dirlen;
-  size_t        db_length;
-  size_t        table_name_length;
+  LEX_STRING    db, table_name;
   char          dir_path[FN_REFLEN];
-  char          name_buf[NAME_LEN];
   DBUG_ENTER("myisammrg_parent_open_callback");
 
   /*
@@ -249,70 +244,51 @@ extern "C" int myisammrg_parent_open_callback(void *callback_param,
   if (!has_path(filename))
   {
     /* Child is in the same database as parent. */
-    db_length= parent->s->db.length;
-    db= strmake_root(&ha_myrg->children_mem_root, parent->s->db.str, db_length);
+    db= ha_myrg->make_child_ident(parent->s->db);
     /* Child table name is encoded in parent dot-MRG starting with 5.1.46. */
-    if (parent->s->mysql_version >= 50146)
-    {
-      table_name_length= filename_to_tablename(filename, name_buf,
-                                               sizeof(name_buf));
-      table_name= strmake_root(&ha_myrg->children_mem_root, name_buf,
-                               table_name_length);
-    }
-    else
-    {
-      table_name_length= strlen(filename);
-      table_name= strmake_root(&ha_myrg->children_mem_root, filename,
-                               table_name_length);
-    }
+    table_name= (parent->s->mysql_version >= 50146) ?
+      ha_myrg->make_child_ident_filename_to_tablename(filename,
+                                                      lower_case_table_names) :
+      ha_myrg->make_child_ident_opt_casedn(Lex_cstring_strlen(filename),
+                                           lower_case_table_names);
   }
   else
   {
     DBUG_ASSERT(strlen(filename) < sizeof(dir_path));
     fn_format(dir_path, filename, "", "", 0);
     /* Extract child table name and database name from filename. */
-    dirlen= dirname_length(dir_path);
+    size_t dirlen= dirname_length(dir_path);
     /* Child db/table name is encoded in parent dot-MRG starting with 5.1.6. */
     if (parent->s->mysql_version >= 50106)
     {
-      table_name_length= filename_to_tablename(dir_path + dirlen, name_buf,
-                                               sizeof(name_buf));
-      table_name= strmake_root(&ha_myrg->children_mem_root, name_buf,
-                               table_name_length);
+      table_name= ha_myrg->make_child_ident_filename_to_tablename(
+                                                     dir_path + dirlen,
+                                                     lower_case_table_names);
       dir_path[dirlen - 1]= 0;
       dirlen= dirname_length(dir_path);
-      db_length= filename_to_tablename(dir_path + dirlen, name_buf, sizeof(name_buf));
-      db= strmake_root(&ha_myrg->children_mem_root, name_buf, db_length);
+      db= ha_myrg->make_child_ident_filename_to_tablename(dir_path + dirlen,
+                                                          false);
     }
     else
     {
-      table_name_length= strlen(dir_path + dirlen);
-      table_name= strmake_root(&ha_myrg->children_mem_root, dir_path + dirlen,
-                               table_name_length);
+      table_name= ha_myrg->make_child_ident_opt_casedn(
+                                         Lex_cstring_strlen(dir_path + dirlen),
+                                         lower_case_table_names);
       dir_path[dirlen - 1]= 0;
       dirlen= dirname_length(dir_path);
-      db_length= strlen(dir_path + dirlen);
-      db= strmake_root(&ha_myrg->children_mem_root, dir_path + dirlen,
-                       db_length);
+      db= ha_myrg->make_child_ident(Lex_cstring_strlen(dir_path + dirlen));
     }
   }
 
-  if (! db || ! table_name)
+  if (! db.str || ! table_name.str)
     DBUG_RETURN(1);
 
-  DBUG_PRINT("myrg", ("open: '%.*s'.'%.*s'", (int) db_length, db,
-                      (int) table_name_length, table_name));
-
-  /* Convert to lowercase if required. */
-  if (lower_case_table_names && table_name_length)
-  {
-    /* purecov: begin tested */
-    table_name_length= my_casedn_str(files_charset_info, table_name);
-    /* purecov: end */
-  }
+  DBUG_PRINT("myrg", ("open: '%.*s'.'%.*s'", (int) db.length, db.str,
+                      (int) table_name.length, table_name.str));
 
   mrg_child_def= new (&ha_myrg->children_mem_root)
-                 Mrg_child_def(db, db_length, table_name, table_name_length);
+                 Mrg_child_def(db.str, db.length,
+                               table_name.str, table_name.length);
 
   if (! mrg_child_def ||
       ha_myrg->child_def_list.push_back(mrg_child_def,

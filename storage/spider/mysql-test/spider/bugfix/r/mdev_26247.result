@@ -28,24 +28,28 @@ INSERT INTO t1 VALUES (1), (2), (3);
 INSERT INTO t2 VALUES (1, 11), (2, 22), (3, 33);
 INSERT INTO t3 VALUES (1, 111), (2, 222), (3, 333);
 connection master_1;
-set @old_spider_disable_group_by_handler=@@spider_disable_group_by_handler;
-set spider_disable_group_by_handler=1;
 CREATE DATABASE auto_test_local;
 USE auto_test_local;
 CREATE TABLE t1 (
 a11 int,
 primary key (a11)
 ) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='srv "s_2_1", table "t1"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 CREATE TABLE t2 (
 a21 int,
 a22 int,
 primary key (a21, a22)
 ) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='srv "s_2_1", table "t2"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 CREATE TABLE t3 (
 a31 int,
 a32 int,
 primary key (a31, a32)
 ) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='srv "s_2_1", table "t3"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 SELECT a22 FROM t1 LEFT JOIN t2 ON a11 = a21 WHERE a11 IN (1);
 a22
 11
@@ -82,7 +86,6 @@ a22
 22
 connection master_1;
 DROP DATABASE IF EXISTS auto_test_local;
-set spider_disable_group_by_handler=@old_spider_disable_group_by_handler;
 connection child2_1;
 DROP DATABASE IF EXISTS auto_test_remote;
 for master_1
@@ -91,6 +94,3 @@ child2_1
 child2_2
 child2_3
 for child3
-#
-# end of test mdev_26247
-#

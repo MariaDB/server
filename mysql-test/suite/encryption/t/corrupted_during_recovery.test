@@ -60,7 +60,7 @@ call mtr.add_suppression("Table .*t1.* is corrupted. Please drop the table and r
 let $restart_parameters=--innodb_force_recovery=1 --skip-innodb-buffer-pool-load-at-startup;
 --source include/restart_mysqld.inc
 
---error ER_TABLE_CORRUPT
+--error ER_NO_SUCH_TABLE_IN_ENGINE,ER_TABLE_CORRUPT
 SELECT * FROM t1;
 SELECT * FROM t2;
 CHECK TABLE t2;

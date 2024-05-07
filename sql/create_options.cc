@@ -45,12 +45,11 @@ void engine_option_value::link(engine_option_value **start,
   /* check duplicates to avoid writing them to frm*/
   for(opt= *start;
       opt && ((opt->parsed && !opt->value.str) ||
-              system_charset_info->strnncoll(name.str, name.length,
-                                             opt->name.str, opt->name.length));
+              !name.streq(opt->name));
       opt= opt->next) /* no-op */;
   if (opt)
   {
-    opt->value.str= NULL;       /* remove previous value */
+    opt->value= Value(); /* remove previous value */
     opt->parsed= TRUE;          /* and don't issue warnings for it anymore */
   }
   /*
@@ -119,7 +118,8 @@ static bool report_unknown_option(THD *thd, engine_option_value *val,
 #define value_ptr(STRUCT,OPT)    ((char*)(STRUCT) + (OPT)->offset)
 
 static bool set_one_value(ha_create_table_option *opt,
-                          THD *thd, const LEX_CSTRING *value, void *base,
+                          THD *thd, const engine_option_value::Value *value,
+                          void *base,
                           bool suppress_warning,
                           MEM_ROOT *root)
 {
@@ -186,8 +186,7 @@ static bool set_one_value(ha_create_table_option *opt,
         for (end=start;
              *end && *end != ',';
              end++) /* no-op */;
-        if (!system_charset_info->strnncoll(start, end-start,
-                                            value->str, value->length))
+        if (value->streq(Lex_cstring(start, end)))
         {
           *val= num;
           DBUG_RETURN(0);
@@ -209,17 +208,17 @@ static bool set_one_value(ha_create_table_option *opt,
       if (!value->str)
         DBUG_RETURN(0);
 
-      if (!system_charset_info->strnncoll("NO", 2, value->str, value->length) ||
-          !system_charset_info->strnncoll("OFF", 3, value->str, value->length) ||
-          !system_charset_info->strnncoll("0", 1, value->str, value->length))
+      if (value->streq("NO"_LEX_CSTRING) ||
+          value->streq("OFF"_LEX_CSTRING) ||
+          value->streq("0"_LEX_CSTRING))
       {
         *val= FALSE;
         DBUG_RETURN(FALSE);
       }
 
-      if (!system_charset_info->strnncoll("YES", 3, value->str, value->length) ||
-          !system_charset_info->strnncoll("ON", 2, value->str, value->length) ||
-          !system_charset_info->strnncoll("1", 1, value->str, value->length))
+      if (value->streq("YES"_LEX_CSTRING) ||
+          value->streq("ON"_LEX_CSTRING) ||
+          value->streq("1"_LEX_CSTRING))
       {
         *val= TRUE;
         DBUG_RETURN(FALSE);
@@ -281,8 +280,7 @@ bool parse_option_list(THD* thd, handlerton *hton, void *option_struct_arg,
     for (val= *option_list; val; val= val->next)
     {
       last= val;
-      if (system_charset_info->strnncoll(opt->name, opt->name_length,
-                                         val->name.str, val->name.length))
+      if (!val->name.streq(Lex_cstring(opt->name, opt->name_length)))
         continue;
 
       /* skip duplicates (see engine_option_value constructor above) */
@@ -298,7 +296,7 @@ bool parse_option_list(THD* thd, handlerton *hton, void *option_struct_arg,
     }
     if (!seen || (opt->var && !last->value.str))
     {
-      LEX_CSTRING default_val= null_clex_str;
+      engine_option_value::Value default_val;
 
       /*
         Okay, here's the logic for sysvar options:
@@ -337,7 +335,7 @@ bool parse_option_list(THD* thd, handlerton *hton, void *option_struct_arg,
           String sbuf(buf, sizeof(buf), system_charset_info), *str;
           if ((str= sysvar->val_str(&sbuf, thd, OPT_SESSION, &null_clex_str)))
           {
-            LEX_CSTRING name= { opt->name, opt->name_length };
+            engine_option_value::Name name(opt->name, opt->name_length);
             default_val.str= strmake_root(root, str->ptr(), str->length());
             default_val.length= str->length();
             val= new (root) engine_option_value(
@@ -754,7 +752,9 @@ uchar *engine_option_value::frm_read(const uchar *buff, const uchar *buff_end,
   buff+= value.length;
 
   engine_option_value *ptr=
-      new (root) engine_option_value(name, value, len & FRM_QUOTED_VALUE);
+      new (root) engine_option_value(engine_option_value::Name(name),
+                                     engine_option_value::Value(value),
+                                     len & FRM_QUOTED_VALUE);
   if (!ptr)
     return NULL;
   ptr->link(start, end);
@@ -870,8 +870,7 @@ bool is_engine_option_known(engine_option_value *opt,
 
   for (; rules->name; rules++)
   {
-      if (!system_charset_info->strnncoll(rules->name, rules->name_length,
-                                          opt->name.str, opt->name.length))
+      if (opt->name.streq(Lex_cstring(rules->name, rules->name_length)))
         return true;
   }
   return false;

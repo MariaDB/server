@@ -5,6 +5,7 @@
 --source include/not_embedded.inc
 --source include/have_perfschema.inc
 --source include/no_protocol.inc
+--source include/check_digest.inc
 
 USE performance_schema;
 truncate table events_statements_history_long;
@@ -19,5 +20,8 @@ SELECT 1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1
 --echo ####################################
 --echo # QUERYING PS STATEMENT DIGEST
 --echo ####################################
+create table test.events_long select * from events_statements_history_long;
 --sorted_result
-SELECT event_name, digest, digest_text, sql_text FROM events_statements_history_long;
+SELECT event_name, test.check_digest(digest), digest_text, sql_text FROM test.events_long;
+--source include/check_digest_end.inc
+drop table test.events_long;

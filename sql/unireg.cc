@@ -42,7 +42,8 @@
 static uint pack_keys(uchar *,uint, KEY *, ulong, uint);
 static bool pack_header(THD *, uchar *, List<Create_field> &, HA_CREATE_INFO *,
                         ulong, handler *);
-static bool pack_vcols(String *, List<Create_field> &, List<Virtual_column_info> *);
+static bool pack_vcols(THD *thd, String *,
+                       List<Create_field> &, List<Virtual_column_info> *);
 static uint get_interval_id(uint *,List<Create_field> &, Create_field *);
 static bool pack_fields(uchar **, List<Create_field> &, HA_CREATE_INFO*,
                         ulong);
@@ -136,7 +137,7 @@ static uchar *extra2_write_index_properties(uchar *pos, const KEY *keyinfo,
 static field_index_t
 get_fieldno_by_name(HA_CREATE_INFO *create_info,
                     List<Create_field> &create_fields,
-                    const Lex_ident &field_name)
+                    const Lex_ident_column &field_name)
 {
   List_iterator<Create_field> it(create_fields);
   Create_field *sql_field = NULL;
@@ -291,10 +292,8 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
     create_info->null_bits++;
   data_offset= (create_info->null_bits + 7) / 8;
 
-  sql_mode_t save_sql_mode= thd->variables.sql_mode;
-  thd->variables.sql_mode &= ~MODE_ANSI_QUOTES;
-  error= pack_vcols(&vcols, create_fields, create_info->check_constraint_list);
-  thd->variables.sql_mode= save_sql_mode;
+  error= pack_vcols(thd, &vcols,
+                    create_fields, create_info->check_constraint_list);
 
   if (unlikely(error))
     DBUG_RETURN(frm);
@@ -645,7 +644,7 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
     {
       if (field->save_interval)
       {
-        field->interval= field->save_interval;
+        field->set_typelib(field->save_interval);
         field->save_interval= 0;
       }
     }
@@ -792,9 +791,10 @@ static bool pack_expression(String *buf, Virtual_column_info *vcol,
 }
 
 
-static bool pack_vcols(String *buf, List<Create_field> &create_fields,
-                             List<Virtual_column_info> *check_constraint_list)
+static bool pack_vcols(THD *thd, String *buf, List<Create_field> &create_fields,
+                       List<Virtual_column_info> *check_constraint_list)
 {
+  Sql_mode_save_for_frm_handling sql_mode_save(thd);
   List_iterator<Create_field> it(create_fields);
   Create_field *field;
 
@@ -887,7 +887,7 @@ static bool pack_header(THD *thd, uchar *forminfo,
     n_length+= field->field_name.length + 1;
     field->interval_id=0;
     field->save_interval= 0;
-    if (field->interval)
+    if (field->typelib())
     {
       uint old_int_count=int_count;
 
@@ -902,9 +902,9 @@ static bool pack_header(THD *thd, uchar *forminfo,
           filled with default values it is saved in save_interval
           The HEX representation is created from this copy.
         */
-        uint count= field->interval->count;
-        field->save_interval= field->interval;
-        field->interval= tmpint= (TYPELIB*) thd->alloc(sizeof(TYPELIB));
+        uint count= field->typelib()->count;
+        field->save_interval= field->typelib();
+        field->set_typelib(tmpint= (TYPELIB*) thd->alloc(sizeof(TYPELIB)));
         *tmpint= *field->save_interval;
         tmpint->type_names=
           (const char **) thd->alloc(sizeof(char*) *
@@ -913,7 +913,7 @@ static bool pack_header(THD *thd, uchar *forminfo,
         tmpint->type_names[count]= 0;
         tmpint->type_lengths[count]= 0;
 
-        for (uint pos= 0; pos < field->interval->count; pos++)
+        for (uint pos= 0; pos < field->typelib()->count; pos++)
         {
           char *dst;
           const char *src= field->save_interval->type_names[pos];
@@ -922,15 +922,15 @@ static bool pack_header(THD *thd, uchar *forminfo,
           hex_length= length * 2;
           tmpint->type_lengths[pos]= (uint) hex_length;
           tmpint->type_names[pos]= dst= (char*) thd->alloc(hex_length + 1);
-          octet2hex(dst, src, length);
+          octet2hex(dst, (uchar*)src, length);
         }
       }
 
       field->interval_id=get_interval_id(&int_count,create_fields,field);
       if (old_int_count != int_count)
       {
-        int_length+= typelib_values_packed_length(field->interval);
-        int_parts+= field->interval->count + 1;
+        int_length+= typelib_values_packed_length(field->typelib());
+        int_parts+= field->typelib()->count + 1;
       }
     }
     if (f_maybe_null(field->pack_flag))
@@ -984,7 +984,7 @@ static uint get_interval_id(uint *int_count,List<Create_field> &create_fields,
 {
   List_iterator<Create_field> it(create_fields);
   Create_field *field;
-  const TYPELIB *interval= last_field->interval;
+  const TYPELIB *interval= last_field->typelib();
 
   while ((field=it++) != last_field)
   {
@@ -996,11 +996,11 @@ static uint get_interval_id(uint *int_count,List<Create_field> &create_fields,
       - mbminlen>1 are written to FRM in hex-encoded format
     */
     if (field->interval_id &&
-        field->interval->count == interval->count &&
+        field->typelib()->count == interval->count &&
         field->charset->mbminlen == last_field->charset->mbminlen)
     {
       const char **a,**b;
-      for (a=field->interval->type_names, b=interval->type_names ;
+      for (a= field->typelib()->type_names, b= interval->type_names ;
 	   *a && !strcmp(*a,*b);
 	   a++,b++) ;
 
@@ -1028,7 +1028,7 @@ static size_t packed_fields_length(List<Create_field> &create_fields)
     {
       int_count= field->interval_id;
       length++;
-      length+= typelib_values_packed_length(field->interval);
+      length+= typelib_values_packed_length(field->typelib());
       length++;
     }
 
@@ -1096,8 +1096,8 @@ static bool pack_fields(uchar **buff_arg, List<Create_field> &create_fields,
 
         bzero(occ, sizeof(occ));
 
-        for (i=0; (val= (unsigned char*) field->interval->type_names[i]); i++)
-          for (uint j = 0; j < field->interval->type_lengths[i]; j++)
+        for (i=0; (val= (unsigned char*) field->typelib()->type_names[i]); i++)
+          for (uint j = 0; j < field->typelib()->type_lengths[i]; j++)
             occ[(unsigned int) (val[j])]= 1;
 
         if (!occ[(unsigned char)NAMES_SEP_CHAR])
@@ -1127,10 +1127,11 @@ static bool pack_fields(uchar **buff_arg, List<Create_field> &create_fields,
 
         int_count= field->interval_id;
         *buff++= sep;
-        for (int i=0; field->interval->type_names[i]; i++)
+        for (int i=0; field->typelib()->type_names[i]; i++)
         {
-          memcpy(buff, field->interval->type_names[i], field->interval->type_lengths[i]);
-          buff+= field->interval->type_lengths[i];
+          memcpy(buff, field->typelib()->type_names[i],
+                 field->typelib()->type_lengths[i]);
+          buff+= field->typelib()->type_lengths[i];
           *buff++= sep;
         }
         *buff++= 0;
@@ -1214,8 +1215,8 @@ static bool make_empty_rec(THD *thd, uchar *buff, uint table_options,
     Record_addr addr(buff + field->offset + data_offset,
                      null_pos + null_count / 8, null_count & 7);
     Column_definition_attributes tmp(*field);
-    tmp.interval= field->save_interval ?
-                  field->save_interval : field->interval;
+    tmp.set_typelib(field->save_interval ?
+                    field->save_interval : field->typelib());
     /* regfield don't have to be deleted as it's allocated on THD::mem_root */
     Field *regfield= tmp.make_field(&share, thd->mem_root, &addr,
                                     field->type_handler(),

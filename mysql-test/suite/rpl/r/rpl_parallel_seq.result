@@ -82,6 +82,37 @@ SELECT @@global.gtid_binlog_state, @@global.gtid_slave_pos as "all through 101 h
 @@global.gtid_binlog_state	all through 101 have been committed
 0-1-101	0-1-101
 connection slave;
+flush tables with read lock;
+connection master;
+CREATE OR REPLACE SEQUENCE s3 ENGINE=innodb;
+SELECT NEXT VALUE FOR s3 into @tmpvar;
+include/save_master_gtid.inc
+connection slave;
+unlock tables;
+include/sync_with_master_gtid.inc
+connection slave;
+flush tables with read lock;
+connection master;
+CREATE OR REPLACE SEQUENCE s3 ENGINE=innodb;
+SELECT NEXT VALUE FOR s3 into @tmpvar;
+include/save_master_gtid.inc
+connection slave;
+unlock tables;
+include/sync_with_master_gtid.inc
+connection slave;
+BEGIN /* slave local Trx */;
+select count(*) from s3;
+count(*)
+1
+connection master;
+CREATE OR REPLACE SEQUENCE s3 ENGINE=innodb;
+SELECT NEXT VALUE FOR s3 into @tmpvar;
+include/save_master_gtid.inc
+connection slave;
+connection slave;
+rollback /* Trx */;
+include/sync_with_master_gtid.inc
+connection slave;
 include/stop_slave.inc
 SET debug_sync = RESET;
 SET @@global.slave_parallel_threads= 0;
@@ -90,7 +121,10 @@ SET @@global.debug_dbug = "";
 SET @@global.gtid_strict_mode=0;
 include/start_slave.inc
 connection master;
-DROP SEQUENCE s2;
+BEGIN;
+INSERT INTO ti SET a=32593;
+CREATE SEQUENCE s4;
+DROP SEQUENCE s2,s3,s4;
 DROP TABLE ti;
 connection slave;
 include/rpl_end.inc

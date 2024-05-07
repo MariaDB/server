@@ -336,11 +336,14 @@ func_exit:
     os_file_flush(file);
   }
   else
-    for (ulint i= 0; i < size * 2; i++, page += srv_page_size)
-      if (mach_read_from_8(my_assume_aligned<8>(page + FIL_PAGE_LSN)))
-        /* Each valid page header must contain a nonzero FIL_PAGE_LSN field. */
+  {
+    alignas(8) char checkpoint[8];
+    mach_write_to_8(checkpoint, log_sys.next_checkpoint_lsn);
+    for (auto i= size * 2; i--; page += srv_page_size)
+      if (memcmp_aligned<8>(page + FIL_PAGE_LSN, checkpoint, 8) >= 0)
+        /* Valid pages are not older than the log checkpoint. */
         recv_sys.dblwr.add(page);
-
+  }
   err= DB_SUCCESS;
   goto func_exit;
 }
@@ -362,7 +365,7 @@ void buf_dblwr_t::recover()
   {
     byte *page= *i;
     const uint32_t page_no= page_get_page_no(page);
-    if (!page_no) /* recovered via Datafile::restore_from_doublewrite() */
+    if (!page_no) /* recovered via recv_dblwr_t::restore_first_page() */
       continue;
 
     const lsn_t lsn= mach_read_from_8(page + FIL_PAGE_LSN);
@@ -528,7 +531,7 @@ static void buf_dblwr_check_page_lsn(const page_t* page, const fil_space_t& s)
 
 static void buf_dblwr_check_page_lsn(const buf_page_t &b, const byte *page)
 {
-  if (fil_space_t *space= fil_space_t::get(b.id().space()))
+  if (fil_space_t *space= fil_space_t::get_for_write(b.id().space()))
   {
     buf_dblwr_check_page_lsn(page, *space);
     space->release();

@@ -9970,7 +9970,6 @@ static MY_COLLATION_HANDLER my_collation_handler_euckr_korean_ci=
   my_strnxfrmlen_simple,
   my_like_range_mb,
   my_wildcmp_mb,
-  my_strcasecmp_mb,
   my_instr_mb,
   my_hash_sort_simple,
   my_propagate_simple,
@@ -9991,7 +9990,6 @@ static MY_COLLATION_HANDLER my_collation_handler_euckr_bin=
   my_strnxfrmlen_simple,
   my_like_range_mb,
   my_wildcmp_mb_bin,
-  my_strcasecmp_mb_bin,
   my_instr_mb,
   my_hash_sort_mb_bin,
   my_propagate_simple,
@@ -10012,7 +10010,6 @@ static MY_COLLATION_HANDLER my_collation_handler_euckr_korean_nopad_ci=
   my_strnxfrmlen_simple,
   my_like_range_mb,
   my_wildcmp_mb,
-  my_strcasecmp_mb,
   my_instr_mb,
   my_hash_sort_simple_nopad,
   my_propagate_simple,
@@ -10033,7 +10030,6 @@ static MY_COLLATION_HANDLER my_collation_handler_euckr_nopad_bin=
   my_strnxfrmlen_simple,
   my_like_range_mb,
   my_wildcmp_mb_bin,
-  my_strcasecmp_mb_bin,
   my_instr_mb,
   my_hash_sort_mb_nopad_bin,
   my_propagate_simple,
@@ -10054,8 +10050,6 @@ static MY_CHARSET_HANDLER my_charset_handler=
   my_mb_wc_euc_kr,	/* mb_wc   */
   my_wc_mb_euc_kr,	/* wc_mb   */
   my_mb_ctype_mb,
-  my_caseup_str_mb,
-  my_casedn_str_mb,
   my_caseup_mb,        /* UPPER() can reduce length: Turkish DOTLESS i -> I */
   my_casedn_mb,        /* LOWER() does not change length */
   my_snprintf_8bit,

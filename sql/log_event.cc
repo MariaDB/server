@@ -259,7 +259,7 @@ static inline bool read_str(const uchar **buf, const uchar *buf_end,
   Transforms a string into "" or its expression in X'HHHH' form.
 */
 
-char *str_to_hex(char *to, const char *from, size_t len)
+char *str_to_hex(char *to, const uchar *from, size_t len)
 {
   if (len)
   {
@@ -880,7 +880,7 @@ int Log_event::read_log_event(IO_CACHE* file, String* packet,
 
 Log_event* Log_event::read_log_event(IO_CACHE* file,
                                      const Format_description_log_event *fdle,
-                                     my_bool crc_check,
+                                     my_bool crc_check, my_bool print_errors,
                                      size_t max_allowed_packet)
 {
   DBUG_ENTER("Log_event::read_log_event(IO_CACHE*,Format_description_log_event*...)");
@@ -921,8 +921,12 @@ Log_event* Log_event::read_log_event(IO_CACHE* file,
       goto err;
   }
 
+  /*
+    print_errors is false to prevent redundant error messages cluttering up the
+    log, as it will be printed below (if _our_ print_errors is true)
+  */
   if ((res= read_log_event((uchar*) event.ptr(), event.length(),
-                           &error, fdle, crc_check)))
+                           &error, fdle, crc_check, false)))
     res->register_temp_buf((uchar*) event.release(), true);
 
 err:
@@ -933,13 +937,7 @@ err:
     if (force_opt)
       DBUG_RETURN(new Unknown_log_event());
 #endif
-    if (event.length() >= LOG_EVENT_MINIMAL_HEADER_LEN)
-      sql_print_error("Error in Log_event::read_log_event(): '%s',"
-                      " data_len: %lu, event_type: %u", error,
-                      (ulong) uint4korr(&event[EVENT_LEN_OFFSET]),
-                      (uint) (uchar)event[EVENT_TYPE_OFFSET]);
-    else
-      sql_print_error("Error in Log_event::read_log_event(): '%s'", error);
+
     /*
       The SQL slave thread will check if file->error<0 to know
       if there was an I/O error. Even if there is no "low-level" I/O errors
@@ -949,6 +947,19 @@ err:
       only corrupt the slave's databases. So stop.
     */
     file->error= -1;
+
+#ifndef MYSQL_CLIENT
+    if (!print_errors)
+      DBUG_RETURN(res);
+#endif
+
+    if (event.length() >= LOG_EVENT_MINIMAL_HEADER_LEN)
+      sql_print_error("Error in Log_event::read_log_event(): '%s',"
+                      " data_len: %lu, event_type: %u", error,
+                      (ulong) uint4korr(&event[EVENT_LEN_OFFSET]),
+                      (uint) (uchar)event[EVENT_TYPE_OFFSET]);
+    else
+      sql_print_error("Error in Log_event::read_log_event(): '%s'", error);
   }
   DBUG_RETURN(res);
 }
@@ -962,7 +973,8 @@ err:
 Log_event* Log_event::read_log_event(const uchar *buf, uint event_len,
                                      const char **error,
                                      const Format_description_log_event *fdle,
-                                     my_bool crc_check)
+                                     my_bool crc_check,
+                                     my_bool print_errors)
 {
   Log_event* ev;
   enum_binlog_checksum_alg alg;
@@ -1031,7 +1043,8 @@ Log_event* Log_event::read_log_event(const uchar *buf, uint event_len,
       DBUG_RETURN(NULL);
 #else
     *error= ER_THD_OR_DEFAULT(current_thd, ER_BINLOG_READ_EVENT_CHECKSUM_FAILURE);
-    sql_print_error("%s", *error);
+    if (print_errors)
+      sql_print_error("%s", *error);
     DBUG_RETURN(NULL);
 #endif
   }
@@ -1573,6 +1586,17 @@ Query_log_event::Query_log_event(const uchar *buf, uint event_len,
       }
       break;
     }
+    case Q_DUMMY:
+    {
+      /*
+        At some point, this query event was translated from a GTID event, with
+        these Q_DUMMY bytes added to pad the end of the header. We can skip the
+        rest of processing these vars. Note this is a separate case from the
+        default to avoid the DBUG_PRINT of an unknown status var.
+      */
+      pos= (const uchar*) end;
+      break;
+    }
     default:
       /* That's why you must write status vars in growing order of code */
       DBUG_PRINT("info",("Query_log_event has unknown status vars (first has\
@@ -1877,6 +1901,7 @@ Query_log_event::begin_event(String *packet, ulong ev_offset,
   uchar *p= (uchar *)packet->ptr() + ev_offset;
   uchar *q= p + LOG_EVENT_HEADER_LEN;
   size_t data_len= packet->length() - ev_offset;
+  size_t dummy_bytes;
   uint16 flags;
 
   if (checksum_alg == BINLOG_CHECKSUM_ALG_CRC32)
@@ -1885,15 +1910,6 @@ Query_log_event::begin_event(String *packet, ulong ev_offset,
     DBUG_ASSERT(checksum_alg == BINLOG_CHECKSUM_ALG_UNDEF ||
                 checksum_alg == BINLOG_CHECKSUM_ALG_OFF);
 
-  /*
-    Currently we only need to replace GTID event.
-    The length of GTID differs depending on whether it contains commit id.
-  */
-  DBUG_ASSERT(data_len == LOG_EVENT_HEADER_LEN + GTID_HEADER_LEN ||
-              data_len == LOG_EVENT_HEADER_LEN + GTID_HEADER_LEN + 2);
-  if (data_len != LOG_EVENT_HEADER_LEN + GTID_HEADER_LEN &&
-      data_len != LOG_EVENT_HEADER_LEN + GTID_HEADER_LEN + 2)
-    return 1;
 
   flags= uint2korr(p + FLAGS_OFFSET);
   flags&= ~LOG_EVENT_THREAD_SPECIFIC_F;
@@ -1905,22 +1921,21 @@ Query_log_event::begin_event(String *packet, ulong ev_offset,
   int4store(q + Q_EXEC_TIME_OFFSET, 0);
   q[Q_DB_LEN_OFFSET]= 0;
   int2store(q + Q_ERR_CODE_OFFSET, 0);
-  if (data_len == LOG_EVENT_HEADER_LEN + GTID_HEADER_LEN)
-  {
-    int2store(q + Q_STATUS_VARS_LEN_OFFSET, 0);
-    q[Q_DATA_OFFSET]= 0;                    /* Zero terminator for empty db */
-    q+= Q_DATA_OFFSET + 1;
-  }
-  else
-  {
-    DBUG_ASSERT(data_len == LOG_EVENT_HEADER_LEN + GTID_HEADER_LEN + 2);
-    /* Put in an empty time_zone_str to take up the extra 2 bytes. */
-    int2store(q + Q_STATUS_VARS_LEN_OFFSET, 2);
-    q[Q_DATA_OFFSET]= Q_TIME_ZONE_CODE;
-    q[Q_DATA_OFFSET+1]= 0;           /* Zero length for empty time_zone_str */
-    q[Q_DATA_OFFSET+2]= 0;                  /* Zero terminator for empty db */
-    q+= Q_DATA_OFFSET + 3;
-  }
+
+  /*
+    If the allocated GTID event packet header is longer than the size of the
+    standard BEGIN query event's, then we need to fill in everything else with
+    "dummy" values. That is, old replicas won't recognize the meaning for the
+    DUMMY value, and will skip the rest of the status vars section.
+  */
+  DBUG_ASSERT(data_len >= LOG_EVENT_HEADER_LEN + GTID_HEADER_LEN);
+  dummy_bytes= data_len - (LOG_EVENT_HEADER_LEN + GTID_HEADER_LEN);
+  int2store(q + Q_STATUS_VARS_LEN_OFFSET, dummy_bytes);
+  for (size_t i= 0; i < dummy_bytes; i++)
+    q[Q_DATA_OFFSET + i]= Q_DUMMY;
+  q[Q_DATA_OFFSET + dummy_bytes]= 0; /* Zero terminator for empty db */
+  q+= Q_DATA_OFFSET + dummy_bytes + 1;
+
   memcpy(q, "BEGIN", 5);
 
   if (checksum_alg == BINLOG_CHECKSUM_ALG_CRC32)
@@ -2381,7 +2396,7 @@ Gtid_log_event::Gtid_log_event(const uchar *buf, uint event_len,
                                const Format_description_log_event
                                *description_event)
   : Log_event(buf, description_event), seq_no(0), commit_id(0),
-    flags_extra(0), extra_engines(0)
+    flags_extra(0), extra_engines(0), thread_id(0)
 {
   uint8 header_size= description_event->common_header_len;
   uint8 post_header_len= description_event->post_header_len[GTID_EVENT-1];
@@ -2440,6 +2455,13 @@ Gtid_log_event::Gtid_log_event(const uchar *buf, uint event_len,
     {
       sa_seq_no= uint8korr(buf);
       buf+= 8;
+    }
+
+    if (flags_extra & FL_EXTRA_THREAD_ID &&
+        static_cast<uint>(buf - buf_0) <= event_len + 4)
+    {
+      thread_id= uint4korr(buf);
+      buf+= 4;
     }
   }
   /*
@@ -2705,6 +2727,41 @@ XA_prepare_log_event(const uchar *buf,
   User_var_log_event methods
 **************************************************************************/
 
+bool Log_event_data_type::unpack_optional_attributes(const char *pos,
+                                                     const char *end)
+
+{
+  for ( ; pos < end; )
+  {
+    switch (*pos) {
+    case CHUNK_SIGNED:
+      m_is_unsigned= false;
+      pos++;
+      continue;
+    case CHUNK_UNSIGNED:
+      m_is_unsigned= true;
+      pos++;
+      continue;
+    case CHUNK_DATA_TYPE_NAME:
+      {
+        pos++;
+        if (pos >= end)
+          return true;
+        uint length= (uchar) *pos++;
+        if (pos + length > end)
+          return true;
+        m_data_type_name= {pos, length};
+        pos+= length;
+        continue;
+      }
+    default:
+      break; // Unknown chunk
+    }
+  }
+  return false;
+}
+
+
 User_var_log_event::
 User_var_log_event(const uchar *buf, uint event_len,
                    const Format_description_log_event* description_event)
@@ -2714,7 +2771,8 @@ User_var_log_event(const uchar *buf, uint event_len,
 #endif
 {
   bool error= false;
-  const uchar *buf_start= buf, *buf_end= buf + event_len;
+  const uchar *const buf_start= buf;
+  const char *buf_end= reinterpret_cast<const char*>(buf) + event_len;
 
   /* The Post-Header is empty. The Variable Data part begins immediately. */
   buf+= description_event->common_header_len +
@@ -2742,11 +2800,8 @@ User_var_log_event(const uchar *buf, uint event_len,
 
   buf+= UV_NAME_LEN_SIZE + name_len;
   is_null= (bool) *buf;
-  flags= User_var_log_event::UNDEF_F;    // defaults to UNDEF_F
   if (is_null)
   {
-    type= STRING_RESULT;
-    charset_number= my_charset_bin.number;
     val_len= 0;
     val= 0;  
   }
@@ -2761,8 +2816,8 @@ User_var_log_event(const uchar *buf, uint event_len,
       goto err;
     }
 
-    type= (Item_result) buf[UV_VAL_IS_NULL];
-    charset_number= uint4korr(buf + UV_VAL_IS_NULL + UV_VAL_TYPE_SIZE);
+    m_type= (Item_result) buf[UV_VAL_IS_NULL];
+    m_charset_number= uint4korr(buf + UV_VAL_IS_NULL + UV_VAL_TYPE_SIZE);
     val_len= uint4korr(buf + UV_VAL_IS_NULL + UV_VAL_TYPE_SIZE +
                        UV_CHARSET_NUMBER_SIZE);
 
@@ -2775,19 +2830,13 @@ User_var_log_event(const uchar *buf, uint event_len,
       the flags value.
 
       Old events will not have this extra byte, thence,
-      we keep the flags set to UNDEF_F.
+      we keep m_is_unsigned==false.
     */
-    size_t bytes_read= (val + val_len) - (char*) buf_start;
-    if (bytes_read > event_len)
+    const char *pos= val + val_len;
+    if (pos > buf_end || unpack_optional_attributes(pos, buf_end))
     {
       error= true;
       goto err;
-    }
-    if ((data_written - bytes_read) > 0)
-    {
-      flags= (uint) *(buf + UV_VAL_IS_NULL + UV_VAL_TYPE_SIZE +
-                    UV_CHARSET_NUMBER_SIZE + UV_VAL_LEN_SIZE +
-                    val_len);
     }
   }
 
@@ -2996,7 +3045,7 @@ Rows_log_event::Rows_log_event(const uchar *buf, uint event_len,
   }
   else
   {
-    m_table_id= (ulong) uint6korr(post_start);
+    m_table_id= (ulonglong) uint6korr(post_start);
     post_start+= RW_FLAGS_OFFSET;
   }
 
@@ -3359,11 +3408,12 @@ Table_map_log_event::Table_map_log_event(const uchar *buf, uint event_len,
   else
   {
     DBUG_ASSERT(post_header_len == TABLE_MAP_HEADER_LEN);
-    m_table_id= (ulong) uint6korr(post_start);
+    m_table_id= (ulonglong) uint6korr(post_start);
     post_start+= TM_FLAGS_OFFSET;
   }
 
-  DBUG_ASSERT(m_table_id != ~0ULL);
+  DBUG_ASSERT((m_table_id & MAX_TABLE_MAP_ID) != UINT32_MAX &&
+              (m_table_id & MAX_TABLE_MAP_ID) != 0);
 
   m_flags= uint2korr(post_start);
 

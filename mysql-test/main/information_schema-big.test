@@ -1,6 +1,3 @@
-# This test  uses grants, which can't get tested for embedded server
--- source include/big_test.inc
--- source include/not_embedded.inc
 -- source include/have_innodb.inc
 
 # check that CSV engine was compiled in, as the result of the test depends

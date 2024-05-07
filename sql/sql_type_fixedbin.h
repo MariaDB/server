@@ -136,6 +136,21 @@ public:
       return Fbt_null(item, false).is_null();
     }
 
+    /*
+      Check at fix_fields() time if any of the items can return a nullable
+      value on conversion to Fbt.
+    */
+    static bool fix_fields_maybe_null_on_conversion_to_fbt(Item **items,
+                                                           uint count)
+    {
+      for (uint i= 0; i < count; i++)
+      {
+        if (Fbt::fix_fields_maybe_null_on_conversion_to_fbt(items[i]))
+          return true;
+      }
+      return false;
+    }
+
   public:
 
     Fbt(Item *item, bool *error, bool warn= true)
@@ -267,9 +282,7 @@ public:
     void print(String *str, enum_query_type query_type) override
     {
       StringBuffer<FbtImpl::max_char_length()+64> tmp;
-      tmp.append(singleton()->name().lex_cstring());
-      my_caseup_str(&my_charset_latin1, tmp.c_ptr());
-      str->append(tmp);
+      str->append(singleton()->name().lex_cstring());
       str->append('\'');
       m_value.to_string(&tmp);
       str->append(tmp);
@@ -883,48 +896,15 @@ public:
     }
   };
 
-  class Item_typecast_fbt: public Item_func
+  class Item_fbt_func: public Item_func
   {
   public:
-    Item_typecast_fbt(THD *thd, Item *a) :Item_func(thd, a) {}
-
+    using Item_func::Item_func;
     const Type_handler *type_handler() const override
     { return singleton(); }
-
-    enum Functype functype() const override { return CHAR_TYPECAST_FUNC; }
-    bool eq(const Item *item, bool binary_cmp) const override
-    {
-      if (this == item)
-        return true;
-      if (item->type() != FUNC_ITEM ||
-          functype() != ((Item_func*)item)->functype())
-        return false;
-      if (type_handler() != item->type_handler())
-        return false;
-      Item_typecast_fbt *cast= (Item_typecast_fbt*) item;
-      return args[0]->eq(cast->args[0], binary_cmp);
-    }
-    LEX_CSTRING func_name_cstring() const override
-    {
-      static Name name= singleton()->name();
-      size_t len= 9+name.length()+1;
-      char *buf= (char*)current_thd->alloc(len);
-      strmov(strmov(buf, "cast_as_"), name.ptr());
-      return { buf, len };
-    }
-    void print(String *str, enum_query_type query_type) override
-    {
-      str->append(STRING_WITH_LEN("cast("));
-      args[0]->print(str, query_type);
-      str->append(STRING_WITH_LEN(" as "));
-      str->append(singleton()->name().lex_cstring());
-      str->append(')');
-    }
     bool fix_length_and_dec(THD *thd) override
     {
       Type_std_attributes::operator=(Type_std_attributes_fbt());
-      if (Fbt::fix_fields_maybe_null_on_conversion_to_fbt(args[0]))
-        set_maybe_null();
       return false;
     }
     String *val_str(String *to) override
@@ -950,10 +930,55 @@ public:
       set_zero_time(ltime, MYSQL_TIMESTAMP_TIME);
       return false;
     }
+  };
+
+  class Item_typecast_fbt: public Item_fbt_func
+  {
+  public:
+    Item_typecast_fbt(THD *thd, Item *a) :Item_fbt_func(thd, a) {}
+
+    Item_func::Functype functype() const override
+    { return Item_func::CHAR_TYPECAST_FUNC; }
+    bool eq(const Item *item, bool binary_cmp) const override
+    {
+      if (this == item)
+        return true;
+      if (item->type() != Item_fbt_func::FUNC_ITEM ||
+          functype() != ((Item_func*)item)->functype())
+        return false;
+      if (Item_fbt_func::type_handler() != item->type_handler())
+        return false;
+      Item_typecast_fbt *cast= (Item_typecast_fbt*) item;
+      return Item_fbt_func::args[0]->eq(cast->args[0], binary_cmp);
+    }
+    LEX_CSTRING func_name_cstring() const override
+    {
+      static Name name= singleton()->name();
+      size_t len= 9+name.length()+1;
+      char *buf= (char*)current_thd->alloc(len);
+      strmov(strmov(buf, "cast_as_"), name.ptr());
+      return { buf, len };
+    }
+    void print(String *str, enum_query_type query_type) override
+    {
+      str->append(STRING_WITH_LEN("cast("));
+      Item_fbt_func::args[0]->print(str, query_type);
+      str->append(STRING_WITH_LEN(" as "));
+      str->append(singleton()->name().lex_cstring());
+      str->append(')');
+    }
+    bool fix_length_and_dec(THD *thd) override
+    {
+      Item_fbt_func::fix_length_and_dec(thd);
+      if (Fbt::fix_fields_maybe_null_on_conversion_to_fbt(
+                 Item_fbt_func::args[0]))
+        Item_fbt_func::set_maybe_null();
+      return false;
+    }
     bool val_native(THD *thd, Native *to) override
     {
-      Fbt_null tmp(args[0]);
-      return null_value= tmp.is_null() || tmp.to_native(to);
+      Fbt_null tmp(Item_fbt_func::args[0]);
+      return Item_fbt_func::null_value= tmp.is_null() || tmp.to_native(to);
     }
     Item *get_copy(THD *thd) override
     { return get_item_copy<Item_typecast_fbt>(thd, this); }
@@ -1534,6 +1559,16 @@ public:
     Fbt_null na(a), nb(b);
     return !na.is_null() && !nb.is_null() && !na.cmp(nb);
   }
+  bool Item_bool_rowready_func2_fix_length_and_dec(THD *thd,
+                                 Item_bool_rowready_func2 *func) const override
+  {
+    if (Type_handler::Item_bool_rowready_func2_fix_length_and_dec(thd, func))
+      return true;
+    if (!func->maybe_null() &&
+        Fbt::fix_fields_maybe_null_on_conversion_to_fbt(func->arguments(), 2))
+      func->set_maybe_null();
+    return false;
+  }
   bool Item_hybrid_func_fix_attributes(THD *thd, const LEX_CSTRING &name,
                                        Type_handler_hybrid_field_type *h,
                                        Type_all_attributes *attr,
@@ -1715,6 +1750,9 @@ public:
 
   bool Item_func_between_fix_length_and_dec(Item_func_between *func) const override
   {
+    if (!func->maybe_null() &&
+        Fbt::fix_fields_maybe_null_on_conversion_to_fbt(func->arguments(), 3))
+      func->set_maybe_null();
     return false;
   }
   longlong Item_func_between_val_int(Item_func_between *func) const override
@@ -1737,6 +1775,10 @@ public:
                                                     Item_func_in *func)
                                                     const override
   {
+    if (!func->maybe_null() &&
+        Fbt::fix_fields_maybe_null_on_conversion_to_fbt(func->arguments(),
+                                                        func->argument_count()))
+      func->set_maybe_null();
     if (func->compatible_types_scalar_bisection_possible())
     {
       return func->value_list_convert_const_to_int(thd) ||

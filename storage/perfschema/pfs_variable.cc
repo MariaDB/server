@@ -66,7 +66,7 @@ static inline SHOW_SCOPE show_scope_from_type(enum enum_mysql_show_type type)
     case SHOW_SIMPLE_FUNC:
     case SHOW_UNDEF:
     default:
-      return SHOW_SCOPE_UNDEF;
+      return SHOW_SCOPE_ALL;
   }
   return SHOW_SCOPE_UNDEF;
 }
@@ -170,12 +170,12 @@ int PFS_system_variable_cache::do_materialize_global(void)
   for (SHOW_VAR *show_var= m_show_var_array.front();
        show_var->value && (show_var != m_show_var_array.end()); show_var++)
   {
-    const char* name= show_var->name;
+    const Lex_ident_sys_var name= Lex_cstring_strlen(show_var->name);
     sys_var *value= (sys_var *)show_var->value;
     assert(value);
 
     if ((m_query_scope == OPT_GLOBAL) &&
-        (!my_strcasecmp(system_charset_info, name, "sql_log_bin")))
+        name.streq("sql_log_bin"_LEX_CSTRING))
     {
       /*
         PLEASE READ:
@@ -254,7 +254,8 @@ int PFS_system_variable_cache::do_materialize_all(THD *unsafe_thd)
     }
 
     /* Release lock taken in get_THD(). */
-    mysql_mutex_unlock(&m_safe_thd->LOCK_thd_data);
+    if (m_safe_thd != current_thd)
+      mysql_mutex_unlock(&m_safe_thd->LOCK_thd_kill);
 
     m_materialized= true;
     ret= 0;
@@ -354,7 +355,8 @@ int PFS_system_variable_cache::do_materialize_session(PFS_thread *pfs_thread)
     }
 
     /* Release lock taken in get_THD(). */
-    mysql_mutex_unlock(&m_safe_thd->LOCK_thd_data);
+    if (m_safe_thd != current_thd)
+      mysql_mutex_unlock(&m_safe_thd->LOCK_thd_kill);
 
     m_materialized= true;
     ret= 0;
@@ -407,7 +409,8 @@ int PFS_system_variable_cache::do_materialize_session(PFS_thread *pfs_thread, ui
     }
 
     /* Release lock taken in get_THD(). */
-    mysql_mutex_unlock(&m_safe_thd->LOCK_thd_data);
+    if (m_safe_thd != current_thd)
+      mysql_mutex_unlock(&m_safe_thd->LOCK_thd_kill);
 
     m_materialized= true;
     ret= 0;
@@ -458,7 +461,8 @@ int PFS_system_variable_cache::do_materialize_session(THD *unsafe_thd)
     }
 
     /* Release lock taken in get_THD(). */
-    mysql_mutex_unlock(&m_safe_thd->LOCK_thd_data);
+    if (m_safe_thd != current_thd)
+      mysql_mutex_unlock(&m_safe_thd->LOCK_thd_kill);
 
     m_materialized= true;
     ret= 0;
@@ -661,9 +665,9 @@ bool PFS_status_variable_cache::filter_by_name(const SHOW_VAR *show_var)
   if (show_var->type == SHOW_ARRAY)
   {
     /* The SHOW_ARRAY name is the prefix for the variables in the subarray. */
-    const char *prefix= show_var->name;
+    const Lex_ident_sys_var prefix= Lex_cstring_strlen(show_var->name);
     /* Exclude COM counters if not a SHOW STATUS command. */
-    if (!my_strcasecmp(system_charset_info, prefix, "Com") && !m_show_command)
+    if (prefix.streq("Com"_LEX_CSTRING) && !m_show_command)
       return true;
   }
   else
@@ -675,12 +679,12 @@ bool PFS_status_variable_cache::filter_by_name(const SHOW_VAR *show_var)
       Assume null prefix to ensure that only server-defined slave status
       variables are filtered.
     */
-    const char *name= show_var->name;
-    if (!my_strcasecmp(system_charset_info, name, "Slave_running") ||
-        !my_strcasecmp(system_charset_info, name, "Slave_retried_transactions") ||
-        !my_strcasecmp(system_charset_info, name, "Slave_last_heartbeat") ||
-        !my_strcasecmp(system_charset_info, name, "Slave_received_heartbeats") ||
-        !my_strcasecmp(system_charset_info, name, "Slave_heartbeat_period"))
+    const Lex_ident_sys_var name= Lex_cstring_strlen(show_var->name);
+    if (name.streq("Slave_running"_LEX_CSTRING) ||
+        name.streq("Slave_retried_transactions"_LEX_CSTRING) ||
+        name.streq("Slave_last_heartbeat"_LEX_CSTRING) ||
+        name.streq("Slave_received_heartbeats"_LEX_CSTRING) ||
+        name.streq("Slave_heartbeat_period"_LEX_CSTRING))
     {
       return true;
     }
@@ -716,6 +720,7 @@ bool PFS_status_variable_cache::can_aggregate(enum_mysql_show_type variable_type
     case SHOW_CHAR_PTR:
     case SHOW_ARRAY:
     case SHOW_FUNC:
+    case SHOW_SIMPLE_FUNC:
     case SHOW_INT:
     case SHOW_LONG:
     case SHOW_LONGLONG:
@@ -761,7 +766,7 @@ bool PFS_status_variable_cache::filter_show_var(const SHOW_VAR *show_var, bool s
 /**
   Build an array of SHOW_VARs from the global status array. Expand nested
   subarrays, filter unwanted variables.
-  NOTE: Must be done inside of LOCK_status to guard against plugin load/unload.
+  NOTE: Must be done under LOCK_all_status_vars
 */
 bool PFS_status_variable_cache::init_show_var_array(enum_var_type scope, bool strict)
 {
@@ -880,14 +885,12 @@ char * PFS_status_variable_cache::make_show_var_name(const char* prefix, const c
 */
 bool PFS_status_variable_cache::do_initialize_session(void)
 {
-  /* Acquire LOCK_status to guard against plugin load/unload. */
-  //if (m_current_thd->fill_status_recursion_level++ == 0)
-    mysql_mutex_lock(&LOCK_status);
+  /* Acquire LOCK_all_status_vars to guard against plugin load/unload. */
+  mysql_rwlock_rdlock(&LOCK_all_status_vars);
 
   bool ret= init_show_var_array(OPT_SESSION, true);
 
-  //if (m_current_thd->fill_status_recursion_level-- == 1)
-    mysql_mutex_unlock(&LOCK_status);
+  mysql_rwlock_unlock(&LOCK_all_status_vars);
 
   return ret;
 }
@@ -916,13 +919,12 @@ int PFS_status_variable_cache::do_materialize_global(void)
   m_materialized= false;
   DEBUG_SYNC(m_current_thd, "before_materialize_global_status_array");
 
-  /* Acquire LOCK_status to guard against plugin load/unload. */
-  //if (m_current_thd->fill_status_recursion_level++ == 0)
-    mysql_mutex_lock(&LOCK_status);
+  /* Acquire LOCK_all_status_vars to guard against plugin load/unload. */
+  mysql_rwlock_rdlock(&LOCK_all_status_vars);
 
   /*
-     Build array of SHOW_VARs from global status array. Do this within
-     LOCK_status to ensure that the array remains unchanged during
+     Build array of SHOW_VARs from global status array. Do this under
+     LOCK_all_status_vars to ensure that the array remains unchanged during
      materialization.
    */
   if (!m_external_init)
@@ -945,8 +947,7 @@ int PFS_status_variable_cache::do_materialize_global(void)
   */
   manifest(m_current_thd, m_show_var_array.front(), &status_totals, "", false, true);
 
-  //if (m_current_thd->fill_status_recursion_level-- == 1)
-    mysql_mutex_unlock(&LOCK_status);
+  mysql_rwlock_unlock(&LOCK_all_status_vars);
 
   m_materialized= true;
   DEBUG_SYNC(m_current_thd, "after_materialize_global_status_array");
@@ -966,13 +967,11 @@ int PFS_status_variable_cache::do_materialize_all(THD* unsafe_thd)
   m_materialized= false;
   m_cache.clear();
 
-  /* Avoid recursive acquisition of LOCK_status. */
-  //if (m_current_thd->fill_status_recursion_level++ == 0)
-    mysql_mutex_lock(&LOCK_status);
+  mysql_rwlock_rdlock(&LOCK_all_status_vars);
 
   /*
-     Build array of SHOW_VARs from global status array. Do this within
-     LOCK_status to ensure that the array remains unchanged while this
+     Build array of SHOW_VARs from global status array. Do this under
+     LOCK_all_status_vars to ensure that the array remains unchanged while this
      thread is materialized.
    */
   if (!m_external_init)
@@ -989,14 +988,14 @@ int PFS_status_variable_cache::do_materialize_all(THD* unsafe_thd)
     manifest(m_safe_thd, m_show_var_array.front(), status_vars, "", false, false);
 
     /* Release lock taken in get_THD(). */
-    mysql_mutex_unlock(&m_safe_thd->LOCK_thd_data);
+    if (m_safe_thd != current_thd)
+      mysql_mutex_unlock(&m_safe_thd->LOCK_thd_kill);
 
     m_materialized= true;
     ret= 0;
   }
 
-  //if (m_current_thd->fill_status_recursion_level-- == 1)
-    mysql_mutex_unlock(&LOCK_status);
+  mysql_rwlock_unlock(&LOCK_all_status_vars);
   return ret;
 }
 
@@ -1012,13 +1011,11 @@ int PFS_status_variable_cache::do_materialize_session(THD* unsafe_thd)
   m_materialized= false;
   m_cache.clear();
 
-  /* Avoid recursive acquisition of LOCK_status. */
-  //if (m_current_thd->fill_status_recursion_level++ == 0)
-    mysql_mutex_lock(&LOCK_status);
+  mysql_rwlock_rdlock(&LOCK_all_status_vars);
 
   /*
-     Build array of SHOW_VARs from global status array. Do this within
-     LOCK_status to ensure that the array remains unchanged while this
+     Build array of SHOW_VARs from global status array. Do this under
+     LOCK_all_status_vars to ensure that the array remains unchanged while this
      thread is materialized.
    */
   if (!m_external_init)
@@ -1035,14 +1032,14 @@ int PFS_status_variable_cache::do_materialize_session(THD* unsafe_thd)
     manifest(m_safe_thd, m_show_var_array.front(), status_vars, "", false, true);
 
     /* Release lock taken in get_THD(). */
-    mysql_mutex_unlock(&m_safe_thd->LOCK_thd_data);
+    if (m_safe_thd != current_thd)
+      mysql_mutex_unlock(&m_safe_thd->LOCK_thd_kill);
 
     m_materialized= true;
     ret= 0;
   }
 
-  //if (m_current_thd->fill_status_recursion_level-- == 1)
-    mysql_mutex_unlock(&LOCK_status);
+  mysql_rwlock_unlock(&LOCK_all_status_vars);
   return ret;
 }
 
@@ -1059,9 +1056,8 @@ int PFS_status_variable_cache::do_materialize_session(PFS_thread *pfs_thread)
   m_materialized= false;
   m_cache.clear();
 
-  /* Acquire LOCK_status to guard against plugin load/unload. */
-  //if (m_current_thd->fill_status_recursion_level++ == 0)
-    mysql_mutex_lock(&LOCK_status);
+  /* Acquire LOCK_all_status_vars to guard against plugin load/unload. */
+  mysql_rwlock_rdlock(&LOCK_all_status_vars);
 
   /* The SHOW_VAR array must be initialized externally. */
   assert(m_initialized);
@@ -1077,14 +1073,14 @@ int PFS_status_variable_cache::do_materialize_session(PFS_thread *pfs_thread)
     manifest(m_safe_thd, m_show_var_array.front(), status_vars, "", false, true);
 
     /* Release lock taken in get_THD(). */
-    mysql_mutex_unlock(&m_safe_thd->LOCK_thd_data);
+    if (m_safe_thd != current_thd)
+      mysql_mutex_unlock(&m_safe_thd->LOCK_thd_kill);
 
     m_materialized= true;
     ret= 0;
   }
 
-  //if (m_current_thd->fill_status_recursion_level-- == 1)
-    mysql_mutex_unlock(&LOCK_status);
+  mysql_rwlock_unlock(&LOCK_all_status_vars);
   return ret;
 }
 
@@ -1103,9 +1099,8 @@ int PFS_status_variable_cache::do_materialize_client(PFS_client *pfs_client)
   m_materialized= false;
   m_cache.clear();
 
-  /* Acquire LOCK_status to guard against plugin load/unload. */
-  //if (m_current_thd->fill_status_recursion_level++ == 0)
-    mysql_mutex_lock(&LOCK_status);
+  /* Acquire LOCK_all_status_vars to guard against plugin load/unload. */
+  mysql_rwlock_rdlock(&LOCK_all_status_vars);
 
   /* The SHOW_VAR array must be initialized externally. */
   assert(m_initialized);
@@ -1122,8 +1117,7 @@ int PFS_status_variable_cache::do_materialize_client(PFS_client *pfs_client)
   */
   manifest(m_current_thd, m_show_var_array.front(), &status_totals, "", false, true);
 
-  //if (m_current_thd->fill_status_recursion_level-- == 1)
-    mysql_mutex_unlock(&LOCK_status);
+  mysql_rwlock_unlock(&LOCK_all_status_vars);
 
   m_materialized= true;
   return 0;
@@ -1152,16 +1146,19 @@ void PFS_status_variable_cache::manifest(THD *thd, const SHOW_VAR *show_var_arra
       reevaluate the new SHOW_TYPE and value. Handle nested case where
       SHOW_FUNC resolves to another SHOW_FUNC.
     */
-    if (show_var_ptr->type == SHOW_FUNC)
+    if (show_var_ptr->type == SHOW_FUNC || show_var_ptr->type == SHOW_SIMPLE_FUNC)
     {
       show_var_tmp= *show_var_ptr;
       /*
         Execute the function reference in show_var_tmp->value, which returns
         show_var_tmp with a new type and new value.
       */
-      for (const SHOW_VAR *var= show_var_ptr; var->type == SHOW_FUNC; var= &show_var_tmp)
+      for (const SHOW_VAR *var= show_var_ptr;
+           var->type == SHOW_FUNC || var->type == SHOW_SIMPLE_FUNC;
+           var= &show_var_tmp)
       {
-        ((mysql_show_var_func)(var->value))(thd, &show_var_tmp, value_buf.data, NULL, m_query_scope);
+        ((mysql_show_var_func)(var->value))(thd, &show_var_tmp, value_buf.data,
+                                            &thd->status_var, m_query_scope);
       }
       show_var_ptr= &show_var_tmp;
     }
@@ -1213,7 +1210,7 @@ Status_variable::Status_variable(const SHOW_VAR *show_var, STATUS_VAR *status_va
 /**
   Resolve status value, convert to string.
   show_var->value is an offset into status_vars.
-  NOTE: Assumes LOCK_status is held.
+  NOTE: Assumes LOCK_all_status_vars is held.
 */
 void Status_variable::init(const SHOW_VAR *show_var, STATUS_VAR *status_vars, enum_var_type query_scope)
 {
@@ -1279,7 +1276,7 @@ void sum_account_status(PFS_client *pfs_account, STATUS_VAR *status_totals)
 
 /**
   Reset aggregated status counter stats for account, user and host.
-  NOTE: Assumes LOCK_status is held.
+  NOTE: Assumes LOCK_all_status_vars is held.
 */
 void reset_pfs_status_stats()
 {

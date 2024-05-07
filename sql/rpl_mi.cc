@@ -31,7 +31,7 @@ static void init_master_log_pos(Master_info* mi);
 Master_info::Master_info(LEX_CSTRING *connection_name_arg,
                          bool is_slave_recovery)
   :Slave_reporting_capability("I/O"),
-   ssl(0), ssl_verify_server_cert(1), fd(-1), io_thd(0), 
+   ssl(1), ssl_verify_server_cert(1), fd(-1), io_thd(0),
    rli(is_slave_recovery), port(MYSQL_PORT),
    checksum_alg_before_fd(BINLOG_CHECKSUM_ALG_UNDEF),
    connect_retry(DEFAULT_CONNECT_RETRY), inited(0), abort_slave(0),
@@ -43,7 +43,8 @@ Master_info::Master_info(LEX_CSTRING *connection_name_arg,
    gtid_reconnect_event_skip_count(0), gtid_event_seen(false),
    in_start_all_slaves(0), in_stop_all_slaves(0), in_flush_all_relay_logs(0),
    users(0), killed(0),
-   total_ddl_groups(0), total_non_trans_groups(0), total_trans_groups(0)
+   total_ddl_groups(0), total_non_trans_groups(0), total_trans_groups(0),
+   semi_sync_reply_enabled(0)
 {
   char *tmp;
   host[0] = 0; user[0] = 0; password[0] = 0;
@@ -55,16 +56,22 @@ Master_info::Master_info(LEX_CSTRING *connection_name_arg,
     Store connection name and lower case connection name
     It's safe to ignore any OMM errors as this is checked by error()
   */
-  connection_name.length= cmp_connection_name.length=
-    connection_name_arg->length;
+  connection_name.length= connection_name_arg->length;
+  size_t cmp_connection_name_nbytes= connection_name_arg->length *
+                                     system_charset_info->casedn_multiply() +
+                                     1;
   if ((connection_name.str= tmp= (char*)
-       my_malloc(PSI_INSTRUMENT_ME, connection_name_arg->length*2+2, MYF(MY_WME))))
+       my_malloc(PSI_INSTRUMENT_ME, connection_name_arg->length + 1 +
+                                    cmp_connection_name_nbytes,
+                 MYF(MY_WME))))
   {
     strmake(tmp, connection_name_arg->str, connection_name.length);
     tmp+= connection_name_arg->length+1;
     cmp_connection_name.str= tmp;
-    memcpy(tmp, connection_name_arg->str, connection_name.length+1);
-    my_casedn_str(system_charset_info, tmp);
+    cmp_connection_name.length=
+      system_charset_info->casedn_z(connection_name_arg->str,
+                                    connection_name_arg->length,
+                                    tmp, cmp_connection_name_nbytes);
   }
   /*
     When MySQL restarted, all Rpl_filter settings which aren't in the my.cnf
@@ -219,8 +226,6 @@ void init_master_log_pos(Master_info* mi)
   mi->gtid_reconnect_event_skip_count= 0;
   mi->gtid_event_seen= false;
 
-  /* Intentionally init ssl_verify_server_cert to 0, no option available  */
-  mi->ssl_verify_server_cert= 0;
   /* 
     always request heartbeat unless master_heartbeat_period is set
     explicitly zero.  Here is the default value for heartbeat period
@@ -1118,7 +1123,8 @@ bool Master_info_index::init_all_master_info()
   }
 
   /* Initialize Master_info Hash Table */
-  if (my_hash_init(PSI_INSTRUMENT_ME, &master_info_hash, system_charset_info, 
+  if (my_hash_init(PSI_INSTRUMENT_ME, &master_info_hash,
+                   Lex_ident_master_info::charset_info(),
                    MAX_REPLICATION_THREAD, 0, 0, 
                    (my_hash_get_key) get_key_master_info, 
                    (my_hash_free_key)free_key_master_info, HASH_UNIQUE))

@@ -44,6 +44,11 @@ ATTRIBUTE_COLD MY_ATTRIBUTE((nonnull, warn_unused_result))
 @return whether the page was recovered correctly */
 bool recv_recover_page(fil_space_t* space, buf_page_t* bpage);
 
+/** Read the latest checkpoint information from log file
+and store it in log_sys.next_checkpoint and recv_sys.file_checkpoint
+@return error code or DB_SUCCESS */
+dberr_t recv_recovery_read_checkpoint();
+
 /** Start recovering from a redo log checkpoint.
 of first system tablespace page
 @return error code or DB_SUCCESS */
@@ -107,6 +112,26 @@ struct recv_dblwr_t
   @retval NULL if no valid page for page_id was found */
   byte* find_page(const page_id_t page_id, const fil_space_t *space= NULL,
                   byte *tmp_buf= NULL);
+
+  /** Restore the first page of the given tablespace from
+  doublewrite buffer.
+  @param space_id  tablespace identifier
+  @param name      tablespace filepath
+  @param file      tablespace file handle
+  @return whether the operation failed */
+  bool restore_first_page(uint32_t space_id, const char *name,
+                          pfs_os_file_t file);
+
+  /** Restore the first page of the given tablespace from
+  doublewrite buffer.
+  1) Find the page which has page_no as 0
+  2) Read first 3 pages from tablespace file
+  3) Compare the space_ids from the pages with page0 which
+  was retrieved from doublewrite buffer
+  @param name tablespace filepath
+  @param file tablespace file handle
+  @return space_id or 0 in case of error */
+  uint32_t find_first_page(const char *name, pfs_os_file_t file);
 
   typedef std::deque<byte*, ut_allocator<byte*> > list;
 
@@ -281,12 +306,6 @@ private:
   @retval -1      if the page cannot be recovered due to corruption */
   inline buf_block_t *recover_low(const map::iterator &p, mtr_t &mtr,
                                   buf_block_t *b, lsn_t init_lsn);
-  /** Attempt to initialize a page based on redo log records.
-  @param page_id  page identifier
-  @return the recovered block
-  @retval nullptr if the page cannot be initialized based on log records
-  @retval -1      if the page cannot be recovered due to corruption */
-  ATTRIBUTE_COLD buf_block_t *recover_low(const page_id_t page_id);
 
   /** All found log files (multiple ones are possible if we are upgrading
   from before MariaDB Server 10.5.1) */
@@ -431,15 +450,14 @@ public:
   /** @return whether log file corruption was found */
   bool is_corrupt_log() const { return UNIV_UNLIKELY(found_corrupt_log); }
 
-  /** Attempt to initialize a page based on redo log records.
+  /** Read a page or recover it based on redo log records.
   @param page_id  page identifier
-  @return the recovered block
-  @retval nullptr if the page cannot be initialized based on log records
-  @retval -1      if the page cannot be recovered due to corruption */
-  buf_block_t *recover(const page_id_t page_id)
-  {
-    return UNIV_UNLIKELY(recovery_on) ? recover_low(page_id) : nullptr;
-  }
+  @param mtr      mini-transaction
+  @param err      error code
+  @return the requested block
+  @retval nullptr if the page cannot be accessed due to corruption */
+  ATTRIBUTE_COLD
+  buf_block_t *recover(const page_id_t page_id, mtr_t *mtr, dberr_t *err);
 
   /** Try to recover a tablespace that was not readable earlier
   @param p          iterator

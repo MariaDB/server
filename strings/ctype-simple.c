@@ -451,7 +451,11 @@ long my_strntol_8bit(CHARSET_INFO *cs,
     else if (c>='A' && c<='Z')
       c = c - 'A' + 10;
     else if (c>='a' && c<='z')
+    {
       c = c - 'a' + 10;
+      if (base > 36)
+        c += 26;
+    }
     else
       break;
     if (c >= base)
@@ -546,7 +550,11 @@ ulong my_strntoul_8bit(CHARSET_INFO *cs,
     else if (c>='A' && c<='Z')
       c = c - 'A' + 10;
     else if (c>='a' && c<='z')
+    {
       c = c - 'a' + 10;
+      if (base > 36)
+        c += 26;
+    }
     else
       break;
     if (c >= base)
@@ -634,7 +642,11 @@ longlong my_strntoll_8bit(CHARSET_INFO *cs __attribute__((unused)),
     else if (c>='A' && c<='Z')
       c = c - 'A' + 10;
     else if (c>='a' && c<='z')
+    {
       c = c - 'a' + 10;
+      if (base > 36)
+        c += 26;
+    }
     else
       break;
     if (c >= base)
@@ -656,8 +668,12 @@ longlong my_strntoll_8bit(CHARSET_INFO *cs __attribute__((unused)),
 
   if (negative)
   {
-    if (i  > (ulonglong) LONGLONG_MIN)
+    if (i >= (ulonglong) LONGLONG_MIN)
+    {
+      if (i == (ulonglong) LONGLONG_MIN)
+        return LONGLONG_MIN;
       overflow = 1;
+    }
   }
   else if (i > (ulonglong) LONGLONG_MAX)
     overflow = 1;
@@ -731,7 +747,11 @@ ulonglong my_strntoull_8bit(CHARSET_INFO *cs,
     else if (c>='A' && c<='Z')
       c = c - 'A' + 10;
     else if (c>='a' && c<='z')
+    {
       c = c - 'a' + 10;
+      if (base > 36)
+        c += 26;
+    }
     else
       break;
     if (c >= base)
@@ -2123,8 +2143,6 @@ MY_CHARSET_HANDLER my_charset_8bit_handler=
     my_mb_wc_8bit,
     my_wc_mb_8bit,
     my_mb_ctype_8bit,
-    my_caseup_str_8bit,
-    my_casedn_str_8bit,
     my_caseup_8bit,
     my_casedn_8bit,
     my_snprintf_8bit,
@@ -2158,7 +2176,6 @@ MY_COLLATION_HANDLER my_collation_8bit_simple_ci_handler =
     my_strnxfrmlen_simple,
     my_like_range_simple,
     my_wildcmp_8bit,
-    my_strcasecmp_8bit,
     my_instr_simple,
     my_hash_sort_simple,
     my_propagate_simple,
@@ -2179,7 +2196,6 @@ MY_COLLATION_HANDLER my_collation_8bit_simple_nopad_ci_handler =
     my_strnxfrmlen_simple,
     my_like_range_simple,
     my_wildcmp_8bit,
-    my_strcasecmp_8bit,
     my_instr_simple,
     my_hash_sort_simple_nopad,
     my_propagate_simple,

@@ -130,6 +130,13 @@
 */
 #define OPEN_TRIGGER_ONLY      (1 << 21)
 
+/**
+  This flag is used in information schema to determine if handling funciton
+  can treat open result extensively and provide some user output even if
+  table open fails.
+*/
+#define I_S_EXTENDED_ERROR_HANDLING (1 << 22)
+
 /*
   Minimum length pattern before Turbo Boyer-Moore is used
   for SELECT "text" LIKE "%pattern%", excluding the two

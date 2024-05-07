@@ -11,3 +11,176 @@ Database	Create Database
 mysql_TEST	CREATE DATABASE `mysql_TEST` /*!40100 DEFAULT CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci */
 DROP DATABASE mysql_test;
 DROP DATABASE mysql_TEST;
+#
+# Start of 10.4 tests
+#
+#
+# MDEV-33019 The database part is not case sensitive in SP names
+#
+CREATE DATABASE DB1;
+CREATE DATABASE db1;
+CREATE PROCEDURE DB1.sp() SELECT 'This is DB1.sp' AS ret;
+CREATE PROCEDURE db1.sp() SELECT 'This is db1.sp' AS ret;
+CALL DB1.sp();
+ret
+This is DB1.sp
+CALL db1.sp();
+ret
+This is db1.sp
+DROP DATABASE DB1;
+CALL DB1.sp();
+ERROR 42000: PROCEDURE DB1.sp does not exist
+CALL db1.sp();
+ret
+This is db1.sp
+DROP DATABASE db1;
+CREATE PROCEDURE SP() SELECT 'This is SP' AS ret;
+CREATE PROCEDURE sp() SELECT 'This is sp' AS ret;
+ERROR 42000: PROCEDURE sp already exists
+CALL SP();
+ret
+This is SP
+CALL sp();
+ret
+This is SP
+DROP PROCEDURE SP;
+#
+# End of 10.4 tests
+#
+#
+# MDEV-33084 LASTVAL(t1) and LASTVAL(T1) do not work well with lower-case-table-names=0
+#
+CREATE SEQUENCE t1;
+CREATE SEQUENCE T1;
+SELECT nextval(t1), lastval(t1);
+nextval(t1)	lastval(t1)
+1	1
+SELECT nextval(T1), lastval(T1);
+nextval(T1)	lastval(T1)
+1	1
+SELECT lastval(t1), lastval(T1) l2;
+lastval(t1)	l2
+1	1
+DROP SEQUENCE t1, T1;
+#
+# MDEV-33086 SHOW OPEN TABLES IN DB1 -- is case insensitive with lower-case-table-names=0
+#
+CREATE DATABASE db1;
+CREATE TABLE db1.t1 (a INT);
+SELECT * FROM db1.t1;
+a
+SHOW OPEN TABLES IN DB1;
+Database	Table	In_use	Name_locked
+SHOW OPEN TABLES IN db1;
+Database	Table	In_use	Name_locked
+db1	t1	0	0
+DROP DATABASE db1;
+#
+# MDEV-33088 Cannot create triggers in the database `MYSQL`
+#
+CREATE DATABASE MYSQL;
+CREATE TABLE MYSQL.t1 (a INT);
+CREATE TABLE MYSQL.t2 (a INT);
+CREATE TRIGGER MYSQL.tr1 AFTER INSERT ON t1 FOR EACH ROW INSERT INTO t2 VALUES (new.a);
+INSERT INTO MYSQL.t1 VALUES (10);
+SELECT * FROM MYSQL.t1;
+a
+10
+SELECT * FROM MYSQL.t2;
+a
+10
+DROP DATABASE MYSQL;
+#
+# MDEV-33103 LOCK TABLE t1 AS t2 -- alias is not case sensitive with lower-case-table-names=0
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+LOCK TABLE t1 AS t2 READ;
+SELECT * FROM t1 AS t2;
+a
+1
+UNLOCK TABLES;
+LOCK TABLE t1 AS t2 READ;
+SELECT * FROM t1 AS T2;
+ERROR HY000: Table 'T2' was not locked with LOCK TABLES
+UNLOCK TABLES;
+DROP TABLE t1;
+#
+# MDEV-33108 TABLE_STATISTICS and INDEX_STATISTICS are case insensitive with lower-case-table-names=0
+#
+SET GLOBAL userstat=1;
+CREATE TABLE t1 (a INT, KEY(a));
+INSERT INTO t1 VALUES (1),(2),(3),(4);
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+3
+4
+CREATE TABLE T1 (a INT, KEY(a));
+INSERT INTO T1 VALUES (1),(2),(3),(4);
+SELECT * FROM T1 ORDER BY a;
+a
+1
+2
+3
+4
+SELECT * FROM INFORMATION_SCHEMA.TABLE_STATISTICS ORDER BY BINARY TABLE_NAME;
+TABLE_SCHEMA	TABLE_NAME	ROWS_READ	ROWS_CHANGED	ROWS_CHANGED_X_INDEXES
+test	T1	4	4	4
+test	t1	4	4	4
+SELECT * FROM INFORMATION_SCHEMA.INDEX_STATISTICS ORDER BY BINARY TABLE_NAME;
+TABLE_SCHEMA	TABLE_NAME	INDEX_NAME	ROWS_READ
+test	T1	a	4
+test	t1	a	4
+DROP TABLE t1;
+DROP TABLE T1;
+SET GLOBAL userstat=DEFAULT;
+#
+# MDEV-33109 DROP DATABASE MYSQL -- does not drop SP with lower-case-table-names=0
+#
+CREATE DATABASE MYSQL;
+CREATE FUNCTION MYSQL.f1() RETURNS INT RETURN 1;
+DROP DATABASE MYSQL;
+SELECT db, name, body FROM mysql.proc WHERE db=BINARY 'MYSQL' AND name='f1';
+db	name	body
+#
+# MDEV-33110 HANDLER commands are case insensitive with lower-case-table-names=0
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+HANDLER t1 OPEN;
+HANDLER t1 READ FIRST;
+a
+1
+CREATE OR REPLACE TABLE T1 (a INT);
+DROP TABLE T1;
+HANDLER t1 READ NEXT;
+a
+2
+HANDLER t1 CLOSE;
+DROP TABLE t1;
+#
+# MDEV-33120 System log table names are case insensitive with lower-cast-table-names=0
+#
+CREATE TABLE mysql.GENERAL_log (a INT);
+INSERT INTO mysql.GENERAL_log VALUES (1),(2);
+DROP TABLE mysql.GENERAL_log;
+CREATE TABLE mysql.SLOW_log (a INT);
+INSERT INTO mysql.SLOW_log VALUES (1),(2);
+DROP TABLE mysql.SLOW_log;
+CREATE TABLE mysql.TRANSACTION_registry (a INT);
+INSERT INTO mysql.TRANSACTION_registry VALUES (1),(2);
+DROP TABLE mysql.TRANSACTION_registry;
+CREATE DATABASE MYSQL;
+CREATE TABLE MYSQL.general_log (a INT);
+INSERT INTO MYSQL.general_log VALUES (1),(2);
+DROP TABLE MYSQL.general_log;
+CREATE TABLE MYSQL.slow_log (a INT);
+INSERT INTO MYSQL.slow_log VALUES (1),(2);
+DROP TABLE MYSQL.slow_log;
+CREATE TABLE MYSQL.transaction_registry (a INT);
+INSERT INTO MYSQL.transaction_registry VALUES (1),(2);
+DROP TABLE MYSQL.transaction_registry;
+DROP DATABASE MYSQL;
+# End of 11.5 tests

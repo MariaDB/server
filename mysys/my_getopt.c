@@ -110,6 +110,13 @@ union ull_dbl
   double dbl;
 };
 
+
+static inline int cmp_opt_name(const char *a, const char *b)
+{
+  return my_strcasecmp_latin1(a, b);
+}
+
+
 /**
   Returns an ulonglong value containing a raw
   representation of the given double value.
@@ -472,12 +479,12 @@ int handle_options(int *argc, char ***argv, const struct my_option *longopts,
 	    */
 	    (*argc)--;
 	    if (!optend || *optend == '1' ||
-		!my_strcasecmp(&my_charset_latin1, optend, "true") ||
-		!my_strcasecmp(&my_charset_latin1, optend, "on"))
+		!cmp_opt_name(optend, "true") ||
+		!cmp_opt_name(optend, "on"))
 	      *((my_bool*) value)= (my_bool) 1;
 	    else if (*optend == '0' ||
-		     !my_strcasecmp(&my_charset_latin1, optend, "false") ||
-                     !my_strcasecmp(&my_charset_latin1, optend, "off"))
+		     !cmp_opt_name(optend, "false") ||
+                     !cmp_opt_name(optend, "off"))
 	      *((my_bool*) value)= (my_bool) 0;
 	    else
 	    {
@@ -728,13 +735,13 @@ static my_bool get_bool_argument(const struct my_option *opts,
 {
   DBUG_ENTER("get_bool_argument");
 
-  if (!my_strcasecmp(&my_charset_latin1, argument, "true") ||
-      !my_strcasecmp(&my_charset_latin1, argument, "on") ||
-      !my_strcasecmp(&my_charset_latin1, argument, "1"))
+  if (!cmp_opt_name(argument, "true") ||
+      !cmp_opt_name(argument, "on") ||
+      !cmp_opt_name(argument, "1"))
     DBUG_RETURN(1);
-  else if (!my_strcasecmp(&my_charset_latin1, argument, "false") ||
-      !my_strcasecmp(&my_charset_latin1, argument, "off") ||
-      !my_strcasecmp(&my_charset_latin1, argument, "0"))
+  else if (!cmp_opt_name(argument, "false") ||
+      !cmp_opt_name(argument, "off") ||
+      !cmp_opt_name(argument, "0"))
     DBUG_RETURN(0);
   my_getopt_error_reporter(WARNING_LEVEL,
       "option '%s': boolean value '%s' wasn't recognized. Set to OFF.",
@@ -838,7 +845,7 @@ static int setval(const struct my_option *opts, void *value, char *argument,
       if (err)
       {
         /* Check if option 'all' is used (to set all bits) */
-        if (!my_strcasecmp(&my_charset_latin1, argument, "all"))
+        if (!cmp_opt_name(argument, "all"))
           *(ulonglong*) value= ((1ULL << opts->typelib->count) - 1);
         else
         {

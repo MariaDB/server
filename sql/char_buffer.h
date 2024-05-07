@@ -46,12 +46,17 @@ public:
   {
     return buff_sz; // The maximum data size, without the trailing '\0' byte.
   }
+  size_t available_size() const
+  {
+    DBUG_ASSERT(is_sane());
+    return buff_sz - m_length;
+  }
   CharBuffer()
    :m_length(0)
   {
     m_buff[0]= '\0';
   }
-  CharBuffer<buff_sz> & copy_bin(const LEX_CSTRING &str)
+  CharBuffer<buff_sz> & copy(const LEX_CSTRING &str)
   {
     DBUG_ASSERT(!buffer_overlaps(str));
     m_length= MY_MIN(buff_sz, str.length);
@@ -71,22 +76,89 @@ public:
     m_buff[m_length]= '\0';
     return *this;
   }
+  CharBuffer<buff_sz> & copy_caseup(CHARSET_INFO *cs, const LEX_CSTRING &str)
+  {
+    DBUG_ASSERT(!buffer_overlaps(str));
+    m_length= cs->cset->caseup(cs, str.str, str.length, m_buff, buff_sz);
+    DBUG_ASSERT(is_sane());
+    m_buff[m_length]= '\0'; // See comments in copy_casedn()
+    return *this;
+  }
   CharBuffer<buff_sz> & copy_casedn(CHARSET_INFO *cs, const LEX_CSTRING &str,
                                     bool casedn)
   {
-    casedn ? copy_casedn(cs, str) : copy_bin(str);
+    casedn ? copy_casedn(cs, str) : copy(str);
     return *this;
   }
+
+  // Append one character
+  CharBuffer<buff_sz> & append_char(char ch)
+  {
+    DBUG_ASSERT(is_sane());
+    if (available_size())
+    {
+      m_buff[m_length++]= ch;
+      m_buff[m_length]= '\0';
+    }
+    DBUG_ASSERT(is_sane());
+    return *this;
+  }
+
+  // Append a string
+  CharBuffer<buff_sz> & append(const LEX_CSTRING &str)
+  {
+    DBUG_ASSERT(is_sane());
+    DBUG_ASSERT(!buffer_overlaps(str));
+    size_t len= MY_MIN(available_size(), str.length);
+    memcpy(m_buff + m_length, str.str, len);
+    m_length+= len;
+    DBUG_ASSERT(is_sane());
+    m_buff[m_length]= '\0';
+    return *this;
+  }
+
   // Append a string with casedn conversion
   CharBuffer<buff_sz> & append_casedn(CHARSET_INFO *cs, const LEX_CSTRING &str)
   {
     DBUG_ASSERT(is_sane());
     DBUG_ASSERT(!buffer_overlaps(str));
     size_t casedn_length= cs->casedn(str.str, str.length,
-                                     m_buff + m_length, buff_sz - m_length);
+                                     m_buff + m_length, available_size());
     m_length+= casedn_length;
     DBUG_ASSERT(is_sane());
     m_buff[m_length]= '\0';
+    return *this;
+  }
+
+  CharBuffer<buff_sz> & append_opt_casedn(CHARSET_INFO *cs,
+                                          const LEX_CSTRING &str,
+                                          bool casedn)
+  {
+    return casedn ? append_casedn(cs, str) : append(str);
+  }
+
+  // Append a string with caseup conversion
+  CharBuffer<buff_sz> & append_caseup(CHARSET_INFO *cs, const LEX_CSTRING &str)
+  {
+    DBUG_ASSERT(is_sane());
+    DBUG_ASSERT(!buffer_overlaps(str));
+    size_t casedn_length= cs->caseup(str.str, str.length,
+                                     m_buff + m_length, available_size());
+    m_length+= casedn_length;
+    DBUG_ASSERT(is_sane());
+    m_buff[m_length]= '\0';
+    return *this;
+  }
+
+  CharBuffer<buff_sz> & truncate(size_t length)
+  {
+    DBUG_ASSERT(is_sane());
+    if (m_length > length)
+    {
+      m_length= length;
+      m_buff[m_length]= '\0';
+      DBUG_ASSERT(is_sane());
+    }
     return *this;
   }
 
@@ -97,6 +169,7 @@ public:
 
   const char *ptr() const { return m_buff; }
   size_t length() const { return m_length; }
+  const char *end() const { return m_buff + m_length; }
 
 };
 

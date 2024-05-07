@@ -1,0 +1,10 @@
+--echo #
+--echo # MDEV-33441 No spider variables available is Spider is loaded upon server startup
+--echo #
+
+# We test that at least one spider variable exists.
+set spider_same_server_link=0;
+
+--echo #
+--echo # end of test mdev_33441
+--echo #

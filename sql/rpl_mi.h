@@ -210,6 +210,16 @@ class Master_info : public Slave_reporting_capability
   void lock_slave_threads();
   void unlock_slave_threads();
 
+  ulonglong get_slave_skip_counter()
+  {
+    return rli.slave_skip_counter;
+  }
+
+  ulonglong get_max_relay_log_size()
+  {
+    return rli.max_relay_log_size;
+  }
+
   /* the variables below are needed because we can change masters on the fly */
   char master_log_name[FN_REFLEN+6]; /* Room for multi-*/
   char host[HOSTNAME_LENGTH*SYSTEM_CHARSET_MBMAXLEN+1];
@@ -221,7 +231,7 @@ class Master_info : public Slave_reporting_capability
   char ssl_ca[FN_REFLEN], ssl_capath[FN_REFLEN], ssl_cert[FN_REFLEN];
   char ssl_cipher[FN_REFLEN], ssl_key[FN_REFLEN];
   char ssl_crl[FN_REFLEN], ssl_crlpath[FN_REFLEN];
-  bool ssl_verify_server_cert;
+  my_bool ssl_verify_server_cert; /* MUST be my_bool, see mysql_option() */
 
   my_off_t master_log_pos;
   File fd; // we keep the file open, so we need to remember the file pointer
@@ -366,6 +376,12 @@ class Master_info : public Slave_reporting_capability
        it must be ignored similarly to the replicate-same-server-id rule.
  */
   bool do_accept_own_server_id= false;
+  /*
+    Set to 1 when semi_sync is enabled. Set to 0 if there is any transmit
+    problems to the slave, in which case any furter semi-sync reply is
+    ignored
+  */
+  bool semi_sync_reply_enabled;
   List <start_alter_info> start_alter_list;
   MEM_ROOT mem_root;
   /*

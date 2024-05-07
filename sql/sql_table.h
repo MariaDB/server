@@ -20,6 +20,7 @@
 #include <my_sys.h>                             // pthread_mutex_t
 #include "m_string.h"                           // LEX_CUSTRING
 #include "lex_charset.h"
+#include "lex_ident.h"
 
 #define ERROR_INJECT(code) \
   ((DBUG_IF("crash_" code) && (DBUG_SUICIDE(), 0)) || \
@@ -167,7 +168,7 @@ bool mysql_recreate_table(THD *thd, TABLE_LIST *table_list,
                           class Recreate_info *recreate_info, bool table_copy);
 bool mysql_rename_table(handlerton *base, const LEX_CSTRING *old_db,
                         const LEX_CSTRING *old_name, const LEX_CSTRING *new_db,
-                        const LEX_CSTRING *new_name, LEX_CUSTRING *id,
+                        const LEX_CSTRING *new_name, const LEX_CUSTRING *id,
                         uint flags);
 bool mysql_backup_table(THD* thd, TABLE_LIST* table_list);
 bool mysql_restore_table(THD* thd, TABLE_LIST* table_list);
@@ -212,7 +213,7 @@ uint explain_filename(THD* thd, const char *from, char *to, uint to_length,
                       enum_explain_filename_mode explain_mode);
 
 
-extern MYSQL_PLUGIN_IMPORT const LEX_CSTRING primary_key_name;
+extern MYSQL_PLUGIN_IMPORT const Lex_ident_column primary_key_name;
 
 bool check_engine(THD *, const char *, const char *, HA_CREATE_INFO *);
 

@@ -448,7 +448,8 @@ enum my_lex_states
   MY_LEX_IDENT_OR_KEYWORD,
   MY_LEX_IDENT_OR_HEX, MY_LEX_IDENT_OR_BIN, MY_LEX_IDENT_OR_NCHAR,
   MY_LEX_STRING_OR_DELIMITER, MY_LEX_MINUS_OR_COMMENT, MY_LEX_PLACEHOLDER,
-  MY_LEX_COMMA
+  MY_LEX_COMMA,
+  MY_LEX_IDENT_OR_QUALIFIED_SPECIAL_FUNC
 };
 
 struct charset_info_st;
@@ -546,8 +547,6 @@ struct my_collation_handler_st
                      const char *wildstr,const char *wildend,
                      int escape,int w_one, int w_many);
 
-  int  (*strcasecmp)(CHARSET_INFO *, const char *, const char *);
-  
   uint (*instr)(CHARSET_INFO *,
                 const char *b, size_t b_length,
                 const char *s, size_t s_length,
@@ -629,10 +628,6 @@ struct my_charset_handler_st
   int (*ctype)(CHARSET_INFO *cs, int *ctype,
                const uchar *s, const uchar *e);
   
-  /* Functions for case and sort conversion */
-  size_t  (*caseup_str)(CHARSET_INFO *, char *);
-  size_t  (*casedn_str)(CHARSET_INFO *, char *);
-
   my_charset_conv_case caseup;
   my_charset_conv_case casedn;
 
@@ -807,6 +802,17 @@ struct charset_info_st
 
 #ifdef __cplusplus
   /* Character set routines */
+
+  /* Make sure the comparison operand is valid. */
+  static bool is_valid_string(const LEX_CSTRING &str)
+  {
+    /*
+      LEX_CSTRING::str can be NULL, but only if LEX_CSTRING::length is 0.
+      Does not have to be a 0-terminated string.
+    */
+    return str.str != NULL || str.length == 0;
+  }
+
   bool use_mb() const
   {
     return mbmaxlen > 1;
@@ -846,6 +852,39 @@ struct charset_info_st
                 char *dst, size_t dstlen) const
   {
     return (cset->casedn)(this, src, srclen, dst, dstlen);
+  }
+
+  size_t opt_casedn(const char *src, size_t srclen,
+                    char *dst, size_t dstlen, my_bool opt_casedn) const
+  {
+    if (opt_casedn)
+      return casedn(src, srclen, dst, dstlen);
+    if (srclen > dstlen)
+      srclen= dstlen;
+    memcpy(dst, src, srclen);
+    return srclen;
+  }
+
+  /* Convert to a lower-cased 0-terminated string */
+  size_t casedn_z(const char *src, size_t srclen,
+                  char *dst, size_t dstlen) const
+  {
+    DBUG_ASSERT(dstlen);
+    DBUG_ASSERT(src != dst);
+    size_t len= casedn(src, srclen, dst, dstlen - 1);
+    dst[len]= '\0';
+    return len;
+  }
+
+  /* Convert to a upper-cased 0-terminated string */
+  size_t caseup_z(const char *src, size_t srclen,
+                  char *dst, size_t dstlen) const
+  {
+    DBUG_ASSERT(dstlen);
+    DBUG_ASSERT(src != dst);
+    size_t len= caseup(src, srclen, dst, dstlen - 1);
+    dst[len]= '\0';
+    return len;
   }
 
   uint caseup_multiply() const
@@ -995,6 +1034,26 @@ struct charset_info_st
   uint compiled_flag() const
   {
     return state & MY_CS_COMPILED;
+  }
+
+  /*
+    Compare two strings for equality.
+    There may be a separate more optimized virtual function streq() in
+    MY_COLLATION_HANDLER eventually. For now it's a wrapper for strnncoll().
+  */
+  my_bool streq(const LEX_CSTRING a, const LEX_CSTRING b) const
+  {
+    return 0 == strnncoll(a, b, FALSE);
+  }
+
+  int strnncoll(const LEX_CSTRING a, const LEX_CSTRING b,
+                my_bool b_is_prefix= FALSE) const
+  {
+    DBUG_ASSERT(is_valid_string(a));
+    DBUG_ASSERT(is_valid_string(b));
+    return (coll->strnncoll)(this,
+                             (const uchar *) a.str, a.length,
+                             (const uchar *) b.str, b.length, b_is_prefix);
   }
 
   int strnncoll(const uchar *a, size_t alen,
@@ -1362,6 +1421,10 @@ extern MYSQL_PLUGIN_IMPORT struct charset_info_st my_charset_latin1;
 extern MYSQL_PLUGIN_IMPORT struct charset_info_st my_charset_latin1_nopad;
 extern MYSQL_PLUGIN_IMPORT struct charset_info_st my_charset_filename;
 extern MYSQL_PLUGIN_IMPORT struct charset_info_st my_charset_utf8mb3_general_ci;
+extern MYSQL_PLUGIN_IMPORT struct charset_info_st
+                                          my_charset_utf8mb3_general1400_as_ci;
+extern MYSQL_PLUGIN_IMPORT struct charset_info_st
+                                          my_charset_utf8mb4_general1400_as_ci;
 
 extern struct charset_info_st my_charset_big5_bin;
 extern struct charset_info_st my_charset_big5_chinese_ci;
@@ -1512,6 +1575,14 @@ size_t my_copy_fix_mb(CHARSET_INFO *cs,
 /* Functions for 8bit */
 extern size_t my_caseup_str_8bit(CHARSET_INFO *, char *);
 extern size_t my_casedn_str_8bit(CHARSET_INFO *, char *);
+static inline size_t my_caseup_str_latin1(char *str)
+{
+  return my_caseup_str_8bit(&my_charset_latin1, str);
+}
+static inline size_t my_casedn_str_latin1(char *str)
+{
+  return my_casedn_str_8bit(&my_charset_latin1, str);
+}
 extern size_t my_caseup_8bit(CHARSET_INFO *,
                              const char *src, size_t srclen,
                              char *dst, size_t dstlen);
@@ -1608,8 +1679,6 @@ int my_charlen_8bit(CHARSET_INFO *, const uchar *str, const uchar *end);
 
 
 /* Functions for multibyte charsets */
-extern size_t my_caseup_str_mb(CHARSET_INFO *, char *);
-extern size_t my_casedn_str_mb(CHARSET_INFO *, char *);
 extern size_t my_caseup_mb(CHARSET_INFO *,
                            const char *src, size_t srclen,
                            char *dst, size_t dstlen);
@@ -1622,7 +1691,6 @@ extern size_t my_caseup_ujis(CHARSET_INFO *,
 extern size_t my_casedn_ujis(CHARSET_INFO *,
                              const char *src, size_t srclen,
                              char *dst, size_t dstlen);
-extern int my_strcasecmp_mb(CHARSET_INFO * cs,const char *, const char *);
 
 int my_wildcmp_mb(CHARSET_INFO *,
 		  const char *str,const char *str_end,
@@ -1640,9 +1708,6 @@ int my_wildcmp_mb_bin(CHARSET_INFO *cs,
                       const char *str,const char *str_end,
                       const char *wildstr,const char *wildend,
                       int escape, int w_one, int w_many);
-
-int my_strcasecmp_mb_bin(CHARSET_INFO * cs __attribute__((unused)),
-                         const char *s, const char *t);
 
 void my_hash_sort_mb_bin(CHARSET_INFO *cs __attribute__((unused)),
                          const uchar *key, size_t len,ulong *nr1, ulong *nr2);
@@ -1672,12 +1737,6 @@ size_t my_strnxfrm_unicode_full_nopad_bin(CHARSET_INFO *,
 					  size_t srclen, uint flags);
 
 size_t  my_strnxfrmlen_unicode_full_bin(CHARSET_INFO *, size_t); 
-
-int my_wildcmp_unicode(CHARSET_INFO *cs,
-                       const char *str, const char *str_end,
-                       const char *wildstr, const char *wildend,
-                       int escape, int w_one, int w_many,
-                       MY_CASEFOLD_INFO *weights);
 
 extern my_bool my_parse_charset_xml(MY_CHARSET_LOADER *loader,
                                     const char *buf, size_t buflen);
@@ -1808,7 +1867,6 @@ size_t my_convert_fix(CHARSET_INFO *dstcs, char *dst, size_t dst_length,
 #define my_binary_compare(s)	      ((s)->state  & MY_CS_BINSORT)
 #define use_strnxfrm(s)               ((s)->state  & MY_CS_STRNXFRM)
 #define my_strnncoll(s, a, b, c, d) ((s)->coll->strnncoll((s), (a), (b), (c), (d), 0))
-#define my_strcasecmp(s, a, b)        ((s)->coll->strcasecmp((s), (a), (b)))
 
 /**
   Detect if the leftmost character in a string is a valid multi-byte character
@@ -1856,8 +1914,13 @@ my_well_formed_length(CHARSET_INFO *cs, const char *b, const char *e,
 }
 
 
-#define my_caseup_str(s, a)           ((s)->cset->caseup_str((s), (a)))
-#define my_casedn_str(s, a)           ((s)->cset->casedn_str((s), (a)))
+static inline int
+my_strcasecmp_latin1(const char *a, const char *b)
+{
+  return my_strcasecmp_8bit(&my_charset_latin1, a, b);
+}
+
+
 
 /* XXX: still need to take care of this one */
 #ifdef MY_CHARSET_TIS620
@@ -1865,6 +1928,9 @@ my_well_formed_length(CHARSET_INFO *cs, const char *b, const char *e,
 #define USE_TIS620
 #include "t_ctype.h"
 #endif
+
+int my_wc_mb_utf8mb4_bmp_only(CHARSET_INFO *cs, my_wc_t wc, uchar *r,
+                              uchar *e);
 
 #ifdef	__cplusplus
 }

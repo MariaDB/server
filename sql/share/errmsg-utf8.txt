@@ -11782,15 +11782,15 @@ ER_SP_STACK_TRACE
         spa "En la línea %u en %s"
         sw "Kwenye mstari %u katika %s"
 ER_PACKAGE_ROUTINE_IN_SPEC_NOT_DEFINED_IN_BODY
-        chi "在包规范中声明子程序'%-.192s'，但未在包主体中定义"
-        eng "Subroutine '%-.192s' is declared in the package specification but is not defined in the package body"
-        spa "La subrutina '%-.192s' está declarada en la especificación del paquete pero no está definida en el cuerpo del paquete"
-        sw "Utaratibu mdogo '%-.192s' umetangazwa katika ubainisho wa kifurushi lakini haijafafanuliwa kwenye mwili wa kifurushi"
+        chi "在包规范中声明子程序%s %`s，但未在包主体中定义"
+        eng "%s %`s is declared in the package specification but is not defined in the package body"
+        spa "La %s %`s está declarada en la especificación del paquete pero no está definida en el cuerpo del paquete"
+        sw "Utaratibu mdogo %s %`s umetangazwa katika ubainisho wa kifurushi lakini haijafafanuliwa kwenye mwili wa kifurushi"
 ER_PACKAGE_ROUTINE_FORWARD_DECLARATION_NOT_DEFINED
-        chi "子程序'%-.192s'具有前向声明但未定义"
-        eng "Subroutine '%-.192s' has a forward declaration but is not defined"
-        spa "La subrutina '%-.192s' tiene una declaración adelantada pero no está definida"
-        sw "Utaratibu mdogo '%-.192s' una tamko la mbele lakini haijafafanuliwa"
+        chi "子程序%s %`s 具有前向声明但未定义"
+        eng "%s %`s has a forward declaration but is not defined"
+        spa "La %s %`s tiene una declaración adelantada pero no está definida"
+        sw "Utaratibu mdogo %s %`s una tamko la mbele lakini haijafafanuliwa"
 ER_COMPRESSED_COLUMN_USED_AS_KEY
         chi "压缩列'%-.192s'不能用于索引规范"
         eng "Compressed column '%-.192s' can't be used in key specification"
@@ -12270,3 +12270,13 @@ ER_JSON_INVALID_VALUE_FOR_KEYWORD
 ER_JSON_SCHEMA_KEYWORD_UNSUPPORTED
         eng "%s keyword is not supported"
         sw "%s neno kuu halitumiki"
+ER_JSON_NO_VARIABLE_SCHEMA
+        eng "Variable schema is not supported."
+ER_SEQUENCE_TABLE_HAS_WRONG_NUMBER_OF_COLUMNS
+        eng "Wrong number of columns"
+ER_SEQUENCE_TABLE_CANNOT_HAVE_ANY_KEYS
+        eng "Sequence tables cannot have any keys"
+ER_SEQUENCE_TABLE_CANNOT_HAVE_ANY_CONSTRAINTS
+        eng "Sequence tables cannot have any constraints"
+ER_SEQUENCE_TABLE_ORDER_BY
+        eng "ORDER BY"

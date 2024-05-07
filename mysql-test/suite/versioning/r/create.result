@@ -1,3 +1,5 @@
+select * from information_schema.periods;
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	PERIOD	START_COLUMN_NAME	END_COLUMN_NAME
 create table t1 (
 x1 int unsigned,
 Sys_start SYS_DATATYPE as row start invisible comment 'start',
@@ -12,6 +14,15 @@ t1	CREATE TABLE `t1` (
   `Sys_end` SYS_DATATYPE GENERATED ALWAYS AS ROW END INVISIBLE COMMENT 'end',
   PERIOD FOR SYSTEM_TIME (`Sys_start`, `Sys_end`)
 ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+select * from information_schema.periods where table_name = 't1';
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	PERIOD	START_COLUMN_NAME	END_COLUMN_NAME
+def	test	t1	SYSTEM_TIME	Sys_start	Sys_end
+select column_name, is_system_time_period_start, is_system_time_period_end
+from information_schema.columns where table_name = 't1';
+column_name	is_system_time_period_start	is_system_time_period_end
+x1	NO	NO
+Sys_start	YES	NO
+Sys_end	NO	YES
 select table_catalog,table_schema,table_name,table_type,version,table_rows,data_free,auto_increment,check_time,table_collation,checksum,create_options,table_comment from information_schema.tables where table_name='t1';
 table_catalog	def
 table_schema	test
@@ -81,6 +92,12 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `x2` int(10) unsigned DEFAULT NULL
 ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+select * from information_schema.periods where table_name = 't1';
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	PERIOD	START_COLUMN_NAME	END_COLUMN_NAME
+select column_name, is_system_time_period_start, is_system_time_period_end
+from information_schema.columns where table_name = 't1';
+column_name	is_system_time_period_start	is_system_time_period_end
+x2	NO	NO
 create or replace table t1 (
 x3 int unsigned,
 Sys_start timestamp(6) as row start invisible,

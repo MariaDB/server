@@ -416,7 +416,7 @@ bool trans_rollback_implicit(THD *thd)
   */
   DBUG_ASSERT(thd->transaction->stmt.is_empty() && !thd->in_sub_stmt);
 
-  thd->server_status&= ~SERVER_STATUS_IN_TRANS;
+  thd->server_status&= ~(SERVER_STATUS_IN_TRANS | SERVER_STATUS_IN_TRANS_READONLY);
   DBUG_PRINT("info", ("clearing SERVER_STATUS_IN_TRANS"));
   res= ha_rollback_trans(thd, true);
   /*
@@ -551,16 +551,15 @@ bool trans_rollback_stmt(THD *thd)
 }
 
 /** Find a savepoint by name in a savepoint list */
-SAVEPOINT** find_savepoint_in_list(THD *thd, LEX_CSTRING name,
+SAVEPOINT** find_savepoint_in_list(THD *thd,
+                                   const Lex_ident_savepoint name,
                                    SAVEPOINT ** const list)
 {
   SAVEPOINT **sv= list;
 
   while (*sv)
   {
-    if (system_charset_info->strnncoll(
-            (uchar *) name.str, name.length,
-            (uchar *) (*sv)->name, (*sv)->length) == 0)
+    if (name.streq(Lex_cstring((*sv)->name, (*sv)->length)))
       break;
     sv= &(*sv)->prev;
   }
@@ -570,12 +569,12 @@ SAVEPOINT** find_savepoint_in_list(THD *thd, LEX_CSTRING name,
 
 /* Find a named savepoint in the current transaction. */
 static SAVEPOINT **
-find_savepoint(THD *thd, LEX_CSTRING name)
+find_savepoint(THD *thd, Lex_ident_savepoint name)
 {
   return find_savepoint_in_list(thd, name, &thd->transaction->savepoints);
 }
 
-SAVEPOINT* savepoint_add(THD *thd, LEX_CSTRING name, SAVEPOINT **list,
+SAVEPOINT* savepoint_add(THD *thd, Lex_ident_savepoint name, SAVEPOINT **list,
                          int (*release_old)(THD*, SAVEPOINT*))
 {
   DBUG_ENTER("savepoint_add");
@@ -627,7 +626,8 @@ bool trans_savepoint(THD *thd, LEX_CSTRING name)
   if (thd->transaction->xid_state.check_has_uncommitted_xa())
     DBUG_RETURN(TRUE);
 
-  SAVEPOINT *newsv= savepoint_add(thd, name, &thd->transaction->savepoints,
+  SAVEPOINT *newsv= savepoint_add(thd, Lex_ident_savepoint(name),
+                                  &thd->transaction->savepoints,
                                   ha_release_savepoint);
 
   if (newsv == NULL)
@@ -640,10 +640,6 @@ bool trans_savepoint(THD *thd, LEX_CSTRING name)
   */
   if (unlikely(ha_savepoint(thd, newsv)))
     DBUG_RETURN(TRUE);
-
-  int error= online_alter_savepoint_set(thd, name);
-  if (unlikely(error))
-    DBUG_RETURN(error);
 
   newsv->prev= thd->transaction->savepoints;
   thd->transaction->savepoints= newsv;
@@ -683,7 +679,7 @@ bool trans_savepoint(THD *thd, LEX_CSTRING name)
 bool trans_rollback_to_savepoint(THD *thd, LEX_CSTRING name)
 {
   int res= FALSE;
-  SAVEPOINT *sv= *find_savepoint(thd, name);
+  SAVEPOINT *sv= *find_savepoint(thd, Lex_ident_savepoint(name));
   DBUG_ENTER("trans_rollback_to_savepoint");
 
   if (sv == NULL)
@@ -703,8 +699,6 @@ bool trans_rollback_to_savepoint(THD *thd, LEX_CSTRING name)
     push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
                  ER_WARNING_NOT_COMPLETE_ROLLBACK,
                  ER_THD(thd, ER_WARNING_NOT_COMPLETE_ROLLBACK));
-
-  res= res || online_alter_savepoint_rollback(thd, name);
 
   thd->transaction->savepoints= sv;
 
@@ -740,7 +734,7 @@ bool trans_rollback_to_savepoint(THD *thd, LEX_CSTRING name)
 bool trans_release_savepoint(THD *thd, LEX_CSTRING name)
 {
   int res= FALSE;
-  SAVEPOINT *sv= *find_savepoint(thd, name);
+  SAVEPOINT *sv= *find_savepoint(thd, Lex_ident_savepoint(name));
   DBUG_ENTER("trans_release_savepoint");
 
   if (sv == NULL)

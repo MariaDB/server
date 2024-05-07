@@ -124,8 +124,7 @@ extern "C" void free_sequence_last(SEQUENCE_LAST_VALUE *entry)
 bool Key_part_spec::operator==(const Key_part_spec& other) const
 {
   return length == other.length &&
-         !lex_string_cmp(system_charset_info, &field_name,
-                         &other.field_name);
+         field_name.streq(other.field_name);
 }
 
 
@@ -289,9 +288,8 @@ bool Foreign_key::validate(List<Create_field> &table_fields)
   {
     it.rewind();
     while ((sql_field= it++) &&
-           lex_string_cmp(system_charset_info,
-                          &column->field_name,
-                          &sql_field->field_name)) {}
+           !sql_field->field_name.streq(column->field_name))
+    { }
     if (!sql_field)
     {
       my_error(ER_KEY_COLUMN_DOES_NOT_EXIST, MYF(0), column->field_name.str);
@@ -712,6 +710,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
    wsrep_ignore_table(false),
    wsrep_aborter(0),
    wsrep_delayed_BF_abort(false),
+   wsrep_ctas(false),
 
 /* wsrep-lib */
    m_wsrep_next_trx_id(WSREP_UNDEFINED_TRX_ID),
@@ -728,7 +727,6 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
    wsrep_wfc()
 #endif /*WITH_WSREP */
 {
-  ulong tmp;
   bzero(&variables, sizeof(variables));
 
   /*
@@ -855,10 +853,11 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   profiling.set_thd(this);
 #endif
   user_connect=(USER_CONN *)0;
-  my_hash_init(key_memory_user_var_entry, &user_vars, system_charset_info,
+  my_hash_init(key_memory_user_var_entry, &user_vars,
+               Lex_ident_user_var::charset_info(),
                USER_VARS_HASH_SIZE, 0, 0, (my_hash_get_key) get_var_key,
                (my_hash_free_key) free_user_var, HASH_THREAD_SPECIFIC);
-  my_hash_init(PSI_INSTRUMENT_ME, &sequences, system_charset_info,
+  my_hash_init(PSI_INSTRUMENT_ME, &sequences, Lex_ident_fs::charset_info(),
                SEQUENCES_HASH_SIZE, 0, 0, (my_hash_get_key)
                get_sequence_last_key, (my_hash_free_key) free_sequence_last,
                HASH_THREAD_SPECIFIC);
@@ -879,14 +878,6 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
 
   tablespace_op=FALSE;
 
-  /*
-    Initialize the random generator. We call my_rnd() without a lock as
-    it's not really critical if two threads modifies the structure at the
-    same time.  We ensure that we have an unique number foreach thread
-    by adding the address of the stack.
-  */
-  tmp= (ulong) (my_rnd(&sql_rand) * 0xffffffff);
-  my_rnd_init(&rand, tmp + (ulong)((size_t) &rand), tmp + (ulong) ::global_query_id);
   substitute_null_with_insert_id = FALSE;
   lock_info.mysql_thd= (void *)this;
 
@@ -1205,6 +1196,63 @@ void thd_gmt_sec_to_TIME(MYSQL_THD thd, MYSQL_TIME *ltime, my_time_t t)
 }
 
 
+/*
+  @brief
+  Convert a non-zero DATETIME to its safe timeval based representation,
+  which guarantees a safe roundtrip DATETIME->timeval->DATETIME,
+  e.g. to optimize:
+
+     WHERE timestamp_arg0 = datetime_arg1
+
+  in the way that we replace "datetime_arg1" to its TIMESTAMP equivalent
+  "timestamp_arg1" and switch from DATETIME comparison to TIMESTAMP comparison:
+
+     WHERE timestamp_arg0 = timestamp_arg1
+
+  This helps to avoid slow TIMESTAMP->DATETIME data type conversion
+  for timestamp_arg0 per row.
+
+  @detail
+  Round trip is possible if the input "YYYY-MM-DD hh:mm:ss" value
+  satisfies the following conditions:
+
+    1. TIME_to_gmt_sec() returns no errors or warnings,
+       which means the input value
+       a. has no zeros in YYYYMMDD
+       b. fits into the TIMESTAMP range
+       c. does not fall into the spring forward gap
+          (because values inside gaps get adjusted to the beginning of the gap)
+
+    2. The my_time_t value returned by TIME_to_gmt_sec() must not be
+       near a DST change or near a leap second, to avoid anomalies:
+       - "YYYY-MM-DD hh:mm:ss" has more than one matching my_time_t values
+       - "YYYY-MM-DD hh:mm:ss" has no matching my_time_t values
+         (e.g. fall into the spring forward gap)
+
+  @param dt   The DATETIME value to convert.
+              Must not be zero '0000-00-00 00:00:00.000000'.
+              (The zero value must be handled by the caller).
+
+  @return     The conversion result
+  @retval     If succeeded, non-NULL Timeval value.
+  @retval     Timeval_null value representing SQL NULL if the argument
+              does not have a safe replacement.
+*/
+Timeval_null
+THD::safe_timeval_replacement_for_nonzero_datetime(const Datetime &dt)
+{
+  used|= THD::TIME_ZONE_USED;
+  DBUG_ASSERT(non_zero_date(dt.get_mysql_time()));
+  uint error= 0;
+  const MYSQL_TIME *ltime= dt.get_mysql_time();
+  my_time_t sec= variables.time_zone->TIME_to_gmt_sec(ltime, &error);
+  if (error /* (1) */ ||
+      !variables.time_zone->is_monotone_continuous_around(sec) /* (2) */)
+    return Timeval_null();
+  return Timeval_null(sec, ltime->second_part);
+}
+
+
 #ifdef _WIN32
 extern "C" my_thread_id next_thread_id_noinline()
 {
@@ -1229,6 +1277,7 @@ const Type_handler *THD::type_handler_for_datetime() const
 void THD::init()
 {
   DBUG_ENTER("thd::init");
+  mdl_context.reset();
   mysql_mutex_lock(&LOCK_global_system_variables);
   plugin_thdvar_init(this);
   /*
@@ -1242,7 +1291,9 @@ void THD::init()
 
   user_time.val= start_time= start_time_sec_part= 0;
 
-  server_status= SERVER_STATUS_AUTOCOMMIT;
+  server_status= 0;
+  if (variables.option_bits & OPTION_AUTOCOMMIT)
+    server_status|= SERVER_STATUS_AUTOCOMMIT;
   if (variables.sql_mode & MODE_NO_BACKSLASH_ESCAPES)
     server_status|= SERVER_STATUS_NO_BACKSLASH_ESCAPES;
   if (variables.sql_mode & MODE_ANSI_QUOTES)
@@ -1307,12 +1358,24 @@ void THD::init()
   /* Set to handle counting of aborted connections */
   userstat_running= opt_userstat_running;
   last_global_update_time= current_connect_time= time(NULL);
+
+  /*
+    Initialize the random generator. We call my_rnd() without a lock as
+    it's not really critical if two threads modify the structure at the
+    same time.  We ensure that we have a unique number for each thread
+    by adding the address of this THD.
+  */
+  ulong tmp= (ulong) (my_rnd(&sql_rand) * 0xffffffff);
+  my_rnd_init(&rand, tmp + (ulong)(intptr) this,
+                     (ulong)(my_timer_cycles() + global_query_id));
+
 #ifndef EMBEDDED_LIBRARY
   session_tracker.enable(this);
 #endif //EMBEDDED_LIBRARY
 
   apc_target.init(&LOCK_thd_kill);
   gap_tracker_data.init();
+  unit_results= NULL;
   DBUG_VOID_RETURN;
 }
 
@@ -1337,7 +1400,7 @@ void THD::update_stats(void)
     /* A SQL query. */
     if (lex->sql_command == SQLCOM_SELECT)
       select_commands++;
-    else if (sql_command_flags[lex->sql_command] & CF_STATUS_COMMAND)
+    else if (sql_command_flags() & CF_STATUS_COMMAND)
     {
       /* Ignore 'SHOW ' commands */
     }
@@ -1428,10 +1491,12 @@ void THD::change_user(void)
 
   init();
   stmt_map.reset();
-  my_hash_init(key_memory_user_var_entry, &user_vars, system_charset_info,
+  my_hash_init(key_memory_user_var_entry, &user_vars,
+               Lex_ident_user_var::charset_info(),
                USER_VARS_HASH_SIZE, 0, 0, (my_hash_get_key) get_var_key,
                (my_hash_free_key) free_user_var, HASH_THREAD_SPECIFIC);
-  my_hash_init(key_memory_user_var_entry, &sequences, system_charset_info,
+  my_hash_init(key_memory_user_var_entry, &sequences,
+               Lex_ident_fs::charset_info(),
                SEQUENCES_HASH_SIZE, 0, 0, (my_hash_get_key)
                get_sequence_last_key, (my_hash_free_key) free_sequence_last,
                HASH_THREAD_SPECIFIC);
@@ -1537,6 +1602,8 @@ void THD::cleanup(void)
   else
     trans_rollback(this);
 
+  DEBUG_SYNC(this, "THD_cleanup_after_trans_cleanup");
+
   DBUG_ASSERT(open_tables == NULL);
   DBUG_ASSERT(m_transaction_psi == NULL);
 
@@ -1599,6 +1666,10 @@ void THD::free_connection()
     vio_delete(net.vio);
   net.vio= nullptr;
   net_end(&net);
+  delete(rgi_fake);
+  rgi_fake= NULL;
+  delete(rli_fake);
+  rli_fake= NULL;
 #endif
  if (!cleanup_done)
    cleanup();
@@ -1637,6 +1708,7 @@ void THD::reset_for_reuse()
   abort_on_warning= 0;
   free_connection_done= 0;
   m_command= COM_CONNECT;
+  proc_info= "login";                           // Same as in THD::THD()
   transaction->on= 1;
 #if defined(ENABLED_PROFILING)
   profiling.reset();
@@ -1649,6 +1721,7 @@ void THD::reset_for_reuse()
   wsrep_cs().reset_error();
   wsrep_aborter= 0;
   wsrep_abort_by_kill= NOT_KILLED;
+  my_free(wsrep_abort_by_kill_err);
   wsrep_abort_by_kill_err= 0;
 #ifndef DBUG_OFF
   wsrep_killed_state= 0;
@@ -1691,6 +1764,8 @@ THD::~THD()
 
 #ifdef WITH_WSREP
   mysql_cond_destroy(&COND_wsrep_thd);
+  my_free(wsrep_abort_by_kill_err);
+  wsrep_abort_by_kill_err= 0;
 #endif
   mdl_context.destroy();
 
@@ -1703,17 +1778,6 @@ THD::~THD()
   dbug_sentry= THD_SENTRY_GONE;
 #endif  
 #ifndef EMBEDDED_LIBRARY
-  if (rgi_fake)
-  {
-    delete rgi_fake;
-    rgi_fake= NULL;
-  }
-  if (rli_fake)
-  {
-    delete rli_fake;
-    rli_fake= NULL;
-  }
-  
   if (rgi_slave)
     rgi_slave->cleanup_after_session();
   my_free(semisync_info);
@@ -1721,6 +1785,7 @@ THD::~THD()
   main_lex.free_set_stmt_mem_root();
   free_root(&main_mem_root, MYF(0));
   my_free(m_token_array);
+  my_free(killed_err);
   main_da.free_memory();
   if (tdc_hash_pins)
     lf_hash_put_pins(tdc_hash_pins);
@@ -1851,14 +1916,6 @@ void add_diff_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var,
     the calling functions.  See execute_show_status().
   */
 }
-
-#define SECONDS_TO_WAIT_FOR_KILL 2
-#if !defined(_WIN32) && defined(HAVE_SELECT)
-/* my_sleep() can wait for sub second times */
-#define WAIT_FOR_KILL_TRY_TIMES 20
-#else
-#define WAIT_FOR_KILL_TRY_TIMES 2
-#endif
 
 
 /**
@@ -2134,7 +2191,11 @@ void THD::reset_killed()
     mysql_mutex_assert_not_owner(&LOCK_thd_kill);
     mysql_mutex_lock(&LOCK_thd_kill);
     killed= NOT_KILLED;
-    killed_err= 0;
+    if (unlikely(killed_err))
+    {
+      my_free(killed_err);
+      killed_err= 0;
+    }
     mysql_mutex_unlock(&LOCK_thd_kill);
   }
 #ifdef WITH_WSREP
@@ -2145,6 +2206,7 @@ void THD::reset_killed()
       mysql_mutex_assert_not_owner(&LOCK_thd_kill);
       mysql_mutex_lock(&LOCK_thd_kill);
       wsrep_abort_by_kill= NOT_KILLED;
+      my_free(wsrep_abort_by_kill_err);
       wsrep_abort_by_kill_err= 0;
       mysql_mutex_unlock(&LOCK_thd_kill);
     }
@@ -3390,6 +3452,9 @@ int select_export::send_data(List<Item> &items)
   uint used_length=0,items_left=items.elements;
   List_iterator_fast<Item> li(items);
 
+  DBUG_EXECUTE_IF("select_export_kill", {
+    thd->killed= KILL_QUERY;
+  });
   if (my_b_write(&cache,(uchar*) exchange->line_start->ptr(),
 		 exchange->line_start->length()))
     goto err;
@@ -3977,28 +4042,29 @@ Query_arena::Type Statement::type() const
 
 /*
   Return an internal database name:
-  - validated with Lex_ident_db::check_db_name()
+  - validated with Lex_ident_db::check_name()
   - optionally converted to lower-case when lower_case_table_names==1
 
   The lower-cased copy is made on mem_root when needed.
   An error is raised in case of EOM or a bad database name.
 
-  @param src   - the database name
-  @returns     - {NULL,0} on EOM or a bad database name,
-                 or a good database name otherwise
+  @param src    - the database name
+  @param casedn - if the name should be lower-cased
+  @returns      - {NULL,0} on EOM or a bad database name,
+                  or a good database name otherwise
 */
 
 Lex_ident_db
-Query_arena::to_ident_db_internal_with_error(const LEX_CSTRING &src)
+Query_arena::to_ident_db_opt_casedn_with_error(const LEX_CSTRING &src,
+                                               bool casedn)
 {
   DBUG_ASSERT(src.str);
   if (src.str == any_db.str) // e.g. JSON table
     return any_db; // preserve any_db - it has a special meaning
 
-  bool casedn= lower_case_table_names == 1;
   const LEX_CSTRING tmp= casedn ? make_ident_casedn(src) : src;
   if (!tmp.str /*EOM*/ ||
-      Lex_ident_fs(tmp).check_db_name_with_error())
+      Lex_ident_db::check_name_with_error(tmp))
     return Lex_ident_db();
 
   return Lex_ident_db(tmp.str, tmp.length);
@@ -4138,7 +4204,9 @@ Statement_map::Statement_map() :
   my_hash_init(key_memory_prepared_statement_map, &st_hash, &my_charset_bin,
                START_STMT_HASH_SIZE, 0, 0, get_statement_id_as_hash_key,
                delete_statement_as_hash_key, MYF(0));
-  my_hash_init(key_memory_prepared_statement_map, &names_hash, system_charset_info, START_NAME_HASH_SIZE, 0, 0,
+  my_hash_init(key_memory_prepared_statement_map, &names_hash,
+               Lex_ident_ps::charset_info(),
+               START_NAME_HASH_SIZE, 0, 0,
                (my_hash_get_key) get_stmt_name_hash_key,
                NULL, MYF(0));
 }
@@ -4625,12 +4693,11 @@ change_security_context(THD *thd,
 
   *backup= NULL;
   needs_change= (strcmp(definer_user->str, thd->security_ctx->priv_user) ||
-                 my_strcasecmp(system_charset_info, definer_host->str,
-                               thd->security_ctx->priv_host));
+                 !Lex_ident_host(*definer_host).
+                   streq(Lex_cstring_strlen(thd->security_ctx->priv_host)));
   if (needs_change)
   {
-    if (acl_getroot(this, definer_user->str, definer_host->str,
-                                definer_host->str, db->str))
+    if (acl_getroot(this, *definer_user, *definer_host, *definer_host, *db))
     {
       my_error(ER_NO_SUCH_USER, MYF(0), definer_user->str,
                definer_host->str);
@@ -4660,11 +4727,12 @@ bool Security_context::user_matches(Security_context *them)
           !strcmp(user, them->user));
 }
 
-bool Security_context::is_priv_user(const char *user, const char *host)
+bool Security_context::is_priv_user(const LEX_CSTRING &user,
+                                    const LEX_CSTRING &host)
 {
-  return ((user != NULL) && (host != NULL) &&
-          !strcmp(user, priv_user) &&
-          !my_strcasecmp(system_charset_info, host,priv_host));
+  return ((user.str != NULL) && (host.str != NULL) &&
+          !strcmp(user.str, priv_user) &&
+          Lex_ident_host(host).streq(Lex_cstring_strlen(priv_host)));
 }
 
 
@@ -4744,7 +4812,7 @@ extern "C" enum thd_kill_levels thd_kill_level(const MYSQL_THD thd)
     if (unlikely(apc_target->have_apc_requests()))
     {
       if (thd == current_thd)
-        apc_target->process_apc_requests();
+        apc_target->process_apc_requests(false);
     }
     return THD_IS_NOT_KILLED;
   }
@@ -5596,7 +5664,7 @@ extern "C" int thd_binlog_format(const MYSQL_THD thd)
   if (WSREP(thd))
   {
     /* for wsrep binlog format is meaningful also when binlogging is off */
-    return (int) WSREP_BINLOG_FORMAT(thd->variables.binlog_format);
+    return (int) thd->wsrep_binlog_format(thd->variables.binlog_format);
   }
 
   if (mysql_bin_log.is_open() && (thd->variables.option_bits & OPTION_BIN_LOG))
@@ -6412,11 +6480,14 @@ int THD::decide_logging_format(TABLE_LIST *tables)
 
   reset_binlog_local_stmt_filter();
 
+  // Used binlog format
+  ulong binlog_format= wsrep_binlog_format(variables.binlog_format);
   /*
     We should not decide logging format if the binlog is closed or
     binlogging is off, or if the statement is filtered out from the
     binlog by filtering rules.
   */
+
 #ifdef WITH_WSREP
   if (WSREP_CLIENT_NNULL(this) &&
       wsrep_thd_is_local(this) &&
@@ -6431,6 +6502,27 @@ int THD::decide_logging_format(TABLE_LIST *tables)
       DBUG_RETURN(-1);
     }
   }
+
+  /*
+    If user has configured wsrep_forced_binlog_format to
+    STMT OR MIXED and used binlog_format would be same
+    and this is CREATE TABLE AS SELECT we will fall back
+    to ROW.
+  */
+  if (wsrep_forced_binlog_format < BINLOG_FORMAT_ROW &&
+      wsrep_ctas)
+  {
+    if (!get_stmt_da()->has_sql_condition(ER_UNKNOWN_ERROR))
+    {
+      push_warning_printf(this, Sql_condition::WARN_LEVEL_WARN,
+                          ER_UNKNOWN_ERROR,
+                          "Galera does not support wsrep_forced_binlog_format = %s "
+                          "in CREATE TABLE AS SELECT",
+                          wsrep_forced_binlog_format == BINLOG_FORMAT_STMT ?
+                          "STMT" : "MIXED");
+    }
+    set_current_stmt_binlog_format_row();
+  }
 #endif /* WITH_WSREP */
 
   if (WSREP_EMULATE_BINLOG_NNULL(this) ||
@@ -6438,7 +6530,7 @@ int THD::decide_logging_format(TABLE_LIST *tables)
   {
     if (is_bulk_op())
     {
-      if (wsrep_binlog_format() == BINLOG_FORMAT_STMT)
+      if (binlog_format == BINLOG_FORMAT_STMT)
       {
         my_error(ER_BINLOG_NON_SUPPORTED_BULK, MYF(0));
         DBUG_PRINT("info",
@@ -6615,8 +6707,8 @@ int THD::decide_logging_format(TABLE_LIST *tables)
           blackhole_table_found= 1;
 
         if (share->non_determinstic_insert &&
-            (sql_command_flags[lex->sql_command] & CF_CAN_GENERATE_ROW_EVENTS
-             && !(sql_command_flags[lex->sql_command] & CF_SCHEMA_CHANGE)))
+            (sql_command_flags() & CF_CAN_GENERATE_ROW_EVENTS
+             && !(sql_command_flags() & CF_SCHEMA_CHANGE)))
           has_write_tables_with_unsafe_statements= true;
 
         trans= table->file->has_transactions();
@@ -6656,7 +6748,7 @@ int THD::decide_logging_format(TABLE_LIST *tables)
       prev_access_table= table;
     }
 
-    if (wsrep_binlog_format() != BINLOG_FORMAT_ROW)
+    if (binlog_format != BINLOG_FORMAT_ROW)
     {
       /*
         DML statements that modify a table with an auto_increment
@@ -6740,7 +6832,7 @@ int THD::decide_logging_format(TABLE_LIST *tables)
         */
         my_error((error= ER_BINLOG_ROW_INJECTION_AND_STMT_ENGINE), MYF(0));
       }
-      else if ((wsrep_binlog_format() == BINLOG_FORMAT_ROW || is_bulk_op()) &&
+      else if ((binlog_format == BINLOG_FORMAT_ROW || is_bulk_op()) &&
                sqlcom_can_generate_row_events(this))
       {
         /*
@@ -6770,7 +6862,7 @@ int THD::decide_logging_format(TABLE_LIST *tables)
     else
     {
       /* binlog_format = STATEMENT */
-      if (wsrep_binlog_format() == BINLOG_FORMAT_STMT)
+      if (binlog_format == BINLOG_FORMAT_STMT)
       {
         if (lex->is_stmt_row_injection())
         {
@@ -6865,8 +6957,7 @@ int THD::decide_logging_format(TABLE_LIST *tables)
 
     if (blackhole_table_found &&
         variables.binlog_format == BINLOG_FORMAT_ROW &&
-        (sql_command_flags[lex->sql_command] &
-         (CF_UPDATES_DATA | CF_DELETES_DATA)))
+        (sql_command_flags() & (CF_UPDATES_DATA | CF_DELETES_DATA)))
     {
       String table_names;
       /*
@@ -6886,8 +6977,7 @@ int THD::decide_logging_format(TABLE_LIST *tables)
       }
       if (!table_names.is_empty())
       {
-        bool is_update= MY_TEST(sql_command_flags[lex->sql_command] &
-                                CF_UPDATES_DATA);
+        bool is_update= MY_TEST(sql_command_flags() & CF_UPDATES_DATA);
         /*
           Replace the last ',' with '.' for table_names
         */
@@ -6914,7 +7004,7 @@ int THD::decide_logging_format(TABLE_LIST *tables)
                         "and binlog_filter->db_ok(db) = %d",
                         mysql_bin_log.is_open(),
                         (variables.option_bits & OPTION_BIN_LOG),
-                        (uint) wsrep_binlog_format(),
+                        (uint) binlog_format,
                         binlog_filter->db_ok(db.str)));
     if (WSREP_NNULL(this) && is_current_stmt_binlog_format_row())
       binlog_prepare_for_row_logging();
@@ -6951,7 +7041,7 @@ int THD::decide_logging_format(TABLE_LIST *tables)
 void THD::reconsider_logging_format_for_iodup(TABLE *table)
 {
   DBUG_ENTER("reconsider_logging_format_for_iodup");
-  enum_binlog_format bf= (enum_binlog_format) wsrep_binlog_format();
+  enum_binlog_format bf= (enum_binlog_format) wsrep_binlog_format(variables.binlog_format);
 
   DBUG_ASSERT(lex->duplicates == DUP_UPDATE);
 
@@ -7016,7 +7106,7 @@ bool THD::binlog_table_should_be_logged(const LEX_CSTRING *db)
 {
   return (mysql_bin_log.is_open() &&
           (variables.option_bits & OPTION_BIN_LOG) &&
-          (wsrep_binlog_format() != BINLOG_FORMAT_STMT ||
+          (wsrep_binlog_format(variables.binlog_format) != BINLOG_FORMAT_STMT ||
            binlog_filter->db_ok(db->str)));
 }
 
@@ -8236,6 +8326,117 @@ bool Discrete_intervals_list::append(Discrete_interval *new_interval)
   DBUG_RETURN(0);
 }
 
+/*
+  indicate that unit result has to be reported
+*/
+bool THD::need_report_unit_results()
+{
+  return unit_results;
+}
+
+/*
+  Initialize unit result array
+*/
+bool THD::init_collecting_unit_results()
+{
+  if (!unit_results)
+  {
+    void *buff;
+
+    if (!(my_multi_malloc(PSI_NOT_INSTRUMENTED, MYF(MY_WME), &unit_results, sizeof(DYNAMIC_ARRAY),
+                          &buff, sizeof(unit_results_desc) * 10,
+                          NullS)) ||
+        my_init_dynamic_array2(PSI_INSTRUMENT_ME, unit_results, sizeof(unit_results_desc),
+                               buff, 10, 100, MYF(MY_WME)))
+    {
+      if (unit_results)
+        my_free(unit_results);
+      unit_results= NULL;
+      return TRUE;
+    }
+  }
+  return FALSE;
+}
+
+/*
+  remove unit result array
+*/
+void THD::stop_collecting_unit_results()
+{
+  if (unit_results)
+  {
+    delete_dynamic(unit_results);
+    my_free(unit_results);
+    unit_results= NULL;
+  }
+}
+
+
+/*
+  Add a unitary result to collection
+*/
+bool THD::collect_unit_results(ulonglong id, ulonglong affected_rows)
+{
+  if (unit_results)
+  {
+    unit_results_desc el;
+    el.generated_id= id;
+    el.affected_rows= affected_rows;
+    if (insert_dynamic(unit_results, &el))
+    {
+      return TRUE;
+    }
+  }
+  return FALSE;
+}
+
+/*
+  Write unitary result result-set WITHOUT ending EOF/OK_Packet to socket.
+*/
+bool THD::report_collected_unit_results()
+{
+  if (unit_results)
+  {
+    List<Item> field_list;
+    MEM_ROOT tmp_mem_root;
+    Query_arena arena(&tmp_mem_root, Query_arena::STMT_INITIALIZED), backup;
+
+    init_alloc_root(PSI_NOT_INSTRUMENTED, arena.mem_root, 2048, 4096, MYF(0));
+    set_n_backup_active_arena(&arena, &backup);
+    DBUG_ASSERT(mem_root == &tmp_mem_root);
+
+    field_list.push_back(new (mem_root)
+                         Item_int(this, "Id", 0, MY_INT64_NUM_DECIMAL_DIGITS),
+                         mem_root);
+    field_list.push_back(new (mem_root)
+                         Item_int(this, "Affected_rows", 0, MY_INT64_NUM_DECIMAL_DIGITS),
+                         mem_root);
+
+    if (protocol_binary.send_result_set_metadata(&field_list,
+                                                  Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
+      goto error;
+
+    for (ulonglong i= 0; i < unit_results->elements; i++)
+    {
+      unit_results_desc *last=
+        (unit_results_desc *)dynamic_array_ptr(unit_results, i);
+      protocol_binary.prepare_for_resend();
+      protocol_binary.store_longlong(last->generated_id, TRUE);
+      protocol_binary.store_longlong(last->affected_rows, TRUE);
+      if (protocol_binary.write())
+        goto error;
+    }
+error:
+    restore_active_arena(&arena, &backup);
+    DBUG_ASSERT(arena.mem_root == &tmp_mem_root);
+    // no need free Items because they was only constants
+    free_root(arena.mem_root, MYF(0));
+    stop_collecting_unit_results();
+    return TRUE;
+  }
+  return FALSE;
+
+}
 
 void AUTHID::copy(MEM_ROOT *mem_root, const LEX_CSTRING *user_name,
                                       const LEX_CSTRING *host_name)
@@ -8279,16 +8480,18 @@ void AUTHID::parse(const char *str, size_t length)
 
 
 bool Database_qualified_name::copy_sp_name_internal(MEM_ROOT *mem_root,
-                                                    const LEX_CSTRING &db,
+                                                    const Lex_ident_db &db,
                                                     const LEX_CSTRING &name)
 {
   DBUG_ASSERT(db.str);
   DBUG_ASSERT(name.str);
-  m_db= lower_case_table_names == 1 ?
-        lex_string_casedn_root(mem_root, &my_charset_utf8mb3_general_ci,
-                               db.str, db.length) :
-        lex_string_strmake_root(mem_root, db.str, db.length);
-  m_name= lex_string_strmake_root(mem_root, name.str, name.length);
+  m_db= Lex_ident_db(lower_case_table_names == 1 ?
+                     lex_string_casedn_root(mem_root,
+                                            &my_charset_utf8mb3_general_ci,
+                                            db.str, db.length) :
+                     lex_string_strmake_root(mem_root,
+                                             db.str, db.length));
+  m_name= Lex_cstring(lex_string_strmake_root(mem_root, name.str, name.length));
   return m_db.str == NULL || m_name.str == NULL; // check if EOM
 }
 

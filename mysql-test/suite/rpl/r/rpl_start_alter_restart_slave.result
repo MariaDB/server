@@ -79,7 +79,9 @@ domain_id	seq_no
 0	5
 include/start_slave.inc
 connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 # Everything from the master binlog must have been applied now:
 select domain_id, seq_no from mysql.gtid_slave_pos order by seq_no desc limit 1;
 domain_id	seq_no
@@ -110,10 +112,10 @@ set global binlog_alter_two_phase = 0;
 SET GLOBAL debug_dbug= @old_debug_master;
 set DEBUG_SYNC= 'RESET';
 connection slave;
-stop slave;
+include/stop_slave.inc
 set global slave_parallel_threads = 0;;
 set global slave_parallel_mode = optimistic;;
 set global gtid_strict_mode = 0;;
 set DEBUG_SYNC= 'RESET';
-start slave;
+include/start_slave.inc
 include/rpl_end.inc

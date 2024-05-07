@@ -1296,9 +1296,14 @@ void Item_sum_min_max::setup_hybrid(THD *thd, Item *item, Item *value_arg)
   /* Don't cache value, as it will change */
   if (!item->const_item())
     arg_cache->set_used_tables(RAND_TABLE_BIT);
+  DBUG_ASSERT(item->type_handler_for_comparison() ==
+              value->type_handler_for_comparison());
+  DBUG_ASSERT(item->type_handler_for_comparison() ==
+              arg_cache->type_handler_for_comparison());
   cmp= new (thd->mem_root) Arg_comparator();
   if (cmp)
-    cmp->set_cmp_func(thd, this, (Item**)&arg_cache, (Item**)&value, FALSE);
+    cmp->set_cmp_func(thd, this, item->type_handler_for_comparison(),
+                      (Item**)&arg_cache, (Item**)&value, FALSE);
   DBUG_VOID_RETURN;
 }
 
@@ -3771,18 +3776,10 @@ int group_concat_key_cmp_with_order_with_nulls(void *arg, const void *key1_arg,
 
 static void report_cut_value_error(THD *thd, uint row_count, const char *fname)
 {
-  size_t fn_len= strlen(fname);
-  char *fname_upper= (char *) my_alloca(fn_len + 1);
-  if (!fname_upper)
-    fname_upper= (char*) fname;                 // Out of memory
-  else
-    memcpy(fname_upper, fname, fn_len+1);
-  my_caseup_str(&my_charset_latin1, fname_upper);
   push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                       ER_CUT_VALUE_GROUP_CONCAT,
                       ER_THD(thd, ER_CUT_VALUE_GROUP_CONCAT),
-                      row_count, fname_upper);
-  my_afree(fname_upper);
+                      row_count, fname);
 }
 
 
@@ -4287,8 +4284,14 @@ Item_func_group_concat::fix_fields(THD *thd, Item **ref)
     char *buf;
     String *new_separator;
 
-    if (!(buf= (char*) thd->stmt_arena->alloc(buflen)) ||
-        !(new_separator= new(thd->stmt_arena->mem_root)
+    DBUG_ASSERT(thd->active_stmt_arena_to_use()->
+                  is_stmt_prepare_or_first_stmt_execute() ||
+                thd->active_stmt_arena_to_use()->
+                  is_conventional() ||
+                thd->active_stmt_arena_to_use()->state ==
+                  Query_arena::STMT_SP_QUERY_ARGUMENTS);
+    if (!(buf= (char*) thd->active_stmt_arena_to_use()->alloc(buflen)) ||
+        !(new_separator= new(thd->active_stmt_arena_to_use()->mem_root)
                            String(buf, buflen, collation.collation)))
       return TRUE;
     

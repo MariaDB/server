@@ -54,6 +54,7 @@ permission notice:
 /*! Name of file where Galera info is stored on recovery */
 #define XB_GALERA_INFO_FILENAME "xtrabackup_galera_info"
 #define MB_GALERA_INFO_FILENAME "mariadb_backup_galera_info"
+#define XB_GALERA_DONOR_INFO_FILENAME "donor_galera_info"
 
 /***********************************************************************
 Store Galera checkpoint info in the MB_GALERA_INFO_FILENAME file, if that
@@ -68,7 +69,7 @@ xb_write_galera_info(bool incremental_prepare)
 	long long	seqno;
 	MY_STAT		statinfo;
 
-	/* Do not overwrite existing an existing file to be compatible with
+	/* Do not overwrite an existing file to be compatible with
 	servers with older server versions */
 	if (!incremental_prepare &&
 		(my_stat(XB_GALERA_INFO_FILENAME, &statinfo, MYF(0)) != NULL ||
@@ -103,10 +104,11 @@ xb_write_galera_info(bool incremental_prepare)
 
 	seqno = wsrep_xid_seqno(&xid);
 
-	msg("mariabackup: Recovered WSREP position: %s:%lld\n",
-	    uuid_str, (long long) seqno);
+	msg("mariabackup: Recovered WSREP position: %s:%lld domain_id: %lld\n",
+	    uuid_str, (long long) seqno, (long long)wsrep_get_domain_id());
 
-	if (fprintf(fp, "%s:%lld", uuid_str, (long long) seqno) < 0) {
+	if (fprintf(fp, "%s:%lld %lld", uuid_str, (long long) seqno,
+		    (long long)wsrep_get_domain_id()) < 0) {
 
 		die(
 		    "could not write to " MB_GALERA_INFO_FILENAME

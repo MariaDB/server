@@ -1,6 +1,6 @@
-SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
-SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
-create table t1 (c1 int, c2 geometry not null, spatial index (c2))engine=innodb ROW_FORMAT=COMPRESSED;
+create table t1 (c1 int, c2 geometry not null, spatial index (c2))engine=innodb ROW_FORMAT=COMPRESSED STATS_PERSISTENT=0;
+lock tables t1 write;
+start transaction;
 insert into t1 values(1, Point(1,1));
 insert into t1 values(2, Point(2,2));
 insert into t1 values(3, Point(3,3));
@@ -20,6 +20,8 @@ insert into t1 select * from t1;
 insert into t1 select * from t1;
 insert into t1 select * from t1;
 insert into t1 select * from t1;
+commit;
+unlock tables;
 start transaction;
 insert into t1 select * from t1;
 select count(*) from t1;
@@ -49,4 +51,3 @@ count(*)
 SET debug_dbug = @saved_dbug;
 InnoDB		0 transactions not purged
 drop table t1;
-SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;

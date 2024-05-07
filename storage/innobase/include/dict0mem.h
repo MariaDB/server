@@ -48,6 +48,7 @@ Created 1/8/1996 Heikki Tuuri
 #include "fil0fil.h"
 #include "fil0crypt.h"
 #include "mysql_com.h"
+#include "lex_ident.h"
 #include <sql_const.h>
 #include <set>
 #include <algorithm>
@@ -357,8 +358,8 @@ dict_mem_table_col_rename(
 /*======================*/
 	dict_table_t*	table,	/*!< in/out: table */
 	ulint		nth_col,/*!< in: column index */
-	const char*	from,	/*!< in: old column name */
-	const char*	to,	/*!< in: new column name */
+	const LEX_CSTRING &from,/*!< in: old column name */
+	const LEX_CSTRING &to,	/*!< in: new column name */
 	bool		is_virtual);
 				/*!< in: if this is a virtual column */
 /**********************************************************************//**
@@ -410,28 +411,6 @@ Creates and initializes a foreign constraint memory object.
 dict_foreign_t*
 dict_mem_foreign_create(void);
 /*=========================*/
-
-/**********************************************************************//**
-Sets the foreign_table_name_lookup pointer based on the value of
-lower_case_table_names.  If that is 0 or 1, foreign_table_name_lookup
-will point to foreign_table_name.  If 2, then another string is
-allocated from the heap and set to lower case. */
-void
-dict_mem_foreign_table_name_lookup_set(
-/*===================================*/
-	dict_foreign_t*	foreign,	/*!< in/out: foreign struct */
-	ibool		do_alloc);	/*!< in: is an alloc needed */
-
-/**********************************************************************//**
-Sets the referenced_table_name_lookup pointer based on the value of
-lower_case_table_names.  If that is 0 or 1, referenced_table_name_lookup
-will point to referenced_table_name.  If 2, then another string is
-allocated from the heap and set to lower case. */
-void
-dict_mem_referenced_table_name_lookup_set(
-/*======================================*/
-	dict_foreign_t*	foreign,	/*!< in/out: foreign struct */
-	ibool		do_alloc);	/*!< in: is an alloc needed */
 
 /** Fills the dependent virtual columns in a set.
 Reason for being dependent are
@@ -571,7 +550,7 @@ public:
 
   /** Retrieve the column name.
   @param table  the table of this column */
-  const char *name(const dict_table_t &table) const;
+  Lex_ident_column name(const dict_table_t &table) const;
 
   /** @return whether this is a virtual column */
   bool is_virtual() const { return prtype & DATA_VIRTUAL; }
@@ -949,7 +928,8 @@ struct zip_pad_info_t {
 
 /** "GEN_CLUST_INDEX" is the name reserved for InnoDB default
 system clustered index when there is no primary key. */
-const char innobase_index_reserve_name[] = "GEN_CLUST_INDEX";
+static constexpr
+Lex_cstring GEN_CLUST_INDEX = "GEN_CLUST_INDEX"_LEX_CSTRING;
 
 /** Data structure for an index.  Most fields will be
 initialized to 0, NULL or FALSE in dict_mem_index_create(). */
@@ -1522,6 +1502,20 @@ struct dict_foreign_t{
 	/** Check whether the fulltext index gets affected by
 	foreign key constraint */
 	bool affects_fulltext() const;
+
+	/**********************************************************************//**
+	Sets the foreign_table_name_lookup pointer based on the value of
+	lower_case_table_names.  If that is 0 or 1, foreign_table_name_lookup
+	will point to foreign_table_name.  If 2, then another string is
+	allocated from the heap and set to lower case. */
+	void foreign_table_name_lookup_set();
+
+	/**********************************************************************//**
+	Sets the referenced_table_name_lookup pointer based on the value of
+	lower_case_table_names.  If that is 0 or 1, referenced_table_name_lookup
+	will point to referenced_table_name.  If 2, then another string is
+	allocated from the heap and set to lower case. */
+	void referenced_table_name_lookup_set();
 };
 
 std::ostream&
@@ -1593,11 +1587,12 @@ struct dict_foreign_matches_id {
 
 	bool operator()(const dict_foreign_t*	foreign) const
 	{
-		if (0 == innobase_strcasecmp(foreign->id, m_id)) {
+		const Lex_ident_column ident = Lex_cstring_strlen(m_id);
+		if (ident.streq(Lex_cstring_strlen(foreign->id))) {
 			return(true);
 		}
 		if (const char* pos = strchr(foreign->id, '/')) {
-			if (0 == innobase_strcasecmp(m_id, pos + 1)) {
+			if (ident.streq(Lex_cstring_strlen(pos + 1))) {
 				return(true);
 			}
 		}
@@ -2157,6 +2152,13 @@ public:
 
 	/** Instantly dropped or reordered columns, or NULL if none */
 	dict_instant_t*				instant;
+
+	/** Retrieve a column name from a 0-separated list
+	@param str     the list in the format "name1\0name2\0...nameN\0"
+	@param col_nr  the position
+	*/
+	static Lex_ident_column get_name_from_z_list(const char *str,
+							size_t col_nr);
 
 	/** Column names packed in a character string
 	"name1\0name2\0...nameN\0". Until the string contains n_cols, it will

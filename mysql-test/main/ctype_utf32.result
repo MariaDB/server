@@ -1638,7 +1638,7 @@ ORDER BY l DESC;
 id	l
 a	256
 Warnings:
-Warning	1260	Row 1 was cut by GROUP_CONCAT()
+Warning	1260	Row 1 was cut by group_concat()
 #
 # incorrect charset for val_str_ascii
 #
@@ -2314,7 +2314,7 @@ Warning	1292	Truncated incorrect INTEGER value: '1Ĳ3'
 #
 # MDEV-9711 NO PAD Collatons
 #
-SET character_set_connection=utf32;
+SET collation_connection=utf32_general_nopad_ci;
 SET DEFAULT_STORAGE_ENGINE=MyISAM;
 #
 # Start of ctype_pad.inc
@@ -2592,6 +2592,127 @@ DROP TABLE t1;
 # End of ctype_pad.inc
 #
 SET DEFAULT_STORAGE_ENGINE=Default;
+select @@collation_connection;
+@@collation_connection
+utf32_general_nopad_ci
+create table t1 as select repeat(' ',10) as a union select null;
+alter table t1 add key(a);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(10) CHARACTER SET utf32 COLLATE utf32_general_nopad_ci DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+insert into t1 values ("a"),("abc"),("abcd"),("hello"),("test");
+explain select * from t1 where a like 'abc%';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a	a	43	NULL	2	Using where; Using index
+explain select * from t1 where a like concat('abc','%');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a	a	43	NULL	2	Using where; Using index
+select * from t1 where a like "abc%";
+a
+abc
+abcd
+select * from t1 where a like concat("abc","%");
+a
+abc
+abcd
+select * from t1 where a like "ABC%";
+a
+abc
+abcd
+select * from t1 where a like "test%";
+a
+test
+select * from t1 where a like "te_t";
+a
+test
+select * from t1 where a like "%a%";
+a
+a
+abc
+abcd
+select * from t1 where a like "%abcd%";
+a
+abcd
+select * from t1 where a like "%abc\d%";
+a
+abcd
+drop table t1;
+select 'AA' like 'AA';
+'AA' like 'AA'
+1
+select 'AA' like 'A%A';
+'AA' like 'A%A'
+1
+select 'AA' like 'A%%A';
+'AA' like 'A%%A'
+1
+select 'AA' like 'AA%';
+'AA' like 'AA%'
+1
+select 'AA' like '%AA%';
+'AA' like '%AA%'
+1
+select 'AA' like '%A';
+'AA' like '%A'
+1
+select 'AA' like '%AA';
+'AA' like '%AA'
+1
+select 'AA' like 'A%A%';
+'AA' like 'A%A%'
+1
+select 'AA' like '_%_%';
+'AA' like '_%_%'
+1
+select 'AA' like '%A%A';
+'AA' like '%A%A'
+1
+select 'AAA'like 'A%A%A';
+'AAA'like 'A%A%A'
+1
+select 'AZ' like 'AZ';
+'AZ' like 'AZ'
+1
+select 'AZ' like 'A%Z';
+'AZ' like 'A%Z'
+1
+select 'AZ' like 'A%%Z';
+'AZ' like 'A%%Z'
+1
+select 'AZ' like 'AZ%';
+'AZ' like 'AZ%'
+1
+select 'AZ' like '%AZ%';
+'AZ' like '%AZ%'
+1
+select 'AZ' like '%Z';
+'AZ' like '%Z'
+1
+select 'AZ' like '%AZ';
+'AZ' like '%AZ'
+1
+select 'AZ' like 'A%Z%';
+'AZ' like 'A%Z%'
+1
+select 'AZ' like '_%_%';
+'AZ' like '_%_%'
+1
+select 'AZ' like '%A%Z';
+'AZ' like '%A%Z'
+1
+select 'AZ' like 'A_';
+'AZ' like 'A_'
+1
+select 'AZ' like '_Z';
+'AZ' like '_Z'
+1
+select 'AMZ'like 'A%M%Z';
+'AMZ'like 'A%M%Z'
+1
+SET collation_connection=utf32_nopad_bin;
 SET DEFAULT_STORAGE_ENGINE=MyISAM;
 #
 # Start of ctype_pad.inc
@@ -2869,6 +2990,124 @@ DROP TABLE t1;
 # End of ctype_pad.inc
 #
 SET DEFAULT_STORAGE_ENGINE=Default;
+select @@collation_connection;
+@@collation_connection
+utf32_nopad_bin
+create table t1 as select repeat(' ',10) as a union select null;
+alter table t1 add key(a);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(10) CHARACTER SET utf32 COLLATE utf32_nopad_bin DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+insert into t1 values ("a"),("abc"),("abcd"),("hello"),("test");
+explain select * from t1 where a like 'abc%';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a	a	43	NULL	2	Using where; Using index
+explain select * from t1 where a like concat('abc','%');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a	a	43	NULL	2	Using where; Using index
+select * from t1 where a like "abc%";
+a
+abc
+abcd
+select * from t1 where a like concat("abc","%");
+a
+abc
+abcd
+select * from t1 where a like "ABC%";
+a
+select * from t1 where a like "test%";
+a
+test
+select * from t1 where a like "te_t";
+a
+test
+select * from t1 where a like "%a%";
+a
+a
+abc
+abcd
+select * from t1 where a like "%abcd%";
+a
+abcd
+select * from t1 where a like "%abc\d%";
+a
+abcd
+drop table t1;
+select 'AA' like 'AA';
+'AA' like 'AA'
+1
+select 'AA' like 'A%A';
+'AA' like 'A%A'
+1
+select 'AA' like 'A%%A';
+'AA' like 'A%%A'
+1
+select 'AA' like 'AA%';
+'AA' like 'AA%'
+1
+select 'AA' like '%AA%';
+'AA' like '%AA%'
+1
+select 'AA' like '%A';
+'AA' like '%A'
+1
+select 'AA' like '%AA';
+'AA' like '%AA'
+1
+select 'AA' like 'A%A%';
+'AA' like 'A%A%'
+1
+select 'AA' like '_%_%';
+'AA' like '_%_%'
+1
+select 'AA' like '%A%A';
+'AA' like '%A%A'
+1
+select 'AAA'like 'A%A%A';
+'AAA'like 'A%A%A'
+1
+select 'AZ' like 'AZ';
+'AZ' like 'AZ'
+1
+select 'AZ' like 'A%Z';
+'AZ' like 'A%Z'
+1
+select 'AZ' like 'A%%Z';
+'AZ' like 'A%%Z'
+1
+select 'AZ' like 'AZ%';
+'AZ' like 'AZ%'
+1
+select 'AZ' like '%AZ%';
+'AZ' like '%AZ%'
+1
+select 'AZ' like '%Z';
+'AZ' like '%Z'
+1
+select 'AZ' like '%AZ';
+'AZ' like '%AZ'
+1
+select 'AZ' like 'A%Z%';
+'AZ' like 'A%Z%'
+1
+select 'AZ' like '_%_%';
+'AZ' like '_%_%'
+1
+select 'AZ' like '%A%Z';
+'AZ' like '%A%Z'
+1
+select 'AZ' like 'A_';
+'AZ' like 'A_'
+1
+select 'AZ' like '_Z';
+'AZ' like '_Z'
+1
+select 'AMZ'like 'A%M%Z';
+'AMZ'like 'A%M%Z'
+1
 #
 # MDEV-22111 ERROR 1064 & 1033 and SIGSEGV on CREATE TABLE w/ various charsets on 10.4/5 optimized builds | Assertion `(uint) (table_check_constraints - share->check_constraints) == (uint) (share->table_check_constraints - share->field_check_constraints)' failed
 # 10.2 tests
@@ -2957,6 +3196,70 @@ HEX(OCT(a))
 00000030
 DROP TABLE t;
 SET NAMES utf8;
+#
+# MDEV-28835 Assertion `(length % 4) == 0' failed in my_lengthsp_utf32 on INSERT
+#
+SET sql_mode='',character_set_connection=utf32;
+CREATE TABLE t (c ENUM ('','')) CHARACTER SET utf32;
+Warnings:
+Note	1291	Column 'c' has duplicated value '' in ENUM
+INSERT INTO t VALUES (DATE_FORMAT('2004-02-02','%W'));
+Warnings:
+Warning	1265	Data truncated for column 'c' at row 1
+DROP TABLE t;
+SET sql_mode=DEFAULT;
+# utf32 format, utf32 result
+SELECT DATE_FORMAT('2004-02-02','%W');
+DATE_FORMAT('2004-02-02','%W')
+Monday
+SELECT HEX(DATE_FORMAT('2004-02-02','%W'));
+HEX(DATE_FORMAT('2004-02-02','%W'))
+0000004D0000006F0000006E000000640000006100000079
+SELECT DATE_FORMAT(TIME'-01:01:01','%h');
+DATE_FORMAT(TIME'-01:01:01','%h')
+-01
+SELECT HEX(DATE_FORMAT(TIME'-01:01:01','%h'));
+HEX(DATE_FORMAT(TIME'-01:01:01','%h'))
+0000002D0000003000000031
+# utf8 format, utf32 result
+SELECT DATE_FORMAT('2004-02-02',_utf8'%W');
+DATE_FORMAT('2004-02-02',_utf8'%W')
+Monday
+SELECT HEX(DATE_FORMAT('2004-02-02',_utf8'%W'));
+HEX(DATE_FORMAT('2004-02-02',_utf8'%W'))
+0000004D0000006F0000006E000000640000006100000079
+SELECT DATE_FORMAT(TIME'-01:01:01',_utf8'%h');
+DATE_FORMAT(TIME'-01:01:01',_utf8'%h')
+-01
+SELECT HEX(DATE_FORMAT(TIME'-01:01:01',_utf8'%h'));
+HEX(DATE_FORMAT(TIME'-01:01:01',_utf8'%h'))
+0000002D0000003000000031
+# utf32 format, utf8 result
+SET NAMES utf8;
+SELECT DATE_FORMAT('2004-02-02',CONVERT('%W' USING utf32));
+DATE_FORMAT('2004-02-02',CONVERT('%W' USING utf32))
+Monday
+SELECT HEX(DATE_FORMAT('2004-02-02',CONVERT('%W' USING utf32)));
+HEX(DATE_FORMAT('2004-02-02',CONVERT('%W' USING utf32)))
+4D6F6E646179
+SELECT DATE_FORMAT(TIME'-01:01:01',CONVERT('%h' USING utf32));
+DATE_FORMAT(TIME'-01:01:01',CONVERT('%h' USING utf32))
+-01
+SELECT HEX(DATE_FORMAT(TIME'-01:01:01',CONVERT('%h' USING utf32)));
+HEX(DATE_FORMAT(TIME'-01:01:01',CONVERT('%h' USING utf32)))
+2D3031
+# non-BMP characters in format, utf8mb3 result
+# expect non-convertable characters to be replaced to '?'
+SET NAMES utf8mb3;
+SET @format= CONCAT(CONVERT('%h' USING utf32),
+_utf32 0x0010FFFF /*a non-BMP character*/,
+CONVERT('%i' USING utf32));
+SELECT DATE_FORMAT(TIME'11:22:33',@format);
+DATE_FORMAT(TIME'11:22:33',@format)
+11?22
+SELECT HEX(DATE_FORMAT(TIME'11:22:33',@format));
+HEX(DATE_FORMAT(TIME'11:22:33',@format))
+31313F3232
 #
 # End of 10.4 tests
 #

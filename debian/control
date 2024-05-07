@@ -1,7 +1,7 @@
 Source: mariadb
 Section: database
 Priority: optional
-Maintainer: MariaDB Developers <maria-developers@lists.launchpad.net>
+Maintainer: MariaDB Developers <developers@lists.mariadb.org>
 Build-Depends: bison,
                cmake,
                cracklib-runtime <!nocheck>,
@@ -31,8 +31,7 @@ Build-Depends: bison,
                liblz4-dev,
                liblzma-dev,
                liblzo2-dev,
-               libncurses5-dev (>= 5.0-6~),
-               libncurses5-dev:native (>= 5.0-6~),
+               libncurses-dev,
                libnuma-dev [linux-any],
                libpam0g-dev,
                libpcre2-dev,
@@ -1219,6 +1218,7 @@ Depends: mariadb-client (= ${binary:Version}),
          mariadb-server (= ${server:Version}),
          mariadb-test-data (= ${source:Version}),
          virtual-mysql-testsuite,
+         libnet-ssleay-perl,
          ${misc:Depends},
          ${perl:Depends},
          ${shlibs:Depends}

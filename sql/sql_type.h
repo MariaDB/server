@@ -24,12 +24,15 @@
 
 #include "mysqld.h"
 #include "lex_string.h"
+#include "sql_type_timeofday.h"
 #include "sql_array.h"
 #include "sql_const.h"
 #include "sql_time.h"
 #include "sql_type_string.h"
 #include "sql_type_real.h"
 #include "compat56.h"
+#include "log_event_data_type.h"
+
 C_MODE_START
 #include <ma_dyncol.h>
 C_MODE_END
@@ -55,6 +58,7 @@ class Item_hybrid_func;
 class Item_func_min_max;
 class Item_func_hybrid_field_type;
 class Item_bool_func2;
+class Item_bool_rowready_func2;
 class Item_func_between;
 class Item_func_in;
 class Item_func_round;
@@ -150,8 +154,8 @@ scalar_comparison_op_to_lex_cstring(scalar_comparison_op op)
   case SCALAR_CMP_EQUAL: return LEX_CSTRING{STRING_WITH_LEN("<=>")};
   case SCALAR_CMP_LT:    return LEX_CSTRING{STRING_WITH_LEN("<")};
   case SCALAR_CMP_LE:    return LEX_CSTRING{STRING_WITH_LEN("<=")};
-  case SCALAR_CMP_GE:    return LEX_CSTRING{STRING_WITH_LEN(">")};
-  case SCALAR_CMP_GT:    return LEX_CSTRING{STRING_WITH_LEN(">=")};
+  case SCALAR_CMP_GE:    return LEX_CSTRING{STRING_WITH_LEN(">=")};
+  case SCALAR_CMP_GT:    return LEX_CSTRING{STRING_WITH_LEN(">")};
   }
   DBUG_ASSERT(0);
   return LEX_CSTRING{STRING_WITH_LEN("<?>")};
@@ -2519,6 +2523,20 @@ public:
   }
   Datetime(my_time_t unix_time, ulong second_part,
            const Time_zone* time_zone);
+  Datetime(uint year_arg, uint month_arg, uint day_arg, const TimeOfDay6 &td)
+  {
+    neg= 0;
+    year= year_arg;
+    month= month_arg;
+    day= day_arg;
+    hour= td.hour();
+    minute= td.minute();
+    second= td.second();
+    second_part= td.usecond();
+    time_type= MYSQL_TIMESTAMP_DATETIME;
+    if (!is_valid_datetime_slow())
+      time_type= MYSQL_TIMESTAMP_NONE;
+  }
 
   bool is_valid_datetime() const
   {
@@ -2662,6 +2680,12 @@ public:
   {
     DBUG_ASSERT(is_valid_datetime());
     return Temporal::fraction_remainder(dec);
+  }
+
+  Datetime time_of_day(const TimeOfDay6 &td) const
+  {
+    DBUG_ASSERT(is_valid_datetime()); // not SQL NULL
+    return Datetime(year, month, day, td);
   }
 
   Datetime &trunc(uint dec)
@@ -2837,6 +2861,11 @@ class Timestamp_or_zero_datetime: protected Timestamp
 {
   bool m_is_zero_datetime;
 public:
+  static Timestamp_or_zero_datetime zero()
+  {
+    return Timestamp_or_zero_datetime(Timestamp(0, 0), true);
+  }
+public:
   Timestamp_or_zero_datetime()
    :Timestamp(0,0), m_is_zero_datetime(true)
   { }
@@ -2844,7 +2873,7 @@ public:
    :Timestamp(native.length() ? Timestamp(native) : Timestamp(0,0)),
     m_is_zero_datetime(native.length() == 0)
   { }
-  Timestamp_or_zero_datetime(const Timestamp &tm, bool is_zero_datetime)
+  Timestamp_or_zero_datetime(const Timestamp &tm, bool is_zero_datetime= false)
    :Timestamp(tm), m_is_zero_datetime(is_zero_datetime)
   { }
   Timestamp_or_zero_datetime(THD *thd, const MYSQL_TIME *ltime, uint *err_code);
@@ -2867,6 +2896,11 @@ public:
     if (other.is_zero_datetime())
       return 1;
     return Timestamp::cmp(other);
+  }
+  const Timestamp &to_timestamp() const
+  {
+    DBUG_ASSERT(!is_zero_datetime());
+    return *this;
   }
   bool to_TIME(THD *thd, MYSQL_TIME *to, date_mode_t fuzzydate) const;
   /*
@@ -3268,10 +3302,16 @@ public:
   bool agg_item_collations(DTCollation &c, const LEX_CSTRING &name,
                            Item **items, uint nitems,
                            uint flags, int item_sep);
+  struct Single_coll_err
+  {
+    const DTCollation& coll;
+    bool first;
+  };
   bool agg_item_set_converter(const DTCollation &coll,
                               const LEX_CSTRING &name,
                               Item **args, uint nargs,
-                              uint flags, int item_sep);
+                              uint flags, int item_sep,
+                              const Single_coll_err *single_item_err= NULL);
 
   /*
     Collect arguments' character sets together.
@@ -3362,6 +3402,98 @@ public:
 };
 
 
+/*
+  A container for very specific data type attributes.
+  For now it prodives space for:
+  - one const pointer attributes
+  - one unt32 attribute
+*/
+class Type_extra_attributes
+{
+  const void *m_attr_const_void_ptr[1];
+  uint32 m_attr_uint32[1];
+public:
+  Type_extra_attributes()
+   :m_attr_const_void_ptr{0},
+    m_attr_uint32{0}
+  { }
+  Type_extra_attributes(const void *const_void_ptr)
+   :m_attr_const_void_ptr{const_void_ptr},
+    m_attr_uint32{0}
+  { }
+  /*
+    Generic const pointer attributes.
+    The ENUM and SET data types store TYPELIB information here.
+  */
+  Type_extra_attributes & set_attr_const_void_ptr(uint i, const void *value)
+  {
+    m_attr_const_void_ptr[i]= value;
+    return *this;
+  }
+  const void *get_attr_const_void_ptr(uint i) const
+  {
+    return m_attr_const_void_ptr[i];
+  }
+  /*
+    Generic uint32 attributes.
+    The GEOMETRY data type stores SRID here.
+  */
+  Type_extra_attributes & set_attr_uint32(uint i, uint32 value)
+  {
+    m_attr_uint32[i]= value;
+    return *this;
+  }
+  uint32 get_attr_uint32(uint i) const
+  {
+    return m_attr_uint32[i];
+  }
+  /*
+    Helper methods for TYPELIB attributes.
+    They are mostly needed to simplify the code
+    in Column_definition_attributes and Column_definition methods.
+    Eventually we should move this code into Type_typelib_attributes
+    and remove these methods.
+  */
+  Type_extra_attributes & set_typelib(const TYPELIB *typelib)
+  {
+    return set_attr_const_void_ptr(0, typelib);
+  }
+  const TYPELIB *typelib() const
+  {
+    return (const TYPELIB*) get_attr_const_void_ptr(0);
+  }
+};
+
+
+class Type_typelib_attributes
+{
+protected:
+  const TYPELIB *m_typelib;
+public:
+  Type_typelib_attributes()
+   :m_typelib(nullptr)
+  { }
+  Type_typelib_attributes(const TYPELIB *typelib)
+   :m_typelib(typelib)
+  { }
+  Type_typelib_attributes(const Type_extra_attributes &eattr)
+   :m_typelib((const TYPELIB *) eattr.get_attr_const_void_ptr(0))
+  { }
+  void store(Type_extra_attributes *to) const
+  {
+    to->set_attr_const_void_ptr(0, m_typelib);
+  }
+  const TYPELIB *typelib() const
+  {
+    return m_typelib;
+  }
+  void set_typelib(const TYPELIB *typelib)
+  {
+    m_typelib= typelib;
+  }
+};
+
+
 class Type_all_attributes: public Type_std_attributes
 {
 public:
@@ -3371,8 +3503,8 @@ public:
   virtual void set_type_maybe_null(bool maybe_null_arg)= 0;
   // Returns total number of decimal digits
   virtual decimal_digits_t decimal_precision() const= 0;
-  virtual const TYPELIB *get_typelib() const= 0;
-  virtual void set_typelib(const TYPELIB *typelib)= 0;
+  virtual Type_extra_attributes *type_extra_attributes_addr() = 0;
+  virtual const Type_extra_attributes type_extra_attributes() const= 0;
 };
 
 
@@ -3666,6 +3798,9 @@ public:
   static const Type_handler *handler_by_name(THD *thd, const LEX_CSTRING &name);
   static const Type_handler *handler_by_name_or_error(THD *thd,
                                                       const LEX_CSTRING &name);
+  static const Type_handler *handler_by_log_event_data_type(
+                                             THD *thd,
+                                             const Log_event_data_type &type);
   static const Type_handler *odbc_literal_type_handler(const LEX_CSTRING *str);
   static const Type_handler *blob_type_handler(uint max_octet_length);
   static const Type_handler *string_type_handler(uint max_octet_length);
@@ -3683,7 +3818,6 @@ public:
   static const Type_handler *blob_type_handler(const Item *item);
   static const Type_handler *get_handler_by_field_type(enum_field_types type);
   static const Type_handler *get_handler_by_real_type(enum_field_types type);
-  static const Type_handler *get_handler_by_cmp_type(Item_result type);
   static const Type_collection *
     type_collection_for_aggregation(const Type_handler *h1,
                                     const Type_handler *h2);
@@ -3951,6 +4085,12 @@ public:
   {
     return false;
   }
+
+  virtual Log_event_data_type user_var_log_event_data_type(uint charset_nr) const
+  {
+    return Log_event_data_type({NULL,0}/*data type name*/, result_type(),
+                               charset_nr, is_unsigned());
+  }
   virtual uint Column_definition_gis_options_image(uchar *buff,
                                                    const Column_definition &def)
                                                    const
@@ -4200,6 +4340,33 @@ public:
   virtual Item *make_const_item_for_comparison(THD *thd,
                                                Item *src,
                                                const Item *cmp) const= 0;
+  /**
+    When aggregating function arguments for comparison
+    (e.g. for  =, <, >, <=, >=, NULLIF), in some cases we rewrite
+    arguments. For example, if the predicate
+        timestamp_expr0 = datetime_const_expr1
+    decides to compare arguments as DATETIME,
+    we can try to rewrite datetime_const_expr1 to a TIMESTAMP constant
+    and perform the comparison as TIMESTAMP, which is faster because
+    does not have to perform TIMESTAMP->DATETIME data type conversion per row.
+
+    "this" is the type handler that is used to compare
+    "subject" and "counterpart" (DATETIME in the above example).
+    @param thd          the current thread
+    @param subject      the comparison side that we want try to rewrite
+    @param counterpart  the other comparison side
+    @retval             subject, if the subject does not need to be rewritten
+    @retval             NULL in case of error (e.g. EOM)
+    @retval             Otherwise, a pointer to a new Item which can
+                        be used as a replacement for the subject.
+  */
+  virtual Item *convert_item_for_comparison(THD *thd,
+                                            Item *subject,
+                                            const Item *counterpart) const
+  {
+    return subject;
+  }
+
   virtual Item_cache *Item_get_cache(THD *thd, const Item *item) const= 0;
   virtual Item *make_constructor_item(THD *thd, List<Item> *args) const
   {
@@ -4251,6 +4418,8 @@ public:
   }
   virtual bool Item_eq_value(THD *thd, const Type_cmp_attributes *attr,
                              Item *a, Item *b) const= 0;
+  virtual bool Item_bool_rowready_func2_fix_length_and_dec(THD *thd,
+                                          Item_bool_rowready_func2 *func) const;
   virtual bool Item_hybrid_func_fix_attributes(THD *thd,
                                                const LEX_CSTRING &name,
                                                Type_handler_hybrid_field_type *,
@@ -5298,6 +5467,12 @@ public:
     return type_limits_int()->char_length();
   }
   uint32 Item_decimal_notation_int_digits(const Item *item) const override;
+  bool Item_hybrid_func_fix_attributes(THD *thd,
+                                       const LEX_CSTRING &name,
+                                       Type_handler_hybrid_field_type *,
+                                       Type_all_attributes *atrr,
+                                       Item **items,
+                                       uint nitems) const override;
   bool partition_field_check(const LEX_CSTRING &, Item *item_expr)
     const override
   {
@@ -6510,6 +6685,9 @@ public:
   }
   String *print_item_value(THD *thd, Item *item, String *str) const override;
   Item_cache *Item_get_cache(THD *thd, const Item *item) const override;
+  Item *convert_item_for_comparison(THD *thd,
+                                    Item *subject,
+                                    const Item *counterpart) const override;
   String *Item_func_min_max_val_str(Item_func_min_max *, String *) const override;
   double Item_func_min_max_val_real(Item_func_min_max *) const override;
   longlong Item_func_min_max_val_int(Item_func_min_max *) const override;
@@ -6681,6 +6859,8 @@ public:
   my_decimal *Item_func_min_max_val_decimal(Item_func_min_max *,
                                             my_decimal *) const override;
   bool set_comparator_func(THD *thd, Arg_comparator *cmp) const override;
+  bool Item_const_eq(const Item_const *a, const Item_const *b,
+                     bool binary_cmp) const override;
   bool Item_hybrid_func_fix_attributes(THD *thd,
                                        const LEX_CSTRING &name,
                                        Type_handler_hybrid_field_type *,

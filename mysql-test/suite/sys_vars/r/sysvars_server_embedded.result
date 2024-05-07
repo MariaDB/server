@@ -432,6 +432,36 @@ NUMERIC_BLOCK_SIZE	NULL
 ENUM_VALUE_LIST	MIXED,STATEMENT,ROW
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	BINLOG_GTID_INDEX
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	BOOLEAN
+VARIABLE_COMMENT	Enable the creation of a GTID index for every binlog file, and the use of such index for speeding up GTID lookup in the binlog.
+NUMERIC_MIN_VALUE	NULL
+NUMERIC_MAX_VALUE	NULL
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	OFF,ON
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	OPTIONAL
+VARIABLE_NAME	BINLOG_GTID_INDEX_PAGE_SIZE
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	INT UNSIGNED
+VARIABLE_COMMENT	Page size to use for the binlog GTID index.
+NUMERIC_MIN_VALUE	64
+NUMERIC_MAX_VALUE	16777216
+NUMERIC_BLOCK_SIZE	1
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	BINLOG_GTID_INDEX_SPAN_MIN
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	INT UNSIGNED
+VARIABLE_COMMENT	Control sparseness of the binlog GTID index. If set to N, at most one index record will be added for every N bytes of binlog file written, to reduce the size of the index. Normally does not need tuning.
+NUMERIC_MIN_VALUE	1
+NUMERIC_MAX_VALUE	1073741824
+NUMERIC_BLOCK_SIZE	1
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	BINLOG_OPTIMIZE_THREAD_SCHEDULING
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BOOLEAN
@@ -460,6 +490,16 @@ NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
 ENUM_VALUE_LIST	NO_LOG,MINIMAL,FULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	BINLOG_SPACE_LIMIT
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	BIGINT UNSIGNED
+VARIABLE_COMMENT	Alias for max_binlog_total_size. Compatibility with Percona server.
+NUMERIC_MIN_VALUE	0
+NUMERIC_MAX_VALUE	18446744073709551615
+NUMERIC_BLOCK_SIZE	1
+ENUM_VALUE_LIST	NULL
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	BINLOG_STMT_CACHE_SIZE
@@ -1785,7 +1825,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	LOG_WARNINGS
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Log some not critical warnings to the general log file.Value can be between 0 and 11. Higher values mean more verbosity
+VARIABLE_COMMENT	Log some non critical warnings to the error log.Value can be between 0 and 11. Higher values mean more verbosity
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	4294967295
 NUMERIC_BLOCK_SIZE	1
@@ -1869,6 +1909,16 @@ VARIABLE_COMMENT	Sets the total size of the statement cache
 NUMERIC_MIN_VALUE	4096
 NUMERIC_MAX_VALUE	18446744073709551615
 NUMERIC_BLOCK_SIZE	4096
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	MAX_BINLOG_TOTAL_SIZE
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	BIGINT UNSIGNED
+VARIABLE_COMMENT	Maximum space to use for all binary logs. Extra logs are deleted on server start, log rotation, FLUSH LOGS or when writing to binlog. Default is 0, which means no size restrictions. See also slave_connections_needed_for_purge
+NUMERIC_MIN_VALUE	0
+NUMERIC_MAX_VALUE	18446744073709551615
+NUMERIC_BLOCK_SIZE	1
 ENUM_VALUE_LIST	NULL
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
@@ -2279,7 +2329,7 @@ VARIABLE_COMMENT	Used to emulate old behavior from earlier MariaDB or MySQL vers
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
-ENUM_VALUE_LIST	NO_DUP_KEY_WARNINGS_WITH_IGNORE,NO_PROGRESS_INFO,ZERO_DATE_TIME_CAST,UTF8_IS_UTF8MB3,IGNORE_INDEX_ONLY_FOR_JOIN,COMPAT_5_1_CHECKSUM,LOCK_ALTER_TABLE_COPY
+ENUM_VALUE_LIST	NO_DUP_KEY_WARNINGS_WITH_IGNORE,NO_PROGRESS_INFO,ZERO_DATE_TIME_CAST,UTF8_IS_UTF8MB3,IGNORE_INDEX_ONLY_FOR_JOIN,COMPAT_5_1_CHECKSUM,NO_NULL_COLLATION_IDS,LOCK_ALTER_TABLE_COPY
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	OLD_PASSWORDS
@@ -2301,6 +2351,16 @@ NUMERIC_MAX_VALUE	4294967295
 NUMERIC_BLOCK_SIZE	1
 ENUM_VALUE_LIST	NULL
 READ_ONLY	YES
+COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	OPTIMIZER_ADJUST_SECONDARY_KEY_COSTS
+VARIABLE_SCOPE	SESSION
+VARIABLE_TYPE	BIGINT UNSIGNED
+VARIABLE_COMMENT	Unused, will be removed.
+NUMERIC_MIN_VALUE	0
+NUMERIC_MAX_VALUE	2
+NUMERIC_BLOCK_SIZE	1
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	OPTIMIZER_DISK_READ_COST
 VARIABLE_SCOPE	GLOBAL
@@ -2499,7 +2559,7 @@ VARIABLE_COMMENT	Fine-tune the optimizer behavior
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
-ENUM_VALUE_LIST	index_merge,index_merge_union,index_merge_sort_union,index_merge_intersection,index_merge_sort_intersection,index_condition_pushdown,derived_merge,derived_with_keys,firstmatch,loosescan,materialization,in_to_exists,semijoin,partial_match_rowid_merge,partial_match_table_scan,subquery_cache,mrr,mrr_cost_based,mrr_sort_keys,outer_join_with_cache,semijoin_with_cache,join_cache_incremental,join_cache_hashed,join_cache_bka,optimize_join_buffer_size,table_elimination,extended_keys,exists_to_in,orderby_uses_equalities,condition_pushdown_for_derived,split_materialized,condition_pushdown_for_subquery,rowid_filter,condition_pushdown_from_having,not_null_range_scan,hash_join_cardinality,sargable_casefold,default
+ENUM_VALUE_LIST	index_merge,index_merge_union,index_merge_sort_union,index_merge_intersection,index_merge_sort_intersection,index_condition_pushdown,derived_merge,derived_with_keys,firstmatch,loosescan,materialization,in_to_exists,semijoin,partial_match_rowid_merge,partial_match_table_scan,subquery_cache,mrr,mrr_cost_based,mrr_sort_keys,outer_join_with_cache,semijoin_with_cache,join_cache_incremental,join_cache_hashed,join_cache_bka,optimize_join_buffer_size,table_elimination,extended_keys,exists_to_in,orderby_uses_equalities,condition_pushdown_for_derived,split_materialized,condition_pushdown_for_subquery,rowid_filter,condition_pushdown_from_having,not_null_range_scan,hash_join_cardinality,cset_narrowing,sargable_casefold,default
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	OPTIMIZER_TRACE
@@ -3362,6 +3422,16 @@ NUMERIC_BLOCK_SIZE	NULL
 ENUM_VALUE_LIST	OFF,ON
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	OPTIONAL
+VARIABLE_NAME	SLAVE_CONNECTIONS_NEEDED_FOR_PURGE
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	INT UNSIGNED
+VARIABLE_COMMENT	Minimum number of connected slaves required for automatic binary log purge with max_binlog_total_size, binlog_expire_logs_seconds or binlog_expire_logs_days.
+NUMERIC_MIN_VALUE	0
+NUMERIC_MAX_VALUE	4294967295
+NUMERIC_BLOCK_SIZE	1
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	SLAVE_MAX_ALLOWED_PACKET
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED

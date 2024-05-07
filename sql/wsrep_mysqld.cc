@@ -583,7 +583,8 @@ my_bool wsrep_ready_get (void)
   return ret;
 }
 
-int wsrep_show_ready(THD *thd, SHOW_VAR *var, char *buff)
+int wsrep_show_ready(THD *thd, SHOW_VAR *var, void *buff,
+                     system_status_var *, enum_var_type)
 {
   var->type= SHOW_MY_BOOL;
   var->value= buff;
@@ -1463,7 +1464,7 @@ bool wsrep_check_mode_after_open_table (THD *thd,
     per statement.
     Note: kick-start will take-care of creating isolation key for all tables
     involved in the list (provided all of them are MYISAM or Aria tables). */
-    if (!is_stat_table(&tables->db, &tables->alias))
+    if (!is_stat_table(tables->db, tables->alias))
     {
       if (tbl->s->primary_key == MAX_KEY &&
           wsrep_check_mode(WSREP_MODE_REQUIRED_PRIMARY_KEY))
@@ -1718,7 +1719,13 @@ bool wsrep_sync_wait(THD* thd, enum enum_sql_command command)
   return res;
 }
 
-void wsrep_keys_free(wsrep_key_arr_t* key_arr)
+typedef struct wsrep_key_arr
+{
+    wsrep_key_t* keys;
+    size_t       keys_len;
+} wsrep_key_arr_t;
+
+static void wsrep_keys_free(wsrep_key_arr_t* key_arr)
 {
     for (size_t i= 0; i < key_arr->keys_len; ++i)
     {
@@ -1734,7 +1741,7 @@ void wsrep_keys_free(wsrep_key_arr_t* key_arr)
  * @param tables list of tables
  * @param keys   prepared keys
 
- * @return true if parent table append was successfull, otherwise false.
+ * @return 0 if parent table append was successful, non-zero otherwise.
 */
 bool
 wsrep_append_fk_parent_table(THD* thd, TABLE_LIST* tables, wsrep::key_array* keys)
@@ -1790,6 +1797,8 @@ wsrep_append_fk_parent_table(THD* thd, TABLE_LIST* tables, wsrep::key_array* key
     }
 
 exit:
+    DEBUG_SYNC(thd, "wsrep_append_fk_toi_keys_before_close_tables");
+
     /* close the table and release MDL locks */
     close_thread_tables(thd);
     thd->mdl_context.rollback_to_savepoint(mdl_savepoint);
@@ -1808,6 +1817,24 @@ exit:
       }
     }
 
+    /*
+      MDEV-32938: Check if DDL operation has been killed before.
+
+      It may be that during collecting foreign keys this operation gets BF-aborted
+      by another already-running TOI operation because it got MDL locks on the same
+      table for checking foreign keys.
+      After `close_thread_tables()` has been called it's safe to assume that no-one
+      can BF-abort this operation as it's not holding any MDL locks any more.
+    */
+    if (!fail)
+    {
+      mysql_mutex_lock(&thd->LOCK_thd_kill);
+      if (thd->killed)
+      {
+        fail= true;
+      }
+      mysql_mutex_unlock(&thd->LOCK_thd_kill);
+    }
     return fail;
 }
 
@@ -2011,18 +2038,43 @@ err:
 }
 
 /*
- * Prepare key list from db/table and table_list
+ * Prepare key list from db/table and table_list and append it to Wsrep
+ * with the given key type.
  *
  * Return zero in case of success, 1 in case of failure.
  */
-
-bool wsrep_prepare_keys_for_isolation(THD*              thd,
-                                      const char*       db,
-                                      const char*       table,
-                                      const TABLE_LIST* table_list,
-                                      wsrep_key_arr_t*  ka)
+int wsrep_append_table_keys(THD* thd,
+                            TABLE_LIST* first_table,
+                            TABLE_LIST* table_list,
+                            Wsrep_service_key_type key_type)
 {
-  return wsrep_prepare_keys_for_isolation(thd, db, table, table_list, NULL, ka);
+   wsrep_key_arr_t key_arr= {0, 0};
+   const char* db_name= first_table ? first_table->db.str : NULL;
+   const char* table_name= first_table ? first_table->table_name.str : NULL;
+   int rcode= wsrep_prepare_keys_for_isolation(thd, db_name, table_name,
+                                               table_list, NULL, &key_arr);
+
+   if (!rcode && key_arr.keys_len)
+   {
+     rcode= wsrep_thd_append_key(thd, key_arr.keys,
+                                 key_arr.keys_len, key_type);
+   }
+
+   wsrep_keys_free(&key_arr);
+   return rcode;
+}
+
+extern "C" int wsrep_thd_append_table_key(MYSQL_THD thd,
+                                    const char* db,
+                                    const char* table,
+                                    enum Wsrep_service_key_type key_type)
+{
+  wsrep_key_arr_t key_arr = {0, 0};
+  int ret = wsrep_prepare_keys_for_isolation(thd, db, table, NULL, NULL, &key_arr);
+  ret = ret || wsrep_thd_append_key(thd, key_arr.keys,
+                                    (int)key_arr.keys_len, key_type);
+  wsrep_keys_free(&key_arr);
+  return ret;
 }
 
 bool wsrep_prepare_key(const uchar* cache_key, size_t cache_key_len,
@@ -2353,7 +2405,7 @@ static int wsrep_drop_table_query(THD* thd, uchar** buf, size_t* buf_len)
   bool found_temp_table= false;
   for (TABLE_LIST* table= first_table; table; table= table->next_global)
   {
-    if (thd->find_temporary_table(table->db.str, table->table_name.str))
+    if (thd->find_temporary_table(table->db, table->table_name))
     {
       found_temp_table= true;
       break;
@@ -2368,7 +2420,7 @@ static int wsrep_drop_table_query(THD* thd, uchar** buf, size_t* buf_len)
 
     for (TABLE_LIST* table= first_table; table; table= table->next_global)
     {
-      if (!thd->find_temporary_table(table->db.str, table->table_name.str))
+      if (!thd->find_temporary_table(table->db, table->table_name))
       {
         append_identifier(thd, &buff, table->db.str, table->db.length);
         buff.append('.');
@@ -2565,7 +2617,8 @@ bool wsrep_can_run_in_toi(THD *thd, const char *db, const char *table,
     }
     /* fallthrough */
   default:
-    if (table && !thd->find_temporary_table(db, table))
+    if (table && !thd->find_temporary_table(Lex_ident_db(Lex_cstring_strlen(db)),
+                                            Lex_cstring_strlen(table)))
     {
       return true;
     }
@@ -2574,7 +2627,7 @@ bool wsrep_can_run_in_toi(THD *thd, const char *db, const char *table,
     {
       for (const TABLE_LIST* table= first_table; table; table= table->next_global)
       {
-        if (!thd->find_temporary_table(table->db.str, table->table_name.str))
+        if (!thd->find_temporary_table(table->db, table->table_name))
         {
           return true;
         }
@@ -2942,6 +2995,15 @@ int wsrep_to_isolation_begin(THD *thd, const char *db_, const char *table_,
                              const wsrep::key_array *fk_tables,
                              const HA_CREATE_INFO *create_info)
 {
+  mysql_mutex_lock(&thd->LOCK_thd_kill);
+  const killed_state killed = thd->killed;
+  mysql_mutex_unlock(&thd->LOCK_thd_kill);
+  if (killed)
+  {
+    DBUG_ASSERT(FALSE);
+    return -1;
+  }
+
   /*
     No isolation for applier or replaying threads.
    */
@@ -3489,7 +3551,8 @@ int wsrep_ignored_error_code(Log_event* ev, int error)
   const THD* thd= ev->thd;
 
   DBUG_ASSERT(error);
-  DBUG_ASSERT(wsrep_thd_is_applying(thd));
+  /* Note that binlog events can be executed on master also with
+     BINLOG '....'; */
   DBUG_ASSERT(!wsrep_thd_is_local_toi(thd));
 
   if ((wsrep_ignore_apply_errors & WSREP_IGNORE_ERRORS_ON_RECONCILING_DML))
@@ -3691,8 +3754,7 @@ void* start_wsrep_THD(void *arg)
   thd->security_ctx->skip_grants();
 
   /* handle_one_connection() again... */
-  thd->proc_info= 0;
-  thd->set_command(COM_SLEEP);
+  thd->mark_connection_idle();
   thd->init_for_queries();
   mysql_mutex_lock(&LOCK_wsrep_slave_threads);
 

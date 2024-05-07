@@ -394,27 +394,6 @@ int PFS_engine_table_share::write_row(TABLE *table, const unsigned char *buf,
   return result;
 }
 
-static int compare_table_names(const char *name1, const char *name2)
-{
-  /*
-    The performance schema is implemented as a storage engine, in memory.
-    The current storage engine interface exposed by the server,
-    and in particular handlerton::discover, uses 'FRM' files to describe a
-    table structure, which are later stored on disk, by the server,
-    in ha_create_table_from_engine().
-    Because the table metadata is stored on disk, the table naming rules
-    used by the performance schema then have to comply with the constraints
-    imposed by the disk storage, and in particular with lower_case_table_names.
-    Once the server is changed to be able to discover a table in a storage engine
-    and then open the table without storing a FRM file on disk, this constraint
-    on the performance schema will be lifted, and the naming logic can be relaxed
-    to be simply my_strcasecmp(system_charset_info, name1, name2).
-  */
-  if (lower_case_table_names)
-    return strcasecmp(name1, name2);
-  return strcmp(name1, name2);
-}
-
 /**
   Find a table share by name.
   @param name             The table name
@@ -427,9 +406,10 @@ PFS_engine_table::find_engine_table_share(const char *name)
 
   PFS_engine_table_share **current;
 
+  PFS_ident_table table_name= Lex_cstring_strlen(name);
   for (current= &all_shares[0]; (*current) != NULL; current++)
   {
-    if (compare_table_names(name, (*current)->m_name.str) == 0)
+    if (table_name.streq((*current)->m_name))
       DBUG_RETURN(*current);
   }
 
@@ -1964,7 +1944,7 @@ int pfs_discover_table_names(handlerton *hton __attribute__((unused)),
                              MY_DIR *dir __attribute__((unused)),
                              handlerton::discovered_list *result)
 {
-  if (compare_table_names(db->str, PERFORMANCE_SCHEMA_str.str))
+  if (!PFS_ident_db(*db).streq(PERFORMANCE_SCHEMA_str))
     return 0;
   for (size_t i= 0; i < array_elements(all_shares) - 1; i++)
     result->add_table(all_shares[i]->m_name.str,

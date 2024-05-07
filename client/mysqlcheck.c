@@ -247,6 +247,12 @@ static char *fix_table_name(char *dest, char *src);
 int what_to_do = 0;
 
 
+static inline int cmp_database(const char *a, const char *b)
+{
+  return my_strcasecmp_latin1(a, b);
+}
+
+
 static void usage(void)
 {
   DBUG_ENTER("usage");
@@ -869,10 +875,10 @@ static int use_db(char *database)
   DBUG_ENTER("use_db");
 
   if (mysql_get_server_version(sock) >= FIRST_INFORMATION_SCHEMA_VERSION &&
-      !my_strcasecmp(&my_charset_latin1, database, INFORMATION_SCHEMA_DB_NAME))
+      !cmp_database(database, INFORMATION_SCHEMA_DB_NAME))
     DBUG_RETURN(1);
   if (mysql_get_server_version(sock) >= FIRST_PERFORMANCE_SCHEMA_VERSION &&
-      !my_strcasecmp(&my_charset_latin1, database, PERFORMANCE_SCHEMA_DB_NAME))
+      !cmp_database(database, PERFORMANCE_SCHEMA_DB_NAME))
     DBUG_RETURN(1);
   if (mysql_select_db(sock, database))
   {
@@ -1124,18 +1130,7 @@ static int dbConnect(char *host, char *user, char *passwd)
   mysql_init(&mysql_connection);
   if (opt_compress)
     mysql_options(&mysql_connection, MYSQL_OPT_COMPRESS, NullS);
-#ifdef HAVE_OPENSSL
-  if (opt_use_ssl)
-  {
-    mysql_ssl_set(&mysql_connection, opt_ssl_key, opt_ssl_cert, opt_ssl_ca,
-		  opt_ssl_capath, opt_ssl_cipher);
-    mysql_options(&mysql_connection, MYSQL_OPT_SSL_CRL, opt_ssl_crl);
-    mysql_options(&mysql_connection, MYSQL_OPT_SSL_CRLPATH, opt_ssl_crlpath);
-    mysql_options(&mysql_connection, MARIADB_OPT_TLS_VERSION, opt_tls_version);
-  }
-  mysql_options(&mysql_connection, MYSQL_OPT_SSL_VERIFY_SERVER_CERT,
-                (char*)&opt_ssl_verify_server_cert);
-#endif
+  SET_SSL_OPTS(&mysql_connection);
   if (opt_protocol)
     mysql_options(&mysql_connection,MYSQL_OPT_PROTOCOL,(char*)&opt_protocol);
 

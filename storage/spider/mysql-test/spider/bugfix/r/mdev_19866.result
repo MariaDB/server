@@ -35,6 +35,11 @@ pkey int NOT NULL,
 val char(1) NOT NULL,
 PRIMARY KEY (pkey)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_1
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 INSERT INTO tbl_a (pkey,val) VALUES (1,'1'),(2,'2'),(3,'3'),(4,'4');
 
 select test 1
@@ -72,6 +77,7 @@ SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argum
 argument
 select `pkey`,`val` from `auto_test_remote`.`tbl_a`
 select `pkey`,`val` from `auto_test_remote`.`tbl_a` where `pkey` = 1
+select 1 from (select 1) t0
 select `pkey`,`val` from `auto_test_remote`.`tbl_a`
 select `pkey`,`val` from `auto_test_remote`.`tbl_a`
 SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %'
@@ -85,6 +91,7 @@ argument
 select `pkey`,`val` from `auto_test_remote2`.`tbl_a`
 select `pkey`,`val` from `auto_test_remote2`.`tbl_a`
 select `pkey`,`val` from `auto_test_remote2`.`tbl_a` where `pkey` = 2
+select 1 from (select 1) t0
 select `pkey`,`val` from `auto_test_remote2`.`tbl_a`
 SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %'
 SELECT pkey, val FROM tbl_a ORDER BY pkey;

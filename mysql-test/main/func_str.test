@@ -570,7 +570,7 @@ SELECT lpad(12345, 5, "#");
 #
  
 SELECT conv(71, 10, 36), conv('1Z', 36, 10);
-SELECT conv(71, 10, 37), conv('1Z', 37, 10), conv(0,1,10),conv(0,0,10), conv(0,-1,10);
+SELECT conv(71, 10, 63), conv('1Z', 63, 10), conv(0,1,10),conv(0,0,10), conv(0,-1,10);
 
 #
 # Bug in SUBSTRING when mixed with CONCAT and ORDER BY (Bug #3089)
@@ -2317,7 +2317,42 @@ SELECT GROUP_CONCAT( UpdateXML( '<a>new year</a>', '/a', '2019-01-01 00:00:00' )
 
 
 --echo #
+--echo # MDEV-31184 Remove parser tokens DECODE_MARIADB_SYM and DECODE_ORACLE_SYM
+--echo #
+
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+SELECT DECODE();
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+SELECT DECODE(NULL);
+SELECT DECODE(NULL,NULL);
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+SELECT DECODE(NULL, NULL, NULL);
+
+
+--echo #
 --echo # End of 10.4 tests
+--echo #
+
+--echo #
+--echo # Start of 10.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-28651 quote(NULL) returns incorrect result in view ('NU' instead of 'NULL')
+--echo #
+
+CREATE VIEW v1 AS SELECT quote(NULL);
+SELECT * FROM v1;
+DESCRIBE v1;
+CREATE TABLE t1 AS SELECT * FROM v1;
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+DROP TABLE t1;
+DROP VIEW v1;
+
+
+--echo #
+--echo # End of 10.5 tests
 --echo #
 
 --echo #
@@ -2467,4 +2502,41 @@ select aes_encrypt(a,a) is null from (values('a'),(NULL),('b')) x;
 
 --echo #
 --echo # End of 11.2 tests
+--echo #
+
+--echo #
+--echo # MDEV-30879 Add conversion to based 62 for CONV function
+--echo #
+
+SELECT CONV('1z', 62, 10);
+SELECT CONV('1Z', 62, 10);
+
+SELECT CONV('-1Z', 62, 10);
+SELECT CONV('-1Z', -62, 10);
+SELECT CONV('-1Z', 62, -10);
+SELECT CONV('-1Z', -62, -10);
+
+# Check limits
+SELECT CONV('AzL8n0Y58m7', 62, 10);
+SELECT CONV('LygHa16AHYE', 62, 10);
+SELECT CONV('LygHa16AHYF', 62, 10);
+
+# Overflow doesn't appear to warn, but does overflow
+SELECT CONV('LygHa16AHZ0', 62, 10);
+
+SELECT CONV('-AzL8n0Y58m7', -62, -10);
+SELECT CONV('-AzL8n0Y58m8', -62, -10);
+SELECT CONV('-AzL8n0Y58m9', -62, -10);
+SELECT CONV('-LygHa16AHZ0', -62, -10);
+
+# Should NULL
+SELECT CONV('LygHa16AHYF', 63, 10);
+SELECT CONV(18446744073709551615, 10, 63);
+
+# Test 10 -> 62
+SELECT CONV(18446744073709551615, 10, 62);
+SELECT CONV(-9223372036854775808, -10, -62);
+
+--echo #
+--echo # End of 11.4 tests
 --echo #

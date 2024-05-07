@@ -121,10 +121,6 @@ in
     # there is intentionally no customizations whatsoever.
     ;;
   # Ubuntu
-  "bionic")
-    remove_rocksdb_tools
-    [ "$architecture" != amd64 ] && disable_pmem
-    ;&
   "focal")
     replace_uring_with_aio
     disable_libfmt
@@ -133,13 +129,6 @@ in
     add_lsb_base_depends
     ;&
   "lunar"|"mantic")
-    # mariadb-plugin-rocksdb s390x not supported by us (yet)
-    # ubuntu doesn't support mips64el yet, so keep this just
-    # in case something changes.
-    if [[ ! "$architecture" =~ amd64|arm64|ppc64el|s390x ]]
-    then
-      remove_rocksdb_tools
-    fi
     if [[ ! "$architecture" =~ amd64|arm64|ppc64el ]]
     then
       disable_pmem
@@ -147,6 +136,15 @@ in
     if [[ ! "$architecture" =~ amd64|arm64|armhf|ppc64el|s390x ]]
     then
       replace_uring_with_aio
+    fi
+    ;&
+  "noble")
+    # mariadb-plugin-rocksdb s390x not supported by us (yet)
+    # ubuntu doesn't support mips64el yet, so keep this just
+    # in case something changes.
+    if [[ ! "$architecture" =~ amd64|arm64|ppc64el|s390x ]]
+    then
+      remove_rocksdb_tools
     fi
     ;;
   *)

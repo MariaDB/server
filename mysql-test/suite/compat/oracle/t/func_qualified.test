@@ -1,0 +1,248 @@
+--let $MYSQLD_DATADIR= `select @@datadir`
+
+--echo #
+--echo # MDEV-27744 LPAD in vcol created in ORACLE mode makes table corrupted in non-ORACLE
+--echo #
+
+#
+# Testing that the error message for DECODE preserves
+# the exact letter case as typed by the user
+#
+
+SET sql_mode=DEFAULT;
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+SELECT decode_oracle(1);
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+SELECT DECODE_ORACLE(1);
+
+SET sql_mode=ORACLE;
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+SELECT decode_oracle(1);
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+SELECT DECODE_ORACLE(1);
+
+SET sql_mode=DEFAULT;
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+SELECT decode(1);
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+SELECT DECODE(1);
+
+SET sql_mode=ORACLE;
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+SELECT decode(1);
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+SELECT DECODE(1);
+
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+SELECT mariadb_schema.decode(1);
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+SELECT mariadb_schema.DECODE(1);
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+SELECT mariadb_schema.decode_oracle(1);
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+SELECT mariadb_schema.DECODE_ORACLE(1);
+
+#
+# Testing that REPLACE, SUBSTR, TRIM print the exact name
+# as typed by the user in "Function .. is not defined"
+#
+
+SET sql_mode=DEFAULT;
+
+--error ER_FUNC_INEXISTENT_NAME_COLLISION
+SELECT unknown.TRIM(1);
+--error ER_FUNC_INEXISTENT_NAME_COLLISION
+SELECT unknown.trim(1);
+
+--error ER_FUNCTION_NOT_DEFINED
+SELECT oracle_schema.TRIM();
+--error ER_FUNCTION_NOT_DEFINED
+SELECT oracle_schema.TRIM('a','b');
+--error ER_FUNCTION_NOT_DEFINED
+SELECT oracle_schema.TRIM('a','b','c','d');
+
+--error ER_FUNC_INEXISTENT_NAME_COLLISION
+SELECT unknown.SUBSTR('a',1,2);
+--error ER_FUNC_INEXISTENT_NAME_COLLISION
+SELECT unknown.substr('a',1,2);
+--error ER_FUNC_INEXISTENT_NAME_COLLISION
+SELECT unknown.SUBSTRING('a',1,2);
+--error ER_FUNC_INEXISTENT_NAME_COLLISION
+SELECT unknown.substring('a',1,2);
+
+--error ER_FUNC_INEXISTENT_NAME_COLLISION
+SELECT unknown.REPLACE('a','b','c');
+--error ER_FUNC_INEXISTENT_NAME_COLLISION
+SELECT unknown.replace('a','b','c');
+
+--error ER_FUNCTION_NOT_DEFINED
+SELECT oracle_schema.REPLACE();
+--error ER_FUNCTION_NOT_DEFINED
+SELECT oracle_schema.REPLACE('a');
+--error ER_FUNCTION_NOT_DEFINED
+SELECT oracle_schema.REPLACE('a','b');
+--error ER_FUNCTION_NOT_DEFINED
+SELECT oracle_schema.REPLACE('a','b','c','d');
+
+#
+# Testing EXPLAIN EXTENDED SELECT
+#
+
+SET sql_mode=DEFAULT;
+DELIMITER $$;
+CREATE PROCEDURE p1(sqlmode TEXT, qualifier TEXT, expr TEXT)
+BEGIN
+  DECLARE query TEXT DEFAULT 'SELECT $(QUALIFIER)$(EXPR)';
+  DECLARE errmsg TEXT DEFAULT NULL;
+  DECLARE CONTINUE HANDLER FOR 1064, 1128, 1305, 1582, 1630
+  BEGIN
+    GET DIAGNOSTICS CONDITION 1 errmsg = MESSAGE_TEXT;
+  END;
+
+  SET sql_mode=sqlmode;
+  SET query=REPLACE(query, '$(QUALIFIER)', qualifier);
+  SET query=REPLACE(query, '$(EXPR)', expr);
+  SET query= CONCAT('EXPLAIN EXTENDED ', query);
+  SELECT CONCAT('sql_mode=''',sqlmode,'''', '   ',
+                'qualifier=''',qualifier,'''') AS `----------`;
+  SELECT query;
+  EXECUTE IMMEDIATE query;
+  IF errmsg IS NOT NULL THEN
+    SELECT CONCAT('ERROR: ', errmsg) AS errmsg;
+  ELSE
+    SHOW WARNINGS;
+  END IF;
+END;
+$$
+CREATE PROCEDURE p2(sqlmode TEXT, expr TEXT)
+BEGIN
+  CALL p1(sqlmode, '',                expr);
+  CALL p1(sqlmode, 'unknown_schema.', expr);
+  CALL p1(sqlmode, 'mariadb_schema.', expr);
+  CALL p1(sqlmode, 'maxdb_schema.',   expr);
+  CALL p1(sqlmode, 'oracle_schema.',  expr);
+END;
+$$
+CREATE PROCEDURE p3(expr TEXT)
+BEGIN
+  CALL p2('',       expr);
+  CALL p2('ORACLE', expr);
+END;
+$$
+DELIMITER ;$$
+
+CALL p3('CONCAT(''a'')');
+
+# MariaDB style
+CALL p3('DECODE(''1'',''2'')');
+# Oracle style
+CALL p3('DECODE(1,1,10)');
+
+CALL p3('LTRIM(''a'')');
+CALL p3('RTRIM(''a'')');
+
+CALL p3('LPAD(''a'',3)');
+CALL p3('LPAD(''a'',3, '' '')');
+
+CALL p3('RPAD(''a'',3)');
+CALL p3('RPAD(''a'',3, '' '')');
+
+CALL p3('REPLACE()');
+CALL p3('REPLACE(''a'',''b'')');
+CALL p3('REPLACE(''a'',''b'',''c'',''d'')');
+CALL p3('REPLACE(''a'',''b'',''c'')');
+
+CALL p3('SUBSTR()');
+CALL p3('SUBSTR(''a'',1,2,3)');
+CALL p3('SUBSTR(''a'',1,2)');
+CALL p3('SUBSTR(''a'' FROM 1)');
+
+CALL p3('SUBSTRING(''a'',1,2)');
+CALL p3('SUBSTRING(''a'' FROM 1)');
+
+CALL p3('TRIM()');
+CALL p3('TRIM(1,2)');
+CALL p3('TRIM(''a'')');
+CALL p3('TRIM(BOTH '' '' FROM ''a'')');
+
+CALL p3('REGEXP_REPLACE(''test'',''t'','''')');
+
+# Deprecated compatibility XXX_ORACLE functions.
+# These functions are implemented as simple native functions
+# and have no special grammar rules in sql_yacc.yy.
+# So they support the qualified syntax automatically,
+# which is not absolutely required, but is not harmful.
+
+CALL p3('CONCAT_OPERATOR_ORACLE(''a'')');
+CALL p3('DECODE_ORACLE(1,1,10)');
+CALL p3('LTRIM_ORACLE(''a'')');
+CALL p3('RTRIM_ORACLE(''a'')');
+CALL p3('LPAD_ORACLE(''a'',3)');
+CALL p3('RPAD_ORACLE(''a'',3)');
+CALL p3('REPLACE_ORACLE(''a'',''b'',''c'')');
+CALL p3('SUBSTR_ORACLE(''a'',1,2)');
+
+
+# Deprecated compatibility XXX_ORACLE variants for functions
+# with a special syntax in sql_yacc.yy.
+# These compatibility functions do not support qualified syntax.
+# One should use a qualified variant without the _ORACLE suffix instead.
+
+--error ER_PARSE_ERROR
+SELECT oracle_schema.SUBSTR_ORACLE('a' FROM 1 FOR 2);
+# Use this instead:
+SELECT oracle_schema.SUBSTR('a' FROM 1 FOR 2);
+
+--error ER_PARSE_ERROR
+SELECT oracle_schema.TRIM_ORACLE(LEADING ' ' FROM 'a');
+# Use this instead:
+SELECT oracle_schema.TRIM(LEADING ' ' FROM 'a');
+
+--error ER_FUNCTION_NOT_DEFINED
+SELECT oracle_schema.TRIM_ORACLE('a');
+# Use this instead:
+SELECT oracle_schema.TRIM('a');
+
+
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+DROP PROCEDURE p3;
+
+
+SET sql_mode='';
+CREATE VIEW v1 AS SELECT
+  concat('a','b'),
+  decode('1','2'),
+  ltrim('1'),
+  rtrim('1'),
+  lpad('1','2', 3),
+  rpad('1','2', 3),
+  replace('1','2','3'),
+  substr('a',1,2),
+  trim(both 'a' FROM 'b');
+CREATE TABLE kv (v BLOB);
+--replace_result $MYSQLD_DATADIR MYSQLD_DATADIR
+eval LOAD DATA INFILE '$MYSQLD_DATADIR/test/v1.frm' REPLACE INTO TABLE kv;
+SELECT v FROM kv WHERE v RLIKE '^(query|view_body_utf8)=' ORDER BY v;
+SELECT VIEW_DEFINITION FROM INFORMATION_SCHEMA.VIEWS WHERE TABLE_NAME='v1' AND TABLE_SCHEMA='test';
+DROP TABLE kv;
+DROP VIEW v1;
+
+SET sql_mode='ORACLE';
+CREATE VIEW v1 AS SELECT
+  concat('a','b'),
+  decode('1',2,3),
+  ltrim('1'),
+  rtrim('1'),
+  lpad('1','2', 3),
+  rpad('1','2', 3),
+  replace('1','2','3'),
+  substr('a',1,2),
+  trim(both 'a' FROM 'b');
+CREATE TABLE kv (v BLOB);
+--replace_result $MYSQLD_DATADIR MYSQLD_DATADIR
+eval LOAD DATA INFILE '$MYSQLD_DATADIR/test/v1.frm' REPLACE INTO TABLE kv;
+SELECT v FROM kv WHERE v RLIKE '^(query|view_body_utf8)=' ORDER BY v;
+SELECT VIEW_DEFINITION FROM INFORMATION_SCHEMA.VIEWS WHERE TABLE_NAME='v1' AND TABLE_SCHEMA='test';
+DROP TABLE kv;
+DROP VIEW v1;

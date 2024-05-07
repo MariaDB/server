@@ -51,7 +51,7 @@ connection master;
 drop table if exists t1;
 connection slave;
 set @@global.slave_net_timeout= 10;
-change master to master_host='127.0.0.1',master_port=MASTER_PORT, master_user='root', master_heartbeat_period= 0.5;
+change master to master_host='127.0.0.1',master_port=MASTER_PORT, master_user='root', master_ssl_verify_server_cert=0, master_heartbeat_period= 0.5;
 show status like 'Slave_heartbeat_period';;
 Variable_name	Slave_heartbeat_period
 Value	0.500

@@ -98,6 +98,17 @@ The following specify which files/extra groups are read (specified before remain
  involve user-defined functions (i.e. UDFs) or the UUID()
  function; for those, row-based binary logging is
  automatically used.
+ --binlog-gtid-index Enable the creation of a GTID index for every binlog
+ file, and the use of such index for speeding up GTID
+ lookup in the binlog.
+ (Defaults to on; use --skip-binlog-gtid-index to disable.)
+ --binlog-gtid-index-page-size=# 
+ Page size to use for the binlog GTID index.
+ --binlog-gtid-index-span-min=# 
+ Control sparseness of the binlog GTID index. If set to N,
+ at most one index record will be added for every N bytes
+ of binlog file written, to reduce the size of the index.
+ Normally does not need tuning.
  --binlog-ignore-db=name 
  Tells the master that updates to the given database
  should not be logged to the binary log.
@@ -139,6 +150,9 @@ The following specify which files/extra groups are read (specified before remain
  MINIMAL means that only metadata actually required by
  slave is logged; NO_LOG NO metadata will be
  logged.Default: NO_LOG.
+ --binlog-space-limit=# 
+ Alias for max_binlog_total_size. Compatibility with
+ Percona server.
  --binlog-stmt-cache-size=# 
  The size of the statement cache for updates to
  non-transactional engines for the binary log. If you
@@ -577,9 +591,8 @@ The following specify which files/extra groups are read (specified before remain
  when binary log is disabled).
  --log-tc-size=#     Size of transaction coordinator log.
  -W, --log-warnings[=#] 
- Log some not critical warnings to the general log
- file.Value can be between 0 and 11. Higher values mean
- more verbosity
+ Log some non critical warnings to the error log.Value can
+ be between 0 and 11. Higher values mean more verbosity
  --long-query-time=# Alias for log_slow_query_time. Log all queries that have
  taken more than long_query_time seconds to execute to the
  slow query log file. The argument will be treated as a
@@ -609,6 +622,11 @@ The following specify which files/extra groups are read (specified before remain
  exceeds this value.
  --max-binlog-stmt-cache-size=# 
  Sets the total size of the statement cache
+ --max-binlog-total-size=# 
+ Maximum space to use for all binary logs. Extra logs are
+ deleted on server start, log rotation, FLUSH LOGS or when
+ writing to binlog. Default is 0, which means no size
+ restrictions. See also slave_connections_needed_for_purge
  --max-connect-errors=# 
  If there is more than this number of interrupted
  connections from a host this host will be blocked from
@@ -729,7 +747,7 @@ The following specify which files/extra groups are read (specified before remain
  NO_DUP_KEY_WARNINGS_WITH_IGNORE, NO_PROGRESS_INFO, 
  ZERO_DATE_TIME_CAST, UTF8_IS_UTF8MB3, 
  IGNORE_INDEX_ONLY_FOR_JOIN, COMPAT_5_1_CHECKSUM, 
- LOCK_ALTER_TABLE_COPY
+ NO_NULL_COLLATION_IDS, LOCK_ALTER_TABLE_COPY
  Use 'ALL' to set all combinations.
  --old-passwords     Use old password encryption method (needed for 4.0 and
  older clients)
@@ -744,6 +762,8 @@ The following specify which files/extra groups are read (specified before remain
  max_connections*5 or max_connections + table_cache*2
  (whichever is larger) number of file descriptors
  (Automatically configured unless set explicitly)
+ --optimizer-adjust-secondary-key-costs=# 
+ Unused, will be removed.
  --optimizer-disk-read-cost=# 
  Cost of reading a block of IO_SIZE (4096) from a disk (in
  usec).
@@ -827,7 +847,7 @@ The following specify which files/extra groups are read (specified before remain
  condition_pushdown_for_derived, split_materialized, 
  condition_pushdown_for_subquery, rowid_filter, 
  condition_pushdown_from_having, not_null_range_scan, 
- hash_join_cardinality, sargable_casefold
+ hash_join_cardinality, cset_narrowing, sargable_casefold
  --optimizer-trace=name 
  Controls tracing of the Optimizer:
  optimizer_trace=option=val[,option=val...], where option
@@ -1217,7 +1237,7 @@ The following specify which files/extra groups are read (specified before remain
  The tracing level for semi-sync replication.
  --rpl-semi-sync-master-wait-no-slave 
  Wait until timeout when no semi-synchronous replication
- slave available (enabled by default).
+ slave is available.
  (Defaults to on; use --skip-rpl-semi-sync-master-wait-no-slave to disable.)
  --rpl-semi-sync-master-wait-point=name 
  Should transaction wait for semi-sync ack after having
@@ -1284,6 +1304,10 @@ The following specify which files/extra groups are read (specified before remain
  --skip-slave-start  If set, slave is not autostarted.
  --slave-compressed-protocol 
  Use compression on master/slave protocol
+ --slave-connections-needed-for-purge=# 
+ Minimum number of connected slaves required for automatic
+ binary log purge with max_binlog_total_size,
+ binlog_expire_logs_seconds or binlog_expire_logs_days.
  --slave-ddl-exec-mode=name 
  How replication events should be executed. Legal values
  are STRICT and IDEMPOTENT (default). In IDEMPOTENT mode,
@@ -1598,11 +1622,15 @@ binlog-direct-non-transactional-updates FALSE
 binlog-expire-logs-seconds 0
 binlog-file-cache-size 16384
 binlog-format MIXED
+binlog-gtid-index TRUE
+binlog-gtid-index-page-size 4096
+binlog-gtid-index-span-min 65536
 binlog-legacy-event-pos FALSE
 binlog-optimize-thread-scheduling TRUE
 binlog-row-event-max-size 8192
 binlog-row-image FULL
 binlog-row-metadata NO_LOG
+binlog-space-limit 0
 binlog-stmt-cache-size 32768
 block-encryption-mode aes-128-ecb
 bulk-insert-buffer-size 8388608
@@ -1730,6 +1758,7 @@ max-allowed-packet 16777216
 max-binlog-cache-size 18446744073709547520
 max-binlog-size 1073741824
 max-binlog-stmt-cache-size 18446744073709547520
+max-binlog-total-size 0
 max-connect-errors 100
 max-delayed-threads 20
 max-digest-length 1024
@@ -1773,6 +1802,7 @@ old FALSE
 old-mode UTF8_IS_UTF8MB3
 old-passwords FALSE
 old-style-user-limits FALSE
+optimizer-adjust-secondary-key-costs 0
 optimizer-disk-read-cost 10.24
 optimizer-disk-read-ratio 0.02
 optimizer-extra-pruning-depth 8
@@ -1792,7 +1822,7 @@ optimizer-rowid-copy-cost 0.002653
 optimizer-scan-setup-cost 10
 optimizer-search-depth 62
 optimizer-selectivity-sampling-limit 100
-optimizer-switch index_merge=on,index_merge_union=on,index_merge_sort_union=on,index_merge_intersection=on,index_merge_sort_intersection=off,index_condition_pushdown=on,derived_merge=on,derived_with_keys=on,firstmatch=on,loosescan=on,materialization=on,in_to_exists=on,semijoin=on,partial_match_rowid_merge=on,partial_match_table_scan=on,subquery_cache=on,mrr=off,mrr_cost_based=off,mrr_sort_keys=off,outer_join_with_cache=on,semijoin_with_cache=on,join_cache_incremental=on,join_cache_hashed=on,join_cache_bka=on,optimize_join_buffer_size=on,table_elimination=on,extended_keys=on,exists_to_in=on,orderby_uses_equalities=on,condition_pushdown_for_derived=on,split_materialized=on,condition_pushdown_for_subquery=on,rowid_filter=on,condition_pushdown_from_having=on,not_null_range_scan=off,hash_join_cardinality=on,sargable_casefold=on
+optimizer-switch index_merge=on,index_merge_union=on,index_merge_sort_union=on,index_merge_intersection=on,index_merge_sort_intersection=off,index_condition_pushdown=on,derived_merge=on,derived_with_keys=on,firstmatch=on,loosescan=on,materialization=on,in_to_exists=on,semijoin=on,partial_match_rowid_merge=on,partial_match_table_scan=on,subquery_cache=on,mrr=off,mrr_cost_based=off,mrr_sort_keys=off,outer_join_with_cache=on,semijoin_with_cache=on,join_cache_incremental=on,join_cache_hashed=on,join_cache_bka=on,optimize_join_buffer_size=on,table_elimination=on,extended_keys=on,exists_to_in=on,orderby_uses_equalities=on,condition_pushdown_for_derived=on,split_materialized=on,condition_pushdown_for_subquery=on,rowid_filter=on,condition_pushdown_from_having=on,not_null_range_scan=off,hash_join_cardinality=on,cset_narrowing=off,sargable_casefold=on
 optimizer-trace 
 optimizer-trace-max-mem-size 1048576
 optimizer-use-condition-selectivity 4
@@ -1917,6 +1947,7 @@ skip-networking FALSE
 skip-show-database FALSE
 skip-slave-start FALSE
 slave-compressed-protocol FALSE
+slave-connections-needed-for-purge 1
 slave-ddl-exec-mode IDEMPOTENT
 slave-domain-parallel-threads 0
 slave-exec-mode STRICT

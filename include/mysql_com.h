@@ -124,8 +124,7 @@ enum enum_indicator_type
   bulk PS flags
 */
 #define STMT_BULK_FLAG_CLIENT_SEND_TYPES 128
-#define STMT_BULK_FLAG_INSERT_ID_REQUEST 64
-
+#define STMT_BULK_FLAG_SEND_UNIT_RESULTS 64
 
 /* sql type stored in .frm files for virtual fields */
 #define MYSQL_TYPE_VIRTUAL 245
@@ -288,6 +287,9 @@ enum enum_indicator_type
 /* Do not resend metadata for prepared statements, since 10.6*/
 #define MARIADB_CLIENT_CACHE_METADATA (1ULL << 36)
 
+/* permit sending unit result-set for BULK commands */
+#define MARIADB_CLIENT_BULK_UNIT_RESULTS (1ULL << 37)
+
 #ifdef HAVE_COMPRESS
 #define CAN_CLIENT_COMPRESS CLIENT_COMPRESS
 #else
@@ -328,7 +330,8 @@ enum enum_indicator_type
                            MARIADB_CLIENT_STMT_BULK_OPERATIONS |\
                            MARIADB_CLIENT_EXTENDED_METADATA|\
                            MARIADB_CLIENT_CACHE_METADATA |\
-                           CLIENT_CAN_HANDLE_EXPIRED_PASSWORDS)
+                           CLIENT_CAN_HANDLE_EXPIRED_PASSWORDS |\
+                           MARIADB_CLIENT_BULK_UNIT_RESULTS)
 /*
   Switch off the flags that are optional and depending on build flags
   If any of the optional flags is supported by the build it will be switched
@@ -456,7 +459,7 @@ typedef struct st_net {
   char net_skip_rest_factor;
   my_bool thread_specific_malloc;
   unsigned char compress;
-  my_bool unused3; /* Please remove with the next incompatible ABI change. */
+  my_bool pkt_nr_can_be_reset;
   /*
     Pointer to query object in query cache, do not equal NULL (0) for
     queries in cache that have not stored its results yet
@@ -717,7 +720,7 @@ void scramble(char *to, const char *message, const char *password);
 my_bool check_scramble(const unsigned char *reply, const char *message,
                        const unsigned char *hash_stage2);
 void get_salt_from_password(unsigned char *res, const char *password);
-char *octet2hex(char *to, const char *str, size_t len);
+char *octet2hex(char *to, const unsigned char *str, size_t len);
 
 /* end of password.c */
 

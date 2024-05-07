@@ -54,9 +54,10 @@ ANALYZE
         "access_type": "ALL",
         "rows": 10000,
         "r_rows": 10000,
-        "r_filtered": 100,
+        "r_total_filtered": 100,
         "r_total_time_ms": "REPLACED",
-        "r_engine_stats": REPLACED
+        "r_engine_stats": REPLACED,
+        "r_filtered": 100
       }
     }
   }
@@ -110,10 +111,11 @@ ANALYZE
         "used_key_parts": ["a"],
         "rows": 9,
         "r_rows": 10,
-        "r_filtered": 100,
+        "r_total_filtered": 100,
         "r_total_time_ms": "REPLACED",
         "r_engine_stats": REPLACED,
-        "attached_condition": "t2.a < 10"
+        "attached_condition": "t2.a < 10",
+        "r_filtered": 100
       }
     }
   }
@@ -164,9 +166,10 @@ ANALYZE
         "access_type": "ALL",
         "rows": 10000,
         "r_rows": 10000,
-        "r_filtered": 100,
+        "r_total_filtered": 100,
         "r_total_time_ms": "REPLACED",
-        "r_engine_stats": REPLACED
+        "r_engine_stats": REPLACED,
+        "r_filtered": 100
       }
     }
   }
@@ -256,8 +259,9 @@ ANALYZE
               "r_other_time_ms": "REPLACED",
               "r_engine_stats": REPLACED,
               "filtered": 100,
-              "r_filtered": 100,
-              "attached_condition": "t0.a is not null"
+              "r_total_filtered": 100,
+              "attached_condition": "t0.a is not null",
+              "r_filtered": 100
             }
           },
           {
@@ -278,6 +282,7 @@ ANALYZE
               "r_other_time_ms": "REPLACED",
               "r_engine_stats": REPLACED,
               "filtered": 100,
+              "r_total_filtered": 100,
               "r_filtered": 100
             }
           }
@@ -372,8 +377,9 @@ ANALYZE
               "r_other_time_ms": "REPLACED",
               "r_engine_stats": REPLACED,
               "filtered": 100,
-              "r_filtered": 100,
-              "attached_condition": "t0.a is not null"
+              "r_total_filtered": 100,
+              "attached_condition": "t0.a is not null",
+              "r_filtered": 100
             }
           }
         }
@@ -396,6 +402,7 @@ ANALYZE
           "r_other_time_ms": "REPLACED",
           "r_engine_stats": REPLACED,
           "filtered": 100,
+          "r_total_filtered": 100,
           "r_filtered": 100
         }
       }
@@ -449,8 +456,9 @@ ANALYZE
               "r_other_time_ms": "REPLACED",
               "r_engine_stats": REPLACED,
               "filtered": 100,
-              "r_filtered": 50,
-              "attached_condition": "t2.a MOD 2 = 0"
+              "r_total_filtered": 50,
+              "attached_condition": "t2.a MOD 2 = 0",
+              "r_filtered": 50
             }
           }
         ]
@@ -509,6 +517,7 @@ ANALYZE
               "r_other_time_ms": "REPLACED",
               "r_engine_stats": REPLACED,
               "filtered": 100,
+              "r_total_filtered": 100,
               "r_filtered": 100
             }
           },
@@ -526,6 +535,7 @@ ANALYZE
                 "r_other_time_ms": "REPLACED",
                 "r_engine_stats": REPLACED,
                 "filtered": 100,
+                "r_total_filtered": 100,
                 "r_filtered": 100
               },
               "buffer_type": "flat",
@@ -603,8 +613,9 @@ ANALYZE
                   "r_other_time_ms": "REPLACED",
                   "r_engine_stats": REPLACED,
                   "filtered": 100,
-                  "r_filtered": 80,
-                  "attached_condition": "t6.b > 0 and t6.a <= 5"
+                  "r_total_filtered": 80,
+                  "attached_condition": "t6.b > 0 and t6.a <= 5",
+                  "r_filtered": 80
                 }
               },
               {
@@ -621,6 +632,7 @@ ANALYZE
                     "r_other_time_ms": "REPLACED",
                     "r_engine_stats": REPLACED,
                     "filtered": 100,
+                    "r_total_filtered": 100,
                     "r_filtered": 100
                   },
                   "buffer_type": "flat",
@@ -742,6 +754,7 @@ ANALYZE
           "r_other_time_ms": "REPLACED",
           "r_engine_stats": REPLACED,
           "filtered": 100,
+          "r_total_filtered": 100,
           "r_filtered": 100,
           "using_index_for_group_by": true
         }

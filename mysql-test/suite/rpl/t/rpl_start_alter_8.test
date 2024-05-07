@@ -21,6 +21,10 @@ stop slave;
 set global binlog_alter_two_phase=true;
 
 --connection server_3
+SET STATEMENT sql_log_bin=0 FOR
+  CALL mtr.add_suppression("The table mysql.gtid_slave_pos was removed. This change will not take full effect until all SQL threads have been restarted");
+SET STATEMENT sql_log_bin=0 FOR
+  ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
 --let $gtid_strict_mode= `select @@gtid_strict_mode`
 --let $slave_parallel_threads= `select @@slave_parallel_threads`
 --let $slave_parallel_mode= `select @@slave_parallel_mode`
@@ -31,9 +35,9 @@ set global gtid_strict_mode=1;
 --disable_warnings
 --disable_query_log
 --replace_result $SERVER_MYPORT_1 MYPORT_1
-eval change master 'm1' to master_port=$SERVER_MYPORT_1 , master_host='127.0.0.1', master_user='root', master_use_gtid=slave_pos;
+eval change master 'm1' to master_port=$SERVER_MYPORT_1 , master_host='127.0.0.1', master_user='root', master_ssl_verify_server_cert=0, master_use_gtid=slave_pos;
 --replace_result $SERVER_MYPORT_2 MYPORT_2
-eval change master 'm2' to master_port=$SERVER_MYPORT_2 , master_host='127.0.0.1', master_user='root', master_use_gtid=slave_pos;
+eval change master 'm2' to master_port=$SERVER_MYPORT_2 , master_host='127.0.0.1', master_user='root', master_ssl_verify_server_cert=0, master_use_gtid=slave_pos;
 --enable_query_log
 --enable_warnings
 

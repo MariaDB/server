@@ -314,6 +314,22 @@ drop tables a, B;
 drop database db1;
 
 --echo #
+--echo # MDEV-32025 Crashes in MDL_key::mdl_key_init with lower-case-table-names=2
+--echo #
+
+CREATE DATABASE `#mysql50#D+b1`;
+ALTER DATABASE `#mysql50#D+b1` UPGRADE DATA DIRECTORY NAME;
+SHOW CREATE DATABASE `D+b1`;
+SHOW CREATE DATABASE `d+b1`;
+DROP DATABASE `D+b1`;
+
+CREATE DATABASE Db1;
+ALTER DATABASE Db1 DEFAULT CHARACTER SET utf8;
+SHOW CREATE DATABASE Db1;
+SHOW CREATE DATABASE db1;
+DROP DATABASE Db1;
+
+--echo #
 --echo # MDEV-32026 lowercase_table2.test failures in 11.3
 --echo #
 
@@ -347,3 +363,16 @@ ALTER DATABASE Db1 DEFAULT CHARACTER SET utf8;
 SHOW CREATE DATABASE Db1;
 SHOW CREATE DATABASE db1;
 DROP DATABASE Db1;
+
+
+--echo #
+--echo # MDEV-33110 HANDLER commands are case insensitive with lower-case-table-names=0
+--echo #
+
+SET sql_mode=ORACLE;
+DELIMITER $$;
+CREATE OR REPLACE PACKAGE test.pkg AS
+END TEST.PKG;
+$$
+DELIMITER ;$$
+DROP PACKAGE test.pkg;

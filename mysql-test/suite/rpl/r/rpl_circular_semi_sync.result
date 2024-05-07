@@ -1,5 +1,7 @@
 include/master-slave.inc
 [connection master]
+connection server_2;
+call mtr.add_suppression("Timeout waiting for reply of binlog");
 # Master server_1 and Slave server_2 initialization ...
 connection server_2;
 include/stop_slave.inc
@@ -30,7 +32,7 @@ include/sync_with_master_gtid.inc
 connection server_1;
 set @@global.gtid_strict_mode = true;
 set @@global.rpl_semi_sync_slave_enabled = 1;
-CHANGE MASTER TO master_host='127.0.0.1', master_port=$SERVER_MYPORT_2, master_user='root', master_use_gtid=SLAVE_POS;
+CHANGE MASTER TO master_host='127.0.0.1', master_port=$SERVER_MYPORT_2, master_user='root', master_ssl_verify_server_cert=0, master_use_gtid=SLAVE_POS;
 include/start_slave.inc
 ... is done.
 ## A. no out-of-order gtid error for own transaction made round trip
@@ -40,6 +42,8 @@ set @@global.rpl_semi_sync_master_enabled = 1;
 INSERT INTO t1(a) VALUES (2);
 include/save_master_gtid.inc
 connection server_1;
+include/stop_slave.inc
+include/start_slave.inc
 #
 # the successful sync is a required proof
 #

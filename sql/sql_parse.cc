@@ -126,7 +126,7 @@ static int  show_create_db(THD *thd, LEX *lex);
 static bool alter_routine(THD *thd, LEX *lex);
 static bool drop_routine(THD *thd, LEX *lex);
 
-const Lex_ident_db any_db(STRING_WITH_LEN("*any*"));
+const Lex_ident_db_normalized any_db(STRING_WITH_LEN("*any*"));
 
 const LEX_CSTRING command_name[257]={
   { STRING_WITH_LEN("Sleep") },           //0
@@ -1129,10 +1129,9 @@ void cleanup_items(Item *item)
 #ifdef WITH_WSREP
 static bool wsrep_tables_accessible_when_detached(const TABLE_LIST *tables)
 {
-  for (const TABLE_LIST *table= tables; table; table= table->next_global)
+  for (const TABLE_LIST *t= tables; t; t= t->next_global)
   {
-    LEX_CSTRING db= table->db, tn= table->table_name;
-    if (get_table_category(&db, &tn)  < TABLE_CATEGORY_INFORMATION)
+    if (get_table_category(t->db, t->table_name) < TABLE_CATEGORY_INFORMATION)
       return false;
   }
   return tables != NULL;
@@ -2033,7 +2032,7 @@ dispatch_command_return dispatch_command(enum enum_server_command command, THD *
     }
     thd->convert_string(&table_name, system_charset_info,
 			packet, arg_length, thd->charset());
-    if (check_table_name(table_name.str, table_name.length, FALSE))
+    if (Lex_ident_table::check_name(table_name, false))
     {
       /* this is OK due to convert_string() null-terminating the string */
       my_error(ER_WRONG_TABLE_NAME, MYF(0), table_name.str);
@@ -2045,8 +2044,8 @@ dispatch_command_return dispatch_command(enum enum_server_command command, THD *
     /* Must be before we init the table list. */
     if (lower_case_table_names)
     {
-      table_name.length= my_casedn_str(files_charset_info, table_name.str);
-      db.length= my_casedn_str(files_charset_info, (char*) db.str);
+      table_name= thd->make_ident_casedn(table_name);
+      db= thd->make_ident_casedn(db);
     }
     table_list.init_one_table(&db, (LEX_CSTRING*) &table_name, 0, TL_READ);
     /*
@@ -2123,7 +2122,6 @@ dispatch_command_return dispatch_command(enum enum_server_command command, THD *
     {
       ulong pos;
       ushort flags;
-      uint32 slave_server_id;
 
       status_var_increment(thd->status_var.com_other);
 
@@ -2134,10 +2132,26 @@ dispatch_command_return dispatch_command(enum enum_server_command command, THD *
       /* TODO: The following has to be changed to an 8 byte integer */
       pos = uint4korr(packet);
       flags = uint2korr(packet + 4);
-      thd->variables.server_id=0; /* avoid suicide */
-      if ((slave_server_id= uint4korr(packet+6))) // mysqlbinlog.server_id==0
-	kill_zombie_dump_threads(slave_server_id);
-      thd->variables.server_id = slave_server_id;
+      if ((thd->variables.server_id= uint4korr(packet+6)))
+      {
+        bool got_error;
+
+        got_error= kill_zombie_dump_threads(thd,
+                                            thd->variables.server_id);
+        if (got_error || thd->killed)
+        {
+          if (!thd->killed)
+            my_printf_error(ER_MASTER_FATAL_ERROR_READING_BINLOG,
+                            "Could not start dump thread for slave: %u as "
+                            "it has already a running dump thread",
+                            MYF(0), (uint) thd->variables.server_id);
+          else if (! thd->get_stmt_da()->is_set())
+            thd->send_kill_message();
+          error= TRUE;
+          thd->unregister_slave(); // todo: can be extraneous
+          break;
+        }
+      }
 
       const char *name= packet + 10;
       size_t nlen= strlen(name);
@@ -2145,6 +2159,8 @@ dispatch_command_return dispatch_command(enum enum_server_command command, THD *
       general_log_print(thd, command, "Log: '%s'  Pos: %lu", name, pos);
       if (nlen < FN_REFLEN)
         mysql_binlog_send(thd, thd->strmake(name, nlen), (my_off_t)pos, flags);
+      if (thd->killed && ! thd->get_stmt_da()->is_set())
+        thd->send_kill_message();
       thd->unregister_slave(); // todo: can be extraneous
       /*  fake COM_QUIT -- if we get here, the thread needs to terminate */
       error = TRUE;
@@ -2435,7 +2451,7 @@ resume:
   MYSQL_END_STATEMENT(thd->m_statement_psi, thd->get_stmt_da());
   /* Reset values shown in processlist */
   thd->examined_row_count_for_statement= thd->sent_row_count_for_statement= 0;
-  thd->set_command(COM_SLEEP);
+  thd->mark_connection_idle();
 
   thd->m_statement_psi= NULL;
   thd->m_digest= NULL;
@@ -2449,6 +2465,8 @@ resume:
   */
   thd->lex->m_sql_cmd= NULL;
   free_root(thd->mem_root,MYF(MY_KEEP_PREALLOC));
+  DBUG_EXECUTE_IF("print_allocated_thread_memory",
+                  SAFEMALLOC_REPORT_MEMORY(sf_malloc_dbug_id()););
 
 #if defined(ENABLED_PROFILING)
   thd->profiling.finish_current_query();
@@ -2629,7 +2647,7 @@ int prepare_schema_table(THD *thd, LEX *lex, Table_ident *table_ident,
         lex->first_select_lex()->db=
           thd->make_ident_casedn(lex->first_select_lex()->db);
       schema_select_lex->db= lex->first_select_lex()->db;
-      if (Lex_ident_fs(lex->first_select_lex()->db).check_db_name_with_error())
+      if (Lex_ident_db::check_name_with_error(lex->first_select_lex()->db))
         DBUG_RETURN(1);
       break;
     }
@@ -2812,8 +2830,8 @@ bool sp_process_definer(THD *thd)
     bool curuser= !strcmp(d->user.str, thd->security_ctx->priv_user);
     bool currole= !curuser && !strcmp(d->user.str, thd->security_ctx->priv_role);
     bool curuserhost= curuser && d->host.str &&
-                  !my_strcasecmp(system_charset_info, d->host.str,
-                                 thd->security_ctx->priv_host);
+                      Lex_ident_host(d->host).
+                        streq(Lex_cstring_strlen(thd->security_ctx->priv_host));
     if (!curuserhost && !currole &&
         check_global_access(thd, PRIV_DEFINER_CLAUSE, false))
       DBUG_RETURN(TRUE);
@@ -2822,7 +2840,7 @@ bool sp_process_definer(THD *thd)
   /* Check that the specified definer exists. Emit a warning if not. */
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-  if (!is_acl_user(lex->definer->host.str, lex->definer->user.str))
+  if (!is_acl_user(lex->definer->host, lex->definer->user))
   {
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                         ER_NO_SUCH_USER, ER_THD(thd, ER_NO_SUCH_USER),
@@ -3054,7 +3072,7 @@ mysql_create_routine(THD *thd, LEX *lex)
   DBUG_ASSERT(lower_case_table_names != 1 ||
               Lex_ident_fs(lex->sphead->m_db).is_in_lower_case());
 
-  if (Lex_ident_fs(lex->sphead->m_db).check_db_name_with_error())
+  if (Lex_ident_db::check_name_with_error(lex->sphead->m_db))
     return true;
 
   if (check_access(thd, CREATE_PROC_ACL, lex->sphead->m_db.str,
@@ -3070,15 +3088,15 @@ mysql_create_routine(THD *thd, LEX *lex)
       return true;
   }
 
-  const LEX_CSTRING *name= lex->sphead->name();
+  const Lex_ident_routine name= Lex_ident_routine(*lex->sphead->name());
 #ifdef HAVE_DLOPEN
   if (lex->sphead->m_handler->type() == SP_TYPE_FUNCTION)
   {
-    udf_func *udf = find_udf(name->str, name->length);
+    udf_func *udf= find_udf(name.str, name.length);
 
     if (udf)
     {
-      my_error(ER_UDF_EXISTS, MYF(0), name->str);
+      my_error(ER_UDF_EXISTS, MYF(0), name.str);
       return true;
     }
   }
@@ -3122,7 +3140,7 @@ mysql_create_routine(THD *thd, LEX *lex)
       which doesn't any check routine privileges,
       so no routine privilege record  will insert into mysql.procs_priv.
     */
-    if (thd->slave_thread && is_acl_user(definer->host.str, definer->user.str))
+    if (thd->slave_thread && is_acl_user(definer->host, definer->user))
     {
       security_context.change_security_context(thd, &thd->lex->definer->user,
                                                &thd->lex->definer->host,
@@ -3133,10 +3151,10 @@ mysql_create_routine(THD *thd, LEX *lex)
 
     if (sp_automatic_privileges && !opt_noacl &&
         check_routine_access(thd, DEFAULT_CREATE_PROC_ACLS,
-                             &lex->sphead->m_db, name,
+                             &lex->sphead->m_db, &name,
                              Sp_handler::handler(lex->sql_command), 1))
     {
-      if (sp_grant_privileges(thd, lex->sphead->m_db.str, name->str,
+      if (sp_grant_privileges(thd, lex->sphead->m_db, name,
                               Sp_handler::handler(lex->sql_command)))
         push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
                      ER_PROC_AUTO_GRANT_FAIL, ER_THD(thd, ER_PROC_AUTO_GRANT_FAIL));
@@ -4893,9 +4911,55 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
       my_ok(thd);
     break;
   case SQLCOM_BACKUP_LOCK:
-    if (check_global_access(thd, RELOAD_ACL))
-      goto error;
-    /* first table is set for lock. For unlock the list is empty */
+    if (check_global_access(thd, RELOAD_ACL, true))
+    {
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+      /*
+        In case there is no global privilege, check DB privilege for LOCK TABLES.
+      */
+      if (first_table) // BACKUP LOCK
+      {
+        if (check_single_table_access(thd, LOCK_TABLES_ACL, first_table, true))
+        {
+          char command[30];
+          get_privilege_desc(command, sizeof(command), RELOAD_ACL|LOCK_TABLES_ACL);
+          my_error(ER_SPECIFIC_ACCESS_DENIED_ERROR, MYF(0), command);
+          goto error;
+        }
+      }
+      else // BACKUP UNLOCK
+      {
+        /*
+          We test mdl_backup_lock here because, if a user could obtain a lock
+          it would be silly to error and say `you can't BACKUP UNLOCK`
+          (because its obvious you did a `BACKUP LOCK`).
+          As `BACKUP UNLOCK` doesn't have a database reference,
+          there's no way we can check if the `BACKUP LOCK` privilege is missing.
+          Testing `thd->db` would involve faking a `TABLE_LIST` structure,
+          which because of the depth of inspection
+          in `check_single_table_access` makes the faking likely to cause crashes,
+          or unintended effects. The outcome of this is,
+          if a user does an `BACKUP UNLOCK` without a `BACKUP LOCKED` table,
+          there may be a` ER_SPECIFIC_ACCESS_DENIED` error even though
+          user has the privilege.
+          Its a bit different to what happens if the user has RELOAD_ACL,
+          where the error is silently ignored.
+        */
+        if (!thd->mdl_backup_lock)
+        {
+
+          char command[30];
+          get_privilege_desc(command, sizeof(command), RELOAD_ACL|LOCK_TABLES_ACL);
+          my_error(ER_SPECIFIC_ACCESS_DENIED_ERROR, MYF(0), command);
+          goto error;
+        }
+      }
+#endif
+    }
+    /*
+      There is reload privilege, first table is set for lock.
+      For unlock the list is empty
+    */
     if (first_table)
       res= backup_lock(thd, first_table);
     else
@@ -5503,7 +5567,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
   case SQLCOM_SHOW_PACKAGE_BODY_CODE:
     {
 #ifndef DBUG_OFF
-      Database_qualified_name pkgname(&null_clex_str, &null_clex_str);
+      Database_qualified_name pkgname;
       sp_head *sp;
       const Sp_handler *sph= Sp_handler::handler(lex->sql_command);
       WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_SHOW);
@@ -5865,7 +5929,7 @@ finish:
       thd->release_transactional_locks();
     }
   }
-  else if (! thd->in_sub_stmt && ! thd->in_multi_stmt_transaction_mode())
+  else if (! thd->in_sub_stmt && ! thd->in_active_multi_stmt_transaction())
   {
     /*
       - If inside a multi-statement transaction,
@@ -6127,15 +6191,15 @@ static TABLE *find_temporary_table_for_rename(THD *thd,
   {
     TABLE_LIST *next= table->next_local;
 
-    if (!strcmp(table->get_db_name(),   cur_table->get_db_name()) &&
-        !strcmp(table->get_table_name(), cur_table->get_table_name()))
+    if (!strcmp(table->get_db_name().str,   cur_table->get_db_name().str) &&
+        !strcmp(table->get_table_name().str, cur_table->get_table_name().str))
     {
       /* Table was moved away, can't be same as 'table' */
       found= 1;
       res= 0;                      // Table can't be a temporary table
     }
-    if (!strcmp(next->get_db_name(),    cur_table->get_db_name()) &&
-        !strcmp(next->get_table_name(), cur_table->get_table_name()))
+    if (!strcmp(next->get_db_name().str,    cur_table->get_db_name().str) &&
+        !strcmp(next->get_table_name().str, cur_table->get_table_name().str))
     {
       /*
         Table has matching name with new name of this table. cur_table should
@@ -6240,7 +6304,7 @@ show_create_db(THD *thd, LEX *lex)
                   my_error(ER_UNKNOWN_ERROR, MYF(0)); return 1;);
 
   const DBNameBuffer dbbuf(lex->name, lower_case_table_names == 1);
-  if (Lex_ident_fs(dbbuf.to_lex_cstring()).check_db_name_with_error())
+  if (Lex_ident_db::check_name_with_error(dbbuf.to_lex_cstring()))
     return 1;
   LEX_CSTRING db= dbbuf.to_lex_cstring();
   return mysqld_show_create_db(thd, &db, &lex->name, lex->create_info);
@@ -6358,7 +6422,8 @@ absent:
 
   if (sp_result != SP_KEY_NOT_FOUND &&
       sp_automatic_privileges && !opt_noacl &&
-      sp_revoke_privileges(thd, lex->spname->m_db.str, lex->spname->m_name.str,
+      sp_revoke_privileges(thd, lex->spname->m_db,
+                           Lex_ident_routine(lex->spname->m_name),
                            Sp_handler::handler(lex->sql_command)))
   {
     push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
@@ -6779,6 +6844,7 @@ static bool check_show_access(THD *thd, TABLE_LIST *table)
                      FALSE, FALSE))
           return TRUE; /* Access denied */
 
+    thd->col_access= dst_table->grant.privilege; // for sql_show.cc
     /*
       Check_grant will grant access if there is any column privileges on
       all of the tables thanks to the fourth parameter (bool show_table).
@@ -6887,7 +6953,7 @@ check_table_access(THD *thd, privilege_t requirements, TABLE_LIST *tables,
     }
 
     if (check_access(thd, want_access,
-                     table_ref->get_db_name(),
+                     table_ref->get_db_name().str,
                      &table_ref->grant.privilege,
                      &table_ref->grant.m_internal,
                      0, no_errors))
@@ -6907,8 +6973,8 @@ check_routine_access(THD *thd, privilege_t want_access, const LEX_CSTRING *db,
   TABLE_LIST tables[1];
   
   bzero((char *)tables, sizeof(TABLE_LIST));
-  tables->db= *db;
-  tables->table_name= tables->alias= *name;
+  tables->db= Lex_ident_db(*db);
+  tables->table_name= tables->alias= Lex_ident_table(*name);
   
   /*
     The following test is just a shortcut for check_access() (to avoid
@@ -7079,7 +7145,7 @@ bool check_fk_parent_table_access(THD *thd,
 
       // Check if tablename is valid or not.
       DBUG_ASSERT(table_name.str != NULL);
-      if (check_table_name(table_name.str, table_name.length, false))
+      if (Lex_ident_table::check_name(table_name, false))
       {
         my_error(ER_WRONG_TABLE_NAME, MYF(0), table_name.str);
         return true;
@@ -7091,7 +7157,7 @@ bool check_fk_parent_table_access(THD *thd,
 
       if (fk_key->ref_db.str)
       {
-        if (Lex_ident_fs(fk_key->ref_db).check_db_name_with_error() ||
+        if (Lex_ident_db::check_name_with_error(fk_key->ref_db) ||
             !(db_name= thd->make_ident_opt_casedn(fk_key->ref_db,
                                                   lower_case_table_names)).str)
           return true;
@@ -7101,7 +7167,7 @@ bool check_fk_parent_table_access(THD *thd,
         if (!thd->db.str)
         {
           DBUG_ASSERT(create_db.str);
-          if (Lex_ident_fs(create_db).check_db_name_with_error() ||
+          if (Lex_ident_db::check_name_with_error(create_db) ||
               !(db_name= thd->make_ident_opt_casedn(create_db,
                                                  lower_case_table_names)).str)
             return true;
@@ -7648,6 +7714,7 @@ static bool wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
     thd->wsrep_retry_query      = NULL;
     thd->wsrep_retry_query_len  = 0;
     thd->wsrep_retry_command    = COM_CONNECT;
+    thd->proc_info= 0;
   }
   return false;
 }
@@ -7913,7 +7980,6 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
 {
   TABLE_LIST *ptr;
   TABLE_LIST *UNINIT_VAR(previous_table_ref); /* The table preceding the current one. */
-  LEX_CSTRING alias_str;
   LEX *lex= thd->lex;
   DBUG_ENTER("add_table_to_list");
   DBUG_PRINT("enter", ("Table '%s' (%p)  Select %p (%u)",
@@ -7924,10 +7990,11 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
 
   if (unlikely(!table))
     DBUG_RETURN(0);				// End of memory
-  alias_str= alias ? *alias : table->table;
+  Lex_ident_table alias_str= alias ? Lex_ident_table(*alias) :
+                                     Lex_ident_table(table->table);
   DBUG_ASSERT(alias_str.str);
   if (!MY_TEST(table_options & TL_OPTION_ALIAS) &&
-      unlikely(check_table_name(table->table.str, table->table.length, FALSE)))
+      unlikely(Lex_ident_table::check_name(table->table, false)))
   {
     my_error(ER_WRONG_TABLE_NAME, MYF(0), table->table.str);
     DBUG_RETURN(0);
@@ -7935,7 +8002,7 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
 
   if (unlikely(table->is_derived_table() == FALSE && table->db.str &&
                !(table_options & TL_OPTION_TABLE_FUNCTION) &&
-               Lex_ident_fs(table->db).check_db_name_with_error()))
+               Lex_ident_db::check_name_with_error(table->db)))
     DBUG_RETURN(0);
 
   if (!alias)                            /* Alias is case sensitive */
@@ -7955,7 +8022,7 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
   if (table->db.str)
   {
     ptr->is_fqtn= TRUE;
-    ptr->db= table->db;
+    ptr->db= Lex_ident_db(table->db);
   }
   else if (!lex->with_cte_resolution && lex->copy_db_to(&ptr->db))
     DBUG_RETURN(0);
@@ -7964,14 +8031,14 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
 
   ptr->alias= alias_str;
   ptr->is_alias= alias ? TRUE : FALSE;
-  ptr->table_name= table->table;
+  ptr->table_name= Lex_ident_table(table->table);
 
   if (lower_case_table_names)
   {
-    if (!(ptr->table_name= thd->make_ident_casedn(ptr->table_name)).str)
+    if (!(ptr->table_name= thd->lex_ident_casedn(ptr->table_name)).str)
       DBUG_RETURN(0);
     if (ptr->db.length && ptr->db.str != any_db.str &&
-        !(ptr->db= thd->make_ident_casedn(ptr->db)).str)
+        !(ptr->db= thd->lex_ident_casedn(ptr->db)).str)
       DBUG_RETURN(0);
   }
 
@@ -7997,7 +8064,7 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
     }
     ST_SCHEMA_TABLE *schema_table;
     schema_table= find_schema_table(thd, &ptr->table_name);
-    ptr->schema_table_name= ptr->table_name;
+    ptr->schema_table_name= Lex_ident_i_s_table(ptr->table_name);
     ptr->schema_table= schema_table;
   }
   ptr->select_lex= this;
@@ -8018,8 +8085,7 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
 	 tables ;
 	 tables=tables->next_local)
     {
-      if (unlikely(!my_strcasecmp(table_alias_charset, alias_str.str,
-                                  tables->alias.str) &&
+      if (unlikely(alias_str.streq(tables->alias) &&
                    (tables->db.str == any_db.str || ptr->db.str == any_db.str ||
                     !cmp(&ptr->db, &tables->db)) &&
                    !tables->sequence))
@@ -9017,11 +9083,13 @@ kill_one_thread(THD *thd, my_thread_id id, killed_state kill_signal, killed_type
 
 struct kill_threads_callback_arg
 {
-  kill_threads_callback_arg(THD *thd_arg, LEX_USER *user_arg):
-    thd(thd_arg), user(user_arg) {}
+  kill_threads_callback_arg(THD *thd_arg, LEX_USER *user_arg,
+                            killed_state kill_signal_arg):
+    thd(thd_arg), user(user_arg), kill_signal(kill_signal_arg), counter(0) {}
   THD *thd;
   LEX_USER *user;
-  List<THD> threads_to_kill;
+  killed_state kill_signal;
+  uint counter;
 };
 
 
@@ -9044,11 +9112,12 @@ static my_bool kill_threads_callback(THD *thd, kill_threads_callback_arg *arg)
       {
         return MY_TEST(arg->thd->security_ctx->master_access & PROCESS_ACL);
       }
-      if (!arg->threads_to_kill.push_back(thd, arg->thd->mem_root))
-      {
-        mysql_mutex_lock(&thd->LOCK_thd_kill); // Lock from delete
-        mysql_mutex_lock(&thd->LOCK_thd_data);
-      }
+      arg->counter++;
+      mysql_mutex_lock(&thd->LOCK_thd_kill); // Lock from delete
+      mysql_mutex_lock(&thd->LOCK_thd_data);
+      thd->awake_no_mutex(arg->kill_signal);
+      mysql_mutex_unlock(&thd->LOCK_thd_data);
+      mysql_mutex_unlock(&thd->LOCK_thd_kill);
     }
   }
   return 0;
@@ -9058,42 +9127,17 @@ static my_bool kill_threads_callback(THD *thd, kill_threads_callback_arg *arg)
 static uint kill_threads_for_user(THD *thd, LEX_USER *user,
                                   killed_state kill_signal, ha_rows *rows)
 {
-  kill_threads_callback_arg arg(thd, user);
+  kill_threads_callback_arg arg(thd, user, kill_signal);
   DBUG_ENTER("kill_threads_for_user");
-
-  *rows= 0;
-
-  if (unlikely(thd->is_fatal_error))        // If we run out of memory
-    DBUG_RETURN(ER_OUT_OF_RESOURCES);
-
   DBUG_PRINT("enter", ("user: %s  signal: %u", user->user.str,
                        (uint) kill_signal));
+
+  *rows= 0;
 
   if (server_threads.iterate(kill_threads_callback, &arg))
     DBUG_RETURN(ER_KILL_DENIED_ERROR);
 
-  if (!arg.threads_to_kill.is_empty())
-  {
-    List_iterator_fast<THD> it2(arg.threads_to_kill);
-    THD *next_ptr;
-    THD *ptr= it2++;
-    do
-    {
-      ptr->awake_no_mutex(kill_signal);
-      /*
-        Careful here: The list nodes are allocated on the memroots of the
-        THDs to be awakened.
-        But those THDs may be terminated and deleted as soon as we release
-        LOCK_thd_kill, which will make the list nodes invalid.
-        Since the operation "it++" dereferences the "next" pointer of the
-        previous list node, we need to do this while holding LOCK_thd_kill.
-      */
-      next_ptr= it2++;
-      mysql_mutex_unlock(&ptr->LOCK_thd_kill);
-      mysql_mutex_unlock(&ptr->LOCK_thd_data);
-      (*rows)++;
-    } while ((ptr= next_ptr));
-  }
+  *rows= arg.counter;
   DBUG_RETURN(0);
 }
 
@@ -9406,12 +9450,12 @@ static TABLE_LIST *multi_delete_table_match(LEX *lex, TABLE_LIST *tbl,
     if (tbl->is_fqtn && elem->is_alias)
       continue; /* no match */
     if (tbl->is_fqtn && elem->is_fqtn)
-      res= (my_strcasecmp(table_alias_charset, tbl->table_name.str, elem->table_name.str) ||
+      res= (!tbl->table_name.streq(elem->table_name) ||
             cmp(&tbl->db, &elem->db));
     else if (elem->is_alias)
-      res= my_strcasecmp(table_alias_charset, tbl->alias.str, elem->alias.str);
+      res= !tbl->alias.streq(elem->alias);
     else
-      res= (my_strcasecmp(table_alias_charset, tbl->table_name.str, elem->table_name.str) ||
+      res= (!tbl->table_name.streq(elem->table_name) ||
             cmp(&tbl->db, &elem->db));
 
     if (res)
@@ -9929,7 +9973,8 @@ bool check_string_char_length(const LEX_CSTRING *str, uint err_msg,
 
 bool check_ident_length(const LEX_CSTRING *ident)
 {
-  if (check_string_char_length(ident, 0, NAME_CHAR_LEN, system_charset_info, 1))
+  if (check_string_char_length(ident, 0, NAME_CHAR_LEN,
+                               Lex_ident_ci::charset_info(), 1))
   {
     my_error(ER_TOO_LONG_IDENT, MYF(0), ident->str);
     return 1;

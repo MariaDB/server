@@ -1618,6 +1618,7 @@ ibx_copy_incremental_over_full()
 		NULL};
 	const char *sup_files[] = {MB_BINLOG_INFO,
 				   MB_GALERA_INFO,
+				   XTRABACKUP_DONOR_GALERA_INFO,
 				   MB_SLAVE_INFO,
 				   MB_INFO,
 				   XTRABACKUP_BINLOG_INFO,
