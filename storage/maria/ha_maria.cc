@@ -1395,6 +1395,7 @@ int ha_maria::check(THD * thd, HA_CHECK_OPT * check_opt)
       DBUG_PRINT("info", ("Resetting crashed state"));
       share->state.changed&= ~(STATE_CHANGED | STATE_CRASHED_FLAGS |
                                STATE_IN_REPAIR);
+      share->crash_error= 0;
       if (!(table->db_stat & HA_READ_ONLY))
       {
         int tmp;
@@ -1795,6 +1796,7 @@ int ha_maria::repair(THD *thd, HA_CHECK *param, bool do_optimize)
       DBUG_PRINT("info", ("Resetting crashed state"));
       share->state.changed&= ~(STATE_CHANGED | STATE_CRASHED_FLAGS |
                                STATE_IN_REPAIR | STATE_MOVED);
+      share->crash_error= 0;
       file->update |= HA_STATE_CHANGED | HA_STATE_ROW_CHANGED;
     }
     /*

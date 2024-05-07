@@ -694,6 +694,7 @@ typedef struct st_maria_share
   LIST *open_list;			/* Tables open with this share */
   PAGECACHE *pagecache;			/* ref to the current key cache */
   MARIA_DECODE_TREE *decode_trees;
+  int crash_error;                      /* Reason for marked crashed */
   /*
     Previous auto-increment value. Used to verify if we can restore the
     auto-increment counter if we have to abort an insert (duplicate key).
@@ -1140,19 +1141,23 @@ struct ha_table_option_struct
 #define int4store_aligned(A,B) int4store((A),(B))
 
 #define maria_mark_crashed(x) do{(x)->s->state.changed|= STATE_CRASHED; \
+    (x)->s->crash_error= my_errno;                                      \
     DBUG_PRINT("error", ("Marked table crashed"));                      \
   }while(0)
 #define maria_mark_crashed_share(x)                                     \
   do{(x)->state.changed|= STATE_CRASHED;                                \
+    (x)->crash_error= my_errno;                                         \
     DBUG_PRINT("error", ("Marked table crashed"));                      \
   }while(0)
 #define maria_mark_crashed_on_repair(x) do{(x)->s->state.changed|=      \
       STATE_CRASHED|STATE_CRASHED_ON_REPAIR;                            \
     (x)->update|= HA_STATE_CHANGED;                                     \
+    (x)->s->crash_error= my_errno;                                      \
     DBUG_PRINT("error", ("Marked table crashed on repair"));            \
   }while(0)
 #define maria_mark_in_repair(x) do{(x)->s->state.changed|=      \
       STATE_CRASHED | STATE_IN_REPAIR;                          \
+    (x)->s->crash_error= my_errno;                              \
     (x)->update|= HA_STATE_CHANGED;                             \
     DBUG_PRINT("error", ("Marked table crashed for repair"));   \
   }while(0)
