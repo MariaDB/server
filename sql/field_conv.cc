@@ -424,7 +424,7 @@ void Field::do_field_timestamp(const Copy_field *copy)
   copy->from_field->save_in_field(copy->to_field);
 }
 
-/* Binary representation of the maximum possible pre-11.4 TIMESTAMP(6) */
+/* Binary representation of the maximum possible pre-11.5 TIMESTAMP(6) */
 const uchar timestamp_old_bytes[7]=
 {
   0x7f, 0xff, 0xff, 0xff, 0x0f, 0x42, 0x3f

@@ -359,12 +359,12 @@ static struct my_option my_long_options[] =
    GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0},
   {"dump-history", 'H', "Dump system-versioned tables with history (only for "
     "timestamp based versioning). Use also --update-history if "
-   "upgrading to MariaDB 11.4 or newer from a version before 11.4",
+   "upgrading to MariaDB 11.5 or newer from a version before 11.5",
    &opt_dump_history, &opt_dump_history, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"update-history", OPT_UPDATE_HISTORY,
    "Update row_end history timestamp to support dates up to year 2106. "
    "This option will also enable tz-utc. "
-   "Should be used when upgrading to MariaDB 11.4 or above.",
+   "Should be used when upgrading to MariaDB 11.5 or above.",
    &opt_update_history, &opt_update_history,
    0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"dump-slave", OPT_MYSQLDUMP_SLAVE_DATA,
