@@ -11125,7 +11125,7 @@ double table_after_join_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
   else
   {
     sel= records_out / pos->records_read;
-    DBUG_ASSERT(sel >= 0.0 and sel <= 1.00001);
+    DBUG_ASSERT(sel >= 0.0 && sel <= 1.00001);
     if (sel > 1.0)
       sel= 1.0;
   }
