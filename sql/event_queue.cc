@@ -207,7 +207,7 @@ Event_queue::create_event(THD *thd, Event_queue_element *new_element,
 
   /* Will do nothing if the event is disabled */
   new_element->compute_next_execution_time();
-  if (new_element->status != Event_parse_data::ENABLED)
+  if (new_element->status != Event_parse_data::ENABLED && new_element->status != Event_parse_data::SLAVESIDE_ENABLED)
   {
     delete new_element;
     *created= FALSE;

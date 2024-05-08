@@ -569,14 +569,17 @@ Event_queue_element::load_from_row(THD *thd, TABLE *table)
 
   DBUG_PRINT("load_from_row", ("Event [%s] is [%s]", name.str, ptr));
 
-  /* Set event status (ENABLED | SLAVESIDE_DISABLED | DISABLED) */
+  /* Set event status (ENABLED | SLAVESIDE_DISABLED | SLAVESIDE_ENABLED | DISABLED) */
   switch (ptr[0])
   {
   case 'E' :
     status = Event_parse_data::ENABLED;
     break;
   case 'S' :
-    status = Event_parse_data::SLAVESIDE_DISABLED;
+    if(ptr[10] == 'D')
+      status = Event_parse_data::SLAVESIDE_DISABLED;
+    else
+      status = Event_parse_data::SLAVESIDE_ENABLED;
     break;
   case 'D' :
   default:
@@ -939,7 +942,7 @@ Event_queue_element::compute_next_execution_time()
                        (long) starts, (long) ends, (long) last_executed,
                        this));
 
-  if (status != Event_parse_data::ENABLED)
+  if (status != Event_parse_data::ENABLED && status != Event_parse_data::SLAVESIDE_ENABLED)
   {
     DBUG_PRINT("compute_next_execution_time",
                ("Event %s is DISABLED", name.str));
@@ -1249,6 +1252,8 @@ Event_timed::get_create_event(THD *thd, String *buf)
 
   if (status == Event_parse_data::ENABLED)
     buf->append(STRING_WITH_LEN("ENABLE"));
+  else if (status == Event_parse_data::SLAVESIDE_ENABLED)
+    buf->append(STRING_WITH_LEN("ENABLE ON SLAVE"));
   else if (status == Event_parse_data::SLAVESIDE_DISABLED)
     buf->append(STRING_WITH_LEN("DISABLE ON SLAVE"));
   else

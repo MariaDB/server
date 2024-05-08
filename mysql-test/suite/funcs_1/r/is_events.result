@@ -112,7 +112,7 @@ FROM information_schema.events
 WHERE event_catalog IS NOT NULL or
 event_body NOT IN ('SQL') or
 event_type NOT IN ('ONE TIME','RECURRING') or
-status NOT IN ('ENABLED','DISABLED','SLAVESIDE_DISABLED') or
+status NOT IN ('ENABLED','DISABLED','SLAVESIDE_DISABLED','SLAVESIDE_ENABLED') or
 on_completion NOT IN ('PRESERVE','NOT PRESERVE');
 event_catalog	event_name	event_body	event_type	event_type	status	on_completion
 ########################################################################

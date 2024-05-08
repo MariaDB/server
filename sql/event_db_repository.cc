@@ -106,7 +106,7 @@ const TABLE_FIELD_TYPE event_table_fields[ET_FIELD_COUNT] =
   },
   {
     { STRING_WITH_LEN("status") },
-    { STRING_WITH_LEN("enum('ENABLED','DISABLED','SLAVESIDE_DISABLED')") },
+    { STRING_WITH_LEN("enum('ENABLED','DISABLED','SLAVESIDE_DISABLED','SLAVESIDE_ENABLED')") },
     {NULL, 0}
   },
   {

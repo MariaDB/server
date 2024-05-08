@@ -8318,6 +8318,10 @@ copy_event_to_schema_table(THD *thd, TABLE *sch_table, TABLE *event_table)
     case Event_parse_data::ENABLED:
       sch_table->field[ISE_STATUS]->store(STRING_WITH_LEN("ENABLED"), scs);
       break;
+    case Event_parse_data::SLAVESIDE_ENABLED:
+      sch_table->field[ISE_STATUS]->store(STRING_WITH_LEN("SLAVESIDE_ENABLED"),
+                                          scs);
+      break;
     case Event_parse_data::SLAVESIDE_DISABLED:
       sch_table->field[ISE_STATUS]->store(STRING_WITH_LEN("SLAVESIDE_DISABLED"),
                                           scs);

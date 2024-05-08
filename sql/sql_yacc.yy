@@ -2982,6 +2982,12 @@ opt_ev_status:
             Lex->event_parse_data->status_changed= true;
             $$= 1;
           }
+        | ENABLE_SYM ON SLAVE
+          {
+            Lex->event_parse_data->status= Event_parse_data::SLAVESIDE_ENABLED;
+            Lex->event_parse_data->status_changed= true;
+            $$= 1;
+          }
         | DISABLE_SYM ON SLAVE
           {
             Lex->event_parse_data->status= Event_parse_data::SLAVESIDE_DISABLED;

@@ -29,4 +29,38 @@ connection master;
 DROP TABLE t1;
 DROP EVENT ev1;
 connection slave;
+#
+# MDEV-33782 Add ENABLE ON SLAVE option
+#
+connection master;
+SET GLOBAL event_scheduler=off;
+CREATE TABLE t1 (a INT);
+CREATE EVENT ev1 ON SCHEDULE EVERY 1 SECOND ENABLE ON SLAVE DO INSERT INTO t1 VALUES (10);
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
+SELECT EVENT_NAME,STATUS,EVENT_DEFINITION FROM INFORMATION_SCHEMA.EVENTS;
+EVENT_NAME	STATUS	EVENT_DEFINITION
+ev1	SLAVESIDE_ENABLED	INSERT INTO t1 VALUES (10)
+SET GLOBAL event_scheduler=on;
+SET GLOBAL event_scheduler=off;
+SELECT DISTINCT a FROM t1;
+a
+10
+DELETE FROM t1;
+# Syncing slave with master
+connection slave;
+SELECT EVENT_NAME,STATUS,EVENT_DEFINITION FROM INFORMATION_SCHEMA.EVENTS;
+EVENT_NAME	STATUS	EVENT_DEFINITION
+ev1	SLAVESIDE_ENABLED	INSERT INTO t1 VALUES (10)
+# Making shure that events are working on slave
+SET GLOBAL event_scheduler=on;
+SET GLOBAL event_scheduler=off;
+SELECT DISTINCT a FROM t1;
+a
+10
+DELETE FROM t1;
+connection master;
+DROP TABLE t1;
+DROP EVENT ev1;
+connection slave;
 include/rpl_end.inc
