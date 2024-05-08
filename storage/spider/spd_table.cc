@@ -7022,6 +7022,7 @@ int spider_db_done(
   pthread_attr_destroy(&spider_pt_attr);
 #endif
 
+  spider_hton_ptr= NULL;
   for (roop_count = 0; roop_count < SPIDER_MEM_CALC_LIST_NUM; roop_count++)
   {
     if (spider_alloc_func_name[roop_count])
@@ -7408,7 +7409,7 @@ int spider_db_init(
         spider_param_table_crd_thread_count()),
       NullS))
   )
-    goto error_alloc_mon_mutxes;
+    goto error_alloc_table_sts_crd_threads;
 
   for (roop_count = 0;
     roop_count < (int) spider_param_table_sts_thread_count();
@@ -7483,9 +7484,10 @@ error_init_table_sts_threads:
   {
     spider_free_sts_threads(&spider_table_sts_threads[roop_count]);
   }
+error_alloc_table_sts_crd_threads:
   spider_free(NULL, spider_table_sts_threads, MYF(0));
-  roop_count = spider_param_udf_table_mon_mutex_count() - 1;
 #endif
+  roop_count = spider_param_udf_table_mon_mutex_count() - 1;
 error_init_udf_table_mon_list_hash:
   for (; roop_count >= 0; roop_count--)
   {

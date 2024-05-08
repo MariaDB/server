@@ -3357,7 +3357,7 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
     // to ensure that we use the same value throughout this function.
     const char *slave_sql_running_state=
       mi->rli.sql_driver_thd ? mi->rli.sql_driver_thd->proc_info : "";
-    if (slave_sql_running_state == Relay_log_info::state_delaying_string)
+    if (slave_sql_running_state == stage_sql_thd_waiting_until_delay.m_name)
     {
       time_t t= my_time(0), sql_delay_end= mi->rli.get_sql_delay_end();
       protocol->store((uint32)(t < sql_delay_end ? sql_delay_end - t : 0));
@@ -3928,7 +3928,7 @@ apply_event_and_update_pos_apply(Log_event* ev, THD* thd, rpl_group_info *rgi,
           if (thd->system_thread == SYSTEM_THREAD_SLAVE_SQL &&
               ((rli->mi->using_parallel() &&
                 rli->mi->parallel_mode <= SLAVE_PARALLEL_CONSERVATIVE) ||
-               wsrep_ready == 0)) {
+                !wsrep_ready_get())) {
             rli->abort_slave= 1;
             rli->report(ERROR_LEVEL, ER_UNKNOWN_COM_ERROR, rgi->gtid_info(),
                         "Node has dropped from cluster");

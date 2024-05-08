@@ -2170,7 +2170,7 @@ func_exit:
 
 	sum_pages += last_pages_in;
 
-	const ulint time_elapsed = std::max<ulint>(curr_time - prev_time, 1);
+	const ulint time_elapsed = std::max<ulint>(ulint(curr_time - prev_time), 1);
 
 	/* We update our variables every innodb_flushing_avg_loops
 	iterations to smooth out transition in workload. */

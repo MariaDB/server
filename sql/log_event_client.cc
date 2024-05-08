@@ -3035,7 +3035,7 @@ bool Annotate_rows_log_event::print(FILE *file, PRINT_EVENT_INFO *pinfo)
 {
   char *pbeg;   // beginning of the next line
   char *pend;   // end of the next line
-  uint cnt= 0;  // characters counter
+  char *qend= m_query_txt + m_query_len;
 
   if (!pinfo->short_form)
   {
@@ -3046,28 +3046,21 @@ bool Annotate_rows_log_event::print(FILE *file, PRINT_EVENT_INFO *pinfo)
   else if (my_b_printf(&pinfo->head_cache, "# Annotate_rows:\n"))
     goto err;
 
-  for (pbeg= m_query_txt; ; pbeg= pend)
+  for (pbeg= m_query_txt; pbeg < qend; pbeg= pend)
   {
     // skip all \r's and \n's at the beginning of the next line
-    for (;; pbeg++)
-    {
-      if (++cnt > m_query_len)
-        return 0;
-
-      if (*pbeg != '\r' && *pbeg != '\n')
-        break;
-    }
+    for (; pbeg < qend && (*pbeg == '\r' || *pbeg == '\n'); pbeg++)
+      ;
 
     // find end of the next line
-    for (pend= pbeg + 1;
-         ++cnt <= m_query_len && *pend != '\r' && *pend != '\n';
-         pend++)
+    for (pend= pbeg + 1; pend < qend && *pend != '\r' && *pend != '\n'; pend++)
       ;
 
     // print next line
-    if (my_b_write(&pinfo->head_cache, (const uchar*) "#Q> ", 4) ||
-        my_b_write(&pinfo->head_cache, (const uchar*) pbeg, pend - pbeg) ||
-        my_b_write(&pinfo->head_cache, (const uchar*) "\n", 1))
+    if (pbeg < qend &&
+        (my_b_write(&pinfo->head_cache, (const uchar*) "#Q> ", 4) ||
+         my_b_write(&pinfo->head_cache, (const uchar*) pbeg, pend - pbeg) ||
+         my_b_write(&pinfo->head_cache, (const uchar*) "\n", 1)))
       goto err;
   }
 

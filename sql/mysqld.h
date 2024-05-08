@@ -311,10 +311,6 @@ extern PSI_mutex_key key_PAGE_lock, key_LOCK_sync, key_LOCK_active,
        key_LOCK_pool, key_LOCK_pending_checkpoint;
 #endif /* HAVE_MMAP */
 
-#ifdef HAVE_OPENSSL
-extern PSI_mutex_key key_LOCK_des_key_file;
-#endif
-
 extern PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_xid_list,
   key_BINLOG_LOCK_binlog_background_thread,
   key_LOCK_binlog_end_pos,
@@ -392,7 +388,7 @@ extern PSI_thread_key key_thread_delayed_insert,
 
 extern PSI_file_key key_file_binlog, key_file_binlog_cache,
        key_file_binlog_index, key_file_binlog_index_cache, key_file_casetest,
-  key_file_dbopt, key_file_des_key_file, key_file_ERRMSG, key_select_to_file,
+  key_file_dbopt, key_file_ERRMSG, key_select_to_file,
   key_file_fileparser, key_file_frm, key_file_global_ddl_log, key_file_load,
   key_file_loadfile, key_file_log_event_data, key_file_log_event_info,
   key_file_master_info, key_file_misc, key_file_partition_ddl_log,
@@ -404,6 +400,13 @@ extern PSI_file_key key_file_relaylog, key_file_relaylog_index,
 extern PSI_socket_key key_socket_tcpip, key_socket_unix,
   key_socket_client_connection;
 extern PSI_file_key key_file_binlog_state;
+
+#ifdef HAVE_des
+extern char* des_key_file;
+extern PSI_file_key key_file_des_key_file;
+extern PSI_mutex_key key_LOCK_des_key_file;
+extern mysql_mutex_t LOCK_des_key_file;
+#endif
 
 #ifdef HAVE_PSI_INTERFACE
 void init_server_psi_keys();
@@ -753,10 +756,6 @@ extern mysql_mutex_t
 extern MYSQL_PLUGIN_IMPORT mysql_mutex_t LOCK_global_system_variables;
 extern mysql_rwlock_t LOCK_all_status_vars;
 extern mysql_mutex_t LOCK_start_thread;
-#ifdef HAVE_OPENSSL
-extern char* des_key_file;
-extern mysql_mutex_t LOCK_des_key_file;
-#endif
 extern MYSQL_PLUGIN_IMPORT mysql_mutex_t LOCK_server_started;
 extern MYSQL_PLUGIN_IMPORT mysql_cond_t COND_server_started;
 extern mysql_rwlock_t LOCK_grant, LOCK_sys_init_connect, LOCK_sys_init_slave;

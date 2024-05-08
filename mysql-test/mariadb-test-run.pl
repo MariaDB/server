@@ -434,6 +434,10 @@ sub main {
     {
       $opt_parallel= $ENV{NUMBER_OF_PROCESSORS} || 1;
     }
+    elsif (IS_MAC)
+    {
+      $opt_parallel= `sysctl -n hw.ncpu`;
+    }
     else
     {
       my $sys_info= My::SysInfo->new();

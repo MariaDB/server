@@ -503,7 +503,6 @@ start transaction;
 alter table tmp alter column a set default 8;
 unlock tables;
 drop table t2;
---source include/have_innodb.inc
 
 --echo #
 --echo # MDEV-22218 InnoDB: Failing assertion: node->pcur->rel_pos == BTR_PCUR_ON upon LOAD DATA with NO_BACKSLASH_ESCAPES in SQL_MODE and unique blob in table
@@ -642,7 +641,6 @@ insert into t1 values (0);
 check table t1 extended;
 drop table t1;
 
-
 --echo #
 --echo # MDEV-32837 long unique does not work like unique key when using replace
 --echo #
@@ -655,6 +653,49 @@ REPLACE INTO t1 VALUES (3,2,2);
 SELECT * FROM t1;
 DROP TABLE t1;
 
+--echo # MDEV-30046 wrong row targeted with "insert ... on duplicate" and
+--echo # "replace", leading to data corruption
+--source include/have_innodb.inc
+create table t (s blob, n int, unique (s)) engine=innodb;
+insert into t values ('Hrecvx_0004ln-00',1), ('Hrecvx_0004mm-00',1);
+replace into t values ('Hrecvx_0004mm-00',2);
+select * from t;
+drop table t;
+
+create table t (s blob, n int, unique (s)) engine=innodb;
+insert into t values ('Hrecvx_0004ln-00',1), ('Hrecvx_0004mm-00',1);
+insert into t values ('Hrecvx_0004mm-00',2)
+    on duplicate key update n = values (n);
+select * from t;
+drop table t;
 --echo #
+--echo # MDEV-29345 update case insensitive (large) unique key with insensitive change of value - duplicate key
+--echo #
+create table t1 (a int, b text, unique (b));
+insert ignore t1 values (1, 'a'), (2, 'A');
+select * from t1;
+update t1 set b='A' where a=1;
+select * from t1;
+drop table t1;
+
+create table t1 (a int, b blob, unique (b));
+insert t1 values (1, 'a'), (2, 'A');
+select * from t1;
+--error ER_DUP_ENTRY
+update t1 set b='A' where a=1;
+drop table t1;
+
+--echo #
+--echo # MDEV-25102 UNIQUE USING HASH error after ALTER ... DISABLE KEYS
+--echo #
+create table t1 (i int, unique key (i) using hash);
+alter table t1 disable keys;
+insert into t1 values (1),(2);
+--error ER_DUP_ENTRY
+insert into t1 values (1);
+alter table t1 enable keys;
+--error ER_DUP_ENTRY
+insert into t1 values (2);
+drop table t1;
+
 --echo # End of 10.5 tests
---echo #

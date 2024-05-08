@@ -655,13 +655,6 @@ int ha_initialize_handlerton(st_plugin_int *plugin)
   hton->slot= HA_SLOT_UNDEF;
   /* Historical Requirement */
   plugin->data= hton; // shortcut for the future
-  /* [remove after merge] notes on merge conflict (MDEV-31400):
-  10.6-10.11: 13ba00ff4933cfc1712676f323587504e453d1b5
-  11.0-11.2: 42f8be10f18163c4025710cf6a212e82bddb2f62
-  The 10.11->11.0 conflict is trivial, but the reference commit also
-  contains different non-conflict changes needs to be applied to 11.0
-  (and beyond).
-  */
   if (plugin->plugin->init && (ret= plugin->plugin->init(hton)))
     goto err;
 
@@ -4928,6 +4921,12 @@ uint handler::get_dup_key(int error)
   DBUG_RETURN(errkey);
 }
 
+bool handler::has_dup_ref() const
+{
+  DBUG_ASSERT(lookup_errkey != (uint)-1 || errkey != (uint)-1);
+  return ha_table_flags() & HA_DUPLICATE_POS || lookup_errkey != (uint)-1;
+}
+
 
 /**
   Delete all files with extension from bas_ext().
@@ -5263,34 +5262,48 @@ handler::ha_check_and_repair(THD *thd)
 /**
   Disable indexes: public interface.
 
+  @param map            has 0 for all indexes that should be disabled
+  @param persist        indexes should stay disabled after server restart
+
+  Currently engines don't support disabling an arbitrary subset of indexes.
+
+  In particular, if the change is persistent:
+  * auto-increment index should not be disabled
+  * unique indexes should not be disabled
+
+  if unique or auto-increment indexes are disabled (non-persistently),
+  the caller should only insert data that does not require
+  auto-inc generation and does not violate uniqueness
+
   @sa handler::disable_indexes()
 */
 
 int
-handler::ha_disable_indexes(uint mode)
+handler::ha_disable_indexes(key_map map, bool persist)
 {
-  DBUG_ASSERT(table_share->tmp_table != NO_TMP_TABLE ||
-              m_lock_type != F_UNLCK);
+  DBUG_ASSERT(table->s->tmp_table != NO_TMP_TABLE || m_lock_type != F_UNLCK);
   mark_trx_read_write();
 
-  return disable_indexes(mode);
+  return disable_indexes(map, persist);
 }
 
 
 /**
   Enable indexes: public interface.
 
+  @param map            has 1 for all indexes that should be enabled
+  @param persist        indexes should stay enabled after server restart
+
   @sa handler::enable_indexes()
 */
 
 int
-handler::ha_enable_indexes(uint mode)
+handler::ha_enable_indexes(key_map map, bool persist)
 {
-  DBUG_ASSERT(table_share->tmp_table != NO_TMP_TABLE ||
-              m_lock_type != F_UNLCK);
+  DBUG_ASSERT(table->s->tmp_table != NO_TMP_TABLE || m_lock_type != F_UNLCK);
   mark_trx_read_write();
 
-  return enable_indexes(mode);
+  return enable_indexes(map, persist);
 }
 
 
@@ -7384,11 +7397,8 @@ exit:
   if (error == HA_ERR_FOUND_DUPP_KEY)
   {
     table->file->lookup_errkey= key_no;
-    if (ha_table_flags() & HA_DUPLICATE_POS)
-    {
-      lookup_handler->position(table->record[0]);
-      memcpy(table->file->dup_ref, lookup_handler->ref, ref_length);
-    }
+    lookup_handler->position(table->record[0]);
+    memcpy(table->file->dup_ref, lookup_handler->ref, ref_length);
   }
   restore_record(table, file->lookup_buffer);
   table->restore_blob_values(blob_storage);
@@ -7467,7 +7477,7 @@ int handler::check_duplicate_long_entries_update(const uchar *new_rec)
           So also check for that too
         */
         if((field->is_null(0) != field->is_null(reclength)) ||
-                               field->cmp_binary_offset(reclength))
+                               field->cmp_offset(reclength))
         {
           if((error= check_duplicate_long_entry_key(new_rec, i)))
             return error;

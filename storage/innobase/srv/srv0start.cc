@@ -506,6 +506,7 @@ static ulint srv_undo_tablespace_open(bool create, const char* name, ulint i)
   if (!success)
     return 0;
 
+  ulint n_retries = 5;
   os_offset_t size= os_file_get_size(fh);
   ut_a(size != os_offset_t(-1));
 
@@ -513,14 +514,24 @@ static ulint srv_undo_tablespace_open(bool create, const char* name, ulint i)
   {
     page_t *page= static_cast<byte*>(aligned_malloc(srv_page_size,
                                                     srv_page_size));
+undo_retry:
     if (os_file_read(IORequestRead, fh, page, 0, srv_page_size, nullptr) !=
         DB_SUCCESS)
     {
 err_exit:
+      if (n_retries && srv_operation == SRV_OPERATION_BACKUP)
+      {
+        sql_print_information("InnoDB: Retrying to read undo "
+                              "tablespace %s", name);
+        n_retries--;
+        goto undo_retry;
+      }
       ib::error() << "Unable to read first page of file " << name;
       aligned_free(page);
       return ULINT_UNDEFINED;
     }
+
+    DBUG_EXECUTE_IF("undo_space_read_fail", goto err_exit;);
 
     uint32_t id= mach_read_from_4(FIL_PAGE_SPACE_ID + page);
     if (id == 0 || id >= SRV_SPACE_ID_UPPER_BOUND ||

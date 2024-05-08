@@ -3333,6 +3333,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       goto err; // Wrong field definition
     reg_field->flags |= AUTO_INCREMENT_FLAG;
   }
+  else
+    share->next_number_index= MAX_KEY;
 
   if (share->blob_fields)
   {
@@ -9209,7 +9211,7 @@ void TABLE::period_prepare_autoinc()
   if (!found_next_number_field)
     return;
   /* Don't generate a new value if the autoinc index is WITHOUT OVERLAPS */
-  DBUG_ASSERT(s->next_number_index != (uint)-1);
+  DBUG_ASSERT(s->next_number_index < MAX_KEY);
   if (key_info[s->next_number_index].without_overlaps)
     return;
 
@@ -9507,7 +9509,8 @@ bool TABLE::insert_all_rows_into_tmp_table(THD *thd,
   }
    
   if (file->indexes_are_disabled())
-    tmp_table->file->ha_disable_indexes(HA_KEY_SWITCH_ALL);
+    tmp_table->file->ha_disable_indexes(key_map(0), false);
+
   file->ha_index_or_rnd_end();
 
   if (unlikely(file->ha_rnd_init_with_error(1)))

@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2020, MariaDB
+   Copyright (c) 2009, 2024, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1531,7 +1531,7 @@ static struct my_option my_options[] =
     like this:
     SET @`a`:=_cp850 0x4DFC6C6C6572 COLLATE `cp850_general_ci`;
   */
-  {"character-sets-dir", OPT_CHARSETS_DIR,
+  {"character-sets-dir", 0,
    "Directory for character set files.", &charsets_dir,
    &charsets_dir, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"database", 'd', "List entries for just this database (local log only).",
@@ -1541,13 +1541,13 @@ static struct my_option my_options[] =
   {"debug", '#', "Output debug log.", &current_dbug_option,
    &current_dbug_option, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
 #endif
-  {"debug-check", OPT_DEBUG_CHECK, "Check memory and open file usage at exit .",
+  {"debug-check", 0, "Check memory and open file usage at exit .",
    &debug_check_flag, &debug_check_flag, 0,
    GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"debug-info", OPT_DEBUG_INFO, "Print some debug info at exit.",
+  {"debug-info", 0, "Print some debug info at exit.",
    &debug_info_flag, &debug_info_flag,
    0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"default_auth", OPT_DEFAULT_AUTH,
+  {"default_auth", 0,
    "Default authentication client-side plugin to use.",
    &opt_default_auth, &opt_default_auth, 0,
    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
@@ -1583,7 +1583,7 @@ static struct my_option my_options[] =
    0, GET_ULL, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"password", 'p', "Password to connect to remote server.",
    0, 0, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
-  {"plugin_dir", OPT_PLUGIN_DIR, "Directory for client-side plugins.",
+  {"plugin_dir", 0, "Directory for client-side plugins.",
     &opt_plugindir, &opt_plugindir, 0,
    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"port", 'P', "Port number to use for connection or 0 for default to, in "
@@ -1609,14 +1609,14 @@ static struct my_option my_options[] =
    &result_file_name, &result_file_name, 0, GET_STR, REQUIRED_ARG,
    0, 0, 0, 0, 0, 0},
 #ifdef WHEN_FLASHBACK_REVIEW_READY
-  {"review", opt_flashback_review, "Print review sql in output file.",
+  {"review", 0, "Print review sql in output file.",
    &opt_flashback_review, &opt_flashback_review, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0,
    0, 0},
-  {"review-dbname", opt_flashback_flashback_review_dbname,
+  {"review-dbname", 0,
    "Writing flashback original row data into this db",
    &flashback_review_dbname, &flashback_review_dbname,
    0, GET_STR_ALLOC, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"review-tablename", opt_flashback_flashback_review_tablename,
+  {"review-tablename", 0,
    "Writing flashback original row data into this table",
    &flashback_review_tablename, &flashback_review_tablename,
    0, GET_STR_ALLOC, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
@@ -1633,7 +1633,7 @@ static struct my_option my_options[] =
    "Extract only binlog entries created by the server having the given id.",
    &server_id, &server_id, 0, GET_ULONG,
    REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"set-charset", OPT_SET_CHARSET,
+  {"set-charset", 0,
    "Add 'SET NAMES character_set' to the output.", &charset,
    &charset, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"short-form", 's', "Just show regular queries: no extra info, no "
@@ -1681,7 +1681,7 @@ static struct my_option my_options[] =
    "The slave server_id used for --read-from-remote-server --stop-never.",
    &opt_stop_never_slave_server_id, &opt_stop_never_slave_server_id, 0,
    GET_ULONG, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"stop-position", OPT_STOP_POSITION,
+  {"stop-position", 0,
    "Stop reading the binlog at position N. Applies to the last binlog "
    "passed on the command line.",
    &stop_position, &stop_position, 0, GET_ULL,
@@ -1704,7 +1704,7 @@ that may lead to an endless loop.",
    0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"version", 'V', "Print version and exit.", 0, 0, 0, GET_NO_ARG, NO_ARG, 0,
    0, 0, 0, 0, 0},
-  {"open_files_limit", OPT_OPEN_FILES_LIMIT,
+  {"open_files_limit", 0,
    "Used to reserve file descriptors for use by this program.",
    &open_files_limit, &open_files_limit, 0, GET_ULONG,
    REQUIRED_ARG, MY_NFILE, 8, OS_FILE_LIMIT, 0, 1, 0},
@@ -1730,12 +1730,12 @@ that may lead to an endless loop.",
    "Updates to a database with a different name than the original. \
 Example: rewrite-db='from->to'.",
    0, 0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"skip-annotate-row-events", OPT_SKIP_ANNOTATE_ROWS_EVENTS,
+  {"skip-annotate-row-events", 0,
    "Don't print Annotate_rows events stored in the binary log.",
    (uchar**) &opt_skip_annotate_row_events,
    (uchar**) &opt_skip_annotate_row_events,
    0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"print-table-metadata", OPT_PRINT_TABLE_METADATA,
+  {"print-table-metadata", 0,
    "Print metadata stored in Table_map_log_event",
    &opt_print_table_metadata, &opt_print_table_metadata, 0,
    GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
@@ -1951,11 +1951,6 @@ get_one_option(const struct my_option *opt, const char *argument,
       die(1);
     }
     break;
-#ifdef WHEN_FLASHBACK_REVIEW_READY
-  case opt_flashback_review:
-    opt_flashback_review= 1;
-    break;
-#endif
   case OPT_START_DATETIME:
     start_datetime= convert_str_to_timestamp(start_datetime_str);
     break;

@@ -11775,27 +11775,35 @@ bool ha_spider::auto_repair() const
 }
 
 int ha_spider::disable_indexes(
-  uint mode
+  key_map map, bool persist
 ) {
   int error_num;
   backup_error_status();
   DBUG_ENTER("ha_spider::disable_indexes");
   DBUG_PRINT("info",("spider this=%p", this));
-  if ((error_num = spider_db_disable_keys(this)))
-    DBUG_RETURN(check_error_mode(error_num));
-  DBUG_RETURN(0);
+  if (persist)
+  {
+    if ((error_num = spider_db_disable_keys(this)))
+      DBUG_RETURN(check_error_mode(error_num));
+    DBUG_RETURN(0);
+  }
+  DBUG_RETURN(HA_ERR_WRONG_COMMAND);
 }
 
 int ha_spider::enable_indexes(
-  uint mode
+  key_map map, bool persist
 ) {
   int error_num;
   backup_error_status();
   DBUG_ENTER("ha_spider::enable_indexes");
   DBUG_PRINT("info",("spider this=%p", this));
-  if ((error_num = spider_db_enable_keys(this)))
-    DBUG_RETURN(check_error_mode(error_num));
-  DBUG_RETURN(0);
+  if (persist)
+  {
+    if ((error_num = spider_db_enable_keys(this)))
+      DBUG_RETURN(check_error_mode(error_num));
+    DBUG_RETURN(0);
+  }
+  DBUG_RETURN(HA_ERR_WRONG_COMMAND);
 }
 
 

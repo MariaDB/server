@@ -1934,40 +1934,45 @@ int ha_maria::preload_keys(THD * thd, HA_CHECK_OPT *check_opt)
 
   SYNOPSIS
     disable_indexes()
-    mode        mode of operation:
-                HA_KEY_SWITCH_NONUNIQ      disable all non-unique keys
-                HA_KEY_SWITCH_ALL          disable all keys
-                HA_KEY_SWITCH_NONUNIQ_SAVE dis. non-uni. and make persistent
-                HA_KEY_SWITCH_ALL_SAVE     dis. all keys and make persistent
 
-  IMPLEMENTATION
-    HA_KEY_SWITCH_NONUNIQ       is not implemented.
-    HA_KEY_SWITCH_ALL_SAVE      is not implemented.
+  DESCRIPTION
+    See handler::ha_disable_indexes()
 
   RETURN
     0  ok
     HA_ERR_WRONG_COMMAND  mode not implemented.
 */
 
-int ha_maria::disable_indexes(uint mode)
+int ha_maria::disable_indexes(key_map map, bool persist)
 {
   int error;
 
-  if (mode == HA_KEY_SWITCH_ALL)
+  if (!persist)
   {
     /* call a storage engine function to switch the key map */
+    DBUG_ASSERT(map.is_clear_all());
     error= maria_disable_indexes(file);
-  }
-  else if (mode == HA_KEY_SWITCH_NONUNIQ_SAVE)
-  {
-    maria_extra(file, HA_EXTRA_NO_KEYS, 0);
-    info(HA_STATUS_CONST);                      // Read new key info
-    error= 0;
   }
   else
   {
-    /* mode not implemented */
-    error= HA_ERR_WRONG_COMMAND;
+    /* auto-inc key cannot be disabled */
+    if (table->s->next_number_index < MAX_KEY)
+      DBUG_ASSERT(map.is_set(table->s->next_number_index));
+
+    /* unique keys cannot be disabled either */
+    for (uint i=0; i < table->s->keys; i++)
+      DBUG_ASSERT(!(table->key_info[i].flags & HA_NOSAME) || map.is_set(i));
+
+    ulonglong ullmap= map.to_ulonglong();
+
+    /* make sure auto-inc key is enabled even if it's > 64 */
+    if (map.length() > MARIA_KEYMAP_BITS &&
+        table->s->next_number_index < MAX_KEY)
+      maria_set_key_active(ullmap, table->s->next_number_index);
+
+    maria_extra(file, HA_EXTRA_NO_KEYS, &ullmap);
+    info(HA_STATUS_CONST);                      // Read new key info
+    error= 0;
   }
   return error;
 }
@@ -1978,21 +1983,14 @@ int ha_maria::disable_indexes(uint mode)
 
   SYNOPSIS
     enable_indexes()
-    mode        mode of operation:
-                HA_KEY_SWITCH_NONUNIQ      enable all non-unique keys
-                HA_KEY_SWITCH_ALL          enable all keys
-                HA_KEY_SWITCH_NONUNIQ_SAVE en. non-uni. and make persistent
-                HA_KEY_SWITCH_ALL_SAVE     en. all keys and make persistent
 
   DESCRIPTION
     Enable indexes, which might have been disabled by disable_index() before.
-    The modes without _SAVE work only if both data and indexes are empty,
-    since the MARIA repair would enable them persistently.
+    If persist=false, it works only if both data and indexes are empty,
+    since the Aria repair would enable them persistently.
     To be sure in these cases, call handler::delete_all_rows() before.
 
-  IMPLEMENTATION
-    HA_KEY_SWITCH_NONUNIQ       is not implemented.
-    HA_KEY_SWITCH_ALL_SAVE      is not implemented.
+    See also handler::ha_enable_indexes()
 
   RETURN
     0  ok
@@ -2001,18 +1999,19 @@ int ha_maria::disable_indexes(uint mode)
     HA_ERR_WRONG_COMMAND  mode not implemented.
 */
 
-int ha_maria::enable_indexes(uint mode)
+int ha_maria::enable_indexes(key_map map, bool persist)
 {
   int error;
   ha_rows start_rows= file->state->records;
-  DBUG_PRINT("info", ("ha_maria::enable_indexes mode: %d", mode));
+  DBUG_PRINT("info", ("ha_maria::enable_indexes mode: %d", persist));
   if (maria_is_all_keys_active(file->s->state.key_map, file->s->base.keys))
   {
     /* All indexes are enabled already. */
     return 0;
   }
 
-  if (mode == HA_KEY_SWITCH_ALL)
+  DBUG_ASSERT(map.is_prefix(table->s->keys));
+  if (!persist)
   {
     error= maria_enable_indexes(file);
     /*
@@ -2021,7 +2020,7 @@ int ha_maria::enable_indexes(uint mode)
        but mode==HA_KEY_SWITCH_ALL forbids it.
     */
   }
-  else if (mode == HA_KEY_SWITCH_NONUNIQ_SAVE)
+  else
   {
     THD *thd= table->in_use;
     HA_CHECK *param= (HA_CHECK*) thd->alloc(sizeof *param);
@@ -2085,11 +2084,6 @@ int ha_maria::enable_indexes(uint mode)
     }
     info(HA_STATUS_CONST);
     thd_proc_info(thd, save_proc_info);
-  }
-  else
-  {
-    /* mode not implemented */
-    error= HA_ERR_WRONG_COMMAND;
   }
   DBUG_EXECUTE_IF("maria_flush_whole_log",
                   {
@@ -2293,7 +2287,7 @@ int ha_maria::end_bulk_insert()
 {
   int first_error, first_errno= 0, error;
   my_bool abort= file->s->deleting, empty_table= 0;
-  uint enable_index_mode= HA_KEY_SWITCH_NONUNIQ_SAVE;
+  bool enable_persistently= true;
   DBUG_ENTER("ha_maria::end_bulk_insert");
 
   if ((first_error= maria_end_bulk_insert(file, abort)))
@@ -2322,7 +2316,7 @@ int ha_maria::end_bulk_insert()
         first_error= 1;
         first_errno= my_errno;
       }
-      enable_index_mode= HA_KEY_SWITCH_ALL;
+      enable_persistently= false;
       empty_table= 1;
       /*
         Ignore all changed pages, required by _ma_renable_logging_for_table()
@@ -2334,7 +2328,7 @@ int ha_maria::end_bulk_insert()
 
   if (!abort && can_enable_indexes)
   {
-    if ((error= enable_indexes(enable_index_mode)))
+    if ((error= enable_indexes(key_map(table->s->keys), enable_persistently)))
     {
       if (!first_error)
       {

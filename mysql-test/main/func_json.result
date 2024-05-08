@@ -1690,12 +1690,32 @@ select json_arrayagg('ä'), json_objectagg(1, 'ä');
 json_arrayagg('ä')	json_objectagg(1, 'ä')
 ["ä"]	{"1":"ä"}
 #
+# MDEV-32287: JSON_EXTRACT not returning multiple values for same path
+#
+select JSON_EXTRACT("[1, 2, [30, 40]]", '$[2][1]', '$[2][1]');
+JSON_EXTRACT("[1, 2, [30, 40]]", '$[2][1]', '$[2][1]')
+[40, 40]
+#
 # MDEV-31402: SIGSEGV in json_get_path_next | Item_func_json_extract::read_json
 #
 CREATE TABLE t (id CHAR AS (JSON_COMPACT (JSON_EXTRACT(doc,"$._id"))) UNIQUE KEY,doc JSON,CONSTRAINT notnu CHECK (id IS NOT NULL));
 INSERT INTO t (doc) VALUES ('{ "_id" : { "$oid" : "0ca0b0f0" },"a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" :0} ] } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] }');
 ERROR 22001: Data too long for column 'id' at row 1
 DROP TABLE t;
+#
+# MDEV-19487: JSON_TYPE doesnt detect the type of String Values (returns NULL) and for Date/DateTime returns "INTEGER"
+#
+SELECT JSON_TYPE(json_value(JSON_OBJECT("id", 1, "name", 'Monty', "date", Cast('2019-01-01' as Date) ), '$.date')) as x;
+x
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_type' at position 5
+#
+# MDEV-22141: JSON_REMOVE returns NULL on valid arguments
+#
+SELECT JSON_REMOVE('{"A": { "B": 1 }}', '$.A.B.C.D');
+JSON_REMOVE('{"A": { "B": 1 }}', '$.A.B.C.D')
+{"A": {"B": 1}}
 #
 # End of 10.5 tests
 #

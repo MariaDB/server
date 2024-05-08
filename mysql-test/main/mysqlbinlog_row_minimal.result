@@ -382,7 +382,7 @@ START TRANSACTION
 #<date> server id 1  end_log_pos END_LOG_POS CRC32 XXX 	Annotate_rows:
 #Q> UPDATE t1 t1 INNER JOIN t2 t2 ON t1.ref_id = t2.id
 #Q> SET t1.is_deleted = TRUE
-#Q> WHERE t1.id =
+#Q> WHERE t1.id = 1
 #<date> server id 1  end_log_pos END_LOG_POS CRC32 XXX 	Table_map: `test`.`t1` mapped to number TID
 # at POS
 #<date> server id 1  end_log_pos END_LOG_POS CRC32 XXX 	Update_rows: table id TID flags: STMT_END_F

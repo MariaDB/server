@@ -132,5 +132,22 @@ SELECT (c1 RLIKE c1), (c0 IS NULL) FROM t0;
 SELECT SUM(a.t) FROM (SELECT (c1 RLIKE c1) = (c0 IS NULL) as t FROM t0) as a;
 DROP TABLE t0;
 
+--echo #
+--echo # MDEV-21058 CREATE TABLE with generated column and RLIKE results in sigabrt
+--echo #
+
+CREATE TABLE t1 (c0 INT);
+INSERT INTO t1 VALUES (1),(2),(3);
+
+--error ER_REGEXP_ERROR
+SELECT ('' RLIKE '[') AS c1 FROM t1;
+
+--error ER_REGEXP_ERROR
+SELECT REGEXP_INSTR('','[') AS c1 FROM t1;
+
+SELECT c0, '' RLIKE NULL AS c1, REGEXP_INSTR('', NULL) AS c2
+FROM t1 ORDER BY c0;
+
+DROP TABLE t1;
 
 --echo # End of 10.5 tests

@@ -29,6 +29,9 @@ static LEX_STRING spider_init_queries[] = {
     "SET @@OLD_MODE = CONCAT(@@OLD_MODE, ',UTF8_IS_UTF8MB3');"
   )},
   {C_STRING_WITH_LEN(
+    "SET tx_read_only = off;"
+  )},
+  {C_STRING_WITH_LEN(
     "create table if not exists mysql.spider_xa("
     "  format_id int not null default 0,"
     "  gtrid_length int not null default 0,"
