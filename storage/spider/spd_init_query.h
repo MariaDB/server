@@ -698,3 +698,29 @@ static LEX_STRING spider_init_queries[] = {
     "end if;"
    )}
 };
+
+static LEX_STRING spider_deinit_queries[] = {
+  /* Use the default SQL_MODE for this connection. */
+  {C_STRING_WITH_LEN(
+    "SET @@SQL_MODE = 'STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,"
+                      "NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION';"
+  )},
+  {C_STRING_WITH_LEN(
+    "SET tx_read_only = off;"
+  )},
+  {C_STRING_WITH_LEN(
+    "drop function if exists spider_direct_sql;"
+  )},
+  {C_STRING_WITH_LEN(
+    "drop function if exists spider_bg_direct_sql;"
+  )},
+  {C_STRING_WITH_LEN(
+    "drop function if exists spider_ping_table;"
+  )},
+  {C_STRING_WITH_LEN(
+    "drop function if exists spider_copy_tables;"
+  )},
+  {C_STRING_WITH_LEN(
+    "drop function if exists spider_flush_table_mon_cache;"
+  )}
+};

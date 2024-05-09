@@ -1,0 +1,4 @@
+install soname 'ha_spider';
+create table t (c int) engine=Spider;
+drop table t;
+uninstall soname 'ha_spider';

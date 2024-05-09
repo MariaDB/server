@@ -193,6 +193,7 @@ PSI_mutex_key spd_key_mutex_bg_stss;
 PSI_mutex_key spd_key_mutex_bg_crds;
 #endif
 PSI_mutex_key spd_key_mutex_conn_loop_check;
+static bool spider_init_system_tables(bool deinit);
 
 static PSI_mutex_info all_spider_mutexes[]=
 {
@@ -6640,12 +6641,15 @@ int spider_db_done(
   void *p
 ) {
   int roop_count;
-  THD *tmp_thd;
+  THD *tmp_thd, *thd= current_thd;
   SPIDER_CONN *conn;
   SPIDER_INIT_ERROR_TABLE *spider_init_error_table;
   SPIDER_TABLE_MON_LIST *table_mon_list;
   SPIDER_LGTM_TBLHND_SHARE *lgtm_tblhnd_share;
   DBUG_ENTER("spider_db_done");
+
+  if (thd && thd_sql_command(thd) == SQLCOM_UNINSTALL_PLUGIN)
+    spider_init_system_tables(true);
 
   for (roop_count = SPIDER_DBTON_SIZE - 1; roop_count >= 0; roop_count--)
   {
@@ -6878,7 +6882,7 @@ int spider_panic(
 /*
   Create or fix the system tables. See spd_init_query.h for the details.
 */
-bool spider_init_system_tables()
+static bool spider_init_system_tables(bool deinit)
 {
   DBUG_ENTER("spider_init_system_tables");
 
@@ -6894,14 +6898,17 @@ bool spider_init_system_tables()
     DBUG_RETURN(TRUE);
   }
 
-  const int size= sizeof(spider_init_queries) / sizeof(spider_init_queries[0]);
+  const int size= deinit ?
+    sizeof(spider_deinit_queries) / sizeof(spider_deinit_queries[0]) :
+    sizeof(spider_init_queries) / sizeof(spider_init_queries[0]);
   for (int i= 0; i < size; i++)
   {
-    const LEX_STRING *query= &spider_init_queries[i];
+    const LEX_STRING *query= deinit ?
+      &spider_deinit_queries[i] : &spider_init_queries[i];
     if (mysql_real_query(mysql, query->str, query->length))
     {
       fprintf(stderr,
-              "[ERROR] SPIDER plugin initialization failed at '%s' by '%s'\n",
+              "[ERROR] SPIDER plugin (de)initialization failed at '%s' by '%s'\n",
               query->str, mysql_error(mysql));
 
       mysql_close(mysql);
@@ -7217,7 +7224,7 @@ int spider_db_init(
       spider_udf_table_mon_list_hash[roop_count].array.size_of_element);
   }
 
-  if (spider_init_system_tables())
+  if (spider_init_system_tables(false))
   {
     goto error_system_table_creation;
   }
