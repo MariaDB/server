@@ -1,0 +1,26 @@
+SELECT * FROM performance_schema.galera_group_member_stats
+LIMIT 1;
+wsrep_node_id	wsrep_local_index	wsrep_repl_keys	wsrep_repl_keys_bytes	wsrep_repl_data_bytes	wsrep_repl_other_bytes	wsrep_local_replays	wsrep_local_send_queue	wsrep_local_send_queue_avg	wsrep_local_recv_queue	wsrep_local_recv_queue_avg	wsrep_flow_control_paused	wsrep_flow_control_sent	wsrep_flow_control_recv	wsrep_flow_control_status	wsrep_cert_deps_distance	wsrep_open_transactions	wsrep_evs_repl_latency
+SELECT * FROM performance_schema.galera_group_member_stats
+WHERE wsrep_node_id='FOO';
+wsrep_node_id	wsrep_local_index	wsrep_repl_keys	wsrep_repl_keys_bytes	wsrep_repl_data_bytes	wsrep_repl_other_bytes	wsrep_local_replays	wsrep_local_send_queue	wsrep_local_send_queue_avg	wsrep_local_recv_queue	wsrep_local_recv_queue_avg	wsrep_flow_control_paused	wsrep_flow_control_sent	wsrep_flow_control_recv	wsrep_flow_control_status	wsrep_cert_deps_distance	wsrep_open_transactions	wsrep_evs_repl_latency
+INSERT INTO performance_schema.galera_group_member_stats
+SET wsrep_node_id='FOO', node_id=1;
+ERROR 42000: INSERT command denied to user 'root'@'localhost' for table `performance_schema`.`galera_group_member_stats`
+UPDATE performance_schema.galera_group_member_stats
+SET member_id=12;
+ERROR 42000: UPDATE command denied to user 'root'@'localhost' for table `performance_schema`.`galera_group_member_stats`
+UPDATE performance_schema.galera_group_member_stats
+SET member_id=12 WHERE group_name LIKE "FOO";
+ERROR 42000: UPDATE command denied to user 'root'@'localhost' for table `performance_schema`.`galera_group_member_stats`
+DELETE FROM performance_schema.galera_group_member_stats
+WHERE member_id=1;
+ERROR 42000: DELETE command denied to user 'root'@'localhost' for table `performance_schema`.`galera_group_member_stats`
+DELETE FROM performance_schema.galera_group_member_stats;
+ERROR 42000: DELETE command denied to user 'root'@'localhost' for table `performance_schema`.`galera_group_member_stats`
+LOCK TABLES performance_schema.galera_group_member_stats READ;
+ERROR 42000: SELECT, LOCK TABLES command denied to user 'root'@'localhost' for table `performance_schema`.`galera_group_member_stats`
+UNLOCK TABLES;
+LOCK TABLES performance_schema.galera_group_member_stats WRITE;
+ERROR 42000: SELECT, LOCK TABLES command denied to user 'root'@'localhost' for table `performance_schema`.`galera_group_member_stats`
+UNLOCK TABLES;

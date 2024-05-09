@@ -43,6 +43,8 @@ performance_schema	events_waits_summary_global_by_event_name	def
 performance_schema	file_instances	def
 performance_schema	file_summary_by_event_name	def
 performance_schema	file_summary_by_instance	def
+performance_schema	galera_group_members	def
+performance_schema	galera_group_member_stats	def
 performance_schema	global_status	def
 performance_schema	hosts	def
 performance_schema	host_cache	def
@@ -129,6 +131,8 @@ events_waits_summary_global_by_event_name	BASE TABLE	PERFORMANCE_SCHEMA
 file_instances	BASE TABLE	PERFORMANCE_SCHEMA
 file_summary_by_event_name	BASE TABLE	PERFORMANCE_SCHEMA
 file_summary_by_instance	BASE TABLE	PERFORMANCE_SCHEMA
+galera_group_members	BASE TABLE	PERFORMANCE_SCHEMA
+galera_group_member_stats	BASE TABLE	PERFORMANCE_SCHEMA
 global_status	BASE TABLE	PERFORMANCE_SCHEMA
 hosts	BASE TABLE	PERFORMANCE_SCHEMA
 host_cache	BASE TABLE	PERFORMANCE_SCHEMA
@@ -215,6 +219,8 @@ events_waits_summary_global_by_event_name	10	Dynamic
 file_instances	10	Dynamic
 file_summary_by_event_name	10	Dynamic
 file_summary_by_instance	10	Dynamic
+galera_group_members	10	Fixed
+galera_group_member_stats	10	Dynamic
 global_status	10	Dynamic
 hosts	10	Fixed
 host_cache	10	Dynamic
@@ -302,6 +308,8 @@ events_waits_summary_global_by_event_name	0
 file_instances	0
 file_summary_by_event_name	0
 file_summary_by_instance	0
+galera_group_members	0
+galera_group_member_stats	0
 hosts	0
 host_cache	0
 memory_summary_by_account_by_event_name	0
@@ -394,6 +402,8 @@ events_waits_summary_global_by_event_name	0	0
 file_instances	0	0
 file_summary_by_event_name	0	0
 file_summary_by_instance	0	0
+galera_group_members	0	0
+galera_group_member_stats	0	0
 global_status	0	0
 hosts	0	0
 host_cache	0	0
@@ -480,6 +490,8 @@ events_waits_summary_global_by_event_name	0	0	NULL
 file_instances	0	0	NULL
 file_summary_by_event_name	0	0	NULL
 file_summary_by_instance	0	0	NULL
+galera_group_members	0	0	NULL
+galera_group_member_stats	0	0	NULL
 global_status	0	0	NULL
 hosts	0	0	NULL
 host_cache	0	0	NULL
@@ -566,6 +578,8 @@ events_waits_summary_global_by_event_name	NULL	NULL	NULL
 file_instances	NULL	NULL	NULL
 file_summary_by_event_name	NULL	NULL	NULL
 file_summary_by_instance	NULL	NULL	NULL
+galera_group_members	NULL	NULL	NULL
+galera_group_member_stats	NULL	NULL	NULL
 global_status	NULL	NULL	NULL
 hosts	NULL	NULL	NULL
 host_cache	NULL	NULL	NULL
@@ -652,6 +666,8 @@ events_waits_summary_global_by_event_name	utf8mb3_general_ci	NULL
 file_instances	utf8mb3_general_ci	NULL
 file_summary_by_event_name	utf8mb3_general_ci	NULL
 file_summary_by_instance	utf8mb3_general_ci	NULL
+galera_group_members	utf8mb3_general_ci	NULL
+galera_group_member_stats	utf8mb3_general_ci	NULL
 global_status	utf8mb3_general_ci	NULL
 hosts	utf8mb3_general_ci	NULL
 host_cache	utf8mb3_general_ci	NULL
@@ -738,6 +754,8 @@ events_waits_summary_global_by_event_name
 file_instances	
 file_summary_by_event_name	
 file_summary_by_instance	
+galera_group_members	
+galera_group_member_stats	
 global_status	
 hosts	
 host_cache	
@@ -824,6 +842,8 @@ events_waits_summary_global_by_event_name
 file_instances	
 file_summary_by_event_name	
 file_summary_by_instance	
+galera_group_members	
+galera_group_member_stats	
 global_status	
 hosts	
 host_cache	
