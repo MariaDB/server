@@ -387,9 +387,14 @@ bool Item_subselect::mark_as_eliminated_processor(void *arg)
 
 bool Item_subselect::eliminate_subselect_processor(void *arg)
 {
-  unit->item= NULL;
-  if (!unit->is_excluded())
-    unit->exclude();
+  for (st_select_lex *un= unit->first_select(); un; un= un->next_select())
+  {
+    if (st_select_lex_unit *iu= un->first_inner_unit())
+    {
+      for (st_select_lex *in= iu->first_select(); in; in= in->next_select())
+        in->mark_as_belong_to_derived(NULL);
+    }
+  }
   eliminated= TRUE;
   return FALSE;
 }
@@ -769,7 +774,6 @@ bool Item_subselect::exec()
 
   DBUG_ENTER("Item_subselect::exec");
   DBUG_ASSERT(fixed);
-  DBUG_ASSERT(!eliminated);
 
   DBUG_EXECUTE_IF("Item_subselect",
     Item::Print print(this,

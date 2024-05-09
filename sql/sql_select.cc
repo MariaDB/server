@@ -700,6 +700,7 @@ void remove_redundant_subquery_clauses(st_select_lex *subq_select_lex)
       }
     }
     subq_select_lex->join->group_list= NULL;
+    subq_select_lex->save_group_list= subq_select_lex->group_list;
     subq_select_lex->group_list.empty();
     DBUG_PRINT("info", ("GROUP BY removed"));
   }
@@ -1366,17 +1367,16 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
     DBUG_RETURN(-1);
 
   /*
-    Permanently remove redundant parts from the query if
+    Remove redundant parts from the query if
       1) This is a subquery
-      2) This is the first time this query is optimized (since the
-         transformation is permanent
-      3) Not normalizing a view. Removal should take place when a
+      2) Not normalizing a view. Removal should take place when a
          query involving a view is optimized, not when the view
          is created
+      3) We are not preparing this statement for later execution
   */
   if (select_lex->master_unit()->item &&                               // 1)
-      select_lex->first_cond_optimization &&                           // 2)
-      !thd->lex->is_view_context_analysis())                           // 3)
+      !thd->lex->is_view_context_analysis() &&                         // 2)
+      !thd->stmt_arena->is_stmt_prepare())                             // 3)
   {
     remove_redundant_subquery_clauses(select_lex);
   }

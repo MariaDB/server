@@ -3041,7 +3041,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
 2	SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	
 Warnings:
-Note	1003	/* select#1 */ select `test`.`t2`.`b` AS `b` from `test`.`t2` where 1
+Note	1003	/* select#1 */ select `test`.`t2`.`b` AS `b` from `test`.`t2` where <in_optimizer>(1,exists(/* select#2 */ select `test`.`t3`.`c` from `test`.`t3` limit 1))
 select b from t2
 where exists (select c from t3
 group by (select a from t1 where a = 1) in (select d from t4));
@@ -3068,7 +3068,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
 2	SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	
 Warnings:
-Note	1003	/* select#1 */ select `test`.`t2`.`b` AS `b` from `test`.`t2` where 1
+Note	1003	/* select#1 */ select `test`.`t2`.`b` AS `b` from `test`.`t2` where <in_optimizer>(1,exists(/* select#2 */ select `test`.`t3`.`c` from `test`.`t3` limit 1))
 select b from t2
 where exists (select c from t3
 group by (select a from t1 where a = 1) >=
@@ -3084,7 +3084,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
 2	SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	
 Warnings:
-Note	1003	/* select#1 */ select `test`.`t2`.`b` AS `b` from `test`.`t2` where 1
+Note	1003	/* select#1 */ select `test`.`t2`.`b` AS `b` from `test`.`t2` where <in_optimizer>(1,exists(/* select#2 */ select `test`.`t3`.`c` from `test`.`t3` limit 1))
 select b from t2
 where exists (select c from t3
 group by (select a from t1 where a = 1) <
@@ -3100,7 +3100,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
 2	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	
 Warnings:
-Note	1003	select `test`.`t2`.`b` AS `b` from `test`.`t2` semi join (`test`.`t3`) where 1
+Note	1003	/* select#1 */ select `test`.`t2`.`b` AS `b` from `test`.`t2` semi join (`test`.`t3`) where 1
 select b from t2
 where b in (select c from t3
 group by (select a from t1 where a = 1) in (select d from t4));
