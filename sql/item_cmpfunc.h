@@ -3048,7 +3048,7 @@ public:
   {}
   int default_regex_flags();
   void init(CHARSET_INFO *data_charset, int extra_flags);
-  void fix_owner(Item_func *owner, Item *subject_arg, Item *pattern_arg);
+  bool fix_owner(Item_func *owner, Item *subject_arg, Item *pattern_arg);
   bool compile(String *pattern, bool send_error);
   bool compile(Item *item, bool send_error);
   bool recompile(Item *item)

@@ -485,7 +485,7 @@ bool select_unit_ext::disable_index_if_needed(SELECT_LEX *curr_sl)
         !curr_sl->next_select()) )
   {
     is_index_enabled= false;
-    if (table->file->ha_disable_indexes(HA_KEY_SWITCH_ALL))
+    if (table->file->ha_disable_indexes(key_map(0), false))
       return false;
     table->no_keyread=1;
     return true;
@@ -2084,7 +2084,7 @@ bool st_select_lex_unit::optimize()
       /* re-enabling indexes for next subselect iteration */
       if ((union_result->force_enable_index_if_needed() || union_distinct))
       {
-        if(table->file->ha_enable_indexes(HA_KEY_SWITCH_ALL))
+        if(table->file->ha_enable_indexes(key_map(table->s->keys), false))
           DBUG_ASSERT(0);
         else
           table->no_keyread= 0;
@@ -2184,7 +2184,7 @@ bool st_select_lex_unit::exec()
         union_result->table && union_result->table->is_created())
     {
       union_result->table->file->ha_delete_all_rows();
-      union_result->table->file->ha_enable_indexes(HA_KEY_SWITCH_ALL);
+      union_result->table->file->ha_enable_indexes(key_map(table->s->keys), false);
     }
   }
 
@@ -2251,7 +2251,7 @@ bool st_select_lex_unit::exec()
 	{
           // This is UNION DISTINCT, so there should be a fake_select_lex
           DBUG_ASSERT(fake_select_lex != NULL);
-	  if (unlikely(table->file->ha_disable_indexes(HA_KEY_SWITCH_ALL)))
+	  if (table->file->ha_disable_indexes(key_map(0), false))
 	    DBUG_RETURN(TRUE);
 	  table->no_keyread=1;
 	}

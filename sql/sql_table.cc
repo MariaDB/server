@@ -7407,14 +7407,28 @@ bool alter_table_manage_keys(TABLE *table, int indexes_were_disabled,
   switch (keys_onoff) {
   case Alter_info::ENABLE:
     DEBUG_SYNC(table->in_use, "alter_table_enable_indexes");
-    error= table->file->ha_enable_indexes(HA_KEY_SWITCH_NONUNIQ_SAVE);
+    error= table->file->ha_enable_indexes(key_map(table->s->keys), true);
     break;
   case Alter_info::LEAVE_AS_IS:
     if (!indexes_were_disabled)
       break;
     /* fall through */
   case Alter_info::DISABLE:
-    error= table->file->ha_disable_indexes(HA_KEY_SWITCH_NONUNIQ_SAVE);
+  {
+    key_map map= table->s->keys_in_use;
+    bool do_clear= false;
+    for (uint i=0; i < table->s->keys; i++)
+    {
+      if (!(table->s->key_info[i].flags & HA_NOSAME) &&
+          i != table->s->next_number_index)
+      {
+        map.clear_bit(i);
+        do_clear= true;
+      }
+    }
+    if (do_clear)
+      error= table->file->ha_disable_indexes(map, true);
+  }
   }
 
   if (unlikely(error))

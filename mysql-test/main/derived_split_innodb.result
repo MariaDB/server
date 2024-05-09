@@ -877,5 +877,62 @@ SELECT * FROM t1 WHERE t1.a IN (SELECT b FROM
 (SELECT t2.b FROM t2 WHERE NOT EXISTS (SELECT 1 FROM t3) GROUP BY b) sq);
 a
 DROP TABLE t1, t2, t3;
+#
+# MDEV-23878: Wrong result with semi-join and splittable derived table
+#
+CREATE TABLE t1 (
+groupId int,
+id int unsigned,
+PRIMARY KEY (groupId, id)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+INSERT INTO t1 VALUES
+(8,1),(8,2),(8,3),(8,4),(8,5),(8,6),(8,7),(8,8),(8,9),(8,10),
+(8,11),(8,12),(8,13),(8,14),(8,15),(8,16),(8,17),(8,18),(8,19);
+set statement in_predicate_conversion_threshold=2 for SELECT COUNT(*) AS cnt FROM t1
+JOIN
+(
+SELECT groupId, id
+FROM t1
+WHERE id IN (1,2,3,4,5,6)
+GROUP BY groupId, id
+) AS t2
+USING (groupId, id)
+WHERE id IN (1,2,3,4,5,6,7,8);
+cnt
+6
+set statement in_predicate_conversion_threshold=2 for EXPLAIN SELECT COUNT(*) AS cnt FROM t1
+JOIN
+(
+SELECT groupId, id
+FROM t1
+WHERE id IN (1,2,3,4,5,6)
+GROUP BY groupId, id
+) AS t2
+USING (groupId, id)
+WHERE id IN (1,2,3,4,5,6,7,8);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	index	PRIMARY	PRIMARY	8	NULL	19	Using index
+1	PRIMARY	<subquery4>	eq_ref	distinct_key	distinct_key	4	func	1	Using where
+1	PRIMARY	<derived3>	ref	key0	key0	8	test.t1.groupId,test.t1.id	2	
+4	MATERIALIZED	<derived5>	ALL	NULL	NULL	NULL	NULL	8	
+5	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	LATERAL DERIVED	t1	eq_ref	PRIMARY	PRIMARY	8	test.t1.groupId,test.t1.id	1	Using index
+3	LATERAL DERIVED	<derived7>	ref	key0	key0	4	test.t1.id	2	Using where; FirstMatch(t1)
+7	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+set statement optimizer_switch='split_materialized=off, loosescan=off' for
+set statement in_predicate_conversion_threshold=2 for
+SELECT COUNT(*) AS cnt FROM t1
+JOIN
+(
+SELECT groupId, id
+FROM t1
+WHERE id IN (1,2,3,4,5,6)
+GROUP BY groupId, id
+) AS t2
+USING (groupId, id)
+WHERE id IN (1,2,3,4,5,6,7,8);
+cnt
+6
+DROP TABLE t1;
 # End of 10.4 tests
 SET GLOBAL innodb_stats_persistent=@save_innodb_stats_persistent;

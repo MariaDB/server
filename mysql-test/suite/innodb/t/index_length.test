@@ -20,4 +20,12 @@ WHERE table_schema = 'test' AND table_name = 't1';
 disconnect stop_purge;
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-22855  Assertion (!field->prefix_len ||
+--echo #        field->fixed_len == field->prefix_len)
+--echo #        failed in btr_node_ptr_max_size
+--echo #
+CREATE TABLE t1(c CHAR(194) CHARACTER SET UTF32, KEY k1(c(193)))ENGINE=InnoDB;
+INSERT INTO t1 SET c='';
+DROP TABLE t1;
 --echo # End of 10.4 tests

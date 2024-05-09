@@ -3913,7 +3913,7 @@ void wsrep_ready_set(bool ready_value)
   mysql_mutex_lock(&LOCK_wsrep_ready);
   wsrep_ready= ready_value;
   // Signal if we have reached ready state
-  if (wsrep_ready)
+  if (ready_value)
     mysql_cond_signal(&COND_wsrep_ready);
   mysql_mutex_unlock(&LOCK_wsrep_ready);
 }

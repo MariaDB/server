@@ -1,3 +1,6 @@
+#
+# MDEV-4029 SELECT on information_schema using a subquery locks up the information_schema table due to incorrect mutexes handling 
+#
 select variable_name from information_schema.session_status where variable_name =
 (select variable_name from information_schema.session_status where variable_name = 'uptime');
 variable_name
@@ -6,6 +9,9 @@ select variable_name from information_schema.session_variables where variable_na
 (select variable_name from information_schema.session_variables where variable_name = 'basedir');
 variable_name
 BASEDIR
+#
+# MDEV-8796 Delete with sub query with information_schema.TABLES deletes too many rows
+#
 create table t1 (x int);
 create table t2 (x int);
 create table t3 (x int);
@@ -18,3 +24,15 @@ t2
 t3
 t4
 drop table t1, t2, t3, t4;
+# End of 5.5 tests
+# INFORMATION_SCHEMA.STATISTICS doesn't show if the index is disabled
+create table t1 (a int, key(a));
+select index_name, comment from information_schema.statistics where table_schema='test' and table_name='t1';
+index_name	comment
+a	
+alter table t1 disable keys;
+select index_name, comment from information_schema.statistics where table_schema='test' and table_name='t1';
+index_name	comment
+a	disabled
+drop table t1;
+# End of 10.5 tests

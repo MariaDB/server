@@ -542,8 +542,8 @@ public:
   bool is_crashed() const mrn_override;
   bool auto_repair(int error) const mrn_override;
   bool auto_repair() const;
-  int disable_indexes(uint mode) mrn_override;
-  int enable_indexes(uint mode) mrn_override;
+  int disable_indexes(key_map map, bool persist) mrn_override;
+  int enable_indexes(key_map map, bool persist) mrn_override;
   int check(THD* thd, HA_CHECK_OPT* check_opt) mrn_override;
   int repair(THD* thd, HA_CHECK_OPT* check_opt) mrn_override;
   bool check_and_repair(THD *thd) mrn_override;
@@ -1140,12 +1140,12 @@ private:
   bool wrapper_auto_repair(int error) const;
   bool storage_auto_repair(int error) const;
   int generic_disable_index(int i, KEY *key_info);
-  int wrapper_disable_indexes_mroonga(uint mode);
-  int wrapper_disable_indexes(uint mode);
-  int storage_disable_indexes(uint mode);
-  int wrapper_enable_indexes_mroonga(uint mode);
-  int wrapper_enable_indexes(uint mode);
-  int storage_enable_indexes(uint mode);
+  int wrapper_disable_indexes_mroonga(key_map map, bool persist);
+  int wrapper_disable_indexes(key_map map, bool persist);
+  int storage_disable_indexes(key_map map, bool persist);
+  int wrapper_enable_indexes_mroonga(key_map map, bool persist);
+  int wrapper_enable_indexes(key_map map, bool persist);
+  int storage_enable_indexes(key_map map, bool persist);
   int wrapper_check(THD* thd, HA_CHECK_OPT* check_opt);
   int storage_check(THD* thd, HA_CHECK_OPT* check_opt);
   int wrapper_fill_indexes(THD *thd, KEY *key_info,

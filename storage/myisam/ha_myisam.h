@@ -109,8 +109,8 @@ class ha_myisam final : public handler
   int external_lock(THD *thd, int lock_type);
   int delete_all_rows(void);
   int reset_auto_increment(ulonglong value);
-  int disable_indexes(uint mode);
-  int enable_indexes(uint mode);
+  int disable_indexes(key_map map, bool persist);
+  int enable_indexes(key_map map, bool persist);
   int indexes_are_disabled(void);
   void start_bulk_insert(ha_rows rows, uint flags);
   int end_bulk_insert();

@@ -24,7 +24,7 @@ SELECT * FROM t1;
 --exec vault secrets disable bug > /dev/null
 --exec vault secrets enable -path /bug -version=2 kv > /dev/null
 --exec vault kv put /bug/1 data=$my_key > /dev/null
---let $restart_parameters=--plugin-load-add=hashicorp_key_management --hashicorp-key-management-vault-url="$VAULT_ADDR/v1/bug/" --hashicorp-key-management-token="$VAULT_TOKEN"
+--let $restart_parameters=--plugin-load-add=hashicorp_key_management --hashicorp-key-management-vault-url=$VAULT_ADDR/v1/bug/ --hashicorp-key-management-token=$VAULT_TOKEN
 --source include/restart_mysqld.inc
 
 CREATE TABLE t2 (a VARCHAR(8)) ENGINE=InnoDB ENCRYPTED=YES ENCRYPTION_KEY_ID=1;

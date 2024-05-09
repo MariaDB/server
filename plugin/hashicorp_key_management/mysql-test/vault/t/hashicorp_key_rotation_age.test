@@ -8,7 +8,7 @@ replace_result $VAULT_ADDR VAULT_ADDR;
 SHOW GLOBAL variables LIKE "hashicorp%";
 
 --echo # Restart the server with encryption
-let $default_parameters="--innodb-tablespaces-encryption --innodb_encrypt_tables=ON";
+let $default_parameters=--innodb-tablespaces-encryption --innodb_encrypt_tables=ON;
 let $restart_noprint=1;
 let $restart_parameters=$default_parameters;
 --source include/restart_mysqld.inc

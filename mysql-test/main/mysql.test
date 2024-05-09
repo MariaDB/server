@@ -610,6 +610,7 @@ EOF
 create database `aa``bb````cc`;
 --exec $MYSQL < $MYSQLTEST_VARDIR/tmp/backticks.sql
 drop database `aa``bb````cc`;
+--remove_file $MYSQLTEST_VARDIR/tmp/backticks.sql
 
 #
 # MySQL Bug#13639125 DELIMITER STRIPS THE NEXT NEW LINE IN A SQL STATEMENT
@@ -620,6 +621,7 @@ delimiter
 <<" as a;
 EOF
 --exec $MYSQL < $MYSQLTEST_VARDIR/tmp/13639125.sql
+--remove_file $MYSQLTEST_VARDIR/tmp/13639125.sql
 
 #
 # --skip-column-names and alignment
@@ -702,7 +704,7 @@ select count(*) from t1; truncate table t1;
  --exec $MYSQL --disable-local-infile -e "/*q*/$ldli"
 select count(*) from t1; truncate table t1;
 drop table t1;
-
+--remove_file $MYSQLTEST_VARDIR/tmp/bug.sql
 
 --echo #
 --echo # MDEV-15538 '-N' Produce html output wrong
@@ -716,3 +718,43 @@ drop table t1;
 #
 --echo
 --exec $MYSQL test --enable-cleartext-plugin -e "select 1"
+
+--echo # End of 10.3 tests
+
+--echo #
+--echo # MDEV-21778 Disable system commands in mysql/mariadb client
+--echo #
+
+--error 1
+--exec $MYSQL --sandbox -Ne "select 1; \! echo foo; select 0" 2>&1
+--error 1
+--exec $MYSQL --sandbox -Ne "select 2; \T echo foo; select 0" 2>&1
+--error 1
+--exec $MYSQL --sandbox -Ne "select 3; \. echo.foo; select 0" 2>&1
+
+--write_file $MYSQL_TMP_DIR/mysql_in
+select 'entering sandbox';
+\-
+select 'system';
+\! echo foo
+select 'tee';
+\T echo foo
+select 'source';
+\. echo.foo
+select '^^^';
+EOF
+
+write_line "select 1;
+source $MYSQL_TMP_DIR/mysql_in;
+select 2;
+source $MYSQL_TMP_DIR/mysql_in;
+sandbox;
+select 3;
+source $MYSQL_TMP_DIR/mysql_in;" $MYSQL_TMP_DIR/mysql_in2;
+
+--exec $MYSQL -fN <$MYSQL_TMP_DIR/mysql_in2
+
+--remove_file $MYSQL_TMP_DIR/mysql_in
+--remove_file $MYSQL_TMP_DIR/mysql_in2
+
+--echo # End of 10.5 tests

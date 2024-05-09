@@ -1570,40 +1570,37 @@ int ha_myisam::preload_keys(THD* thd, HA_CHECK_OPT *check_opt)
 
   SYNOPSIS
     disable_indexes()
-    mode        mode of operation:
-                HA_KEY_SWITCH_NONUNIQ      disable all non-unique keys
-                HA_KEY_SWITCH_ALL          disable all keys
-                HA_KEY_SWITCH_NONUNIQ_SAVE dis. non-uni. and make persistent
-                HA_KEY_SWITCH_ALL_SAVE     dis. all keys and make persistent
 
-  IMPLEMENTATION
-    HA_KEY_SWITCH_NONUNIQ       is not implemented.
-    HA_KEY_SWITCH_ALL_SAVE      is not implemented.
+  DESCRIPTION
+    See handler::ha_disable_indexes()
 
   RETURN
     0  ok
     HA_ERR_WRONG_COMMAND  mode not implemented.
 */
 
-int ha_myisam::disable_indexes(uint mode)
+int ha_myisam::disable_indexes(key_map map, bool persist)
 {
   int error;
 
-  if (mode == HA_KEY_SWITCH_ALL)
+  if (!persist)
   {
     /* call a storage engine function to switch the key map */
+    DBUG_ASSERT(map.is_clear_all());
     error= mi_disable_indexes(file);
-  }
-  else if (mode == HA_KEY_SWITCH_NONUNIQ_SAVE)
-  {
-    mi_extra(file, HA_EXTRA_NO_KEYS, 0);
-    info(HA_STATUS_CONST);                        // Read new key info
-    error= 0;
   }
   else
   {
-    /* mode not implemented */
-    error= HA_ERR_WRONG_COMMAND;
+    ulonglong ullmap= map.to_ulonglong();
+
+    /* make sure auto-inc key is enabled even if it's > 64 */
+    if (map.length() > MI_KEYMAP_BITS &&
+        table->s->next_number_index < MAX_KEY)
+      mi_set_key_active(ullmap, table->s->next_number_index);
+
+    mi_extra(file, HA_EXTRA_NO_KEYS, &ullmap);
+    info(HA_STATUS_CONST);                        // Read new key info
+    error= 0;
   }
   return error;
 }
@@ -1614,21 +1611,14 @@ int ha_myisam::disable_indexes(uint mode)
 
   SYNOPSIS
     enable_indexes()
-    mode        mode of operation:
-                HA_KEY_SWITCH_NONUNIQ      enable all non-unique keys
-                HA_KEY_SWITCH_ALL          enable all keys
-                HA_KEY_SWITCH_NONUNIQ_SAVE en. non-uni. and make persistent
-                HA_KEY_SWITCH_ALL_SAVE     en. all keys and make persistent
 
   DESCRIPTION
     Enable indexes, which might have been disabled by disable_index() before.
-    The modes without _SAVE work only if both data and indexes are empty,
+    If persist=false, it works only if both data and indexes are empty,
     since the MyISAM repair would enable them persistently.
     To be sure in these cases, call handler::delete_all_rows() before.
 
-  IMPLEMENTATION
-    HA_KEY_SWITCH_NONUNIQ       is not implemented.
-    HA_KEY_SWITCH_ALL_SAVE      is not implemented.
+    See also handler::ha_enable_indexes()
 
   RETURN
     0  ok
@@ -1637,7 +1627,7 @@ int ha_myisam::disable_indexes(uint mode)
     HA_ERR_WRONG_COMMAND  mode not implemented.
 */
 
-int ha_myisam::enable_indexes(uint mode)
+int ha_myisam::enable_indexes(key_map map, bool persist)
 {
   int error;
   DBUG_ENTER("ha_myisam::enable_indexes");
@@ -1651,7 +1641,8 @@ int ha_myisam::enable_indexes(uint mode)
     DBUG_RETURN(0);
   }
 
-  if (mode == HA_KEY_SWITCH_ALL)
+  DBUG_ASSERT(map.is_prefix(table->s->keys));
+  if (!persist)
   {
     error= mi_enable_indexes(file);
     /*
@@ -1660,7 +1651,7 @@ int ha_myisam::enable_indexes(uint mode)
        but mode==HA_KEY_SWITCH_ALL forbids it.
     */
   }
-  else if (mode == HA_KEY_SWITCH_NONUNIQ_SAVE)
+  else
   {
     THD *thd= table->in_use;
     int was_error= thd->is_error();
@@ -1719,11 +1710,6 @@ int ha_myisam::enable_indexes(uint mode)
     thd_proc_info(thd, save_proc_info);
 
     restore_vcos_after_repair();
-  }
-  else
-  {
-    /* mode not implemented */
-    error= HA_ERR_WRONG_COMMAND;
   }
   DBUG_RETURN(error);
 }
@@ -1887,7 +1873,7 @@ int ha_myisam::end_bulk_insert()
         setting the indexes as active and  trying to recreate them. 
      */
    
-      if (((first_error= enable_indexes(HA_KEY_SWITCH_NONUNIQ_SAVE)) != 0) && 
+      if (((first_error= enable_indexes(key_map(table->s->keys), true))) &&
           table->in_use->killed)
       {
         delete_all_rows();
