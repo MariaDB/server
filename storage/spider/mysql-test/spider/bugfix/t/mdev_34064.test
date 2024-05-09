@@ -1,0 +1,8 @@
+--source include/have_binlog_format_mixed.inc
+INSTALL SONAME 'ha_spider.so';
+CREATE TABLE t (c TEXT) ENGINE=Spider;
+XA BEGIN 'a';
+--error ER_CONNECT_TO_FOREIGN_DATA_SOURCE
+UPDATE t SET c=+1;
+--error 12607
+CHANGE MASTER TO master_host='a',master_port=1,master_user='a',master_demote_to_slave=1;

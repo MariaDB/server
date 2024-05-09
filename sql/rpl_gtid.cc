@@ -461,7 +461,11 @@ rpl_slave_state::truncate_state_table(THD *thd)
     {
       ha_commit_trans(thd, FALSE);
       close_thread_tables(thd);
-      ha_commit_trans(thd, TRUE);
+      if ((err= ha_commit_trans(thd, TRUE)))
+      {
+        thd->release_transactional_locks();
+        return err;
+      }
     }
     thd->release_transactional_locks();
   }
