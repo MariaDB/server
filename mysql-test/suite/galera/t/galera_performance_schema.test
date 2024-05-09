@@ -5,15 +5,68 @@
 --source include/galera_cluster.inc
 --source include/have_perfschema.inc
 
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
 use performance_schema;
 
 --vertical_results
 --disable_ps_protocol
+# Server side threads are known, but provider threads may vary
+# between provider versions. Exclued provider threads from the
+# first select and check that some provider threads are visible
+# in the second.
 SELECT name
 FROM threads
-WHERE name LIKE 'thread/sql/wsrep%'
+WHERE name LIKE 'thread/sql/wsrep%' AND
+      name NOT LIKE 'thread/sql/wsrep_provider%'
 ORDER BY name;
+SELECT COUNT(*) > 0 FROM threads WHERE name LIKE 'thread/sql/wsrep_provider%';
 --enable_ps_protocol
+
+# Check for a compatible version of the Galera library:
+--let $rows = `SELECT COUNT(*) FROM galera_group_members`
+if ($rows == 0)
+{
+   die Incompatible or old version of the Galera library;
+}
+
+# Let's keep the initial values of the most characteristic fields:
+
+--let $index1 = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_index';`
+
+--let $wsrep_last_committed   = `SELECT wsrep_last_committed   FROM galera_group_members WHERE wsrep_local_index = $index1`
+--let $wsrep_replicated       = `SELECT wsrep_replicated       FROM galera_group_members WHERE wsrep_local_index = $index1`
+--let $wsrep_replicated_bytes = `SELECT wsrep_replicated_bytes FROM galera_group_members WHERE wsrep_local_index = $index1`
+--let $wsrep_local_commits    = `SELECT wsrep_local_commits    FROM galera_group_members WHERE wsrep_local_index = $index1`
+--let $wsrep_repl_keys        = `SELECT wsrep_repl_keys        FROM galera_group_member_stats WHERE wsrep_local_index = $index1`
+--let $wsrep_repl_keys_bytes  = `SELECT wsrep_repl_keys_bytes  FROM galera_group_member_stats WHERE wsrep_local_index = $index1`
+--let $wsrep_repl_data_bytes  = `SELECT wsrep_repl_data_bytes  FROM galera_group_member_stats WHERE wsrep_local_index = $index1`
+
+--let $wsrep_apply_window     = `SELECT CEILING(wsrep_apply_window)  FROM galera_group_members WHERE wsrep_local_index = $index1`
+--let $wsrep_commit_window    = `SELECT CEILING(wsrep_commit_window) FROM galera_group_members WHERE wsrep_local_index = $index1`
+
+--connection node_2
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+use performance_schema;
+
+--let $index2 = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_index';`
+
+--let $wsrep_last_committed2 = `SELECT wsrep_last_committed FROM galera_group_members WHERE wsrep_local_index = $index2`
+--let $wsrep_received2       = `SELECT wsrep_received       FROM galera_group_members WHERE wsrep_local_index = $index2`
+--let $wsrep_received_bytes2 = `SELECT wsrep_received_bytes FROM galera_group_members WHERE wsrep_local_index = $index2`
+
+--let $wsrep_apply_window2   = `SELECT CEILING(wsrep_apply_window)  FROM galera_group_members WHERE wsrep_local_index = $index2`
+--let $wsrep_commit_window2  = `SELECT CEILING(wsrep_commit_window) FROM galera_group_members WHERE wsrep_local_index = $index2`
+
+use test;
+
+--connection node_1
+
+--let $wsrep_cluster_address_orig = `SELECT @@wsrep_cluster_address`
 
 use test;
 create table t1 (a int not null primary key) engine=innodb;
@@ -22,6 +75,146 @@ insert into t1 values (1),(2);
 use performance_schema;
 select name from mutex_instances where name like 'wait/synch/mutex/sql/LOCK_wsrep%' order by name;
 select name from cond_instances where name like 'wait/synch/cond/sql/COND_wsrep%' order by name;
+
+# Make sure that the second node sees the changes:
+
+--connection node_2
+select * from t1;
+
+# Let's check the presence and functionality of the new tables
+# that reflect the state of the current cluster node and show
+# which nodes are in the cluster:
+
+--connection node_1
+
+# Let's request new values for the most characteristic fields:
+
+--let $wsrep_last_committed_new   = `SELECT wsrep_last_committed   FROM galera_group_members WHERE wsrep_local_index = $index1`
+--let $wsrep_replicated_new       = `SELECT wsrep_replicated       FROM galera_group_members WHERE wsrep_local_index = $index1`
+--let $wsrep_replicated_bytes_new = `SELECT wsrep_replicated_bytes FROM galera_group_members WHERE wsrep_local_index = $index1`
+--let $wsrep_local_commits_new    = `SELECT wsrep_local_commits    FROM galera_group_members WHERE wsrep_local_index = $index1`
+--let $wsrep_repl_keys_new        = `SELECT wsrep_repl_keys        FROM galera_group_member_stats WHERE wsrep_local_index = $index1`
+--let $wsrep_repl_keys_bytes_new  = `SELECT wsrep_repl_keys_bytes  FROM galera_group_member_stats WHERE wsrep_local_index = $index1`
+--let $wsrep_repl_data_bytes_new  = `SELECT wsrep_repl_data_bytes  FROM galera_group_member_stats WHERE wsrep_local_index = $index1`
+
+--let $wsrep_apply_window_new     = `SELECT CEILING(wsrep_apply_window)  FROM galera_group_members WHERE wsrep_local_index = $index1`
+--let $wsrep_commit_window_new    = `SELECT CEILING(wsrep_commit_window) FROM galera_group_members WHERE wsrep_local_index = $index1`
+
+# Let's calculate the differences between the old and new values:
+
+--let $wsrep_last_committed_diff   = `SELECT $wsrep_last_committed_new   - $wsrep_last_committed`
+--let $wsrep_replicated_diff       = `SELECT $wsrep_replicated_new       - $wsrep_replicated`
+--let $wsrep_replicated_bytes_diff = `SELECT $wsrep_replicated_bytes_new - $wsrep_replicated_bytes`
+--let $wsrep_local_commits_diff    = `SELECT $wsrep_local_commits_new    - $wsrep_local_commits`
+--let $wsrep_repl_keys_diff        = `SELECT $wsrep_repl_keys_new        - $wsrep_repl_keys`
+--let $wsrep_repl_keys_bytes_diff  = `SELECT $wsrep_repl_keys_bytes_new  - $wsrep_repl_keys_bytes`
+--let $wsrep_repl_data_bytes_diff  = `SELECT $wsrep_repl_data_bytes_new  - $wsrep_repl_data_bytes`
+
+# Check that the fields have changed to the correct values:
+
+if ($wsrep_last_committed_diff != 2)
+{
+   die bad wsrep_last_committed difference: $wsrep_last_committed_diff;
+}
+
+if ($wsrep_replicated_diff != 2)
+{
+   die bad wsrep_replicated difference: $wsrep_replicated_diff;
+}
+
+if ($wsrep_replicated_bytes_diff <= 0)
+{
+   die bad wsrep_replicated_bytes difference: $wsrep_replicated_bytes_diff;
+}
+
+if ($wsrep_local_commits_new < 1)
+{
+   die bad wsrep_local_commits difference: $wsrep_local_commits_new;
+}
+
+if ($wsrep_apply_window_new < 0)
+{
+   die bad wsrep_apply_window: $wsrep_apply_window_new;
+}
+
+if ($wsrep_commit_window_new < 0)
+{
+   die bad wsrep_commit_window: $wsrep_commit_window_new;
+}
+
+if ($wsrep_repl_keys_diff < 6)
+{
+   die bad wsrep_repl_keys difference: $wsrep_repl_keys_diff;
+}
+
+if ($wsrep_repl_keys_bytes_diff <= 0)
+{
+   die bad wsrep_repl_keys_bytes difference: $wsrep_repl_keys_bytes_diff;
+}
+
+if ($wsrep_repl_data_bytes_diff <= 0)
+{
+   die bad wsrep_repl_keys_bytes difference: $wsrep_repl_keys_bytes_diff;
+}
+
+--connection node_2
+
+# Let's request new values for the most characteristic fields:
+
+use performance_schema;
+
+--let $wsrep_last_committed_new2 = `SELECT wsrep_last_committed FROM galera_group_members WHERE wsrep_local_index = $index2`
+--let $wsrep_received_new2       = `SELECT wsrep_received       FROM galera_group_members WHERE wsrep_local_index = $index2`
+--let $wsrep_received_bytes_new2 = `SELECT wsrep_received_bytes FROM galera_group_members WHERE wsrep_local_index = $index2`
+
+--let $wsrep_apply_window_new2   = `SELECT CEILING(wsrep_apply_window)  FROM galera_group_members WHERE wsrep_local_index = $index2`
+--let $wsrep_commit_window_new2  = `SELECT CEILING(wsrep_commit_window) FROM galera_group_members WHERE wsrep_local_index = $index2`
+
+use test;
+
+# Let's calculate the differences between the old and new values:
+
+--let $wsrep_last_committed_diff2 = `SELECT $wsrep_last_committed_new2 - $wsrep_last_committed2`
+--let $wsrep_received_diff2       = `SELECT $wsrep_received_new2       - $wsrep_received2`
+--let $wsrep_received_bytes_diff2 = `SELECT $wsrep_received_bytes_new2 - $wsrep_received_bytes2`
+
+# Check that the fields have changed to the correct values:
+
+if ($wsrep_last_committed_diff2 != 2)
+{
+   die bad wsrep_last_committed difference: $wsrep_last_committed_diff2;
+}
+
+if ($wsrep_received_diff2 != 2)
+{
+   die bad wsrep_received difference: $wsrep_received_diff2;
+}
+
+if ($wsrep_received_bytes_diff2 <= 0)
+{
+   die bad wsrep_received_bytes difference: $wsrep_received_bytes_diff2;
+}
+
+if ($wsrep_apply_window_new2 < 0)
+{
+   die bad wsrep_apply_window: $wsrep_apply_window_new2;
+}
+
+if ($wsrep_commit_window_new2 < 0)
+{
+   die bad wsrep_commit_window: $wsrep_commit_window_new2;
+}
+
+--connection node_1
+
+# Let's check the presence of new tables without field
+# values when wsrep=off:
+
+SET GLOBAL wsrep_on=OFF;
+select * from galera_group_members;
+select * from galera_group_member_stats;
+SET GLOBAL wsrep_on=ON;
+
 # Whenever a node fails to apply an event on a slave node, the database server creates a
 # special binary log file of the event in the data directory. The naming convention the
 # node uses for the filename is GRA_*.log.
@@ -55,4 +248,3 @@ CALL mtr.add_suppression("Slave SQL: Error 'Table 't2' already exists' on query"
 use test;
 drop table t1;
 drop table t2;
-

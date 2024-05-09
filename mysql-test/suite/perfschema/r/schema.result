@@ -47,6 +47,8 @@ events_waits_summary_global_by_event_name
 file_instances
 file_summary_by_event_name
 file_summary_by_instance
+galera_group_member_stats
+galera_group_members
 global_status
 host_cache
 hosts
