@@ -364,19 +364,6 @@ void my_thread_end(void)
   }
 }
 
-static TLS_VAR struct st_my_thread_var *my_thread_var_;
-
-struct st_my_thread_var *_my_thread_var(void)
-{
-  return  my_thread_var_;
-}
-
-int set_mysys_var(struct st_my_thread_var *mysys_var)
-{
-  my_thread_var_ = mysys_var;
-  return 0;
-}
-
 /****************************************************************************
   Get name of current thread.
 ****************************************************************************/
