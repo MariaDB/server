@@ -967,6 +967,7 @@ corrupted:
 			first = flst_get_first(FSP_HEADER_OFFSET + FSP_FREE
 					       + header->page.frame);
 			if (first.page == FIL_NULL) {
+				*err = DB_OUT_OF_FILE_SPACE;
 				return nullptr;	/* No free extents left */
 			}
 			if (first.page >= space->free_limit) {
