@@ -21,6 +21,8 @@ connection master;
 use test;
 create table t(a int primary key);
 include/sync_slave_sql_with_master.inc
+save_master_pos;
+sync_with_master;
 drop table t;
 connection master;
 insert into t values(1);
@@ -65,6 +67,7 @@ include/start_slave.inc
 connection master;
 create table t1 (f int primary key) engine=innodb;
 insert into t1 values (10);
+sync_slave_with_master;
 connection slave;
 connect  slave2,127.0.0.1,root,,test,$SLAVE_MYPORT,;
 connection slave2;
@@ -80,6 +83,7 @@ rollback;
 include/assert.inc [Value returned by PS table for Last_Trans_Retry_Count should be > 0.]
 connection master;
 drop table t1;
+sync_slave_with_master;
 connection slave;
 disconnect slave2;
 set global slave_transaction_retry_interval=@saved_slave_trans_retry_interval;

@@ -53,6 +53,7 @@ END;
 //
 CREATE INDEX i1 ON t1 (a);
 CREATE VIEW v1 AS SELECT a FROM t1 WHERE a < 100;
+sync_slave_with_master;
 connection slave;
 connection master1;
 connection master;

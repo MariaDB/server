@@ -2,7 +2,7 @@ include/master-slave.inc
 [connection master]
 connection master;
 create table t1 (a int);
-connection slave;
+sync_slave_with_master;
 connection slave;
 SET @saved_dbug = @@GLOBAL.debug_dbug;
 set global debug_dbug='d,rows_log_event_before_open_table';

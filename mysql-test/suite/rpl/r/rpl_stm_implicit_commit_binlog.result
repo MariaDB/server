@@ -333,6 +333,7 @@ SET AUTOCOMMIT= 1;
 ###################################################################################
 #                               CHECK CONSISTENCY
 ###################################################################################
+sync_slave_with_master;
 connection slave;
 include/diff_tables.inc [master:tt_1,slave:tt_1]
 ###################################################################################
@@ -342,5 +343,6 @@ connection master;
 DROP TABLE tt_1;
 DROP TABLE tt_2;
 DROP TABLE nt_1;
+sync_slave_with_master;
 connection slave;
 include/rpl_end.inc

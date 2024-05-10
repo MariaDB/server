@@ -14,7 +14,9 @@ ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
 CREATE TABLE t1 (a int PRIMARY KEY) ENGINE=MyISAM;
 CREATE TABLE t2 (a int PRIMARY KEY) ENGINE=InnoDB;
 CREATE TABLE t6 (a INT) ENGINE=MyISAM;
+save_master_pos;
 connection server_2;
+sync_with_master;
 connection server_1;
 SET sql_log_bin=0;
 CREATE FUNCTION foo(x INT, d1 VARCHAR(500), d2 VARCHAR(500))
@@ -51,12 +53,14 @@ SET binlog_format= STATEMENT;
 INSERT INTO t1 VALUES (foo(50,
 "rpl_parallel_start_waiting_for_prior SIGNAL t3_ready",
 "rpl_parallel_end_of_group SIGNAL prep_ready WAIT_FOR prep_cont"));
+save_master_pos;
 connection server_2;
 SET DEBUG_SYNC= "now WAIT_FOR prep_ready";
 connection server_1;
 INSERT INTO t2 VALUES (foo(50,
 "rpl_parallel_simulate_temp_err_xid SIGNAL t1_ready1 WAIT_FOR t1_cont1",
 "rpl_parallel_retry_after_unmark SIGNAL t1_ready2 WAIT_FOR t1_cont2"));
+save_master_pos;
 connection server_2;
 SET DEBUG_SYNC= "now WAIT_FOR t1_ready1";
 connection server_1;
@@ -84,8 +88,11 @@ SET DEBUG_SYNC= "now WAIT_FOR t3_ready";
 SET DEBUG_SYNC= "now SIGNAL t2_cont1";
 SET DEBUG_SYNC= "now WAIT_FOR t2_ready2";
 SET DEBUG_SYNC= "now SIGNAL t1_cont2";
+sync_with_master;
 connection server_1;
+save_master_pos;
 connection server_2;
+sync_with_master;
 SELECT * FROM t2 WHERE a>=50 ORDER BY a;
 a
 50
@@ -118,12 +125,14 @@ SET binlog_format= STATEMENT;
 INSERT INTO t1 VALUES (foo(60,
 "rpl_parallel_start_waiting_for_prior SIGNAL t3_ready",
 "rpl_parallel_end_of_group SIGNAL prep_ready WAIT_FOR prep_cont"));
+save_master_pos;
 connection server_2;
 SET DEBUG_SYNC= "now WAIT_FOR prep_ready";
 connection server_1;
 INSERT INTO t2 VALUES (foo(60,
 "rpl_parallel_simulate_temp_err_xid SIGNAL t1_ready1 WAIT_FOR t1_cont1",
 "rpl_parallel_retry_after_unmark SIGNAL t1_ready2 WAIT_FOR t1_cont2"));
+save_master_pos;
 connection server_2;
 SET DEBUG_SYNC= "now WAIT_FOR t1_ready1";
 connection con_temp3;
@@ -165,8 +174,11 @@ SET DEBUG_SYNC= "now WAIT_FOR t3_ready";
 SET DEBUG_SYNC= "now SIGNAL t2_cont1";
 SET DEBUG_SYNC= "now WAIT_FOR t2_ready2";
 SET DEBUG_SYNC= "now SIGNAL t1_cont2";
+sync_with_master;
 connection server_1;
+save_master_pos;
 connection server_2;
+sync_with_master;
 SELECT * FROM t2 WHERE a>=60 ORDER BY a;
 a
 60

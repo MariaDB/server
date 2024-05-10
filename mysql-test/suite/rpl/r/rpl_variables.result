@@ -534,6 +534,7 @@ EXECUTE p61;
 EXECUTE p62;
 EXECUTE p63;
 EXECUTE p64;
+sync_slave_with_master;
 connection slave;
 connection master;
 ==== Results ====
@@ -571,6 +572,7 @@ id	truth	num	text
 30	NULL	30	NULL
 31	NULL	NULL	Bergsbrunna
 32	NULL	NULL	Centrum
+sync_slave_with_master;
 connection slave;
 include/diff_tables.inc [master:tstmt, master:tproc, master:tfunc, master:ttrig, master:tprep,  slave:tstmt, slave:tproc, slave:tfunc, slave:ttrig, slave:tprep]
 ==== Clean up ====
@@ -597,5 +599,6 @@ SET @@global.slave_exec_mode=      @s_slave_exec_mode;
 SET @@global.sql_mode=             @s_sql_mode;
 SET @@global.sync_binlog=          @s_sync_binlog;
 connection master;
+sync_slave_with_master;
 connection slave;
 include/rpl_end.inc

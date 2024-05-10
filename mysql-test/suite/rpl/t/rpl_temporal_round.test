@@ -21,7 +21,6 @@ SELECT * FROM t2;
 SELECT * FROM t3;
 
 sync_slave_with_master;
-connection slave;
 SET time_zone='+00:00';
 SELECT * FROM t1;
 SELECT * FROM t2;

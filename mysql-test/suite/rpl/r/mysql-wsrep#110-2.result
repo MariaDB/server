@@ -21,5 +21,6 @@ DROP TABLE t3;
 DROP TABLE t2;
 DROP TABLE t1;
 DROP PROCEDURE p1;
+sync_slave_with_master;
 connection slave;
 include/rpl_end.inc

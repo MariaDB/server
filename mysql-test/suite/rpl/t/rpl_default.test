@@ -16,7 +16,6 @@ let $b=query_get_value(select * from t1, b, 1);
 let $u=query_get_value(select * from t1, u, 1); 
 
 sync_slave_with_master;
-connection slave;
 
 show create table t1;
 --disable_query_log

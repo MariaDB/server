@@ -4,8 +4,10 @@ call mtr.add_suppression("Unsafe statement written to the binary log using state
 call mtr.add_suppression("table or database name 'mysqltest-1'");
 connection master;
 CREATE DATABASE `mysqltest-1`;
+sync_slave_with_master;
 connection slave;
 connection master;
+sync_slave_with_master;
 connection slave;
 connection master;
 Master position is not changed
@@ -19,7 +21,7 @@ SET GLOBAL log_output = 'FILE';
 connection master;
 ALTER TABLE mysql.slow_log DROP COLUMN thread_id, DROP COLUMN rows_affected;
 DROP DATABASE `mysqltest-1`;
-connection slave;
+sync_slave_with_master;
 connection slave;
 SHOW CREATE TABLE mysql.slow_log;
 Table	Create Table
@@ -39,7 +41,7 @@ slow_log	CREATE TABLE `slow_log` (
 connection master;
 connection master;
 Master position has been changed
-connection slave;
+sync_slave_with_master;
 connection slave;
 SHOW CREATE TABLE mysql.slow_log;
 Table	Create Table

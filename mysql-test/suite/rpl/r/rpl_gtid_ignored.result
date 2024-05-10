@@ -12,7 +12,9 @@ include/start_slave.inc
 connection server_1;
 CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (1);
+save_master_pos;
 connection server_2;
+sync_with_master;
 **** MDEV-4488: GTID position should be updated for events that are ignored due to server id ***
 include/stop_slave.inc
 CHANGE MASTER TO ignore_server_ids=(1);
@@ -20,7 +22,9 @@ include/start_slave.inc
 connection server_1;
 INSERT INTO t1 VALUES (2);
 INSERT INTO t1 VALUES (3);
+save_master_pos;
 connection server_2;
+sync_with_master;
 RESULT
 OK
 SELECT * FROM t1 ORDER BY a;
@@ -29,6 +33,7 @@ a
 include/stop_slave.inc
 CHANGE MASTER TO ignore_server_ids=();
 include/start_slave.inc
+sync_with_master;
 RESULT
 OK
 SELECT * FROM t1 ORDER BY a;
@@ -37,7 +42,9 @@ a
 connection server_1;
 INSERT INTO t1 VALUES (4);
 INSERT INTO t1 VALUES (5);
+save_master_pos;
 connection server_2;
+sync_with_master;
 RESULT
 OK
 a
@@ -54,10 +61,12 @@ include/start_slave.inc
 connection server_1;
 INSERT INTO t1 VALUES (6);
 INSERT INTO t1 VALUES (7);
+save_master_pos;
 connection server_2;
 include/wait_for_slave_param.inc [Read_Master_Log_Pos]
 STOP SLAVE IO_THREAD;
 SET debug_sync = "now SIGNAL continue";
+sync_with_master;
 RESULT
 OK
 RESULT
@@ -69,7 +78,9 @@ include/start_slave.inc
 connection server_1;
 INSERT INTO t1 VALUES (8);
 INSERT INTO t1 VALUES (9);
+save_master_pos;
 connection server_2;
+sync_with_master;
 SELECT * FROM t1 ORDER BY a;
 a
 1

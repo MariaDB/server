@@ -42,7 +42,7 @@ CREATE VIEW mysqltest1.v4 AS SELECT * FROM mysqltest1.v3 WHERE a > 1 WITH LOCAL 
 SELECT * FROM mysqltest1.v2;
 SELECT * FROM mysqltest1.v1;
 
---sync_slave_with_master
+sync_slave_with_master;
 
 SELECT * FROM mysqltest1.v2;
 SELECT * FROM mysqltest1.v1;

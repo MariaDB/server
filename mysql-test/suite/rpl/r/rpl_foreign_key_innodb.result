@@ -18,6 +18,7 @@ SELECT * FROM t2 ORDER BY b;
 b	c
 5	0
 6	11
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t1 ORDER BY a;
 a
@@ -35,11 +36,13 @@ CREATE TABLE t3 ( a INT UNIQUE );
 SET FOREIGN_KEY_CHECKS=0;
 INSERT INTO t3 VALUES (1),(1);
 ERROR 23000: Duplicate entry '1' for key 'a'
+sync_slave_with_master;
 connection slave;
 connection master;
 SET FOREIGN_KEY_CHECKS=0;
 DROP TABLE IF EXISTS t1,t2,t3;
 SET FOREIGN_KEY_CHECKS=1;
+sync_slave_with_master;
 connection slave;
 connection master;
 create table t1 (b int primary key) engine = INNODB;
@@ -49,6 +52,7 @@ insert into t2 set a=1, b=1;
 set foreign_key_checks=0;
 delete from t1;
 must sync w/o a problem (could not with the buggy code)
+sync_slave_with_master;
 connection slave;
 select count(*) from t1 /* must be zero */;
 count(*)
@@ -65,11 +69,13 @@ id2 int default null,  key f1 (id2),
 constraint f1 foreign key (id2) references t1 (id) on delete cascade) engine=innodb;
 drop table t1,t2;
 ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
+sync_slave_with_master;
 connection slave;
 show tables;
 Tables_in_test
 t1
 connection master;
 drop table t1;
+sync_slave_with_master;
 connection slave;
 include/rpl_end.inc

@@ -9,6 +9,7 @@ CHANGE MASTER TO MASTER_HEARTBEAT_PERIOD=0.001;
 include/start_slave.inc
 connection master;
 SET @@GLOBAL.debug_dbug = @saved_dbug;
+sync_slave_with_master;
 connection slave;
 connection master;
 CREATE TABLE t (f INT) ENGINE=INNODB;

@@ -4,6 +4,7 @@ connection server_1;
 ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
 CREATE TABLE t1 (a int PRIMARY KEY, b INT) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (1,1);
+save_master_pos;
 SET sql_log_bin=0;
 CREATE FUNCTION foo(x INT, d1 VARCHAR(500), d2 VARCHAR(500))
 RETURNS INT DETERMINISTIC
@@ -17,6 +18,7 @@ SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
 include/stop_slave.inc
 SET GLOBAL slave_parallel_threads=5;
 include/start_slave.inc
+sync_with_master;
 SET sql_log_bin=0;
 CREATE FUNCTION foo(x INT, d1 VARCHAR(500), d2 VARCHAR(500))
 RETURNS INT DETERMINISTIC
@@ -44,10 +46,12 @@ a	b
 1	2
 2	1
 3	1
+save_master_pos;
 connection server_2;
 SET @old_dbug= @@GLOBAL.debug_dbug;
 SET GLOBAL debug_dbug="+d,rpl_parallel_simulate_temp_err_gtid_0_x_100";
 include/start_slave.inc
+sync_with_master;
 SET GLOBAL debug_dbug=@old_dbug;
 include/assert.inc [Performance Schema retries should match with actual retries]
 SELECT * FROM t1 ORDER BY a;
@@ -76,10 +80,12 @@ a	b
 4	1
 5	1
 6	1
+save_master_pos;
 connection server_2;
 SET @old_dbug= @@GLOBAL.debug_dbug;
 SET GLOBAL debug_dbug="+d,rpl_parallel_simulate_temp_err_gtid_0_x_100,rpl_parallel_simulate_double_temp_err_gtid_0_x_100";
 include/start_slave.inc
+sync_with_master;
 SET GLOBAL debug_dbug=@old_dbug;
 include/assert.inc [Performance Schema retries should match with actual retries]
 SELECT * FROM t1 ORDER BY a;
@@ -114,6 +120,7 @@ a	b
 7	1
 8	1
 9	1
+save_master_pos;
 connection server_2;
 SET sql_log_bin=0;
 CALL mtr.add_suppression("Slave worker thread retried transaction 10 time\\(s\\) in vain, giving up");
@@ -138,6 +145,7 @@ a	b
 6	1
 STOP SLAVE IO_THREAD;
 include/start_slave.inc
+sync_with_master;
 SELECT * FROM t1 ORDER BY a;
 a	b
 1	4
@@ -153,7 +161,9 @@ a	b
 connection server_1;
 CREATE TABLE t2 (a int PRIMARY KEY, b BLOB) ENGINE=InnoDB;
 INSERT INTO t2 VALUES (1,"Hulubullu");
+save_master_pos;
 connection server_2;
+sync_with_master;
 include/stop_slave.inc
 SET @old_max= @@GLOBAL.max_relay_log_size;
 SET GLOBAL max_relay_log_size=4096;
@@ -173,10 +183,12 @@ a	LENGTH(b)
 1	9
 2	5006
 3	5012
+save_master_pos;
 connection server_2;
 SET @old_dbug= @@GLOBAL.debug_dbug;
 SET GLOBAL debug_dbug="+d,rpl_parallel_simulate_temp_err_gtid_0_x_100";
 include/start_slave.inc
+sync_with_master;
 SET GLOBAL debug_dbug=@old_dbug;
 include/assert.inc [Performance Schema retries should match with actual retries]
 SELECT * FROM t1 WHERE a >= 10 ORDER BY a;
@@ -189,7 +201,9 @@ a	LENGTH(b)
 3	5012
 connection server_1;
 INSERT INTO t1 VALUES (11,11);
+save_master_pos;
 connection server_2;
+sync_with_master;
 SELECT * FROM t1 WHERE a >= 10 ORDER BY a;
 a	b
 10	4
@@ -217,10 +231,12 @@ a	b
 101	0
 102	0
 103	0
+save_master_pos;
 connection server_2;
 SET @old_dbug= @@GLOBAL.debug_dbug;
 SET GLOBAL debug_dbug="+d,rpl_parallel_simulate_temp_err_xid";
 include/start_slave.inc
+sync_with_master;
 SET GLOBAL debug_dbug=@old_dbug;
 include/assert.inc [Performance Schema retries should match with actual retries]
 SELECT * FROM t1 WHERE a >= 100 ORDER BY a;
@@ -237,8 +253,10 @@ INSERT INTO t1 VALUES (106, 1);
 INSERT INTO t1 VALUES (107, 1);
 INSERT INTO t1 VALUES (108, 1);
 INSERT INTO t1 VALUES (109, 1);
+save_master_pos;
 connection server_2;
 include/start_slave.inc
+sync_with_master;
 SELECT * FROM t1 WHERE a >= 100 ORDER BY a;
 a	b
 100	0
@@ -259,7 +277,9 @@ CREATE TABLE t4 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
 INSERT INTO t4 VALUES(100, 100);
 SET @old_format= @@SESSION.binlog_format;
 SET binlog_format='statement';
+save_master_pos;
 connection server_2;
+sync_with_master;
 include/stop_slave.inc
 CHANGE MASTER TO master_use_gtid=no;
 connection server_1;
@@ -302,6 +322,7 @@ connection con3;
 SET debug_sync='RESET';
 SET binlog_format=@old_format;
 connection server_1;
+save_master_pos;
 SELECT * FROM t3 ORDER BY a;
 a	b
 1	NULL
@@ -318,6 +339,7 @@ SET debug_sync='now WAIT_FOR t2_waiting';
 SET debug_sync='now SIGNAL t3_start';
 SET debug_sync='now WAIT_FOR t3_waiting';
 SET debug_sync='now SIGNAL t1_start';
+sync_with_master;
 SET GLOBAL debug_dbug=@old_dbug;
 SET debug_sync='RESET';
 include/assert.inc [Performance Schema retries should match with actual retries]
@@ -338,10 +360,12 @@ include/start_slave.inc
 connection server_1;
 DROP TABLE t1, t2, t3, t4;
 DROP function foo;
+sync_slave_with_master server_2;
 connection server_2;
 connection server_1;
 CREATE TABLE t1 (a int PRIMARY KEY, b INT) ENGINE=InnoDB;
 INSERT INTO t1 VALUES(100, 100);
+sync_slave_with_master server_2;
 connection server_2;
 include/stop_slave.inc
 SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
@@ -394,5 +418,6 @@ SET debug_sync='RESET';
 include/start_slave.inc
 connection server_1;
 DROP TABLE t1;
+sync_slave_with_master server_2;
 connection server_2;
 include/rpl_end.inc

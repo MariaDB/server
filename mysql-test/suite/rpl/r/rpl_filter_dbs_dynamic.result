@@ -26,6 +26,7 @@ USE db2;
 INSERT INTO t2 VALUES (2);
 USE db3;
 INSERT INTO t3 VALUES (3);
+sync_slave_with_master;
 connection slave;
 [on slave]
 SHOW DATABASES LIKE 'db%';

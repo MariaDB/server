@@ -3,6 +3,7 @@ include/master-slave.inc
 call mtr.add_suppression("Slave: Unknown table 't6' error.* 1051");
 call mtr.add_suppression("Slave SQL.*Column [0-9] of table .test.t[0-9]*. cannot be converted from type.* error.* 1677");
 **** Diff Table Def Start ****
+sync_slave_with_master;
 connection slave;
 STOP SLAVE;
 include/reset_slave.inc
@@ -29,6 +30,7 @@ a	b	c
 2	1	AUSTIN
 3	4	QA
 *** Select from slave ***
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t1 ORDER BY a;
 a	b	c	d	e
@@ -39,6 +41,7 @@ SET GLOBAL SLAVE_TYPE_CONVERSIONS = @saved_slave_type_conversions;
 *** Drop t1  ***
 connection master;
 DROP TABLE t1;
+sync_slave_with_master;
 connection slave;
 *** Create t2 on slave  ***
 STOP SLAVE;
@@ -78,6 +81,7 @@ START SLAVE;
 *** Drop t2  ***
 connection master;
 DROP TABLE t2;
+sync_slave_with_master;
 connection slave;
 *** Create t3 on slave  ***
 STOP SLAVE;
@@ -108,6 +112,7 @@ Last_SQL_Error = 'Column 0 of table 'test.t3' cannot be converted from type 'blo
 *** Drop t3  ***
 connection master;
 DROP TABLE t3;
+sync_slave_with_master;
 connection slave;
 *** Create t4 on slave  ***
 STOP SLAVE;
@@ -137,6 +142,7 @@ Last_SQL_Error = 'Column 0 of table 'test.t4' cannot be converted from type 'dec
 *** Drop t4  ***
 connection master;
 DROP TABLE t4;
+sync_slave_with_master;
 connection slave;
 *** Create t5 on slave  ***
 STOP SLAVE;
@@ -166,6 +172,7 @@ Last_SQL_Error = 'Column 1 of table 'test.t5' cannot be converted from type 'var
 *** Drop t5  ***
 connection master;
 DROP TABLE t5;
+sync_slave_with_master;
 connection slave;
 *** Create t6 on slave  ***
 STOP SLAVE;
@@ -195,6 +202,7 @@ Last_SQL_Error = 'Column 1 of table 'test.t6' cannot be converted from type 'var
 include/rpl_reset.inc
 connection master;
 DROP TABLE t6;
+sync_slave_with_master;
 connection slave;
 **** Diff Table Def End ****
 **** Extra Colums Start ****
@@ -224,6 +232,7 @@ a	b	c
 2	b1b1	JOE
 3	b1b1	QA
 *** Select from slave ***
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t7 ORDER BY a;
 a	b	c	d	e
@@ -233,6 +242,7 @@ a	b	c	d	e
 *** Drop t7  ***
 connection master;
 DROP TABLE t7;
+sync_slave_with_master;
 connection slave;
 *** Create t8 on slave  ***
 STOP SLAVE;
@@ -256,6 +266,7 @@ INSERT INTO t8 () VALUES(1,@b1,'Kyle'),(2,@b1,'JOE'),(3,@b1,'QA');
 *** Drop t8  ***
 connection master;
 DROP TABLE t8;
+sync_slave_with_master;
 connection slave;
 STOP SLAVE;
 include/reset_slave.inc
@@ -280,6 +291,7 @@ connection master;
 set @b1 = 'b1b1b1b1';
 set @b1 = concat(@b1,@b1);
 INSERT INTO t9 () VALUES(1,@b1,'Kyle'),(2,@b1,'JOE'),(3,@b1,'QA');
+sync_slave_with_master;
 connection slave;
 select * from t9;
 a	b	c	d	e	f	g	h	i
@@ -288,6 +300,7 @@ a	b	c	d	e	f	g	h	i
 3	b1b1b1b1b1b1b1b1	QA	0000-00-00 00:00:00	0		NULL		NULL
 connection master;
 DROP TABLE t9;
+sync_slave_with_master;
 connection slave;
 *** Create t10 on slave  ***
 STOP SLAVE;
@@ -316,6 +329,7 @@ Last_SQL_Error = 'Column 2 of table 'test.t10' cannot be converted from type 'ch
 *** Drop t10  ***
 connection master;
 DROP TABLE t10;
+sync_slave_with_master;
 connection slave;
 *** Create t11 on slave  ***
 STOP SLAVE;
@@ -344,6 +358,7 @@ Last_SQL_Error = 'Column 2 of table 'test.t11' cannot be converted from type 'va
 *** Drop t11  ***
 connection master;
 DROP TABLE t11;
+sync_slave_with_master;
 connection slave;
 *** Create t12 on slave  ***
 STOP SLAVE;
@@ -369,6 +384,7 @@ a	b	c
 2	b1b1b1b1b1b1b1b1	JOE
 3	b1b1b1b1b1b1b1b1	QA
 *** Select on Slave ***
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t12 ORDER BY a;
 a	b	f	c	e
@@ -378,6 +394,7 @@ a	b	f	c	e
 *** Drop t12  ***
 connection master;
 DROP TABLE t12;
+sync_slave_with_master;
 connection slave;
 **** Extra Colums End ****
 *** BUG 22177 Start ***
@@ -407,6 +424,7 @@ a	b	c
 2	b1b1b1b1b1b1b1b1	JOE
 3	b1b1b1b1b1b1b1b1	QA
 *** Select on Slave ****
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t13 ORDER BY a;
 a	b	c	d	e
@@ -416,6 +434,7 @@ a	b	c	d	e
 *** Drop t13  ***
 connection master;
 DROP TABLE t13;
+sync_slave_with_master;
 connection slave;
 *** 22117 END *** 
 *** Alter Master Table Testing Start ***
@@ -449,6 +468,7 @@ c1	c2	c3	c4	c5
 2	2.00	This Test Should work	b1b1b1b1b1b1b1b1	JOE
 3	3.00	If is does not, I will open a bug	b1b1b1b1b1b1b1b1	QA
 *** Select on Slave ****
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t14 ORDER BY c1;
 c1	c2	c3	c4	c5	c6	c7
@@ -483,6 +503,7 @@ c1	c4	c5
 2	b1b1b1b1b1b1b1b1	JOE
 3	b1b1b1b1b1b1b1b1	QA
 *** Select on Slave ****
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t14a ORDER BY c1;
 c1	c4	c5	c6	c7
@@ -514,6 +535,7 @@ c1	c4
 5	b1b1b1b1b1b1b1b1
 6	b1b1b1b1b1b1b1b1
 *** Select on Slave ****
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t14a ORDER BY c1;
 c1	c4	c5	c6	c7
@@ -525,6 +547,7 @@ c1	c4	c5	c6	c7
 6	b1b1b1b1b1b1b1b1	NULL	1	CURRENT_TIMESTAMP
 connection master;
 DROP TABLE t14a;
+sync_slave_with_master;
 connection slave;
 *** connect to master and drop columns ***
 connection master;
@@ -537,6 +560,7 @@ c1	c3	c5
 2	This Test Should work	JOE
 3	If is does not, I will open a bug	QA
 *** Select from Slave ***
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t14 ORDER BY c1;
 c1	c3	c5	c6	c7
@@ -546,6 +570,7 @@ c1	c3	c5	c6	c7
 *** Drop t14  ***
 connection master;
 DROP TABLE t14;
+sync_slave_with_master;
 connection slave;
 *** Create t15 on slave  ***
 STOP SLAVE;
@@ -579,6 +604,7 @@ c1	c2	c3	c4	c5
 2	2.00	This Test Should work	b1b1b1b1b1b1b1b1	JOE
 3	3.00	If is does not, I will open a bug	b1b1b1b1b1b1b1b1	QA
 *** Select on Slave ****
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t15 ORDER BY c1;
 c1	c2	c3	c4	c5	c6	c7
@@ -604,6 +630,7 @@ c1	c2	c3	c4	c5	c6
 3	3.00	If is does not, I will open a bug	b1b1b1b1b1b1b1b1	QA	NULL
 5	2.00	Replication Testing	b1b1b1b1b1b1b1b1	Buda	2
 *** Try to select from slave ****
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t15 ORDER BY c1;
 c1	c2	c3	c4	c5	c6	c7
@@ -614,6 +641,7 @@ c1	c2	c3	c4	c5	c6	c7
 *** DROP TABLE t15 ***
 connection master;
 DROP TABLE t15;
+sync_slave_with_master;
 connection slave;
 *** Create t16 on slave  ***
 STOP SLAVE;
@@ -644,6 +672,7 @@ c1	c2	c3	c4	c5
 2	2.00	This Test Should work	b1b1b1b1b1b1b1b1	JOE
 3	3.00	If is does not, I will open a bug	b1b1b1b1b1b1b1b1	QA
 *** Select on Slave ****
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t16 ORDER BY c1;
 c1	c2	c3	c4	c5	c6	c7
@@ -667,6 +696,7 @@ t16	CREATE TABLE `t16` (
  PARTITION BY KEY (`c1`)
 PARTITIONS 4
 *** Show table on Slave ****
+sync_slave_with_master;
 connection slave;
 SHOW CREATE TABLE t16;
 Table	Create Table
@@ -685,6 +715,7 @@ PARTITIONS 4
 *** DROP TABLE t16 ***
 connection master;
 DROP TABLE t16;
+sync_slave_with_master;
 connection slave;
 *** Alter Master End ***
 *** Create t17 on slave  ***
@@ -714,5 +745,6 @@ Last_SQL_Error = 'Column 0 of table 'test.t17' cannot be converted from type 'bi
 ** DROP table t17 ***
 connection master;
 DROP TABLE t17;
+sync_slave_with_master;
 connection slave;
 include/rpl_end.inc

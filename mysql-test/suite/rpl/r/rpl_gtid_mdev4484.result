@@ -8,12 +8,13 @@ SET sql_log_bin=1;
 include/start_slave.inc
 connection master;
 CREATE TABLE t1 (i int) ENGINE=InnoDB;
+sync_slave_with_master;
 connection slave;
 *** MDEV-4484, incorrect error handling when entries in gtid_slave_pos not found. ***
 TRUNCATE TABLE mysql.gtid_slave_pos;
 connection master;
 INSERT INTO t1 VALUES (1);
-connection slave;
+sync_slave_with_master;
 connection slave;
 include/stop_slave.inc
 SET @old_gtid_cleanup_batch_size= @@GLOBAL.gtid_cleanup_batch_size;
@@ -25,7 +26,9 @@ CALL mtr.add_suppression("<DEBUG> Error deleting old GTID row");
 SET sql_log_bin= 1;
 include/start_slave.inc
 connection master;
+save_master_pos;
 connection slave;
+sync_with_master;
 SELECT COUNT(*), MAX(seq_no) INTO @pre_count, @pre_max_seq_no
 FROM mysql.gtid_slave_pos;
 SELECT IF(@pre_count >= 20, "OK", CONCAT("Error: too few rows seen while errors injected: ", @pre_count));
@@ -33,7 +36,7 @@ IF(@pre_count >= 20, "OK", CONCAT("Error: too few rows seen while errors injecte
 OK
 SET GLOBAL debug_dbug= @old_dbug;
 connection master;
-connection slave;
+sync_slave_with_master;
 connection slave;
 SELECT IF(COUNT(*) >= 1, "OK", CONCAT("Error: too few rows seen after errors no longer injected: ", COUNT(*)))
 FROM mysql.gtid_slave_pos

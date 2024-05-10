@@ -13,6 +13,7 @@ connection master;
 # STOP SLAVE should wait until the transaction has finished.
 CREATE TABLE t1(c1 INT) ENGINE=InnoDB;
 CREATE TABLE t2(c1 INT) ENGINE=InnoDB;
+sync_slave_with_master;
 connection slave;
 SET DEBUG_SYNC= 'RESET';
 include/stop_slave.inc
@@ -49,6 +50,7 @@ connection slave;
 START SLAVE SQL_THREAD;
 include/wait_for_slave_sql_to_start.inc
 connection master;
+sync_slave_with_master;
 connection slave;
 
 # CREATE TEMPORARY TABLE ... SELECT with InnoDB engine
@@ -77,6 +79,7 @@ connection slave;
 START SLAVE SQL_THREAD;
 include/wait_for_slave_sql_to_start.inc
 connection master;
+sync_slave_with_master;
 connection slave;
 
 # Test end
@@ -101,6 +104,7 @@ DROP TABLE t1, t2;
 CREATE TABLE t1 (c1 INT KEY, c2 INT) ENGINE=InnoDB;
 CREATE TABLE t2 (c1 INT) ENGINE=MyISAM;
 INSERT INTO t1 VALUES(1, 1);
+sync_slave_with_master;
 connection slave;
 include/stop_slave.inc
 connection master;

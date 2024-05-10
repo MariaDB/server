@@ -5,12 +5,14 @@ create table t2 (a int);
 insert into t1 values (1);
 insert into t2 values (1);
 delete t1.* from t1, t2 where t1.a = t2.a;
+save_master_pos;
 select * from t1;
 a
 select * from t2;
 a
 1
 connection slave;
+sync_with_master;
 select * from t1;
 a
 select * from t2;
@@ -18,5 +20,6 @@ a
 1
 connection master;
 drop table t1,t2;
+sync_slave_with_master;
 connection slave;
 include/rpl_end.inc

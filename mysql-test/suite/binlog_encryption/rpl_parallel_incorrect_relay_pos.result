@@ -14,7 +14,9 @@ connection server_1;
 ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
 CREATE TABLE t2 (a int PRIMARY KEY) ENGINE=InnoDB;
 INSERT INTO t2 VALUES (40);
+save_master_pos;
 connection server_2;
+sync_with_master;
 connect  con_temp2,127.0.0.1,root,,test,$SERVER_MYPORT_2,;
 include/stop_slave.inc
 CHANGE MASTER TO master_use_gtid=no;
@@ -36,6 +38,7 @@ FLUSH LOGS;
 INSERT INTO t2 VALUES (45);
 SET gtid_seq_no=100;
 INSERT INTO t2 VALUES (46);
+save_master_pos;
 connection con_temp2;
 BEGIN;
 SELECT * FROM t2 WHERE a=40 FOR UPDATE;
@@ -55,6 +58,7 @@ a
 41
 42
 include/start_slave.inc
+sync_with_master;
 SELECT * FROM t2 WHERE a >= 40 ORDER BY a;
 a
 41

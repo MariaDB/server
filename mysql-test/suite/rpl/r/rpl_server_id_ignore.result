@@ -22,6 +22,7 @@ ignore server id list: 1, 3, 4, 5
 *** ignore master (server 1) queries for a while ***
 start slave;
 connection master;
+sync_slave_with_master;
 connection slave;
 connection master;
 create table t1 (n int);
@@ -42,6 +43,7 @@ ignore server id list:
 change master to master_host='127.0.0.1', master_port=MASTER_PORT, master_user='root';
 start slave;
 connection master;
+sync_slave_with_master;
 connection slave;
 *** must have caught create table ***
 show tables;
@@ -49,6 +51,7 @@ Tables_in_test
 t1
 connection master;
 drop table t1;
+sync_slave_with_master;
 connection slave;
 end of the tests
 include/rpl_end.inc

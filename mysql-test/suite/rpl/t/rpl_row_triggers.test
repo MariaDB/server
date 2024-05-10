@@ -10,7 +10,6 @@ SELECT * FROM t1;
 
 sync_slave_with_master;
 
-connection slave;
 SET @old_slave_exec_mode= @@global.slave_exec_mode;
 SET @old_slave_run_triggers_for_rbr= @@global.slave_run_triggers_for_rbr;
 SET @@global.slave_exec_mode= IDEMPOTENT;
@@ -41,7 +40,6 @@ insert into t1 values ('a','b');
 
 sync_slave_with_master;
 
-connection slave;
 SELECT * FROM t2 order by id;
 
 connection master;
@@ -51,7 +49,6 @@ update t1 set C1= 'd';
 
 sync_slave_with_master;
 
-connection slave;
 SELECT * FROM t2 order by id;
 
 connection master;
@@ -60,7 +57,6 @@ delete from t1 where C1='d';
 
 sync_slave_with_master;
 
-connection slave;
 SELECT * FROM t2 order by id;
 
 --echo # INSERT triggers causing DELETE + INSERT (on unique key conflict)
@@ -74,7 +70,6 @@ insert into t1 values ('0','1');
 
 sync_slave_with_master;
 
-connection slave;
 SELECT * FROM t2 order by id;
 
 
@@ -90,7 +85,6 @@ insert into t1 values ('1','1');
 
 sync_slave_with_master;
 
-connection slave;
 SELECT * FROM t2 order by id;
 
 connection master;
@@ -99,7 +93,6 @@ drop table t3,t1;
 
 sync_slave_with_master;
 
-connection slave;
 SET @@global.slave_exec_mode= @old_slave_exec_mode;
 SET @@global.slave_run_triggers_for_rbr= @old_slave_run_triggers_for_rbr;
 drop table t2;
@@ -144,7 +137,6 @@ create trigger t1_dummy before delete on t1 for each row
 
 sync_slave_with_master;
 
-connection slave;
 SET @old_slave_exec_mode= @@global.slave_exec_mode;
 SET @old_slave_run_triggers_for_rbr= @@global.slave_run_triggers_for_rbr;
 SET @@global.slave_exec_mode= IDEMPOTENT;
@@ -173,7 +165,6 @@ insert into t1 values ('a','b');
 
 sync_slave_with_master;
 
-connection slave;
 SELECT * FROM t2 order by id;
 
 connection master;
@@ -183,7 +174,6 @@ update t1 set C1= 'd';
 
 sync_slave_with_master;
 
-connection slave;
 SELECT * FROM t2 order by id;
 
 connection master;
@@ -192,7 +182,6 @@ delete from t1 where C1='d';
 
 sync_slave_with_master;
 
-connection slave;
 SELECT * FROM t2 order by id;
 
 --echo # INSERT triggers which cause also UPDATE test (insert duplicate row)
@@ -206,7 +195,6 @@ insert into t1 values ('0','1');
 
 sync_slave_with_master;
 
-connection slave;
 SELECT * FROM t2 order by id;
 
 
@@ -222,7 +210,6 @@ insert into t1 values ('1','1');
 
 sync_slave_with_master;
 
-connection slave;
 SELECT * FROM t2 order by id;
 
 connection master;
@@ -231,7 +218,6 @@ drop table t3,t1;
 
 sync_slave_with_master;
 
-connection slave;
 SET @@global.slave_exec_mode= @old_slave_exec_mode;
 SET @@global.slave_run_triggers_for_rbr= @old_slave_run_triggers_for_rbr;
 drop table t2;
@@ -250,7 +236,6 @@ create trigger tr1 after insert on t1 for each row insert into tlog values (1);
 set sql_log_bin=1;
 
 sync_slave_with_master;
---connection slave
 
 set @slave_run_triggers_for_rbr.saved = @@slave_run_triggers_for_rbr;
 set global slave_run_triggers_for_rbr=1;
@@ -343,7 +328,6 @@ create trigger t1_dummy before delete on t1 for each row
 
 sync_slave_with_master;
 
-connection slave;
 SET @old_slave_exec_mode= @@global.slave_exec_mode;
 SET @old_slave_run_triggers_for_rbr= @@global.slave_run_triggers_for_rbr;
 SET @@global.slave_exec_mode= IDEMPOTENT;
@@ -372,7 +356,6 @@ insert into t1 values ('a','b');
 
 sync_slave_with_master;
 
-connection slave;
 SELECT * FROM t2 order by id;
 
 connection master;
@@ -382,7 +365,6 @@ update t1 set C1= 'd';
 
 sync_slave_with_master;
 
-connection slave;
 SELECT * FROM t2 order by id;
 
 connection master;
@@ -391,7 +373,6 @@ delete from t1 where C1='d';
 
 sync_slave_with_master;
 
-connection slave;
 SELECT * FROM t2 order by id;
 
 --echo # INSERT triggers which cause also UPDATE test (insert duplicate row)
@@ -405,7 +386,6 @@ insert into t1 values ('0','1');
 
 sync_slave_with_master;
 
-connection slave;
 SELECT * FROM t2 order by id;
 
 
@@ -421,7 +401,6 @@ insert into t1 values ('1','1');
 
 sync_slave_with_master;
 
-connection slave;
 SELECT * FROM t2 order by id;
 
 connection master;
@@ -430,7 +409,6 @@ drop table t3,t1;
 
 sync_slave_with_master;
 
-connection slave;
 SET @@global.slave_exec_mode= @old_slave_exec_mode;
 SET @@global.slave_run_triggers_for_rbr= @old_slave_run_triggers_for_rbr;
 drop table t2;

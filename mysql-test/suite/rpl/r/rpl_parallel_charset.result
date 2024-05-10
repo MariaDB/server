@@ -59,7 +59,9 @@ a	b
 18	Rødgrød med fløde 8
 19	Rødgrød med fløde 9
 20	Rødgrød med fløde 10
+save_master_pos;
 connection server_2;
+sync_with_master;
 SET character_set_results=utf8;
 SELECT * FROM t1 ORDER BY a;
 a	b

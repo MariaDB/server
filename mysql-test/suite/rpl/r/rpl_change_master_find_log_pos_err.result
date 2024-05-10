@@ -22,6 +22,7 @@ include/wait_for_slave_param.inc [Relay_Log_File]
 connection master;
 CREATE TABLE t1 (a int);
 insert into t1 values (1);
+sync_slave_with_master;
 connection slave;
 connection slave;
 #

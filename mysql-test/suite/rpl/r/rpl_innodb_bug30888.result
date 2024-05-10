@@ -27,6 +27,7 @@ SET del_count = del_count - 2;
 END WHILE;
 END|
 CALL test.proc_norm();
+sync_slave_with_master;
 connection slave;
 connection master;
 DROP PROCEDURE test.proc_norm;

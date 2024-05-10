@@ -16,15 +16,20 @@ INSERT INTO t1 (a) SELECT null FROM t1;
 INSERT INTO t1 (a) SELECT null FROM t1;
 INSERT INTO t1 (a) SELECT null FROM t1;
 INSERT INTO t1 (a) SELECT null FROM t1;
+save_master_pos;
 update t1 set b=(a/2*rand());
 delete from t1 order by b limit 10000;
 connection slave;
+sync_with_master;
 optimize table t1;
 Table	Op	Msg_type	Msg_text
 test.t1	optimize	status	OK
 connection master;
+save_master_pos;
 connection slave;
+sync_with_master;
 connection master;
 drop table t1;
+sync_slave_with_master;
 connection slave;
 include/rpl_end.inc

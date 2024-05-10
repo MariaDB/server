@@ -5,6 +5,7 @@ CREATE TEMPORARY TABLE temp_t1 (c1 INT) ENGINE=InnoDB;
 CREATE TEMPORARY TABLE temp_t2 (c1 INT) ENGINE=MyISAM;
 CREATE TABLE t1 LIKE temp_t1;
 CREATE TABLE t2 LIKE temp_t2;
+sync_slave_with_master;
 connection slave;
 connection master;
 include/assert.inc ["t1 on master and temp_t1 have the same storage engine"]

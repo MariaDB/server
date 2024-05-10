@@ -4,6 +4,7 @@ connection master;
 CREATE TABLE t1 (a INT, b INT);
 CREATE INDEX i1 ON t1 (a);
 CREATE OR REPLACE INDEX i1 ON t1 (a, b);
+sync_slave_with_master;
 connection slave;
 SHOW CREATE TABLE t1;
 Table	Create Table
@@ -21,5 +22,6 @@ t1	CREATE TABLE `t1` (
   KEY `i1` (`a`,`b`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
+sync_slave_with_master;
 connection slave;
 include/rpl_end.inc

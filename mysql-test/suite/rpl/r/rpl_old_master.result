@@ -16,7 +16,9 @@ UNLOCK TABLES;
 connection master;
 CREATE TABLE t2 (a INT PRIMARY KEY) ENGINE=InnoDB;
 INSERT INTO t2 VALUES (1);
+save_master_pos;
 connection slave;
+sync_with_master;
 SELECT * FROM t1 ORDER BY a;
 a	b
 1	1

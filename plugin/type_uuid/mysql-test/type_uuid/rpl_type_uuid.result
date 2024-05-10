@@ -8,6 +8,7 @@ CREATE TABLE t1 (a UUID);
 INSERT INTO t1 VALUES
 ('00000000-0000-0000-0000-000000000000'),
 ('ffffffff-ffff-ffff-ffff-ffffffffffff');
+sync_slave_with_master;
 connection slave;
 SELECT HEX(a), a FROM t1;
 HEX(a)	a
@@ -15,5 +16,6 @@ HEX(a)	a
 FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF	ffffffff-ffff-ffff-ffff-ffffffffffff
 connection master;
 DROP TABLE t1;
+sync_slave_with_master;
 connection slave;
 include/rpl_end.inc

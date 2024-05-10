@@ -3,7 +3,7 @@ include/master-slave.inc
 connection master;
 create table t1 (a int DEFAULT (1+1), b bigint default uuid_short(), u blob default user());
 insert into t1 (a) values(1);
-connection slave;
+sync_slave_with_master;
 connection slave;
 show create table t1;
 Table	Create Table

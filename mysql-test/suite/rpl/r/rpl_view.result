@@ -2,6 +2,7 @@ include/master-slave.inc
 [connection master]
 drop table if exists t1,v1;
 drop view if exists t1,v1;
+sync_slave_with_master;
 connection slave;
 reset master;
 connection master;
@@ -13,6 +14,7 @@ select * from v1 order by a;
 a
 1
 2
+sync_slave_with_master;
 connection slave;
 select * from v1 order by a;
 a
@@ -24,6 +26,7 @@ select * from v1 order by a;
 a
 2
 3
+sync_slave_with_master;
 connection slave;
 select * from v1 order by a;
 a
@@ -34,23 +37,27 @@ delete from v1 where a=2;
 select * from v1 order by a;
 a
 3
+sync_slave_with_master;
 connection slave;
 select * from v1 order by a;
 a
 3
 connection master;
 alter view v1 as select a as b from t1;
+sync_slave_with_master;
 connection slave;
 select * from v1 order by 1;
 b
 3
 connection master;
 drop view v1;
+sync_slave_with_master;
 connection slave;
 select * from v1 order by a;
 ERROR 42S02: Table 'test.v1' doesn't exist
 connection master;
 drop table t1;
+sync_slave_with_master;
 connection slave;
 
 ---> Test for BUG#20438
@@ -61,6 +68,7 @@ DROP TABLE IF EXISTS t1;
 DROP VIEW IF EXISTS v1;
 
 ---> Synchronizing slave with master...
+sync_slave_with_master;
 connection slave;
 
 connection master;
@@ -78,6 +86,7 @@ c
 1
 
 ---> Synchronizing slave with master...
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t1;
 c
@@ -87,12 +96,14 @@ connection master;
 ---> Cleaning up...
 DROP VIEW v1;
 DROP TABLE t1;
+sync_slave_with_master;
 connection slave;
 connection master;
 connection master;
 create table t1(a int, b int);
 insert into t1 values (1, 1), (1, 2), (1, 3);
 create view  v1(a, b) as select a, sum(b) from t1 group by a;
+sync_slave_with_master;
 connection slave;
 explain v1;
 Field	Type	Null	Key	Default	Extra
@@ -107,6 +118,7 @@ a	b
 connection master;
 drop table t1;
 drop view v1;
+sync_slave_with_master;
 connection slave;
 connection master;
 CREATE TABLE t1(a INT);
@@ -115,6 +127,7 @@ CREATE VIEW v1 AS SELECT * FROM t1;
 ERROR 42S01: Table 'v1' already exists
 DROP VIEW v1;
 DROP TABLE t1;
+sync_slave_with_master;
 connection slave;
 connection master;
 CREATE TABLE t1 (a INT);
@@ -126,6 +139,7 @@ CREATE TABLE t1 (a INT);
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
 v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`a` AS `a` from `t1` where `t1`.`a` < 3 WITH CASCADED CHECK OPTION	latin1	latin1_swedish_ci
+sync_slave_with_master;
 connection slave;
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
@@ -133,6 +147,7 @@ v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VI
 connection master;
 DROP VIEW v1;
 DROP TABLE t1;
+sync_slave_with_master;
 connection slave;
 End of 5.0 tests
 include/rpl_end.inc

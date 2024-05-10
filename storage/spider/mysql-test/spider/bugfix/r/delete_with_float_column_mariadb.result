@@ -28,7 +28,9 @@ connection child2_1;
 CHILD2_1_CREATE_TABLES
 TRUNCATE TABLE mysql.general_log;
 connection master_1;
+save_master_pos;
 connection slave1_1;
+sync_with_master;
 connection master_1;
 SET SESSION sql_log_bin= 0;
 CREATE TABLE tbl_a (
@@ -48,7 +50,9 @@ INSERT INTO tbl_a (pkey, f) VALUES (0,NULL);
 INSERT INTO tbl_a (pkey, f) VALUES (1,0.671437);
 DELETE FROM tbl_a WHERE pkey = 0;
 DELETE FROM tbl_a WHERE pkey = 1;
+save_master_pos;
 connection slave1_1;
+sync_with_master;
 connection master_1;
 SET SESSION sql_log_bin= 0;
 connection child2_1;

@@ -36,6 +36,7 @@ select * from t1;
 id	fname
 1	testtest 1
 2	test
+sync_slave_with_master;
 connection slave;
 use test1;
 select * from t1;

@@ -120,6 +120,8 @@ Abernathy
 aberrant
 aberration
 
+save_master_pos;
+sync_slave_with_master;
 connection slave;
 connection slave;
 SELECT * FROM test.t1 ORDER BY blob_column;
@@ -229,5 +231,6 @@ aberration
 connection master;
 DROP PROCEDURE IF EXISTS test.p1;
 DROP TABLE test.t1;
+sync_slave_with_master;
 connection slave;
 include/rpl_end.inc

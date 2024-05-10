@@ -46,6 +46,7 @@ a	name	old_a	old_b	truncate(rand_value,4)
 105	t2	4	0	0.6635
 106	t2	6	0	0.6699
 107	t2	500	0	0.3593
+sync_slave_with_master;
 connection slave;
 select a,b, truncate(rand_value,4) from t1;
 a	b	truncate(rand_value,4)
@@ -104,6 +105,7 @@ FROM information_schema.triggers
 WHERE trigger_name = 't1_first';
 trigger_name	definer
 t1_first	root@localhost
+sync_slave_with_master;
 connection slave;
 SELECT routine_name, definer
 FROM information_schema.routines
@@ -141,6 +143,7 @@ end|
 create database other;
 use other;
 insert into test.t1 values (1);
+sync_slave_with_master;
 connection slave;
 connection master;
 use test;
@@ -161,6 +164,7 @@ insert into t110 values (-4);
 insert into t110 values (-3);
 insert into t110 values (-2);
 insert into t110 values (-1);
+sync_slave_with_master;
 connection slave;
 select * from t110;
 f1
@@ -207,6 +211,7 @@ UPDATE t110 SET f1=4 where f1=-4;
 UPDATE t110 SET f1=3 where f1=-3;
 UPDATE t110 SET f1=2 where f1=-2;
 UPDATE t110 SET f1=1 where f1=-1;
+sync_slave_with_master;
 connection slave;
 SELECT * from t110 /* must be f1 5 ... 1 */;
 f1
@@ -226,6 +231,7 @@ drop trigger trg110;
 drop table t210,t310;
 connection master;
 drop table t110;
+sync_slave_with_master;
 connection slave;
 connection master;
 -------------------
@@ -242,6 +248,7 @@ insert into t19 values (-4);
 insert into t19 values (-3);
 insert into t19 values (-2);
 insert into t19 values (-1);
+sync_slave_with_master;
 connection slave;
 select * from t19;
 f1
@@ -288,6 +295,7 @@ UPDATE t19 SET f1=4 where f1=-4;
 UPDATE t19 SET f1=3 where f1=-3;
 UPDATE t19 SET f1=2 where f1=-2;
 UPDATE t19 SET f1=1 where f1=-1;
+sync_slave_with_master;
 connection slave;
 SELECT * from t19 /* must be f1 5 ... 1 */;
 f1
@@ -307,6 +315,7 @@ drop trigger trg19;
 drop table t29,t39;
 connection master;
 drop table t19;
+sync_slave_with_master;
 connection slave;
 connection master;
 -------------------
@@ -323,6 +332,7 @@ insert into t18 values (-4);
 insert into t18 values (-3);
 insert into t18 values (-2);
 insert into t18 values (-1);
+sync_slave_with_master;
 connection slave;
 select * from t18;
 f1
@@ -369,6 +379,7 @@ UPDATE t18 SET f1=4 where f1=-4;
 UPDATE t18 SET f1=3 where f1=-3;
 UPDATE t18 SET f1=2 where f1=-2;
 UPDATE t18 SET f1=1 where f1=-1;
+sync_slave_with_master;
 connection slave;
 SELECT * from t18 /* must be f1 5 ... 1 */;
 f1
@@ -388,6 +399,7 @@ drop trigger trg18;
 drop table t28,t38;
 connection master;
 drop table t18;
+sync_slave_with_master;
 connection slave;
 connection master;
 -------------------
@@ -404,6 +416,7 @@ insert into t17 values (-4);
 insert into t17 values (-3);
 insert into t17 values (-2);
 insert into t17 values (-1);
+sync_slave_with_master;
 connection slave;
 select * from t17;
 f1
@@ -450,6 +463,7 @@ UPDATE t17 SET f1=4 where f1=-4;
 UPDATE t17 SET f1=3 where f1=-3;
 UPDATE t17 SET f1=2 where f1=-2;
 UPDATE t17 SET f1=1 where f1=-1;
+sync_slave_with_master;
 connection slave;
 SELECT * from t17 /* must be f1 5 ... 1 */;
 f1
@@ -469,6 +483,7 @@ drop trigger trg17;
 drop table t27,t37;
 connection master;
 drop table t17;
+sync_slave_with_master;
 connection slave;
 connection master;
 -------------------
@@ -485,6 +500,7 @@ insert into t16 values (-4);
 insert into t16 values (-3);
 insert into t16 values (-2);
 insert into t16 values (-1);
+sync_slave_with_master;
 connection slave;
 select * from t16;
 f1
@@ -531,6 +547,7 @@ UPDATE t16 SET f1=4 where f1=-4;
 UPDATE t16 SET f1=3 where f1=-3;
 UPDATE t16 SET f1=2 where f1=-2;
 UPDATE t16 SET f1=1 where f1=-1;
+sync_slave_with_master;
 connection slave;
 SELECT * from t16 /* must be f1 5 ... 1 */;
 f1
@@ -550,6 +567,7 @@ drop trigger trg16;
 drop table t26,t36;
 connection master;
 drop table t16;
+sync_slave_with_master;
 connection slave;
 connection master;
 -------------------
@@ -566,6 +584,7 @@ insert into t15 values (-4);
 insert into t15 values (-3);
 insert into t15 values (-2);
 insert into t15 values (-1);
+sync_slave_with_master;
 connection slave;
 select * from t15;
 f1
@@ -612,6 +631,7 @@ UPDATE t15 SET f1=4 where f1=-4;
 UPDATE t15 SET f1=3 where f1=-3;
 UPDATE t15 SET f1=2 where f1=-2;
 UPDATE t15 SET f1=1 where f1=-1;
+sync_slave_with_master;
 connection slave;
 SELECT * from t15 /* must be f1 5 ... 1 */;
 f1
@@ -631,6 +651,7 @@ drop trigger trg15;
 drop table t25,t35;
 connection master;
 drop table t15;
+sync_slave_with_master;
 connection slave;
 connection master;
 -------------------
@@ -647,6 +668,7 @@ insert into t14 values (-4);
 insert into t14 values (-3);
 insert into t14 values (-2);
 insert into t14 values (-1);
+sync_slave_with_master;
 connection slave;
 select * from t14;
 f1
@@ -693,6 +715,7 @@ UPDATE t14 SET f1=4 where f1=-4;
 UPDATE t14 SET f1=3 where f1=-3;
 UPDATE t14 SET f1=2 where f1=-2;
 UPDATE t14 SET f1=1 where f1=-1;
+sync_slave_with_master;
 connection slave;
 SELECT * from t14 /* must be f1 5 ... 1 */;
 f1
@@ -712,6 +735,7 @@ drop trigger trg14;
 drop table t24,t34;
 connection master;
 drop table t14;
+sync_slave_with_master;
 connection slave;
 connection master;
 -------------------
@@ -728,6 +752,7 @@ insert into t13 values (-4);
 insert into t13 values (-3);
 insert into t13 values (-2);
 insert into t13 values (-1);
+sync_slave_with_master;
 connection slave;
 select * from t13;
 f1
@@ -774,6 +799,7 @@ UPDATE t13 SET f1=4 where f1=-4;
 UPDATE t13 SET f1=3 where f1=-3;
 UPDATE t13 SET f1=2 where f1=-2;
 UPDATE t13 SET f1=1 where f1=-1;
+sync_slave_with_master;
 connection slave;
 SELECT * from t13 /* must be f1 5 ... 1 */;
 f1
@@ -793,6 +819,7 @@ drop trigger trg13;
 drop table t23,t33;
 connection master;
 drop table t13;
+sync_slave_with_master;
 connection slave;
 connection master;
 -------------------
@@ -809,6 +836,7 @@ insert into t12 values (-4);
 insert into t12 values (-3);
 insert into t12 values (-2);
 insert into t12 values (-1);
+sync_slave_with_master;
 connection slave;
 select * from t12;
 f1
@@ -855,6 +883,7 @@ UPDATE t12 SET f1=4 where f1=-4;
 UPDATE t12 SET f1=3 where f1=-3;
 UPDATE t12 SET f1=2 where f1=-2;
 UPDATE t12 SET f1=1 where f1=-1;
+sync_slave_with_master;
 connection slave;
 SELECT * from t12 /* must be f1 5 ... 1 */;
 f1
@@ -874,6 +903,7 @@ drop trigger trg12;
 drop table t22,t32;
 connection master;
 drop table t12;
+sync_slave_with_master;
 connection slave;
 connection master;
 -------------------
@@ -890,6 +920,7 @@ insert into t11 values (-4);
 insert into t11 values (-3);
 insert into t11 values (-2);
 insert into t11 values (-1);
+sync_slave_with_master;
 connection slave;
 select * from t11;
 f1
@@ -936,6 +967,7 @@ UPDATE t11 SET f1=4 where f1=-4;
 UPDATE t11 SET f1=3 where f1=-3;
 UPDATE t11 SET f1=2 where f1=-2;
 UPDATE t11 SET f1=1 where f1=-1;
+sync_slave_with_master;
 connection slave;
 SELECT * from t11 /* must be f1 5 ... 1 */;
 f1
@@ -955,6 +987,7 @@ drop trigger trg11;
 drop table t21,t31;
 connection master;
 drop table t11;
+sync_slave_with_master;
 connection slave;
 connection master;
 connection slave;
@@ -1018,6 +1051,7 @@ DROP TABLE IF EXISTS t1;
 DROP TABLE IF EXISTS t2;
 
 ---> Synchronizing slave with master...
+sync_slave_with_master;
 connection slave;
 
 connection master;
@@ -1041,6 +1075,7 @@ c
 10
 
 ---> Synchronizing slave with master...
+sync_slave_with_master;
 connection slave;
 
 ---> Checking on slave...
@@ -1056,6 +1091,7 @@ connection master;
 ---> Cleaning up...
 DROP TABLE t1;
 DROP TABLE t2;
+sync_slave_with_master;
 connection slave;
 connection master;
 connection master;
@@ -1080,6 +1116,7 @@ a	b
 1	In trigger t1_bi
 2	b
 3	c
+sync_slave_with_master;
 connection slave;
 select * from t1;
 a	b
@@ -1088,6 +1125,7 @@ a	b
 3	c
 connection master;
 drop table t1;
+sync_slave_with_master;
 connection slave;
 connection master;
 include/rpl_reset.inc
@@ -1108,11 +1146,13 @@ insert into t1 values ( 1 );
 rollback;
 Warnings:
 Warning	1196	Some non-transactional changed tables couldn't be rolled back
+sync_slave_with_master;
 connection slave;
 include/diff_tables.inc [master:t1, slave:t1]
 include/diff_tables.inc [master:log, slave:log]
 connection master;
 drop table t1, log;
+sync_slave_with_master;
 connection slave;
 connection master;
 drop trigger if exists notexistent;
@@ -1122,6 +1162,7 @@ include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; drop trigger if exists notexistent
+sync_slave_with_master;
 connection slave;
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
@@ -1147,6 +1188,7 @@ insert into t1 values (1,1);
 select * from t1;
 a	b
 1	64
+sync_slave_with_master;
 connection slave;
 show triggers;
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
@@ -1165,6 +1207,7 @@ ERROR HY000: Referenced trigger 'non_existing_trigger' for the given action time
 SHOW TRIGGERS;
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
 tr	INSERT	t1	SET @a=1	BEFORE	#	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	root@localhost	latin1	latin1_swedish_ci	latin1_swedish_ci
+sync_slave_with_master;
 connection slave;
 SHOW TRIGGERS;
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation

@@ -70,6 +70,8 @@ master-bin.000001	#	Query	#	#	XA COMMIT X'312d726f77',X'',1
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	XA COMMIT X'312d73746d74',X'',1
 include/sync_slave_sql_with_master.inc
+save_master_pos;
+sync_with_master;
 include/stop_slave.inc
 connection master;
 connect  master2, 127.0.0.1,root,,test,$MASTER_MYPORT,;
@@ -184,6 +186,8 @@ connection slave;
 include/start_slave.inc
 connection master;
 include/sync_slave_sql_with_master.inc
+save_master_pos;
+sync_with_master;
 include/stop_slave.inc
 connection master;
 XA COMMIT 'bulk_trx_10';
@@ -208,6 +212,8 @@ formatID	gtrid_length	bqual_length	data
 XA COMMIT '3-stmt';
 XA ROLLBACK '3-row';
 include/sync_slave_sql_with_master.inc
+save_master_pos;
+sync_with_master;
 connection master;
 connect  master_conn2, 127.0.0.1,root,,test,$MASTER_MYPORT,;
 XA START '0123456789012345678901234567890123456789012345678901234567890124','0123456789012345678901234567890123456789012345678901234567890124',2147483647;
@@ -229,6 +235,8 @@ XA COMMIT '0123456789012345678901234567890123456789012345678901234567890124','01
 XA COMMIT X'FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF',X'00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',0;
 XA COMMIT 'RANDOM XID'
 include/sync_slave_sql_with_master.inc
+save_master_pos;
+sync_with_master;
 connect  master_bulk_conn$i, 127.0.0.1,root,,test,$MASTER_MYPORT,;
 connection master_bulk_conn10;
 XA START 'one_phase_10';
@@ -311,6 +319,8 @@ XA COMMIT 'one_phase_1' ONE PHASE;
 disconnect master_bulk_conn1;
 connection master;
 include/sync_slave_sql_with_master.inc
+save_master_pos;
+sync_with_master;
 include/diff_tables.inc [master:d1.t, slave:d1.t]
 include/diff_tables.inc [master:d2.t, slave:d2.t]
 connection master;
@@ -321,4 +331,6 @@ DROP DATABASE d1;
 DROP DATABASE d2;
 DROP VIEW v_processlist;
 include/sync_slave_sql_with_master.inc
+save_master_pos;
+sync_with_master;
 include/rpl_end.inc

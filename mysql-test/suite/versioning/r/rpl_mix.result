@@ -5,6 +5,7 @@ INSERT INTO t1 VALUES (1,10),(2,20);
 UPDATE t1 SET i = 100;
 SET BINLOG_FORMAT= ROW;
 DELETE HISTORY FROM t1;
+sync_slave_with_master;
 connection slave;
 connection master;
 drop table t1;
@@ -50,6 +51,7 @@ master-bin.000002	#	Table_map	#	#	table_id: # (test.t1)
 master-bin.000002	#	Update_rows_v1	#	#	table_id: #
 master-bin.000002	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000002	#	Query	#	#	COMMIT
+sync_slave_with_master;
 connection slave;
 show create table t1;
 Table	Create Table

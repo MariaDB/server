@@ -35,6 +35,7 @@ master-bin.000001	#	Gtid	#	#	GTID #-#-# START ALTER
 master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; ALTER TABLE tab MODIFY COLUMN c varchar(100)
 master-bin.000001	#	Gtid	#	#	GTID #-#-# COMMIT ALTER id=#
 master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; ALTER TABLE tab MODIFY COLUMN c varchar(100)
+sync_slave_with_master;
 connection slave;
 SHOW CREATE TABLE tab;
 Table	Create Table
@@ -62,5 +63,6 @@ slave-bin.000001	#	Gtid	#	#	GTID #-#-# COMMIT ALTER id=#
 slave-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; ALTER TABLE tab MODIFY COLUMN c varchar(100)
 connection master;
 DROP TABLE tab;
+sync_slave_with_master;
 connection slave;
 include/rpl_end.inc

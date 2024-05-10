@@ -14,6 +14,7 @@ SET @save_debug= @@global.debug;
 SET GLOBAL debug_dbug="+d,semislave_failed_net_flush";
 include/start_slave.inc
 connection master;
+sync_slave_with_master;
 connection slave;
 "Assert that the net_fulsh() reply failed is present in slave error log.
 FOUND 1 /Semi-sync slave net_flush\(\) reply failed/ in mysqld.2.err
@@ -26,12 +27,14 @@ Slave_IO_Running= Yes
 SET GLOBAL debug_dbug= @save_debug;
 connection master;
 insert into t1 values (10);
+sync_slave_with_master;
 connection slave;
 connection slave;
 # Compare the tables on master and slave.
 include/diff_tables.inc [master:t1, slave:t1]
 connection master;
 drop table t1;
+sync_slave_with_master;
 connection slave;
 set global rpl_semi_sync_slave_enabled = OFF;
 connection master;

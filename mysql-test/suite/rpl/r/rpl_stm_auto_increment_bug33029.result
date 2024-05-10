@@ -108,6 +108,7 @@ id
 10
 SELECT * FROM t2;
 id
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t1;
 id
@@ -173,6 +174,7 @@ id
 17
 18
 19
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t1;
 id
@@ -206,5 +208,6 @@ DROP PROCEDURE IF EXISTS p1;
 DROP PROCEDURE IF EXISTS p2;
 DROP FUNCTION IF EXISTS f1;
 DROP TRIGGER IF EXISTS tr1;
+sync_slave_with_master;
 connection slave;
 include/rpl_end.inc

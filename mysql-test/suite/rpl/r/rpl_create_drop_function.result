@@ -6,6 +6,7 @@ CONCAT('Hello, ', str, '!');
 CREATE FUNCTION hello (str CHAR(20)) RETURNS CHAR(50) DETERMINISTIC RETURN
 CONCAT('Hello, ', str, '!');
 ERROR 42000: FUNCTION hello already exists
+sync_slave_with_master;
 connection slave;
 SHOW CREATE FUNCTION hello;
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
@@ -22,6 +23,7 @@ CONCAT('Hello, ', str, '!');
 SELECT hello('master');
 hello('master')
 Hello, master!
+sync_slave_with_master;
 connection slave;
 SELECT hello('slave');
 hello('slave')
@@ -39,6 +41,7 @@ Hello, master!
 SELECT bye('master');
 bye('master')
 Bye, master!
+sync_slave_with_master;
 connection slave;
 SELECT hello('slave');
 hello('slave')
@@ -49,6 +52,7 @@ Bye, slave!
 connection master;
 DROP FUNCTION hello;
 DROP FUNCTION IF EXISTS bye;
+sync_slave_with_master;
 connection slave;
 DROP FUNCTION hello;
 ERROR 42000: FUNCTION test.hello does not exist

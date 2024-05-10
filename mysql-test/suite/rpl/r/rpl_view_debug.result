@@ -15,6 +15,7 @@ select * from v1 order by a;
 a
 1
 2
+sync_slave_with_master;
 connection slave;
 show tables;
 Tables_in_test
@@ -29,6 +30,7 @@ show tables;
 Tables_in_test
 t1
 v1
+sync_slave_with_master;
 connection slave;
 show tables;
 Tables_in_test

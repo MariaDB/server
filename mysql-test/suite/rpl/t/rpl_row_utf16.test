@@ -12,7 +12,7 @@ INSERT INTO t1 VALUES ();       # default value is inserted and encoded correctl
 
 --query_vertical SELECT c1, hex(c1) from t1
 
--- sync_slave_with_master
+--sync_slave_with_master
 
 --query_vertical SELECT c1, hex(c1) FROM t1
 

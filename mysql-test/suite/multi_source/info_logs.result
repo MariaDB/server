@@ -35,7 +35,9 @@ start slave 'MASTER 2.2';
 set default_master_connection = 'MASTER 2.2';
 include/wait_for_slave_to_start.inc
 connect  master2,127.0.0.1,root,,,$SERVER_MYPORT_2;
+save_master_pos;
 connection slave;
+sync_with_master 0,'MASTER 2.2';
 #
 # List of files matching '*info*' pattern
 #  while 'master1' and 'MASTER 2.2' are running
@@ -78,7 +80,9 @@ master_use_gtid=no;
 start slave;
 include/wait_for_slave_to_start.inc
 connect  master1,127.0.0.1,root,,,$SERVER_MYPORT_1;
+save_master_pos;
 connection slave;
+sync_with_master;
 #
 # List of files matching '*info*' pattern
 #   while 'MASTER 2.2' and '' are running

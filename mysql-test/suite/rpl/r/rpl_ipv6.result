@@ -6,6 +6,7 @@ reset master;
 show master status;
 File	Position	Binlog_Do_DB	Binlog_Ignore_DB
 master-bin.000001	#	<Binlog_Do_DB>	<Binlog_Ignore_DB>
+save_master_pos;
 connection slave;
 reset slave;
 change master to master_host='::1';
@@ -21,6 +22,7 @@ reset master;
 show master status;
 File	Position	Binlog_Do_DB	Binlog_Ignore_DB
 master-bin.000001	#	<Binlog_Do_DB>	<Binlog_Ignore_DB>
+save_master_pos;
 connection slave;
 reset slave;
 change master to master_host='0000:0000:0000:0000:0000:0000:0000:0001';
@@ -36,6 +38,7 @@ reset master;
 show master status;
 File	Position	Binlog_Do_DB	Binlog_Ignore_DB
 master-bin.000001	#	<Binlog_Do_DB>	<Binlog_Ignore_DB>
+save_master_pos;
 connection slave;
 reset slave;
 change master to master_host='0:0:0:0:0:0:0:1';
@@ -51,6 +54,7 @@ reset master;
 show master status;
 File	Position	Binlog_Do_DB	Binlog_Ignore_DB
 master-bin.000001	#	<Binlog_Do_DB>	<Binlog_Ignore_DB>
+save_master_pos;
 connection slave;
 reset slave;
 Master-Host: 0:0:0:0:0:0:0:1

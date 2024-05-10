@@ -14,9 +14,13 @@ Note	1937	SLAVE 'slave2' started
 include/wait_for_slave_to_start.inc
 set default_master_connection = '';
 connection master1;
+save_master_pos;
 connection slave;
+sync_with_master 0,'slave1';
 connection master2;
+save_master_pos;
 connection slave;
+sync_with_master 0,'slave2';
 show all slaves status;
 Connection_name	slave1
 Slave_SQL_State	Slave has read all relay log; waiting for more updates

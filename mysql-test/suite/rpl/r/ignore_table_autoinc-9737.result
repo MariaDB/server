@@ -3,6 +3,7 @@ include/master-slave.inc
 call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
 create table t1(id int auto_increment primary key);
 create table t2(id int auto_increment primary key);
+sync_slave_with_master;
 connection slave;
 create table slave_only(id int auto_increment primary key);
 insert into slave_only values(NULL);
@@ -13,6 +14,7 @@ start slave;
 connection master;
 insert into t2 values(NULL);
 insert into t1 values(NULL);
+sync_slave_with_master;
 connection slave;
 drop table t1, t2, slave_only;
 stop slave;

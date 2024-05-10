@@ -8,16 +8,20 @@ connection server_1;
 RESET MASTER;
 FLUSH LOGS;
 CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+save_master_pos;
 connection server_2;
 SET GLOBAL gtid_slave_pos="";
 CHANGE MASTER TO master_host = '127.0.0.1', master_port = MASTER_PORT,
 MASTER_USE_GTID=SLAVE_POS;
 include/start_slave.inc
+sync_with_master;
 SELECT * FROM t1;
 a
 connection server_1;
 INSERT INTO t1 VALUES (1);
+save_master_pos;
 connection server_2;
+sync_with_master;
 SELECT * FROM t1;
 a
 1
@@ -26,6 +30,7 @@ include/stop_slave.inc
 connection server_1;
 FLUSH LOGS;
 INSERT INTO t1 VALUES (2);
+save_master_pos;
 include/wait_for_purge.inc "master-bin.000003"
 show binary logs;
 Log_name	File_size
@@ -40,6 +45,7 @@ include/stop_slave.inc
 CHANGE MASTER TO master_host = '127.0.0.1', master_port = MASTER_PORT,
 MASTER_LOG_FILE="master-bin.000003", MASTER_LOG_POS=4, MASTER_USE_GTID=NO;
 include/start_slave.inc
+sync_with_master;
 SELECT * FROM t1 ORDER BY a;
 a
 1
@@ -85,7 +91,9 @@ a
 4
 connection server_1;
 DROP TABLE t1;
+save_master_pos;
 connection server_2;
+sync_with_master;
 *** MDEV-4275: I/O thread restart duplicates events in relay log ***
 connection server_2;
 include/stop_slave.inc
@@ -100,7 +108,9 @@ include/start_slave.inc
 connection server_1;
 CREATE TABLE t1 (a INT PRIMARY KEY);
 INSERT INTO t1 VALUES (1);
+save_master_pos;
 connection server_2;
+sync_with_master;
 SELECT * FROM t1;
 a
 1
@@ -109,7 +119,9 @@ START SLAVE IO_THREAD;
 include/wait_for_slave_io_to_start.inc
 connection server_1;
 INSERT INTO t1 VALUES (2);
+save_master_pos;
 connection server_2;
+sync_with_master;
 SELECT * FROM t1 ORDER BY a;
 a
 1
@@ -125,6 +137,7 @@ Warning	1948	Specified value for @@gtid_slave_pos contains no value for replicat
 RESET MASTER;
 SET GLOBAL gtid_slave_pos="";
 include/start_slave.inc
+sync_with_master;
 SELECT * FROM t1 ORDER BY a;
 a
 1
@@ -139,6 +152,7 @@ SET GLOBAL gtid_slave_pos="";
 SET @save_slave_ddl_exec_mode=@@global.slave_ddl_exec_mode;
 SET GLOBAL slave_ddl_exec_mode=STRICT;
 include/start_slave.inc
+sync_with_master;
 SELECT * FROM t1 ORDER BY a;
 a
 1
@@ -246,12 +260,15 @@ connection server_1;
 DROP TABLE t1;
 RESET MASTER;
 CREATE TABLE t1 (a INT PRIMARY KEY);
+save_master_pos;
 connection server_2;
 include/start_slave.inc
+sync_with_master;
 include/stop_slave.inc
 connection server_1;
 INSERT INTO t1 VALUES (1);
 INSERT INTO t1 VALUES (2);
+save_master_pos;
 connection server_2;
 START SLAVE UNTIL master_log_file='LOG_FILE1', master_log_pos=LOG_POS1;
 include/wait_for_slave_sql_to_stop.inc
@@ -271,6 +288,7 @@ STOP SLAVE SQL_THREAD;
 include/wait_for_slave_sql_to_stop.inc
 CHANGE MASTER TO master_use_gtid=no;
 include/start_slave.inc
+sync_with_master;
 SELECT * FROM t1 ORDER BY a;
 a
 1

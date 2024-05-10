@@ -4,5 +4,6 @@ connection master;
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 SET a=1;
 DROP TABLE t1;
+sync_slave_with_master;
 connection slave;
 include/rpl_end.inc

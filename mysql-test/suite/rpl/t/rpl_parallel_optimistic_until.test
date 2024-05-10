@@ -306,7 +306,6 @@ if (`SELECT strcmp("$file_rl","$file_stop") > -1`)
 --sync_slave_with_master
 
 
-
 --echo *** case 5 Relay-log UNTIL inside a "big" trx that spawns few relay logs
 
 --connection master
@@ -375,7 +374,6 @@ if (`SELECT strcmp("$file_trx4", "$file_stop") <> 0 OR $pos_stop >= $pos_trx5 OR
 
 --let $diff_tables=master:t2,slave:t2
 --source include/diff_tables.inc
-
 
 
 --echo *** case 6 Relay-log UNTIL inside a small trx inside a sequence of relay logs

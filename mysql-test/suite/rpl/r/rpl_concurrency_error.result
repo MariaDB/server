@@ -134,6 +134,7 @@ master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; UPDATE IGNORE t SET
 master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO t VALUES (6 + (1 * 10),"brown")
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 connection master;
+sync_slave_with_master;
 connection slave;
 include/rpl_diff.inc
 include/rpl_diff.inc
@@ -144,6 +145,7 @@ connection master;
 DROP TRIGGER tr;
 DROP TABLE t;
 DROP TABLE n;
+sync_slave_with_master;
 connection slave;
 connection master;
 disconnect conn1;

@@ -8,6 +8,7 @@ include/master-slave.inc
 connection master;
 CREATE TABLE t1(n INT);
 DROP TABLE t1;
+sync_slave_with_master;
 connection slave;
 PREPARE stmt_1 FROM 'SHOW BINLOG EVENTS';
 EXECUTE stmt_1;

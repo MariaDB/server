@@ -72,6 +72,7 @@ RESET SLAVE;
 CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=MASTER_PORT, MASTER_USER='root', MASTER_CONNECT_RETRY=20;
 include/start_slave.inc
 connection master;
+sync_slave_with_master;
 connection slave;
 SHOW VARIABLES LIKE 'slave_net_timeout';
 Variable_name	Value
@@ -91,6 +92,7 @@ SET @@global.slave_net_timeout=100;
 CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=MASTER_PORT, MASTER_USER='root', MASTER_CONNECT_RETRY=20, MASTER_HEARTBEAT_PERIOD=20;
 include/start_slave.inc
 connection master;
+sync_slave_with_master;
 connection slave;
 SHOW GLOBAL STATUS LIKE 'slave_heartbeat_period';
 Variable_name	Value
@@ -120,6 +122,7 @@ Variable_name	Value
 Slave_received_heartbeats	0
 include/start_slave.inc
 connection master;
+sync_slave_with_master;
 connection slave;
 SHOW GLOBAL STATUS LIKE 'slave_heartbeat_period';
 Variable_name	Value
@@ -186,6 +189,7 @@ RESET SLAVE;
 CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=MASTER_PORT, MASTER_USER='root', MASTER_CONNECT_RETRY=20, MASTER_HEARTBEAT_PERIOD=0.1;
 include/start_slave.inc
 connection master;
+sync_slave_with_master;
 connection slave;
 Heartbeat event received
 
@@ -218,6 +222,7 @@ Heartbeat event received
 *** Stopped SQL thread by error ***
 connection master;
 CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(10), c LONGTEXT);
+sync_slave_with_master;
 connection slave;
 INSERT INTO t1 VALUES (1, 'on slave', NULL);
 connection master;
@@ -251,6 +256,7 @@ CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=MASTER_PORT, MASTER_USER='
 include/start_slave.inc
 connection master;
 SET @@global.event_scheduler=1;
+sync_slave_with_master;
 connection slave;
 connection master;
 connection slave;
@@ -258,6 +264,7 @@ Received heartbeats meet expectations: TRUE
 connection master;
 DELETE FROM t1;
 DROP EVENT e1;
+sync_slave_with_master;
 connection slave;
 
 *** Flush logs on slave ***
@@ -296,6 +303,7 @@ CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=MASTER_PORT, MASTER_USER='
 include/start_slave.inc
 connection master;
 RESET MASTER;
+sync_slave_with_master;
 connection slave;
 Heartbeat events are received after reset of master (1 means 'yes'): 1
 
@@ -319,10 +327,13 @@ CHANGE MASTER TO MASTER_HEARTBEAT_PERIOD=1;
 include/start_slave.inc
 CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(10));
 INSERT INTO t1 VALUES(1, 'on master');
+save_master_pos;
 connection slave;
 CHANGE MASTER TO MASTER_HEARTBEAT_PERIOD=0.1;
 include/start_slave.inc
+sync_with_master;
 INSERT INTO t1 VALUES(2, 'on slave');
+sync_slave_with_master master;
 connection master;
 SELECT * FROM t1 ORDER BY a;
 a	b
@@ -340,6 +351,7 @@ Heartbeat event received on slave
 *** Clean up ***
 connection master;
 DROP TABLE t1;
+sync_slave_with_master;
 connection slave;
 SET @@global.slave_net_timeout=@restore_slave_net_timeout;
 include/rpl_end.inc

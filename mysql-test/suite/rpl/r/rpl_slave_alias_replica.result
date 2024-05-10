@@ -18,10 +18,12 @@ START REPLICA;
 include/wait_for_slave_io_to_start.inc
 include/wait_for_slave_sql_to_start.inc
 connection master;
+sync_slave_with_master;
 connection slave;
 connection master;
 "Command: SHOW SLAVE HOSTS --> SHOW REPLICA HOSTS"
 DROP USER 'repl_user';
+sync_slave_with_master;
 connection slave;
 "Command: SHOW SLAVE IO/SQL THREAD --> SHOW REPLICA IO/SQL THREAD"
 STOP REPLICA IO_THREAD;

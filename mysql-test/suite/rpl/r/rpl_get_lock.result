@@ -11,6 +11,7 @@ get_lock("lock",2)
 select release_lock("lock");
 release_lock("lock")
 1
+sync_slave_with_master;
 connection slave;
 select get_lock("lock",3);
 get_lock("lock",3)
@@ -34,5 +35,6 @@ is_free_lock(NULL)
 NULL
 connection master1;
 drop table t1;
+sync_slave_with_master;
 connection slave;
 include/rpl_end.inc

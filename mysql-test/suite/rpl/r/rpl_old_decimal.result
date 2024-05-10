@@ -9,5 +9,6 @@ include/wait_for_slave_sql_error_and_skip.inc [errno=1677]
 Last_SQL_Error = 'Column 0 of table 'test.t1dec102' cannot be converted from type 'decimal(0,?)/*old*/' to type 'decimal(10,2)''
 connection master;
 DROP TABLE t1dec102;
+sync_slave_with_master;
 connection slave;
 include/rpl_end.inc

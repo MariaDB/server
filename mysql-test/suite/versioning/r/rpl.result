@@ -14,6 +14,7 @@ x
 select * from t1 for system_time all order by row_end, x;
 x
 1
+sync_slave_with_master;
 connection slave;
 select * from t1 order by x;
 x
@@ -22,12 +23,14 @@ x
 1
 connection master;
 insert into t1 values (2);
+sync_slave_with_master;
 connection slave;
 select * from t1 order by x;
 x
 2
 connection master;
 update t1 set x = 3;
+sync_slave_with_master;
 connection slave;
 select * from t1 order by x;
 x
@@ -40,10 +43,12 @@ x
 # check unversioned -> versioned replication
 connection master;
 create or replace table t1 (x int primary key);
+sync_slave_with_master;
 connection slave;
 alter table t1 with system versioning;
 connection master;
 insert into t1 values (1);
+sync_slave_with_master;
 connection slave;
 select * from t1 order by x;
 x
@@ -53,6 +58,7 @@ x
 1
 connection master;
 update t1 set x= 2 where x = 1;
+sync_slave_with_master;
 connection slave;
 select * from t1 order by x;
 x
@@ -63,6 +69,7 @@ x
 2
 connection master;
 delete from t1;
+sync_slave_with_master;
 connection slave;
 select * from t1 order by x;
 x
@@ -73,11 +80,13 @@ x
 # same thing (UPDATE, DELETE), but without PK
 connection master;
 create or replace table t1 (x int);
+sync_slave_with_master;
 connection slave;
 alter table t1 with system versioning;
 connection master;
 insert into t1 values (1);
 update t1 set x= 2 where x = 1;
+sync_slave_with_master;
 connection slave;
 select * from t1 order by x;
 x
@@ -88,6 +97,7 @@ x
 2
 connection master;
 delete from t1;
+sync_slave_with_master;
 connection slave;
 select * from t1 order by x;
 x
@@ -102,6 +112,7 @@ create or replace table t2 (x int) with system versioning;
 insert into t1 values (1);
 insert into t2 values (2);
 update t1, t2 set t1.x=11, t2.x=22;
+sync_slave_with_master;
 connection slave;
 select * from t1 order by x;
 x
@@ -123,6 +134,7 @@ connection master;
 create or replace table t1 (a int) with system versioning;
 set system_versioning_alter_history= KEEP;
 alter table t1 add column b int;
+sync_slave_with_master;
 connection slave;
 show create table t1;
 Table	Create Table
@@ -135,6 +147,7 @@ connection master;
 set system_versioning_alter_history= ERROR;
 alter table t1 drop column b;
 ERROR HY000: Not allowed for system-versioned `test`.`t1`. Change @@system_versioning_alter_history to proceed with ALTER.
+sync_slave_with_master;
 connection slave;
 show create table t1;
 Table	Create Table
@@ -145,10 +158,12 @@ t1	CREATE TABLE `t1` (
 ## Case 3: table is not versioned on the master, ALTER will work on the slave
 connection master;
 create or replace table t1 (a int);
+sync_slave_with_master;
 connection slave;
 create or replace table t1 (a int) with system versioning;
 connection master;
 alter table t1 add column b int;
+sync_slave_with_master;
 connection slave;
 show create table t1;
 Table	Create Table
@@ -162,6 +177,7 @@ create table t1 (i int) with system versioning partition by system_time limit 8 
 insert into t1 values (1);
 update t1 set i = 1;
 update t1 set i = 0;
+sync_slave_with_master;
 connection slave;
 connection master;
 drop table t1;
@@ -171,10 +187,12 @@ create table t1 (a INT) with system versioning;
 insert into t1 values (1);
 insert into t1 values (1);
 delete from t1;
+sync_slave_with_master;
 connection slave;
 include/diff_tables.inc [master:test.t1,slave:test.t1]
 connection master;
 drop table t1;
+sync_slave_with_master;
 connection slave;
 # check unversioned -> versioned replication with non-unique keys on duplicate records
 connection master;
@@ -185,6 +203,7 @@ connection master;
 insert into t1 values (1,1);
 insert into t1 values (1,1);
 delete from t1;
+sync_slave_with_master;
 connection slave;
 include/diff_tables.inc [master:test.t1,slave:test.t1]
 connection master;
@@ -206,6 +225,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
  PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
 PARTITIONS 3
+sync_slave_with_master;
 connection slave;
 show create table t1;
 Table	Create Table
@@ -236,6 +256,7 @@ t	CREATE TABLE `t` (
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
  PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2001-01-01 01:00:00' AUTO
 PARTITIONS 3
+sync_slave_with_master;
 connection slave;
 show create table t;
 Table	Create Table
@@ -246,6 +267,7 @@ t	CREATE TABLE `t` (
 PARTITIONS 3
 connection master;
 alter table t drop partition p0;
+sync_slave_with_master;
 connection slave;
 # INSERT .. ODKU
 connection master;
@@ -262,6 +284,7 @@ t	CREATE TABLE `t` (
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
  PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2001-01-01 02:00:00' AUTO
 PARTITIONS 3
+sync_slave_with_master;
 connection slave;
 show create table t;
 Table	Create Table
@@ -273,6 +296,7 @@ t	CREATE TABLE `t` (
 PARTITIONS 3
 connection master;
 alter table t drop partition p0;
+sync_slave_with_master;
 connection slave;
 # INSERT .. SELECT .. ODKU
 connection master;
@@ -290,6 +314,7 @@ t	CREATE TABLE `t` (
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
  PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2001-01-01 03:00:00' AUTO
 PARTITIONS 3
+sync_slave_with_master;
 connection slave;
 show create table t;
 Table	Create Table
@@ -301,6 +326,7 @@ t	CREATE TABLE `t` (
 PARTITIONS 3
 connection master;
 alter table t drop partition p0;
+sync_slave_with_master;
 connection slave;
 # UPDATE
 connection master;
@@ -316,6 +342,7 @@ t	CREATE TABLE `t` (
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
  PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2001-01-01 04:00:00' AUTO
 PARTITIONS 3
+sync_slave_with_master;
 connection slave;
 show create table t;
 Table	Create Table
@@ -326,6 +353,7 @@ t	CREATE TABLE `t` (
 PARTITIONS 3
 connection master;
 alter table t drop partition p0;
+sync_slave_with_master;
 connection slave;
 # DELETE
 connection master;
@@ -341,6 +369,7 @@ t	CREATE TABLE `t` (
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
  PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2001-01-01 05:00:00' AUTO
 PARTITIONS 3
+sync_slave_with_master;
 connection slave;
 show create table t;
 Table	Create Table
@@ -351,6 +380,7 @@ t	CREATE TABLE `t` (
 PARTITIONS 3
 connection master;
 alter table t drop partition p0;
+sync_slave_with_master;
 connection slave;
 # Multi-update
 connection master;
@@ -368,6 +398,7 @@ t	CREATE TABLE `t` (
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
  PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2001-01-01 06:00:00' AUTO
 PARTITIONS 3
+sync_slave_with_master;
 connection slave;
 show create table t;
 Table	Create Table
@@ -378,6 +409,7 @@ t	CREATE TABLE `t` (
 PARTITIONS 3
 connection master;
 alter table t drop partition p0;
+sync_slave_with_master;
 connection slave;
 # Multi-delete
 connection master;
@@ -395,6 +427,7 @@ t	CREATE TABLE `t` (
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
  PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2001-01-01 07:00:00' AUTO
 PARTITIONS 3
+sync_slave_with_master;
 connection slave;
 show create table t;
 Table	Create Table
@@ -405,6 +438,7 @@ t	CREATE TABLE `t` (
 PARTITIONS 3
 connection master;
 alter table t drop partition p0;
+sync_slave_with_master;
 connection slave;
 connection master;
 drop tables t, t2;
@@ -419,6 +453,7 @@ ERROR 42S22: Unknown column 'row_start' in 'field list'
 set @@system_versioning_insert_history= 1;
 insert into t1(x, row_start, row_end) values (3, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
 update t1 set x= x + 1;
+sync_slave_with_master;
 connection slave;
 set @@session.time_zone='+00:00';
 select x, check_row_ts(row_start, row_end) from t1 for system_time all order by x;
@@ -434,6 +469,7 @@ connection master;
 create or replace table t2 like t1;
 set @@system_versioning_insert_history= 1;
 insert into t2 (x, row_start, row_end) select x, row_start, row_end from t1 for system_time all;
+sync_slave_with_master;
 connection slave;
 select x, check_row_ts(row_start, row_end) from t2 for system_time all order by x;
 x	check_row_ts(row_start, row_end)
@@ -449,6 +485,7 @@ select x, row_start, row_end into outfile 'DATAFILE' from t1 for system_time all
 create or replace table t3 like t1;
 set @@system_versioning_insert_history= 1;
 load data infile 'DATAFILE' into table t3 (x, row_start, row_end);
+sync_slave_with_master;
 connection slave;
 select x, check_row_ts(row_start, row_end) from t3 for system_time all order by x;
 x	check_row_ts(row_start, row_end)
@@ -472,6 +509,7 @@ Warning	1906	The value specified for generated column 're' in table 't1' has bee
 select a,check_row_ts(rs,re) from t1 for system_time all;
 a	check_row_ts(rs,re)
 1	CURRENT ROW
+sync_slave_with_master;
 connection slave;
 select a,check_row_ts(rs,re) from t1 for system_time all;
 a	check_row_ts(rs,re)

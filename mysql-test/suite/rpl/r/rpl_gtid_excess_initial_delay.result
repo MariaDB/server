@@ -1,6 +1,7 @@
 include/master-slave.inc
 [connection master]
 CREATE TABLE t1 (i INT);
+sync_slave_with_master;
 connection slave;
 include/stop_slave.inc
 CHANGE MASTER TO MASTER_DELAY= 10;
@@ -18,6 +19,7 @@ CHANGE MASTER TO MASTER_DELAY=0;
 START SLAVE;
 connection master;
 DROP TABLE t1;
+sync_slave_with_master;
 connection slave;
 connection master;
 include/rpl_end.inc

@@ -41,7 +41,6 @@ ON SCHEDULE AT CURRENT_TIMESTAMP + INTERVAL 1 HOUR
 DO SELECT now();
 sync_slave_with_master;
 
-connection slave;
 #DROP database from slave.
 #The database and all tables can be recreated in slave 
 #if binlog of the second CREATE command is recorded and sent from master to slave.
@@ -60,7 +59,6 @@ ON SCHEDULE AT CURRENT_TIMESTAMP + INTERVAL 1 HOUR
 DO SELECT now(); 
 sync_slave_with_master;
 
-connection slave;
 SHOW TABLES in mysqltest;
 #Execution time changes in each run. So we disregard it by calling replace_column.
 replace_column 6 #;

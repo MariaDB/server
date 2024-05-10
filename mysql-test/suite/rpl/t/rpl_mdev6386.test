@@ -6,7 +6,6 @@ ALTER TABLE mysql.gtid_slave_pos ENGINE = InnoDB;
 CREATE TABLE t1 (a INT PRIMARY KEY, b INT) Engine=InnoDB;
 --sync_slave_with_master
 
---connection slave
 --source include/stop_slave.inc
 # Provoke a duplicate key error on replication.
 SET sql_log_bin= 0;

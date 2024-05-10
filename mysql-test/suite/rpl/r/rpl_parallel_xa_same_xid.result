@@ -12,6 +12,8 @@ connection master;
 CREATE TABLE t1 (a INT, b INT) ENGINE=InnoDB;
 CREATE TABLE t2 (a INT AUTO_INCREMENT PRIMARY KEY, b INT) ENGINE=InnoDB;
 include/sync_slave_sql_with_master.inc
+save_master_pos;
+sync_with_master;
 include/diff_tables.inc [master:t1, slave:t1]
 connection slave;
 include/stop_slave.inc

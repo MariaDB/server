@@ -13,6 +13,7 @@ START SLAVE IO_THREAD;
 include/wait_for_slave_io_to_start.inc
 connection master;
 create table t1 (a int primary key);
+sync_slave_with_master;
 connection slave;
 connection master;
 drop table t1;

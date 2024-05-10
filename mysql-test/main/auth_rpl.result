@@ -12,6 +12,7 @@ MASTER_USER=     'plug_user',
 MASTER_PASSWORD= 'plug_user';
 include/start_slave.inc
 connection master;
+sync_slave_with_master;
 connection slave;
 # Slave in-sync with master now.
 SELECT user, plugin, authentication_string FROM mysql.user WHERE user LIKE 'plug_user';

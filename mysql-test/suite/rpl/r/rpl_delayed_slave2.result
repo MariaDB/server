@@ -4,7 +4,9 @@ connection master;
 ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
 CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(100));
 INSERT INTO t1 VALUES (1, "a");
+save_master_pos;
 connection slave;
+sync_with_master;
 include/stop_slave.inc
 CHANGE MASTER TO master_use_gtid=slave_pos;
 SET @old_mode= @@GLOBAL.slave_parallel_mode;

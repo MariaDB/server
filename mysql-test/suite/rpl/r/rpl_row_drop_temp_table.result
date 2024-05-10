@@ -23,6 +23,7 @@ DROP TEMPORARY TABLE IF EXISTS t2_tmp;
 CREATE TEMPORARY TABLE IF NOT EXISTS t1_tmp ( t1 varchar(400) DEFAULT NULL) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 CREATE TEMPORARY TABLE IF NOT EXISTS t2_tmp ( t2 varchar(16) NOT NULL ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 END
+sync_slave_with_master;
 connection slave;
 SELECT @@read_only;
 @@read_only
@@ -33,6 +34,7 @@ DROP TEMPORARY TABLE t1_tmp;
 DROP TEMPORARY TABLE t2_tmp;
 DROP PROCEDURE testproc;
 SET GLOBAL read_only=0;
+sync_slave_with_master;
 connection slave;
 SET GLOBAL read_only=0;
 include/rpl_end.inc

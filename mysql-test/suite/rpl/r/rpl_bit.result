@@ -92,6 +92,7 @@ hex(bit3)
 15
 24
 35
+sync_slave_with_master;
 connection slave;
 SELECT  oSupp, sSuppD, GSuppDf, VNotSupp, x034 FROM test.t1;
 oSupp	sSuppD	GSuppDf	VNotSupp	x034
@@ -135,5 +136,6 @@ hex(bit3)
 35
 connection master;
 DROP TABLE IF EXISTS test.t1;
+sync_slave_with_master;
 connection slave;
 include/rpl_end.inc

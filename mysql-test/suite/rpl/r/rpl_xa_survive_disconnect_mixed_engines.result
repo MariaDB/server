@@ -91,6 +91,8 @@ XA END 'xa_trx';
 XA PREPARE 'xa_trx';
 XA COMMIT 'xa_trx' ;
 include/sync_slave_sql_with_master.inc
+save_master_pos;
+sync_with_master;
 connection master;
 === COMMIT ONE PHASE ===
 XA START 'xa_trx';
@@ -169,6 +171,8 @@ UPDATE t SET a = 99 where a = -1;
 XA END 'xa_trx';
 XA COMMIT 'xa_trx' ONE PHASE;
 include/sync_slave_sql_with_master.inc
+save_master_pos;
+sync_with_master;
 connection master;
 === ROLLBACK with PREPARE ===
 XA START 'xa_trx';
@@ -272,6 +276,8 @@ XA END 'xa_trx';
 XA PREPARE 'xa_trx';
 xa rollback 'xa_trx' ;
 include/sync_slave_sql_with_master.inc
+save_master_pos;
+sync_with_master;
 connection master;
 === ROLLBACK with no PREPARE ===
 XA START 'xa_trx';
@@ -366,8 +372,12 @@ UPDATE t SET a = 99 where a = -1;
 XA END 'xa_trx';
 xa rollback 'xa_trx' ;
 include/sync_slave_sql_with_master.inc
+save_master_pos;
+sync_with_master;
 include/diff_tables.inc [master:tm, slave:tm]
 connection master;
 DROP TABLE t, tm;
 include/sync_slave_sql_with_master.inc
+save_master_pos;
+sync_with_master;
 include/rpl_end.inc

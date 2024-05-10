@@ -9,7 +9,9 @@ include/wait_for_slave_to_start.inc
 connect  master1,127.0.0.1,root,,,$SERVER_MYPORT_1;
 drop table if exists t1;
 create table t1 (i int) engine=MyISAM;
+save_master_pos;
 connection slave;
+sync_with_master 0,'master1';
 mysqld-relay-bin-master1.000001
 mysqld-relay-bin-master1.000002
 mysqld-relay-bin-master1.index
@@ -30,7 +32,9 @@ mysqld-relay-bin-master1.000001	#	Format_desc	#	#	SERVER_VERSION, BINLOG_VERSION
 mysqld-relay-bin-master1.000001	#	Rotate	#	#	mysqld-relay-bin-master1.000002;pos=4
 connection master1;
 drop table t1;
+save_master_pos;
 connection slave;
+sync_with_master 0,'master1';
 include/reset_master_slave.inc
 disconnect slave;
 connection master1;

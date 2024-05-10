@@ -79,7 +79,6 @@ drop table ti;
 drop table tm;
 sync_slave_with_master;
 
---connection slave
 --source include/stop_slave.inc
 CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=(), MASTER_USE_GTID=NO;
 --source include/start_slave.inc

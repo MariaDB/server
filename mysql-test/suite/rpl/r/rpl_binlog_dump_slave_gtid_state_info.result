@@ -18,7 +18,9 @@ connection master;
 FOUND 1 /using_gtid\(0\), gtid\(\'\'\).*/ in mysqld.1.err
 CREATE TABLE t (f INT) ENGINE=INNODB;
 INSERT INTO t VALUES(10);
+save_master_pos;
 connection slave;
+sync_with_master;
 connection slave;
 include/stop_slave.inc
 CHANGE MASTER TO MASTER_USE_GTID=slave_pos;
@@ -28,7 +30,9 @@ connection master;
 FOUND 1 /using_gtid\(1\), gtid\(\'0-1-2\'\).*/ in mysqld.1.err
 SET @@SESSION.gtid_domain_id=10;
 INSERT INTO t VALUES(20);
+save_master_pos;
 connection slave;
+sync_with_master;
 connection slave;
 include/stop_slave.inc
 CHANGE MASTER TO MASTER_USE_GTID=slave_pos;

@@ -35,7 +35,9 @@ SELECT * FROM t6 ORDER BY a;
 a
 1
 4
+save_master_pos;
 connection server_2;
+sync_with_master;
 SELECT * FROM t6 ORDER BY a;
 a
 4

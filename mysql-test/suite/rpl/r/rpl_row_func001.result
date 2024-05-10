@@ -19,6 +19,8 @@ select * from test.t1;
 a
 1
 2
+save_master_pos;
+sync_slave_with_master;
 connection slave;
 connection slave;
 select * from test.t1;
@@ -28,5 +30,6 @@ a
 connection master;
 DROP FUNCTION test.f1;
 DROP TABLE test.t1;
+sync_slave_with_master;
 connection slave;
 include/rpl_end.inc

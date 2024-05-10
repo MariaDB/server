@@ -11,6 +11,7 @@ Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 DROP TABLE t1;
+sync_slave_with_master;
 connection slave;
 connection master;
 CREATE TABLE t1 ( a int, b int, INDEX idx1(b) ) ENGINE=MyISAM;
@@ -20,6 +21,7 @@ Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 DROP INDEX idx1 ON t1;
+sync_slave_with_master;
 connection slave;
 connection master;
 DROP TABLE t1;
@@ -30,6 +32,7 @@ Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 ALTER TABLE t1 DROP COLUMN b;
+sync_slave_with_master;
 connection slave;
 connection master;
 DROP TABLE t1;
@@ -40,6 +43,7 @@ Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 ALTER TABLE t1 RENAME to s;
+sync_slave_with_master;
 connection slave;
 connection master;
 DROP TABLE s;
@@ -50,6 +54,7 @@ Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 ALTER TABLE t1 CHANGE COLUMN b c int ;
+sync_slave_with_master;
 connection slave;
 connection master;
 DROP TABLE t1;

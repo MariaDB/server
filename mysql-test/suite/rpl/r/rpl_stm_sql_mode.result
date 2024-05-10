@@ -12,5 +12,6 @@ DROP TABLE t1;
 # assertion: sync slave with master makes slave not to stop with
 #            duplicate key error (because it has received event
 #            with expected error code).
+sync_slave_with_master;
 connection slave;
 include/rpl_end.inc

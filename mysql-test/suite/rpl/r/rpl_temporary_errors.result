@@ -5,6 +5,7 @@ call mtr.add_suppression("Can't find record in 't.'");
 connection master;
 CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=innodb;
 INSERT INTO t1 VALUES (1,1), (2,2), (3,3), (4,4);
+sync_slave_with_master;
 connection slave;
 SHOW STATUS LIKE 'Slave_retried_transactions';
 Variable_name	Value
@@ -25,6 +26,7 @@ a	b
 3	3
 4	4
 5	5
+sync_slave_with_master;
 connection slave;
 set @@global.slave_exec_mode= default;
 SHOW STATUS LIKE 'Slave_retried_transactions';
@@ -68,12 +70,15 @@ ROLLBACK;
 connection master;
 XA COMMIT 'xa1';
 include/sync_slave_sql_with_master.inc
+save_master_pos;
+sync_with_master;
 connection slave;
 include/assert.inc [XA transaction record must be in the table]
 set @@global.innodb_lock_wait_timeout=@save_innodb_lock_wait_timeout;
 set @@global.slave_transaction_retries= @save_slave_transaction_retries;
 connection master;
 DROP TABLE t1;
+sync_slave_with_master;
 connection slave;
 connection master;
 include/rpl_end.inc

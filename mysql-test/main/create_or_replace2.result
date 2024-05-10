@@ -17,6 +17,7 @@ t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+sync_slave_with_master;
 connection slave;
 SHOW TABLES;
 Tables_in_test

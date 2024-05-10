@@ -105,7 +105,6 @@ SELECT * FROM t1 ORDER BY a;
 
 --echo *** Select data from slave to compare ***
 sync_slave_with_master;
-connection slave;
 
 # Replace values in columns that display differently between SBR & RBR
 --replace_column 5 # 8 #

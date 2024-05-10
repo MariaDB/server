@@ -15,7 +15,9 @@ CREATE TABLE t1 (a int PRIMARY KEY) ENGINE=MyISAM;
 CREATE TABLE t2 (a int PRIMARY KEY) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (1);
 INSERT INTO t2 VALUES (1);
+save_master_pos;
 connection server_2;
+sync_with_master;
 connect  con_temp1,127.0.0.1,root,,test,$SERVER_MYPORT_2,;
 LOCK TABLE t1 WRITE;
 connection server_1;
@@ -54,9 +56,11 @@ DO_DOMAIN_IDS (BEFORE)     :
 IGNORE_DOMAIN_IDS (BEFORE) : 
 CHANGE MASTER TO DO_DOMAIN_IDS=(1), MASTER_USE_GTID=slave_pos;
 include/start_slave.inc
+sync_with_master;
 DO_DOMAIN_IDS (AFTER)     : 1
 IGNORE_DOMAIN_IDS (AFTER) : 
 connection server_2;
+sync_with_master;
 connection con_temp1;
 LOCK TABLE t1 WRITE;
 connection server_1;
@@ -101,9 +105,11 @@ DO_DOMAIN_IDS (BEFORE)     : 1
 IGNORE_DOMAIN_IDS (BEFORE) : 
 CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=(1), MASTER_USE_GTID=slave_pos;
 include/start_slave.inc
+sync_with_master;
 DO_DOMAIN_IDS (AFTER)     : 
 IGNORE_DOMAIN_IDS (AFTER) : 1
 connection server_2;
+sync_with_master;
 connection con_temp1;
 LOCK TABLE t1 WRITE;
 connection server_1;
@@ -169,7 +175,9 @@ a
 connection server_1;
 SET @@session.gtid_domain_id=0;
 DROP TABLE t1, t2;
+save_master_pos;
 connection server_2;
+sync_with_master;
 include/stop_slave.inc
 SET GLOBAL slave_parallel_threads= @old_parallel_threads;
 CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=();

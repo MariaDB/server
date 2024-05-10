@@ -5,7 +5,7 @@ connection master;
 CREATE TABLE t1 (C1 CHAR(1) primary key, C2 CHAR(1)) engine=innodb;
 SELECT * FROM t1;
 C1	C2
-connection slave;
+sync_slave_with_master;
 connection slave;
 SET @old_slave_exec_mode= @@global.slave_exec_mode;
 SET @old_slave_run_triggers_for_rbr= @@global.slave_run_triggers_for_rbr;
@@ -41,7 +41,7 @@ u1	0
 connection master;
 # INSERT triggers test
 insert into t1 values ('a','b');
-connection slave;
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t2 order by id;
 id	cnt	o	n
@@ -54,7 +54,7 @@ u1	0
 connection master;
 # UPDATE triggers test
 update t1 set C1= 'd';
-connection slave;
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t2 order by id;
 id	cnt	o	n
@@ -67,7 +67,7 @@ u1	1	a	d
 connection master;
 # DELETE triggers test
 delete from t1 where C1='d';
-connection slave;
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t2 order by id;
 id	cnt	o	n
@@ -89,7 +89,7 @@ u0	1	a	d
 u1	1	a	d
 connection master;
 insert into t1 values ('0','1');
-connection slave;
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t2 order by id;
 id	cnt	o	n
@@ -105,7 +105,7 @@ insert into t1 values ('1','1');
 connection master;
 CREATE TABLE t3 (C1 CHAR(1) primary key, FOREIGN KEY (C1) REFERENCES t1(C1) ) engine=innodb;
 insert into t1 values ('1','1');
-connection slave;
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t2 order by id;
 id	cnt	o	n
@@ -117,7 +117,7 @@ u0	1	a	d
 u1	1	a	d
 connection master;
 drop table t3,t1;
-connection slave;
+sync_slave_with_master;
 connection slave;
 SET @@global.slave_exec_mode= @old_slave_exec_mode;
 SET @@global.slave_run_triggers_for_rbr= @old_slave_run_triggers_for_rbr;
@@ -125,6 +125,7 @@ drop table t2;
 connection master;
 CREATE TABLE t1 (i INT) ENGINE=InnoDB;
 CREATE TABLE t2 (i INT) ENGINE=InnoDB;
+sync_slave_with_master;
 connection slave;
 SET @old_slave_run_triggers_for_rbr= @@global.slave_run_triggers_for_rbr;
 SET GLOBAL slave_run_triggers_for_rbr=YES;
@@ -135,6 +136,7 @@ BEGIN;
 INSERT INTO t1 VALUES (1);
 INSERT INTO t1 VALUES (2);
 COMMIT;
+sync_slave_with_master;
 connection slave;
 select * from t2;
 i
@@ -143,6 +145,7 @@ i
 SET @@global.slave_run_triggers_for_rbr= @old_slave_run_triggers_for_rbr;
 connection master;
 drop tables t2,t1;
+sync_slave_with_master;
 connection slave;
 # Triggers on slave do not work if master has some
 connection master;
@@ -151,7 +154,7 @@ SELECT * FROM t1;
 C1	C2
 create trigger t1_dummy before delete on t1 for each row
 set @dummy= 1;
-connection slave;
+sync_slave_with_master;
 connection slave;
 SET @old_slave_exec_mode= @@global.slave_exec_mode;
 SET @old_slave_run_triggers_for_rbr= @@global.slave_run_triggers_for_rbr;
@@ -185,7 +188,7 @@ u1	0
 connection master;
 # INSERT triggers test
 insert into t1 values ('a','b');
-connection slave;
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t2 order by id;
 id	cnt	o	n
@@ -198,7 +201,7 @@ u1	0
 connection master;
 # UPDATE triggers test
 update t1 set C1= 'd';
-connection slave;
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t2 order by id;
 id	cnt	o	n
@@ -211,7 +214,7 @@ u1	0
 connection master;
 # DELETE triggers test
 delete from t1 where C1='d';
-connection slave;
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t2 order by id;
 id	cnt	o	n
@@ -233,7 +236,7 @@ u0	0
 u1	0		
 connection master;
 insert into t1 values ('0','1');
-connection slave;
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t2 order by id;
 id	cnt	o	n
@@ -249,7 +252,7 @@ insert into t1 values ('1','1');
 connection master;
 CREATE TABLE t3 (C1 CHAR(1) primary key, FOREIGN KEY (C1) REFERENCES t1(C1) ) engine=innodb;
 insert into t1 values ('1','1');
-connection slave;
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t2 order by id;
 id	cnt	o	n
@@ -261,7 +264,7 @@ u0	0
 u1	0		
 connection master;
 drop table t3,t1;
-connection slave;
+sync_slave_with_master;
 connection slave;
 SET @@global.slave_exec_mode= @old_slave_exec_mode;
 SET @@global.slave_run_triggers_for_rbr= @old_slave_run_triggers_for_rbr;
@@ -275,13 +278,14 @@ create table tlog (a int);
 set sql_log_bin=0;
 create trigger tr1 after insert on t1 for each row insert into tlog values (1);
 set sql_log_bin=1;
-connection slave;
+sync_slave_with_master;
 connection slave;
 set @slave_run_triggers_for_rbr.saved = @@slave_run_triggers_for_rbr;
 set global slave_run_triggers_for_rbr=1;
 create trigger tr2 before insert on t1 for each row set new.b = new.a;
 connection master;
 insert into t1 values (1,10),(2,20),(3,30);
+sync_slave_with_master;
 connection slave;
 select * from t1;
 a	b
@@ -291,6 +295,7 @@ a	b
 set global slave_run_triggers_for_rbr = @slave_run_triggers_for_rbr.saved;
 connection master;
 drop table t1, tlog;
+sync_slave_with_master;
 connection slave;
 #
 # MDEV-8411 Assertion `is_stat_field || !table || (!table->write_set ||
@@ -305,6 +310,7 @@ connection master;
 set @binlog_row_image.saved = @@binlog_row_image;
 set binlog_row_image = MINIMAL;
 create table t1 (pk int primary key, f int);
+sync_slave_with_master;
 connection slave;
 #
 # Create a trigger on the slave.
@@ -322,6 +328,7 @@ select * from t1;
 pk	f
 11	1
 12	2
+sync_slave_with_master;
 connection slave;
 #
 # Check to see if slave has the table updated.
@@ -337,6 +344,7 @@ set global slave_run_triggers_for_rbr = @old_slave_run_triggers_for_rbr;
 connection master;
 set binlog_row_image = @binlog_row_image.saved;
 drop table t1;
+sync_slave_with_master;
 connection slave;
 #
 # enterprise 10.4 tests start
@@ -352,7 +360,7 @@ SELECT * FROM t1;
 C1	C2
 create trigger t1_dummy before delete on t1 for each row
 set @dummy= 1;
-connection slave;
+sync_slave_with_master;
 connection slave;
 SET @old_slave_exec_mode= @@global.slave_exec_mode;
 SET @old_slave_run_triggers_for_rbr= @@global.slave_run_triggers_for_rbr;
@@ -386,7 +394,7 @@ u1	0
 connection master;
 # INSERT triggers test
 insert into t1 values ('a','b');
-connection slave;
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t2 order by id;
 id	cnt	o	n
@@ -399,7 +407,7 @@ u1	0
 connection master;
 # UPDATE triggers test
 update t1 set C1= 'd';
-connection slave;
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t2 order by id;
 id	cnt	o	n
@@ -412,7 +420,7 @@ u1	1	a	d
 connection master;
 # DELETE triggers test
 delete from t1 where C1='d';
-connection slave;
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t2 order by id;
 id	cnt	o	n
@@ -434,7 +442,7 @@ u0	1	a	d
 u1	1	a	d
 connection master;
 insert into t1 values ('0','1');
-connection slave;
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t2 order by id;
 id	cnt	o	n
@@ -450,7 +458,7 @@ insert into t1 values ('1','1');
 connection master;
 CREATE TABLE t3 (C1 CHAR(1) primary key, FOREIGN KEY (C1) REFERENCES t1(C1) ) engine=innodb;
 insert into t1 values ('1','1');
-connection slave;
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t2 order by id;
 id	cnt	o	n
@@ -462,7 +470,7 @@ u0	1	a	d
 u1	1	a	d
 connection master;
 drop table t3,t1;
-connection slave;
+sync_slave_with_master;
 connection slave;
 SET @@global.slave_exec_mode= @old_slave_exec_mode;
 SET @@global.slave_run_triggers_for_rbr= @old_slave_run_triggers_for_rbr;

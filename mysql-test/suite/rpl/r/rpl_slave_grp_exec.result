@@ -20,6 +20,7 @@ connection master;
 INSERT INTO t3 VALUES(1, 'AA');
 INSERT INTO t2 VALUES(1, 'AA');
 INSERT INTO t1 VALUES(1, 'AA');
+sync_slave_with_master;
 connection slave;
 RENAME TABLE t3 TO t3_bak;
 connection master;
@@ -55,6 +56,7 @@ connection master;
 TRUNCATE t1;
 TRUNCATE t2;
 TRUNCATE t3;
+sync_slave_with_master;
 connection slave;
 
 *** Test non-transactional group w/ PK ***
@@ -62,6 +64,7 @@ connection master;
 ALTER TABLE t1 ADD PRIMARY KEY (a);
 ALTER TABLE t2 ADD PRIMARY KEY (a);
 ALTER TABLE t3 ADD PRIMARY KEY (a);
+sync_slave_with_master;
 connection slave;
 RENAME TABLE t3 TO t3_bak;
 connection master;
@@ -98,6 +101,7 @@ connection master;
 TRUNCATE t1;
 TRUNCATE t2;
 TRUNCATE t3;
+sync_slave_with_master;
 connection slave;
 
 *** Test transactional group w/ PK ***
@@ -105,6 +109,7 @@ connection master;
 ALTER TABLE t1 ENGINE=InnoDB;
 ALTER TABLE t2 ENGINE=InnoDB;
 ALTER TABLE t3 ENGINE=InnoDB;
+sync_slave_with_master;
 connection slave;
 RENAME TABLE t3 TO t3_bak;
 connection master;
@@ -144,5 +149,6 @@ include/start_slave.inc
 *** Clean up ***
 connection master;
 DROP TABLE t1,t2,t3;
+sync_slave_with_master;
 connection slave;
 include/rpl_end.inc

@@ -9,6 +9,7 @@ include/start_slave.inc
 connection master;
 create table t1(n int);
 insert into t1 values(24);
+sync_slave_with_master;
 connection slave;
 select * from t1;
 n

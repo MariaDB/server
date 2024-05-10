@@ -14,6 +14,7 @@ LOCK TABLES t1 WRITE, t2 WRITE;
 INSERT INTO t1(i) VALUES(3);
 UNLOCK TABLES;
 COMMIT;
+sync_slave_with_master;
 connection slave;
 include/diff_tables.inc [master:t1, slave:t1]
 include/diff_tables.inc [master:t2, slave:t2]
@@ -31,6 +32,7 @@ LOCK TABLES t2 WRITE, t1 READ;
 INSERT INTO t2(i) SELECT i FROM t1;
 UNLOCK TABLES;
 COMMIT;
+sync_slave_with_master;
 connection slave;
 include/diff_tables.inc [master:t1, slave:t1]
 include/diff_tables.inc [master:t2, slave:t2]
@@ -43,6 +45,7 @@ LOCK TABLES t1 WRITE;
 INSERT INTO t1 (i) values (2);
 UNLOCK TABLES;
 COMMIT;
+sync_slave_with_master;
 connection slave;
 include/diff_tables.inc [master:t1, slave:t1]
 connection master;
@@ -54,6 +57,7 @@ LOCK TABLES t1 WRITE;
 INSERT INTO t1 (i,j) VALUES (1,2) ON DUPLICATE KEY UPDATE j=j+1;
 UNLOCK TABLES;
 COMMIT;
+sync_slave_with_master;
 connection slave;
 include/diff_tables.inc [master:t1, slave:t1]
 connection master;
@@ -81,6 +85,7 @@ i
 2
 4
 5
+sync_slave_with_master;
 connection slave;
 include/diff_tables.inc [master:t2, slave:t2]
 include/diff_tables.inc [master:t3, slave:t3]

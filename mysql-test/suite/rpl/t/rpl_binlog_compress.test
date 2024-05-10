@@ -23,7 +23,6 @@ delete from t1 where test=1;
 
 select * from t1;
 sync_slave_with_master;
-connection slave;
 select * from t1;
 connection master;
 
@@ -36,7 +35,6 @@ delete from t1 where test=1;
 
 select * from t1;
 sync_slave_with_master;
-connection slave;
 select * from t1;
 connection master;
 
@@ -49,7 +47,6 @@ delete from t1 where test=1;
 
 select * from t1;
 sync_slave_with_master;
-connection slave;
 select * from t1;
 connection master;
 drop table t1;

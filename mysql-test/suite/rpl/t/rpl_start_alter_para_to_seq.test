@@ -14,8 +14,6 @@ ALTER  TABLE t1  WAIT 9 RENAME COLUMN a1 TO a2;
 SET  binlog_alter_two_phase = OFF;
 ALTER  TABLE t1  ALTER COLUMN d1 DROP DEFAULT;
 
---sync_slave_with_master
-
 # Cleanup
 --connection master
 drop table t1;

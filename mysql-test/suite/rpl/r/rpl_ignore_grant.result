@@ -5,6 +5,7 @@ set sql_mode="";
 delete from mysql.user where user=_binary'rpl_ignore_grant';
 delete from mysql.db where user=_binary'rpl_ignore_grant';
 flush privileges;
+sync_slave_with_master;
 connection slave;
 set sql_mode="";
 delete from mysql.user where user=_binary'rpl_ignore_grant';
@@ -17,6 +18,7 @@ show grants for rpl_ignore_grant@localhost;
 Grants for rpl_ignore_grant@localhost
 GRANT SELECT ON *.* TO `rpl_ignore_grant`@`localhost`
 GRANT DROP ON `test`.* TO `rpl_ignore_grant`@`localhost`
+sync_slave_with_master;
 connection slave;
 show grants for rpl_ignore_grant@localhost;
 ERROR 42000: There is no such grant defined for user 'rpl_ignore_grant' on host 'localhost'
@@ -29,6 +31,7 @@ count(*)
 grant select on *.* to rpl_ignore_grant@localhost;
 connection master;
 set password for rpl_ignore_grant@localhost=password("does it work?");
+sync_slave_with_master;
 connection slave;
 select password<>_binary'' from mysql.user where user=_binary'rpl_ignore_grant';
 password<>_binary''
@@ -37,6 +40,7 @@ connection master;
 delete from mysql.user where user=_binary'rpl_ignore_grant';
 delete from mysql.db where user=_binary'rpl_ignore_grant';
 flush privileges;
+sync_slave_with_master;
 connection slave;
 delete from mysql.user where user=_binary'rpl_ignore_grant';
 delete from mysql.db where user=_binary'rpl_ignore_grant';

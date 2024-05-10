@@ -16,6 +16,7 @@ select thread_id into @my_thread_id
 from performance_schema.threads
 where processlist_id = connection_id();
 create table test.marker(s1 int) engine=innodb;
+sync_slave_with_master;
 connection slave;
 #
 # *** Clear statement events
@@ -27,6 +28,7 @@ connection master;
 #
 insert into test.marker values (0);
 #
+sync_slave_with_master;
 connection slave;
 #
 # *** Verify row, get replication thread id, clear statement events
@@ -119,6 +121,7 @@ where (thread_id=@my_thread_id and digest_text like '%marker%'));
 #
 # STEP 5 - VERIFY DML AND DDL STATEMENT EVENTS ON SLAVE
 #
+sync_slave_with_master;
 connection slave;
 #
 # *** List statement events from master
@@ -200,6 +203,7 @@ insert into marker1_db.table1 values (999, '999'), (998, '998'), (997, '997');
 #
 # STEP 8 - VERIFY TABLE UPDATES FROM MASTER, EXPECT NO STATEMENT EVENTS ON SLAVE
 #
+sync_slave_with_master;
 connection slave;
 #
 # *** Confirm rows were replicated

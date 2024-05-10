@@ -55,10 +55,7 @@ CREATE TABLE t2 (
 
 INSERT INTO t2 ( o ) VALUES ( 1 );
 
---echo sync_slave_with_master
 sync_slave_with_master;
-
-connection slave;
 
 query_vertical SELECT * FROM t1;
 query_vertical SELECT * FROM t2;
@@ -71,10 +68,7 @@ SELECT CURRENT_TIMESTAMP;
 UPDATE t1 SET o = 2;
 UPDATE t2 SET o = 2;
 
---echo sync_slave_with_master
 sync_slave_with_master;
-
-connection slave;
 
 query_vertical SELECT * FROM t1;
 query_vertical SELECT * FROM t2;

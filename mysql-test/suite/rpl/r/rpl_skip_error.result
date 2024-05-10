@@ -4,11 +4,13 @@ connection slave;
 connection master;
 ==== Test Without sql_mode=strict_trans_tables ====
 create table t1 (n int not null primary key);
+sync_slave_with_master;
 connection slave;
 insert into t1 values (1);
 connection master;
 insert into t1 values (1);
 insert into t1 values (2),(3);
+sync_slave_with_master;
 connection slave;
 select * from t1 order by n;
 n
@@ -20,6 +22,7 @@ insert into t1 values (7),(8);
 connection master;
 set sql_mode=strict_trans_tables;
 insert into t1 values (7), (8), (9);
+sync_slave_with_master;
 connection slave;
 select * from t1 order by n;
 n
@@ -32,6 +35,7 @@ include/check_slave_is_running.inc
 ==== Clean Up ====
 connection master;
 drop table t1;
+sync_slave_with_master;
 connection slave;
 connection master;
 create table t1(a int primary key);
@@ -41,6 +45,7 @@ delete from t1;
 SET SQL_LOG_BIN=1;
 set sql_mode=strict_trans_tables;
 insert into t1 values (1), (2), (3);
+sync_slave_with_master;
 connection slave;
 select * from t1;
 a
@@ -50,6 +55,7 @@ include/check_slave_is_running.inc
 ==== Clean Up ====
 connection master;
 drop table t1;
+sync_slave_with_master;
 connection slave;
 ==== Using Innodb ====
 connection master;
@@ -82,6 +88,7 @@ SET SQL_LOG_BIN=0;
 DELETE FROM t1 WHERE id = 4;
 SET SQL_LOG_BIN=1;
 UPDATE t1 SET id= id + 3, data = 2;
+sync_slave_with_master;
 connection slave;
 
 **** We cannot execute a select as there are differences in the 
@@ -117,6 +124,7 @@ SET SQL_LOG_BIN=0;
 DELETE FROM t2 WHERE id = 5;
 SET SQL_LOG_BIN=1;
 UPDATE t2 SET id= id + 3, data = 2;
+sync_slave_with_master;
 connection slave;
 
 # Slave_skipped_errros = 5
@@ -126,5 +134,6 @@ connection slave;
 connection master;
 DROP TABLE t1;
 DROP TABLE t2;
+sync_slave_with_master;
 connection slave;
 include/rpl_end.inc

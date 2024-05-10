@@ -1,6 +1,7 @@
 include/master-slave.inc
 [connection master]
 drop table if exists test.t1;
+sync_slave_with_master;
 connection slave;
 reset master;
 create table test.t1(a int);
@@ -92,6 +93,7 @@ wait/synch/cond/sql/MYSQL_RELAY_LOG::COND_queue_busy	0	0	0	0	0
 wait/synch/cond/sql/MYSQL_RELAY_LOG::COND_relay_log_updated	0	0	0	0	0
 wait/synch/mutex/sql/MYSQL_RELAY_LOG::LOCK_binlog_end_pos	0	0	0	0	0
 wait/synch/mutex/sql/MYSQL_RELAY_LOG::LOCK_index	0	0	0	0	0
+sync_slave_with_master;
 connection slave;
 "============ Performance schema on slave ============"
 select * from performance_schema.file_summary_by_instance

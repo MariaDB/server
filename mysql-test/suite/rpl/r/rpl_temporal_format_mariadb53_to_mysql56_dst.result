@@ -14,6 +14,7 @@ set timestamp = 1288477526;
 insert into t1 values (1,null);
 set timestamp = 1288481126;
 insert into t1 values (2,null);
+sync_slave_with_master;
 connection slave;
 select pk, t, unix_timestamp(t) from t1;
 pk	t	unix_timestamp(t)

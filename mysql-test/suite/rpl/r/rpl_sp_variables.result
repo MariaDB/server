@@ -16,6 +16,7 @@ CALL p1;
 SELECT * FROM t1;
 a
 2017오
+sync_slave_with_master;
 connection slave;
 SET NAMES utf8;
 SELECT * FROM t1;
@@ -24,5 +25,6 @@ a
 connection master;
 DROP PROCEDURE p1;
 DROP TABLE t1;
+sync_slave_with_master;
 connection slave;
 include/rpl_end.inc

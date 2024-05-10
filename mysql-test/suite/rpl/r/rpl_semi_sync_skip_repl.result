@@ -19,6 +19,7 @@ SET @@SESSION.skip_replication=0;
 INSERT INTO t1 SET a=0;
 SET @@GLOBAL.debug_dbug="";
 FLUSH LOGS;
+sync_slave_with_master;
 connection slave;
 connection master;
 SET @@GLOBAL.debug_dbug = @saved_dbug;
@@ -26,6 +27,7 @@ SET @@GLOBAL.rpl_semi_sync_master_timeout = 10000;
 SET @@GLOBAL.rpl_semi_sync_master_enabled = 0;
 connection master;
 DROP TABLE t1;
+sync_slave_with_master;
 connection slave;
 include/stop_slave.inc
 SET @@GLOBAL.rpl_semi_sync_slave_enabled = 0;

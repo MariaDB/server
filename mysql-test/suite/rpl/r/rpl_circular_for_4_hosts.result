@@ -26,10 +26,13 @@ call mtr.add_suppression("Slave SQL.*Request to stop slave SQL Thread received w
 
 connection server_1;
 INSERT INTO t1(b,c) VALUES('A',1);
+sync_slave_with_master server_2;
 connection server_2;
 INSERT INTO t1(b,c) VALUES('B',1);
+sync_slave_with_master server_3;
 connection server_3;
 INSERT INTO t1(b,c) VALUES('C',1);
+sync_slave_with_master server_4;
 connection server_4;
 INSERT INTO t1(b,c) VALUES('D',1);
 include/rpl_sync.inc
@@ -71,6 +74,7 @@ SET GLOBAL SQL_SLAVE_SKIP_COUNTER = 1;
 include/start_slave.inc
 connection server_3;
 INSERT INTO t1 VALUES(6,'C',2);
+sync_slave_with_master server_4;
 connection server_4;
 connection server_2;
 INSERT INTO t1(b,c) VALUES('B',2);
@@ -112,7 +116,9 @@ include/stop_slave.inc
 include/rpl_change_topology.inc [new topology=1->2->4->1,2->3]
 include/start_slave.inc
 connection server_2;
+sync_slave_with_master server_4;
 connection server_4;
+sync_slave_with_master server_1;
 connection server_1;
 
 * Check data inserted before failure *
@@ -180,6 +186,7 @@ connection server_3;
 DELETE FROM t1 WHERE a = 6;
 include/start_slave.inc
 connection server_2;
+sync_slave_with_master server_3;
 connection server_3;
 RESET MASTER;
 connection server_4;
@@ -189,6 +196,7 @@ Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No'
 include/rpl_change_topology.inc [new topology=1->2->3->4->1]
 include/start_slave.inc
 connection server_3;
+sync_slave_with_master server_4;
 connection server_4;
 include/rpl_sync.inc
 
@@ -202,6 +210,7 @@ Master A	8	D
 Master A	9	A
 Master A	10	B
 Master A	12	D
+sync_slave_with_master server_2;
 connection server_2;
 SELECT 'Master B',a,b FROM t1 WHERE c IN (2,3) ORDER BY a,b;
 Master B	a	b
@@ -211,6 +220,7 @@ Master B	8	D
 Master B	9	A
 Master B	10	B
 Master B	12	D
+sync_slave_with_master server_3;
 connection server_3;
 SELECT 'Master C',a,b FROM t1 WHERE c IN (2,3) ORDER BY a,b;
 Master C	a	b
@@ -220,6 +230,7 @@ Master C	8	D
 Master C	9	A
 Master C	10	B
 Master C	12	D
+sync_slave_with_master server_4;
 connection server_4;
 SELECT 'Master D',a,b FROM t1 WHERE c IN (2,3) ORDER BY a,b;
 Master D	a	b
@@ -229,6 +240,7 @@ Master D	8	D
 Master D	9	A
 Master D	10	B
 Master D	12	D
+sync_slave_with_master server_1;
 connection server_1;
 
 * Check data inserted after restoring schema A->B->C->D->A *

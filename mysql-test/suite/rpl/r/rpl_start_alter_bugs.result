@@ -13,6 +13,7 @@ connection master1;
 ALTER  TABLE t1 DROP PRIMARY KEY;
 ALTER  TABLE t1 ADD UNIQUE KEY ui (i);
 ALTER  TABLE t1 ADD PRIMARY KEY (i);
+sync_slave_with_master;
 connection slave;
 connection master;
 drop table t1;
@@ -23,6 +24,7 @@ CREATE TABLE t1 (pk int)engine=innodb;
 ALTER TABLE t1 DROP FOREIGN KEY y, LOCK=EXCLUSIVE;
 ERROR 42000: Can't DROP FOREIGN KEY `y`; check that it exists
 drop table t1;
+sync_slave_with_master;
 connection slave;
 connection master;
 set global binlog_alter_two_phase=false;

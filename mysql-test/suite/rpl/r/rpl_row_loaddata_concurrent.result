@@ -30,6 +30,7 @@ create temporary table t2 (day date,id int(9),category enum('a','b','c'),name va
 load data CONCURRENT infile '../../std_data/rpl_loaddata2.dat' into table t2 fields terminated by ',' optionally enclosed by '%' escaped by '@' lines terminated by '\n##\n' starting by '>' ignore 1 lines;
 create table t3 (day date,id int(9),category enum('a','b','c'),name varchar(60));
 insert into t3 select * from t2;
+sync_slave_with_master;
 connection slave;
 select * from t1;
 a	b
@@ -45,20 +46,24 @@ drop table t1;
 drop table t2;
 drop table t3;
 create table t1(a int, b int, unique(b));
+sync_slave_with_master;
 connection slave;
 insert into t1 values(1,10);
 connection master;
 load data CONCURRENT infile '../../std_data/rpl_loaddata.dat' into table t1;
+save_master_pos;
 connection slave;
 call mtr.add_suppression("Slave SQL.*Error .Duplicate entry .10. for key .b.. on query.* error.* 1062");
 call mtr.add_suppression("Slave SQL.*Query caused different errors on master and slave.*Error on master:.*error code=1062.*Error on slave:.*error.* 0");
 include/wait_for_slave_sql_error_and_skip.inc [errno=1062]
+sync_with_master;
 include/check_slave_no_error.inc
 connection master;
 set sql_log_bin=0;
 delete from t1;
 set sql_log_bin=1;
 load data CONCURRENT infile '../../std_data/rpl_loaddata.dat' into table t1;
+save_master_pos;
 connection slave;
 include/wait_for_slave_sql_error.inc [errno=1062]
 include/stop_slave_io.inc
@@ -67,11 +72,13 @@ change master to master_user='root';
 include/check_slave_no_error.inc
 set global sql_slave_skip_counter=1;
 start slave;
+sync_with_master;
 connection master;
 set sql_log_bin=0;
 delete from t1;
 set sql_log_bin=1;
 load data CONCURRENT infile '../../std_data/rpl_loaddata.dat' into table t1;
+save_master_pos;
 connection slave;
 include/wait_for_slave_sql_error.inc [errno=1062]
 stop slave;
@@ -91,8 +98,10 @@ select * from t2;
 day	id	category	name
 2003-02-22	2461	b	a a a @ %  ' " a
 2003-03-22	2161	c	asdf
+save_master_pos;
 connection slave;
 start slave;
+sync_with_master;
 select * from t2;
 day	id	category	name
 2003-02-22	2461	b	a a a @ %  ' " a
@@ -134,12 +143,14 @@ connection conn2;
 LOAD DATA CONCURRENT LOCAL INFILE 'MYSQLTEST_VARDIR/std_data/loaddata5.dat' INTO TABLE b48297_db1.t1;
 disconnect conn2;
 connection master;
+sync_slave_with_master;
 connection slave;
 use b48297_db1;
 include/diff_tables.inc [master:b48297_db1.t1, slave:b48297_db1.t1]
 connection master;
 DROP DATABASE b48297_db1;
 DROP DATABASE b42897_db2;
+sync_slave_with_master;
 connection slave;
 include/rpl_reset.inc
 connection master;
@@ -153,6 +164,7 @@ Field 1	'Field 2'
 Field 3	'Field 4'
 'Field 5' 	'Field 6'
 Field 6	 'Field 7'
+sync_slave_with_master;
 connection slave;
 connection master;
 DROP TABLE t1;

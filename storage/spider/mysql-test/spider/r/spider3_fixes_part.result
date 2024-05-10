@@ -34,7 +34,9 @@ SELECT 1;
 1
 auto_increment with partition
 connection master_1;
+save_master_pos;
 connection slave1_1;
+sync_with_master;
 connection master_1;
 DROP TABLE IF EXISTS t1, t2;
 CREATE TABLE t1 (
@@ -188,7 +190,9 @@ LAST_INSERT_ID()
 SELECT MAX(id) FROM t2;
 MAX(id)
 10000
+save_master_pos;
 connection slave1_1;
+sync_with_master;
 SELECT id FROM t1 ORDER BY id;
 id
 777

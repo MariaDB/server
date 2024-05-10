@@ -3,6 +3,7 @@ include/master-slave.inc
 ==== Initialize ====
 connection master;
 CREATE TABLE t1(a INT PRIMARY KEY);
+sync_slave_with_master;
 connection slave;
 ==== Test: SQL thread sees 'INSERT' of existing key ====
 ---- Prepare slave so that it will get duplicate key error ----
@@ -10,6 +11,7 @@ INSERT INTO t1 VALUES (1);
 ---- Insert rows on master ----
 connection master;
 INSERT INTO t1 VALUES (1);
+save_master_pos;
 SELECT * FROM t1;
 a
 1
@@ -27,6 +29,7 @@ DELETE FROM t1 WHERE a = 1;
 START SLAVE SQL_THREAD;
 include/wait_for_slave_sql_to_start.inc
 ---- Sync slave and verify that there is no error ----
+sync_with_master;
 Last_SQL_Error = '' (expected no error)
 SELECT * FROM t1;
 a
@@ -36,6 +39,7 @@ a
 connection master;
 DELETE FROM t1;
 INSERT INTO t1 VALUES (1);
+sync_slave_with_master;
 connection slave;
 DELETE FROM t1 WHERE a = 1;
 ---- On master, remove the row that does not exist on slave ----
@@ -43,13 +47,16 @@ connection master;
 DELETE FROM t1 WHERE a = 1;
 SELECT * FROM t1;
 a
+save_master_pos;
 connection slave;
 ---- Sync slave and verify that there is no error ----
+sync_with_master;
 Last_SQL_Error =  (expected no error)
 SELECT * FROM t1;
 a
 ==== Clean up ====
 connection master;
 DROP TABLE t1;
+sync_slave_with_master;
 connection slave;
 include/rpl_end.inc

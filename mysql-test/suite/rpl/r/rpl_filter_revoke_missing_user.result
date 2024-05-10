@@ -16,6 +16,7 @@ ERROR HY000: Can't revoke all privileges for one or more of the requested users
 CREATE USER 'testuser'@'localhost' IDENTIFIED by '';
 DROP USER 'testuser'@'localhost', 'nonexistentuser'@'%';
 ERROR HY000: Operation DROP USER failed for 'nonexistentuser'@'%'
+save_master_pos;
 #
 # Ensure the events exist in the primary's binary log
 FLUSH BINARY LOGS;
@@ -28,6 +29,7 @@ FOUND 1 /DROP USER/ in mysqlbinlog_out.sql
 #
 # Ensure that the replica receives the event without error
 connection slave;
+sync_with_master;
 Last_SQL_Error = 
 Last_SQL_Errno = 0
 #

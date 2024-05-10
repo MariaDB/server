@@ -47,6 +47,7 @@ master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO t1 VALUES (3)
 master-bin.000001	#	Query	#	#	COMMIT
+sync_slave_with_master;
 connection slave;
 ******** [slave] SHOW BINLOG EVENTS IN <FILE> ********
 include/show_events.inc
@@ -156,6 +157,7 @@ master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO t1 VALUES (3)
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Rotate	#	#	master-bin.000002;pos=POS
+sync_slave_with_master;
 connection slave;
 ******** [slave] SHOW BINLOG EVENTS IN <FILE> ********
 include/show_events.inc

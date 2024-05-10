@@ -11,7 +11,9 @@ start slave 'master1';
 set default_master_connection = 'master1';
 include/wait_for_slave_to_start.inc
 connect  master1,127.0.0.1,root,,,$SERVER_MYPORT_1;
+save_master_pos;
 connection slave;
+sync_with_master 0,'master1';
 #
 # Checking SHOW SLAVE 'master1' STATUS
 #
@@ -50,7 +52,9 @@ create table t1 (i int auto_increment, f1 varchar(16), primary key pk (i,f1)) en
 Warnings:
 Warning	1280	Name 'pk' ignored for PRIMARY key.
 insert into t1 (f1) values ('one'),('two');
+save_master_pos;
 connection slave;
+sync_with_master 0,'master1';
 select * from db1.t1;
 i	f1
 1	one
@@ -125,6 +129,7 @@ Slave_heartbeat_period = '60.000'
 #
 connection master1;
 insert into t1 (f1) values ('three');
+save_master_pos;
 connect  master2,127.0.0.1,root,,,$SERVER_MYPORT_2;
 drop database if exists db2;
 create database db2;
@@ -133,8 +138,11 @@ create table t1 (pk int auto_increment primary key, f1 int) engine=InnoDB;
 begin;
 insert into t1 (f1) values (1),(2);
 connection slave;
+sync_with_master 0,'master1';
 connection master2;
+save_master_pos;
 connection slave;
+sync_with_master 0;
 select * from db1.t1;
 i	f1
 1	one
@@ -144,14 +152,18 @@ select * from db2.t1;
 pk	f1
 connection master2;
 commit;
+save_master_pos;
 connection slave;
+sync_with_master 0;
 select * from db2.t1;
 pk	f1
 1	1
 2	2
 connection master1;
 flush logs;
+save_master_pos;
 connection slave;
+sync_with_master 0, 'master1';
 connection master1;
 purge binary logs to 'master-bin.000002';
 show binary logs;
@@ -159,7 +171,9 @@ Log_name	File_size
 master-bin.000002	filesize
 insert into t1 (f1) values ('four');
 create table db1.t3 (f1 int) engine=InnoDB;
+save_master_pos;
 connection slave;
+sync_with_master 0,'master1';
 #
 # Checking SHOW ALL SLAVES STATUS
 #

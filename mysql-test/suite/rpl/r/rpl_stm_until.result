@@ -2,6 +2,7 @@ include/master-slave.inc
 [connection master]
 include/rpl_reset.inc
 call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
+sync_slave_with_master;
 connection slave;
 include/stop_slave.inc
 ==== Create some events on master ====
@@ -45,6 +46,7 @@ n
 include/check_slave_param.inc [Exec_Master_Log_Pos]
 start slave;
 connection master;
+sync_slave_with_master;
 connection slave;
 include/stop_slave.inc
 start slave until master_log_file='MASTER_LOG_FILE', master_log_pos=MASTER_LOG_POS;
@@ -77,8 +79,10 @@ connection master;
 drop table if exists t1;
 reset master;
 create table t1 (a int primary key auto_increment);
+save_master_pos;
 connection slave;
 start slave;
+sync_with_master;
 include/stop_slave.inc
 master and slave are in sync now
 select 0 as zero;
@@ -104,4 +108,5 @@ connection master;
 drop table t1;
 connection slave;
 start slave;
+sync_with_master;
 include/rpl_end.inc

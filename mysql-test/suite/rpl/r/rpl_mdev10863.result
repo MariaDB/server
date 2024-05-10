@@ -11,7 +11,9 @@ connection server_1;
 ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
 CREATE TABLE t1 (a int PRIMARY KEY, b VARCHAR(100)) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (1, "a");
+save_master_pos;
 connection server_2;
+sync_with_master;
 *** Create a long transaction that will span a relay log file. ***
 connection server_1;
 SET @old_domain= @@gtid_domain_id;
@@ -23,19 +25,25 @@ SET gtid_domain_id=@old_domain;
 BEGIN;
 [lots of inserts omitted]
 COMMIT;
+save_master_pos;
 connection server_2;
+sync_with_master;
 connection server_1;
 BEGIN;
 [lots of inserts omitted]
 COMMIT;
+save_master_pos;
 connection server_2;
+sync_with_master;
 include/stop_slave_sql.inc
 START SLAVE SQL_THREAD;
 include/wait_for_slave_to_start.inc
 connection server_1;
 INSERT INTO t1 VALUES (100000, "More stuffs.");
 INSERT INTO t1 VALUES (100001, "And even more");
+save_master_pos;
 connection server_2;
+sync_with_master;
 SELECT * FROM t1 WHERE a >= 100000 ORDER BY a;
 a	b
 100000	More stuffs.

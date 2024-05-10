@@ -256,7 +256,6 @@ show status like 'Rpl_semi_sync_master_status';
 
 sync_slave_with_master;
 
-connection slave;
 select * from t1 order by a;
 connection con1;
 select * from t1 order by a;

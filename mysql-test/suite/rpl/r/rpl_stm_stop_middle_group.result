@@ -5,6 +5,7 @@ connection master;
 call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
 create table tm (a int auto_increment primary key) engine=myisam;
 create table ti (a int auto_increment primary key) engine=innodb;
+sync_slave_with_master;
 connection slave;
 SET @saved_dbug = @@GLOBAL.debug_dbug;
 set @@global.debug_dbug="d,stop_slave_middle_group";
@@ -33,6 +34,7 @@ include/start_slave.inc
 connection master;
 truncate table tm;
 truncate table ti;
+sync_slave_with_master;
 connection slave;
 set @@global.debug_dbug="d,stop_slave_middle_group,incomplete_group_in_relay_log";
 connection master;
@@ -58,6 +60,7 @@ stop slave;
 truncate table tm;
 include/start_slave.inc
 connection master;
+sync_slave_with_master;
 connection slave;
 set @@global.debug_dbug="d,stop_slave_middle_group,incomplete_group_in_relay_log";
 connection master;
@@ -77,5 +80,6 @@ SET @@GLOBAL.debug_dbug = @saved_dbug;
 include/rpl_reset.inc
 connection master;
 drop table tm, ti;
+sync_slave_with_master;
 connection slave;
 include/rpl_end.inc

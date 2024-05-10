@@ -15,14 +15,18 @@ select * from t1;
 a	b
 1	2
 2	3
+save_master_pos;
 connection slave;
+sync_with_master;
 select * from t1;
 a	b
 1	2
 2	3
 connection master;
 drop table t1;
+save_master_pos;
 connection slave;
+sync_with_master;
 DROP VIEW  IF EXISTS v1,v2;
 DROP TABLE IF EXISTS t1,t2,t3;
 DROP PROCEDURE IF EXISTS p1;

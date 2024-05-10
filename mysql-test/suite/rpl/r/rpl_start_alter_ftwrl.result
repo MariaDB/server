@@ -31,6 +31,7 @@ connection slave;
 connection slave1;
 UNLOCK TABLES;
 connection master;
+sync_slave_with_master;
 connection slave;
 SHOW CREATE TABLE t1;
 Table	Create Table
@@ -48,6 +49,7 @@ slave-bin.000001	#	Gtid	#	#	GTID #-#-# COMMIT ALTER id=#
 slave-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; ALTER TABLE t1 ADD COLUMN b int
 connection master;
 DROP TABLE t1;
+sync_slave_with_master;
 connection slave;
 # cleanup
 connection slave;

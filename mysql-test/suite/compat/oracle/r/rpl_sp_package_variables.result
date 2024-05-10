@@ -26,6 +26,7 @@ SELECT * FROM t1;
 a
 10
 10
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t1;
 a
@@ -34,5 +35,6 @@ a
 connection master;
 DROP PACKAGE p1;
 DROP TABLE t1;
+sync_slave_with_master;
 connection slave;
 include/rpl_end.inc

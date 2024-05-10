@@ -9,6 +9,7 @@ include/start_slave.inc
 connection master;
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 SET a=1;
+sync_slave_with_master;
 connection slave;
 connection master;
 # Shutdown master
@@ -27,6 +28,7 @@ SET @@GLOBAL.debug_dbug="";
 SET @@GLOBAL. rpl_semi_sync_master_enabled = 0;
 connection master;
 DROP TABLE t1;
+sync_slave_with_master;
 connection slave;
 include/stop_slave.inc
 SET @@GLOBAL. rpl_semi_sync_slave_enabled = 0;

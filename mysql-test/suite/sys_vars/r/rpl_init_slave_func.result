@@ -1,6 +1,8 @@
 include/master-slave.inc
 [connection master]
 include/sync_slave_sql_with_master.inc
+save_master_pos;
+sync_with_master;
 SET @start_max_connections= @@global.max_connections;
 SET @start_init_slave= @@global.init_slave;
 SET NAMES utf8;
@@ -22,6 +24,8 @@ include/assert.inc [@@global.max_connections = @start_max_connections]
 include/restart_slave.inc
 connection master;
 include/sync_slave_sql_with_master.inc
+save_master_pos;
+sync_with_master;
 include/assert.inc [@@global.max_connections = @start_max_connections + 1]
 SET @@global.init_slave = "SET @a=5";
 include/restart_slave.inc

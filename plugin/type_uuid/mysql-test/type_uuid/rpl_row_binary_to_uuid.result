@@ -7,6 +7,7 @@ include/master-slave.inc
 # MDEV-4958 Adding datatype UUID
 #
 CREATE TABLE t1 (a BINARY(16));
+sync_slave_with_master;
 connection slave;
 ALTER TABLE t1 MODIFY a UUID;
 connection master;
@@ -20,6 +21,7 @@ HEX(a)
 00000000000000000000000000000001
 FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFE
 FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t1 ORDER BY a;
 a

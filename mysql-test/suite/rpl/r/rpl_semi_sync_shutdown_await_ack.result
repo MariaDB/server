@@ -21,8 +21,11 @@ call mtr.add_suppression("Relay log write failure");
 call mtr.add_suppression("Failed to kill the active semi-sync connection");
 connection server_1;
 CREATE TABLE t1 (a int);
+save_master_pos;
 connection server_2;
+sync_with_master;
 connection server_3;
+sync_with_master;
 connect server_1_con2, localhost, root,,;
 #############################
 # Test cases
@@ -36,9 +39,11 @@ connection server_1;
 #--
 #-- Semi-sync Setup
 connection server_1;
+save_master_pos;
 #-- Enable semi-sync on slaves
 let slave_last= 3
 connection server_2;
+sync_with_master;
 set global rpl_semi_sync_slave_enabled = 1;
 include/stop_slave.inc
 include/start_slave.inc
@@ -46,6 +51,7 @@ show status like 'Rpl_semi_sync_slave_status';
 Variable_name	Value
 Rpl_semi_sync_slave_status	ON
 connection server_3;
+sync_with_master;
 set global rpl_semi_sync_slave_enabled = 1;
 include/stop_slave.inc
 include/start_slave.inc
@@ -127,12 +133,14 @@ show status like 'Rpl_semi_sync_master_status';
 Variable_name	Value
 Rpl_semi_sync_master_status	OFF
 TRUNCATE TABLE t1;
+save_master_pos;
 #-- Bring slaves back up
 connection server_2;
 include/start_slave.inc
 show status like 'Rpl_semi_sync_slave_status';
 Variable_name	Value
 Rpl_semi_sync_slave_status	OFF
+sync_with_master;
 SELECT COUNT(*)=0 from t1;
 COUNT(*)=0
 1
@@ -141,6 +149,7 @@ include/start_slave.inc
 show status like 'Rpl_semi_sync_slave_status';
 Variable_name	Value
 Rpl_semi_sync_slave_status	OFF
+sync_with_master;
 SELECT COUNT(*)=0 from t1;
 COUNT(*)=0
 1
@@ -153,9 +162,11 @@ connection server_1;
 #--
 #-- Semi-sync Setup
 connection server_1;
+save_master_pos;
 #-- Enable semi-sync on slaves
 let slave_last= 3
 connection server_2;
+sync_with_master;
 set global rpl_semi_sync_slave_enabled = 1;
 include/stop_slave.inc
 include/start_slave.inc
@@ -163,6 +174,7 @@ show status like 'Rpl_semi_sync_slave_status';
 Variable_name	Value
 Rpl_semi_sync_slave_status	ON
 connection server_3;
+sync_with_master;
 set global rpl_semi_sync_slave_enabled = 1;
 include/stop_slave.inc
 include/start_slave.inc
@@ -244,12 +256,14 @@ show status like 'Rpl_semi_sync_master_status';
 Variable_name	Value
 Rpl_semi_sync_master_status	OFF
 TRUNCATE TABLE t1;
+save_master_pos;
 #-- Bring slaves back up
 connection server_2;
 include/start_slave.inc
 show status like 'Rpl_semi_sync_slave_status';
 Variable_name	Value
 Rpl_semi_sync_slave_status	OFF
+sync_with_master;
 SELECT COUNT(*)=0 from t1;
 COUNT(*)=0
 1
@@ -258,6 +272,7 @@ include/start_slave.inc
 show status like 'Rpl_semi_sync_slave_status';
 Variable_name	Value
 Rpl_semi_sync_slave_status	OFF
+sync_with_master;
 SELECT COUNT(*)=0 from t1;
 COUNT(*)=0
 1
@@ -271,9 +286,11 @@ connection server_1;
 #--
 #-- Semi-sync Setup
 connection server_1;
+save_master_pos;
 #-- Enable semi-sync on slaves
 let slave_last= 3
 connection server_2;
+sync_with_master;
 set global rpl_semi_sync_slave_enabled = 1;
 include/stop_slave.inc
 include/start_slave.inc
@@ -281,6 +298,7 @@ show status like 'Rpl_semi_sync_slave_status';
 Variable_name	Value
 Rpl_semi_sync_slave_status	ON
 connection server_3;
+sync_with_master;
 set global rpl_semi_sync_slave_enabled = 1;
 include/stop_slave.inc
 include/start_slave.inc
@@ -362,12 +380,14 @@ show status like 'Rpl_semi_sync_master_status';
 Variable_name	Value
 Rpl_semi_sync_master_status	OFF
 TRUNCATE TABLE t1;
+save_master_pos;
 #-- Bring slaves back up
 connection server_2;
 include/start_slave.inc
 show status like 'Rpl_semi_sync_slave_status';
 Variable_name	Value
 Rpl_semi_sync_slave_status	OFF
+sync_with_master;
 SELECT COUNT(*)=0 from t1;
 COUNT(*)=0
 1
@@ -376,6 +396,7 @@ include/start_slave.inc
 show status like 'Rpl_semi_sync_slave_status';
 Variable_name	Value
 Rpl_semi_sync_slave_status	OFF
+sync_with_master;
 SELECT COUNT(*)=0 from t1;
 COUNT(*)=0
 1
@@ -395,9 +416,11 @@ connection server_1;
 #--
 #-- Semi-sync Setup
 connection server_1;
+save_master_pos;
 #-- Enable semi-sync on slaves
 let slave_last= 3
 connection server_2;
+sync_with_master;
 set global rpl_semi_sync_slave_enabled = 1;
 include/stop_slave.inc
 include/start_slave.inc
@@ -405,6 +428,7 @@ show status like 'Rpl_semi_sync_slave_status';
 Variable_name	Value
 Rpl_semi_sync_slave_status	ON
 connection server_3;
+sync_with_master;
 set global rpl_semi_sync_slave_enabled = 1;
 include/stop_slave.inc
 include/start_slave.inc
@@ -486,12 +510,14 @@ show status like 'Rpl_semi_sync_master_status';
 Variable_name	Value
 Rpl_semi_sync_master_status	OFF
 TRUNCATE TABLE t1;
+save_master_pos;
 #-- Bring slaves back up
 connection server_2;
 include/start_slave.inc
 show status like 'Rpl_semi_sync_slave_status';
 Variable_name	Value
 Rpl_semi_sync_slave_status	OFF
+sync_with_master;
 SELECT COUNT(*)=0 from t1;
 COUNT(*)=0
 1
@@ -500,6 +526,7 @@ include/start_slave.inc
 show status like 'Rpl_semi_sync_slave_status';
 Variable_name	Value
 Rpl_semi_sync_slave_status	OFF
+sync_with_master;
 SELECT COUNT(*)=0 from t1;
 COUNT(*)=0
 1

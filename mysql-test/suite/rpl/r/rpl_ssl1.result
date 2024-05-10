@@ -4,6 +4,7 @@ connection master;
 create user replssl@localhost;
 grant replication slave on *.* to replssl@localhost require ssl;
 create table t1 (t int);
+sync_slave_with_master;
 connection slave;
 stop slave;
 include/wait_for_slave_to_stop.inc
@@ -20,6 +21,7 @@ change master to master_ssl=1 , master_ssl_ca ='MYSQL_TEST_DIR/std_data/cacert.p
 start slave;
 include/wait_for_slave_to_start.inc
 connection master;
+sync_slave_with_master;
 connection slave;
 select * from t1;
 t
@@ -38,6 +40,7 @@ include/wait_for_slave_to_start.inc
 connection master;
 drop user replssl@localhost;
 drop table t1;
+sync_slave_with_master;
 connection slave;
 Master_SSL_Allowed = 'No'
 Master_SSL_CA_Path = ''
@@ -60,8 +63,8 @@ include/wait_for_slave_to_start.inc
 connection master;
 create table t1 (t int);
 insert into t1 values (1);
+sync_slave_with_master;
 connection slave;
-on slave
 select * from t1;
 t
 1
@@ -73,6 +76,7 @@ Master_SSL_Key = 'MYSQL_TEST_DIR/std_data/client-key.pem'
 include/check_slave_is_running.inc
 connection master;
 drop table t1;
+sync_slave_with_master;
 connection slave;
 include/stop_slave.inc
 CHANGE MASTER TO

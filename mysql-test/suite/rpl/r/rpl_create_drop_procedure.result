@@ -13,6 +13,7 @@ SELECT @cnt;
 @cnt
 3
 # Syncing with slave
+sync_slave_with_master;
 connection slave;
 CALL proc1(@cnt);
 SELECT @cnt;
@@ -28,6 +29,7 @@ CREATE OR REPLACE PROCEDURE IF NOT EXISTS proc1 (OUT cnt INT) BEGIN SELECT COUNT
 ERROR HY000: Incorrect usage of OR REPLACE and IF NOT EXISTS
 CREATE OR REPLACE PROCEDURE proc1 (OUT cnt INT) BEGIN SELECT COUNT(*) INTO cnt FROM t1; END$$
 # Syncing with slave
+sync_slave_with_master;
 connection slave;
 CALL proc1(@cnt);
 SELECT @cnt;
@@ -42,6 +44,7 @@ SELECT @cnt;
 @cnt
 6
 # Syncing with slave
+sync_slave_with_master;
 connection slave;
 CALL proc1(@cnt);
 SELECT @cnt;
@@ -56,6 +59,7 @@ SELECT @cnt;
 @cnt
 9
 # Syncing with slave
+sync_slave_with_master;
 connection slave;
 CALL proc1(@cnt);
 SELECT @cnt;
@@ -68,6 +72,7 @@ DROP PROCEDURE IF EXISTS proc2;
 Warnings:
 Note	1305	PROCEDURE test.proc2 does not exist
 # Syncing with slave
+sync_slave_with_master;
 connection slave;
 DROP PROCEDURE proc1;
 ERROR 42000: PROCEDURE test.proc1 does not exist

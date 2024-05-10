@@ -3,7 +3,7 @@ include/master-slave.inc
 *** MDEV-6403: Temporary tables lost at STOP SLAVE in GTID mode if master has not rotated binlog since restart ***
 connection master;
 CREATE TABLE t1 (a INT PRIMARY KEY);
-connection slave;
+sync_slave_with_master;
 connection slave;
 include/stop_slave.inc
 SET sql_log_bin= 0;
@@ -14,6 +14,7 @@ CREATE TEMPORARY TABLE t2 LIKE t1;
 INSERT INTO t2 VALUE (1);
 INSERT INTO t1 SELECT * FROM t2;
 DROP TEMPORARY TABLE t2;
+save_master_pos;
 connection slave;
 START SLAVE;
 include/wait_for_slave_sql_error.inc [errno=1062]
@@ -22,6 +23,7 @@ SET sql_log_bin= 0;
 DELETE FROM t1 WHERE a=1;
 SET sql_log_bin= 1;
 include/start_slave.inc
+sync_with_master;
 SELECT * FROM t1 ORDER BY a;
 a
 1

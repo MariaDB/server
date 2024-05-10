@@ -11,10 +11,14 @@ include/start_slave.inc
 connection server_1;
 ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
 CREATE TABLE t3 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+save_master_pos;
 connection server_2;
+sync_with_master;
 connection server_1;
 INSERT INTO t3 VALUES (110, 1);
+save_master_pos;
 connection server_2;
+sync_with_master;
 SELECT * FROM t3 WHERE a >= 110 ORDER BY a;
 a	b
 110	1
@@ -36,6 +40,7 @@ SET debug_sync='now SIGNAL master_cont1';
 connection con1;
 connection con2;
 SET debug_sync='RESET';
+save_master_pos;
 connection server_2;
 include/wait_for_slave_sql_error.inc [errno=1062]
 include/wait_for_slave_sql_to_stop.inc
@@ -47,6 +52,7 @@ SET sql_log_bin=0;
 DELETE FROM t3 WHERE a=111 AND b=666;
 SET sql_log_bin=1;
 START SLAVE SQL_THREAD;
+sync_with_master;
 SELECT * FROM t3 WHERE a >= 110 ORDER BY a;
 a	b
 110	1

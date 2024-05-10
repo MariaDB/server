@@ -88,7 +88,6 @@ connection master;
 select * from t2 ORDER BY i1;
 
 sync_slave_with_master;
-connection slave;
 --echo #Test result for INVOKES A FUNCTION TO INSERT TWO OR MORE VALUES on slave
 select * from t2 ORDER BY i1;
 
@@ -131,7 +130,6 @@ connection master;
 select * from t2 ORDER BY i1;
 
 sync_slave_with_master;
-connection slave;
 --echo #Test result for INVOKES A FUNCTION TO UPDATE TWO OR MORE VALUES on slave
 select * from t2 ORDER BY i1;
 

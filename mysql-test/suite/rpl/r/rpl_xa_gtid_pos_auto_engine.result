@@ -14,6 +14,7 @@ insert into t1 values(1, 2);
 xa end 't';
 xa prepare 't';
 xa commit 't';
+sync_slave_with_master;
 connection slave;
 include/diff_tables.inc [master:t1, slave:t1]
 connection master;
@@ -22,6 +23,7 @@ insert into t1 values(3, 4);
 xa end 't';
 xa prepare 't';
 xa rollback 't';
+sync_slave_with_master;
 connection slave;
 include/diff_tables.inc [master:t1, slave:t1]
 connection master;
@@ -49,6 +51,7 @@ connection master;
 xa commit 't';
 xa commit 's';
 SET pseudo_slave_mode=0;
+sync_slave_with_master;
 connection slave;
 include/diff_tables.inc [master:t1, slave:t1]
 include/diff_tables.inc [master:t2, slave:t2]
@@ -233,6 +236,7 @@ drop table t1, t2, t3, tm;
 #
 create table t1 (a int primary key, b int unique) engine=innodb;
 insert t1 values (1,1),(3,3),(5,5);
+sync_slave_with_master;
 connection slave;
 set session tx_isolation='repeatable-read';
 start transaction;
@@ -250,6 +254,7 @@ xa prepare 'x1';
 connect m3, localhost, root;
 insert t1 values (2, 2);
 -->slave
+sync_slave_with_master;
 connection slave;
 commit;
 select * from t1;
@@ -280,7 +285,7 @@ connection master;
 xa end '1';
 xa prepare '1';
 ->slave
-connection slave;
+sync_slave_with_master;
 connection slave;
 include/sync_with_master_gtid.inc
 connection con1;

@@ -12,6 +12,7 @@ CREATE DATABASE db2;
 use db1;
 CREATE TABLE db1.t1 (a INT) ENGINE=InnoDB;
 CREATE TABLE db1.t2 (s CHAR(255)) ENGINE=MyISAM;
+sync_slave_with_master;
 connection slave;
 include/stop_slave.inc
 connection master;
@@ -162,6 +163,7 @@ master-bin.000001	#	Query	#	#	ROLLBACK TO `has_comment`
 master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `db1`; INSERT INTO db1.t2 VALUES("after rollback to")
 master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `db1`; INSERT INTO db1.t1 VALUES(50)
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
+sync_slave_with_master;
 connection slave;
 #
 # Verify INSERT statements in savepoints are executed, for MyISAM table

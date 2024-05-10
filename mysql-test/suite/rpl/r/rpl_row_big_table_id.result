@@ -38,9 +38,11 @@ master-bin.000001	#	Annotate_rows	1	#	INSERT INTO t SET a= 3
 master-bin.000001	#	Table_map	1	#	table_id: 4294967297 (test.t)
 master-bin.000001	#	Write_rows_v1	1	#	table_id: 4294967297 flags: STMT_END_F
 master-bin.000001	#	Query	1	#	COMMIT
+sync_slave_with_master;
 connection slave;
 connection master;
 SET debug_dbug=@old_debug_dbug;
 DROP TABLE t;
+sync_slave_with_master;
 connection slave;
 include/rpl_end.inc

@@ -8,6 +8,7 @@ include/stop_slave.inc
 connection master;
 flush binary logs;
 create table t2 (a timestamp);
+save_master_pos;
 /*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=1*/;
 /*!40019 SET @@session.max_delayed_threads=0*/;
 /*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
@@ -53,6 +54,7 @@ Warnings:
 Warning	1681	'explicit_defaults_for_timestamp=0' is deprecated and will be removed in a future release
 include/reset_slave.inc
 include/start_slave.inc
+sync_with_master;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -76,6 +78,7 @@ include/reset_slave.inc
 Warnings:
 Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 include/start_slave.inc
+sync_with_master;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (

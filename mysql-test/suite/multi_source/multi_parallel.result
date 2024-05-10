@@ -27,21 +27,27 @@ Slave_running	ON
 #master 1
 connection master1;
 ##Running CURD operation
+save_master_pos;
 connection slave;
+sync_with_master 0,'master1';
 Slave_DDL_Groups= 20;
 Slave_Non_Transactional_Groups= 20;
 Slave_Transactional_Groups= 0;
 #master 2
 connection master2;
 ##Running CURD operation
+save_master_pos;
 connection slave;
+sync_with_master 0,'master2';
 Slave_DDL_Groups= 20;
 Slave_Non_Transactional_Groups= 20;
 Slave_Transactional_Groups= 0;
 #master 1
 connection master1;
 ##Running CURD operation
+save_master_pos;
 connection slave;
+sync_with_master 0,'master1';
 Slave_DDL_Groups= 40;
 Slave_Non_Transactional_Groups= 20;
 Slave_Transactional_Groups= 20;

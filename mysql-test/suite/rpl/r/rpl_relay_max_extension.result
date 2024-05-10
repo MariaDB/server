@@ -23,7 +23,9 @@ create table t1 (i int, c varchar(1024));
 #
 # Insert some data to generate enough amount of binary logs
 #
+save_master_pos;
 connection server_2;
+sync_with_master;
 #
 # Assert that 'slave-relay-bin.999999' is purged.
 #

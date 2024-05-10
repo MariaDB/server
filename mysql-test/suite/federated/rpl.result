@@ -1,12 +1,14 @@
 include/master-slave.inc
 [connection master]
 create table t1 (a int primary key, b int);
+sync_slave_with_master;
 connection slave;
 rename table t1 to t2;
 create table t1 (a int primary key, b int) engine=federated connection='mysql://root@127.0.0.1:$SLAVE_MYPORT/test/t2';
 connection master;
 insert t1 values (1,1),(2,2),(3,1);
 delete from t1 where a=2;
+sync_slave_with_master;
 connection slave;
 select * from t1;
 a	b

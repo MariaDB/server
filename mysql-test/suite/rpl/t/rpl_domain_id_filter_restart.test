@@ -37,7 +37,6 @@ SELECT * FROM t2;
 
 sync_slave_with_master;
 
-connection slave;
 SELECT * FROM t1;
 SELECT * FROM t2;
 

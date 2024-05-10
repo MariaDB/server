@@ -12,6 +12,7 @@ t1	CREATE TABLE `t1` (
   `f1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `f2` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00'
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+sync_slave_with_master;
 connection slave;
 show create table t1;
 Table	Create Table

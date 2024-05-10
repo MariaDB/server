@@ -305,6 +305,7 @@ f299 int,
 f300 int,
 primary key (f1));
 insert into t300 set f1= 1;
+sync_slave_with_master;
 connection slave;
 select f300 from t300;
 f300
@@ -315,5 +316,6 @@ one
 *** Cleanup  ***
 connection master;
 DROP TABLE t300;
+sync_slave_with_master;
 connection slave;
 include/rpl_end.inc

@@ -3,6 +3,7 @@ include/master-slave.inc
 create table t1 (n int auto_increment primary key);
 set insert_id = 2000;
 insert into t1 values (NULL),(NULL),(NULL);
+sync_slave_with_master;
 connection slave;
 select * from t1;
 n
@@ -14,6 +15,7 @@ show slave hosts;
 Server_id	Host	Port	Master_id
 2	127.0.0.1	9999	1
 drop table t1;
+sync_slave_with_master;
 connection slave;
 stop slave;
 include/wait_for_slave_to_stop.inc
@@ -28,9 +30,11 @@ id	created
 create table t3 like t2;
 create temporary table t4 like t2;
 create table t5 select * from t4;
+save_master_pos;
 connection slave;
 start slave;
 include/wait_for_slave_to_start.inc
+sync_with_master;
 select * from t2;
 id	created
 1	1970-01-01 06:25:45
@@ -50,5 +54,6 @@ t5	CREATE TABLE `t5` (
 connection master;
 drop table t2,t3,t5;
 drop temporary table t4;
+sync_slave_with_master;
 connection slave;
 include/rpl_end.inc

@@ -17,6 +17,7 @@ a
 SELECT * FROM test.t2;
 a
 2
+sync_slave_with_master;
 connection slave;
 SELECT * FROM test.t2;
 a
@@ -25,5 +26,6 @@ connection master;
 DROP PROCEDURE IF EXISTS test.p1;
 DROP TABLE IF EXISTS test.t1;
 DROP TABLE IF EXISTS test.t2;
+sync_slave_with_master;
 connection slave;
 include/rpl_end.inc

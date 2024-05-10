@@ -4,10 +4,12 @@ connection master;
 CREATE TABLE t1(n INT NOT NULL AUTO_INCREMENT PRIMARY KEY);
 INSERT INTO t1 VALUES (1),(2),(3),(4);
 DROP TABLE t1;
+save_master_pos;
 CREATE TABLE t2(n INT NOT NULL AUTO_INCREMENT PRIMARY KEY);
 INSERT INTO t2 VALUES (1),(2);
 INSERT INTO t2 VALUES (3),(4);
 DROP TABLE t2;
+sync_slave_with_master;
 connection slave;
 include/stop_slave.inc
 include/reset_slave.inc
@@ -34,6 +36,7 @@ include/check_slave_param.inc [Exec_Master_Log_Pos]
 START SLAVE;
 include/wait_for_slave_to_start.inc
 connection master;
+sync_slave_with_master;
 connection slave;
 include/stop_slave.inc
 START SLAVE SQL_THREAD UNTIL MASTER_LOG_FILE='master-bin.000001', MASTER_LOG_POS=master_pos_create_t2;
@@ -58,6 +61,7 @@ include/rpl_reset.inc
 connection master;
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (1);
+sync_slave_with_master;
 connection slave;
 include/stop_slave_sql.inc
 connection master;
@@ -70,5 +74,6 @@ include/assert.inc [table t1 should have two rows.]
 include/start_slave.inc
 connection master;
 DROP TABLE t1;
+sync_slave_with_master;
 connection slave;
 include/rpl_end.inc

@@ -37,7 +37,6 @@ connection master;
 # at the time of SHOW SLAVE STATUS.
 ALTER TABLE t1 ORDER BY a;
 sync_slave_with_master;
-connection slave;
 let $relaylog_start= query_get_value(SHOW SLAVE STATUS, Relay_Log_Pos, 1);
 
 connection master;
@@ -50,7 +49,6 @@ INSERT INTO t1 /* A comment just to make the annotate event sufficiently long th
 let $binlog_limit= 0, 10;
 --source include/show_binlog_events.inc
 sync_slave_with_master;
-connection slave;
 
 SELECT * FROM t1;
 let $binlog_file= query_get_value(SHOW SLAVE STATUS, Relay_Log_File, 1);
@@ -71,7 +69,6 @@ INSERT INTO t1 VALUES(2);
 let $binlog_limit= 0, 5;
 --source include/show_binlog_events.inc
 sync_slave_with_master;
-connection slave;
 
 SELECT * FROM t1;
 let $binlog_file= query_get_value(SHOW SLAVE STATUS, Relay_Log_File, 1);
@@ -137,7 +134,6 @@ SET @@global.debug_dbug='+d,simulate_slave_capability_old_53';
 connection master;
 ALTER TABLE t1 ORDER BY a;
 sync_slave_with_master;
-connection slave;
 let $relaylog_start= query_get_value(SHOW SLAVE STATUS, Relay_Log_Pos, 1);
 
 connection master;
@@ -147,7 +143,6 @@ UPDATE t1 SET a = 3;
 let $binlog_limit= 0, 5;
 --source include/show_binlog_events.inc
 sync_slave_with_master;
-connection slave;
 
 SELECT * FROM t1;
 let $binlog_file= query_get_value(SHOW SLAVE STATUS, Relay_Log_File, 1);

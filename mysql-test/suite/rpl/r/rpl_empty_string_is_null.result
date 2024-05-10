@@ -5,6 +5,7 @@ include/master-slave.inc
 #
 SET SQL_MODE= 'EMPTY_STRING_IS_NULL';
 CREATE TABLE t1 AS SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE 1 = 0;
+sync_slave_with_master;
 connection slave;
 SHOW CREATE TABLE t1;
 Table	Create Table

@@ -14,12 +14,14 @@ create table mysqltest_bar (m int);
 insert into mysqltest_bar values(15);
 create table t1 (k int);
 insert into t1 values(55);
+sync_slave_with_master;
 connection slave;
 select mysqltest_foo.n,mysqltest_bar.m,t1.k from mysqltest_foo,mysqltest_bar,t1;
 n	m	k
 4	15	55
 connection master;
 drop table mysqltest_foo,mysqltest_bar,t1;
+sync_slave_with_master;
 connection slave;
 drop table mysqltest_foo,mysqltest_bar,t1;
 include/rpl_end.inc

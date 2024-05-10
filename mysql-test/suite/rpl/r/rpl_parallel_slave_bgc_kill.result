@@ -19,7 +19,9 @@ CREATE TABLE t2 (a int PRIMARY KEY) ENGINE=InnoDB;
 CREATE TABLE t3 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
 INSERT INTO t2 VALUES(100);
 INSERT INTO t3 VALUES(100, 100);
+save_master_pos;
 connection server_2;
+sync_with_master;
 connection server_1;
 SET sql_log_bin=0;
 CREATE FUNCTION foo(x INT, d1 VARCHAR(500), d2 VARCHAR(500))
@@ -116,8 +118,10 @@ END
 SET sql_log_bin=1;
 connection server_1;
 INSERT INTO t3 VALUES (39,0);
+save_master_pos;
 connection server_2;
 include/start_slave.inc
+sync_with_master;
 SELECT * FROM t3 WHERE a >= 30 ORDER BY a;
 a	b
 31	31
@@ -208,8 +212,10 @@ END
 SET sql_log_bin=1;
 connection server_1;
 INSERT INTO t3 VALUES (49,0);
+save_master_pos;
 connection server_2;
 START SLAVE SQL_THREAD;
+sync_with_master;
 SELECT * FROM t3 WHERE a >= 40 ORDER BY a;
 a	b
 41	41
@@ -309,8 +315,10 @@ END
 SET sql_log_bin=1;
 connection server_1;
 INSERT INTO t3 VALUES (59,0);
+save_master_pos;
 connection server_2;
 START SLAVE SQL_THREAD;
+sync_with_master;
 SELECT * FROM t3 WHERE a >= 50 ORDER BY a;
 a	b
 51	51

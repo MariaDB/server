@@ -25,7 +25,6 @@ LOAD DATA INFILE '../../std_data/words2.dat' INTO TABLE test.t1;
 SELECT * FROM test.t1 ORDER BY a DESC;
 save_master_pos;
 sync_slave_with_master;
-connection slave;
 SELECT * FROM test.t1 ORDER BY a DESC;
 
 # Cleanup

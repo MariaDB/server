@@ -2,7 +2,9 @@ include/rpl_init.inc [topology=1->2]
 connection server_1;
 CREATE TABLE t1 (a INT);
 FLUSH LOGS;
+save_master_pos;
 connection server_2;
+sync_with_master;
 connection server_1;
 SET gtid_domain_id=10;
 INSERT INTO t1 VALUES (1);
@@ -11,7 +13,9 @@ SET gtid_seq_no=100;
 INSERT INTO t1 VALUES (3);
 INSERT INTO t1 VALUES (4);
 INSERT INTO t1 VALUES (5);
+save_master_pos;
 connection server_2;
+sync_with_master;
 include/stop_slave.inc
 SELECT * FROM t1 ORDER BY a;
 a
@@ -26,8 +30,10 @@ INSERT INTO t1 VALUES (10);
 SET @old_debug= @@GLOBAL.debug_dbug;
 SET GLOBAL debug_dbug="+d,dummy_disable_default_dbug_output";
 SET GLOBAL debug_dbug="+d,gtid_force_reconnect_at_10_1_100";
+save_master_pos;
 connection server_2;
 include/start_slave.inc
+sync_with_master;
 SELECT * FROM t1 ORDER BY a;
 a
 1
@@ -73,8 +79,10 @@ include/kill_binlog_dump_threads.inc
 INSERT INTO t1 VALUES (20);
 SET GLOBAL debug_dbug="+d,dummy_disable_default_dbug_output";
 SET GLOBAL debug_dbug="+d,gtid_force_reconnect_at_10_1_100";
+save_master_pos;
 connection server_2;
 include/start_slave.inc
+sync_with_master;
 SELECT * FROM t1 ORDER BY a;
 a
 1
@@ -123,8 +131,10 @@ a
 connection server_1;
 SET GLOBAL debug_dbug= @old_debug;
 INSERT INTO t1 VALUES (20);
+save_master_pos;
 connection server_2;
 include/start_slave.inc
+sync_with_master;
 SELECT * FROM t1 ORDER BY a;
 a
 1
@@ -165,8 +175,10 @@ INSERT INTO t2 VALUES (27);
 INSERT INTO t2 VALUES (28);
 INSERT INTO t2 VALUES (29);
 COMMIT;
+save_master_pos;
 connection server_2;
 include/start_slave.inc
+sync_with_master;
 SELECT * FROM t2 ORDER BY a;
 a
 1

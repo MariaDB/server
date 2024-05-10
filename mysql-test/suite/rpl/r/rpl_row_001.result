@@ -1,6 +1,7 @@
 include/master-slave.inc
 [connection master]
 CREATE TABLE t1 (n INT);
+sync_slave_with_master;
 connection slave;
 connection master;
 RESET MASTER;
@@ -11,10 +12,12 @@ connection master;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 5000
+save_master_pos;
 connection slave;
 LOCK TABLES t1 READ;
 START SLAVE;
 UNLOCK TABLES;
+sync_with_master;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 5000
@@ -22,11 +25,13 @@ connection master;
 DROP TABLE t1;
 CREATE TABLE t1 (n INT);
 INSERT INTO t1 VALUES(3456);
+sync_slave_with_master;
 connection slave;
 SELECT n FROM t1;
 n
 3456
 connection master;
 DROP TABLE t1;
+sync_slave_with_master;
 connection slave;
 include/rpl_end.inc

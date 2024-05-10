@@ -11,6 +11,7 @@ EXECUTE stmt;
 SET @s:=CONCAT("DROP TABLE `",REPEAT(CHAR(131),1), "`");
 PREPARE STMT FROM @s;
 EXECUTE stmt;
+sync_slave_with_master;
 connection slave;
 connection master;
 Test case 2:- table name and database names with one character latin name.
@@ -29,5 +30,6 @@ EXECUTE stmt;
 SET @s:=CONCAT("DROP DATABASE `",REPEAT(CHAR(131),1),"`");
 PREPARE STMT FROM @s;
 EXECUTE stmt;
+sync_slave_with_master;
 connection slave;
 include/rpl_end.inc

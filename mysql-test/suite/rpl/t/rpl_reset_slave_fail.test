@@ -22,7 +22,6 @@ CREATE TABLE t1 (c1 INT);
 INSERT INTO t1 (c1) VALUES (1);
 --sync_slave_with_master
 
---connection slave
 --source include/stop_slave_sql.inc
 --connection master
 --source include/get_replication_datadir.inc

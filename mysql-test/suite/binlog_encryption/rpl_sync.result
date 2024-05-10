@@ -10,7 +10,7 @@ insert into t1(a) values(1);
 insert into t1(a) values(2);
 insert into t1(a) values(3);
 =====Inserting data on the master but without the SQL Thread being running=======;
-connection slave;
+sync_slave_with_master;
 connection slave;
 include/stop_slave_sql.inc
 connection master;
@@ -27,6 +27,7 @@ include/rpl_reconnect.inc
 =====Dumping and comparing tables=======;
 include/start_slave.inc
 connection master;
+sync_slave_with_master;
 connection slave;
 include/diff_tables.inc [master:t1,slave:t1]
 =====Corrupting the master.info=======;
@@ -45,6 +46,7 @@ include/rpl_reconnect.inc
 =====Dumping and comparing tables=======;
 include/start_slave.inc
 connection master;
+sync_slave_with_master;
 connection slave;
 include/diff_tables.inc [master:t1,slave:t1]
 =====Clean up=======;

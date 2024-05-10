@@ -52,6 +52,7 @@ id2
 2
 3
 4
+sync_slave_with_master;
 connection slave;
 SELECT * FROM test.t1 ORDER BY id;
 id	data
@@ -67,12 +68,14 @@ id2
 4
 connection master;
 CALL test.p1();
+save_master_pos;
 SELECT * FROM test.t3 ORDER BY id3;
 id3	c
 1	MySQL
 2	kyle
 3	Texas
 4	ROCKS
+sync_slave_with_master;
 connection slave;
 SELECT * FROM test.t3 ORDER BY id3;
 id3	c
@@ -88,5 +91,6 @@ DROP PROCEDURE IF EXISTS test.p2;
 DROP TABLE IF EXISTS test.t1;
 DROP TABLE IF EXISTS test.t2;
 DROP TABLE IF EXISTS test.t3;
+sync_slave_with_master;
 connection slave;
 include/rpl_end.inc

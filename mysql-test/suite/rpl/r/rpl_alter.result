@@ -7,6 +7,7 @@ insert into mysqltest.t1 values (1,2);
 create table mysqltest.t2 (n int);
 insert into mysqltest.t2 values (45);
 rename table mysqltest.t2 to mysqltest.t3, mysqltest.t1 to mysqltest.t2;
+sync_slave_with_master;
 connection slave;
 select * from mysqltest.t2;
 n	m
@@ -16,6 +17,7 @@ n
 45
 connection master;
 drop database mysqltest;
+sync_slave_with_master;
 connection slave;
 connection master;
 use test;
@@ -71,6 +73,7 @@ select * from t1;
 a	b
 1	NULL
 4294967295	NULL
+sync_slave_with_master;
 connection slave;
 use test;
 select * from t1;
@@ -116,11 +119,13 @@ drop table t1,t2;
 # Test replication when we have int on master and bigint on slave
 #
 create table t1 (a int unsigned primary key, b int);
+sync_slave_with_master;
 connection slave;
 SET GLOBAL SLAVE_TYPE_CONVERSIONS='ALL_NON_LOSSY';
 alter table t1 modify a bigint unsigned;
 connection master;
 insert into t1 (a) values (1),((1<<32)-1);
+sync_slave_with_master;
 connection slave;
 select * from t1;
 a	b

@@ -3,7 +3,7 @@ include/master-slave.inc
 connection master;
 ALTER TABLE mysql.gtid_slave_pos ENGINE = InnoDB;
 CREATE TABLE t1 (a INT PRIMARY KEY, b INT) Engine=InnoDB;
-connection slave;
+sync_slave_with_master;
 connection slave;
 include/stop_slave.inc
 SET sql_log_bin= 0;

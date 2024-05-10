@@ -1,6 +1,8 @@
 include/master-slave.inc
 [connection master]
+save_master_pos;
 connection slave;
+sync_with_master;
 reset master;
 #
 # MDEV-5535: Cannot reopen temporary table
@@ -20,11 +22,13 @@ COUNT(*) = 25
 SELECT COUNT(*) = 25 FROM t3;
 COUNT(*) = 25
 1
+sync_slave_with_master;
 connection slave;
 SELECT COUNT(*) = 25 FROM t3;
 COUNT(*) = 25
 1
 connection master;
 DROP TABLE t1, t2, t3;
+sync_slave_with_master;
 connection slave;
 include/rpl_end.inc

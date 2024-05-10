@@ -69,6 +69,7 @@ create table t1 (a int);
 flush logs;
 flush logs;
 flush logs;
+sync_slave_with_master;
 connection slave;
 flush logs;
 flush logs;
@@ -100,7 +101,7 @@ show binlog events;
 ERROR HY000: Error when executing command SHOW BINLOG EVENTS: Wrong offset or I/O error
 SET debug_dbug= @save_dbug;
 set @@global.master_verify_checksum = default;
-connection slave;
+sync_slave_with_master;
 connection slave;
 include/stop_slave.inc
 connection master;
@@ -121,6 +122,7 @@ Last_SQL_Error = 'Error initializing relay log position: I/O error reading event
 set @@global.debug_dbug = @saved_dbug;
 include/start_slave.inc
 connection master;
+sync_slave_with_master;
 connection slave;
 select count(*) as 'must be zero' from t2;
 must be zero
@@ -140,6 +142,7 @@ create table t3 (a int, b char(5));
 connection slave;
 include/start_slave.inc
 connection master;
+sync_slave_with_master;
 connection slave;
 select count(*) as 'must be zero' from t3;
 must be zero
@@ -154,6 +157,7 @@ connection slave;
 include/start_slave.inc
 flush logs;
 connection master;
+sync_slave_with_master;
 connection slave;
 select count(*) as 'must be one' from t3;
 must be one
@@ -161,11 +165,13 @@ must be one
 connection master;
 set @@global.binlog_checksum= IF(floor((rand()*1000)%2), "CRC32", "NONE");
 insert into t3 value (1, @@global.binlog_checksum);
+sync_slave_with_master;
 connection slave;
 connection master;
 drop table t1, t2, t3;
 set @@global.binlog_checksum = @master_save_binlog_checksum;
 set @@global.master_verify_checksum = @save_master_verify_checksum;
+sync_slave_with_master;
 connection slave;
 *** Bug#59123 / MDEV-5799: INCIDENT_EVENT checksum written to error log as garbage characters ***
 connection master;
@@ -192,7 +198,9 @@ STOP SLAVE IO_THREAD;
 SET sql_slave_skip_counter= 1;
 include/start_slave.inc
 connection master;
+save_master_pos;
 connection slave;
+sync_with_master;
 SELECT * FROM t4 ORDER BY a;
 a
 1

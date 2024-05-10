@@ -13,7 +13,9 @@ SET s= SUBSTR(s FROM LOCATE(CONCAT(",", d, "-"), s) + 1);
 SET s= SUBSTR(s FROM 1 FOR LOCATE(",", s) - 1);
 RETURN s;
 END|
+save_master_pos;
 connection server_2;
+sync_with_master;
 include/stop_slave.inc
 include/start_slave.inc
 START SLAVE UNTIL master_gtid_pos = "";
@@ -50,7 +52,9 @@ a
 1
 include/start_slave.inc
 connection server_1;
+save_master_pos;
 connection server_2;
+sync_with_master;
 SELECT * FROM t1 ORDER BY a;
 a
 1
@@ -63,7 +67,9 @@ Until_Condition = 'Gtid'
 connection server_1;
 INSERT INTO t1 VALUES (3);
 DELETE FROM t1 WHERE a=3;
+save_master_pos;
 connection server_2;
+sync_with_master;
 include/stop_slave.inc
 *** Test UNTIL condition in an earlier binlog than the start GTID. ***
 connection server_2;
@@ -95,6 +101,7 @@ master-bin.000001	#
 master-bin.000002	#
 master-bin.000003	#
 master-bin.000004	#
+save_master_pos;
 connection server_2;
 START SLAVE UNTIL master_gtid_pos='1-1-3,2-1-4';
 include/wait_for_slave_to_stop.inc
@@ -141,6 +148,7 @@ a
 4
 5
 include/start_slave.inc
+sync_with_master;
 SELECT * FROM t1 ORDER BY a;
 a
 1
@@ -163,6 +171,7 @@ FLUSH LOGS;
 SET gtid_domain_id = 1;
 INSERT INTO t1 VALUES (7);
 SET gtid_domain_id = 0;
+save_master_pos;
 connection server_2;
 START SLAVE UNTIL master_gtid_pos='1-1-4';
 include/wait_for_slave_to_stop.inc
@@ -175,6 +184,7 @@ a
 5
 6
 include/start_slave.inc
+sync_with_master;
 SELECT * FROM t1 ORDER BY a;
 a
 1
@@ -190,6 +200,7 @@ include/stop_slave.inc
 connection server_1;
 CREATE TABLE t3 (a INT);
 DROP TABLE t3;
+save_master_pos;
 connection server_2;
 START SLAVE UNTIL master_gtid_pos='UNTIL_CONDITION';
 include/wait_for_slave_to_stop.inc
@@ -199,6 +210,7 @@ t3	CREATE TABLE `t3` (
   `a` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 include/start_slave.inc
+sync_with_master;
 *** Test UNTIL condition that has not yet been logged. ***
 connection server_2;
 include/stop_slave.inc
@@ -221,6 +233,7 @@ include/wait_for_slave_to_start.inc
 connection server_1;
 INSERT INTO t1 VALUES (11);
 INSERT INTO t1 VALUES (12);
+save_master_pos;
 connection server_2;
 include/wait_for_slave_to_stop.inc
 SELECT * FROM t1 ORDER BY a;
@@ -235,6 +248,7 @@ a
 10
 11
 include/start_slave.inc
+sync_with_master;
 SELECT * FROM t1 ORDER BY a;
 a
 1

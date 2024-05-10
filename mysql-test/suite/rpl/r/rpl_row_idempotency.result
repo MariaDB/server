@@ -18,6 +18,7 @@ engine = innodb;
 set foreign_key_checks=1 /* ensure the check */;
 insert into ti1 values (1),(2),(3);
 insert into ti2 set a=2, b=2;
+sync_slave_with_master;
 connection slave;
 select * from ti1 order by b /* must be (1),(2),(3) */;
 b
@@ -37,6 +38,7 @@ select * from ti1 order by b /* must be (2),(3) */;
 b
 2
 3
+sync_slave_with_master;
 connection slave;
 select * from ti1 order by b /* must stays as were on master (1),(2),(3) */;
 b
@@ -46,6 +48,7 @@ b
 delete from ti1 where b=3;
 connection master;
 insert into ti2 set a=3, b=3;
+sync_slave_with_master;
 connection slave;
 select * from ti2 order by b /* must be (1,1),(2,2) - not inserted */;
 a	b
@@ -69,6 +72,7 @@ engine = innodb;
 set foreign_key_checks=1 /* ensure the check */;
 insert into ti1 values (1),(2),(3);
 insert into ti2 set a=2, b=2;
+sync_slave_with_master;
 connection slave;
 select * from ti1 order by b /* must be (1),(2),(3) */;
 b
@@ -103,9 +107,11 @@ set foreign_key_checks= 1;
 set global slave_exec_mode='IDEMPOTENT';
 start slave sql_thread;
 connection master;
+sync_slave_with_master;
 connection slave;
 set global slave_exec_mode='STRICT';
 connection master;
+sync_slave_with_master;
 connection slave;
 *** conspire the following insert failure
 *** conspire future problem
@@ -126,9 +132,11 @@ set foreign_key_checks= 1;
 set global slave_exec_mode='IDEMPOTENT';
 start slave sql_thread;
 connection master;
+sync_slave_with_master;
 connection slave;
 set global slave_exec_mode='STRICT';
 connection master;
+sync_slave_with_master;
 connection slave;
 select * from ti2 order by b /* must be (2,2),(3,3) */;
 a	b
@@ -150,6 +158,7 @@ set foreign_key_checks= 1;
 set global slave_exec_mode='IDEMPOTENT';
 start slave sql_thread;
 connection master;
+sync_slave_with_master;
 connection slave;
 set global slave_exec_mode='STRICT';
 connection master;
@@ -157,6 +166,7 @@ CREATE TABLE t1 (a INT PRIMARY KEY);
 CREATE TABLE t2 (a INT);
 INSERT INTO t1 VALUES (-1),(-2),(-3);
 INSERT INTO t2 VALUES (-1),(-2),(-3);
+sync_slave_with_master;
 connection slave;
 DELETE FROM t1 WHERE a = -2;
 DELETE FROM t2 WHERE a = -2;
@@ -170,6 +180,7 @@ Last_SQL_Error
 set global slave_exec_mode='IDEMPOTENT';
 start slave sql_thread;
 connection master;
+sync_slave_with_master;
 connection slave;
 set global slave_exec_mode='STRICT';
 connection master;
@@ -182,6 +193,7 @@ Last_SQL_Error
 set global slave_exec_mode='IDEMPOTENT';
 start slave sql_thread;
 connection master;
+sync_slave_with_master;
 connection slave;
 set global slave_exec_mode='STRICT';
 UPDATE t1 SET a = 1 WHERE a = -1;
@@ -196,6 +208,7 @@ Last_SQL_Error
 set global slave_exec_mode='IDEMPOTENT';
 start slave sql_thread;
 connection master;
+sync_slave_with_master;
 connection slave;
 set global slave_exec_mode='STRICT';
 connection master;
@@ -208,10 +221,12 @@ Last_SQL_Error
 set global slave_exec_mode='IDEMPOTENT';
 start slave sql_thread;
 connection master;
+sync_slave_with_master;
 connection slave;
 SET @@global.slave_exec_mode= @old_slave_exec_mode;
 connection master;
 drop table t1,t2,ti2,ti1;
+sync_slave_with_master;
 connection slave;
 set @@global.slave_exec_mode= @old_slave_exec_mode;
 *** end of tests

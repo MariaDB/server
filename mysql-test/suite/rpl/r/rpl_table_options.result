@@ -2,6 +2,7 @@ include/master-slave.inc
 [connection master]
 install plugin example soname 'ha_example.so';
 set default_storage_engine=example;
+sync_slave_with_master;
 connection slave;
 connection master;
 create table t1 (a int not null) ull=12340;
@@ -13,7 +14,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) NOT NULL
 ) ENGINE=EXAMPLE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `ull`=12350
-connection slave;
+sync_slave_with_master;
 connection slave;
 show create table t1;
 Table	Create Table

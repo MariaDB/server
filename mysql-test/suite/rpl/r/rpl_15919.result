@@ -3,6 +3,7 @@ include/master-slave.inc
 connection master;
 create table RPL(a int);
 insert into RPL values(1);
+sync_slave_with_master;
 connection slave;
 select * from rpl;
 a

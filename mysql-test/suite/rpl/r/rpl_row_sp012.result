@@ -20,6 +20,7 @@ GRANT EXECUTE ON PROCEDURE p1 TO user1@localhost;
 GRANT EXECUTE ON PROCEDURE p2 TO user1@localhost;
 GRANT EXECUTE ON PROCEDURE p3 TO user1@localhost;
 set sql_mode=default;
+sync_slave_with_master;
 connection slave;
 connect  muser1,localhost,user1,,;
 connection muser1;
@@ -37,7 +38,9 @@ CURRENT_USER()	USER()
 root@localhost	user1@localhost
 connect  suser1,127.0.0.1,user1,,test,$SLAVE_MYPORT,;
 connection master;
+save_master_pos;
 connection suser1;
+sync_with_master;
 SELECT CURRENT_USER();
 CURRENT_USER()
 user1@localhost
@@ -57,5 +60,6 @@ DROP PROCEDURE IF EXISTS test.p2;
 DROP TABLE IF EXISTS test.t1;
 DROP TABLE IF EXISTS test.t2;
 DROP USER user1@localhost;
+sync_slave_with_master;
 connection slave;
 include/rpl_end.inc

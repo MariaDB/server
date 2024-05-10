@@ -19,7 +19,9 @@ connection master;
 SET SQL_LOG_BIN=0;
 ALTER TABLE mysql.gtid_slave_pos ENGINE = InnoDB;
 SET SQL_LOG_BIN=1;
+save_master_pos;
 connection slave;
+sync_with_master;
 SELECT @@gtid_slave_pos;
 @@gtid_slave_pos
 0-1-1381

@@ -52,6 +52,7 @@ TABLE_NAME	TABLE_ROWS	AVG_ROW_LENGTH	DATA_LENGTH
 t1	1	33	33
 t2	1	41	41
 t3	1	50	50
+sync_slave_with_master;
 connection slave;
 connection slave;
 SELECT * FROM t1;;

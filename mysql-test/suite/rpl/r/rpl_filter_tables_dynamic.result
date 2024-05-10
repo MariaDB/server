@@ -31,6 +31,7 @@ INSERT INTO t6 VALUES (1, 1), (2, 2), (3, 3);
 INSERT INTO t7 VALUES (1, 1), (2, 2), (3, 3);
 INSERT INTO t8 VALUES (1, 1), (2, 2), (3, 3);
 INSERT INTO t9 VALUES (1, 1), (2, 2), (3, 3);
+sync_slave_with_master;
 connection slave;
 SHOW TABLES LIKE 't%';
 Tables_in_test (t%)
@@ -55,7 +56,7 @@ UPDATE t4 LEFT JOIN (t1, t2, t5) ON (t1.id=t4.id and t2.id=t4.id and t5.id=t4.id
 UPDATE t4 LEFT JOIN (t1, t6, t7) ON (t4.id=t1.id and t4.id=t6.id and t4.id=t7.id) SET a=0, d=0, f=0, g=0 where t4.id=1;
 UPDATE t7 LEFT JOIN (t4, t1, t2) ON (t7.id=t4.id and t7.id=t1.id and t7.id=t2.id) SET a=0, b=0, d=0, g=0 where t7.id=1;
 UPDATE t7 LEFT JOIN (t8, t4, t1) ON (t7.id=t8.id and t7.id=t4.id and t7.id=t1.id) SET a=0, d=0, g=0, h=0 where t7.id=1;
-connection slave;
+sync_slave_with_master;
 connection slave;
 call mtr.add_suppression("Slave SQL.*Error .Table .test.t[47]. doesn.t exist. on query.* error.* 1146");
 connection master;
@@ -107,6 +108,7 @@ Last_SQL_Error = 'Error 'Table 'test.t4' doesn't exist' on query. Default databa
 UPDATE t7 LEFT JOIN (t1, t4, t2) ON (t7.id=t1.id and t7.id=t4.id and t7.id=t2.id) SET a=0, b=0, d=0, g=0 where t7.id=1;
 include/wait_for_slave_sql_error_and_skip.inc [errno=1146]
 Last_SQL_Error = 'Error 'Table 'test.t7' doesn't exist' on query. Default database: 'test'. Query: 'UPDATE t7 LEFT JOIN (t1, t4, t2) ON (t7.id=t1.id and t7.id=t4.id and t7.id=t2.id) SET a=0, b=0, d=0, g=0 where t7.id=1''
+sync_slave_with_master;
 connection slave;
 [on slave]
 show tables like 't%';

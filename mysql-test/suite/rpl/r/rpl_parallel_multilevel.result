@@ -2,7 +2,10 @@ include/rpl_init.inc [topology=1->2->3->4]
 connection server_1;
 ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
 CREATE TABLE t1 (a int PRIMARY KEY, b INT) ENGINE=InnoDB;
+save_master_pos;
 connection server_2;
+sync_with_master;
+save_master_pos;
 SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
 include/stop_slave.inc
 SET GLOBAL slave_parallel_threads=10;
@@ -10,6 +13,8 @@ CHANGE MASTER TO master_use_gtid=slave_pos;
 SET @old_parallel_mode=@@GLOBAL.slave_parallel_mode;
 SET GLOBAL slave_parallel_mode='optimistic';
 connection server_3;
+sync_with_master;
+save_master_pos;
 SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
 include/stop_slave.inc
 SET GLOBAL slave_parallel_threads=10;
@@ -17,6 +22,7 @@ CHANGE MASTER TO master_use_gtid=slave_pos;
 SET @old_parallel_mode=@@GLOBAL.slave_parallel_mode;
 SET GLOBAL slave_parallel_mode='optimistic';
 connection server_4;
+sync_with_master;
 SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
 include/stop_slave.inc
 SET GLOBAL slave_parallel_threads=10;

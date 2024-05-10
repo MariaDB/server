@@ -92,6 +92,7 @@ INSERT INTO t1 VALUES (1);
 DROP TABLE t2;
 INSERT INTO t1 VALUES (1);
 DROP TEMPORARY TABLE t1;
+sync_slave_with_master;
 connection slave;
 connection master;
 CREATE TABLE t1 (a CHAR(30));

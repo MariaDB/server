@@ -17,6 +17,7 @@ END
 ||
 SET sql_log_bin=1;
 CREATE TABLE t3 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+save_master_pos;
 connection server_2;
 SET sql_log_bin=0;
 CREATE FUNCTION foo(x INT, d1 VARCHAR(500), d2 VARCHAR(500))
@@ -32,6 +33,7 @@ RETURN x;
 END
 ||
 SET sql_log_bin=1;
+sync_with_master;
 connect  con_temp3,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
 SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued1 WAIT_FOR master_cont1';
 SET binlog_format=statement;
@@ -105,8 +107,10 @@ END
 SET sql_log_bin=1;
 connection server_1;
 INSERT INTO t3 VALUES (39,0);
+save_master_pos;
 connection server_2;
 include/start_slave.inc
+sync_with_master;
 SELECT * FROM t3 WHERE a >= 30 ORDER BY a;
 a	b
 31	31

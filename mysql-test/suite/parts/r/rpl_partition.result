@@ -122,6 +122,7 @@ CALL p3();
 commit;
 SELECT count(*) as "Master byrange" FROM t3;
 Master byrange	500
+sync_slave_with_master;
 connection slave;
 connection slave;
 show create table t3;
@@ -163,6 +164,7 @@ DROP TABLE t1, t2, t3;
 DROP PROCEDURE p1;
 DROP PROCEDURE p2;
 DROP PROCEDURE p3;
+sync_slave_with_master;
 connection slave;
 set @@global.binlog_format=  @old_global_binlog_format;
 set @@session.binlog_format=  @old_session_binlog_format;

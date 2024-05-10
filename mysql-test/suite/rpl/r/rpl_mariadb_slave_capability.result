@@ -15,10 +15,11 @@ connection master;
 FLUSH LOGS;
 CREATE TABLE t1 (a INT PRIMARY KEY);
 INSERT INTO t1 VALUES (0);
+sync_slave_with_master;
 connection slave;
 connection master;
 ALTER TABLE t1 ORDER BY a;
-connection slave;
+sync_slave_with_master;
 connection slave;
 connection master;
 SET SESSION binlog_annotate_row_events = ON;
@@ -36,7 +37,7 @@ master-bin.000002	#	Annotate_rows	#	#	INSERT INTO t1 /* A comment just to make t
 master-bin.000002	#	Table_map	#	#	table_id: # (test.t1)
 master-bin.000002	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000002	#	Query	#	#	COMMIT
-connection slave;
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t1;
 a
@@ -66,7 +67,7 @@ master-bin.000003	#	Annotate_rows	#	#	INSERT INTO t1 VALUES(2)
 master-bin.000003	#	Table_map	#	#	table_id: # (test.t1)
 master-bin.000003	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000003	#	Query	#	#	COMMIT
-connection slave;
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t1;
 a
@@ -111,7 +112,9 @@ master-bin.000003	#	Annotate_rows	#	#	INSERT INTO t2 VALUES (2)
 master-bin.000003	#	Table_map	#	#	table_id: # (test.t2)
 master-bin.000003	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000003	#	Xid	#	#	COMMIT /* XID */
+save_master_pos;
 connection slave;
+sync_with_master;
 SELECT * FROM t2 ORDER BY a;
 a
 1
@@ -124,7 +127,7 @@ SET @@global.debug_dbug='+d,simulate_slave_capability_old_53';
 include/start_slave.inc
 connection master;
 ALTER TABLE t1 ORDER BY a;
-connection slave;
+sync_slave_with_master;
 connection slave;
 connection master;
 UPDATE t1 SET a = 3;
@@ -135,7 +138,7 @@ master-bin.000003	#	Annotate_rows	#	#	UPDATE t1 SET a = 3
 master-bin.000003	#	Table_map	#	#	table_id: # (test.t1)
 master-bin.000003	#	Update_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000003	#	Query	#	#	COMMIT
-connection slave;
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t1;
 a
@@ -157,6 +160,7 @@ Clean up.
 connection master;
 set @@global.binlog_checksum = @old_master_binlog_checksum;
 DROP TABLE t1, t2;
+sync_slave_with_master;
 connection slave;
 set @@global.debug_dbug= @old_dbug;
 include/rpl_end.inc

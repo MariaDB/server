@@ -5,7 +5,9 @@ CREATE TABLE t1 (a int PRIMARY KEY, b INT) ENGINE=InnoDB;
 CREATE TABLE t2 (a int PRIMARY KEY, b INT) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (1,0), (2,0), (3,0);
 INSERT INTO t2 VALUES (1,0), (2,0);
+save_master_pos;
 connection server_2;
+sync_with_master;
 SET @old_isolation= @@GLOBAL.tx_isolation;
 SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
 include/stop_slave.inc

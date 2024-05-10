@@ -15,6 +15,7 @@ Verify that example engine is installed.
 SELECT * FROM INFORMATION_SCHEMA.ENGINES WHERE ENGINE='EXAMPLE';
 ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
 EXAMPLE	YES	Example storage engine	NO	NO	NO
+sync_slave_with_master;
 connection slave;
 Verify that example engine is not installed.
 connection slave;
@@ -32,6 +33,7 @@ Delta
 Verify that example engine is not installed.
 SELECT * FROM INFORMATION_SCHEMA.ENGINES WHERE ENGINE='EXAMPLE';
 ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
+sync_slave_with_master;
 connection slave;
 include/rpl_end.inc
 End of test

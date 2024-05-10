@@ -4,6 +4,7 @@ connection master;
 create user rpl_do_grant@localhost;
 grant select on *.* to rpl_do_grant@localhost;
 grant drop on test.* to rpl_do_grant@localhost;
+sync_slave_with_master;
 connection slave;
 show grants for rpl_do_grant@localhost;
 Grants for rpl_do_grant@localhost
@@ -11,6 +12,7 @@ GRANT SELECT ON *.* TO `rpl_do_grant`@`localhost`
 GRANT DROP ON `test`.* TO `rpl_do_grant`@`localhost`
 connection master;
 set password for rpl_do_grant@localhost=password("does it work?");
+sync_slave_with_master;
 connection slave;
 select authentication_string<>'' from mysql.user where user='rpl_do_grant';
 authentication_string<>''
@@ -24,12 +26,14 @@ authentication_string<>''
 set sql_mode='ANSI_QUOTES';
 set password for rpl_do_grant@localhost=password('does it work?');
 set sql_mode='';
+sync_slave_with_master;
 connection slave;
 select authentication_string<>'' from mysql.user where user='rpl_do_grant';
 authentication_string<>''
 1
 connection master;
 drop user rpl_do_grant@localhost;
+sync_slave_with_master;
 connection slave;
 connection master;
 show grants for rpl_do_grant@localhost;
@@ -44,6 +48,7 @@ Grants for rpl_do_grant@localhost
 GRANT USAGE ON *.* TO `rpl_do_grant`@`localhost`
 show grants for rpl_do_grant2@localhost;
 ERROR 42000: There is no such grant defined for user 'rpl_do_grant2' on host 'localhost'
+sync_slave_with_master;
 connection slave;
 show grants for rpl_do_grant@localhost;
 Grants for rpl_do_grant@localhost
@@ -55,6 +60,7 @@ rename user rpl_do_grant@localhost to rpl_do_grant2@localhost;
 show grants for rpl_do_grant2@localhost;
 Grants for rpl_do_grant2@localhost
 GRANT USAGE ON *.* TO `rpl_do_grant2`@`localhost`
+sync_slave_with_master;
 connection slave;
 show grants for rpl_do_grant2@localhost;
 Grants for rpl_do_grant2@localhost
@@ -65,6 +71,7 @@ show grants for rpl_do_grant2@localhost;
 Grants for rpl_do_grant2@localhost
 GRANT USAGE ON *.* TO `rpl_do_grant2`@`localhost`
 GRANT INSERT, DELETE ON `mysqltest1`.* TO `rpl_do_grant2`@`localhost`
+sync_slave_with_master;
 connection slave;
 show grants for rpl_do_grant2@localhost;
 Grants for rpl_do_grant2@localhost
@@ -76,6 +83,7 @@ show grants for rpl_do_grant2@localhost;
 Grants for rpl_do_grant2@localhost
 GRANT USAGE ON *.* TO `rpl_do_grant2`@`localhost`
 GRANT INSERT ON `mysqltest1`.* TO `rpl_do_grant2`@`localhost`
+sync_slave_with_master;
 connection slave;
 show grants for rpl_do_grant2@localhost;
 Grants for rpl_do_grant2@localhost
@@ -86,6 +94,7 @@ revoke all privileges, grant option from rpl_do_grant2@localhost;
 show grants for rpl_do_grant2@localhost;
 Grants for rpl_do_grant2@localhost
 GRANT USAGE ON *.* TO `rpl_do_grant2`@`localhost`
+sync_slave_with_master;
 connection slave;
 show grants for rpl_do_grant2@localhost;
 Grants for rpl_do_grant2@localhost
@@ -94,17 +103,20 @@ connection master;
 drop user rpl_do_grant2@localhost;
 show grants for rpl_do_grant2@localhost;
 ERROR 42000: There is no such grant defined for user 'rpl_do_grant2' on host 'localhost'
+sync_slave_with_master;
 connection slave;
 show grants for rpl_do_grant2@localhost;
 ERROR 42000: There is no such grant defined for user 'rpl_do_grant2' on host 'localhost'
 connection master;
 call mtr.add_suppression("Slave: Operation DROP USER failed for 'create_rout_db'@'localhost' error.* 1396");
+sync_slave_with_master;
 connection slave;
 connection master;
 DROP DATABASE IF EXISTS bug42217_db;
 CREATE DATABASE  bug42217_db;
 GRANT CREATE ROUTINE ON bug42217_db.* TO 'create_rout_db'@'localhost'
         IDENTIFIED BY 'create_rout_db' WITH GRANT OPTION;
+sync_slave_with_master;
 connection slave;
 connection master;
 connect  create_rout_db_master, localhost, create_rout_db, create_rout_db, bug42217_db,$MASTER_MYPORT,;
@@ -123,6 +135,7 @@ localhost	bug42217_db	create_rout_db	upgrade_del_func	FUNCTION	create_rout_db@lo
 SELECT upgrade_del_func();
 upgrade_del_func()
 INSIDE upgrade_del_func()
+sync_slave_with_master;
 connection slave;
 SELECT * FROM mysql.procs_priv;
 Host	Db	User	Routine_name	Routine_type	Grantor	Proc_priv	Timestamp
@@ -173,6 +186,7 @@ connection master;
 SELECT upgrade_alter_func();
 upgrade_alter_func()
 INSIDE upgrade_alter_func()
+sync_slave_with_master;
 connection slave;
 SHOW CREATE FUNCTION upgrade_alter_func;
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
@@ -192,6 +206,7 @@ USE bug42217_db;
 DROP FUNCTION upgrade_del_func;
 DROP FUNCTION upgrade_alter_func;
 DROP DATABASE bug42217_db;
+sync_slave_with_master;
 connection slave;
 connection master;
 SET SQL_LOG_BIN= 0;
@@ -206,10 +221,12 @@ CREATE TABLE t1(c1 INT);
 CREATE PROCEDURE p1() SELECT * FROM t1 |
 REVOKE EXECUTE ON PROCEDURE p1 FROM 'root'@'localhost';
 ERROR 42000: There is no such grant defined for user 'root' on host 'localhost' on routine 'p1'
+sync_slave_with_master;
 connection slave;
 connection master;
 DROP TABLE t1;
 DROP PROCEDURE p1;
+sync_slave_with_master;
 connection slave;
 ### ii) Test case in which REVOKE partially succeeds
 connection master;
@@ -230,6 +247,7 @@ Grants for root@localhost
 GRANT ALL PRIVILEGES ON *.* TO `root`@`localhost` WITH GRANT OPTION
 GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
 ##############################################################
+sync_slave_with_master;
 connection slave;
 ##############################################################
 ### Showing grants for both users: root and user49119 (master)
@@ -259,6 +277,7 @@ Grants for root@localhost
 GRANT ALL PRIVILEGES ON *.* TO `root`@`localhost` WITH GRANT OPTION
 GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
 ##############################################################
+sync_slave_with_master;
 connection slave;
 #############################################################
 ### Showing grants for both users: root and user49119 (slave)
@@ -275,6 +294,7 @@ connection master;
 DROP TABLE t1;
 DROP PROCEDURE p1;
 DROP USER 'user49119'@'localhost';
+sync_slave_with_master;
 connection slave;
 include/rpl_reset.inc
 connection master;
@@ -287,10 +307,12 @@ master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; grant all on *.* to foo@"1.2.3.4"
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; revoke all privileges, grant option from "foo"
+sync_slave_with_master;
 connection slave;
 include/check_slave_no_error.inc
 connection master;
 DROP USER foo@"1.2.3.4";
+sync_slave_with_master;
 connection slave;
 
 # Bug#27606 GRANT statement should be replicated with DEFINER information
@@ -300,6 +322,7 @@ GRANT SELECT, INSERT ON mysql.user TO user_bug27606@localhost;
 SELECT Grantor FROM mysql.tables_priv WHERE User='user_bug27606';
 Grantor
 root@localhost
+sync_slave_with_master;
 connection slave;
 SELECT Grantor FROM mysql.tables_priv WHERE User='user_bug27606';
 Grantor
@@ -309,6 +332,7 @@ REVOKE SELECT ON mysql.user FROM user_bug27606@localhost;
 SELECT Grantor FROM mysql.tables_priv WHERE User='user_bug27606';
 Grantor
 root@localhost
+sync_slave_with_master;
 connection slave;
 SELECT Grantor FROM mysql.tables_priv WHERE User='user_bug27606';
 Grantor

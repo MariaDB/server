@@ -11,6 +11,7 @@ show grants for r1;
 Grants for r1
 GRANT USAGE ON *.* TO `r1`
 #
+sync_slave_with_master;
 connection slave;
 #
 # The role has been replicated,
@@ -54,5 +55,6 @@ GRANT USAGE ON *.* TO `r1`
 connection master;
 drop role r1;
 drop user u1;
+sync_slave_with_master;
 connection slave;
 include/rpl_end.inc

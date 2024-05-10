@@ -37,6 +37,7 @@ master-bin.000001	#	Annotate_rows	#	#	INSERT INTO t1 VALUES (1,1), (2,2)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.t1)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+sync_slave_with_master;
 connection slave;
 SHOW DATABASES;
 Database
@@ -56,6 +57,7 @@ connection master;
 DROP DATABASE test_ignore;
 USE test;
 DROP TABLE t1;
+sync_slave_with_master;
 connection slave;
 USE test;
 include/rpl_reset.inc
@@ -75,6 +77,7 @@ master-bin.000001	#	Table_map	#	#	table_id: # (test.t1)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
 DROP TABLE t1;
+sync_slave_with_master;
 connection slave;
 ================ Test for BUG#17620 ================
 include/rpl_reset.inc
@@ -84,10 +87,12 @@ call mtr.add_suppression("Slave SQL.*Could not execute Update_rows event on tabl
 connection master;
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (1),(2),(3);
+sync_slave_with_master;
 connection slave;
 SET GLOBAL QUERY_CACHE_SIZE=16*1024*1024;
 connection master;
 INSERT INTO t1 VALUES (4),(5),(6);
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t1;
 a
@@ -99,6 +104,7 @@ a
 6
 connection master;
 INSERT INTO t1 VALUES (7),(8),(9);
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t1;
 a
@@ -118,12 +124,14 @@ DROP TABLE t1;
 include/rpl_reset.inc
 connection master;
 CREATE TABLE t1 (a BIT(1), b INT) ENGINE=MYISAM;
+sync_slave_with_master;
 connection slave;
 connection master;
 INSERT INTO t1 VALUES(1,2);
 SELECT HEX(a),b FROM t1;
 HEX(a)	b
 1	2
+sync_slave_with_master;
 connection slave;
 SELECT HEX(a),b FROM t1;
 HEX(a)	b
@@ -133,12 +141,14 @@ UPDATE t1 SET a=0 WHERE b=2;
 SELECT HEX(a),b FROM t1;
 HEX(a)	b
 0	2
+sync_slave_with_master;
 connection slave;
 SELECT HEX(a),b FROM t1;
 HEX(a)	b
 0	2
 connection master;
 DROP TABLE IF EXISTS t1;
+sync_slave_with_master;
 connection slave;
 ================ Test for BUG#22583 ================
 include/rpl_reset.inc
@@ -147,6 +157,7 @@ CREATE TABLE t1_myisam (k INT, a BIT(1), b BIT(9)) ENGINE=MYISAM;
 CREATE TABLE t1_innodb (k INT, a BIT(1), b BIT(9)) ENGINE=INNODB;
 CREATE TABLE t2_myisam (k INT, a BIT(1) NOT NULL, b BIT(4) NOT NULL) ENGINE=MYISAM;
 CREATE TABLE t2_innodb (k INT, a BIT(1) NOT NULL, b BIT(4) NOT NULL) ENGINE=INNODB;
+sync_slave_with_master;
 connection slave;
 ALTER TABLE t1_myisam ENGINE=INNODB;
 ALTER TABLE t1_innodb ENGINE=MYISAM;
@@ -177,6 +188,7 @@ SELECT k, HEX(a),HEX(b) FROM t2_innodb;
 k	HEX(a)	HEX(b)
 1	0	9
 2	1	8
+sync_slave_with_master;
 connection slave;
 SELECT k, HEX(a),HEX(b) FROM t1_myisam;
 k	HEX(a)	HEX(b)
@@ -215,6 +227,7 @@ SELECT k, HEX(a),HEX(b) FROM t2_innodb;
 k	HEX(a)	HEX(b)
 1	0	9
 2	0	8
+sync_slave_with_master;
 connection slave;
 SELECT k, HEX(a),HEX(b) FROM t1_myisam;
 k	HEX(a)	HEX(b)
@@ -234,6 +247,7 @@ k	HEX(a)	HEX(b)
 2	0	8
 connection master;
 DROP TABLE IF EXISTS t1_myisam, t1_innodb, t2_myisam, t2_innodb;
+sync_slave_with_master;
 connection slave;
 connection master;
 drop table if exists t1, t2;
@@ -256,6 +270,7 @@ select * from t2 /* must be (3,1), (4,4) */;
 a	b
 3	1
 4	4
+sync_slave_with_master;
 connection slave;
 connection slave;
 select * from t2 /* must be (3,1), (4,4) */;
@@ -264,11 +279,13 @@ a	b
 4	4
 connection master;
 drop table t1,t2;
+sync_slave_with_master;
 connection slave;
 include/rpl_reset.inc
 connection master;
 CREATE TABLE t1 (a INT PRIMARY KEY, b SET('master','slave'));
 INSERT INTO t1 VALUES (1,'master,slave'), (2,'master,slave');
+sync_slave_with_master;
 connection slave;
 UPDATE t1 SET a = 5, b = 'slave' WHERE a = 1;
 SELECT * FROM t1 ORDER BY a;
@@ -282,6 +299,7 @@ SELECT * FROM t1 ORDER BY a;
 a	b
 2	master,slave
 5	master
+sync_slave_with_master;
 connection slave;
 set @@global.slave_exec_mode= default;
 Last_SQL_Error

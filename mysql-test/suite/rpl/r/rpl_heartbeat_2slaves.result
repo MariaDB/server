@@ -29,10 +29,12 @@ INSERT INTO t1 VALUES (1, 'on master', '');
 SHOW TABLES;
 Tables_in_test
 t1
+sync_slave_with_master slave_2;
 connection slave_2;
 SHOW TABLES;
 Tables_in_test
 t1
+sync_slave_with_master slave_1;
 connection slave_1;
 SHOW TABLES;
 Tables_in_test

@@ -3,6 +3,7 @@ include/master-slave.inc
 CREATE TABLE t1 (a INT);
 FLUSH BINARY LOGS;
 INSERT INTO t1 VALUES (1);
+sync_slave_with_master;
 connection slave;
 include/stop_slave.inc
 connection master;
@@ -15,6 +16,7 @@ connection slave;
 include/start_slave.inc
 connection master;
 # Create the master-bin.index file with the old format
+sync_slave_with_master;
 connection slave;
 include/stop_slave.inc
 connection master;
@@ -27,6 +29,7 @@ include/rpl_stop_server.inc [server_number=1]
 connection slave;
 include/start_slave.inc
 connection master;
+sync_slave_with_master;
 connection slave;
 # stop slave
 include/stop_slave.inc
@@ -50,10 +53,12 @@ connection slave;
 FLUSH LOGS;
 include/start_slave.inc
 connection master;
+sync_slave_with_master;
 connection slave;
 include/diff_tables.inc [master:t1,slave:t1]
 connection master;
 DROP TABLE t1;
+sync_slave_with_master;
 connection slave;
 include/stop_slave.inc
 include/rpl_stop_server.inc [server_number=2]

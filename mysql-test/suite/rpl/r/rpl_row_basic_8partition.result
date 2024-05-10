@@ -35,6 +35,7 @@ t1	CREATE TABLE `t1` (
  PARTITION `p3` VALUES LESS THAN (1986) ENGINE = MyISAM,
  PARTITION `p4` VALUES LESS THAN (2005) ENGINE = MyISAM,
  PARTITION `p5` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+sync_slave_with_master;
 connection slave;
 SHOW CREATE TABLE t1;
 Table	Create Table
@@ -66,6 +67,7 @@ id	hex(b1)	vc	bc	d	f	total	y	t
 42	1	Testing MySQL databases is a cool 	Must make it bug free for the customer	654321.4321	15.21	0	1965	1905-11-14
 142	1	Testing MySQL databases is a cool 	Must make it bug free for the customer	654321.4321	15.21	0	1965	1995-11-14
 412	1	Testing MySQL databases is a cool 	Must make it bug free for the customer	654321.4321	15.21	0	1965	2005-11-14
+sync_slave_with_master;
 connection slave;
 --- Select from t1 on slave ---
 select id,hex(b1),vc,bc,d,f,total,y,t from t1 order by id;
@@ -82,6 +84,7 @@ UPDATE t1 SET b1 = 0, t="2006-02-22" WHERE id = 412;
 SELECT id,hex(b1),vc,bc,d,f,total,y,t FROM t1 WHERE id = 412;
 id	hex(b1)	vc	bc	d	f	total	y	t
 412	0	Testing MySQL databases is a cool 	Must make it bug free for the customer	654321.4321	15.21	0	1965	2006-02-22
+sync_slave_with_master;
 connection slave;
 --- Check Update on slave ---
 SELECT id,hex(b1),vc,bc,d,f,total,y,t FROM t1 WHERE id = 412;
@@ -94,6 +97,7 @@ DELETE FROM t1 WHERE id = 42;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 4
+sync_slave_with_master;
 connection slave;
 --- Show current count on slave for t1 --- 
 SELECT COUNT(*) FROM t1;
@@ -123,6 +127,7 @@ t1	CREATE TABLE `t1` (
  PARTITION `p3` VALUES LESS THAN (1986) ENGINE = MyISAM,
  PARTITION `p4` VALUES LESS THAN (2005) ENGINE = MyISAM,
  PARTITION `p5` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+sync_slave_with_master;
 connection slave;
 SHOW CREATE TABLE t1;
 Table	Create Table
@@ -154,6 +159,7 @@ id	hex(b1)	vc	bc	d	f	total	y	t
 42	1	Testing MySQL databases is a cool 	Must make it bug free for the customer	654321.4321	15.21	0	1965	1905-11-14
 142	1	Testing MySQL databases is a cool 	Must make it bug free for the customer	654321.4321	15.21	0	1965	1995-11-14
 412	1	Testing MySQL databases is a cool 	Must make it bug free for the customer	654321.4321	15.21	0	1965	2005-11-14
+sync_slave_with_master;
 connection slave;
 --- Select from t1 on slave ---
 select id,hex(b1),vc,bc,d,f,total,y,t from t1 order by id;
@@ -170,6 +176,7 @@ UPDATE t1 SET b1 = 0, t="2006-02-22" WHERE id = 412;
 SELECT id,hex(b1),vc,bc,d,f,total,y,t FROM t1 WHERE id = 412;
 id	hex(b1)	vc	bc	d	f	total	y	t
 412	0	Testing MySQL databases is a cool 	Must make it bug free for the customer	654321.4321	15.21	0	1965	2006-02-22
+sync_slave_with_master;
 connection slave;
 --- Check Update on slave ---
 SELECT id,hex(b1),vc,bc,d,f,total,y,t FROM t1 WHERE id = 412;
@@ -182,6 +189,7 @@ DELETE FROM t1 WHERE id = 42;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 4
+sync_slave_with_master;
 connection slave;
 --- Show current count on slave for t1 --- 
 SELECT COUNT(*) FROM t1;
@@ -217,6 +225,7 @@ t1	CREATE TABLE `t1` (
 (PARTITION `p0` VALUES IN (2,4) ENGINE = MyISAM,
  PARTITION `p1` VALUES IN (42,142) ENGINE = MyISAM,
  PARTITION `p2` VALUES IN (412) ENGINE = MyISAM)
+sync_slave_with_master;
 connection slave;
 SHOW CREATE TABLE t1;
 Table	Create Table
@@ -245,6 +254,7 @@ id	hex(b1)	vc	bc	d	f	total	y	t
 42	1	Testing MySQL databases is a cool 	Must make it bug free for the customer	654321.4321	15.21	0	1965	1905-11-14
 142	1	Testing MySQL databases is a cool 	Must make it bug free for the customer	654321.4321	15.21	0	1965	1995-11-14
 412	1	Testing MySQL databases is a cool 	Must make it bug free for the customer	654321.4321	15.21	0	1965	2005-11-14
+sync_slave_with_master;
 connection slave;
 --- Select from t1 on slave ---
 select id,hex(b1),vc,bc,d,f,total,y,t from t1 order by id;
@@ -261,6 +271,7 @@ UPDATE t1 SET b1 = 0, t="2006-02-22" WHERE id = 412;
 SELECT id,hex(b1),vc,bc,d,f,total,y,t FROM t1 WHERE id = 412;
 id	hex(b1)	vc	bc	d	f	total	y	t
 412	0	Testing MySQL databases is a cool 	Must make it bug free for the customer	654321.4321	15.21	0	1965	2006-02-22
+sync_slave_with_master;
 connection slave;
 --- Check Update on slave ---
 SELECT id,hex(b1),vc,bc,d,f,total,y,t FROM t1 WHERE id = 412;
@@ -273,6 +284,7 @@ DELETE FROM t1 WHERE id = 42;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 4
+sync_slave_with_master;
 connection slave;
 --- Show current count on slave for t1 --- 
 SELECT COUNT(*) FROM t1;
@@ -299,6 +311,7 @@ t1	CREATE TABLE `t1` (
 (PARTITION `p0` VALUES IN (2,4) ENGINE = MyISAM,
  PARTITION `p1` VALUES IN (42,142) ENGINE = MyISAM,
  PARTITION `p2` VALUES IN (412) ENGINE = MyISAM)
+sync_slave_with_master;
 connection slave;
 SHOW CREATE TABLE t1;
 Table	Create Table
@@ -327,6 +340,7 @@ id	hex(b1)	vc	bc	d	f	total	y	t
 42	1	Testing MySQL databases is a cool 	Must make it bug free for the customer	654321.4321	15.21	0	1965	1905-11-14
 142	1	Testing MySQL databases is a cool 	Must make it bug free for the customer	654321.4321	15.21	0	1965	1995-11-14
 412	1	Testing MySQL databases is a cool 	Must make it bug free for the customer	654321.4321	15.21	0	1965	2005-11-14
+sync_slave_with_master;
 connection slave;
 --- Select from t1 on slave ---
 select id,hex(b1),vc,bc,d,f,total,y,t from t1 order by id;
@@ -343,6 +357,7 @@ UPDATE t1 SET b1 = 0, t="2006-02-22" WHERE id = 412;
 SELECT id,hex(b1),vc,bc,d,f,total,y,t FROM t1 WHERE id = 412;
 id	hex(b1)	vc	bc	d	f	total	y	t
 412	0	Testing MySQL databases is a cool 	Must make it bug free for the customer	654321.4321	15.21	0	1965	2006-02-22
+sync_slave_with_master;
 connection slave;
 --- Check Update on slave ---
 SELECT id,hex(b1),vc,bc,d,f,total,y,t FROM t1 WHERE id = 412;
@@ -355,6 +370,7 @@ DELETE FROM t1 WHERE id = 42;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 4
+sync_slave_with_master;
 connection slave;
 --- Show current count on slave for t1 --- 
 SELECT COUNT(*) FROM t1;
@@ -386,6 +402,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY HASH (year(`t`))
 PARTITIONS 4
+sync_slave_with_master;
 connection slave;
 SHOW CREATE TABLE t1;
 Table	Create Table
@@ -412,6 +429,7 @@ id	hex(b1)	vc	bc	d	f	total	y	t
 42	1	Testing MySQL databases is a cool 	Must make it bug free for the customer	654321.4321	15.21	0	1965	1905-11-14
 142	1	Testing MySQL databases is a cool 	Must make it bug free for the customer	654321.4321	15.21	0	1965	1995-11-14
 412	1	Testing MySQL databases is a cool 	Must make it bug free for the customer	654321.4321	15.21	0	1965	2005-11-14
+sync_slave_with_master;
 connection slave;
 --- Select from t1 on slave ---
 select id,hex(b1),vc,bc,d,f,total,y,t from t1 order by id;
@@ -428,6 +446,7 @@ UPDATE t1 SET b1 = 0, t="2006-02-22" WHERE id = 412;
 SELECT id,hex(b1),vc,bc,d,f,total,y,t FROM t1 WHERE id = 412;
 id	hex(b1)	vc	bc	d	f	total	y	t
 412	0	Testing MySQL databases is a cool 	Must make it bug free for the customer	654321.4321	15.21	0	1965	2006-02-22
+sync_slave_with_master;
 connection slave;
 --- Check Update on slave ---
 SELECT id,hex(b1),vc,bc,d,f,total,y,t FROM t1 WHERE id = 412;
@@ -440,6 +459,7 @@ DELETE FROM t1 WHERE id = 42;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 4
+sync_slave_with_master;
 connection slave;
 --- Show current count on slave for t1 --- 
 SELECT COUNT(*) FROM t1;
@@ -463,6 +483,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY HASH (year(`t`))
 PARTITIONS 4
+sync_slave_with_master;
 connection slave;
 SHOW CREATE TABLE t1;
 Table	Create Table
@@ -489,6 +510,7 @@ id	hex(b1)	vc	bc	d	f	total	y	t
 42	1	Testing MySQL databases is a cool 	Must make it bug free for the customer	654321.4321	15.21	0	1965	1905-11-14
 142	1	Testing MySQL databases is a cool 	Must make it bug free for the customer	654321.4321	15.21	0	1965	1995-11-14
 412	1	Testing MySQL databases is a cool 	Must make it bug free for the customer	654321.4321	15.21	0	1965	2005-11-14
+sync_slave_with_master;
 connection slave;
 --- Select from t1 on slave ---
 select id,hex(b1),vc,bc,d,f,total,y,t from t1 order by id;
@@ -505,6 +527,7 @@ UPDATE t1 SET b1 = 0, t="2006-02-22" WHERE id = 412;
 SELECT id,hex(b1),vc,bc,d,f,total,y,t FROM t1 WHERE id = 412;
 id	hex(b1)	vc	bc	d	f	total	y	t
 412	0	Testing MySQL databases is a cool 	Must make it bug free for the customer	654321.4321	15.21	0	1965	2006-02-22
+sync_slave_with_master;
 connection slave;
 --- Check Update on slave ---
 SELECT id,hex(b1),vc,bc,d,f,total,y,t FROM t1 WHERE id = 412;
@@ -517,6 +540,7 @@ DELETE FROM t1 WHERE id = 42;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 4
+sync_slave_with_master;
 connection slave;
 --- Show current count on slave for t1 --- 
 SELECT COUNT(*) FROM t1;
@@ -549,6 +573,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY KEY ()
 PARTITIONS 4
+sync_slave_with_master;
 connection slave;
 SHOW CREATE TABLE t1;
 Table	Create Table
@@ -576,6 +601,7 @@ id	hex(b1)	vc	bc	d	f	total	y	t
 42	1	Testing MySQL databases is a cool 	Must make it bug free for the customer	654321.4321	15.21	0	1965	1905-11-14
 142	1	Testing MySQL databases is a cool 	Must make it bug free for the customer	654321.4321	15.21	0	1965	1995-11-14
 412	1	Testing MySQL databases is a cool 	Must make it bug free for the customer	654321.4321	15.21	0	1965	2005-11-14
+sync_slave_with_master;
 connection slave;
 --- Select from t1 on slave ---
 select id,hex(b1),vc,bc,d,f,total,y,t from t1 order by id;
@@ -592,6 +618,7 @@ UPDATE t1 SET b1 = 0, t="2006-02-22" WHERE id = 412;
 SELECT id,hex(b1),vc,bc,d,f,total,y,t FROM t1 WHERE id = 412;
 id	hex(b1)	vc	bc	d	f	total	y	t
 412	0	Testing MySQL databases is a cool 	Must make it bug free for the customer	654321.4321	15.21	0	1965	2006-02-22
+sync_slave_with_master;
 connection slave;
 --- Check Update on slave ---
 SELECT id,hex(b1),vc,bc,d,f,total,y,t FROM t1 WHERE id = 412;
@@ -604,6 +631,7 @@ DELETE FROM t1 WHERE id = 42;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 4
+sync_slave_with_master;
 connection slave;
 --- Show current count on slave for t1 --- 
 SELECT COUNT(*) FROM t1;
@@ -629,6 +657,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY KEY ()
 PARTITIONS 4
+sync_slave_with_master;
 connection slave;
 SHOW CREATE TABLE t1;
 Table	Create Table
@@ -656,6 +685,7 @@ id	hex(b1)	vc	bc	d	f	total	y	t
 42	1	Testing MySQL databases is a cool 	Must make it bug free for the customer	654321.4321	15.21	0	1965	1905-11-14
 142	1	Testing MySQL databases is a cool 	Must make it bug free for the customer	654321.4321	15.21	0	1965	1995-11-14
 412	1	Testing MySQL databases is a cool 	Must make it bug free for the customer	654321.4321	15.21	0	1965	2005-11-14
+sync_slave_with_master;
 connection slave;
 --- Select from t1 on slave ---
 select id,hex(b1),vc,bc,d,f,total,y,t from t1 order by id;
@@ -672,6 +702,7 @@ UPDATE t1 SET b1 = 0, t="2006-02-22" WHERE id = 412;
 SELECT id,hex(b1),vc,bc,d,f,total,y,t FROM t1 WHERE id = 412;
 id	hex(b1)	vc	bc	d	f	total	y	t
 412	0	Testing MySQL databases is a cool 	Must make it bug free for the customer	654321.4321	15.21	0	1965	2006-02-22
+sync_slave_with_master;
 connection slave;
 --- Check Update on slave ---
 SELECT id,hex(b1),vc,bc,d,f,total,y,t FROM t1 WHERE id = 412;
@@ -684,6 +715,7 @@ DELETE FROM t1 WHERE id = 42;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 4
+sync_slave_with_master;
 connection slave;
 --- Show current count on slave for t1 --- 
 SELECT COUNT(*) FROM t1;
@@ -709,6 +741,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY KEY ()
 PARTITIONS 4
+sync_slave_with_master;
 connection slave;
 SHOW CREATE TABLE t1;
 Table	Create Table
@@ -736,6 +769,7 @@ id	hex(b1)	vc	bc	d	f	total	y	t
 42	1	Testing MySQL databases is a cool 	Must make it bug free for the customer	654321.4321	15.21	0	1965	1905-11-14
 142	1	Testing MySQL databases is a cool 	Must make it bug free for the customer	654321.4321	15.21	0	1965	1995-11-14
 412	1	Testing MySQL databases is a cool 	Must make it bug free for the customer	654321.4321	15.21	0	1965	2005-11-14
+sync_slave_with_master;
 connection slave;
 --- Select from t1 on slave ---
 select id,hex(b1),vc,bc,d,f,total,y,t from t1 order by id;
@@ -752,6 +786,7 @@ UPDATE t1 SET b1 = 0, t="2006-02-22" WHERE id = 412;
 SELECT id,hex(b1),vc,bc,d,f,total,y,t FROM t1 WHERE id = 412;
 id	hex(b1)	vc	bc	d	f	total	y	t
 412	0	Testing MySQL databases is a cool 	Must make it bug free for the customer	654321.4321	15.21	0	1965	2006-02-22
+sync_slave_with_master;
 connection slave;
 --- Check Update on slave ---
 SELECT id,hex(b1),vc,bc,d,f,total,y,t FROM t1 WHERE id = 412;
@@ -764,6 +799,7 @@ DELETE FROM t1 WHERE id = 42;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 4
+sync_slave_with_master;
 connection slave;
 --- Show current count on slave for t1 --- 
 SELECT COUNT(*) FROM t1;

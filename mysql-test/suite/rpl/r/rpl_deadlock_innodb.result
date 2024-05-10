@@ -5,6 +5,7 @@ connection master;
 CREATE TABLE t1 (a INT NOT NULL, KEY(a)) ENGINE=innodb;
 CREATE TABLE t2 (a INT) ENGINE=innodb;
 CREATE TABLE t3 (a INT NOT NULL, KEY(a)) ENGINE=innodb;
+sync_slave_with_master;
 connection slave;
 SHOW CREATE TABLE t1;
 Table	Create Table
@@ -33,6 +34,7 @@ INSERT INTO t1 VALUES (1);
 INSERT INTO t2 VALUES (2), (2), (2), (2), (2), (2), (2), (2), (2), (2);
 INSERT INTO t3 VALUES (3);
 COMMIT;
+save_master_pos;
 
 *** Test deadlock ***
 connection slave;
@@ -51,6 +53,7 @@ COMMIT;
 
 include/assert.inc [current number of retries should be more than the value saved before deadlock.]
 include/check_slave_is_running.inc
+sync_with_master;
 SELECT * FROM t1;
 a
 1
@@ -77,6 +80,7 @@ COUNT(*)
 0
 COMMIT;
 include/start_slave.inc
+sync_with_master;
 SELECT * FROM t1;
 a
 1
@@ -110,6 +114,7 @@ COUNT(*)
 0
 COMMIT;
 include/start_slave.inc
+sync_with_master;
 SELECT * FROM t1;
 a
 1
@@ -125,6 +130,7 @@ include/check_slave_is_running.inc
 *** Clean up ***
 connection master;
 DROP TABLE t1,t2,t3;
+sync_slave_with_master;
 connection slave;
 SET global max_relay_log_size= @my_max_relay_log_size;
 End of 5.1 tests

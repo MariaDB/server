@@ -1,5 +1,6 @@
 include/master-slave.inc
 [connection master]
+sync_slave_with_master;
 connection slave;
 select master_pos_wait('master-bin.999999',0,2);
 master_pos_wait('master-bin.999999',0,2)

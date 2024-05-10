@@ -45,6 +45,7 @@ COUNT(*)
 0
 SELECT * FROM t2 ORDER BY a;
 a	b
+sync_slave_with_master;
 connection slave;
 USE test_rpl;
 SELECT COUNT(*) FROM t1;
@@ -81,6 +82,7 @@ COUNT(*)
 SELECT * FROM t2 ORDER BY a;
 a	b
 1	t2, text 1
+sync_slave_with_master;
 connection slave;
 USE test_rpl;
 SELECT COUNT(*) FROM t1;
@@ -119,6 +121,7 @@ COUNT(*)
 0
 SELECT * FROM t2 ORDER BY a;
 a	b
+sync_slave_with_master;
 connection slave;
 USE test_rpl;
 SELECT COUNT(*) FROM t1;
@@ -158,6 +161,7 @@ COUNT(*)
 0
 SELECT * FROM t2 ORDER BY a;
 a	b
+sync_slave_with_master;
 connection slave;
 USE test_rpl;
 SELECT COUNT(*) FROM t1;
@@ -223,6 +227,7 @@ COUNT(*)
 0
 SELECT * FROM t2 ORDER BY a;
 a	b
+sync_slave_with_master;
 connection slave;
 USE test_rpl;
 SELECT COUNT(*) FROM t1;
@@ -248,6 +253,7 @@ COUNT(*)
 0
 SELECT * FROM t2 ORDER BY a;
 a	b
+sync_slave_with_master;
 connection slave;
 USE test_rpl;
 SELECT COUNT(*) FROM t1;
@@ -280,6 +286,7 @@ COUNT(*)
 SELECT * FROM t2 ORDER BY a;
 a	b
 1	t2, text 1
+sync_slave_with_master;
 connection slave;
 USE test_rpl;
 SELECT COUNT(*) FROM t1;
@@ -308,6 +315,7 @@ COUNT(*)
 SELECT * FROM t2 ORDER BY a;
 a	b
 1	test
+sync_slave_with_master;
 connection slave;
 USE test_rpl;
 SELECT COUNT(*) FROM t1;
@@ -353,6 +361,7 @@ COUNT(*)
 0
 SELECT * FROM t2 ORDER BY a;
 a	b
+sync_slave_with_master;
 connection slave;
 USE test_rpl;
 SELECT COUNT(*) FROM t1;
@@ -381,6 +390,7 @@ COUNT(*)
 0
 SELECT * FROM t2 ORDER BY a;
 a	b
+sync_slave_with_master;
 connection slave;
 USE test_rpl;
 SELECT COUNT(*) FROM t1;
@@ -412,6 +422,7 @@ COUNT(*)
 0
 SELECT * FROM t2 ORDER BY a;
 a	b
+sync_slave_with_master;
 connection slave;
 USE test_rpl;
 SELECT COUNT(*) FROM t1;
@@ -448,6 +459,7 @@ COUNT(*)
 0
 SELECT * FROM t2 ORDER BY a;
 a	b
+sync_slave_with_master;
 connection slave;
 USE test_rpl;
 SELECT COUNT(*) FROM t1;
@@ -483,6 +495,7 @@ CREATE USER 'user_test_rpl'@'localhost' IDENTIFIED BY PASSWORD '*111111111111111
 SELECT host, user, password, plugin, authentication_string, select_priv FROM mysql.user WHERE user LIKE 'user_test_rpl%';
 Host	User	Password	plugin	authentication_string	Select_priv
 localhost	user_test_rpl	*1111111111111111111111111111111111111111	mysql_native_password	*1111111111111111111111111111111111111111	N
+sync_slave_with_master;
 connection slave;
 USE test_rpl;
 SELECT host, user, password, plugin, authentication_string, select_priv FROM mysql.user WHERE user LIKE 'user_test_rpl%';
@@ -495,6 +508,7 @@ GRANT SELECT ON *.* TO 'user_test_rpl'@'localhost';
 SELECT host, user, password, plugin, authentication_string, select_priv FROM mysql.user WHERE user LIKE 'user_test_rpl%';
 Host	User	Password	plugin	authentication_string	Select_priv
 localhost	user_test_rpl	*1111111111111111111111111111111111111111	mysql_native_password	*1111111111111111111111111111111111111111	Y
+sync_slave_with_master;
 connection slave;
 USE test_rpl;
 SELECT host, user, password, plugin, authentication_string, select_priv FROM mysql.user WHERE user LIKE 'user_test_rpl%';
@@ -507,6 +521,7 @@ REVOKE SELECT ON *.* FROM 'user_test_rpl'@'localhost';
 SELECT host, user, password, plugin, authentication_string, select_priv FROM mysql.user WHERE user LIKE 'user_test_rpl%';
 Host	User	Password	plugin	authentication_string	Select_priv
 localhost	user_test_rpl	*1111111111111111111111111111111111111111	mysql_native_password	*1111111111111111111111111111111111111111	N
+sync_slave_with_master;
 connection slave;
 USE test_rpl;
 SELECT host, user, password, plugin, authentication_string, select_priv FROM mysql.user WHERE user LIKE 'user_test_rpl%';
@@ -519,6 +534,7 @@ SET PASSWORD FOR 'user_test_rpl'@'localhost' = '*0000000000000000000000000000000
 SELECT host, user, password, plugin, authentication_string, select_priv FROM mysql.user WHERE user LIKE 'user_test_rpl%';
 Host	User	Password	plugin	authentication_string	Select_priv
 localhost	user_test_rpl	*0000000000000000000000000000000000000000	mysql_native_password	*0000000000000000000000000000000000000000	N
+sync_slave_with_master;
 connection slave;
 USE test_rpl;
 SELECT host, user, password, plugin, authentication_string, select_priv FROM mysql.user WHERE user LIKE 'user_test_rpl%';
@@ -531,6 +547,7 @@ RENAME USER 'user_test_rpl'@'localhost' TO 'user_test_rpl_2'@'localhost';
 SELECT host, user, password, plugin, authentication_string, select_priv FROM mysql.user WHERE user LIKE 'user_test_rpl%';
 Host	User	Password	plugin	authentication_string	Select_priv
 localhost	user_test_rpl_2	*0000000000000000000000000000000000000000	mysql_native_password	*0000000000000000000000000000000000000000	N
+sync_slave_with_master;
 connection slave;
 USE test_rpl;
 SELECT host, user, password, plugin, authentication_string, select_priv FROM mysql.user WHERE user LIKE 'user_test_rpl%';
@@ -542,6 +559,7 @@ connection master;
 DROP USER 'user_test_rpl_2'@'localhost';
 SELECT host, user, password, plugin, authentication_string, select_priv FROM mysql.user WHERE user LIKE 'user_test_rpl%';
 Host	User	Password	plugin	authentication_string	Select_priv
+sync_slave_with_master;
 connection slave;
 USE test_rpl;
 SELECT host, user, password, plugin, authentication_string, select_priv FROM mysql.user WHERE user LIKE 'user_test_rpl%';
@@ -585,6 +603,7 @@ Variable_name	Value
 SHOW DATABASES LIKE 'test_rpl%';
 Database (test_rpl%)
 test_rpl
+sync_slave_with_master;
 connection slave;
 SHOW DATABASES LIKE 'test_rpl%';
 Database (test_rpl%)
@@ -617,6 +636,7 @@ COUNT(*)
 0
 SELECT * FROM t2 ORDER BY a;
 a	b
+sync_slave_with_master;
 connection slave;
 USE test_rpl;
 SELECT COUNT(*) FROM t1;
@@ -656,6 +676,7 @@ COUNT(*)
 SELECT * FROM t2 ORDER BY a;
 a	b
 1	test
+sync_slave_with_master;
 connection slave;
 USE test_rpl;
 SELECT COUNT(*) FROM t1;
@@ -684,6 +705,7 @@ Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON 
 SHOW EVENTS;
 Db	Name	Definer	Time zone	Type	Execute at	Interval value	Interval field	Starts	Ends	Status	Originator	character_set_client	collation_connection	Database Collation
 test_rpl	e1	root@localhost	SYSTEM	RECURRING	NULL	1	#	#	NULL	ENABLED	1	latin1	latin1_swedish_ci	latin1_swedish_ci
+sync_slave_with_master;
 connection slave;
 USE test_rpl;
 SHOW EVENTS;
@@ -701,6 +723,7 @@ COUNT(*)
 0
 SELECT * FROM t2 ORDER BY a;
 a	b
+sync_slave_with_master;
 connection slave;
 USE test_rpl;
 SELECT COUNT(*) FROM t1;
@@ -726,6 +749,7 @@ COUNT(*)
 0
 SELECT * FROM t2 ORDER BY a;
 a	b
+sync_slave_with_master;
 connection slave;
 USE test_rpl;
 SELECT COUNT(*) FROM t1;
@@ -744,6 +768,7 @@ ALTER EVENT e1 RENAME TO e2;
 SHOW EVENTS;
 Db	Name	Definer	Time zone	Type	Execute at	Interval value	Interval field	Starts	Ends	Status	Originator	character_set_client	collation_connection	Database Collation
 test_rpl	e2	root@localhost	SYSTEM	RECURRING	NULL	1	#	#	NULL	ENABLED	1	latin1	latin1_swedish_ci	latin1_swedish_ci
+sync_slave_with_master;
 connection slave;
 USE test_rpl;
 SHOW EVENTS;
@@ -761,6 +786,7 @@ COUNT(*)
 0
 SELECT * FROM t2 ORDER BY a;
 a	b
+sync_slave_with_master;
 connection slave;
 USE test_rpl;
 SELECT COUNT(*) FROM t1;
@@ -778,6 +804,7 @@ connection master;
 DROP EVENT e2;
 SHOW EVENTS;
 Db	Name	Definer	Time zone	Type	Execute at	Interval value	Interval field	Starts	Ends	Status	Originator	character_set_client	collation_connection	Database Collation
+sync_slave_with_master;
 connection slave;
 USE test_rpl;
 SHOW EVENTS;
@@ -797,6 +824,7 @@ v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VI
 SELECT * FROM v1 ORDER BY a;
 a	b
 1	test1
+sync_slave_with_master;
 connection slave;
 USE test_rpl;
 SHOW CREATE VIEW v1;
@@ -813,6 +841,7 @@ v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VI
 SELECT * FROM v1 ORDER BY a;
 a	b
 2	test2
+sync_slave_with_master;
 connection slave;
 USE test_rpl;
 SHOW CREATE VIEW v1;
@@ -1137,8 +1166,10 @@ master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test_rpl`; DELETE FROM t2
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
+sync_slave_with_master;
 connection slave;
 connection master;
 drop database test_rpl;
+sync_slave_with_master;
 connection slave;
 include/rpl_end.inc

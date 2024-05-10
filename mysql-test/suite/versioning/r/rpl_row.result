@@ -7,6 +7,7 @@ create or replace table t1 (pk int, i int, primary key(pk))
 with system versioning;
 insert into t1 values (1,10),(2,20);
 update t1 set i = 0;
+sync_slave_with_master;
 connection slave;
 connection master;
 drop table t1;
@@ -22,6 +23,7 @@ alter table t1 add column y int, algorithm=inplace;
 check table t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
+sync_slave_with_master;
 connection slave;
 drop table t1;
 show create table t1;
@@ -43,6 +45,7 @@ set timestamp= default;
 ###   @2=1
 ###   @3=12345.000000
 ###   @4=2147483647.999999
+sync_slave_with_master;
 connection slave;
 select * from t1;
 x	y
@@ -91,6 +94,7 @@ master-bin.000002	#	Table_map	#	#	table_id: # (test.t1)
 master-bin.000002	#	Update_rows_v1	#	#	table_id: #
 master-bin.000002	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000002	#	Query	#	#	COMMIT
+sync_slave_with_master;
 connection slave;
 show create table t1;
 Table	Create Table

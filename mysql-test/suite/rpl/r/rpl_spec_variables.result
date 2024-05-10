@@ -20,6 +20,7 @@ SELECT * FROM t1 ORDER BY a;
 a	b
 2	master
 4	master
+sync_slave_with_master;
 connection slave;
 CREATE TABLE t2 (a INT NOT NULL AUTO_INCREMENT PRIMARY KEY, b VARCHAR(10)) ENGINE=MyISAM;
 INSERT INTO t1 (b) VALUES ('slave');
@@ -75,6 +76,7 @@ t1	CREATE TABLE `t1` (
   `b` varchar(10) DEFAULT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+sync_slave_with_master;
 connection slave;
 CREATE TABLE t2 (a INT NOT NULL PRIMARY KEY, b VARCHAR(10)) ENGINE=MyISAM;
 SHOW CREATE TABLE t1;
@@ -111,6 +113,7 @@ INSERT INTO t1 VALUES (1, 'master ', WEEK('2008-01-07'));
 SELECT * FROM t1 ORDER BY a;
 a	b	c
 1	master 	1
+sync_slave_with_master;
 connection slave;
 INSERT INTO t1 VALUES (2, 'slave ', WEEK('2008-01-07'));
 SELECT * FROM t1 ORDER BY a;
@@ -132,6 +135,7 @@ LOAD DATA LOCAL INFILE 'FILE' INTO TABLE t1 (b);
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 70
+sync_slave_with_master;
 connection slave;
 LOAD DATA LOCAL INFILE 'FILE2' INTO TABLE t1 (b);
 ERROR HY000: The used command is not allowed because the MariaDB server or client has disabled the local infile capability
@@ -152,6 +156,7 @@ CREATE TABLE t1 (a INT NOT NULL AUTO_INCREMENT PRIMARY KEY, b VARCHAR(10), c CHA
 SELECT COUNT(*)=2000 FROM t1;
 COUNT(*)=2000
 1
+sync_slave_with_master;
 connection slave;
 SELECT COUNT(*)=2000 FROM t1 WHERE b='master' GROUP BY b ORDER BY b;
 COUNT(*)=2000
@@ -177,6 +182,7 @@ SET @@session.default_storage_engine=Memory;
 connection master;
 CREATE TABLE t1 (a INT NOT NULL PRIMARY KEY, b VARCHAR(10));
 CREATE TABLE t2 (a INT NOT NULL PRIMARY KEY, b VARCHAR(10)) ENGINE=InnoDB;
+sync_slave_with_master;
 connection slave;
 CREATE TABLE t3 (a INT NOT NULL PRIMARY KEY, b VARCHAR(10));
 connection master;
@@ -236,6 +242,7 @@ INSERT INTO t1 VALUES (1, 'master', '0000-00-00');
 SELECT * FROM t1 ORDER BY a;
 a	b	c
 1	master	0000-00-00
+sync_slave_with_master;
 connection slave;
 INSERT INTO t1 VALUES (1, 'slave', '0000-00-00');
 ERROR 22007: Incorrect date value: '0000-00-00' for column `test`.`t1`.`c` at row 1
@@ -255,6 +262,7 @@ SET @@global.character_set_database=@restore_master_character_set_database;
 SET @@global.collation_server=@restore_master_collation_server;
 SET @@global.default_storage_engine=@restore_master_storage_engine;
 SET @@global.sql_mode=@old_sql_mode_master;
+sync_slave_with_master;
 connection slave;
 SET @@global.character_set_database=@restore_slave_character_set_database;
 SET @@global.collation_server=@restore_slave_collation_server;

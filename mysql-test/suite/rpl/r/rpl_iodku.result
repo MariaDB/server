@@ -10,6 +10,7 @@ id	a	b	c
 1	1	NULL	11
 2	2	NULL	21
 3	3	NULL	1
+sync_slave_with_master;
 connection slave;
 include/diff_tables.inc [master:t1,slave:t1]
 connection master;
@@ -24,9 +25,11 @@ a	b	c
 1	10	1
 2	20	2
 3	NULL	1
+sync_slave_with_master;
 connection slave;
 include/diff_tables.inc [master:t1,slave:t1]
 connection master;
 DROP TABLE t1;
+sync_slave_with_master;
 connection slave;
 include/rpl_end.inc

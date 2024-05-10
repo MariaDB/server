@@ -50,11 +50,13 @@ b BLOB
 INSERT INTO table3_no_encryption VALUES (NULL,NOW(),'data_no_encryption');
 INSERT INTO table3_no_encryption SELECT NULL,NOW(),b FROM table3_no_encryption;
 INSERT INTO table3_no_encryption SELECT NULL,NOW(),b FROM table3_no_encryption;
+save_master_pos;
 #####################################################
 # Check: resume replication and check that it works
 #####################################################
 connection server_2;
 include/start_slave.inc
+sync_with_master;
 SHOW TABLES;
 Tables_in_test
 table1_no_encryption
@@ -74,5 +76,7 @@ SELECT COUNT(*) FROM table3_no_encryption;
 COUNT(*)
 4
 DROP TABLE table1_no_encryption, table2_to_encrypt, table3_no_encryption;
+save_master_pos;
 connection server_2;
+sync_with_master;
 include/rpl_end.inc

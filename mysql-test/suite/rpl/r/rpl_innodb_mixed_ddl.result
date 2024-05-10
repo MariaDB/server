@@ -33,6 +33,7 @@ ALTER DATABASE test_rpl CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 SHOW DATABASES LIKE 'test_rpl%';
 Database (test_rpl%)
 test_rpl
+sync_slave_with_master;
 connection slave;
 SHOW DATABASES LIKE 'test_rpl%';
 Database (test_rpl%)
@@ -64,6 +65,7 @@ t2	CREATE TABLE `t2` (
   PRIMARY KEY (`a`),
   KEY `index1` (`b`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+sync_slave_with_master;
 connection slave;
 USE test_rpl;
 SHOW CREATE TABLE t1;
@@ -107,6 +109,7 @@ t2	CREATE TABLE `t2` (
   KEY `index2` (`d`),
   KEY `index3` (`a`,`d`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+sync_slave_with_master;
 connection slave;
 USE test_rpl;
 SHOW CREATE TABLE t1;
@@ -171,8 +174,10 @@ master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test_rpl`; CREATE INDEX index3 on t2 (a, d)
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test_rpl`; ALTER TABLE t2 DROP COLUMN d
+sync_slave_with_master;
 connection slave;
 connection master;
 drop database test_rpl;
+sync_slave_with_master;
 connection slave;
 include/rpl_end.inc

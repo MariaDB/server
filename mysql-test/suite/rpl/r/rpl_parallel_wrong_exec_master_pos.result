@@ -13,14 +13,18 @@ CREATE TABLE t5 (a INT PRIMARY KEY, b INT);
 INSERT INTO t5 VALUES (1,1);
 INSERT INTO t5 VALUES (2,2), (3,8);
 INSERT INTO t5 VALUES (4,16);
+save_master_pos;
 connection server_2;
+sync_with_master;
 test_check
 OK
 test_check
 OK
 connection server_1;
 FLUSH LOGS;
+save_master_pos;
 connection server_2;
+sync_with_master;
 test_check
 OK
 test_check

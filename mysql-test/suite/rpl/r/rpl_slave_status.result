@@ -3,6 +3,7 @@ include/master-slave.inc
 ==== Create new replication user ====
 connection master;
 GRANT REPLICATION SLAVE ON *.* TO rpl@127.0.0.1 IDENTIFIED BY 'rpl';
+sync_slave_with_master;
 connection slave;
 include/stop_slave.inc
 set @save_relay_log_purge=@@global.relay_log_purge;
@@ -23,6 +24,7 @@ include/start_slave.inc
 connection master;
 CREATE TABLE t1 (n INT);
 INSERT INTO t1 VALUES (1);
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t1;
 n
@@ -31,6 +33,7 @@ n
 connection master;
 DROP USER rpl@127.0.0.1;
 FLUSH PRIVILEGES;
+sync_slave_with_master;
 connection slave;
 ==== Restart slave without privileges =====
 include/stop_slave.inc

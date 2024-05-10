@@ -18,7 +18,9 @@ CREATE TABLE t2 (a int PRIMARY KEY) ENGINE=InnoDB;
 CREATE TABLE t3 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
 INSERT INTO t2 VALUES(100);
 INSERT INTO t3 VALUES(100, 100);
+save_master_pos;
 connection server_2;
+sync_with_master;
 include/stop_slave.inc
 connection server_1;
 SET binlog_direct_non_transactional_updates=0;
@@ -33,6 +35,7 @@ INSERT INTO t3 VALUES (20, 20);
 COMMIT;
 INSERT INTO t3 VALUES(21, 21);
 INSERT INTO t3 VALUES(22, 22);
+save_master_pos;
 connection con_temp1;
 BEGIN;
 INSERT INTO t2 VALUES (21);
@@ -63,6 +66,7 @@ a	b
 20	20
 100	100
 include/start_slave.inc
+sync_with_master;
 SELECT * FROM t1 WHERE a >= 20 ORDER BY a;
 a
 20

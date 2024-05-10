@@ -7,6 +7,7 @@ include/start_slave.inc
 connection master;
 FLUSH LOGS;
 CREATE TABLE t1(c1 INT);
+sync_slave_with_master;
 connection slave;
 connection master;
 FLUSH LOGS;
@@ -24,6 +25,7 @@ connection slave;
 START SLAVE IO_THREAD;
 include/wait_for_slave_io_to_start.inc
 connection master;
+sync_slave_with_master;
 connection slave;
 SHOW TABLES;
 Tables_in_test

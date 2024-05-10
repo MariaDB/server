@@ -34,7 +34,6 @@ FLUSH LOGS;
 INSERT INTO t1 SET a = 2;
 
 --sync_slave_with_master
---connection slave
 --source include/stop_slave_sql.inc
 
 --connection master

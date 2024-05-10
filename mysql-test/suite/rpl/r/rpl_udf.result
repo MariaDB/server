@@ -14,7 +14,9 @@ name	ret	dl	type
 myfunc_double	1	UDF_LIB	function
 myfunc_int	2	UDF_LIB	function
 affected rows: 2
+save_master_pos;
 connection slave;
+sync_with_master;
 SELECT * FROM mysql.func ORDER BY name;
 name	ret	dl	type
 myfunc_double	1	UDF_LIB	function
@@ -38,6 +40,7 @@ sum	price
 100	48.6
 200	49
 affected rows: 4
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t1 ORDER BY sum;
 sum	price
@@ -62,6 +65,7 @@ affected rows: 0
 SELECT * FROM mysql.func ORDER BY name;
 name	ret	dl	type
 affected rows: 0
+sync_slave_with_master;
 connection slave;
 SELECT * FROM mysql.func ORDER BY name;
 name	ret	dl	type
@@ -79,6 +83,7 @@ db	name	type	param_list	body	comment
 test	myfuncsql_double	FUNCTION	d DOUBLE	RETURN d * 2.00	
 test	myfuncsql_int	FUNCTION	i INT	RETURN i	
 affected rows: 2
+sync_slave_with_master;
 connection slave;
 SELECT db, name, type,  param_list, body, comment FROM mysql.proc WHERE db = 'test' AND name LIKE 'myfuncsql%' ORDER BY name;
 db	name	type	param_list	body	comment
@@ -103,6 +108,7 @@ sum	price
 100	100
 200	50
 affected rows: 4
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t1 ORDER BY sum;
 sum	price
@@ -121,6 +127,7 @@ db	name	type	param_list	body	comment
 test	myfuncsql_double	FUNCTION	d DOUBLE	RETURN d * 2.00	This was altered.
 test	myfuncsql_int	FUNCTION	i INT	RETURN i	This was altered.
 affected rows: 2
+sync_slave_with_master;
 connection slave;
 SELECT db, name, type,  param_list, body, comment FROM mysql.proc WHERE db = 'test' AND name LIKE 'myfuncsql%' ORDER BY name;
 db	name	type	param_list	body	comment
@@ -143,6 +150,7 @@ affected rows: 0
 SELECT db, name, type,  param_list, body, comment FROM mysql.proc WHERE db = 'test' AND name LIKE 'myfuncsql%' ORDER BY name;
 db	name	type	param_list	body	comment
 affected rows: 0
+sync_slave_with_master;
 connection slave;
 SELECT db, name, type,  param_list, body, comment FROM mysql.proc WHERE db = 'test' AND name LIKE 'myfuncsql%' ORDER BY name;
 db	name	type	param_list	body	comment

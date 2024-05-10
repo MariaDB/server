@@ -5,6 +5,7 @@ reset master;
 connection master;
 create table test.t1(a int, b int, unique(b));
 load data infile '../../std_data/rpl_loaddata.dat' into table test.t1;
+sync_slave_with_master;
 connection slave;
 select count(*) from test.t1;
 count(*)
@@ -12,5 +13,6 @@ count(*)
 include/show_binlog_events.inc
 connection master;
 drop table test.t1;
+sync_slave_with_master;
 connection slave;
 include/rpl_end.inc

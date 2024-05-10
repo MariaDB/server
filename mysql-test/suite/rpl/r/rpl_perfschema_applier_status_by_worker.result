@@ -35,7 +35,9 @@ connection slave;
 include/assert.inc [Value returned by PS table for worker_idle_time should be >= 1]
 connection master;
 DROP TABLE t1;
+save_master_pos;
 connection slave;
+sync_with_master 0,'slave1';
 STOP SLAVE 'slave1';
 include/wait_for_slave_to_stop.inc
 RESET SLAVE ALL;
@@ -49,6 +51,7 @@ include/start_slave.inc
 connection master;
 use test;
 create table t(a int primary key);
+sync_slave_with_master;
 connection slave;
 drop table t;
 connection master;

@@ -30,7 +30,6 @@ SET GLOBAL debug_dbug="-d,simulate_stmt_end_rows_event_loss";
 sync_slave_with_master;
 
 # Compressed version of the above
---connection slave
 --source include/stop_slave.inc
 
 --connection master

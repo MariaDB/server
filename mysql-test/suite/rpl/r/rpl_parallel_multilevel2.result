@@ -6,7 +6,10 @@ SET GLOBAL binlog_direct_non_transactional_updates=OFF;
 SET SESSION binlog_direct_non_transactional_updates=OFF;
 ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
 CREATE TABLE t1 (a int PRIMARY KEY, b INT) ENGINE=InnoDB;
+save_master_pos;
 connection server_2;
+sync_with_master;
+save_master_pos;
 include/stop_slave.inc
 SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
 SET GLOBAL slave_parallel_threads=10;
@@ -18,6 +21,8 @@ SET @old_updates= @@GLOBAL.binlog_direct_non_transactional_updates;
 SET GLOBAL binlog_direct_non_transactional_updates=OFF;
 SET SESSION binlog_direct_non_transactional_updates=OFF;
 connection server_3;
+sync_with_master;
+save_master_pos;
 SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
 include/stop_slave.inc
 SET GLOBAL slave_parallel_threads=10;

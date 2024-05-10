@@ -6,6 +6,7 @@ use BUG_37656;
 show databases like 'BUG_37656';
 Database (BUG_37656)
 BUG_37656
+sync_slave_with_master;
 connection slave;
 ******** [ SLAVE ] ********
 show databases like 'bug_37656';
@@ -21,6 +22,7 @@ Tables_in_BUG_37656
 T1
 T2
 T3
+sync_slave_with_master;
 connection slave;
 ******** [ SLAVE ] ********
 use bug_37656;
@@ -38,6 +40,7 @@ use test;
 INSERT INTO BUG_37656.T1 VALUES (2);
 INSERT INTO BUG_37656.T2 VALUES (2);
 LOAD DATA INFILE '../../std_data/words.dat' INTO TABLE BUG_37656.T3;
+sync_slave_with_master;
 connection slave;
 ******** [ SLAVE ] ********
 include/diff_tables.inc [master:BUG_37656.T2, slave:bug_37656.t2]
@@ -45,16 +48,20 @@ include/diff_tables.inc [master:BUG_37656.T3, slave:bug_37656.t3]
 connection master;
 ******** [ MASTER ] ********
 DROP DATABASE BUG_37656;
+sync_slave_with_master;
 connection slave;
 connection master;
 CREATE DATABASE B50653;
 USE B50653;
 CREATE PROCEDURE b50653_proc() BEGIN SELECT 1; END;
+sync_slave_with_master;
 connection slave;
 connection master;
 DROP PROCEDURE b50653_proc;
+sync_slave_with_master;
 connection slave;
 connection master;
 DROP DATABASE B50653;
+sync_slave_with_master;
 connection slave;
 include/rpl_end.inc

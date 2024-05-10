@@ -33,6 +33,7 @@ master-bin.000001	#	Query	1	#	SET CATALOG `def`; use `test`; insert into t1 valu
 master-bin.000001	#	Query	1	#	ROLLBACK TO `a``; create database couldbebadthingshere; savepoint ``dummy`
 master-bin.000001	#	Query	1	#	SET CATALOG `def`; use `test`; insert into t1 values (3)
 master-bin.000001	#	Xid	1	#	COMMIT /* XID */
+sync_slave_with_master;
 connection slave;
 connection slave;
 connection master;
@@ -215,7 +216,7 @@ DELIMITER ;
 ROLLBACK /* added by mysqlbinlog */;
 /*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;
 /*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=0*/;
-connection slave;
+sync_slave_with_master;
 connection slave;
 SELECT * FROM `db1``; select 'oops!'`.`t``1`;
 a`1	b`2	c`3
@@ -239,7 +240,7 @@ master-bin.000001	#	Gtid	1	#	BEGIN GTID #-#-#
 master-bin.000001	#	Begin_load_query	1	#	;file_id=#;block_len=8
 master-bin.000001	#	Execute_load_query	1	#	use `test`; LOAD DATA INFILE 'MYSQLTEST_VARDIR/tmp/file.txt' INTO TABLE `t1` FIELDS TERMINATED BY ',' ENCLOSED BY '' ESCAPED BY '\\' LINES TERMINATED BY '\n' (`a`, @`b`) SET `b`= CONCAT(@b, '| 123456789A123456789B123456789C123456789D123456789E123456789F123456789G123456789H123456789I123456789J123456789K123456789L123456789M123456789N123456789O123456789P123456789Q123456789R123456789123456789T123456789U123456789V123456789W123456789X123456789Y123456789Z123456789|', @b) ;file_id=#
 master-bin.000001	#	Query	1	#	COMMIT
-connection slave;
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t1 ORDER BY a;
 a	b
@@ -318,7 +319,7 @@ DELIMITER ;
 ROLLBACK /* added by mysqlbinlog */;
 /*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;
 /*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=0*/;
-connection slave;
+sync_slave_with_master;
 connection slave;
 SELECT * FROM `db1``; select 'oops!'`.t1 ORDER BY a1;
 a1	a2	a3	a4	b	c	d
@@ -361,13 +362,14 @@ master-bin.000002	#	Query	1	#	DELETE FROM `db1``; select 'oops!'`.`t``1`
 connection slave;
 include/start_slave.inc
 connection master;
-connection slave;
+sync_slave_with_master;
 connection slave;
 # The table should be empty on the slave also.
 SELECT * FROM `db1``; select 'oops!'`.`t``1`;
 a`
 connection master;
 DROP TABLE `db1``; select 'oops!'`.`t``1`;
+sync_slave_with_master;
 connection slave;
 connection master;
 use test;

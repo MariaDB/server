@@ -213,7 +213,6 @@ CREATE TABLE t2 (a INT UNIQUE) ENGINE=INNODB SELECT * FROM t1;
 INSERT INTO t1 VALUES (2);
 
 sync_slave_with_master;
-# connection slave;
 
 --echo *** the proof of the fix:
 --echo     select must show that the last insert performed on the slave ***

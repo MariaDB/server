@@ -1,6 +1,7 @@
 include/master-slave.inc
 [connection master]
 connection master;
+sync_slave_with_master;
 connection slave;
 STOP SLAVE;
 SET @my_sql_mode= @@global.sql_mode;
@@ -19,6 +20,7 @@ CREATE TABLE t6 (a INT, b INT, c INT) ENGINE='MyISAM';
 CREATE TABLE t7 (a INT NOT NULL) ENGINE='MyISAM';
 CREATE TABLE t8 (a INT NOT NULL) ENGINE='MyISAM';
 CREATE TABLE t9 (a INT) ENGINE='MyISAM';
+sync_slave_with_master;
 connection slave;
 ALTER TABLE t1_int ADD x INT DEFAULT 42;
 ALTER TABLE t1_bit
@@ -60,6 +62,7 @@ SELECT * FROM t1_char ORDER BY a;
 a	b
 1	2
 2	5
+sync_slave_with_master;
 connection slave;
 set @@global.slave_exec_mode= default;
 SELECT a,b,x FROM t1_int ORDER BY a;
@@ -90,6 +93,7 @@ SELECT * FROM t1_char ORDER BY a;
 a	b
 1	2
 2	10
+sync_slave_with_master;
 connection slave;
 SELECT a,b,x FROM t1_int ORDER BY a;
 a	b	x
@@ -105,21 +109,25 @@ a	b	x
 2	10	Foo is a bar
 connection master;
 INSERT INTO t9 VALUES (2);
+sync_slave_with_master;
 connection slave;
 connection master;
 INSERT INTO t1_nodef VALUES (1,2);
+sync_slave_with_master;
 connection slave;
 select count(*) from t1_nodef;
 count(*)
 1
 connection master;
 INSERT INTO t9 VALUES (2);
+sync_slave_with_master;
 connection slave;
 connection master;
 INSERT INTO t2 VALUES (2,4);
 SELECT * FROM t2;
 a	b
 2	4
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t2;
 a
@@ -127,6 +135,7 @@ a
 include/check_slave_is_running.inc
 connection master;
 INSERT INTO t9 VALUES (4);
+sync_slave_with_master;
 connection slave;
 connection master;
 INSERT INTO t4 VALUES (4);
@@ -137,6 +146,7 @@ include/wait_for_slave_sql_error_and_skip.inc [errno=1677]
 Last_SQL_Error = 'Column 0 of table 'test.t4' cannot be converted from type 'int' to type 'float''
 connection master;
 INSERT INTO t9 VALUES (5);
+sync_slave_with_master;
 connection slave;
 connection master;
 INSERT INTO t5 VALUES (5,10,25);
@@ -145,6 +155,7 @@ include/wait_for_slave_sql_error_and_skip.inc [errno=1677]
 Last_SQL_Error = 'Column 1 of table 'test.t5' cannot be converted from type 'int' to type 'float''
 connection master;
 INSERT INTO t9 VALUES (6);
+sync_slave_with_master;
 connection slave;
 connection master;
 INSERT INTO t6 VALUES (6,12,36);
@@ -153,6 +164,7 @@ include/wait_for_slave_sql_error_and_skip.inc [errno=1677]
 Last_SQL_Error = 'Column 2 of table 'test.t6' cannot be converted from type 'int' to type 'float''
 connection master;
 INSERT INTO t9 VALUES (6);
+sync_slave_with_master;
 connection slave;
 include/check_slave_is_running.inc
 connection master;
@@ -168,6 +180,7 @@ a
 1
 2
 3
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t7 ORDER BY a;
 a	e1	e2	e3	e4	e5	e6	e7	e8
@@ -185,6 +198,7 @@ SET SQL_LOG_BIN=0;
 INSERT INTO t1_nodef VALUES (1,2);
 INSERT INTO t1_nodef VALUES (2,4);
 SET SQL_LOG_BIN=1;
+sync_slave_with_master;
 connection slave;
 connection slave;
 INSERT INTO t1_nodef VALUES (1,2,3,4,5);
@@ -195,6 +209,7 @@ SELECT * FROM t1_nodef ORDER BY a;
 a	b
 1	4
 2	4
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t1_nodef ORDER BY a;
 a	b	x	y	z
@@ -205,6 +220,7 @@ DELETE FROM t1_nodef WHERE a=2;
 SELECT * FROM t1_nodef ORDER BY a;
 a	b
 1	4
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t1_nodef ORDER BY a;
 a	b	x	y	z
@@ -213,6 +229,7 @@ a	b	x	y	z
 connection master;
 DROP TABLE IF EXISTS t1_int,t1_bit,t1_char,t1_nodef;
 DROP TABLE IF EXISTS t2,t3,t4,t5,t6,t7,t8,t9;
+sync_slave_with_master;
 connection slave;
 SET @@global.sql_mode= @my_sql_mode;
 include/rpl_end.inc

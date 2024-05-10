@@ -28,6 +28,7 @@ t2	CREATE TABLE `t2` (
 CREATE VIEW v AS SELECT * FROM tmp;
 ERROR HY000: View's SELECT refers to a temporary table 'tmp'
 CREATE VIEW v AS SELECT * FROM t2;
+sync_slave_with_master;
 connection slave;
 connection master;
 DROP VIEW v;

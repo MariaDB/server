@@ -7,6 +7,7 @@ a	b
 12	1
 22	2
 32	3
+sync_slave_with_master;
 connection slave;
 select * from t1;
 a	b
@@ -26,6 +27,7 @@ a	b
 3	3
 22	5
 32	6
+sync_slave_with_master;
 connection slave;
 select * from t1;
 a	b
@@ -64,6 +66,7 @@ a
 400
 410
 1000
+sync_slave_with_master;
 connection slave;
 select * from t1;
 a
@@ -100,6 +103,7 @@ a
 400
 410
 1000
+sync_slave_with_master;
 connection slave;
 select * from t1;
 a
@@ -151,6 +155,7 @@ a
 600
 610
 611
+sync_slave_with_master;
 connection slave;
 select * from t1;
 a
@@ -170,6 +175,7 @@ connection master;
 drop table t1;
 set @@session.auto_increment_increment=10, @@session.auto_increment_offset=1;
 create table t1 (a int not null auto_increment, primary key (a)) engine=myisam;
+sync_slave_with_master;
 connection slave;
 insert into t1 values(2),(12),(22),(32),(42);
 connection master;
@@ -182,6 +188,7 @@ a
 11
 21
 31
+sync_slave_with_master;
 connection slave;
 select * from t1;
 a
@@ -227,6 +234,7 @@ insert into t3 values(null);
 ERROR 22003: Out of range value for column 'a' at row 1
 select * from t3 order by a;
 a
+sync_slave_with_master;
 connection slave;
 select * from t1 order by a;
 a
@@ -240,6 +248,7 @@ select * from t3 order by a;
 a
 connection master;
 drop table t1,t2,t3;
+sync_slave_with_master;
 connection slave;
 connection master;
 set auto_increment_increment=1;
@@ -252,6 +261,7 @@ t1	CREATE TABLE `t1` (
   `id` mediumint(9) NOT NULL AUTO_INCREMENT,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+sync_slave_with_master;
 connection slave;
 show create table t1;
 Table	Create Table
@@ -316,14 +326,17 @@ id
 INSERT INTO t1 VALUES(4);
 INSERT INTO t2 VALUES(4);
 FLUSH LOGS;
+sync_slave_with_master;
 connection slave;
 include/diff_tables.inc [master:t1, slave:t1]
 include/diff_tables.inc [master:t2, slave:t2]
 connection master;
 DROP TABLE t1;
 DROP TABLE t2;
+sync_slave_with_master;
 connection slave;
 connection master;
+sync_slave_with_master;
 connection slave;
 include/diff_tables.inc [master:t1, slave:t1]
 include/diff_tables.inc [master:t2, slave:t2]
@@ -331,11 +344,13 @@ connection master;
 DROP TABLE t1;
 DROP TABLE t2;
 SET SQL_MODE='';
+sync_slave_with_master;
 connection slave;
 connection master;
 CREATE TABLE t1(s VARCHAR(10)) ENGINE=myisam;
 CREATE TABLE t_ignored1(id INT AUTO_INCREMENT PRIMARY KEY) ENGINE=myisam;
 call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. Statement is unsafe because it invokes a trigger or a stored function that inserts into an AUTO_INCREMENT column");
+sync_slave_with_master;
 connection slave;
 connection slave;
 CREATE TABLE test.slave_only(id INT AUTO_INCREMENT PRIMARY KEY) ENGINE=myisam;
@@ -345,6 +360,7 @@ connection master;
 INSERT INTO t_ignored1 VALUES(NULL);
 INSERT INTO t1 VALUES('s');
 UPDATE t1 SET s='s1';
+sync_slave_with_master;
 connection slave;
 connection slave;
 SELECT * FROM t1;
@@ -352,6 +368,7 @@ s
 s1
 connection master;
 CREATE TABLE t_ignored2(id INT AUTO_INCREMENT PRIMARY KEY) ENGINE=myisam;
+sync_slave_with_master;
 connection slave;
 connection slave;
 STOP SLAVE;
@@ -360,6 +377,7 @@ START SLAVE;
 connection master;
 INSERT INTO t_ignored2 VALUES(NULL);
 UPDATE t1 SET s='s2';
+sync_slave_with_master;
 connection slave;
 connection slave;
 SELECT * FROM t1;
@@ -389,11 +407,13 @@ COMMIT;
 SELECT * FROM t1;
 id	data
 0	2
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t1;
 id	data
 0	2
 connection master;
 DROP TABLE t1;
+sync_slave_with_master;
 connection slave;
 include/rpl_end.inc

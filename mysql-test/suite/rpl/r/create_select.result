@@ -6,13 +6,17 @@ CREATE TABLE t1(i INT) ENGINE=INNODB;
 INSERT INTO t1 VALUES(1), (2), (3), (4), (5);
 CREATE TABLE t2 AS SELECT * FROM t1;
 CREATE TABLE t3 ENGINE=MyISAM AS SELECT * FROM t1;
+save_master_pos;
 connection server_2;
+sync_with_master;
 SHOW TABLES IN test_8428;
 Tables_in_test_8428
 t1
 t2
 t3
+save_master_pos;
 connection server_3;
+sync_with_master;
 SHOW TABLES IN test_8428;
 Tables_in_test_8428
 t1

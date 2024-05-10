@@ -8,12 +8,14 @@ connection master;
 CREATE TABLE test.t4 (a int);
 CREATE TABLE test.t1 (a int);
 UPDATE test.t4 NATURAL JOIN test.t1 SET t1.a=5;
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t4;
 a
 connection master;
 DROP TABLE t1;
 DROP TABLE t4;
+sync_slave_with_master;
 connection slave;
 **** Test case for BUG#25482 ****
 **** Adding GRANTS on master ****
@@ -65,6 +67,7 @@ show grants for mysqltest5@somehost;
 Grants for mysqltest5@somehost
 GRANT USAGE ON *.* TO `mysqltest5`@`somehost`
 set sql_mode="";
+sync_slave_with_master;
 connection slave;
 **** Checking grants on slave ****
 show grants for mysqltest2@localhost;
@@ -106,6 +109,7 @@ GRANT USAGE ON *.* TO `mysqltest3`@`localhost`
 show grants for mysqltest4@localhost;
 Grants for mysqltest4@localhost
 GRANT USAGE ON *.* TO `mysqltest4`@`localhost` IDENTIFIED BY PASSWORD '*196BDEDE2AE4F84CA44C47D54D78478C7E2BD7B7'
+sync_slave_with_master;
 connection slave;
 **** Checking grants on slave ****
 show grants for mysqltest1@localhost;
@@ -127,6 +131,7 @@ drop database mysqltest2;
 delete from mysql.user where user like "mysqltest%";
 delete from mysql.db where user like "mysqltest%";
 delete from mysql.columns_priv where user like "mysqltest%";
+sync_slave_with_master;
 connection slave;
 delete from mysql.tables_priv where user like "mysqltest%";
 connection master;
@@ -142,6 +147,7 @@ INSERT INTO t5 (word)  VALUES ('TEST’');
 SELECT HEX(word) FROM t5;
 HEX(word)
 54455354E28099
+sync_slave_with_master;
 connection slave;
 set @@global.slave_exec_mode= default;
 connection slave;
@@ -153,5 +159,6 @@ ERROR 42S02: Table 'test.tmptbl504451f4258$1' doesn't exist
 connection master;
 DROP TABLE t5;
 flush privileges;
+sync_slave_with_master;
 connection slave;
 include/rpl_end.inc

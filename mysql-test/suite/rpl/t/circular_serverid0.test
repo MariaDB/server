@@ -83,9 +83,7 @@ SET debug_sync='now SIGNAL go_on_relay_logging';
 
 # Sync servers
 --sync_slave_with_master M4
---connection M4
 --sync_slave_with_master M2
---connection M2
 
 # Demonstrate replication goes correctly not to create any split, or
 # the 2nd group in the buggy slave

@@ -3,6 +3,7 @@ include/master-slave.inc
 DROP TABLE IF EXISTS t1;
 **** Testing WL#3228 changes. ****
 *** Create "wider" table on slave ***
+sync_slave_with_master;
 connection slave;
 STOP SLAVE;
 include/wait_for_slave_to_stop.inc
@@ -84,7 +85,7 @@ SELECT * FROM t1 ORDER BY a;
 a	b	c	d	e	f	g	h	j	k	l	m	n	o	p	q	r	s	t
 17.567	2.123	10.20	125	#	TEST	This is a test	#	more binary data	6	7	blob 1	blob  2	blob   3	blob    4	text 1	text  2	text   3	text    4
 *** Select data from slave to compare ***
-connection slave;
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t1 ORDER BY a;
 a	b	c	d	e	f	g	h	j	k	l	m	n	o	p	q	r	s	t
@@ -98,6 +99,7 @@ b VARCHAR(100),
 c VARCHAR(300),
 d CHAR(5)
 );
+sync_slave_with_master slave;
 connection slave;
 Alter varchar table on slave
 ALTER TABLE t1 CHANGE COLUMN a a VARCHAR(100);
@@ -121,6 +123,7 @@ t1	CREATE TABLE `t1` (
   `c` varchar(300) DEFAULT NULL,
   `d` char(5) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+sync_slave_with_master slave;
 connection slave;
 Insert some values and select them on slave
 SELECT * FROM t1;
@@ -144,6 +147,7 @@ c BIT(21),
 d BIT(11),
 e BIT(11)
 );
+sync_slave_with_master slave;
 connection slave;
 Create bit table on slave
 DROP TABLE t1;
@@ -175,6 +179,7 @@ t1	CREATE TABLE `t1` (
   `d` bit(11) DEFAULT NULL,
   `e` bit(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+sync_slave_with_master slave;
 connection slave;
 Insert some values and select them on master
 SELECT BIN(a), BIN(b), BIN(c), BIN(d), BIN(e) FROM t1;
@@ -192,6 +197,7 @@ t1	CREATE TABLE `t1` (
 *** Cleanup  ***
 connection master;
 DROP TABLE t1;
+sync_slave_with_master;
 connection slave;
 SET GLOBAL SLAVE_TYPE_CONVERSIONS = @saved_slave_type_conversions;
 include/rpl_end.inc

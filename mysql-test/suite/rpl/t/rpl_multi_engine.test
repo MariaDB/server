@@ -25,7 +25,6 @@ alter table t1 engine=myisam;
 show create table t1;
 sync_slave_with_master;
 
-connection slave;
 alter table t1 engine=myisam;
 show create table t1;
 
@@ -50,7 +49,6 @@ alter table t1 engine=memory;
 show create table t1;
 sync_slave_with_master;
 
-connection slave;
 alter table t1 engine=myisam;
 show create table t1;
 
@@ -75,7 +73,6 @@ alter table t1 engine=innodb;
 show create table t1;
 sync_slave_with_master;
 
-connection slave;
 alter table t1 engine=myisam;
 show create table t1;
 

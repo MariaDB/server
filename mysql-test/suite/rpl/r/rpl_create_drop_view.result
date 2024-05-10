@@ -16,6 +16,7 @@ id
 20
 30
 # Syncing slave with master
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t1;
 id
@@ -37,6 +38,7 @@ Note	1050	Table 'v1' already exists
 CREATE OR REPLACE VIEW IF NOT EXISTS v1 AS SELECT * FROM t1 WHERE id>10;
 ERROR HY000: Incorrect usage of OR REPLACE and IF NOT EXISTS
 # Syncing slave with master
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t1;
 id
@@ -72,6 +74,7 @@ id
 80
 40
 # Syncing slave with master
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t1;
 id
@@ -102,6 +105,7 @@ DROP VIEW IF EXISTS v2;
 Warnings:
 Note	4092	Unknown VIEW: 'test.v2'
 # Syncing slave with master
+sync_slave_with_master;
 connection slave;
 SELECT * FROM v1;
 ERROR 42S02: Table 'test.v1' doesn't exist

@@ -21,6 +21,7 @@ include/start_slave.inc
 set global rpl_semi_sync_slave_enabled = OFF;
 connection master;
 drop table t1;
+sync_slave_with_master;
 connection slave;
 connection master;
 set global rpl_semi_sync_master_enabled = OFF;

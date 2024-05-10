@@ -3,7 +3,7 @@ select catalog();
 catalog()
 def
 show catalogs;
-Catalog
+Catalog	Comment
 show create catalog def;
 Catalog	Create Catalog
 def	CREATE CATALOG `def` COMMENT 'default catalog'

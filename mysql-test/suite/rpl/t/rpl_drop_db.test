@@ -54,7 +54,6 @@ create table t1 (n int);
 insert into t1 values (1234);
 sync_slave_with_master;
 
-connection slave;
 use mysqltest1;
 show tables;
 use test;

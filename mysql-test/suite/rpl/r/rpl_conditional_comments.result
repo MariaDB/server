@@ -16,6 +16,7 @@ Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; /* 999999 --- */INSERT /*!INTO*/ /*!10000 t1 */ VALUES(10) /* 999999 ,(11)*/
 master-bin.000001	#	Query	#	#	COMMIT
+sync_slave_with_master;
 connection slave;
 include/diff_tables.inc [master:t1,slave:t1]
 
@@ -29,6 +30,7 @@ EXECUTE stmt;
 DROP TABLE t1;
 CREATE TABLE t1(c1 INT);
 EXECUTE stmt;
+sync_slave_with_master;
 connection slave;
 include/diff_tables.inc [master:t1,slave:t1]
 connection master;
@@ -61,6 +63,7 @@ master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; CREATE TABLE t1(c1 
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO /* 999999 blabla */ t1 VALUES(62) /* 999999 ,(63)*/
 master-bin.000001	#	Query	#	#	COMMIT
+sync_slave_with_master;
 connection slave;
 include/diff_tables.inc [master:t1,slave:t1]
 
@@ -81,6 +84,7 @@ master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; insert t1 values (/* 999999 10 (* foo *) */ + 20)
 master-bin.000001	#	Query	#	#	COMMIT
+sync_slave_with_master;
 connection slave;
 select * from t1;
 c1

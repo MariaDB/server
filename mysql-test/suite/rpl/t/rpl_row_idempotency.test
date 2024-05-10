@@ -51,7 +51,6 @@ insert into ti2 set a=2, b=2;
 
 sync_slave_with_master;
 
-#connection slave;
 select * from ti1 order by b /* must be (1),(2),(3) */;
 insert into ti2 set a=1, b=1;
 select * from ti2 order by b /* must be (1,1) (2,2) */;
@@ -68,7 +67,6 @@ select * from ti1 order by b /* must be (2),(3) */;
 # slave must catch up (expect some warnings in error.log)
 sync_slave_with_master;
 
-#connection slave;
 select * from ti1 order by b /* must stays as were on master (1),(2),(3) */;
 
 delete from ti1 where b=3;
@@ -79,7 +77,6 @@ insert into ti2 set a=3, b=3;
 # slave must catch up (expect some warnings in error.log)
 sync_slave_with_master;
 
-#connection slave;
 select * from ti2 order by b /* must be (1,1),(2,2) - not inserted */;
 
 
@@ -124,7 +121,6 @@ insert into ti2 set a=2, b=2;
 
 sync_slave_with_master;
 
-#connection slave;
 select * from ti1 order by b /* must be (1),(2),(3) */;
 --echo *** conspire future problem
 insert into ti2 set a=1, b=1;
@@ -154,14 +150,12 @@ set global slave_exec_mode='IDEMPOTENT';
 start slave sql_thread;
 connection master;
 sync_slave_with_master;
-#connection slave;
 set global slave_exec_mode='STRICT';
 
 connection master;
 
 sync_slave_with_master;
 
-#connection slave;
 --echo *** conspire the following insert failure
 # foreign key: no referenced row
 
@@ -188,7 +182,6 @@ set global slave_exec_mode='IDEMPOTENT';
 start slave sql_thread;
 connection master;
 sync_slave_with_master;
-#connection slave;
 set global slave_exec_mode='STRICT';
 
 connection master;
@@ -226,7 +219,6 @@ set global slave_exec_mode='IDEMPOTENT';
 start slave sql_thread;
 connection master;
 sync_slave_with_master;
-#connection slave;
 set global slave_exec_mode='STRICT';
 
 # key not found
@@ -239,7 +231,6 @@ INSERT INTO t1 VALUES (-1),(-2),(-3);
 INSERT INTO t2 VALUES (-1),(-2),(-3);
 sync_slave_with_master;
 
-#connection slave;
 DELETE FROM t1 WHERE a = -2;
 DELETE FROM t2 WHERE a = -2;
 connection master;
@@ -258,7 +249,6 @@ set global slave_exec_mode='IDEMPOTENT';
 start slave sql_thread;
 connection master;
 sync_slave_with_master;
-#connection slave;
 set global slave_exec_mode='STRICT';
 
 connection master;
@@ -276,7 +266,6 @@ set global slave_exec_mode='IDEMPOTENT';
 start slave sql_thread;
 connection master;
 sync_slave_with_master;
-#connection slave;
 set global slave_exec_mode='STRICT';
 
 UPDATE t1 SET a = 1 WHERE a = -1;
@@ -298,7 +287,6 @@ set global slave_exec_mode='IDEMPOTENT';
 start slave sql_thread;
 connection master;
 sync_slave_with_master;
-#connection slave;
 set global slave_exec_mode='STRICT';
 
 
@@ -318,7 +306,6 @@ set global slave_exec_mode='IDEMPOTENT';
 start slave sql_thread;
 connection master;
 sync_slave_with_master;
-#connection slave;
 SET @@global.slave_exec_mode= @old_slave_exec_mode;
 
 # cleanup for bug#31609 tests

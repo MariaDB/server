@@ -43,6 +43,7 @@ SET binlog_format= @old_format;
 connection con2;
 SET binlog_format= @old_format;
 SET debug_sync='RESET';
+save_master_pos;
 SELECT * FROM t4 ORDER BY a;
 a	b
 1	NULL
@@ -53,6 +54,7 @@ a	b
 connection server_2;
 include/start_slave.inc
 SET debug_sync= 'now WAIT_FOR waiting';
+sync_with_master;
 SELECT * FROM t4 ORDER BY a;
 a	b
 1	NULL

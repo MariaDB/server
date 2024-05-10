@@ -8,6 +8,7 @@ include/master-slave.inc
 # MDEV-20844 RBR from binary(16) to inet6 fails with error 171: The event was corrupt, leading to illegal data being read
 #
 CREATE TABLE t1 (a INET4);
+sync_slave_with_master;
 connection slave;
 ALTER TABLE t1 MODIFY a BINARY(4);
 connection master;
@@ -21,6 +22,7 @@ a
 192.168.0.1
 255.0.0.0
 255.0.0.1
+sync_slave_with_master;
 connection slave;
 SELECT CAST(a AS INET4) FROM t1 ORDER BY a;
 CAST(a AS INET4)

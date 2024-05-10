@@ -34,6 +34,8 @@ connection master;
 create user replssl@localhost;
 grant replication slave on *.* to replssl@localhost require ssl;
 include/sync_slave_sql_with_master.inc
+save_master_pos;
+sync_with_master;
 include/stop_slave.inc
 change master to
 master_user= 'replssl',
@@ -57,6 +59,7 @@ include/assert.inc [Value returned by SSS and PS table for SSL_Key should be sam
 include/assert.inc [Value returned by SSS and PS table for SSL_Verify_Server_Certificate should be same.]
 connection master;
 drop user replssl@localhost;
+sync_slave_with_master;
 connection slave;
 include/stop_slave.inc
 CHANGE MASTER TO

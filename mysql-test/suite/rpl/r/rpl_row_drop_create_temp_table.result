@@ -2420,6 +2420,7 @@ SET @@session.binlog_direct_non_transactional_updates = @sav_var;
 #                               CHECK CONSISTENCY
 ###################################################################################
 connection master;
+sync_slave_with_master;
 connection slave;
 #########################################################################
 #                           CLEAN
@@ -2442,6 +2443,7 @@ DROP TEMPORARY TABLE IF EXISTS tt_tmp_1;
 DROP TEMPORARY TABLE IF EXISTS nt_tmp_1;
 DROP TABLE IF EXISTS tt_2;
 DROP TABLE IF EXISTS tt_1;
+sync_slave_with_master;
 connection slave;
 SET @commands= '';
 include/rpl_end.inc

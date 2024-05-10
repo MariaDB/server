@@ -20,6 +20,7 @@ master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; rename table t1 to 
 select * from t3;
 a
 flush tables;
+sync_slave_with_master;
 connection slave;
 select * from t3;
 a

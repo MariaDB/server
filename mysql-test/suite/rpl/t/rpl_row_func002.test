@@ -46,7 +46,6 @@ INSERT INTO test.t2 VALUES (null,f1(),CURRENT_TIMESTAMP);
 #select * from test.t1;
 #save_master_pos;
 #sync_slave_with_master;
-#connection slave;
 #select * from test.t1;
 #connection master;
 
@@ -56,7 +55,6 @@ INSERT INTO test.t2 VALUES (null,f1(),CURRENT_TIMESTAMP);
 #select * from test.t1;
 #save_master_pos;
 #sync_slave_with_master;
-#connection slave;
 #select * from test.t1;
 #connection master;
 
@@ -66,7 +64,6 @@ INSERT INTO test.t2 VALUES (null,f1(),CURRENT_TIMESTAMP);
 #select * from test.t1;
 #save_master_pos;
 #sync_slave_with_master;
-#connection slave;
 #select * from test.t1;
 #connection master;
 

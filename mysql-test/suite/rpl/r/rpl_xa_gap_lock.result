@@ -28,6 +28,8 @@ XA COMMIT 'XA1';
 connection master;
 XA COMMIT 'XA2';
 include/sync_slave_sql_with_master.inc
+save_master_pos;
+sync_with_master;
 include/stop_slave.inc
 DROP TABLE t2, t1;
 RESET SLAVE;

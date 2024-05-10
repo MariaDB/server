@@ -18,12 +18,18 @@ include/start_slave.inc
 connection server_1;
 create table t1 (i int) engine=InnoDB;
 insert into t1 values (1);
+save_master_pos;
 connection server_2;
+sync_with_master;
 create table t2 (i int) engine=InnoDB;
+save_master_pos;
 connection server_1;
 insert into t1 values (2);
+save_master_pos;
 connection server_2;
+sync_with_master;
 insert into t2 values (1);
+save_master_pos;
 # 
 # All events are present in the binlog of server 2
 include/show_binlog_events.inc
@@ -47,6 +53,7 @@ slave-bin.000001	#	Xid	#	#	COMMIT /* XID */
 connection server_1;
 change master to master_use_gtid=slave_pos;
 include/start_slave.inc
+sync_with_master;
 select * from t1 order by i;
 i
 1

@@ -7,12 +7,16 @@ select * from t1;
 id	i
 1	-1
 2	1
+save_master_pos;
 connection server_2;
+sync_with_master;
 select * from t1;
 id	i
 1	-1
 2	1
+save_master_pos;
 connection server_3;
+sync_with_master;
 select * from t1;
 id	i
 1	-1

@@ -3,7 +3,9 @@ include/rpl_init.inc [topology=1->2]
 connection server_1;
 CREATE TABLE t1 (a INT PRIMARY KEY);
 INSERT INTO t1 VALUES (1);
+save_master_pos;
 connection server_2;
+sync_with_master;
 include/stop_slave.inc
 Master_Log_File = 'master-bin.000001'
 Using_Gtid = 'Slave_Pos'
@@ -74,8 +76,10 @@ IF(@current_pos1=@current_pos2, "OK", CONCAT(@current_pos1, " != ", @current_pos
 OK
 connection server_1;
 INSERT INTO t1 VALUES (6);
+save_master_pos;
 connection server_2;
 include/start_slave.inc
+sync_with_master;
 SELECT * FROM t1 ORDER BY a;
 a
 1
@@ -87,7 +91,9 @@ a
 *** MDEV-4490: Old-style master position points at the last GTID event after slave restart ***
 connection server_1;
 INSERT INTO t1 VALUES (7);
+save_master_pos;
 connection server_2;
+sync_with_master;
 FLUSH NO_WRITE_TO_BINLOG TABLES;
 SELECT * FROM t1 ORDER BY a;
 a
@@ -100,7 +106,9 @@ a
 7
 include/wait_for_slave_to_start.inc
 connection server_1;
+save_master_pos;
 connection server_2;
+sync_with_master;
 SELECT * FROM t1 ORDER BY a;
 a
 1
@@ -117,7 +125,9 @@ CHANGE MASTER TO master_use_gtid= no;
 include/start_slave.inc
 connection server_1;
 INSERT INTO t1 VALUES (8);
+save_master_pos;
 connection server_2;
+sync_with_master;
 FLUSH NO_WRITE_TO_BINLOG TABLES;
 SELECT * FROM t1 ORDER BY a;
 a
@@ -144,7 +154,9 @@ Warnings:
 Error	1286	Unknown storage engine 'InnoDB'
 connection server_1;
 INSERT INTO t1 VALUES (9);
+save_master_pos;
 connection server_2;
+sync_with_master;
 FLUSH NO_WRITE_TO_BINLOG TABLES;
 SELECT * FROM t1 ORDER BY a;
 a
@@ -163,7 +175,9 @@ SET sql_log_bin= 1;
 include/start_slave.inc
 connection server_1;
 INSERT INTO t1 VALUES (10);
+save_master_pos;
 connection server_2;
+sync_with_master;
 include/stop_slave.inc
 CHANGE MASTER TO master_use_gtid= slave_pos;
 include/start_slave.inc
@@ -174,7 +188,9 @@ domain_id	COUNT(*)
 1	2
 connection server_1;
 INSERT INTO t1 VALUES (11);
+save_master_pos;
 connection server_2;
+sync_with_master;
 FLUSH NO_WRITE_TO_BINLOG TABLES;
 SELECT domain_id, COUNT(*) FROM mysql.gtid_slave_pos GROUP BY domain_id;
 domain_id	COUNT(*)
@@ -184,7 +200,9 @@ include/start_slave.inc
 connection server_1;
 INSERT INTO t1 VALUES (12);
 INSERT INTO t1 VALUES (13);
+save_master_pos;
 connection server_2;
+sync_with_master;
 FLUSH NO_WRITE_TO_BINLOG TABLES;
 SELECT domain_id, COUNT(*) FROM mysql.gtid_slave_pos GROUP BY domain_id;
 domain_id	COUNT(*)

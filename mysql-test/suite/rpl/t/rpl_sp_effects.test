@@ -38,7 +38,6 @@ delimiter ;//
 call p1();
 
 sync_slave_with_master;
-connection slave;
 SELECT * FROM t1 ORDER BY a;
 connection master;
 SELECT * FROM t1 ORDER BY a;
@@ -55,7 +54,6 @@ delimiter ;//
 call p2();
 SELECT * FROM t2 ORDER BY a;
 sync_slave_with_master;
-connection slave;
 SELECT * FROM t2 ORDER BY a;
 
 connection master;
@@ -98,7 +96,6 @@ insert into t2 select f1(3);
 SELECT 'master:',a FROM t1 ORDER BY a;
 
 sync_slave_with_master;
-connection slave;
 SELECT 'slave:',a FROM t1 ORDER BY a;
 
 connection master;
@@ -114,7 +111,6 @@ select * from v1 order by f;
 SELECT 'master:',a FROM t1 ORDER BY a;
 
 sync_slave_with_master;
-connection slave;
 SELECT 'slave:',a FROM t1 ORDER BY a;
 
 connection master;
@@ -128,7 +124,6 @@ execute s1 using @xx;
 SELECT 'master:',a FROM t1 ORDER BY a;
 
 sync_slave_with_master;
-connection slave;
 SELECT 'slave:',a FROM t1 ORDER BY a;
 
 connection master;
@@ -151,7 +146,6 @@ delimiter ;//
 call p1(15);
 SELECT 'master:',a FROM t1 ORDER BY a;
 sync_slave_with_master;
-connection slave;
 SELECT 'slave:',a FROM t1 ORDER BY a;
 
 connection master;
@@ -199,7 +193,6 @@ call p1();
 
 SELECT 'master', a FROM t1 ORDER BY a;
 sync_slave_with_master;
-connection slave;
 SELECT 'slave', a FROM t1 ORDER BY a;
 
 #
@@ -245,7 +238,6 @@ select sf_bug26199('\'');
 select hex(b) from t2;
 
 sync_slave_with_master;
-#connection slave;
 select hex(b) from t2;
 
 #

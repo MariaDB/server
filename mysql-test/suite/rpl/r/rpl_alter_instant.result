@@ -11,6 +11,7 @@ id	c1	c2	d1
 1	12345	abcde	1970-01-01 03:00:01
 2	10	holiday	1970-01-01 03:00:01
 3	23456	xyzab	1970-01-01 03:00:01
+sync_slave_with_master;
 connection slave;
 connection slave;
 set time_zone='+03:00';
@@ -21,6 +22,7 @@ id	c1	c2	d1
 3	23456	xyzab	1970-01-01 03:00:01
 connection master;
 alter table t1 add column d2 timestamp not null default current_timestamp, ALGORITHM=copy;
+sync_slave_with_master;
 connection slave;
 connection slave;
 select * from t1;
@@ -54,6 +56,7 @@ id	c2	c3	c4	c5	c6
 1	1	1970-01-01 03:16:40	1970-01-01 03:16:40	03:16:40	1970-01-01
 2	2	1970-01-01 03:16:40	1970-01-01 03:16:40	03:16:40	1970-01-01
 3	3	1970-01-01 03:16:40	1970-01-01 03:16:40	03:16:40	1970-01-01
+sync_slave_with_master;
 connection slave;
 connection slave;
 select * from t4;

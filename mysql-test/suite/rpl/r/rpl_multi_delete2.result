@@ -19,6 +19,7 @@ delete alias FROM a alias where alias.i=2;
 select * from a;
 i
 3
+sync_slave_with_master;
 connection slave;
 use mysqltest_to;
 select * from a;
@@ -30,12 +31,14 @@ create table t2 (a int);
 insert into t1 values (1);
 insert into t2 values (1);
 delete t1.* from t1, t2 where t1.a = t2.a;
+save_master_pos;
 select * from t1;
 a
 select * from t2;
 a
 1
 connection slave;
+sync_with_master;
 select * from t1;
 ERROR 42S02: Table 'mysqltest_to.t1' doesn't exist
 select * from t2;

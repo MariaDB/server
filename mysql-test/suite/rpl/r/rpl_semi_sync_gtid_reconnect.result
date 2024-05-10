@@ -13,7 +13,7 @@ INSERT INTO t1 SET a = 1;
 include/save_master_gtid.inc
 FLUSH LOGS;
 INSERT INTO t1 SET a = 2;
-connection slave;
+sync_slave_with_master;
 connection slave;
 include/stop_slave_sql.inc
 connection master;
@@ -33,6 +33,7 @@ INSERT INTO t1 SET a = 4;
 connection master;
 DROP TABLE t1;
 SET @@GLOBAL. rpl_semi_sync_master_enabled = 0;
+sync_slave_with_master;
 connection slave;
 include/stop_slave.inc
 SET @@GLOBAL. rpl_semi_sync_slave_enabled = 0;

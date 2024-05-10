@@ -116,6 +116,8 @@ Abernathy
 aberrant
 aberration
 
+save_master_pos;
+sync_slave_with_master;
 connection slave;
 connection slave;
 SELECT * FROM test.t1 ORDER BY blob_column;
@@ -225,6 +227,7 @@ aberration
 connection master;
 DROP PROCEDURE IF EXISTS test.p1;
 DROP TABLE test.t1;
+sync_slave_with_master;
 connection slave;
 include/rpl_reset.inc
 connection master;
@@ -242,6 +245,7 @@ CALL p('MYSQLTEST_VARDIR/tmp/bug_39701.data');
 connection slave;
 include/start_slave.inc
 connection master;
+sync_slave_with_master;
 connection slave;
 include/diff_tables.inc [master:t1, slave:t1]
 connection master;

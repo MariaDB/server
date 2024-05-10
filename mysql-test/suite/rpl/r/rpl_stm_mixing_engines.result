@@ -12896,6 +12896,7 @@ DROP PROCEDURE pc_i_nt_5_suc;
 DROP FUNCTION fc_i_tt_5_suc;
 DROP FUNCTION fc_i_nt_5_suc;
 DROP FUNCTION fc_i_nt_3_tt_3_suc;
+sync_slave_with_master;
 connection slave;
 include/rpl_reset.inc
 connection master;
@@ -12906,6 +12907,7 @@ CREATE TABLE `t1` (
 `c4` int(10) unsigned NOT NULL, 
 `c5` int(10) unsigned DEFAULT NULL, 
 PRIMARY KEY (`c1`)) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+sync_slave_with_master;
 connection slave;
 ALTER TABLE `t1` Engine=InnoDB;
 connection master;
@@ -12914,9 +12916,11 @@ INSERT INTO t1 (c1,c2,c3,c4,c5) VALUES (1, 1, 'X', 1, NULL);
 COMMIT;
 ROLLBACK;
 SET AUTOCOMMIT=1;
+sync_slave_with_master;
 connection slave;
 include/diff_tables.inc [master:t1, slave:t1]
 connection master;
 DROP TABLE `t1`;
+sync_slave_with_master;
 connection slave;
 include/rpl_end.inc

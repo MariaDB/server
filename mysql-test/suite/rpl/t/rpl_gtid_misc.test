@@ -6,7 +6,6 @@
 CREATE TABLE t1 (a INT PRIMARY KEY);
 --sync_slave_with_master
 
---connection slave
 --source include/stop_slave.inc
 # Inject a duplicate key error that will make the slave stop in the middle of
 # a sequence of transactions that use a temporary table.

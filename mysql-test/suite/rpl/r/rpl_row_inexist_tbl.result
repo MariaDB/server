@@ -2,6 +2,7 @@ include/master-slave.inc
 [connection master]
 ==== Setup table on master but not on slave ====
 CREATE TABLE t1 (a INT);
+sync_slave_with_master;
 connection slave;
 DROP TABLE t1;
 ==== Modify table on master ====

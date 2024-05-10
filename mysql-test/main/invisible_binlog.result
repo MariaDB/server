@@ -23,6 +23,7 @@ desc t2;
 Field	Type	Null	Key	Default	Extra
 a	int(11)	YES		NULL	
 b	int(11)	YES		5	INVISIBLE
+sync_slave_with_master;
 connection slave;
 select * from t1;
 a

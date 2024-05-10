@@ -34,6 +34,7 @@ master-bin.000002	#	Query	#	#	COMMIT
 master-bin.000002	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000002	#	Query	#	#	SET CATALOG `def`; use `test`; update t1 set a= a + 2
 master-bin.000002	#	Query	#	#	COMMIT
+sync_slave_with_master;
 connection slave;
 show create table t1;
 Table	Create Table

@@ -227,7 +227,6 @@ select EVENT_SCHEMA, EVENT_NAME, DEFINER from information_schema.events
   where EVENT_NAME='event44331_4';
 
 sync_slave_with_master;
-connection slave;
 select EVENT_SCHEMA, EVENT_NAME, DEFINER from information_schema.events
   where EVENT_NAME='event44331_1';
 select EVENT_SCHEMA, EVENT_NAME, DEFINER from information_schema.events

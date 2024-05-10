@@ -25,6 +25,7 @@ Warning	1906	The value specified for generated column 'vcol_blob' in table 't1' 
 select col_date,col_int,col_blob,col_year from v1;
 col_date	col_int	col_blob	col_year
 2010-04-24	5	foo	1982
+sync_slave_with_master;
 connection slave;
 select col_date,col_int,col_blob,col_year from v1;
 col_date	col_int	col_blob	col_year
@@ -42,6 +43,7 @@ Warning	1906	The value specified for generated column 'vcol_blob' in table 't1' 
 select col_date,col_int,col_blob,col_year from v1;
 col_date	col_int	col_blob	col_year
 2010-04-24	5	foo	1983
+sync_slave_with_master;
 connection slave;
 select col_date,col_int,col_blob,col_year from v1;
 col_date	col_int	col_blob	col_year
@@ -59,6 +61,7 @@ Warning	1906	The value specified for generated column 'vcol_blob' in table 't1' 
 select col_date,col_int,col_blob,col_year from v1;
 col_date	col_int	col_blob	col_year
 2010-04-24	5	foo	1984
+sync_slave_with_master;
 connection slave;
 select col_date,col_int,col_blob,col_year from v1;
 col_date	col_int	col_blob	col_year

@@ -5,6 +5,7 @@ select @@mysql56_temporal_format;
 0
 create table t1 (ts timestamp(3), t time(3), dt datetime(3));
 insert into t1 values ('2016-02-15 12:50:06.123', '12:50:06.123', '2016-02-15 12:50:06.123');
+sync_slave_with_master;
 connection slave;
 select @@mysql56_temporal_format;
 @@mysql56_temporal_format

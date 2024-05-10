@@ -10,13 +10,18 @@ SET s= SUBSTR(s FROM LOCATE(CONCAT(",", d, "-"), s) + 1);
 SET s= SUBSTR(s FROM 1 FOR LOCATE(",", s) - 1);
 RETURN s;
 END|
+save_master_pos;
 connection server_2;
+sync_with_master;
 include/stop_slave.inc
 connection server_3;
+sync_with_master;
 include/stop_slave.inc
 connection server_4;
+sync_with_master;
 include/stop_slave.inc
 connection server_5;
+sync_with_master;
 include/stop_slave.inc
 connection server_1;
 SET gtid_domain_id= 1;
@@ -233,7 +238,9 @@ connection server_5;
 CHANGE MASTER TO master_host = '127.0.0.1', master_port = SERVER_MYPORT_2;
 include/start_slave.inc
 connection server_2;
+save_master_pos;
 connection server_3;
+sync_with_master;
 SELECT * FROM t1 ORDER BY a;
 a
 1
@@ -267,6 +274,7 @@ a	b
 3	3
 3	5
 connection server_5;
+sync_with_master;
 SELECT * FROM t1 ORDER BY a;
 a
 1
@@ -300,6 +308,7 @@ a	b
 3	3
 3	5
 connection server_5;
+sync_with_master;
 SELECT * FROM t1 ORDER BY a;
 a
 1
@@ -337,6 +346,7 @@ connection server_1;
 CHANGE MASTER TO master_host = '127.0.0.1', master_port = SERVER_MYPORT_2,
 master_user = "root", master_use_gtid = slave_pos, master_demote_to_slave=1;
 include/start_slave.inc
+sync_with_master;
 SELECT * FROM t1 ORDER BY a;
 a
 1

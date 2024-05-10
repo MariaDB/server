@@ -55,6 +55,7 @@ master-bin.000001	#	Table_map	#	#	table_id: # (test.t2)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.t3)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
+sync_slave_with_master;
 connection slave;
 connection master;
 DROP TRIGGER tr1;
@@ -163,6 +164,7 @@ master-bin.000001	#	Table_map	#	#	table_id: # (test.t2)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.t3)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
+sync_slave_with_master;
 connection slave;
 connection master;
 DROP TABLE t1;
@@ -207,6 +209,8 @@ f1
 2
 3
 include/sync_slave_sql_with_master.inc
+save_master_pos;
+sync_with_master;
 SELECT * FROM t;
 f1
 2
@@ -265,6 +269,8 @@ f1
 5
 30
 include/sync_slave_sql_with_master.inc
+save_master_pos;
+sync_with_master;
 SELECT * FROM t;
 f1
 2
@@ -323,6 +329,8 @@ SELECT * FROM t1;
 f1
 30
 include/sync_slave_sql_with_master.inc
+save_master_pos;
+sync_with_master;
 SELECT * FROM t;
 f1
 2
@@ -390,6 +398,8 @@ f1
 SELECT * FROM t1;
 f1
 include/sync_slave_sql_with_master.inc
+save_master_pos;
+sync_with_master;
 SELECT * FROM t2;
 f1
 1
@@ -460,6 +470,8 @@ SELECT * FROM t1;
 f1
 1
 include/sync_slave_sql_with_master.inc
+save_master_pos;
+sync_with_master;
 SELECT * FROM t2;
 f1
 1
@@ -520,6 +532,8 @@ f1
 4
 10
 include/sync_slave_sql_with_master.inc
+save_master_pos;
+sync_with_master;
 SELECT * FROM t1;
 f1
 1

@@ -6,6 +6,7 @@ INSERT INTO t1 VALUES (ST_GEOMFROMTEXT('Point(2 1)'));
 INSERT INTO t1 VALUES (ST_GEOMFROMTEXT('Point(1 2)'));
 INSERT INTO t1 VALUES (ST_GEOMFROMTEXT('Point(2 2)'));
 DELETE FROM t1 where MBREqual(g, ST_GEOMFROMTEXT('Point(1 2)'));
+sync_slave_with_master;
 connection slave;
 select count(*) from t1;
 count(*)

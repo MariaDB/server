@@ -13,6 +13,7 @@ CONSTRAINT a FOREIGN KEY (t1_id) REFERENCES t1 (id) ON DELETE CASCADE
 INSERT INTO t2 VALUES (90,1,NULL);
 INSERT INTO t2 VALUES (91,2,default);
 DELETE FROM t1 WHERE id=1;
+sync_slave_with_master;
 connection slave;
 #
 # Verify data consistency on slave
@@ -21,6 +22,7 @@ include/diff_tables.inc [master:test.t1, slave:test.t1]
 include/diff_tables.inc [master:test.t2, slave:test.t2]
 connection master;
 DROP TABLE t2,t1;
+sync_slave_with_master;
 connection slave;
 #
 # Test case 2: Verify "ON DELETE CASCADE" for parent->child->child scenario
@@ -64,6 +66,7 @@ PRIMARY KEY (matchmaking_group_id,map_id),
 CONSTRAINT FOREIGN KEY (matchmaking_group_id)
 REFERENCES matchmaking_groups (id) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+sync_slave_with_master;
 connection slave;
 connection master;
 INSERT INTO users VALUES (NULL,'foo'),(NULL,'bar');
@@ -71,6 +74,7 @@ INSERT INTO matchmaking_groups VALUES (10,1,default),(11,2,default);
 INSERT INTO matchmaking_group_users VALUES (10,1,default),(11,2,default);
 INSERT INTO matchmaking_group_maps VALUES (10,55,default),(11,66,default);
 DELETE FROM matchmaking_groups WHERE id = 10;
+sync_slave_with_master;
 connection slave;
 #
 # No rows should be returned as ON DELETE CASCASE should have removed
@@ -92,6 +96,7 @@ matchmaking_group_id	map_id	v_col2
 11	66	67
 connection master;
 DELETE FROM users WHERE id = 2;
+sync_slave_with_master;
 connection slave;
 #
 # No rows should be present in both the child tables
@@ -102,6 +107,7 @@ SELECT * FROM matchmaking_group_maps;
 matchmaking_group_id	map_id	v_col2
 connection master;
 DROP TABLE matchmaking_group_maps, matchmaking_group_users, matchmaking_groups, users;
+sync_slave_with_master;
 connection slave;
 #
 # Test case 3: KEY on a virtual column with ON UPDATE CASCADE
@@ -114,6 +120,7 @@ v_col int as (b+1) virtual, KEY (v_col),
 CONSTRAINT b FOREIGN KEY (b) REFERENCES t1(a) ON UPDATE CASCADE
 ) ENGINE=InnoDB;
 INSERT INTO t2 VALUES (51, 1, default);
+sync_slave_with_master;
 connection slave;
 connection master;
 UPDATE t1 SET a = 50 WHERE a = 1;
@@ -124,6 +131,7 @@ UPDATE t1 SET a = 50 WHERE a = 1;
 SELECT * FROM t2 WHERE b=50;
 a	b	v_col
 51	50	51
+sync_slave_with_master;
 connection slave;
 #
 # Slave: Verify that ON UPDATE CASCADE works fine
@@ -134,6 +142,7 @@ a	b	v_col
 51	50	51
 connection master;
 DROP TABLE t2, t1;
+sync_slave_with_master;
 connection slave;
 #
 # Test case 4: Define triggers on master, their results should be 
@@ -146,6 +155,7 @@ CREATE TABLE t1 (id INT NOT NULL PRIMARY KEY) ENGINE=InnoDB;
 CREATE TABLE t2 (count INT NOT NULL) ENGINE=InnoDB;
 CREATE TRIGGER trg AFTER INSERT ON t1 FOR EACH ROW INSERT INTO t2 VALUES (1);
 INSERT INTO t1 VALUES (2),(3);
+sync_slave_with_master;
 connection slave;
 SHOW GLOBAL VARIABLES LIKE 'slave_run_triggers_for_rbr';
 Variable_name	Value
@@ -157,6 +167,7 @@ slave_run_triggers_for_rbr	NO
 include/assert.inc [Table t2 should have two rows.]
 connection master;
 DROP TABLE t1,t2;
+sync_slave_with_master;
 connection slave;
 #
 # Test case 5: Define triggers + Foreign Keys on master, their results
@@ -173,6 +184,7 @@ CREATE TABLE t3 (count INT NOT NULL) ENGINE=InnoDB;
 CREATE TRIGGER trg AFTER INSERT ON t1 FOR EACH ROW INSERT INTO t3 VALUES (1);
 INSERT INTO t1 VALUES (2),(3);
 INSERT INTO t2 VALUES (2, default), (3, default);
+sync_slave_with_master;
 connection slave;
 #
 # As two rows are inserted in table 't1', two rows should get inserted
@@ -184,12 +196,14 @@ include/assert.inc [Table t3 should have two rows.]
 #
 connection master;
 DELETE FROM t1 WHERE id=2;
+sync_slave_with_master;
 connection slave;
 connection master;
 include/diff_tables.inc [master:test.t1, slave:test.t1]
 include/diff_tables.inc [master:test.t2, slave:test.t2]
 include/diff_tables.inc [master:test.t3, slave:test.t3]
 DROP TABLE t3,t2,t1;
+sync_slave_with_master;
 connection slave;
 #
 # Test case 6: Triggers are present only on slave and
@@ -208,11 +222,13 @@ v_col INT AS (t1_id+1) VIRTUAL, KEY (v_col),
 KEY (t1_id), CONSTRAINT a FOREIGN KEY (t1_id) REFERENCES t1 (id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 CREATE TABLE t3 (count INT NOT NULL) ENGINE=InnoDB;
+sync_slave_with_master;
 connection slave;
 CREATE TRIGGER trg AFTER INSERT ON t2 FOR EACH ROW INSERT INTO t3 VALUES (1);
 connection master;
 INSERT INTO t1 VALUES (2),(3);
 INSERT INTO t2 VALUES (2, default), (3, default);
+sync_slave_with_master;
 connection slave;
 #
 # Count must be 0
@@ -220,6 +236,7 @@ connection slave;
 include/assert.inc [Table t3 should have zero rows.]
 connection master;
 DELETE FROM t1 WHERE id=2;
+sync_slave_with_master;
 connection slave;
 SET GLOBAL slave_run_triggers_for_rbr= @save_slave_run_triggers_for_rbr;
 #
@@ -229,6 +246,7 @@ include/diff_tables.inc [master:test.t1, slave:test.t1]
 include/diff_tables.inc [master:test.t2, slave:test.t2]
 connection master;
 DROP TABLE t3,t2,t1;
+sync_slave_with_master;
 connection slave;
 #
 # Test case 7: Triggers are present only on slave and
@@ -247,11 +265,13 @@ v_col INT AS (t1_id+1) VIRTUAL, KEY (v_col),
 KEY (t1_id), CONSTRAINT a FOREIGN KEY (t1_id) REFERENCES t1 (id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 CREATE TABLE t3 (count INT NOT NULL) ENGINE=InnoDB;
+sync_slave_with_master;
 connection slave;
 CREATE TRIGGER trg AFTER INSERT ON t2 FOR EACH ROW INSERT INTO t3 VALUES (1);
 connection master;
 INSERT INTO t1 VALUES (2),(3);
 INSERT INTO t2 VALUES (2, default), (3, default);
+sync_slave_with_master;
 connection slave;
 #
 # Count must be 2
@@ -259,6 +279,7 @@ connection slave;
 include/assert.inc [Table t3 should have two rows.]
 connection master;
 DELETE FROM t1 WHERE id=2;
+sync_slave_with_master;
 connection slave;
 SET GLOBAL slave_run_triggers_for_rbr= @save_slave_run_triggers_for_rbr;
 #
@@ -268,6 +289,7 @@ include/diff_tables.inc [master:test.t1, slave:test.t1]
 include/diff_tables.inc [master:test.t2, slave:test.t2]
 connection master;
 DROP TABLE t3,t2,t1;
+sync_slave_with_master;
 connection slave;
 #
 # Test case 8: Triggers and Foreign Keys are present only on slave and
@@ -285,6 +307,7 @@ SET sql_log_bin=0;
 CREATE TABLE t2 (t1_id INT NOT NULL,v_col INT AS (t1_id+1) VIRTUAL) ENGINE=INNODB;
 SET sql_log_bin=1;
 CREATE TABLE t3 (count INT NOT NULL) ENGINE=InnoDB;
+sync_slave_with_master;
 connection slave;
 CREATE TABLE t2 (t1_id INT NOT NULL,
 v_col INT AS (t1_id+1) VIRTUAL, KEY (v_col), KEY (t1_id),
@@ -294,6 +317,7 @@ CREATE TRIGGER trg AFTER INSERT ON t2 FOR EACH ROW INSERT INTO t3 VALUES (1);
 connection master;
 INSERT INTO t1 VALUES (2),(3);
 INSERT INTO t2 VALUES (2, default), (3, default);
+sync_slave_with_master;
 connection slave;
 #
 # Count must be 0
@@ -310,6 +334,7 @@ SELECT * FROM t2;
 t1_id	v_col
 2	3
 3	4
+sync_slave_with_master;
 connection slave;
 # t1: Should have one row
 SELECT * FROM t1;
@@ -322,6 +347,7 @@ t1_id	v_col
 SET GLOBAL slave_run_triggers_for_rbr= @save_slave_run_triggers_for_rbr;
 connection master;
 DROP TABLE t3,t2,t1;
+sync_slave_with_master;
 connection slave;
 #
 # Test case 9: Triggers are Foreign Keys are present only on slave and
@@ -339,6 +365,7 @@ SET sql_log_bin=0;
 CREATE TABLE t2 (t1_id INT NOT NULL,v_col INT AS (t1_id+1) VIRTUAL) ENGINE=INNODB;
 SET sql_log_bin=1;
 CREATE TABLE t3 (count INT NOT NULL) ENGINE=InnoDB;
+sync_slave_with_master;
 connection slave;
 CREATE TABLE t2 (t1_id INT NOT NULL,
 v_col INT AS (t1_id+1) VIRTUAL, KEY (v_col), KEY (t1_id),
@@ -348,6 +375,7 @@ CREATE TRIGGER trg AFTER INSERT ON t2 FOR EACH ROW INSERT INTO t3 VALUES (1);
 connection master;
 INSERT INTO t1 VALUES (2),(3);
 INSERT INTO t2 VALUES (2, default), (3, default);
+sync_slave_with_master;
 connection slave;
 #
 # Count must be 2
@@ -364,6 +392,7 @@ SELECT * FROM t2;
 t1_id	v_col
 2	3
 3	4
+sync_slave_with_master;
 connection slave;
 # t1: Should have one row
 SELECT * FROM t1;
@@ -376,5 +405,6 @@ t1_id	v_col
 SET GLOBAL slave_run_triggers_for_rbr= @save_slave_run_triggers_for_rbr;
 connection master;
 DROP TABLE t3,t2,t1;
+sync_slave_with_master;
 connection slave;
 include/rpl_end.inc

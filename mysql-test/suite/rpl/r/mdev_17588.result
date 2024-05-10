@@ -8,8 +8,10 @@ connection master;
 create table t1 (a int) engine=innodb;
 create table t2 (a int);
 create table t3 (a int) engine=innodb;
+save_master_pos;
 connection slave;
 include/wait_for_slave_sql_error_and_skip.inc [errno=1286]
+sync_with_master;
 # Asserted this: Status should be 'Slave has read all relay log...'
 show tables;
 Tables_in_test

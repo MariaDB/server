@@ -93,6 +93,7 @@ SELECT * FROM test.regular_tbl ORDER BY fkid DESC LIMIT 2;
 id	dt	user	uuidf	fkid	filler
 1	date-time	USER	UUID	300	Partitioned table! Going to test replication for MySQL
 2	date-time	USER	UUID	299	Partitioned table! Going to test replication for MySQL
+sync_slave_with_master;
 connection slave;
 connection slave;
 show create table test.byrange_tbl;

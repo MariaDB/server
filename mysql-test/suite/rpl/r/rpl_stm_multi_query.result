@@ -7,6 +7,7 @@ insert into mysqltest.t1 values(2);
 insert into mysqltest.t1 values(3);
 insert into mysqltest.t1 values(4);
 insert into mysqltest.t1 values(5)/
+sync_slave_with_master;
 connection slave;
 select * from mysqltest.t1;
 n

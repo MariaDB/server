@@ -7,6 +7,7 @@ CREATE TABLE t1 (id MEDIUMINT NOT NULL, b1 BIT(8), vc
 VARCHAR(255), bc CHAR(255), d DECIMAL(10,4) DEFAULT 0, f FLOAT DEFAULT
 0, total BIGINT UNSIGNED, y YEAR, t TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP 
 ON UPDATE CURRENT_TIMESTAMP,PRIMARY KEY(id));
+sync_slave_with_master;
 connection slave;
 connection master;
 alter table t1 engine=myisam;
@@ -24,7 +25,7 @@ t1	CREATE TABLE `t1` (
   `t` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`id`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
-connection slave;
+sync_slave_with_master;
 connection slave;
 alter table t1 engine=myisam;
 show create table t1;
@@ -46,6 +47,7 @@ INSERT INTO t1 VALUES(42,1,'Testing MySQL databases is a cool ', 'Must make it b
 select id,hex(b1),vc,bc,d,f,total,y,t from t1 order by id;
 id	hex(b1)	vc	bc	d	f	total	y	t
 42	1	Testing MySQL databases is a cool 	Must make it bug free for the customer	654321.4321	15.21	0	1965	2005-11-14 00:00:00
+sync_slave_with_master;
 connection slave;
 select id,hex(b1),vc,bc,d,f,total,y,t from t1 order by id;
 id	hex(b1)	vc	bc	d	f	total	y	t
@@ -55,6 +57,7 @@ UPDATE t1 SET b1 = 0, t="2005-09-09" WHERE b1 = 1;
 select id,hex(b1),vc,bc,d,f,total,y,t from t1 order by id;
 id	hex(b1)	vc	bc	d	f	total	y	t
 42	0	Testing MySQL databases is a cool 	Must make it bug free for the customer	654321.4321	15.21	0	1965	2005-09-09 00:00:00
+sync_slave_with_master;
 connection slave;
 select id,hex(b1),vc,bc,d,f,total,y,t from t1 order by id;
 id	hex(b1)	vc	bc	d	f	total	y	t
@@ -63,6 +66,7 @@ connection master;
 DELETE FROM t1 WHERE id = 42;
 select id,hex(b1),vc,bc,d,f,total,y,t from t1 order by id;
 id	hex(b1)	vc	bc	d	f	total	y	t
+sync_slave_with_master;
 connection slave;
 select id,hex(b1),vc,bc,d,f,total,y,t from t1 order by id;
 id	hex(b1)	vc	bc	d	f	total	y	t
@@ -88,6 +92,7 @@ INSERT INTO t1 VALUES(42,1,'Testing MySQL databases is a cool ', 'Must make it b
 select id,hex(b1),vc,bc,d,f,total,y,t from t1 order by id;
 id	hex(b1)	vc	bc	d	f	total	y	t
 42	1	Testing MySQL databases is a cool 	Must make it bug free for the customer	654321.4321	15.21	0	1965	2005-11-14 00:00:00
+sync_slave_with_master;
 connection slave;
 select id,hex(b1),vc,bc,d,f,total,y,t from t1 order by id;
 id	hex(b1)	vc	bc	d	f	total	y	t
@@ -97,6 +102,7 @@ UPDATE t1 SET b1 = 0, t="2005-09-09" WHERE b1 = 1;
 select id,hex(b1),vc,bc,d,f,total,y,t from t1 order by id;
 id	hex(b1)	vc	bc	d	f	total	y	t
 42	0	Testing MySQL databases is a cool 	Must make it bug free for the customer	654321.4321	15.21	0	1965	2005-09-09 00:00:00
+sync_slave_with_master;
 connection slave;
 select id,hex(b1),vc,bc,d,f,total,y,t from t1 order by id;
 id	hex(b1)	vc	bc	d	f	total	y	t
@@ -105,6 +111,7 @@ connection master;
 DELETE FROM t1 WHERE id = 42;
 select id,hex(b1),vc,bc,d,f,total,y,t from t1 order by id;
 id	hex(b1)	vc	bc	d	f	total	y	t
+sync_slave_with_master;
 connection slave;
 select id,hex(b1),vc,bc,d,f,total,y,t from t1 order by id;
 id	hex(b1)	vc	bc	d	f	total	y	t
@@ -130,6 +137,7 @@ INSERT INTO t1 VALUES(42,1,'Testing MySQL databases is a cool ', 'Must make it b
 select id,hex(b1),vc,bc,d,f,total,y,t from t1 order by id;
 id	hex(b1)	vc	bc	d	f	total	y	t
 42	1	Testing MySQL databases is a cool 	Must make it bug free for the customer	654321.4321	15.21	0	1965	2005-11-14 00:00:00
+sync_slave_with_master;
 connection slave;
 select id,hex(b1),vc,bc,d,f,total,y,t from t1 order by id;
 id	hex(b1)	vc	bc	d	f	total	y	t
@@ -139,6 +147,7 @@ UPDATE t1 SET b1 = 0, t="2005-09-09" WHERE b1 = 1;
 select id,hex(b1),vc,bc,d,f,total,y,t from t1 order by id;
 id	hex(b1)	vc	bc	d	f	total	y	t
 42	0	Testing MySQL databases is a cool 	Must make it bug free for the customer	654321.4321	15.21	0	1965	2005-09-09 00:00:00
+sync_slave_with_master;
 connection slave;
 select id,hex(b1),vc,bc,d,f,total,y,t from t1 order by id;
 id	hex(b1)	vc	bc	d	f	total	y	t
@@ -147,6 +156,7 @@ connection master;
 DELETE FROM t1 WHERE id = 42;
 select id,hex(b1),vc,bc,d,f,total,y,t from t1 order by id;
 id	hex(b1)	vc	bc	d	f	total	y	t
+sync_slave_with_master;
 connection slave;
 select id,hex(b1),vc,bc,d,f,total,y,t from t1 order by id;
 id	hex(b1)	vc	bc	d	f	total	y	t
@@ -167,7 +177,7 @@ t1	CREATE TABLE `t1` (
   `t` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`id`)
 ) ENGINE=MEMORY DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
-connection slave;
+sync_slave_with_master;
 connection slave;
 alter table t1 engine=myisam;
 show create table t1;
@@ -189,6 +199,7 @@ INSERT INTO t1 VALUES(42,1,'Testing MySQL databases is a cool ', 'Must make it b
 select id,hex(b1),vc,bc,d,f,total,y,t from t1 order by id;
 id	hex(b1)	vc	bc	d	f	total	y	t
 42	1	Testing MySQL databases is a cool 	Must make it bug free for the customer	654321.4321	15.21	0	1965	2005-11-14 00:00:00
+sync_slave_with_master;
 connection slave;
 select id,hex(b1),vc,bc,d,f,total,y,t from t1 order by id;
 id	hex(b1)	vc	bc	d	f	total	y	t
@@ -198,6 +209,7 @@ UPDATE t1 SET b1 = 0, t="2005-09-09" WHERE b1 = 1;
 select id,hex(b1),vc,bc,d,f,total,y,t from t1 order by id;
 id	hex(b1)	vc	bc	d	f	total	y	t
 42	0	Testing MySQL databases is a cool 	Must make it bug free for the customer	654321.4321	15.21	0	1965	2005-09-09 00:00:00
+sync_slave_with_master;
 connection slave;
 select id,hex(b1),vc,bc,d,f,total,y,t from t1 order by id;
 id	hex(b1)	vc	bc	d	f	total	y	t
@@ -206,6 +218,7 @@ connection master;
 DELETE FROM t1 WHERE id = 42;
 select id,hex(b1),vc,bc,d,f,total,y,t from t1 order by id;
 id	hex(b1)	vc	bc	d	f	total	y	t
+sync_slave_with_master;
 connection slave;
 select id,hex(b1),vc,bc,d,f,total,y,t from t1 order by id;
 id	hex(b1)	vc	bc	d	f	total	y	t
@@ -231,6 +244,7 @@ INSERT INTO t1 VALUES(42,1,'Testing MySQL databases is a cool ', 'Must make it b
 select id,hex(b1),vc,bc,d,f,total,y,t from t1 order by id;
 id	hex(b1)	vc	bc	d	f	total	y	t
 42	1	Testing MySQL databases is a cool 	Must make it bug free for the customer	654321.4321	15.21	0	1965	2005-11-14 00:00:00
+sync_slave_with_master;
 connection slave;
 select id,hex(b1),vc,bc,d,f,total,y,t from t1 order by id;
 id	hex(b1)	vc	bc	d	f	total	y	t
@@ -240,6 +254,7 @@ UPDATE t1 SET b1 = 0, t="2005-09-09" WHERE b1 = 1;
 select id,hex(b1),vc,bc,d,f,total,y,t from t1 order by id;
 id	hex(b1)	vc	bc	d	f	total	y	t
 42	0	Testing MySQL databases is a cool 	Must make it bug free for the customer	654321.4321	15.21	0	1965	2005-09-09 00:00:00
+sync_slave_with_master;
 connection slave;
 select id,hex(b1),vc,bc,d,f,total,y,t from t1 order by id;
 id	hex(b1)	vc	bc	d	f	total	y	t
@@ -248,6 +263,7 @@ connection master;
 DELETE FROM t1 WHERE id = 42;
 select id,hex(b1),vc,bc,d,f,total,y,t from t1 order by id;
 id	hex(b1)	vc	bc	d	f	total	y	t
+sync_slave_with_master;
 connection slave;
 select id,hex(b1),vc,bc,d,f,total,y,t from t1 order by id;
 id	hex(b1)	vc	bc	d	f	total	y	t
@@ -273,6 +289,7 @@ INSERT INTO t1 VALUES(42,1,'Testing MySQL databases is a cool ', 'Must make it b
 select id,hex(b1),vc,bc,d,f,total,y,t from t1 order by id;
 id	hex(b1)	vc	bc	d	f	total	y	t
 42	1	Testing MySQL databases is a cool 	Must make it bug free for the customer	654321.4321	15.21	0	1965	2005-11-14 00:00:00
+sync_slave_with_master;
 connection slave;
 select id,hex(b1),vc,bc,d,f,total,y,t from t1 order by id;
 id	hex(b1)	vc	bc	d	f	total	y	t
@@ -282,6 +299,7 @@ UPDATE t1 SET b1 = 0, t="2005-09-09" WHERE b1 = 1;
 select id,hex(b1),vc,bc,d,f,total,y,t from t1 order by id;
 id	hex(b1)	vc	bc	d	f	total	y	t
 42	0	Testing MySQL databases is a cool 	Must make it bug free for the customer	654321.4321	15.21	0	1965	2005-09-09 00:00:00
+sync_slave_with_master;
 connection slave;
 select id,hex(b1),vc,bc,d,f,total,y,t from t1 order by id;
 id	hex(b1)	vc	bc	d	f	total	y	t
@@ -290,6 +308,7 @@ connection master;
 DELETE FROM t1 WHERE id = 42;
 select id,hex(b1),vc,bc,d,f,total,y,t from t1 order by id;
 id	hex(b1)	vc	bc	d	f	total	y	t
+sync_slave_with_master;
 connection slave;
 select id,hex(b1),vc,bc,d,f,total,y,t from t1 order by id;
 id	hex(b1)	vc	bc	d	f	total	y	t
@@ -310,7 +329,7 @@ t1	CREATE TABLE `t1` (
   `t` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
-connection slave;
+sync_slave_with_master;
 connection slave;
 alter table t1 engine=myisam;
 show create table t1;
@@ -332,6 +351,7 @@ INSERT INTO t1 VALUES(42,1,'Testing MySQL databases is a cool ', 'Must make it b
 select id,hex(b1),vc,bc,d,f,total,y,t from t1 order by id;
 id	hex(b1)	vc	bc	d	f	total	y	t
 42	1	Testing MySQL databases is a cool 	Must make it bug free for the customer	654321.4321	15.21	0	1965	2005-11-14 00:00:00
+sync_slave_with_master;
 connection slave;
 select id,hex(b1),vc,bc,d,f,total,y,t from t1 order by id;
 id	hex(b1)	vc	bc	d	f	total	y	t
@@ -341,6 +361,7 @@ UPDATE t1 SET b1 = 0, t="2005-09-09" WHERE b1 = 1;
 select id,hex(b1),vc,bc,d,f,total,y,t from t1 order by id;
 id	hex(b1)	vc	bc	d	f	total	y	t
 42	0	Testing MySQL databases is a cool 	Must make it bug free for the customer	654321.4321	15.21	0	1965	2005-09-09 00:00:00
+sync_slave_with_master;
 connection slave;
 select id,hex(b1),vc,bc,d,f,total,y,t from t1 order by id;
 id	hex(b1)	vc	bc	d	f	total	y	t
@@ -349,6 +370,7 @@ connection master;
 DELETE FROM t1 WHERE id = 42;
 select id,hex(b1),vc,bc,d,f,total,y,t from t1 order by id;
 id	hex(b1)	vc	bc	d	f	total	y	t
+sync_slave_with_master;
 connection slave;
 select id,hex(b1),vc,bc,d,f,total,y,t from t1 order by id;
 id	hex(b1)	vc	bc	d	f	total	y	t
@@ -374,6 +396,7 @@ INSERT INTO t1 VALUES(42,1,'Testing MySQL databases is a cool ', 'Must make it b
 select id,hex(b1),vc,bc,d,f,total,y,t from t1 order by id;
 id	hex(b1)	vc	bc	d	f	total	y	t
 42	1	Testing MySQL databases is a cool 	Must make it bug free for the customer	654321.4321	15.21	0	1965	2005-11-14 00:00:00
+sync_slave_with_master;
 connection slave;
 select id,hex(b1),vc,bc,d,f,total,y,t from t1 order by id;
 id	hex(b1)	vc	bc	d	f	total	y	t
@@ -383,6 +406,7 @@ UPDATE t1 SET b1 = 0, t="2005-09-09" WHERE b1 = 1;
 select id,hex(b1),vc,bc,d,f,total,y,t from t1 order by id;
 id	hex(b1)	vc	bc	d	f	total	y	t
 42	0	Testing MySQL databases is a cool 	Must make it bug free for the customer	654321.4321	15.21	0	1965	2005-09-09 00:00:00
+sync_slave_with_master;
 connection slave;
 select id,hex(b1),vc,bc,d,f,total,y,t from t1 order by id;
 id	hex(b1)	vc	bc	d	f	total	y	t
@@ -391,6 +415,7 @@ connection master;
 DELETE FROM t1 WHERE id = 42;
 select id,hex(b1),vc,bc,d,f,total,y,t from t1 order by id;
 id	hex(b1)	vc	bc	d	f	total	y	t
+sync_slave_with_master;
 connection slave;
 select id,hex(b1),vc,bc,d,f,total,y,t from t1 order by id;
 id	hex(b1)	vc	bc	d	f	total	y	t
@@ -416,6 +441,7 @@ INSERT INTO t1 VALUES(42,1,'Testing MySQL databases is a cool ', 'Must make it b
 select id,hex(b1),vc,bc,d,f,total,y,t from t1 order by id;
 id	hex(b1)	vc	bc	d	f	total	y	t
 42	1	Testing MySQL databases is a cool 	Must make it bug free for the customer	654321.4321	15.21	0	1965	2005-11-14 00:00:00
+sync_slave_with_master;
 connection slave;
 select id,hex(b1),vc,bc,d,f,total,y,t from t1 order by id;
 id	hex(b1)	vc	bc	d	f	total	y	t
@@ -425,6 +451,7 @@ UPDATE t1 SET b1 = 0, t="2005-09-09" WHERE b1 = 1;
 select id,hex(b1),vc,bc,d,f,total,y,t from t1 order by id;
 id	hex(b1)	vc	bc	d	f	total	y	t
 42	0	Testing MySQL databases is a cool 	Must make it bug free for the customer	654321.4321	15.21	0	1965	2005-09-09 00:00:00
+sync_slave_with_master;
 connection slave;
 select id,hex(b1),vc,bc,d,f,total,y,t from t1 order by id;
 id	hex(b1)	vc	bc	d	f	total	y	t
@@ -433,11 +460,13 @@ connection master;
 DELETE FROM t1 WHERE id = 42;
 select id,hex(b1),vc,bc,d,f,total,y,t from t1 order by id;
 id	hex(b1)	vc	bc	d	f	total	y	t
+sync_slave_with_master;
 connection slave;
 select id,hex(b1),vc,bc,d,f,total,y,t from t1 order by id;
 id	hex(b1)	vc	bc	d	f	total	y	t
 connection master;
 connection master;
 DROP TABLE t1;
+sync_slave_with_master;
 connection slave;
 include/rpl_end.inc

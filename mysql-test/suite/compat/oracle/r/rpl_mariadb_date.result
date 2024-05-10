@@ -50,6 +50,7 @@ Table	Create Table
 t2	CREATE TABLE "t2" (
   "a" mariadb_schema.date DEFAULT NULL
 )
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t1;
 a

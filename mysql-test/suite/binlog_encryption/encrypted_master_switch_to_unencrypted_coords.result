@@ -27,6 +27,7 @@ SET binlog_format=ROW;
 INSERT INTO table1_no_encryption SELECT NULL,NOW(),b FROM table1_no_encryption;
 INSERT INTO table1_no_encryption SELECT NULL,NOW(),b FROM table1_no_encryption;
 NOT FOUND /table1_no_encryption/ in master-bin.0*
+save_master_pos;
 #####################################################
 # Part 2: restart master, now with binlog encryption
 #####################################################
@@ -62,7 +63,9 @@ INSERT INTO table3_no_encryption SELECT NULL,NOW(),b FROM table3_no_encryption;
 #####################################################
 connection server_2;
 start slave;
+sync_with_master;
 connection server_1;
+save_master_pos;
 connection server_2;
 include/wait_for_slave_io_error.inc [errno=1236]
 SHOW TABLES;

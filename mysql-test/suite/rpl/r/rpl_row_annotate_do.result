@@ -22,6 +22,7 @@ a	b
 3	baz
 4	gås
 5	gås
+sync_slave_with_master;
 connection slave;
 ########################################################################
 # TABLES ON SLAVE: should be the same as on master
@@ -71,6 +72,7 @@ call mtr.add_suppression("Can't find record in 't3'");
 SET GLOBAL sql_slave_skip_counter=1;
 START SLAVE;
 connection master;
+sync_slave_with_master;
 connection slave;
 ########################################################################
 FLUSH LOGS;
@@ -184,8 +186,10 @@ FLUSH TABLES test1.t4;
 SELECT * FROM test1.t4 ORDER BY a;
 a	b
 1	1
+sync_slave_with_master;
 connection slave;
 connection master;
+sync_slave_with_master;
 connection slave;
 ########################################################################
 # ON SLAVE

@@ -4,6 +4,7 @@ create database db;
 create table db.this_will_not_be_replicated (i int) engine=MyISAM;
 create table db.t1 (i int) engine=MyISAM;
 create table db.t2 (i int) engine=MyISAM;
+save_master_pos;
 connect  master2,127.0.0.1,root,,,$SERVER_MYPORT_2;
 drop database if exists db;
 create database db;
@@ -17,6 +18,7 @@ master_use_gtid=no;
 start slave 'master1';
 set default_master_connection = 'master1';
 include/wait_for_slave_to_start.inc
+sync_with_master 0,'master1';
 set default_master_connection = 'master2';
 change master 'master2' to
 master_port=MYPORT_2,
@@ -106,7 +108,9 @@ start slave 'master2';
 include/wait_for_slave_to_start.inc
 set default_master_connection = '';
 connection master2;
+save_master_pos;
 connection slave;
+sync_with_master 0,'master2';
 show tables in db;
 Tables_in_db
 t1

@@ -8,6 +8,7 @@ DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7,t8,t9,t10;
 --------------------------------------------------------------------------------------------------------------
 --------------------------------------------COMPRESSED TO COMPRESSED------------------------------------------
 --------------------------------------------------------------------------------------------------------------
+sync_slave_with_master;
 connection slave;
 CREATE TABLE  t1  (a BLOB COMPRESSED default "1111111111") ENGINE=innodb;
 CREATE TABLE  t2  (a TINYBLOB COMPRESSED) ENGINE=innodb;
@@ -142,6 +143,7 @@ VARIABLE_NAME	VARIABLE_VALUE
 COLUMN_COMPRESSIONS	29
 COLUMN_DECOMPRESSIONS	58
 --------------------------------------------------data on slave-------------------------------------------------
+sync_slave_with_master;
 connection slave;
 SELECT LENGTH(a), SUBSTRING(a,1,10), "S,compressed" from t10;
 LENGTH(a)	SUBSTRING(a,1,10)	S,compressed
@@ -249,6 +251,7 @@ FLUSH STATUS;
 -----------------------------------------------------------------------------------------------------------------
 ---------------------------------------COMPRESSED TO NOT COMPRESSED----------------------------------------------
 -----------------------------------------------------------------------------------------------------------------
+sync_slave_with_master;
 connection slave;
 FLUSH STATUS;
 CREATE TABLE t1  (a BLOB) ENGINE=innodb;
@@ -382,6 +385,7 @@ VARIABLE_NAME	VARIABLE_VALUE
 COLUMN_COMPRESSIONS	29
 COLUMN_DECOMPRESSIONS	58
 ---------------------------------------data on slave-------------------------------------------------------------
+sync_slave_with_master;
 connection slave;
 SELECT LENGTH(a), SUBSTRING(a,1,10), "S,not compressed" from t10;
 LENGTH(a)	SUBSTRING(a,1,10)	S,not compressed
@@ -487,6 +491,7 @@ FLUSH STATUS;
 -----------------------------------------------------------------------------------------------------------------
 -----------------------------------NOT COMPRESSED to COMPRESSED--------------------------------------------------
 -----------------------------------------------------------------------------------------------------------------
+sync_slave_with_master;
 connection slave;
 FLUSH STATUS;
 CREATE TABLE t1  (a BLOB COMPRESSED) ENGINE=innodb;
@@ -620,6 +625,7 @@ VARIABLE_NAME	VARIABLE_VALUE
 COLUMN_COMPRESSIONS	0
 COLUMN_DECOMPRESSIONS	0
 -----------------------------------data on slave-----------------------------------------------------------------
+sync_slave_with_master;
 connection slave;
 SELECT LENGTH(a), SUBSTRING(a,1,10), "S,compressed" from t10;
 LENGTH(a)	SUBSTRING(a,1,10)	S,compressed
@@ -724,6 +730,7 @@ DROP TABLE t1,t2,t3,t4,t5,t6,t7,t8,t9,t10;
 -----------------------------------------------------------------------------------------------------------------
 ------varchar(1000)->varchar(999) compressed, varchar(1000) compressed->varchar(999) ----------------------------
 -----------------------------------------------------------------------------------------------------------------
+sync_slave_with_master;
 connection slave;
 CREATE TABLE t1  (a VARCHAR(999) COMPRESSED) ENGINE=innodb;
 CREATE TABLE t2  (a VARCHAR(999)) ENGINE=innodb;
@@ -748,6 +755,7 @@ Level	Code	Message
 SET GLOBAL SLAVE_TYPE_CONVERSIONS = @saved_slave_type_conversions;
 connection master;
 DROP TABLE t1,t2;
+sync_slave_with_master;
 connection slave;
 connection slave;
 SET @saved_slave_type_conversions = @@slave_type_conversions;
@@ -757,6 +765,7 @@ DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7,t8,t9,t10;
 --------------------------------------------------------------------------------------------------------------
 --------------------------------------------COMPRESSED TO COMPRESSED------------------------------------------
 --------------------------------------------------------------------------------------------------------------
+sync_slave_with_master;
 connection slave;
 CREATE TABLE  t1  (a BLOB COMPRESSED default "1111111111") ENGINE=innodb;
 CREATE TABLE  t2  (a TINYBLOB COMPRESSED) ENGINE=innodb;
@@ -891,6 +900,7 @@ VARIABLE_NAME	VARIABLE_VALUE
 COLUMN_COMPRESSIONS	30
 COLUMN_DECOMPRESSIONS	58
 --------------------------------------------------data on slave-------------------------------------------------
+sync_slave_with_master;
 connection slave;
 SELECT LENGTH(a), SUBSTRING(a,1,10), "S,compressed" from t10;
 LENGTH(a)	SUBSTRING(a,1,10)	S,compressed
@@ -998,6 +1008,7 @@ FLUSH STATUS;
 -----------------------------------------------------------------------------------------------------------------
 ---------------------------------------COMPRESSED TO NOT COMPRESSED----------------------------------------------
 -----------------------------------------------------------------------------------------------------------------
+sync_slave_with_master;
 connection slave;
 FLUSH STATUS;
 CREATE TABLE t1  (a BLOB) ENGINE=innodb;
@@ -1131,6 +1142,7 @@ VARIABLE_NAME	VARIABLE_VALUE
 COLUMN_COMPRESSIONS	29
 COLUMN_DECOMPRESSIONS	58
 ---------------------------------------data on slave-------------------------------------------------------------
+sync_slave_with_master;
 connection slave;
 SELECT LENGTH(a), SUBSTRING(a,1,10), "S,not compressed" from t10;
 LENGTH(a)	SUBSTRING(a,1,10)	S,not compressed
@@ -1236,6 +1248,7 @@ FLUSH STATUS;
 -----------------------------------------------------------------------------------------------------------------
 -----------------------------------NOT COMPRESSED to COMPRESSED--------------------------------------------------
 -----------------------------------------------------------------------------------------------------------------
+sync_slave_with_master;
 connection slave;
 FLUSH STATUS;
 CREATE TABLE t1  (a BLOB COMPRESSED) ENGINE=innodb;
@@ -1369,6 +1382,7 @@ VARIABLE_NAME	VARIABLE_VALUE
 COLUMN_COMPRESSIONS	0
 COLUMN_DECOMPRESSIONS	0
 -----------------------------------data on slave-----------------------------------------------------------------
+sync_slave_with_master;
 connection slave;
 SELECT LENGTH(a), SUBSTRING(a,1,10), "S,compressed" from t10;
 LENGTH(a)	SUBSTRING(a,1,10)	S,compressed
@@ -1473,6 +1487,7 @@ DROP TABLE t1,t2,t3,t4,t5,t6,t7,t8,t9,t10;
 -----------------------------------------------------------------------------------------------------------------
 ------varchar(1000)->varchar(999) compressed, varchar(1000) compressed->varchar(999) ----------------------------
 -----------------------------------------------------------------------------------------------------------------
+sync_slave_with_master;
 connection slave;
 CREATE TABLE t1  (a VARCHAR(999) COMPRESSED) ENGINE=innodb;
 CREATE TABLE t2  (a VARCHAR(999)) ENGINE=innodb;
@@ -1497,6 +1512,7 @@ Level	Code	Message
 SET GLOBAL SLAVE_TYPE_CONVERSIONS = @saved_slave_type_conversions;
 connection master;
 DROP TABLE t1,t2;
+sync_slave_with_master;
 connection slave;
 connection slave;
 SET @saved_slave_type_conversions = @@slave_type_conversions;
@@ -1506,6 +1522,7 @@ DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7,t8,t9,t10;
 --------------------------------------------------------------------------------------------------------------
 --------------------------------------------COMPRESSED TO COMPRESSED------------------------------------------
 --------------------------------------------------------------------------------------------------------------
+sync_slave_with_master;
 connection slave;
 CREATE TABLE  t1  (a BLOB COMPRESSED default "1111111111") ENGINE=myisam;
 CREATE TABLE  t2  (a TINYBLOB COMPRESSED) ENGINE=myisam;
@@ -1640,6 +1657,7 @@ VARIABLE_NAME	VARIABLE_VALUE
 COLUMN_COMPRESSIONS	30
 COLUMN_DECOMPRESSIONS	58
 --------------------------------------------------data on slave-------------------------------------------------
+sync_slave_with_master;
 connection slave;
 SELECT LENGTH(a), SUBSTRING(a,1,10), "S,compressed" from t10;
 LENGTH(a)	SUBSTRING(a,1,10)	S,compressed
@@ -1747,6 +1765,7 @@ FLUSH STATUS;
 -----------------------------------------------------------------------------------------------------------------
 ---------------------------------------COMPRESSED TO NOT COMPRESSED----------------------------------------------
 -----------------------------------------------------------------------------------------------------------------
+sync_slave_with_master;
 connection slave;
 FLUSH STATUS;
 CREATE TABLE t1  (a BLOB) ENGINE=myisam;
@@ -1880,6 +1899,7 @@ VARIABLE_NAME	VARIABLE_VALUE
 COLUMN_COMPRESSIONS	29
 COLUMN_DECOMPRESSIONS	58
 ---------------------------------------data on slave-------------------------------------------------------------
+sync_slave_with_master;
 connection slave;
 SELECT LENGTH(a), SUBSTRING(a,1,10), "S,not compressed" from t10;
 LENGTH(a)	SUBSTRING(a,1,10)	S,not compressed
@@ -1985,6 +2005,7 @@ FLUSH STATUS;
 -----------------------------------------------------------------------------------------------------------------
 -----------------------------------NOT COMPRESSED to COMPRESSED--------------------------------------------------
 -----------------------------------------------------------------------------------------------------------------
+sync_slave_with_master;
 connection slave;
 FLUSH STATUS;
 CREATE TABLE t1  (a BLOB COMPRESSED) ENGINE=myisam;
@@ -2118,6 +2139,7 @@ VARIABLE_NAME	VARIABLE_VALUE
 COLUMN_COMPRESSIONS	0
 COLUMN_DECOMPRESSIONS	0
 -----------------------------------data on slave-----------------------------------------------------------------
+sync_slave_with_master;
 connection slave;
 SELECT LENGTH(a), SUBSTRING(a,1,10), "S,compressed" from t10;
 LENGTH(a)	SUBSTRING(a,1,10)	S,compressed
@@ -2222,6 +2244,7 @@ DROP TABLE t1,t2,t3,t4,t5,t6,t7,t8,t9,t10;
 -----------------------------------------------------------------------------------------------------------------
 ------varchar(1000)->varchar(999) compressed, varchar(1000) compressed->varchar(999) ----------------------------
 -----------------------------------------------------------------------------------------------------------------
+sync_slave_with_master;
 connection slave;
 CREATE TABLE t1  (a VARCHAR(999) COMPRESSED) ENGINE=myisam;
 CREATE TABLE t2  (a VARCHAR(999)) ENGINE=myisam;
@@ -2246,5 +2269,6 @@ Level	Code	Message
 SET GLOBAL SLAVE_TYPE_CONVERSIONS = @saved_slave_type_conversions;
 connection master;
 DROP TABLE t1,t2;
+sync_slave_with_master;
 connection slave;
 include/rpl_end.inc

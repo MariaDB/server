@@ -10,7 +10,7 @@ select * from t1;
 s1
 Montag
 Monday
-connection slave;
+sync_slave_with_master;
 connection slave;
 select * from t1;
 s1
@@ -18,5 +18,6 @@ Montag
 Monday
 connection master;
 drop table t1;
+sync_slave_with_master;
 connection slave;
 include/rpl_end.inc

@@ -315,8 +315,6 @@ TRUNCATE mysql.slow_log;
 --enable_warnings
 sync_slave_with_master;
 
--- connection slave
-
 eval SELECT sql_text FROM mysql.slow_log WHERE sql_text like '$slow_query';
 
 SET @@global.log_slow_slave_statements = on;
@@ -327,8 +325,6 @@ SET @@global.log_slow_slave_statements = on;
 -- eval $slow_query;
 --enable_warnings
 sync_slave_with_master;
-
--- connection slave
 
 eval SELECT sql_text FROM mysql.slow_log WHERE sql_text like '$slow_query';
 

@@ -9,6 +9,7 @@ change master to master_use_gtid=slave_pos;
 include/start_slave.inc
 connection master;
 CREATE TABLE t(i INT);
+sync_slave_with_master;
 connection slave;
 "using_gtid: Slave_Pos"
 FOUND 1 /gtid_slave_pos/ in xtrabackup_slave_info
@@ -32,6 +33,7 @@ change master to master_use_gtid=no;
 include/start_slave.inc
 connection master;
 INSERT INTO t VALUES(1);
+sync_slave_with_master;
 connection slave;
 "using_gtid: No"
 NOT FOUND /gtid_slave_pos/ in xtrabackup_slave_info
@@ -40,5 +42,6 @@ lineno	line
 1	CHANGE MASTER TO MASTER_LOG_FILE='master-bin.000001', MASTER_LOG_POS=<NUM>;
 connection master;
 DROP TABLE t;
+sync_slave_with_master;
 connection slave;
 include/rpl_end.inc

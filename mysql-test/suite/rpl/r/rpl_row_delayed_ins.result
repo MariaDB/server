@@ -11,6 +11,7 @@ a
 1
 2
 3
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t1 ORDER BY a;
 a

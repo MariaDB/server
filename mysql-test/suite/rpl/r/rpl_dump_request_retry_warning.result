@@ -14,6 +14,8 @@ include/wait_for_slave_io_to_start.inc
 include/wait_for_slave_sql_to_start.inc
 connection master;
 include/sync_slave_sql_with_master.inc
+save_master_pos;
+sync_with_master;
 SELECT * FROM t1;
 a
 1

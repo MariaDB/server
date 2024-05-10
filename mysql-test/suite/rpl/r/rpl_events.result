@@ -19,6 +19,7 @@ test	justonce	ENABLED	1
 "Checking event data on the master"
 ONE
 1
+sync_slave_with_master;
 connection slave;
 "Checking event data on the slave"
 ZERO
@@ -49,6 +50,7 @@ INSERT IGNORE INTO t1(id, c) VALUES (4, 'from er');
 SELECT db, name, status, originator, body FROM mysql.event WHERE db = 'test' AND name = 'er';
 db	name	status	originator	body
 test	er	ENABLED	1	INSERT IGNORE INTO t1(id, c) VALUES (4, 'from er')
+sync_slave_with_master;
 connection slave;
 "Checking event status on the slave"
 SELECT db, name, status, originator, body FROM mysql.event WHERE db = 'test' AND name = 'er';
@@ -62,6 +64,7 @@ INSERT IGNORE INTO t1(id, c) VALUES (5, 'from alter er');
 SELECT db, name, status, originator, body FROM mysql.event WHERE db = 'test' AND name = 'er';
 db	name	status	originator	body
 test	er	ENABLED	1	INSERT IGNORE INTO t1(id, c) VALUES (5, 'from alter er')
+sync_slave_with_master;
 connection slave;
 "Checking event status on the slave"
 SELECT db, name, status, originator, body FROM mysql.event WHERE db = 'test' AND name = 'er';
@@ -73,6 +76,7 @@ DROP EVENT test.er;
 "Checking event status on the master"
 SELECT db, name, status, originator FROM mysql.event WHERE db = 'test';
 db	name	status	originator
+sync_slave_with_master;
 connection slave;
 "Checking event status on the slave"
 SELECT db, name, status, originator FROM mysql.event WHERE db = 'test';
@@ -102,6 +106,7 @@ DROP EVENT test.slave_terminate;
 "Cleanup"
 connection master;
 DROP TABLE t1;
+sync_slave_with_master;
 connection slave;
 connection master;
 CREATE TABLE t28953 (a INT);
@@ -110,6 +115,7 @@ DO BEGIN
 select * from t28953;
 END;|
 ALTER EVENT event1 RENAME TO event2;
+sync_slave_with_master;
 connection slave;
 connection master;
 DROP EVENT event2;
@@ -154,7 +160,7 @@ select EVENT_SCHEMA, EVENT_NAME, DEFINER from information_schema.events
 where EVENT_NAME='event44331_4';
 EVENT_SCHEMA	EVENT_NAME	DEFINER
 test	event44331_4	user44331@%
-connection slave;
+sync_slave_with_master;
 connection slave;
 select EVENT_SCHEMA, EVENT_NAME, DEFINER from information_schema.events
 where EVENT_NAME='event44331_1';
@@ -180,5 +186,6 @@ DROP EVENT event44331_1;
 DROP EVENT event44331_2;
 DROP EVENT event44331_3;
 DROP EVENT event44331_4;
+sync_slave_with_master;
 connection slave;
 include/rpl_end.inc

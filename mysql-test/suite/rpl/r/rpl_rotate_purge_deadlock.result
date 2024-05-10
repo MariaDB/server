@@ -26,6 +26,7 @@ SET DEBUG_SYNC = 'now WAIT_FOR continued';
 SET DEBUG_SYNC = 'RESET';
 connection master;
 SET DEBUG_SYNC = 'RESET';
+sync_slave_with_master;
 connection slave;
 connection master;
 SET DEBUG_SYNC = 'at_purge_logs_before_date WAIT_FOR rotated';
@@ -38,5 +39,6 @@ SET DEBUG_SYNC = 'RESET';
 connection master;
 SET DEBUG_SYNC = 'RESET';
 drop table t1;
+sync_slave_with_master;
 connection slave;
 include/rpl_end.inc

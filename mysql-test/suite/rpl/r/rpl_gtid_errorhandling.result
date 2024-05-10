@@ -4,7 +4,7 @@ include/master-slave.inc
 connection master;
 CREATE TABLE t1(a INT PRIMARY KEY) ENGINE=InnoDB;
 call mtr.add_suppression("Incorrect definition of table mysql.gtid_slave_pos:.*");
-connection slave;
+sync_slave_with_master;
 connection slave;
 include/stop_slave.inc
 ALTER TABLE mysql.gtid_slave_pos CHANGE seq_no seq_no VARCHAR(20);
@@ -33,7 +33,7 @@ ALTER TABLE mysql.gtid_slave_pos DROP PRIMARY KEY;
 ALTER TABLE mysql.gtid_slave_pos ADD PRIMARY KEY (domain_id, sub_id);
 include/start_slave.inc
 connection master;
-connection slave;
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t1;
 a
@@ -180,8 +180,10 @@ include/wait_for_slave_io_error.inc [errno=1233]
 connection master;
 SET GLOBAL debug_dbug= @old_dbug;
 INSERT INTO t1 VALUES (7);
+save_master_pos;
 connection slave;
 START SLAVE;
+sync_with_master;
 SET sql_log_bin=0;
 CALL mtr.add_suppression("The slave I/O thread stops because master does not support MariaDB global transaction id");
 SET sql_log_bin=1;
@@ -191,6 +193,7 @@ include/stop_slave.inc
 connection master;
 CREATE TABLE t2 (a INT) ENGINE=MyISAM;
 INSERT INTO t2 VALUES (1);
+save_master_pos;
 connection slave;
 SET @old_dbug= @@global.DEBUG_DBUG;
 SET GLOBAL debug_dbug="+d,gtid_inject_record_gtid";
@@ -198,6 +201,7 @@ START SLAVE;
 include/wait_for_slave_sql_error.inc [errno=1942]
 SET GLOBAL debug_dbug= @old_dbug;
 START SLAVE SQL_THREAD;
+sync_with_master;
 SELECT * FROM t2;
 a
 1
@@ -219,6 +223,7 @@ SET @old_format=@@binlog_format;
 SET binlog_format='row';
 DELETE FROM t2;
 SET binlog_format=@old_format;
+save_master_pos;
 connection slave;
 include/wait_for_slave_sql_error.inc [errno=1032]
 result
@@ -234,6 +239,7 @@ INSERT INTO t2 VALUES (1);
 CALL mtr.add_suppression("Slave: Can't find record in 't2' Error_code: 1032");
 SET sql_log_bin=1;
 include/start_slave.inc
+sync_with_master;
 SET GLOBAL binlog_format=@old_format;
 connection master;
 DROP TABLE t1;

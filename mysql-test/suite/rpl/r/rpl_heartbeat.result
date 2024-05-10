@@ -58,6 +58,7 @@ Value	0.500
 start slave;
 connection master;
 create table t1 (f1 int);
+sync_slave_with_master;
 connection slave;
 include/check_slave_param.inc [Relay_Log_File]
 show status like 'Slave_heartbeat_period';;
@@ -66,6 +67,7 @@ Value	0.500
 A heartbeat has been received by the slave
 connection master;
 drop table t1;
+sync_slave_with_master;
 connection slave;
 set @@global.slave_net_timeout= @restore_slave_net_timeout;
 include/stop_slave.inc

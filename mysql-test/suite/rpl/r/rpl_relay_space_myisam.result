@@ -14,6 +14,7 @@ name	age	id
 Andy	31	00000001
 Jacob	2	00000002
 Caleb	1	00000003
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t1 ORDER BY id;
 name	age	id

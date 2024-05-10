@@ -8,13 +8,14 @@ create temporary table mysqltest.t1 (n int)ENGINE=MyISAM;
 create temporary table mysqltest.t2 (n int)ENGINE=MyISAM;
 disconnect con_temp;
 connection master;
-connection slave;
+sync_slave_with_master;
 connection slave;
 show status like 'Slave_open_temp_tables';
 Variable_name	Value
 Slave_open_temp_tables	0
 connection master;
 drop database mysqltest;
+sync_slave_with_master;
 connection slave;
 connection master;
 DROP TEMPORARY TABLE IF EXISTS tmp1;
@@ -25,7 +26,7 @@ DROP TEMPORARY TABLE t1, t2;
 ERROR 42S02: Unknown table 'test.t2'
 DROP TEMPORARY TABLE tmp2;
 ERROR 42S02: Unknown table 'test.tmp2'
-connection slave;
+sync_slave_with_master;
 connection slave;
 stop slave;
 connection master;
@@ -35,10 +36,12 @@ connection slave;
 SET GLOBAL SQL_SLAVE_SKIP_COUNTER=1;
 START SLAVE;
 connection master;
+sync_slave_with_master;
 connection slave;
 include/rpl_reset.inc
 connection master;
 CREATE TABLE t1 ( i INT );
+sync_slave_with_master;
 connection slave;
 SHOW STATUS LIKE 'Slave_open_temp_tables';
 Variable_name	Value
@@ -48,6 +51,7 @@ CREATE TEMPORARY TABLE ttmp1 ( i INT );
 SET SESSION binlog_format=ROW;
 disconnect con1;
 connection master;
+sync_slave_with_master;
 connection slave;
 SHOW STATUS LIKE 'Slave_open_temp_tables';
 Variable_name	Value

@@ -21,10 +21,12 @@ FOR EACH ROW BEGIN
 SET new.b = mysqltest1.f1();
 END|
 INSERT INTO mysqltest1.t1 SET n = NULL, a = now();
+sync_slave_with_master;
 connection slave;
 connection master;
 DROP TABLE IF EXISTS mysqltest1.t1;
 DROP FUNCTION mysqltest1.f1;
 DROP DATABASE mysqltest1;
+sync_slave_with_master;
 connection slave;
 include/rpl_end.inc

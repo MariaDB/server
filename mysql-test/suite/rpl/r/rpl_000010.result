@@ -8,6 +8,7 @@ connection master;
 create table t1 (n int not null auto_increment primary key);
 insert into t1 values(NULL);
 insert into t1 values(2);
+sync_slave_with_master;
 connection slave;
 select n from t1;
 n
@@ -15,5 +16,6 @@ n
 2
 connection master;
 drop table t1;
+sync_slave_with_master;
 connection slave;
 include/rpl_end.inc

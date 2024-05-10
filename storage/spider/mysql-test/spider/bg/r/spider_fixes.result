@@ -312,7 +312,9 @@ UNLOCK TABLES;
 
 auto_increment
 connection master_1;
+save_master_pos;
 connection slave1_1;
+sync_with_master;
 connection master_1;
 DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (
@@ -401,7 +403,9 @@ LAST_INSERT_ID()
 SELECT MAX(id) FROM t1;
 MAX(id)
 10000
+save_master_pos;
 connection slave1_1;
+sync_with_master;
 SELECT id FROM t1 ORDER BY id;
 id
 777

@@ -142,6 +142,8 @@ class	id	title
 SELECT * FROM t_part WHERE title = 'a101';
 class	id	title
 include/sync_slave_sql_with_master.inc
+save_master_pos;
+sync_with_master;
 connection slave;
 SHOW CREATE TABLE t1;
 Table	Create Table

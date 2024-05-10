@@ -46,6 +46,7 @@ c1	c3	c4	c5
 3	2006-02-22 00:00:00	Tested in Texas	6.6
 4	2006-02-22 00:00:00	Tested in Texas	8.8
 5	2006-02-22 00:00:00	Tested in Texas	11
+sync_slave_with_master;
 connection slave;
 SELECT COUNT(*) from t1;
 COUNT(*)
@@ -85,6 +86,7 @@ flush logs;
 DROP TABLE t1;
 DROP TABLE t2;
 DROP TABLE t3;
+sync_slave_with_master;
 connection slave;
 stop slave;
 include/wait_for_slave_to_stop.inc
@@ -127,6 +129,7 @@ c1	c3	c4	c5
 3	2006-02-22 00:00:00	Tested in Texas	6.6
 4	2006-02-22 00:00:00	Tested in Texas	8.8
 5	2006-02-22 00:00:00	Tested in Texas	11
+sync_slave_with_master;
 connection slave;
 SELECT COUNT(*) from t1;
 COUNT(*)
@@ -217,6 +220,7 @@ ROLLBACK /* added by mysqlbinlog */;
 DROP TABLE t1;
 DROP TABLE t2;
 DROP TABLE t3;
+sync_slave_with_master;
 connection slave;
 stop slave;
 include/wait_for_slave_to_stop.inc
@@ -257,6 +261,7 @@ c1	c3	c4	c5
 3	2006-02-22 00:00:00	Tested in Texas	6.6
 4	2006-02-22 00:00:00	Tested in Texas	8.8
 5	2006-02-22 00:00:00	Tested in Texas	11
+sync_slave_with_master;
 connection slave;
 SELECT COUNT(*) from t1;
 COUNT(*)
@@ -354,6 +359,7 @@ ROLLBACK /* added by mysqlbinlog */;
 /*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;
 /*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=0*/;
 --- Test 8 switch internal charset --
+sync_slave_with_master;
 connection slave;
 stop slave;
 include/wait_for_slave_to_stop.inc
@@ -380,6 +386,7 @@ HEX(f)
 select HEX(f) from t5;
 HEX(f)
 835C
+sync_slave_with_master;
 connection slave;
 select HEX(f) from t04;
 HEX(f)
@@ -395,6 +402,7 @@ HEX(f)
 835C
 --- Test cleanup --
 connection master;
+sync_slave_with_master;
 connection slave;
 connection master;
 DROP TABLE t1, t2, t3, t04, t05, t4, t5;
@@ -405,5 +413,6 @@ a	b
 1	1
 FLUSH LOGS;
 DROP TABLE t1;
+sync_slave_with_master;
 connection slave;
 include/rpl_end.inc

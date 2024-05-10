@@ -1,5 +1,5 @@
---- r/rpl_iodku.result
-+++ r/rpl_iodku,stmt.reject
+--- suite/rpl/r/rpl_iodku.result
++++ suite/rpl/r/rpl_iodku,stmt.reject
 @@ -1,10 +1,15 @@
  include/master-slave.inc
  [connection master]
@@ -16,7 +16,7 @@
  SELECT * from t1;
  id	a	b	c
  1	1	NULL	11
-@@ -17,6 +22,8 @@
+@@ -18,6 +23,8 @@
  INSERT INTO t1 VALUES (1,10,1);
  # eligable for the statement format run unsafe warning
  INSERT INTO t1 VALUES (2,20,2) ON DUPLICATE KEY UPDATE c = 100;

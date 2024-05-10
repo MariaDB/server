@@ -14,6 +14,7 @@ a
 2
 3
 REPLACE INTO t1 VALUES (4);
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t1;
 a
@@ -30,6 +31,7 @@ master-bin.000001	#
 master-bin.000002	#
 master-bin.000003	#
 DROP TABLE t1;
+sync_slave_with_master;
 connection slave;
 connection master;
 SET GLOBAL BINLOG_CHECKSUM=default;

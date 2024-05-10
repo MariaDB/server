@@ -19,6 +19,7 @@ CREATE TABLE c1 (a INT);
 INSERT INTO a1 VALUES (1);
 INSERT INTO b1 VALUES (2);
 INSERT INTO c1 VALUES (3);
+sync_slave_with_master;
 connection slave;
 SHOW TABLES LIKE '%1';
 Tables_in_test (%1)

@@ -24,6 +24,7 @@ test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 drop table t1;
 drop temporary table tmp1;
+sync_slave_with_master;
 connection slave;
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info

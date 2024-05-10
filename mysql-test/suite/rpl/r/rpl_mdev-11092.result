@@ -71,6 +71,7 @@ CREATE TABLE tm (f INT) ENGINE=MYISAM;
 CREATE TABLE ti (f INT) ENGINE=INNODB;
 INSERT INTO tm VALUES (10);
 INSERT INTO ti VALUES (20);
+sync_slave_with_master;
 connection slave;
 "#######################################################################"
 "# Test Case4: Table_map event write failure for trans engine UPDATE   #"

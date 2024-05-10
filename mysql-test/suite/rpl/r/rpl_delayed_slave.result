@@ -12,6 +12,7 @@ CREATE TABLE t1 (a VARCHAR(100), b INT);
 INSERT INTO t1 VALUES ("zero", 0);
 ==== Normal setup ====
 [on slave]
+sync_slave_with_master;
 connection slave;
 include/stop_slave.inc
 # CHANGE MASTER TO MASTER_DELAY = 2*T
@@ -41,6 +42,7 @@ INSERT INTO t1 SELECT delay_on_slave(3), 2;
 Warnings:
 Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. Statement is unsafe because it uses a system variable that may have a different value on the slave
 Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. Statement is unsafe because it uses a system function that may return a different value on the slave
+save_master_pos;
 INSERT INTO t1 VALUES ('slave is already lagging: this statement should execute immediately', 3);
 INSERT INTO t1 SELECT delay_on_slave(2), 4;
 Warnings:
@@ -52,6 +54,7 @@ include/sync_slave_io_with_master.inc
 # Asserted this: No query executed
 # Asserted this: Status should be 'Waiting until MASTER_DELAY...'
 # wait for first query to execute
+sync_with_master;
 # sleep 1*T
 # Asserted this: Second query executed
 # Asserted this: Status should be executing third query (i.e., 'User sleep')
@@ -65,6 +68,7 @@ CHANGE MASTER TO MASTER_DELAY = 0;
 include/start_slave.inc
 connection master;
 INSERT INTO t1 VALUES ('Syncing slave', 5);
+sync_slave_with_master;
 connection slave;
 include/stop_slave.inc
 # CHANGE MASTER TO MASTER_DELAY = 2*T
@@ -74,11 +78,13 @@ INSERT INTO t1 VALUES (delay_on_slave(1), 6);
 Warnings:
 Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. Statement is unsafe because it uses a system variable that may have a different value on the slave
 Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. Statement is unsafe because it uses a system function that may return a different value on the slave
+save_master_pos;
 connection slave;
 # sleep 1*T
 # Asserted this: Seconds_Behind_Master should be between 0 and the 2*T
 # sleep 1*T
 # Asserted this: Seconds_Behind_Master should be at least 2*T
+sync_with_master;
 ==== STOP SLAVE / START SLAVE + DML ====
 include/stop_slave.inc
 # CHANGE MASTER TO MASTER_DELAY = 3*T
@@ -187,6 +193,7 @@ connection master;
 DROP TABLE t1, t_check_dml_not_executed_prematurely;
 DROP FUNCTION delay_on_slave;
 [on slave]
+sync_slave_with_master;
 connection slave;
 SELECT @@GLOBAL.slave_parallel_mode;
 @@GLOBAL.slave_parallel_mode

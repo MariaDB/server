@@ -104,7 +104,9 @@ master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO t2 VALUES (2)
 master-bin.000001	#	Query	#	#	COMMIT
 *** Test that slave stops if it tries to apply a GTID that would create out-of-order binlog GTID sequence numbers. ***
+save_master_pos;
 connection server_2;
+sync_with_master;
 SELECT * FROM t1 ORDER BY a;
 a
 1
@@ -119,11 +121,13 @@ SET sql_log_bin= 1;
 INSERT INTO t1 VALUES (5);
 connection server_1;
 INSERT INTO t1 VALUES (6);
+save_master_pos;
 connection server_2;
 include/wait_for_slave_sql_error.inc [errno=1950]
 STOP SLAVE IO_THREAD;
 SET GLOBAL gtid_strict_mode=0;
 include/start_slave.inc
+sync_with_master;
 SET GLOBAL gtid_strict_mode=1;
 SELECT * FROM t1 ORDER BY a;
 a
@@ -134,6 +138,7 @@ a
 INSERT INTO t1 VALUES (7);
 connection server_1;
 CREATE TABLE t3 (a INT PRIMARY KEY);
+save_master_pos;
 connection server_2;
 include/wait_for_slave_sql_error.inc [errno=1950]
 SHOW CREATE TABLE t3;
@@ -141,6 +146,7 @@ ERROR 42S02: Table 'test.t3' doesn't exist
 STOP SLAVE IO_THREAD;
 SET GLOBAL gtid_strict_mode=0;
 include/start_slave.inc
+sync_with_master;
 SET GLOBAL gtid_strict_mode=1;
 SHOW CREATE TABLE t3;
 Table	t3
@@ -151,6 +157,7 @@ Create Table	CREATE TABLE `t3` (
 INSERT INTO t1 VALUES (8);
 connection server_1;
 INSERT INTO t2 VALUES (3);
+save_master_pos;
 connection server_2;
 include/wait_for_slave_sql_error.inc [errno=1950]
 SELECT * FROM t2 ORDER BY a;
@@ -159,6 +166,7 @@ a
 STOP SLAVE IO_THREAD;
 SET GLOBAL gtid_strict_mode=0;
 include/start_slave.inc
+sync_with_master;
 SET GLOBAL gtid_strict_mode=1;
 SELECT * FROM t2 ORDER BY a;
 a
@@ -172,6 +180,7 @@ INSERT INTO t1 VALUES (10);
 SET gtid_seq_no= 100;
 INSERT INTO t1 VALUES (11);
 INSERT INTO t1 VALUES (12);
+save_master_pos;
 connection server_2;
 SET GLOBAL gtid_slave_pos= "0-1-50";
 START SLAVE;
@@ -179,6 +188,7 @@ include/wait_for_slave_io_error.inc [errno=1236]
 STOP SLAVE SQL_THREAD;
 SET GLOBAL gtid_strict_mode= 0;
 include/start_slave.inc
+sync_with_master;
 SELECT * FROM t1 ORDER BY a;
 a
 1

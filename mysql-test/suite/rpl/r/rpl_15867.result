@@ -2,6 +2,7 @@ include/master-slave.inc
 [connection master]
 CREATE TEMPORARY TABLE t (i INT);
 CREATE TABLE t AS SELECT * FROM t;
+sync_slave_with_master;
 connection slave;
 connection master;
 DROP TEMPORARY TABLE t;

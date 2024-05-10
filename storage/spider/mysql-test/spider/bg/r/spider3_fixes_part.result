@@ -38,7 +38,9 @@ SET @original_spider_auto_increment_mode = @@SESSION.spider_auto_increment_mode;
 SET SESSION spider_auto_increment_mode = -1;
 Warnings:
 Warning	138	The option value -1 (use table value) is deprecated and will be removed in a future release
+save_master_pos;
 connection slave1_1;
+sync_with_master;
 connection master_1;
 DROP TABLE IF EXISTS t1, t2;
 CREATE TABLE t1 (
@@ -193,7 +195,9 @@ SELECT MAX(id) FROM t2;
 MAX(id)
 10000
 SET SESSION spider_auto_increment_mode = @original_spider_auto_increment_mode;
+save_master_pos;
 connection slave1_1;
+sync_with_master;
 SELECT id FROM t1 ORDER BY id;
 id
 777

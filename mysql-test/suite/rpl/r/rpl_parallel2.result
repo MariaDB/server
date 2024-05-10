@@ -10,12 +10,16 @@ include/start_slave.inc
 connection server_1;
 CREATE TABLE t1 (a INT PRIMARY KEY, b INT);
 CALL mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. Statement is unsafe because it uses a system function that may return a different value on the slave");
+save_master_pos;
 connection server_2;
+sync_with_master;
 connection server_1;
 INSERT INTO t1 VALUES (1,sleep(2));
 Warnings:
 Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. Statement is unsafe because it uses a system function that may return a different value on the slave
+save_master_pos;
 connection server_2;
+sync_with_master;
 include/wait_for_slave_param.inc [Seconds_Behind_Master]
 Seconds_Behind_Master should be zero here because the slave is fully caught up and idle.
 Seconds_Behind_Master = '0'
@@ -26,6 +30,7 @@ SET sql_log_bin= 0;
 DELETE FROM t1 WHERE a=10;
 SET sql_log_bin= 1;
 INSERT INTO t1 VALUES (10,0);
+save_master_pos;
 SELECT * FROM t1 WHERE a >= 10 ORDER BY a;
 a	b
 10	0
@@ -35,6 +40,7 @@ SET GLOBAL slave_parallel_threads=8;
 STOP SLAVE;
 SET GLOBAL sql_slave_skip_counter= 1;
 include/start_slave.inc
+sync_with_master;
 SELECT * FROM t1 WHERE a >= 10 ORDER BY a;
 a	b
 10	0
@@ -42,7 +48,9 @@ a	b
 connection server_1;
 CREATE TABLE t2 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
 INSERT INTO t2 VALUES (1,0), (2,0), (3,0);
+save_master_pos;
 connection server_2;
+sync_with_master;
 include/stop_slave.inc
 connection server_1;
 SET @old_dbug= @@SESSION.debug_dbug;
@@ -70,6 +78,7 @@ INSERT INTO t2 VALUES (16,0);
 INSERT INTO t2 VALUES (17,0);
 INSERT INTO t2 VALUES (18,0);
 INSERT INTO t2 VALUES (19,0);
+save_master_pos;
 connection server_2;
 connect  s1, 127.0.0.1, root,, test, $SLAVE_MYPORT,;
 BEGIN;
@@ -119,6 +128,7 @@ after reap of STOP SLAVE
 connection server_2;
 include/wait_for_slave_to_stop.inc
 include/start_slave.inc
+sync_with_master;
 SELECT * FROM t2 ORDER BY a;
 a	b
 1	0

@@ -17,6 +17,7 @@ id	domain
 3	earthmotherwear.com
 4	yahoo.com
 5	example.com
+sync_slave_with_master;
 connection slave;
 SELECT * FROM test.t1 ORDER BY id;
 id	domain
@@ -36,6 +37,7 @@ select * from test.t3;
 value	domain_id	mailaccount_id	program	keey
 No	5	NULL	spamfilter	scan_incoming
 Yes	1	NULL	spamfilter	scan_incoming
+sync_slave_with_master;
 connection slave;
 select * from test.t2;
 value	domain_id	mailaccount_id	program	keey
@@ -59,6 +61,7 @@ id	domain
 3	earthmotherwear.com
 4	yahoo.com
 5	example.com
+sync_slave_with_master;
 connection slave;
 SELECT * FROM test.t1 ORDER BY id;
 id	domain
@@ -71,5 +74,6 @@ DROP TRIGGER test.t2_ai;
 DROP TABLE test.t1;
 DROP TABLE test.t2;
 DROP TABLE test.t3;
+sync_slave_with_master;
 connection slave;
 include/rpl_end.inc

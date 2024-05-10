@@ -53,7 +53,7 @@ CREATE TABLE t3 (a INT PRIMARY KEY, b INT) ENGINE=myisam;
 INSERT INTO t1(a) VALUES (2);
 INSERT INTO t2(a) VALUES (2);
 FLUSH NO_WRITE_TO_BINLOG LOGS;
-connection slave;
+sync_slave_with_master;
 connection slave;
 SHOW TABLES;
 Tables_in_test
@@ -68,7 +68,7 @@ a	b
 connection master;
 DROP TABLE t3;
 FLUSH NO_WRITE_TO_BINLOG LOGS;
-connection slave;
+sync_slave_with_master;
 connection slave;
 STOP SLAVE;
 SET GLOBAL replicate_events_marked_for_skip=FILTER_ON_SLAVE;
@@ -79,7 +79,7 @@ CREATE TABLE t3 (a INT PRIMARY KEY, b INT) ENGINE=myisam;
 INSERT INTO t1(a) VALUES (3);
 INSERT INTO t2(a) VALUES (3);
 FLUSH NO_WRITE_TO_BINLOG LOGS;
-connection slave;
+sync_slave_with_master;
 connection slave;
 SHOW TABLES;
 Tables_in_test
@@ -94,7 +94,7 @@ a	b
 connection master;
 DROP TABLE t3;
 FLUSH NO_WRITE_TO_BINLOG LOGS;
-connection slave;
+sync_slave_with_master;
 connection slave;
 STOP SLAVE;
 SET GLOBAL replicate_events_marked_for_skip=REPLICATE;
@@ -103,7 +103,7 @@ connection master;
 SET skip_replication=1;
 CREATE TABLE t3 (a INT PRIMARY KEY, b INT) ENGINE=myisam;
 INSERT INTO t3(a) VALUES(2);
-connection slave;
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t3;
 a	b
@@ -111,7 +111,7 @@ a	b
 connection master;
 DROP TABLE t3;
 TRUNCATE t1;
-connection slave;
+sync_slave_with_master;
 connection slave;
 RESET MASTER;
 connection master;
@@ -121,7 +121,7 @@ SET skip_replication=1;
 INSERT INTO t1 VALUES (2,0);
 SET skip_replication=0;
 INSERT INTO t1 VALUES (3,0);
-connection slave;
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t1 ORDER by a;
 a	b
@@ -140,7 +140,7 @@ a	b
 connection slave;
 START SLAVE;
 connection master;
-connection slave;
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t1 ORDER by a;
 a	b
@@ -148,7 +148,7 @@ a	b
 3	0
 connection master;
 TRUNCATE t1;
-connection slave;
+sync_slave_with_master;
 connection slave;
 STOP SLAVE;
 SET GLOBAL sql_slave_skip_counter=6;
@@ -165,7 +165,7 @@ SET skip_replication=0;
 INSERT INTO t1 VALUES (3,5);
 INSERT INTO t1 VALUES (4,5);
 SET binlog_format= @old_binlog_format;
-connection slave;
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t1;
 a	b
@@ -193,7 +193,7 @@ SELECT * FROM t1 ORDER BY a;
 a	b
 1	8
 2	8
-connection slave;
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t1 ORDER by a;
 a	b
@@ -259,7 +259,7 @@ DROP FUNCTION baz;
 connection master;
 SET skip_replication= 0;
 TRUNCATE t1;
-connection slave;
+sync_slave_with_master;
 connection slave;
 STOP SLAVE;
 SET GLOBAL replicate_events_marked_for_skip=FILTER_ON_MASTER;
@@ -276,7 +276,7 @@ STOP SLAVE IO_THREAD;
 SET GLOBAL replicate_events_marked_for_skip=REPLICATE;
 START SLAVE;
 connection master;
-connection slave;
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t1;
 a	b
@@ -284,7 +284,7 @@ a	b
 connection master;
 SET skip_replication= 0;
 TRUNCATE t1;
-connection slave;
+sync_slave_with_master;
 connection slave;
 STOP SLAVE;
 SET GLOBAL replicate_events_marked_for_skip=FILTER_ON_SLAVE;
@@ -301,7 +301,7 @@ STOP SLAVE IO_THREAD;
 SET GLOBAL replicate_events_marked_for_skip=REPLICATE;
 START SLAVE;
 connection master;
-connection slave;
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t1 ORDER BY a;
 a	b

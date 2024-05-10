@@ -10,7 +10,9 @@ include/start_slave.inc
 connection server_1;
 ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
 CREATE TABLE t2 (a int PRIMARY KEY) ENGINE=InnoDB;
+save_master_pos;
 connection server_2;
+sync_with_master;
 include/stop_slave.inc
 SET GLOBAL slave_parallel_threads=1;
 SET @old_dbug= @@GLOBAL.debug_dbug;

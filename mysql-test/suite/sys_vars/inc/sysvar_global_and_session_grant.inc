@@ -10,6 +10,7 @@ GRANT ALL PRIVILEGES ON *.* TO user1@localhost;
 --eval REVOKE $grant, SUPER ON *.* FROM user1@localhost
 --connect(user1,localhost,user1,,)
 --connection user1
+show grants;
 --error ER_SPECIFIC_ACCESS_DENIED_ERROR
 --eval SET GLOBAL $var=$value
 --error ER_SPECIFIC_ACCESS_DENIED_ERROR

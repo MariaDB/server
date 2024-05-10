@@ -20,6 +20,7 @@ t	n
 2005-06-11 09:39:02	2
 2004-01-01 00:00:00	3
 2004-06-11 09:39:02	4
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t1 ORDER BY n;
 t	n
@@ -35,6 +36,7 @@ SELECT * FROM t1 ORDER BY n;
 t	n
 2004-01-01 00:00:00	5
 2004-06-11 09:39:02	6
+sync_slave_with_master;
 connection slave;
 set time_zone='Europe/Moscow';
 SELECT * FROM t1 ORDER BY n;
@@ -55,6 +57,7 @@ SELECT * FROM t1 ORDER BY n;
 t	n
 0000-00-00 00:00:00	7
 0000-00-00 00:00:00	8
+sync_slave_with_master;
 connection slave;
 set time_zone='UTC';
 SELECT * FROM t1 ORDER BY n;
@@ -72,6 +75,7 @@ SELECT * FROM t1 ORDER BY n;
 t	n
 2003-12-31 22:00:00	9
 2004-06-11 07:39:02	10
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t2 ORDER BY n;
 t	n
@@ -81,6 +85,7 @@ connection master;
 delete from t2;
 set timestamp=1000072000;
 insert into t2 values (current_timestamp,NULL), (current_date,NULL), (current_time,NULL);
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t2 ORDER BY n;
 t	n
@@ -95,6 +100,7 @@ SELECT * FROM t2 ORDER BY n;
 t	n
 2001-09-09 03:46:40	14
 1000000000	15
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t2 ORDER BY n;
 t	n
@@ -110,6 +116,7 @@ SELECT * FROM t2 ORDER BY n;
 t	n
 2003-12-31 23:00:00	16
 2005-01-01 08:00:00	17
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t2 ORDER BY n;
 t	n
@@ -117,6 +124,7 @@ t	n
 2005-01-01 08:00:00	17
 connection master;
 drop table t1, t2;
+sync_slave_with_master;
 connection slave;
 connection master;
 set global time_zone= @my_time_zone;
@@ -129,6 +137,7 @@ UPDATE IGNORE t1 SET b= '1970-01-01 08:59:59' WHERE a= 1;
 SELECT * FROM t1 ORDER BY a;
 a	b
 1	0000-00-00 00:00:00
+sync_slave_with_master;
 connection slave;
 SET @@session.time_zone='Japan';
 SELECT * FROM t1 ORDER BY a;
@@ -138,6 +147,7 @@ SET @@session.time_zone = default;
 connection master;
 DROP TABLE t1;
 SET @@session.time_zone = default;
+sync_slave_with_master;
 connection slave;
 include/stop_slave.inc
 connection master;

@@ -84,7 +84,6 @@ insert into t1 values (1);
 
 sync_slave_with_master;
 
-echo on slave;
 #checking that replication is ok
 select * from t1;
 

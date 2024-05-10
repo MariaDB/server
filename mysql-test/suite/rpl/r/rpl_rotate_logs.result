@@ -21,6 +21,7 @@ create temporary table temp_table (a char(80) not null);
 insert into temp_table values ("testing temporary tables");
 create table t1 (s text);
 insert into t1 values('Could not break slave'),('Tried hard');
+sync_slave_with_master;
 connection slave;
 Master_Log_File = 'master-bin.000001'
 Relay_Master_Log_File = 'master-bin.000001'
@@ -40,6 +41,7 @@ master-bin.000001	#
 master-bin.000002	#
 master-bin.000003	#
 create table t3 select * from temp_table;
+sync_slave_with_master;
 connection slave;
 select * from t3;
 a
@@ -55,6 +57,7 @@ connection slave;
 call mtr.add_suppression("Slave SQL.*Error .Duplicate entry .1234. for key .PRIMARY.. on query.* error.* 1062");
 include/wait_for_slave_sql_error_and_skip.inc [errno=1062]
 connection master;
+sync_slave_with_master;
 connection slave;
 connection master;
 purge master logs to 'master-bin.000002';
@@ -74,6 +77,7 @@ show binary logs;
 Log_name	File_size
 master-bin.000003	#
 insert into t2 values (65);
+sync_slave_with_master;
 connection slave;
 Master_Log_File = 'master-bin.000003'
 Relay_Master_Log_File = 'master-bin.000003'
@@ -105,6 +109,7 @@ master-bin.000009	#
 show master status;
 File	Position	Binlog_Do_DB	Binlog_Ignore_DB
 master-bin.000009	#	<Binlog_Do_DB>	<Binlog_Ignore_DB>
+sync_slave_with_master;
 connection slave;
 select * from t4;
 a
@@ -120,6 +125,7 @@ unlock tables;
 connection master;
 drop table if exists t1,t2,t3,t4;
 drop temporary table temp_table;
+sync_slave_with_master;
 connection slave;
 End of 4.1 tests
 show binlog events in 'non existing_binlog_file';

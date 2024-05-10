@@ -11,6 +11,7 @@ dummy2	localhost
 SELECT COUNT(*) FROM mysql.user WHERE user like 'dummy%';
 COUNT(*)
 3
+sync_slave_with_master;
 connection slave;
 **** On Slave ****
 SELECT user,host FROM mysql.user WHERE user like 'dummy%';
@@ -32,6 +33,7 @@ User	Host
 SELECT COUNT(*) FROM mysql.user WHERE user like 'dummy%';
 COUNT(*)
 0
+sync_slave_with_master;
 connection slave;
 SELECT user,host FROM mysql.user WHERE user like 'dummy%';
 User	Host

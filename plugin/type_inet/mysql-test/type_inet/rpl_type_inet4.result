@@ -9,6 +9,7 @@ include/master-slave.inc
 connection master;
 CREATE TABLE t1 (a INET4);
 INSERT INTO t1 VALUES ('0.0.0.0'),('255.255.255.255');
+sync_slave_with_master;
 connection slave;
 SELECT HEX(a), a FROM t1;
 HEX(a)	a
@@ -16,6 +17,7 @@ HEX(a)	a
 FFFFFFFF	255.255.255.255
 connection master;
 DROP TABLE t1;
+sync_slave_with_master;
 connection slave;
 #
 # Start of 10.10 tests

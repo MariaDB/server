@@ -41,12 +41,14 @@ Binlog_cache_use	1
 show status like "binlog_cache_disk_use";
 Variable_name	Value
 Binlog_cache_disk_use	1
+sync_slave_with_master;
 connection slave;
 include/diff_tables.inc [master:test.t1, slave:test.t1]
 connection master;
 begin;
 delete from t1;
 commit;
+sync_slave_with_master;
 connection slave;
 connection master;
 flush status;
@@ -58,12 +60,14 @@ Binlog_cache_use	1
 show status like "binlog_cache_disk_use";
 Variable_name	Value
 Binlog_cache_disk_use	1
+sync_slave_with_master;
 connection slave;
 include/diff_tables.inc [master:test.t2, slave:test.t2]
 connection master;
 begin;
 delete from t2;
 commit;
+sync_slave_with_master;
 connection slave;
 connection master;
 flush status;
@@ -75,12 +79,14 @@ Binlog_cache_use	1
 show status like "binlog_cache_disk_use";
 Variable_name	Value
 Binlog_cache_disk_use	1
+sync_slave_with_master;
 connection slave;
 include/diff_tables.inc [master:test.t3, slave:test.t3]
 connection master;
 begin;
 delete from t3;
 commit;
+sync_slave_with_master;
 connection slave;
 connection master;
 flush status;
@@ -117,6 +123,7 @@ Binlog_cache_use	1
 show status like "binlog_cache_disk_use";
 Variable_name	Value
 Binlog_cache_disk_use	1
+sync_slave_with_master;
 connection slave;
 include/diff_tables.inc [master:test.t1, slave:test.t1]
 include/diff_tables.inc [master:test.t2, slave:test.t2]

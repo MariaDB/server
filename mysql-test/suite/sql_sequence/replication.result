@@ -7,6 +7,7 @@ grant all on s_db.* to normal_1@'%' identified by 'pass';
 grant all on test.* to normal_2@'%' identified by 'pass';
 grant all on s_db.* to normal_3@'%' identified by 'pass';
 grant all on test.* to normal_4@'%' identified by 'pass';
+sync_slave_with_master;
 connection slave;
 connect m_normal_1, 127.0.0.1, normal_1, pass, s_db, $MASTER_MYPORT;
 connect m_normal_2, 127.0.0.1, normal_2, pass, test, $MASTER_MYPORT;
@@ -32,6 +33,7 @@ s1	CREATE TABLE `s1` (
   `cycle_option` tinyint(1) unsigned NOT NULL COMMENT '0 if no cycles are allowed, 1 if the sequence should begin a new cycle when maximum_value is passed',
   `cycle_count` bigint(21) NOT NULL COMMENT 'How many cycles have been done'
 ) ENGINE=MyISAM SEQUENCE=1
+sync_slave_with_master;
 connection slave;
 show create table s1;
 Table	Create Table
@@ -131,6 +133,7 @@ next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_si
 5	1	10	1	2	1	1	1
 commit;
 connection master;
+sync_slave_with_master;
 connection slave;
 select * from s2;
 next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
@@ -316,6 +319,7 @@ id
 4
 5
 connection master;
+sync_slave_with_master;
 connection slave;
 connection s_normal_3;
 select * from t;
@@ -341,6 +345,7 @@ select * from s_db.s1;
 next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
 1	1	9223372036854775806	1	1	1000	0	0
 connection master;
+sync_slave_with_master;
 connection slave;
 connection s_normal_3;
 show global variables like 'read_only';
@@ -356,6 +361,7 @@ update based table
 connection m_normal_1;
 create sequence s_t start with 1 minvalue 1 maxvalue 20 increment by 1 cache 5 cycle engine=innodb;
 connection master;
+sync_slave_with_master;
 connection slave;
 connection s_normal_3;
 select * from s_t;
@@ -366,6 +372,7 @@ select next value for s_t;
 next value for s_t
 1
 connection master;
+sync_slave_with_master;
 connection slave;
 connection s_normal_3;
 select next_not_cached_value from s_t;
@@ -383,6 +390,7 @@ select * from s_t;
 next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
 11	1	20	1	1	5	1	0
 connection master;
+sync_slave_with_master;
 connection slave;
 ------------------------------------------
 show slave nextval;
@@ -396,6 +404,7 @@ select next value for s_t;
 next value for s_t
 11
 connection master;
+sync_slave_with_master;
 connection slave;
 connection s_normal_3;
 select * from s_t;
@@ -459,6 +468,7 @@ select * from s_1;
 next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
 6	1	9223372036854775806	1	1	5	0	0
 connection master;
+sync_slave_with_master;
 connection slave;
 connection s_normal_3;
 select * from t_1;
@@ -510,6 +520,7 @@ select next value for s_1;
 next value for s_1
 11
 connection master;
+sync_slave_with_master;
 connection slave;
 connection s_normal_3;
 select * from t_1;
@@ -544,6 +555,7 @@ id
 2
 2222
 connection master;
+sync_slave_with_master;
 connection slave;
 connection s_normal_3;
 select * from t_1;
@@ -603,6 +615,7 @@ select next value for s_1;
 next value for s_1
 11
 connection master;
+sync_slave_with_master;
 connection slave;
 connection s_normal_3;
 select * from t_1;
@@ -645,6 +658,7 @@ select * from s1;
 next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
 5	1	9223372036854775806	1	1	2	0	0
 connection master;
+sync_slave_with_master;
 connection slave;
 select * from s1;
 next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
@@ -671,6 +685,7 @@ select * from s1;
 next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
 9	1	9223372036854775806	1	1	2	0	0
 connection master;
+sync_slave_with_master;
 connection slave;
 select * from s1;
 next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
@@ -682,6 +697,7 @@ next value for s1
 select * from s1;
 next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
 11	1	9223372036854775806	1	1	2	0	0
+sync_slave_with_master;
 connection slave;
 select * from s1;
 next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
@@ -707,6 +723,7 @@ select next value for s1;
 next value for s1
 1
 connection master;
+sync_slave_with_master;
 connection slave;
 select * from s1;
 next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
@@ -733,6 +750,7 @@ select * from s1;
 next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
 3	1	9223372036854775806	1	1	2	0	0
 connection master;
+sync_slave_with_master;
 connection slave;
 select * from s1;
 next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
@@ -740,6 +758,7 @@ next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_si
 connection m_normal_1;
 drop sequence s1;
 connection master;
+sync_slave_with_master;
 connection slave;
 ###########################################
 test savepoint
@@ -773,6 +792,7 @@ commit;
 drop sequence s1;
 drop table t1;
 connection master;
+sync_slave_with_master;
 connection slave;
 ###########################################
 create as
@@ -791,6 +811,7 @@ next value for s1
 drop table t;
 drop sequence s1;
 connection master;
+sync_slave_with_master;
 connection slave;
 ###########################################
 test proc
@@ -818,6 +839,7 @@ id
 3
 4
 connection master;
+sync_slave_with_master;
 connection slave;
 select * from t;
 id
@@ -1074,6 +1096,7 @@ a	b
 select * from s1;
 next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
 5	1	9223372036854775806	1	1	0	0	0
+sync_slave_with_master;
 connection slave;
 connection s_normal_3;
 select * from t1;

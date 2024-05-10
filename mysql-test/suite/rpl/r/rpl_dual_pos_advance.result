@@ -1,9 +1,11 @@
 include/rpl_init.inc [topology=1->2->1]
 connection server_2;
 create table t1 (n int);
+sync_slave_with_master server_1;
 connection server_1;
 include/stop_slave.inc
 create table t2 (n int);
+sync_slave_with_master server_2;
 connection server_2;
 show tables;
 Tables_in_test
@@ -47,7 +49,9 @@ connection server_1;
 create table t4 (n int);
 create table t5 (n int);
 create table t6 (n int);
+sync_slave_with_master server_2;
 connection server_2;
+sync_slave_with_master server_1;
 connection server_1;
 show tables;
 Tables_in_test

@@ -43,6 +43,7 @@ c	d
 1	2
 2	8
 3	18
+save_master_pos;
 connection slave;
 START SLAVE UNTIL MASTER_LOG_FILE='master-bin.000001', MASTER_LOG_POS=MASTER_LOG_POS;
 include/wait_for_slave_sql_to_stop.inc
@@ -51,6 +52,7 @@ include/check_slave_no_error.inc
 SET GLOBAL SQL_SLAVE_SKIP_COUNTER=1;
 START SLAVE;
 include/wait_for_slave_to_start.inc
+sync_with_master;
 SELECT * FROM t1;
 a	b
 1	1
@@ -69,6 +71,7 @@ RESET MASTER;
 SET SESSION BINLOG_FORMAT=STATEMENT;
 SET @foo = 12;
 INSERT INTO t1 VALUES(@foo, 2*@foo);
+save_master_pos;
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
@@ -81,8 +84,10 @@ include/wait_for_slave_sql_to_stop.inc
 SET GLOBAL SQL_SLAVE_SKIP_COUNTER=1;
 START SLAVE;
 include/wait_for_slave_to_start.inc
+sync_with_master;
 connection master;
 DROP TABLE t1, t2;
+sync_slave_with_master;
 connection slave;
 connection master;
 SET SESSION BINLOG_FORMAT=ROW;
@@ -102,6 +107,7 @@ CREATE TRIGGER tr2 AFTER INSERT on t2 FOR EACH ROW
 BEGIN
 UPDATE t3 SET a =2, b = 'master only';
 END|
+sync_slave_with_master;
 connection slave;
 include/stop_slave.inc
 connection master;
@@ -124,9 +130,11 @@ SELECT * FROM t3 ORDER BY a;
 a	b
 2	master only
 3	master/slave
+save_master_pos;
 connection slave;
 SET GLOBAL SQL_SLAVE_SKIP_COUNTER=1;
 include/start_slave.inc
+sync_with_master;
 SELECT * FROM t1 ORDER BY a;
 a	b
 1	master/slave
@@ -141,12 +149,14 @@ a	b
 3	master/slave
 connection master;
 DROP TABLE t1, t2, t3;
+sync_slave_with_master;
 connection slave;
 **** Case 2: Row binlog format and transactional tables ****
 connection master;
 CREATE TABLE t4 (a INT, b VARCHAR(20)) ENGINE=innodb;
 CREATE TABLE t5 (a INT, b VARCHAR(20)) ENGINE=innodb;
 CREATE TABLE t6 (a INT, b VARCHAR(20)) ENGINE=innodb;
+sync_slave_with_master;
 connection slave;
 include/stop_slave.inc
 connection master;
@@ -172,9 +182,11 @@ SELECT * FROM t6 ORDER BY a;
 a	b
 2	master only
 3	master/slave
+save_master_pos;
 connection slave;
 SET GLOBAL SQL_SLAVE_SKIP_COUNTER=1;
 include/start_slave.inc
+sync_with_master;
 SELECT * FROM t4 ORDER BY a;
 a	b
 3	master/slave
@@ -215,9 +227,11 @@ a	b
 3	master/slave
 6	master only
 7	master only
+save_master_pos;
 connection slave;
 SET GLOBAL SQL_SLAVE_SKIP_COUNTER=12;
 include/start_slave.inc
+sync_with_master;
 SELECT * FROM t4 ORDER BY a;
 a	b
 3	master/slave
@@ -263,9 +277,11 @@ a	b
 5	master/slave
 6	master only
 7	master only
+save_master_pos;
 connection slave;
 SET GLOBAL SQL_SLAVE_SKIP_COUNTER=1;
 include/start_slave.inc
+sync_with_master;
 SELECT * FROM t4 ORDER BY a;
 a	b
 3	master/slave
@@ -280,10 +296,12 @@ a	b
 5	master/slave
 connection master;
 DROP TABLE t4, t5, t6;
+sync_slave_with_master;
 connection slave;
 **** Case 3: Statement logging format and LOAD DATA with non-transactional table ****
 connection master;
 CREATE TABLE t10 (a INT, b VARCHAR(20)) ENGINE=myisam;
+sync_slave_with_master;
 connection slave;
 include/stop_slave.inc
 connection master;
@@ -294,12 +312,15 @@ a	b
 1	master only
 2	master only
 3	master only
+save_master_pos;
 connection slave;
 SET GLOBAL SQL_SLAVE_SKIP_COUNTER=1;
 include/start_slave.inc
+sync_with_master;
 SELECT * FROM t10 ORDER BY a;
 a	b
 connection master;
 DROP TABLE t10;
+sync_slave_with_master;
 connection slave;
 include/rpl_end.inc

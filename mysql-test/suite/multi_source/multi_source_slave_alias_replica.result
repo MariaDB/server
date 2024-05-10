@@ -15,9 +15,13 @@ Note	1937	SLAVE 'slave2' started
 include/wait_for_slave_to_start.inc
 SET default_master_connection = '';
 connection master1;
+save_master_pos;
 connection slave;
+sync_with_master 0,'slave1';
 connection master2;
+save_master_pos;
 connection slave;
+sync_with_master 0,'slave2';
 "Command: SHOW ALL STAVES STATUS --> SHOW ALL REPLICAS STATUS"
 SHOW ALL REPLICAS STATUS;
 Connection_name	slave1

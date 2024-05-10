@@ -6,7 +6,9 @@ connection server_1;
 ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
 CREATE TABLE t7 (a int PRIMARY KEY, b INT) ENGINE=InnoDB;
 CREATE TABLE t8 (a int PRIMARY KEY, b INT) ENGINE=InnoDB;
+save_master_pos;
 connection server_2;
+sync_with_master;
 include/stop_slave.inc
 SET @old_mode= @@GLOBAL.slave_parallel_mode;
 SET GLOBAL slave_parallel_mode='conservative';

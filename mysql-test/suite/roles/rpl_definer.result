@@ -35,6 +35,7 @@ show create procedure pr;
 Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
 pr	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`role1` PROCEDURE `pr`()
 select "role1"	latin1	latin1_swedish_ci	latin1_swedish_ci
+sync_slave_with_master;
 connection slave;
 set role role1;
 show grants;

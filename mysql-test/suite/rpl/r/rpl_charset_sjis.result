@@ -9,7 +9,7 @@ CALL p1 ('–\\');
 select hex(a) from t1 ;
 hex(a)
 965C
-connection slave;
+sync_slave_with_master;
 connection slave;
 select hex(a) from t1;
 hex(a)
@@ -17,6 +17,7 @@ hex(a)
 connection master;
 drop table t1;
 drop procedure p1;
+sync_slave_with_master;
 connection slave;
 connection master;
 #
@@ -39,7 +40,7 @@ a
 1
 1
 1
-connection slave;
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t1;
 a
@@ -49,6 +50,7 @@ a
 1
 connection master;
 DROP TABLE t1;
+sync_slave_with_master;
 connection slave;
 connection master;
 #

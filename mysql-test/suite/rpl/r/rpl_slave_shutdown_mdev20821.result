@@ -29,10 +29,14 @@ Warnings:
 Note	1254	Slave is already running
 connection server_2;
 insert into t2 values (1);
+save_master_pos;
 connection server_3;
+sync_with_master 0,'m2';
 connection server_1;
 insert into t1 values (1);
+save_master_pos;
 connection server_3;
+sync_with_master 0,'';
 connection server_3;
 SHUTDOWN;
 connection server_3;
@@ -71,7 +75,9 @@ connection server_1;
 drop table t1;
 connection server_2;
 drop table t2;
+save_master_pos;
 connection server_3;
+sync_with_master 0,'m2';
 set default_master_connection = 'm2';
 include/stop_slave.inc
 RESET SLAVE ALL;

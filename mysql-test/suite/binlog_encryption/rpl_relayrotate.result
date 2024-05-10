@@ -1,20 +1,25 @@
 include/master-slave.inc
 [connection master]
 connection master;
+sync_slave_with_master;
 connection slave;
 connection slave;
 stop slave;
 connection master;
 create table t1 (a int) engine=innodb;
+save_master_pos;
 connection slave;
 reset slave;
 start slave;
 stop slave;
 start slave;
+sync_with_master;
 select max(a) from t1;
 max(a)
 8000
 connection master;
 drop table t1;
+save_master_pos;
 connection slave;
+sync_with_master;
 include/rpl_end.inc

@@ -6,6 +6,7 @@ create table t2(b int auto_increment, c int, primary key(b));
 insert into t1 values (1),(2),(3);
 insert into t1 values (null);
 insert into t2 values (null,last_insert_id());
+sync_slave_with_master;
 connection slave;
 select * from t1 ORDER BY a;
 a
@@ -27,6 +28,7 @@ insert into t1 values (null),(null),(null);
 insert into t2 values (5,0);
 insert into t2 values (null,last_insert_id());
 SET FOREIGN_KEY_CHECKS=1;
+sync_slave_with_master;
 connection slave;
 select * from t1;
 a
@@ -54,6 +56,7 @@ b	c
 7	11
 8	12
 9	13
+sync_slave_with_master;
 connection slave;
 select * from t1 ORDER BY a;
 a
@@ -71,6 +74,7 @@ b	c
 connection master;
 drop table t1;
 drop table t2;
+sync_slave_with_master;
 connection slave;
 connection master;
 SET TIMESTAMP=1000000000;
@@ -78,6 +82,7 @@ CREATE TABLE t1 ( a INT UNIQUE );
 SET FOREIGN_KEY_CHECKS=0;
 INSERT INTO t1 VALUES (1),(1);
 Got one of the listed errors
+sync_slave_with_master;
 connection slave;
 connection master;
 drop table t1;

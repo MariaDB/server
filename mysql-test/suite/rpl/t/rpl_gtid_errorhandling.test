@@ -8,7 +8,6 @@ CREATE TABLE t1(a INT PRIMARY KEY) ENGINE=InnoDB;
 call mtr.add_suppression("Incorrect definition of table mysql.gtid_slave_pos:.*");
 --sync_slave_with_master
 
---connection slave
 --source include/stop_slave.inc
 ALTER TABLE mysql.gtid_slave_pos CHANGE seq_no seq_no VARCHAR(20);
 START SLAVE;
@@ -49,7 +48,6 @@ ALTER TABLE mysql.gtid_slave_pos ADD PRIMARY KEY (domain_id, sub_id);
 --connection master
 --sync_slave_with_master
 
---connection slave
 SELECT * FROM t1;
 
 

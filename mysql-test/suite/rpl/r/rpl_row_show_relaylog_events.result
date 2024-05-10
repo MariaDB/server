@@ -59,6 +59,7 @@ master-bin.000001	#	Annotate_rows	#	#	INSERT INTO t1 VALUES (3)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.t1)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+sync_slave_with_master;
 connection slave;
 ******** [slave] SHOW BINLOG EVENTS IN <FILE> ********
 include/show_events.inc
@@ -192,6 +193,7 @@ master-bin.000001	#	Table_map	#	#	table_id: # (test.t1)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Rotate	#	#	master-bin.000002;pos=POS
+sync_slave_with_master;
 connection slave;
 ******** [slave] SHOW BINLOG EVENTS IN <FILE> ********
 include/show_events.inc

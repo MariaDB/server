@@ -4,6 +4,7 @@ call mtr.add_suppression("Unsafe statement written to the binary log using state
 connection master;
 create user test;
 grant all on test.* to test;
+sync_slave_with_master;
 connection slave;
 connect  master2,127.0.0.1,test,,test,$MASTER_MYPORT,;
 connect  slave2,127.0.0.1,test,,test,$SLAVE_MYPORT,;
@@ -24,6 +25,7 @@ a
 select * from t2;
 a
 2001
+sync_slave_with_master;
 connection slave;
 select @@read_only;
 @@read_only
@@ -79,6 +81,7 @@ a
 2001
 2002
 2004
+sync_slave_with_master;
 connection slave;
 select * from t1;
 a
@@ -121,7 +124,7 @@ a
 2002
 2004
 2005
-connection slave;
+sync_slave_with_master;
 connection slave;
 select * from t1;
 a
@@ -144,6 +147,7 @@ connection master;
 drop user test;
 drop table t1;
 drop table t2;
+sync_slave_with_master;
 connection slave;
 set global read_only=0;
 include/rpl_end.inc

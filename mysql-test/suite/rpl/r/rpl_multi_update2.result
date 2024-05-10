@@ -30,7 +30,9 @@ SELECT * FROM t2 ORDER BY a;
 a	b
 1	0
 2	1
+save_master_pos;
 connection slave;
+sync_with_master;
 SELECT * FROM t1 ORDER BY a;
 a	b
 1	4
@@ -41,6 +43,7 @@ a	b
 2	1
 connection master;
 drop table t1,t2;
+sync_slave_with_master;
 connection slave;
 reset master;
 connection master;
@@ -50,6 +53,7 @@ UPDATE t1, (SELECT 3 as b) AS x SET t1.a = x.b;
 select * from t1;
 a
 3
+sync_slave_with_master;
 connection slave;
 connection slave;
 select * from t1;
@@ -57,5 +61,6 @@ a
 3
 connection master;
 drop table t1;
+sync_slave_with_master;
 connection slave;
 include/rpl_end.inc

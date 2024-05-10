@@ -18,7 +18,9 @@ test.t1	optimize	status	OK
 INSERT INTO t1 VALUES(1);
 INSERT INTO t1  SELECT 1+a FROM t1;
 INSERT INTO t1  SELECT 2+a FROM t1;
+save_master_pos;
 connection server_2;
+sync_with_master;
 #
 # Verify that following admin commands are marked as ddl
 # 'OPTIMIZE TABLE', 'REPAIR TABLE' and 'ANALYZE TABLE'
@@ -43,7 +45,9 @@ FOUND 1 /GTID 0-1-10 ddl/ in mysqlbinlog.out
 # Clean up
 #
 DROP TABLE t1;
+save_master_pos;
 connection server_2;
+sync_with_master;
 FLUSH LOGS;
 #
 # Check that ALTER TABLE commands with ANALYZE, OPTIMIZE and REPAIR on
@@ -71,7 +75,9 @@ FOUND 1 /GTID 0-1-16 ddl/ in mysqlbinlog.out
 # Clean up
 #
 DROP TABLE t1;
+save_master_pos;
 connection server_2;
+sync_with_master;
 include/stop_slave.inc
 SET GLOBAL slave_parallel_threads= @save_slave_parallel_threads;
 SET GLOBAL slave_parallel_mode= @save_slave_parallel_mode;

@@ -9,6 +9,7 @@ create table t1(a int);
 insert into t1 values(1);
 create table t2(a int);
 insert into t2 values(1);
+save_master_pos;
 connection server_2;
 create database b;
 use b;
@@ -16,6 +17,7 @@ create table t1(a int);
 insert into t1 values(1);
 create table t2(a int);
 insert into t2 values(1);
+save_master_pos;
 connection server_3;
 create database c;
 use c;
@@ -23,6 +25,7 @@ create table t1(a int);
 insert into t1 values(1);
 create table t2(a int);
 insert into t2 values(1);
+save_master_pos;
 connection server_4;
 change master 'm1' to master_port=MYPORT_1 , master_host='127.0.0.1', master_user='root', master_use_gtid=no;
 change master 'm2' to master_port=MYPORT_2 , master_host='127.0.0.1', master_user='root', master_use_gtid=no;
@@ -34,6 +37,9 @@ set default_master_connection = 'm2';
 include/wait_for_slave_to_start.inc
 set default_master_connection = '';
 include/wait_for_slave_to_start.inc
+sync_with_master 0,'m1';
+sync_with_master 0,'m2';
+sync_with_master 0,'';
 use a;
 show tables;
 Tables_in_a
@@ -72,11 +78,17 @@ mysqld-relay-bin-m2.index
 #CleanUp
 connection server_1;
 drop database a;
+save_master_pos;
 connection server_2;
 drop database b;
+save_master_pos;
 connection server_3;
 drop database c;
+save_master_pos;
 connection server_4;
+sync_with_master 0,'m1';
+sync_with_master 0,'m2';
+sync_with_master 0,'';
 stop all slaves;
 Warnings:
 Note	1938	SLAVE 'm2' stopped

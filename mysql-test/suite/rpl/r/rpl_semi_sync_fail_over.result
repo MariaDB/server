@@ -18,7 +18,9 @@ set @@global.rpl_semi_sync_master_enabled = 1;
 set @@global.rpl_semi_sync_master_wait_point=AFTER_SYNC;
 CREATE TABLE t1 (a INT PRIMARY KEY, b MEDIUMTEXT) ENGINE=Innodb;
 INSERT INTO t1 VALUES (1, 'dummy1');
+save_master_pos;
 connection server_2;
+sync_with_master;
 connection server_1;
 #
 #  Case:1
@@ -66,6 +68,7 @@ include/start_slave.inc
 #
 connection server_2;
 INSERT INTO t1 VALUES (3, 'dummy3');
+save_master_pos;
 # The gtid state on current master must be equal to ...
 SHOW VARIABLES LIKE 'gtid_binlog_pos';
 Variable_name	Value
@@ -77,6 +80,7 @@ SHOW VARIABLES LIKE 'gtid_slave_pos';
 Variable_name	Value
 gtid_slave_pos	0-1-4
 connection server_1;
+sync_with_master;
 SELECT COUNT(*) = 3 as 'true' FROM t1;
 true
 1
@@ -144,6 +148,7 @@ include/start_slave.inc
 #
 connection server_1;
 INSERT INTO t1 VALUES (6, 'dummy6');
+save_master_pos;
 # The gtid state on current master must be equal to ...
 SHOW VARIABLES LIKE 'gtid_binlog_pos';
 Variable_name	Value
@@ -155,6 +160,7 @@ SHOW VARIABLES LIKE 'gtid_slave_pos';
 Variable_name	Value
 gtid_slave_pos	0-2-7
 connection server_2;
+sync_with_master;
 SELECT COUNT(*) = 6 as 'true' FROM t1;
 true
 1
@@ -269,6 +275,8 @@ set @@global.gtid_slave_pos=@@global.gtid_binlog_pos;
 include/start_slave.inc
 connection server_1;
 DROP TABLE t1;
+save_master_pos;
 connection server_2;
+sync_with_master;
 connection default;
 include/rpl_end.inc

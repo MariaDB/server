@@ -10,6 +10,7 @@ mysqltest2	CREATE DATABASE `mysqltest2` /*!40100 DEFAULT CHARACTER SET latin2 CO
 show create database mysqltest3;
 Database	Create Database
 mysqltest3	CREATE DATABASE `mysqltest3` /*!40100 DEFAULT CHARACTER SET latin5 COLLATE latin5_turkish_ci */
+sync_slave_with_master;
 connection slave;
 show create database mysqltest2;
 Database	Create Database
@@ -24,6 +25,7 @@ create database mysqltest3;
 show create database mysqltest3;
 Database	Create Database
 mysqltest3	CREATE DATABASE `mysqltest3` /*!40100 DEFAULT CHARACTER SET armscii8 COLLATE armscii8_bin */
+sync_slave_with_master;
 connection slave;
 show create database mysqltest3;
 Database	Create Database
@@ -44,6 +46,7 @@ a	b
 3	cp850
 4	latin2
 5	latin2_croatian_ci
+sync_slave_with_master;
 connection slave;
 select * from mysqltest2.t1 order by a;
 a	b
@@ -66,6 +69,7 @@ a	b
 2	Muffler
 3	latin1_german2_ci
 4	MЭller
+sync_slave_with_master;
 connection slave;
 select * from mysqltest2.t1 order by a;
 a	b
@@ -80,6 +84,7 @@ insert into t1 (b) values(collation(@a));
 select * from t1 order by a;
 a	b
 1	cp850_general_ci
+sync_slave_with_master;
 connection slave;
 select * from mysqltest2.t1 order by a;
 a	b
@@ -87,6 +92,7 @@ a	b
 connection master;
 drop database mysqltest2;
 drop database mysqltest3;
+sync_slave_with_master;
 connection slave;
 set global character_set_server=latin2;
 set global character_set_server=latin1;
@@ -106,12 +112,14 @@ INSERT INTO t1 (c1, c2) VALUES ('Ну, за рыбалку','Ну, за рыбалку');
 select hex(c1), hex(c2) from t1;
 hex(c1)	hex(c2)
 CDF32C20E7E020F0FBE1E0EBEAF3	CDF32C20E7E020F0FBE1E0EBEAF3
+sync_slave_with_master;
 connection slave;
 select hex(c1), hex(c2) from t1;
 hex(c1)	hex(c2)
 CDF32C20E7E020F0FBE1E0EBEAF3	CDF32C20E7E020F0FBE1E0EBEAF3
 connection master;
 drop table t1;
+sync_slave_with_master;
 connection slave;
 connection master;
 create table `t1` (
@@ -131,6 +139,7 @@ connection master;
 CREATE DATABASE db1 DEFAULT CHARACTER SET latin1 COLLATE latin1_bin;
 USE db1;
 CREATE TABLE t1 AS SELECT CHR(0x60);
+sync_slave_with_master;
 connection slave;
 SHOW CREATE TABLE db1.t1;
 Table	Create Table
@@ -140,6 +149,7 @@ t1	CREATE TABLE `t1` (
 connection master;
 USE test;
 DROP DATABASE db1;
+sync_slave_with_master;
 connection slave;
 #
 # End of 10.3 tests

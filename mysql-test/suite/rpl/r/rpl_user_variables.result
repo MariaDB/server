@@ -1,5 +1,6 @@
 include/master-slave.inc
 [connection master]
+sync_slave_with_master;
 connection slave;
 reset master;
 connection master;
@@ -50,6 +51,7 @@ abcn1
 abcn1n2
 abc\def
 This is a test
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t1 ORDER BY n;
 n
@@ -106,6 +108,7 @@ ELSE
 INSERT INTO test.t21 VALUES ('TRIG_FALSE');
 END IF;
 END|
+sync_slave_with_master;
 connection slave;
 connection master;
 SET @VAR=0;
@@ -121,6 +124,7 @@ SELECT * FROM t21;
 a
 TRIG_FALSE
 TRIG_TRUE
+sync_slave_with_master;
 connection slave;
 Check the tables for correct data and it matches master
 SELECT * FROM t20;
@@ -158,6 +162,7 @@ i
 9
 16
 25
+sync_slave_with_master;
 connection slave;
 Retrieve the values from the table and verify they are the same as on master
 SELECT * FROM t1;
@@ -185,6 +190,7 @@ SET @c = (@a - 1);
 END if;
 return @c;
 END |
+sync_slave_with_master;
 connection slave;
 connection master;
 SET @a=500;
@@ -193,6 +199,7 @@ SET @b = 125;
 SET @c = 1;
 INSERT INTO t1 values(f2());
 Retrieve the values from the table
+sync_slave_with_master;
 connection slave;
 connection master;
 SELECT * from t1;
@@ -218,6 +225,7 @@ INSERT INTO t2 values (@a);
 SET @a:=42;
 INSERT INTO t2 values (@a);
 END |
+sync_slave_with_master;
 connection slave;
 connection master;
 SET @a:=100;
@@ -230,6 +238,7 @@ SELECT * from t2;
 k
 100
 42
+sync_slave_with_master;
 connection slave;
 Check the tables for correct data and it matches master
 SELECT * from t1;
@@ -249,6 +258,7 @@ execute s1 using @x;
 select * from t1;
 a	b
 2	1
+sync_slave_with_master;
 connection slave;
 connection slave;
 select * from t1;
@@ -267,6 +277,7 @@ a
 1
 2
 1
+sync_slave_with_master;
 connection slave;
 connection slave;
 select * from t1;
@@ -286,6 +297,7 @@ FUNCTION f2() RETURNS INT BEGIN
 INSERT INTO t1 VALUES (10 + @a);
 RETURN 0;
 END|
+sync_slave_with_master;
 connection slave;
 connection master;
 SET @a:=123;
@@ -298,6 +310,7 @@ SELECT * FROM t1;
 i
 133
 123
+sync_slave_with_master;
 connection slave;
 Check the table for correct data and it matches master
 SELECT * FROM t1;
@@ -308,5 +321,6 @@ connection master;
 DROP FUNCTION f1;
 DROP FUNCTION f2;
 DROP TABLE t1;
+sync_slave_with_master;
 connection slave;
 include/rpl_end.inc

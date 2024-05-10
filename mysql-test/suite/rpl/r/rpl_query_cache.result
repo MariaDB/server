@@ -7,12 +7,14 @@ SET query_cache_type= ON;
 connection master;
 create table t1 (i int) engine=innodb;
 insert into t1 set i=1;
+sync_slave_with_master;
 connection slave;
 select * from t1;
 i
 1
 connection master;
 insert into t1 set i=2;
+sync_slave_with_master;
 connection slave;
 select * from t1;
 i
@@ -24,6 +26,7 @@ i
 2
 connection master;
 DROP TABLE t1;
+sync_slave_with_master;
 connection slave;
 SET GLOBAL query_cache_type= @qtype;
 include/rpl_end.inc

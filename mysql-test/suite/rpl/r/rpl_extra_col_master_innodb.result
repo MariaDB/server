@@ -25,6 +25,7 @@ f11 VARBINARY(64))ENGINE='InnoDB';
 
 * Alter Table on Slave and drop columns f5 through f11 *
 
+sync_slave_with_master;
 connection slave;
 alter table t1 drop f5, drop f6, drop f7, drop f8, drop f9, drop f10, drop f11;
 
@@ -60,6 +61,7 @@ f1	f2	f3	f4	f5	f6	f7	f8	f9	hex(f10)	hex(f11)
 27	27	27	next	2	kaks	2	got stolen from the paradise	very fat blob	1555	123456
 29	29	29	second	2	kaks	2	got stolen from the paradise	very fat blob	1555	123456
 30	30	30	next	2	kaks	2	got stolen from the paradise	very fat blob	1555	123456
+sync_slave_with_master;
 connection slave;
 
 * Select count and 20 rows from Slave *
@@ -165,6 +167,7 @@ f35 VARCHAR(257)
 
 ** Alter tables on slave and drop columns **
 
+sync_slave_with_master;
 connection slave;
 alter table t2 drop f5, drop f6, drop f7, drop f8, drop f9, drop f10, drop f11, drop
 f12;
@@ -340,6 +343,7 @@ Warning	1264	Out of range value for column 'f24' at row 3
 ** Sync slave with master ** 
 ** Do selects from tables **
 
+sync_slave_with_master;
 connection slave;
 select * from t1 order by f3;
 f1	f2	f3	f4
@@ -420,6 +424,7 @@ delete from t2;
 delete from t3;
 delete from t4;
 delete from t31;
+sync_slave_with_master;
 connection slave;
 select * from t31;
 f1	f2	f3	f4
@@ -473,6 +478,7 @@ Last_SQL_Error = 'Column 2 of table 'test.t10' cannot be converted from type 'do
 *** Drop t10  ***
 connection master;
 DROP TABLE t10;
+sync_slave_with_master;
 connection slave;
 
 *********************************************
@@ -515,6 +521,7 @@ Last_SQL_Error = 'Column 2 of table 'test.t11' cannot be converted from type 'bl
 *** Drop t11  ***
 connection master;
 DROP TABLE t11;
+sync_slave_with_master;
 connection slave;
 
 *********************************************
@@ -553,6 +560,7 @@ a	hex(b)	f	c	e
 3	62316231623162316231623162316231	QA	test	1
 
 *** Select on Slave ***
+sync_slave_with_master;
 connection slave;
 SELECT a,hex(b),c FROM t12 ORDER BY a;
 a	hex(b)	c
@@ -563,6 +571,7 @@ a	hex(b)	c
 *** Drop t12  ***
 connection master;
 DROP TABLE t12;
+sync_slave_with_master;
 connection slave;
 
 ****************************************************
@@ -607,6 +616,7 @@ c1	c2	c3	hex(c4)	c5	c6	c7
 3	3.00	If is does not, I will open a bug	62316231623162316231623162316231	QA	1	CURRENT_TIMESTAMP
 
 *** Select on Slave ****
+sync_slave_with_master;
 connection slave;
 SELECT c1,c2,c3,hex(c4),c5 FROM t14 ORDER BY c1;
 c1	c2	c3	hex(c4)	c5
@@ -805,6 +815,7 @@ c1	hex(c4)	c5	c6	c7
 3	62316231623162316231623162316231	QA	3	CURRENT_TIMESTAMP
 
 ** Select * from Slave **
+sync_slave_with_master;
 connection slave;
 SELECT c1,hex(c4),c5 FROM t17 ORDER BY c1;
 c1	hex(c4)	c5
@@ -821,6 +832,7 @@ c1	hex(c4)	c5	c6	c7
 2	62316231623162316231623162316231	JOE	2	CURRENT_TIMESTAMP
 
 ** Check slave **
+sync_slave_with_master;
 connection slave;
 SELECT c1,hex(c4),c5 FROM t17 ORDER BY c1;
 c1	hex(c4)	c5
@@ -828,6 +840,7 @@ c1	hex(c4)	c5
 2	62316231623162316231623162316231	JOE
 connection master;
 DROP TABLE t17;
+sync_slave_with_master;
 connection slave;
 
 
@@ -871,6 +884,7 @@ c1	hex(c4)	c5	c6	c7
 3	62316231623162316231623162316231	QA	3	CURRENT_TIMESTAMP
 
 ** Select * from Slave **
+sync_slave_with_master;
 connection slave;
 SELECT c1,hex(c4),c5 FROM t18 ORDER BY c1;
 c1	hex(c4)	c5
@@ -888,6 +902,7 @@ c1	hex(c4)	c5	c6	c7
 3	62316231623162316231623162316231	TEST	3	CURRENT_TIMESTAMP
 
 ** Check slave **
+sync_slave_with_master;
 connection slave;
 SELECT c1,hex(c4),c5 FROM t18 ORDER BY c1;
 c1	hex(c4)	c5
@@ -896,6 +911,7 @@ c1	hex(c4)	c5
 3	62316231623162316231623162316231	TEST
 connection master;
 DROP TABLE t18;
+sync_slave_with_master;
 connection slave;
 
 
@@ -935,6 +951,7 @@ c1	hex(c4)	c5	c6	c7
 3	6231623162316231	QA	UUID	TIME
 
 ** Select * from Slave **
+sync_slave_with_master;
 connection slave;
 SELECT c1,hex(c4),c5 FROM t5 ORDER BY c1;
 c1	hex(c4)	c5
@@ -943,6 +960,7 @@ c1	hex(c4)	c5
 3	6231623162316231	QA
 connection master;
 DROP TABLE t5;
+sync_slave_with_master;
 connection slave;
 connection master;
 include/rpl_end.inc

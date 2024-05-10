@@ -7,8 +7,8 @@ SET binlog_alter_two_phase = ON;
 ALTER  TABLE t1  WAIT 9 RENAME COLUMN a1 TO a2;
 SET  binlog_alter_two_phase = OFF;
 ALTER  TABLE t1  ALTER COLUMN d1 DROP DEFAULT;
-connection slave;
 connection master;
 drop table t1;
+sync_slave_with_master;
 connection slave;
 include/rpl_end.inc

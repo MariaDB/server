@@ -56,7 +56,6 @@ insert into t1(a) values(3);
 --echo =====Inserting data on the master but without the SQL Thread being running=======;
 sync_slave_with_master;
 
-connection slave;
 --replace_result $SLAVE_TOPDIR MARIADB_DATADIR
 --copy_file $SLAVE_TOPDIR/master.info $SLAVE_TOPDIR/master.backup
 --source include/stop_slave_sql.inc

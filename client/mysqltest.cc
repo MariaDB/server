@@ -10264,10 +10264,33 @@ int main(int argc, char **argv)
         setup_catalog_replace(cur_con, command);
         reset_errors= 0;
         break;
-      case Q_SAVE_MASTER_POS: do_save_master_pos(); break;
-      case Q_SYNC_WITH_MASTER: do_sync_with_master(command); break;
+      case Q_SAVE_MASTER_POS:
+      {
+        if (!disable_query_log)
+        {
+          dynstr_append_mem(&ds_res, command->query, command->query_len);
+          dynstr_append(&ds_res, ";\n");
+        }
+        do_save_master_pos();
+        break;
+      }
+      case Q_SYNC_WITH_MASTER:
+      {
+        if (!disable_query_log)
+        {
+          dynstr_append_mem(&ds_res, command->query, command->query_len);
+          dynstr_append(&ds_res, ";\n");
+        }
+        do_sync_with_master(command);
+        break;
+      }
       case Q_SYNC_SLAVE_WITH_MASTER:
       {
+        if (!disable_query_log)
+        {
+          dynstr_append_mem(&ds_res, command->query, command->query_len);
+          dynstr_append(&ds_res, ";\n");
+        }
 	do_save_master_pos();
 	if (*command->first_argument)
 	  select_connection(command);

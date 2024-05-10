@@ -14,11 +14,15 @@ include/start_slave.inc
 set global rpl_semi_sync_slave_enabled = 1;
 connection server_1;
 CREATE TABLE t1 (a INT) ENGINE=innodb;
+save_master_pos;
 connection server_2;
+sync_with_master;
 connection server_3;
+sync_with_master;
 connection server_4;
 include/stop_slave.inc
 connection server_1;
+save_master_pos;
 connection server_1;
 SET @@GLOBAL.debug_dbug="+d,simulate_delay_at_shutdown";
 connection server_4;
@@ -26,8 +30,11 @@ include/start_slave.inc
 connection server_1;
 SHUTDOWN WAIT FOR ALL SLAVES;
 connection server_4;
+sync_with_master;
 connection server_3;
+sync_with_master;
 connection server_2;
+sync_with_master;
 connection server_1;
 connection default;
 connection server_1;

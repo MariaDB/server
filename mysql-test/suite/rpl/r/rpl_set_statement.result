@@ -27,6 +27,7 @@ INSERT INTO t1 VALUES(@@max_join_size);
 SELECT @@max_join_size;
 @@max_join_size
 18446744073709551615
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t1;
 a
@@ -54,6 +55,7 @@ INSERT INTO t1 VALUES(@@auto_increment_increment);
 SELECT @@auto_increment_increment;
 @@auto_increment_increment
 1
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t1;
 a
@@ -80,6 +82,7 @@ INSERT INTO t2 VALUES(@@sql_mode);
 SELECT @@sql_mode;
 @@sql_mode
 
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t2;
 a
@@ -103,6 +106,7 @@ INSERT INTO t2 VALUES(@@sql_mode);
 SELECT @@sql_mode;
 @@sql_mode
 
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t2;
 a
@@ -130,6 +134,7 @@ INSERT INTO t1 VALUES(@@max_heap_table_size);
 SELECT @@max_heap_table_size;
 @@max_heap_table_size
 1048576
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t1;
 a
@@ -142,5 +147,6 @@ DELETE FROM t1;
 connection master;
 DROP TABLE t1;
 DROP TABLE t2;
+sync_slave_with_master;
 connection slave;
 include/stop_slave.inc

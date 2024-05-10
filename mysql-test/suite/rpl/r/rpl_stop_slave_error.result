@@ -1,6 +1,7 @@
 include/master-slave.inc
 [connection master]
 connection master;
+sync_slave_with_master;
 connection slave;
 include/stop_slave.inc
 NOT FOUND /Error reading packet from server: Lost connection/ in slave_log.err

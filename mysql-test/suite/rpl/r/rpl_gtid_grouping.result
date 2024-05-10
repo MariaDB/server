@@ -10,7 +10,9 @@ include/start_slave.inc
 connection master;
 CREATE TABLE t (a INT) ENGINE=innodb;
 INSERT INTO t VALUES(1);
+save_master_pos;
 ### A. Simulate an unnoticeable loss of Xid event
+sync_slave_with_master;
 connection slave;
 SET @@global.debug_dbug="+d,slave_discard_xid_for_gtid_0_x_1000";
 connection master;
@@ -41,6 +43,8 @@ include/wait_for_slave_io_error.inc [errno=1595]
 SET @@global.debug_dbug=default;
 include/start_slave.inc
 connection master;
+save_master_pos;
+sync_slave_with_master;
 connection slave;
 include/diff_tables.inc [master:t,slave:t]
 "===== Clean up ====="

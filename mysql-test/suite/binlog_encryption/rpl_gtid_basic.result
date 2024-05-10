@@ -13,11 +13,13 @@ BEGIN;
 INSERT INTO t2 VALUES (2, "i2"), (3, "i3");
 INSERT INTO t2 VALUES (4, "i4");
 COMMIT;
+save_master_pos;
 *** GTID position should be non-empty here ***
 SELECT BINLOG_GTID_POS('<BINLOG_FILE>',<BINLOG_POS>);
 BINLOG_GTID_POS('<BINLOG_FILE>',<BINLOG_POS>)
 <GTID_POS_SERVER_1>
 connection server_2;
+sync_with_master;
 *** GTID position should be the same as on server_1 ***
 SELECT BINLOG_GTID_POS('<BINLOG_FILE>',<BINLOG_POS>);
 BINLOG_GTID_POS('<BINLOG_FILE>',<BINLOG_POS>)
@@ -34,7 +36,9 @@ a	b
 2	i2
 3	i3
 4	i4
+save_master_pos;
 connection server_3;
+sync_with_master;
 SELECT * FROM t1 ORDER BY a;
 a	b
 1	m1
@@ -47,7 +51,9 @@ a	b
 2	i2
 3	i3
 4	i4
+save_master_pos;
 connection server_4;
+sync_with_master;
 SELECT * FROM t1 ORDER BY a;
 a	b
 1	m1
@@ -66,12 +72,14 @@ include/stop_slave.inc
 connection server_1;
 INSERT INTO t1 VALUES (5, "m1a");
 INSERT INTO t2 VALUES (5, "i1a");
+save_master_pos;
 connection server_4;
 CHANGE MASTER TO master_host = '127.0.0.1', master_port = MASTER_PORT,
 MASTER_USE_GTID=CURRENT_POS;
 Warnings:
 Warning	1681	'master_use_gtid=current_pos' is deprecated and will be removed in a future release. Please use master_demote_to_slave=1 instead
 include/start_slave.inc
+sync_with_master;
 SELECT * FROM t1 ORDER BY a;
 a	b
 1	m1
@@ -96,7 +104,9 @@ Warning	1681	'master_use_gtid=current_pos' is deprecated and will be removed in 
 include/start_slave.inc
 connection server_4;
 UPDATE t2 SET b="j1a" WHERE a=5;
+save_master_pos;
 connection server_2;
+sync_with_master;
 SELECT * FROM t1 ORDER BY a;
 a	b
 1	m1
@@ -232,7 +242,9 @@ Gtid_IO_Pos = '0-1-100'
 connection server_1;
 DROP TABLE t1;
 CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+save_master_pos;
 connection server_2;
+sync_with_master;
 include/stop_slave.inc
 connect  m1,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
 SELECT @@last_gtid;
@@ -423,9 +435,11 @@ SET gtid_domain_id=2;
 SET gtid_seq_no=1000;
 INSERT INTO t1 VALUES (10);
 INSERT INTO t1 VALUES (11);
+save_master_pos;
 connection server_2;
 SET sql_slave_skip_counter= 1;
 include/start_slave.inc
+sync_with_master;
 SELECT * FROM t1 WHERE a >= 10 ORDER BY a;
 a
 11
@@ -438,9 +452,11 @@ SET gtid_domain_id=2;
 SET gtid_seq_no=1010;
 INSERT INTO t1 VALUES (12);
 INSERT INTO t1 VALUES (13);
+save_master_pos;
 connection server_2;
 SET sql_slave_skip_counter= 2;
 include/start_slave.inc
+sync_with_master;
 SELECT * FROM t1 WHERE a >= 10 ORDER BY a;
 a
 11
@@ -455,9 +471,11 @@ SET gtid_seq_no=1020;
 INSERT INTO t1 VALUES (14);
 INSERT INTO t1 VALUES (15);
 INSERT INTO t1 VALUES (16);
+save_master_pos;
 connection server_2;
 SET sql_slave_skip_counter= 3;
 include/start_slave.inc
+sync_with_master;
 SELECT * FROM t1 WHERE a >= 10 ORDER BY a;
 a
 11
@@ -476,9 +494,11 @@ INSERT INTO t1 VALUES (17);
 INSERT INTO t1 VALUES (18);
 INSERT INTO t1 VALUES (19);
 SET @@binlog_annotate_row_events= 1;
+save_master_pos;
 connection server_2;
 SET sql_slave_skip_counter= 5;
 include/start_slave.inc
+sync_with_master;
 SELECT * FROM t1 WHERE a >= 10 ORDER BY a;
 a
 11
@@ -498,6 +518,7 @@ DROP TABLE t2;
 SET gtid_domain_id=2;
 SET gtid_seq_no=1040;
 INSERT INTO t1 VALUES (20);
+save_master_pos;
 connection server_2;
 SET @saved_mode= @@GLOBAL.slave_ddl_exec_mode;
 SET GLOBAL slave_ddl_exec_mode=STRICT;
@@ -521,6 +542,7 @@ Ok
 STOP SLAVE IO_THREAD;
 SET sql_slave_skip_counter=2;
 include/start_slave.inc
+sync_with_master;
 SELECT * FROM t1 WHERE a >= 20 ORDER BY a;
 a
 20
@@ -535,26 +557,38 @@ SET GLOBAL slave_ddl_exec_mode= @saved_mode;
 connection server_1;
 SET gtid_domain_id= @@GLOBAL.gtid_domain_id;
 INSERT INTO t1 VALUES (31);
+save_master_pos;
 connection server_2;
+sync_with_master;
 SET gtid_domain_id= @@GLOBAL.gtid_domain_id;
 INSERT INTO t1 VALUES (32);
 connection server_1;
 INSERT INTO t1 VALUES (33);
+save_master_pos;
 connection server_2;
+sync_with_master;
+save_master_pos;
 connection server_3;
+sync_with_master;
 include/stop_slave.inc
 connection server_1;
 INSERT INTO t1 VALUES (34);
+save_master_pos;
 connection server_2;
+sync_with_master;
+save_master_pos;
 connection server_3;
 include/start_slave.inc
+sync_with_master;
 SELECT * FROM t1 WHERE a >= 30 ORDER BY a;
 a
 31
 32
 33
 34
+save_master_pos;
 connection server_4;
+sync_with_master;
 SELECT * FROM t1 WHERE a >= 30 ORDER BY a;
 a
 31

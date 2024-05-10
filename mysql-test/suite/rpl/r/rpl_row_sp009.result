@@ -50,6 +50,7 @@ SELECT * FROM test.t2 ORDER BY a;
 a
 1
 3
+sync_slave_with_master;
 connection slave;
 SELECT * FROM test.t2 ORDER BY a;
 a
@@ -62,6 +63,7 @@ select * from test.t2 ORDER BY a;
 a
 2
 4
+sync_slave_with_master;
 connection slave;
 SELECT * FROM test.t2 ORDER BY a;
 a
@@ -71,6 +73,7 @@ connection master;
 truncate test.t2;
 SELECT * FROM test.t2 ORDER BY a;
 a
+sync_slave_with_master;
 connection slave;
 SELECT * FROM test.t2 ORDER BY a;
 a
@@ -78,5 +81,6 @@ connection master;
 DROP PROCEDURE test.p1;
 DROP TABLE test.t1;
 DROP TABLE test.t2;
+sync_slave_with_master;
 connection slave;
 include/rpl_end.inc

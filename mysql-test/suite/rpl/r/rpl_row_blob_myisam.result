@@ -25,7 +25,9 @@ LENGTH(data)
 SELECT LENGTH(data) FROM test.t1 WHERE c1 = 3;
 LENGTH(data)
 16384
+save_master_pos;
 connection slave;
+sync_with_master;
 
 **** Data Insert Validation Slave Section test.t1 ****
 
@@ -53,7 +55,9 @@ LENGTH(data)
 SELECT LENGTH(data) FROM test.t1 WHERE c1 = 2;
 LENGTH(data)
 17408
+save_master_pos;
 connection slave;
+sync_with_master;
 
 **** Data Update Validation Slave Section test.t1 ****
 
@@ -114,7 +118,9 @@ SELECT c1, LENGTH(c2), SUBSTR(c2,1+2*900,2), LENGTH(c4), SUBSTR(c4,1+3*900,3)
 FROM test.t2 WHERE c1=2;
 c1	LENGTH(c2)	SUBSTR(c2,1+2*900,2)	LENGTH(c4)	SUBSTR(c4,1+3*900,3)
 2	20000	b2	30000	dd2
+save_master_pos;
 connection slave;
+sync_with_master;
 
 **** Data Insert Validation Slave Section test.t2 ****
 
@@ -143,7 +149,9 @@ SELECT c1, LENGTH(c2), SUBSTR(c2,1+2*900,2), LENGTH(c4), SUBSTR(c4,1+3*900,3)
 FROM test.t2 WHERE c1=2;
 c1	LENGTH(c2)	SUBSTR(c2,1+2*900,2)	LENGTH(c4)	SUBSTR(c4,1+3*900,3)
 2	2256	b1	3000	dd1
+save_master_pos;
 connection slave;
+sync_with_master;
 
 **** Data Update Validation Slave Section test.t2 ****
 
@@ -159,5 +167,6 @@ connection master;
 
 DROP TABLE IF EXISTS test.t1;
 DROP TABLE IF EXISTS test.t2;
+sync_slave_with_master;
 connection slave;
 include/rpl_end.inc

@@ -7,7 +7,9 @@ SET GLOBAL slave_parallel_threads=5;
 include/start_slave.inc
 connection server_1;
 CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(100) CHARACTER SET utf8);
+save_master_pos;
 connection server_2;
+sync_with_master;
 include/stop_slave.inc
 connection server_1;
 SET gtid_domain_id= 1;
@@ -69,8 +71,10 @@ connection default;
 connection default;
 connection server_1;
 INSERT INTO t1 VALUES (0, 1);
+save_master_pos;
 connection server_2;
 include/start_slave.inc
+sync_with_master;
 SELECT * FROM t1 WHERE a <= 20 ORDER BY a;
 a	b
 0	1

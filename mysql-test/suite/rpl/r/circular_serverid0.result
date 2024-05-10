@@ -9,6 +9,7 @@ START SLAVE IO_THREAD;
 include/wait_for_slave_io_to_start.inc
 connection M2;
 CREATE TABLE t1 (a INT AUTO_INCREMENT PRIMARY KEY, b VARCHAR(30000)) ENGINE=innodb;
+sync_slave_with_master M4;
 connection M4;
 connection M4;
 INSERT INTO `t1` VALUES (null, repeat('a', 1024)), (null, repeat('b', 1024));
@@ -20,9 +21,9 @@ Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 slave-bin.000001	#	Gtid	#	#	GTID #-#-#
 slave-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; CREATE TABLE t1 (a INT AUTO_INCREMENT PRIMARY KEY, b VARCHAR(30000)) ENGINE=innodb
 SET debug_sync='now SIGNAL go_on_relay_logging';
+sync_slave_with_master M4;
 connection M4;
-connection M4;
-connection M2;
+sync_slave_with_master M2;
 connection M2;
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info

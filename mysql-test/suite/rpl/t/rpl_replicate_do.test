@@ -44,7 +44,6 @@ show tables;
 --replace_column 6 #
 show triggers;
 sync_slave_with_master;
-connection slave;
 show tables;
 --replace_column 6 #
 show triggers;
@@ -54,7 +53,6 @@ drop trigger trg2;
 --replace_column 6 #
 show triggers;
 sync_slave_with_master;
-connection slave;
 show tables;
 --replace_column 6 #
 show triggers;

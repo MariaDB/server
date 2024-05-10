@@ -1,5 +1,6 @@
 include/master-slave.inc
 [connection master]
 UPDATE performance_schema.setup_instruments SET ENABLED="NO";
+sync_slave_with_master;
 connection slave;
 include/rpl_end.inc

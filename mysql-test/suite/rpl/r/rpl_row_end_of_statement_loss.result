@@ -16,7 +16,7 @@ include/wait_for_slave_io_error.inc [errno=1595]
 SET GLOBAL debug_dbug="-d,simulate_stmt_end_rows_event_loss";
 include/start_slave.inc
 connection master;
-connection slave;
+sync_slave_with_master;
 connection slave;
 include/stop_slave.inc
 connection master;
@@ -32,11 +32,13 @@ include/wait_for_slave_io_error.inc [errno=1595]
 SET GLOBAL debug_dbug="-d,simulate_stmt_end_rows_event_loss";
 include/start_slave.inc
 connection master;
+sync_slave_with_master;
 connection slave;
 connection master;
 SET @@GLOBAL.log_bin_compress= @save_log_bin_compress;
 SET @@GLOBAL.log_bin_compress_min_len= @save_log_bin_compress_min_len;
 DROP TABLE t;
+sync_slave_with_master;
 connection slave;
 SET GLOBAL debug_dbug= @save_debug;
 include/rpl_end.inc

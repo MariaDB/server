@@ -9,6 +9,7 @@ show tables;
 Tables_in_test
 t1
 v1
+sync_slave_with_master;
 connection slave;
 show tables;
 Tables_in_test

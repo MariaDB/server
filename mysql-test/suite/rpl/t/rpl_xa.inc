@@ -421,7 +421,6 @@ echo ->slave;
 
 sync_slave_with_master;
 
-connection slave;
 source include/sync_with_master_gtid.inc;
 
 connection con1;

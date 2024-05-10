@@ -17,6 +17,7 @@ SET @old_debug_master= @@global.debug;
 set binlog_alter_two_phase=true;
 create table t3( a int primary key, b int) engine=innodb;
 connection master;
+sync_slave_with_master;
 connection slave;
 include/stop_slave.inc
 connection master;
@@ -52,6 +53,7 @@ master-bin.000002	#	Query	#	#	SET CATALOG `def`; use `test`; alter table t3 add 
 connection slave;
 include/start_slave.inc
 connection master;
+sync_slave_with_master;
 connection slave;
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
@@ -78,6 +80,7 @@ connection master;
 SET GLOBAL debug_dbug= @old_debug_master;
 drop table t3;
 set global binlog_alter_two_phase = 0;
+sync_slave_with_master;
 connection slave;
 SET GLOBAL debug_dbug= @old_debug_slave;
 stop slave;

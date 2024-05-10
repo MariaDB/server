@@ -21,7 +21,9 @@ connect  con_temp5,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
 ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
 CREATE TABLE t3 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
 INSERT INTO t3 VALUES(100, 100);
+save_master_pos;
 connection server_2;
+sync_with_master;
 connection server_1;
 SET sql_log_bin=0;
 CREATE FUNCTION foo(x INT, d1 VARCHAR(500), d2 VARCHAR(500))
@@ -178,8 +180,10 @@ END
 SET sql_log_bin=1;
 connection server_1;
 UPDATE t3 SET b=b+1 WHERE a=60;
+save_master_pos;
 connection server_2;
 include/start_slave.inc
+sync_with_master;
 SELECT * FROM t3 WHERE a >= 60 ORDER BY a;
 a	b
 60	61
@@ -241,9 +245,11 @@ SET GLOBAL debug_dbug=@old_dbug;
 SET GLOBAL slave_parallel_max_queued= @old_max_queued;
 connection server_1;
 INSERT INTO t3 VALUES (82,0);
+save_master_pos;
 connection server_2;
 SET debug_sync='RESET';
 include/start_slave.inc
+sync_with_master;
 SELECT * FROM t3 WHERE a >= 80 ORDER BY a;
 a	b
 80	0

@@ -35,6 +35,7 @@ double	1.8446744073709552e19
 float	1.84467e19
 real	18446744073709552000.00
 decimal	18446744073709551615.00
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t1;
 tinyint	127
@@ -88,6 +89,7 @@ double	1.8446744073709552e19
 float	1.84467e19
 real	18446744073709552000.00
 decimal	18446744073709551615.00
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t1;
 tinyint	127
@@ -129,6 +131,7 @@ double	-9.223372036854776e18
 float	-9.22337e18
 real	-9223372036854776000.00
 decimal	-9223372036854775808.00
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t1;
 tinyint	-128
@@ -182,6 +185,7 @@ double	-9.223372036854776e18
 float	-9.22337e18
 real	-9223372036854776000.00
 decimal	-9223372036854775808.00
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t1;
 tinyint	-128
@@ -207,6 +211,7 @@ TRUNCATE t1;
 ## check: contents of both tables master's and slave's
 connection master;
 DROP TABLE t1;
+sync_slave_with_master;
 connection slave;
 include/rpl_reset.inc
 connection master;
@@ -218,12 +223,14 @@ SET @aux1= @aux;
 INSERT INTO t1 VALUES (@aux) , (@aux1);
 ERROR 23000: Duplicate entry '2147483647' for key 'PRIMARY'
 SET sql_mode = DEFAULT;
+sync_slave_with_master;
 connection slave;
 ## assertion: master and slave tables are in sync
 include/diff_tables.inc [master:t1,slave:t1]
 connection master;
 DROP TRIGGER tr1;
 DROP TABLE t1;
+sync_slave_with_master;
 connection slave;
 
 # The GET DIAGNOSTICS itself is not replicated, but it can set
@@ -243,6 +250,7 @@ GET DIAGNOSTICS count = ROW_COUNT;
 INSERT INTO t1 VALUES (1, count);
 END|
 CALL p1();
+sync_slave_with_master;
 connection slave;
 connection slave;
 # check if the statement was replicated.
@@ -277,5 +285,6 @@ master-bin.000001	#	Query	#	#	SET CATALOG `def`; use `test`; INSERT INTO t1 VALU
 master-bin.000001	#	Query	#	#	COMMIT
 DROP TABLE t1;
 DROP PROCEDURE p1;
+sync_slave_with_master;
 connection slave;
 include/rpl_end.inc

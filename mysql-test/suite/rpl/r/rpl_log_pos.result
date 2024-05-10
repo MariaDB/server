@@ -7,6 +7,7 @@ call mtr.add_suppression ("Error in Log_event::read_log_event");
 show master status;
 File	Position	Binlog_Do_DB	Binlog_Ignore_DB
 master-bin.000001	#	<Binlog_Do_DB>	<Binlog_Ignore_DB>
+sync_slave_with_master;
 connection slave;
 include/stop_slave.inc
 change master to master_log_pos=MASTER_LOG_POS, master_use_gtid=no;
@@ -22,9 +23,11 @@ create table if not exists t1 (n int);
 drop table if exists t1;
 create table t1 (n int);
 insert into t1 values (1),(2),(3);
+save_master_pos;
 connection slave;
 change master to master_log_pos=MASTER_LOG_POS, master_use_gtid=no;
 start slave;
+sync_with_master;
 select * from t1 ORDER BY n;
 n
 1
@@ -32,6 +35,7 @@ n
 3
 connection master;
 drop table t1;
+sync_slave_with_master;
 connection slave;
 End of 5.0 tests
 include/rpl_end.inc

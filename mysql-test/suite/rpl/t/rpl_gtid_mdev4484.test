@@ -26,7 +26,6 @@ INSERT INTO t1 VALUES (1);
 --sync_slave_with_master
 
 # Inject an artificial error deleting entries, and check that the error handling code works.
---connection slave
 --source include/stop_slave.inc
 SET @old_gtid_cleanup_batch_size= @@GLOBAL.gtid_cleanup_batch_size;
 SET GLOBAL gtid_cleanup_batch_size= 2;
@@ -82,7 +81,6 @@ while ($i) {
 --enable_query_log
 --sync_slave_with_master
 
---connection slave
 # Now check that 1) rows are being deleted again after removing error
 # injection, and 2) old rows are left that failed their delete while errors
 # where injected (again compensating for non-deterministic deletion).

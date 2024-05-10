@@ -8,6 +8,8 @@ include/start_slave.inc
 connection master;
 create table t1 (a int);
 include/sync_slave_sql_with_master.inc
+save_master_pos;
+sync_with_master;
 #
 # Pt 1) Ensure SBM is updated immediately upon arrival of the next event
 # Lock t1 on slave so the first received transaction does not complete/commit

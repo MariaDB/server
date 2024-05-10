@@ -124,6 +124,7 @@ Rpl_semi_sync_master_no_tx	0
 show status like 'Rpl_semi_sync_master_yes_tx';
 Variable_name	Value
 Rpl_semi_sync_master_yes_tx	11
+sync_slave_with_master;
 connection slave;
 [ slave status after replicated inserts ]
 show status like 'Rpl_semi_sync_slave_status';
@@ -145,6 +146,7 @@ max(a)
 connection master;
 SET SESSION AUTOCOMMIT= 0;
 CREATE TABLE t2(c1 INT) ENGINE=innodb;
+sync_slave_with_master;
 connection slave;
 connection master;
 BEGIN;
@@ -159,6 +161,7 @@ INSERT INTO t2 VALUES(22);
 COMMIT;
 DROP TABLE t2, t3;
 SET SESSION AUTOCOMMIT= 1;
+sync_slave_with_master;
 connection slave;
 #
 # Test semi-sync master will switch OFF after one transaction
@@ -212,12 +215,14 @@ Rpl_semi_sync_master_yes_tx	14
 #
 # Test semi-sync status on master will be ON again when slave catches up
 #
+save_master_pos;
 connection slave;
 [ slave status should be OFF ]
 show status like 'Rpl_semi_sync_slave_status';
 Variable_name	Value
 Rpl_semi_sync_slave_status	OFF
 include/start_slave.inc
+sync_with_master;
 [ slave status should be ON ]
 show status like 'Rpl_semi_sync_slave_status';
 Variable_name	Value
@@ -246,6 +251,7 @@ Rpl_semi_sync_master_clients	1
 # Test disable/enable master semi-sync on the fly.
 #
 drop table t1;
+sync_slave_with_master;
 connection slave;
 include/stop_slave.inc
 #
@@ -298,6 +304,7 @@ include/start_slave.inc
 connection master;
 create table t1 (a int) engine = ENGINE_TYPE;
 drop table t1;
+sync_slave_with_master;
 connection slave;
 [ test reset master ]
 connection master;
@@ -321,6 +328,7 @@ connection master;
 create table t1 (a int) engine = ENGINE_TYPE;
 insert into t1 values (1);
 insert into t1 values (2), (3);
+sync_slave_with_master;
 connection slave;
 select * from t1;
 a
@@ -417,6 +425,7 @@ Rpl_semi_sync_master_clients	1
 show status like 'Rpl_semi_sync_master_status';
 Variable_name	Value
 Rpl_semi_sync_master_status	OFF
+sync_slave_with_master;
 connection slave;
 show status like 'Rpl_semi_sync_slave_status';
 Variable_name	Value
@@ -432,6 +441,7 @@ rpl_semi_sync_slave_enabled	ON
 include/start_slave.inc
 connection master;
 insert into t1 values (10);
+sync_slave_with_master;
 connection slave;
 #
 # Test non-semi-sync slave connect to semi-sync master
@@ -470,6 +480,7 @@ change master to master_user='root',master_password='';
 include/start_slave.inc
 connection master;
 drop table t1;
+sync_slave_with_master;
 connection slave;
 connection master;
 drop user rpl@127.0.0.1;

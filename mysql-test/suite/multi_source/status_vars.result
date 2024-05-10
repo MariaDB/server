@@ -78,7 +78,9 @@ include/wait_for_slave_to_start.inc
 connect  master1,127.0.0.1,root,,,$SERVER_MYPORT_1;
 set binlog_format = statement;
 create temporary table tmp1 (i int) engine=MyISAM;
+save_master_pos;
 connection slave;
+sync_with_master 0,'master1';
 show status like 'Slave_open_temp_tables';
 Variable_name	Value
 Slave_open_temp_tables	1
@@ -89,7 +91,9 @@ Slave_open_temp_tables	1
 connect  master2,127.0.0.1,root,,,$SERVER_MYPORT_2;
 set binlog_format = statement;
 create temporary table tmp1 (i int) engine=MyISAM;
+save_master_pos;
 connection slave;
+sync_with_master 0,'';
 show status like 'Slave_open_temp_tables';
 Variable_name	Value
 Slave_open_temp_tables	2

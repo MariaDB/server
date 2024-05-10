@@ -11,7 +11,6 @@ SET GLOBAL BINLOG_CHECKSUM=NONE;
 CREATE TABLE t1(a INT PRIMARY KEY);
 --sync_slave_with_master
 
---connection slave
 --source include/stop_slave.inc
 CHANGE MASTER TO master_use_gtid=slave_pos;
 

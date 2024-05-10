@@ -15,8 +15,12 @@ update tmp2 set a = 20 limit 1;
 Warnings:
 Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. The statement is unsafe because it uses a LIMIT clause. This is unsafe because the set of rows included cannot be predicted
 insert into t2 select * from tmp2;
+save_master_pos;
 connection server_2;
+sync_with_master;
+save_master_pos;
 connection server_3;
+sync_with_master;
 #t1 should have 2 rows
 select count(*) = 2 from t1;
 count(*) = 2

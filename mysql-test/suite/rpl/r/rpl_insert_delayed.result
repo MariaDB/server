@@ -8,6 +8,7 @@ FLUSH TABLE t1;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 5000
+sync_slave_with_master;
 connection slave;
 use mysqlslap;
 SELECT COUNT(*) FROM t1;
@@ -23,6 +24,7 @@ select * from t1;
 id	name
 10	my name
 20	James Bond
+sync_slave_with_master;
 connection slave;
 select * from t1;
 id	name
@@ -36,6 +38,7 @@ select * from t1;
 id	name
 10	my name
 20	is Bond
+sync_slave_with_master;
 connection slave;
 select * from t1;
 id	name
@@ -44,6 +47,7 @@ id	name
 connection master;
 USE test;
 DROP SCHEMA mysqlslap;
+sync_slave_with_master;
 connection slave;
 use test;
 connection master;
@@ -54,6 +58,7 @@ flush table t1;
 select * from t1;
 a
 1
+sync_slave_with_master;
 connection slave;
 On slave
 select * from t1;
@@ -61,6 +66,7 @@ a
 1
 connection master;
 drop table t1;
+sync_slave_with_master;
 connection slave;
 connection master;
 End of 5.0 tests

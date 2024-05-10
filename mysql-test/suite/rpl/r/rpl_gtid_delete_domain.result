@@ -3,6 +3,7 @@ include/master-slave.inc
 connection master;
 SET @@SESSION.gtid_domain_id=0;
 CREATE TABLE t (a INT);
+sync_slave_with_master;
 connection slave;
 connection slave;
 call mtr.add_suppression("connecting slave requested to start from.*which is not in the master's binlog");
@@ -78,5 +79,6 @@ include/start_slave.inc
 connection master;
 SET @@SESSION.gtid_domain_id=0;
 DROP TABLE t;
+sync_slave_with_master;
 connection slave;
 include/rpl_end.inc

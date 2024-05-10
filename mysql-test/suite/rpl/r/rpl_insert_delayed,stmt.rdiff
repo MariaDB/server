@@ -1,6 +1,6 @@
 --- suite/rpl/r/rpl_insert_delayed.result
 +++ suite/rpl/r/rpl_insert_delayed,stmt.reject
-@@ -18,19 +18,19 @@
+@@ -19,20 +19,20 @@
  insert delayed into t1 values(10, "my name");
  flush table t1;
  insert delayed into t1 values(10, "is Bond"), (20, "James Bond");
@@ -10,6 +10,7 @@
  id	name
  10	my name
 -20	James Bond
+ sync_slave_with_master;
  connection slave;
  select * from t1;
  id	name
@@ -22,7 +23,7 @@
  flush table t1;
  select * from t1;
  id	name
-@@ -47,21 +47,38 @@
+@@ -51,16 +51,30 @@
  connection slave;
  use test;
  connection master;
@@ -39,6 +40,7 @@
  select * from t1;
  a
  1
+ sync_slave_with_master;
  connection slave;
  On slave
 +include/show_binlog_events.inc
@@ -52,8 +54,9 @@
  select * from t1;
  a
  1
- connection master;
+@@ -68,6 +82,9 @@
  drop table t1;
+ sync_slave_with_master;
  connection slave;
 +FLUSH LOGS;
 +connection master;

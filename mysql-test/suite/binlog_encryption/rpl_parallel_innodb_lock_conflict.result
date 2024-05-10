@@ -29,8 +29,10 @@ SET debug_sync='now SIGNAL master_cont1';
 connection con1;
 connection con2;
 SET debug_sync='RESET';
+save_master_pos;
 connection server_2;
 include/start_slave.inc
+sync_with_master;
 include/stop_slave.inc
 SELECT * FROM t4 ORDER BY a;
 a	b
@@ -56,8 +58,10 @@ SET debug_sync='now SIGNAL master_cont1';
 connection con1;
 connection con2;
 SET debug_sync='RESET';
+save_master_pos;
 connection server_2;
 include/start_slave.inc
+sync_with_master;
 include/stop_slave.inc
 SELECT * FROM t4 ORDER BY a;
 a	b

@@ -23,6 +23,7 @@ grant select on *.* to foo@localhost;
 connection slave;
 start slave;
 connection master;
+sync_slave_with_master;
 connection slave;
 select * from mysqltest1.t1;
 a
@@ -35,6 +36,7 @@ GRANT SELECT ON *.* TO `foo`@`localhost`
 connection master;
 drop user foo@localhost;
 drop database mysqltest1;
+sync_slave_with_master;
 connection slave;
 stop slave;
 change master to master_user='root';

@@ -28,7 +28,7 @@ SELECT * FROM t3;
 id	a
 1	24:00:00.0000
 2	24:00:00.0000
-connection slave;
+sync_slave_with_master;
 connection slave;
 SET time_zone='+00:00';
 SELECT * FROM t1;

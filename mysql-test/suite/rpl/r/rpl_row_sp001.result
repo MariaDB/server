@@ -30,6 +30,7 @@ a	t
 2	NEW
 3	NEW
 4	NEW
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t2 ORDER BY a;
 a	t
@@ -45,6 +46,7 @@ a	t
 2	Tex
 3	Tex
 4	Tex
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t2 ORDER BY a;
 a	t
@@ -60,6 +62,7 @@ a	t
 2	SQL
 3	SQL
 4	SQL
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t2 ORDER BY a;
 a	t
@@ -75,6 +78,7 @@ a	t
 2	NONE
 3	NONE
 4	NONE
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t2 ORDER BY a;
 a	t
@@ -87,5 +91,6 @@ DROP PROCEDURE test.p1;
 DROP PROCEDURE test.p2;
 DROP TABLE test.t1;
 DROP TABLE test.t2;
+sync_slave_with_master;
 connection slave;
 include/rpl_end.inc

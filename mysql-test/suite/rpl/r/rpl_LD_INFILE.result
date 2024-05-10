@@ -59,7 +59,8 @@ abasements
 abasement
 abased
 abase
-connection slave;
+save_master_pos;
+sync_slave_with_master;
 connection slave;
 SELECT * FROM test.t1 ORDER BY a DESC;
 a
@@ -115,5 +116,6 @@ abased
 abase
 connection master;
 DROP TABLE test.t1;
+sync_slave_with_master;
 connection slave;
 include/rpl_end.inc

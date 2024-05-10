@@ -16,6 +16,7 @@ hex(table_name)
 select  hex(table_name) from information_schema.tables where table_schema="test" and table_name like "v%";
 hex(table_name)
 76C391E28098
+sync_slave_with_master;
 connection slave;
 select hex(table_name) from information_schema.tables where table_schema="test" and table_name like "t%";
 hex(table_name)
@@ -30,5 +31,6 @@ connection master;
 DROP TABLE `tё`;
 DROP VIEW `vё`;
 DROP PROCEDURE `pё`;
+sync_slave_with_master;
 connection slave;
 include/rpl_end.inc

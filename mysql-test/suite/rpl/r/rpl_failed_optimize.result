@@ -8,6 +8,7 @@ OPTIMIZE TABLE non_existing;
 Table	Op	Msg_type	Msg_text
 test.non_existing	optimize	Error	Table 'test.non_existing' doesn't exist
 test.non_existing	optimize	status	Operation failed
+sync_slave_with_master;
 connection slave;
 connection master;
 select * from t1;

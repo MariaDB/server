@@ -16,6 +16,7 @@ SELECT * FROM t4;
 id	name	number
 1	XXX	12345
 2	XXY	12345
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t4;
 id	name	number
@@ -30,15 +31,18 @@ SELECT * FROM t4;
 id	name	number
 4	XXX	12345
 5	XXY	12345
+sync_slave_with_master;
 connection slave;
 SELECT * FROM t4;
 id	name	number
 4	XXX	12345
 5	XXY	12345
 connection master;
+sync_slave_with_master;
 connection slave;
 connection master;
 FLUSH LOGS;
+sync_slave_with_master;
 connection slave;
 FLUSH LOGS;
 connection master;
@@ -47,6 +51,7 @@ CREATE DATABASE mysqltest1;
 CREATE TEMPORARY TABLE mysqltest1.tmp (f1 BIGINT);
 CREATE TABLE mysqltest1.t1 (f1 BIGINT) ENGINE="InnoDB";
 SET AUTOCOMMIT = 0;
+sync_slave_with_master;
 connection slave;
 connection slave;
 ALTER TABLE mysqltest1.t1 ENGINE = MyISAM;
@@ -77,6 +82,7 @@ tmp2	CREATE TEMPORARY TABLE `tmp2` (
 SELECT COUNT(*) FROM mysqltest1.t1;
 COUNT(*)
 0
+sync_slave_with_master;
 connection slave;
 connection slave;
 SHOW CREATE TABLE mysqltest1.tmp;
@@ -125,6 +131,7 @@ id	b
 2	2
 3	3
 4	4
+sync_slave_with_master;
 connection slave;
 connection slave;
 SELECT * FROM t1;

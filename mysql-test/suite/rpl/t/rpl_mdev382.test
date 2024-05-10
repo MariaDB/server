@@ -118,7 +118,6 @@ let $pos2= query_get_value(SHOW MASTER STATUS, Position, 1);
 --exec $MYSQL_BINLOG --short-form --start-position=$binlog_start --stop-position=$pos2 $MARIADB_TOPDIR/master-bin.000001
 
 sync_slave_with_master;
-connection slave;
 SELECT * FROM `db1``; select 'oops!'`.`t``1`;
 connection master;
 
@@ -149,7 +148,6 @@ SELECT * FROM t1 ORDER BY a;
 --source include/show_binlog_events2.inc
 
 sync_slave_with_master;
-connection slave;
 SELECT * FROM t1 ORDER BY a;
 
 connection master;
@@ -171,7 +169,6 @@ let $pos2= query_get_value(SHOW MASTER STATUS, Position, 1);
 --exec $MYSQL_BINLOG --short-form --start-position=$binlog_start --stop-position=$pos2 $MARIADB_TOPDIR/master-bin.000001
 
 sync_slave_with_master;
-connection slave;
 SELECT * FROM `db1``; select 'oops!'`.t1 ORDER BY a1;
 
 connection master;
@@ -238,14 +235,12 @@ connection slave;
 
 connection master;
 sync_slave_with_master;
-connection slave;
 --echo # The table should be empty on the slave also.
 SELECT * FROM `db1``; select 'oops!'`.`t``1`;
 
 connection master;
 DROP TABLE `db1``; select 'oops!'`.`t``1`;
 sync_slave_with_master;
-
 
 connection master;
 use test;

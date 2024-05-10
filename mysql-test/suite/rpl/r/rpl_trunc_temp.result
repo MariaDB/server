@@ -2,18 +2,21 @@ include/master-slave.inc
 [connection master]
 create temporary table t1 (n int);
 insert into t1 values(1);
+sync_slave_with_master;
 connection slave;
 show status like 'Slave_open_temp_tables';
 Variable_name	Value
 Slave_open_temp_tables	1
 connection master;
 delete from t1;
+sync_slave_with_master;
 connection slave;
 show status like 'Slave_open_temp_tables';
 Variable_name	Value
 Slave_open_temp_tables	1
 connection master;
 truncate t1;
+sync_slave_with_master;
 connection slave;
 show status like 'Slave_open_temp_tables';
 Variable_name	Value

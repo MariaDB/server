@@ -21,6 +21,7 @@ a
 11
 DELETE FROM t1;
 # Syncing slave with master
+sync_slave_with_master;
 connection slave;
 SELECT EVENT_NAME,STATUS,EVENT_DEFINITION FROM INFORMATION_SCHEMA.EVENTS;
 EVENT_NAME	STATUS	EVENT_DEFINITION
@@ -28,5 +29,6 @@ ev1	SLAVESIDE_DISABLED	INSERT INTO t1 VALUES (11)
 connection master;
 DROP TABLE t1;
 DROP EVENT ev1;
+sync_slave_with_master;
 connection slave;
 include/rpl_end.inc

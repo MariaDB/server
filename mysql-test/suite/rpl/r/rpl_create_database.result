@@ -3,6 +3,7 @@ include/master-slave.inc
 DROP DATABASE IF EXISTS mysqltest_prometheus;
 DROP DATABASE IF EXISTS mysqltest_sisyfos;
 DROP DATABASE IF EXISTS mysqltest_bob;
+sync_slave_with_master;
 connection slave;
 DROP DATABASE IF EXISTS mysqltest_bob;
 connection master;
@@ -24,6 +25,7 @@ mysql
 mysqltest_bob
 mysqltest_prometheus
 mysqltest_sisyfos
+sync_slave_with_master;
 connection slave;
 SHOW DATABASES LIKE 'mysql%';
 Database (mysql%)
@@ -44,6 +46,7 @@ mysql
 mysqltest_bob
 mysqltest_prometheus
 mysqltest_sisyfos
+sync_slave_with_master;
 connection slave;
 SHOW DATABASES LIKE 'mysql%';
 Database (mysql%)
@@ -62,5 +65,6 @@ connection master;
 DROP DATABASE IF EXISTS mysqltest_prometheus;
 DROP DATABASE IF EXISTS mysqltest_sisyfos;
 DROP DATABASE IF EXISTS mysqltest_bob;
+sync_slave_with_master;
 connection slave;
 include/rpl_end.inc

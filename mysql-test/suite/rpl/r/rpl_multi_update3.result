@@ -31,6 +31,7 @@ SELECT * FROM t2 ORDER BY a;
 a	b
 1	6
 2	6
+sync_slave_with_master;
 connection slave;
 connection slave;
 SELECT * FROM t1 ORDER BY a;
@@ -70,6 +71,7 @@ WHERE   b2 = 'baz')
 AND a.a3 IS NULL 
 AND a.a4 = 'foo' 
 AND a.a5 = 'bar';
+sync_slave_with_master;
 connection slave;
 connection slave;
 SELECT * FROM t1;
@@ -123,6 +125,7 @@ FROM    t3
 WHERE   y = 34 
 ) 
 WHERE       b.x = 23;
+sync_slave_with_master;
 connection slave;
 connection slave;
 SELECT * FROM t1;
@@ -186,6 +189,7 @@ idpro	price	nbprice
 1	1.0000	3
 2	1.0000	2
 3	2.0000	1
+sync_slave_with_master;
 connection slave;
 select "-- SLAVE AFTER JOIN --" as "";
 

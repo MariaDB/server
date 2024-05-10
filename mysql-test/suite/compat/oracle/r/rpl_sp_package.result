@@ -18,6 +18,7 @@ SELECT f1();
 END;
 END pack;
 $$
+sync_slave_with_master;
 connection slave;
 connection slave;
 SELECT * FROM mysql.proc WHERE db='test' AND name='pack';
@@ -86,6 +87,7 @@ f1()
 SET @@sql_mode=DEFAULT;
 connection master;
 DROP PACKAGE pack;
+sync_slave_with_master;
 connection slave;
 connection slave;
 SELECT COUNT(*) FROM mysql.proc WHERE db='test' AND name='pack';
@@ -110,6 +112,7 @@ SELECT definer, name, security_type, type, `comment` FROM mysql.proc WHERE name 
 definer	name	security_type	type	comment
 root@localhost	p1	DEFINER	PACKAGE	package-p1-comment
 root@localhost	p1	DEFINER	PACKAGE BODY	package-body-p1-comment
+sync_slave_with_master;
 connection slave;
 SELECT definer, name, security_type, type, `comment` FROM mysql.proc WHERE name LIKE 'p1%' ORDER BY definer, name, type;
 definer	name	security_type	type	comment
@@ -117,6 +120,7 @@ root@localhost	p1	DEFINER	PACKAGE	package-p1-comment
 root@localhost	p1	DEFINER	PACKAGE BODY	package-body-p1-comment
 connection master;
 DROP PACKAGE p1;
+sync_slave_with_master;
 connection slave;
 #
 # Creating a package with a different DEFINER
@@ -141,6 +145,7 @@ SELECT definer, name, security_type, type FROM mysql.proc WHERE name LIKE 'p1%' 
 definer	name	security_type	type
 xxx@localhost	p1	DEFINER	PACKAGE
 xxx@localhost	p1	DEFINER	PACKAGE BODY
+sync_slave_with_master;
 connection slave;
 SELECT definer, name, security_type, type FROM mysql.proc WHERE name LIKE 'p1%' ORDER BY definer, name, type;
 definer	name	security_type	type
@@ -148,6 +153,7 @@ xxx@localhost	p1	DEFINER	PACKAGE
 xxx@localhost	p1	DEFINER	PACKAGE BODY
 connection master;
 DROP PACKAGE p1;
+sync_slave_with_master;
 connection slave;
 #
 # Creating a package with a different DEFINER + SQL SECURITY INVOKER
@@ -172,6 +178,7 @@ SELECT definer, name, security_type, type FROM mysql.proc WHERE name LIKE 'p1%' 
 definer	name	security_type	type
 xxx@localhost	p1	INVOKER	PACKAGE
 xxx@localhost	p1	INVOKER	PACKAGE BODY
+sync_slave_with_master;
 connection slave;
 SELECT definer, name, security_type, type FROM mysql.proc WHERE name LIKE 'p1%' ORDER BY definer, name, type;
 definer	name	security_type	type
@@ -179,5 +186,6 @@ xxx@localhost	p1	INVOKER	PACKAGE
 xxx@localhost	p1	INVOKER	PACKAGE BODY
 connection master;
 DROP PACKAGE p1;
+sync_slave_with_master;
 connection slave;
 include/rpl_end.inc

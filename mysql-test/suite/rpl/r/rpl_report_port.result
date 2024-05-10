@@ -14,6 +14,7 @@ connection slave;
 include/start_slave.inc
 include/wait_for_slave_param.inc [Slave_IO_State]
 connection master;
+sync_slave_with_master;
 connection slave;
 [Slave restarted with the report-port set to the value of slave's port number]
 connection master;

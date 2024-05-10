@@ -108,7 +108,7 @@ CALL test.proc_byrange();
 commit;
 SELECT count(*) as "Master byrange" FROM test.byrange_tbl;
 Master byrange	500
-connection slave;
+sync_slave_with_master;
 connection slave;
 show create table test.byrange_tbl;
 Table	byrange_tbl

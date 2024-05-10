@@ -14,6 +14,7 @@ create user 'foo'@'fakehost', 'bar'@'fakehost';
 ERROR HY000: Operation CREATE USER failed for 'foo'@'fakehost'
 create user 'foo'@'fakehost', 'bar'@'fakehost';
 ERROR HY000: Operation CREATE USER failed for 'foo'@'fakehost','bar'@'fakehost'
+sync_slave_with_master;
 connection slave;
 select Host,User from mysql.user where Host='fakehost';
 Host	User
@@ -25,6 +26,7 @@ rename user 'not_exist_user1'@'fakehost' to 'foobar'@'fakehost', 'bar'@'fakehost
 ERROR HY000: Operation RENAME USER failed for 'not_exist_user1'@'fakehost'
 rename user 'not_exist_user1'@'fakehost' to 'foobar'@'fakehost', 'not_exist_user2'@'fakehost' to 'barfoo'@'fakehost';
 ERROR HY000: Operation RENAME USER failed for 'not_exist_user1'@'fakehost','not_exist_user2'@'fakehost'
+sync_slave_with_master;
 connection slave;
 select Host,User from mysql.user where Host='fakehost';
 Host	User
@@ -36,6 +38,7 @@ alter user 'non_exist_user1'@'fakehost' identified by 'foo', 'barbar'@'fakehost'
 ERROR HY000: Operation ALTER USER failed for 'non_exist_user1'@'fakehost'
 alter user 'non_exist_user1'@'fakehost' identified by 'foo', 'non_exist_user2'@'fakehost' identified by 'bar';
 ERROR HY000: Operation ALTER USER failed for 'non_exist_user1'@'fakehost','non_exist_user2'@'fakehost'
+sync_slave_with_master;
 connection slave;
 connection master;
 drop user 'foofoo'@'fakehost';
@@ -43,6 +46,7 @@ drop user 'not_exist_user1'@'fakehost', 'barbar'@'fakehost';
 ERROR HY000: Operation DROP USER failed for 'not_exist_user1'@'fakehost'
 drop user 'not_exist_user1'@'fakehost', 'not_exist_user2'@'fakehost';
 ERROR HY000: Operation DROP USER failed for 'not_exist_user1'@'fakehost','not_exist_user2'@'fakehost'
+sync_slave_with_master;
 connection slave;
 select Host,User from mysql.user where Host='fakehost';
 Host	User

@@ -32,8 +32,10 @@ ALTER TABLE `E` REMOVE PARTITIONING;
 connection default;
 connection server_1;
 CREATE TABLE t1 (a INT PRIMARY KEY);
+save_master_pos;
 connection server_2;
 include/start_slave.inc
+sync_with_master;
 include/stop_slave.inc
 SET GLOBAL debug_dbug=@old_dbug;
 SET GLOBAL slave_parallel_threads=0;

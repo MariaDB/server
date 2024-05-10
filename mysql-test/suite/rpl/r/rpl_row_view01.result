@@ -32,6 +32,7 @@ a	c	c2
 1	Thank	GOD
 2	it	is
 3	Friday	TGIF
+sync_slave_with_master;
 connection slave;
 SELECT * FROM mysqltest1.v2;
 qty	price	value
@@ -56,6 +57,7 @@ a	c	c2
 1	Thank	GOD
 2	it	is
 3	Friday	TGIF
+sync_slave_with_master;
 connection slave;
 SELECT * FROM mysqltest1.t5 ORDER BY qty;
 qty	price	total
@@ -80,6 +82,7 @@ a	c
 2	it
 3	Friday
 4	TEST
+sync_slave_with_master;
 connection slave;
 SELECT * FROM mysqltest1.t1 ORDER BY a;
 a	c
@@ -102,5 +105,6 @@ DROP TABLE IF EXISTS mysqltest1.t1;
 DROP TABLE IF EXISTS mysqltest1.t2;
 DROP TABLE IF EXISTS mysqltest1.t4;
 DROP DATABASE mysqltest1;
+sync_slave_with_master;
 connection slave;
 include/rpl_end.inc
