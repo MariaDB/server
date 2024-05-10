@@ -7,7 +7,7 @@ include:
 # Override Salsa-CI with MariaDB specific variations
 variables:
   DEB_BUILD_OPTIONS: "nocheck noautodbgsym"
-  RELEASE: bullseye
+  RELEASE: bookworm
   SALSA_CI_DISABLE_REPROTEST: 1
   SALSA_CI_DISABLE_MISSING_BREAKS: 0
   SALSA_CI_DISABLE_RC_BUGS: 1
@@ -86,15 +86,10 @@ autopkgtest:
       junit: ${WORKING_DIR}/debci/artifacts/mysql-test-run-junit.xml
 
 piuparts:
-  extends: .test-piuparts
   stage: test extras
 
 blhc:
-  extends: .test-blhc
   stage: test extras
-  # Build log checker needs a .build file and thus only works on native build
-  needs:
-    - job: build native deb amd64
 
 # In addition to Salsa-CI, also run these fully MariaDB specific build jobs
 
@@ -825,11 +820,11 @@ mariadb.org-10.3 to mariadb upgrade:
 # archive.mariadb.org has for 10.2 only Stretch, so we can't test upgrades to
 # 10.6 with only Buster and Bullseye builds
 
-mysql.com-5.7 upgrade:
+mysql.com-5.7 with Buster upgrade:
   stage: upgrade extras
   needs:
     - job: build
-  image: debian:${RELEASE}
+  image: debian:buster
   artifacts:
     when: always
     name: "$CI_BUILD_NAME"
@@ -838,11 +833,13 @@ mysql.com-5.7 upgrade:
   script:
     - *test-prepare-container
     - |
-      apt-get install --no-install-recommends --yes gpg gpg-agent dirmngr ca-certificates # Bare minimal (<4MB) for apt-key to work
-      apt-key adv --recv-keys --keyserver hkps://keyserver.ubuntu.com:443 467B942D3A79BD29
-      echo "deb https://repo.mysql.com/apt/debian/ bullseye mysql-5.7" > /etc/apt/sources.list.d/mysql.list
+      apt-get install -qq --yes --no-install-recommends gpg gpg-agent dirmngr ca-certificates # Bare minimal (<4MB) for apt-key to work
+      apt-key adv --recv-keys --keyserver hkps://keyserver.ubuntu.com:443 B7B3B788A8D3785C
+      echo "deb https://repo.mysql.com/apt/debian/ buster mysql-5.7" > /etc/apt/sources.list.d/mysql.list
       apt-get update -qq
-      apt-get install -y 'mysql*' 'libmysqlc*'
+    - apt-get install -qq --yes mysql-server 'libmysqlc*'
+    # Ensure MySQL 5.7 package actually got installed
+    - dpkg -l | grep -e "mysql-server.*5.7"
     - *test-verify-initial
     - *test-install
     # Due to some (currently unknown) changes in MySQL 5.7 packaging or apt
@@ -863,11 +860,12 @@ mysql.com-5.7 upgrade:
     variables:
       - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
 
-percona-xtradb-5.7 upgrade:
+# Note: pmm2-client does not exist in the Bookworm repository anymore
+percona-xtradb-5.7 with Bookworm upgrade:
   stage: upgrade extras
   needs:
     - job: build
-  image: debian:${RELEASE}
+  image: debian:bookworm
   artifacts:
     when: always
     name: "$CI_BUILD_NAME"
@@ -876,11 +874,13 @@ percona-xtradb-5.7 upgrade:
   script:
     - *test-prepare-container
     - |
-      apt-get install --no-install-recommends --yes gpg gpg-agent dirmngr ca-certificates # Bare minimal (<4MB) for apt-key to work
-      apt-key adv --recv-keys --keyserver hkps://keyserver.ubuntu.com:443 9334A25F8507EFA5
-      echo "deb https://repo.percona.com/apt/ ${RELEASE} main" > /etc/apt/sources.list.d/mysql.list
+      apt-get install -qq --yes --no-install-recommends ca-certificates curl systemctl
+      curl -sS "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x9334A25F8507EFA5" -o /etc/apt/trusted.gpg.d/percona.asc
+      echo "deb https://repo.percona.com/apt/ bookworm main" > /etc/apt/sources.list.d/percona.list
       apt-get update -qq
-      apt-get install -y percona-xtradb-cluster-full-57 percona-xtrabackup-24 percona-toolkit pmm2-client
+    - apt-get install -qq --yes percona-xtradb-cluster-full-57 percona-xtrabackup-24 percona-toolkit
+    # Ensure Percona 5.7 package actually got installed
+    - dpkg -l | grep -e "percona.*5\.7"
     - service mysql status
     - *test-verify-initial
     - *test-install
