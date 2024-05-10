@@ -60,12 +60,15 @@ cp -v "$MTR_SKIP_TEST_LIST" "$AUTOPKGTEST_ARTIFACTS"
 cd /usr/share/mysql/mysql-test
 echo "starting mysql-test-tun.pl..."
 export MTR_PRINT_CORE=detailed
+# The $MTR_ARGUMENTS_APPEND is intentionally used to pass in extra arguments
+# shellcheck disable=SC2086
 eatmydata perl -I. ./mysql-test-run.pl \
     --force --testcase-timeout=120 --suite-timeout=540 --retry=3 \
     --verbose-restart --max-save-core=1 --max-save-datadir=1 \
     --parallel=auto --skip-rpl --suite=main \
     --skip-test-list="$MTR_SKIP_TEST_LIST" \
     --vardir="$WORKDIR/var" --tmpdir="$WORKDIR/tmp" \
-    --xml-report="$AUTOPKGTEST_ARTIFACTS/mysql-test-run-junit.xml"
+    --xml-report="$AUTOPKGTEST_ARTIFACTS/mysql-test-run-junit.xml" \
+    $MTR_ARGUMENTS_APPEND \
     "$@" 2>&1
 echo "run: OK"
