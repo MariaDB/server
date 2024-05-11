@@ -49,7 +49,7 @@ if ($rpl_server_parameters)
 --source include/rpl_connection.inc
 
 # Write file to make mysql-test-run.pl start up the server again
---exec echo "$_rpl_start_server_command" > $MYSQLTEST_VARDIR/tmp/mysqld.$rpl_server_number.expect
+--write_line "$_rpl_start_server_command"  $MYSQLTEST_VARDIR/tmp/mysqld.$rpl_server_number.expect
 
 if (!$rpl_server_error)
 {

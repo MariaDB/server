@@ -1189,10 +1189,16 @@ public:
     return UNIV_UNLIKELY(bulk_insert) ? bulk_insert_apply_low(): DB_SUCCESS;
   }
 
+  /** Do the bulk insert for the buffered insert operation of a table.
+  @param table bulk insert operation
+  @return DB_SUCCESS or error code. */
+  dberr_t bulk_insert_apply_for_table(dict_table_t *table);
 private:
   /** Apply the buffered bulk inserts. */
   dberr_t bulk_insert_apply_low();
 
+  /** Rollback the bulk insert operation for the transaction */
+  void bulk_rollback_low();
   /** Assign a rollback segment for modifying temporary tables.
   @return the assigned rollback segment */
   trx_rseg_t *assign_temp_rseg();

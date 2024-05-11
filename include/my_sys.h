@@ -154,7 +154,7 @@ char *guess_malloc_library();
 void sf_report_leaked_memory(my_thread_id id);
 int sf_sanity();
 extern my_thread_id (*sf_malloc_dbug_id)(void);
-#define SAFEMALLOC_REPORT_MEMORY(X) sf_report_leaked_memory(X)
+#define SAFEMALLOC_REPORT_MEMORY(X) if (!sf_leaking_memory) sf_report_leaked_memory(X)
 #else
 #define SAFEMALLOC_REPORT_MEMORY(X) do {} while(0)
 #endif
@@ -663,6 +663,7 @@ extern size_t my_fwrite(FILE *stream,const uchar *Buffer,size_t Count,
 		      myf MyFlags);
 extern my_off_t my_fseek(FILE *stream,my_off_t pos,int whence,myf MyFlags);
 extern my_off_t my_ftell(FILE *stream,myf MyFlags);
+extern void (*my_sleep_for_space)(unsigned int seconds);
 
 /* implemented in my_memmem.c */
 extern void *my_memmem(const void *haystack, size_t haystacklen,

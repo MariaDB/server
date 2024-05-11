@@ -9916,11 +9916,15 @@ Item *Item_default_value::transform(THD *thd, Item_transformer transformer,
 }
 
 
-bool Item_default_value::associate_with_target_field(THD *thd,
-                                                     Item_field *field)
+bool Item_default_value::
+  associate_with_target_field(THD *thd,
+                              Item_field *field __attribute__((unused)))
 {
   m_associated= true;
-  arg= field;
+  /*
+    arg set correctly in constructor (can also differ from field if
+    it is function with an argument)
+  */
   return tie_field(thd);
 }
 

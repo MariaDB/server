@@ -99,8 +99,8 @@ public:
   int external_lock(THD *thd, int lock_type) override;
   int delete_all_rows(void) override;
   int reset_auto_increment(ulonglong value) override;
-  int disable_indexes(uint mode) override;
-  int enable_indexes(uint mode) override;
+  int disable_indexes(key_map map, bool persist) override;
+  int enable_indexes(key_map map, bool persist) override;
   int indexes_are_disabled(void) override;
   ha_rows records_in_range(uint inx, const key_range *start_key,
                            const key_range *end_key, page_range *pages) override;

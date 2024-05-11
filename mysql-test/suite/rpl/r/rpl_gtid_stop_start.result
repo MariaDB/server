@@ -111,6 +111,10 @@ a
 6
 7
 *** MDEV-4486: Allow to start old-style replication even if mysql.gtid_slave_pos is unavailable
+connection server_1;
+INSERT INTO t1 VALUES (8);
+DELETE FROM t1 WHERE a=8;
+connection server_2;
 connection server_2;
 include/stop_slave.inc
 CHANGE MASTER TO master_use_gtid= no;

@@ -239,25 +239,17 @@ int maria_extra(MARIA_HA *info, enum ha_extra_function function,
       break;
 
     /* we're going to modify pieces of the state, stall Checkpoint */
-    mysql_mutex_lock(&share->intern_lock);
     if (info->lock_type == F_UNLCK)
     {
-      mysql_mutex_unlock(&share->intern_lock);
       error= 1;					/* Not possibly if not lock */
       break;
     }
+    mysql_mutex_lock(&share->intern_lock);
     if (maria_is_any_key_active(share->state.key_map))
     {
-      MARIA_KEYDEF *key= share->keyinfo;
-      uint i;
-      for (i =0 ; i < share->base.keys ; i++,key++)
-      {
-        if (!(key->flag & HA_NOSAME) && info->s->base.auto_key != i+1)
-        {
-          maria_clear_key_active(share->state.key_map, i);
-          info->update|= HA_STATE_CHANGED;
-        }
-      }
+      if (share->state.key_map != *(ulonglong*)extra_arg)
+        info->update|= HA_STATE_CHANGED;
+      share->state.key_map= *(ulonglong*)extra_arg;
 
       if (!share->changed)
       {
@@ -608,6 +600,20 @@ uint _ma_file_callback_to_id(void *callback_data)
 {
   MARIA_SHARE *share= (MARIA_SHARE*) callback_data;
   return share ? share->id : 0;
+}
+
+/*
+  Disable MY_WAIT_IF_FULL flag for temporary tables
+
+  Temporary tables does not have MY_WAIT_IF_FULL in share->write_flags
+*/
+
+uint _ma_write_flags_callback(void *callback_data, myf flags)
+{
+  MARIA_SHARE *share= (MARIA_SHARE*) callback_data;
+  if (share)
+    flags&= ~(~share->write_flag & MY_WAIT_IF_FULL);
+  return flags;
 }
 
 

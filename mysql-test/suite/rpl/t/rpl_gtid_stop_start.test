@@ -173,6 +173,24 @@ SELECT * FROM t1 ORDER BY a;
 
 --echo *** MDEV-4486: Allow to start old-style replication even if mysql.gtid_slave_pos is unavailable
 
+# In GTID mode, the old-style replication position is also updated. But during
+# GTID connect, the old-style position is not known until receiving the fake
+# GTID list event, which contains the required position value. If we happened
+# to stop the slave above before this fake GTID list event, the test could fail
+# with duplicate key errors due to switching to non-GTID mode at a wrong
+# position too far back in the binlog.
+#
+# Work-around this by injecting an extra dummt event and syncing the slave to
+# it, ensuring the old-style position will be updated.
+#
+# This work-around could be removed after MDEV-33996 is fixed.
+--connection server_1
+INSERT INTO t1 VALUES (8);
+DELETE FROM t1 WHERE a=8;
+--save_master_pos
+--connection server_2
+--sync_with_master
+
 --connection server_2
 --source include/stop_slave.inc
 CHANGE MASTER TO master_use_gtid= no;

@@ -175,6 +175,7 @@ DROP TABLE t_60905;
 #
 
 show global variables like "performance_schema_max_thread_instances";
+replace_result 512 256;
 explain select * from performance_schema.threads;
 
 #

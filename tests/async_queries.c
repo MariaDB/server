@@ -358,6 +358,7 @@ handle_option(const struct my_option *opt, const char *arg,
   return 0;
 }
 
+PRAGMA_DISABLE_CHECK_STACK_FRAME
 
 int
 main(int argc, char *argv[])
@@ -433,3 +434,4 @@ main(int argc, char *argv[])
 
   return 0;
 }
+PRAGMA_REENABLE_CHECK_STACK_FRAME

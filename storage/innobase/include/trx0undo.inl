@@ -125,5 +125,6 @@ trx_undo_page_get_next_rec(const buf_block_t *undo_page, uint16_t rec,
 {
   uint16_t end= trx_undo_page_get_end(undo_page, page_no, offset);
   uint16_t next= mach_read_from_2(undo_page->page.frame + rec);
-  return next == end ? nullptr : undo_page->page.frame + next;
+  ut_ad(next <= end);
+  return next >= end ? nullptr : undo_page->page.frame + next;
 }

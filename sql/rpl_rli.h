@@ -506,11 +506,6 @@ public:
     m_flags&= ~flag;
   }
 
-  /**
-    Text used in THD::proc_info when the slave SQL thread is delaying.
-  */
-  static const char *const state_delaying_string;
-
   bool flush();
 
   /**
@@ -533,7 +528,7 @@ public:
   {
     mysql_mutex_assert_owner(&data_lock);
     sql_delay_end= delay_end;
-    thd_proc_info(sql_driver_thd, state_delaying_string);
+    THD_STAGE_INFO(sql_driver_thd, stage_sql_thd_waiting_until_delay);
   }
 
   int32 get_sql_delay() { return sql_delay; }
@@ -564,6 +559,10 @@ private:
 
     Guarded by data_lock. Written by the sql thread.  Read by client
     threads executing SHOW SLAVE STATUS.
+
+    This is calculated as:
+    clock_time_for_event_on_master + clock_difference_between_master_and_slave +
+    SQL_DELAY.
   */
   time_t sql_delay_end;
 
@@ -959,7 +958,7 @@ struct rpl_group_info
   }
 
   void clear_tables_to_lock();
-  void cleanup_context(THD *, bool);
+  void cleanup_context(THD *, bool, bool keep_domain_owner= false);
   void slave_close_thread_tables(THD *);
   void mark_start_commit_no_lock();
   void mark_start_commit();

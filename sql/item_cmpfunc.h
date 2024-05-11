@@ -3048,7 +3048,7 @@ public:
   {}
   int default_regex_flags();
   void init(CHARSET_INFO *data_charset, int extra_flags);
-  void fix_owner(Item_func *owner, Item *subject_arg, Item *pattern_arg);
+  bool fix_owner(Item_func *owner, Item *subject_arg, Item *pattern_arg);
   bool compile(String *pattern, bool send_error);
   bool compile(Item *item, bool send_error);
   bool recompile(Item *item)
@@ -3516,13 +3516,11 @@ template <template<class> class LI, typename T> class Item_equal_iterator
 {
 protected:
   Item_equal *item_equal;
-  Item *curr_item;
+  Item *curr_item= nullptr;
 public:
   Item_equal_iterator(Item_equal &item_eq)
-    :LI<T> (item_eq.equal_items)
+    :LI<T> (item_eq.equal_items), item_equal(&item_eq)
   {
-    curr_item= NULL;
-    item_equal= &item_eq;
     if (item_eq.with_const)
     {
       LI<T> *list_it= this;

@@ -436,6 +436,10 @@ sub main {
     {
       $opt_parallel= $ENV{NUMBER_OF_PROCESSORS} || 1;
     }
+    elsif (IS_MAC)
+    {
+      $opt_parallel= `sysctl -n hw.ncpu`;
+    }
     else
     {
       my $sys_info= My::SysInfo->new();
@@ -4553,8 +4557,6 @@ sub extract_warning_lines ($$) {
      qr/WSREP: Guessing address for incoming client/,
 
      qr/InnoDB: Difficult to find free blocks in the buffer pool*/,
-     # for UBSAN
-     qr/decimal\.c.*: runtime error: signed integer overflow/,
      # Disable test for UBSAN on dynamically loaded objects
      qr/runtime error: member call.*object.*'Handler_share'/,
      qr/sql_type\.cc.* runtime error: member call.*object.* 'Type_collection'/,
@@ -5713,6 +5715,8 @@ sub start_mysqltest ($) {
   if ( defined $tinfo->{'result_file'} ) {
     mtr_add_arg($args, "--result-file=%s", $tinfo->{'result_file'});
   }
+
+  mtr_add_arg($args, "--wait-for-pos-timeout=%d", $opt_debug_sync_timeout);
 
   client_debug_arg($args, "mysqltest");
 

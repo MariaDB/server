@@ -26,6 +26,8 @@ display_help() {
   echo "                     sysbench runs"
   echo "  --perf-flamegraph  record performance counters in perf.data.* and"
   echo "                     generate flamegraphs automatically"
+  echo "  --cpu-limit        upper limit on the number of CPU cycles (in billions) used for the benchmark"
+  echo "                     default: 750"
   echo "  -h, --help         display this help and exit"
 }
 
@@ -77,6 +79,11 @@ do
       ;;
     --perf-flamegraph)
       PERF_RECORD=true
+      shift
+      ;;
+    --cpu-limit)
+      shift
+      CPU_CYCLE_LIMIT=$1
       shift
       ;;
     -*)
@@ -247,12 +254,21 @@ then
   echo "Total: $(grep -h -e instructions sysbench-run-*.log | sort -k 1 | awk '{s+=$1}END{print s}')"
   echo # Newline improves readability
 
+  if [ -z "$CPU_CYCLE_LIMIT" ]
+  then 
+     # 04-04-2024: We found this to be an appropriate default limit after running a few benchmarks
+     # Configure the limit with --cpu-limit if needed
+    CPU_CYCLE_LIMIT=750
+  fi
+  CPU_CYCLE_LIMIT_LONG="${CPU_CYCLE_LIMIT}000000000"
+
   # Final verdict based on cpu cycle count
   RESULT="$(grep -h -e cycles sysbench-run-*.log | sort -k 1 | awk '{s+=$1}END{print s}')"
-  if [ "$RESULT" -gt 850 ]
+  if [ "$RESULT" -gt "$CPU_CYCLE_LIMIT_LONG" ]
   then
     echo # Newline improves readability
-    echo "Benchmark exceeded 850 billion cpu cycles, performance most likely regressed!"
+    echo "Benchmark exceeded the allowed limit of ${CPU_CYCLE_LIMIT} billion CPU cycles"
+    echo "Performance most likely regressed!"
     exit 1
   fi
 fi
@@ -294,4 +310,4 @@ case $RESULT in
 esac
 # Record the output into the log file, if requested
 ) 2>&1 | ($LOG && tee "$BENCHMARK_NAME"-"$TIMESTAMP".log)
-
+exit ${PIPESTATUS[0]} # Propagate errors in the sub-shell

@@ -50,6 +50,7 @@
 #include "wsrep_schema.h"
 #endif
 #include "log_event.h"           // MAX_TABLE_MAP_ID
+#include "sql_class.h"
 
 /* For MySQL 5.7 virtual fields */
 #define MYSQL57_GENERATED_FIELD 128
@@ -3390,6 +3391,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       goto err; // Wrong field definition
     reg_field->flags |= AUTO_INCREMENT_FLAG;
   }
+  else
+    share->next_number_index= MAX_KEY;
 
   if (share->blob_fields)
   {
@@ -5982,6 +5985,57 @@ void TABLE::reset_item_list(List<Item> *item_list, uint skip) const
     DBUG_ASSERT(item_field != 0);
     item_field->reset_field(*ptr);
   }
+}
+
+TABLE_LIST::TABLE_LIST(THD *thd,
+                       LEX_CSTRING db_str,
+                       bool fqtn,
+                       LEX_CSTRING alias_str,
+                       bool has_alias_ptr,
+                       Table_ident *table_ident,
+                       thr_lock_type lock_t,
+                       enum_mdl_type mdl_t,
+                       ulong table_opts,
+                       bool info_schema,
+                       st_select_lex *sel,
+                       List<Index_hint> *index_hints_ptr,
+                       LEX_STRING *option_ptr)
+{
+  db= db_str;
+  is_fqtn= fqtn;
+  alias= alias_str;
+  is_alias= has_alias_ptr;
+  if (lower_case_table_names)
+  {
+    if (table_ident->table.length)
+      table_ident->table.length= my_casedn_str(files_charset_info,
+                                         (char*) table_ident->table.str);
+    if (db.length && db.str != any_db.str)
+      db.length= my_casedn_str(files_charset_info, (char*) db.str);
+  }
+
+  table_name= table_ident->table;
+  lock_type= lock_t;
+  mdl_type= mdl_t;
+  table_options= table_opts;
+  updating= table_options & TL_OPTION_UPDATING;
+  ignore_leaves= table_options & TL_OPTION_IGNORE_LEAVES;
+  sequence= table_options & TL_OPTION_SEQUENCE;
+  derived= table_ident->sel;
+
+  if (!table_ident->sel && info_schema)
+  {
+    schema_table= find_schema_table(thd, &table_name);
+    schema_table_name= table_name;
+  }
+  select_lex= sel;
+  /*
+    We can't cache internal temporary tables between prepares as the
+    table may be deleted before next exection.
+  */
+  cacheable_table= !table_ident->is_derived_table();
+  index_hints= index_hints_ptr;
+  option= option_ptr ? option_ptr->str : 0;
 }
 
 /*
@@ -9335,7 +9389,7 @@ void TABLE::period_prepare_autoinc()
   if (!found_next_number_field)
     return;
   /* Don't generate a new value if the autoinc index is WITHOUT OVERLAPS */
-  DBUG_ASSERT(s->next_number_index != (uint)-1);
+  DBUG_ASSERT(s->next_number_index < MAX_KEY);
   if (key_info[s->next_number_index].without_overlaps)
     return;
 
@@ -9679,7 +9733,8 @@ bool TABLE::insert_all_rows_into_tmp_table(THD *thd,
   }
    
   if (file->indexes_are_disabled())
-    tmp_table->file->ha_disable_indexes(HA_KEY_SWITCH_ALL);
+    tmp_table->file->ha_disable_indexes(key_map(0), false);
+
   file->ha_index_or_rnd_end();
 
   if (unlikely(file->ha_rnd_init_with_error(1)))
