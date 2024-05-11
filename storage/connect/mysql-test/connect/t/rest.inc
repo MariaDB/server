@@ -10,7 +10,7 @@ if (!`SELECT count(*) FROM INFORMATION_SCHEMA.TABLES
      AND CREATE_OPTIONS LIKE "%`table_type`='JSON'%"`)
 {
   DROP TABLE IF EXISTS t1;
-  Skip Need Curl or Casablanca;
+  Skip Need libcurl;
 }
 DROP TABLE t1;
 --enable_query_log

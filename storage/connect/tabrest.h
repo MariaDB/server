@@ -10,39 +10,52 @@
 #define stricmp strcasecmp
 #endif // !_WIN32
 
-typedef int(__stdcall* XGETREST) (char*, bool, PCSZ, PCSZ, PCSZ);
-
 /***********************************************************************/
 /*  Functions used by REST.                                            */
 /***********************************************************************/
-XGETREST GetRestFunction(PGLOBAL g);
-#if defined(REST_SOURCE)
-extern "C" int restGetFile(char* m, bool xt, PCSZ http, PCSZ uri, PCSZ fn);
-#endif   // REST_SOURCE
 #if defined(MARIADB)
 PQRYRES RESTColumns(PGLOBAL g, PTOS tp, char* tab, char* db, bool info);
 #endif  // !MARIADB
 
 
 /***********************************************************************/
+/*  Data structure for curl callback function                          */
+/***********************************************************************/
+struct MemoryStruct {
+    char *memory;
+    size_t size;
+};
+
+
+/***********************************************************************/
 /*  Restest table.                                                     */
 /***********************************************************************/
-class RESTDEF : public TABDEF {         /* Table description */
+class RESTDEF : public TABDEF { /* Table description */
+private:
+  bool curl_inited;
 public:
-	// Constructor
-	RESTDEF(void) { Tdp = NULL; Http = Uri = Fn = NULL; }
-
-	// Implementation
-	virtual const char *GetType(void) { return "REST"; }
-
-	// Methods
-	virtual bool DefineAM(PGLOBAL g, LPCSTR am, int poff);
-	virtual PTDB GetTable(PGLOBAL g, MODE m);
-
-protected:
-	// Members
-	PRELDEF Tdp;
-	PCSZ    Http;										/* Web connection HTTP               */
-	PCSZ    Uri;							      /* Web connection URI                */
-	PCSZ    Fn;                     /* The intermediate file name        */
+// Constructor
+  RESTDEF()
+    :curl_inited(false),
+     Tdp(NULL),
+     Http(NULL),
+     Uri(NULL),
+     Fn(NULL)
+  {}
+  int curl_init (PGLOBAL g);
+  void curl_deinit ();
+  // Methods
+  virtual const char *GetType(void) { return "REST"; }
+  virtual bool DefineAM(PGLOBAL g, LPCSTR am, int poff);
+  virtual PTDB GetTable(PGLOBAL g, MODE m);
+  int curl_run(PGLOBAL g);
+  // Members
+  PRELDEF Tdp;
+  PCSZ    Http;                   /* Web connection HTTP               */
+  PCSZ    Uri;                    /* Web connection URI                */
+  PCSZ    Fn;                     /* The intermediate file name        */
+  ~RESTDEF()
+  {
+    curl_deinit();
+  }
 }; // end of class RESTDEF
