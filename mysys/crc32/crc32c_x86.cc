@@ -173,19 +173,11 @@ static inline __m512i combine512(__m512i a, __m512i tab, __m512i b)
 # define and128(a, b) _mm_and_si128(a, b)
 
 template<uint8_t bits> USE_VPCLMULQDQ
-/** Pick a 128-bit component of a 512-bit vector */
+/** Pick and zero-extend 128 bits of a 512-bit vector (vextracti32x4) */
 static inline __m512i extract512_128(__m512i a)
 {
   static_assert(bits <= 3, "usage");
-# if defined __GNUC__ && __GNUC__ >= 11
-  /* While technically incorrect, this would seem to translate into a
-  vextracti32x4 instruction, which actually outputs a ZMM register
-  (anything above the XMM range is cleared). */
-  return _mm512_castsi128_si512(_mm512_extracti64x2_epi64(a, bits));
-# else
-  /* On clang, this is needed in order to get a correct result. */
-  return _mm512_maskz_shuffle_i64x2(3, a, a, bits);
-# endif
+  return _mm512_zextsi128_si512(_mm512_extracti64x2_epi64(a, bits));
 }
 
 alignas(16) static const uint64_t shuffle128[4] = {
