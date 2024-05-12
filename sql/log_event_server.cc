@@ -1916,7 +1916,10 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
   {
     bool is_rb_alter= gtid_flags_extra & Gtid_log_event::FL_ROLLBACK_ALTER_E1;
 
-    thd->set_time(when, when_sec_part);
+#ifdef WITH_WSREP
+    if (!wsrep_thd_is_applying(thd))
+#endif
+      thd->set_time(when, when_sec_part);
     thd->set_query_and_id((char*)query_arg, q_len_arg,
                           thd->charset(), next_query_id());
     thd->variables.pseudo_thread_id= thread_id;		// for temp tables
@@ -3012,28 +3015,43 @@ Gtid_log_event::write()
     write_len= GTID_HEADER_LEN + 2;
   }
 
-  if (flags2 & (FL_PREPARED_XA | FL_COMPLETED_XA))
+  if (flags2 & (FL_PREPARED_XA | FL_COMPLETED_XA)
+      && !DBUG_IF("negate_xid_from_gtid"))
   {
     int4store(&buf[write_len],   xid.formatID);
     buf[write_len +4]=   (uchar) xid.gtrid_length;
     buf[write_len +4+1]= (uchar) xid.bqual_length;
     write_len+= 6;
     long data_length= xid.bqual_length + xid.gtrid_length;
-    memcpy(buf+write_len, xid.data, data_length);
-    write_len+= data_length;
+
+    if (!DBUG_IF("negate_xid_data_from_gtid"))
+    {
+      memcpy(buf+write_len, xid.data, data_length);
+      write_len+= data_length;
+    }
   }
+
+  DBUG_EXECUTE_IF("inject_fl_extra_multi_engine_into_gtid", {
+    flags_extra|= FL_EXTRA_MULTI_ENGINE_E1;
+  });
   if (flags_extra > 0)
   {
     buf[write_len]= flags_extra;
     write_len++;
   }
+  DBUG_EXECUTE_IF("inject_fl_extra_multi_engine_into_gtid", {
+    flags_extra&= ~FL_EXTRA_MULTI_ENGINE_E1;
+  });
+
   if (flags_extra & FL_EXTRA_MULTI_ENGINE_E1)
   {
     buf[write_len]= extra_engines;
     write_len++;
   }
 
-  if (flags_extra & (FL_COMMIT_ALTER_E1 | FL_ROLLBACK_ALTER_E1))
+  if (flags_extra & (FL_COMMIT_ALTER_E1 | FL_ROLLBACK_ALTER_E1)
+      && !DBUG_IF("negate_alter_fl_from_gtid")
+  )
   {
     int8store(buf + write_len, sa_seq_no);
     write_len+= 8;
@@ -3676,6 +3694,9 @@ int Xid_apply_log_event::do_apply_event(rpl_group_info *rgi)
   thd->wsrep_affected_rows= 0;
 #endif
 
+#ifndef DBUG_OFF
+  bool record_gtid_delayed_for_xa= false;
+#endif
   if (rgi->gtid_pending)
   {
     sub_id= rgi->gtid_sub_id;
@@ -3694,6 +3715,10 @@ int Xid_apply_log_event::do_apply_event(rpl_group_info *rgi)
                         return 1;
                       });
     }
+#ifndef DBUG_OFF
+    else
+      record_gtid_delayed_for_xa= true;
+#endif
   }
 
   general_log_print(thd, COM_QUERY, get_query());
@@ -3702,6 +3727,22 @@ int Xid_apply_log_event::do_apply_event(rpl_group_info *rgi)
   if (!res && rgi->gtid_pending)
   {
     DBUG_ASSERT(!thd->transaction->xid_state.is_explicit_XA());
+
+    DBUG_ASSERT(record_gtid_delayed_for_xa);
+    if (thd->rgi_slave->is_parallel_exec)
+    {
+      /*
+        With XA, since the transaction is prepared/committed without updating
+        the GTID pos (MDEV-32020...), we need here to clear any pending
+        deadlock kill.
+
+        Otherwise if the kill happened after the prepare/commit completed, it
+        might end up killing the subsequent GTID position update, causing the
+        slave to fail with error.
+      */
+      wait_for_pending_deadlock_kill(thd, thd->rgi_slave);
+      thd->reset_killed();
+    }
 
     if ((err= do_record_gtid(thd, rgi, false, &hton, true)))
       return err;
@@ -3809,7 +3850,8 @@ int XA_prepare_log_event::do_commit()
   thd->lex->xid= &xid;
   if (!one_phase)
   {
-    if ((res= thd->wait_for_prior_commit()))
+    if (thd->is_current_stmt_binlog_disabled() &&
+        (res= thd->wait_for_prior_commit()))
       return res;
 
     thd->lex->sql_command= SQLCOM_XA_PREPARE;
@@ -5064,21 +5106,21 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
       which tested replicate-* rules).
     */
 
-     if (m_width == table->s->fields && bitmap_is_set_all(&m_cols))
+    if (m_width == table->s->fields && bitmap_is_set_all(&m_cols))
       set_flags(COMPLETE_ROWS_F);
 
-    /* 
+    /*
       Set tables write and read sets.
-      
+
       Read_set contains all slave columns (in case we are going to fetch
-      a complete record from slave)
-      
-      Write_set equals the m_cols bitmap sent from master but it can be 
-      longer if slave has extra columns. 
-     */ 
+      a complete record from slave).
+
+      Write_set equals the m_cols bitmap sent from master but it can be
+      longer if slave has extra columns.
+    */
 
     DBUG_PRINT_BITSET("debug", "Setting table's read_set from: %s", &m_cols);
-    
+
     bitmap_set_all(table->read_set);
     if (get_general_type_code() == DELETE_ROWS_EVENT ||
         get_general_type_code() == UPDATE_ROWS_EVENT)
@@ -5330,11 +5372,13 @@ static int rows_event_stmt_cleanup(rpl_group_info *rgi, THD * thd)
       Xid_log_event will come next which will, if some transactional engines
       are involved, commit the transaction and flush the pending event to the
       binlog.
-      If there was a deadlock the transaction should have been rolled back
-      already. So there should be no need to rollback the transaction.
+      We check for thd->transaction_rollback_request because it is possible
+      there was a deadlock that was ignored by slave-skip-errors. Normally, the
+      deadlock would have been rolled back already.
     */
-    DBUG_ASSERT(! thd->transaction_rollback_request);
-    error|= (int)(error ? trans_rollback_stmt(thd) : trans_commit_stmt(thd));
+    error|= (int) ((error || thd->transaction_rollback_request)
+                       ? trans_rollback_stmt(thd)
+                       : trans_commit_stmt(thd));
 
     /*
       Now what if this is not a transactional engine? we still need to
@@ -6956,6 +7000,7 @@ int Rows_log_event::update_sequence()
 #if defined(WITH_WSREP)
        ! WSREP(thd) &&
 #endif
+       table->in_use->rgi_slave &&
        !(table->in_use->rgi_slave->gtid_ev_flags2 & Gtid_log_event::FL_DDL) &&
        !(old_master=
          rpl_master_has_bug(thd->rgi_slave->rli,

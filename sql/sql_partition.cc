@@ -7753,7 +7753,7 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
         ERROR_INJECT("add_partition_1") ||
         mysql_write_frm(lpt, WFRM_WRITE_SHADOW) ||
         ERROR_INJECT("add_partition_2") ||
-        wait_while_table_is_used(thd, table, HA_EXTRA_NOT_USED) ||
+        wait_while_table_is_used(thd, table, HA_EXTRA_PREPARE_FOR_RENAME) ||
         ERROR_INJECT("add_partition_3") ||
         write_log_add_change_partition(lpt) ||
         ERROR_INJECT("add_partition_4") ||

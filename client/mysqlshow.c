@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2019, MariaDB
+   Copyright (c) 2010, 2024, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -191,10 +191,10 @@ static struct my_option my_long_options[] =
   {"character-sets-dir", 'c', "Directory for character set files.",
    (char**) &charsets_dir, (char**) &charsets_dir, 0, GET_STR, REQUIRED_ARG, 0,
    0, 0, 0, 0, 0},
-  {"default-character-set", OPT_DEFAULT_CHARSET,
+  {"default-character-set", 0,
    "Set the default character set.", &default_charset,
    &default_charset, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"count", OPT_COUNT,
+  {"count", 0,
    "Show number of rows per table (may be slow for non-MyISAM tables).",
    &opt_count, &opt_count, 0, GET_BOOL, NO_ARG, 0, 0, 0,
    0, 0, 0},
@@ -203,13 +203,13 @@ static struct my_option my_long_options[] =
    0, 0, 0},
   {"debug", '#', "Output debug log. Often this is 'd:t:o,filename'.",
    0, 0, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
-  {"debug-check", OPT_DEBUG_CHECK, "Check memory and open file usage at exit.",
+  {"debug-check", 0, "Check memory and open file usage at exit.",
    &debug_check_flag, &debug_check_flag, 0,
    GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"debug-info", OPT_DEBUG_INFO, "Print some debug info at exit.",
+  {"debug-info", 0, "Print some debug info at exit.",
    &debug_info_flag, &debug_info_flag,
    0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"default_auth", OPT_DEFAULT_AUTH,
+  {"default_auth", 0,
    "Default authentication client-side plugin to use.",
    &opt_default_auth, &opt_default_auth, 0,
    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
@@ -226,7 +226,7 @@ static struct my_option my_long_options[] =
    "Password to use when connecting to server. If password is not given, it's "
    "solicited on the tty.",
    0, 0, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
-  {"plugin_dir", OPT_PLUGIN_DIR, "Directory for client-side plugins.",
+  {"plugin_dir", 0, "Directory for client-side plugins.",
    &opt_plugin_dir, &opt_plugin_dir, 0,
    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"port", 'P', "Port number to use for connection or 0 for default to, in "

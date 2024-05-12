@@ -175,12 +175,12 @@ drop user baz@baz;
 SELECT @@skip_grant_tables AS EXPECT_1;
 
 # Also check when the server starts without "--skip-grant-table" option
---let $restart_parameters = "--skip-skip-grant-tables"
+--let $restart_parameters = --skip-skip-grant-tables
 --source include/restart_mysqld.inc
 SELECT @@skip_grant_tables AS EXPECT_0;
 
 # Need to restart the server to restore the "--skip-grant-tables" state
---let $restart_parameters = "--skip-grant-tables"
+--let $restart_parameters = --skip-grant-tables
 --source include/restart_mysqld.inc
 
 --echo #

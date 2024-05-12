@@ -1356,7 +1356,7 @@ out:
 lsn_t server_lsn_after_lock;
 extern void backup_wait_for_lsn(lsn_t lsn);
 
-/** Release resources after backup_start() */
+/** Release resources after backup_files() */
 void backup_release()
 {
 	if (opt_lock_ddl_per_table) {
@@ -1372,7 +1372,7 @@ void backup_release()
 
 static const char *default_buffer_pool_file = "ib_buffer_pool";
 
-/** Finish after backup_start() and backup_release() */
+/** Finish after backup_files() and backup_release() */
 bool backup_finish(ds_ctxt *ds_data)
 {
 	/* Copy buffer pool dump or LRU dump */

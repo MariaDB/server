@@ -369,8 +369,6 @@ connection master;
 alter table t1 add column f varchar(100) after b,add column g varchar(100) first ,add column  h char, force , algorithm=instant;
 alter table t1 add index if not exists index_1(f), force , algorithm=instant;
 alter table t1 disable keys, force , algorithm=copy;
-Warnings:
-Note	1031	Storage engine InnoDB of the table `test`.`t1` doesn't have this option
 alter table t1 enable keys, force , algorithm=copy;
 Warnings:
 Note	1031	Storage engine InnoDB of the table `test`.`t1` doesn't have this option
@@ -460,8 +458,6 @@ connection master;
 alter table t1 add column f varchar(100) after b,add column g varchar(100) first ,add column  h char, force , algorithm=nocopy;
 alter table t1 add index if not exists index_1(f), force , algorithm=nocopy;
 alter table t1 disable keys, force , algorithm=copy;
-Warnings:
-Note	1031	Storage engine InnoDB of the table `test`.`t1` doesn't have this option
 alter table t1 enable keys, force , algorithm=copy;
 Warnings:
 Note	1031	Storage engine InnoDB of the table `test`.`t1` doesn't have this option

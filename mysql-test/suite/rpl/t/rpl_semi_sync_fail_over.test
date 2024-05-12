@@ -83,7 +83,7 @@ SHOW VARIABLES LIKE 'gtid_slave_pos';
 
 --connection server_1
 --sync_with_master
---eval SELECT COUNT(*) = $rows_so_far as 'true' FROM t1
+--eval SELECT COUNT(*) 'must be $rows_so_far' FROM t1
 --echo # ... the gtid states on the slave:
 SHOW VARIABLES LIKE 'gtid_slave_pos';
 SHOW VARIABLES LIKE 'gtid_binlog_pos';
@@ -134,7 +134,7 @@ SHOW VARIABLES LIKE 'gtid_slave_pos';
 
 --connection server_2
 --sync_with_master
---eval SELECT COUNT(*) = $rows_so_far as 'true' FROM t1
+--eval SELECT COUNT(*) 'must be $rows_so_far as' FROM t1
 --echo # ... the gtid states on the slave:
 SHOW VARIABLES LIKE 'gtid_slave_pos';
 SHOW VARIABLES LIKE 'gtid_binlog_pos';
@@ -185,7 +185,7 @@ SHOW VARIABLES LIKE 'gtid_slave_pos';
 
 --connection server_1
 --source include/sync_with_master_gtid.inc
---eval SELECT COUNT(*) = $rows_so_far as 'true' FROM t1
+--eval SELECT COUNT(*) 'must be $rows_so_far' FROM t1
 --echo # ... the gtid states on the slave:
 SHOW VARIABLES LIKE 'gtid_slave_pos';
 SHOW VARIABLES LIKE 'gtid_binlog_pos';

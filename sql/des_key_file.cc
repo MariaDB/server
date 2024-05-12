@@ -19,7 +19,7 @@
 #include "log.h"                // sql_print_error
 #include <m_ctype.h>
 
-#ifdef HAVE_OPENSSL
+#ifdef HAVE_des
 
 struct st_des_keyschedule des_keyschedule[10];
 uint   des_default_key;
@@ -103,4 +103,4 @@ error:
   mysql_mutex_unlock(&LOCK_des_key_file);
   DBUG_RETURN(result);
 }
-#endif /* HAVE_OPENSSL */
+#endif /* HAVE_des */

@@ -3363,7 +3363,7 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
     // to ensure that we use the same value throughout this function.
     const char *slave_sql_running_state=
       mi->rli.sql_driver_thd ? mi->rli.sql_driver_thd->proc_info : "";
-    if (slave_sql_running_state == Relay_log_info::state_delaying_string)
+    if (slave_sql_running_state == stage_sql_thd_waiting_until_delay.m_name)
     {
       time_t t= my_time(0), sql_delay_end= mi->rli.get_sql_delay_end();
       protocol->store((uint32)(t < sql_delay_end ? sql_delay_end - t : 0));
@@ -3935,7 +3935,7 @@ apply_event_and_update_pos_apply(Log_event* ev, THD* thd, rpl_group_info *rgi,
           if (thd->system_thread == SYSTEM_THREAD_SLAVE_SQL &&
               ((rli->mi->using_parallel() &&
                 rli->mi->parallel_mode <= SLAVE_PARALLEL_CONSERVATIVE) ||
-               wsrep_ready == 0)) {
+                !wsrep_ready_get())) {
             rli->abort_slave= 1;
             rli->report(ERROR_LEVEL, ER_UNKNOWN_COM_ERROR, rgi->gtid_info(),
                         "Node has dropped from cluster");
@@ -4402,6 +4402,13 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
              rli->last_inuse_relaylog->dequeued_count))) &&
           event_can_update_last_master_timestamp(ev))
       {
+        /*
+          This is the first event from the master after the slave was up to date
+          and has been waiting for new events.
+          We update last_master_timestamp before executing the event to not
+          have Seconds_after_master ==  0 while executing the event.
+          last_master_timestamp will be updated again when the event is commited.
+        */
         if (rli->last_master_timestamp < ev->when)
         {
           rli->last_master_timestamp= ev->when;
@@ -4438,7 +4445,7 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
           Seconds_Behind_Master is zero.
         */
         if (ev->get_type_code() != FORMAT_DESCRIPTION_EVENT &&
-            rli->last_master_timestamp < ev->when)
+            rli->last_master_timestamp < ev->when + (time_t) ev->exec_time)
           rli->last_master_timestamp= ev->when + (time_t) ev->exec_time;
 
         DBUG_ASSERT(rli->last_master_timestamp >= 0);
@@ -7241,9 +7248,6 @@ static int connect_to_master(THD* thd, MYSQL* mysql, Master_info* mi,
                   default_client_charset_info->cs_name.str);
   }
 
-  /* This one is not strictly needed but we have it here for completeness */
-  mysql_options(mysql, MYSQL_SET_CHARSET_DIR, (char *) charsets_dir);
-
   /* Set MYSQL_PLUGIN_DIR in case master asks for an external authentication plugin */
   if (opt_plugin_dir_ptr && *opt_plugin_dir_ptr)
     mysql_options(mysql, MYSQL_PLUGIN_DIR, opt_plugin_dir_ptr);
@@ -7387,8 +7391,6 @@ MYSQL *rpl_connect_master(MYSQL *mysql)
 
   mysql_options(mysql, MYSQL_SET_CHARSET_NAME,
                 default_charset_info->cs_name.str);
-  /* This one is not strictly needed but we have it here for completeness */
-  mysql_options(mysql, MYSQL_SET_CHARSET_DIR, (char *) charsets_dir);
 
   if (mi->user == NULL
       || mi->user[0] == 0

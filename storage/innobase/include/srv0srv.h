@@ -293,7 +293,6 @@ extern my_bool			srv_stats_include_delete_marked;
 extern unsigned long long	srv_stats_modified_counter;
 extern my_bool			srv_stats_sample_traditional;
 
-extern my_bool	srv_use_doublewrite_buf;
 extern ulong	srv_checksum_algorithm;
 
 extern my_bool	srv_force_primary_key;

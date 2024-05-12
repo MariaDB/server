@@ -1118,6 +1118,38 @@ set names latin1;
 select json_arrayagg('ä'), json_objectagg(1, 'ä');
 --enable_service_connection
 
+
+--echo #
+--echo # MDEV-32287: JSON_EXTRACT not returning multiple values for same path
+--echo #
+
+select JSON_EXTRACT("[1, 2, [30, 40]]", '$[2][1]', '$[2][1]');
+
+
+--echo #
+--echo # MDEV-31402: SIGSEGV in json_get_path_next | Item_func_json_extract::read_json
+--echo #
+
+CREATE TABLE t (id CHAR AS (JSON_COMPACT (JSON_EXTRACT(doc,"$._id"))) UNIQUE KEY,doc JSON,CONSTRAINT notnu CHECK (id IS NOT NULL));
+--error ER_DATA_TOO_LONG
+INSERT INTO t (doc) VALUES ('{ "_id" : { "$oid" : "0ca0b0f0" },"a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" :0} ] } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] }');
+
+DROP TABLE t;
+
+--echo #
+--echo # MDEV-19487: JSON_TYPE doesnt detect the type of String Values (returns NULL) and for Date/DateTime returns "INTEGER"
+--echo #
+
+SELECT JSON_TYPE(json_value(JSON_OBJECT("id", 1, "name", 'Monty', "date", Cast('2019-01-01' as Date) ), '$.date')) as x;
+
+
+--echo #
+--echo # MDEV-22141: JSON_REMOVE returns NULL on valid arguments
+--echo #
+
+SELECT JSON_REMOVE('{"A": { "B": 1 }}', '$.A.B.C.D');
+
+
 --echo #
 --echo # End of 10.5 tests
 --echo #

@@ -114,6 +114,13 @@ void init_glob_errs()
 }
 #endif
 
+static void my_space_sleep(uint seconds)
+{
+  sleep(seconds);
+}
+
+void (*my_sleep_for_space)(uint seconds)= my_space_sleep;
+
 void wait_for_free_space(const char *filename, int errors)
 {
   if (errors == 0)
@@ -125,7 +132,7 @@ void wait_for_free_space(const char *filename, int errors)
                     MYF(ME_BELL | ME_ERROR_LOG | ME_WARNING),
                     MY_WAIT_FOR_USER_TO_FIX_PANIC,
                     MY_WAIT_GIVE_USER_A_MESSAGE * MY_WAIT_FOR_USER_TO_FIX_PANIC );
-  (void) sleep(MY_WAIT_FOR_USER_TO_FIX_PANIC);
+  my_sleep_for_space(MY_WAIT_FOR_USER_TO_FIX_PANIC);
 }
 
 const char **get_global_errmsgs(int nr __attribute__((unused)))

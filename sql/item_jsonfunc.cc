@@ -30,6 +30,23 @@ static int dbug_json_check_min_stack_requirement()
 }
 #endif
 
+extern void pause_execution(THD *thd, double timeout);
+
+/*
+  Allocating memory and *also* using it (reading and
+  writing from it) because some build instructions cause
+  compiler to optimize out stack_used_up. Since alloca()
+  here depends on stack_used_up, it doesnt get executed
+  correctly and causes json_debug_nonembedded to fail
+  ( --error ER_STACK_OVERRUN_NEED_MORE does not occur).
+*/
+
+#define JSON_DO_PAUSE_EXECUTION(A, B) do \
+                                 { \
+                                  DBUG_EXECUTE_IF("json_pause_execution", \
+                                  { pause_execution(A, B); }); \
+                                 } while(0)
+
 /*
   Compare ASCII string against the string with the specified
   character set.
@@ -990,16 +1007,17 @@ bool Item_func_json_extract::fix_length_and_dec(THD *thd)
 }
 
 
-static bool path_exact(const json_path_with_flags *paths_list, int n_paths,
+static int path_exact(const json_path_with_flags *paths_list, int n_paths,
                        const json_path_t *p, json_value_types vt,
                        const int *array_size_counter)
 {
+  int count_path= 0;
   for (; n_paths > 0; n_paths--, paths_list++)
   {
     if (json_path_compare(&paths_list->p, p, vt, array_size_counter) == 0)
-      return TRUE;
+      count_path++;
   }
-  return FALSE;
+  return count_path;
 }
 
 
@@ -1024,7 +1042,7 @@ String *Item_func_json_extract::read_json(String *str,
   json_engine_t je, sav_je;
   json_path_t p;
   const uchar *value;
-  int not_first_value= 0;
+  int not_first_value= 0, count_path= 0;
   uint n_arg;
   size_t v_len;
   int possible_multiple_values;
@@ -1083,7 +1101,8 @@ String *Item_func_json_extract::read_json(String *str,
                                   array_size_counter + (p.last_step - p.steps)))
       goto error;
 
-    if (!path_exact(paths, arg_count-1, &p, je.value_type, array_size_counter))
+    if (!(count_path= path_exact(paths, arg_count-1, &p, je.value_type,
+                                 array_size_counter)))
       continue;
 
     value= je.value_begin;
@@ -1113,9 +1132,12 @@ String *Item_func_json_extract::read_json(String *str,
         je= sav_je;
     }
 
-    if ((not_first_value && str->append(", ", 2)) ||
-        str->append((const char *) value, v_len))
-      goto error; /* Out of memory. */
+    for (int count= 0; count < count_path; count++)
+    {
+      if (str->append((const char *) value, v_len) ||
+          str->append(", ", 2))
+        goto error; /* Out of memory. */
+    }
 
     not_first_value= 1;
 
@@ -1136,6 +1158,11 @@ String *Item_func_json_extract::read_json(String *str,
     goto return_null;
   }
 
+  if (str->length()>2)
+  {
+    str->chop();
+    str->chop();
+  }
   if (possible_multiple_values && str->append(']'))
     goto error; /* Out of memory. */
 
@@ -1966,6 +1993,8 @@ err_return:
 
 bool Item_func_json_array_append::fix_length_and_dec(THD *thd)
 {
+  JSON_DO_PAUSE_EXECUTION(thd, 0.0002);
+
   uint n_arg;
   ulonglong char_length;
 
@@ -2123,6 +2152,8 @@ String *Item_func_json_array_insert::val_str(String *str)
   String *js= args[0]->val_json(&tmp_js);
   uint n_arg, n_path;
   THD *thd= current_thd;
+
+  JSON_DO_PAUSE_EXECUTION(thd, 0.0002);
 
   DBUG_ASSERT(fixed());
 
@@ -2529,6 +2560,8 @@ String *Item_func_json_merge::val_str(String *str)
   THD *thd= current_thd;
   LINT_INIT(js2);
 
+  JSON_DO_PAUSE_EXECUTION(thd, 0.0002);
+
   if (args[0]->null_value)
     goto null_return;
 
@@ -2838,6 +2871,8 @@ String *Item_func_json_merge_patch::val_str(String *str)
   bool empty_result, merge_to_null;
   THD *thd= current_thd;
 
+  JSON_DO_PAUSE_EXECUTION(thd, 0.0002);
+
   /* To report errors properly if some JSON is invalid. */
   je1.s.error= je2.s.error= 0;
   merge_to_null= args[0]->null_value;
@@ -3115,6 +3150,12 @@ String *Item_func_json_type::val_str(String *str)
     break;
   }
 
+  /* ensure the json is at least valid. */
+  while(json_scan_next(&je) == 0) {}
+
+  if (je.s.error)
+    goto error;
+
   str->set(type, strlen(type), &my_charset_utf8mb3_general_ci);
   return str;
 
@@ -3129,6 +3170,8 @@ bool Item_func_json_insert::fix_length_and_dec(THD *thd)
 {
   uint n_arg;
   ulonglong char_length;
+
+  JSON_DO_PAUSE_EXECUTION(thd, 0.0002);
 
   collation.set(args[0]->collation);
   char_length= args[0]->max_char_length();
@@ -3424,6 +3467,8 @@ String *Item_func_json_remove::val_str(String *str)
 
   DBUG_ASSERT(fixed());
 
+  JSON_DO_PAUSE_EXECUTION(thd, 0.0002);
+
   if (args[0]->null_value)
     goto null_return;
 
@@ -3475,6 +3520,7 @@ String *Item_func_json_remove::val_str(String *str)
     {
       if (je.s.error)
         goto js_error;
+      continue;
     }
 
     if (json_read_value(&je))

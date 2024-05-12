@@ -171,7 +171,6 @@ static MARIA_HA *maria_clone_internal(MARIA_SHARE *share,
   mysql_mutex_lock(&share->intern_lock);
   info.read_record= share->read_record;
   share->reopen++;
-  share->write_flag=MYF(MY_NABP | MY_WAIT_IF_FULL);
   if (share->options & HA_OPTION_READ_ONLY_DATA)
   {
     info.lock_type=F_RDLCK;
@@ -986,6 +985,7 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
       share->options|= HA_OPTION_READ_ONLY_DATA;
     share->is_log_table= FALSE;
 
+    share->write_flag=MYF(MY_NABP | MY_WAIT_IF_FULL);
     if (open_flags & HA_OPEN_TMP_TABLE || share->options & HA_OPTION_TMP_TABLE)
     {
       share->options|= HA_OPTION_TMP_TABLE;
@@ -1558,6 +1558,9 @@ uint _ma_state_info_write(MARIA_SHARE *share, uint pWrite)
      @retval 1      Error
 */
 
+/* Stack size 26376 from clang */
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 uint _ma_state_info_write_sub(File file, MARIA_STATE_INFO *state, uint pWrite)
 {
   uchar  buff[MARIA_STATE_INFO_SIZE + MARIA_STATE_EXTRA_SIZE];
@@ -1632,6 +1635,7 @@ uint _ma_state_info_write_sub(File file, MARIA_STATE_INFO *state, uint pWrite)
              MYF(MY_NABP));
   DBUG_RETURN(res != 0);
 }
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 
 static uchar *_ma_state_info_read(uchar *ptr, MARIA_STATE_INFO *state, myf flag)

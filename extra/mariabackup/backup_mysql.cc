@@ -67,7 +67,7 @@ Street, Fifth Floor, Boston, MA 02110-1335 USA
 #include "backup_debug.h"
 
 char *tool_name;
-char tool_args[2048];
+char tool_args[8192];
 
 ulong mysql_server_version;
 
@@ -1939,9 +1939,11 @@ char *make_argv(char *buf, size_t len, int argc, char **argv)
 		if (strncmp(*argv, "--password", strlen("--password")) == 0) {
 			arg = "--password=...";
 		}
-		left-= snprintf(buf + len - left, left,
+		uint l= snprintf(buf + len - left, left,
 				"%s%c", arg, argc > 1 ? ' ' : 0);
 		++argv; --argc;
+                if (l < left)
+                  left-= l;
 	}
 
 	return buf;

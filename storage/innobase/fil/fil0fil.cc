@@ -1231,9 +1231,6 @@ void fil_system_t::create(ulint hash_size)
 	ut_ad(!is_initialised());
 	ut_ad(!(srv_page_size % FSP_EXTENT_SIZE));
 	ut_ad(srv_page_size);
-	ut_ad(!spaces.array);
-
-	m_initialised = true;
 
 	compile_time_assert(!(UNIV_PAGE_SIZE_MAX % FSP_EXTENT_SIZE_MAX));
 	compile_time_assert(!(UNIV_PAGE_SIZE_MIN % FSP_EXTENT_SIZE_MIN));
@@ -1243,6 +1240,8 @@ void fil_system_t::create(ulint hash_size)
 	mysql_mutex_init(fil_system_mutex_key, &mutex, nullptr);
 
 	spaces.create(hash_size);
+
+	need_unflushed_spaces = !write_through && buf_dblwr.need_fsync();
 
 	fil_space_crypt_init();
 #ifdef __linux__
@@ -1317,13 +1316,12 @@ void fil_system_t::close()
 
   if (is_initialised())
   {
-    m_initialised= false;
     spaces.free();
     mysql_mutex_destroy(&mutex);
     fil_space_crypt_cleanup();
   }
 
-  ut_ad(!spaces.array);
+  ut_ad(!is_initialised());
 
 #ifdef __linux__
   ssd.clear();
@@ -1464,6 +1462,7 @@ void fil_system_t::set_write_through(bool write_through)
   {
     this->write_through= write_through;
     fil_space_t::reopen_all();
+    need_unflushed_spaces = !write_through && buf_dblwr.need_fsync();
   }
 
   mysql_mutex_unlock(&mutex);
@@ -2833,19 +2832,18 @@ static void fil_invalid_page_access_msg(const char *name,
 }
 
 /** Update the data structures on write completion */
-inline void fil_node_t::complete_write()
+void fil_space_t::complete_write()
 {
   mysql_mutex_assert_not_owner(&fil_system.mutex);
 
-  if (space->purpose != FIL_TYPE_TEMPORARY &&
-      (!fil_system.is_write_through() && !my_disable_sync) &&
-      space->set_needs_flush())
+  if (purpose != FIL_TYPE_TEMPORARY &&
+      fil_system.use_unflushed_spaces() && set_needs_flush())
   {
     mysql_mutex_lock(&fil_system.mutex);
-    if (!space->is_in_unflushed_spaces)
+    if (!is_in_unflushed_spaces)
     {
-      space->is_in_unflushed_spaces= true;
-      fil_system.unflushed_spaces.push_front(*space);
+      is_in_unflushed_spaces= true;
+      fil_system.unflushed_spaces.push_front(*this);
     }
     mysql_mutex_unlock(&fil_system.mutex);
   }
@@ -2945,7 +2943,7 @@ io_error:
 	if (!type.is_async()) {
 		if (type.is_write()) {
 release_sync_write:
-			node->complete_write();
+			complete_write();
 release:
 			release();
 			goto func_exit;
@@ -2965,21 +2963,28 @@ void IORequest::write_complete(int io_error) const
 {
   ut_ad(fil_validate_skip());
   ut_ad(node);
+  fil_space_t *space= node->space;
   ut_ad(is_write());
-  node->complete_write();
 
   if (!bpage)
   {
     ut_ad(!srv_read_only_mode);
     if (type == IORequest::DBLWR_BATCH)
+    {
       buf_dblwr.flush_buffered_writes_completed(*this);
+      /* Above, we already invoked os_file_flush() on the
+      doublewrite buffer if needed. */
+      goto func_exit;
+    }
     else
       ut_ad(type == IORequest::WRITE_ASYNC);
   }
   else
     buf_page_write_complete(*this, io_error);
 
-  node->space->release();
+  space->complete_write();
+ func_exit:
+  space->release();
 }
 
 void IORequest::read_complete(int io_error) const

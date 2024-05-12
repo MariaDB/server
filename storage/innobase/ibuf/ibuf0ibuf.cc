@@ -22,6 +22,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 Upgrade and removal of the InnoDB change buffer
 */
 
+#include <tuple>
 #include "ibuf0ibuf.h"
 #include "btr0sea.h"
 #include "btr0pcur.h"
@@ -256,7 +257,8 @@ func_exit:
 
   const uint32_t page_no= flst_get_last(PAGE_HEADER + PAGE_BTR_IBUF_FREE_LIST +
                                         root->page.frame).page;
-  if (page_no == FIL_NULL)
+
+  if (page_no == FIL_NULL || page_no >= fil_system.sys_space->free_limit)
   {
     mtr.set_modified(*root);
     fsp_init_file_page(fil_system.sys_space, root, &mtr);
@@ -288,7 +290,8 @@ func_exit:
       buf_page_get_gen(page_id_t{0, page_no}, 0, RW_X_LATCH, nullptr, BUF_GET,
                        &mtr, &err))
     err= flst_remove(root, PAGE_HEADER + PAGE_BTR_IBUF_FREE_LIST,
-                     block, PAGE_HEADER + PAGE_BTR_IBUF_FREE_LIST_NODE, &mtr);
+                     block, PAGE_HEADER + PAGE_BTR_IBUF_FREE_LIST_NODE,
+		     fil_system.sys_space->free_limit, &mtr);
 
   if (err == DB_SUCCESS)
     buf_page_free(fil_system.sys_space, page_no, &mtr);

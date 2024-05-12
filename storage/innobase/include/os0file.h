@@ -46,6 +46,18 @@ Created 10/21/1995 Heikki Tuuri
 #include <time.h>
 #endif /* !_WIN32 */
 
+/** The maximum size of a read or write request.
+
+According to Linux "man 2 read" and "man 2 write" this applies to
+both 32-bit and 64-bit systems.
+
+On FreeBSD, the limit is close to the Linux one, INT_MAX.
+
+On Microsoft Windows, the limit is UINT_MAX (4 GiB - 1).
+
+On other systems, the limit typically is up to SSIZE_T_MAX. */
+static constexpr unsigned os_file_request_size_max= 0x7ffff000;
+
 extern bool	os_has_said_disk_full;
 
 /** File offset in bytes */
@@ -185,10 +197,14 @@ public:
     WRITE_SYNC= 16,
     /** Asynchronous write */
     WRITE_ASYNC= WRITE_SYNC | 1,
+    /** Asynchronous doublewritten page */
+    WRITE_DBL= WRITE_ASYNC | 4,
     /** A doublewrite batch */
     DBLWR_BATCH= WRITE_ASYNC | 8,
     /** Write data and punch hole for the rest */
     PUNCH= WRITE_ASYNC | 16,
+    /** Write doublewritten data and punch hole for the rest */
+    PUNCH_DBL= PUNCH | 4,
     /** Zero out a range of bytes in fil_space_t::io() */
     PUNCH_RANGE= WRITE_SYNC | 32,
   };
@@ -204,6 +220,14 @@ public:
   bool is_read() const { return (type & READ_SYNC) != 0; }
   bool is_write() const { return (type & WRITE_SYNC) != 0; }
   bool is_async() const { return (type & (READ_SYNC ^ READ_ASYNC)) != 0; }
+  bool is_doublewritten() const { return (type & 4) != 0; }
+
+  /** Create a write request for the doublewrite buffer. */
+  IORequest doublewritten() const
+  {
+    ut_ad(type == WRITE_ASYNC || type == PUNCH);
+    return IORequest{bpage, slot, node, Type(type | 4)};
+  }
 
   void write_complete(int io_error) const;
   void read_complete(int io_error) const;

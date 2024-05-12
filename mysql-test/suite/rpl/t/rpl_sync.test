@@ -82,7 +82,7 @@ print FILE "failure";
 close ($file);
 EOF
 
---exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+--write_line restart $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
 SET SESSION debug_dbug="d,crash_before_rotate_relaylog";
 --error 2013
 FLUSH LOGS;
@@ -130,7 +130,7 @@ print FILE @content;
 close FILE;
 EOF
 
---exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+--write_line restart $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
 SET SESSION debug_dbug="d,crash_before_rotate_relaylog";
 --error 2013
 FLUSH LOGS;

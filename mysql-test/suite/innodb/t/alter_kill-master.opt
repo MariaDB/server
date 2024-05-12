@@ -1,1 +1,1 @@
---innodb-doublewrite=false
+--innodb-flush-method=O_DIRECT_NO_FSYNC --skip-innodb-doublewrite

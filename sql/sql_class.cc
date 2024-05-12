@@ -893,6 +893,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   prepare_derived_at_open= FALSE;
   create_tmp_table_for_derived= FALSE;
   save_prep_leaf_list= FALSE;
+  reset_sp_cache= false;
   org_charset= 0;
   /* Restore THR_THD */
   set_current_thd(old_THR_THD);
@@ -5382,14 +5383,38 @@ thd_rpl_deadlock_check(MYSQL_THD thd, MYSQL_THD other_thd)
     return 0;
   if (!rgi->is_parallel_exec)
     return 0;
-  if (rgi->rli != other_rgi->rli)
-    return 0;
-  if (!rgi->gtid_sub_id || !other_rgi->gtid_sub_id)
-    return 0;
-  if (rgi->current_gtid.domain_id != other_rgi->current_gtid.domain_id)
-    return 0;
-  if (rgi->gtid_sub_id > other_rgi->gtid_sub_id)
-    return 0;
+  if (rgi->rli == other_rgi->rli &&
+      rgi->current_gtid.domain_id == other_rgi->current_gtid.domain_id)
+  {
+    /*
+      Within the same master connection and domain, we can compare transaction
+      order on the GTID sub_id, and rollback the later transaction to allow the
+      earlier transaction to commit first.
+    */
+    if (!rgi->gtid_sub_id || !other_rgi->gtid_sub_id ||
+        rgi->gtid_sub_id > other_rgi->gtid_sub_id)
+      return 0;
+  }
+  else
+  {
+    /*
+      Lock conflicts between different master connections or domains should
+      usually not occur, but could still happen if user is running some
+      special setup that tolerates conflicting updates (or in case of user
+      error). We do not have a pre-defined ordering of transactions in this
+      case, but we still need to handle conflicts in _some_ way to avoid
+      undetected deadlocks and hangs.
+
+      We do this by rolling back and retrying any transaction that is being
+      _optimistically_ applied. This can be overly conservative in some cases,
+      but should be fine as conflicts between different master connections /
+      domains are not common. And it ensures that we won't end up in a
+      deadlock and hang due to a transaction doing wait_for_prior_commit while
+      holding locks that block something in another master connection.
+    */
+    if (other_rgi->speculation != rpl_group_info::SPECULATE_OPTIMISTIC)
+      return 0;
+  }
   if (rgi->finish_event_group_called || other_rgi->finish_event_group_called)
   {
     /*
@@ -8331,6 +8356,34 @@ wait_for_commit::unregister_wait_for_prior_commit2()
   wakeup_error= 0;
   mysql_mutex_unlock(&LOCK_wait_commit);
 }
+
+/*
+  Wait # seconds or until someone sends a signal (through kill)
+
+  Note that this must have same prototype as my_sleep_for_space()
+*/
+
+C_MODE_START
+
+void mariadb_sleep_for_space(unsigned int seconds)
+{
+  THD *thd= current_thd;
+  PSI_stage_info old_stage;
+  if (!thd)
+  {
+    sleep(seconds);
+    return;
+  }
+ mysql_mutex_lock(&thd->LOCK_wakeup_ready);
+  thd->ENTER_COND(&thd->COND_wakeup_ready, &thd->LOCK_wakeup_ready,
+                  &stage_waiting_for_disk_space, &old_stage);
+  if (!thd->killed)
+    mysql_cond_wait(&thd->COND_wakeup_ready, &thd->LOCK_wakeup_ready);
+  thd->EXIT_COND(&old_stage);
+  return;
+}
+
+C_MODE_END
 
 
 bool Discrete_intervals_list::append(ulonglong start, ulonglong val,

@@ -206,7 +206,6 @@ SET GLOBAL debug_dbug="+d,simulate_delay_semisync_slave_reply";
 --echo # Wait for thd to begin semi-sync wait..
 --let $wait_condition= SELECT COUNT(*) = 1 FROM information_schema.processlist WHERE state = 'Waiting for semi-sync ACK from slave'
 --source include/wait_condition.inc
---source include/wait_condition.inc
 --echo # ..done
 
 --disconnect con1
@@ -220,15 +219,10 @@ EOF
 SHUTDOWN WAIT FOR ALL SLAVES;
 --source include/wait_until_disconnected.inc
 
-# Run assert_grep on server_2 as it uses SQL commands for verification, but
-# server_1 has gone away
---connection server_2
---let $assert_text= Ensure the primary waited for the ACK of the killed thread
---let $assert_select= Delaying shutdown to await semi-sync ACK
---let $assert_file= $MYSQLTEST_VARDIR/log/mysqld.1.err
---let $assert_count= 5
---let $assert_only_after=CURRENT_TEST
---source include/assert_grep.inc
+--echo # Ensure the primary waited for the ACK of the killed thread
+--let $SEARCH_PATTERN= Delaying shutdown to await semi-sync ACK
+--let $SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err
+--source include/search_pattern_in_file.inc
 
 --connection default
 --source include/wait_until_disconnected.inc

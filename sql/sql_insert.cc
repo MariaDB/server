@@ -1951,14 +1951,31 @@ int write_record(THD *thd, TABLE *table, COPY_INFO *info, select_result *sink)
 	was used.  This ensures that we don't get a problem when the
 	whole range of the key has been used.
       */
-      if (info->handle_duplicates == DUP_REPLACE && table->next_number_field &&
+      if (info->handle_duplicates == DUP_REPLACE &&
           key_nr == table->s->next_number_index && insert_id_for_cur_row > 0)
 	goto err;
-      if (table->file->ha_table_flags() & HA_DUPLICATE_POS)
+      if (table->file->has_dup_ref())
       {
+        /*
+          If engine doesn't support HA_DUPLICATE_POS, the handler may init to
+          INDEX, but dup_ref could also be set by lookup_handled (and then,
+          lookup_errkey is set, f.ex. long unique duplicate).
+
+          In such case, handler would stay uninitialized, so do it here.
+         */
+        bool init_lookup_handler= table->file->lookup_errkey != (uint)-1 &&
+                                  table->file->inited == handler::NONE;
+        if (init_lookup_handler && table->file->ha_rnd_init_with_error(false))
+          goto err;
+
         DBUG_ASSERT(table->file->inited == handler::RND);
-	if (table->file->ha_rnd_pos(table->record[1],table->file->dup_ref))
-	  goto err;
+	int rnd_pos_err= table->file->ha_rnd_pos(table->record[1],
+                                                 table->file->dup_ref);
+
+        if (init_lookup_handler)
+          table->file->ha_rnd_end();
+        if (rnd_pos_err)
+          goto err;
       }
       else
       {
@@ -2401,7 +2418,7 @@ public:
     passed from connection thread to the handler thread.
   */
   MDL_request grl_protection;
-  Delayed_insert(SELECT_LEX *current_select)
+  Delayed_insert(LEX *lex)
     :locks_in_memory(0), thd(next_thread_id()),
      table(0),tables_in_use(0), stacked_inserts(0),
      status(0), retry(0), handler_thread_initialized(FALSE), group_count(0)
@@ -2414,8 +2431,9 @@ public:
     strmake_buf(thd.security_ctx->priv_user, thd.security_ctx->user);
     thd.current_tablenr=0;
     thd.set_command(COM_DELAYED_INSERT);
-    thd.lex->current_select= current_select;
-    thd.lex->sql_command= SQLCOM_INSERT;        // For innodb::store_lock()
+    thd.lex->current_select= lex->current_select;
+    thd.lex->sql_command= lex->sql_command;        // For innodb::store_lock()
+    thd.lex->duplicates= lex->duplicates;
     /*
       Prevent changes to global.lock_wait_timeout from affecting
       delayed insert threads as any timeouts in delayed inserts
@@ -2591,7 +2609,7 @@ bool delayed_get_table(THD *thd, MDL_request *grl_protection_request,
     */
     if (! (di= find_handler(thd, table_list)))
     {
-      if (!(di= new Delayed_insert(thd->lex->current_select)))
+      if (!(di= new Delayed_insert(thd->lex)))
         goto end_create;
 
       /*

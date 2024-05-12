@@ -3507,6 +3507,24 @@ bool Item_func_timediff::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzy
   if (l_time1.neg != l_time2.neg)
     l_sign= -l_sign;
 
+  if (l_time1.time_type == MYSQL_TIMESTAMP_TIME)
+  {
+    /*
+      In case of TIME-alike arguments:
+        TIMEDIFF('38:59:59', '839:00:00')
+      let's truncate extra fractional seconds that might appear if the argument
+      values were out of the supported TIME range. For example, args[n]->get_time()
+      for the string literal '839:00:00' returns TIME'838:59:59.999999'.
+      The fractional part must be truncated according to this->decimals,
+      to avoid returning more fractional seconds than it was detected
+      during this->fix_length_and_dec().
+      Note, the thd rounding mode should not be important here, as we're removing
+      redundant digits from the maximum possible value: '838:59:59.999999'.
+    */
+    my_time_trunc(&l_time1, decimals);
+    my_time_trunc(&l_time2, decimals);
+  }
+
   if (calc_time_diff(&l_time1, &l_time2, l_sign, &l_time3, fuzzydate))
     return (null_value= 1);
 

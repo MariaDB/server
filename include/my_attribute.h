@@ -70,5 +70,19 @@
 # endif /* GNUC >= 3.1 */
 #endif
 
+/* Define pragmas to disable warnings for stack frame checking */
 
+#if defined(__clang__)
+#define PRAGMA_DISABLE_CHECK_STACK_FRAME                     \
+_Pragma("clang diagnostic push")                             \
+_Pragma("clang diagnostic ignored \"-Wframe-larger-than=\"")
+
+#define PRAGMA_REENABLE_CHECK_STACK_FRAME                    \
+_Pragma("clang diagnostic pop")
+
+#else
+#define PRAGMA_DISABLE_CHECK_STACK_FRAME
+#define PRAGMA_REENABLE_CHECK_STACK_FRAME
 #endif
+
+#endif /* _my_attribute_h */
