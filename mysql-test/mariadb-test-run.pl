@@ -3103,6 +3103,7 @@ sub mysql_install_db {
   # starting from 10.0 bootstrap scripts require InnoDB
   mtr_add_arg($args, "--loose-innodb");
   mtr_add_arg($args, "--loose-innodb-log-file-size=10M");
+  mtr_add_arg($args, "--loose-innodb-fast-shutdown=0");
   mtr_add_arg($args, "--disable-sync-frm");
   mtr_add_arg($args, "--tmpdir=%s", "$opt_vardir/tmp/");
   mtr_add_arg($args, "--core-file");
