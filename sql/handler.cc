@@ -291,13 +291,20 @@ redo:
 }
 
 
+/*
+  Resolve the storage engine by name.
+
+  Succeed if the storage engine is found and initialised. Otherwise
+  fail if the sql mode contains NO_ENGINE_SUBSTITUTION.
+*/
 bool
 Storage_engine_name::resolve_storage_engine_with_error(THD *thd,
                                                        handlerton **ha,
                                                        bool tmp_table)
 {
-  if (plugin_ref plugin= ha_resolve_by_name(thd, &m_storage_engine_name,
-                                            tmp_table))
+  plugin_ref plugin;
+  if ((plugin= ha_resolve_by_name(thd, &m_storage_engine_name, tmp_table)) &&
+      (plugin_ref_to_int(plugin)->state == PLUGIN_IS_READY))
   {
     *ha= plugin_hton(plugin);
     return false;
