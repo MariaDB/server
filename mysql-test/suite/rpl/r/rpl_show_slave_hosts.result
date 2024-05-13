@@ -1,20 +1,504 @@
-include/master-slave.inc
-[connection master]
-connect  slave2,127.0.0.1,root,,test,$SLAVE_MYPORT2,;
-connection slave2;
-RESET SLAVE;
-CHANGE MASTER TO master_host='127.0.0.1',master_port=MASTER_PORT,master_user='root', master_ssl_verify_server_cert=0;
-START SLAVE IO_THREAD;
-include/wait_for_slave_io_to_start.inc
-connection master;
+include/rpl_init.inc [topology=1->2,1->3]
+connection server_1;
 SHOW SLAVE HOSTS;
-Server_id	Host	Port	Master_id
-3	slave2	SLAVE_PORT	1
-2	localhost	SLAVE_PORT	1
-connection slave2;
+Server_id	Host	Port	Master_id	Gtid_State_Sent	Gtid_State_Ack	Sync_Status
+2	localhost	SLAVE_PORT	1			Asynchronous
+3	slave2	SLAVE2_PORT	1			Asynchronous
+connection server_3;
 include/stop_slave_io.inc
-connection master;
+connection server_1;
 SHOW SLAVE HOSTS;
-Server_id	Host	Port	Master_id
-2	localhost	SLAVE_PORT	1
+Server_id	Host	Port	Master_id	Gtid_State_Sent	Gtid_State_Ack	Sync_Status
+2	localhost	SLAVE_PORT	1			Asynchronous
+#
+# MDEV-21322: report slave progress to the primary
+#
+#
+# 21322.0: Test case set-up
+#
+connection server_1;
+set sql_log_bin=0;
+call mtr.add_suppression("Got an error reading communication packets");
+call mtr.add_suppression("Semi-sync master failed on net_flush");
+call mtr.add_suppression("Could not read packet:.* vio_errno: 1158");
+call mtr.add_suppression("Could not write packet:.* vio_errno: 1160");
+set sql_log_bin=1;
+set @save_primary_dbug= @@global.debug_dbug;
+set @save_semisync_timeout= @@global.rpl_semi_sync_master_timeout;
+set @save_semisync_master_enabled= @@global.rpl_semi_sync_master_enabled;
+create table t1 (a int);
+connection server_2;
+set @save_s2_debug= @@GLOBAL.debug_dbug;
+set @save_semisync_server_2_enabled= @@global.rpl_semi_sync_master_enabled;
+set sql_log_bin=0;
+call mtr.add_suppression('Slave I/O: Relay log write failure: could not queue event from master.*');
+call mtr.add_suppression('Slave I/O: Replication event checksum verification failed while reading from network.*');
+call mtr.add_suppression('Replication event checksum verification failed');
+call mtr.add_suppression("Timeout waiting for reply of binlog*");
+call mtr.add_suppression('Found invalid event in binary log');
+call mtr.add_suppression('event read from binlog did not pass crc check');
+call mtr.add_suppression('Event crc check failed! Most likely there is event corruption');
+call mtr.add_suppression('Slave SQL: Error initializing relay log position: I/O error reading event at position .*, error.* 1593');
+call mtr.add_suppression("Semi-sync slave .* reply");
+set sql_log_bin=1;
+connection server_3;
+set @save_s3_debug= @@GLOBAL.debug_dbug;
+set @save_semisync_server_3_enabled= @@global.rpl_semi_sync_master_enabled;
+set sql_log_bin=0;
+call mtr.add_suppression('Slave I/O: Relay log write failure: could not queue event from master.*');
+call mtr.add_suppression('Slave I/O: Replication event checksum verification failed while reading from network.*');
+call mtr.add_suppression('Replication event checksum verification failed');
+call mtr.add_suppression("Timeout waiting for reply of binlog*");
+call mtr.add_suppression('Found invalid event in binary log');
+call mtr.add_suppression('event read from binlog did not pass crc check');
+call mtr.add_suppression('Event crc check failed! Most likely there is event corruption');
+call mtr.add_suppression('Slave SQL: Error initializing relay log position: I/O error reading event at position .*, error.* 1593');
+call mtr.add_suppression("Semi-sync slave .* reply");
+set sql_log_bin=1;
+connection server_1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+#
+# 21322.1: In a fresh replication state with semi-sync disabled,
+# the Sync_Status column should reflect an asynchronous replication
+# state, and Gtid_State_Sent/Ack should start, and only Gtid_State_Sent
+# should update with new transaction. Note only server_2 is currently
+# connected.
+#
+connection server_1;
+SHOW SLAVE HOSTS;
+Server_id	Host	Port	Master_id	Gtid_State_Sent	Gtid_State_Ack	Sync_Status
+2	localhost	SLAVE_PORT	1	0-1-1		Asynchronous
+insert into t1 values (1);
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+connection server_1;
+# Gtid_State_Sent should be updated for new transaction
+SHOW SLAVE HOSTS;
+Server_id	Host	Port	Master_id	Gtid_State_Sent	Gtid_State_Ack	Sync_Status
+2	localhost	SLAVE_PORT	1	0-1-2		Asynchronous
+#
+# 21322.2: When only the primary enables semi-sync, Sync_Status should
+# still be asynchronous
+#
+connection server_1;
+set global rpl_semi_sync_master_enabled= 1;
+show variables like 'rpl_semi_sync_master_enabled';
+Variable_name	Value
+rpl_semi_sync_master_enabled	ON
+SHOW SLAVE HOSTS;
+Server_id	Host	Port	Master_id	Gtid_State_Sent	Gtid_State_Ack	Sync_Status
+2	localhost	SLAVE_PORT	1	0-1-2		Asynchronous
+#
+# 21322.3: Finalizing the semi-sync connection on server_2 (i.e. by
+# enabling it on the slave) should update Sync_Status to semi-sync
+# active, as the slave is up-to-date.
+#
+connection server_2;
+include/stop_slave.inc
+set global rpl_semi_sync_slave_enabled = 1;
+include/start_slave.inc
+connection server_1;
+SHOW REPLICA HOSTS;
+Server_id	Host	Port	Master_id	Gtid_State_Sent	Gtid_State_Ack	Sync_Status
+2	localhost	SLAVE_PORT	1			Semi-sync Active
+#
+# 21322.4: After new semi-sync transactions are ACKed,
+# Gtid_State_Sent/Ack should match gtid_binlog_pos, and Sync_Status
+# should read that semi-sync is active
+#
+connection server_1;
+insert into t1 values (2);
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+connection server_1;
+# Ensuring master gtid_binlog_pos matches Gtid_State_Sent
+# Ensuring master gtid_binlog_pos matches Gtid_State_Ack
+# Ensuring Sync_Status is semi-sync active
+SHOW REPLICA HOSTS;
+Server_id	Host	Port	Master_id	Gtid_State_Sent	Gtid_State_Ack	Sync_Status
+2	localhost	SLAVE_PORT	1	0-1-3	0-1-3	Semi-sync Active
+#
+# 21322.5: When connecting a new slave (server_id 3) which initially has
+# semi-sync disabled, SHOW SLAVE HOSTS on the master should show its
+# Sync_Status as asynchronous (while server_id 2 is still semi-sync
+# active).
+#
+connection server_3;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+connection server_1;
+SHOW REPLICA HOSTS;
+Server_id	Host	Port	Master_id	Gtid_State_Sent	Gtid_State_Ack	Sync_Status
+3	slave2	SLAVE2_PORT	1	0-1-3		Asynchronous
+2	localhost	SLAVE_PORT	1	0-1-3	0-1-3	Semi-sync Active
+#
+# 21322.6: Reconnecting server_3 as a semi-sync enabled replica should
+# result in a Sync_Status reflecting active semi-sync
+#
+connection server_3;
+include/stop_slave.inc
+set global rpl_semi_sync_slave_enabled = 1;
+include/start_slave.inc
+connection server_1;
+show status like 'Rpl_semi_sync_master_clients';
+Variable_name	Value
+Rpl_semi_sync_master_clients	2
+SHOW REPLICA HOSTS;
+Server_id	Host	Port	Master_id	Gtid_State_Sent	Gtid_State_Ack	Sync_Status
+3	slave2	SLAVE2_PORT	1			Semi-sync Active
+2	localhost	SLAVE_PORT	1	0-1-3	0-1-3	Semi-sync Active
+#
+# 21322.7: New transactions on the master should update Gtid_State_Sent
+# when sent to the slave, and Gtid_State_Ack once receiving an ACK
+#
+connection server_2;
+connection server_1;
+SET @@GLOBAL.debug_dbug="+d,pause_ack_thread_on_next_ack";
+connection default;
+insert into t1 values (3);
+connection server_1;
+# waiting for pause_ack_reply_to_binlog
+SET debug_sync='now WAIT_FOR pause_ack_reply_to_binlog';
+# Waiting for Gtid_State_Sent to reflect latest transaction for all replicas..
+# Ensuring Gtid_State_Ack is not yet updated (as ACK thread is paused)
+SHOW REPLICA HOSTS;
+Server_id	Host	Port	Master_id	Gtid_State_Sent	Gtid_State_Ack	Sync_Status
+3	slave2	SLAVE2_PORT	1	0-1-4		Semi-sync Active
+2	localhost	SLAVE_PORT	1	0-1-4	0-1-3	Semi-sync Active
+connection server_1;
+SET debug_sync='now SIGNAL resume_ack_thread';
+connection default;
+connection server_1;
+# Waiting for Gtid_State_Ack to reflect latest transaction for all replicas..
+SHOW REPLICA HOSTS;
+Server_id	Host	Port	Master_id	Gtid_State_Sent	Gtid_State_Ack	Sync_Status
+3	slave2	SLAVE2_PORT	1	NEW_GTID	NEW_GTID	Semi-sync Active
+2	localhost	SLAVE_PORT	1	NEW_GTID	NEW_GTID	Semi-sync Active
+# Reset debug state
+SET @@GLOBAL.debug_dbug= @save_primary_dbug;
+SET debug_sync='RESET';
+#
+# 21322.8: Holding one replica's ACK (server_2) should result in
+# Gtid_State_Ack of server_3 updating to the most recent GTID, while
+# server_id 2 has the old GTID. Note that we need to use debug_sync to
+# synchronize the ACKs of both server_2 and server_3, so server_3 can't
+# ACK the transaction before server_2's binlog dump thread sends the
+# transaction (which would negate the need for server_2 to ACK at all,
+# resulting in MTR hanging on its expected debug_sync WAIT_FOR point.)
+#
+connection server_2;
+include/stop_slave.inc
+set @@GLOBAL.debug_dbug="+d,synchronize_semisync_slave_reply";
+include/start_slave.inc
+connection server_3;
+include/stop_slave.inc
+set @@GLOBAL.debug_dbug="+d,synchronize_semisync_slave_reply";
+include/start_slave.inc
+connection server_1;
+# Waiting for master to recognize slave restart..
+insert into t1 values (4);
+connection server_2;
+set debug_sync= "now WAIT_FOR at_slave_reply";
+connection server_3;
+set debug_sync= "now WAIT_FOR at_slave_reply";
+connection default;
+# Ensure Gtid_State_Sent reflects latest transaction (0-1-5) for all replicas..
+connection server_3;
+set debug_sync= "now SIGNAL reply_ack_to_master";
+connection server_1;
+# Wait for Gtid_State_Ack to show the latest transaction for server_3..
+# Only server_3 should have the new GTID, server_2 should not due to debug_sync holding off the ACK
+SHOW REPLICA HOSTS;
+Server_id	Host	Port	Master_id	Gtid_State_Sent	Gtid_State_Ack	Sync_Status
+3	slave2	SLAVE2_PORT	1	NEW_GTID	NEW_GTID	Semi-sync Active
+2	localhost	SLAVE_PORT	1	NEW_GTID		Semi-sync Active
+connection server_2;
+# Resume slave so it can ACK the transaction
+set debug_sync= "now SIGNAL reply_ack_to_master";
+# Waiting for Gtid_State_Ack to reflect latest transaction for all replicas..
+connection server_1;
+SHOW REPLICA HOSTS;
+Server_id	Host	Port	Master_id	Gtid_State_Sent	Gtid_State_Ack	Sync_Status
+3	slave2	SLAVE2_PORT	1	NEW_GTID	NEW_GTID	Semi-sync Active
+2	localhost	SLAVE_PORT	1	NEW_GTID	NEW_GTID	Semi-sync Active
+connection server_2;
+include/stop_slave.inc
+set @@GLOBAL.debug_dbug= @save_s2_debug;
+SET debug_sync='RESET';
+include/start_slave.inc
+connection server_3;
+include/stop_slave.inc
+set @@GLOBAL.debug_dbug= @save_s3_debug;
+SET debug_sync='RESET';
+include/start_slave.inc
+connection server_1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+#
+# 21322.9: If a server is behind when connecting to a primary (i.e. the
+# primary has newer transactions), the replica Sync_Status should
+# present as semi-sync stale and the Gtid_State_Ack should not populate
+# until it has reached Semi-Sync Active
+#
+connection server_2;
+include/stop_slave.inc
+connection server_1;
+insert into t1 values (5);
+include/save_master_gtid.inc
+# Pause dump_thread of server_2 (server_3 won't be affected as it has
+# already successfully ACKed the new transaction)
+set @@global.debug_dbug= "+d,pause_dump_thread_after_sending_next_full_trx";
+connection server_2;
+include/start_slave.inc
+connection server_1;
+set debug_sync= 'now WAIT_FOR dump_thread_paused';
+# Ensure Gtid_State_Sent is updated to represent new transaction has
+# been sent to both replicas
+# Ensure Sync_Status is Semi-sync Stale for the debug_sync held dump
+# thread, as it hasn't yet got "up-to-date"
+set debug_sync= 'now SIGNAL dump_thread_continue';
+# Ensure Sync_Status will automatically update to Semi-sync Active
+# once the last stale transaction has finished sending
+set @@global.debug_dbug= @save_primary_dbug;
+SET debug_sync='RESET';
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+#
+# 21322.10a: If one replica errors (i.e. server_2 by injecting
+# corrupt_queue_event with debug_dbug), it shouldn't send its ACK,
+# and server_3 does ACK; then Gtid_State_Sent should still reflect the
+# new transaction for each replica, but Gtid_State_Ack should only be
+# updated by the successful transaction. When the errored replica
+# reconnects, it shouldn't ACK the transaction, so its on-reconnect
+# Gtid_State_Ack value should be empty, but still have a Sync_Status
+# of "Semi-sync Active" when it receives the latest transaction, as it
+# will be ready to ACK new transactions going forward.
+#
+connection server_2;
+include/stop_slave.inc
+SET @@GLOBAL.debug_dbug= "+d,corrupt_gtid_event";
+include/start_slave.inc
+# Set-up server_3 for 10b (so we don't have to restart the slave)
+connection server_3;
+include/stop_slave.inc
+set @@GLOBAL.debug_dbug="+d,synchronize_semisync_slave_reply";
+include/start_slave.inc
+connection server_1;
+# Waiting for master to recognize slave restarts..
+connection server_1;
+insert into t1 values (6);
+# Debug_sync is irrelevant to this testcase (10a) but we must do it to
+# allow server_3 to ACK now (Note debug_sync is needed for 10b)
+connection server_3;
+set debug_sync= "now WAIT_FOR at_slave_reply";
+set debug_sync= "now SIGNAL reply_ack_to_master";
+connection server_1;
+include/save_master_gtid.inc
+# Waiting for Gtid_State_Sent to reflect latest transaction for all replicas..
+connection server_2;
+include/wait_for_slave_io_error.inc [errno=1595]
+set @@GLOBAL.debug_dbug= @save_s2_debug;
+connection server_1;
+# Only server_3 should have the new GTID, server_2 should not due to corrupt_queue_event
+SHOW REPLICA HOSTS;
+Server_id	Host	Port	Master_id	Gtid_State_Sent	Gtid_State_Ack	Sync_Status
+3	slave2	SLAVE2_PORT	1	NEW_GTID	NEW_GTID	Semi-sync Active
+2	localhost	SLAVE_PORT	1	NEW_GTID		Semi-sync Active
+connection server_2;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+connection server_1;
+# With replica restarted/synced, its Gtid_State_Ack should be empty with Sync_Status semi-sync active
+SHOW REPLICA HOSTS;
+Server_id	Host	Port	Master_id	Gtid_State_Sent	Gtid_State_Ack	Sync_Status
+2	localhost	SLAVE_PORT	1	0-1-7		Semi-sync Active
+3	slave2	SLAVE2_PORT	1	0-1-7	0-1-7	Semi-sync Active
+#
+# 21322.10b: Succeeding the previous 10a test, if server_3 now stalls
+# (i.e. using debug_sync), then the previously errored server_2 should
+# receive and ACK new transactions as a "lone" replica, and update its
+# Gtid_State_* columns appropriately, whereas server_3's Gtid_State_Ack
+# column should not be updated.
+#
+insert into t1 values (7);
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+# Waiting for Gtid_State_Sent to reflect latest transaction for all replicas..
+connection server_3;
+set debug_sync= "now WAIT_FOR at_slave_reply";
+connection server_1;
+# Only server_2 should have the new GTID ACKed, server_3 should not due to stall
+SHOW REPLICA HOSTS;
+Server_id	Host	Port	Master_id	Gtid_State_Sent	Gtid_State_Ack	Sync_Status
+2	localhost	SLAVE_PORT	1	NEW_GTID	NEW_GTID	Semi-sync Active
+3	slave2	SLAVE2_PORT	1	NEW_GTID	OLD_GTID	Semi-sync Active
+# Resume server_3
+connection server_3;
+set debug_sync= "now SIGNAL reply_ack_to_master";
+include/sync_with_master_gtid.inc
+SET debug_sync='RESET';
+include/stop_slave.inc
+set @@GLOBAL.debug_dbug= @save_s3_debug;
+SET debug_sync='RESET';
+include/start_slave.inc
+#
+# 21322.11: Configuration rpl_semi_sync_master_timeout of 0 should
+# have transaction behavior match asynchronous behavior (i.e. trxs don't
+# need to wait for ACKs), yet the slave should still send ACKs as a
+# normal semi-sync replica, and Gtid_State_Ack should still be updated
+# accordingly.
+#
+#  The actual behavior tested in this case is as follows:
+# a) Transactions won't await ACKs to complete
+# b) Semi-sync remains ON when a transaction completes without an ACK
+# c) Gtid_State_Ack is updated accordingly for each replica's ACK (even
+#    when it is behind). Here, we hold both replicas using DEBUG_SYNC to
+#    not send their ACKs, meanwhile, we continue creating transactions
+#    on the primary.
+# d) If a "very lagged" replica sends an ACK for a transaction from a
+#    purged binlog, the Gtid_State_Ack value should be updated to
+#    "UNKNOWN", with an error message stating its binlog coordinate
+#    (i.e. filename and position).
+#
+connection server_1;
+set global rpl_semi_sync_master_timeout=0;
+connection server_2;
+include/stop_slave.inc
+SET @@GLOBAL.DEBUG_DBUG="+d,synchronize_semisync_slave_reply";
+include/start_slave.inc
+connection server_3;
+include/stop_slave.inc
+SET @@GLOBAL.DEBUG_DBUG="+d,synchronize_semisync_slave_reply";
+include/start_slave.inc
+connection server_1;
+# Waiting for master to recognize slave restarts..
+#
+# 21322.11.a
+connection server_1;
+insert into t1 values (8);
+# Waiting for Gtid_State_Sent to reflect latest transaction for all replicas..
+connection server_2;
+SET debug_sync='now WAIT_FOR at_slave_reply';
+connection server_3;
+SET debug_sync='now WAIT_FOR at_slave_reply';
+# Gtid_State_Ack should be empty for both replicas (as they were restarted)..
+#
+# 21322.11.b
+connection server_1;
+# Ensuring semi-sync status on primary is correct..
+#
+# 21322.11.c
+connection server_1;
+insert into t1 values (9);
+include/save_master_gtid.inc
+# Waiting for Gtid_State_Sent to reflect latest transaction for all replicas..
+connection server_1;
+# server_2 and 3 should both show an empty ACK state
+SHOW REPLICA HOSTS;
+Server_id	Host	Port	Master_id	Gtid_State_Sent	Gtid_State_Ack	Sync_Status
+3	slave2	SLAVE2_PORT	1	TRX2_GTID		Semi-sync Active
+2	localhost	SLAVE_PORT	1	TRX2_GTID		Semi-sync Active
+# Let server_2 ACK just the first transaction
+connection server_2;
+set debug_sync= "now SIGNAL reply_ack_to_master";
+set debug_sync= "now WAIT_FOR at_slave_reply";
+connection server_1;
+# Waiting for server_2 Gtid_State_Ack to reflect first transaction
+# Let server_2 ACK the second transaction
+connection server_2;
+set debug_sync= "now SIGNAL reply_ack_to_master";
+include/sync_with_master_gtid.inc
+connection server_1;
+# Waiting for server_2 Gtid_State_Ack to reflect second transaction
+# Let server_3 now ACK the first transaction
+connection server_3;
+set debug_sync= "now SIGNAL reply_ack_to_master";
+set debug_sync= "now WAIT_FOR at_slave_reply";
+connection server_1;
+# Waiting for server_3 Gtid_State_Ack to reflect first transaction
+# Let server_3 ACK the second transaction
+connection server_3;
+set debug_sync= "now SIGNAL reply_ack_to_master";
+include/sync_with_master_gtid.inc
+connection server_1;
+# Waiting for Gtid_State_Ack to reflect second transaction for both servers
+#
+# 21322.11.d
+connection server_1;
+FLUSH LOGS;
+insert into t1 values (10);
+include/save_master_gtid.inc
+# Waiting for Gtid_State_Sent to reflect latest transaction for all replicas..
+connection server_2;
+set debug_sync= "now WAIT_FOR at_slave_reply";
+connection server_3;
+set debug_sync= "now WAIT_FOR at_slave_reply";
+connection server_1;
+# server_2 and 3 should both show ACKed TRX2 (with TRX3 Sent)
+SHOW REPLICA HOSTS;
+Server_id	Host	Port	Master_id	Gtid_State_Sent	Gtid_State_Ack	Sync_Status
+3	slave2	SLAVE2_PORT	1	TRX3_GTID	TRX2_GTID	Semi-sync Active
+2	localhost	SLAVE_PORT	1	TRX3_GTID	TRX2_GTID	Semi-sync Active
+include/wait_for_purge.inc "master-bin.000002"
+# Master should warn that the binary log which contains the last ACKed
+# binlog coordinates has been purged, and clear Gtid_State_Ack
+SHOW REPLICA HOSTS;
+Server_id	Host	Port	Master_id	Gtid_State_Sent	Gtid_State_Ack	Sync_Status
+3	slave2	SLAVE2_PORT	1	TRX3_GTID		Semi-sync Active
+2	localhost	SLAVE_PORT	1	TRX3_GTID		Semi-sync Active
+Warnings:
+Warning	4200	Error constructing GTID state for binlog position TRX2_BINLOG_POS in file 'TRX2_BINLOG_FILE': Could not find binary log file. Probably the slave state is too old and required binlog files have been purged.
+Warning	4200	Error constructing GTID state for binlog position TRX2_BINLOG_POS in file 'TRX2_BINLOG_FILE': Could not find binary log file. Probably the slave state is too old and required binlog files have been purged.
+# Let servers ACK new transaction
+connection server_2;
+set debug_sync= "now SIGNAL reply_ack_to_master";
+connection server_3;
+set debug_sync= "now SIGNAL reply_ack_to_master";
+connection server_1;
+# Waiting for Gtid_State_Ack to reflect latest transaction for all replicas..
+# Gtid_State_Ack should now show the latest transaction GTID
+SHOW REPLICA HOSTS;
+Server_id	Host	Port	Master_id	Gtid_State_Sent	Gtid_State_Ack	Sync_Status
+3	slave2	SLAVE2_PORT	1	TRX3_GTID	TRX3_GTID	Semi-sync Active
+2	localhost	SLAVE_PORT	1	TRX3_GTID	TRX3_GTID	Semi-sync Active
+connection server_2;
+include/sync_with_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+#
+# MDEV-21322 Cleanup
+connection server_1;
+set @@global.debug_dbug= @save_primary_dbug;
+set @@global.rpl_semi_sync_master_timeout= @save_semisync_timeout;
+set @@global.rpl_semi_sync_master_enabled= @save_semisync_master_enabled;
+drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+set @@global.rpl_semi_sync_slave_enabled= @save_semisync_server_2_enabled;
+SET @@GLOBAL.debug_dbug= "";
+SET debug_sync='RESET';
+include/start_slave.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+set @@global.rpl_semi_sync_slave_enabled= @save_semisync_server_3_enabled;
+SET @@GLOBAL.debug_dbug= "";
+SET debug_sync='RESET';
+include/start_slave.inc
+#
+# End of MDEV-21322 tests
+#
 include/rpl_end.inc

@@ -1830,18 +1830,26 @@ end:
   return errormsg;
 }
 
-
-int
-gtid_state_from_binlog_pos(const char *in_name, uint32 pos, String *out_str)
+int gtid_state_from_binlog_pos(const char *in_name, uint32 pos,
+                               String *out_str, const char **out_err)
 {
   slave_connection_state gtid_state;
   const char *lookup_name;
   char name_buf[FN_REFLEN];
   LOG_INFO linfo;
+  const char *dummy_err;
+  const char **err_save;
+  int find_err= 0;
+
+  if (out_err)
+    err_save= out_err;
+  else
+    err_save= &dummy_err;
 
   if (!mysql_bin_log.is_open())
   {
     my_error(ER_NO_BINARY_LOGGING, MYF(0));
+    *err_save= "Binary logging is disabled.";
     return 1;
   }
 
@@ -1853,15 +1861,27 @@ gtid_state_from_binlog_pos(const char *in_name, uint32 pos, String *out_str)
   else
     lookup_name= NULL;
   linfo.index_file_offset= 0;
-  if (mysql_bin_log.find_log_pos(&linfo, lookup_name, 1))
+  if ((find_err= mysql_bin_log.find_log_pos(&linfo, lookup_name, 1)))
+  {
+    if (find_err == LOG_INFO_EOF)
+      *err_save= "Could not find binary log file. Probably the slave state is "
+                 "too old and required binlog files have been purged.";
+    else
+      *err_save= "Error reading index file.";
     return 1;
+  }
 
   if (pos < 4)
     pos= 4;
 
-  if (gtid_state_from_pos(linfo.log_file_name, pos, &gtid_state) ||
+  if ((*err_save=
+           gtid_state_from_pos(linfo.log_file_name, pos, &gtid_state)) ||
       gtid_state.to_string(out_str))
+  {
+    if (!*err_save)
+      *err_save= "Failed converting GTID state to string representation.";
     return 1;
+  }
   return 0;
 }
 
@@ -2271,6 +2291,30 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
     info->error= ER_UNKNOWN_ERROR;
     return "Failed to run hook 'after_send_event'";
   }
+
+  if (info->thd->slave_info)
+  {
+    strncpy(info->thd->slave_info->gtid_state_sent.log_file,
+            info->log_file_name + info->dirlen,
+            strlen(info->log_file_name) - info->dirlen);
+    info->thd->slave_info->gtid_state_sent.log_pos= pos;
+  }
+
+#ifdef ENABLED_DEBUG_SYNC
+  DBUG_EXECUTE_IF("pause_dump_thread_after_sending_next_full_trx", {
+    if (event_type == XID_EVENT ||
+        (event_type == QUERY_EVENT &&
+         Query_log_event::peek_is_commit_rollback(
+             (uchar *) packet->ptr() + ev_offset, len - ev_offset,
+             current_checksum_alg)))
+    {
+      DBUG_ASSERT(!debug_sync_set_action(
+          info->thd, STRING_WITH_LEN("now SIGNAL dump_thread_paused "
+                                     "WAIT_FOR dump_thread_continue")));
+      DBUG_SET("-d,pause_dump_thread_after_sending_next_full_trx");
+    }
+  });
+#endif
 
   return NULL;    /* Success */
 }
@@ -2753,6 +2797,10 @@ static int wait_new_events(binlog_send_info *info,         /* in */
       break;
     }
 
+    if (info->thd->semi_sync_slave)
+      info->thd->slave_info->sync_status=
+          Slave_info::SYNC_STATE_SEMI_SYNC_ACTIVE;
+
     if (info->heartbeat_period)
     {
       struct timespec ts;
@@ -3086,6 +3134,14 @@ void mysql_binlog_send(THD* thd, char* log_ident, my_off_t pos,
 
   /* Check if the dump thread is created by a slave with semisync enabled. */
   thd->semi_sync_slave = is_semi_sync_slave();
+
+  /*
+    If the slave is not set up for a semi-sync connection, we can tag it
+    immediately as asynchronous. Otherwise, we need to wait and see if the
+    replica is up-to-date or not to mark semi-sync active vs stale.
+  */
+  if (thd->slave_info && !thd->semi_sync_slave)
+    thd->slave_info->sync_status= Slave_info::SYNC_STATE_ASYNCHRONOUS;
 
   DBUG_ASSERT(pos == linfo.pos);
 

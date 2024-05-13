@@ -12280,3 +12280,5 @@ ER_SEQUENCE_TABLE_CANNOT_HAVE_ANY_CONSTRAINTS
         eng "Sequence tables cannot have any constraints"
 ER_SEQUENCE_TABLE_ORDER_BY
         eng "ORDER BY"
+ER_MASTER_CANNOT_RECONSTRUCT_GTID_STATE_FOR_BINLOG_POS
+        eng "Error constructing GTID state for binlog position %u in file '%s': %s"

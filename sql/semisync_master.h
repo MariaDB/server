@@ -28,6 +28,91 @@ extern PSI_mutex_key key_LOCK_binlog;
 extern PSI_cond_key key_COND_binlog_send;
 #endif
 
+
+/*
+  structure to save transaction log filename and position
+*/
+typedef struct Trans_binlog_info {
+  my_off_t log_pos;
+  char log_file[FN_REFLEN];
+} Trans_binlog_info;
+
+
+struct Slave_info
+{
+public:
+  enum synchronization_status {
+    /*
+      Binlog dump thread is initializing, we don't yet know the synchronization
+      status
+    */
+    SYNC_STATE_INITIALIZING,
+
+    /*
+      Slave is asynchronous, so Gtid_State_Ack will not be updated
+    */
+    SYNC_STATE_ASYNCHRONOUS,
+
+    /*
+      Slave is configured for semi-sync, but connected with an old state, and
+      is catching up now
+    */
+    SYNC_STATE_SEMI_SYNC_STALE,
+
+    /*
+      Slave is configured for semi-sync, and is readily ACKing new transactions
+    */
+    SYNC_STATE_SEMI_SYNC_ACTIVE
+  };
+
+  uint32 server_id;
+  uint32 master_id;
+  char host[HOSTNAME_LENGTH*SYSTEM_CHARSET_MBMAXLEN+1];
+  char user[USERNAME_LENGTH+1];
+  char password[MAX_PASSWORD_LENGTH*SYSTEM_CHARSET_MBMAXLEN+1];
+  uint16 port;
+
+  /*
+    Binlog file:pos of the last transaction sent to this replica. Used to infer
+    Gtid_State_Sent in SHOW REPLICA HOSTS. Used for both asynchronous and
+    semi-sync connections.
+  */
+  Trans_binlog_info gtid_state_sent;
+
+  /*
+    If replica is configured for semi-sync, the binlog file:pos of the last
+    transaction ACKed by this replica. Used to infer Gtid_State_Ack in
+    SHOW REPLICA HOSTS.
+  */
+  Trans_binlog_info gtid_state_ack;
+
+  /*
+    Sync_Status of SHOW REPLICA HOSTS.
+  */
+  synchronization_status sync_status;
+
+  const char *get_sync_status_str() const
+  {
+    const char *ret;
+    switch (sync_status)
+    {
+      case SYNC_STATE_INITIALIZING:
+        ret= "Initializing";
+        break;
+      case SYNC_STATE_ASYNCHRONOUS:
+        ret= "Asynchronous";
+        break;
+      case SYNC_STATE_SEMI_SYNC_STALE:
+        ret= "Semi-sync Stale";
+        break;
+      default:
+        ret= "Semi-sync Active";
+    }
+    return ret;
+  }
+};
+
+
 struct Tranx_node {
   char              log_name[FN_REFLEN];
   my_off_t          log_pos;
@@ -561,14 +646,14 @@ class Repl_semi_sync_master
   void remove_slave();
 
   /* It parses a reply packet and call report_reply_binlog to handle it. */
-  int report_reply_packet(uint32 server_id, const uchar *packet,
-                        ulong packet_len);
+  int report_reply_packet(Slave_info *slave_info, const uchar *packet,
+                          ulong packet_len);
 
   /* In semi-sync replication, reports up to which binlog position we have
    * received replies from the slave indicating that it already get the events.
    *
    * Input:
-   *  server_id     - (IN)  master server id number
+   *  slave_info    - (IN)  info of the slave which sent the ACK
    *  log_file_name - (IN)  binlog file name
    *  end_offset    - (IN)  the offset in the binlog file up to which we have
    *                        the replies from the slave
@@ -576,7 +661,7 @@ class Repl_semi_sync_master
    * Return:
    *  0: success;  non-zero: error
    */
-  int report_reply_binlog(uint32 server_id,
+  int report_reply_binlog(Slave_info *slave_info,
                           const char* log_file_name,
                           my_off_t end_offset);
 

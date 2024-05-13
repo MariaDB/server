@@ -16,6 +16,7 @@
 #include <my_global.h>
 #include "semisync_master.h"
 #include "semisync_master_ack_receiver.h"
+#include "debug_sync.h"
 
 #ifdef HAVE_PSI_MUTEX_INTERFACE
 extern PSI_mutex_key key_LOCK_ack_receiver;
@@ -353,7 +354,20 @@ void Ack_receiver::run()
         if (likely(len != packet_error))
         {
           int res;
-          res= repl_semisync_master.report_reply_packet(slave->server_id(),
+#ifdef ENABLED_DEBUG_SYNC
+          /*
+            A (+d,pause_ack_thread_on_next_ack)-test is supposed to
+            be run to check `Gtid_state_ack` in show replica hosts
+            for cases where there are multiple active replicas.
+          */
+          DBUG_EXECUTE_IF("pause_ack_thread_on_next_ack",
+            {
+              const char act[]= "now SIGNAL pause_ack_reply_to_binlog WAIT_FOR resume_ack_thread";
+              DBUG_ASSERT(!debug_sync_set_action(thd, STRING_WITH_LEN(act)));
+              DBUG_SET("-d,pause_ack_thread_on_next_ack");
+            };);
+#endif
+          res= repl_semisync_master.report_reply_packet(slave->thd->slave_info,
                                                         net.read_pos, len);
           if (unlikely(res < 0))
           {
