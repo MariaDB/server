@@ -249,18 +249,23 @@ extern "C" my_bool wsrep_thd_skip_locking(const THD *thd)
 
 extern "C" my_bool wsrep_thd_order_before(const THD *left, const THD *right)
 {
-  if (wsrep_thd_is_BF(left, false) &&
-      wsrep_thd_is_BF(right, false) &&
-      wsrep_thd_trx_seqno(left) < wsrep_thd_trx_seqno(right)) {
-    WSREP_DEBUG("BF conflict, order: %lld %lld\n",
-                (long long)wsrep_thd_trx_seqno(left),
-                (long long)wsrep_thd_trx_seqno(right));
-    return TRUE;
-  }
-  WSREP_DEBUG("waiting for BF, trx order: %lld %lld\n",
-              (long long)wsrep_thd_trx_seqno(left),
-              (long long)wsrep_thd_trx_seqno(right));
-  return FALSE;
+  my_bool before= (wsrep_thd_is_BF(left, false) &&
+                   wsrep_thd_is_BF(right, false) &&
+                   wsrep_thd_trx_seqno(left) < wsrep_thd_trx_seqno(right));
+
+  WSREP_DEBUG("wsrep_thd_order_before: %s thread=%llu seqno=%llu query=%s "
+              "%s %s thread=%llu, seqno=%llu query=%s",
+              (wsrep_thd_is_BF(left, false) ? "BF" : "def"),
+              thd_get_thread_id(left),
+              wsrep_thd_trx_seqno(left),
+              wsrep_thd_query(left),
+              (before ? " TRUE " : " FALSE "),
+              (wsrep_thd_is_BF(right, false) ? "BF" : "def"),
+              thd_get_thread_id(right),
+              wsrep_thd_trx_seqno(right),
+              wsrep_thd_query(right));
+
+  return before;
 }
 
 /** Check if wsrep transaction is aborting state.
