@@ -34,7 +34,7 @@ connection server_2;
 LOCK TABLES t1 WRITE;
 include/start_slave.inc
 connection slave;
-# Waiting for replica to resume the delay for the transaction
+# Waiting for replica to get blocked by the table lock
 # Sleeping 1s to increment SBM
 # Ensuring Seconds_Behind_Master increases after sleeping..
 # ..done

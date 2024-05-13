@@ -201,7 +201,7 @@ bool trx_rseg_read_wsrep_checkpoint(const buf_block_t *rseg_header, XID &xid)
 	memcpy(xid.data, TRX_RSEG + TRX_RSEG_WSREP_XID_DATA
 	       + rseg_header->page.frame, XIDDATASIZE);
 
-	return true;
+	return wsrep_is_wsrep_xid(&xid);
 }
 
 /** Read the WSREP XID from the TRX_SYS page (in case of upgrade).
@@ -237,7 +237,8 @@ static bool trx_rseg_init_wsrep_xid(const page_t* page, XID& xid)
 	memcpy(xid.data,
 	       TRX_SYS + TRX_SYS_WSREP_XID_INFO
 	       + TRX_SYS_WSREP_XID_DATA + page, XIDDATASIZE);
-	return true;
+
+	return wsrep_is_wsrep_xid(&xid);
 }
 
 /** Recover the latest WSREP checkpoint XID.
@@ -453,7 +454,14 @@ static dberr_t trx_rseg_mem_restore(trx_rseg_t *rseg, mtr_t *mtr)
 {
   if (!rseg->space)
     return DB_TABLESPACE_NOT_FOUND;
+
+  /* Access the tablespace header page to recover rseg->space->free_limit */
+  page_id_t page_id{rseg->space->id, 0};
   dberr_t err;
+  if (!buf_page_get_gen(page_id, 0, RW_X_LATCH, nullptr, BUF_GET, mtr, &err))
+    return err;
+  mtr->release_last_page();
+  page_id.set_page_no(rseg->page_no);
   const buf_block_t *rseg_hdr=
     buf_page_get_gen(rseg->page_id(), 0, RW_X_LATCH, nullptr, BUF_GET, mtr,
                      &err);
@@ -498,10 +506,17 @@ static dberr_t trx_rseg_mem_restore(trx_rseg_t *rseg, mtr_t *mtr)
           trx_sys.recovered_binlog_offset= binlog_offset;
         trx_sys.recovered_binlog_is_legacy_pos= false;
       }
-#ifdef WITH_WSREP
-      trx_rseg_read_wsrep_checkpoint(rseg_hdr, trx_sys.recovered_wsrep_xid);
-#endif
     }
+#ifdef WITH_WSREP
+    XID tmp_xid;
+    tmp_xid.null();
+    /* Update recovered wsrep xid only if we found wsrep xid from
+       rseg header page and read xid seqno is larger than currently
+       recovered xid seqno. */
+    if (trx_rseg_read_wsrep_checkpoint(rseg_hdr, tmp_xid) &&
+        wsrep_xid_seqno(&tmp_xid) > wsrep_xid_seqno(&trx_sys.recovered_wsrep_xid))
+      trx_sys.recovered_wsrep_xid.set(&tmp_xid);
+#endif
   }
 
   if (srv_operation == SRV_OPERATION_RESTORE)
@@ -523,6 +538,11 @@ static dberr_t trx_rseg_mem_restore(trx_rseg_t *rseg, mtr_t *mtr)
 
     fil_addr_t node_addr= flst_get_last(TRX_RSEG + TRX_RSEG_HISTORY +
                                         rseg_hdr->page.frame);
+    if (node_addr.page >= rseg->space->free_limit ||
+        node_addr.boffset < TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_NODE ||
+        node_addr.boffset >= srv_page_size - TRX_UNDO_LOG_OLD_HDR_SIZE)
+      return DB_CORRUPTION;
+
     node_addr.boffset= static_cast<uint16_t>(node_addr.boffset -
                                              TRX_UNDO_HISTORY_NODE);
     rseg->last_page_no= node_addr.page;
@@ -547,7 +567,7 @@ static dberr_t trx_rseg_mem_restore(trx_rseg_t *rseg, mtr_t *mtr)
     if (rseg->last_page_no != FIL_NULL)
       /* There is no need to cover this operation by the purge
       mutex because we are still bootstrapping. */
-      purge_sys.purge_queue.push(*rseg);
+      purge_sys.enqueue(*rseg);
   }
 
   trx_sys.set_undo_non_empty(rseg->history_size > 0);
@@ -588,7 +608,17 @@ dberr_t trx_rseg_array_init()
 #endif
 	mtr_t mtr;
 	dberr_t err = DB_SUCCESS;
-
+	/* mariabackup --prepare only deals with the redo log and the data
+	files, not with	transactions or the data dictionary, that's why
+	trx_lists_init_at_db_start() does not invoke purge_sys.create() and
+	purge queue mutex stays uninitialized, and trx_rseg_mem_restore() quits
+	before initializing undo log lists. */
+	if (srv_operation != SRV_OPERATION_RESTORE)
+		/* Acquiring purge queue mutex here should be fine from the
+		deadlock prevention point of view, because executing that
+		function is a prerequisite for starting the purge subsystem or
+		any transactions. */
+		purge_sys.queue_lock();
 	for (ulint rseg_id = 0; rseg_id < TRX_SYS_N_RSEGS; rseg_id++) {
 		mtr.start();
 		if (const buf_block_t* sys = trx_sysf_get(&mtr, true)) {
@@ -658,7 +688,8 @@ dberr_t trx_rseg_array_init()
 
 		mtr.commit();
 	}
-
+	if (srv_operation != SRV_OPERATION_RESTORE)
+		purge_sys.queue_unlock();
 	if (err != DB_SUCCESS) {
 		for (auto& rseg : trx_sys.rseg_array) {
 			while (auto u = UT_LIST_GET_FIRST(rseg.undo_list)) {

@@ -111,8 +111,8 @@ class ha_myisam final : public handler
   int external_lock(THD *thd, int lock_type) override;
   int delete_all_rows(void) override;
   int reset_auto_increment(ulonglong value) override;
-  int disable_indexes(uint mode) override;
-  int enable_indexes(uint mode) override;
+  int disable_indexes(key_map map, bool persist) override;
+  int enable_indexes(key_map map, bool persist) override;
   int indexes_are_disabled(void) override;
   void start_bulk_insert(ha_rows rows, uint flags) override;
   int end_bulk_insert() override;

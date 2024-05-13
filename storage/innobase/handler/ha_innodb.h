@@ -522,6 +522,10 @@ protected:
 
         /** If mysql has locked with external_lock() */
         bool                    m_mysql_has_locked;
+
+	/** If true, disable the Rowid Filter. It is disabled when
+	the enigne is intialized for making rnd_pos() calls */
+	bool                    m_disable_rowid_filter;
 };
 
 

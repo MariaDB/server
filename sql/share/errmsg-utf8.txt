@@ -12147,7 +12147,7 @@ ER_UNKNOWN_DATA_TYPE
         spa "Tipo de datos desconocido: '%-.64s'"
         sw "Aina ya data isiyojulikana: '% -.64s'"
 ER_UNKNOWN_OPERATOR
-        eng "Operator does not exists: '%-.128s'"
+        eng "Operator does not exist: '%-.128s'"
         spa "El operador no existe: '%-.128s'"
         sw "Opereta haipo: '% -.128s'"
 ER_UNUSED_29

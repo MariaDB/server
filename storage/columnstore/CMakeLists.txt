@@ -1,6 +1,7 @@
 #set(PLUGIN_COLUMNSTORE "NO" CACHE STRING "Enable ColumnStore engine")
 
-if("NO" STREQUAL "${PLUGIN_COLUMNSTORE}")
+if("NO" STREQUAL "${PLUGIN_COLUMNSTORE}" OR
+   (NOT EXISTS ${CMAKE_CURRENT_LIST_DIR}/columnstore/CMakeLists.txt))
   return()
 endif()
 

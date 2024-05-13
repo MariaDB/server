@@ -3384,7 +3384,16 @@ public:
   {
     return GTID_HEADER_LEN + ((flags2 & FL_GROUP_COMMIT_ID) ? 2 : 0);
   }
-  bool is_valid() const { return seq_no != 0; }
+
+  bool is_valid() const
+  {
+    /*
+      seq_no is set to 0 if the structure of a serialized GTID event does not
+      align with that as indicated by flags and extra_flags.
+    */
+    return seq_no != 0;
+  }
+
 #ifdef MYSQL_SERVER
   bool write();
   static int make_compatible_event(String *packet, bool *need_dummy_event,

@@ -1,3 +1,7 @@
+SELECT @@innodb_doublewrite;
+@@innodb_doublewrite
+OFF
+SET GLOBAL innodb_doublewrite=fast;
 #
 # Bug#16720368 INNODB CRASHES ON BROKEN #SQL*.IBD FILE AT STARTUP
 #
@@ -12,7 +16,10 @@ connection default;
 disconnect con1;
 # Corrupt FIL_PAGE_TYPE in bug16720368.ibd,
 # and recompute innodb_checksum_algorithm=crc32
-# restart
+# restart: --innodb-flush-method=O_DIRECT
+SELECT @@innodb_doublewrite;
+@@innodb_doublewrite
+OFF
 SELECT COUNT(*) FROM bug16720368;
 ERROR HY000: Table `test`.`bug16720368` is corrupted. Please drop the table and recreate.
 INSERT INTO bug16720368 VALUES(1);

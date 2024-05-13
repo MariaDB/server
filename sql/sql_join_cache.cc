@@ -1595,6 +1595,7 @@ bool JOIN_CACHE::put_record()
 {
   bool is_full;
   uchar *link= 0;
+  DBUG_ASSERT(!for_explain_only);
   if (prev_cache)
     link= prev_cache->get_curr_rec_link();
   write_record_data(link, &is_full);

@@ -350,9 +350,9 @@ void buf_page_write_complete(const IORequest &request, bool error)
   else
   {
     bpage->write_complete(persistent, error, state);
-    if (state < buf_page_t::WRITE_FIX_REINIT &&
-        request.node->space->use_doublewrite())
+    if (request.is_doublewritten())
     {
+      ut_ad(state < buf_page_t::WRITE_FIX_REINIT);
       ut_ad(persistent);
       buf_dblwr.write_completed();
     }
@@ -1731,7 +1731,7 @@ static ulint buf_flush_LRU(ulint max_n)
 }
 
 #ifdef HAVE_PMEM
-# include <libpmem.h>
+# include "cache.h"
 #endif
 
 /** Write checkpoint information to the log header and release mutex.
@@ -2257,7 +2257,7 @@ func_exit:
 
 	sum_pages += last_pages_in;
 
-	const ulint time_elapsed = std::max<ulint>(curr_time - prev_time, 1);
+	const ulint time_elapsed = std::max<ulint>(ulint(curr_time - prev_time), 1);
 
 	/* We update our variables every innodb_flushing_avg_loops
 	iterations to smooth out transition in workload. */

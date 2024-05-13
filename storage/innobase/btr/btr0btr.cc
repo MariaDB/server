@@ -260,6 +260,8 @@ btr_root_block_get(
 	mtr_t*			mtr,	/*!< in: mtr */
 	dberr_t*		err)	/*!< out: error code */
 {
+  ut_ad(mode != RW_NO_LATCH);
+
   if (!index->table || !index->table->space)
   {
     *err= DB_TABLESPACE_NOT_FOUND;
@@ -281,13 +283,12 @@ btr_root_block_get(
 
   if (UNIV_LIKELY(block != nullptr))
   {
-    if (UNIV_UNLIKELY(mode == RW_NO_LATCH));
-    else if (!!page_is_comp(block->page.frame) !=
-             index->table->not_redundant() ||
-             btr_page_get_index_id(block->page.frame) != index->id ||
-             !fil_page_index_page_check(block->page.frame) ||
-             index->is_spatial() !=
-             (fil_page_get_type(block->page.frame) == FIL_PAGE_RTREE))
+    if (!!page_is_comp(block->page.frame) !=
+        index->table->not_redundant() ||
+        btr_page_get_index_id(block->page.frame) != index->id ||
+        !fil_page_index_page_check(block->page.frame) ||
+        index->is_spatial() !=
+        (fil_page_get_type(block->page.frame) == FIL_PAGE_RTREE))
     {
       *err= DB_PAGE_CORRUPTED;
       block= nullptr;
@@ -530,6 +531,31 @@ btr_block_reget(mtr_t *mtr, const dict_index_t &index,
   return btr_block_get(index, id.page_no(), RW_X_LATCH, mtr, err);
 }
 
+static MY_ATTRIBUTE((nonnull, warn_unused_result))
+/** Acquire a latch on the index root page for allocating or freeing pages.
+@param index   index tree
+@param mtr     mini-transaction
+@param err     error code
+@return root page
+@retval nullptr if an error occurred */
+buf_block_t *btr_root_block_sx(dict_index_t *index, mtr_t *mtr, dberr_t *err)
+{
+  buf_block_t *root=
+    mtr->get_already_latched(page_id_t{index->table->space_id, index->page},
+                             MTR_MEMO_PAGE_SX_FIX);
+  if (!root)
+  {
+    root= btr_root_block_get(index, RW_SX_LATCH, mtr, err);
+    if (UNIV_UNLIKELY(!root))
+      return root;
+  }
+#ifdef BTR_CUR_HASH_ADAPT
+  else
+    ut_ad(!root->index || !root->index->freed());
+#endif
+  return root;
+}
+
 /**************************************************************//**
 Allocates a new file page to be used in an index tree. NOTE: we assume
 that the caller has made the reservation for free extents!
@@ -552,21 +578,9 @@ btr_page_alloc(
 {
   ut_ad(level < BTR_MAX_NODE_LEVEL);
 
-  const auto savepoint= mtr->get_savepoint();
-  buf_block_t *root= btr_root_block_get(index, RW_NO_LATCH, mtr, err);
+  buf_block_t *root= btr_root_block_sx(index, mtr, err);
   if (UNIV_UNLIKELY(!root))
     return root;
-
-  const bool have_latch= mtr->have_u_or_x_latch(*root);
-#ifdef BTR_CUR_HASH_ADAPT
-  ut_ad(!have_latch || !root->index || !root->index->freed());
-#endif
-  mtr->rollback_to_savepoint(savepoint);
-
-  if (!have_latch &&
-      UNIV_UNLIKELY(!(root= btr_root_block_get(index, RW_SX_LATCH, mtr, err))))
-    return root;
-
   fseg_header_t *seg_header= root->page.frame +
     (level ? PAGE_HEADER + PAGE_BTR_SEG_TOP : PAGE_HEADER + PAGE_BTR_SEG_LEAF);
   return fseg_alloc_free_page_general(seg_header, hint_page_no, file_direction,
@@ -608,24 +622,16 @@ dberr_t btr_page_free(dict_index_t* index, buf_block_t* block, mtr_t* mtr,
   fil_space_t *space= index->table->space;
   dberr_t err;
 
-  const auto savepoint= mtr->get_savepoint();
-  if (buf_block_t *root= btr_root_block_get(index, RW_NO_LATCH, mtr, &err))
+  if (buf_block_t *root= btr_root_block_sx(index, mtr, &err))
   {
-    const bool have_latch= mtr->have_u_or_x_latch(*root);
-#ifdef BTR_CUR_HASH_ADAPT
-    ut_ad(!have_latch || !root->index || !root->index->freed());
-#endif
-    mtr->rollback_to_savepoint(savepoint);
-    if (have_latch ||
-        (root= btr_root_block_get(index, RW_SX_LATCH, mtr, &err)))
-      err= fseg_free_page(&root->page.frame[blob ||
-                                            page_is_leaf(block->page.frame)
-                                            ? PAGE_HEADER + PAGE_BTR_SEG_LEAF
-                                            : PAGE_HEADER + PAGE_BTR_SEG_TOP],
-                          space, page, mtr, space_latched);
+    err= fseg_free_page(&root->page.frame[blob ||
+                                          page_is_leaf(block->page.frame)
+                                          ? PAGE_HEADER + PAGE_BTR_SEG_LEAF
+                                          : PAGE_HEADER + PAGE_BTR_SEG_TOP],
+                        space, page, mtr, space_latched);
+    if (err == DB_SUCCESS)
+      buf_page_free(space, page, mtr);
   }
-  if (err == DB_SUCCESS)
-    buf_page_free(space, page, mtr);
 
   /* The page was marked free in the allocation bitmap, but it
   should remain exclusively latched until mtr_t::commit() or until it

@@ -1617,6 +1617,11 @@ my_bool spider_direct_sql_init_body(
 ) {
   SPIDER_BG_DIRECT_SQL *bg_direct_sql;
   DBUG_ENTER("spider_direct_sql_init_body");
+  if (!spider_hton_ptr)
+  {
+    strcpy(message, "Plugin 'SPIDER' is not loaded");
+    goto error;
+  }
   if (args->arg_count != 3)
   {
     strcpy(message, "spider_(bg)_direct_sql() requires 3 arguments");

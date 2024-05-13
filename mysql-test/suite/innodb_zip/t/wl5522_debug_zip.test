@@ -75,7 +75,7 @@ SET SESSION debug_dbug="+d,ib_import_before_commit_crash";
 SELECT * FROM t1;
 
 # Write file to make mysql-test-run.pl start up the server again
---exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--write_line restart $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 
 # Execute the statement that causes the crash
 --error 2013
@@ -96,7 +96,7 @@ SET SESSION debug_dbug="+d,ib_import_before_checkpoint_crash";
 SELECT COUNT(*) FROM t1;
 
 # Don't start up the server right away.
---exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--write_line wait $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 
 # Execute the statement that causes the crash
 --error 2013
@@ -113,7 +113,7 @@ EOF
 
 --echo # Restart and reconnect to the server
 --enable_reconnect
---exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--write_line restart $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 --source include/wait_until_connected_again.inc
 --disable_reconnect
 

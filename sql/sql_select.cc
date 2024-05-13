@@ -850,37 +850,57 @@ void remove_redundant_subquery_clauses(st_select_lex *subq_select_lex)
   if (subq_select_lex->group_list.elements &&
       !subq_select_lex->with_sum_func && !subq_select_lex->join->having)
   {
+    /*
+      Temporary workaround for MDEV-28621: Do not remove GROUP BY expression
+      if it has any subqueries in it.
+    */
+    bool have_subquery= false;
     for (ORDER *ord= subq_select_lex->group_list.first; ord; ord= ord->next)
     {
-      /*
-        Do not remove the item if it is used in select list and then referred
-        from GROUP BY clause by its name or number. Example:
-
-          select (select ... ) as SUBQ ...  group by SUBQ
-
-        Here SUBQ cannot be removed.
-      */
-      if (!ord->in_field_list)
+      if ((*ord->item)->with_subquery())
       {
-        (*ord->item)->walk(&Item::eliminate_subselect_processor, FALSE, NULL);
-        /*
-          Remove from the JOIN::all_fields list any reference to the elements
-          of the eliminated GROUP BY list unless it is 'in_field_list'.
-          This is needed in order not to confuse JOIN::make_aggr_tables_info()
-          when it constructs different structure for execution phase.
-	*/
-        List_iterator<Item> li(subq_select_lex->join->all_fields);
-	Item *item;
-        while ((item= li++))
-	{
-          if (item == *ord->item)
-	    li.remove();
-	}
+        have_subquery= true;
+        break;
       }
     }
-    subq_select_lex->join->group_list= NULL;
-    subq_select_lex->group_list.empty();
-    DBUG_PRINT("info", ("GROUP BY removed"));
+
+    if (!have_subquery)
+    {
+      for (ORDER *ord= subq_select_lex->group_list.first; ord; ord= ord->next)
+      {
+        /*
+          Do not remove the item if it is used in select list and then referred
+          from GROUP BY clause by its name or number. Example:
+
+            select (select ... ) as SUBQ ...  group by SUBQ
+
+          Here SUBQ cannot be removed.
+        */
+        if (!ord->in_field_list)
+        {
+          /*
+          Not necessary due to workaround for MDEV-28621:
+          (*ord->item)->walk(&Item::eliminate_subselect_processor, FALSE, NULL);
+          */
+          /*
+            Remove from the JOIN::all_fields list any reference to the elements
+            of the eliminated GROUP BY list unless it is 'in_field_list'.
+            This is needed in order not to confuse JOIN::make_aggr_tables_info()
+            when it constructs different structure for execution phase.
+          */
+          List_iterator<Item> li(subq_select_lex->join->all_fields);
+          Item *item;
+          while ((item= li++))
+          {
+            if (item == *ord->item)
+              li.remove();
+          }
+        }
+      }
+      subq_select_lex->join->group_list= NULL;
+      subq_select_lex->group_list.empty();
+      DBUG_PRINT("info", ("GROUP BY removed"));
+    }
   }
 
   /*
@@ -3661,7 +3681,7 @@ bool JOIN::make_aggr_tables_info()
     distinct in the engine, so we do this for all queries, not only
     GROUP BY queries.
   */
-  if (tables_list && top_join_tab_count && !procedure)
+  if (tables_list && top_join_tab_count && !only_const_tables() && !procedure)
   {
     /*
       At the moment we only support push down for queries where
@@ -22747,7 +22767,7 @@ create_internal_tmp_table_from_heap(THD *thd, TABLE *table,
   if (open_tmp_table(&new_table))
     goto err1;
   if (table->file->indexes_are_disabled())
-    new_table.file->ha_disable_indexes(HA_KEY_SWITCH_ALL);
+    new_table.file->ha_disable_indexes(key_map(0), false);
   table->file->ha_index_or_rnd_end();
   if (table->file->ha_rnd_init_with_error(1))
     DBUG_RETURN(1);
@@ -33148,7 +33168,26 @@ void JOIN::init_join_cache_and_keyread()
       */
       table->mark_index_columns(table->file->keyread, table->read_set);
     }
-    if (tab->cache && tab->cache->init(select_options & SELECT_DESCRIBE))
+    bool init_for_explain= false;
+
+    /*
+       Can we use lightweight initalization mode just for EXPLAINs? We can if
+       we're certain that the optimizer will not execute the subquery.
+       The optimzier will not execute the subquery if it's too expensive. For
+       the exact criteria, see Item_subselect::is_expensive().
+       Note that the subquery might be a UNION and we might not yet know if it
+       is expensive.
+       What we do know is that if this SELECT is too expensive, then the whole
+       subquery will be too expensive as well.
+       So, we can use lightweight initialization (init_for_explain=true) if this
+       SELECT examines more than @@expensive_subquery_limit rows.
+     */
+    if ((select_options & SELECT_DESCRIBE) &&
+        get_examined_rows() >= thd->variables.expensive_subquery_limit)
+    {
+      init_for_explain= true;
+    }
+    if (tab->cache && tab->cache->init(init_for_explain))
       revise_cache_usage(tab);
     else
       tab->remove_redundant_bnl_scan_conds();

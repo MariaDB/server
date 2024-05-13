@@ -4276,17 +4276,18 @@ uint8 LEX::get_effective_with_check(TABLE_LIST *view)
 
 bool LEX::copy_db_to(LEX_CSTRING *to)
 {
-  if (sphead && sphead->m_name.str)
-  {
-    DBUG_ASSERT(sphead->m_db.str && sphead->m_db.length);
-    /*
-      It is safe to assign the string by-pointer, both sphead and
-      its statements reside in the same memory root.
-    */
-    *to= sphead->m_db;
-    return FALSE;
-  }
-  return thd->copy_db_to(to);
+  if (!sphead || !sphead->m_name.str)
+    return thd->copy_db_to(to);
+
+  DBUG_ASSERT(sphead->m_db.str);
+  DBUG_ASSERT(sphead->m_db.length);
+
+  /*
+    It is safe to assign the string by-pointer, both sphead and
+    its statements reside in the same memory root.
+  */
+  *to= sphead->m_db;
+  return FALSE;
 }
 
 /**

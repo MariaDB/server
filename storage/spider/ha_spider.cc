@@ -346,12 +346,23 @@ int ha_spider::open(
   result_list.last = NULL;
   result_list.current = NULL;
   result_list.record_num = 0;
-  if (
-    !(result_list.sqls = new spider_string[share->link_count]) ||
-    !(result_list.insert_sqls = new spider_string[share->link_count]) ||
-    !(result_list.update_sqls = new spider_string[share->link_count]) ||
-    !(result_list.tmp_sqls = new spider_string[share->link_count])
-  ) {
+  if (!(result_list.sqls = new spider_string[share->link_count]))
+  {
+    error_num = HA_ERR_OUT_OF_MEM;
+    goto error_init_result_list;
+  }
+  if (!(result_list.insert_sqls = new spider_string[share->link_count]))
+  {
+    error_num = HA_ERR_OUT_OF_MEM;
+    goto error_init_result_list;
+  }
+  if (!(result_list.update_sqls = new spider_string[share->link_count]))
+  {
+    error_num = HA_ERR_OUT_OF_MEM;
+    goto error_init_result_list;
+  }
+  if (!(result_list.tmp_sqls = new spider_string[share->link_count]))
+  {
     error_num = HA_ERR_OUT_OF_MEM;
     goto error_init_result_list;
   }
@@ -8969,27 +8980,35 @@ bool ha_spider::auto_repair() const
 }
 
 int ha_spider::disable_indexes(
-  uint mode
+  key_map map, bool persist
 ) {
   int error_num;
   backup_error_status();
   DBUG_ENTER("ha_spider::disable_indexes");
   DBUG_PRINT("info",("spider this=%p", this));
-  if ((error_num = spider_db_disable_keys(this)))
-    DBUG_RETURN(check_error_mode(error_num));
-  DBUG_RETURN(0);
+  if (persist)
+  {
+    if ((error_num = spider_db_disable_keys(this)))
+      DBUG_RETURN(check_error_mode(error_num));
+    DBUG_RETURN(0);
+  }
+  DBUG_RETURN(HA_ERR_WRONG_COMMAND);
 }
 
 int ha_spider::enable_indexes(
-  uint mode
+  key_map map, bool persist
 ) {
   int error_num;
   backup_error_status();
   DBUG_ENTER("ha_spider::enable_indexes");
   DBUG_PRINT("info",("spider this=%p", this));
-  if ((error_num = spider_db_enable_keys(this)))
-    DBUG_RETURN(check_error_mode(error_num));
-  DBUG_RETURN(0);
+  if (persist)
+  {
+    if ((error_num = spider_db_enable_keys(this)))
+      DBUG_RETURN(check_error_mode(error_num));
+    DBUG_RETURN(0);
+  }
+  DBUG_RETURN(HA_ERR_WRONG_COMMAND);
 }
 
 

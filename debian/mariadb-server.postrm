@@ -12,50 +12,7 @@ fi
 
 ${DEBIAN_SCRIPT_TRACE:+ echo "#42#DEBUG# RUNNING $0 $*" 1>&2 }
 
-MYADMIN="/usr/bin/mysqladmin --defaults-file=/etc/mysql/debian.cnf"
-
-# Try to stop the server in a sane way. If it does not success let the admin
-# do it himself. No database directories should be removed while the server
-# is running! Another mariadbd in e.g. a different chroot is fine for us.
-stop_server() {
-  # Return immediately if there are no mysqld processes running
-  # as there is no point in trying to shutdown in that case.
-  if ! pgrep -x --nslist pid --ns $$ "mysqld|mariadbd" > /dev/null
-  then
-    return
-  fi
-
-  set +e
-  invoke-rc.d mariadb stop
-  invoke-rc.d mysql stop # Backwards compatibility
-  errno=$?
-  set -e
-
-  # systemctl could emit exit code 100=no init script (fresh install)
-  if [ "$errno" != 0 ] && [ "$errno" != 100 ]
-  then
-    echo "Attempt to stop MariaDB/MySQL server returned exitcode $errno" 1>&2
-    echo "There is a MariaDB/MySQL server running, but we failed in our attempts to stop it." 1>&2
-    echo "Stop it yourself and try again!" 1>&2
-    db_stop
-    exit 1
-  fi
-}
-
-
-case "$1" in
-  purge|remove|upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
-    if [ -n "$($MYADMIN ping 2>/dev/null)" ]
-    then
-      stop_server
-      sleep 2
-    fi
-    ;;
-  *)
-    echo "postrm called with unknown argument '$1'" 1>&2
-    exit 1
-    ;;
-esac
+#DEBHELPER#
 
 #
 # - Purge logs and data only if they are ours (#307473)

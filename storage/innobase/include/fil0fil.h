@@ -48,9 +48,6 @@ struct named_spaces_tag_t;
 
 using space_list_t= ilist<fil_space_t, space_list_tag_t>;
 
-// Forward declaration
-extern my_bool srv_use_doublewrite_buf;
-
 /** Undo tablespaces starts with space_id. */
 extern uint32_t srv_undo_space_id_start;
 /** The number of UNDO tablespaces that are open and ready to use. */
@@ -1008,6 +1005,9 @@ public:
   /** @return the tablespace name (databasename/tablename) */
   name_type name() const;
 
+  /** Update the data structures on write completion */
+  void complete_write();
+
 private:
   /** @return whether the file is usable for io() */
   ATTRIBUTE_COLD bool prepare_acquired();
@@ -1080,9 +1080,6 @@ struct fil_node_t final
   @return detached handle or OS_FILE_CLOSED */
   inline pfs_os_file_t close_to_free(bool detach_handle= false);
 
-  /** Update the data structures on write completion */
-  inline void complete_write();
-
 private:
   /** Does stuff common for close() and detach() */
   void prepare_to_close_or_detach();
@@ -1090,8 +1087,7 @@ private:
 
 inline bool fil_space_t::use_doublewrite() const
 {
-  return !UT_LIST_GET_FIRST(chain)->atomic_write && srv_use_doublewrite_buf &&
-    buf_dblwr.is_created();
+  return !UT_LIST_GET_FIRST(chain)->atomic_write && buf_dblwr.in_use();
 }
 
 inline void fil_space_t::set_imported()
@@ -1352,9 +1348,9 @@ struct fil_system_t
     Some members may require late initialisation, thus we just mark object as
     uninitialised. Real initialisation happens in create().
   */
-  fil_system_t() : m_initialised(false) {}
+  fil_system_t() {}
 
-  bool is_initialised() const { return m_initialised; }
+  bool is_initialised() const { return spaces.array; }
 
   /**
     Create the file system interface at database start.
@@ -1367,8 +1363,6 @@ struct fil_system_t
   void close();
 
 private:
-  bool m_initialised;
-
   /** Points to the last opened space in space_list. Protected with
   fil_system.mutex. */
   fil_space_t *space_list_last_opened= nullptr;
@@ -1404,18 +1398,31 @@ public:
   /** Map of fil_space_t::id to fil_space_t* */
   hash_table_t spaces;
 
-  /** whether each write to data files is durable (O_DSYNC) */
+  /** false=invoke fsync() or fdatasync() on data files before checkpoint;
+  true=each write is durable (O_DSYNC) */
   my_bool write_through;
   /** whether data files are buffered (not O_DIRECT) */
   my_bool buffered;
+  /** whether fdatasync() is needed on data files */
+  Atomic_relaxed<bool> need_unflushed_spaces;
 
   /** Try to enable or disable write-through of data files */
   void set_write_through(bool write_through);
+  /** Update innodb_doublewrite */
+  void set_use_doublewrite(ulong use)
+  {
+    buf_dblwr.set_use(use);
+    need_unflushed_spaces= !write_through && buf_dblwr.need_fsync();
+  }
+
   /** Try to enable or disable file system caching of data files */
   void set_buffered(bool buffered);
 
   TPOOL_SUPPRESS_TSAN bool is_write_through() const { return write_through; }
   TPOOL_SUPPRESS_TSAN bool is_buffered() const { return buffered; }
+
+  /** @return whether to update unflushed_spaces */
+  bool use_unflushed_spaces() const { return need_unflushed_spaces; }
 
   /** tablespaces for which fil_space_t::needs_flush() holds */
   sized_ilist<fil_space_t, unflushed_spaces_tag_t> unflushed_spaces;

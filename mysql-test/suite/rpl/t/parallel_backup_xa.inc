@@ -41,7 +41,7 @@ if ($slave_ooo_error)
 {
   SET @sav_innodb_lock_wait_timeout  = @@global.innodb_lock_wait_timeout;
   SET @sav_slave_transaction_retries = @@global.slave_transaction_retries;
-  SET @@global.innodb_lock_wait_timeout =1;
+  SET @@global.innodb_lock_wait_timeout =5;
   SET @@global.slave_transaction_retries=0;
 }
 --source include/start_slave.inc

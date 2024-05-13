@@ -4,7 +4,7 @@ MariaBackup: hot backup tool for InnoDB
 Originally Created 3/3/2009 Yasufumi Kinoshita
 Written by Alexey Kopytov, Aleksandr Kuzminsky, Stewart Smith, Vadim Tkachenko,
 Yasufumi Kinoshita, Ignacio Nin and Baron Schwartz.
-(c) 2017, 2022, MariaDB Corporation.
+(c) 2017, 2024, MariaDB Corporation.
 Portions written by Marko Mäkelä.
 
 This program is free software; you can redistribute it and/or modify
@@ -379,8 +379,8 @@ static my_bool opt_check_privileges;
 
 extern const char *innodb_checksum_algorithm_names[];
 extern TYPELIB innodb_checksum_algorithm_typelib;
-extern const char *innodb_flush_method_names[];
 extern TYPELIB innodb_flush_method_typelib;
+extern TYPELIB innodb_doublewrite_typelib;
 /** Ignored option */
 static ulong innodb_flush_method;
 
@@ -1858,8 +1858,8 @@ struct my_option xb_server_options[] =
    &innobase_data_home_dir, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"innodb_doublewrite", OPT_INNODB_DOUBLEWRITE,
    "Enable InnoDB doublewrite buffer during --prepare.",
-   (G_PTR*) &srv_use_doublewrite_buf,
-   (G_PTR*) &srv_use_doublewrite_buf, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+   (G_PTR*) &buf_dblwr.use, (G_PTR*) &buf_dblwr.use,
+   &innodb_doublewrite_typelib, GET_ENUM, OPT_ARG, 0, 0, 0, 0, 0, 0},
   {"innodb_io_capacity", OPT_INNODB_IO_CAPACITY,
    "Number of IOPs the server can do. Tunes the background IO rate",
    (G_PTR*) &srv_io_capacity, (G_PTR*) &srv_io_capacity,
@@ -1891,8 +1891,8 @@ struct my_option xb_server_options[] =
   {"innodb_log_buffer_size", OPT_INNODB_LOG_BUFFER_SIZE,
    "Redo log buffer size in bytes.",
    (G_PTR*) &log_sys.buf_size, (G_PTR*) &log_sys.buf_size, 0,
-   IF_WIN(GET_ULL,GET_ULONG), REQUIRED_ARG, 2U << 20,
-   2U << 20, SIZE_T_MAX, 0, 4096, 0},
+   GET_UINT, REQUIRED_ARG, 2U << 20,
+   2U << 20, log_sys.buf_size_max, 0, 4096, 0},
 #if defined __linux__ || defined _WIN32
   {"innodb_log_file_buffering", OPT_INNODB_LOG_FILE_BUFFERING,
    "Whether the file system cache for ib_logfile0 is enabled during --backup",
@@ -1988,7 +1988,7 @@ struct my_option xb_server_options[] =
    &aria_log_dir_path, &aria_log_dir_path,
    0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 
-  {"open_files_limit", OPT_OPEN_FILES_LIMIT, "the maximum number of file "
+  {"open_files_limit", 0, "the maximum number of file "
    "descriptors to reserve with setrlimit().",
    (G_PTR*) &xb_open_files_limit, (G_PTR*) &xb_open_files_limit, 0, GET_ULONG,
    REQUIRED_ARG, 0, 0, UINT_MAX, 0, 1, 0},

@@ -4315,6 +4315,7 @@ public:
   { return get_item_copy<Item_func_setval>(thd, this); }
 };
 
+class Interruptible_wait;
 
 Item *get_system_var(THD *thd, enum_var_type var_type,
                      const LEX_CSTRING *name, const LEX_CSTRING *component);

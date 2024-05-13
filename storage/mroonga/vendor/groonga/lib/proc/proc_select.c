@@ -24,6 +24,7 @@
 #include "../grn_util.h"
 #include "../grn_cache.h"
 #include "../grn_ii.h"
+#include <my_attribute.h>
 
 #include "../grn_ts.h"
 
@@ -2912,7 +2913,7 @@ grn_select(grn_ctx *ctx, grn_select_data *data)
   uint32_t nhits;
   grn_obj *outbuf = ctx->impl->output.buf;
   grn_content_type output_type = ctx->impl->output.type;
-  char cache_key[GRN_CACHE_MAX_KEY_SIZE];
+  char *cache_key_buffer= 0;
   uint32_t cache_key_size;
   long long int threshold, original_threshold = 0;
   grn_cache *cache_obj = grn_cache_current_get(ctx);
@@ -2985,8 +2986,9 @@ grn_select(grn_ctx *ctx, grn_select_data *data)
     } GRN_HASH_EACH_END(ctx, cursor);
   }
 #undef DRILLDOWN_CACHE_SIZE
-  if (cache_key_size <= GRN_CACHE_MAX_KEY_SIZE) {
-    char *cp = cache_key;
+  if (cache_key_size <= GRN_CACHE_MAX_KEY_SIZE &&
+      (cache_key_buffer= (char*) malloc(cache_key_size+1))) {
+    char *cp = cache_key_buffer;
 
 #define PUT_CACHE_KEY(string)                                   \
     if ((string).value)                                         \
@@ -3066,11 +3068,12 @@ grn_select(grn_ctx *ctx, grn_select_data *data)
 
     {
       grn_rc rc;
-      rc = grn_cache_fetch(ctx, cache_obj, cache_key, cache_key_size, outbuf);
+      rc = grn_cache_fetch(ctx, cache_obj, cache_key_buffer, cache_key_size, outbuf);
       if (rc == GRN_SUCCESS) {
         GRN_QUERY_LOG(ctx, GRN_QUERY_LOG_CACHE,
                       ":", "cache(%" GRN_FMT_LLD ")",
                       (long long int)GRN_TEXT_LEN(outbuf));
+        free(cache_key_buffer);
         return ctx->rc;
       }
     }
@@ -3119,7 +3122,7 @@ grn_select(grn_ctx *ctx, grn_select_data *data)
            data->cache.length != 2 ||
            data->cache.value[0] != 'n' ||
            data->cache.value[1] != 'o')) {
-        grn_cache_update(ctx, cache_obj, cache_key, cache_key_size, outbuf);
+        grn_cache_update(ctx, cache_obj, cache_key_buffer, cache_key_size, outbuf);
       }
       goto exit;
     }
@@ -3186,7 +3189,7 @@ grn_select(grn_ctx *ctx, grn_select_data *data)
          data->cache.length != 2 ||
          data->cache.value[0] != 'n' ||
          data->cache.value[1] != 'o')) {
-      grn_cache_update(ctx, cache_obj, cache_key, cache_key_size, outbuf);
+      grn_cache_update(ctx, cache_obj, cache_key_buffer, cache_key_size, outbuf);
     }
     if (data->taintable > 0) {
       grn_db_touch(ctx, DB_OBJ(data->tables.target)->db);
@@ -3200,6 +3203,7 @@ exit :
 
   /* GRN_LOG(ctx, GRN_LOG_NONE, "%d", ctx->seqno); */
 
+  free(cache_key_buffer);
   return ctx->rc;
 }
 
@@ -3424,6 +3428,9 @@ grn_select_data_fill_drilldown_columns(grn_ctx *ctx,
                           strlen(prefix));
 }
 
+
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 static grn_bool
 grn_select_data_fill_drilldowns(grn_ctx *ctx,
                                 grn_user_data *user_data,
@@ -3562,6 +3569,7 @@ grn_select_data_fill_drilldowns(grn_ctx *ctx,
     return succeeded;
   }
 }
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 static grn_obj *
 command_select(grn_ctx *ctx, int nargs, grn_obj **args, grn_user_data *user_data)
