@@ -134,8 +134,8 @@ static bool fix_type_pointers(const char ***typelib_value_names,
 static field_index_t find_field(Field **fields, uchar *record, uint start,
                                 uint length);
 
-static inline bool is_system_table_name(const char *name, size_t length);
-static inline bool is_statistics_table_name(const char *name, size_t length);
+static inline bool is_system_table_name(const Lex_ident_table &name);
+static inline bool is_statistics_table_name(const Lex_ident_table &name);
 
 
 /**************************************************************************
@@ -314,10 +314,10 @@ TABLE_CATEGORY get_table_category(const Lex_ident_db &db,
 
   if (db.streq(MYSQL_SCHEMA_NAME))
   {
-    if (is_system_table_name(name.str, name.length))
+    if (is_system_table_name(name))
       return TABLE_CATEGORY_SYSTEM;
 
-    if (is_statistics_table_name(name.str, name.length))
+    if (is_statistics_table_name(name))
       return TABLE_CATEGORY_STATISTICS;
 
     if (name.streq(GENERAL_LOG_NAME) ||
@@ -581,61 +581,56 @@ void free_table_share(TABLE_SHARE *share)
   and should not contain user tables.
 */
 
-static inline bool is_system_table_name(const char *name, size_t length)
+static inline bool is_system_table_name(const Lex_ident_table &name)
 {
-  CHARSET_INFO *ci= system_charset_info;
-
   return (
           /* mysql.proc table */
-          (length == 4 &&
-           my_tolower(ci, name[0]) == 'p' && 
-           my_tolower(ci, name[1]) == 'r' &&
-           my_tolower(ci, name[2]) == 'o' &&
-           my_tolower(ci, name[3]) == 'c') ||
+          (name.length == 4 &&
+           (name.str[0] | 32) == 'p' &&
+           (name.str[1] | 32) == 'r' &&
+           (name.str[2] | 32) == 'o' &&
+           (name.str[3] | 32) == 'c') ||
 
-          (length > 4 &&
+          (name.length > 4 &&
            (
             /* one of mysql.help* tables */
-            (my_tolower(ci, name[0]) == 'h' &&
-             my_tolower(ci, name[1]) == 'e' &&
-             my_tolower(ci, name[2]) == 'l' &&
-             my_tolower(ci, name[3]) == 'p') ||
+            ((name.str[0] | 32) == 'h' &&
+             (name.str[1] | 32) == 'e' &&
+             (name.str[2] | 32) == 'l' &&
+             (name.str[3] | 32) == 'p') ||
 
             /* one of mysql.time_zone* tables */
-            (my_tolower(ci, name[0]) == 't' &&
-             my_tolower(ci, name[1]) == 'i' &&
-             my_tolower(ci, name[2]) == 'm' &&
-             my_tolower(ci, name[3]) == 'e') ||
+            ((name.str[0] | 32) == 't' &&
+             (name.str[1] | 32) == 'i' &&
+             (name.str[2] | 32) == 'm' &&
+             (name.str[3] | 32) == 'e') ||
 
             /* mysql.event table */
-            (my_tolower(ci, name[0]) == 'e' &&
-             my_tolower(ci, name[1]) == 'v' &&
-             my_tolower(ci, name[2]) == 'e' &&
-             my_tolower(ci, name[3]) == 'n' &&
-             my_tolower(ci, name[4]) == 't')
+            ((name.str[0] | 32) == 'e' &&
+             (name.str[1] | 32) == 'v' &&
+             (name.str[2] | 32) == 'e' &&
+             (name.str[3] | 32) == 'n' &&
+             (name.str[4] | 32) == 't')
             )
            )
          );
 }
 
 
-static inline bool
-is_statistics_table_name(const char *name, size_t length)
+static inline bool is_statistics_table_name(const Lex_ident_table &name)
 {
-  CHARSET_INFO *ci= system_charset_info;
-
-  if (length > 6)
+  if (name.length > 6)
   {
     /* one of mysql.*_stat tables, but not mysql.innodb* tables*/
-    if ((my_tolower(ci, name[length-5]) == 's' &&
-         my_tolower(ci, name[length-4]) == 't' &&
-         my_tolower(ci, name[length-3]) == 'a' &&
-         my_tolower(ci, name[length-2]) == 't' &&
-         my_tolower(ci, name[length-1]) == 's') &&
-        !(my_tolower(ci, name[0]) == 'i' &&
-          my_tolower(ci, name[1]) == 'n' &&
-          my_tolower(ci, name[2]) == 'n' &&
-          my_tolower(ci, name[3]) == 'o'))
+    if (((name.str[name.length - 5] | 32) == 's' &&
+         (name.str[name.length - 4] | 32) == 't' &&
+         (name.str[name.length - 3] | 32) == 'a' &&
+         (name.str[name.length - 2] | 32) == 't' &&
+         (name.str[name.length - 1] | 32) == 's') &&
+        !((name.str[0] | 32) == 'i' &&
+          (name.str[1] | 32) == 'n' &&
+          (name.str[2] | 32) == 'n' &&
+          (name.str[3] | 32) == 'o'))
       return 1;
   }
   return 0;
@@ -644,7 +639,7 @@ is_statistics_table_name(const char *name, size_t length)
 
 /*
   Read table definition from a binary / text based .frm file
-  
+
   SYNOPSIS
   open_table_def()
   thd		  Thread handler
