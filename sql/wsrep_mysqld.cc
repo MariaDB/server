@@ -1453,12 +1453,11 @@ bool wsrep_check_mode_after_open_table (THD *thd,
       Following code will kick-start the TOI but this has to be done
       only once per statement.
 
-      Note: kick-start will take-care of creating isolation key for
+      Note: kick-start will take care of creating isolation key for
       all tables involved in the list (provided all of them are MYISAM
       or Aria tables).
     */
-    if ((tbl && tbl->s->table_category != TABLE_CATEGORY_STATISTICS) ||
-        (!tbl && !is_stat_table(tables->db, tables->alias)))
+    if (tbl->s->table_category != TABLE_CATEGORY_STATISTICS)
     {
       if (tbl->s->primary_key == MAX_KEY &&
           wsrep_check_mode(WSREP_MODE_REQUIRED_PRIMARY_KEY))
