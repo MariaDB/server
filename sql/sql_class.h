@@ -102,7 +102,9 @@ class Parser_state;
 class Rows_log_event;
 class Sroutine_hash_entry;
 class user_var_entry;
-struct Trans_binlog_info;
+template <typename T> struct Tmpl_trans_binlog_info;
+typedef Tmpl_trans_binlog_info<my_off_t> Trans_binlog_info;
+
 class rpl_io_thread_info;
 class rpl_sql_thread_info;
 #ifdef HAVE_REPLICATION

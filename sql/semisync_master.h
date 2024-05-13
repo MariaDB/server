@@ -28,6 +28,101 @@ extern PSI_mutex_key key_LOCK_binlog;
 extern PSI_cond_key key_COND_binlog_send;
 #endif
 
+
+/*
+  Structure to save transaction log filename and position. It is a template
+  to allow for serial vs synchronous implementations, i.e. log_pos will be
+  atomic (implemented via Sync_trans_binlog_info) or non-atomic (implemented
+  via Trans_binlog_info)
+*/
+template <typename T>
+struct Tmpl_trans_binlog_info {
+  T log_pos; // Must derive to type my_off_t
+  char log_file[FN_REFLEN];
+};
+
+/*
+  Synchronized implementation for Trans_binlog_info, where log_pos is atomic,
+  and log_file access is protected by the Slave_info thread's LOCK_thd_data.
+*/
+typedef Tmpl_trans_binlog_info<std::atomic<my_off_t>> Sync_trans_binlog_info;
+
+
+struct Slave_info
+{
+public:
+  enum synchronization_status {
+    /*
+      Binlog dump thread is initializing, we don't yet know the synchronization
+      status
+    */
+    SYNC_STATUS_INITIALIZING,
+
+    /*
+      Slave is asynchronous, so Gtid_Pos_Ack will not be updated
+    */
+    SYNC_STATUS_ASYNCHRONOUS,
+
+    /*
+      Slave is configured for semi-sync, but connected with an old state, and
+      is catching up now
+    */
+    SYNC_STATUS_SEMI_SYNC_STALE,
+
+    /*
+      Slave is configured for semi-sync, and is readily ACKing new transactions
+    */
+    SYNC_STATUS_SEMI_SYNC_ACTIVE
+  };
+
+  uint32 server_id;
+  uint32 master_id;
+  char host[HOSTNAME_LENGTH*SYSTEM_CHARSET_MBMAXLEN+1];
+  char user[USERNAME_LENGTH+1];
+  char password[MAX_PASSWORD_LENGTH*SYSTEM_CHARSET_MBMAXLEN+1];
+  uint16 port;
+
+  /*
+    Binlog file:pos of the last transaction sent to this replica. Used to infer
+    Gtid_Pos_Sent in SHOW REPLICA HOSTS. Used for both asynchronous and
+    semi-sync connections.
+  */
+  Sync_trans_binlog_info gtid_pos_sent;
+
+  /*
+    If replica is configured for semi-sync, the binlog file:pos of the last
+    transaction ACKed by this replica. Used to infer Gtid_Pos_Ack in
+    SHOW REPLICA HOSTS.
+  */
+  Sync_trans_binlog_info gtid_pos_ack;
+
+  /*
+    Sync_Status of SHOW REPLICA HOSTS.
+  */
+  std::atomic<synchronization_status> sync_status;
+
+  const char *get_sync_status_str() const
+  {
+    const char *ret;
+    switch (sync_status.load(std::memory_order_relaxed))
+    {
+      case SYNC_STATUS_INITIALIZING:
+        ret= "Initializing";
+        break;
+      case SYNC_STATUS_ASYNCHRONOUS:
+        ret= "Asynchronous";
+        break;
+      case SYNC_STATUS_SEMI_SYNC_STALE:
+        ret= "Semi-sync Stale";
+        break;
+      default:
+        ret= "Semi-sync Active";
+    }
+    return ret;
+  }
+};
+
+
 struct Tranx_node {
   char              log_name[FN_REFLEN];
   my_off_t          log_pos;
@@ -561,14 +656,14 @@ class Repl_semi_sync_master
   void remove_slave();
 
   /* It parses a reply packet and call report_reply_binlog to handle it. */
-  int report_reply_packet(uint32 server_id, const uchar *packet,
-                        ulong packet_len);
+  int report_reply_packet(THD *slave_thd, const uchar *packet,
+                          ulong packet_len);
 
   /* In semi-sync replication, reports up to which binlog position we have
    * received replies from the slave indicating that it already get the events.
    *
    * Input:
-   *  server_id     - (IN)  master server id number
+   *  slave_thd    -  (IN)  binlog dump thread for the slave which sent the ACK
    *  log_file_name - (IN)  binlog file name
    *  end_offset    - (IN)  the offset in the binlog file up to which we have
    *                        the replies from the slave
@@ -576,7 +671,7 @@ class Repl_semi_sync_master
    * Return:
    *  0: success;  non-zero: error
    */
-  int report_reply_binlog(uint32 server_id,
+  int report_reply_binlog(THD *slave_thd,
                           const char* log_file_name,
                           my_off_t end_offset);
 

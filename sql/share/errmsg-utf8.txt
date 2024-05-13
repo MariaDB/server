@@ -12280,3 +12280,5 @@ ER_SEQUENCE_TABLE_ORDER_BY
         eng "ORDER BY"
 ER_VARIABLE_IGNORED
         eng "The variable '%s' is ignored. It only exists for compatibility with old installations and will be removed in a future release"
+ER_MASTER_CANNOT_RECONSTRUCT_GTID_STATE_FOR_BINLOG_POS
+        eng "Error constructing GTID state for binlog position %u in file '%s': %s"

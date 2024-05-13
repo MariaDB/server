@@ -5122,6 +5122,13 @@ Stopping slave I/O thread due to out-of-memory error from master");
       {
         DBUG_EXECUTE_IF("simulate_delay_semisync_slave_reply",
                         my_sleep(800000););
+#ifdef ENABLED_DEBUG_SYNC
+      DBUG_EXECUTE_IF("synchronize_semisync_slave_reply",
+        {
+          const char act[]= "now SIGNAL at_slave_reply WAIT_FOR reply_ack_to_master";
+          DBUG_ASSERT(!debug_sync_set_action(thd, STRING_WITH_LEN(act)));
+        };);
+#endif
         if (repl_semisync_slave.slave_reply(mi))
         {
           /*
@@ -6118,19 +6125,33 @@ static int queue_event(Master_info* mi, const uchar *buf, ulong event_len)
   // will have to refine the clause.
   DBUG_ASSERT(mi->rli.relay_log.relay_log_checksum_alg !=
               BINLOG_CHECKSUM_ALG_UNDEF);
-              
-  // Emulate the network corruption
-  DBUG_EXECUTE_IF("corrupt_queue_event",
-    if (buf[EVENT_TYPE_OFFSET] != FORMAT_DESCRIPTION_EVENT)
-    {
-      uchar *debug_event_buf_c= const_cast<uchar*>(buf);
-      int debug_cor_pos = rand() % (event_len - BINLOG_CHECKSUM_LEN);
-      debug_event_buf_c[debug_cor_pos] =~ debug_event_buf_c[debug_cor_pos];
-      DBUG_PRINT("info", ("Corrupt the event at queue_event: byte on position %d", debug_cor_pos));
-      DBUG_SET("-d,corrupt_queue_event");
-    }
-  );
-                                              
+
+#ifndef DBUG_OFF
+  {
+    const char *dbug_unset;
+    // Emulate the network corruption
+    DBUG_EXECUTE_IF(
+        "corrupt_gtid_event",
+        if (buf[EVENT_TYPE_OFFSET] == GTID_EVENT) {
+          dbug_unset= "-d,corrupt_gtid_event";
+          goto corrupt_event;
+        });
+    DBUG_EXECUTE_IF(
+        "corrupt_queue_event",
+        if (buf[EVENT_TYPE_OFFSET] != FORMAT_DESCRIPTION_EVENT) {
+          dbug_unset= "-d,corrupt_queue_event";
+        corrupt_event:
+          uchar *debug_event_buf_c= const_cast<uchar *>(buf);
+          int debug_cor_pos= rand() % (event_len - BINLOG_CHECKSUM_LEN);
+          debug_event_buf_c[debug_cor_pos]= ~debug_event_buf_c[debug_cor_pos];
+          DBUG_PRINT("info",
+                     ("Corrupt the event at queue_event: byte on position %d",
+                      debug_cor_pos));
+          DBUG_SET(dbug_unset);
+        });
+  }
+#endif
+
   if (event_checksum_test((uchar*) buf, event_len, checksum_alg))
   {
     error= ER_NETWORK_READ_EVENT_CHECKSUM_FAILURE;
