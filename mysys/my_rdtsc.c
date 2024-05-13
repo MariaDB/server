@@ -349,7 +349,9 @@ static ulonglong my_timer_init_frequency(MY_TIMER_INFO *mti)
   }
   time4= my_timer_cycles() - mti->cycles.overhead;
   time4-= mti->microseconds.overhead;
-  return (mti->microseconds.frequency * (time4 - time1)) / (time3 - time2);
+  ulonglong denominator = time3 - time2;
+  if (denominator == 0) denominator = 1;
+  return (mti->microseconds.frequency * (time4 - time1)) / denominator;
 }
 
 /*
@@ -612,8 +614,10 @@ void my_timer_init(MY_TIMER_INFO *mti)
       if (time3 - time2 > 10) break;
     }
     time4= my_timer_cycles();
+    ulonglong denominator = time4 - time1;
+    if (denominator == 0) denominator = 1;
     mti->milliseconds.frequency=
-    (mti->cycles.frequency * (time3 - time2)) / (time4 - time1);
+    (mti->cycles.frequency * (time3 - time2)) / denominator;
   }
 
 /*
@@ -641,8 +645,12 @@ void my_timer_init(MY_TIMER_INFO *mti)
       if (time3 - time2 > 10) break;
     }
     time4= my_timer_cycles();
+    ulonglong denominator = time4 - time1;
+    if (denominator == 0) {
+      denominator = 1;
+    }
     mti->ticks.frequency=
-    (mti->cycles.frequency * (time3 - time2)) / (time4 - time1);
+    (mti->cycles.frequency * (time3 - time2)) / denominator;
   }
 }
 
