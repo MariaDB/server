@@ -679,6 +679,7 @@ typedef struct st_spider_conn
   char               *tgt_dsn;
   char               *tgt_filedsn;
   char               *tgt_driver;
+  char               *tgt_odbc_conn_str= NULL;
   long               tgt_port;
   long               tgt_ssl_vsc;
 
@@ -698,6 +699,7 @@ typedef struct st_spider_conn
   uint               tgt_dsn_length;
   uint               tgt_filedsn_length;
   uint               tgt_driver_length;
+  uint               tgt_odbc_conn_str_length;
   uint               dbton_id;
 
   volatile
@@ -1183,6 +1185,7 @@ typedef struct st_spider_share
   char               **tgt_dsns;
   char               **tgt_filedsns;
   char               **tgt_drivers;
+  char               *tgt_odbc_conn_str;
   char               **static_link_ids;
   char               **tgt_pk_names;
   char               **tgt_sequence_names;
@@ -1225,6 +1228,7 @@ typedef struct st_spider_share
   uint               *tgt_dsns_lengths;
   uint               *tgt_filedsns_lengths;
   uint               *tgt_drivers_lengths;
+  uint               tgt_odbc_conn_str_length= 0;
   uint               *static_link_ids_lengths;
   uint               *tgt_pk_names_lengths;
   uint               *tgt_sequence_names_lengths;
