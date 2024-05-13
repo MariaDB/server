@@ -250,25 +250,21 @@ drop sequence s;
 --echo #
 --echo # MDEV-33348 ALTER TABLE lock waiting stages are indistinguishable
 --echo #
---connect (con2, localhost, root,,)
+--disable_view_protocol
+--connect con2, localhost, root
 
-create or replace table t1 (a int);
-show create table t1;
+create table t1 (a int);
 insert t1 values (5);
 
---connection con2
-begin;
+start transaction;
 select * from t1;
+
 --connection default
 --let $con= `select connection_id()`
 send alter table t1 add b int NULL, algorithm= copy, lock= none;
 
-
 --connection con2
-disable_query_log;
-eval set @con= $con;
-enable_query_log;
-
+evalp set @con= $con;
 
 let $wait_condition= select stage = 4 and progress = 100
                               and state= "Waiting for table metadata lock"
@@ -284,7 +280,6 @@ reap;
 
 drop table t1;
 --disconnect con2
+--enable_view_protocol
 
---echo #
 --echo # End of 11.2 tests
---echo #
