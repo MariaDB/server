@@ -18738,6 +18738,25 @@ void lock_wait_wsrep_kill(trx_t *bf_trx, ulong thd_id, trx_id_t trx_id)
     wsrep_thd_UNLOCK(vthd);
     wsrep_thd_kill_UNLOCK(vthd);
   }
+
+#ifdef ENABLED_DEBUG_SYNC
+    DBUG_EXECUTE_IF(
+        "wsrep_after_kill",
+        {const char act[]=
+             "now "
+             "SIGNAL wsrep_after_kill_reached "
+             "WAIT_FOR wsrep_after_kill_continue";
+          DBUG_ASSERT(!debug_sync_set_action(bf_thd, STRING_WITH_LEN(act)));
+        };);
+    DBUG_EXECUTE_IF(
+        "wsrep_after_kill_2",
+        {const char act2[]=
+             "now "
+             "SIGNAL wsrep_after_kill_reached_2 "
+             "WAIT_FOR wsrep_after_kill_continue_2";
+          DBUG_ASSERT(!debug_sync_set_action(bf_thd, STRING_WITH_LEN(act2)));
+        };);
+#endif /* ENABLED_DEBUG_SYNC*/
 }
 
 /** This function forces the victim transaction to abort. Aborting the

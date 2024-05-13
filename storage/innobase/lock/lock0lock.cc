@@ -503,8 +503,10 @@ this BF-BF wait correct and if not report BF wait and assert.
 
 @param[in]	lock_rec	other waiting record lock
 @param[in]	trx		trx requesting conflicting record lock
+@param[in]	type_mode	lock type mode of requesting trx
 */
-static void wsrep_assert_no_bf_bf_wait(const lock_t *lock, const trx_t *trx)
+static void wsrep_assert_no_bf_bf_wait(const lock_t *lock, const trx_t *trx,
+                                       const unsigned type_mode = LOCK_NONE)
 {
 	ut_ad(!lock->is_table());
 	lock_sys.assert_locked(*lock);
@@ -546,6 +548,15 @@ static void wsrep_assert_no_bf_bf_wait(const lock_t *lock, const trx_t *trx)
 		return;
 	}
 
+	if (type_mode != LOCK_NONE)
+		ib::error() << " Requested lock "
+			    << ((type_mode & LOCK_TABLE) ? "on table " : " on record ")
+			    << ((type_mode & LOCK_WAIT) ? " WAIT " : " ")
+			    << ((type_mode & LOCK_GAP) ? " GAP " : " ")
+			    << ((type_mode & LOCK_REC_NOT_GAP) ? " RECORD " : " ")
+			    << ((type_mode & LOCK_INSERT_INTENTION) ? " INSERT INTENTION " : " ")
+			    << ((type_mode & LOCK_X) ? " LOCK_X " : " LOCK_S ");
+
 	mtr_t mtr;
 
 	ib::error() << "Conflicting lock on table: "
@@ -580,6 +591,80 @@ ATTRIBUTE_NOINLINE static bool wsrep_is_BF_lock_timeout(const trx_t &trx)
 
   ib::info() << "WSREP: BF lock wait long for trx:" << ib::hex(trx.id)
              << " query: " << wsrep_thd_query(trx.mysql_thd);
+  return true;
+}
+
+/** Checks if a lock request for a new lock has to wait for request
+    lock2 in Galera.
+@param trx                  trx of new lock
+@param type_mode            precise mode of the new lock
+                            to set: LOCK_S or LOCK_X, possibly
+                            ORed to LOCK_GAP or LOCK_REC_NOT_GAP,
+                            LOCK_INSERT_INTENTION.
+@param lock2                another record lock; NOTE that
+                            it is assumed that this has a lock bit
+                            set on the same record as in the new
+	                    lock we are setting.
+@return TRUE if new lock has to wait for lock2 to be removed */
+
+ATTRIBUTE_NOINLINE ATTRIBUTE_COLD
+bool lock_rec_has_to_wait_wsrep(const trx_t *trx,
+                                const unsigned type_mode,
+                                const lock_t *lock2)
+{
+  const trx_t* trx2= lock2->trx;
+
+  if (trx->is_wsrep_UK_scan() &&
+      wsrep_thd_is_BF(trx2->mysql_thd, false))
+  {
+    /* New lock request from a transaction is using unique key
+       scan and this transaction is a wsrep high priority transaction
+       (brute force). If conflicting transaction is also wsrep high
+       priority transaction we should avoid lock conflict because
+       ordering of these transactions is already decided and
+       conflicting transaction will be later replayed. */
+
+    return false;
+  }
+
+  if (wsrep_thd_is_BF(trx->mysql_thd, false) &&
+      wsrep_thd_is_BF(trx2->mysql_thd, false))
+  {
+    /* Both transactions are high priority transactions. */
+
+    if (((type_mode & LOCK_S) && lock2->is_insert_intention()) ||
+        ((type_mode & LOCK_INSERT_INTENTION) && lock2->mode() == LOCK_S))
+    {
+      ut_ad(!wsrep_thd_is_local(trx->mysql_thd));
+      ut_ad(!wsrep_thd_is_local(trx2->mysql_thd));
+
+      /* High priority applier transaction might take S-locks to
+	 conflicting primary/unique key records and those local
+	 transactions are BF-killed. However, these S-locks
+	 are released at commit time. Therefore, high priority
+	 applier transaction when requesting insert intention (II-lock)
+	 lock for primary/unique index might notice conflicting
+	 S-lock. Certification makes sure that applier transactions
+	 do not insert duplicate keys and so we can allow
+	 S-lock and II-lock. */
+      return false;
+    }
+
+    if (wsrep_thd_order_before(trx->mysql_thd, trx2->mysql_thd))
+    {
+      /* If two high priority threads have lock conflict, we look at the
+	 order of these transactions and honor the earlier transaction. */
+
+      return false;
+    }
+
+    /* We very well can let bf to wait normally as other
+       BF will be replayed in case of conflict. For debug
+       builds we will do additional sanity checks to catch
+       unsupported bf wait if any. */
+    ut_d(wsrep_assert_no_bf_bf_wait(lock2, trx, type_mode));
+  }
+
   return true;
 }
 #endif /* WITH_WSREP */
@@ -691,31 +776,8 @@ lock_rec_has_to_wait(
 #endif /* HAVE_REPLICATION */
 
 #ifdef WITH_WSREP
-	/* New lock request from a transaction is using unique key
-	scan and this transaction is a wsrep high priority transaction
-	(brute force). If conflicting transaction is also wsrep high
-	priority transaction we should avoid lock conflict because
-	ordering of these transactions is already decided and
-	conflicting transaction will be later replayed. */
-	if (trx->is_wsrep_UK_scan()
-	    && wsrep_thd_is_BF(lock2->trx->mysql_thd, false)) {
-		return false;
-	}
-
-	/* if BF-BF conflict, we have to look at write set order */
-	if (trx->is_wsrep() &&
-	   (type_mode & LOCK_MODE_MASK) == LOCK_X &&
-	   (lock2->type_mode & LOCK_MODE_MASK) == LOCK_X &&
-	   wsrep_thd_order_before(trx->mysql_thd,
-				  lock2->trx->mysql_thd)) {
-		return false;
-	}
-
-	/* We very well can let bf to wait normally as other
-	BF will be replayed in case of conflict. For debug
-	builds we will do additional sanity checks to catch
-	unsupported bf wait if any. */
-	ut_d(wsrep_assert_no_bf_bf_wait(lock2, trx));
+	if (trx->is_wsrep())
+		return lock_rec_has_to_wait_wsrep(trx, type_mode, lock2);
 #endif /* WITH_WSREP */
 
 	return true;
@@ -1766,14 +1828,6 @@ lock_rec_has_to_wait_in_queue(const hash_cell_t &cell, const lock_t *wait_lock)
 		if (heap_no < lock_rec_get_n_bits(lock)
 		    && (p[bit_offset] & bit_mask)
 		    && lock_has_to_wait(wait_lock, lock)) {
-#ifdef WITH_WSREP
-			if (lock->trx->is_wsrep() &&
-			    wsrep_thd_order_before(wait_lock->trx->mysql_thd,
-						   lock->trx->mysql_thd)) {
-				/* don't wait for another BF lock */
-				continue;
-			}
-#endif
 			return(lock);
 		}
 	}
