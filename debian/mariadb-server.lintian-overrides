@@ -35,3 +35,6 @@ spelling-error-in-binary theres there's [usr/bin/myisam_ftdump]
 spelling-error-in-binary theres there's [usr/bin/myisamchk]
 spelling-error-in-binary theres there's [usr/bin/myisamlog]
 spelling-error-in-binary theres there's [usr/bin/myisampack]
+
+# This is not documentation
+package-contains-documentation-outside-usr-share-doc [usr/share/mysql/errmsg-utf8.txt]
