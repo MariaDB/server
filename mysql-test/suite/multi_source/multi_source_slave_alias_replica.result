@@ -81,6 +81,9 @@ Executed_log_entries	7
 Slave_received_heartbeats	0
 Slave_heartbeat_period	60.000
 Gtid_Slave_Pos	
+Master_last_event_time	NULL
+Save_state_time	NULL
+Master_Slave_time_diff	NULL
 Connection_name	slave2
 Slave_SQL_State	Slave has read all relay log; waiting for more updates
 Slave_IO_State	Waiting for master to send event
@@ -142,6 +145,9 @@ Executed_log_entries	7
 Slave_received_heartbeats	0
 Slave_heartbeat_period	60.000
 Gtid_Slave_Pos	
+Master_last_event_time	NULL
+Save_state_time	NULL
+Master_Slave_time_diff	NULL
 "Command: STOP ALL SLAVES --> STOP ALL REPLICAS"
 STOP ALL REPLICAS;
 Warnings:

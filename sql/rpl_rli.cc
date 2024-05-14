@@ -54,7 +54,9 @@ Relay_log_info::Relay_log_info(bool is_slave_recovery, const char* thread_name)
    cur_log_old_open_count(0), error_on_rli_init_info(false),
    group_relay_log_pos(0), event_relay_log_pos(0),
    group_master_log_pos(0), log_space_total(0), ignore_log_space_limit(0),
-   last_master_timestamp(0), sql_thread_caught_up(true), slave_skip_counter(0),
+   sql_thread_caught_up(true),
+   last_master_timestamp(0), newest_master_timestamp(0), slave_timestamp(0),
+   slave_skip_counter(0),
    abort_pos_wait(0), slave_run_id(0), sql_driver_thd(),
    gtid_skip_flag(GTID_SKIP_NOT), inited(0), abort_slave(0), stop_for_until(0),
    slave_running(MYSQL_SLAVE_NOT_RUN), until_condition(UNTIL_NONE),
@@ -1027,6 +1029,7 @@ void Relay_log_info::inc_group_relay_log_pos(ulonglong log_pos,
     if (rgi->last_master_timestamp &&
         rgi->last_master_timestamp > last_master_timestamp)
       last_master_timestamp= rgi->last_master_timestamp;
+    set_if_bigger(slave_timestamp, rgi->last_master_timestamp);
   }
   else
   {
@@ -1481,6 +1484,7 @@ bool Relay_log_info::stmt_done(my_off_t event_master_log_pos, THD *thd,
         mysql_mutex_unlock(&data_lock);
     }
     DBUG_EXECUTE_IF("inject_crash_after_flush_rli", DBUG_SUICIDE(););
+    set_if_bigger(slave_timestamp, rgi->last_master_timestamp);
   }
   DBUG_RETURN(error);
 }

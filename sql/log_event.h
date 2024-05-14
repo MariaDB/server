@@ -795,6 +795,10 @@ static inline bool LOG_EVENT_IS_ROW_V2(enum Log_event_type type)
     (type >= WRITE_ROWS_COMPRESSED_EVENT && type <= DELETE_ROWS_COMPRESSED_EVENT);
 }
 
+static inline bool LOG_EVENT_IS_LOAD_DATA(enum Log_event_type type)
+{
+  return type == LOAD_EVENT || type == NEW_LOAD_EVENT;
+}
 
 /*
    The number of types we handle in Format_description_log_event (UNKNOWN_EVENT
@@ -5867,5 +5871,8 @@ int row_log_event_uncompress(const Format_description_log_event
                              const uchar *src, ulong src_len,
                              uchar* buf, ulong buf_size, bool *is_malloc,
                              uchar **dst, ulong *newlen);
+time_t query_event_get_time(const uchar *buf,
+                            const Format_description_log_event
+                            *description_event);
 
 #endif /* _log_event_h */
