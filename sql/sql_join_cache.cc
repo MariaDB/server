@@ -4564,7 +4564,7 @@ bool JOIN_CACHE_BKA::skip_index_tuple(range_id_t range_info)
 {
   DBUG_ENTER("JOIN_CACHE_BKA::skip_index_tuple");
   get_record_by_pos((uchar*)range_info);
-  DBUG_RETURN(!join_tab->cache_idx_cond->val_int());
+  DBUG_RETURN(!join_tab->cache_idx_cond->val_bool());
 }
 
 

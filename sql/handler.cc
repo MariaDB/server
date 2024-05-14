@@ -6899,7 +6899,7 @@ extern "C" check_result_t handler_index_cond_check(void* h_arg)
   if (h->end_range && h->compare_key2(h->end_range) > 0)
     return CHECK_OUT_OF_RANGE;
   h->increment_statistics(&SSV::ha_icp_attempts);
-  if ((res= h->pushed_idx_cond->val_int()? CHECK_POS : CHECK_NEG) ==
+  if ((res= h->pushed_idx_cond->val_bool()? CHECK_POS : CHECK_NEG) ==
       CHECK_POS)
     h->increment_statistics(&SSV::ha_icp_match);
   return res;

@@ -82,7 +82,7 @@ protected:
 
 public:
   Item_func_json_valid(THD *thd, Item *json) : Item_bool_func(thd, json) {}
-  longlong val_int() override;
+  bool val_bool() override;
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("json_valid") };
@@ -124,7 +124,7 @@ public:
   bool fix_length_and_dec() override;
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_exists>(thd, this); }
-  longlong val_int() override;
+  bool val_bool() override;
 };
 
 
@@ -313,7 +313,7 @@ public:
     return name;
   }
   bool fix_length_and_dec() override;
-  longlong val_int() override;
+  bool val_bool() override;
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_contains>(thd, this); }
 };
@@ -340,7 +340,7 @@ public:
   }
   bool fix_fields(THD *thd, Item **ref) override;
   bool fix_length_and_dec() override;
-  longlong val_int() override;
+  bool val_bool() override;
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_contains_path>(thd, this); }
 };

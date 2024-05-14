@@ -253,6 +253,10 @@ public:
     {
       return singleton();
     }
+    bool val_bool() override
+    {
+      return m_value.to_bool();
+    }
     longlong val_int() override
     {
       return 0;

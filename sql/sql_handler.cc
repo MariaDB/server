@@ -989,7 +989,7 @@ retry:
       }
       goto ok;
     }
-    if (cond && !cond->val_int())
+    if (cond && !cond->val_bool())
     {
       if (thd->is_error())
         goto err;

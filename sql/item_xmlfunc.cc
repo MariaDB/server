@@ -425,7 +425,7 @@ public:
   {
     return { STRING_WITH_LEN("xpath_cast_bool") };
   }
-  longlong val_int() override
+  bool val_bool() override
   {
     if (args[0]->fixed_type_handler() == &type_handler_xpath_nodeset)
     {
@@ -623,7 +623,7 @@ public:
     DBUG_ASSERT(0);
     return NULL;
   }
-  longlong val_int() override
+  bool val_bool() override
   {
     Item_func *comp= (Item_func*)args[1];
     Item_string_xml_non_const *fake=

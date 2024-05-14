@@ -1112,7 +1112,7 @@ int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond)
     fields[0]->store(name_buffer, strlen(name_buffer), scs);
 
     if ((wild && wild_case_compare(system_charset_info, name_buffer, wild))
-        || (cond && !cond->val_int()))
+        || (cond && !cond->val_bool()))
       continue;
 
     mysql_mutex_lock(&LOCK_global_system_variables);

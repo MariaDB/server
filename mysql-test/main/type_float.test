@@ -834,3 +834,17 @@ DELIMITER ;$$
 --source unusable_keys_joins.inc
 DROP TABLE t1;
 SET note_verbosity=DEFAULT;
+
+
+--echo #
+--echo # MDEV-34123 CONCAT Function Returns Unexpected Empty Set in Query
+--echo #
+
+CREATE TABLE t0 (c DOUBLE);
+INSERT INTO t0 VALUES (0.0),(0.4),(0.6);
+--source include/search_condition.inc
+DROP TABLE t0;
+
+--echo #
+--echo # End of 10.6 tests
+--echo #

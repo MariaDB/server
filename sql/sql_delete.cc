@@ -437,10 +437,10 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     DBUG_RETURN(TRUE);
   }
 
-  const_cond_result= const_cond && (!conds || conds->val_int());
+  const_cond_result= const_cond && (!conds || conds->val_bool());
   if (unlikely(thd->is_error()))
   {
-    /* Error evaluating val_int(). */
+    /* Error evaluating val_bool(). */
     DBUG_RETURN(TRUE);
   }
 
