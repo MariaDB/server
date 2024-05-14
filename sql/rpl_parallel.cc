@@ -3589,6 +3589,12 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
   }
 
   /*
+    The original execution time of the event from the master is stored on the
+    serial_rgi, so copy it to our new one for parallel execution.
+  */
+  qev->rgi->orig_exec_time= serial_rgi->orig_exec_time;
+
+  /*
     Queue the event for processing.
   */
   qev->ir= rli->last_inuse_relaylog;

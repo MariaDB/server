@@ -3916,6 +3916,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
   case SQLCOM_SHOW_COLLATIONS:
   case SQLCOM_SHOW_STORAGE_ENGINES:
   case SQLCOM_SHOW_PROFILE:
+  case SQLCOM_SHOW_SLAVE_STAT:
   case SQLCOM_SELECT:
   {
 #ifdef WITH_WSREP
@@ -5829,7 +5830,6 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
       DBUG_ASSERT(first_table == all_tables && first_table != 0);
     /* fall through */
   case SQLCOM_ALTER_SEQUENCE:
-  case SQLCOM_SHOW_SLAVE_STAT:
   case SQLCOM_SIGNAL:
   case SQLCOM_RESIGNAL:
   case SQLCOM_GET_DIAGNOSTICS:

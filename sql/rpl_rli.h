@@ -251,7 +251,6 @@ public:
    */
   bool sql_force_rotate_relay;
 
-  my_time_t last_master_timestamp;
   /*
     The SQL driver thread sets this true while it is waiting at the end of the
     relay log for more events to arrive. SHOW SLAVE STATUS uses this to report
@@ -259,6 +258,19 @@ public:
   */
   bool sql_thread_caught_up;
 
+  /* Last executed timestamp */
+  my_time_t last_master_timestamp;
+  /*
+    Latest when + exec_time read from the master (by io_thread).
+    0 if there has been no new update events since the slave started.
+  */
+  time_t newest_master_timestamp;
+  /*
+    When + exec_time of the last committed event on the slave.
+    In case of delayed slave and slave_timestamp is not set
+    then set to when + exec_time -1 of the first seen event.
+  */
+  time_t slave_timestamp;
   void clear_until_condition();
   /**
     Reset the delay.
@@ -395,7 +407,7 @@ public:
 
   /*
     Invalidate cached until_log_name and group_relay_log_name comparison
-    result. Should be called after any update of group_realy_log_name if
+    result. Should be called after any update of group_relay_log_name if
     there chances that sql_thread is running.
   */
   inline void notify_group_relay_log_name_update()
@@ -839,6 +851,13 @@ struct rpl_group_info
     reasonable values out of Seconds_Behind_Master in SHOW SLAVE STATUS.
   */
   my_time_t last_master_timestamp;
+
+  /*
+    The exec_time of the transaction from the master's binlog. It is used with
+    log_slave_updates to preserve execution time value from the master when
+    re-binlogging on the slave.
+  */
+  my_time_t orig_exec_time;
 
   /*
     Information to be able to re-try an event group in case of a deadlock or

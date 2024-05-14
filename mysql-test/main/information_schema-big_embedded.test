@@ -1,12 +1,12 @@
 -- source include/have_innodb.inc
--- source include/not_embedded.inc
+-- source include/is_embedded.inc
 
 # check that CSV engine was compiled in, as the result of the test depends
 # on the presence of the log tables (which are CSV-based).
 --source include/have_csv.inc
 
 --echo #
---echo # Bug#18925: subqueries with MIN/MAX functions on INFORMATION_SCHEMA 
+--echo # Bug#18925: subqueries with MIN/MAX functions on INFORMATION_SCHEMA
 --echo #
 
 --sorted_result
