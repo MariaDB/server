@@ -7,6 +7,19 @@ conflicts-with-version libmariadb-dev-compat (<< 3.0.0)
 # This is intended one
 repeated-path-segment mariadb [usr/include/mariadb/mariadb/]
 
+# These are handled when groff messages are corrected
+typo-in-manual-page handshak handshake [usr/share/man/man3/mariadb_get_infov.3.gz:173]
+typo-in-manual-page occured occurred [usr/share/man/man3/mysql_ping.3.gz:39]
+typo-in-manual-page occured occurred [usr/share/man/man3/mysql_set_character_set.3.gz:37]
+typo-in-manual-page occured occurred [usr/share/man/man3/mysql_stmt_error.3.gz:30]
+typo-in-manual-page occured occurred [usr/share/man/man3/mysql_stmt_reset.3.gz:27]
+typo-in-manual-page occured occurred [usr/share/man/man3/mysql_store_result.3.gz:34]
+typo-in-manual-page releated related [usr/share/man/man3/mariadb_get_infov.3.gz:8]
+typo-in-manual-page reponse response [usr/share/man/man3/mysql_send_query.3.gz:8]
+typo-in-manual-page seperated separated [usr/share/man/man3/mysql_real_connect.3.gz:144]
+typo-in-manual-page seperated separated [usr/share/man/man3/mysql_real_connect.3.gz:148]
+typo-in-manual-page sucess success [usr/share/man/man3/mariadb_reconnect.3.gz:25]
+
 # Probably fixed in newer pandoc
 # man pages should be regenerated
 groff-message an.tmac:<standard input>:*: tbl preprocessor failed, or it or soelim was not run; table(s) likely not rendered (TE macro called with TW register undefined) [usr/share/man/man3/mysql_stmt_attr_set.3.gz:20]
