@@ -795,6 +795,10 @@ static inline bool LOG_EVENT_IS_ROW_V2(enum Log_event_type type)
     (type >= WRITE_ROWS_COMPRESSED_EVENT && type <= DELETE_ROWS_COMPRESSED_EVENT);
 }
 
+static inline bool LOG_EVENT_IS_LOAD_DATA(enum Log_event_type type)
+{
+  return type == LOAD_EVENT || type == NEW_LOAD_EVENT;
+}
 
 /*
    The number of types we handle in Format_description_log_event (UNKNOWN_EVENT
@@ -1327,8 +1331,8 @@ public:
     log; used by SHOW BINLOG EVENTS, the binlog_dump thread on the
     master (reads master's binlog), the slave IO thread (reads the
     event sent by binlog_dump), the slave SQL thread (reads the event
-    from the relay log).  If mutex is 0, the read will proceed without
-    mutex.  We need the description_event to be able to parse the
+    from the relay log).
+    We need the description_event to be able to parse the
     event (to know the post-header's size); in fact in read_log_event
     we detect the event's type, then call the specific event's
     constructor and pass description_event as an argument.
@@ -1342,8 +1346,6 @@ public:
   /**
     Reads an event from a binlog or relay log. Used by the dump thread
     this method reads the event into a raw buffer without parsing it.
-
-    @Note If mutex is 0, the read will proceed without mutex.
 
     @Note If a log name is given than the method will check if the
     given binlog is still active.
@@ -5867,5 +5869,8 @@ int row_log_event_uncompress(const Format_description_log_event
                              const uchar *src, ulong src_len,
                              uchar* buf, ulong buf_size, bool *is_malloc,
                              uchar **dst, ulong *newlen);
+time_t query_event_get_time(const uchar *buf,
+                            const Format_description_log_event
+                            *description_event);
 
 #endif /* _log_event_h */

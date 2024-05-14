@@ -2680,9 +2680,7 @@ Load_log_event::Load_log_event(THD *thd_arg, const sql_exchange *ex,
    db(db_arg), fname(ex->file_name), local_fname(FALSE),
    is_concurrent(is_concurrent_arg)
 {
-  time_t end_time;
-  time(&end_time);
-  exec_time = (ulong) (end_time  - thd_arg->start_time);
+  exec_time = (ulong) (my_time(0) - thd_arg->start_time);
   /* db can never be a zero pointer in 4.0 */
   db_len = (uint32) strlen(db);
   table_name_len = (uint32) strlen(table_name);
@@ -4100,6 +4098,15 @@ int Xid_apply_log_event::do_apply_event(rpl_group_info *rgi)
 
   general_log_print(thd, COM_QUERY, get_query());
   thd->variables.option_bits&= ~OPTION_GTID_BEGIN;
+  /*
+    Use the time from the current Xid_log_event for the generated
+    Xid_log_event in binlog_commit_flush_xid_caches().
+    This ensures that the time for Xid_log_events does not change
+    and allows slaves to give a consistent value for
+    Slave_last_event_time.
+  */
+  thd->start_time= when;
+
   res= do_commit();
   if (!res && rgi->gtid_pending)
   {
@@ -4133,6 +4140,8 @@ int Xid_apply_log_event::do_apply_event(rpl_group_info *rgi)
   enum enum_sql_command cmd= !thd->transaction->xid_state.is_explicit_XA()
     ? SQLCOM_COMMIT : SQLCOM_XA_PREPARE;
   status_var_increment(thd->status_var.com_stat[cmd]);
+  if (!res)
+    set_if_bigger(rgi->rli->slave_timestamp, when);
 
   return res;
 }

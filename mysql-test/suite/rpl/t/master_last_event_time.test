@@ -1,0 +1,60 @@
+--source include/have_innodb.inc
+--source include/have_binlog_format_row.inc
+--let $rpl_topology=1->2->3
+--source include/rpl_init.inc
+
+--echo #
+--echo # Initialize test data
+--echo # Ensure that all slaves has master_last_event_time == NULL
+--echo #
+
+--connection server_1
+SET STATEMENT sql_log_bin=0 FOR create table t1 (a int) engine=innodb;
+save_master_pos;
+--connection server_2
+SET STATEMENT sql_log_bin=0 FOR create table t1 (a int) engine=innodb;
+--connection server_3
+SET STATEMENT sql_log_bin=0 FOR create table t1 (a int) engine=innodb;
+
+# Ensure Master_last_event_time is not yet set
+--connection server_2
+sync_with_master;
+--let $master_time= query_get_value(SHOW ALL SLAVES STATUS, Master_last_event_time, 1)
+--echo master_time: $master_time (should be NULL)
+
+# Stop server_3 to check that it catches up gracefully
+--connection server_3
+--source include/stop_slave.inc
+
+--echo #
+--echo # Test simple insert
+--echo #
+
+--connection server_1
+insert into t1 values (1+sleep(3));
+--source master_last_event_time.inc
+
+--echo #
+--echo # Test insert with forced time
+--echo #
+
+SET TIMESTAMP=unix_timestamp("2000-01-01");
+insert into t1 values (2+sleep(3));
+--source master_last_event_time.inc
+
+--echo #
+--echo # Test multi-transaction
+--echo #
+
+begin;
+insert into t1 values (3+sleep(3));
+insert into t1 values (4+sleep(3));
+commit;
+--source master_last_event_time.inc
+
+--echo # cleanup
+--connection server_3
+--source include/start_slave.inc
+--connection server_1
+drop table t1;
+--source include/rpl_end.inc

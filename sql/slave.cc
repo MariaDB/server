@@ -3122,6 +3122,17 @@ void show_master_info_get_fields(THD *thd, List<Item> *field_list,
                           Item_empty_string(thd, "Gtid_Slave_Pos",
                                             (uint)gtid_pos_length),
                           mem_root);
+    field_list->push_back(new (mem_root)
+                          Item_datetime_literal(thd, "Master_last_event_time",
+                                                0),
+                          mem_root);
+    field_list->push_back(new (mem_root)
+                          Item_datetime_literal(thd, "Slave_last_event_time", 0),
+                          mem_root);
+    field_list->push_back(new (mem_root)
+                          Item_return_int(thd, "Master_Slave_time_diff", 10,
+                                          MYSQL_TYPE_LONG),
+                          mem_root);
   }
   DBUG_VOID_RETURN;
 }
@@ -3140,6 +3151,13 @@ static const LEX_CSTRING msg_no=  { STRING_WITH_LEN("No") };
 #ifndef HAVE_OPENSSL
 static const LEX_CSTRING msg_ignored=  { STRING_WITH_LEN("Ignored") };
 #endif
+
+
+static void timestamp_to_my_time(MYSQL_TIME *time, time_t timestamp)
+{
+  global_system_variables.time_zone->gmt_sec_to_TIME(time,
+                                                     (my_time_t) timestamp);
+}
 
 
 static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
@@ -3379,8 +3397,23 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
       protocol->store((uint32)    mi->received_heartbeats);
       protocol->store_double(mi->heartbeat_period, 3);
       protocol->store(gtid_pos->ptr(), gtid_pos->length(), &my_charset_bin);
+      if (mi->rli.newest_master_timestamp)
+      {
+        MYSQL_TIME time;
+        timestamp_to_my_time(&time, mi->rli.newest_master_timestamp);
+        protocol->store_datetime(&time, 0);
+        timestamp_to_my_time(&time, mi->rli.slave_timestamp);
+        protocol->store_datetime(&time, 0);
+        protocol->store((uint32) (mi->rli.newest_master_timestamp -
+                                  mi->rli.slave_timestamp));
+      }
+      else
+      {
+        protocol->store_null();
+        protocol->store_null();
+        protocol->store_null();
+      }
     }
-
     mysql_mutex_unlock(&mi->rli.err_lock);
     mysql_mutex_unlock(&mi->err_lock);
     mysql_mutex_unlock(&mi->rli.data_lock);
@@ -4269,14 +4302,23 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
       the user might be surprised to see a claim that the slave is up to date
       long before those queued events are actually executed.
      */
-    if ((!rli->mi->using_parallel()) &&
-        event_can_update_last_master_timestamp(ev))
+    if (event_can_update_last_master_timestamp(ev))
     {
-      rli->last_master_timestamp= ev->when + (time_t) ev->exec_time;
-      rli->sql_thread_caught_up= false;
-      DBUG_ASSERT(rli->last_master_timestamp >= 0);
+      if ((!rli->mi->using_parallel()))
+      {
+        rli->last_master_timestamp= ev->when + (time_t) ev->exec_time;
+        rli->sql_thread_caught_up= false;
+        DBUG_ASSERT(rli->last_master_timestamp >= 0);
+      }
+      if (unlikely(!rli->slave_timestamp))
+      {
+        /*
+          First event for this slave. Assume that all the slave was up to date
+          with the master just before the current event.
+        */
+        rli->slave_timestamp= (time_t) ev->when + (time_t) ev->exec_time-1;
+      }
     }
-
     /*
       This tests if the position of the beginning of the current event
       hits the UNTIL barrier.
@@ -7262,6 +7304,23 @@ dbug_gtid_accept:
   }
   else
   {
+    /*
+      replay_log.description_event_for_exec can be null if the slave thread
+      is getting killed
+    */
+    if (LOG_EVENT_IS_QUERY((Log_event_type) buf[EVENT_TYPE_OFFSET]) ||
+        LOG_EVENT_IS_LOAD_DATA((Log_event_type) buf[EVENT_TYPE_OFFSET]))
+    {
+      time_t exec_time= query_event_get_time(buf, rli->relay_log.
+                                             description_event_for_queue);
+      set_if_bigger(rli->newest_master_timestamp, exec_time);
+    }
+    else if (((Log_event_type) buf[EVENT_TYPE_OFFSET]) == XID_EVENT)
+    {
+      /* XID_EVENT is used for COMMIT */
+      time_t commit_time= uint4korr(buf);
+      set_if_bigger(rli->newest_master_timestamp, commit_time);
+    }
     if (mi->do_accept_own_server_id)
     {
       int2store(const_cast<uchar*>(buf + FLAGS_OFFSET),

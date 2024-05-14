@@ -4879,8 +4879,8 @@ public:
 
 /**
   Item_empty_string -- is a utility class to put an item into List<Item>
-  which is then used in protocol.send_result_set_metadata() when sending SHOW output to
-  the client.
+  which is then used in protocol.send_result_set_metadata() when sending SHOW
+  output to the client.
 */
 
 class Item_empty_string :public Item_partition_func_safe_string
@@ -5242,6 +5242,17 @@ public:
     // See the comment on maybe_null in Item_date_literal
     set_maybe_null(cached_time.check_date(TIME_NO_ZERO_DATE |
                                           TIME_NO_ZERO_IN_DATE));
+  }
+  Item_datetime_literal(THD *thd, const char *name_arg,
+                        decimal_digits_t dec_arg):
+    Item_temporal_literal(thd, dec_arg),
+    cached_time(Datetime::zero())
+  {
+    max_length= MAX_DATETIME_WIDTH + (decimals ? decimals + 1 : 0);
+    set_maybe_null(true);
+    // Set the name (see also a similar code in Item_int):
+    name.str= name_arg;
+    name.length= strlen(name.str);
   }
   const Type_handler *type_handler() const override
   { return &type_handler_datetime2; }
