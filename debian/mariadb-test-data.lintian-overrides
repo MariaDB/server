@@ -8,6 +8,9 @@ incorrect-path-for-interpreter /usr/bin/env perl != /usr/bin/perl [usr/share/mys
 incorrect-path-for-interpreter /usr/bin/env perl != /usr/bin/perl [usr/share/mysql/mysql-test/suite/funcs_1/lib/DataGen_modify.pl]
 incorrect-path-for-interpreter /usr/bin/env perl != /usr/bin/perl [usr/share/mysql/mysql-test/suite/funcs_2/lib/gen_charset_utf8.pl]
 incorrect-path-for-interpreter /usr/bin/env perl != /usr/bin/perl [usr/share/mysql/mysql-test/suite/rpl/extension/checksum.pl]
+# This is used to check if we are running under Bash
+bash-term-in-posix-shell '${BASH_VERSION' [usr/share/mysql/mysql-test/std_data/wsrep_notify.sh:87]
+bash-term-in-posix-shell '${BASH_VERSION' [usr/share/mysql/mysql-test/std_data/wsrep_notify_ssl.sh:87]
 # These files are result files and they are supposed to be
 # Natial encoded (ISO/IEC 8859-1) not UTF-8
 national-encoding [usr/share/mysql/mysql-test/include/ctype_E05C.inc]

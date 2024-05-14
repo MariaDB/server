@@ -1,0 +1,8 @@
+# Used to check if running in Bash
+bash-term-in-posix-shell '${BASH_VERSION' [usr/share/mysql/wsrep_notify:86]
+bash-term-in-posix-shell '[ "$url" ==' [usr/bin/mariadbd-safe:216]
+# In comment so false-positive
+bash-term-in-posix-shell 'let' [usr/bin/mariadbd-safe:41]
+# Supported in Zsh and Bash (also Dash)
+bash-term-in-posix-shell 'ulimit' [usr/bin/mariadbd-safe:712]
+bash-term-in-posix-shell 'ulimit' [usr/bin/mariadbd-safe:832]
