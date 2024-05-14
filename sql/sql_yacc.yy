@@ -14225,17 +14225,23 @@ show_param:
           }
         | ALL SLAVES STATUS_SYM
           {
-            if (!(Lex->m_sql_cmd= new (thd->mem_root)
-                  Sql_cmd_show_slave_status(true)))
+            LEX *lex= Lex;
+            lex->sql_command= SQLCOM_SHOW_SLAVE_STAT;
+            lex->mi.show_all_slaves= 1;
+#ifdef HAVE_REPLICATION
+            if (prepare_schema_table(thd, lex, 0, SCH_SLAVE_STATUS))
               MYSQL_YYABORT;
-            Lex->sql_command = SQLCOM_SHOW_SLAVE_STAT;
+#endif
           }
         | SLAVE optional_connection_name STATUS_SYM optional_for_channel
           {
-            if (!(Lex->m_sql_cmd= new (thd->mem_root)
-                  Sql_cmd_show_slave_status()))
+            LEX *lex= Lex;
+            lex->sql_command= SQLCOM_SHOW_SLAVE_STAT;
+            lex->mi.show_all_slaves= 0;
+#ifdef HAVE_REPLICATION
+            if (prepare_schema_table(thd, lex, 0, SCH_SLAVE_STATUS))
               MYSQL_YYABORT;
-            Lex->sql_command = SQLCOM_SHOW_SLAVE_STAT;
+#endif
           }
         | CREATE PROCEDURE_SYM sp_name
           {

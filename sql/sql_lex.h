@@ -499,6 +499,8 @@ struct LEX_MASTER_INFO
   int sql_delay;
   bool is_demotion_opt;
   bool is_until_before_gtids;
+  bool show_all_slaves;
+
   /*
     Enum is used for making it possible to detect if the user
     changed variable or if it should be left at old value
