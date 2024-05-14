@@ -1646,6 +1646,16 @@ public:
   bool fill_item_list(List<Item> *item_list) const;
   void reset_item_list(List<Item> *item_list, uint skip) const;
   void clear_column_bitmaps(void);
+  inline void clear_null_bits()
+  {
+    if (s->null_bytes)
+      bzero(null_flags, s->null_bytes);
+  }
+  inline void set_null_bits()
+  {
+    if (s->null_bytes)
+      bfill(null_flags, s->null_bytes, 255);
+  }
   void prepare_for_position(void);
   MY_BITMAP *prepare_for_keyread(uint index, MY_BITMAP *map);
   MY_BITMAP *prepare_for_keyread(uint index)
@@ -3494,8 +3504,7 @@ inline void mark_as_null_row(TABLE *table)
 {
   table->null_row=1;
   table->status|=STATUS_NULL_ROW;
-  if (table->s->null_bytes)
-    bfill(table->null_flags,table->s->null_bytes,255);
+  table->set_null_bits();
 }
 
 /*

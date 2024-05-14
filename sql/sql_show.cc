@@ -47,6 +47,8 @@
 #include "sql_derived.h"
 #include "sql_statistics.h"
 #include "sql_connect.h"
+#include "sql_repl.h"                       // rpl_load_gtid_state
+#include "rpl_mi.h"                         // master_info_index
 #include "authors.h"
 #include "contributors.h"
 #include "sql_partition.h"
@@ -8836,6 +8838,90 @@ TABLE *create_schema_table(THD *thd, TABLE_LIST *table_list)
 }
 
 
+#ifdef HAVE_REPLICATION
+int fill_slave_status(THD *thd, TABLE_LIST *tables, COND *cond)
+{
+  String gtid_pos;
+  Master_info **tmp;
+  TABLE *table= tables->table;
+  uint elements, i;
+  bool single_slave= (thd->lex->sql_command == SQLCOM_SHOW_SLAVE_STAT &&
+                      !thd->lex->mi.show_all_slaves);
+  DBUG_ENTER("fill_slave_status");
+
+  if (check_global_access(thd, PRIV_STMT_SHOW_SLAVE_STATUS))
+    DBUG_RETURN(TRUE);
+
+  gtid_pos.length(0);
+  if (rpl_append_gtid_state(&gtid_pos, true))
+  {
+    my_error(ER_OUT_OF_RESOURCES, MYF(0));
+    DBUG_RETURN(TRUE);
+  }
+
+  if (!master_info_index ||
+      !(elements= master_info_index->master_info_hash.records))
+  {
+    /* No registered slaves */
+    return 0;
+  }
+
+  /*
+    Sort lines to get them into a predicted order
+    (needed for test cases and to not confuse users)
+  */
+  if (!(tmp= (Master_info**) thd->alloc(sizeof(Master_info*) * elements)))
+    goto error;
+
+  if (single_slave)
+  {
+    LEX_MASTER_INFO *lex_mi= &thd->lex->mi;
+    Master_info *mi;
+    if ((mi= get_master_info(&lex_mi->connection_name,
+                             Sql_condition::WARN_LEVEL_ERROR)))
+    {
+      bool res= 0;
+      if (mi->host[0])
+      {
+        store_master_info(thd, mi, table, &gtid_pos);
+        res= schema_table_store_record(thd, table);
+      }
+      mi->release();
+      if (res)
+        goto error;
+    }
+  }
+  else
+  {
+    mysql_mutex_lock(&LOCK_active_mi);
+    for (i= 0; i < elements; i++)
+    {
+      tmp[i]= (Master_info *) my_hash_element(&master_info_index->
+                                              master_info_hash, i);
+    }
+    my_qsort(tmp, elements, sizeof(Master_info*), (qsort_cmp) cmp_mi_by_name);
+
+    for (i= 0; i < elements; i++)
+    {
+      if (tmp[i]->host[0])
+      {
+        store_master_info(thd, tmp[i], table, &gtid_pos);
+        if (schema_table_store_record(thd, table))
+        {
+          mysql_mutex_unlock(&LOCK_active_mi);
+          goto error;
+        }
+      }
+    }
+    mysql_mutex_unlock(&LOCK_active_mi);
+  }
+  DBUG_RETURN(0);
+
+error:
+  DBUG_RETURN(1);
+}
+#endif
+
 /*
   For old SHOW compatibility. It is used when
   old SHOW doesn't have generated column names
@@ -8862,12 +8948,11 @@ static int make_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
       LEX_CSTRING field_name= field_info->name();
       Item_field *field= new (thd->mem_root)
         Item_field(thd, context, field_name);
-      if (field)
-      {
-        field->set_name(thd, field_info->old_name());
-        if (add_item_to_list(thd, field))
-          return 1;
-      }
+      if (!field)
+        return 1;
+      field->set_name(thd, field_info->old_name());
+      if (add_item_to_list(thd, field))
+        return 1;
     }
   }
   return 0;
@@ -8922,14 +9007,14 @@ int make_table_names_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
     buffer.append(')');
   }
   Item_field *field= new (thd->mem_root) Item_field(thd, context, field_name);
-  if (add_item_to_list(thd, field))
+  if (!field || add_item_to_list(thd, field))
     return 1;
   field->set_name(thd, &buffer);
   if (thd->lex->verbose)
   {
     field_info= &schema_table->fields_info[3];
     field= new (thd->mem_root) Item_field(thd, context, field_info->name());
-    if (add_item_to_list(thd, field))
+    if (! field || add_item_to_list(thd, field))
       return 1;
     field->set_name(thd, field_info->old_name());
   }
@@ -8953,12 +9038,11 @@ int make_columns_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
       continue;
     Item_field *field= new (thd->mem_root) Item_field(thd, context,
                                                       field_info->name());
-    if (field)
-    {
-      field->set_name(thd, field_info->old_name());
-      if (add_item_to_list(thd, field))
-        return 1;
-    }
+    if (!field)
+      return 1;
+    field->set_name(thd, field_info->old_name());
+    if (add_item_to_list(thd, field))
+      return 1;
   }
   return 0;
 }
@@ -8976,16 +9060,14 @@ int make_character_sets_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
     field_info= &schema_table->fields_info[*field_num];
     Item_field *field= new (thd->mem_root) Item_field(thd, context,
                                                       field_info->name());
-    if (field)
-    {
-      field->set_name(thd, field_info->old_name());
-      if (add_item_to_list(thd, field))
-        return 1;
-    }
+    if (!field)
+      return 1;
+    field->set_name(thd, field_info->old_name());
+    if (add_item_to_list(thd, field))
+      return 1;
   }
   return 0;
 }
-
 
 int make_proc_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
 {
@@ -8999,10 +9081,44 @@ int make_proc_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
     field_info= &schema_table->fields_info[*field_num];
     Item_field *field= new (thd->mem_root) Item_field(thd, context,
                                                       field_info->name());
-    if (field)
+    if (!field)
+      return 1;
+    field->set_name(thd, field_info->old_name());
+    if (add_item_to_list(thd, field))
+      return 1;
+  }
+  return 0;
+}
+
+
+static int make_slave_status_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
+{
+  ST_FIELD_INFO *field_info= schema_table->fields_info;
+  Name_resolution_context *context= &thd->lex->first_select_lex()->context;
+  DBUG_ASSERT(thd->lex->sql_command == SQLCOM_SHOW_SLAVE_STAT);
+  bool all_slaves= thd->lex->mi.show_all_slaves;
+  ulonglong used_fields= ~0ULL;
+
+  if (!all_slaves)
+  {
+    /* Remove 2 first fields and all fields above and including field 55 */
+    used_fields&= ~((1ULL << 0) | (1ULL << 1));
+    used_fields&= ((1ULL << 56)-1);
+  }
+
+  for (uint i=0; !field_info->end_marker(); field_info++, i++)
+  {
+    /*
+      We have all_slaves here to take into account that we some day may have
+      more than 64 fields in the list. If all_slaves is set we should show
+      all fields.
+    */
+    if (all_slaves || (used_fields & ((1ULL << i))))
     {
-      field->set_name(thd, field_info->old_name());
-      if (add_item_to_list(thd, field))
+      LEX_CSTRING field_name= field_info->name();
+      Item_field *field= new (thd->mem_root)
+        Item_field(thd, context, field_name);
+      if (!field || add_item_to_list(thd, field))
         return 1;
     }
   }
@@ -10249,10 +10365,7 @@ ST_FIELD_INFO files_fields_info[]=
 
 void init_fill_schema_files_row(TABLE* table)
 {
-  int i;
-  for(i=0; !Show::files_fields_info[i].end_marker(); i++)
-    table->field[i]->set_null();
-
+  table->set_null_bits();
   table->field[IS_FILES_STATUS]->set_notnull();
   table->field[IS_FILES_STATUS]->store("NORMAL", 6, system_charset_info);
 }
@@ -10414,8 +10527,78 @@ ST_FIELD_INFO check_constraints_fields_info[]=
   CEnd()
 };
 
-}; // namespace Show
 
+ST_FIELD_INFO slave_status_info[]=
+{
+  Column("Connection_name", Name(), NOT_NULL),
+  Column("Slave_SQL_State", Varchar(64), NULLABLE),
+  Column("Slave_IO_State", Varchar(64), NULLABLE),
+  Column("Master_Host", Varchar(HOSTNAME_LENGTH), NULLABLE),
+  Column("Master_User", Varchar(USERNAME_LENGTH), NULLABLE),
+  Column("Master_Port", ULong(7), NOT_NULL),
+  Column("Connect_Retry", SLong(10), NOT_NULL),
+  Column("Master_Log_File", Varchar(FN_REFLEN), NOT_NULL),
+  Column("Read_Master_Log_Pos", ULonglong(10), NOT_NULL),
+  Column("Relay_Log_File", Varchar(FN_REFLEN), NOT_NULL),
+  Column("Relay_Log_Pos", ULonglong(10), NOT_NULL),
+  Column("Relay_Master_Log_File", Varchar(FN_REFLEN), NOT_NULL),
+  Column("Slave_IO_Running", Varchar(10), NOT_NULL),
+  Column("Slave_SQL_Running", Varchar(3), NOT_NULL),
+  Column("Replicate_Do_DB", Name(), NOT_NULL),
+  Column("Replicate_Ignore_DB", Name(), NOT_NULL),
+  Column("Replicate_Do_Table", Name(), NOT_NULL),
+  Column("Replicate_Ignore_Table", Name(), NOT_NULL),
+  Column("Replicate_Wild_Do_Table", Name(), NOT_NULL),
+  Column("Replicate_Wild_Ignore_Table", Name(), NOT_NULL),
+  Column("Last_Errno", SLong(4), NOT_NULL),
+  Column("Last_Error", Varchar(20), NULLABLE),
+  Column("Skip_Counter", ULong(10), NOT_NULL),
+  Column("Exec_Master_Log_Pos", ULonglong(10), NOT_NULL),
+  Column("Relay_Log_Space", ULonglong(10), NOT_NULL),
+  Column("Until_Condition", Varchar(6), NOT_NULL),
+  Column("Until_Log_File", Varchar(FN_REFLEN), NULLABLE),
+  Column("Until_Log_Pos", ULonglong(10), NOT_NULL),
+  Column("Master_SSL_Allowed", Varchar(7), NULLABLE),
+  Column("Master_SSL_CA_File", Varchar(FN_REFLEN), NULLABLE),
+  Column("Master_SSL_CA_Path", Varchar(FN_REFLEN), NULLABLE),
+  Column("Master_SSL_Cert", Varchar(FN_REFLEN), NULLABLE),
+  Column("Master_SSL_Cipher", Varchar(FN_REFLEN), NULLABLE),
+  Column("Master_SSL_Key", Varchar(FN_REFLEN), NULLABLE),
+  Column("Seconds_Behind_Master", SLonglong(10), NULLABLE),
+  Column("Master_SSL_Verify_Server_Cert", Varchar(3), NOT_NULL),
+  Column("Last_IO_Errno", SLong(4), NOT_NULL),
+  Column("Last_IO_Error", Varchar(MYSQL_ERRMSG_SIZE), NULLABLE),
+  Column("Last_SQL_Errno", SLong(4), NOT_NULL),
+  Column("Last_SQL_Error", Varchar(MYSQL_ERRMSG_SIZE), NULLABLE),
+  Column("Replicate_Ignore_Server_Ids", Varchar(FN_REFLEN), NOT_NULL),
+  Column("Master_Server_Id", ULong(10), NOT_NULL),
+  Column("Master_SSL_Crl", Varchar(FN_REFLEN), NULLABLE),
+  Column("Master_SSL_Crlpath", Varchar(FN_REFLEN), NULLABLE),
+  Column("Using_Gtid", Varchar(15), NULLABLE),
+  Column("Gtid_IO_Pos", Varchar(1024), NOT_NULL),
+  Column("Replicate_Do_Domain_Ids", Varchar(FN_REFLEN), NOT_NULL),
+  Column("Replicate_Ignore_Domain_Ids", Varchar(FN_REFLEN), NOT_NULL),
+  Column("Parallel_Mode", Varchar(15), NOT_NULL),
+  Column("SQL_Delay", ULong(10), NOT_NULL),
+  Column("SQL_Remaining_Delay", ULong(10), NULLABLE),
+  Column("Slave_SQL_Running_State", Varchar(64), NULLABLE),
+  Column("Slave_DDL_Groups", ULonglong(20), NOT_NULL),
+  Column("Slave_Non_Transactional_Groups", ULonglong(20), NOT_NULL),
+  Column("Slave_Transactional_Groups", ULonglong(20), NOT_NULL),
+  Column("Replicate_Rewrite_DB",Varchar(1024), NOT_NULL),
+  Column("Retried_transactions", ULong(10), NOT_NULL),
+  Column("Max_relay_log_size", ULonglong(10), NOT_NULL),
+  Column("Executed_log_entries", ULong(10), NOT_NULL),
+  Column("Slave_received_heartbeats", ULong(10), NOT_NULL),
+  Column("Slave_heartbeat_period", Float(703), NOT_NULL), // 3 decimals
+  Column("Gtid_Slave_Pos", Varchar(FN_REFLEN), NOT_NULL),
+  Column("Master_last_event_time", Datetime(0), NULLABLE),
+  Column("Slave_last_event_time", Datetime(0), NULLABLE),
+  Column("Master_Slave_time_diff", SLonglong(10), NULLABLE),
+  CEnd()
+};
+
+}; // namespace Show
 
 namespace Show {
 
@@ -10565,6 +10748,10 @@ ST_SCHEMA_TABLE schema_tables[]=
   {"VIEWS"_Lex_ident_i_s_table, Show::view_fields_info, 0,
    get_all_tables, 0, get_schema_views_record, 1, 2, 0,
    OPEN_VIEW_ONLY|OPTIMIZE_I_S_TABLE|I_S_EXTENDED_ERROR_HANDLING},
+#ifdef HAVE_REPLICATION
+  {"SLAVE_STATUS"_Lex_ident_i_s_table, Show::slave_status_info, 0,
+   fill_slave_status, make_slave_status_old_format, 0, 1, 0, 0, 0 },
+#endif
   {Lex_ident_i_s_table(), 0, 0, 0, 0, 0, 0, 0, 0, 0}
 };
 

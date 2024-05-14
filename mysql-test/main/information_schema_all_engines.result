@@ -58,6 +58,7 @@ SCHEMA_PRIVILEGES
 SEQUENCES
 SESSION_STATUS
 SESSION_VARIABLES
+SLAVE_STATUS
 SPATIAL_REF_SYS
 SQL_FUNCTIONS
 STATISTICS
@@ -144,6 +145,7 @@ SCHEMA_PRIVILEGES	TABLE_SCHEMA
 SEQUENCES	SEQUENCE_SCHEMA
 SESSION_STATUS	VARIABLE_NAME
 SESSION_VARIABLES	VARIABLE_NAME
+SLAVE_STATUS	Connection_name
 SPATIAL_REF_SYS	SRID
 SQL_FUNCTIONS	FUNCTION
 STATISTICS	TABLE_SCHEMA
@@ -230,6 +232,7 @@ SCHEMA_PRIVILEGES	TABLE_SCHEMA
 SEQUENCES	SEQUENCE_SCHEMA
 SESSION_STATUS	VARIABLE_NAME
 SESSION_VARIABLES	VARIABLE_NAME
+SLAVE_STATUS	Connection_name
 SPATIAL_REF_SYS	SRID
 SQL_FUNCTIONS	FUNCTION
 STATISTICS	TABLE_SCHEMA
@@ -278,8 +281,6 @@ ENGINES	information_schema.ENGINES	1
 EVENTS	information_schema.EVENTS	1
 FILES	information_schema.FILES	1
 GEOMETRY_COLUMNS	information_schema.GEOMETRY_COLUMNS	1
-GLOBAL_STATUS	information_schema.GLOBAL_STATUS	1
-GLOBAL_VARIABLES	information_schema.GLOBAL_VARIABLES	1
 INDEX_STATISTICS	information_schema.INDEX_STATISTICS	1
 INNODB_BUFFER_PAGE	information_schema.INNODB_BUFFER_PAGE	1
 INNODB_BUFFER_PAGE_LRU	information_schema.INNODB_BUFFER_PAGE_LRU	1
@@ -318,8 +319,7 @@ ROUTINES	information_schema.ROUTINES	1
 SCHEMATA	information_schema.SCHEMATA	1
 SCHEMA_PRIVILEGES	information_schema.SCHEMA_PRIVILEGES	1
 SEQUENCES	information_schema.SEQUENCES	1
-SESSION_STATUS	information_schema.SESSION_STATUS	1
-SESSION_VARIABLES	information_schema.SESSION_VARIABLES	1
+SLAVE_STATUS	information_schema.SLAVE_STATUS	1
 SPATIAL_REF_SYS	information_schema.SPATIAL_REF_SYS	1
 STATISTICS	information_schema.STATISTICS	1
 SYSTEM_VARIABLES	information_schema.SYSTEM_VARIABLES	1
@@ -395,6 +395,7 @@ Database: information_schema
 | SEQUENCES                             |
 | SESSION_STATUS                        |
 | SESSION_VARIABLES                     |
+| SLAVE_STATUS                          |
 | SPATIAL_REF_SYS                       |
 | SQL_FUNCTIONS                         |
 | STATISTICS                            |
@@ -471,6 +472,7 @@ Database: INFORMATION_SCHEMA
 | SEQUENCES                             |
 | SESSION_STATUS                        |
 | SESSION_VARIABLES                     |
+| SLAVE_STATUS                          |
 | SPATIAL_REF_SYS                       |
 | SQL_FUNCTIONS                         |
 | STATISTICS                            |
@@ -493,5 +495,5 @@ Wildcard: inf_rmation_schema
 | information_schema |
 SELECT table_schema, count(*) FROM information_schema.TABLES WHERE table_schema IN ('mysql', 'INFORMATION_SCHEMA', 'test', 'mysqltest') GROUP BY TABLE_SCHEMA;
 table_schema	count(*)
-information_schema	71
+information_schema	72
 mysql	31

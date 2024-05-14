@@ -1862,30 +1862,6 @@ static int mysql_test_show_grants(Prepared_statement *stmt)
 
 #ifndef EMBEDDED_LIBRARY
 /**
-  Validate and prepare for execution SHOW SLAVE STATUS statement.
-
-  @param stmt               prepared statement
-
-  @retval
-    FALSE             success
-  @retval
-    TRUE              error, error message is set in THD
-*/
-
-static int mysql_test_show_slave_status(Prepared_statement *stmt,
-                                        bool show_all_slaves_stat)
-{
-  DBUG_ENTER("mysql_test_show_slave_status");
-  THD *thd= stmt->thd;
-  List<Item> fields;
-
-  show_master_info_get_fields(thd, &fields, show_all_slaves_stat, 0);
-
-  DBUG_RETURN(send_stmt_metadata(thd, stmt, &fields));
-}
-
-
-/**
   Validate and prepare for execution SHOW BINLOG STATUS statement.
 
   @param stmt               prepared statement
@@ -2309,6 +2285,7 @@ static bool check_prepared_statement(Prepared_statement *stmt)
   case SQLCOM_SHOW_STATUS_FUNC:
   case SQLCOM_SHOW_STATUS_PACKAGE:
   case SQLCOM_SHOW_STATUS_PACKAGE_BODY:
+  case SQLCOM_SHOW_SLAVE_STAT:
   case SQLCOM_SELECT:
     res= mysql_test_select(stmt, tables);
     if (res == 2)
@@ -2345,21 +2322,6 @@ static bool check_prepared_statement(Prepared_statement *stmt)
     break;
 #endif /* NO_EMBEDDED_ACCESS_CHECKS */
 #ifndef EMBEDDED_LIBRARY
-  case SQLCOM_SHOW_SLAVE_STAT:
-    {
-      DBUG_ASSERT(thd->lex->m_sql_cmd);
-      Sql_cmd_show_slave_status *cmd;
-      cmd= dynamic_cast<Sql_cmd_show_slave_status*>(thd->lex->m_sql_cmd);
-      DBUG_ASSERT(cmd);
-      if ((res= mysql_test_show_slave_status(stmt,
-                                             cmd->is_show_all_slaves_stat()))
-                                             == 2)
-      {
-        /* Statement and field info has already been sent */
-        DBUG_RETURN(FALSE);
-      }
-      break;
-    }
   case SQLCOM_SHOW_BINLOG_STAT:
     if ((res= mysql_test_show_binlog_status(stmt)) == 2)
     {
