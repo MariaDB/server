@@ -11,3 +11,14 @@ incorrect-path-for-interpreter /usr/bin/env perl != /usr/bin/perl [usr/share/mys
 shared-library-lacks-prerequisites [usr/lib/mysql/plugin/auth_0x0100.so]
 shared-library-lacks-prerequisites [usr/lib/mysql/plugin/debug_key_management.so]
 shared-library-lacks-prerequisites [usr/lib/mysql/plugin/test_sql_service.so]
+
+# These are from stop word list
+spelling-error-in-binary noone no one [usr/bin/mariadb-client-test-embedded]
+spelling-error-in-binary noone no one [usr/bin/mariadb-test-embedded]
+spelling-error-in-binary thats that's [usr/bin/mariadb-client-test-embedded]
+spelling-error-in-binary thats that's [usr/bin/mariadb-test-embedded]
+spelling-error-in-binary theres there's [usr/bin/mariadb-client-test-embedded]
+spelling-error-in-binary theres there's [usr/bin/mariadb-test-embedded]
+spelling-error-in-binary userA users [usr/lib/mysql/plugin/qa_auth_interface.so]
+spelling-error-in-binary yuR your [usr/bin/mariadb-client-test-embedded]
+spelling-error-in-binary yuR your [usr/bin/mariadb-test-embedded]
