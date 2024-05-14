@@ -1437,8 +1437,6 @@ Query_log_event::Query_log_event(THD* thd_arg, const char* query_arg,
 {
   /* status_vars_len is set just before writing the event */
 
-  time_t end_time;
-
 #ifdef WITH_WSREP
   /*
     If Query_log_event will contain non trans keyword (not BEGIN, COMMIT,
@@ -1457,8 +1455,14 @@ Query_log_event::Query_log_event(THD* thd_arg, const char* query_arg,
   memset(&host, 0, sizeof(host));
   error_code= errcode;
 
-  end_time= my_time(0);
-  exec_time = (ulong) (end_time  - thd_arg->start_time);
+  /*
+    For slave threads, remember the original master exec time.
+    This is needed to be able to calculate the master commit time.
+  */
+  exec_time= ((thd->slave_thread) ?
+              thd->orig_exec_time :
+              (ulong) (my_time(0) - thd_arg->start_time));
+
   /**
     @todo this means that if we have no catalog, then it is replicated
     as an existing catalog of length zero. is that safe? /sven
@@ -2680,9 +2684,14 @@ Load_log_event::Load_log_event(THD *thd_arg, const sql_exchange *ex,
    db(db_arg), fname(ex->file_name), local_fname(FALSE),
    is_concurrent(is_concurrent_arg)
 {
-  time_t end_time;
-  time(&end_time);
-  exec_time = (ulong) (end_time  - thd_arg->start_time);
+  /*
+    For slave threads, remember the original master exec time.
+    This is needed to be able to calculate the master commit time.
+  */
+  exec_time= ((thd->slave_thread) ?
+              thd->orig_exec_time :
+              (ulong) (my_time(0) - thd_arg->start_time));
+
   /* db can never be a zero pointer in 4.0 */
   db_len = (uint32) strlen(db);
   table_name_len = (uint32) strlen(table_name);
@@ -4100,6 +4109,15 @@ int Xid_apply_log_event::do_apply_event(rpl_group_info *rgi)
 
   general_log_print(thd, COM_QUERY, get_query());
   thd->variables.option_bits&= ~OPTION_GTID_BEGIN;
+  /*
+    Use the time from the current Xid_log_event for the generated
+    Xid_log_event in binlog_commit_flush_xid_caches().
+    This ensures that the time for Xid_log_events does not change
+    and allows slaves to give a consistent value for
+    Slave_last_event_time.
+  */
+  thd->start_time= when;
+
   res= do_commit();
   if (!res && rgi->gtid_pending)
   {

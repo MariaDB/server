@@ -41,6 +41,8 @@ SHOW GRANTS;
 --echo #
 --error ER_SPECIFIC_ACCESS_DENIED_ERROR
 SHOW SLAVE STATUS;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+SELECT * from information_schema.slave_status;
 
 --echo #
 --echo # Verify that having REPLICATION SLAVE ADMIN doesn't allow SHOW RELAYLOG EVENTS

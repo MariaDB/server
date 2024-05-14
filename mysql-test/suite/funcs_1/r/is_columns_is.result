@@ -340,6 +340,70 @@ def	information_schema	SESSION_STATUS	VARIABLE_NAME	1	NULL	NO	varchar	64	192	NUL
 def	information_schema	SESSION_STATUS	VARIABLE_VALUE	2	NULL	NO	varchar	4096	12288	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(4096)			select		NEVER	NULL
 def	information_schema	SESSION_VARIABLES	VARIABLE_NAME	1	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(64)			select		NEVER	NULL
 def	information_schema	SESSION_VARIABLES	VARIABLE_VALUE	2	NULL	NO	varchar	4096	12288	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(4096)			select		NEVER	NULL
+def	information_schema	SLAVE_STATUS	Connection_name	1	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(64)			select		NEVER	NULL
+def	information_schema	SLAVE_STATUS	Connect_Retry	7	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(10)			select		NEVER	NULL
+def	information_schema	SLAVE_STATUS	Executed_log_entries	58	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(10) unsigned			select		NEVER	NULL
+def	information_schema	SLAVE_STATUS	Exec_Master_Log_Pos	24	NULL	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(10) unsigned			select		NEVER	NULL
+def	information_schema	SLAVE_STATUS	Gtid_IO_Pos	46	NULL	NO	varchar	30	90	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(30)			select		NEVER	NULL
+def	information_schema	SLAVE_STATUS	Gtid_Slave_Pos	61	NULL	NO	varchar	512	1536	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(512)			select		NEVER	NULL
+def	information_schema	SLAVE_STATUS	Last_Errno	21	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(4)			select		NEVER	NULL
+def	information_schema	SLAVE_STATUS	Last_Error	22	NULL	YES	varchar	20	60	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(20)			select		NEVER	NULL
+def	information_schema	SLAVE_STATUS	Last_IO_Errno	37	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(4)			select		NEVER	NULL
+def	information_schema	SLAVE_STATUS	Last_IO_Error	38	NULL	YES	varchar	20	60	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(20)			select		NEVER	NULL
+def	information_schema	SLAVE_STATUS	Last_SQL_Errno	39	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(4)			select		NEVER	NULL
+def	information_schema	SLAVE_STATUS	Last_SQL_Error	40	NULL	YES	varchar	20	60	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(20)			select		NEVER	NULL
+def	information_schema	SLAVE_STATUS	Master_Host	4	NULL	YES	varchar	255	765	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(255)			select		NEVER	NULL
+def	information_schema	SLAVE_STATUS	Master_last_event_time	62	NULL	YES	datetime	NULL	NULL	NULL	NULL	0	NULL	NULL	datetime			select		NEVER	NULL
+def	information_schema	SLAVE_STATUS	Master_Log_File	8	NULL	NO	varchar	512	1536	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(512)			select		NEVER	NULL
+def	information_schema	SLAVE_STATUS	Master_Port	6	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(7) unsigned			select		NEVER	NULL
+def	information_schema	SLAVE_STATUS	Master_Server_Id	42	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(10) unsigned			select		NEVER	NULL
+def	information_schema	SLAVE_STATUS	Master_Slave_time_diff	64	NULL	YES	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(10)			select		NEVER	NULL
+def	information_schema	SLAVE_STATUS	Master_SSL_Allowed	29	NULL	YES	varchar	7	21	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(7)			select		NEVER	NULL
+def	information_schema	SLAVE_STATUS	Master_SSL_CA_File	30	NULL	YES	varchar	512	1536	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(512)			select		NEVER	NULL
+def	information_schema	SLAVE_STATUS	Master_SSL_CA_Path	31	NULL	YES	varchar	512	1536	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(512)			select		NEVER	NULL
+def	information_schema	SLAVE_STATUS	Master_SSL_Cert	32	NULL	YES	varchar	512	1536	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(512)			select		NEVER	NULL
+def	information_schema	SLAVE_STATUS	Master_SSL_Cipher	33	NULL	YES	varchar	512	1536	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(512)			select		NEVER	NULL
+def	information_schema	SLAVE_STATUS	Master_SSL_Crl	43	NULL	YES	varchar	512	1536	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(512)			select		NEVER	NULL
+def	information_schema	SLAVE_STATUS	Master_SSL_Crlpath	44	NULL	YES	varchar	512	1536	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(512)			select		NEVER	NULL
+def	information_schema	SLAVE_STATUS	Master_SSL_Key	34	NULL	YES	varchar	512	1536	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(512)			select		NEVER	NULL
+def	information_schema	SLAVE_STATUS	Master_SSL_Verify_Server_Cert	36	NULL	NO	varchar	3	9	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(3)			select		NEVER	NULL
+def	information_schema	SLAVE_STATUS	Master_User	5	NULL	YES	varchar	384	1152	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(384)			select		NEVER	NULL
+def	information_schema	SLAVE_STATUS	Max_relay_log_size	57	NULL	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(10) unsigned			select		NEVER	NULL
+def	information_schema	SLAVE_STATUS	Parallel_Mode	49	NULL	NO	varchar	15	45	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(15)			select		NEVER	NULL
+def	information_schema	SLAVE_STATUS	Read_Master_Log_Pos	9	NULL	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(10) unsigned			select		NEVER	NULL
+def	information_schema	SLAVE_STATUS	Relay_Log_File	10	NULL	NO	varchar	512	1536	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(512)			select		NEVER	NULL
+def	information_schema	SLAVE_STATUS	Relay_Log_Pos	11	NULL	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(10) unsigned			select		NEVER	NULL
+def	information_schema	SLAVE_STATUS	Relay_Log_Space	25	NULL	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(10) unsigned			select		NEVER	NULL
+def	information_schema	SLAVE_STATUS	Relay_Master_Log_File	12	NULL	NO	varchar	512	1536	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(512)			select		NEVER	NULL
+def	information_schema	SLAVE_STATUS	Replicate_Do_DB	15	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(64)			select		NEVER	NULL
+def	information_schema	SLAVE_STATUS	Replicate_Do_Domain_Ids	47	NULL	NO	varchar	512	1536	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(512)			select		NEVER	NULL
+def	information_schema	SLAVE_STATUS	Replicate_Do_Table	17	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(64)			select		NEVER	NULL
+def	information_schema	SLAVE_STATUS	Replicate_Ignore_DB	16	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(64)			select		NEVER	NULL
+def	information_schema	SLAVE_STATUS	Replicate_Ignore_Domain_Ids	48	NULL	NO	varchar	512	1536	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(512)			select		NEVER	NULL
+def	information_schema	SLAVE_STATUS	Replicate_Ignore_Server_Ids	41	NULL	NO	varchar	512	1536	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(512)			select		NEVER	NULL
+def	information_schema	SLAVE_STATUS	Replicate_Ignore_Table	18	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(64)			select		NEVER	NULL
+def	information_schema	SLAVE_STATUS	Replicate_Wild_Do_Table	19	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(64)			select		NEVER	NULL
+def	information_schema	SLAVE_STATUS	Replicate_Wild_Ignore_Table	20	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(64)			select		NEVER	NULL
+def	information_schema	SLAVE_STATUS	Retried_transactions	56	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(10) unsigned			select		NEVER	NULL
+def	information_schema	SLAVE_STATUS	Seconds_Behind_Master	35	NULL	YES	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(10)			select		NEVER	NULL
+def	information_schema	SLAVE_STATUS	Skip_Counter	23	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(10) unsigned			select		NEVER	NULL
+def	information_schema	SLAVE_STATUS	Slave_DDL_Groups	53	NULL	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(20) unsigned			select		NEVER	NULL
+def	information_schema	SLAVE_STATUS	Slave_heartbeat_period	60	NULL	NO	float	NULL	NULL	9	3	NULL	NULL	NULL	float(9,3)			select		NEVER	NULL
+def	information_schema	SLAVE_STATUS	Slave_IO_Running	13	NULL	NO	varchar	3	9	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(3)			select		NEVER	NULL
+def	information_schema	SLAVE_STATUS	Slave_IO_State	3	NULL	YES	varchar	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(64)			select		NEVER	NULL
+def	information_schema	SLAVE_STATUS	Slave_last_event_time	63	NULL	YES	datetime	NULL	NULL	NULL	NULL	0	NULL	NULL	datetime			select		NEVER	NULL
+def	information_schema	SLAVE_STATUS	Slave_Non_Transactional_Groups	54	NULL	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(20) unsigned			select		NEVER	NULL
+def	information_schema	SLAVE_STATUS	Slave_received_heartbeats	59	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(10) unsigned			select		NEVER	NULL
+def	information_schema	SLAVE_STATUS	Slave_SQL_Running	14	NULL	NO	varchar	3	9	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(3)			select		NEVER	NULL
+def	information_schema	SLAVE_STATUS	Slave_SQL_Running_State	52	NULL	YES	varchar	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(64)			select		NEVER	NULL
+def	information_schema	SLAVE_STATUS	Slave_SQL_State	2	NULL	YES	varchar	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(64)			select		NEVER	NULL
+def	information_schema	SLAVE_STATUS	Slave_Transactional_Groups	55	NULL	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(20) unsigned			select		NEVER	NULL
+def	information_schema	SLAVE_STATUS	SQL_Delay	50	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(10) unsigned			select		NEVER	NULL
+def	information_schema	SLAVE_STATUS	SQL_Remaining_Delay	51	NULL	YES	int	NULL	NULL	10	0	NULL	NULL	NULL	int(10) unsigned			select		NEVER	NULL
+def	information_schema	SLAVE_STATUS	Until_Condition	26	NULL	NO	varchar	6	18	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(6)			select		NEVER	NULL
+def	information_schema	SLAVE_STATUS	Until_Log_File	27	NULL	YES	varchar	512	1536	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(512)			select		NEVER	NULL
+def	information_schema	SLAVE_STATUS	Until_Log_Pos	28	NULL	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(10) unsigned			select		NEVER	NULL
+def	information_schema	SLAVE_STATUS	Using_Gtid	45	NULL	YES	varchar	15	45	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(15)			select		NEVER	NULL
 def	information_schema	SPATIAL_REF_SYS	AUTH_NAME	2	NULL	NO	varchar	512	1536	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(512)			select		NEVER	NULL
 def	information_schema	SPATIAL_REF_SYS	AUTH_SRID	3	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(5)			select		NEVER	NULL
 def	information_schema	SPATIAL_REF_SYS	SRID	1	NULL	NO	smallint	NULL	NULL	5	0	NULL	NULL	NULL	smallint(5)			select		NEVER	NULL
@@ -531,6 +595,7 @@ NULL	bigint	NULL	NULL
 NULL	datetime	NULL	NULL
 NULL	decimal	NULL	NULL
 NULL	double	NULL	NULL
+NULL	float	NULL	NULL
 NULL	int	NULL	NULL
 NULL	smallint	NULL	NULL
 NULL	tinyint	NULL	NULL
@@ -888,6 +953,70 @@ NULL	information_schema	ROUTINES	LAST_ALTERED	datetime	NULL	NULL	NULL	NULL	datet
 3.0000	information_schema	SESSION_STATUS	VARIABLE_VALUE	varchar	4096	12288	utf8mb3	utf8mb3_general_ci	varchar(4096)
 3.0000	information_schema	SESSION_VARIABLES	VARIABLE_NAME	varchar	64	192	utf8mb3	utf8mb3_general_ci	varchar(64)
 3.0000	information_schema	SESSION_VARIABLES	VARIABLE_VALUE	varchar	4096	12288	utf8mb3	utf8mb3_general_ci	varchar(4096)
+3.0000	information_schema	SLAVE_STATUS	Connection_name	varchar	64	192	utf8mb3	utf8mb3_general_ci	varchar(64)
+3.0000	information_schema	SLAVE_STATUS	Slave_SQL_State	varchar	64	192	utf8mb3	utf8mb3_general_ci	varchar(64)
+3.0000	information_schema	SLAVE_STATUS	Slave_IO_State	varchar	64	192	utf8mb3	utf8mb3_general_ci	varchar(64)
+3.0000	information_schema	SLAVE_STATUS	Master_Host	varchar	255	765	utf8mb3	utf8mb3_general_ci	varchar(255)
+3.0000	information_schema	SLAVE_STATUS	Master_User	varchar	384	1152	utf8mb3	utf8mb3_general_ci	varchar(384)
+NULL	information_schema	SLAVE_STATUS	Master_Port	int	NULL	NULL	NULL	NULL	int(7) unsigned
+NULL	information_schema	SLAVE_STATUS	Connect_Retry	int	NULL	NULL	NULL	NULL	int(10)
+3.0000	information_schema	SLAVE_STATUS	Master_Log_File	varchar	512	1536	utf8mb3	utf8mb3_general_ci	varchar(512)
+NULL	information_schema	SLAVE_STATUS	Read_Master_Log_Pos	bigint	NULL	NULL	NULL	NULL	bigint(10) unsigned
+3.0000	information_schema	SLAVE_STATUS	Relay_Log_File	varchar	512	1536	utf8mb3	utf8mb3_general_ci	varchar(512)
+NULL	information_schema	SLAVE_STATUS	Relay_Log_Pos	bigint	NULL	NULL	NULL	NULL	bigint(10) unsigned
+3.0000	information_schema	SLAVE_STATUS	Relay_Master_Log_File	varchar	512	1536	utf8mb3	utf8mb3_general_ci	varchar(512)
+3.0000	information_schema	SLAVE_STATUS	Slave_IO_Running	varchar	3	9	utf8mb3	utf8mb3_general_ci	varchar(3)
+3.0000	information_schema	SLAVE_STATUS	Slave_SQL_Running	varchar	3	9	utf8mb3	utf8mb3_general_ci	varchar(3)
+3.0000	information_schema	SLAVE_STATUS	Replicate_Do_DB	varchar	64	192	utf8mb3	utf8mb3_general_ci	varchar(64)
+3.0000	information_schema	SLAVE_STATUS	Replicate_Ignore_DB	varchar	64	192	utf8mb3	utf8mb3_general_ci	varchar(64)
+3.0000	information_schema	SLAVE_STATUS	Replicate_Do_Table	varchar	64	192	utf8mb3	utf8mb3_general_ci	varchar(64)
+3.0000	information_schema	SLAVE_STATUS	Replicate_Ignore_Table	varchar	64	192	utf8mb3	utf8mb3_general_ci	varchar(64)
+3.0000	information_schema	SLAVE_STATUS	Replicate_Wild_Do_Table	varchar	64	192	utf8mb3	utf8mb3_general_ci	varchar(64)
+3.0000	information_schema	SLAVE_STATUS	Replicate_Wild_Ignore_Table	varchar	64	192	utf8mb3	utf8mb3_general_ci	varchar(64)
+NULL	information_schema	SLAVE_STATUS	Last_Errno	int	NULL	NULL	NULL	NULL	int(4)
+3.0000	information_schema	SLAVE_STATUS	Last_Error	varchar	20	60	utf8mb3	utf8mb3_general_ci	varchar(20)
+NULL	information_schema	SLAVE_STATUS	Skip_Counter	int	NULL	NULL	NULL	NULL	int(10) unsigned
+NULL	information_schema	SLAVE_STATUS	Exec_Master_Log_Pos	bigint	NULL	NULL	NULL	NULL	bigint(10) unsigned
+NULL	information_schema	SLAVE_STATUS	Relay_Log_Space	bigint	NULL	NULL	NULL	NULL	bigint(10) unsigned
+3.0000	information_schema	SLAVE_STATUS	Until_Condition	varchar	6	18	utf8mb3	utf8mb3_general_ci	varchar(6)
+3.0000	information_schema	SLAVE_STATUS	Until_Log_File	varchar	512	1536	utf8mb3	utf8mb3_general_ci	varchar(512)
+NULL	information_schema	SLAVE_STATUS	Until_Log_Pos	bigint	NULL	NULL	NULL	NULL	bigint(10) unsigned
+3.0000	information_schema	SLAVE_STATUS	Master_SSL_Allowed	varchar	7	21	utf8mb3	utf8mb3_general_ci	varchar(7)
+3.0000	information_schema	SLAVE_STATUS	Master_SSL_CA_File	varchar	512	1536	utf8mb3	utf8mb3_general_ci	varchar(512)
+3.0000	information_schema	SLAVE_STATUS	Master_SSL_CA_Path	varchar	512	1536	utf8mb3	utf8mb3_general_ci	varchar(512)
+3.0000	information_schema	SLAVE_STATUS	Master_SSL_Cert	varchar	512	1536	utf8mb3	utf8mb3_general_ci	varchar(512)
+3.0000	information_schema	SLAVE_STATUS	Master_SSL_Cipher	varchar	512	1536	utf8mb3	utf8mb3_general_ci	varchar(512)
+3.0000	information_schema	SLAVE_STATUS	Master_SSL_Key	varchar	512	1536	utf8mb3	utf8mb3_general_ci	varchar(512)
+NULL	information_schema	SLAVE_STATUS	Seconds_Behind_Master	bigint	NULL	NULL	NULL	NULL	bigint(10)
+3.0000	information_schema	SLAVE_STATUS	Master_SSL_Verify_Server_Cert	varchar	3	9	utf8mb3	utf8mb3_general_ci	varchar(3)
+NULL	information_schema	SLAVE_STATUS	Last_IO_Errno	int	NULL	NULL	NULL	NULL	int(4)
+3.0000	information_schema	SLAVE_STATUS	Last_IO_Error	varchar	20	60	utf8mb3	utf8mb3_general_ci	varchar(20)
+NULL	information_schema	SLAVE_STATUS	Last_SQL_Errno	int	NULL	NULL	NULL	NULL	int(4)
+3.0000	information_schema	SLAVE_STATUS	Last_SQL_Error	varchar	20	60	utf8mb3	utf8mb3_general_ci	varchar(20)
+3.0000	information_schema	SLAVE_STATUS	Replicate_Ignore_Server_Ids	varchar	512	1536	utf8mb3	utf8mb3_general_ci	varchar(512)
+NULL	information_schema	SLAVE_STATUS	Master_Server_Id	int	NULL	NULL	NULL	NULL	int(10) unsigned
+3.0000	information_schema	SLAVE_STATUS	Master_SSL_Crl	varchar	512	1536	utf8mb3	utf8mb3_general_ci	varchar(512)
+3.0000	information_schema	SLAVE_STATUS	Master_SSL_Crlpath	varchar	512	1536	utf8mb3	utf8mb3_general_ci	varchar(512)
+3.0000	information_schema	SLAVE_STATUS	Using_Gtid	varchar	15	45	utf8mb3	utf8mb3_general_ci	varchar(15)
+3.0000	information_schema	SLAVE_STATUS	Gtid_IO_Pos	varchar	30	90	utf8mb3	utf8mb3_general_ci	varchar(30)
+3.0000	information_schema	SLAVE_STATUS	Replicate_Do_Domain_Ids	varchar	512	1536	utf8mb3	utf8mb3_general_ci	varchar(512)
+3.0000	information_schema	SLAVE_STATUS	Replicate_Ignore_Domain_Ids	varchar	512	1536	utf8mb3	utf8mb3_general_ci	varchar(512)
+3.0000	information_schema	SLAVE_STATUS	Parallel_Mode	varchar	15	45	utf8mb3	utf8mb3_general_ci	varchar(15)
+NULL	information_schema	SLAVE_STATUS	SQL_Delay	int	NULL	NULL	NULL	NULL	int(10) unsigned
+NULL	information_schema	SLAVE_STATUS	SQL_Remaining_Delay	int	NULL	NULL	NULL	NULL	int(10) unsigned
+3.0000	information_schema	SLAVE_STATUS	Slave_SQL_Running_State	varchar	64	192	utf8mb3	utf8mb3_general_ci	varchar(64)
+NULL	information_schema	SLAVE_STATUS	Slave_DDL_Groups	bigint	NULL	NULL	NULL	NULL	bigint(20) unsigned
+NULL	information_schema	SLAVE_STATUS	Slave_Non_Transactional_Groups	bigint	NULL	NULL	NULL	NULL	bigint(20) unsigned
+NULL	information_schema	SLAVE_STATUS	Slave_Transactional_Groups	bigint	NULL	NULL	NULL	NULL	bigint(20) unsigned
+NULL	information_schema	SLAVE_STATUS	Retried_transactions	int	NULL	NULL	NULL	NULL	int(10) unsigned
+NULL	information_schema	SLAVE_STATUS	Max_relay_log_size	bigint	NULL	NULL	NULL	NULL	bigint(10) unsigned
+NULL	information_schema	SLAVE_STATUS	Executed_log_entries	int	NULL	NULL	NULL	NULL	int(10) unsigned
+NULL	information_schema	SLAVE_STATUS	Slave_received_heartbeats	int	NULL	NULL	NULL	NULL	int(10) unsigned
+NULL	information_schema	SLAVE_STATUS	Slave_heartbeat_period	float	NULL	NULL	NULL	NULL	float(9,3)
+3.0000	information_schema	SLAVE_STATUS	Gtid_Slave_Pos	varchar	512	1536	utf8mb3	utf8mb3_general_ci	varchar(512)
+NULL	information_schema	SLAVE_STATUS	Master_last_event_time	datetime	NULL	NULL	NULL	NULL	datetime
+NULL	information_schema	SLAVE_STATUS	Slave_last_event_time	datetime	NULL	NULL	NULL	NULL	datetime
+NULL	information_schema	SLAVE_STATUS	Master_Slave_time_diff	bigint	NULL	NULL	NULL	NULL	bigint(10)
 NULL	information_schema	SPATIAL_REF_SYS	SRID	smallint	NULL	NULL	NULL	NULL	smallint(5)
 3.0000	information_schema	SPATIAL_REF_SYS	AUTH_NAME	varchar	512	1536	utf8mb3	utf8mb3_general_ci	varchar(512)
 NULL	information_schema	SPATIAL_REF_SYS	AUTH_SRID	int	NULL	NULL	NULL	NULL	int(5)

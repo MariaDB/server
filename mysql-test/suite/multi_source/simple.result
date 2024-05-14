@@ -79,6 +79,9 @@ Executed_log_entries	7
 Slave_received_heartbeats	0
 Slave_heartbeat_period	60.000
 Gtid_Slave_Pos	
+Master_last_event_time	NULL
+Slave_last_event_time	NULL
+Master_Slave_time_diff	NULL
 Connection_name	slave2
 Slave_SQL_State	Slave has read all relay log; waiting for more updates
 Slave_IO_State	Waiting for master to send event
@@ -140,6 +143,9 @@ Executed_log_entries	7
 Slave_received_heartbeats	0
 Slave_heartbeat_period	60.000
 Gtid_Slave_Pos	
+Master_last_event_time	NULL
+Slave_last_event_time	NULL
+Master_Slave_time_diff	NULL
 #
 # MDEV:16437: merge 5.7 P_S replication instrumentation and tables
 #
@@ -323,6 +329,9 @@ Executed_log_entries	7
 Slave_received_heartbeats	0
 Slave_heartbeat_period	60.000
 Gtid_Slave_Pos	
+Master_last_event_time	NULL
+Slave_last_event_time	NULL
+Master_Slave_time_diff	NULL
 Connection_name	slave2
 Slave_SQL_State	Slave has read all relay log; waiting for more updates
 Slave_IO_State	Waiting for master to send event
@@ -384,6 +393,9 @@ Executed_log_entries	7
 Slave_received_heartbeats	0
 Slave_heartbeat_period	60.000
 Gtid_Slave_Pos	
+Master_last_event_time	NULL
+Slave_last_event_time	NULL
+Master_Slave_time_diff	NULL
 reset slave 'slave1' all;
 show all slaves status;
 Connection_name	slave2
@@ -447,6 +459,9 @@ Executed_log_entries	7
 Slave_received_heartbeats	0
 Slave_heartbeat_period	60.000
 Gtid_Slave_Pos	
+Master_last_event_time	NULL
+Slave_last_event_time	NULL
+Master_Slave_time_diff	NULL
 stop all slaves;
 Warnings:
 Note	1938	SLAVE 'slave2' stopped
@@ -512,6 +527,9 @@ Executed_log_entries	7
 Slave_received_heartbeats	0
 Slave_heartbeat_period	60.000
 Gtid_Slave_Pos	
+Master_last_event_time	NULL
+Slave_last_event_time	NULL
+Master_Slave_time_diff	NULL
 stop all slaves;
 include/reset_master_slave.inc
 disconnect slave;

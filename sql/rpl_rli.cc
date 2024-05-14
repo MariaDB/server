@@ -54,7 +54,9 @@ Relay_log_info::Relay_log_info(bool is_slave_recovery, const char* thread_name)
    cur_log_old_open_count(0), error_on_rli_init_info(false),
    group_relay_log_pos(0), event_relay_log_pos(0),
    group_master_log_pos(0), log_space_total(0), ignore_log_space_limit(0),
-   last_master_timestamp(0), sql_thread_caught_up(true), slave_skip_counter(0),
+   sql_thread_caught_up(true),
+   last_master_timestamp(0), newest_master_timestamp(0), slave_timestamp(0),
+   slave_skip_counter(0),
    abort_pos_wait(0), slave_run_id(0), sql_driver_thd(),
    gtid_skip_flag(GTID_SKIP_NOT), inited(0), abort_slave(0), stop_for_until(0),
    slave_running(MYSQL_SLAVE_NOT_RUN), until_condition(UNTIL_NONE),
@@ -1024,9 +1026,7 @@ void Relay_log_info::inc_group_relay_log_pos(ulonglong log_pos,
       potentially thousands of events are still queued up for worker threads
       waiting for execution.
     */
-    if (rgi->last_master_timestamp &&
-        rgi->last_master_timestamp > last_master_timestamp)
-      last_master_timestamp= rgi->last_master_timestamp;
+    set_if_bigger(last_master_timestamp, rgi->last_master_timestamp);
   }
   else
   {
@@ -1037,6 +1037,7 @@ void Relay_log_info::inc_group_relay_log_pos(ulonglong log_pos,
     if (log_pos) // not 3.23 binlogs (no log_pos there) and not Stop_log_event
       group_master_log_pos= log_pos;
   }
+  set_if_bigger(slave_timestamp, rgi->last_master_timestamp);
 
   /*
     If the slave does not support transactions and replicates a transaction,
