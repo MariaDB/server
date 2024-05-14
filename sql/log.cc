@@ -5257,10 +5257,9 @@ MYSQL_BIN_LOG::is_xidlist_idle_nolock()
 #ifdef WITH_WSREP
 static bool is_gtid_written_on_trans_start(const THD *thd)
 {
-  return wsrep_gtid_mode && WSREP(thd) &&
+  return wsrep_on(thd) &&
       (thd->variables.gtid_seq_no || thd->variables.wsrep_gtid_seq_no) &&
-      ((thd->slave_thread && wsrep_thd_is_local(thd)) ||
-       (!thd->slave_thread && (wsrep_thd_is_applying(thd))));
+      (thd->wsrep_cs().mode() == wsrep::client_state::m_local);
 }
 #endif
 
@@ -5903,8 +5902,7 @@ THD::binlog_start_trans_and_stmt()
     Ha_trx_info *ha_info;
     ha_info= this->ha_data[binlog_hton->slot].ha_info + (mstmt_mode ? 1 : 0);
 
-    if (!ha_info->is_started() && is_gtid_written_on_trans_start(this) &&
-        (this->wsrep_cs().mode() == wsrep::client_state::m_local))
+    if (!ha_info->is_started() && is_gtid_written_on_trans_start(this))
     {
       uchar *buf= 0;
       size_t len= 0;
@@ -5922,14 +5920,8 @@ THD::binlog_start_trans_and_stmt()
           domain_id= wsrep_gtid_server.domain_id;
           server_id= wsrep_gtid_server.server_id;
         }
-        rpl_group_info* rgi = this->slave_thread ? this->rgi_slave : this->wsrep_rgi;
-        const bool standalone =
-          rgi->gtid_ev_flags2 & Gtid_log_event::FL_STANDALONE;
-        const bool is_transactional =
-          rgi->gtid_ev_flags2 & Gtid_log_event::FL_TRANSACTIONAL;
-        Gtid_log_event gtid_event(this, seqno, domain_id,
-                                  standalone, LOG_EVENT_SUPPRESS_USE_F,
-                                  is_transactional, 0);
+        Gtid_log_event gtid_event(this, seqno, domain_id, true,
+                                  LOG_EVENT_SUPPRESS_USE_F, true, 0);
         // Replicated events in writeset doesn't have checksum
         gtid_event.checksum_alg= BINLOG_CHECKSUM_ALG_OFF;
         gtid_event.server_id= server_id;

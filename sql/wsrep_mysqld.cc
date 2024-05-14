@@ -1827,13 +1827,8 @@ int wsrep_to_buf_helper(
       domain_id= wsrep_gtid_server.domain_id;
       server_id= wsrep_gtid_server.server_id;
     }
-    rpl_group_info* rgi = thd->slave_thread ? thd->rgi_slave : thd->wsrep_rgi;
-    const bool standalone =
-        rgi->gtid_ev_flags2 & Gtid_log_event::FL_STANDALONE;
-    const bool is_transactional =
-        rgi->gtid_ev_flags2 & Gtid_log_event::FL_TRANSACTIONAL;
-    Gtid_log_event gtid_event(thd, seqno, domain_id, standalone,
-                              LOG_EVENT_SUPPRESS_USE_F, is_transactional, 0);
+    Gtid_log_event gtid_event(thd, seqno, domain_id, true,
+                              LOG_EVENT_SUPPRESS_USE_F, true, 0);
     gtid_event.server_id= server_id;
     if (!gtid_event.is_valid()) ret= 0;
     ret= writer.write(&gtid_event);
