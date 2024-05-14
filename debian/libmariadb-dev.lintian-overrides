@@ -1,6 +1,9 @@
 # This is how upstream does it, wont' fix
 arch-dependent-file-not-in-arch-specific-directory usr/bin/mariadb_config
 
+# Needed conflict
+conflicts-with-version libmariadb-dev-compat (<< 3.0.0)
+
 # Probably fixed in newer pandoc
 # man pages should be regenerated
 groff-message an.tmac:<standard input>:*: tbl preprocessor failed, or it or soelim was not run; table(s) likely not rendered (TE macro called with TW register undefined) [usr/share/man/man3/mysql_stmt_attr_set.3.gz:20]
