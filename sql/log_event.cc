@@ -964,6 +964,18 @@ err:
   DBUG_RETURN(res);
 }
 
+/*
+  Update thd->orig_exec_time
+*/
+
+inline void set_orig_exec_time_in_thd(ulong exec_time)
+{
+#if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
+  THD *thd= current_thd;
+  if (likely(thd))
+    thd->orig_exec_time= exec_time;
+#endif
+}
 
 /**
   Binlog format tolerance is in (buf, event_len, fdle)
@@ -1104,10 +1116,12 @@ Log_event* Log_event::read_log_event(const uchar *buf, uint event_len,
     switch(event_type) {
     case QUERY_EVENT:
       ev= new Query_log_event(buf, event_len, fdle, QUERY_EVENT);
+      set_orig_exec_time_in_thd(((Query_log_event*) ev)->exec_time);
       break;
     case QUERY_COMPRESSED_EVENT:
       ev= new Query_compressed_log_event(buf, event_len, fdle,
-                                          QUERY_COMPRESSED_EVENT);
+                                         QUERY_COMPRESSED_EVENT);
+      set_orig_exec_time_in_thd(((Query_compressed_log_event*) ev)->exec_time);
       break;
     case ROTATE_EVENT:
       ev= new Rotate_log_event(buf, event_len, fdle);
@@ -1746,6 +1760,26 @@ Query_log_event::Query_log_event(const uchar *buf, uint event_len,
 #endif
   DBUG_VOID_RETURN;
 }
+
+
+/*
+  Get the time when the event had been executed on the master.
+  This works for both query events and load data events.
+*/
+
+#if Q_EXEC_TIME_OFFSET != L_EXEC_TIME_OFFSET
+#error "Q_EXEC_TIME_OFFSET is not same as L_EXEC_TIME_OFFSET"
+#endif
+
+time_t query_event_get_time(const uchar *buf,
+                            const Format_description_log_event
+                            *description_event)
+{
+  time_t when= uint4korr(buf);
+  buf+= description_event->common_header_len;
+  return when + uint4korr(buf + Q_EXEC_TIME_OFFSET);
+}
+
 
 Query_compressed_log_event::Query_compressed_log_event(const uchar *buf,
       uint event_len,

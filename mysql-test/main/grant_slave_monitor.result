@@ -13,6 +13,8 @@ GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, RELOAD, SHUTDOWN, PROCESS, F
 #
 SHOW SLAVE STATUS;
 ERROR 42000: Access denied; you need (at least one of) the SLAVE MONITOR privilege(s) for this operation
+SELECT * from information_schema.slave_status;
+ERROR 42000: Access denied; you need (at least one of) the SLAVE MONITOR privilege(s) for this operation
 #
 # Verify that having REPLICATION SLAVE ADMIN doesn't allow SHOW RELAYLOG EVENTS
 # Expected error: Access denied; you need (at least one of) the REPLICA MONITOR

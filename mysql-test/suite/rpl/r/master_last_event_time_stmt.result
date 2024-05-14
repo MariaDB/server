@@ -1,0 +1,71 @@
+include/rpl_init.inc [topology=1->2->3]
+connection server_3;
+include/stop_slave.inc
+connection server_1;
+call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
+alter table mysql.gtid_slave_pos engine=innodb;
+create table t1 (a int) engine=aria;
+create table t2 (a int) engine=innodb;
+include/save_master_gtid.inc
+#
+# Ensure that the slave doesn't overwrite exec_time when binlogging
+#
+connection server_2;
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+change master to master_delay=SLAVE_DELAY;
+include/start_slave.inc
+connection server_1;
+# Sleep 2 to ensure DDL and DML have different binlog timestamps
+connection server_2;
+flush logs;
+connection server_1;
+set @@timestamp= TIMESTAMP;
+insert into t1 values (sleep(2));
+include/save_master_gtid.inc
+# Waiting for slave to delay and commit transaction..
+connection server_2;
+include/sync_with_master_gtid.inc
+# MYSQL_BINLOG slave_local_binlog > slave_outfile
+include/assert_grep.inc [Ensure slave doesn't overwrite exec_time in the binlog event]
+#
+# Test that changes are properly applied by server_2 and server_3
+#
+connection server_1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+# Show that the server_2 received the insert from master
+select * from t1;
+a
+0
+master <> NULL; Should be 1
+1
+master_time == slave_time ; Should be 1
+1
+connection server_3;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+# Show that the server_3 received the insert from master
+select * from t1;
+a
+0
+master <> NULL; Should be 1
+1
+master_time == slave_time ; Should be 1
+1
+include/stop_slave.inc
+connection server_1;
+connection server_2;
+include/stop_slave.inc
+change master to master_delay=0;
+include/start_slave.inc
+connection server_3;
+include/start_slave.inc
+#
+# Cleanup
+connection server_1;
+drop table t1;
+drop table t2;
+include/rpl_end.inc
+# End of master_last_event_time_stmt

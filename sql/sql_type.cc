@@ -3971,12 +3971,22 @@ Field *Type_handler_float::make_schema_field(MEM_ROOT *root, TABLE *table,
                                              const ST_FIELD_INFO &def) const
 {
   LEX_CSTRING name= def.name();
+  uint32 len= def.char_length();
+  uint dec= NOT_FIXED_DEC;
+  if (len >= 100)
+  {
+    dec= def.decimal_scale();
+    uint prec= def.decimal_precision();
+    /* Field defined in sql_show.cc with decimals */
+    len= my_decimal_precision_to_length(prec, dec, 0);
+  }
+
   return new (root)
-     Field_float(addr.ptr(), def.char_length(),
-                  addr.null_ptr(), addr.null_bit(),
-                  Field::NONE, &name,
-                  (uint8) NOT_FIXED_DEC,
-                  0/*zerofill*/, def.unsigned_flag());
+    Field_float(addr.ptr(), len,
+                addr.null_ptr(), addr.null_bit(),
+                Field::NONE, &name,
+                dec,
+                0/*zerofill*/, def.unsigned_flag());
 }
 
 

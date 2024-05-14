@@ -1113,6 +1113,9 @@ enum enum_schema_tables
   SCH_USERS,
   SCH_USER_PRIVILEGES,
   SCH_VIEWS,
+#ifdef HAVE_REPLICATION
+  SCH_SLAVE_STATUS,
+#endif
   SCH_ENUM_SIZE
 };
 

@@ -105,7 +105,8 @@ public:
     @retval void
   */
   void store_ids(THD *thd);
-
+  /* Same as above, but store the id's into a group of fields */
+  void store_ids(Field ***field);
   /*
     Initialize the given domain id list (DYNAMIC_ARRAY) with the
     space-separated list of numbers from the specified IO_CACHE where
@@ -430,7 +431,7 @@ int flush_master_info(Master_info* mi,
 void copy_filter_setting(Rpl_filter* dst_filter, Rpl_filter* src_filter);
 void update_change_master_ids(DYNAMIC_ARRAY *new_ids, DYNAMIC_ARRAY *old_ids);
 void prot_store_ids(THD *thd, DYNAMIC_ARRAY *ids);
-
+void field_store_ids(Field *field, DYNAMIC_ARRAY *ids);
 /*
   Multi master are handled trough this struct.
   Changes to this needs to be protected by LOCK_active_mi;
