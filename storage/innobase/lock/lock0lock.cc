@@ -1242,6 +1242,13 @@ lock_rec_create_low(
 		type_mode = type_mode & ~(LOCK_GAP | LOCK_REC_NOT_GAP);
 	}
 
+	/* Extra bitmap size in bytes over and above the current number of
+	records when a record lock is created. 8 x LOCK_PAGE_DEFAULT_BITMAP_SIZE
+	extra record locks of same type for newly inserted records can be added
+	without needing to create a new lock object. Useful when the number of
+	records in a page is growing. */
+	static constexpr size_t LOCK_PAGE_DEFAULT_BITMAP_SIZE = 8;
+
 	if (UNIV_LIKELY(!(type_mode & (LOCK_PREDICATE | LOCK_PRDT_PAGE)))) {
 		n_bytes = (page_dir_get_n_heap(page) + 7) / 8;
 	} else {
@@ -1270,13 +1277,19 @@ lock_rec_create_low(
 	ut_ad(trx->mutex_is_owner());
 	ut_ad(trx->state != TRX_STATE_NOT_STARTED);
 
+	auto cached_bytes = sizeof *trx->lock.rec_pool - sizeof *lock;
+
 	if (trx->lock.rec_cached >= UT_ARR_SIZE(trx->lock.rec_pool)
-	    || sizeof *lock + n_bytes > sizeof *trx->lock.rec_pool) {
+	    || n_bytes > cached_bytes) {
+		n_bytes += LOCK_PAGE_DEFAULT_BITMAP_SIZE;
 		lock = static_cast<lock_t*>(
 			mem_heap_alloc(trx->lock.lock_heap,
 				       sizeof *lock + n_bytes));
 	} else {
 		lock = &trx->lock.rec_pool[trx->lock.rec_cached++].lock;
+		/* Use all the extra bytes for lock bitmap. */
+		ut_ad(n_bytes <= cached_bytes);
+		n_bytes = cached_bytes;
 	}
 
 	lock->trx = trx;
