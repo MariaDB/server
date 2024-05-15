@@ -1,10 +1,13 @@
-INCLUDE(FindCURL)
+FIND_PACKAGE(CURL)
 IF(NOT CURL_FOUND)
   # Can't build plugin
+  MESSAGE_ONCE(WARNING "Hashicorp Key Management plugin requires curl development package")
   RETURN()
 ENDIF()
 
-INCLUDE_DIRECTORIES(${CURL_INCLUDE_DIR})
+SET_PACKAGE_PROPERTIES(CURL PROPERTIES TYPE REQUIRED)
+
+INCLUDE_DIRECTORIES(${CURL_INCLUDE_DIRS})
 
 set(CPACK_RPM_hashicorp-key-management_PACKAGE_SUMMARY "Hashicorp Key Management plugin for MariaDB" PARENT_SCOPE)
 set(CPACK_RPM_hashicorp-key-management_PACKAGE_DESCRIPTION "This encryption plugin uses Hashicorp Vault for storing encryption

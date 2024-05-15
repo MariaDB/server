@@ -261,3 +261,4 @@ SET @@global.character_set_server= @save_character_set_server;
 SET @@global.collation_server= @save_collation_server;
 SET @@global.character_set_client= @save_character_set_client;
 SET @@global.collation_connection= @save_collation_connection;
+FOUND 1 /Aborted connection.*'u' host: '192.0.2.1' real ip: '(localhost|::1)'/ in mysqld.1.err

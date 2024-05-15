@@ -64,7 +64,14 @@ ROLLBACK;
 --connection slave
 --sync_with_master
 SELECT * FROM t1 ORDER BY a;
---echo * There will be two rows in t2 due to the retry.
+if (!$ignored_db_deadlock)
+{
+  --echo * There will be two rows in t2 due to the retry.
+}
+if ($ignored_db_deadlock)
+{
+  --echo * There will be one row in t2 because the ignored deadlock does not retry.
+}
 SELECT * FROM t2 ORDER BY a;
 let $new_retry= query_get_value(SHOW STATUS LIKE 'Slave_retried_transactions', Value, 1);
 --disable_query_log

@@ -72,7 +72,13 @@ static void inline EXTRA_DEBUG_fprintf(...) {}
 #ifdef MYSQL_SERVER
 #include <sql_class.h>
 #include <sql_connect.h>
-#define MYSQL_SERVER_my_error my_error
+
+static void inline MYSQL_SERVER_my_error(uint error, myf flags)
+{
+  my_error(error,
+           flags | MYF(global_system_variables.log_warnings > 3 ? ME_ERROR_LOG : 0));
+}
+
 #else
 static void inline MYSQL_SERVER_my_error(...) {}
 #endif
@@ -139,6 +145,7 @@ my_bool my_net_init(NET *net, Vio *vio, void *thd, uint my_flags)
   net->net_skip_rest_factor= 0;
   net->last_errno=0;
   net->pkt_nr_can_be_reset= 0;
+  net->using_proxy_protocol= 0;
   net->thread_specific_malloc= MY_TEST(my_flags & MY_THREAD_SPECIFIC);
   net->thd= 0;
   net->extension= NULL;
@@ -189,6 +196,7 @@ void net_end(NET *net)
   DBUG_ENTER("net_end");
   my_free(net->buff);
   net->buff=0;
+  net->using_proxy_protocol= 0;
   DBUG_VOID_RETURN;
 }
 
@@ -698,7 +706,19 @@ net_real_write(NET *net,const uchar *packet, size_t len)
                           my_progname);
       net->error= 2;				/* Close socket */
       net->last_errno= (interrupted ? ER_NET_WRITE_INTERRUPTED :
-                               ER_NET_ERROR_ON_WRITE);
+                        ER_NET_ERROR_ON_WRITE);
+#ifdef MYSQL_SERVER
+      if (global_system_variables.log_warnings > 3)
+      {
+        my_printf_error(net->last_errno,
+                        "Could not write packet: fd: %lld  state: %d  "
+                        "errno: %d  vio_errno: %d  length: %ld",
+                        MYF(ME_ERROR_LOG),
+                        (longlong) vio_fd(net->vio), (int) net->vio->state,
+                        vio_errno(net->vio), net->last_errno, (ulong) (end-pos));
+        break;
+      }
+#endif
       MYSQL_SERVER_my_error(net->last_errno, MYF(0));
       break;
     }
@@ -771,6 +791,7 @@ static handle_proxy_header_result handle_proxy_header(NET *net)
     return RETRY;
   /* Change peer address in THD and ACL structures.*/
   uint host_errors;
+  net->using_proxy_protocol= 1;
   return (handle_proxy_header_result)thd_set_peer_addr(thd,
                          &(peer_info.peer_addr), NULL, peer_info.port,
                          false, &host_errors);
@@ -1022,7 +1043,10 @@ ulong
 my_net_read_packet(NET *net, my_bool read_from_server)
 {
   ulong reallen = 0;
-  return my_net_read_packet_reallen(net, read_from_server, &reallen); 
+  ulong length;
+  DBUG_ENTER("my_net_read_packet");
+  length= my_net_read_packet_reallen(net, read_from_server, &reallen);
+  DBUG_RETURN(length);
 }
 
 

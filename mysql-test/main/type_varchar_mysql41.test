@@ -57,3 +57,88 @@ CALL p1('a');
 DROP TABLE t1old;
 
 DROP PROCEDURE p1;
+
+--echo #
+--echo # Start of 10.11 tests
+--echo #
+
+--echo #
+--echo # MDEV-33442 REPAIR TABLE corrupts UUIDs
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE show_table()
+BEGIN
+  SHOW CREATE TABLE t1;
+  SELECT VERSION FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME='t1' AND TABLE_SCHEMA='test';
+  SELECT * FROM t1 ORDER BY a,b;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo # Upgrade using REPAIR
+
+--copy_file $MYSQL_TEST_DIR/std_data/bug19371.frm $MYSQLD_DATADIR/test/t1.frm
+TRUNCATE TABLE t1;
+CALL show_table;
+
+CHECK TABLE t1 FOR UPGRADE;
+CALL show_table;
+
+CHECK TABLE t1 FOR UPGRADE;
+CALL show_table;
+
+REPAIR TABLE t1;
+CALL show_table;
+
+CHECK TABLE t1 FOR UPGRADE;
+CALL show_table;
+
+DROP TABLE t1;
+
+
+--echo # Upgrade using ALTER, adding a table COMMENT
+
+--copy_file $MYSQL_TEST_DIR/std_data/bug19371.frm $MYSQLD_DATADIR/test/t1.frm
+TRUNCATE TABLE t1;
+CALL show_table;
+
+--echo # ALTER..INPLACE should fail - the old columns need upgrade
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+ALTER IGNORE TABLE t1 ALGORITHM=INPLACE, COMMENT 'test10';
+ALTER IGNORE TABLE t1 COMMENT 'test11';
+CALL show_table;
+
+--echo # Now ALTER..INPLACE should work
+ALTER IGNORE TABLE t1 ALGORITHM=INPLACE, COMMENT 'test12';
+CALL show_table;
+
+DROP TABLE t1;
+
+
+--echo # Upgrade using ALTER, adding a column DEFAULT
+
+--copy_file $MYSQL_TEST_DIR/std_data/bug19371.frm $MYSQLD_DATADIR/test/t1.frm
+TRUNCATE TABLE t1;
+CALL show_table;
+
+--echo # ALTER..INPLACE should fail - the old columns need upgrade
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+ALTER IGNORE TABLE t1 ALGORITHM=INPLACE, MODIFY a VARBINARY(255) DEFAULT 'a10';
+ALTER IGNORE TABLE t1 MODIFY a VARBINARY(255) DEFAULT 'a11';
+CALL show_table;
+
+--echo # Now ALTER..INPLACE should work
+ALTER IGNORE TABLE t1 MODIFY a VARBINARY(255) DEFAULT 'a12';
+CALL show_table;
+
+DROP TABLE t1;
+
+
+DROP PROCEDURE show_table;
+
+
+--echo #
+--echo # End of 10.11 tests
+--echo #

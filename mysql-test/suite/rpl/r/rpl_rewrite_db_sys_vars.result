@@ -12,11 +12,9 @@ select @@session.server_id;
 create database replica_db1;
 create database y;
 create database test_replica;
-SELECT @@GLOBAL.replicate_rewrite_db;
-@@GLOBAL.replicate_rewrite_db
-primary_db1->replica_db1,x->y
-# Ensuring SHOW SLAVE STATUS produces correct value for Replicate_Rewrite_DB...
-# ...success
+SELECT @@GLOBAL.replicate_rewrite_db, 'primary_db1->replica_db1,x->y' as 'Replicate_Rewrite_DB from SHOW SLAVE STATUS';
+@@GLOBAL.replicate_rewrite_db	Replicate_Rewrite_DB from SHOW SLAVE STATUS
+primary_db1->replica_db1,x->y	primary_db1->replica_db1,x->y
 # Create DBs and tables on primary
 connection master;
 create database primary_db1;
@@ -60,15 +58,13 @@ SELECT @@GLOBAL.replicate_rewrite_db;
 @@GLOBAL.replicate_rewrite_db
 primary_db1->replica_db1,x->y
 SET @@GLOBAL.replicate_rewrite_db="test_master->test_replica";
-SELECT @@GLOBAL.replicate_rewrite_db;
-@@GLOBAL.replicate_rewrite_db
-test_master->test_replica
 SHOW DATABASES like 'test_replica';
 Database (test_replica)
 test_replica
 include/start_slave.inc
-# Ensuring SHOW SLAVE STATUS produces correct value for Replicate_Rewrite_DB...
-# ...success
+SELECT @@GLOBAL.replicate_rewrite_db, 'test_master->test_replica' as 'Replicate_Rewrite_DB from SHOW SLAVE STATUS';
+@@GLOBAL.replicate_rewrite_db	Replicate_Rewrite_DB from SHOW SLAVE STATUS
+test_master->test_replica	test_master->test_replica
 # Create DB and tables on primary
 connection master;
 create database test_master;
@@ -94,6 +90,8 @@ t
 3
 include/diff_tables.inc [master:test_master.my_table,slave:test_replica.my_table]
 # Update of values on primary for DB not set in replication_rewrite_db
+include/stop_slave.inc
+include/reset_slave.inc
 connection master;
 use x;
 insert into my_table values (314);
@@ -104,8 +102,6 @@ t
 314
 include/save_master_gtid.inc
 connection slave;
-include/stop_slave.inc
-include/reset_slave.inc
 include/start_slave.inc
 SELECT @@GLOBAL.replicate_rewrite_db;
 @@GLOBAL.replicate_rewrite_db

@@ -285,28 +285,5 @@ esac
 
 db_stop # in case invoke fails
 
-# dh_systemd_start doesn't emit anything since we still ship /etc/init.d/mariadb.
-# Thus MariaDB server is started via init.d script, which in turn redirects to
-# systemctl. If we upgrade from MySQL mysql.service may be masked, which also
-# means init.d script is disabled. Unmask mysql service explicitly.
-# Check first that the command exists, to avoid emitting any warning messages.
-if [ -x "$(command -v deb-systemd-helper)" ]
-then
-  deb-systemd-helper unmask mysql.service > /dev/null
-fi
-
 #DEBHELPER#
 
-# Modified dh_systemd_start snippet that's not added automatically
-if [ -d /run/systemd/system ]
-then
-  systemctl --system daemon-reload >/dev/null || true
-  deb-systemd-invoke start mariadb.service >/dev/null || true
-  # Modified dh_installinit snippet to only run with sysvinit
-elif [ -x "/etc/init.d/mariadb" ]
-then
-  if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ]
-  then
-    invoke-rc.d mariadb start || exit $?
-  fi
-fi

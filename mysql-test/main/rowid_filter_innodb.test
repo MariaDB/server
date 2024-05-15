@@ -1,6 +1,8 @@
 --source include/no_valgrind_without_big.inc
 --source include/have_innodb.inc
 --source include/have_debug.inc
+--source include/have_sequence.inc
+--source include/innodb_stable_estimates.inc
 
 SET SESSION DEFAULT_STORAGE_ENGINE='InnoDB';
 
@@ -696,6 +698,82 @@ eval $q;
 
 DROP TABLE t1,t2;
 
-set global innodb_stats_persistent= @stats.save;
+--echo #
+--echo # MDEV-31154: Fatal InnoDB error or assertion `!is_v' failure upon multi-update with indexed virtual column
+--echo #
+
+--echo # Test with auto generated Primary Key
+--echo #
+
+SET @save_optimizer_switch= @@optimizer_switch;
+SET optimizer_switch='rowid_filter=on';
+
+CREATE TABLE t0(a int);
+INSERT INTO t0 SELECT seq FROM seq_1_to_20;
+ANALYZE TABLE t0 PERSISTENT FOR ALL;
+
+CREATE TABLE t1 (
+    a int,
+    b int as (a * 2) VIRTUAL,
+    f char(200), /* Filler */
+    key (b),
+    key (a)
+) engine=innodb;
+
+INSERT INTO t1 (a, f) SELECT seq, seq FROM seq_1_to_1000;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+
+--echo # Test for type 'ref|filter'
+EXPLAIN SELECT count(*) from t0,t1 WHERE t0.a=t1.b AND t1.a<20;
+SELECT count(*) from t0,t1 WHERE t0.a=t1.b AND t1.a<20;
+
+EXPLAIN SELECT count(*) from t0,t1 WHERE t0.a=t1.b AND t1.a<20 FOR UPDATE;
+SELECT count(*) from t0,t1 WHERE t0.a=t1.b AND t1.a<20 FOR UPDATE;
+
+--echo # Test for type 'range|filter'
+EXPLAIN SELECT count(*) FROM t1 WHERE a<100 and b <100;
+SELECT count(*) FROM t1 WHERE a<100 and b <100;
+
+EXPLAIN SELECT count(*) FROM t1 WHERE a<100 and b <100 FOR UPDATE;
+SELECT count(*) FROM t1 WHERE a<100 and b <100 FOR UPDATE;
+
+--echo # Test with Primary Key
+--echo #
+
+DROP TABLE t1;
+CREATE TABLE t1 (
+    p int PRIMARY KEY AUTO_INCREMENT,
+    a int,
+    b int as (a * 2) VIRTUAL,
+    f char(200), /* Filler */
+    key (b),
+    key (a)
+) engine=innodb;
+
+INSERT INTO t1 (a, f) SELECT seq, seq FROM seq_1_to_1000;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+
+--echo # Test for type 'ref|filter'
+EXPLAIN SELECT count(*) from t0,t1 WHERE t0.a=t1.b AND t1.a<20;
+SELECT count(*) from t0,t1 WHERE t0.a=t1.b AND t1.a<20;
+
+EXPLAIN SELECT count(*) from t0,t1 WHERE t0.a=t1.b AND t1.a<20 FOR UPDATE;
+SELECT count(*) from t0,t1 WHERE t0.a=t1.b AND t1.a<20 FOR UPDATE;
+
+--echo # Test for type 'range|filter'
+EXPLAIN SELECT count(*) FROM t1 WHERE a<100 and b <100;
+SELECT count(*) FROM t1 WHERE a<100 and b <100;
+
+EXPLAIN SELECT count(*) FROM t1 WHERE a<100 and b <100 FOR UPDATE;
+SELECT count(*) FROM t1 WHERE a<100 and b <100 FOR UPDATE;
+
+SET optimizer_switch=@save_optimizer_switch;
+
+DROP TABLE t0, t1;
 
 --echo # End of 10.4 tests
+
+--echo # End of 10.6 tests
+
+set global innodb_stats_persistent= @stats.save;
+

@@ -442,5 +442,28 @@ set sql_mode=default;
 connection master;
 drop tables t1, t2, t3;
 
+
+--echo #
+--echo # MDEV-33330 Server crash or assertion failure in
+--echo # binlog_get_pending_rows_event
+--echo #
+
+create or replace table t (x int) with system versioning
+partition by system_time interval 1 minute auto partitions 3;
+insert into t values (1);
+
+connect (con1,localhost,root,,);
+set timestamp= @@timestamp+120;
+update t set x= x + 1;
+connection default;
+
+# Cleanup
+disconnect con1;
+drop table t;
+
+#
+# End of 11.2 tests
+#
+
 --source suite/versioning/common_finish.inc
 --source include/rpl_end.inc

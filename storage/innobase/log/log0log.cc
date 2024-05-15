@@ -68,9 +68,7 @@ log_t	log_sys;
 
 void log_t::set_capacity()
 {
-#ifndef SUX_LOCK_GENERIC
-	ut_ad(log_sys.latch.is_write_locked());
-#endif
+	ut_ad(log_sys.latch_have_wr());
 	/* Margin for the free space in the smallest log, before a new query
 	step which modifies the database, is started */
 
@@ -133,7 +131,6 @@ bool log_t::create()
 #endif
 
   latch.SRW_LOCK_INIT(log_latch_key);
-  init_lsn_lock();
 
   last_checkpoint_lsn= FIRST_LSN;
   log_capacity= 0;
@@ -142,7 +139,7 @@ bool log_t::create()
   next_checkpoint_lsn= 0;
   checkpoint_pending= false;
 
-  buf_free= 0;
+  set_buf_free(0);
 
   ut_ad(is_initialised());
 #ifndef HAVE_PMEM
@@ -174,11 +171,13 @@ void log_file_t::write(os_offset_t offset, span<const byte> buf) noexcept
   ut_ad(is_opened());
   if (dberr_t err= os_file_write_func(IORequestWrite, "ib_logfile0", m_file,
                                       buf.data(), offset, buf.size()))
-    ib::fatal() << "write(\"ib_logfile0\") returned " << err;
+    ib::fatal() << "write(\"ib_logfile0\") returned " << err
+                << ". Operating system error number "
+                << IF_WIN(GetLastError(), errno) << ".";
 }
 
 #ifdef HAVE_PMEM
-# include <libpmem.h>
+# include "cache.h"
 
 /** Attempt to memory map a file.
 @param file  log file handle
@@ -235,12 +234,13 @@ void log_t::attach_low(log_file_t file, os_offset_t size)
       log.close();
       mprotect(ptr, size_t(size), PROT_READ);
       buf= static_cast<byte*>(ptr);
-      max_buf_free= size;
+      max_buf_free= 1;
 # if defined __linux__ || defined _WIN32
       set_block_size(CPU_LEVEL1_DCACHE_LINESIZE);
 # endif
       log_maybe_unbuffered= true;
       log_buffered= false;
+      mtr_t::finisher_update();
       return true;
     }
   }
@@ -275,6 +275,7 @@ void log_t::attach_low(log_file_t file, os_offset_t size)
                         block_size);
 #endif
 
+  mtr_t::finisher_update();
 #ifdef HAVE_PMEM
   checkpoint_buf= static_cast<byte*>(aligned_malloc(block_size, block_size));
   memset_aligned<64>(checkpoint_buf, 0, block_size);
@@ -310,9 +311,7 @@ void log_t::header_write(byte *buf, lsn_t lsn, bool encrypted)
 
 void log_t::create(lsn_t lsn) noexcept
 {
-#ifndef SUX_LOCK_GENERIC
-  ut_ad(latch.is_write_locked());
-#endif
+  ut_ad(latch_have_wr());
   ut_ad(!recv_no_log_write);
   ut_ad(is_latest());
   ut_ad(this == &log_sys);
@@ -329,12 +328,12 @@ void log_t::create(lsn_t lsn) noexcept
   {
     mprotect(buf, size_t(file_size), PROT_READ | PROT_WRITE);
     memset_aligned<4096>(buf, 0, 4096);
-    buf_free= START_OFFSET;
+    set_buf_free(START_OFFSET);
   }
   else
 #endif
   {
-    buf_free= 0;
+    set_buf_free(0);
     memset_aligned<4096>(flush_buf, 0, buf_size);
     memset_aligned<4096>(buf, 0, buf_size);
   }
@@ -488,8 +487,7 @@ log_t::resize_start_status log_t::resize_start(os_offset_t size) noexcept
     resize_lsn.store(1, std::memory_order_relaxed);
     resize_target= 0;
     resize_log.m_file=
-      os_file_create_func(path.c_str(),
-                          OS_FILE_CREATE | OS_FILE_ON_ERROR_NO_EXIT,
+      os_file_create_func(path.c_str(), OS_FILE_CREATE,
                           OS_FILE_NORMAL, OS_LOG_FILE, false, &success);
     if (success)
     {
@@ -836,9 +834,7 @@ ATTRIBUTE_COLD void log_t::resize_write_buf(size_t length) noexcept
 @return the current log sequence number */
 template<bool release_latch> inline lsn_t log_t::write_buf() noexcept
 {
-#ifndef SUX_LOCK_GENERIC
-  ut_ad(latch.is_write_locked());
-#endif
+  ut_ad(latch_have_wr());
   ut_ad(!is_pmem());
   ut_ad(!srv_read_only_mode);
 
@@ -954,7 +950,7 @@ wait and check if an already running write is covering the request.
 void log_write_up_to(lsn_t lsn, bool durable,
                      const completion_callback *callback)
 {
-  ut_ad(!srv_read_only_mode || (log_sys.buf_free < log_sys.max_buf_free));
+  ut_ad(!srv_read_only_mode || log_sys.buf_free_ok());
   ut_ad(lsn != LSN_MAX);
   ut_ad(lsn != 0);
   ut_ad(lsn <= log_sys.get_lsn());
@@ -1083,7 +1079,7 @@ NOTE that this function may only be called while not holding
 any synchronization objects except dict_sys.latch. */
 void log_free_check()
 {
-  ut_ad(!lock_sys.is_writer());
+  ut_ad(!lock_sys.is_holder());
   if (log_sys.check_for_checkpoint())
   {
     ut_ad(!recv_no_log_write);
@@ -1299,6 +1295,7 @@ log_print(
 void log_t::close()
 {
   ut_ad(this == &log_sys);
+  ut_ad(!(buf_free & buf_free_LOCK));
   if (!is_initialised()) return;
   close_file();
 
@@ -1316,7 +1313,6 @@ void log_t::close()
 #endif
 
   latch.destroy();
-  destroy_lsn_lock();
 
   recv_sys.close();
 

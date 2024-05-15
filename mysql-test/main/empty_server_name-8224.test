@@ -3,10 +3,10 @@
 #
 --source include/not_embedded.inc
 create server '' foreign data wrapper w2 options (host '127.0.0.1');
---exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--write_line wait $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 --shutdown_server
 --source include/wait_until_disconnected.inc
---exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--write_line restart $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 
 -- enable_reconnect
 -- source include/wait_until_connected_again.inc

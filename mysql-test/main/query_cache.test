@@ -1808,6 +1808,40 @@ DROP FUNCTION foo;
 drop table t1;
 
 --echo #
+--echo # MDEV-33861: main.query_cache fails with embedded after
+--echo # enabling WITH_PROTECT_STATEMENT_MEMROOT
+--echo #
+
+create table t1 (s1 int);
+--delimiter //
+create procedure f3 () begin
+select * from t1;
+end;
+//
+create procedure f4 () begin
+select * from t1;
+end;
+//
+--delimiter ;
+
+Call f4();
+
+cAll f3();
+
+insert into t1 values (2);
+
+caLl f3();
+
+drop procedure f3;
+drop procedure f4;
+drop table t1;
+
+
+--echo #
+--echo # End of 10.4 tests
+--echo #
+
+--echo #
 --echo # MDEV-24858 SIGABRT in DbugExit from my_malloc in Query_cache::init_cache Regression
 --echo #
 --disable_warnings
@@ -1815,6 +1849,10 @@ SET @qc= @@query_cache_size;
 set global Query_cache_size=18446744073709547520;
 SET GLOBAL query_cache_size= @qc;
 --enable_warnings
+
+--echo #
+--echo # End of 10.5 tests
+--echo #
 
 --echo #
 --echo # MDEV-22301 JSON_TABLE: Queries are not inserted into query cache.
@@ -1837,6 +1875,8 @@ DROP TABLE t;
 --echo restore defaults
 SET GLOBAL query_cache_type= default;
 SET GLOBAL query_cache_size=@save_query_cache_size;
+
+--echo # End of 10.6 tests
 
 --echo #
 --echo # MDEV-29028: Queries using RANDOM_BYTES get stored in query cache
@@ -1866,7 +1906,6 @@ select random_bytes(1024) = random_bytes(1024) as improbable;
 drop table t1;
 set global query_cache_type= @qcache;
 
---echo #
 --echo # End of 10.10 tests
---echo #
+
 --enable_ps2_protocol

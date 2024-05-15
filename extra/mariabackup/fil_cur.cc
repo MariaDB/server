@@ -231,11 +231,13 @@ xb_fil_cur_open(
 				      / cursor->page_size);
 
 	cursor->read_filter = read_filter;
-	cursor->read_filter->init(&cursor->read_filter_ctxt, cursor,
-				  node->space->id);
+	cursor->read_filter->init(&cursor->read_filter_ctxt, cursor);
 
 	return(XB_FIL_CUR_SUCCESS);
 }
+
+/* Stack usage 131224 with clang */
+PRAGMA_DISABLE_CHECK_STACK_FRAME
 
 static bool page_is_corrupted(const byte *page, ulint page_no,
 			      const xb_fil_cur_t *cursor,
@@ -340,6 +342,7 @@ static bool page_is_corrupted(const byte *page, ulint page_no,
 
 	return buf_page_is_corrupted(true, page, space->flags);
 }
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 /** Reads and verifies the next block of pages from the source
 file. Positions the cursor after the last read non-corrupted page.
@@ -502,10 +505,6 @@ xb_fil_cur_close(
 /*=============*/
 	xb_fil_cur_t *cursor)	/*!< in/out: source file cursor */
 {
-	if (cursor->read_filter) {
-		cursor->read_filter->deinit(&cursor->read_filter_ctxt);
-	}
-
 	aligned_free(cursor->buf);
 	cursor->buf = NULL;
 

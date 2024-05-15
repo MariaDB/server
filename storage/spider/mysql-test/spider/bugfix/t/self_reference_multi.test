@@ -19,8 +19,10 @@ eval create table t0 (c int) ENGINE=Spider COMMENT='WRAPPER "mysql", srv "$srv",
 eval alter table t2 ENGINE=Spider COMMENT='WRAPPER "mysql", srv "$srv",TABLE "t0"';
 --error 12719
 select * from t0;
+--replace_result test.t1 test.t0 test.t2 test.t0
 --error 12719
 select * from t1;
+--replace_result test.t1 test.t0 test.t2 test.t0
 --error 12719
 select * from t2;
 drop table t0, t1, t2;
