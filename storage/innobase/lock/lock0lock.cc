@@ -296,7 +296,6 @@ namespace Deadlock
       if (tortoise == hare)
       {
         ut_ad(l > 1);
-        lock_sys.deadlocks++;
         /* Note: Normally, trx should be part of any deadlock cycle
         that is found. However, if innodb_deadlock_detect=OFF had been
         in effect in the past, it is possible that trx will be waiting
@@ -6825,6 +6824,7 @@ and less modified rows. Bit 0 is used to prefer orig_trx in case of a tie.
       if (!cycle)
         goto func_exit; /* One of the transactions was already aborted. */
 
+      lock_sys.deadlocks++;
       victim= cycle;
       undo_no_t victim_weight= calc_victim_weight(victim, trx);
       unsigned victim_pos= l;
