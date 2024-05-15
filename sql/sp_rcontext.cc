@@ -245,7 +245,7 @@ bool Qualified_column_ident::resolve_type_ref(THD *thd,
   thd->temporary_tables= open_tables_state_backup.temporary_tables;
 
   if ((table_list=
-         lex.first_select_lex()->add_table_to_list(thd, this, NULL, 0,
+         lex.first_select_lex()->add_table_to_list(thd, (Table_ident*)this, NULL, 0,
                                                    TL_READ_NO_INSERT,
                                                    MDL_SHARED_READ)) &&
       !check_table_access(thd, SELECT_ACL, table_list, TRUE, UINT_MAX, FALSE) &&

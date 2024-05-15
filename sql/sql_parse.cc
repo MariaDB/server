@@ -8016,7 +8016,7 @@ bool add_to_list(THD *thd, SQL_I_List<ORDER> &list, Item *item,bool asc)
 */
 
 TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
-					     const Table_ident *table,
+					     Table_ident *table,
 					     const LEX_CSTRING *alias,
 					     ulong table_options,
 					     thr_lock_type lock_type,

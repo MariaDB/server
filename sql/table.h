@@ -2305,7 +2305,7 @@ struct TABLE_LIST
              bool fqtn,
              LEX_CSTRING alias_str,
              bool has_alias_ptr,
-             const Table_ident *table_ident,
+             Table_ident *table_ident,
              thr_lock_type lock_t,
              enum_mdl_type mdl_t,
              ulong table_opts,

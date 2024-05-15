@@ -5951,7 +5951,7 @@ TABLE_LIST::TABLE_LIST(THD *thd,
                        bool fqtn,
                        LEX_CSTRING alias_str,
                        bool has_alias_ptr,
-                       const Table_ident *table_ident,
+                       Table_ident *table_ident,
                        thr_lock_type lock_t,
                        enum_mdl_type mdl_t,
                        ulong table_opts,
@@ -5966,12 +5966,9 @@ TABLE_LIST::TABLE_LIST(THD *thd,
   is_alias= has_alias_ptr;
   if (lower_case_table_names)
   {
-    DBUG_ASSERT(table_ident->table.length);
-    /*
     if (table_ident->table.length)
       table_ident->table.length= my_casedn_str(files_charset_info,
                                          (char*) table_ident->table.str);
-      */
     if (db.length && db.str != any_db.str)
       db.length= my_casedn_str(files_charset_info, (char*) db.str);
   }
