@@ -21252,7 +21252,7 @@ TABLE *Create_tmp_table::start(THD *thd,
                         &m_key_part_info,
                         sizeof(*m_key_part_info)*(param->group_parts+1),
                         &param->start_recinfo,
-                        sizeof(*param->recinfo)*(field_count*2+4),
+                        sizeof(*param->start_recinfo)*(field_count*2+4),
                         &param->rec_per_key, sizeof(ulong)*param->group_parts,
                         &tmpname, (uint) strlen(path)+1,
                         &m_group_buff, (m_group && ! m_using_unique_constraint ?
@@ -22714,6 +22714,7 @@ bool create_internal_tmp_table(TABLE *table, KEY *org_keyinfo,
   and copy all rows to this
 
   In case of error, my_error() or handler::print_error() will be called.
+  Note that in case of error, table->file->ha_rnd_end() may have been called!
 */
 
 

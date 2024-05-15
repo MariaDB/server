@@ -213,4 +213,25 @@ ERROR HY000: Local temporary space limit reached
 drop table t1;
 connection default;
 disconnect c1;
+#
+# MDEV-34142 Server crashes in create_internal_tmp_table with low tmp
+# space limit
+#
+SET MAX_TMP_SESSION_SPACE_USAGE = 128*1024, MAX_HEAP_TABLE_SIZE= 16*1024*1024;
+CREATE TABLE t1 (a varchar(1024)) DEFAULT CHARACTER SET utf8mb3;
+INSERT INTO t1 SELECT 'x' FROM seq_1_to_50;
+SELECT * FROM t1 JOIN seq_1_to_200 INTERSECT ALL SELECT * FROM t1 JOIN seq_1_to_200;
+ERROR HY000: Local temporary space limit reached
+drop table t1;
+#
+# MDEV-34149 Corruption-like errors are produced when temporary space
+# limit is reached
+#
+SET MAX_TMP_SESSION_SPACE_USAGE = 400*1024;
+Warnings:
+Warning	1292	Truncated incorrect max_tmp_session_space_usage value: '409600'
+SELECT VARIABLE_VALUE FROM information_schema.GLOBAL_VARIABLES JOIN seq_1_to_100
+INTERSECT ALL
+SELECT VARIABLE_VALUE FROM information_schema.GLOBAL_VARIABLES JOIN seq_1_to_100;
+ERROR HY000: Local temporary space limit reached
 # End of 11.5 tests

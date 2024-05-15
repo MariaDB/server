@@ -275,4 +275,27 @@ drop table t1;
 connection default;
 disconnect c1;
 
+--echo #
+--echo # MDEV-34142 Server crashes in create_internal_tmp_table with low tmp
+--echo # space limit
+--echo #
+
+SET MAX_TMP_SESSION_SPACE_USAGE = 128*1024, MAX_HEAP_TABLE_SIZE= 16*1024*1024;
+CREATE TABLE t1 (a varchar(1024)) DEFAULT CHARACTER SET utf8mb3;
+INSERT INTO t1 SELECT 'x' FROM seq_1_to_50;
+--error 200
+SELECT * FROM t1 JOIN seq_1_to_200 INTERSECT ALL SELECT * FROM t1 JOIN seq_1_to_200;
+drop table t1;
+
+--echo #
+--echo # MDEV-34149 Corruption-like errors are produced when temporary space
+--echo # limit is reached
+--echo #
+
+SET MAX_TMP_SESSION_SPACE_USAGE = 400*1024;
+--error 200
+SELECT VARIABLE_VALUE FROM information_schema.GLOBAL_VARIABLES JOIN seq_1_to_100
+INTERSECT ALL
+SELECT VARIABLE_VALUE FROM information_schema.GLOBAL_VARIABLES JOIN seq_1_to_100;
+
 --echo # End of 11.5 tests
