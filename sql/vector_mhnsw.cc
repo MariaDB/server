@@ -455,13 +455,25 @@ static bool update_second_degree_neighbors(TABLE *source,
                                            const FVectorRef &source_node,
                                            const List<FVectorRef> &neighbours)
 {
+  //dbug_print_vec_ref("Updating second degree neighbours", layer_number, source_node);
+  //dbug_print_vec_neigh(layer_number, neighbours);
   for (const FVectorRef &neigh: neighbours)
   {
     List<FVectorRef> new_neighbours;
     get_neighbours(graph, layer_number, neigh, &new_neighbours);
     // TODO(cvicentiu) One doesn't need a deep copy, they're all just references;
     // Why add the source node, shouldn't it come from source_node anyway?
-    new_neighbours.push_back(&source_node);
+    bool already_present = false;
+    for (const FVectorRef &it: new_neighbours)
+    {
+      if (!memcmp(it.get_ref(), source_node.get_ref(), it.get_ref_len()))
+      {
+        already_present= true;
+        break;
+      }
+    }
+    if (!already_present)
+      new_neighbours.push_back(&source_node);
 
     write_neighbours(graph, layer_number, neigh, new_neighbours);
 
