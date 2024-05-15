@@ -1739,6 +1739,11 @@ lock_rec_find_similar_on_page(
 	const trx_t*    trx)            /*!< in: transaction */
 {
 	ut_ad(lock_mutex_own());
+	DBUG_EXECUTE_IF("innodb_skip_lock_bitmap", {
+		if (!trx->in_rollback) {
+			return nullptr;
+		}
+	});
 
 	for (/* No op */;
 	     lock != NULL;
