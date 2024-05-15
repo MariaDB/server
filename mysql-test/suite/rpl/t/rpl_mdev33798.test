@@ -101,7 +101,7 @@ SELECT a, (
 --connection server_2
 --source include/stop_slave.inc
 --replace_result $SERVER_MYPORT_3 MYPORT_3
-eval CHANGE MASTER 'm2' to master_port=$SERVER_MYPORT_3 , master_host='127.0.0.1', master_user='root', master_use_gtid=slave_pos;
+eval CHANGE MASTER 'm2' to master_port=$SERVER_MYPORT_3 , master_host='127.0.0.1', master_user='root', master_use_gtid=slave_pos, master_ssl_verify_server_cert=0;
 
 --connection server_1
 

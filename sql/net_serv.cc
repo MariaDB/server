@@ -866,7 +866,21 @@ retry:
         net->error= 2;
         net->last_errno= (vio_was_timeout(net->vio) ? ER_NET_READ_INTERRUPTED
                                                     : ER_NET_READ_ERROR);
-        MYSQL_SERVER_my_error(net->last_errno, MYF(0));
+#ifdef MYSQL_SERVER
+          if (global_system_variables.log_warnings > 3)
+          {
+            my_printf_error(net->last_errno,
+                            "Could not read packet: fd: %lld  state: %d  "
+                            "remain: %u  errno: %d  vio_errno: %d  "
+                            "length: %lld",
+                            MYF(ME_ERROR_LOG),
+                            (longlong) vio_fd(net->vio), (int) net->vio->state,
+                            remain, vio_errno(net->vio), net->last_errno,
+                            (longlong) length);
+          }
+          else
+            my_error(net->last_errno, MYF(0));
+#endif /* MYSQL_SERVER */
         goto end;
       }
       remain-= (uint32) length;
