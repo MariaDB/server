@@ -886,6 +886,9 @@ public:
                                    my_bool verbose,
                                    my_bool (*cb)(XID *, char *, uint,
                                                  Protocol *, CHARSET_INFO *));
+  int apply_xa_prepared(THD *thd, XID *xid, bool rollback, bool prepare);
+  int apply_xa_events(THD *thd, uchar *data, size_t len, XID *xid,
+                      Format_description_log_event *fd, bool prepare);
   int binlog_commit_prepared_xa(THD *thd, handlerton *hton, XID *xid);
   int write_xa_prepared_event(THD *thd, const MYSQL_XID *mxid,
                               const uchar *trx_data, size_t len);

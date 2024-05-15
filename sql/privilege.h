@@ -520,6 +520,7 @@ constexpr privilege_t PRIV_STMT_SHOW_SLAVE_STATUS= SLAVE_MONITOR_ACL | SUPER_ACL
 // Was REPL_SLAVE_ACL prior to 10.5.2
 // Was REPL_SLAVE_ADMIN_ACL from 10.5.2 to 10.5.7
 constexpr privilege_t PRIV_STMT_SHOW_RELAYLOG_EVENTS= SLAVE_MONITOR_ACL;
+constexpr privilege_t PRIV_SLAVE_XA_APPLY= REPL_SLAVE_ADMIN_ACL | SUPER_ACL;
 
 /*
   Privileges related to binlog replying.

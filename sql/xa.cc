@@ -515,8 +515,14 @@ bool trans_xa_prepare(THD *thd)
 
   DBUG_ENTER("trans_xa_prepare");
 
-  if (!thd->transaction->xid_state.is_explicit_XA() ||
-      thd->transaction->xid_state.xid_cache_element->xa_state != XA_IDLE)
+  if (!thd->transaction->xid_state.is_explicit_XA())
+  {
+    if (!mysql_bin_log.is_open() ||
+        (res= mysql_bin_log.apply_xa_prepared(thd, thd->lex->xid,
+                                              false, true) < 0))
+      thd->transaction->xid_state.er_xaer_rmfail();
+  }
+  else if (thd->transaction->xid_state.xid_cache_element->xa_state != XA_IDLE)
     thd->transaction->xid_state.er_xaer_rmfail();
   else if (!thd->transaction->xid_state.xid_cache_element->xid.eq(thd->lex->xid))
     my_error(ER_XAER_NOTA, MYF(0));
@@ -667,6 +673,14 @@ bool trans_xa_commit(THD *thd)
         thd->mdl_context.release_lock(mdl_request.ticket);
         thd->backup_commit_lock= 0;
       }
+    }
+    else if (mysql_bin_log.is_open())
+    {
+      int res2= mysql_bin_log.apply_xa_prepared(thd, thd->lex->xid, false, false);
+      if (res2 < 0)
+        my_error(ER_XAER_NOTA, MYF(0));
+      else
+        res= res2;
     }
     else
       my_error(ER_XAER_NOTA, MYF(0));
@@ -844,7 +858,8 @@ bool trans_xa_rollback(THD *thd)
         thd->backup_commit_lock= 0;
       }
     }
-    else
+    else if (!mysql_bin_log.is_open() ||
+             mysql_bin_log.apply_xa_prepared(thd, thd->lex->xid, true, false) < 0)
       my_error(ER_XAER_NOTA, MYF(0));
     DBUG_RETURN(thd->get_stmt_da()->is_error());
   }

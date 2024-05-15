@@ -244,9 +244,12 @@ static void set_thd_db(THD *thd, Rpl_filter *rpl_filter,
   }
   else
     new_db.str= db;
-  /* TODO WARNING this makes rewrite_db respect lower_case_table_names values
-   * for more info look MDEV-17446 */
-  new_db.str= rpl_filter->get_rewrite_db(new_db.str, &new_db.length);
+  if (rpl_filter)
+  {
+    /* TODO WARNING this makes rewrite_db respect lower_case_table_names values
+     * for more info look MDEV-17446 */
+    new_db.str= rpl_filter->get_rewrite_db(new_db.str, &new_db.length);
+  }
   thd->set_db(&new_db);
 }
 #endif
@@ -1657,7 +1660,8 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
   void *hton= NULL;
   rpl_gtid gtid;
   Relay_log_info const *rli= rgi->rli;
-  Rpl_filter *rpl_filter= rli->mi->rpl_filter;
+  Rpl_filter *rpl_filter=
+    rgi->thd->slave_thread ? rli->mi->rpl_filter : nullptr;
   bool current_stmt_is_commit;
   DBUG_ENTER("Query_log_event::do_apply_event");
 
@@ -1711,7 +1715,7 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
             ::do_apply_event(), then the companion SET also have so
             we don't need to reset_one_shot_variables().
   */
-  if (is_trans_keyword() || rpl_filter->db_ok(thd->db.str))
+  if (is_trans_keyword() || !rpl_filter || rpl_filter->db_ok(thd->db.str))
   {
     thd->set_time(when, when_sec_part);
     thd->set_query_and_id((char*)query_arg, q_len_arg,

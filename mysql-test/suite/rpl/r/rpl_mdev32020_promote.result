@@ -1,0 +1,161 @@
+include/master-slave.inc
+[connection master]
+*** MDEV-32020: Instantiating XA from old master when promoting a slave as new master
+connection master;
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+connect con$i,localhost,root,,;
+XA START 't1';
+INSERT INTO t1 VALUES (1, 0);
+XA END 't1';
+XA PREPARE 't1';
+connect con$i,localhost,root,,;
+XA START 't2';
+INSERT INTO t1 VALUES (2, 0);
+XA END 't2';
+XA PREPARE 't2';
+connect con$i,localhost,root,,;
+XA START 't3';
+INSERT INTO t1 VALUES (3, 0);
+XA END 't3';
+XA PREPARE 't3';
+connect con$i,localhost,root,,;
+XA START 't4';
+INSERT INTO t1 VALUES (4, 0);
+XA END 't4';
+XA PREPARE 't4';
+connection con1;
+XA COMMIT 't1';
+disconnect con1;
+connection master;
+*** Should see trx t2-t4 in "prepared" state on the master.
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
+1	2	0	t2
+1	2	0	t3
+1	2	0	t4
+connection slave;
+*** On the slave, should see only trx t1 committed at this point.
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	0
+*** On the slave, should see trx t2-t4 available for promoting
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
+1	2	0	t2
+1	2	0	t3
+1	2	0	t4
+*** In the slave binlog, should see trx t1-t4 with prepared data, t1 commit.
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+slave-bin.000001	#	Gtid	#	#	GTID #-#-#
+slave-bin.000001	#	Query	#	#	use `test`; CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB
+slave-bin.000001	#	Xa_prepared_trx	#	#	XA PREPARED TRX X'7431',X'',1
+slave-bin.000001	#	Xa_prepared_trx	#	#	XA PREPARED TRX X'7432',X'',1
+slave-bin.000001	#	Xa_prepared_trx	#	#	XA PREPARED TRX X'7433',X'',1
+slave-bin.000001	#	Xa_prepared_trx	#	#	XA PREPARED TRX X'7434',X'',1
+slave-bin.000001	#	Gtid	#	#	BEGIN GTID X'7431',X'',1 GTID #-#-#
+slave-bin.000001	#	Annotate_rows	#	#	INSERT INTO t1 VALUES (1, 0)
+slave-bin.000001	#	Table_map	#	#	table_id: # (test.t1)
+slave-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+slave-bin.000001	#	Xid	#	#	COMMIT /* XID */
+*** The slave-bin.000001 cannot yet be purged as it contains pending prepared XA.
+FLUSH NO_WRITE_TO_BINLOG BINARY LOGS;
+PURGE BINARY LOGS TO 'slave-bin.000002';
+show binary logs;
+Log_name	File_size
+slave-bin.000001	#
+slave-bin.000002	#
+*** Now on the slave, explicitly promote trx t2 into "prepared" state, commit t3, roll back t4
+connection slave1;
+XA PREPARE 't2';
+connection slave;
+XA COMMIT 't3';
+XA ROLLBACK 't4';
+*** Should see trx t1 and t3 committed on the slave at this point.
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	0
+3	0
+*** Should see trx t2, t3, and t4 binlogged on the slave.
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+slave-bin.000002	#	Xa_prepared_trx	#	#	XA PREPARED TRX X'7432',X'',1
+slave-bin.000002	#	Gtid	#	#	BEGIN GTID X'7433',X'',1 GTID #-#-#
+slave-bin.000002	#	Annotate_rows	#	#	INSERT INTO t1 VALUES (3, 0)
+slave-bin.000002	#	Table_map	#	#	table_id: # (test.t1)
+slave-bin.000002	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+slave-bin.000002	#	Xid	#	#	COMMIT /* XID */
+slave-bin.000002	#	Gtid	#	#	BEGIN GTID X'7434',X'',1 GTID #-#-#
+slave-bin.000002	#	Query	#	#	ROLLBACK
+slave-bin.000002	#	Binlog_checkpoint	#	#	slave-bin.000002
+*** Slave should now be able to purge the slave-bin.000001 binlog file, but not slave-bin.000002 yet
+FLUSH NO_WRITE_TO_BINLOG BINARY LOGS;
+PURGE BINARY LOGS TO 'slave-bin.000003';
+show binary logs;
+Log_name	File_size
+slave-bin.000002	#
+slave-bin.000003	#
+*** On the slave, trx t2 in the XA prepared state
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
+1	2	0	t2
+connection slave1;
+XA COMMIT 't2';
+connection slave;
+*** Should now see trx t1,t2,t3 committed on slave.
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	0
+2	0
+3	0
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+slave-bin.000003	#	Gtid	#	#	BEGIN GTID X'7432',X'',1 GTID #-#-#
+slave-bin.000003	#	Annotate_rows	#	#	INSERT INTO t1 VALUES (2, 0)
+slave-bin.000003	#	Table_map	#	#	table_id: # (test.t1)
+slave-bin.000003	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+slave-bin.000003	#	Query	#	#	COMMIT
+slave-bin.000003	#	Binlog_checkpoint	#	#	slave-bin.000003
+*** Slave should now be able to purge the slave-bin.000002 binlog file
+FLUSH NO_WRITE_TO_BINLOG BINARY LOGS;
+PURGE BINARY LOGS TO 'slave-bin.000004';
+show binary logs;
+Log_name	File_size
+slave-bin.000004	#
+connection con2;
+XA rollback 't2';
+disconnect con2;
+connection con3;
+XA rollback 't3';
+disconnect con3;
+connection con4;
+XA rollback 't4';
+disconnect con4;
+connection master;
+DROP TABLE t1;
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB
+master-bin.000001	#	Xa_prepared_trx	#	#	XA PREPARED TRX X'7431',X'',1
+master-bin.000001	#	Xa_prepared_trx	#	#	XA PREPARED TRX X'7432',X'',1
+master-bin.000001	#	Xa_prepared_trx	#	#	XA PREPARED TRX X'7433',X'',1
+master-bin.000001	#	Xa_prepared_trx	#	#	XA PREPARED TRX X'7434',X'',1
+master-bin.000001	#	Gtid	#	#	BEGIN GTID X'7431',X'',1 GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO t1 VALUES (1, 0)
+master-bin.000001	#	Table_map	#	#	table_id: # (test.t1)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gtid	#	#	BEGIN GTID X'7432',X'',1 GTID #-#-#
+master-bin.000001	#	Query	#	#	ROLLBACK
+master-bin.000001	#	Gtid	#	#	BEGIN GTID X'7433',X'',1 GTID #-#-#
+master-bin.000001	#	Query	#	#	ROLLBACK
+master-bin.000001	#	Gtid	#	#	BEGIN GTID X'7434',X'',1 GTID #-#-#
+master-bin.000001	#	Query	#	#	ROLLBACK
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; DROP TABLE `t1` /* generated by server */
+connection slave;
+*** On the slave, now no prepared XA available
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
+include/rpl_end.inc

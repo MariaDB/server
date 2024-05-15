@@ -1,0 +1,107 @@
+# In current proof-of-concept, promote is only implemented for row-based binlogging.
+# In current proof-of-concept, must run test with --mysqld=--binlog=checksum=NONE
+
+--source include/have_innodb.inc
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
+--echo *** MDEV-32020: Instantiating XA from old master when promoting a slave as new master
+
+# Create a few XA in "prepared" state on the master.
+# Check that we can explicitly on the slave get them into "XA PREPARED" state,
+# or commit/rollback them directly.
+# Check that old slave binlogs containing data for XA prepared transactions can
+# be purged once the XA transactions have been so promoted.
+
+--connection master
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+
+--let $i= 1
+while ($i <= 4) {
+  --connect(con$i,localhost,root,,)
+  eval XA START 't$i';
+  eval INSERT INTO t1 VALUES ($i, 0);
+  eval XA END 't$i';
+  eval XA PREPARE 't$i';
+  inc $i;
+}
+
+--connection con1
+XA COMMIT 't1';
+--disconnect con1
+
+--connection master
+--echo *** Should see trx t2-t4 in "prepared" state on the master.
+--sorted_result
+XA RECOVER;
+--sync_slave_with_master
+
+--echo *** On the slave, should see only trx t1 committed at this point.
+SELECT * FROM t1 ORDER BY a;
+--echo *** On the slave, should see trx t2-t4 available for promoting
+--sorted_result
+XA RECOVER;
+--echo *** In the slave binlog, should see trx t1-t4 with prepared data, t1 commit.
+--source include/show_binlog_events.inc
+--echo *** The slave-bin.000001 cannot yet be purged as it contains pending prepared XA.
+FLUSH NO_WRITE_TO_BINLOG BINARY LOGS;
+PURGE BINARY LOGS TO 'slave-bin.000002';
+--source include/show_binary_logs.inc
+
+--echo *** Now on the slave, explicitly promote trx t2 into "prepared" state, commit t3, roll back t4
+--connection slave1
+XA PREPARE 't2';
+--connection slave
+XA COMMIT 't3';
+XA ROLLBACK 't4';
+
+--echo *** Should see trx t1 and t3 committed on the slave at this point.
+SELECT * FROM t1 ORDER BY a;
+--echo *** Should see trx t2, t3, and t4 binlogged on the slave.
+--let $binlog_file= slave-bin.000002
+--source include/show_binlog_events.inc
+--echo *** Slave should now be able to purge the slave-bin.000001 binlog file, but not slave-bin.000002 yet
+--source include/wait_for_binlog_checkpoint.inc
+FLUSH NO_WRITE_TO_BINLOG BINARY LOGS;
+PURGE BINARY LOGS TO 'slave-bin.000003';
+--source include/show_binary_logs.inc
+
+--echo *** On the slave, trx t2 in the XA prepared state
+--sorted_result
+XA RECOVER;
+
+--connection slave1
+XA COMMIT 't2';
+
+--connection slave
+--echo *** Should now see trx t1,t2,t3 committed on slave.
+SELECT * FROM t1 ORDER BY a;
+--let $binlog_file= slave-bin.000003
+--source include/show_binlog_events.inc
+--echo *** Slave should now be able to purge the slave-bin.000002 binlog file
+--source include/wait_for_binlog_checkpoint.inc
+FLUSH NO_WRITE_TO_BINLOG BINARY LOGS;
+--source include/wait_for_binlog_checkpoint.inc
+PURGE BINARY LOGS TO 'slave-bin.000004';
+--source include/show_binary_logs.inc
+
+--let $i= 2
+while ($i <= 4) {
+  --connection con$i
+  eval XA rollback 't$i';
+  --disconnect con$i
+  inc $i;
+}
+
+--connection master
+DROP TABLE t1;
+--source include/wait_for_binlog_checkpoint.inc
+--let $binlog_file=
+--source include/show_binlog_events.inc
+
+--sync_slave_with_master
+--echo *** On the slave, now no prepared XA available
+--sorted_result
+XA RECOVER;
+
+--source include/rpl_end.inc

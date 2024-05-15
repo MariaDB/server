@@ -2183,6 +2183,8 @@ rpl_group_info::~rpl_group_info()
 int
 event_group_new_gtid(rpl_group_info *rgi, Gtid_log_event *gev)
 {
+  delete rgi->gtid_xid;
+  rgi->gtid_xid= nullptr;
   uint64 sub_id= rpl_global_gtid_slave_state->next_sub_id(gev->domain_id);
   if (!sub_id)
   {

@@ -56,6 +56,7 @@
 #include "semisync_master.h"
 #include "sp_rcontext.h"
 #include "sp_head.h"
+#include "transaction.h"
 
 #include "wsrep_mysqld.h"
 #ifdef WITH_WSREP
@@ -1862,14 +1863,43 @@ binlog_commit_flush_trx_cache(THD *thd, bool all, binlog_cache_mngr *cache_mngr)
     xa_flag= MYSQL_BIN_LOG::FL_XA_COMMIT;
     xid= xid_state->get_xid();
   }
+  else if (thd->rgi_slave && thd->rgi_slave->gtid_xid)
+  {
+    xa_flag= MYSQL_BIN_LOG::FL_XA_COMMIT;
+    xid= thd->rgi_slave->gtid_xid;
+  }
+  else if (thd->rgi_fake && thd->rgi_fake->gtid_xid)
+  {
+    /* ToDo: Can we do better than this duplicate check on rgi_slave/rgi_fake? */
+    xa_flag= MYSQL_BIN_LOG::FL_XA_COMMIT;
+    xid= thd->rgi_fake->gtid_xid;
+  }
   else
   {
     xa_flag= MYSQL_BIN_LOG::FL_NONE;
     xid= nullptr;
   }
 
-  DBUG_RETURN(binlog_flush_cache(thd, cache_mngr, &end_evt, all, FALSE, TRUE,
-                                 xa_flag, xid));
+  int res= binlog_flush_cache(thd, cache_mngr, &end_evt, all, FALSE, TRUE,
+                              xa_flag, xid);
+  if (xa_flag == MYSQL_BIN_LOG::FL_XA_COMMIT)
+    mysql_bin_log.ext_xa_complete(xid);
+  DBUG_RETURN(res);
+}
+
+
+static inline int
+binlog_rollback_flush_trx_cache_inner(THD *thd, bool all,
+                                      binlog_cache_mngr *cache_mngr,
+                                      uchar xa_flag, xid_t *xid)
+{
+  Query_log_event end_evt(thd, STRING_WITH_LEN("ROLLBACK"), TRUE, TRUE, TRUE, 0);
+
+  int err= binlog_flush_cache(thd, cache_mngr, &end_evt, all, FALSE, TRUE,
+                              xa_flag, xid);
+  if (xid)
+    mysql_bin_log.ext_xa_complete(xid);
+  return err;
 }
 
 
@@ -1904,13 +1934,7 @@ binlog_rollback_flush_trx_cache(THD *thd, bool all,
     xa_flag= MYSQL_BIN_LOG::FL_XA_ROLLBACK;
     xid= thd->rgi_slave->gtid_xid;
   }
-  Query_log_event end_evt(thd, STRING_WITH_LEN("ROLLBACK"), TRUE, TRUE, TRUE, 0);
-
-  int err= binlog_flush_cache(thd, cache_mngr, &end_evt, all, FALSE, TRUE,
-                              xa_flag, xid);
-  if (xid)
-    mysql_bin_log.ext_xa_complete(xid);
-  return err;
+  return binlog_rollback_flush_trx_cache_inner(thd, all, cache_mngr, xa_flag, xid);
 }
 
 /**
@@ -1937,14 +1961,23 @@ binlog_commit_flush_xid_caches(THD *thd, binlog_cache_mngr *cache_mngr,
     xa_flag= MYSQL_BIN_LOG::FL_XA_COMMIT;
     xa_xid= thd->rgi_slave->gtid_xid;
   }
+  else if (thd->rgi_fake && thd->rgi_fake->gtid_xid)
+  {
+    /* ToDo: Can we do better than this duplicate check on rgi_slave/rgi_fake? */
+    xa_flag= MYSQL_BIN_LOG::FL_XA_COMMIT;
+    xa_xid= thd->rgi_fake->gtid_xid;
+  }
   else
   {
     xa_flag= MYSQL_BIN_LOG::FL_NONE;
     xa_xid= nullptr;
   }
 
-  return (binlog_flush_cache(thd, cache_mngr, &end_evt, all, TRUE, TRUE,
-                             xa_flag, xa_xid));
+  int res= binlog_flush_cache(thd, cache_mngr, &end_evt, all, TRUE, TRUE,
+                              xa_flag, xa_xid);
+  if (xa_flag == MYSQL_BIN_LOG::FL_XA_COMMIT)
+    mysql_bin_log.ext_xa_complete(xa_xid);
+  return res;
 }
 
 /**
@@ -2058,6 +2091,267 @@ MYSQL_BIN_LOG::enumerate_binlog_only_xa(Protocol *protocol, CHARSET_INFO *data_c
   }
   mysql_mutex_unlock(&LOCK_xid_list);
   return res;
+}
+
+
+/*
+  Explicitly process an XA transaction from the binlog, for preparing,
+  committing, or rolling back an XA when a slave is promoted as the master.
+
+  Returns:
+    0: XA processed successfully as requested.
+    1: Error processing the XA.
+   -1: The XID is not available from binlog data.
+*/
+int
+MYSQL_BIN_LOG::apply_xa_prepared(THD *thd, XID *xid, bool rollback, bool prepare)
+{
+  /* Find the XID in the list. */
+  mysql_mutex_lock(&LOCK_xid_list);
+  size_t binlog_offset;
+  char binlog_file[FN_REFLEN];
+  xa_prepared *p;
+  for (p= xa_list_start; p; p= p->next)
+  {
+    if (!(p->flags & (1 << xa_prepared::FL_BINLOG_ONLY)))
+      continue;
+    if (xid->eq(&p->xid))
+    {
+      strmake(binlog_file, p->binlog_file, sizeof(binlog_file) - 1);
+      binlog_offset= p->binlog_offset;
+      break;
+    }
+  }
+  /*
+    ToDo: lock the XID for processing here, by checking (under LOCK_xid_list)
+    a "processing" flag, setting it, or waiting for it to clear if not set.
+    Then we could even set a commit/rollback flag, which could allow a running
+    prepare to commit (or abort) directly at the end, skipping the prepare step.
+    Signal some condition on updates.
+
+    For now, no check for duplicate/parallel attempt.
+  */
+  mysql_mutex_unlock(&LOCK_xid_list);
+
+  if (!p)
+    return -1;
+
+  if (check_global_access(thd, PRIV_SLAVE_XA_APPLY))
+    return 1;
+
+  if (rollback)
+  {
+    binlog_cache_mngr *cache_mngr= thd->binlog_setup_trx_data();
+    if (!cache_mngr->stmt_cache.empty() || !cache_mngr->trx_cache.empty())
+    {
+      my_error(ER_XAER_OUTSIDE, MYF(0));
+      return 1;
+    }
+    return binlog_rollback_flush_trx_cache_inner(
+       thd, true, cache_mngr, MYSQL_BIN_LOG::FL_XA_ROLLBACK, xid);
+  }
+
+  File f;
+  IO_CACHE log;
+  const char *errmsg= nullptr;
+
+  if ((f= open_binlog(&log, binlog_file, &errmsg)) < 0)
+    return 1;
+
+  Format_description_log_event *description_event=
+    new Format_description_log_event(BINLOG_VERSION);
+  /*
+    ToDo: Here, we should read the "real" format description event from the
+    start of the binlog file and use to read following events. To have the
+    right version (in case of upgrades to new format descriptor version with
+    pending xa prepared in the binlog?), but perhaps more importantly to know
+    whether we can/should check CRCs. And also read any entryption start event
+    to be able to read from encrypted binlog.
+  */
+
+  int res= 1;
+  Log_event *ev= nullptr;
+  Xa_prepared_trx_log_event *xev;
+  uchar *data;
+  size_t len;
+
+  if (!description_event)
+    goto err;
+
+  my_b_seek(&log, binlog_offset);
+  ev= Log_event::read_log_event(&log, description_event,
+                                opt_master_verify_checksum);
+  if (!ev || !ev->is_valid())
+    goto err;
+  xev= (Xa_prepared_trx_log_event *)ev;
+  data= xev->trx_cache_data;
+  len= xev->trx_cache_len;
+
+  res= apply_xa_events(thd, data, len, xid, description_event, prepare);
+
+err:
+  delete ev;
+  delete description_event;
+  end_io_cache(&log);
+  if (f >= 0)
+    mysql_file_close(f, MYF(0));
+
+  return res;
+}
+
+
+int
+MYSQL_BIN_LOG::apply_xa_events(THD *thd, uchar *data, size_t len, XID *xid,
+                               Format_description_log_event *fd, bool prepare)
+{
+  int err= 0;
+  Relay_log_info *rli= nullptr;
+  rpl_group_info *rgi= nullptr;
+  rpl_sql_thread_info sql_info(NULL);
+  Log_event *annotate_event= nullptr;
+
+  /* ToDo: This whole logic needs cleanup / review from someone who knows the correct way to run DML and commit it inside the server code. */
+  thd->reset_for_next_command();
+
+  /* ToDo: Could we somehow share code like this with mysql_client_binlog_statement() ? */
+  if (!(rli= thd->rli_fake))
+  {
+    if ((rli= thd->rli_fake= new Relay_log_info(FALSE, "BINLOG_BASE64_EVENT")))
+      rli->sql_driver_thd= thd;
+    else
+    {
+      my_error(ER_OUTOFMEMORY, MYF(ME_FATAL), sizeof(*rli));
+      return 1;
+
+    }
+  }
+  if (!(rgi= thd->rgi_fake))
+  {
+    if ((rgi= thd->rgi_fake= new rpl_group_info(rli)))
+      rgi->thd= thd;
+    else
+    {
+      my_error(ER_OUTOFMEMORY, MYF(ME_FATAL), sizeof(*rgi));
+      return 1;
+    }
+  }
+  delete rgi->gtid_xid;
+  if (!(rgi->gtid_xid= new xid_t()))
+  {
+    my_error(ER_OUTOFMEMORY, MYF(ME_FATAL), sizeof(xid_t));
+    return 1;
+  }
+
+  rgi->gtid_xid->set(xid);
+  if (prepare)
+  {
+    thd->lex->sql_command= SQLCOM_XA_START;
+    thd->lex->xa_opt= XA_NONE;
+    thd->lex->xid->set(xid);
+    if (trans_xa_start(thd))
+      return 1;
+  }
+  else
+  {
+    thd->lex->sql_command= SQLCOM_BEGIN;
+    if (trans_begin(thd, 0))
+      return 1;
+  }
+
+  thd->reset_query();
+  thd->system_thread_info.rpl_sql_info= &sql_info;
+
+  /* Loop, reading and applying events. */
+  while (len > 0)
+  {
+    ulong event_len;
+    if (len < EVENT_LEN_OFFSET + 4 ||
+        (event_len= uint4korr(data + EVENT_LEN_OFFSET)) > (uint)len)
+    {
+      my_error(ER_SLAVE_CORRUPT_EVENT, MYF(0));
+      goto err;
+    }
+
+    uchar type= data[EVENT_TYPE_OFFSET];
+    if (/* ToDo: For stmt row events, need some changes in Query_log_event::do_apply_event() to be able to call from a user-level SQL statement.
+        type != QUERY_EVENT &&
+        type != INTVAR_EVENT &&
+        type != RAND_EVENT &&
+        type != USER_VAR_EVENT &&
+        */
+        type != TABLE_MAP_EVENT &&
+        type != WRITE_ROWS_EVENT_V1 &&
+        type != UPDATE_ROWS_EVENT_V1 &&
+        type != DELETE_ROWS_EVENT_V1 &&
+        type != ANNOTATE_ROWS_EVENT
+        /* ToDo: Need to handle compressed events? */)
+    {
+      my_error(ER_SLAVE_CORRUPT_EVENT, MYF(0));
+      goto err;
+    }
+
+    const char *errmsg= nullptr;
+    Log_event *ev= Log_event::read_log_event((const char *)data, event_len, &errmsg, fd, 0);
+    if (!ev || !ev->is_valid())
+    {
+      my_error(ER_SLAVE_CORRUPT_EVENT, MYF(0));
+      goto err;
+    }
+    data+= event_len;
+    len-= event_len;
+    ev->thd= thd;
+    err= ev->apply_event(rgi);
+    if (type == ANNOTATE_ROWS_EVENT)
+    {
+      /* Preserve the annotate event in the slave's binlog. */
+      delete annotate_event;
+      annotate_event= ev;
+    }
+    else
+      delete ev;
+    if (err)
+      goto err;
+  }
+
+  if (prepare)
+  {
+    thd->lex->xa_opt= XA_NONE;
+    thd->lex->sql_command= SQLCOM_XA_END;
+    thd->lex->xid->set(xid);
+    // ToDo: Here, don't call back to trans_xa_prepare() recursively. Instead, split the core part of trans_xa_prepare() into a separate function, and call that directly, skipping doing redundantly the various checks trans_xa_prepare() does at the start.
+    if (trans_xa_end(thd))
+      goto err;
+    thd->lex->sql_command= SQLCOM_XA_PREPARE;
+    if (trans_xa_prepare(thd))
+      goto err;
+    status_var_increment(thd->status_var.com_stat[SQLCOM_XA_PREPARE]);
+  }
+  else
+  {
+    thd->lex->sql_command= SQLCOM_COMMIT;
+    err= trans_commit(thd);
+    thd->transaction->all.reset();
+    thd->release_transactional_locks();
+    status_var_increment(thd->status_var.com_stat[SQLCOM_COMMIT]);
+    thd->update_stats();
+  }
+
+  goto end;
+
+err:
+
+  err= (prepare ? trans_xa_rollback(thd) : trans_rollback(thd));
+  thd->transaction->all.reset();
+  thd->release_transactional_locks();
+  status_var_increment(thd->status_var.com_stat[SQLCOM_ROLLBACK]);
+  thd->update_stats();
+  err= 1;
+
+end:
+  delete annotate_event;
+  rgi->slave_close_thread_tables(thd);
+  thd->system_thread_info.rpl_sql_info= nullptr;
+  return err;
 }
 
 
@@ -2398,12 +2692,13 @@ static int binlog_commit(handlerton *hton, THD *thd, bool all)
               YESNO(thd->transaction->stmt.modified_non_trans_table)));
 
 
+  bool real_trans= ending_trans(thd, all);
   thd->backup_stage(&org_stage);
   THD_STAGE_INFO(thd, stage_binlog_write);
 #ifdef WITH_WSREP
   // DON'T clear stmt cache in case we are in transaction
   if (!cache_mngr->stmt_cache.empty() &&
-      (!wsrep_on(thd) || ending_trans(thd, all)))
+      (!wsrep_on(thd) || real_trans))
 #else
   if (!cache_mngr->stmt_cache.empty())
 #endif
@@ -2434,9 +2729,9 @@ static int binlog_commit(handlerton *hton, THD *thd, bool all)
      - We are in a transaction and a full transaction is committed.
     Otherwise, we accumulate the changes.
   */
-  if (likely(!error) && ending_trans(thd, all))
+  bool is_xa_prepare= is_preparing_xa(thd);
+  if (likely(!error) && real_trans)
   {
-    bool is_xa_prepare= is_preparing_xa(thd);
 
     error= is_xa_prepare ?
       binlog_commit_flush_xa_prepare(thd, all, cache_mngr) :
@@ -2456,8 +2751,13 @@ static int binlog_commit(handlerton *hton, THD *thd, bool all)
     /* Remove the XID from the list of active external XA, now that it is committed. */
     mysql_bin_log.ext_xa_complete(xid_state->get_xid());
   }
-  else if (thd->rgi_slave && thd->rgi_slave->gtid_xid)
-    mysql_bin_log.ext_xa_complete(thd->rgi_slave->gtid_xid);
+  else if (real_trans && !is_xa_prepare)
+  {
+    if (thd->rgi_slave && thd->rgi_slave->gtid_xid)
+      mysql_bin_log.ext_xa_complete(thd->rgi_slave->gtid_xid);
+    else if (thd->rgi_fake && thd->rgi_fake->gtid_xid)
+      mysql_bin_log.ext_xa_complete(thd->rgi_fake->gtid_xid);
+  }
 
   THD_STAGE_INFO(thd, org_stage);
   DBUG_RETURN(error);
@@ -4619,6 +4919,8 @@ bool MYSQL_BIN_LOG::reset_logs(THD *thd, bool create_new_log,
       Wait for any mark_xid_done() calls that might be already running to
       complete (mark_xid_done_waiting counter to drop to zero); we need to
       do this before we take the LOCK_log to not deadlock.
+
+      ToDo: This would remove any pending XA PREPARE. I think we must here require that there are no pending XA PREPARE in the binlog when running XA PREPARE, otherwise those trx will become corrupted and cannot be binlogged/replicated (alternatively, we should forcibly roll back any such trx?).
     */
     mysql_mutex_lock(&LOCK_xid_list);
     reset_master_pending++;
@@ -7849,12 +8151,33 @@ MYSQL_BIN_LOG::insert_prepared_xid(XID *xid, size_t binlog_offset, uchar xa_flag
   p->flags= (xa_flag == FL_XA_PREPARE_BINLOG_ONLY ?
              (1 << xa_prepared::FL_BINLOG_ONLY) : 0);
 
+  /* Remove any redundant existing entry. */
+  xa_prepared **q= &xa_list_start;
+  xa_prepared *r;
+  mysql_mutex_lock(&LOCK_xid_list);
+  while ((r= *q) != nullptr)
+  {
+    if (xid->eq(&r->xid))
+    {
+      if (xa_list_end_ptr == &r->next)
+        xa_list_end_ptr= q;
+      *q= r->next;
+      break;
+    }
+    q= &r->next;
+  }
+
   /* Insert entry at the end of the list. */
   p->next= nullptr;
-  mysql_mutex_lock(&LOCK_xid_list);
   *xa_list_end_ptr= p;
   xa_list_end_ptr= &p->next;
   mysql_mutex_unlock(&LOCK_xid_list);
+
+  if (r)
+  {
+    mark_xid_done(r->binlog_id, 0, 1, true);
+    my_free(r);
+  }
 
   return 0;
 }
