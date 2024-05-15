@@ -5,7 +5,7 @@ if ($cnf == "galera2_to_mariadb")
   --connect slave, 127.0.0.1, root, , test, $NODE_MYPORT_3
   --disable_query_log
   --replace_result $MASTER_MYPORT ###
-  --eval CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_USER='root', MASTER_PORT=$MASTER_MYPORT, MASTER_USE_GTID=NO;
+  --eval CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_USER='root', MASTER_PORT=$MASTER_MYPORT, MASTER_USE_GTID=NO, MASTER_SSL_VERIFY_SERVER_CERT=0;
   --enable_query_log
   START SLAVE;
   --source include/wait_for_slave_to_start.inc
@@ -229,7 +229,7 @@ SELECT * FROM t1 ORDER BY a;
 
 --echo ### Slave: Execute the CHANGE MASTER statement to set up the host and port
 --replace_result $MASTER_MYPORT ###
---eval CHANGE MASTER '' TO MASTER_USER='root', MASTER_HOST='127.0.0.1', MASTER_PORT=$MASTER_MYPORT, MASTER_CONNECT_RETRY=1
+--eval CHANGE MASTER '' TO MASTER_USER='root', MASTER_HOST='127.0.0.1', MASTER_PORT=$MASTER_MYPORT, MASTER_CONNECT_RETRY=1, MASTER_SSL_VERIFY_SERVER_CERT=0
 
 --echo ### Slave: Execute the CHANGE MASTER statement from mariadb_backup_slave_info
 --replace_result $master_after_tr01_show_master_status_file master_after_tr01_show_master_status_file $master_after_tr01_show_master_status_position master_after_tr01_show_master_status_position
