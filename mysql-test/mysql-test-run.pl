@@ -427,7 +427,7 @@ sub main {
     {
       $opt_parallel= $ENV{NUMBER_OF_PROCESSORS} || 1;
     }
-    elsif (IS_MAC)
+    elsif (IS_MAC || IS_FREEBSD)
     {
       $opt_parallel= `sysctl -n hw.ncpu`;
     }
