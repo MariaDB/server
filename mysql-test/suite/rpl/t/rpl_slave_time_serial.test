@@ -1,0 +1,69 @@
+#
+# This patch tests the columns of SHOW SLAVE STATUS
+#  Master_last_event_time. 
+#  Slave_state_time
+#  Master_slave_time_diff
+
+#
+#   Test case 1: Master_last_event_time should be updated when the IO thread
+# receives a new event from the master
+#
+#   Test case 2: For the first transaction after starting, Slave_state_time
+# should update before the transaction commits to a timestamp that is 1s before
+# Master_last_event_time.
+#
+# References:
+#   MDEV-33856: New definition for Seconds_Behind_Master
+#
+
+--source include/have_innodb.inc
+#--source include/have_binlog_format_row.inc
+--source include/have_binlog_format_statement.inc
+--source include/master-slave.inc
+
+
+--echo #
+--echo # Initialize test data
+--connection slave
+SET STATEMENT sql_log_bin=0 FOR create table t1 (a int) engine=innodb;
+--source include/stop_slave.inc
+--connection master
+SET STATEMENT sql_log_bin=0 FOR create table t1 (a int) engine=innodb;
+
+--echo #
+--echo # Test case 1: TODO
+
+--echo # Hardcode timestamp of binlog event for validation of slave values
+--let $t1_timestamp= `select @@timestamp`
+--eval SELECT truncate($t1_timestamp, 0)
+--eval set timestamp= $t1_timestamp
+insert into t1 values (1);
+--source include/save_master_pos.inc
+
+--connection slave
+--echo # Sleep the slave 1s to ensure its local timestamp will differ from
+--echo # master logged timestamp
+--sleep 1
+start slave io_thread;
+--source include/sync_io_with_master.inc
+
+--echo # Ensure Master_last_event_time corresponds to the time the transaction was binlogged on the primary
+--let $mlet= query_get_value(SHOW ALL SLAVES STATUS, Master_last_event_time, 1)
+if (`SELECT ($mlet != (truncate($t1_timestamp,0)))`)
+{
+  --echo # Slave Master_last_event_time: $mlet
+  --echo # T1 real timestamp: $t1_timestamp
+  die Master_last_event_time did not correspond to the time the transaction was binlogged on the primary
+}
+
+--echo #
+--echo # Cleanup
+--connection master
+drop table t1;
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+
+--source include/rpl_end.inc
+--echo # End of .test
