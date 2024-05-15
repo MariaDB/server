@@ -309,6 +309,36 @@ static bool select_neighbours(TABLE *source, TABLE *graph,
 //}
 
 
+static void dbug_print_vec_ref(const char *prefix,
+                               uint layer,
+                               const FVectorRef &ref)
+{
+#ifndef DBUG_OFF
+  // TODO(cvicentiu) disable this in release build.
+  char *ref_str= (char *)alloca(ref.get_ref_len() * 2 + 1);
+  DBUG_ASSERT(ref_str);
+  char *ptr= ref_str;
+  for (size_t i = 0; i < ref.get_ref_len(); ptr += 2, i++)
+  {
+    snprintf(ptr, 3, "%02x", ref.get_ref()[i]);
+  }
+  DBUG_PRINT("VECTOR", ("%s %u %s", prefix, layer, ref_str));
+#endif
+}
+
+static void dbug_print_vec_neigh(uint layer,
+                                 const List<FVectorRef> &neighbors)
+{
+#ifndef DBUG_OFF
+  DBUG_PRINT("VECTOR", ("NEIGH: NUM: %d", neighbors.elements));
+  for (const FVectorRef& ref : neighbors)
+  {
+    dbug_print_vec_ref("NEIGH: ", layer, ref);
+  }
+#endif
+}
+
+
 static bool write_neighbours(TABLE *graph,
                              size_t layer_number,
                              const FVectorRef &source_node,
@@ -352,10 +382,13 @@ static bool write_neighbours(TABLE *graph,
   // no record
   if (err == HA_ERR_KEY_NOT_FOUND)
   {
+    dbug_print_vec_ref("INSERT ", layer_number, source_node);
     graph->field[2]->store_binary(neighbor_array_bytes, total_size);
     graph->file->ha_write_row(graph->record[0]);
     return false;
   }
+  dbug_print_vec_ref("UPDATE ", layer_number, source_node);
+  dbug_print_vec_neigh(layer_number, new_neighbours);
 
   graph->field[2]->store_binary(neighbor_array_bytes, total_size);
   graph->file->ha_update_row(graph->record[1], graph->record[0]);
