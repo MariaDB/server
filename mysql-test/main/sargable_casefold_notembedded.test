@@ -26,6 +26,8 @@ set
   optimizer_switch='sargable_casefold=on',
   optimizer_trace=1;
 
+#Enable after fix MDEV-32034
+--disable_view_protocol
 explain select * from t1 where 'abc'=upper(col1);
 select 
   json_detailed(json_extract(trace, '$**.sargable_casefold_removal')) as JS
@@ -42,6 +44,7 @@ select * from t1 where upper(col1) IN ('A-3','A-4','a-5');
 select 
   json_detailed(json_extract(trace, '$**.sargable_casefold_removal')) as JS
 from information_schema.optimizer_trace;
+--enable_view_protocol
 
 set 
   optimizer_trace=@tmp_ot,
