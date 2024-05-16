@@ -30,7 +30,6 @@
 #cmakedefine HAVE_DLFCN_H 1
 #cmakedefine HAVE_EXECINFO_H 1
 #cmakedefine HAVE_FCNTL_H 1
-#cmakedefine HAVE_FCNTL_DIRECT 1
 #cmakedefine HAVE_FENV_H 1
 #cmakedefine HAVE_FLOAT_H 1
 #cmakedefine HAVE_FNMATCH_H 1
@@ -499,6 +498,7 @@
 #cmakedefine HAVE_COMPRESS 1
 #cmakedefine HAVE_EncryptAes128Ctr 1
 #cmakedefine HAVE_EncryptAes128Gcm 1
+#cmakedefine HAVE_des 1
 #cmakedefine HAVE_hkdf 1
 
 /*

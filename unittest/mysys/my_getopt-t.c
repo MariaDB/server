@@ -378,10 +378,10 @@ int main(int argc __attribute__((unused)), char **argv)
      "res:%d, argc:%d, opt_ull:%llu", res, arg_c, opt_ull);
 
   run("--ull=-100", NULL);
-  ok(res==9 && arg_c==1 && opt_ull==0ULL,
+  ok(res==13 && arg_c==0 && opt_ull==0ULL,
      "res:%d, argc:%d, opt_ull:%llu", res, arg_c, opt_ull);
   run("--ul=-100", NULL);
-  ok(res==9 && arg_c==1 && opt_ul==0UL,
+  ok(res==13 && arg_c==0 && opt_ul==0UL,
      "res:%d, argc:%d, opt_ul:%lu", res, arg_c, opt_ul);
 
   my_end(0);

@@ -12,6 +12,12 @@ SELECT COUNT(*) = 3 FROM mysql.wsrep_allowlist;
 --let $galera_server_number = 3
 --source include/galera_connect.inc
 
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--let $node_3=node_3
+--source ../galera/include/auto_increment_offset_save.inc
+
 --connection node_3
 # Desync and disconnect node 3 from the PC:
 SET @@global.wsrep_desync = 1;
@@ -64,3 +70,6 @@ CALL mtr.add_suppression('WSREP: Connection not allowed');
 
 --connection node_3
 CALL mtr.add_suppression('WSREP: Ignoring lack of quorum');
+
+# Restore original auto_increment_offset values.
+--source ../galera/include/auto_increment_offset_restore.inc

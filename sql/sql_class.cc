@@ -682,8 +682,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
 #ifdef HAVE_REPLICATION
    ,
    current_linfo(0),
-   slave_info(0),
-   is_awaiting_semisync_ack(0)
+   slave_info(0)
 #endif
 #ifdef WITH_WSREP
    ,
@@ -895,6 +894,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   prepare_derived_at_open= FALSE;
   create_tmp_table_for_derived= FALSE;
   save_prep_leaf_list= FALSE;
+  reset_sp_cache= false;
   org_charset= 0;
   /* Restore THR_THD */
   set_current_thd(old_THR_THD);
@@ -4580,7 +4580,7 @@ void Security_context::destroy()
     my_free((char*) host);
     host= NULL;
   }
-  if (user != delayed_user)
+  if (is_user_defined())
   {
     my_free((char*) user);
     user= NULL;
@@ -5402,14 +5402,6 @@ extern "C" enum enum_server_command thd_current_command(MYSQL_THD thd)
   return thd->get_command();
 }
 
-#ifdef HAVE_REPLICATION /* Working around MDEV-24622 */
-/** @return whether the current thread is for applying binlog in a replica */
-extern "C" int thd_is_slave(const MYSQL_THD thd)
-{
-  return thd && thd->slave_thread;
-}
-#endif /* HAVE_REPLICATION */
-
 /* Returns high resolution timestamp for the start
   of the current query. */
 extern "C" unsigned long long thd_start_utime(const MYSQL_THD thd)
@@ -5493,14 +5485,38 @@ thd_rpl_deadlock_check(MYSQL_THD thd, MYSQL_THD other_thd)
     return 0;
   if (!rgi->is_parallel_exec)
     return 0;
-  if (rgi->rli != other_rgi->rli)
-    return 0;
-  if (!rgi->gtid_sub_id || !other_rgi->gtid_sub_id)
-    return 0;
-  if (rgi->current_gtid.domain_id != other_rgi->current_gtid.domain_id)
-    return 0;
-  if (rgi->gtid_sub_id > other_rgi->gtid_sub_id)
-    return 0;
+  if (rgi->rli == other_rgi->rli &&
+      rgi->current_gtid.domain_id == other_rgi->current_gtid.domain_id)
+  {
+    /*
+      Within the same master connection and domain, we can compare transaction
+      order on the GTID sub_id, and rollback the later transaction to allow the
+      earlier transaction to commit first.
+    */
+    if (!rgi->gtid_sub_id || !other_rgi->gtid_sub_id ||
+        rgi->gtid_sub_id > other_rgi->gtid_sub_id)
+      return 0;
+  }
+  else
+  {
+    /*
+      Lock conflicts between different master connections or domains should
+      usually not occur, but could still happen if user is running some
+      special setup that tolerates conflicting updates (or in case of user
+      error). We do not have a pre-defined ordering of transactions in this
+      case, but we still need to handle conflicts in _some_ way to avoid
+      undetected deadlocks and hangs.
+
+      We do this by rolling back and retrying any transaction that is being
+      _optimistically_ applied. This can be overly conservative in some cases,
+      but should be fine as conflicts between different master connections /
+      domains are not common. And it ensures that we won't end up in a
+      deadlock and hang due to a transaction doing wait_for_prior_commit while
+      holding locks that block something in another master connection.
+    */
+    if (other_rgi->speculation != rpl_group_info::SPECULATE_OPTIMISTIC)
+      return 0;
+  }
   if (rgi->finish_event_group_called || other_rgi->finish_event_group_called)
   {
     /*
@@ -5806,6 +5822,40 @@ extern "C" void thd_wait_end(MYSQL_THD thd)
 extern "C" void *thd_mdl_context(MYSQL_THD thd)
 {
   return &thd->mdl_context;
+}
+
+/**
+  Send check/repair message to the user
+
+  @param op            one of check or repair
+  @param msg_type      one of info, warning or error
+  @param print_to_log  <> 0 if we should also print the message to error log.
+*/
+
+extern "C" void
+print_check_msg(THD *thd, const char *db_name, const char *table_name, const char *op,
+                const char *msg_type, const char *message, my_bool print_to_log)
+{
+  char name[NAME_LEN * 2 + 2];
+  Protocol *protocol= thd->protocol;
+
+  DBUG_ASSERT(strlen(db_name) <= NAME_LEN);
+  DBUG_ASSERT(strlen(table_name) <= NAME_LEN);
+
+  size_t length= size_t(strxnmov(name, sizeof name - 1,
+                                 db_name, ".", table_name, NullS) -
+                        name);
+  protocol->prepare_for_resend();
+  protocol->store(name, length, system_charset_info);
+  protocol->store(op, strlen(op), system_charset_info);
+  protocol->store(msg_type, strlen(msg_type), system_charset_info);
+  protocol->store(message, strlen(message), system_charset_info);
+  if (protocol->write())
+    sql_print_error("Failed on my_net_write, writing to stderr instead: %s: %s\n",
+                    table_name, message);
+  else if (thd->variables.log_warnings > 2 && print_to_log)
+    sql_print_error("%s: table '%s' got '%s' during %s",
+                    msg_type, table_name, message, op);
 }
 
 
@@ -8290,6 +8340,34 @@ wait_for_commit::unregister_wait_for_prior_commit2()
   wakeup_error= 0;
   mysql_mutex_unlock(&LOCK_wait_commit);
 }
+
+/*
+  Wait # seconds or until someone sends a signal (through kill)
+
+  Note that this must have same prototype as my_sleep_for_space()
+*/
+
+C_MODE_START
+
+void mariadb_sleep_for_space(unsigned int seconds)
+{
+  THD *thd= current_thd;
+  PSI_stage_info old_stage;
+  if (!thd)
+  {
+    sleep(seconds);
+    return;
+  }
+ mysql_mutex_lock(&thd->LOCK_wakeup_ready);
+  thd->ENTER_COND(&thd->COND_wakeup_ready, &thd->LOCK_wakeup_ready,
+                  &stage_waiting_for_disk_space, &old_stage);
+  if (!thd->killed)
+    mysql_cond_wait(&thd->COND_wakeup_ready, &thd->LOCK_wakeup_ready);
+  thd->EXIT_COND(&old_stage);
+  return;
+}
+
+C_MODE_END
 
 
 bool Discrete_intervals_list::append(ulonglong start, ulonglong val,

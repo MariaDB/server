@@ -4,12 +4,7 @@ etc/mysql/mariadb.conf.d/client.cnf # Debian packaging uses files from debian/ad
 etc/mysql/mariadb.conf.d/enable_encryption.preset # Debian packaging uses files from debian/additions/mariadb.cnf.d/
 etc/mysql/mariadb.conf.d/mysql-clients.cnf # Debian packaging uses files from debian/additions/mariadb.cnf.d/
 etc/mysql/mariadb.conf.d/server.cnf # Debian packaging uses files from debian/additions/mariadb.cnf.d/
-lib/systemd/system/mariadb-extra.socket # Installed by rules file
-lib/systemd/system/mariadb-extra@.socket # Installed by rules file
-lib/systemd/system/mariadb.service # Installed by rules file
-lib/systemd/system/mariadb@.service # Installed by rules file
 lib/systemd/system/mariadb.socket # Installed by rules file
-lib/systemd/system/mariadb@.socket # Installed by rules file
 usr/bin/mariadb-embedded # Shipping the embedded server in distro packaging does not make sense
 usr/bin/mysql_config # Debian packaging has mysql_config as symlink to mariadb_config
 usr/bin/mysql_embedded # Symlink to mariadb-embedded which is intentionally not included

@@ -397,6 +397,7 @@ void ha_partition::init_handler_variables()
   m_start_key.length= 0;
   m_myisam= FALSE;
   m_innodb= FALSE;
+  m_myisammrg= FALSE;
   m_extra_cache= FALSE;
   m_extra_cache_size= 0;
   m_extra_prepare_for_update= FALSE;
@@ -691,6 +692,7 @@ int ha_partition::create_partitioning_metadata(const char *path,
   partition_element *part;
   DBUG_ENTER("ha_partition::create_partitioning_metadata");
 
+  mark_trx_read_write();
   /*
     We need to update total number of parts since we might write the handler
     file as part of a partition management command
@@ -1677,10 +1679,10 @@ bool ha_partition::is_crashed() const
 int ha_partition::prepare_new_partition(TABLE *tbl,
                                         HA_CREATE_INFO *create_info,
                                         handler *file, const char *part_name,
-                                        partition_element *p_elem,
-                                        uint disable_non_uniq_indexes)
+                                        partition_element *p_elem)
 {
   int error;
+  key_map keys_in_use= table->s->keys_in_use;
   DBUG_ENTER("prepare_new_partition");
 
   /*
@@ -1736,8 +1738,8 @@ int ha_partition::prepare_new_partition(TABLE *tbl,
     goto error_external_lock;
   DBUG_PRINT("info", ("partition %s external locked", part_name));
 
-  if (disable_non_uniq_indexes)
-    file->ha_disable_indexes(HA_KEY_SWITCH_NONUNIQ_SAVE);
+  if (!keys_in_use.is_prefix(table->s->keys))
+    file->ha_disable_indexes(keys_in_use, true);
 
   DBUG_RETURN(0);
 error_external_lock:
@@ -2033,13 +2035,6 @@ int ha_partition::change_partitions(HA_CREATE_INFO *create_info,
       calls
   */
 
-  /*
-     Before creating new partitions check whether indexes are disabled
-     in the  partitions.
-  */
-
-  uint disable_non_uniq_indexes= indexes_are_disabled();
-
   i= 0;
   part_count= 0;
   part_it.rewind();
@@ -2081,8 +2076,7 @@ int ha_partition::change_partitions(HA_CREATE_INFO *create_info,
                         prepare_new_partition(table, create_info,
                                               new_file_array[part],
                                               (const char *)part_name_buff,
-                                              sub_elem,
-                                              disable_non_uniq_indexes))))
+                                              sub_elem))))
           {
             cleanup_new_partition(part_count);
             DBUG_RETURN(error);
@@ -2108,8 +2102,7 @@ int ha_partition::change_partitions(HA_CREATE_INFO *create_info,
                       prepare_new_partition(table, create_info,
                                             new_file_array[i],
                                             (const char *)part_name_buff,
-                                            part_elem,
-                                            disable_non_uniq_indexes))))
+                                            part_elem))))
         {
           cleanup_new_partition(part_count);
           DBUG_RETURN(error);
@@ -3042,6 +3035,10 @@ bool ha_partition::create_handlers(MEM_ROOT *mem_root)
     DBUG_PRINT("info", ("InnoDB"));
     m_innodb= TRUE;
   }
+  else if (ha_legacy_type(hton0) == DB_TYPE_MRG_MYISAM)
+  {
+    m_myisammrg= TRUE;
+  }
   DBUG_RETURN(FALSE);
 }
 
@@ -3308,10 +3305,12 @@ handlerton *ha_partition::get_def_part_engine(const char *name)
       goto err;
     if (state.st_size <= 64)
       goto err;
-    if (!(frm_image= (uchar*)my_malloc(key_memory_Partition_share,
-                                       state.st_size, MYF(MY_WME))))
+    if ((ulonglong)state.st_size >= SIZE_T_MAX) /* Whole file need to fit into memory*/
       goto err;
-    if (mysql_file_read(file, frm_image, state.st_size, MYF(MY_NABP)))
+    if (!(frm_image= (uchar*)my_malloc(key_memory_Partition_share,
+                                       (size_t)state.st_size, MYF(MY_WME))))
+      goto err;
+    if (mysql_file_read(file, frm_image, (size_t)state.st_size, MYF(MY_NABP)))
       goto err;
 
     if (frm_image[64] != '/')
@@ -8640,7 +8639,7 @@ int ha_partition::info(uint flag)
                         file->stats.auto_increment_value);
         } while (*(++file_array));
 
-        DBUG_ASSERT(auto_increment_value);
+        DBUG_ASSERT(!all_parts_opened || auto_increment_value);
         stats.auto_increment_value= auto_increment_value;
         if (all_parts_opened && auto_inc_is_first_in_idx)
         {
@@ -9318,8 +9317,9 @@ int ha_partition::extra(enum ha_extra_function operation)
   switch (operation) {
     /* Category 1), used by most handlers */
   case HA_EXTRA_NO_KEYREAD:
-    DBUG_RETURN(loop_partitions(end_keyread_cb, NULL));
+    DBUG_RETURN(loop_read_partitions(end_keyread_cb, NULL));
   case HA_EXTRA_KEYREAD:
+    DBUG_RETURN(loop_read_partitions(extra_cb, &operation));
   case HA_EXTRA_FLUSH:
   case HA_EXTRA_PREPARE_FOR_FORCED_CLOSE:
     DBUG_RETURN(loop_partitions(extra_cb, &operation));
@@ -9428,9 +9428,14 @@ int ha_partition::extra(enum ha_extra_function operation)
   }
     /* Category 9) Operations only used by MERGE */
   case HA_EXTRA_ADD_CHILDREN_LIST:
+    if (!m_myisammrg)
+      DBUG_RETURN(0);
     DBUG_RETURN(loop_partitions(extra_cb, &operation));
   case HA_EXTRA_ATTACH_CHILDREN:
   {
+    if (!m_myisammrg)
+      DBUG_RETURN(0);
+
     int result;
     uint num_locks;
     handler **file;
@@ -9449,8 +9454,9 @@ int ha_partition::extra(enum ha_extra_function operation)
     break;
   }
   case HA_EXTRA_IS_ATTACHED_CHILDREN:
-    DBUG_RETURN(loop_partitions(extra_cb, &operation));
   case HA_EXTRA_DETACH_CHILDREN:
+    if (!m_myisammrg)
+      DBUG_RETURN(0);
     DBUG_RETURN(loop_partitions(extra_cb, &operation));
   case HA_EXTRA_MARK_AS_LOG_TABLE:
   /*
@@ -9535,7 +9541,7 @@ int ha_partition::extra_opt(enum ha_extra_function operation, ulong arg)
   switch (operation)
   {
     case HA_EXTRA_KEYREAD:
-      DBUG_RETURN(loop_partitions(start_keyread_cb, &arg));
+      DBUG_RETURN(loop_read_partitions(start_keyread_cb, &arg));
     case HA_EXTRA_CACHE:
       prepare_extra_cache(arg);
       DBUG_RETURN(0);
@@ -9624,13 +9630,52 @@ int ha_partition::loop_extra_alter(enum ha_extra_function operation)
 
 int ha_partition::loop_partitions(handler_callback callback, void *param)
 {
+  int result= loop_partitions_over_map(&m_part_info->lock_partitions,
+                                       callback, param);
+  /* Add all used partitions to be called in reset(). */
+  bitmap_union(&m_partitions_to_reset, &m_part_info->lock_partitions);
+  return result;
+}
+
+
+/*
+  Call callback(part, param) on read_partitions (the ones used by the query)
+*/
+
+int ha_partition::loop_read_partitions(handler_callback callback, void *param)
+{
+  /*
+    There is no need to record partitions on m_partitions_to_reset as 
+    read_partitions were opened, etc - they will be reset anyway.
+  */
+  return loop_partitions_over_map(&m_part_info->read_partitions, callback,
+                                  param);
+}
+
+
+/**
+  Call callback(part, param) on specified set of partitions
+   
+    @part_map                       The set of partitions to call callback for
+    @param callback                 a callback to call for each partition
+    @param param                    a void*-parameter passed to callback
+
+    @return Operation status
+      @retval >0                    Error code
+      @retval 0                     Success
+*/
+
+int ha_partition::loop_partitions_over_map(const MY_BITMAP *part_map,
+                                           handler_callback callback,
+                                           void *param)
+{
   int result= 0, tmp;
   uint i;
-  DBUG_ENTER("ha_partition::loop_partitions");
+  DBUG_ENTER("ha_partition::loop_partitions_over_map");
 
-  for (i= bitmap_get_first_set(&m_part_info->lock_partitions);
+  for (i= bitmap_get_first_set(part_map);
        i < m_tot_parts;
-       i= bitmap_get_next_set(&m_part_info->lock_partitions, i))
+       i= bitmap_get_next_set(part_map, i))
   {
     /*
       This can be called after an error in ha_open.
@@ -9640,8 +9685,6 @@ int ha_partition::loop_partitions(handler_callback callback, void *param)
         (tmp= callback(m_file[i], param)))
       result= tmp;
   }
-  /* Add all used partitions to be called in reset(). */
-  bitmap_union(&m_partitions_to_reset, &m_part_info->lock_partitions);
   DBUG_RETURN(result);
 }
 
@@ -10903,18 +10946,19 @@ int ha_partition::update_next_auto_inc_val()
 
 bool ha_partition::need_info_for_auto_inc()
 {
-  handler **file= m_file;
   DBUG_ENTER("ha_partition::need_info_for_auto_inc");
 
-  do
+  for (uint i= bitmap_get_first_set(&m_locked_partitions);
+       i < m_tot_parts;
+       i= bitmap_get_next_set(&m_locked_partitions, i))
   {
-    if ((*file)->need_info_for_auto_inc())
+    if ((m_file[i])->need_info_for_auto_inc())
     {
       /* We have to get new auto_increment values from handler */
       part_share->auto_inc_initialized= FALSE;
       DBUG_RETURN(TRUE);
     }
-  } while (*(++file));
+  }
   DBUG_RETURN(FALSE);
 }
 
@@ -11200,7 +11244,7 @@ int ha_partition::calculate_checksum()
     != 0                      Error
 */
 
-int ha_partition::disable_indexes(uint mode)
+int ha_partition::disable_indexes(key_map map, bool persist)
 {
   handler **file;
   int error= 0;
@@ -11208,7 +11252,7 @@ int ha_partition::disable_indexes(uint mode)
   DBUG_ASSERT(bitmap_is_set_all(&(m_part_info->lock_partitions)));
   for (file= m_file; *file; file++)
   {
-    if (unlikely((error= (*file)->ha_disable_indexes(mode))))
+    if (unlikely((error= (*file)->ha_disable_indexes(map, persist))))
       break;
   }
   return error;
@@ -11225,7 +11269,7 @@ int ha_partition::disable_indexes(uint mode)
     != 0                      Error
 */
 
-int ha_partition::enable_indexes(uint mode)
+int ha_partition::enable_indexes(key_map map, bool persist)
 {
   handler **file;
   int error= 0;
@@ -11233,7 +11277,7 @@ int ha_partition::enable_indexes(uint mode)
   DBUG_ASSERT(bitmap_is_set_all(&(m_part_info->lock_partitions)));
   for (file= m_file; *file; file++)
   {
-    if (unlikely((error= (*file)->ha_enable_indexes(mode))))
+    if (unlikely((error= (*file)->ha_enable_indexes(map, persist))))
       break;
   }
   return error;

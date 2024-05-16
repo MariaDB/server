@@ -469,3 +469,80 @@ VALUES
   ('2000-01-01 00:00:00.000000', '2001-01-01 00:00:00.000000', 'abc '),
   ('2000-01-01 00:00:00.000000', '2001-01-01 00:00:00.000000', 'abc');
 DROP TABLE t1;
+
+--echo # MDEV-25370 Update for portion changes autoincrement key in period table
+create or replace table cars(id int auto_increment,
+                             price int, s date, e date,
+                             period for p(s,e),
+                             primary key(id, p without overlaps));
+
+insert into cars(price, s, e) values (1000, '2018-01-01', '2020-01-01');
+select * from cars;
+
+update cars for portion of p from '2019-01-01' to '2019-12-01' set price= 1100;
+--sorted_result
+select * from cars;
+
+delete from cars for portion of p from '2019-12-10' to '2019-12-20';
+--sorted_result
+select * from cars;
+
+--echo # AUTO_INCREMENT field is separate from WITHOUT OVERLAPS
+create or replace table cars(id int primary key auto_increment, 
+                             car_id int,
+                             price int, s date, e date,
+                             period for p(s,e),
+                             unique(car_id, p without overlaps));
+
+insert cars(car_id, price, s, e) values (1, 1000, '2018-01-01', '2020-01-01');
+select * from cars;
+
+update cars for portion of p from '2019-01-01' to '2019-12-01' set price= 1100;
+--sorted_result
+select * from cars;
+
+delete from cars for portion of p from '2019-12-10' to '2019-12-20';
+--sorted_result
+select * from cars;
+
+
+--echo # AUTO_INCREMENT field is both standalone and in WITHOUT OVERLAPS
+create or replace table cars(id int primary key auto_increment,
+                             price int, s date, e date,
+                             period for p(s,e),
+                             unique(id, p without overlaps));
+
+insert cars(price, s, e) values (1000, '2018-01-01', '2020-01-01');
+insert cars(price, s, e) values (1000, '2021-01-01', '2022-01-01');
+
+update cars for portion of p from '2019-01-01' to '2019-12-01' set price= 1100;
+--echo # autoincrement index is: id int primary key
+--echo # id increments each time.
+--sorted_result
+select * from cars;
+
+truncate cars;
+insert cars(price, s, e) values (1000, '2018-01-01', '2020-01-01');
+
+delete from cars for portion of p from '2019-12-10' to '2019-12-20';
+--sorted_result
+select * from cars;
+
+create or replace table cars(id int unique auto_increment,
+                             price int, s date, e date,
+                             period for p(s,e),
+                             primary key (id, p without overlaps));
+
+insert cars(price, s, e) values (1000, '2018-01-01', '2020-01-01');
+--echo # autoincrement index is: primary key (id, p without overlaps)
+--echo # id is not incremented, hence duplication error
+--error ER_DUP_ENTRY
+update cars for portion of p from '2019-01-01' to '2019-12-01' set price= 1100;
+
+truncate cars;
+insert cars(price, s, e) values (1000, '2018-01-01', '2020-01-01');
+
+--error ER_DUP_ENTRY
+delete from cars for portion of p from '2019-12-10' to '2019-12-20';
+
+drop table cars;

@@ -52,6 +52,7 @@ class Url {
 
   const char *url()   { return full_url.str; }
   size_t url_length() { return full_url.length; }
+  virtual void abort() =  0;
   virtual int send(const char* data, size_t data_length) =  0;
   virtual int set_proxy(const char *proxy, size_t proxy_len)
   {

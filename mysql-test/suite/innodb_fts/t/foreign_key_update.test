@@ -32,3 +32,16 @@ SELECT * FROM t1_fk WHERE MATCH(a) AGAINST('database');
 
 DROP TABLE t1_fk;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-32346  Assertion failure sym_node->table != NULL
+--echo #	in pars_retrieve_table_def on UPDATE
+--echo #
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t2 (a INT, b TEXT, FOREIGN KEY(a) REFERENCES t1(a),
+		 FULLTEXT (b))ENGINE=InnoDB;
+INSERT INTO t1 SET a=1;
+ALTER TABLE t2 DISCARD TABLESPACE;
+--error ER_ROW_IS_REFERENCED_2
+UPDATE t1 SET a=2;
+DROP TABLE t2,t1;

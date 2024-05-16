@@ -27,12 +27,19 @@ connection slave;
 # delaying a transaction; then when the reciprocal START SLAVE occurs,
 # if the event is still to be delayed, SBM should resume accordingly
 include/stop_slave.inc
+# Lock t1 on slave to ensure the event can't finish (and thereby update
+# Seconds_Behind_Master) so slow running servers don't accidentally
+# catch up to the master before checking SBM.
+connection server_2;
+LOCK TABLES t1 WRITE;
 include/start_slave.inc
 connection slave;
-# Waiting for replica to resume the delay for the transaction
+# Waiting for replica to get blocked by the table lock
 # Sleeping 1s to increment SBM
 # Ensuring Seconds_Behind_Master increases after sleeping..
 # ..done
+connection server_2;
+UNLOCK TABLES;
 include/sync_with_master_gtid.inc
 #
 # Pt 2) If the worker threads have not entered an idle state, ensure

@@ -96,6 +96,8 @@ void sql_print_error(const char *format, ...)
 
 /*** end of encryption tweaks and stubs ****************************/
 
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 static IO_CACHE info;
 #define CACHE_SIZE 16384
 
@@ -472,3 +474,4 @@ int main(int argc __attribute__((unused)),char *argv[])
   return exit_status();
 }
 
+PRAGMA_REENABLE_CHECK_STACK_FRAME

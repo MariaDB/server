@@ -657,47 +657,22 @@ dict_table_t::parse_name<>(char(&)[NAME_LEN + 1], char(&)[NAME_LEN + 1],
 /** Acquire MDL shared for the table name.
 @tparam trylock whether to use non-blocking operation
 @param[in,out]  table           table object
-@param[in,out]  thd             background thread
-@param[out]     mdl             mdl ticket
+@param[in,out]  mdl_context     MDL context
+@param[out]     mdl             MDL ticket
 @param[in]      table_op        operation to perform when opening
 @return table object after locking MDL shared
 @retval nullptr if the table is not readable, or if trylock && MDL blocked */
 template<bool trylock>
+__attribute__((nonnull, warn_unused_result))
 dict_table_t*
 dict_acquire_mdl_shared(dict_table_t *table,
-                        THD *thd,
-                        MDL_ticket **mdl,
+                        MDL_context *mdl_context, MDL_ticket **mdl,
                         dict_table_op_t table_op)
 {
-  if (!table || !mdl)
-    return table;
-
-  MDL_context *mdl_context= static_cast<MDL_context*>(thd_mdl_context(thd));
-  size_t db_len;
-  dict_table_t *not_found= nullptr;
-
-  if (trylock)
-  {
-    dict_sys.freeze(SRW_LOCK_CALL);
-    db_len= dict_get_db_name_len(table->name.m_name);
-    dict_sys.unfreeze();
-  }
-  else
-  {
-    ut_ad(dict_sys.frozen_not_locked());
-    db_len= dict_get_db_name_len(table->name.m_name);
-  }
-
-  if (db_len == 0)
-    return table; /* InnoDB system tables are not covered by MDL */
-
-  if (!mdl_context)
-    return nullptr;
-
   table_id_t table_id= table->id;
   char db_buf[NAME_LEN + 1], db_buf1[NAME_LEN + 1];
   char tbl_buf[NAME_LEN + 1], tbl_buf1[NAME_LEN + 1];
-  size_t tbl_len;
+  size_t db_len, tbl_len;
   bool unaccessible= false;
 
   if (!table->parse_name<!trylock>(db_buf, tbl_buf, &db_len, &tbl_len))
@@ -768,7 +743,6 @@ retry:
 
   if (!table || !table->is_accessible())
   {
-    table= nullptr;
 return_without_mdl:
     if (trylock)
       dict_sys.unfreeze();
@@ -777,7 +751,7 @@ return_without_mdl:
       mdl_context->release_lock(*mdl);
       *mdl= nullptr;
     }
-    return not_found;
+    return nullptr;
   }
 
   size_t db1_len, tbl1_len;
@@ -812,6 +786,50 @@ return_without_mdl:
   memcpy(tbl_buf, tbl_buf1, tbl_len + 1);
   memcpy(db_buf, db_buf1, db_len + 1);
   goto retry;
+}
+
+template dict_table_t* dict_acquire_mdl_shared<false>
+(dict_table_t*,MDL_context*,MDL_ticket**,dict_table_op_t);
+
+/** Acquire MDL shared for the table name.
+@tparam trylock whether to use non-blocking operation
+@param[in,out]  table           table object
+@param[in,out]  thd             background thread
+@param[out]     mdl             mdl ticket
+@param[in]      table_op        operation to perform when opening
+@return table object after locking MDL shared
+@retval nullptr if the table is not readable, or if trylock && MDL blocked */
+template<bool trylock>
+dict_table_t*
+dict_acquire_mdl_shared(dict_table_t *table,
+                        THD *thd,
+                        MDL_ticket **mdl,
+                        dict_table_op_t table_op)
+{
+  if (!table || !mdl)
+    return table;
+
+  MDL_context *mdl_context= static_cast<MDL_context*>(thd_mdl_context(thd));
+  size_t db_len;
+
+  if (trylock)
+  {
+    dict_sys.freeze(SRW_LOCK_CALL);
+    db_len= dict_get_db_name_len(table->name.m_name);
+    dict_sys.unfreeze();
+  }
+  else
+  {
+    ut_ad(dict_sys.frozen_not_locked());
+    db_len= dict_get_db_name_len(table->name.m_name);
+  }
+
+  if (db_len == 0)
+    return table; /* InnoDB system tables are not covered by MDL */
+
+  return mdl_context
+    ? dict_acquire_mdl_shared<trylock>(table, mdl_context, mdl, table_op)
+    : nullptr;
 }
 
 template dict_table_t* dict_acquire_mdl_shared<false>
@@ -960,9 +978,6 @@ void dict_sys_t::lock_wait(SRW_LOCK_ARGS(const char *file, unsigned line))
   {
     latch.wr_lock(SRW_LOCK_ARGS(file, line));
     latch_ex_wait_start.store(0, std::memory_order_relaxed);
-    ut_ad(!latch_readers);
-    ut_ad(!latch_ex);
-    ut_d(latch_ex= pthread_self());
     return;
   }
 
@@ -978,34 +993,35 @@ void dict_sys_t::lock_wait(SRW_LOCK_ARGS(const char *file, unsigned line))
     ib::warn() << "A long wait (" << waited
                << " seconds) was observed for dict_sys.latch";
   latch.wr_lock(SRW_LOCK_ARGS(file, line));
-  ut_ad(!latch_readers);
-  ut_ad(!latch_ex);
-  ut_d(latch_ex= pthread_self());
 }
 
 #ifdef UNIV_PFS_RWLOCK
 ATTRIBUTE_NOINLINE void dict_sys_t::unlock()
 {
-  ut_ad(latch_ex == pthread_self());
-  ut_ad(!latch_readers);
-  ut_d(latch_ex= 0);
   latch.wr_unlock();
 }
 
 ATTRIBUTE_NOINLINE void dict_sys_t::freeze(const char *file, unsigned line)
 {
   latch.rd_lock(file, line);
-  ut_ad(!latch_ex);
-  ut_d(latch_readers++);
 }
 
 ATTRIBUTE_NOINLINE void dict_sys_t::unfreeze()
 {
-  ut_ad(!latch_ex);
-  ut_ad(latch_readers--);
   latch.rd_unlock();
 }
 #endif /* UNIV_PFS_RWLOCK */
+
+/** Report an error about failing to open a table.
+@param name   table name */
+static void dict_table_open_failed(const table_name_t &name)
+{
+  my_printf_error(ER_TABLE_CORRUPT,
+                  "Table %`.*s.%`s is corrupted."
+                  " Please drop the table and recreate.",
+                  MYF(ME_ERROR_LOG),
+                  int(name.dblen()), name.m_name, name.basename());
+}
 
 /**********************************************************************//**
 Returns a table object and increments its open handle count.
@@ -1039,18 +1055,20 @@ dict_table_open_on_name(
       if (!(ignore_err & ~DICT_ERR_IGNORE_FK_NOKEY) &&
           !table->is_readable() && table->corrupted)
       {
-        ulint algo = table->space->get_compression_algo();
-        if (algo <= PAGE_ALGORITHM_LAST && !fil_comp_algo_loaded(algo)) {
-	  my_printf_error(ER_PROVIDER_NOT_LOADED,
-            "Table %s is compressed with %s, which is not currently loaded. "
-            "Please load the %s provider plugin to open the table",
-	    MYF(ME_ERROR_LOG), table->name,
-            page_compression_algorithms[algo], page_compression_algorithms[algo]);
-        } else {
-	  my_printf_error(ER_TABLE_CORRUPT,
-            "Table %s is corrupted. Please drop the table and recreate.",
-	    MYF(ME_ERROR_LOG), table->name);
-	}
+        ulint algo= table->space->get_compression_algo();
+        if (algo <= PAGE_ALGORITHM_LAST && !fil_comp_algo_loaded(algo))
+          my_printf_error(ER_PROVIDER_NOT_LOADED,
+                          "Table %`.*s.%`s is compressed with %s,"
+                          " which is not currently loaded. "
+                          "Please load the %s provider plugin"
+                          " to open the table",
+                          MYF(ME_ERROR_LOG),
+                          int(table->name.dblen()), table->name.m_name,
+                          table->name.basename(),
+                          page_compression_algorithms[algo],
+                          page_compression_algorithms[algo]);
+        else
+          dict_table_open_failed(table->name);
         dict_sys.unfreeze();
         DBUG_RETURN(nullptr);
       }
@@ -1070,8 +1088,7 @@ dict_table_open_on_name(
     if (!(ignore_err & ~DICT_ERR_IGNORE_FK_NOKEY) &&
         !table->is_readable() && table->corrupted)
     {
-      ib::error() << "Table " << table->name
-                  << " is corrupted. Please drop the table and recreate.";
+      dict_table_open_failed(table->name);
       if (!dict_locked)
         dict_sys.unlock();
       DBUG_RETURN(nullptr);
@@ -1992,7 +2009,6 @@ dict_index_add_to_cache(
 	new_index->n_fields = new_index->n_def;
 	new_index->trx_id = index->trx_id;
 	new_index->set_committed(index->is_committed());
-	new_index->nulls_equal = index->nulls_equal;
 
 	n_ord = new_index->n_uniq;
 	/* Flag the ordering columns and also set column max_prefix */

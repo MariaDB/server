@@ -186,7 +186,7 @@ public:
       char buff[100];
       /* Clear the signal message */
 #ifndef _WIN32
-      read(local_read_signal, buff, sizeof(buff));
+      (void) !read(local_read_signal, buff, sizeof(buff));
 #else
       recv(local_read_signal, buff, sizeof(buff), 0);
 #endif /* _WIN32 */
@@ -226,6 +226,11 @@ public:
   bool is_socket_active(const Slave *slave)
   {
     return m_fds[slave->m_fds_index].revents & POLLIN;
+  }
+
+  bool is_socket_hangup(const Slave *slave)
+  {
+    return m_fds[slave->m_fds_index].revents & POLLHUP;
   }
 
   void clear_socket_info(const Slave *slave)
@@ -294,6 +299,11 @@ public:
   bool is_socket_active(const Slave *slave)
   {
     return FD_ISSET(slave->sock_fd(), &m_fds);
+  }
+
+  bool is_socket_hangup(const Slave *slave)
+  {
+    return 0;
   }
 
   bool has_signal_data() override

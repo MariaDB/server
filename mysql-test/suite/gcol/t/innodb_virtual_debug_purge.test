@@ -131,9 +131,8 @@ CREATE TABLE t1 (a INT, b INT, c INT GENERATED ALWAYS AS(a+b));
 
 INSERT INTO t1(a, b) VALUES (1, 1), (2, 2), (3, 3), (4, 4);
 
-connection con1;
---echo # disable purge
-BEGIN; SELECT * FROM t0;
+connect (stop_purge,localhost,root,,);
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
 
 connection default;
 DELETE FROM t1 WHERE a = 1;
@@ -148,13 +147,14 @@ send ALTER TABLE t1 ADD INDEX idx (c), ALGORITHM=INPLACE, LOCK=NONE;
 connection con1;
 SET DEBUG_SYNC= 'now WAIT_FOR uncommitted';
 
+BEGIN;
 DELETE FROM t1 WHERE a = 3;
 
 UPDATE t1 SET a = 7, b = 7 WHERE a = 4;
 
 INSERT INTO t1(a, b) VALUES (8, 8);
 
---echo # enable purge
+disconnect stop_purge;
 COMMIT;
 
 --echo # wait for purge to process the deleted/updated records.

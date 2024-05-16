@@ -1965,4 +1965,32 @@ b
 2
 3
 DROP TABLE t1, t2;
+#
+# MDEV-33525: Recreate/reuse temporary table
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+CREATE FUNCTION f1()
+RETURNS INT
+BEGIN
+DECLARE res INT;
+DECLARE t1_cur CURSOR FOR SELECT 100 FROM t1, t1_tmp;
+CREATE TEMPORARY TABLE t1_tmp SELECT 1 a;
+OPEN t1_cur;
+CLOSE t1_cur;
+DROP TEMPORARY TABLE t1_tmp;
+RETURN 0;
+END
+|
+SELECT f1();
+f1()
+0
+# Without the patch, the second call of f1 would result in error:
+#   ER_NO_SUCH_TABLE (1146): Table 'test.t1' doesn't exist
+SELECT f1();
+f1()
+0
+# Clean up
+DROP FUNCTION f1;
+DROP TABLE t1;
 SET sql_mode = default;

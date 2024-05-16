@@ -1,9 +1,3 @@
-drop table if exists t1, t2, t3, t4;
-drop view if exists v1;
-drop database if exists mysqltest;
-drop function if exists f1;
-drop function if exists f2;
-drop procedure if exists p1;
 connect  addconroot1, localhost, root,,;
 connect  addconroot2, localhost, root,,;
 connect  addconwithoutdb, localhost, root,,*NO-ONE*;

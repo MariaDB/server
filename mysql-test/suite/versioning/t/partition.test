@@ -2673,5 +2673,43 @@ create table t (a int) with system versioning partition by system_time partition
 --echo # End of 10.5 tests
 --echo #
 
+--echo #
+--echo # MDEV-31903 Server crashes in _ma_reset_history upon UNLOCK table with auto-create history partitions
+--echo #
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+create table t1 (x int) engine=aria with system versioning partition by system_time interval 1 hour auto partitions 3;
+insert into t1 values (1);
+
+create table t2 (x int) engine=aria;
+create trigger tr after insert on t2 for each row update t1 set x= x + 11;
+lock tables t1 write, t2 write;
+update t1 set x= x + 1;
+set timestamp= unix_timestamp('2000-01-01 13:00:00');
+insert into t2 values (5);
+unlock tables;
+drop table t1, t2;
+set timestamp= default;
+
+--echo #
+--echo # MDEV-29872 MSAN/Valgrind uninitialised value errors in TABLE::vers_switch_partition
+--echo #
+create table t (a int) with system versioning partition by system_time limit 100 partitions 3;
+let $emb= `select if(version() like '%embedded%', 1, 0)`;
+if (!$emb)
+{
+  --disable_result_log
+  --disable_query_log
+  --error ER_DELAYED_NOT_SUPPORTED
+  insert delayed into t () values ();
+  --enable_query_log
+  --enable_result_log
+}
+# cleanup
+drop table t;
+
+--echo #
+--echo # End of 10.9 tests
+--echo #
+
 set global innodb_stats_persistent= @save_persistent;
 --source suite/versioning/common_finish.inc

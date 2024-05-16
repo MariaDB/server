@@ -25,6 +25,8 @@ SET SESSION wsrep_sync_wait=0;
 connection node_2;
 INSERT INTO t1 VALUES (2);
 ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+connection node_2a;
+connection node_2;
 COMMIT;
 ERROR 08S01: WSREP has not yet prepared node for application use
 connection node_2a;

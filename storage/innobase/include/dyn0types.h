@@ -33,7 +33,4 @@ Created 2013-03-16 Sunny Bains
 /** This is the initial 'payload' size of a dynamic array */
 #define	DYN_ARRAY_DATA_SIZE	512
 
-/** Flag for dyn_block_t::used that indicates a full block */
-#define DYN_BLOCK_FULL_FLAG	0x1000000UL
-
 #endif /* dyn0types_h */

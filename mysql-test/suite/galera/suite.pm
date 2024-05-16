@@ -1,5 +1,6 @@
 package My::Suite::Galera;
 
+use warnings;
 use lib 'suite';
 use wsrep::common;
 
@@ -63,6 +64,7 @@ push @::global_suppressions,
      qr(WSREP: Failed to remove page file .*),
      qr(WSREP: wsrep_sst_method is set to 'mysqldump' yet mysqld bind_address is set to .*),
      qr|WSREP: Sending JOIN failed: -107 \(Transport endpoint is not connected\). Will retry in new primary component.|,
+     qr|WSREP: Send action \{.* STATE_REQUEST} returned -107 \(Transport endpoint is not connected\)|,
      qr|WSREP: Trying to continue unpaused monitor|,
      qr|WSREP: Wait for gtid returned error 3 while waiting for prior transactions to commit before setting position|,
      qr|WSREP: Failed to report last committed|,

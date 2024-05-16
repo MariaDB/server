@@ -27,8 +27,8 @@ INSERT INTO t1 VALUES (1);
 SELECT COUNT(*) = 1 FROM t1;
 --let $NODE_2_PIDFILE = `SELECT @@pid_file`
 
---exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
---exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+--write_line wait $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--write_line wait $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
 --exec kill -9 `cat $NODE_1_PIDFILE` `cat $NODE_2_PIDFILE`
 
 # Perform --wsrep-recover and preserve the positions into variables by placing them in $MYSQL_TMP_DIR/galera_wsrep_start_position.inc and then --source'ing it
@@ -66,8 +66,8 @@ if ($galera_wsrep_start_position2 == '') {
 
 # Instruct MTR to perform the actual restart using --wsrep-start-position . Proper --wsrep_cluster_address is used as my.cnf only contains 'gcomm://' for node #1
 
---exec echo "restart: --wsrep-start-position=$galera_wsrep_start_position1 --wsrep_cluster_address=gcomm://127.0.0.1:$NODE_GALERAPORT_1,127.0.0.1:$NODE_GALERAPORT_2" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
---exec echo "restart: --wsrep-start-position=$galera_wsrep_start_position2 --wsrep_cluster_address=gcomm://127.0.0.1:$NODE_GALERAPORT_1,127.0.0.1:$NODE_GALERAPORT_2" > $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+--write_line "restart: --wsrep-start-position=$galera_wsrep_start_position1 --wsrep_cluster_address=gcomm://127.0.0.1:$NODE_GALERAPORT_1,127.0.0.1:$NODE_GALERAPORT_2" $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--write_line "restart: --wsrep-start-position=$galera_wsrep_start_position2 --wsrep_cluster_address=gcomm://127.0.0.1:$NODE_GALERAPORT_1,127.0.0.1:$NODE_GALERAPORT_2" $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
 
 --sleep 5
 --connection node_1

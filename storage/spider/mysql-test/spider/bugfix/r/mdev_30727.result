@@ -1,0 +1,24 @@
+CREATE FUNCTION spider_direct_sql RETURNS INT SONAME 'ha_spider.so';
+SELECT spider_direct_sql ('SELECT * FROM s','a','srv "b"');
+ERROR HY000: Can't initialize function 'spider_direct_sql'; Plugin 'SPIDER' is not loaded
+CREATE FUNCTION spider_bg_direct_sql RETURNS INT SONAME 'ha_spider.so';
+SELECT spider_bg_direct_sql ('SELECT * FROM s','a','srv "b"');
+ERROR HY000: Can't initialize function 'spider_bg_direct_sql'; Plugin 'SPIDER' is not loaded
+CREATE FUNCTION spider_copy_tables RETURNS INT SONAME 'ha_spider.so';
+SELECT spider_copy_tables ('t', '0', '0');
+ERROR HY000: Can't initialize function 'spider_copy_tables'; Plugin 'SPIDER' is not loaded
+CREATE FUNCTION spider_flush_table_mon_cache RETURNS INT SONAME 'ha_spider.so';
+SELECT spider_flush_table_mon_cache ();
+spider_flush_table_mon_cache ()
+1
+install soname 'ha_spider';
+SELECT spider_direct_sql ('SELECT * FROM s','a','srv "b"');
+ERROR HY000: The foreign server name you are trying to reference does not exist. Data source error:  b
+call mtr.add_suppression(".*\\[Error\\] (mysqld|mariadbd): Can't find record in 'spider_tables'");
+SELECT spider_copy_tables ('t', '0', '0');
+ERROR HY000: Can't find record in 'spider_tables'
+SELECT spider_flush_table_mon_cache ();
+spider_flush_table_mon_cache ()
+1
+Warnings:
+Warning	1620	Plugin is busy and will be uninstalled on shutdown

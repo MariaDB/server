@@ -204,7 +204,7 @@ print FILE "\0" x 16384;
 close(FILE);
 EOF
 
---exec echo "" > $MYSQLD_DATADIR/test/u2.ibd
+--write_line "" $MYSQLD_DATADIR/test/u2.ibd
 
 --copy_file $MYSQLD_DATADIR/test/u6.ibd $MYSQLD_DATADIR/test/u4.ibd
 

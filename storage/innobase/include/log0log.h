@@ -132,6 +132,9 @@ public:
 /** Redo log buffer */
 struct log_t
 {
+  /** The maximum buf_size */
+  static constexpr unsigned buf_size_max= os_file_request_size_max;
+
   /** The original (not version-tagged) InnoDB redo log format */
   static constexpr uint32_t FORMAT_3_23= 0;
   /** The MySQL 5.7.9/MariaDB 10.2.2 log format */
@@ -165,60 +168,92 @@ struct log_t
   static constexpr lsn_t FIRST_LSN= START_OFFSET;
 
 private:
-  /** The log sequence number of the last change of durable InnoDB files */
+  /** the lock bit in buf_free */
+  static constexpr size_t buf_free_LOCK= ~(~size_t{0} >> 1);
   alignas(CPU_LEVEL1_DCACHE_LINESIZE)
+  /** first free offset within buf used;
+  the most significant bit is set by lock_lsn() to protect this field
+  as well as write_to_buf, waits */
+  std::atomic<size_t> buf_free;
+public:
+  /** number of write requests (to buf); protected by lock_lsn() or lsn_lock */
+  size_t write_to_buf;
+  /** log record buffer, written to by mtr_t::commit() */
+  byte *buf;
+private:
+  /** The log sequence number of the last change of durable InnoDB files;
+  protected by lock_lsn() or lsn_lock or latch.wr_lock() */
   std::atomic<lsn_t> lsn;
   /** the first guaranteed-durable log sequence number */
   std::atomic<lsn_t> flushed_to_disk_lsn;
-  /** log sequence number when log resizing was initiated, or 0 */
-  std::atomic<lsn_t> resize_lsn;
-  /** set when there may be need to initiate a log checkpoint.
-  This must hold if lsn - last_checkpoint_lsn > max_checkpoint_age. */
-  std::atomic<bool> need_checkpoint;
+public:
+  /** number of append_prepare_wait(); protected by lock_lsn() or lsn_lock */
+  size_t waits;
+  /** innodb_log_buffer_size (size of buf,flush_buf if !is_pmem(), in bytes) */
+  unsigned buf_size;
+  /** log file size in bytes, including the header */
+  lsn_t file_size;
 
-#if defined(__aarch64__)
-  /* On ARM, we do more spinning */
+#ifdef LOG_LATCH_DEBUG
+  typedef srw_lock_debug log_rwlock;
+  typedef srw_mutex log_lsn_lock;
+
+  bool latch_have_wr() const { return latch.have_wr(); }
+  bool latch_have_rd() const { return latch.have_rd(); }
+  bool latch_have_any() const { return latch.have_any(); }
+#else
+# ifndef UNIV_DEBUG
+# elif defined SUX_LOCK_GENERIC
+  bool latch_have_wr() const { return true; }
+  bool latch_have_rd() const { return true; }
+  bool latch_have_any() const { return true; }
+# else
+  bool latch_have_wr() const { return latch.is_write_locked(); }
+  bool latch_have_rd() const { return latch.is_locked(); }
+  bool latch_have_any() const { return latch.is_locked(); }
+# endif
+# ifdef __aarch64__
+  /* On ARM, we spin more */
   typedef srw_spin_lock log_rwlock;
   typedef pthread_mutex_wrapper<true> log_lsn_lock;
-#else
+# else
   typedef srw_lock log_rwlock;
   typedef srw_mutex log_lsn_lock;
+# endif
 #endif
-
-public:
-  /** rw-lock protecting writes to buf; normal mtr_t::commit()
-  outside any log checkpoint is covered by a shared latch */
+  /** exclusive latch for checkpoint, shared for mtr_t::commit() to buf */
   alignas(CPU_LEVEL1_DCACHE_LINESIZE) log_rwlock latch;
-private:
-  /** mutex protecting buf_free et al, together with latch */
-  log_lsn_lock lsn_lock;
-public:
-  /** first free offset within buf use; protected by lsn_lock */
-  Atomic_relaxed<size_t> buf_free;
-  /** number of write requests (to buf); protected by lsn_lock */
-  size_t write_to_buf;
-  /** number of append_prepare_wait(); protected by lsn_lock */
-  size_t waits;
-private:
-  /** Last written LSN */
-  lsn_t write_lsn;
-public:
-  /** log record buffer, written to by mtr_t::commit() */
-  byte *buf;
-  /** buffer for writing data to ib_logfile0, or nullptr if is_pmem()
-  In write_buf(), buf and flush_buf are swapped */
-  byte *flush_buf;
+
   /** number of std::swap(buf, flush_buf) and writes from buf to log;
   protected by latch.wr_lock() */
   ulint write_to_log;
 
+  /** Last written LSN */
+  lsn_t write_lsn;
+
+  /** buffer for writing data to ib_logfile0, or nullptr if is_pmem()
+  In write_buf(), buf and flush_buf are swapped */
+  byte *flush_buf;
+  /** set when there may be need to initiate a log checkpoint.
+  This must hold if lsn - last_checkpoint_lsn > max_checkpoint_age. */
+  std::atomic<bool> need_checkpoint;
+  /** whether a checkpoint is pending; protected by latch.wr_lock() */
+  Atomic_relaxed<bool> checkpoint_pending;
+  /** next checkpoint number (protected by latch.wr_lock()) */
+  byte next_checkpoint_no;
+  /** recommended maximum buf_free size, after which the buffer is flushed */
+  unsigned max_buf_free;
   /** Log sequence number when a log file overwrite (broken crash recovery)
   was noticed. Protected by latch.wr_lock(). */
   lsn_t overwrite_warned;
 
-  /** innodb_log_buffer_size (size of buf,flush_buf if !is_pmem(), in bytes) */
-  size_t buf_size;
+  /** latest completed checkpoint (protected by latch.wr_lock()) */
+  Atomic_relaxed<lsn_t> last_checkpoint_lsn;
+  /** next checkpoint LSN (protected by latch.wr_lock()) */
+  lsn_t next_checkpoint_lsn;
 
+  /** Log file */
+  log_file_t log;
 private:
   /** Log file being constructed during resizing; protected by latch */
   log_file_t resize_log;
@@ -229,18 +264,14 @@ private:
   /** Buffer for writing to resize_log; @see flush_buf */
   byte *resize_flush_buf;
 
-  void init_lsn_lock() {lsn_lock.init(); }
-  void lock_lsn() { lsn_lock.wr_lock(); }
-  void unlock_lsn() {lsn_lock.wr_unlock(); }
-  void destroy_lsn_lock() { lsn_lock.destroy(); }
+  /** Special implementation of lock_lsn() for IA-32 and AMD64 */
+  void lsn_lock_bts() noexcept;
+  /** Acquire a lock for updating buf_free and related fields.
+  @return the value of buf_free */
+  size_t lock_lsn() noexcept;
 
-public:
-  /** recommended maximum size of buf, after which the buffer is flushed */
-  size_t max_buf_free;
-
-  /** log file size in bytes, including the header */
-  lsn_t file_size;
-private:
+  /** log sequence number when log resizing was initiated, or 0 */
+  std::atomic<lsn_t> resize_lsn;
   /** the log sequence number at the start of the log file */
   lsn_t first_lsn;
 #if defined __linux__ || defined _WIN32
@@ -250,8 +281,6 @@ private:
 public:
   /** format of the redo log: e.g., FORMAT_10_8 */
   uint32_t format;
-  /** Log file */
-  log_file_t log;
 #if defined __linux__ || defined _WIN32
   /** whether file system caching is enabled for the log */
   my_bool log_buffered;
@@ -281,20 +310,28 @@ public:
 					/*!< this is the maximum allowed value
 					for lsn - last_checkpoint_lsn when a
 					new query step is started */
-  /** latest completed checkpoint (protected by latch.wr_lock()) */
-  Atomic_relaxed<lsn_t> last_checkpoint_lsn;
-  /** next checkpoint LSN (protected by log_sys.latch) */
-  lsn_t next_checkpoint_lsn;
-  /** next checkpoint number (protected by latch.wr_lock()) */
-  ulint next_checkpoint_no;
-  /** whether a checkpoint is pending */
-  Atomic_relaxed<bool> checkpoint_pending;
 
   /** buffer for checkpoint header */
   byte *checkpoint_buf;
 	/* @} */
 
+private:
+  /** A lock when the spin-only lock_lsn() is not being used */
+  log_lsn_lock lsn_lock;
+public:
+
   bool is_initialised() const noexcept { return max_buf_free != 0; }
+
+  /** whether there is capacity in the log buffer */
+  bool buf_free_ok() const noexcept
+  {
+    ut_ad(!is_pmem());
+    return (buf_free.load(std::memory_order_relaxed) & ~buf_free_LOCK) <
+      max_buf_free;
+  }
+
+  void set_buf_free(size_t f) noexcept
+  { ut_ad(f < buf_free_LOCK); buf_free.store(f, std::memory_order_relaxed); }
 
 #ifdef HAVE_PMEM
   bool is_pmem() const noexcept { return !flush_buf; }
@@ -304,7 +341,7 @@ public:
 
   bool is_opened() const noexcept { return log.is_opened(); }
 
-  /** @return target write LSN to react on buf_free >= max_buf_free */
+  /** @return target write LSN to react on !buf_free_ok() */
   inline lsn_t get_write_target() const;
 
   /** @return LSN at which log resizing was started and is still in progress
@@ -406,9 +443,7 @@ public:
 
   void set_recovered_lsn(lsn_t lsn) noexcept
   {
-#ifndef SUX_LOCK_GENERIC
-    ut_ad(latch.is_write_locked());
-#endif /* SUX_LOCK_GENERIC */
+    ut_ad(latch_have_wr());
     write_lsn= lsn;
     this->lsn.store(lsn, std::memory_order_relaxed);
     flushed_to_disk_lsn.store(lsn, std::memory_order_relaxed);
@@ -448,17 +483,23 @@ public:
 
 private:
   /** Wait in append_prepare() for buffer to become available
-  @param lsn  log sequence number to write up to
-  @param ex   whether log_sys.latch is exclusively locked */
-  ATTRIBUTE_COLD void append_prepare_wait(lsn_t lsn, bool ex) noexcept;
+  @tparam spin  whether to use the spin-only lock_lsn()
+  @param b      the value of buf_free
+  @param ex     whether log_sys.latch is exclusively locked
+  @param lsn    log sequence number to write up to
+  @return the new value of buf_free */
+  template<bool spin>
+  ATTRIBUTE_COLD size_t append_prepare_wait(size_t b, bool ex, lsn_t lsn)
+    noexcept;
 public:
   /** Reserve space in the log buffer for appending data.
+  @tparam spin  whether to use the spin-only lock_lsn()
   @tparam pmem  log_sys.is_pmem()
   @param size   total length of the data to append(), in bytes
   @param ex     whether log_sys.latch is exclusively locked
   @return the start LSN and the buffer position for append() */
-  template<bool pmem>
-  inline std::pair<lsn_t,byte*> append_prepare(size_t size, bool ex) noexcept;
+  template<bool spin,bool pmem>
+  std::pair<lsn_t,byte*> append_prepare(size_t size, bool ex) noexcept;
 
   /** Append a string of bytes to the redo log.
   @param d     destination
@@ -466,9 +507,7 @@ public:
   @param size  length of str, in bytes */
   void append(byte *&d, const void *s, size_t size) noexcept
   {
-#ifndef SUX_LOCK_GENERIC
-    ut_ad(latch.is_locked());
-#endif
+    ut_ad(latch_have_any());
     ut_ad(d + size <= buf + (is_pmem() ? file_size : buf_size));
     memcpy(d, s, size);
     d+= size;
