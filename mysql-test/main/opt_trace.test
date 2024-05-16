@@ -1029,10 +1029,13 @@ where a=3
 group by b,b
 having a+b < 10;
 
+#Enable after fix MDEV-32034
+--disable_view_protocol
 select
   json_detailed(json_extract(trace, '$**.substitute_best_equal'))
 from
   information_schema.optimizer_trace;
+--enable_view_protocol
 
 --echo # Check ON expression
 explain 
@@ -1042,10 +1045,13 @@ from t1 left join t2 on t2.a=t1.a and t2.a<3
 where 
   t1.b > 5555;
 
+#Enable after fix MDEV-32034
+--disable_view_protocol
 select
   json_detailed(json_extract(trace, '$**.substitute_best_equal'))
 from
   information_schema.optimizer_trace;
+--enable_view_protocol
 
 --echo # Check nested ON expression
 explain 
@@ -1055,6 +1061,7 @@ from t1 left join (t2,t3) on t2.a=t1.a and t3.a=t2.a and t3.a + t2.a <1000
 where 
   t1.b > 5555;
 
+#Check after fix MDEV-32034
 --disable_view_protocol
 select
   json_detailed(json_extract(trace, '$**.substitute_best_equal'))
@@ -1064,10 +1071,13 @@ from
 
 --echo # The next query is test for:
 --echo # MDEV-23646: Optimizer trace: optimize_cond() should show ON expression processing
+#Enable after fix MDEV-32034
+--disable_view_protocol
 select
   json_detailed(json_extract(trace, '$**.condition_processing'))
 from
   information_schema.optimizer_trace;
+--enable_view_protocol
 
 drop table t1,t2,t3;
 
@@ -1107,6 +1117,7 @@ where t1.b < 3;
 # Just show that choose_best_splitting function has coverage in the 
 # optimizer trace and re-optmization of child select inside it is distinct 
 # from the rest of join optimization.
+#Check after fix MDEV-32034
 --disable_view_protocol
 select
   json_detailed(json_extract(trace, '$**.choose_best_splitting')) 
@@ -1130,8 +1141,12 @@ SELECT * FROM t1 WHERE id IN
          JSON_TABLE(f1, "$" COLUMNS (jf FOR ORDINALITY)) AS tbl);
 --enable_view_protocol
 
+#Enable after fix MDEV-32034
+--disable_view_protocol
 select json_detailed(json_extract(trace, '$**.best_join_order'))
     from information_schema.OPTIMIZER_TRACE;
+--enable_view_protocol
+
 DROP TABLE t1;
 
 --echo #
