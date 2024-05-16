@@ -3,6 +3,9 @@ call mtr.add_suppression("Background Page read failed to read, uncompress, or de
 call mtr.add_suppression("Table is compressed or encrypted but uncompress or decrypt failed");
 call mtr.add_suppression("Refusing to load corrupted table");
 call mtr.add_suppression("InnoDB: File '.*test/t1\\.ibd' is corrupted");
+--disable_query_log
+call mtr.add_suppression("Table .* is compressed with");
+--enable_query_log
 
 if (`select count(*) = 0 from information_schema.plugins where plugin_name = 'provider_$alg' and plugin_status='active'`)
 {

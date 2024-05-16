@@ -1357,3 +1357,36 @@ bool Share_acquire::fk_error(THD *thd, bool use_check_foreign) const
   }
   return true;
 }
+
+#ifdef WITH_INNODB_FOREIGN_UPGRADE
+bool Share_acquire::upgrade(THD *thd, TABLE_LIST *table_list)
+{
+  TABLE entry;
+  DBUG_ASSERT(share);
+  DBUG_ASSERT(!share->is_view);
+
+  if (ha_legacy_type(share->db_type()) != DB_TYPE_INNODB)
+    return false;
+
+  // Turn_errors_to_warnings_handler err_handler; // too many warnings
+  Dummy_error_handler err_handler;
+  thd->push_internal_handler(&err_handler);
+
+  /* Flags from auto_repair_table() */
+  if (open_table_from_share(thd, share, &table_list->alias,
+                            HA_OPEN_KEYFILE | HA_TRY_READ_ONLY,
+                            EXTRA_RECORD, HA_OPEN_FOR_REPAIR,
+                            &entry, FALSE) || ! entry.file ||
+                            entry.file->is_crashed())
+  {
+    if (entry.file)
+      closefrm(&entry);
+    my_error(ER_NOT_KEYFILE, MYF(0), share->table_name.str);
+    thd->pop_internal_handler();
+    return true;
+  }
+  thd->pop_internal_handler();
+  closefrm(&entry);
+  return false;
+}
+#endif /* WITH_INNODB_FOREIGN_UPGRADE */

@@ -1,0 +1,4 @@
+# Upgrade test
+delete from t2;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t1`, CONSTRAINT `t1_ibfk_1` FOREIGN KEY (`a`) REFERENCES `t2` (`a`))
+drop tables t1, t2, t3;

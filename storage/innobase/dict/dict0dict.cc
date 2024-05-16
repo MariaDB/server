@@ -1038,7 +1038,9 @@ dict_table_open_on_name(
       if (!(ignore_err & ~DICT_ERR_IGNORE_FK_NOKEY) &&
           !table->is_readable() && table->corrupted)
       {
-        ulint algo= table->space->get_compression_algo();
+        ulint algo = table->space ?
+                        table->space->get_compression_algo() :
+                        PAGE_ALGORITHM_LAST + 1;
         if (algo <= PAGE_ALGORITHM_LAST && !fil_comp_algo_loaded(algo))
           my_printf_error(ER_PROVIDER_NOT_LOADED,
                           "Table %`.*s.%`s is compressed with %s,"

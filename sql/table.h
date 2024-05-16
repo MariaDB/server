@@ -750,7 +750,8 @@ struct TABLE_SHARE
   FK_list foreign_keys;
   FK_list referenced_keys;
   Field *find_field_by_name(const Lex_ident_column n) const;
-  bool fk_handle_create(THD *thd, FK_create_vector &shares, FK_list *fk_add= NULL);
+  bool fk_handle_create(THD *thd, FK_create_vector &shares, FK_list *fk_add= NULL,
+                        bool skip_existing= false);
   bool fk_check_consistency(THD *thd, bool repair= false);
   bool referenced_by_foreign_key() const
   {

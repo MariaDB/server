@@ -153,6 +153,9 @@ public:
       share= NULL;
     }
   }
+#ifdef WITH_INNODB_FOREIGN_UPGRADE
+  bool upgrade(THD *thd, TABLE_LIST *table_list);
+#endif /* WITH_INNODB_FOREIGN_UPGRADE */
 };
 
 
