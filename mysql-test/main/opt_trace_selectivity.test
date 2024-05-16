@@ -48,7 +48,8 @@ select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.selectivity_for_indexes')) as JS;
 
 --echo # Ensure that we only use selectivity from non used index for simple cases
 
-
+#Enable after fix MDEV-32034
+--disable_view_protocol
 select count(*) from t1 where (a=2 and b= 5);
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_indexes')) as JS
 from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
@@ -81,6 +82,7 @@ from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 select count(*) from t1 where (a between 2 and 3 and b between 0 and 100);
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_indexes')) as JS
 from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+--enable_view_protocol
 
 drop table t1;
 set optimizer_trace='enabled=off';

@@ -1208,8 +1208,11 @@ insert into t10 select seq, seq, seq from seq_1_to_10000;
 explain format=json select * from t10 where a<3 and b!=5 and c<10;
 set optimizer_trace='enabled=on';
 select * from t10 where a<3 and b!=5 and c<10;
+#Enable after fix MDEV-32034
+--disable_view_protocol
 select json_detailed(json_extract(trace, '$**.attaching_conditions_to_tables')) as out1 
 from information_schema.optimizer_trace;
+--enable_view_protocol
 drop table t10;
 
 --echo #
@@ -1249,8 +1252,11 @@ INSERT INTO t3 SELECT seq, seq from seq_1_to_10;
 
 set optimizer_trace='enabled=on';
 explain partitions select * from t2,t3 where t2.a in (2,3,4) and t3.a in (4,5);
+#Enable after fix MDEV-32034
+--disable_view_protocol
 select json_detailed(json_extract(trace, '$**.prune_partitions')) as out1
 from information_schema.optimizer_trace;
+--enable_view_protocol
 drop table t2,t3;
 
 create table t1 (
@@ -1263,8 +1269,11 @@ create table t1 (
 insert into t1 values (5),(15),(22);
 
 explain select * from t1 where a = 28;
+#Enable after fix MDEV-32034
+--disable_view_protocol
 select json_detailed(json_extract(trace, '$**.prune_partitions')) as out1 
 from information_schema.optimizer_trace;
+--enable_view_protocol
 drop table t1;
 
 set  @@optimizer_switch= @save_optimizer_switch;
