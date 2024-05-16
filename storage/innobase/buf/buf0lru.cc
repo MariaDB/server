@@ -451,7 +451,10 @@ got_block:
     mysql_mutex_unlock(&buf_pool.flush_list_mutex);
     if (my_cond_timedwait(&buf_pool.done_free, &buf_pool.mutex.m_mutex,
                           &abstime))
+    {
       buf_pool.LRU_warn();
+      buf_LRU_check_size_of_non_data_objects();
+    }
   }
 
   goto got_block;
