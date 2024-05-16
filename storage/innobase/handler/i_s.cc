@@ -5831,19 +5831,20 @@ i_s_sys_foreign_fill_table(
 	DBUG_ENTER("i_s_sys_foreign_fill_table");
 	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
 
-	if (!dict_sys.sys_foreign) {
-		my_error(ER_BAD_TABLE_ERROR, MYF(0), tables->schema_table_name.str);
-		DBUG_RETURN(1);
-	}
-
 	/* deny access to user without PROCESS_ACL privilege */
 	if (check_global_access(thd, PROCESS_ACL)) {
 		DBUG_RETURN(0);
 	}
 
+	dict_sys.lock(SRW_LOCK_CALL);
+	if (!dict_sys.sys_foreign) {
+		dict_sys.unlock();
+		my_error(ER_BAD_TABLE_ERROR, MYF(0), tables->schema_table_name.str);
+		DBUG_RETURN(1);
+	}
+
 	heap = mem_heap_create(1000);
 	mtr.start();
-	dict_sys.lock(SRW_LOCK_CALL);
 
 	rec = dict_startscan_system(&pcur, &mtr, dict_sys.sys_foreign);
 
@@ -6024,19 +6025,20 @@ i_s_sys_foreign_cols_fill_table(
 	DBUG_ENTER("i_s_sys_foreign_cols_fill_table");
 	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
 
-	if (!dict_sys.sys_foreign_cols) {
-		my_error(ER_BAD_TABLE_ERROR, MYF(0), tables->schema_table_name.str);
-		DBUG_RETURN(1);
-	}
-
 	/* deny access to user without PROCESS_ACL privilege */
 	if (check_global_access(thd, PROCESS_ACL)) {
 		DBUG_RETURN(0);
 	}
 
+	dict_sys.lock(SRW_LOCK_CALL);
+	if (!dict_sys.sys_foreign_cols) {
+		dict_sys.unlock();
+		my_error(ER_BAD_TABLE_ERROR, MYF(0), tables->schema_table_name.str);
+		DBUG_RETURN(1);
+	}
+
 	heap = mem_heap_create(1000);
 	mtr.start();
-	dict_sys.lock(SRW_LOCK_CALL);
 
 	rec = dict_startscan_system(&pcur, &mtr, dict_sys.sys_foreign_cols);
 

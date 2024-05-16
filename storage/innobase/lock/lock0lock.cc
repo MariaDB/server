@@ -4106,6 +4106,10 @@ dberr_t lock_sys_tables(trx_t *trx)
     if (!err && dict_sys.sys_virtual)
       err= lock_table_for_trx(dict_sys.sys_virtual, trx, LOCK_X);
   }
+#ifdef WITH_INNODB_FOREIGN_UPGRADE
+  else if (fk_locked)
+    dict_sys.fk_unlock();
+#endif /* WITH_INNODB_FOREIGN_UPGRADE */
   return err;
 }
 

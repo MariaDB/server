@@ -1525,6 +1525,7 @@ bool Foreign_key_io::parse(THD *thd, LEX_CUSTRING& image)
          to know if anything from the outside references the dropped table.
          Temporary share may have FK columns renamed so we can't resolve by
          column names.*/
+make_shallow_hint:
       FK_info *dst= new (&s->mem_root) FK_info;
       dst->foreign_db= hint_db;
       dst->foreign_table= hint_table;
@@ -1579,9 +1580,20 @@ bool Foreign_key_io::parse(THD *thd, LEX_CUSTRING& image)
       return true;
     if (s->referenced_keys.elements == refs_was)
     {
+#ifdef WITH_INNODB_FOREIGN_UPGRADE
+      /*
+        fk_upgrade_legacy_storage() may be done first for referenced table,
+        in that case foreign table does not have foreign keys yet. We just
+        return shallow hints for that case to make fk_check_and_upgrade() happy.
+
+        TODO: maybe keep shallow hints in any case?
+      */
+      goto make_shallow_hint;
+#else /* !WITH_INNODB_FOREIGN_UPGRADE */
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_CANNOT_ADD_FOREIGN,
                           "Table `%s.%s` has no foreign keys to `%s.%s`",
                           hint_db.str, hint_table.str, s->db.str, s->table_name.str);
+#endif /* !WITH_INNODB_FOREIGN_UPGRADE */
     }
   } // for (hint_count)
   if (!shallow_hints && (s->referenced_keys.elements != rk_count))
@@ -1599,9 +1611,11 @@ bool TABLE_SHARE::fk_resolve_referenced_keys(THD *thd, TABLE_SHARE *from)
   Lex_ident_set ids;
   bool inserted;
 
+  /* Check for duplicate foreign_id */
   for (FK_info &rk: referenced_keys)
   {
-    DBUG_ASSERT(rk.foreign_id.length);
+    if (!rk.foreign_id.length)
+      continue; /* Skip the hint */
     if (!ids.insert(rk.foreign_id, &inserted))
     {
       my_error(ER_DUP_CONSTRAINT_NAME, MYF(0), "FOREIGN KEY", rk.foreign_id.str);
@@ -1611,6 +1625,7 @@ bool TABLE_SHARE::fk_resolve_referenced_keys(THD *thd, TABLE_SHARE *from)
     DBUG_ASSERT(inserted);
   }
 
+  /* Resolve and add referenced keys */
   for (FK_info &fk: from->foreign_keys)
   {
     if (0 != cmp_db_table(fk.referenced_db, fk.referenced_table))

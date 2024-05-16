@@ -4,6 +4,9 @@
 --source include/no_valgrind_without_big.inc
 
 call mtr.add_suppression("InnoDB: Expected tablespace id .*");
+--disable_query_log
+call mtr.add_suppression("Table `test`.`t1` is corrupted");
+--enable_query_log
 --echo # Mariabackup --backup with page0 INIT_PAGE redo record
 --echo # and there is no FILE_CREATE for the tablespace t1
 SET @save_dbug = @@SESSION.debug_dbug;

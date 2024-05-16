@@ -5,6 +5,11 @@
 # control the optimizationprocess.
 #
 
+--disable_query_log
+call mtr.add_suppression("log sequence number .* is in the future");
+call mtr.add_suppression("Your database may be corrupt");
+--enable_query_log
+
 #
 # Schema
 #
