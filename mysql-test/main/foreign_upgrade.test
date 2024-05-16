@@ -1,0 +1,118 @@
+# Upgrade test for MDEV-21652
+
+--disable_query_log
+call mtr.add_suppression('log sequence number');
+call mtr.add_suppression('you may have copied the InnoDB tablespace');
+call mtr.add_suppression('A transaction id in a record of table');
+call mtr.add_suppression('Error fetching persistent statistics for table');
+--enable_query_log
+
+--source include/have_innodb.inc
+--source include/have_gzip.inc
+--source include/not_embedded.inc
+
+# Combinations
+#
+# upgrade: test upgrade on prepared databases from std_data.
+# prepare: requires $OLD_BINDIR, test upgrade and downgrade with old-version
+#          server. Also prepare std_data files during the run in the source
+#          directory (you just have to commit or reject them).
+#
+# Examples
+#
+#   export OLD_BINDIR="/home/midenok/src/mariadb/10.6b/build"
+#   mtr foreign_upgrade,prepare
+#
+
+if ($MTR_COMBINATION_PREPARE)
+{
+  if (!$OLD_BINDIR)
+  {
+    --skip Requires OLD_BINDIR parameter (see test comment)
+  }
+}
+
+--let $datadir= `select @@datadir`
+--let $std_dir= $MYSQL_TEST_DIR/std_data/foreign_upgrade
+--let $restart_noprint= 3
+
+--echo # Upgrade test
+
+if ($MTR_COMBINATION_PREPARE)
+{
+  let $restart_bindir= $OLD_BINDIR;
+  --source include/restart_mysqld.inc
+
+
+  create table t2 (
+    a int unique, c int unique) engine innodb;
+
+  create table t3 (
+    a int unique, c int unique, d int unique,
+    r int references t3(d), index (c, d)) engine innodb;
+
+  create or replace table t1 (
+          a int not null references t2,
+          b int not null constraint t2_c references t2 (c),
+          c int, d int,
+          primary key (a,b),
+          foreign key (a) references t3 match full,
+          foreign key (a) references t3 match partial,
+          foreign key (a,b) references t3 (c,d) on delete no action
+            on update no action,
+          foreign key (a,b) references t3 (c,d) on update cascade,
+          foreign key (a,b) references t3 (c,d) on delete set default,
+          foreign key (c,d) references t3 (c,d) on update set null
+  ) engine innodb;
+
+  create index a on t1 (a);
+  create unique index b on t1 (a,b);
+  --error ER_ROW_IS_REFERENCED_2
+  drop tables t2;
+  --error ER_ROW_IS_REFERENCED_2
+  drop tables t3;
+
+  insert t2 values (1, 1);
+  insert t3 values (1, 1, 1, 1);
+  insert t1 values (1, 1, 1, 1);
+  --error  ER_ROW_IS_REFERENCED_2
+  delete from t2;
+
+  --source include/shutdown_mysqld.inc
+
+  --exec rm -rf $std_dir
+  --exec mkdir -p $std_dir
+  --exec cp -af $datadir/ib* $datadir/undo* $datadir/test/*.ibd $datadir/test/*.frm $std_dir
+  --exec gzip -9f $std_dir/*
+}
+
+if ($MTR_COMBINATION_UPGRADE)
+{
+--disable_query_log
+call mtr.add_suppression("InnoDB: Table `mysql`.\`innodb_(table|index)_stats`");
+--enable_query_log
+  --source include/shutdown_mysqld.inc
+  --exec rm -f $datadir/ib* $datadir/undo* $datadir/test/*.ibd $datadir/test/*.frm
+  --exec cp -af $std_dir/ib*.gz $datadir
+  --exec cp -af $std_dir/undo*.gz $datadir
+  --exec cp -af $std_dir/*.ibd.gz $datadir/test
+  --exec cp -af $std_dir/*.frm.gz $datadir/test
+  --exec gzip -df $datadir/test/*.gz
+  --exec gzip -df $datadir/*.gz
+}
+let $restart_bindir=;
+--source include/start_mysqld.inc
+
+--error ER_ROW_IS_REFERENCED_2
+delete from t2;
+
+#show create table t1;
+#show create table t2;
+#show create table t3;
+
+#check table t1;
+#check table t2;
+#check table t3;
+
+
+drop tables t1, t2, t3;
