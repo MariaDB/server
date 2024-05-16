@@ -561,10 +561,7 @@ static bool search_layer(TABLE *source,
   {
     const FVector &cur_vec= *candidates.pop();
     double cur_distance = target.distance_to(cur_vec);
-    // TODO(cvicentiu) what if we haven't yet reached max_candidates_return?
-    // Should we just quit now, maybe continue searching for candidates till
-    // we at least get max_candidates_return.
-    if (cur_distance > furthest_best)
+    if (cur_distance > furthest_best && best.elements() == max_candidates_return)
     {
       break; // All possible candidates are worse than what we have.
              // Can't get better.
@@ -635,7 +632,8 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
   if (res->length() == 0 || res->length() % 4)
     return 1;
 
-  const double NORMALIZATION_FACTOR = 0.3;
+  const double NORMALIZATION_FACTOR = 1 / std::log(1.0 *
+                                                   table->in_use->variables.hnsw_max_connection_per_layer);
 
   if ((err= h->ha_rnd_init(1)))
     return err;
