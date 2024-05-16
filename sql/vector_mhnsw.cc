@@ -689,7 +689,8 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
   for (longlong cur_layer= max_layer; cur_layer > new_node_layer; cur_layer--)
   {
     List<FVectorRef> candidates;
-    search_layer(table, graph, vec_field, target, start_nodes, 1, cur_layer,
+    search_layer(table, graph, vec_field, target, start_nodes,
+                 table->in_use->variables.hnsw_ef_constructor, cur_layer,
                  &candidates);
     start_nodes.empty();
     start_nodes.push_back(candidates.head());
@@ -786,10 +787,12 @@ int mhnsw_first(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit)
   // in last layer.
   start_nodes.push_back(&start_node_ref);
 
+  ulonglong ef_search= MY_MAX(
+    table->in_use->variables.hnsw_ef_search, limit);
 
   for (size_t cur_layer= max_layer; cur_layer > 0; cur_layer--)
   {
-    search_layer(table, graph, vec_field, target, start_nodes, 1,
+    search_layer(table, graph, vec_field, target, start_nodes, ef_search,
                  cur_layer, &candidates);
     start_nodes.empty();
     //start_nodes.delete_elements();
@@ -799,8 +802,6 @@ int mhnsw_first(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit)
     //TODO(cvicentiu) memleak.
   }
 
-  ulonglong ef_search= MY_MAX(
-    table->in_use->variables.hnsw_ef_search, limit);
   search_layer(table, graph, vec_field, target, start_nodes,
                ef_search, 0, &candidates);
 
