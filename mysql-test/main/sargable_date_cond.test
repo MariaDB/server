@@ -199,6 +199,7 @@ insert into t2 values (10011,'2006-12-30 23:59:59','2006-12-30');
 
 explain format=json
 select * from t2 force index(a) where date(a)='2006-12-31';
+--sorted_result
 select * from t2 force index(a) where date(a)='2006-12-31';
 
 --echo #
