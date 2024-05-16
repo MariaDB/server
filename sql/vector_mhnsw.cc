@@ -338,6 +338,19 @@ static void dbug_print_vec_neigh(uint layer,
 #endif
 }
 
+static void dbug_print_hash_vec(Hash_set<FVectorRef> &h)
+{
+#ifndef DBUG_OFF
+  Hash_set<FVectorRef>::Iterator it(h);
+  FVectorRef *ptr;
+  while ((ptr = it++))
+  {
+    DBUG_PRINT("VECTOR", ("HASH elem: %p", ptr));
+    dbug_print_vec_ref("VISITED: ", 0, *ptr);
+  }
+#endif
+}
+
 
 static bool write_neighbours(TABLE *graph,
                              size_t layer_number,
@@ -360,7 +373,6 @@ static bool write_neighbours(TABLE *graph,
   {
     DBUG_ASSERT(node.get_ref_len() == source_node.get_ref_len());
     memcpy(pos, node.get_ref(), node.get_ref_len());
-    DBUG_ASSERT(node.get_ref()[0] != 0xa5);
     pos+= node.get_ref_len();
   }
 
@@ -370,7 +382,6 @@ static bool write_neighbours(TABLE *graph,
     source_node.get_ref_len());
   graph->field[2]->set_null();
 
-  DBUG_ASSERT(source_node.get_ref()[0] != 0xa5);
 
   uchar *key= (uchar*)alloca(graph->key_info->key_length);
   key_copy(key, graph->record[0], graph->key_info, graph->key_info->key_length);
@@ -461,22 +472,14 @@ static bool update_second_degree_neighbors(TABLE *source,
   {
     List<FVectorRef> new_neighbours;
     get_neighbours(graph, layer_number, neigh, &new_neighbours);
-    // TODO(cvicentiu) One doesn't need a deep copy, they're all just references;
-    // Why add the source node, shouldn't it come from source_node anyway?
-    bool already_present = false;
-    for (const FVectorRef &it: new_neighbours)
-    {
-      if (!memcmp(it.get_ref(), source_node.get_ref(), it.get_ref_len()))
-      {
-        already_present= true;
-        break;
-      }
-    }
-    if (!already_present)
-      new_neighbours.push_back(&source_node);
-
+    new_neighbours.push_back(&source_node);
     write_neighbours(graph, layer_number, neigh, new_neighbours);
+  }
 
+  for (const FVectorRef &neigh: neighbours)
+  {
+    List<FVectorRef> new_neighbours;
+    get_neighbours(graph, layer_number, neigh, &new_neighbours);
     // TODO(cvicentiu) get_fvector_from_source results must not need to be freed.
     FVector *neigh_vec = FVector::get_fvector_from_source(source, vec_field, neigh);
 
@@ -549,7 +552,8 @@ static bool search_layer(TABLE *source,
     else if (target.distance_to(*v) > target.distance_to(*best.top())) {
       best.replace_top(v);
     }
-    visited.insert(&node);
+    visited.insert(v);
+    dbug_print_vec_ref("INSERTING node in visited: ", layer, node);
   }
 
   double furthest_best = target.distance_to(*best.top());
@@ -571,12 +575,13 @@ static bool search_layer(TABLE *source,
 
     for (const FVectorRef &neigh: neighbours)
     {
+      dbug_print_hash_vec(visited);
       if (visited.find(&neigh))
         continue;
 
       FVector *clone = FVector::get_fvector_from_source(source, vec_field, neigh);
       // TODO(cvicentiu) mem ownershipw...
-      visited.insert(&neigh);
+      visited.insert(clone);
       if (best.elements() < max_candidates_return)
       {
         candidates.push(clone);
@@ -592,6 +597,7 @@ static bool search_layer(TABLE *source,
     }
     neighbours.empty();
   }
+  DBUG_PRINT("VECTOR", ("SEARCH_LAYER_END %d best", best.elements()));
 
   while (best.elements())
   {
@@ -687,6 +693,7 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
     List<FVectorRef> candidates;
     search_layer(table, graph, vec_field, target, start_nodes, 1, cur_layer,
                  &candidates);
+    start_nodes.empty();
     start_nodes.push_back(candidates.head());
     //candidates.delete_elements();
     //TODO(cvicentiu) memory leak
