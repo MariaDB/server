@@ -5342,14 +5342,15 @@ void select_create::abort_result_set()
   thd->transaction->stmt.modified_non_trans_table= FALSE;
   thd->variables.option_bits= save_option_bits;
 
-  /* possible error of writing binary log is ignored deliberately */
-  (void) thd->binlog_flush_pending_rows_event(TRUE, TRUE);
-
   if (table)
   {
     bool tmp_table= table->s->tmp_table;
     bool table_creation_was_logged= (!tmp_table ||
                                      table->s->table_creation_was_logged);
+
+    /* CREATE SELECT failed. Remove all row events and clear caches */
+    thd->binlog_remove_rows_events();
+
     if (tmp_table)
     {
       DBUG_ASSERT(saved_tmp_table_share);

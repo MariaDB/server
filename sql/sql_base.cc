@@ -933,7 +933,7 @@ int close_thread_tables(THD *thd)
 
       Note that even if we are in LTM_LOCK_TABLES mode and statement
       requires prelocking (e.g. when we are closing tables after
-      failing ot "open" all tables required for statement execution)
+      failing at "open" all tables required for statement execution)
       we will exit this function a few lines below.
     */
     if (! thd->lex->requires_prelocking())
@@ -964,16 +964,13 @@ int close_thread_tables(THD *thd)
   if (thd->lock)
   {
     /*
-      For RBR we flush the pending event just before we unlock all the
-      tables.  This means that we are at the end of a topmost
-      statement, so we ensure that the STMT_END_F flag is set on the
-      pending event.  For statements that are *inside* stored
-      functions, the pending event will not be flushed: that will be
-      handled either before writing a query log event (inside
-      binlog_query()) or when preparing a pending event.
-     */
-    (void)thd->binlog_flush_pending_rows_event(TRUE);
-    error= mysql_unlock_tables(thd, thd->lock);
+      Ensure binlog caches has been flushed in binlog_query() or
+      binlog_commit().
+    */
+    DBUG_ASSERT((thd->state_flags & Open_tables_state::BACKUPS_AVAIL) ||
+                !thd->has_pending_row_events());
+    if (mysql_unlock_tables(thd, thd->lock))
+      error= 1;
     thd->lock=0;
   }
   /*

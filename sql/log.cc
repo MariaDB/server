@@ -437,6 +437,28 @@ private:
   binlog_cache_mngr(const binlog_cache_mngr& info);
 };
 
+
+/*
+  Remove all row event from all binlog caches and clear all caches.
+  This is only called from CREATE .. SELECT, in which case it safe to delete
+  also events from the statement cache.
+*/
+
+void THD::binlog_remove_rows_events()
+{
+  binlog_cache_mngr *cache_mngr= binlog_get_cache_mngr();
+  DBUG_ENTER("THD::binlog_remove_rows_events");
+
+  if (!cache_mngr ||
+      (!WSREP_EMULATE_BINLOG_NNULL(this) && !mysql_bin_log.is_open()))
+    DBUG_VOID_RETURN;
+
+  MYSQL_BIN_LOG::remove_pending_rows_event(this, &cache_mngr->stmt_cache);
+  MYSQL_BIN_LOG::remove_pending_rows_event(this, &cache_mngr->trx_cache);
+  cache_mngr->reset(1,1);
+  DBUG_VOID_RETURN;
+}
+
 /**
   The function handles the first phase of two-phase binlogged ALTER.
   On master binlogs START ALTER when that is configured to do so.
@@ -1897,20 +1919,19 @@ binlog_commit_flush_xid_caches(THD *thd, binlog_cache_mngr *cache_mngr,
 static int
 binlog_truncate_trx_cache(THD *thd, binlog_cache_mngr *cache_mngr, bool all)
 {
+  int error=0;
   DBUG_ENTER("binlog_truncate_trx_cache");
 
   if(!WSREP_EMULATE_BINLOG_NNULL(thd) && !mysql_bin_log.is_open())
     DBUG_RETURN(0);
-
-  int error=0;
 
   DBUG_PRINT("info", ("thd->options={ %s %s}, transaction: %s",
                       FLAGSTR(thd->variables.option_bits, OPTION_NOT_AUTOCOMMIT),
                       FLAGSTR(thd->variables.option_bits, OPTION_BEGIN),
                       all ? "all" : "stmt"));
 
-  auto &trx_cache= cache_mngr->trx_cache;
-  MYSQL_BIN_LOG::remove_pending_rows_event(thd, &trx_cache);
+  binlog_cache_data *trx_cache= &cache_mngr->trx_cache;
+  MYSQL_BIN_LOG::remove_pending_rows_event(thd, trx_cache);
   thd->reset_binlog_for_next_statement();
 
   /*
@@ -1919,7 +1940,7 @@ binlog_truncate_trx_cache(THD *thd, binlog_cache_mngr *cache_mngr, bool all)
   */
   if (ending_trans(thd, all))
   {
-    if (trx_cache.has_incident())
+    if (trx_cache->has_incident())
       error= mysql_bin_log.write_incident(thd);
 
     DBUG_ASSERT(thd->binlog_table_maps == 0);
@@ -1931,9 +1952,9 @@ binlog_truncate_trx_cache(THD *thd, binlog_cache_mngr *cache_mngr, bool all)
     transaction cache to remove the statement.
   */
   else
-    trx_cache.restore_prev_position();
+    trx_cache->restore_prev_position();
 
-  DBUG_ASSERT(trx_cache.pending() == NULL);
+  DBUG_ASSERT(trx_cache->pending() == NULL);
   DBUG_RETURN(error);
 }
 
@@ -2189,6 +2210,11 @@ int binlog_commit(THD *thd, bool all, bool ro_1pc)
                                                  cache_mngr->delayed_error), 1);
         cache_mngr->need_unlog= false;
       }
+  }
+  else if (thd->lock)
+  {
+    /* If not in LOCK TABLES, flush the transaction log */
+    error= thd->binlog_flush_pending_rows_event(TRUE, TRUE);
   }
   /*
     This is part of the stmt rollback.
@@ -6580,6 +6606,26 @@ int binlog_flush_pending_rows_event(THD *thd, bool stmt_end,
                                                      is_transactional);
   }
   return error;
+}
+
+
+/*
+  Check if there are pending row events in the binlog cache
+
+  @return 0  no
+  @return 1  rows in stmt_cache
+  @return 2  rows in trx_cache
+  @return 3  rows in both
+*/
+
+uint THD::has_pending_row_events()
+{
+  binlog_cache_mngr *cache_mngr;
+  if (!mysql_bin_log.is_open() ||
+      !(cache_mngr= binlog_get_cache_mngr()))
+    return 0;
+  return ((cache_mngr->stmt_cache.pending() ? 1 : 0) |
+          (cache_mngr->trx_cache.pending() ? 2 : 0));
 }
 
 

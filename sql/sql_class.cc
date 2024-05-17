@@ -7553,11 +7553,12 @@ int THD::binlog_flush_pending_rows_event(bool stmt_end, bool is_transactional)
   if (variables.option_bits & OPTION_GTID_BEGIN)
     is_transactional= 1;
 
-  auto *cache_mngr= binlog_get_cache_mngr();
+  binlog_cache_mngr *cache_mngr= binlog_get_cache_mngr();
   if (!cache_mngr)
     DBUG_RETURN(0);
-  auto *cache= binlog_get_cache_data(cache_mngr,
-                                     use_trans_cache(this, is_transactional));
+  binlog_cache_data *cache=
+    binlog_get_cache_data(cache_mngr,
+                          use_trans_cache(this, is_transactional));
 
   int error=
     ::binlog_flush_pending_rows_event(this, stmt_end, is_transactional,
@@ -7852,22 +7853,14 @@ int THD::binlog_query(THD::enum_binlog_query_type qtype, char const *query_arg,
   }
 
   /*
-    If we are not in prelocked mode, mysql_unlock_tables() will be
-    called after this binlog_query(), so we have to flush the pending
-    rows event with the STMT_END_F set to unlock all tables at the
-    slave side as well.
-
-    If we are in prelocked mode, the flushing will be done inside the
-    top-most close_thread_tables().
+    We should not flush row events for sub-statements, like a trigger or
+    function. The main statement will take care of the flushing when
+    calling binlog_query().
   */
-  if (this->locked_tables_mode <= LTM_LOCK_TABLES)
+  if (!in_sub_stmt)
   {
-    int error;
-    if (unlikely(error= binlog_flush_pending_rows_event(TRUE, is_trans)))
-    {
-      DBUG_ASSERT(error > 0);
-      DBUG_RETURN(error);
-    }
+    if (unlikely(binlog_flush_pending_rows_event(TRUE, is_trans)))
+      DBUG_RETURN(my_errno);          // Return error code as required
   }
 
   /*
