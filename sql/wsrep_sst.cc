@@ -1142,6 +1142,13 @@ static void copy_orig_argv (char* cmd_str)
   }
 }
 
+/* implementation of strchrnul for systems that don't have it */
+static const char* sst_strchrnul(const char* s, int c)
+{
+  const char* ret= strchr(s, c);
+  return ret ? ret : s + strlen(s);
+}
+
 static ssize_t sst_prepare_other (const char*  method,
                                   const char*  addr_in,
                                   const char** addr_out)
@@ -1209,7 +1216,7 @@ static ssize_t sst_prepare_other (const char*  method,
   sst_auth auth;
   if (sst_auth_real)
   {
-    const char* col= strchrnul(sst_auth_real, ':');
+    const char* col= sst_strchrnul(sst_auth_real, ':');
     auth.name_ = std::string(sst_auth_real, col - sst_auth_real);
     auth.pswd_ = std::string(':' == *col ? col + 1 : "");
   }
@@ -2329,7 +2336,7 @@ int wsrep_sst_donate(const std::string& msg,
   if (sst_auth_real)
   {
     /* User supplied non-trivial wsre_sst_auth, use it */
-    const char* col= strchrnul(sst_auth_real, ':');
+    const char* col= sst_strchrnul(sst_auth_real, ':');
     auth.name_ = std::string(sst_auth_real, col - sst_auth_real);
     auth.pswd_ = std::string(':' == *col ? col + 1 : "");
   }
@@ -2348,7 +2355,7 @@ int wsrep_sst_donate(const std::string& msg,
   {
     /* wsp::string is just a dynamically allocated char* underneath
      * so we can safely do all that arithmetics */
-    const char* col= strchrnul(remote_auth(), ':');
+    const char* col= sst_strchrnul(remote_auth(), ':');
     auth.remote_name_ = std::string(remote_auth(), col - remote_auth());
     auth.remote_pswd_ = std::string(':' == *col ? col + 1 : "");
   }
