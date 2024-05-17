@@ -10,8 +10,9 @@ if ($cnf == "galera2_to_mariadb")
   START SLAVE;
   --source include/wait_for_slave_to_start.inc
 
-  --let XTRABACKUP_BACKUP_OPTIONS=--no-defaults --user=root --host='127.0.0.1' --port=$NODE_MYPORT_3
-  --let XTRABACKUP_COPY_BACK_OPTIONS= --no-defaults
+  --let XTRABACKUP_BACKUP_OPTIONS=--no-defaults --user=root --host='127.0.0.1' --port=$NODE_MYPORT_3 --loose-disable-ssl-verify-server-cert --loose-ssl-cert=$MYSQL_TEST_DIR/std_data/server-cert.pem --loose-ssl-key=$MYSQL_TEST_DIR/std_data/server-key.pem --loose-ssl-ca=$MYSQL_TEST_DIR/std_data/cacert.pem
+
+  --let XTRABACKUP_COPY_BACK_OPTIONS=--no-defaults
 }
 
 if ($cnf == "mariadb_to_mariadb")
