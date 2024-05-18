@@ -81,10 +81,10 @@ wsrep_recover_position() {
   # Parse server's error log for recovered position. The server prints
   # "..skipping position recovery.." if started without wsrep.
 
-  recovered_pos="$(grep 'WSREP: Recovered position:' $log_file)"
+  recovered_pos="$(grep -a 'WSREP: Recovered position:' $log_file)"
 
   if [ -z "$recovered_pos" ]; then
-    skipped="$(grep WSREP $log_file | grep 'skipping position recovery')"
+    skipped="$(grep -a WSREP $log_file | grep 'skipping position recovery')"
     if [ -z "$skipped" ]; then
       log "WSREP: Failed to recover position: '`cat $log_file`'"
       exit 1

@@ -38,10 +38,10 @@ SELECT COUNT(*) = 1 FROM t1;
 
 --perl
         use strict;
-        my $wsrep_start_position1 = `grep 'WSREP: Recovered position:' $ENV{MYSQL_TMP_DIR}/galera_wsrep_recover.1.log | sed 's/.*WSREP\:\ Recovered\ position://' | sed 's/^[ \t]*//'`;
+        my $wsrep_start_position1 = `grep -a 'WSREP: Recovered position:' $ENV{MYSQL_TMP_DIR}/galera_wsrep_recover.1.log | sed 's/.*WSREP\:\ Recovered\ position://' | sed 's/^[ \t]*//'`;
         chomp($wsrep_start_position1);
 
-        my $wsrep_start_position2 = `grep 'WSREP: Recovered position:' $ENV{MYSQL_TMP_DIR}/galera_wsrep_recover.2.log | sed 's/.*WSREP\:\ Recovered\ position://' | sed 's/^[ \t]*//'`;
+        my $wsrep_start_position2 = `grep -a 'WSREP: Recovered position:' $ENV{MYSQL_TMP_DIR}/galera_wsrep_recover.2.log | sed 's/.*WSREP\:\ Recovered\ position://' | sed 's/^[ \t]*//'`;
         chomp($wsrep_start_position2);
 
         die if $wsrep_start_position1 eq '' || $wsrep_start_position2 eq '';
