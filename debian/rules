@@ -169,18 +169,12 @@ override_dh_auto_install:
 	mv -v $(TMP)/usr/lib/mysql/plugin/qa_auth_client.so $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/libmariadb3/plugin/
 
 override_dh_installsystemd:
-	dh_systemd_enable --name=mariadb mariadb.service
-	dh_systemd_enable --no-enable --name=mariadb mariadb.socket
-	dh_systemd_enable --no-enable --name=mariadb-extra mariadb-extra.socket
-	dh_systemd_enable --no-enable --name=mariadb@ mariadb.socket
-	dh_systemd_enable --no-enable --name=mariadb-extra@ mariadb-extra.socket
-	dh_systemd_enable --no-enable --name=mariadb@ mariadb@.service
+	dh_installsystemd -pmariadb-server mariadb.service
 
 # Start MariaDB at sequence number 19 before 20 where apache, proftpd etc gets
 # started which might depend on a running database server.
 override_dh_installinit-arch:
 	dh_installinit --name=mariadb -- defaults 19 21
-	dh_systemd_start --restart-after-upgrade
 
 # Use custom server version string variable
 override_dh_gencontrol:
@@ -191,6 +185,6 @@ override_dh_gencontrol:
 # white list file only starting from Debian Stretch and Ubuntu Xenial.
 # To find more, grep build logs for 'but is not installed to anywhere'.
 %:
-	dh $@ --parallel --with systemd --fail-missing
+	dh $@ --parallel
 
 # vim: ts=8
