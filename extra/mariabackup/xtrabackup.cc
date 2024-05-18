@@ -1597,11 +1597,11 @@ struct my_option xb_client_options[]= {
      GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
 
     {"rsync", OPT_RSYNC,
-     "Obsolete depricated option",
+     "Obsolete, deprecated option",
      &ignored_option, &ignored_option,  0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
 
     {"no-backup-locks", OPT_NO_BACKUP_LOCKS,
-     "Obsolete depricated option",
+     "Obsolete, deprecated option",
      &ignored_option, &ignored_option,  0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
 
     {"force-non-empty-directories", OPT_FORCE_NON_EMPTY_DIRS,
