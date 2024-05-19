@@ -213,7 +213,7 @@ enum enum_binlog_row_image {
 
 #define OLD_MODE_DEFAULT_VALUE          OLD_MODE_UTF8_IS_UTF8MB3
 
-void old_mode_deprecated_warnings(THD *thd, ulonglong v);
+void old_mode_deprecated_warnings(ulonglong v);
 
 
 /*
