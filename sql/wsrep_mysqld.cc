@@ -2489,7 +2489,10 @@ static void wsrep_TOI_end(THD *thd) {
 
     if (thd->is_error() && !wsrep_must_ignore_error(thd))
     {
-      wsrep_store_error(thd, err);
+      /* use only error code, for the message can be inconsistent
+       * between the nodes due to differing lc_message settings
+       * in client session and server applier thread */
+      wsrep_store_error(thd, err, false);
     }
 
     int const ret= client_state.leave_toi_local(err);

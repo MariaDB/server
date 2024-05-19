@@ -123,14 +123,15 @@ static void wsrep_setup_uk_and_fk_checks(THD* thd)
 static int apply_events(THD*                       thd,
                         Relay_log_info*            rli,
                         const wsrep::const_buffer& data,
-                        wsrep::mutable_buffer&     err)
+                        wsrep::mutable_buffer&     err,
+                        bool const                 include_msg)
 {
   int const ret= wsrep_apply_events(thd, rli, data.data(), data.size());
   if (ret || wsrep_thd_has_ignored_error(thd))
   {
     if (ret)
     {
-      wsrep_store_error(thd, err);
+      wsrep_store_error(thd, err, include_msg);
     }
     wsrep_dump_rbr_buf_with_header(thd, data.data(), data.size());
   }
@@ -427,7 +428,7 @@ int Wsrep_high_priority_service::apply_toi(const wsrep::ws_meta& ws_meta,
 #endif
 
   thd->set_time();
-  int ret= apply_events(thd, m_rli, data, err);
+  int ret= apply_events(thd, m_rli, data, err, false);
   wsrep_thd_set_ignored_error(thd, false);
   trans_commit(thd);
 
@@ -595,7 +596,7 @@ int Wsrep_applier_service::apply_write_set(const wsrep::ws_meta& ws_meta,
 #endif /* ENABLED_DEBUG_SYNC */
 
   wsrep_setup_uk_and_fk_checks(thd);
-  int ret= apply_events(thd, m_rli, data, err);
+  int ret= apply_events(thd, m_rli, data, err, true);
 
   thd->close_temporary_tables();
   if (!ret && !(ws_meta.flags() & wsrep::provider::flag::commit))
@@ -764,7 +765,7 @@ int Wsrep_replayer_service::apply_write_set(const wsrep::ws_meta& ws_meta,
                                           ws_meta,
                                           thd->wsrep_sr().fragments());
   }
-  ret= ret || apply_events(thd, m_rli, data, err);
+  ret= ret || apply_events(thd, m_rli, data, err, true);
   thd->close_temporary_tables();
   if (!ret && !(ws_meta.flags() & wsrep::provider::flag::commit))
   {

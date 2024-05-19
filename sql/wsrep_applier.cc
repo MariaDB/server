@@ -82,7 +82,9 @@ wsrep_get_apply_format(THD* thd)
   return thd->wsrep_rgi->rli->relay_log.description_event_for_exec;
 }
 
-void wsrep_store_error(const THD* const thd, wsrep::mutable_buffer& dst)
+void wsrep_store_error(const THD* const thd,
+                       wsrep::mutable_buffer& dst,
+                       bool const include_msg)
 {
   Diagnostics_area::Sql_condition_iterator it=
     thd->get_stmt_da()->sql_conditions();
@@ -100,8 +102,16 @@ void wsrep_store_error(const THD* const thd, wsrep::mutable_buffer& dst)
     uint const err_code= cond->get_sql_errno();
     const char* const err_str= cond->get_message_text();
 
-    slider+= my_snprintf(slider, buf_end - slider, " %s, Error_code: %d;",
-                         err_str, err_code);
+    if (include_msg)
+    {
+      slider+= snprintf(slider, buf_end - slider, " %s, Error_code: %d;",
+                        err_str, err_code);
+    }
+    else
+    {
+      slider+= snprintf(slider, buf_end - slider, " Error_code: %d;",
+                        err_code);
+    }
   }
 
   if (slider != dst.data())
