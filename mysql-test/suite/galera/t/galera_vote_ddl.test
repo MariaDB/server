@@ -1,0 +1,34 @@
+#
+# Test voting on identical DDL errors (error messages should match)
+#
+
+--source include/galera_cluster.inc
+--source include/have_binlog_format_row.inc
+
+#
+# 1. Ignore all DDL errors (avoids voting)
+#
+--connection node_1
+--let $wsrep_ignore_apply_errors_saved1 = `SELECT @@global.wsrep_ignore_apply_errors`
+SET @@global.wsrep_ignore_apply_errors = 7;
+--connection node_2
+--let $wsrep_ignore_apply_errors_saved2 = `SELECT @@global.wsrep_ignore_apply_errors`
+SET @@global.wsrep_ignore_apply_errors = 7;
+
+--source galera_vote_ddl.inc
+
+#
+# 2. Don't ignore any errors (forces voting)
+#
+--connection node_1
+SET @@global.wsrep_ignore_apply_errors = 0;
+--connection node_2
+SET @@global.wsrep_ignore_apply_errors = 0;
+
+--source galera_vote_ddl.inc
+
+--connection node_1
+--eval SET @@global.wsrep_ignore_apply_errors = $wsrep_ignore_apply_errors_saved1
+
+--connection node_2
+--eval SET @@global.wsrep_ignore_apply_errors = $wsrep_ignore_apply_errors_saved2
