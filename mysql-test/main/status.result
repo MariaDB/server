@@ -471,16 +471,21 @@ connection default;
 # All results below should be 1
 flush global status;
 flush session status;
+select $global_flush_status >= $local_flush_status as "1";
 1
 1
+flush session status;
+select $new_global_flush_status >= $global_flush_status as "1";
 1
 1
+select $new_local_flush_status < $global_flush_status as "1";
 1
 1
+flush global status;
+select $new_local_flush_status  >= $local_flush_status as "1";
 1
 1
+select $new_global_flush_status < $new_local_flush_status as "1";
 1
 1
-#
 # end of 11.5 tests
-#
