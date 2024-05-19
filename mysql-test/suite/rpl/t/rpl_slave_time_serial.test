@@ -11,30 +11,39 @@
 #   Test case 2: For the first transaction after starting, Slave_state_time
 # should update before the transaction commits to a timestamp that is 1s before
 # Master_last_event_time.
+
+
+# TODO Test Cases:
+#  When reconnecting slave, the "time state" of the slave doesn't change by
+#   re-executing the new Format_descriptor_event
 #
 # References:
 #   MDEV-33856: New definition for Seconds_Behind_Master
 #
 
 --source include/have_innodb.inc
-#--source include/have_binlog_format_row.inc
---source include/have_binlog_format_statement.inc
+--source include/have_binlog_format_row.inc
 --source include/master-slave.inc
 
 
 --echo #
 --echo # Initialize test data
+--echo #
+--echo # TODO: Perhaps to have engine=<param> so we can ensure the same behavior on slave on matter the engine?
+--echo #
 --connection slave
 SET STATEMENT sql_log_bin=0 FOR create table t1 (a int) engine=innodb;
 --source include/stop_slave.inc
+RESET SLAVE;
+#change master to master_use_gtid=slave_pos;
 --connection master
 SET STATEMENT sql_log_bin=0 FOR create table t1 (a int) engine=innodb;
 
 --echo #
---echo # Test case 1: TODO
+--echo # Test case 1: Ensure the IO thread will update 
 
 --echo # Hardcode timestamp of binlog event for validation of slave values
---let $t1_timestamp= `select @@timestamp`
+--let $t1_timestamp= `select truncate(@@timestamp,0)`
 --eval SELECT truncate($t1_timestamp, 0)
 --eval set timestamp= $t1_timestamp
 insert into t1 values (1);
@@ -47,14 +56,39 @@ insert into t1 values (1);
 start slave io_thread;
 --source include/sync_io_with_master.inc
 
+--query_vertical SHOW ALL SLAVES STATUS
+
 --echo # Ensure Master_last_event_time corresponds to the time the transaction was binlogged on the primary
---let $mlet= query_get_value(SHOW ALL SLAVES STATUS, Master_last_event_time, 1)
-if (`SELECT ($mlet != (truncate($t1_timestamp,0)))`)
+--let $mle_time= query_get_value(SHOW ALL SLAVES STATUS, Master_last_event_time, 1)
+--let $mle_time_timestamp= `SELECT UNIX_TIMESTAMP("$mle_time")`
+--echo # MLE time $mle_time
+--echo # MLE timestamp $mle_time_timestamp
+if (`SELECT $mle_time_timestamp != $t1_timestamp`)
 {
-  --echo # Slave Master_last_event_time: $mlet
+  --echo # Slave Master_last_event_time: $mle_time_timestamp ($mle_time)
   --echo # T1 real timestamp: $t1_timestamp
-  die Master_last_event_time did not correspond to the time the transaction was binlogged on the primary
+  die Master_last_event_time did not correspond to the time the transaction was binlogged on the primary;
 }
+
+--let $ss_time= query_get_value(SHOW ALL SLAVES STATUS, Slave_state_time, 1)
+if (`SELECT strcmp("$ss_time", "NULL") != 0`)
+{
+  --echo # Slave_state_time: $ss_time
+  die Slave_state_time was not NULL, despite having not replicating any events.
+}
+
+--let $ms_diff= query_get_value(SHOW ALL SLAVES STATUS, Master_Slave_time_diff, 1)
+if (`SELECT strcmp("$ms_diff", "NULL") != 0`)
+{
+  --echo # Master_slave_time_diff: $ms_diff
+  die Master_slave_time_diff was not NULL, despite having not replicating any events.
+}
+
+--echo #
+--echo # Test case 2: Ensure SQL thread updates slave state
+--connection slave
+start slave sql_thread;
+--source include/sync_with_master.inc
 
 --echo #
 --echo # Cleanup

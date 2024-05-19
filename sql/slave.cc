@@ -3127,7 +3127,7 @@ void show_master_info_get_fields(THD *thd, List<Item> *field_list,
                                                 0),
                           mem_root);
     field_list->push_back(new (mem_root)
-                          Item_datetime_literal(thd, "Save_state_time", 0),
+                          Item_datetime_literal(thd, "Slave_state_time", 0),
                           mem_root);
     field_list->push_back(new (mem_root)
                           Item_return_int(thd, "Master_Slave_time_diff", 10,
@@ -7308,8 +7308,10 @@ dbug_gtid_accept:
       replay_log.description_event_for_exec can be null if the slave thread
       is getting killed
     */
-    if (LOG_EVENT_IS_QUERY((Log_event_type) buf[EVENT_TYPE_OFFSET]) ||
-        LOG_EVENT_IS_LOAD_DATA((Log_event_type) buf[EVENT_TYPE_OFFSET]))
+    if ((LOG_EVENT_IS_QUERY((Log_event_type) buf[EVENT_TYPE_OFFSET]) ||
+         LOG_EVENT_IS_LOAD_DATA((Log_event_type) buf[EVENT_TYPE_OFFSET]) ||
+         buf[EVENT_TYPE_OFFSET] == XID_EVENT) &&
+        !(buf[FLAGS_OFFSET] & LOG_EVENT_ARTIFICIAL_F))
     {
       time_t exec_time= query_event_get_time(buf, rli->relay_log.
                                              description_event_for_queue);
