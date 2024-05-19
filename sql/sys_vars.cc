@@ -3947,34 +3947,33 @@ static Sys_var_set Sys_sql_mode(
 
 static const char *old_mode_names[]=
 {
-  "NO_DUP_KEY_WARNINGS_WITH_IGNORE",    // deprecated since 11.3
-  "NO_PROGRESS_INFO",                   // deprecated since 11.3
-  "ZERO_DATE_TIME_CAST",                // deprecated since 11.3
-  "UTF8_IS_UTF8MB3",
-  "IGNORE_INDEX_ONLY_FOR_JOIN",         // deprecated since 11.3
-  "COMPAT_5_1_CHECKSUM",                // deprecated since 11.3
-  "NO_NULL_COLLATION_IDS",              // deprecated since 11.3
-  "LOCK_ALTER_TABLE_COPY",              // deprecated since 11.3
+  "NO_DUP_KEY_WARNINGS_WITH_IGNORE",    // 0: deprecated since 11.3
+  "NO_PROGRESS_INFO",                   // 1: deprecated since 11.3
+  "ZERO_DATE_TIME_CAST",                // 2: deprecated since 11.3
+  "UTF8_IS_UTF8MB3",                    // 3: on by default
+  "IGNORE_INDEX_ONLY_FOR_JOIN",         // 4: deprecated since 11.3
+  "COMPAT_5_1_CHECKSUM",                // 5: deprecated since 11.3
+  "NO_NULL_COLLATION_IDS",              // 6: deprecated since 11.3
+  "LOCK_ALTER_TABLE_COPY",              // 7: deprecated since 11.3
   0
 };
 
-void old_mode_deprecated_warnings(THD *thd, ulonglong v)
+void old_mode_deprecated_warnings(ulonglong v)
 {
   v &= ~OLD_MODE_DEFAULT_VALUE;
   for (uint i=0; old_mode_names[i]; i++)
     if ((1ULL<<i) & v)
-    {
-      if (thd)
-        warn_deprecated<1103>(thd, old_mode_names[i]);
-      else
-        sql_print_warning("--old-mode='%s' is deprecated and will be "
-                          "removed in a future release", old_mode_names[i]);
-    }
+      sql_print_warning("--old-mode='%s' is deprecated and will be "
+                        "removed in a future release", old_mode_names[i]);
 }
 
 static bool old_mode_deprecated(sys_var *self, THD *thd, set_var *var)
 {
-  old_mode_deprecated_warnings(thd, var->save_result.ulonglong_value);
+  ulonglong v= var->save_result.ulonglong_value & ~OLD_MODE_DEFAULT_VALUE;
+  uint i= 0;
+  for (; i <= 7; i++)
+    if ((1ULL<<i) & v)
+      warn_deprecated<1103>(thd, old_mode_names[i]);
   return false;
 }
 
