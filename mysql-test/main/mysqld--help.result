@@ -739,8 +739,8 @@ The following specify which files/extra groups are read (specified before remain
  NO_DUP_KEY_WARNINGS_WITH_IGNORE, NO_PROGRESS_INFO, 
  ZERO_DATE_TIME_CAST, UTF8_IS_UTF8MB3, 
  IGNORE_INDEX_ONLY_FOR_JOIN, COMPAT_5_1_CHECKSUM, 
- NO_NULL_COLLATION_IDS, LOCK_ALTER_TABLE_COPY, or ALL to
- set all combinations
+ NO_NULL_COLLATION_IDS, LOCK_ALTER_TABLE_COPY, 
+ OLD_FLUSH_STATUS, or ALL to set all combinations
  --old-passwords     Use old password encryption method (needed for 4.0 and
  older clients)
  --old-style-user-limits 

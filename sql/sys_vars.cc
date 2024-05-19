@@ -3955,6 +3955,7 @@ static const char *old_mode_names[]=
   "COMPAT_5_1_CHECKSUM",                // 5: deprecated since 11.3
   "NO_NULL_COLLATION_IDS",              // 6: deprecated since 11.3
   "LOCK_ALTER_TABLE_COPY",              // 7: deprecated since 11.3
+  "OLD_FLUSH_STATUS",                   // 8: deprecated since 11.5
   0
 };
 
@@ -3974,6 +3975,9 @@ static bool old_mode_deprecated(sys_var *self, THD *thd, set_var *var)
   for (; i <= 7; i++)
     if ((1ULL<<i) & v)
       warn_deprecated<1103>(thd, old_mode_names[i]);
+  for (; i <= 8; i++)
+    if ((1ULL<<i) & v)
+      warn_deprecated<1105>(thd, old_mode_names[i]);
   return false;
 }
 

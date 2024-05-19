@@ -2183,6 +2183,9 @@ dispatch_command_return dispatch_command(enum enum_server_command command, THD *
     if (trans_commit_implicit(thd))
       break;
     thd->release_transactional_locks();
+    if (options & REFRESH_STATUS &&
+        !(thd->variables.old_behavior & OLD_MODE_OLD_FLUSH_STATUS))
+      options= (options & ~REFRESH_STATUS) | REFRESH_SESSION_STATUS;
     if ((options & ~REFRESH_SESSION_STATUS) &&
         check_global_access(thd,RELOAD_ACL))
       break;
@@ -5277,6 +5280,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
 #ifdef HAVE_QUERY_CACHE
     REFRESH_QUERY_CACHE_FREE                |
 #endif /* HAVE_QUERY_CACHE */
+    REFRESH_STATUS                          |
     REFRESH_SESSION_STATUS                  |
     REFRESH_GLOBAL_STATUS                   |
     REFRESH_USER_RESOURCES))

@@ -379,6 +379,8 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
 #endif
   if (options & REFRESH_HOSTS)
     hostname_cache_refresh();
+  if (thd && (options & REFRESH_STATUS))
+    refresh_status_legacy(thd);
   if (thd && (options & REFRESH_SESSION_STATUS))
     refresh_session_status(thd);
   if ((options & REFRESH_GLOBAL_STATUS))

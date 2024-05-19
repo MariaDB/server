@@ -9227,6 +9227,52 @@ void refresh_global_status()
   max_used_connections_time= time(nullptr);
 }
 
+/** Emulate the legacy FLUSH STATUS inconsistent behavior
+
+  * additive session variables are added to global and set to 0 in session
+  * non-additive global variables are set to 0
+*/
+void refresh_status_legacy(THD *thd)
+{
+  mysql_mutex_lock(&LOCK_status);
+
+#ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
+  /* Reset aggregated status counters. */
+  reset_pfs_status_stats();
+#endif
+
+  /* Add thread's status variabes to global status */
+  add_to_status(&global_status_var, &thd->status_var);
+
+  /* Reset thread's status variables */
+  thd->set_status_var_init();
+  thd->status_var.global_memory_used= 0;
+  bzero((uchar*) &thd->org_status_var, sizeof(thd->org_status_var));
+  thd->start_bytes_received= 0;
+
+  /* Reset some global variables */
+  reset_status_vars();
+#ifdef WITH_WSREP
+  if (WSREP_ON)
+  {
+    Wsrep_server_state::instance().provider().reset_status();
+  }
+#endif /* WITH_WSREP */
+
+  /* Reset the counters of all key caches (default and named). */
+  process_key_caches(reset_key_cache_counters, 0);
+  global_status_var.flush_status_time= my_time(0);
+  mysql_mutex_unlock(&LOCK_status);
+
+  /*
+    Set max_used_connections to the number of currently open
+    connections.  This is not perfect, but status data is not exact anyway.
+  */
+  max_used_connections= connection_count + extra_connection_count;
+  max_used_connections_time= time(nullptr);
+}
+
+
 
 #ifdef HAVE_PSI_INTERFACE
 static PSI_file_info all_server_files[]=

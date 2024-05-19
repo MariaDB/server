@@ -80,6 +80,7 @@ void close_connection(THD *thd, uint sql_errno= 0);
 void handle_connection_in_main_thread(CONNECT *thd);
 void create_thread_to_handle_connection(CONNECT *connect);
 void unlink_thd(THD *thd);
+void refresh_status_legacy(THD *thd);
 void refresh_session_status(THD *thd);
 void refresh_global_status();
 bool is_secure_file_path(char *path);

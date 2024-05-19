@@ -506,4 +506,32 @@ let $new_local_flush_status= `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESS
 --evalp select $new_local_flush_status  >= $local_flush_status as "1"
 --evalp select $new_global_flush_status < $new_local_flush_status as "1"
 
+#
+# Test OLD_FLUSH_STATUS
+#
+
+create or replace table t1 (a int, key(a)) engine=MyISAM;
+insert into t1 values (1),(2);
+
+--connect con1,localhost,root
+set old_mode=OLD_FLUSH_STATUS;
+
+insert into t1 values (3),(4);
+drop table t1;
+
+select t1.variable_name, t1.variable_value as global_value, t2.variable_value as session_value
+from information_schema.global_status t1 join information_schema.session_status t2
+ on t1.variable_name = t2.variable_name
+where t1.variable_name in ('Key_writes','Com_insert');
+
+flush status;
+
+select t1.variable_name, t1.variable_value as global_value, t2.variable_value as session_value
+from information_schema.global_status t1 join information_schema.session_status t2
+ on t1.variable_name = t2.variable_name
+where t1.variable_name in ('Key_writes','Com_insert');
+
+disconnect con1;
+connection default;
+
 --echo # end of 11.5 tests

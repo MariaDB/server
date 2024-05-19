@@ -14673,7 +14673,12 @@ flush_option:
             Lex->relay_log_connection_name= empty_clex_str;
           }
         | STATUS_SYM
-          { Lex->type|= REFRESH_SESSION_STATUS; }
+          {
+            if (thd->variables.old_behavior & OLD_MODE_OLD_FLUSH_STATUS)
+              Lex->type|= REFRESH_STATUS;
+            else
+              Lex->type|= REFRESH_SESSION_STATUS;
+          }
         | SESSION_SYM STATUS_SYM
           { Lex->type|= REFRESH_SESSION_STATUS; }
         | GLOBAL_SYM STATUS_SYM

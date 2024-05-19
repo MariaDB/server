@@ -132,8 +132,8 @@ Warning	1287	'ZERO_DATE_TIME_CAST' is deprecated and will be removed in a future
 SELECT @@global.old_mode;
 @@global.old_mode
 ZERO_DATE_TIME_CAST
-SET @@global.old_mode = 256;
-ERROR 42000: Variable 'old_mode' can't be set to the value of '256'
+SET @@global.old_mode = 6536;
+ERROR 42000: Variable 'old_mode' can't be set to the value of '6536'
 SELECT @@global.old_mode;
 @@global.old_mode
 ZERO_DATE_TIME_CAST
