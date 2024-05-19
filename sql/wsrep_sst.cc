@@ -1826,6 +1826,8 @@ wait_signal:
       else
       {
         WSREP_WARN("Received unknown signal: '%s'", out);
+        /* since it is the end of the loop, we must set error code */
+        err=-EINVAL;
         proc.wait();
       }
     }
