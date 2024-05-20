@@ -513,7 +513,6 @@ extern PSI_file_key key_file_io_cache;
 /* inline functions for mf_iocache */
 
 extern int my_b_flush_io_cache(IO_CACHE *info, int need_append_buffer_lock);
-extern void end_tracking_io_cache(IO_CACHE *info);
 extern void truncate_io_cache(IO_CACHE *info);
 extern int _my_b_get(IO_CACHE *info);
 extern int _my_b_read(IO_CACHE *info,uchar *Buffer,size_t Count);

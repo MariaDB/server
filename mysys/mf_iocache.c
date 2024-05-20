@@ -104,13 +104,13 @@ my_bool io_cache_tmp_file_track(IO_CACHE *info, ulonglong file_size)
 
 
 /**
-  End tmp space tracking for the data in the io cache
+  Reset tmp space tracking for the data in the io cache
 
   This is called when deleting or truncating the
   cached file.
 */
 
-void end_tracking_io_cache(IO_CACHE *info)
+static void reset_tracking_io_cache(IO_CACHE *info)
 {
   if ((info->myflags & (MY_TRACK | MY_TRACK_WITH_LIMIT)) &&
       info->tracking.file_size)
@@ -123,7 +123,7 @@ void end_tracking_io_cache(IO_CACHE *info)
 void truncate_io_cache(IO_CACHE *info)
 {
   if (my_chsize(info->file, 0, 0, MYF(MY_WME)) == 0)
-    end_tracking_io_cache(info);
+    reset_tracking_io_cache(info);
 }
 
 
@@ -1870,7 +1870,7 @@ int end_io_cache(IO_CACHE *info)
     /* Destroy allocated mutex */
     mysql_mutex_destroy(&info->append_buffer_lock);
   }
-  end_tracking_io_cache(info);
+  reset_tracking_io_cache(info);
   info->share= 0;
   info->type= TYPE_NOT_SET; /* Ensure that flush_io_cache() does nothing */
   info->write_end= 0;       /* Ensure that my_b_write() fails */
