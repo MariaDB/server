@@ -426,6 +426,7 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
   else
   {
     /* filesort cannot handle zero-length records during merge. */
+    thd->query_plan_flags|= QPLAN_FILESORT_DISK;
     DBUG_ASSERT(param.sort_length != 0);
 
     if (sort->buffpek.str && sort->buffpek.length < maxbuffer)
