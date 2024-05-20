@@ -31054,9 +31054,11 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
               (select_limit <= MY_MIN(quick_records,best_records) ?
                keyinfo->user_defined_key_parts < best_key_parts :
                quick_records < best_records) ||
+               direction > best_key_direction ||
               (!is_best_covering && is_covering))
           {
             possible_key.add("chosen", true);
+            DBUG_ASSERT(direction != 0);
             best_key= nr;
             best_key_parts= keyinfo->user_defined_key_parts;
             if (saved_best_key_parts)
