@@ -7924,14 +7924,7 @@ int Event_log::write_cache(THD *thd, binlog_cache_data *cache_data)
     DBUG_RETURN(res ? ER_ERROR_ON_WRITE : 0);
   }
 
-  /*
-    Allow flush of transaction logs to temporary go over the tmp space limit
-    as we do not want the commit to fail
-  */
-  cache->myflags&= ~MY_TRACK_WITH_LIMIT;
-  res= reinit_io_cache(cache, READ_CACHE, 0, 0, 0);
-  cache->myflags|= MY_TRACK_WITH_LIMIT;
-  if (res)
+  if ((res= reinit_io_cache(cache, READ_CACHE, 0, 0, 0)))
     DBUG_RETURN(ER_ERROR_ON_WRITE);
 
   /* Amount of remaining bytes in the IO_CACHE read buffer. */
