@@ -1939,12 +1939,8 @@ static void mysqld_exit(int exit_code)
 #endif
   set_malloc_size_cb(NULL);
   if (global_status_var.global_memory_used)
-  {
-    fprintf(stderr, "Warning: Memory not freed: %lld\n",
+    fprintf(stderr, "Warning: Internal memory accounting error of %lld bytes\n",
             (longlong) global_status_var.global_memory_used);
-    if (exit_code == 0 || opt_endinfo)
-      SAFEMALLOC_REPORT_MEMORY(0);
-  }
   if (global_tmp_space_used)
     fprintf(stderr, "Warning: Internal tmp_space accounting error of %lld "
             "bytes\n",
