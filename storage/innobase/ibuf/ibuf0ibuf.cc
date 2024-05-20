@@ -22,7 +22,6 @@ this program; if not, write to the Free Software Foundation, Inc.,
 Upgrade and removal of the InnoDB change buffer
 */
 
-#include <tuple>
 #include "ibuf0ibuf.h"
 #include "btr0sea.h"
 #include "btr0pcur.h"
@@ -257,14 +256,16 @@ func_exit:
 
   const uint32_t page_no= flst_get_last(PAGE_HEADER + PAGE_BTR_IBUF_FREE_LIST +
                                         root->page.frame).page;
-
-  if (page_no == FIL_NULL || page_no >= fil_system.sys_space->free_limit)
+  if (page_no == FIL_NULL)
   {
     mtr.set_modified(*root);
     fsp_init_file_page(fil_system.sys_space, root, &mtr);
     err= DB_SUCCESS_LOCKED_REC;
     goto func_exit;
   }
+
+  if (page_no >= fil_system.sys_space->free_limit)
+    goto corrupted;
 
   /* Since pessimistic inserts were prevented, we know that the
   page is still in the free list. NOTE that also deletes may take
@@ -281,6 +282,7 @@ func_exit:
   if (page_no != flst_get_last(PAGE_HEADER + PAGE_BTR_IBUF_FREE_LIST +
                                root->page.frame).page)
   {
+  corrupted:
     err= DB_CORRUPTION;
     goto func_exit;
   }
@@ -291,7 +293,7 @@ func_exit:
                        &mtr, &err))
     err= flst_remove(root, PAGE_HEADER + PAGE_BTR_IBUF_FREE_LIST,
                      block, PAGE_HEADER + PAGE_BTR_IBUF_FREE_LIST_NODE,
-		     fil_system.sys_space->free_limit, &mtr);
+                     fil_system.sys_space->free_limit, &mtr);
 
   if (err == DB_SUCCESS)
     buf_page_free(fil_system.sys_space, page_no, &mtr);

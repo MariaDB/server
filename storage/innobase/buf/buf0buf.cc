@@ -2706,6 +2706,7 @@ got_block:
 		if (mode == BUF_PEEK_IF_IN_POOL) {
 ignore_block:
 			block->unfix();
+ignore_unfixed:
 			ut_ad(mode == BUF_GET_POSSIBLY_FREED
 			      || mode == BUF_PEEK_IF_IN_POOL);
 			if (err) {
@@ -2897,6 +2898,15 @@ wait_for_unfix:
 #endif /* UNIV_DEBUG */
 	ut_ad(block->page.frame);
 
+	/* The state = block->page.state() may be stale at this point,
+	and in fact, at any point of time if we consider its
+	buffer-fix component. If the block is being read into the
+	buffer pool, it is possible that buf_page_t::read_complete()
+	will invoke buf_pool_t::corrupted_evict() and therefore
+	invalidate it (invoke buf_page_t::set_corrupt_id() and set the
+	state to FREED). Therefore, after acquiring the page latch we
+	must recheck the state. */
+
 	switch (rw_latch) {
 	case RW_NO_LATCH:
 		mtr->memo_push(block, MTR_MEMO_BUF_FIX);
@@ -2919,6 +2929,15 @@ wait_for_unfix:
 	}
 
 	mtr->memo_push(block, mtr_memo_type_t(rw_latch));
+	state = block->page.state();
+
+	if (UNIV_UNLIKELY(state < buf_page_t::UNFIXED)) {
+		mtr->release_last_page();
+		goto ignore_unfixed;
+	}
+
+	ut_ad(state < buf_page_t::READ_FIX || state > buf_page_t::WRITE_FIX);
+
 #ifdef BTR_CUR_HASH_ADAPT
 	btr_search_drop_page_hash_index(block, true);
 #endif /* BTR_CUR_HASH_ADAPT */
@@ -2929,10 +2948,6 @@ wait_for_unfix:
 	return block;
 }
 
-/********************************************************************//**
-This is the general function used to get optimistic access to a database
-page.
-@return TRUE if success */
 TRANSACTIONAL_TARGET
 buf_block_t *buf_page_optimistic_fix(buf_block_t *block, page_id_t id)
 {
