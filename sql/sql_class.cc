@@ -7651,7 +7651,7 @@ static void print_unsafe_warning_to_log(THD *thd, int unsafe_type, char* buf,
   DBUG_ENTER("print_unsafe_warning_in_log");
   sprintf(buf, ER_THD(thd, ER_BINLOG_UNSAFE_STATEMENT),
           ER_THD(thd, LEX::binlog_stmt_unsafe_errcode[unsafe_type]));
-  sql_print_warning(ER_THD(thd, ER_MESSAGE_AND_STATEMENT), buf, query);
+  sql_print_warning(ER_DEFAULT(ER_MESSAGE_AND_STATEMENT), buf, query);
   DBUG_VOID_RETURN;
 }
 

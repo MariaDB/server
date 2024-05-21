@@ -13326,7 +13326,7 @@ static void login_failed_error(THD *thd)
   */
   if (global_system_variables.log_warnings > 1)
   {
-    sql_print_warning(ER_THD(thd, access_denied_error_code(thd->password)),
+    sql_print_warning(ER_DEFAULT(access_denied_error_code(thd->password)),
                       thd->main_security_ctx.user,
                       thd->main_security_ctx.host_or_ip,
                       thd->password ? ER_THD(thd, ER_YES) : ER_THD(thd, ER_NO));
@@ -14966,7 +14966,7 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
         if (global_system_variables.log_warnings > 1)
         {
           Security_context* sctx = thd->security_ctx;
-          sql_print_warning(ER_THD(thd, err),
+          sql_print_warning(ER_DEFAULT(err),
             sctx->priv_user, sctx->priv_host, mpvio.db.str);
         }
       }

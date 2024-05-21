@@ -1962,7 +1962,7 @@ static void plugin_load(MEM_ROOT *tmp_root)
     mysql_mutex_unlock(&LOCK_plugin);
   }
   if (unlikely(error > 0))
-    sql_print_error(ER_THD(new_thd, ER_GET_ERRNO), my_errno,
+    sql_print_error(ER_DEFAULT(ER_GET_ERRNO), my_errno,
                            table->file->table_type());
   end_read_record(&read_record_info);
   table->mark_table_for_reopen();

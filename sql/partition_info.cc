@@ -1038,7 +1038,7 @@ void partition_info::vers_check_limit(THD *thd)
                         table->s->db.str, table->s->table_name.str,
                         vers_info->hist_part->partition_name.str, "LIMIT");
 
-    sql_print_warning(ER_THD(thd, WARN_VERS_PART_FULL),
+    sql_print_warning(ER_DEFAULT(WARN_VERS_PART_FULL),
                       table->s->db.str, table->s->table_name.str,
                       vers_info->hist_part->partition_name.str, "LIMIT");
   }

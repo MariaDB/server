@@ -98,7 +98,7 @@ static const char *init_syms(udf_func *tmp, char *nm)
     if (!opt_allow_suspicious_udfs)
       return nm;
     if (thd->variables.log_warnings)
-      sql_print_warning(ER_THD(thd, ER_CANT_FIND_DL_ENTRY), nm, tmp->name.str);
+      sql_print_warning(ER_DEFAULT(ER_CANT_FIND_DL_ENTRY), nm, tmp->name.str);
   }
   return 0;
 }
@@ -252,7 +252,7 @@ void udf_init()
       if (!(dl= dlopen(dlpath, RTLD_NOW)))
       {
 	/* Print warning to log */
-        sql_print_error(ER_THD(new_thd, ER_CANT_OPEN_LIBRARY),
+        sql_print_error(ER_DEFAULT(ER_CANT_OPEN_LIBRARY),
                         tmp->dl, errno, my_dlerror(dlpath));
 	/* Keep the udf in the hash so that we can remove it later */
 	continue;
@@ -265,7 +265,7 @@ void udf_init()
       const char *missing;
       if ((missing= init_syms(tmp, buf)))
       {
-        sql_print_error(ER_THD(new_thd, ER_CANT_FIND_DL_ENTRY), missing,
+        sql_print_error(ER_DEFAULT(ER_CANT_FIND_DL_ENTRY), missing,
                         tmp->name.str);
         del_udf(tmp);
         if (new_dl)

@@ -589,7 +589,7 @@ bool load_db_opt(THD *thd, const char *path, Schema_specification_st *create)
               get_charset_by_name(pos+1, MYF(utf8_flag))))
         {
           sql_print_error("Error while loading database options: '%s':",path);
-          sql_print_error(ER_THD(thd, ER_UNKNOWN_CHARACTER_SET),pos+1);
+          sql_print_error(ER_DEFAULT(ER_UNKNOWN_CHARACTER_SET),pos+1);
           create->default_table_charset= default_charset_info;
         }
       }
@@ -598,7 +598,7 @@ bool load_db_opt(THD *thd, const char *path, Schema_specification_st *create)
         if (!(create->default_table_charset= get_charset_by_name(pos+1, MYF(utf8_flag))))
         {
           sql_print_error("Error while loading database options: '%s':",path);
-          sql_print_error(ER_THD(thd, ER_UNKNOWN_COLLATION),pos+1);
+          sql_print_error(ER_DEFAULT(ER_UNKNOWN_COLLATION),pos+1);
           create->default_table_charset= default_charset_info;
         }
       }

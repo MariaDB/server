@@ -3418,7 +3418,7 @@ err:
   if (!write_error)
   {
     write_error= 1;
-    sql_print_error(ER_THD(thd, ER_ERROR_ON_WRITE), name, errno);
+    sql_print_error(ER_DEFAULT(ER_ERROR_ON_WRITE), name, errno);
   }
   goto end;
 }
