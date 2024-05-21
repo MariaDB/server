@@ -697,10 +697,11 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
 
 #ifdef WITH_WSREP
   /*
-    We should replicate local gtid_slave_pos updates to other nodes.
+    We should replicate local gtid_slave_pos updates to other nodes if
+    wsrep gtid mode is set.
     In applier we should not append them to galera writeset.
   */
-  if (WSREP_ON_ && wsrep_thd_is_local(thd))
+  if (WSREP_ON_ && wsrep_gtid_mode && wsrep_thd_is_local(thd))
   {
     thd->wsrep_ignore_table= false;
     table->file->row_logging= 1; // replication requires binary logging
@@ -875,10 +876,12 @@ rpl_slave_state::gtid_delete_pending(THD *thd,
 
 #ifdef WITH_WSREP
   /*
-    We should replicate local gtid_slave_pos updates to other nodes.
+    We should replicate local gtid_slave_pos updates to other nodes if
+    wsrep gtid mode is set.
     In applier we should not append them to galera writeset.
   */
-  if (WSREP_ON_ && wsrep_thd_is_local(thd) &&
+  if (WSREP_ON_ && wsrep_gtid_mode &&
+      wsrep_thd_is_local(thd) &&
       thd->wsrep_cs().state() != wsrep::client_state::s_none)
   {
     if (thd->wsrep_trx().active() == false)
@@ -889,7 +892,8 @@ rpl_slave_state::gtid_delete_pending(THD *thd,
     }
     thd->wsrep_ignore_table= false;
   }
-  thd->wsrep_ignore_table= true;
+  else
+    thd->wsrep_ignore_table= true;
 #endif
 
   thd_saved_option= thd->variables.option_bits;
