@@ -4,3 +4,4 @@ usr/lib/*/libmariadb3/plugin/client_ed25519.so
 usr/lib/*/libmariadb3/plugin/dialog.so
 usr/lib/*/libmariadb3/plugin/mysql_clear_password.so
 usr/lib/*/libmariadb3/plugin/sha256_password.so
+usr/lib/*/libmariadb3/plugin/parsec.so
