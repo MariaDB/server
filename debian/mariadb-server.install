@@ -39,6 +39,7 @@ usr/lib/mysql/plugin/auth_ed25519.so
 usr/lib/mysql/plugin/auth_pam.so
 usr/lib/mysql/plugin/auth_pam_tool_dir/auth_pam_tool
 usr/lib/mysql/plugin/auth_pam_v1.so
+usr/lib/mysql/plugin/auth_parsec.so
 usr/lib/mysql/plugin/disks.so
 usr/lib/mysql/plugin/file_key_management.so
 usr/lib/mysql/plugin/ha_archive.so
