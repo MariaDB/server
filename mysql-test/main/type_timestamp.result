@@ -1904,6 +1904,122 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 #
+# MDEV-34069 Zero datetime reinterprets as '1970-01-01 00:00:00' on field_datetime=field_timestamp
+#
+SET sql_mode='';
+SET time_zone='+00:00';
+CREATE TABLE t1 (a TIMESTAMP);
+INSERT INTO t1 VALUES ('0000-00-00 00:00:00');
+SELECT * FROM t1;
+a
+0000-00-00 00:00:00
+CREATE TABLE t2 (a DATETIME);
+INSERT INTO t2 SELECT a FROM t1;
+SELECT * FROM t2;
+a
+0000-00-00 00:00:00
+SET sql_mode='NO_ZERO_DATE,NO_ZERO_IN_DATE';
+INSERT INTO t2 VALUES ('0000-00-00 00:00:00');
+Warnings:
+Warning	1264	Out of range value for column 'a' at row 1
+INSERT INTO t2 SELECT a FROM t1;
+Warnings:
+Warning	1264	Out of range value for column 'a' at row 1
+SELECT * FROM t2;
+a
+0000-00-00 00:00:00
+0000-00-00 00:00:00
+0000-00-00 00:00:00
+DROP TABLE t2, t1;
+SET time_zone=DEFAULT;
+SET sql_mode=DEFAULT;
+#
+# MDEV-34061 unix_timestamp(coalesce(timestamp_column)) returns NULL on '1970-01-01 00:00:00.000001'
+#
+SET time_zone='+00:00';
+CREATE TABLE t1 (a TIMESTAMP(6) NULL);
+INSERT INTO t1 VALUES ('1970-01-01 00:00:00.000001');
+SELECT unix_timestamp(a) AS c1, unix_timestamp(coalesce(a)) AS c2 FROM t1;
+c1	c2
+0.000001	0.000001
+DROP TABLE t1;
+SET time_zone=DEFAULT;
+#
+# MDEV-34088 The TIMESTAMP value of '1970-01-01 00:00:00' can be indirectly inserted in strict mode
+#
+SET sql_mode='STRICT_TRANS_TABLES,STRICT_ALL_TABLES';
+SET time_zone='+00:00';
+CREATE TABLE t1 (a TIMESTAMP);
+INSERT INTO t1 VALUES ('1970-01-01 00:00:00');
+ERROR 22007: Incorrect datetime value: '1970-01-01 00:00:00' for column `test`.`t1`.`a` at row 1
+INSERT INTO t1 VALUES ('1970-01-01 00:00:00.1');
+ERROR 22007: Incorrect datetime value: '1970-01-01 00:00:00.1' for column `test`.`t1`.`a` at row 1
+CREATE TABLE t2 (a TIMESTAMP(1)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES ('1970-01-01 00:00:00.1');
+INSERT INTO t1 SELECT a FROM t2;
+ERROR 22007: Incorrect datetime value: '1970-01-01 00:00:00 +00:00' for column `test`.`t1`.`a` at row 1
+DROP TABLE t2;
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+SET sql_mode='STRICT_TRANS_TABLES,STRICT_ALL_TABLES,NO_ZERO_DATE,NO_ZERO_IN_DATE';
+SET time_zone='+00:00';
+CREATE TABLE t1 (a TIMESTAMP);
+INSERT INTO t1 VALUES ('1970-01-01 00:00:00');
+ERROR 22007: Incorrect datetime value: '1970-01-01 00:00:00' for column `test`.`t1`.`a` at row 1
+INSERT INTO t1 VALUES ('1970-01-01 00:00:00.1');
+ERROR 22007: Incorrect datetime value: '1970-01-01 00:00:00.1' for column `test`.`t1`.`a` at row 1
+CREATE TABLE t2 (a TIMESTAMP(1)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES ('1970-01-01 00:00:00.1');
+INSERT INTO t1 SELECT a FROM t2;
+ERROR 22007: Incorrect datetime value: '1970-01-01 00:00:00 +00:00' for column `test`.`t1`.`a` at row 1
+DROP TABLE t2;
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+SET sql_mode='';
+SET time_zone='+00:00';
+CREATE TABLE t1 (a TIMESTAMP);
+INSERT INTO t1 VALUES ('1970-01-01 00:00:00');
+Warnings:
+Warning	1264	Out of range value for column 'a' at row 1
+INSERT INTO t1 VALUES ('1970-01-01 00:00:00.1');
+Warnings:
+Warning	1264	Out of range value for column 'a' at row 1
+CREATE TABLE t2 (a TIMESTAMP(1)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES ('1970-01-01 00:00:00.1');
+INSERT INTO t1 SELECT a FROM t2;
+Warnings:
+Warning	1264	Out of range value for column 'a' at row 1
+DROP TABLE t2;
+SELECT * FROM t1;
+a
+0000-00-00 00:00:00
+0000-00-00 00:00:00
+0000-00-00 00:00:00
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+SET sql_mode='NO_ZERO_DATE,NO_ZERO_IN_DATE';
+SET time_zone='+00:00';
+CREATE TABLE t1 (a TIMESTAMP);
+INSERT INTO t1 VALUES ('1970-01-01 00:00:00');
+Warnings:
+Warning	1264	Out of range value for column 'a' at row 1
+INSERT INTO t1 VALUES ('1970-01-01 00:00:00.1');
+Warnings:
+Warning	1264	Out of range value for column 'a' at row 1
+CREATE TABLE t2 (a TIMESTAMP(1)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES ('1970-01-01 00:00:00.1');
+INSERT INTO t1 SELECT a FROM t2;
+Warnings:
+Warning	1264	Out of range value for column 'a' at row 1
+DROP TABLE t2;
+SELECT * FROM t1;
+a
+0000-00-00 00:00:00
+0000-00-00 00:00:00
+0000-00-00 00:00:00
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+#
 # End of 10.5 tests
 #
 #

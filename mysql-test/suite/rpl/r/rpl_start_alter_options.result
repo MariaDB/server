@@ -3,8 +3,6 @@ include/master-slave.inc
 connection slave;
 stop slave;
 change master to master_use_gtid= current_pos;
-Warnings:
-Warning	1287	'master_use_gtid=current_pos' is deprecated and will be removed in a future release. Please use master_demote_to_slave=1 instead
 SET GLOBAL slave_parallel_threads=4;
 set global slave_parallel_mode=optimistic;
 set global gtid_strict_mode=1;
@@ -96,8 +94,6 @@ include/start_slave.inc
 connection slave;
 stop slave;
 change master to master_use_gtid= current_pos;
-Warnings:
-Warning	1287	'master_use_gtid=current_pos' is deprecated and will be removed in a future release. Please use master_demote_to_slave=1 instead
 SET GLOBAL slave_parallel_threads=4;
 set global slave_parallel_mode=optimistic;
 set global gtid_strict_mode=1;
@@ -189,8 +185,6 @@ include/start_slave.inc
 connection slave;
 stop slave;
 change master to master_use_gtid= current_pos;
-Warnings:
-Warning	1287	'master_use_gtid=current_pos' is deprecated and will be removed in a future release. Please use master_demote_to_slave=1 instead
 SET GLOBAL slave_parallel_threads=4;
 set global slave_parallel_mode=optimistic;
 set global gtid_strict_mode=1;
@@ -321,8 +315,6 @@ include/start_slave.inc
 connection slave;
 stop slave;
 change master to master_use_gtid= current_pos;
-Warnings:
-Warning	1287	'master_use_gtid=current_pos' is deprecated and will be removed in a future release. Please use master_demote_to_slave=1 instead
 SET GLOBAL slave_parallel_threads=4;
 set global slave_parallel_mode=optimistic;
 set global gtid_strict_mode=1;
@@ -377,8 +369,6 @@ connection master;
 alter table t1 add column f varchar(100) after b,add column g varchar(100) first ,add column  h char, force , algorithm=instant;
 alter table t1 add index if not exists index_1(f), force , algorithm=instant;
 alter table t1 disable keys, force , algorithm=copy;
-Warnings:
-Note	1031	Storage engine InnoDB of the table `test`.`t1` doesn't have this option
 alter table t1 enable keys, force , algorithm=copy;
 Warnings:
 Note	1031	Storage engine InnoDB of the table `test`.`t1` doesn't have this option
@@ -414,8 +404,6 @@ include/start_slave.inc
 connection slave;
 stop slave;
 change master to master_use_gtid= current_pos;
-Warnings:
-Warning	1287	'master_use_gtid=current_pos' is deprecated and will be removed in a future release. Please use master_demote_to_slave=1 instead
 SET GLOBAL slave_parallel_threads=4;
 set global slave_parallel_mode=optimistic;
 set global gtid_strict_mode=1;
@@ -470,8 +458,6 @@ connection master;
 alter table t1 add column f varchar(100) after b,add column g varchar(100) first ,add column  h char, force , algorithm=nocopy;
 alter table t1 add index if not exists index_1(f), force , algorithm=nocopy;
 alter table t1 disable keys, force , algorithm=copy;
-Warnings:
-Note	1031	Storage engine InnoDB of the table `test`.`t1` doesn't have this option
 alter table t1 enable keys, force , algorithm=copy;
 Warnings:
 Note	1031	Storage engine InnoDB of the table `test`.`t1` doesn't have this option

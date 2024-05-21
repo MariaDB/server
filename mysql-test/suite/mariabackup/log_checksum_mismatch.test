@@ -7,7 +7,7 @@ let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
 let $backuplog=$MYSQLTEST_VARDIR/tmp/backup.log;
 
 --disable_result_log
-exec  $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir --dbug=+d,log_intermittent_checksum_mismatch --core-file > $backuplog;
+exec  $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --parallel=10 --target-dir=$targetdir --dbug=+d,log_intermittent_checksum_mismatch --core-file > $backuplog;
 --enable_result_log
 
 --let SEARCH_RANGE = 10000000

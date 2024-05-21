@@ -1,0 +1,10 @@
+call mtr.add_suppression("\\[ERROR\\] SPIDER plugin initialization failed");
+call mtr.add_suppression(".*\\[ERROR\\] Plugin 'SPIDER' registration as a STORAGE ENGINE failed.");
+call mtr.add_suppression(".*\\[ERROR\\] Plugin 'SPIDER_WRAPPER_PROTOCOLS' registration as a INFORMATION SCHEMA failed.");
+call mtr.add_suppression(".*\\[ERROR\\] Plugin 'SPIDER_ALLOC_MEM' registration as a INFORMATION SCHEMA failed.");
+create table mysql.spider_tables (c int);
+# restart: --plugin-load-add=ha_spider
+SELECT * FROM information_schema.SPIDER_ALLOC_MEM;
+ID	FUNC_NAME	FILE_NAME	LINE_NO	TOTAL_ALLOC_MEM	CURRENT_ALLOC_MEM	ALLOC_MEM_COUNT	FREE_MEM_COUNT
+SELECT * FROM information_schema.SPIDER_WRAPPER_PROTOCOLS;
+WRAPPER_NAME	WRAPPER_VERSION	WRAPPER_DESCRIPTION	WRAPPER_MATURITY

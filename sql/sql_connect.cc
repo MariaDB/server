@@ -1296,7 +1296,7 @@ void prepare_new_connection_state(THD* thd)
                  thd->thread_id,
                  thd->db.str ? thd->db.str : "unconnected",
                  sctx->user ? sctx->user : "unauthenticated",
-                 sctx->host_or_ip, "init_connect command failed");
+                 sctx->host_or_ip, "", "init_connect command failed");
       thd->server_status&= ~SERVER_STATUS_CLEAR_SET;
       thd->protocol->end_statement();
       thd->killed = KILL_CONNECTION;

@@ -1,0 +1,20 @@
+#
+# Start of 10.5 tests
+#
+#
+# MENT-1587 mariabackup failing due to aria log file copy
+#
+CREATE TABLE t1(i INT PRIMARY KEY) ENGINE=ARIA;
+INSERT INTO t1 VALUES (10);
+# Prepare full backup
+# shutdown server
+# remove datadir
+# xtrabackup move back
+# restart
+SELECT * FROM t1;
+i
+10
+DROP TABLE t1;
+#
+# End of 10.5 tests
+#

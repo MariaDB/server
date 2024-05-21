@@ -316,6 +316,9 @@ public:
                                            const override
   { return NULL; }
 
+  const Type_handler *type_handler_for_implicit_upgrade(
+                                        const Type_handler *from) const;
+
   static Type_collection_uuid *singleton()
   {
     static Type_collection_uuid tc;

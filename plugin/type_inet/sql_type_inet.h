@@ -69,6 +69,12 @@ public:
     static Type_collection_inet tc;
     return &tc;
   }
+
+  const Type_handler *type_handler_for_implicit_upgrade(
+                                               const Type_handler *from) const
+  {
+    return from;
+  }
 };
 
 #include "sql_type_fixedbin.h"

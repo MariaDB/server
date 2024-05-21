@@ -856,7 +856,7 @@ static void make_slave_transaction_retry_errors_printable(void)
 }
 
 
-#define DEFAULT_SLAVE_RETRY_ERRORS 9
+static constexpr uint DEFAULT_SLAVE_RETRY_ERRORS= 10;
 
 bool init_slave_transaction_retry_errors(const char* arg)
 {
@@ -898,9 +898,10 @@ bool init_slave_transaction_retry_errors(const char* arg)
   slave_transaction_retry_errors[3]= ER_NET_WRITE_INTERRUPTED;
   slave_transaction_retry_errors[4]= ER_LOCK_WAIT_TIMEOUT;
   slave_transaction_retry_errors[5]= ER_LOCK_DEADLOCK;
-  slave_transaction_retry_errors[6]= ER_CONNECT_TO_FOREIGN_DATA_SOURCE;
-  slave_transaction_retry_errors[7]= 2013; /* CR_SERVER_LOST */
-  slave_transaction_retry_errors[8]= 12701; /* ER_SPIDER_REMOTE_SERVER_GONE_AWAY_NUM */
+  slave_transaction_retry_errors[6]= ER_CHECKREAD;
+  slave_transaction_retry_errors[7]= ER_CONNECT_TO_FOREIGN_DATA_SOURCE;
+  slave_transaction_retry_errors[8]= 2013; /* CR_SERVER_LOST */
+  slave_transaction_retry_errors[9]= 12701; /* ER_SPIDER_REMOTE_SERVER_GONE_AWAY_NUM */
 
   /* Add user codes after this */
   for (p= arg, i= DEFAULT_SLAVE_RETRY_ERRORS; *p; )
@@ -1325,6 +1326,8 @@ static bool io_slave_killed(Master_info* mi)
   DBUG_ENTER("io_slave_killed");
 
   DBUG_ASSERT(mi->slave_running); // tracking buffer overrun
+  if (mi->abort_slave || mi->io_thd->killed)
+    DBUG_PRINT("info", ("killed"));
   DBUG_RETURN(mi->abort_slave || mi->io_thd->killed);
 }
 
@@ -2958,9 +2961,6 @@ void show_master_info_get_fields(THD *thd, List<Item> *field_list,
                         Item_empty_string(thd, "Slave_SQL_Running", 3),
                         mem_root);
   field_list->push_back(new (mem_root)
-                        Item_empty_string(thd, "Replicate_Rewrite_DB", 23),
-                        mem_root);
-  field_list->push_back(new (mem_root)
                         Item_empty_string(thd, "Replicate_Do_DB", 20),
                         mem_root);
   field_list->push_back(new (mem_root)
@@ -3108,6 +3108,21 @@ void show_master_info_get_fields(THD *thd, List<Item> *field_list,
                        Item_return_int(thd, "Slave_Transactional_Groups", 20,
                                        MYSQL_TYPE_LONGLONG),
                         mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_empty_string(thd, "Replicate_Rewrite_DB", 23),
+                        mem_root);
+
+  /*
+    Note, we must never, _ever_, add extra rows to this output of SHOW SLAVE
+    STATUS, except here at the end before the extra rows of SHOW ALL SLAVES
+    STATUS. Otherwise, we break backwards compatibility with applications or
+    scripts that parse the output!
+
+    This also means that we cannot add _any_ new rows in a GA version if a
+    different row was already added in a later MariaDB version, as this would
+    make it impossible to merge the change up while preserving the order of
+    rows.
+  */
 
   if (full)
   {
@@ -3223,7 +3238,6 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
                     &my_charset_bin);
     protocol->store(&slave_running[mi->slave_running], &my_charset_bin);
     protocol->store(mi->rli.slave_running ? &msg_yes : &msg_no, &my_charset_bin);
-    protocol->store(rpl_filter->get_rewrite_db());
     protocol->store(rpl_filter->get_do_db());
     protocol->store(rpl_filter->get_ignore_db());
 
@@ -3370,7 +3384,7 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
     // to ensure that we use the same value throughout this function.
     const char *slave_sql_running_state=
       mi->rli.sql_driver_thd ? mi->rli.sql_driver_thd->proc_info : "";
-    if (slave_sql_running_state == Relay_log_info::state_delaying_string)
+    if (slave_sql_running_state == stage_sql_thd_waiting_until_delay.m_name)
     {
       time_t t= my_time(0), sql_delay_end= mi->rli.get_sql_delay_end();
       protocol->store((uint32)(t < sql_delay_end ? sql_delay_end - t : 0));
@@ -3383,6 +3397,7 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
     protocol->store(mi->total_ddl_groups);
     protocol->store(mi->total_non_trans_groups);
     protocol->store(mi->total_trans_groups);
+    protocol->store(rpl_filter->get_rewrite_db());
 
     if (full)
     {
@@ -3557,6 +3572,7 @@ static int init_slave_thread(THD* thd, Master_info *mi,
   }
 
   thd->security_ctx->skip_grants();
+  thd->security_ctx->user=(char*) slave_user;
   thd->slave_thread= 1;
   thd->connection_name= mi->connection_name;
   thd->variables.sql_log_slow= !MY_TEST(thd->variables.log_slow_disabled_statements & LOG_SLOW_DISABLE_SLAVE);
@@ -3940,7 +3956,7 @@ apply_event_and_update_pos_apply(Log_event* ev, THD* thd, rpl_group_info *rgi,
           if (thd->system_thread == SYSTEM_THREAD_SLAVE_SQL &&
               ((rli->mi->using_parallel() &&
                 rli->mi->parallel_mode <= SLAVE_PARALLEL_CONSERVATIVE) ||
-               wsrep_ready == 0)) {
+                !wsrep_ready_get())) {
             rli->abort_slave= 1;
             rli->report(ERROR_LEVEL, ER_UNKNOWN_COM_ERROR, rgi->gtid_info(),
                         "Node has dropped from cluster");
@@ -4407,6 +4423,13 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
              rli->last_inuse_relaylog->dequeued_count))) &&
           event_can_update_last_master_timestamp(ev))
       {
+        /*
+          This is the first event from the master after the slave was up to date
+          and has been waiting for new events.
+          We update last_master_timestamp before executing the event to not
+          have Seconds_after_master ==  0 while executing the event.
+          last_master_timestamp will be updated again when the event is commited.
+        */
         if (rli->last_master_timestamp < ev->when)
         {
           rli->last_master_timestamp= ev->when;
@@ -4443,7 +4466,7 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
           Seconds_Behind_Master is zero.
         */
         if (ev->get_type_code() != FORMAT_DESCRIPTION_EVENT &&
-            rli->last_master_timestamp < ev->when)
+            rli->last_master_timestamp < ev->when + (time_t) ev->exec_time)
           rli->last_master_timestamp= ev->when + (time_t) ev->exec_time;
 
         DBUG_ASSERT(rli->last_master_timestamp >= 0);
@@ -7241,9 +7264,6 @@ static int connect_to_master(THD* thd, MYSQL* mysql, Master_info* mi,
     mysql_options(mysql, MYSQL_SET_CHARSET_NAME,
                   default_client_charset_info->cs_name.str);
   }
-
-  /* This one is not strictly needed but we have it here for completeness */
-  mysql_options(mysql, MYSQL_SET_CHARSET_DIR, charsets_dir);
 
   /* Set MYSQL_PLUGIN_DIR in case master asks for an external authentication plugin */
   if (opt_plugin_dir_ptr && *opt_plugin_dir_ptr)

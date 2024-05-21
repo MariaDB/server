@@ -2,6 +2,9 @@ include/master-slave.inc
 [connection master]
 call mtr.add_suppression("Replication event checksum verification failed");
 call mtr.add_suppression("could not queue event from master");
+call mtr.add_suppression("Semisync ack receiver.*error reading communication packets");
+call mtr.add_suppression("Semisync ack receiver got hangup");
+connection slave;
 #
 # Set up a semisync connection
 connection master;

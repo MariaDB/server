@@ -436,6 +436,10 @@ sub main {
     {
       $opt_parallel= $ENV{NUMBER_OF_PROCESSORS} || 1;
     }
+    elsif (IS_MAC)
+    {
+      $opt_parallel= `sysctl -n hw.ncpu`;
+    }
     else
     {
       my $sys_info= My::SysInfo->new();
@@ -3106,12 +3110,13 @@ sub mysql_install_db {
   # starting from 10.0 bootstrap scripts require InnoDB
   mtr_add_arg($args, "--loose-innodb");
   mtr_add_arg($args, "--loose-innodb-log-file-size=10M");
+  mtr_add_arg($args, "--loose-innodb-fast-shutdown=0");
   mtr_add_arg($args, "--disable-sync-frm");
   mtr_add_arg($args, "--tmpdir=%s", "$opt_vardir/tmp/");
   mtr_add_arg($args, "--core-file");
   mtr_add_arg($args, "--console");
   mtr_add_arg($args, "--character-set-server=latin1");
-  mtr_add_arg($args, "--disable-performance-schema");
+  mtr_add_arg($args, "--loose-disable-performance-schema");
 
   if ( $opt_debug )
   {
@@ -4496,6 +4501,14 @@ sub extract_warning_lines ($$) {
      qr/Slave I\/0: Master command COM_BINLOG_DUMP failed/,
      qr/Error reading packet/,
      qr/Lost connection to MariaDB server at 'reading initial communication packet'/,
+     qr/Could not read packet:.* state: [2-3] /,
+     qr/Could not read packet:.* errno: 104 /,
+     qr/Could not read packet:.* errno: 0 .* length: 0/,
+     qr/Could not write packet:.* errno: 32 /,
+     qr/Could not write packet:.* errno: 104 /,
+     qr/Semisync ack receiver got error 1158/,
+     qr/Semisync ack receiver got hangup/,
+     qr/Connection was killed/,
      qr/Failed on request_dump/,
      qr/Slave: Can't drop database.* database doesn't exist/,
      qr/Slave: Operation DROP USER failed for 'create_rout_db'/,
@@ -4551,8 +4564,7 @@ sub extract_warning_lines ($$) {
      qr/WSREP: Failed to guess base node address/,
      qr/WSREP: Guessing address for incoming client/,
 
-     # for UBSAN
-     qr/decimal\.c.*: runtime error: signed integer overflow/,
+     qr/InnoDB: Difficult to find free blocks in the buffer pool*/,
      # Disable test for UBSAN on dynamically loaded objects
      qr/runtime error: member call.*object.*'Handler_share'/,
      qr/sql_type\.cc.* runtime error: member call.*object.* 'Type_collection'/,
@@ -5712,6 +5724,8 @@ sub start_mysqltest ($) {
   if ( defined $tinfo->{'result_file'} ) {
     mtr_add_arg($args, "--result-file=%s", $tinfo->{'result_file'});
   }
+
+  mtr_add_arg($args, "--wait-for-pos-timeout=%d", $opt_debug_sync_timeout);
 
   client_debug_arg($args, "mysqltest");
 

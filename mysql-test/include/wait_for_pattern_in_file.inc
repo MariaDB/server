@@ -25,23 +25,23 @@ if (!$_timeout)
 }
 
 let $_timeout_counter=`SELECT $_timeout * 10`;
-let SEARCH_SILENT=1;
-
+let SEARCH_ABORT=NOT FOUND;
 let $_continue= 1;
+disable_abort_on_error;
 while ($_continue)
 {
   source include/search_pattern_in_file.inc;
-  if ($SEARCH_RESULT)
+  if (!$errno)
   {
     # Found match
     let $_continue= 0;
   }
-  if (!$SEARCH_RESULT)
+  if ($errno)
   {
     dec $_timeout_counter;
     if ($_timeout_counter == 1)
     {
-      let $SEARCH_SILENT= 0;
+      enable_abort_on_error;
     }
     if (!$_timeout_counter)
     {
@@ -49,8 +49,7 @@ while ($_continue)
     }
   }
 }
-
-let SEARCH_SILENT=0;
+enable_abort_on_error;
 
 --source include/end_include_file.inc
 --let $keep_include_silent=$wait_save_keep_include_silent

@@ -6,9 +6,6 @@
 # "create index index1 on tab1(b(750));"
 #
 
---source include/have_innodb.inc
---source include/have_innodb_16k.inc
-
 # turn on flags
 --disable_query_log
 SET GLOBAL innodb_monitor_enable=index_page_merge_attempts;

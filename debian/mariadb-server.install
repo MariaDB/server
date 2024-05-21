@@ -8,6 +8,10 @@ etc/logrotate.d/mariadb
 etc/security/user_map.conf
 lib/*/security/pam_user_map.so
 lib/systemd/system/mariadb@bootstrap.service.d/use_galera_new_cluster.conf
+lib/systemd/system/mariadb-extra@.socket
+lib/systemd/system/mariadb.service
+lib/systemd/system/mariadb@.service
+lib/systemd/system/mariadb@.socket
 lib/systemd/system/mysql.service
 lib/systemd/system/mysqld.service
 support-files/rpm/enable_encryption.preset etc/mysql/mariadb.conf.d/99-enable-encryption.cnf.preset
@@ -69,6 +73,7 @@ usr/share/man/man1/myisam_ftdump.1
 usr/share/man/man1/myisamchk.1
 usr/share/man/man1/myisamlog.1
 usr/share/man/man1/myisampack.1
+usr/share/man/man1/wsrep_sst_backup.1
 usr/share/man/man1/wsrep_sst_common.1
 usr/share/man/man1/wsrep_sst_mariabackup.1
 usr/share/man/man1/wsrep_sst_mysqldump.1

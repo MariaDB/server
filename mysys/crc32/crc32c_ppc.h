@@ -11,8 +11,7 @@
 extern "C" {
 #endif
 
-extern uint32_t crc32c_ppc(uint32_t crc, unsigned char const *buffer,
-                           unsigned len);
+extern unsigned crc32c_ppc(unsigned crc, const void *buffer, size_t len);
 
 #ifdef __cplusplus
 }

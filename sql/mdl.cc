@@ -1195,15 +1195,8 @@ MDL_wait::timed_wait(MDL_context_owner *owner, struct timespec *abs_timeout,
   {
 #ifdef WITH_WSREP
 # ifdef ENABLED_DEBUG_SYNC
-    // Allow tests to block the applier thread using the DBUG facilities
-    DBUG_EXECUTE_IF("sync.wsrep_before_mdl_wait",
-                 {
-                   const char act[]=
-                     "now "
-                     "wait_for signal.wsrep_before_mdl_wait";
-                   DBUG_ASSERT(!debug_sync_set_action((owner->get_thd()),
-                                                      STRING_WITH_LEN(act)));
-                 };);
+    // Allow tests to block thread before MDL-wait
+    DEBUG_SYNC(owner->get_thd(), "wsrep_before_mdl_wait");
 # endif
     if (WSREP_ON && wsrep_thd_is_BF(owner->get_thd(), false))
     {

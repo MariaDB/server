@@ -1,0 +1,10 @@
+--- innodb-fts-fic.result
++++ innodb-fts-fic.reject
+@@ -172,7 +172,6 @@
+ (1, 'MySQL Tutorial','DBMS stands for DataBase ...'),
+ (2, 'How To Use MySQL Well','After you went through a ...');
+ CREATE FULLTEXT INDEX idx ON wp(title, text);
+-ERROR HY000: Column 'FTS_DOC_ID' is of wrong type for an InnoDB FULLTEXT index
+ DROP TABLE wp;
+ CREATE TABLE wp(
+ FTS_DOC_ID bigint unsigned PRIMARY KEY,

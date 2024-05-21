@@ -1077,9 +1077,22 @@ BEGIN;
 --error ER_NO_REFERENCED_ROW_2
 INSERT INTO child SET a=1;
 connection default;
+--error ER_TRUNCATE_ILLEGAL_FK
+TRUNCATE TABLE parent;
+--error ER_ROW_IS_REFERENCED_2
+DROP TABLE parent;
+SET innodb_lock_wait_timeout=0;
+--error ER_LOCK_WAIT_TIMEOUT
+RENAME TABLE parent TO transparent;
+--error ER_LOCK_WAIT_TIMEOUT
+ALTER TABLE parent FORCE, ALGORITHM=COPY;
+--error ER_LOCK_WAIT_TIMEOUT
+ALTER TABLE parent FORCE, ALGORITHM=INPLACE;
 SET innodb_lock_wait_timeout=0, foreign_key_checks=0;
 --error ER_LOCK_WAIT_TIMEOUT
 TRUNCATE TABLE parent;
+--error ER_LOCK_WAIT_TIMEOUT
+DROP TABLE parent;
 --error ER_LOCK_WAIT_TIMEOUT
 ALTER TABLE parent FORCE, ALGORITHM=COPY;
 --error ER_LOCK_WAIT_TIMEOUT
@@ -1095,7 +1108,13 @@ TRUNCATE TABLE parent;
 ALTER TABLE parent FORCE, ALGORITHM=COPY;
 ALTER TABLE parent FORCE, ALGORITHM=INPLACE;
 ALTER TABLE parent ADD COLUMN b INT, ALGORITHM=INSTANT;
-DROP TABLE child, parent;
+SET foreign_key_checks=ON;
+--error ER_TRUNCATE_ILLEGAL_FK
+TRUNCATE TABLE parent;
+ALTER TABLE parent FORCE, ALGORITHM=COPY;
+ALTER TABLE parent FORCE, ALGORITHM=INPLACE;
+RENAME TABLE parent TO transparent;
+DROP TABLE child, transparent;
 
 --echo #
 --echo # MDEV-26217 Failing assertion: list.count > 0 in ut_list_remove

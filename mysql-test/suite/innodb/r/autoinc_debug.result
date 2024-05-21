@@ -105,3 +105,60 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 SET DEBUG_SYNC='RESET';
+#
+# MDEV-33593: Auto increment deadlock error causes ASSERT in subsequent save point
+#
+CREATE TABLE t1(col1 INT PRIMARY KEY AUTO_INCREMENT, col2 INT) ENGINE=InnoDB;
+CREATE TABLE t2(col1 INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1(col2) values(100);
+connect con1, localhost, root,,;
+START TRANSACTION;
+# T1: Acquiring Row X lock on table t2
+INSERT INTO t2 values(100);
+connect con2, localhost, root,,;
+START TRANSACTION;
+# T2: Wait for (T1) row lock on t2 after acquiring GAP Lock on t1
+UPDATE t1 SET col2 = 20 where col1 = 10;
+SET DEBUG_SYNC='lock_wait_before_suspend SIGNAL t2_waiting';
+INSERT INTO t2 values(100);
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR t2_waiting';
+# T3: Wait for (T2) II row Lock on t1 after acquiring Auto Increment Lock on t1
+SET DEBUG_SYNC='lock_wait_before_suspend SIGNAL t3_waiting';
+INSERT INTO t1(col2) SELECT col2 from t1;
+connection con1;
+SAVEPOINT s1;
+SET DEBUG_SYNC='now WAIT_FOR t3_waiting';
+# T1: Wait for (T3) auto increment lock on t1 causing  T1 -> T3 -> T2 -> T1 deadlock
+SET debug_dbug = '+d,innodb_deadlock_victim_self';
+INSERT INTO t1(col2) VALUES(200);
+ERROR HY000: Failed to read auto-increment value from storage engine
+# The transaction should have been rolled back
+SELECT * FROM t1;
+col1	col2
+1	100
+SELECT * FROM t2;
+col1
+# Release the previous savepoint using the same name
+SAVEPOINT s1;
+COMMIT;
+connection con2;
+COMMIT;
+connection default;
+COMMIT;
+disconnect con1;
+disconnect con2;
+# Cleanup
+SELECT * FROM t1;
+col1	col2
+1	100
+2	100
+DROP TABLE t1;
+SELECT * FROM t2;
+col1
+100
+DROP TABLE t2;
+SET DEBUG_SYNC='RESET';
+#
+# End of 10.5 tests
+#

@@ -41,6 +41,7 @@ CREATE FUNCTION metaphon RETURNS STRING SONAME "UDF_EXAMPLE_LIB";
 #
 # mysqldump of system tables with --system=all
 #
+/*!999999\- enable the sandbox mode */ 
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
@@ -637,6 +638,7 @@ UNLOCK TABLES;
 #
 # mysqldump of system tables with --system=all --replace
 #
+/*!999999\- enable the sandbox mode */ 
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
@@ -1256,6 +1258,7 @@ UNLOCK TABLES;
 #
 # mysqldump of system tables with --system=all --insert-ignore
 #
+/*!999999\- enable the sandbox mode */ 
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
@@ -1310,28 +1313,28 @@ USE mysql;
 
 LOCK TABLES `column_stats` WRITE;
 /*!40000 ALTER TABLE `column_stats` DISABLE KEYS */;
-INSERT  IGNORE INTO `column_stats` VALUES
+INSERT IGNORE INTO `column_stats` VALUES
 ('mysql','tz','Time_zone_id','1','6',0.0000,4.0000,78.8000,4,'JSON_HB','{\"target_histogram_size\": 254, \"collected_at\": \"2022-01-07 07:07:00\", \"collected_by\": \"version\", \"histogram_hb\": [{\"start\": \"1\", \"size\": 0.340101523, \"ndv\": 1}, {\"start\": \"3\", \"size\": 0.327411168, \"ndv\": 1}, {\"start\": \"4\", \"size\": 0.327411168, \"ndv\": 1}, {\"start\": \"5\", \"end\": \"6\", \"size\": 0.005076142, \"ndv\": 2}]}');
 /*!40000 ALTER TABLE `column_stats` ENABLE KEYS */;
 UNLOCK TABLES;
 
 LOCK TABLES `index_stats` WRITE;
 /*!40000 ALTER TABLE `index_stats` DISABLE KEYS */;
-INSERT  IGNORE INTO `index_stats` VALUES
+INSERT IGNORE INTO `index_stats` VALUES
 ('mysql','tz','PRIMARY',1,78.8000);
 /*!40000 ALTER TABLE `index_stats` ENABLE KEYS */;
 UNLOCK TABLES;
 
 LOCK TABLES `table_stats` WRITE;
 /*!40000 ALTER TABLE `table_stats` DISABLE KEYS */;
-INSERT  IGNORE INTO `table_stats` VALUES
+INSERT IGNORE INTO `table_stats` VALUES
 ('mysql','tz',394);
 /*!40000 ALTER TABLE `table_stats` ENABLE KEYS */;
 UNLOCK TABLES;
 
 LOCK TABLES `innodb_index_stats` WRITE;
 /*!40000 ALTER TABLE `innodb_index_stats` DISABLE KEYS */;
-INSERT  IGNORE INTO `innodb_index_stats` VALUES
+INSERT IGNORE INTO `innodb_index_stats` VALUES
 ('mysql','tz','PRIMARY','2019-12-31 21:00:00','n_diff_pfx01',5,1,'Time_zone_id'),
 ('mysql','tz','PRIMARY','2019-12-31 21:00:00','n_diff_pfx02',394,1,'Time_zone_id,Transition_time'),
 ('mysql','tz','PRIMARY','2019-12-31 21:00:00','n_leaf_pages',1,NULL,'Number of leaf pages in the index'),
@@ -1341,7 +1344,7 @@ UNLOCK TABLES;
 
 LOCK TABLES `innodb_table_stats` WRITE;
 /*!40000 ALTER TABLE `innodb_table_stats` DISABLE KEYS */;
-INSERT  IGNORE INTO `innodb_table_stats` VALUES
+INSERT IGNORE INTO `innodb_table_stats` VALUES
 ('mysql','tz','2019-12-31 21:00:00',394,1,0);
 /*!40000 ALTER TABLE `innodb_table_stats` ENABLE KEYS */;
 UNLOCK TABLES;
@@ -1350,7 +1353,7 @@ USE mysql;
 
 LOCK TABLES `time_zone` WRITE;
 /*!40000 ALTER TABLE `time_zone` DISABLE KEYS */;
-INSERT  IGNORE INTO `time_zone` VALUES
+INSERT IGNORE INTO `time_zone` VALUES
 (1,'N'),
 (2,'N'),
 (3,'N'),
@@ -1362,7 +1365,7 @@ UNLOCK TABLES;
 
 LOCK TABLES `time_zone_name` WRITE;
 /*!40000 ALTER TABLE `time_zone_name` DISABLE KEYS */;
-INSERT  IGNORE INTO `time_zone_name` VALUES
+INSERT IGNORE INTO `time_zone_name` VALUES
 ('Europe/Moscow',3),
 ('India/Kolkata',6),
 ('Japan',5),
@@ -1375,7 +1378,7 @@ UNLOCK TABLES;
 
 LOCK TABLES `time_zone_leap_second` WRITE;
 /*!40000 ALTER TABLE `time_zone_leap_second` DISABLE KEYS */;
-INSERT  IGNORE INTO `time_zone_leap_second` VALUES
+INSERT IGNORE INTO `time_zone_leap_second` VALUES
 (174834660,1),
 (78796800,1),
 (94694401,2),
@@ -1404,7 +1407,7 @@ UNLOCK TABLES;
 
 LOCK TABLES `time_zone_transition` WRITE;
 /*!40000 ALTER TABLE `time_zone_transition` DISABLE KEYS */;
-INSERT  IGNORE INTO `time_zone_transition` VALUES
+INSERT IGNORE INTO `time_zone_transition` VALUES
 (1,-1693706400,0),
 (1,-1680483600,1),
 (1,-1663455600,2),
@@ -1804,7 +1807,7 @@ UNLOCK TABLES;
 
 LOCK TABLES `time_zone_transition_type` WRITE;
 /*!40000 ALTER TABLE `time_zone_transition_type` DISABLE KEYS */;
-INSERT  IGNORE INTO `time_zone_transition_type` VALUES
+INSERT IGNORE INTO `time_zone_transition_type` VALUES
 (1,0,7200,1,'MEST'),
 (1,1,3600,0,'MET'),
 (1,2,7200,1,'MEST'),

@@ -253,7 +253,6 @@ enum spider_malloc_id {
   SPD_MID_DB_MBASE_RESULT_FETCH_ROW_FROM_TMP_TABLE_3,
   SPD_MID_DB_MBASE_ROW_APPEND_ESCAPED_TO_STR_1,
   SPD_MID_DB_MBASE_ROW_CLONE_1,
-  SPD_MID_DB_MBASE_SET_LOOP_CHECK_1,
   SPD_MID_DB_MBASE_SET_SQL_MODE_1,
   SPD_MID_DB_MBASE_SET_TIME_ZONE_1,
   SPD_MID_DB_MBASE_SET_WAIT_TIMEOUT_1,
@@ -1455,6 +1454,7 @@ typedef struct st_spider_table_mon
   st_spider_table_mon        *next;
 } SPIDER_TABLE_MON;
 
+/* List of `SPIDER_TABLE_MON's */
 typedef struct st_spider_table_mon_list
 {
   char                       *key;

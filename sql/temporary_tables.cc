@@ -1132,11 +1132,16 @@ TABLE *THD::open_temporary_table(TMP_TABLE_SHARE *share,
     DBUG_RETURN(NULL);                          /* Out of memory */
   }
 
+  uint flags= ha_open_options | (open_options & HA_OPEN_FOR_CREATE);
+  /*
+    In replication, temporary tables are not confined to a single
+    thread/THD.
+  */
+  if (slave_thread)
+    flags|= HA_OPEN_GLOBAL_TMP_TABLE;
   if (open_table_from_share(this, share, &alias,
                             (uint) HA_OPEN_KEYFILE,
-                            EXTRA_RECORD,
-                            (ha_open_options |
-                             (open_options & HA_OPEN_FOR_CREATE)),
+                            EXTRA_RECORD, flags,
                             table, false))
   {
     my_free(table);

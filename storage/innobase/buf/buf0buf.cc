@@ -76,6 +76,8 @@ struct set_numa_interleave_t
 		if (srv_numa_interleave) {
 
 			struct bitmask *numa_mems_allowed = numa_get_mems_allowed();
+			MEM_MAKE_DEFINED(numa_mems_allowed,
+					 sizeof *numa_mems_allowed);
 			ib::info() << "Setting NUMA memory policy to"
 				" MPOL_INTERLEAVE";
 			if (set_mempolicy(MPOL_INTERLEAVE,
@@ -1062,6 +1064,7 @@ inline bool buf_pool_t::chunk_t::create(size_t bytes)
   if (srv_numa_interleave)
   {
     struct bitmask *numa_mems_allowed= numa_get_mems_allowed();
+    MEM_MAKE_DEFINED(numa_mems_allowed, sizeof *numa_mems_allowed);
     if (mbind(mem, mem_size(), MPOL_INTERLEAVE,
               numa_mems_allowed->maskp, numa_mems_allowed->size,
               MPOL_MF_MOVE))
@@ -1591,17 +1594,14 @@ inline bool buf_pool_t::withdraw_blocks()
 
 		/* reserve free_list length */
 		if (UT_LIST_GET_LEN(withdraw) < withdraw_target) {
-			buf_flush_LRU(
-				std::max<ulint>(withdraw_target
-						- UT_LIST_GET_LEN(withdraw),
-						srv_LRU_scan_depth),
-				true);
-			mysql_mutex_unlock(&buf_pool.mutex);
-			buf_dblwr.flush_buffered_writes();
-			mysql_mutex_lock(&buf_pool.flush_list_mutex);
-			buf_flush_wait_LRU_batch_end();
-			mysql_mutex_unlock(&buf_pool.flush_list_mutex);
-			mysql_mutex_lock(&buf_pool.mutex);
+			try_LRU_scan = false;
+			mysql_mutex_unlock(&mutex);
+			mysql_mutex_lock(&flush_list_mutex);
+			page_cleaner_wakeup(true);
+			my_cond_wait(&done_flush_list,
+				     &flush_list_mutex.m_mutex);
+			mysql_mutex_unlock(&flush_list_mutex);
+			mysql_mutex_lock(&mutex);
 		}
 
 		/* relocate blocks/buddies in withdrawn area */
@@ -2705,9 +2705,10 @@ got_block:
 	if (state > buf_page_t::READ_FIX && state < buf_page_t::WRITE_FIX) {
 		if (mode == BUF_PEEK_IF_IN_POOL) {
 ignore_block:
+			block->unfix();
+ignore_unfixed:
 			ut_ad(mode == BUF_GET_POSSIBLY_FREED
 			      || mode == BUF_PEEK_IF_IN_POOL);
-			block->unfix();
 			if (err) {
 				*err = DB_CORRUPTION;
 			}
@@ -2721,16 +2722,32 @@ ignore_block:
 		in buf_page_t::read_complete() or
 		buf_pool_t::corrupted_evict(), or
 		after buf_zip_decompress() in this function. */
-		block->page.lock.s_lock();
+		if (rw_latch != RW_NO_LATCH) {
+			block->page.lock.s_lock();
+		} else if (!block->page.lock.s_lock_try()) {
+			/* For RW_NO_LATCH, we should not try to acquire S or X
+			latch directly as we could be violating the latching
+			order resulting in deadlock. Instead we try latching the
+			page and retry in case of a failure. */
+			goto wait_for_read;
+		}
 		state = block->page.state();
 		ut_ad(state < buf_page_t::READ_FIX
 		      || state >= buf_page_t::WRITE_FIX);
 		const page_id_t id{block->page.id()};
 		block->page.lock.s_unlock();
 
-		if (UNIV_UNLIKELY(id != page_id)) {
+		if (UNIV_UNLIKELY(state < buf_page_t::UNFIXED)) {
+			if (UNIV_UNLIKELY(id == page_id)) {
+				/* The page read was completed, and
+				another thread marked the page as free
+				while we were waiting. */
+				goto ignore_block;
+			}
+
 			ut_ad(id == page_id_t{~0ULL});
 			block->page.unfix();
+
 			if (++retries < BUF_PAGE_READ_MAX_RETRIES) {
 				goto loop;
 			}
@@ -2741,6 +2758,7 @@ ignore_block:
 
 			return nullptr;
 		}
+		ut_ad(id == page_id);
 	} else if (mode != BUF_PEEK_IF_IN_POOL) {
 	} else if (!mtr) {
 		ut_ad(!block->page.oldest_modification());
@@ -2767,6 +2785,7 @@ free_unfixed_block:
 	if (UNIV_UNLIKELY(!block->page.frame)) {
 		if (!block->page.lock.x_lock_try()) {
 wait_for_unzip:
+wait_for_read:
 			/* The page is being read or written, or
 			another thread is executing buf_zip_decompress()
 			in buf_page_get_gen() on it. */
@@ -2879,34 +2898,25 @@ wait_for_unfix:
 #endif /* UNIV_DEBUG */
 	ut_ad(block->page.frame);
 
+	/* The state = block->page.state() may be stale at this point,
+	and in fact, at any point of time if we consider its
+	buffer-fix component. If the block is being read into the
+	buffer pool, it is possible that buf_page_t::read_complete()
+	will invoke buf_pool_t::corrupted_evict() and therefore
+	invalidate it (invoke buf_page_t::set_corrupt_id() and set the
+	state to FREED). Therefore, after acquiring the page latch we
+	must recheck the state. */
+
 	switch (rw_latch) {
 	case RW_NO_LATCH:
 		mtr->memo_push(block, MTR_MEMO_BUF_FIX);
 		return block;
 	case RW_S_LATCH:
 		block->page.lock.s_lock();
-		ut_ad(!block->page.is_read_fixed());
-		if (UNIV_UNLIKELY(block->page.id() != page_id)) {
-			block->page.lock.s_unlock();
-			block->page.lock.x_lock();
-page_id_mismatch:
-			if (block->page.id().is_corrupted()) {
-				buf_pool.corrupted_evict(&block->page,
-							 block->page.state());
-			}
-			if (err) {
-				*err = DB_CORRUPTION;
-			}
-			return nullptr;
-		}
 		break;
 	case RW_SX_LATCH:
 		block->page.lock.u_lock();
 		ut_ad(!block->page.is_io_fixed());
-		if (UNIV_UNLIKELY(block->page.id() != page_id)) {
-			block->page.lock.u_x_upgrade();
-			goto page_id_mismatch;
-		}
 		break;
 	default:
 		ut_ad(rw_latch == RW_X_LATCH);
@@ -2916,12 +2926,18 @@ page_id_mismatch:
 			mtr->page_lock_upgrade(*block);
 			return block;
 		}
-		if (UNIV_UNLIKELY(block->page.id() != page_id)) {
-			goto page_id_mismatch;
-		}
 	}
 
 	mtr->memo_push(block, mtr_memo_type_t(rw_latch));
+	state = block->page.state();
+
+	if (UNIV_UNLIKELY(state < buf_page_t::UNFIXED)) {
+		mtr->release_last_page();
+		goto ignore_unfixed;
+	}
+
+	ut_ad(state < buf_page_t::READ_FIX || state > buf_page_t::WRITE_FIX);
+
 #ifdef BTR_CUR_HASH_ADAPT
 	btr_search_drop_page_hash_index(block, true);
 #endif /* BTR_CUR_HASH_ADAPT */
@@ -2932,82 +2948,71 @@ page_id_mismatch:
 	return block;
 }
 
-/********************************************************************//**
-This is the general function used to get optimistic access to a database
-page.
-@return TRUE if success */
 TRANSACTIONAL_TARGET
-bool buf_page_optimistic_get(ulint rw_latch, buf_block_t *block,
-                             uint64_t modify_clock, mtr_t *mtr)
+buf_block_t *buf_page_optimistic_fix(buf_block_t *block, page_id_t id)
 {
-  ut_ad(block);
-  ut_ad(mtr);
+  buf_pool_t::hash_chain &chain= buf_pool.page_hash.cell_get(id.fold());
+  transactional_shared_lock_guard<page_hash_latch> g
+    {buf_pool.page_hash.lock_get(chain)};
+  if (UNIV_UNLIKELY(!buf_pool.is_uncompressed(block) ||
+                    id != block->page.id() || !block->page.frame))
+    return nullptr;
+  const auto state= block->page.state();
+  if (UNIV_UNLIKELY(state < buf_page_t::UNFIXED ||
+                    state >= buf_page_t::READ_FIX))
+    return nullptr;
+  block->page.fix();
+  return block;
+}
+
+buf_block_t *buf_page_optimistic_get(buf_block_t *block,
+                                     rw_lock_type_t rw_latch,
+                                     uint64_t modify_clock, mtr_t *mtr)
+{
   ut_ad(mtr->is_active());
   ut_ad(rw_latch == RW_S_LATCH || rw_latch == RW_X_LATCH);
+  ut_ad(block->page.buf_fix_count());
 
-  if (have_transactional_memory);
-  else if (UNIV_UNLIKELY(!block->page.frame))
-    return false;
-  else
+  if (rw_latch == RW_S_LATCH)
   {
-    const auto state= block->page.state();
-    if (UNIV_UNLIKELY(state < buf_page_t::UNFIXED ||
-                      state >= buf_page_t::READ_FIX))
-      return false;
-  }
-
-  bool success;
-  const page_id_t id{block->page.id()};
-  buf_pool_t::hash_chain &chain= buf_pool.page_hash.cell_get(id.fold());
-  bool have_u_not_x= false;
-
-  {
-    transactional_shared_lock_guard<page_hash_latch> g
-      {buf_pool.page_hash.lock_get(chain)};
-    if (UNIV_UNLIKELY(id != block->page.id() || !block->page.frame))
-      return false;
-    const auto state= block->page.state();
-    if (UNIV_UNLIKELY(state < buf_page_t::UNFIXED ||
-                      state >= buf_page_t::READ_FIX))
-      return false;
-
-    if (rw_latch == RW_S_LATCH)
-      success= block->page.lock.s_lock_try();
-    else
+    if (!block->page.lock.s_lock_try())
     {
-      have_u_not_x= block->page.lock.have_u_not_x();
-      success= have_u_not_x || block->page.lock.x_lock_try();
+    fail:
+      block->page.unfix();
+      return nullptr;
     }
-  }
-
-  if (!success)
-    return false;
-
-  if (have_u_not_x)
-  {
-    block->page.lock.u_x_upgrade();
-    mtr->page_lock_upgrade(*block);
-    ut_ad(id == block->page.id());
-    ut_ad(modify_clock == block->modify_clock);
-  }
-  else
-  {
-    ut_ad(rw_latch == RW_S_LATCH || !block->page.is_io_fixed());
-    ut_ad(id == block->page.id());
 
     if (modify_clock != block->modify_clock || block->page.is_freed())
     {
-      if (rw_latch == RW_S_LATCH)
-        block->page.lock.s_unlock();
-      else
-        block->page.lock.x_unlock();
-      return false;
+      block->page.lock.s_unlock();
+      goto fail;
     }
 
-    block->page.fix();
     ut_ad(!block->page.is_read_fixed());
     buf_page_make_young_if_needed(&block->page);
-    mtr->memo_push(block, mtr_memo_type_t(rw_latch));
+    mtr->memo_push(block, MTR_MEMO_PAGE_S_FIX);
+  }
+  else if (block->page.lock.have_u_not_x())
+  {
+    block->page.lock.u_x_upgrade();
+    block->page.unfix();
+    mtr->page_lock_upgrade(*block);
+    ut_ad(modify_clock == block->modify_clock);
+  }
+  else if (!block->page.lock.x_lock_try())
+    goto fail;
+  else
+  {
+    ut_ad(!block->page.is_io_fixed());
+
+    if (modify_clock != block->modify_clock || block->page.is_freed())
+    {
+      block->page.lock.x_unlock();
+      goto fail;
+    }
+
+    buf_page_make_young_if_needed(&block->page);
+    mtr->memo_push(block, MTR_MEMO_PAGE_X_FIX);
   }
 
   ut_d(if (!(++buf_dbg_counter % 5771)) buf_pool.validate());
@@ -3017,7 +3022,7 @@ bool buf_page_optimistic_get(ulint rw_latch, buf_block_t *block,
   ut_ad(~buf_page_t::LRU_MASK & state);
   ut_ad(block->page.frame);
 
-  return true;
+  return block;
 }
 
 /** Try to S-latch a page.

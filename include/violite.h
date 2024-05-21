@@ -41,6 +41,13 @@ enum enum_vio_type
   VIO_TYPE_SSL
   /* see also vio_type_names[] */
 };
+
+enum enum_vio_state
+{
+  VIO_STATE_NOT_INITIALIZED, VIO_STATE_ACTIVE, VIO_STATE_SHUTDOWN,
+  VIO_STATE_CLOSED
+};
+
 #define FIRST_VIO_TYPE VIO_CLOSED
 #define LAST_VIO_TYPE VIO_TYPE_SSL
 
@@ -244,6 +251,7 @@ struct st_vio
   struct sockaddr_storage local;	/* Local internet address */
   struct sockaddr_storage remote;	/* Remote internet address */
   enum enum_vio_type	type;		/* Type of connection */
+  enum enum_vio_state	state;		/* State of the connection */
   const char		*desc;		/* String description */
   char                  *read_buffer;   /* buffer for vio_read_buff */
   char                  *read_pos;      /* start of unfetched data in the

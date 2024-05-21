@@ -14,14 +14,11 @@ select sformat(0);
 select sformat('C');
 select sformat(-4.2);
 select sformat(5, 5, 5);
-#enable after fix MDEV-27871
---disable_view_protocol
 select sformat('{} {}', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
---enable_view_protocol
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0) as x;
 select sformat('{{{}}}', 0);
 select sformat('{{{}{{', 0);
 select sformat('{{{{{}{{', 'param1');
@@ -29,18 +26,13 @@ select sformat(' {{ {{ {} {{ ', 'param1');
 select sformat(' {{ {} {}', 'param1', 'param2');
 select sformat('A{}C{}E{}', 'B', 'D', 'F');
 select sformat('{} {}', FALSE, TRUE);
-#enable after fix MDEV-29601
---disable_service_connection
 select sformat('Add € != {} !=  {}?', '$', '£');
 select sformat('Check {} != {} != {}?', '€', '$', '£');
---enable_service_connection
 select sformat('{}{}{}', 1, 2, 3);
 select sformat('Float {} Boolean {} Number {}', 3.14159, True, -50);
 select sformat('SUM {} + {} = {}', 2, 3, 2+3);
 select sformat('Numbers {} {} {}', 1, 1.11, 1.111);
 select sformat('what {} is {}?', 'time', 'it');
-#enable after fix MDEV-27871
---disable_view_protocol
 select sformat('{} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {}
   {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {}
   {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {}
@@ -49,7 +41,7 @@ select sformat('{} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {
   33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57,
   58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82,
   83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105,
-  106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120);
+  106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120) as x;
 select sformat('{} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {}
   {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {}
   {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {}
@@ -61,8 +53,7 @@ select sformat('{} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {
   '69', '70', '71', '72', '73', '74', '75', '76', '77', '78', '79', '80', '81', '82', '83', '84',
   '85', '86', '87', '88', '89', '90', '91', '92', '93', '94', '95', '96', '97', '98', '99', '100',
   '101', '102', '103', '104', '105', '106', '107', '108', '109', '110', '111', '112', '113', '114',
-  '115', '116', '117', '118', '119', '120');
---enable_view_protocol
+  '115', '116', '117', '118', '119', '120') as x;
 
 echo #;
 echo # Error Test Cases;
@@ -92,10 +83,7 @@ insert into t2 values (0.0025, 25, 'A', DATE('2020-06-29')),
                       (0.0005,  5, 'B', DATE('2020-6-29')),
                       (5.5555, -5, 'C', DATE('200629')),
                       (-9,     -9, 'D', DATE('20*06*29'));
-#enable after fix MDEV-27871
---disable_view_protocol
-select sformat('p1 {:.4f} p2 {} p3 {} p4 {}', param1, param2, param3, param4) from t2;
---enable_view_protocol
+select sformat('p1 {:.4f} p2 {} p3 {} p4 {}', param1, param2, param3, param4) x from t2;
 drop table t2;
 
 set names utf8;
@@ -127,10 +115,7 @@ echo #;
 echo # Format Test Cases;
 echo #;
 select sformat('Num {:L}', 13800000000);
-#enable after fix MDEV-29646
---disable_view_protocol
 select sformat('Num [{:20}]', 42);
---enable_view_protocol
 select sformat('Number: {:*^{}}', 4, 5);
 select sformat('{:02} - {:02} - {:02}', 1, 2, 3);
 select sformat('Character {:c}', 104);
@@ -141,10 +126,7 @@ select sformat('Float {:.2f}', 42.0);
 select sformat('Float {:f}', 42.0);
 select sformat('Number {:d}', 42);
 select sformat('Number {:{}}', 5, 5);
-#enable after fix MDEV-29646
---disable_view_protocol
 select sformat('Number [{:10}]', 9999);
---enable_view_protocol
 select sformat('Number {:.3}', 3.1416);
 select sformat('int: {0:d};  hex: {0:x};  oct: {0:o}', 42);
 select sformat('int: {0:d};  hex: {0:#x};  oct: {0:#o}', 42);
@@ -155,16 +137,10 @@ select sformat('The binary version of {0} is {0:b}', 5);
 select sformat('{:+f}; {:+f}', 3.14, -3.14);
 select sformat('{: f}; {: f}', 3.14, -3.14);
 select sformat('{:-f}; {:-f}', 3.14, -3.14);
-#enable after fix MDEV-27871
---disable_view_protocol
-select sformat('The temperature is between {: } and {: } degrees celsius.', -3, 7);
-select sformat('The temperature is between {:-} and {:-} degrees celsius.', -3, 7);
-select sformat('The temperature is between {:+} and {:+} degrees celsius.', -3, 7);
---enable_view_protocol
-#check after fix MDEV-29646
---disable_view_protocol
+select sformat('The temperature is between {: } and {: } degrees celsius.', -3, 7) x;
+select sformat('The temperature is between {:-} and {:-} degrees celsius.', -3, 7) x;
+select sformat('The temperature is between {:+} and {:+} degrees celsius.', -3, 7) x;
 select sformat('We have {:<8} chickens.', 49);
---enable_view_protocol
 select sformat('Center alimgn [{:*^10}]', 'data');
 select sformat('Center aling [{:^10}].', 'data');
 select sformat('Right aling [{:>10}].', 'data');
@@ -175,20 +151,31 @@ select sformat('Change Order {1} {0}', 'second', 'first');
 echo #;
 echo # Failed Format Test Cases;
 echo #;
+--replace_regex /invalid format specifier/invalid type specifier/
 select sformat('Test {:c}', 'word');
 select sformat('Test {one} {two} {three}', 1, 2, 3);
 select sformat('Number {:{<}', 8);
 select sformat('Number {:10000000000}', 5);
 select sformat('1={1} 2={2} 0={0}', 0, 1);
+--replace_regex /invalid format specifier/precision not allowed for this argument type/
 select sformat('Number {:.2d}', 42);
+--replace_regex /invalid format specifier/invalid type specifier/
 select sformat('You scored {:.0%}', 0.25);
+--replace_regex /invalid format specifier/invalid type specifier/
 select sformat('You scored {:%}', 0.25);
+--replace_regex /invalid format specifier/invalid type specifier/
 select sformat('The price is {:f} dollars.', 45);
+--replace_regex /invalid format specifier/precision not allowed for this argument type/
 select sformat('The price is {:.2f} dollars.', 45);
+--replace_regex /invalid format specifier/invalid type specifier/
 select sformat('We have {:E} chickens.', 5);
+--replace_regex /invalid format specifier/invalid type specifier/
 select sformat('We have {:e} chickens.', 5);
+--replace_regex /invalid format specifier/invalid type specifier/
 select sformat('The universe is {:,} years old.', 13800000000);
+--replace_regex /invalid format specifier/invalid type specifier/
 select sformat('The universe is {:_} years old.', 13800000000);
+--replace_regex /invalid format specifier/format specifier requires numeric argument/
 select sformat('String {:-}', 'hello');
 
 echo #;
@@ -211,6 +198,7 @@ drop table t2;
 echo #;
 echo # Unsupported/disabled features;
 echo #;
+--replace_regex /invalid format specifier/invalid type specifier/
 select sformat('{:p}', '50');
 
 echo #;
@@ -219,10 +207,7 @@ echo #;
 select sformat('={}=', _ucs2 x'006100620063');
 set names utf8;
 select sformat(_ucs2 x'003D007B007D003D', _ucs2 x'0442043504410442');
-#enable after fix MDEV-27871
---disable_view_protocol
-select hex(sformat(_ucs2 x'003D007B007D003D', _ucs2 x'0442043504410442'));
---enable_view_protocol
+select hex(sformat(_ucs2 x'003D007B007D003D', _ucs2 x'0442043504410442')) x;
 create table t1 as select sformat(_ucs2 x'003D007B007D003D', _ucs2 x'0442043504410442') as x;
 show create table t1;
 drop table t1;
@@ -233,6 +218,7 @@ echo # ps parameters;
 echo #;
 prepare s from 'select sformat("={:d}=", ?)';
 execute s using 100;
+--replace_regex /invalid format specifier/invalid type specifier/
 execute s using 'abc';
 
 echo #;

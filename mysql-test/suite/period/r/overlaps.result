@@ -463,3 +463,85 @@ VALUES
 ('2000-01-01 00:00:00.000000', '2001-01-01 00:00:00.000000', 'abc');
 ERROR 23000: Duplicate entry 'abc-2001-01-01 00:00:00.000000-2000-01-01 00:00:00.000000' for key 'index_name'
 DROP TABLE t1;
+# MDEV-25370 Update for portion changes autoincrement key in period table
+create or replace table cars(id int auto_increment,
+price int, s date, e date,
+period for p(s,e),
+primary key(id, p without overlaps));
+insert into cars(price, s, e) values (1000, '2018-01-01', '2020-01-01');
+select * from cars;
+id	price	s	e
+1	1000	2018-01-01	2020-01-01
+update cars for portion of p from '2019-01-01' to '2019-12-01' set price= 1100;
+select * from cars;
+id	price	s	e
+1	1000	2018-01-01	2019-01-01
+1	1000	2019-12-01	2020-01-01
+1	1100	2019-01-01	2019-12-01
+delete from cars for portion of p from '2019-12-10' to '2019-12-20';
+select * from cars;
+id	price	s	e
+1	1000	2018-01-01	2019-01-01
+1	1000	2019-12-01	2019-12-10
+1	1000	2019-12-20	2020-01-01
+1	1100	2019-01-01	2019-12-01
+# AUTO_INCREMENT field is separate from WITHOUT OVERLAPS
+create or replace table cars(id int primary key auto_increment, 
+car_id int,
+price int, s date, e date,
+period for p(s,e),
+unique(car_id, p without overlaps));
+insert cars(car_id, price, s, e) values (1, 1000, '2018-01-01', '2020-01-01');
+select * from cars;
+id	car_id	price	s	e
+1	1	1000	2018-01-01	2020-01-01
+update cars for portion of p from '2019-01-01' to '2019-12-01' set price= 1100;
+select * from cars;
+id	car_id	price	s	e
+1	1	1100	2019-01-01	2019-12-01
+2	1	1000	2018-01-01	2019-01-01
+3	1	1000	2019-12-01	2020-01-01
+delete from cars for portion of p from '2019-12-10' to '2019-12-20';
+select * from cars;
+id	car_id	price	s	e
+1	1	1100	2019-01-01	2019-12-01
+2	1	1000	2018-01-01	2019-01-01
+4	1	1000	2019-12-01	2019-12-10
+5	1	1000	2019-12-20	2020-01-01
+# AUTO_INCREMENT field is both standalone and in WITHOUT OVERLAPS
+create or replace table cars(id int primary key auto_increment,
+price int, s date, e date,
+period for p(s,e),
+unique(id, p without overlaps));
+insert cars(price, s, e) values (1000, '2018-01-01', '2020-01-01');
+insert cars(price, s, e) values (1000, '2021-01-01', '2022-01-01');
+update cars for portion of p from '2019-01-01' to '2019-12-01' set price= 1100;
+# autoincrement index is: id int primary key
+# id increments each time.
+select * from cars;
+id	price	s	e
+1	1100	2019-01-01	2019-12-01
+2	1000	2021-01-01	2022-01-01
+3	1000	2018-01-01	2019-01-01
+4	1000	2019-12-01	2020-01-01
+truncate cars;
+insert cars(price, s, e) values (1000, '2018-01-01', '2020-01-01');
+delete from cars for portion of p from '2019-12-10' to '2019-12-20';
+select * from cars;
+id	price	s	e
+2	1000	2018-01-01	2019-12-10
+3	1000	2019-12-20	2020-01-01
+create or replace table cars(id int unique auto_increment,
+price int, s date, e date,
+period for p(s,e),
+primary key (id, p without overlaps));
+insert cars(price, s, e) values (1000, '2018-01-01', '2020-01-01');
+# autoincrement index is: primary key (id, p without overlaps)
+# id is not incremented, hence duplication error
+update cars for portion of p from '2019-01-01' to '2019-12-01' set price= 1100;
+ERROR 23000: Duplicate entry '1' for key 'id'
+truncate cars;
+insert cars(price, s, e) values (1000, '2018-01-01', '2020-01-01');
+delete from cars for portion of p from '2019-12-10' to '2019-12-20';
+ERROR 23000: Duplicate entry '1' for key 'id'
+drop table cars;

@@ -58,7 +58,7 @@ SELECT * FROM bug_60196;
 --echo # Restart server.
 
 # Write file to make mysql-test-run.pl start up the server again
---exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--write_line restart $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 
 # Turn on reconnect
 --enable_reconnect
@@ -132,7 +132,7 @@ SELECT * FROM Bug_60309;
 --echo # Restart server.
 
 # Write file to make mysql-test-run.pl start up the server again
---exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--write_line restart $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 
 # Turn on reconnect
 --enable_reconnect

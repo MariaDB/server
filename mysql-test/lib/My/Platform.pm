@@ -23,7 +23,7 @@ use File::Path;
 use Carp;
 
 use base qw(Exporter);
-our @EXPORT= qw(IS_CYGWIN IS_MSYS IS_WINDOWS IS_WIN32PERL IS_AIX
+our @EXPORT= qw(IS_CYGWIN IS_MSYS IS_WINDOWS IS_WIN32PERL IS_AIX IS_MAC
 		native_path posix_path mixed_path
                 check_socket_path_length process_alive open_for_append);
 
@@ -70,6 +70,14 @@ BEGIN {
   }
 }
 
+BEGIN {
+  if ($^O eq "darwin") {
+    eval 'sub IS_MAC { 1 }';
+  }
+  else {
+    eval 'sub IS_MAC { 0 }';
+  }
+}
 
 #
 # native_path

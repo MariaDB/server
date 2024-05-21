@@ -20,4 +20,12 @@ FLOOR(index_length/@@innodb_page_size)
 2
 disconnect stop_purge;
 DROP TABLE t1;
+#
+# MDEV-22855  Assertion (!field->prefix_len ||
+#        field->fixed_len == field->prefix_len)
+#        failed in btr_node_ptr_max_size
+#
+CREATE TABLE t1(c CHAR(194) CHARACTER SET UTF32, KEY k1(c(193)))ENGINE=InnoDB;
+INSERT INTO t1 SET c='';
+DROP TABLE t1;
 # End of 10.4 tests
