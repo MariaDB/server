@@ -1222,7 +1222,8 @@ err:
   DBUG_ASSERT(!name->str || !dupes); // dupes is ONLY for name->str == 0
 
   if (errs == 0 && oks == 0 && !dupes) // no plugin was found
-    my_error(ER_PLUGIN_IS_NOT_LOADED, MyFlags, name->str);
+    my_error(ER_CANT_FIND_DL_ENTRY, MyFlags, name->str, tmp.plugin_dl->dl.str);
+
 
   plugin_dl_del(tmp.plugin_dl);
   if (errs > 0 || oks + dupes == 0)

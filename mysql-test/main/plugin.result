@@ -1,5 +1,7 @@
 CREATE TABLE t1(a int) ENGINE=EXAMPLE;
 ERROR 42000: Unknown storage engine 'EXAMPLE'
+INSTALL PLUGIN non_exist SONAME 'ha_example';
+ERROR HY000: Can't find symbol 'non_exist' in library 'ha_example.so'
 INSTALL PLUGIN example SONAME 'ha_example';
 INSTALL PLUGIN EXAMPLE SONAME 'ha_example';
 ERROR HY000: Plugin 'EXAMPLE' already installed
