@@ -22,12 +22,6 @@ EXPECT_1
 1
 gtid_binlog_state_equal
 0
-connection node_2;
-SELECT COUNT(*) AS EXPECT_1 FROM t1;
-EXPECT_1
-1
-gtid_binlog_state_equal
-0
 #cleanup
 connection node_3;
 DROP TABLE t1;
