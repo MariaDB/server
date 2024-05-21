@@ -1906,7 +1906,7 @@ bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
     */
     build_table_filename(path, sizeof(path) - 1, lpt->alter_info->db.str,
                          lpt->alter_info->table_name.str, "", 0);
-    strxnmov(frm_name, sizeof(frm_name), path, reg_ext, NullS);
+    strxnmov(frm_name, sizeof(frm_name)-1, path, reg_ext, NullS);
     /*
       When we are changing to use new frm file we need to ensure that we
       don't collide with another thread in process to open the frm file.

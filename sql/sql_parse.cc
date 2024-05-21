@@ -9564,7 +9564,7 @@ sql_kill_user(THD *thd, LEX_USER *user, killed_state state)
     break;
   case ER_KILL_DENIED_ERROR:
     char buf[DEFINER_LENGTH+1];
-    strxnmov(buf, sizeof(buf), user->user.str, "@", user->host.str, NULL);
+    strxnmov(buf, sizeof(buf)-1, user->user.str, "@", user->host.str, NULL);
     my_printf_error(ER_KILL_DENIED_ERROR, ER_THD(thd, ER_CANNOT_USER), MYF(0),
                     "KILL USER", buf);
     break;

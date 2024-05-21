@@ -256,3 +256,8 @@ drop database mysqltest;
 Warnings:
 Note	1008	Can't drop database 'mysqltest'; database doesn't exist
 set @@session.sql_if_exists=0;
+#
+# MDEV-34205 ASAN stack-buffer-overflow in strxnmov | frm_file_exists
+#
+DROP TABLE `##################################################_long`.`#################################################_long`;
+ERROR 42S02: Unknown table '##################################################_long.#########################################...'

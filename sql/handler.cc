@@ -4356,7 +4356,7 @@ void handler::print_error(int error, myf errflag)
   if (error < HA_ERR_FIRST && bas_ext()[0])
   {
     char buff[FN_REFLEN];
-    strxnmov(buff, sizeof(buff),
+    strxnmov(buff, sizeof(buff)-1,
              table_share->normalized_path.str, bas_ext()[0], NULL);
     my_error(textno, errflag, buff, error);
   }

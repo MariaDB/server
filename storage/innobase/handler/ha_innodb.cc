@@ -13313,7 +13313,7 @@ ha_innobase::discard_or_import_tablespace(
 static bool frm_file_exists(const char *path)
 {
   char buff[FN_REFLEN];
-  strxnmov(buff, FN_REFLEN, path, reg_ext, NullS);
+  strxnmov(buff, sizeof(buff)-1, path, reg_ext, NullS);
   return !access(buff, F_OK);
 }
 
