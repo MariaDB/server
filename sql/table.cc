@@ -89,7 +89,7 @@ LEX_CSTRING INFORMATION_SCHEMA_NAME= {STRING_WITH_LEN("information_schema")};
 LEX_CSTRING PERFORMANCE_SCHEMA_DB_NAME= {STRING_WITH_LEN("performance_schema")};
 
 /* MYSQL_SCHEMA name */
-LEX_CSTRING MYSQL_SCHEMA_NAME= {STRING_WITH_LEN("mysql")};
+Lex_ident_db MYSQL_SCHEMA_NAME= {STRING_WITH_LEN("mysql")};
 
 /* GENERAL_LOG name */
 LEX_CSTRING GENERAL_LOG_NAME= {STRING_WITH_LEN("general_log")};
@@ -273,42 +273,38 @@ const char *fn_frm_ext(const char *name)
 }
 
 
-TABLE_CATEGORY get_table_category(const LEX_CSTRING *db,
-                                  const LEX_CSTRING *name)
+TABLE_CATEGORY get_table_category(const Lex_ident_db &db,
+                                  const Lex_ident_table &name)
 {
-  DBUG_ASSERT(db != NULL);
-  DBUG_ASSERT(name != NULL);
-
 #ifdef WITH_WSREP
-  if (db->str &&
-      my_strcasecmp(system_charset_info, db->str, WSREP_SCHEMA) == 0)
+  if (db.str && db.streq(MYSQL_SCHEMA_NAME))
   {
-    if ((my_strcasecmp(system_charset_info, name->str, WSREP_STREAMING_TABLE) == 0 ||
-         my_strcasecmp(system_charset_info, name->str, WSREP_CLUSTER_TABLE) == 0 ||
-         my_strcasecmp(system_charset_info, name->str, WSREP_MEMBERS_TABLE) == 0))
+    if (name.streq(Lex_ident_table{STRING_WITH_LEN(WSREP_STREAMING_TABLE)}) ||
+        name.streq(Lex_ident_table{STRING_WITH_LEN(WSREP_CLUSTER_TABLE)}) ||
+        name.streq(Lex_ident_table{STRING_WITH_LEN(WSREP_MEMBERS_TABLE)}))
     {
       return TABLE_CATEGORY_INFORMATION;
     }
   }
 #endif /* WITH_WSREP */
-  if (is_infoschema_db(db))
+  if (is_infoschema_db(&db))
     return TABLE_CATEGORY_INFORMATION;
 
-  if (is_perfschema_db(db))
+  if (is_perfschema_db(&db))
     return TABLE_CATEGORY_PERFORMANCE;
 
-  if (lex_string_eq(&MYSQL_SCHEMA_NAME, db))
+  if (db.streq(MYSQL_SCHEMA_NAME))
   {
-    if (is_system_table_name(name->str, name->length))
+    if (is_system_table_name(name.str, name.length))
       return TABLE_CATEGORY_SYSTEM;
 
-    if (lex_string_eq(&GENERAL_LOG_NAME, name))
+    if (name.streq(GENERAL_LOG_NAME))
       return TABLE_CATEGORY_LOG;
 
-    if (lex_string_eq(&SLOW_LOG_NAME, name))
+    if (name.streq(SLOW_LOG_NAME))
       return TABLE_CATEGORY_LOG;
 
-    if (lex_string_eq(&TRANSACTION_REG_NAME, name))
+    if (name.streq(TRANSACTION_REG_NAME))
       return TABLE_CATEGORY_LOG;
   }
 
@@ -361,7 +357,8 @@ TABLE_SHARE *alloc_table_share(const char *db, const char *table_name,
     strmov(path_buff, path);
     share->normalized_path.str=    share->path.str;
     share->normalized_path.length= path_length;
-    share->table_category= get_table_category(& share->db, & share->table_name);
+    share->table_category= get_table_category(Lex_ident_db(share->db),
+                                           Lex_ident_table(share->table_name));
     share->open_errno= ENOENT;
     /* The following will be updated in open_table_from_share */
     share->can_do_row_logging= 1;

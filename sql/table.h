@@ -22,6 +22,7 @@
 #include "datadict.h"
 #include "sql_string.h"                         /* String */
 #include "lex_string.h"
+#include "lex_ident.h"
 
 #ifndef MYSQL_CLIENT
 
@@ -522,8 +523,8 @@ enum enum_table_category
 
 typedef enum enum_table_category TABLE_CATEGORY;
 
-TABLE_CATEGORY get_table_category(const LEX_CSTRING *db,
-                                  const LEX_CSTRING *name);
+TABLE_CATEGORY get_table_category(const Lex_ident_db &db,
+                                  const Lex_ident_table &name);
 
 
 typedef struct st_table_field_type
@@ -2880,7 +2881,10 @@ struct TABLE_LIST
      @brief Returns the name of the database that the referenced table belongs
      to.
   */
-  const char *get_db_name() const { return view != NULL ? view_db.str : db.str; }
+  const LEX_CSTRING get_db_name() const
+  {
+    return view != NULL ? view_db : db;
+  }
 
   /**
      @brief Returns the name of the table that this TABLE_LIST represents.
@@ -2888,7 +2892,10 @@ struct TABLE_LIST
      @details The unqualified table name or view name for a table or view,
      respectively.
    */
-  const char *get_table_name() const { return view != NULL ? view_name.str : table_name.str; }
+  const LEX_CSTRING get_table_name() const
+  {
+    return view != NULL ? view_name : table_name;
+  }
   bool is_active_sjm();
   bool is_jtbm() { return MY_TEST(jtbm_subselect != NULL); }
   st_select_lex_unit *get_unit();
@@ -3292,7 +3299,7 @@ extern LEX_CSTRING TRANSACTION_REG_NAME;
 
 /* information schema */
 extern LEX_CSTRING INFORMATION_SCHEMA_NAME;
-extern LEX_CSTRING MYSQL_SCHEMA_NAME;
+extern Lex_ident_db MYSQL_SCHEMA_NAME;
 
 /* table names */
 extern LEX_CSTRING MYSQL_PROC_NAME;

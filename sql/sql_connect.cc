@@ -509,7 +509,8 @@ extern "C" void free_table_stats(TABLE_STATS* table_stats)
 
 void init_global_table_stats(void)
 {
-  my_hash_init(PSI_INSTRUMENT_ME, &global_table_stats, system_charset_info,
+  my_hash_init(PSI_INSTRUMENT_ME, &global_table_stats,
+               Lex_ident_fs::charset_info(),
                max_connections, 0, 0, (my_hash_get_key) get_key_table_stats,
                (my_hash_free_key) free_table_stats, 0);
 }
@@ -528,7 +529,8 @@ extern "C" void free_index_stats(INDEX_STATS* index_stats)
 
 void init_global_index_stats(void)
 {
-  my_hash_init(PSI_INSTRUMENT_ME, &global_index_stats, system_charset_info,
+  my_hash_init(PSI_INSTRUMENT_ME, &global_index_stats,
+               Lex_ident_fs::charset_info(),
                max_connections, 0, 0, (my_hash_get_key) get_key_index_stats,
                (my_hash_free_key) free_index_stats, 0);
 }
