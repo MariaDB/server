@@ -227,13 +227,13 @@ void _ma_set_fatal_error_with_share(MARIA_SHARE *share, int error)
 int _ma_update_tmp_file_size(struct tmp_file_tracking *track,
                              ulonglong file_size)
 {
+  int err;
   if (track->file_size != file_size)
   {
     track->file_size= file_size;
-    if (update_tmp_file_size(track, 0))
+    if ((err= update_tmp_file_size(track, 0)))
     {
-      my_errno= (HA_ERR_LOCAL_TMP_SPACE_FULL +
-                 (my_errno - EE_LOCAL_TMP_SPACE_FULL));
+      my_errno= HA_ERR_LOCAL_TMP_SPACE_FULL + (err - EE_LOCAL_TMP_SPACE_FULL);
       return 1;
     }
   }

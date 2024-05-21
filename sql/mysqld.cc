@@ -3804,7 +3804,7 @@ static int temp_file_size_cb_func(struct tmp_file_tracking *track,
           global_max_tmp_space_usage)
       {
         global_tmp_space_used-= size_change;
-        error= my_errno= EE_GLOBAL_TMP_SPACE_FULL;
+        error= EE_GLOBAL_TMP_SPACE_FULL;
         goto exit;
       }
       if (thd->status_var.tmp_space_used + size_change >
@@ -3812,7 +3812,7 @@ static int temp_file_size_cb_func(struct tmp_file_tracking *track,
           thd->variables.max_tmp_space_usage)
       {
         global_tmp_space_used-= size_change;
-        error= my_errno= EE_LOCAL_TMP_SPACE_FULL;
+        error= EE_LOCAL_TMP_SPACE_FULL;
         goto exit;
       }
       set_if_bigger(global_status_var.max_tmp_space_used, cached_space);

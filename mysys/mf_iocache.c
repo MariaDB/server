@@ -88,7 +88,7 @@ static inline my_bool tmp_file_track(IO_CACHE *info, ulonglong file_size)
                                          MY_TRACK_WITH_LIMIT))))
       {
         if (info->myflags & MY_WME)
-          my_error(my_errno, MYF(0));
+          my_error(error, MYF(0));
         info->error= -1;
         return 1;
       }
