@@ -361,6 +361,9 @@ typedef struct st_join_table {
     
   double        partial_join_cardinality;
 
+  /* Used with force_index_join */
+  double        cached_forced_index_cost{0};
+
   table_map	dependent,key_dependent;
   /*
      1 - use quick select
@@ -379,7 +382,8 @@ typedef struct st_join_table {
   uint          used_blobs;
   uint          used_null_fields;
   uint          used_uneven_bit_fields;
-  enum join_type type;
+  uint          cached_forced_index;
+  enum join_type type, cached_forced_index_type;
   /* If first key part is used for any key in 'key_dependent' */
   bool          key_start_dependent;
   bool          cached_eq_ref_table,eq_ref_table;
@@ -1035,6 +1039,8 @@ public:
     are covered by the specified semi-join strategy
   */
   uint n_sj_tables;
+    
+  uint forced_index;                    // If force_index() is used
 
   /*
     TRUE <=> join buffering will be used. At the moment this is based on

@@ -5885,8 +5885,6 @@ TABLE_LIST::TABLE_LIST(THD *thd,
   mdl_type= mdl_t;
   table_options= table_opts;
   updating= table_options & TL_OPTION_UPDATING;
-  /* TODO: remove TL_OPTION_FORCE_INDEX as it looks like it's not used */
-  force_index= table_options & TL_OPTION_FORCE_INDEX;
   ignore_leaves= table_options & TL_OPTION_IGNORE_LEAVES;
   sequence= table_options & TL_OPTION_SEQUENCE;
   derived= table_ident->sel;
@@ -8789,17 +8787,19 @@ bool TABLE_LIST::process_index_hints(TABLE *tbl)
       index_group[INDEX_HINT_USE].merge(index_group[INDEX_HINT_FORCE]);
     }
 
+    if (!index_join[INDEX_HINT_FORCE].is_clear_all())
+    {
+      tbl->force_index_join= TRUE;
+      index_join[INDEX_HINT_USE].merge(index_join[INDEX_HINT_FORCE]);
+    }
+
     /*
       TODO: get rid of tbl->force_index (on if any FORCE INDEX is specified)
       and create tbl->force_index_join instead.
       Then use the correct force_index_XX instead of the global one.
     */
-    if (!index_join[INDEX_HINT_FORCE].is_clear_all() ||
-        tbl->force_index_group || tbl->force_index_order)
-    {
-      tbl->force_index= TRUE;
-      index_join[INDEX_HINT_USE].merge(index_join[INDEX_HINT_FORCE]);
-    }
+    tbl->force_index= (tbl->force_index_order | tbl->force_index_group |
+                       tbl->force_index_join);
 
     /* apply USE INDEX */
     if (!index_join[INDEX_HINT_USE].is_clear_all() || have_empty_use_join)
