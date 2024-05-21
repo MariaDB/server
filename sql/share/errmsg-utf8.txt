@@ -3315,7 +3315,7 @@ ER_CANT_OPEN_LIBRARY
         swe "Kan inte öppna det dynamiska biblioteket '%-.192s' (Felkod: %d, %-.128s)"
         ukr "Не можу відкрити розділювану бібліотеку '%-.192s' (помилка: %d, %-.128s)"
 ER_CANT_FIND_DL_ENTRY
-        chi "在库中找不到符号 '%-.128s' '%-.128s'"
+        chi "在库'%2$-.128s'中找不到符号 '%1$-.128s'"
         cze "Nemohu najít funkci '%-.128s' v knihovně '%-.128s'"
         dan "Kan ikke finde funktionen '%-.128s' i bibliotek '%-.128s'"
         eng "Can't find symbol '%-.128s' in library '%-.128s'"
