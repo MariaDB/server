@@ -554,6 +554,7 @@ trx_free_at_shutdown(trx_t *trx)
 	trx->state = TRX_STATE_NOT_STARTED;
 	ut_ad(!UT_LIST_GET_LEN(trx->lock.trx_locks));
 	trx->id = 0;
+	ut_d(*trx->detailed_error = '\0');
 	trx->free();
 }
 
