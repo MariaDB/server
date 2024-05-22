@@ -284,6 +284,7 @@ func_exit:
   init(TRX_SYS_DOUBLEWRITE + read_buf);
 
   const bool upgrade_to_innodb_file_per_table=
+    !srv_read_only_mode &&
     mach_read_from_4(TRX_SYS_DOUBLEWRITE_SPACE_ID_STORED +
                      TRX_SYS_DOUBLEWRITE + read_buf) !=
     TRX_SYS_DOUBLEWRITE_SPACE_ID_STORED_N;
