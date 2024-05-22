@@ -32,23 +32,25 @@ Created 5/24/1996 Heikki Tuuri
 enum dberr_t {
 	DB_SUCCESS,
 
-	DB_SUCCESS_LOCKED_REC = 9,	/*!< like DB_SUCCESS, but a new
+	DB_SUCCESS_LOCKED_REC= 9,		/*!< like DB_SUCCESS, but a new
 					explicit record lock was created */
 
 	/* The following are error codes */
-	DB_ERROR = 11,
+	DB_RECORD_CHANGED,
+	DB_ERROR,
 	DB_INTERRUPTED,
 	DB_OUT_OF_MEMORY,
 	DB_OUT_OF_FILE_SPACE,
 	DB_LOCK_WAIT,
 	DB_DEADLOCK,
-	DB_ROLLBACK,
 	DB_DUPLICATE_KEY,
 	DB_MISSING_HISTORY,		/*!< required history data has been
 					deleted due to lack of space in
 					rollback segment */
-	DB_CLUSTER_NOT_FOUND = 30,
-	DB_TABLE_NOT_FOUND,
+#ifdef WITH_WSREP
+	DB_ROLLBACK,
+#endif
+	DB_TABLE_NOT_FOUND= 31,
 	DB_TOO_BIG_RECORD,		/*!< a record in an index would not fit
 					on a compressed page, or it would
 					become bigger than 1/2 free space in

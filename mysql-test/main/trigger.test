@@ -7,15 +7,6 @@
 # Basic triggers test
 #
 
---disable_warnings
-drop table if exists t1, t2, t3, t4;
-drop view if exists v1;
-drop database if exists mysqltest;
-drop function if exists f1;
-drop function if exists f2;
-drop procedure if exists p1;
---enable_warnings
-
 # Create additional connections used through test
 connect (addconroot1, localhost, root,,);
 connect (addconroot2, localhost, root,,);

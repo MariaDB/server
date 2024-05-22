@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2020, MariaDB Corporation.
+   Copyright (c) 2010, 2024, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -166,7 +166,6 @@ static my_bool server_supports_switching_charsets= TRUE;
 static ulong opt_compatible_mode= 0;
 #define MYSQL_OPT_MASTER_DATA_EFFECTIVE_SQL 1
 #define MYSQL_OPT_MASTER_DATA_COMMENTED_SQL 2
-#define MYSQL_OPT_MAX_STATEMENT_TIME 0
 #define MYSQL_OPT_SLAVE_DATA_EFFECTIVE_SQL 1
 #define MYSQL_OPT_SLAVE_DATA_COMMENTED_SQL 2
 static uint opt_mysql_port= 0, opt_master_data;
@@ -265,41 +264,36 @@ static struct my_option my_long_options[] =
 {
   {"all-databases", 'A',
    "Dump all the databases. This will be same as --databases with all databases selected.",
-   &opt_alldbs, &opt_alldbs, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0,
-   0, 0},
+   &opt_alldbs, &opt_alldbs, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"all-tablespaces", 'Y',
    "Dump all the tablespaces.",
-   &opt_alltspcs, &opt_alltspcs, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0,
-   0, 0},
+   &opt_alltspcs, &opt_alltspcs, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"no-tablespaces", 'y',
    "Do not dump any tablespace information.",
-   &opt_notspcs, &opt_notspcs, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0,
-   0, 0},
-  {"add-drop-database", OPT_DROP_DATABASE, "Add a DROP DATABASE before each create.",
+   &opt_notspcs, &opt_notspcs, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+  {"add-drop-database", 0, "Add a DROP DATABASE before each create.",
    &opt_drop_database, &opt_drop_database, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0,
    0},
-  {"add-drop-table", OPT_DROP, "Add a DROP TABLE before each create.",
-   &opt_drop, &opt_drop, 0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0,
-   0},
+  {"add-drop-table", 0, "Add a DROP TABLE before each create.",
+   &opt_drop, &opt_drop, 0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0},
   {"add-drop-trigger", 0, "Add a DROP TRIGGER before each create.",
    &opt_drop_trigger, &opt_drop_trigger, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0,
    0},
-  {"add-locks", OPT_LOCKS, "Add locks around INSERT statements.",
-   &opt_lock, &opt_lock, 0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0,
-   0},
-  {"allow-keywords", OPT_KEYWORDS,
+  {"add-locks", 0, "Add locks around INSERT statements.",
+   &opt_lock, &opt_lock, 0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0},
+  {"allow-keywords", 0,
    "Allow creation of column names that are keywords.", &opt_keywords,
    &opt_keywords, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"apply-slave-statements", OPT_MYSQLDUMP_SLAVE_APPLY,
+  {"apply-slave-statements", 0,
    "Adds 'STOP SLAVE' prior to 'CHANGE MASTER' and 'START SLAVE' to bottom of dump.",
-   &opt_slave_apply, &opt_slave_apply, 0, GET_BOOL, NO_ARG,
-   0, 0, 0, 0, 0, 0},
-  {"as-of", OPT_ASOF_TIMESTAMP,
+   &opt_slave_apply, &opt_slave_apply, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+  {"as-of", 0,
    "Dump system versioned table(s) as of specified timestamp. "
    "Argument is interpreted according to the --tz-utc setting. "
    "Table structures are always dumped as of current timestamp.",
-   &opt_asof_timestamp, &opt_asof_timestamp, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"character-sets-dir", OPT_CHARSETS_DIR,
+   &opt_asof_timestamp, &opt_asof_timestamp, 0, GET_STR, REQUIRED_ARG,
+   0, 0, 0, 0, 0, 0},
+  {"character-sets-dir", 0,
    "Directory for character set files.", (char **)&charsets_dir,
    (char **)&charsets_dir, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"comments", 'i', "Write additional information.",
@@ -324,21 +318,18 @@ static struct my_option my_long_options[] =
    &opt_complete_insert, &opt_complete_insert, 0, GET_BOOL,
    NO_ARG, 0, 0, 0, 0, 0, 0},
   {"compress", 'C', "Use compression in server/client protocol.",
-   &opt_compress, &opt_compress, 0, GET_BOOL, NO_ARG, 0, 0, 0,
-   0, 0, 0},
-  {"copy_s3_tables", OPT_COPY_S3_TABLES,
+   &opt_compress, &opt_compress, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+  {"copy_s3_tables", 0,
    "If 'no' S3 tables will be ignored, otherwise S3 tables will be copied as "
    " Aria tables and then altered to S3",
    &opt_copy_s3_tables, &opt_copy_s3_tables, 0, GET_BOOL, NO_ARG, 0, 0, 0,
    0, 0, 0},
   {"create-options", 'a',
    "Include all MariaDB specific create options.",
-   &create_options, &create_options, 0, GET_BOOL, NO_ARG, 1,
-   0, 0, 0, 0, 0},
+   &create_options, &create_options, 0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0},
   {"databases", 'B',
    "Dump several databases. Note the difference in usage; in this case no tables are given. All name arguments are regarded as database names. 'USE db_name;' will be included in the output.",
-   &opt_databases, &opt_databases, 0, GET_BOOL, NO_ARG, 0, 0,
-   0, 0, 0, 0},
+   &opt_databases, &opt_databases, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
 #ifdef DBUG_OFF
   {"debug", '#', "This is a non-debug version. Catch this and exit.",
    0,0, 0, GET_DISABLED, OPT_ARG, 0, 0, 0, 0, 0, 0},
@@ -346,19 +337,17 @@ static struct my_option my_long_options[] =
   {"debug", '#', "Output debug log.", (char *)&default_dbug_option,
    (char *)&default_dbug_option, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
 #endif
-  {"debug-check", OPT_DEBUG_CHECK, "Check memory and open file usage at exit.",
+  {"debug-check", 0, "Check memory and open file usage at exit.",
    &debug_check_flag, &debug_check_flag, 0,
    GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"debug-info", OPT_DEBUG_INFO, "Print some debug info at exit.",
-   &debug_info_flag, &debug_info_flag,
-   0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+  {"debug-info", 0, "Print some debug info at exit.", &debug_info_flag,
+    &debug_info_flag, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"default-character-set", OPT_DEFAULT_CHARSET,
    "Set the default character set.", &default_charset,
    &default_charset, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"delayed-insert", OPT_DELAYED, "Insert rows with INSERT DELAYED.",
-   &opt_delayed, &opt_delayed, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0,
-   0, 0},
-  {"delete-master-logs", OPT_DELETE_MASTER_LOGS,
+  {"delayed-insert", 0, "Insert rows with INSERT DELAYED.",
+   &opt_delayed, &opt_delayed, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+  {"delete-master-logs", 0,
    "Delete logs on master after backup. This automatically enables --master-data.",
    &opt_delete_master_logs, &opt_delete_master_logs, 0,
    GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
@@ -372,9 +361,8 @@ static struct my_option my_long_options[] =
    "'/*!40000 ALTER TABLE tb_name DISABLE KEYS */; and '/*!40000 ALTER "
    "TABLE tb_name ENABLE KEYS */; will be put in the output.", &opt_disable_keys,
    &opt_disable_keys, 0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0},
-  {"dump-date", OPT_DUMP_DATE, "Put a dump date to the end of the output.",
-   &opt_dump_date, &opt_dump_date, 0,
-   GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0},
+  {"dump-date", 0, "Put a dump date to the end of the output.",
+   &opt_dump_date, &opt_dump_date, 0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0},
   {"dump-history", 'H', "Dump system-versioned tables with history (only for "
     "timestamp based versioning)", &opt_dump_history,
     &opt_dump_history, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
@@ -391,24 +379,23 @@ static struct my_option my_long_options[] =
    "Option automatically turns --lock-tables off.",
    &opt_slave_data, &opt_slave_data, 0,
    GET_UINT, OPT_ARG, 0, 0, MYSQL_OPT_SLAVE_DATA_COMMENTED_SQL, 0, 0, 0},
-  {"events", 'E', "Dump events.",
-     &opt_events, &opt_events, 0, GET_BOOL,
-     NO_ARG, 0, 0, 0, 0, 0, 0},
+  {"events", 'E', "Dump events.", &opt_events, &opt_events, 0, GET_BOOL,
+    NO_ARG, 0, 0, 0, 0, 0, 0},
   {"extended-insert", 'e',
    "Use multiple-row INSERT syntax that include several VALUES lists.",
    &extended_insert, &extended_insert, 0, GET_BOOL, NO_ARG,
    1, 0, 0, 0, 0, 0},
-  {"fields-terminated-by", OPT_FTB,
+  {"fields-terminated-by", 0,
    "Fields in the output file are terminated by the given string.",
    &fields_terminated, &fields_terminated, 0,
    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"fields-enclosed-by", OPT_ENC,
+  {"fields-enclosed-by", 0,
    "Fields in the output file are enclosed by the given character.",
    &enclosed, &enclosed, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0 ,0, 0},
-  {"fields-optionally-enclosed-by", OPT_O_ENC,
+  {"fields-optionally-enclosed-by", 0,
    "Fields in the output file are optionally enclosed by the given character.",
    &opt_enclosed, &opt_enclosed, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0 ,0, 0},
-  {"fields-escaped-by", OPT_ESC,
+  {"fields-escaped-by", 0,
    "Fields in the output file are escaped by the given character.",
    &escaped, &escaped, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"flush-logs", 'F', "Flush logs file in server before starting dump. "
@@ -420,29 +407,26 @@ static struct my_option my_long_options[] =
    "to the moment all tables are locked. So if you want your dump and "
    "the log flush to happen at the same exact moment you should use "
    "--lock-all-tables or --master-data with --flush-logs.",
-   &flush_logs, &flush_logs, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0,
-   0, 0},
-  {"flush-privileges", OPT_ESC, "Emit a FLUSH PRIVILEGES statement "
+   &flush_logs, &flush_logs, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+  {"flush-privileges", 0, "Emit a FLUSH PRIVILEGES statement "
    "after dumping the mysql database.  This option should be used any "
    "time the dump contains the mysql database and any other database "
    "that depends on the data in the mysql database for proper restore. ",
    &flush_privileges, &flush_privileges, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0,
    0, 0},
   {"force", 'f', "Continue even if we get an SQL error.",
-   &ignore_errors, &ignore_errors, 0, GET_BOOL, NO_ARG,
-   0, 0, 0, 0, 0, 0},
+   &ignore_errors, &ignore_errors, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"gtid", 0, "Used together with --master-data=1 or --dump-slave=1."
    "When enabled, the output from those options will set the GTID position "
    "instead of the binlog file and offset; the file/offset will appear only as "
    "a comment. When disabled, the GTID position will still appear in the "
    "output, but only commented.",
-   &opt_use_gtid, &opt_use_gtid, 0, GET_BOOL, NO_ARG,
-   0, 0, 0, 0, 0, 0},
+   &opt_use_gtid, &opt_use_gtid, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"header", 0, "Used together with --tab. When enabled, adds header with column names to the top of output txt files.",
    &opt_header, &opt_header, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"help", '?', "Display this help message and exit.", 0, 0, 0, GET_NO_ARG,
    NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"hex-blob", OPT_HEXBLOB, "Dump binary strings (BINARY, "
+  {"hex-blob", 0, "Dump binary strings (BINARY, "
     "VARBINARY, BLOB) in hexadecimal format.",
    &opt_hex_blob, &opt_hex_blob, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"host", 'h', "Connect to host.", &current_host,
@@ -464,15 +448,13 @@ static struct my_option my_long_options[] =
    "be specified with both database and table names, e.g., "
    "--ignore-table=database.table.",
    0, 0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"include-master-host-port", OPT_MYSQLDUMP_INCLUDE_MASTER_HOST_PORT,
+  {"include-master-host-port", 0,
    "Adds 'MASTER_HOST=<host>, MASTER_PORT=<port>' to 'CHANGE MASTER TO..' "
    "in dump produced with --dump-slave.", &opt_include_master_host_port,
-   &opt_include_master_host_port, 0, GET_BOOL, NO_ARG,
-   0, 0, 0, 0, 0, 0},
-  {"insert-ignore", OPT_INSERT_IGNORE, "Insert rows with INSERT IGNORE.",
-   &opt_ignore, &opt_ignore, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0,
-   0, 0},
-  {"lines-terminated-by", OPT_LTB,
+   &opt_include_master_host_port, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+  {"insert-ignore", 0, "Insert rows with INSERT IGNORE.",
+   &opt_ignore, &opt_ignore, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+  {"lines-terminated-by", 0,
    "Lines in the output file are terminated by the given string.",
    &lines_terminated, &lines_terminated, 0, GET_STR,
    REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
@@ -483,7 +465,7 @@ static struct my_option my_long_options[] =
    0, 0, 0, 0, 0, 0},
   {"lock-tables", 'l', "Lock all tables for read.", &lock_tables,
    &lock_tables, 0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0},
-  {"log-error", OPT_ERROR_LOG_FILE, "Append warnings and errors to given file.",
+  {"log-error", 0, "Append warnings and errors to given file.",
    &log_error_file, &log_error_file, 0, GET_STR,
    REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"log-queries", 0, "When restoring the dump, the server will, if logging turned on, log the queries to the general and slow query log.",
@@ -500,30 +482,28 @@ static struct my_option my_long_options[] =
    "Option automatically turns --lock-tables off.",
    &opt_master_data, &opt_master_data, 0,
    GET_UINT, OPT_ARG, 0, 0, MYSQL_OPT_MASTER_DATA_COMMENTED_SQL, 0, 0, 0},
-  {"max_allowed_packet", OPT_MAX_ALLOWED_PACKET, 
+  {"max_allowed_packet", 0,
    "The maximum packet length to send to or receive from server.",
     &opt_max_allowed_packet, &opt_max_allowed_packet, 0,
     GET_ULONG, REQUIRED_ARG, 24*1024*1024, 4096,
    (longlong) 2L*1024L*1024L*1024L, MALLOC_OVERHEAD, 1024, 0},
-  {"max-statement-time", MYSQL_OPT_MAX_STATEMENT_TIME,
+  {"max-statement-time", 0,
    "Max statement execution time. If unset, overrides server default with 0.",
    &opt_max_statement_time, &opt_max_statement_time, 0, GET_DOUBLE,
    REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"net_buffer_length", OPT_NET_BUFFER_LENGTH, 
+  {"net_buffer_length", 0,
    "The buffer size for TCP/IP and socket communication.",
     &opt_net_buffer_length, &opt_net_buffer_length, 0,
     GET_ULONG, REQUIRED_ARG, 1024*1024L-1025, 4096, 16*1024L*1024L,
    MALLOC_OVERHEAD-1024, 1024, 0},
-  {"no-autocommit", OPT_AUTOCOMMIT,
+  {"no-autocommit", 0,
    "Wrap tables with autocommit/commit statements.",
-   &opt_autocommit, &opt_autocommit, 0, GET_BOOL, NO_ARG,
-   0, 0, 0, 0, 0, 0},
+   &opt_autocommit, &opt_autocommit, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"no-create-db", 'n',
    "Suppress the CREATE DATABASE ... IF EXISTS statement that normally is "
    "output for each dumped database if --all-databases or --databases is "
    "given.",
-   &opt_create_db, &opt_create_db, 0, 
-   GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+   &opt_create_db, &opt_create_db, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"no-create-info", 't', "Don't write table creation info.",
    &opt_no_create_info, &opt_no_create_info, 0, GET_BOOL,
    NO_ARG, 0, 0, 0, 0, 0, 0},
@@ -537,7 +517,7 @@ static struct my_option my_long_options[] =
   {"opt", OPT_OPTIMIZE,
    "Same as --add-drop-table, --add-locks, --create-options, --quick, --extended-insert, --lock-tables, --set-charset, and --disable-keys. Enabled by default, disable with --skip-opt.",
    0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"order-by-primary", OPT_ORDER_BY_PRIMARY,
+  {"order-by-primary", 0,
    "Sorts each table's rows by primary key, or first unique key, if such a key exists.  Useful when dumping a MyISAM table to be loaded into an InnoDB table, but will make the dump itself take considerably longer.",
    &opt_order_by_primary, &opt_order_by_primary, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"order-by-size", 0,
@@ -564,27 +544,24 @@ static struct my_option my_long_options[] =
   {"quote-names",'Q', "Quote table and column names with backticks (`).",
    &opt_quoted, &opt_quoted, 0, GET_BOOL, NO_ARG, 1, 0, 0, 0,
    0, 0},
-  {"replace", OPT_MYSQL_REPLACE_INTO, "Use REPLACE INTO instead of INSERT INTO.",
-   &opt_replace_into, &opt_replace_into, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0,
-   0, 0},
+  {"replace", 0, "Use REPLACE INTO instead of INSERT INTO.", &opt_replace_into,
+    &opt_replace_into, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"result-file", 'r',
    "Direct output to a given file. This option should be used in systems "
    "(e.g., DOS, Windows) that use carriage-return linefeed pairs (\\r\\n) "
    "to separate text lines. This option ensures that only a single newline "
    "is used.", 0, 0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"routines", 'R', "Dump stored routines (functions and procedures).",
-   &opt_routines, &opt_routines, 0, GET_BOOL,
-   NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"set-charset", OPT_SET_CHARSET,
-   "Add 'SET NAMES default_character_set' to the output.",
-   &opt_set_charset, &opt_set_charset, 0, GET_BOOL, NO_ARG, 1,
-   0, 0, 0, 0, 0},
+   &opt_routines, &opt_routines, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+  {"set-charset", 0,
+   "Add 'SET NAMES default_character_set' to the output.", &opt_set_charset,
+   &opt_set_charset, 0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0},
   /*
     Note that the combination --single-transaction --master-data
     will give bullet-proof binlog position only if server >=4.1.3. That's the
     old "FLUSH TABLES WITH READ LOCK does not block commit" fixed bug.
   */
-  {"single-transaction", OPT_TRANSACTION,
+  {"single-transaction", 0,
    "Creates a consistent snapshot by dumping all tables in a single "
    "transaction. Works ONLY for tables stored in storage engines which "
    "support multiversioning (currently only InnoDB does); the dump is NOT "
@@ -603,7 +580,7 @@ static struct my_option my_long_options[] =
    &opt_mysql_unix_port, &opt_mysql_unix_port, 0, 
    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 #include <sslopt-longopts.h>
-  {"system", 256, "Dump system tables as portable SQL",
+  {"system", 0, "Dump system tables as portable SQL",
    &opt_system, &opt_system, &opt_system_types, GET_SET, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"tab",'T',
    "Create tab-separated textfile for each table to given path. (Create .sql "
@@ -612,17 +589,16 @@ static struct my_option my_long_options[] =
    &path, &path, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"tables", OPT_TABLES, "Overrides option --databases (-B).",
    0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"triggers", OPT_TRIGGERS, "Dump triggers for each dumped table.",
+  {"triggers", 0, "Dump triggers for each dumped table.",
    &opt_dump_triggers, &opt_dump_triggers, 0, GET_BOOL,
    NO_ARG, 1, 0, 0, 0, 0, 0},
-  {"tz-utc", OPT_TZ_UTC,
+  {"tz-utc", 0,
    "Set connection time zone to UTC before commencing the dump and add "
    "SET TIME_ZONE=´+00:00´ to the top of the dump file.",
     &opt_tz_utc, &opt_tz_utc, 0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0},
 #ifndef DONT_ALLOW_USER_CHANGE
-  {"user", 'u', "User for login if not current user.",
-   &current_user, &current_user, 0, GET_STR, REQUIRED_ARG,
-   0, 0, 0, 0, 0, 0},
+  {"user", 'u', "User for login if not current user.", &current_user,
+    &current_user, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 #endif
   {"verbose", 'v', "Print info about the various stages.",
    &verbose, &verbose, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
@@ -632,11 +608,10 @@ static struct my_option my_long_options[] =
    &where, &where, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"xml", 'X', "Dump a database as well formed XML.", 0, 0, 0, GET_NO_ARG,
    NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"plugin_dir", OPT_PLUGIN_DIR, "Directory for client-side plugins.",
+  {"plugin_dir", 0, "Directory for client-side plugins.",
    &opt_plugin_dir, &opt_plugin_dir, 0,
    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"default_auth", OPT_DEFAULT_AUTH,
-   "Default authentication client-side plugin to use.",
+  {"default_auth", 0, "Default authentication client-side plugin to use.",
    &opt_default_auth, &opt_default_auth, 0,
    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
@@ -799,56 +774,58 @@ static void write_header(FILE *sql_file, const char *db_name)
     fputs(">\n", sql_file);
     check_io(sql_file);
   }
-  else if (!opt_compact)
+  else
   {
-    print_comment(sql_file, 0,
-                  "-- MariaDB dump %s-%s, for %s (%s)\n--\n",
-                  VER, MYSQL_SERVER_VERSION, SYSTEM_TYPE,
-                  MACHINE_TYPE);
-    print_comment(sql_file, 0, "-- Host: %s    ",
-                  fix_for_comment(current_host ? current_host : "localhost"));
-    print_comment(sql_file, 0, "Database: %s\n",
-                  fix_for_comment(db_name ? db_name : ""));
-    print_comment(sql_file, 0,
-                  "-- ------------------------------------------------------\n"
-                 );
-    print_comment(sql_file, 0, "-- Server version\t%s\n",
-                  mysql_get_server_info(mysql));
-
-    if (!opt_logging)
-      fprintf(sql_file,
-"\n/*M!100101 SET LOCAL SQL_LOG_OFF=0, LOCAL LOG_SLOW_QUERY=0 */;");
-
-    if (opt_set_charset)
-      fprintf(sql_file,
-"\n/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;"
-"\n/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;"
-"\n/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;"
-"\n/*!40101 SET NAMES %s */;\n",default_charset);
-
-    if (opt_tz_utc)
+    fprintf(sql_file, "/*!999999\\- enable the sandbox mode */ \n");
+    if (!opt_compact)
     {
-      fprintf(sql_file, "/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;\n");
-      fprintf(sql_file, "/*!40103 SET TIME_ZONE='+00:00' */;\n");
-    }
+      print_comment(sql_file, 0, "-- MariaDB dump %s-%s, for %s (%s)\n--\n",
+                    VER, MYSQL_SERVER_VERSION, SYSTEM_TYPE, MACHINE_TYPE);
+      print_comment(sql_file, 0, "-- Host: %s    ",
+                    fix_for_comment(current_host ? current_host : "localhost"));
+      print_comment(sql_file, 0, "Database: %s\n",
+                    fix_for_comment(db_name ? db_name : ""));
+      print_comment(sql_file, 0,
+                    "-- ------------------------------------------------------\n"
+                   );
+      print_comment(sql_file, 0, "-- Server version\t%s\n",
+                    mysql_get_server_info(mysql));
 
-    if (!multi_file_output)
-    {
-      if (!opt_no_create_info)
+      if (!opt_logging)
+        fprintf(sql_file,
+          "\n/*M!100101 SET LOCAL SQL_LOG_OFF=0, LOCAL LOG_SLOW_QUERY=0 */;");
+
+      if (opt_set_charset)
+        fprintf(sql_file,
+          "\n/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;"
+          "\n/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;"
+          "\n/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;"
+          "\n/*!40101 SET NAMES %s */;\n",default_charset);
+
+      if (opt_tz_utc)
       {
-        /* We don't need unique checks as the table is created just before */
-        fprintf(md_result_file,"\
-/*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;\n");
+        fprintf(sql_file, "/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;\n");
+        fprintf(sql_file, "/*!40103 SET TIME_ZONE='+00:00' */;\n");
       }
-      fprintf(md_result_file,"\
-/*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;\n\
-");
+
+      if (!path)
+      {
+        if (!multi_file_output)
+        {
+          /* We don't need unique checks as the table is created just before */
+          fprintf(md_result_file,
+            "/*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;\n");
+        }
+        fprintf(md_result_file,
+          "/*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;\n");
+      }
+      fprintf(sql_file,
+              "/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='%s%s%s' */;\n"
+              "/*M!100616 SET @OLD_NOTE_VERBOSITY=@@NOTE_VERBOSITY, NOTE_VERBOSITY=0 */;\n",
+              multi_file_output?"":"NO_AUTO_VALUE_ON_ZERO",
+              compatible_mode_normal_str[0]==0?"":",",
+              compatible_mode_normal_str);
     }
-    fprintf(sql_file,
-            "/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='%s%s%s' */;\n"
-            "/*M!100616 SET @OLD_NOTE_VERBOSITY=@@NOTE_VERBOSITY, NOTE_VERBOSITY=0 */;\n",
-            multi_file_output?"":"NO_AUTO_VALUE_ON_ZERO",compatible_mode_normal_str[0]==0?"":",",
-            compatible_mode_normal_str);
     check_io(sql_file);
   }
 } /* write_header */
@@ -1327,8 +1304,9 @@ static int get_options(int *argc, char ***argv)
   if (opt_slave_data)
   {
     opt_lock_all_tables= !opt_single_transaction;
-    opt_master_data= 0;
     opt_delete_master_logs= 0;
+    if (opt_slave_data != MYSQL_OPT_SLAVE_DATA_COMMENTED_SQL)
+      opt_master_data= 0;
   }
 
   /* Ensure consistency of the set of binlog & locking options */
@@ -1341,10 +1319,7 @@ static int get_options(int *argc, char ***argv)
     return(EX_USAGE);
   }
   if (opt_master_data)
-  {
     opt_lock_all_tables= !opt_single_transaction;
-    opt_slave_data= 0;
-  }
   if (opt_single_transaction || opt_lock_all_tables)
     lock_tables= 0;
   if (enclosed && opt_enclosed)
@@ -3201,8 +3176,9 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
     if (opt_header)
       dynstr_set_checked(&select_field_names_for_header, "");
   }
-  insert_option= ((delayed && opt_ignore) ? " DELAYED IGNORE " :
-                  delayed ? " DELAYED " : opt_ignore ? " IGNORE " : "");
+
+  insert_option= ((delayed && opt_ignore) ? "DELAYED IGNORE " :
+                  delayed ? "DELAYED " : opt_ignore ? "IGNORE " : "");
 
   verbose_msg("-- Retrieving table structure for table %s...\n", table);
 
@@ -6344,17 +6320,12 @@ static int do_show_master_status(MYSQL *mysql_con, int consistent_binlog_pos,
 
   }
 
-  /* SHOW MASTER STATUS reports file and position */
-  print_comment(md_result_file, 0,
-                "\n--\n-- Position to start replication or point-in-time "
-                "recovery from\n--\n\n");
-  fprintf(md_result_file,
-          "%sCHANGE MASTER TO MASTER_LOG_FILE='%s', MASTER_LOG_POS=%s;\n",
-          (use_gtid ? "-- " : comment_prefix), file, offset);
+  /* gtid */
   if (have_mariadb_gtid)
   {
     print_comment(md_result_file, 0,
-                  "\n--\n-- GTID to start replication from\n--\n\n");
+                  "\n-- Preferably use GTID to start replication from GTID "
+                  "position:\n\n");
     if (use_gtid)
       fprintf(md_result_file,
               "%sCHANGE MASTER TO MASTER_USE_GTID=slave_pos;\n",
@@ -6363,6 +6334,19 @@ static int do_show_master_status(MYSQL *mysql_con, int consistent_binlog_pos,
             "%sSET GLOBAL gtid_slave_pos='%s';\n",
             (!use_gtid ? "-- " : comment_prefix), gtid_pos);
   }
+
+  /* SHOW MASTER STATUS reports file and position */
+  print_comment(md_result_file, 0,
+                "\n--\n-- Alternately, following is the position of the binary "
+                "logging from SHOW MASTER STATUS at point of backup."
+                "\n-- Use this when creating a replica of the primary server "
+                "where the backup was made."
+                "\n-- The new server will be connecting to the primary server "
+                "where the backup was taken."
+                "\n--\n\n");
+  fprintf(md_result_file,
+          "%sCHANGE MASTER TO MASTER_LOG_FILE='%s', MASTER_LOG_POS=%s;\n",
+          (use_gtid ? "-- " : comment_prefix), file, offset);
   check_io(md_result_file);
 
   if (!consistent_binlog_pos)
@@ -6441,7 +6425,6 @@ static int do_show_slave_status(MYSQL *mysql_con, int use_gtid,
     (opt_slave_data == MYSQL_OPT_SLAVE_DATA_COMMENTED_SQL) ? "-- " : "";
   const char *gtid_comment_prefix= (use_gtid ? comment_prefix : "-- ");
   const char *nogtid_comment_prefix= (!use_gtid ? comment_prefix : "-- ");
-  int set_gtid_done= 0;
 
   if (mysql_query_with_error_report(mysql_con, &slave,
                                     multi_source ?
@@ -6457,23 +6440,36 @@ static int do_show_slave_status(MYSQL *mysql_con, int use_gtid,
     return 1;
   }
 
+  print_comment(md_result_file, 0,
+                "\n--\n-- The following is the SQL position of the replication "
+                "taken from SHOW SLAVE STATUS at the time of backup.\n"
+                "-- Use this position when creating a clone of, or replacement "
+                "server, from where the backup was taken."
+                "\n-- This new server will connects to the same primary "
+                "server%s.\n--\n",
+                multi_source ? "(s)" : "");
+
+  if (multi_source)
+  {
+    char gtid_pos[MAX_GTID_LENGTH];
+    if (have_mariadb_gtid && get_gtid_pos(gtid_pos, 0))
+    {
+      mysql_free_result(slave);
+      return 1;
+    }
+    print_comment(md_result_file, 0,
+                  "-- GTID position to start replication:\n");
+    fprintf(md_result_file, "%sSET GLOBAL gtid_slave_pos='%s';\n",
+            gtid_comment_prefix, gtid_pos);
+  }
+  if (use_gtid)
+    print_comment(md_result_file, 0,
+                  "\n-- Use only the MASTER_USE_GTID=slave_pos or "
+                  "MASTER_LOG_FILE/MASTER_LOG_POS in the statements below."
+                  "\n\n");
+
   while ((row= mysql_fetch_row(slave)))
   {
-    if (multi_source && !set_gtid_done)
-    {
-      char gtid_pos[MAX_GTID_LENGTH];
-      if (have_mariadb_gtid && get_gtid_pos(gtid_pos, 0))
-      {
-        mysql_free_result(slave);
-        return 1;
-      }
-      if (opt_comments)
-        fprintf(md_result_file, "\n--\n-- Gtid position to start replication "
-                "from\n--\n\n");
-      fprintf(md_result_file, "%sSET GLOBAL gtid_slave_pos='%s';\n",
-              gtid_comment_prefix, gtid_pos);
-      set_gtid_done= 1;
-    }
     if (row[9 + multi_source] && row[21 + multi_source])
     {
       if (use_gtid)
@@ -6487,11 +6483,6 @@ static int do_show_slave_status(MYSQL *mysql_con, int use_gtid,
       }
 
       /* SHOW MASTER STATUS reports file and position */
-      if (opt_comments)
-        fprintf(md_result_file,
-                "\n--\n-- Position to start replication or point-in-time "
-                "recovery from (the master of this slave)\n--\n\n");
-
       if (multi_source)
         fprintf(md_result_file, "%sCHANGE MASTER '%.80s' TO ",
                 nogtid_comment_prefix, row[0]);
@@ -6512,6 +6503,7 @@ static int do_show_slave_status(MYSQL *mysql_con, int use_gtid,
       check_io(md_result_file);
     }
   }
+  fprintf(md_result_file, "\n");
   mysql_free_result(slave);
   return 0;
 }

@@ -571,6 +571,9 @@ static int my_process_result(MYSQL *mysql_arg)
 #define MAX_RES_FIELDS 50
 #define MAX_FIELD_DATA_SIZE 255
 
+/* Stack usage 18888 with clang */
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 static int my_process_stmt_result(MYSQL_STMT *stmt)
 {
   int         field_count;
@@ -659,6 +662,7 @@ static int my_process_stmt_result(MYSQL_STMT *stmt)
   mysql_free_result(result);
   return row_count;
 }
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 
 /* Prepare statement, execute, and process result set for given query */
@@ -1434,12 +1438,14 @@ int main(int argc, char **argv)
     tests_to_run[i]= NULL;
   }
 
-#ifdef _WIN32
-  /* must be the same in C/C and embedded, 1208 on 64bit, 968 on 32bit */
-  compile_time_assert(sizeof(MYSQL) == 60*sizeof(void*)+728);
-#else
-  /* must be the same in C/C and embedded, 1272 on 64bit, 964 on 32bit */
-  compile_time_assert(sizeof(MYSQL) == 77*sizeof(void*)+656);
+/*
+  this limited check is enough, if sizeof(MYSQL) changes, it changes
+  everywhere
+*/
+#if defined __x86_64__
+  compile_time_assert(sizeof(MYSQL) == 1272);
+#elif defined __i386__
+  compile_time_assert(sizeof(MYSQL) == 964);
 #endif
 
   if (mysql_server_init(embedded_server_arg_count,

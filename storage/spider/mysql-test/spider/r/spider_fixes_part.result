@@ -8,6 +8,7 @@ child3_1
 child3_2
 child3_3
 for slave1_1
+include/start_slave.inc
 
 drop and create databases
 connection master_1;
@@ -124,6 +125,7 @@ a	b	c
 2.26
 auto_increment with partition
 connection master_1;
+include/save_master_pos.inc
 connection slave1_1;
 connection master_1;
 DROP TABLE IF EXISTS t1;

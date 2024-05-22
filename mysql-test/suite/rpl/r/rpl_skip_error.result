@@ -122,6 +122,31 @@ connection slave;
 # Slave_skipped_errros = 5
 **** We cannot execute a select as there are differences in the 
 **** behavior between STMT and RBR.
+****
+**** Ensure transactions which are skipped due to encountering a
+**** non-deadlock error which is present in --slave-skip-errors result
+**** in partially committed transactions
+connection master;
+CREATE TABLE t3 (a INT UNIQUE) ENGINE=InnoDB;
+connection slave;
+connection slave;
+INSERT INTO t3 VALUES (3);
+connection master;
+BEGIN;
+INSERT INTO t3 VALUES (1);
+INSERT INTO t3 VALUES (2);
+INSERT INTO t3 VALUES (3);
+INSERT INTO t3 VALUES (4);
+COMMIT;
+connection slave;
+**** Master and slave tables should have the same data, due to the
+**** partially replicated transaction's data overlapping with the data
+**** that pre-existed on the slave. That is, despite the transaction
+**** consisting of 4 statements, the errored statement should be ignored
+**** and the other 3 should commit successfully.
+include/diff_tables.inc [master:t3,slave:t3]
+connection master;
+DROP TABLE t3;
 ==== Clean Up ====
 connection master;
 DROP TABLE t1;

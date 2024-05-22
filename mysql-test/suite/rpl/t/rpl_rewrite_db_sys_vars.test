@@ -19,15 +19,8 @@ create database replica_db1;
 create database y;
 # This DB will be rewrited from test case
 create database test_replica;
-SELECT @@GLOBAL.replicate_rewrite_db;
 let $rewrite_db_sss= query_get_value(SHOW SLAVE STATUS, Replicate_Rewrite_DB, 1);
---echo # Ensuring SHOW SLAVE STATUS produces correct value for Replicate_Rewrite_DB...
-if (`SELECT strcmp(@@global.replicate_rewrite_db, "$rewrite_db_sss") != 0`)
-{
-    die SHOW SLAVE STATUS Replicate_Rewrite_DB value $rewrite_db_sss does not match variable @@GLOBAL.replicate_rewrite_db;
-}
---echo # ...success
-
+eval SELECT @@GLOBAL.replicate_rewrite_db, '$rewrite_db_sss' as 'Replicate_Rewrite_DB from SHOW SLAVE STATUS';
 
 --echo # Create DBs and tables on primary
 connection master;
@@ -63,16 +56,10 @@ source include/stop_slave.inc;
 SET @save_replicate_rewrite_db = @@GLOBAL.replicate_rewrite_db;
 SELECT @@GLOBAL.replicate_rewrite_db;
 SET @@GLOBAL.replicate_rewrite_db="test_master->test_replica";
-SELECT @@GLOBAL.replicate_rewrite_db;
 SHOW DATABASES like 'test_replica';
 source include/start_slave.inc;
 let $rewrite_db_sss= query_get_value(SHOW SLAVE STATUS, Replicate_Rewrite_DB, 1);
---echo # Ensuring SHOW SLAVE STATUS produces correct value for Replicate_Rewrite_DB...
-if (`SELECT strcmp(@@global.replicate_rewrite_db, "$rewrite_db_sss") != 0`)
-{
-    die SHOW SLAVE STATUS Replicate_Rewrite_DB value $rewrite_db_sss does not match variable @@GLOBAL.replicate_rewrite_db;
-}
---echo # ...success
+eval SELECT @@GLOBAL.replicate_rewrite_db, '$rewrite_db_sss' as 'Replicate_Rewrite_DB from SHOW SLAVE STATUS';
 
 --echo # Create DB and tables on primary
 connection master;
@@ -101,6 +88,9 @@ select * from test_replica.my_table;
 --source include/diff_tables.inc
 
 --echo # Update of values on primary for DB not set in replication_rewrite_db
+--source include/stop_slave.inc
+--source include/reset_slave.inc
+
 connection master;
 use x;
 insert into my_table values (314);
@@ -108,9 +98,6 @@ select * from my_table;
 --source include/save_master_gtid.inc
 
 connection slave;
---let $rpl_only_running_threads=1
---source include/stop_slave.inc
---source include/reset_slave.inc
 --source include/start_slave.inc
 SELECT @@GLOBAL.replicate_rewrite_db;
 --source include/sync_with_master_gtid.inc

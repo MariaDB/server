@@ -508,6 +508,7 @@ DELETE FROM t2;
 
 # The 1st of the following two trx:s a blocker on slave
 --connection server_2
+SET @org_log_warnings=@@GLOBAL.LOG_WARNINGS;
 set global log_warnings=2;
 BEGIN;
 INSERT INTO t1 SET a=1;
@@ -555,7 +556,7 @@ DELETE FROM t2;
 #
 --connection server_2
 --source include/stop_slave.inc
-set global log_warnings=default;
+set global log_warnings=@org_log_warnings;
 SET GLOBAL slave_parallel_mode=@old_parallel_mode;
 SET GLOBAL slave_parallel_threads=@old_parallel_threads;
 --source include/start_slave.inc

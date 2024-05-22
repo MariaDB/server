@@ -3,7 +3,10 @@
 #
 --source include/master-slave.inc
 
+--disable_query_log
 call mtr.add_suppression("Master is configured to log replication events");
+call mtr.add_suppression("Could not read packet:.* errno: 11");
+--enable_query_log
 
 --connection slave
 

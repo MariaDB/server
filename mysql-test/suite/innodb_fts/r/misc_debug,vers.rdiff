@@ -1,0 +1,66 @@
+--- misc_debug.result
++++ misc_debug.reject
+@@ -7,14 +7,14 @@
+ SET @saved_debug_dbug = @@SESSION.debug_dbug;
+ SET SESSION debug_dbug="+d,ib_dict_create_index_tree_fail";
+ CREATE FULLTEXT INDEX idx ON articles(body);
+-ERROR HY000: Out of memory.
++ERROR HY000: Can't create table `test`.`articles` (errno: 128 "Out of memory in engine")
+ SET SESSION debug_dbug=@saved_debug_dbug;
+ ALTER TABLE articles STATS_PERSISTENT=DEFAULT;
+ DROP TABLE articles;
+ CREATE TABLE t (a INT, b TEXT) engine=innodb;
+ SET debug_dbug='+d,alter_table_rollback_new_index';
+-ALTER TABLE t ADD FULLTEXT INDEX (b(64));
+-ERROR HY000: Unknown error
++ALTER TABLE t ADD FULLTEXT INDEX (b(64)), ALGORITHM=INPLACE;
++ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Not implemented for system-versioned operations. Try ALGORITHM=COPY
+ SET SESSION debug_dbug=@saved_debug_dbug;
+ DROP TABLE t;
+ CREATE TABLE t1 (pk INT, a VARCHAR(8), PRIMARY KEY(pk),
+@@ -28,32 +28,6 @@
+ DROP TABLE t2, t1;
+ SET SESSION debug_dbug=@saved_debug_dbug;
+ #
+-# MDEV-25200 Index count mismatch due to aborted FULLTEXT INDEX
+-#
+-CREATE TABLE t1(a INT, b TEXT, c TEXT, FULLTEXT INDEX(b)) ENGINE=InnoDB;
+-INSERT INTO t1 VALUES(1, "test", "test_1");
+-connect con1,localhost,root,,test;
+-SET DEBUG_DBUG="+d,innodb_OOM_inplace_alter";
+-SET DEBUG_SYNC='innodb_commit_inplace_alter_table_enter SIGNAL s2 WAIT_FOR g2';
+-ALTER TABLE t1 ADD FULLTEXT(c);
+-connection default;
+-SET DEBUG_SYNC='now WAIT_FOR s2';
+-START TRANSACTION;
+-SELECT * FROM t1;
+-a	b	c
+-1	test	test_1
+-SET DEBUG_SYNC='now SIGNAL g2';
+-connection con1;
+-ERROR HY000: Out of memory.
+-disconnect con1;
+-connection default;
+-SET DEBUG_SYNC=RESET;
+-ALTER TABLE t1 ADD bl INT AS (LENGTH(b)) VIRTUAL;
+-CHECK TABLE t1;
+-Table	Op	Msg_type	Msg_text
+-test.t1	check	status	OK
+-DROP TABLE t1;
+-#
+ # MDEV-25663 Double free of transaction during TRUNCATE
+ #
+ call mtr.add_suppression("InnoDB: \\(Too many concurrent transactions\\)");
+@@ -65,12 +39,3 @@
+ SET debug_dbug=@saved_debug_dbug;
+ DROP TABLE t1;
+ # End of 10.3 tests
+-CREATE TABLE t1(f1 INT NOT NULL, f2 CHAR(100))ENGINE=InnoDB;
+-SET DEBUG_DBUG="+d,stats_lock_fail";
+-ALTER TABLE t1 ADD FULLTEXT(f2);
+-ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+-SET debug_dbug=@saved_debug_dbug;
+-ALTER TABLE t1 DISCARD TABLESPACE;
+-ALTER TABLE t1 ADD FULLTEXT(f2);
+-ERROR HY000: Tablespace has been discarded for table `t1`
+-DROP TABLE t1;

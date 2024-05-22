@@ -1,6 +1,7 @@
 #set(PLUGIN_COLUMNSTORE "NO" CACHE STRING "Enable ColumnStore engine")
 
-if("NO" STREQUAL "${PLUGIN_COLUMNSTORE}")
+if("NO" STREQUAL "${PLUGIN_COLUMNSTORE}" OR
+   (NOT EXISTS ${CMAKE_CURRENT_LIST_DIR}/columnstore/CMakeLists.txt))
   return()
 endif()
 
@@ -20,6 +21,10 @@ IF(CMAKE_COMPILER_IS_GNUCC AND CMAKE_C_COMPILER_VERSION VERSION_GREATER "12.0.0"
   MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-error=dangling-pointer")
 ENDIF()
 MY_CHECK_AND_SET_COMPILER_FLAG("-fno-strict-aliasing")
+
+# let's temporarily disable the warning, until ColumnStore is fixed
+MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-error=calloc-transposed-args")
+
 SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--as-needed")
 
 # this does everything, gets the var from the correct scope, appends new

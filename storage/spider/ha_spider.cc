@@ -268,19 +268,19 @@ int ha_spider::open(
       spider_bulk_malloc(spider_current_trx, 16, MYF(MY_WME | MY_ZEROFILL),
         &wide_handler, sizeof(SPIDER_WIDE_HANDLER),
         &searched_bitmap,
-          (uint) sizeof(uchar) * no_bytes_in_map(table->read_set),
+          (uint) sizeof(uchar) * my_bitmap_buffer_size(table->read_set),
         &ft_discard_bitmap,
-          (uint) sizeof(uchar) * no_bytes_in_map(table->read_set),
+          (uint) sizeof(uchar) * my_bitmap_buffer_size(table->read_set),
         &position_bitmap,
-          (uint) sizeof(uchar) * no_bytes_in_map(table->read_set),
+          (uint) sizeof(uchar) * my_bitmap_buffer_size(table->read_set),
         &idx_read_bitmap,
-          (uint) sizeof(uchar) * no_bytes_in_map(table->read_set),
+          (uint) sizeof(uchar) * my_bitmap_buffer_size(table->read_set),
         &idx_write_bitmap,
-          (uint) sizeof(uchar) * no_bytes_in_map(table->read_set),
+          (uint) sizeof(uchar) * my_bitmap_buffer_size(table->read_set),
         &rnd_read_bitmap,
-          (uint) sizeof(uchar) * no_bytes_in_map(table->read_set),
+          (uint) sizeof(uchar) * my_bitmap_buffer_size(table->read_set),
         &rnd_write_bitmap,
-          (uint) sizeof(uchar) * no_bytes_in_map(table->read_set),
+          (uint) sizeof(uchar) * my_bitmap_buffer_size(table->read_set),
         &partition_handler,
           (uint) sizeof(SPIDER_PARTITION_HANDLER),
         NullS)
@@ -304,9 +304,9 @@ int ha_spider::open(
       wide_handler->top_share = table->s;
     owner->wide_handler_owner = TRUE;
     memset(wide_handler->ft_discard_bitmap, 0xFF,
-      no_bytes_in_map(table->read_set));
+      my_bitmap_buffer_size(table->read_set));
     memset(wide_handler->searched_bitmap, 0,
-      no_bytes_in_map(table->read_set));
+      my_bitmap_buffer_size(table->read_set));
     wide_handler_alloc = TRUE;
 
     if (!share && !spider_get_share(name, table, thd, this, &error_num))
@@ -346,12 +346,23 @@ int ha_spider::open(
   result_list.last = NULL;
   result_list.current = NULL;
   result_list.record_num = 0;
-  if (
-    !(result_list.sqls = new spider_string[share->link_count]) ||
-    !(result_list.insert_sqls = new spider_string[share->link_count]) ||
-    !(result_list.update_sqls = new spider_string[share->link_count]) ||
-    !(result_list.tmp_sqls = new spider_string[share->link_count])
-  ) {
+  if (!(result_list.sqls = new spider_string[share->link_count]))
+  {
+    error_num = HA_ERR_OUT_OF_MEM;
+    goto error_init_result_list;
+  }
+  if (!(result_list.insert_sqls = new spider_string[share->link_count]))
+  {
+    error_num = HA_ERR_OUT_OF_MEM;
+    goto error_init_result_list;
+  }
+  if (!(result_list.update_sqls = new spider_string[share->link_count]))
+  {
+    error_num = HA_ERR_OUT_OF_MEM;
+    goto error_init_result_list;
+  }
+  if (!(result_list.tmp_sqls = new spider_string[share->link_count]))
+  {
     error_num = HA_ERR_OUT_OF_MEM;
     goto error_init_result_list;
   }
@@ -984,9 +995,9 @@ int ha_spider::reset()
     if (!is_clone)
     {
       memset(wide_handler->ft_discard_bitmap, 0xFF,
-        no_bytes_in_map(table->read_set));
+        my_bitmap_buffer_size(table->read_set));
       memset(wide_handler->searched_bitmap, 0,
-        no_bytes_in_map(table->read_set));
+        my_bitmap_buffer_size(table->read_set));
     }
     while (wide_handler->condition)
     {
@@ -1211,7 +1222,7 @@ int ha_spider::index_init(
         bitmap_set_all(table->read_set);
         if (is_clone)
           memset(wide_handler->searched_bitmap, 0xFF,
-            no_bytes_in_map(table->read_set));
+            my_bitmap_buffer_size(table->read_set));
       }
     }
 
@@ -3107,7 +3118,7 @@ ha_rows ha_spider::multi_range_read_info_const(
         bitmap_set_all(table->read_set);
         if (is_clone)
           memset(wide_handler->searched_bitmap, 0xFF,
-            no_bytes_in_map(table->read_set));
+            my_bitmap_buffer_size(table->read_set));
       }
     }
 
@@ -3161,7 +3172,7 @@ ha_rows ha_spider::multi_range_read_info(
         bitmap_set_all(table->read_set);
         if (is_clone)
           memset(wide_handler->searched_bitmap, 0xFF,
-            no_bytes_in_map(table->read_set));
+            my_bitmap_buffer_size(table->read_set));
       }
     }
 
@@ -5420,7 +5431,7 @@ int ha_spider::rnd_init(
         bitmap_set_all(table->read_set);
         if (is_clone)
           memset(wide_handler->searched_bitmap, 0xFF,
-            no_bytes_in_map(table->read_set));
+            my_bitmap_buffer_size(table->read_set));
       }
 
       set_select_column_mode();
@@ -8969,27 +8980,35 @@ bool ha_spider::auto_repair() const
 }
 
 int ha_spider::disable_indexes(
-  uint mode
+  key_map map, bool persist
 ) {
   int error_num;
   backup_error_status();
   DBUG_ENTER("ha_spider::disable_indexes");
   DBUG_PRINT("info",("spider this=%p", this));
-  if ((error_num = spider_db_disable_keys(this)))
-    DBUG_RETURN(check_error_mode(error_num));
-  DBUG_RETURN(0);
+  if (persist)
+  {
+    if ((error_num = spider_db_disable_keys(this)))
+      DBUG_RETURN(check_error_mode(error_num));
+    DBUG_RETURN(0);
+  }
+  DBUG_RETURN(HA_ERR_WRONG_COMMAND);
 }
 
 int ha_spider::enable_indexes(
-  uint mode
+  key_map map, bool persist
 ) {
   int error_num;
   backup_error_status();
   DBUG_ENTER("ha_spider::enable_indexes");
   DBUG_PRINT("info",("spider this=%p", this));
-  if ((error_num = spider_db_enable_keys(this)))
-    DBUG_RETURN(check_error_mode(error_num));
-  DBUG_RETURN(0);
+  if (persist)
+  {
+    if ((error_num = spider_db_enable_keys(this)))
+      DBUG_RETURN(check_error_mode(error_num));
+    DBUG_RETURN(0);
+  }
+  DBUG_RETURN(HA_ERR_WRONG_COMMAND);
 }
 
 

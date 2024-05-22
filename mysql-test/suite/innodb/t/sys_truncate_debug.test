@@ -24,7 +24,7 @@ DROP TABLE t1;
 SELECT NAME, FILE_SIZE FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESPACES WHERE SPACE = 0;
 
 # Ran out of buffer pool
-let $restart_parameters=--debug_dbug="+d,shrink_buffer_pool_full";
+let $restart_parameters=--debug_dbug=+d,shrink_buffer_pool_full;
 --source include/restart_mysqld.inc
 
 --let SEARCH_PATTERN= \[Warning\] InnoDB: Cannot shrink the system tablespace
@@ -36,7 +36,7 @@ WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 
 # Ran out of mtr log size
-let $restart_parameters=--debug_dbug="+d,mtr_log_max_size";
+let $restart_parameters=--debug_dbug=+d,mtr_log_max_size;
 --source include/restart_mysqld.inc
 
 --let SEARCH_PATTERN= \[ERROR\] InnoDB: Cannot shrink the system tablespace
@@ -48,7 +48,7 @@ WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 
 # Crash after shrinking the system tablespace
-let $restart_parameters=--debug_dbug="+d,crash_after_sys_truncate";
+let $restart_parameters=--debug_dbug=+d,crash_after_sys_truncate;
 --source include/restart_mysqld.inc
 SELECT * FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'

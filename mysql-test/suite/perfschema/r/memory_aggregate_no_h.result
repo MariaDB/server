@@ -2257,8 +2257,8 @@ user4	2	2
 execute dump_hosts;
 HOST	CURRENT_CONNECTIONS	TOTAL_CONNECTIONS
 disconnect con1;
-disconnect con5;
 connection default;
+disconnect con5;
 "================== con1/con5 disconnected =================="
 "================== Step 10 =================="
 call dump_thread();

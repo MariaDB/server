@@ -1,5 +1,4 @@
 /*
-   Copyright (c) 2000, 2016, Oracle and/or its affiliates.
    Copyright (c) 2009, 2022, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
@@ -1802,6 +1801,8 @@ public:
   */
   bool check_access(const privilege_t want_access, bool match_any = false);
   bool is_priv_user(const LEX_CSTRING &user, const LEX_CSTRING &host);
+  bool is_user_defined() const
+    { return user && user != delayed_user && user != slave_user; };
 };
 
 
@@ -2695,6 +2696,11 @@ public:
     swap_variables(sp_cache*, sp_package_body_cache, rhs.sp_package_body_cache);
   }
   void sp_caches_clear();
+  /**
+    Clear content of sp related caches.
+    Don't delete cache objects itself.
+  */
+  void sp_caches_empty();
 };
 
 
@@ -3187,6 +3193,12 @@ public:
 
   bool save_prep_leaf_list;
 
+  /**
+    The data member reset_sp_cache is to signal that content of sp_cache
+    must be reset (all items be removed from it).
+  */
+  bool reset_sp_cache;
+
   /* container for handler's private per-connection data */
   Ha_data ha_data[MAX_HA];
 
@@ -3247,9 +3259,14 @@ public:
 
   bool binlog_need_stmt_format(bool is_transactional) const
   {
-    return log_current_statement() &&
-           !binlog_get_pending_rows_event(binlog_get_cache_mngr(),
-              use_trans_cache(this, is_transactional));
+    if (!log_current_statement())
+      return false;
+    auto *cache_mngr= binlog_get_cache_mngr();
+    if (!cache_mngr)
+      return true;
+    return !binlog_get_pending_rows_event(cache_mngr,
+                                          use_trans_cache(this,
+                                                          is_transactional));
   }
 
   bool binlog_for_noop_dml(bool transactional_table);
@@ -3698,12 +3715,12 @@ public:
     sent_row_count_for_statement+= count;
     MYSQL_SET_STATEMENT_ROWS_SENT(m_statement_psi, m_sent_row_count);
   }
-  inline void inc_examined_row_count_fast()
+  inline void inc_examined_row_count_fast(ha_rows count= 1)
   {
-    m_examined_row_count++;
-    examined_row_count_for_statement++;
+    m_examined_row_count+= count;
+    examined_row_count_for_statement+= count;
   }
-  inline void inc_examined_row_count()
+  inline void inc_examined_row_count(ha_rows count= 1)
   {
     inc_examined_row_count_fast();
     MYSQL_SET_STATEMENT_ROWS_EXAMINED(m_statement_psi, m_examined_row_count);
@@ -5019,6 +5036,7 @@ public:
     return to->str == NULL;                     /* True on error */
   }
 
+
   /*
     Make a normalized copy of the current database.
     Raise an error if no current database is set.
@@ -5378,11 +5396,29 @@ public:
   {
     if (global_system_variables.log_warnings > threshold)
     {
+      char real_ip_str[64];
+      real_ip_str[0]= 0;
+
+      /* For proxied connections, add the real IP to the warning message */
+      if (net.using_proxy_protocol && net.vio)
+      {
+        if(net.vio->localhost)
+          snprintf(real_ip_str, sizeof(real_ip_str), " real ip: 'localhost'");
+        else
+        {
+          char buf[INET6_ADDRSTRLEN];
+          if (!vio_getnameinfo((sockaddr *)&(net.vio->remote), buf,
+              sizeof(buf),NULL, 0, NI_NUMERICHOST))
+          {
+            snprintf(real_ip_str, sizeof(real_ip_str), " real ip: '%s'",buf);
+          }
+        }
+      }
       Security_context *sctx= &main_security_ctx;
       sql_print_warning(ER_THD(this, ER_NEW_ABORTING_CONNECTION),
                         thread_id, (db.str ? db.str : "unconnected"),
                         sctx->user ? sctx->user : "unauthenticated",
-                        sctx->host_or_ip, reason);
+                        sctx->host_or_ip, real_ip_str, reason);
     }
   }
 
@@ -5480,8 +5516,18 @@ public:
     Flag, mutex and condition for a thread to wait for a signal from another
     thread.
 
-    Currently used to wait for group commit to complete, can also be used for
-    other purposes.
+    Currently used to wait for group commit to complete, and COND_wakeup_ready
+    is used for threads to wait on semi-sync ACKs (though is protected by
+    Repl_semi_sync_master::LOCK_binlog). Note the following relationships
+    between these two use-cases when using
+    rpl_semi_sync_master_wait_point=AFTER_SYNC during group commit:
+      1) Non-leader threads use COND_wakeup_ready to wait for the leader thread
+         to complete binlog commit.
+      2) The leader thread uses COND_wakeup_ready to await ACKs from the
+         replica before signalling the non-leader threads to wake up.
+
+    With wait_point=AFTER_COMMIT, there is no overlap as binlogging has
+    finished, so COND_wakeup_ready is safe to re-use.
   */
   bool wakeup_ready;
   mysql_mutex_t LOCK_wakeup_ready;
@@ -5613,14 +5659,6 @@ public:
 #endif
 
   bool check_slave_ignored_db_with_error(const Lex_ident_db &db) const;
-
-  /*
-    Indicates if this thread is suspended due to awaiting an ACK from a
-    replica. True if suspended, false otherwise.
-
-    Note that this variable is protected by Repl_semi_sync_master::LOCK_binlog
-  */
-  bool is_awaiting_semisync_ack;
 
   inline ulong wsrep_binlog_format(ulong binlog_format) const
   {
@@ -8370,6 +8408,10 @@ extern THD_list server_threads;
 
 void setup_tmp_table_column_bitmaps(TABLE *table, uchar *bitmaps,
                                     uint field_count);
+C_MODE_START
+void mariadb_sleep_for_space(unsigned int seconds);
+C_MODE_END
+
 #ifdef WITH_WSREP
 extern void wsrep_to_isolation_end(THD*);
 #endif

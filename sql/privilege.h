@@ -128,7 +128,7 @@ constexpr privilege_t ALL_KNOWN_ACL_100508= ALL_KNOWN_BITS(LAST_100508_ACL);
 constexpr privilege_t ALL_KNOWN_ACL_100509= ALL_KNOWN_ACL_100508;
 
 // A combination of all bits defined in 11.3.0
-constexpr privilege_t ALL_KNOWN_ACL_110300= ALL_KNOWN_BITS(LAST_110300_ACL);;
+constexpr privilege_t ALL_KNOWN_ACL_110300= ALL_KNOWN_BITS(LAST_110300_ACL);
 
 // A combination of all bits defined as of the current version
 constexpr privilege_t ALL_KNOWN_ACL= ALL_KNOWN_BITS(LAST_CURRENT_ACL);

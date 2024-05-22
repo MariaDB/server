@@ -552,6 +552,7 @@ Table	Create Table
 a1\`b1	CREATE TABLE `a1\``b1` (
   `a` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+/*!999999\- enable the sandbox mode */ 
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `a1\``b1` (
@@ -583,6 +584,7 @@ Table	Create Table
 a1\"b1	CREATE TABLE "a1\""b1" (
   "a" int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+/*!999999\- enable the sandbox mode */ 
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE "a1\""b1" (
@@ -607,15 +609,11 @@ set sql_mode=default;
 create table t1 (a text);
 select count(*) from t1;
 count(*)
-43
+44
 truncate table t1;
 select count(*) from t1;
 count(*)
-43
-truncate table t1;
-select count(*) from t1;
-count(*)
-0
+44
 truncate table t1;
 select count(*) from t1;
 count(*)
@@ -623,7 +621,11 @@ count(*)
 truncate table t1;
 select count(*) from t1;
 count(*)
-43
+0
+truncate table t1;
+select count(*) from t1;
+count(*)
+44
 truncate table t1;
 select count(*) from t1;
 count(*)
@@ -637,9 +639,34 @@ drop table t1;
 WARNING: option --enable-cleartext-plugin is obsolete.
 1
 1
+# End of 10.3 tests
+#
+# MDEV-21778 Disable system commands in mysql/mariadb client
+#
+ERROR at line 1: Not allowed in the sandbox mode
+1
+ERROR at line 1: Not allowed in the sandbox mode
+2
+ERROR at line 1: Not allowed in the sandbox mode
+3
+1
+entering sandbox
+system
+tee
+source
+^^^
+2
+entering sandbox
+system
+tee
+source
+^^^
+3
+# End of 10.5 tests
 #
 # MDEV-30327 Client crashes in print_last_query_cost
 #
+# End of 11.0 tests
 #
 # show whether server cert was verified
 #

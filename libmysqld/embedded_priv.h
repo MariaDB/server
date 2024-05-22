@@ -23,6 +23,8 @@ void init_embedded_mysql(MYSQL *mysql, ulong client_flag);
 void *create_embedded_thd(ulong client_flag);
 int check_embedded_connection(MYSQL *mysql, const char *db);
 void free_old_query(MYSQL *mysql);
+THD *embedded_get_current_thd();
+void embedded_set_current_thd(THD *thd);
 extern MYSQL_METHODS embedded_methods;
 
 /* This one is used by embedded library to gather returning data */

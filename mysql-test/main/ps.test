@@ -5249,5 +5249,190 @@ EXECUTE IMMEDIATE 'SELECT GROUP_CONCAT(@x) FROM t GROUP BY @x := f';
 DROP TABLE t;
 
 --echo #
+--echo # MDEV-15703: Crash in EXECUTE IMMEDIATE 'CREATE OR REPLACE TABLE t1 (a INT DEFAULT ?)' USING DEFAULT
+--echo #
+
+PREPARE stmt FROM 'CREATE OR REPLACE TABLE t1 (a INT DEFAULT ?)';
+--error ER_INVALID_DEFAULT_PARAM
+EXECUTE stmt USING DEFAULT;
+DEALLOCATE PREPARE stmt;
+
+PREPARE stmt FROM 'CREATE OR REPLACE TABLE t1 (a INT DEFAULT ?)';
+--error ER_INVALID_DEFAULT_PARAM
+EXECUTE stmt USING IGNORE;
+DEALLOCATE PREPARE stmt;
+
+--error ER_INVALID_DEFAULT_PARAM
+EXECUTE IMMEDIATE 'CREATE OR REPLACE TABLE t1 (a INT DEFAULT ?)' USING DEFAULT;
+
+--error ER_INVALID_DEFAULT_PARAM
+EXECUTE IMMEDIATE 'CREATE OR REPLACE TABLE t1 (a INT DEFAULT ?)' USING IGNORE;
+
+--error ER_INVALID_DEFAULT_PARAM
+EXECUTE IMMEDIATE 'BEGIN NOT ATOMIC DECLARE a INT DEFAULT ?; END' USING DEFAULT;
+
+--error ER_INVALID_DEFAULT_PARAM
+EXECUTE IMMEDIATE 'BEGIN NOT ATOMIC DECLARE a INT DEFAULT ?; END' USING IGNORE;
+
+CREATE PROCEDURE p1(a INT) SELECT 1;
+--error ER_INVALID_DEFAULT_PARAM
+EXECUTE IMMEDIATE 'CALL p1(?)' USING DEFAULT;
+--error ER_INVALID_DEFAULT_PARAM
+EXECUTE IMMEDIATE 'CALL p1(?)' USING IGNORE;
+DROP PROCEDURE p1;
+
+--error ER_INVALID_DEFAULT_PARAM
+EXECUTE IMMEDIATE 'SELECT ? UNION SELECT 1' USING DEFAULT;
+--error ER_INVALID_DEFAULT_PARAM
+EXECUTE IMMEDIATE 'SELECT ? UNION SELECT 1' USING IGNORE;
+
+--error ER_INVALID_DEFAULT_PARAM
+EXECUTE IMMEDIATE 'SELECT * FROM (SELECT ? UNION ALL SELECT 1) AS derived' USING DEFAULT;
+--error ER_INVALID_DEFAULT_PARAM
+EXECUTE IMMEDIATE 'SELECT * FROM (SELECT ? UNION ALL SELECT 1) AS derived' USING IGNORE;
+
+--error ER_INVALID_DEFAULT_PARAM
+EXECUTE IMMEDIATE 'SELECT * FROM (SELECT ? UNION DISTINCT SELECT 1) AS derived' USING DEFAULT;
+--error ER_INVALID_DEFAULT_PARAM
+EXECUTE IMMEDIATE 'SELECT * FROM (SELECT ? UNION DISTINCT SELECT 1) AS derived' USING IGNORE;
+
+--echo # multi-update and DEFAULT
+CREATE TABLE t1 (a INT, b INT DEFAULT a);
+INSERT into t1 VALUES (1,2),(2,3);
+CREATE TABLE t2 (a INT, b INT DEFAULT a);
+INSERT INTO t2 VALUES (1,10),(2,30);
+
+UPDATE t1,t2 SET t1.b = DEFAULT, t2.b = DEFAULT WHERE t1.a=t2.a;
+SELECT * FROM t1;
+SELECT * FROM t2;
+
+--echo # re-check the case for Prepared Statement with parameters
+TRUNCATE TABLE t1;
+TRUNCATE TABLE t2;
+INSERT INTO t1 VALUES (1,2),(2,3);
+INSERT INTO t2 VALUES (1,10),(2,30);
+
+EXECUTE IMMEDIATE 'UPDATE t1,t2 SET t1.b = ?, t2.b = ? WHERE t1.a=t2.a' USING DEFAULT, DEFAULT;
+SELECT * FROM t1;
+SELECT * FROM t2;
+
+# Cleanup
+DROP TABLE t1, t2;
+
+--echo # multi-update and IGNORE
+CREATE TABLE t1 (a INT, b INT default a);
+INSERT INTO t1 VALUES (1,2),(2,3);
+CREATE TABLE t2 (a INT, b INT default a);
+INSERT INTO t2 VALUES (1,10),(2,30);
+
+UPDATE t1,t2 SET t1.b = IGNORE, t2.b = IGNORE WHERE t1.a=t2.a;
+SELECT * FROM t1;
+SELECT * FROM t2;
+
+--echo # re-check the case for Prepared Statement with parameters
+TRUNCATE TABLE t1;
+TRUNCATE TABLE t2;
+INSERT INTO t1 VALUES (1,2),(2,3);
+INSERT INTO t2 VALUES (1,10),(2,30);
+
+EXECUTE IMMEDIATE 'UPDATE t1,t2 SET t1.b = ?, t2.b = ? WHERE t1.a=t2.a' USING IGNORE, IGNORE;
+SELECT * FROM t1;
+SELECT * FROM t2;
+
+# Cleanup
+DROP TABLE t1, t2;
+
+--echo # multi-update and DEFAULT parameter (no default)
+CREATE TABLE t1 (a INT, b INT NOT NULL);
+INSERT INTO t1 VALUES (1,2),(2,3);
+CREATE TABLE t2 (a INT, b INT NOT NULL);
+INSERT INTO t2 VALUES (1,10),(2,30);
+
+--error ER_NO_DEFAULT_FOR_FIELD
+EXECUTE IMMEDIATE 'UPDATE t1,t2 SET t1.b = ?, t2.b = ? WHERE t1.a=t2.a' USING DEFAULT, DEFAULT;
+
+# Cleanup
+DROP TABLE t1, t2;
+
+--echo # multi-update and IGNORE parameter (no default)
+CREATE TABLE t1 (a INT, b INT NOT NULL);
+INSERT INTO t1 VALUES (1,2),(2,3);
+CREATE TABLE t2 (a INT, b INT NOT NULL);
+INSERT INTO t2 VALUES (1,10),(2,30);
+
+EXECUTE IMMEDIATE 'UPDATE t1,t2 SET t1.b = ?, t2.b = ? WHERE t1.a=t2.a' USING IGNORE, IGNORE;
+SELECT * FROM t1;
+SELECT * FROM t2;
+
+# Cleanup
+DROP TABLE t1, t2;
+
+--echo #
+--echo # MDEV-33549: Incorrect handling of UPDATE in PS mode in case a table's colum declared as NOT NULL
+--echo #
+
+CREATE TABLE t1 (a INT, b INT DEFAULT NULL);
+INSERT INTO t1 VALUES (20, 30);
+EXECUTE IMMEDIATE 'UPDATE t1 SET b=?' USING DEFAULT;
+SELECT * FROM t1;
+
+--echo # Run twice the same update in PS mode to check
+--echo # that no memory relating issues taken place.
+PREPARE stmt FROM 'UPDATE t1 SET b=?';
+EXECUTE stmt USING DEFAULT;
+EXECUTE stmt USING DEFAULT;
+
+--echo # Clean up
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1;
+
+--echo # The same test for multi-table update
+CREATE TABLE t1 (a INT, b INT DEFAULT NULL);
+CREATE TABLE t2 (a INT, c INT DEFAULT NULL);
+
+INSERT INTO t1 VALUES (20, 30);
+INSERT INTO t2 VALUES (20, 30);
+
+EXECUTE IMMEDIATE 'UPDATE t1,t2 SET b=? WHERE t1.a=t2.a' USING DEFAULT;
+SELECT * FROM t1;
+--echo # Run twice the same multi-table update in PS mode to check
+--echo # that no memory relating issues taken place.
+PREPARE stmt FROM 'UPDATE t1,t2 SET b=? WHERE t1.a=t2.a';
+EXECUTE stmt USING DEFAULT;
+EXECUTE stmt USING DEFAULT;
+DEALLOCATE PREPARE stmt;
+--echo # Clean up
+DROP TABLE t1;
+
+--echo # This time checks that a default value for table's column
+--echo # represented by a function call is handled correctly on UPDATE in PS mode
+CREATE TABLE t1 (a INT, b INT DEFAULT MOD(a, 3));
+INSERT INTO t1 VALUES (20, 30);
+EXECUTE IMMEDIATE 'UPDATE t1, t2 SET b=? WHERE t1.a=t2.a' USING DEFAULT;
+SELECT * FROM t1;
+
+--echo # Run twice the same multi-table update in PS mode to check
+--echo # that no memory relating issues taken place.
+PREPARE stmt FROM 'UPDATE t1, t2 SET b=? WHERE t1.a=t2.a';
+EXECUTE stmt USING DEFAULT;
+EXECUTE stmt USING DEFAULT;
+
+--echo # Clean up
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1, t2;
+
+--echo # MDEV-33218: Assertion `active_arena->is_stmt_prepare_or_first_stmt_execute() || active_arena->state == Query_arena::STMT_SP_QUERY_ARGUMENTS' failed. in st_select_lex::fix_prepare_information
+CREATE TABLE t1 AS SELECT 1 f;
+PREPARE stmt FROM 'SHOW CREATE TABLE t1';
+DROP TABLE t1;
+--error ER_NO_SUCH_TABLE
+EXECUTE stmt;
+CREATE VIEW t1 AS SELECT 1;
+EXECUTE stmt;
+--echo # Clean up
+DEALLOCATE PREPARE stmt;
+DROP VIEW t1;
+
+--echo #
 --echo # End of 10.4 tests
 --echo #

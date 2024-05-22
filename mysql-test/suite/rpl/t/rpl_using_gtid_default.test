@@ -42,10 +42,9 @@
 #               replication is used by default if master supports it
 #
 --source include/have_debug.inc
---source include/master-slave.inc
-
 # Format independent test so just use one
 --source include/have_binlog_format_mixed.inc
+--source include/master-slave.inc
 
 --echo #
 --echo # Slave default configuration should be Slave_Pos

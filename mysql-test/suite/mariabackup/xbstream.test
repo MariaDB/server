@@ -8,7 +8,7 @@ mkdir $targetdir;
 let $streamfile=$MYSQLTEST_VARDIR/tmp/backup.xb;
 
 echo # xtrabackup backup to stream;
-exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --databases-exclude=foobar --stream=xbstream > $streamfile 2>$targetdir/backup_stream.log;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --parallel=10  --databases-exclude=foobar --stream=xbstream > $streamfile 2>$targetdir/backup_stream.log;
 echo # xbstream extract;
 --disable_result_log
 exec $XBSTREAM -x -C $targetdir  < $streamfile;

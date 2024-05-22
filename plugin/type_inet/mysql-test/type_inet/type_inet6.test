@@ -1702,6 +1702,17 @@ SELECT 1.00 + (b IN (a,'')) AS f FROM t1 ORDER BY f;
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-32458 ASAN unknown-crash in Inet6::ascii_to_fbt when casting character string to inet6
+--echo #
+
+CREATE TABLE t1 (c CHAR(3));
+INSERT INTO t1 VALUES ('1:0'),('00:');
+SELECT * FROM t1 WHERE c>CAST('::1' AS INET6);
+DROP TABLE t1;
+
+--echo # End of 10.6 tests
+
+--echo #
 --echo # MDEV-22256 Assertion `length == pack_length()' failed in Field_timestamp_with_dec::sort_string
 --echo #
 

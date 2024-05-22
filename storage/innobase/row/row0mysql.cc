@@ -694,6 +694,7 @@ handle_new_error:
 		DBUG_RETURN(true);
 
 	case DB_DEADLOCK:
+	case DB_RECORD_CHANGED:
 	case DB_LOCK_TABLE_FULL:
 	rollback:
 		/* Roll back the whole transaction; this resolution was added
@@ -1584,7 +1585,8 @@ init_fts_doc_id_for_ref(
 	for (dict_foreign_t* foreign : table->referenced_set) {
 		ut_ad(foreign->foreign_table);
 
-		if (foreign->foreign_table->fts) {
+		if (foreign->foreign_table->space
+		    && foreign->foreign_table->fts) {
 			fts_init_doc_id(foreign->foreign_table);
 		}
 
@@ -2377,7 +2379,6 @@ row_discard_tablespace(
 	dict_table_change_id_in_cache(table, new_id);
 
 	dict_index_t* index = UT_LIST_GET_FIRST(table->indexes);
-	if (index) index->clear_instant_alter();
 
 	/* Reset the root page numbers. */
 	for (; index; index = UT_LIST_GET_NEXT(indexes, index)) {

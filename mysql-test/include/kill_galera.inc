@@ -3,7 +3,7 @@
 # Write file to make mysql-test-run.pl expect the crash, but don't start it
 --let $_expect_file_name= `select regexp_replace(@@tmpdir, '^.*/','')`
 --let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/$_expect_file_name.expect
---exec echo "wait" > $_expect_file_name
+--write_line wait $_expect_file_name
 
 # Kill the connected server
 --disable_reconnect
