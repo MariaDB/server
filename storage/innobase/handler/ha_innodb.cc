@@ -4268,7 +4268,7 @@ innobase_end(handlerton*, ha_panic_function)
 		}
 
 		/* Do system tablespace truncation during slow shutdown */
-		if (!srv_fast_shutdown
+		if (!srv_fast_shutdown && !high_level_read_only
 		    && srv_operation == SRV_OPERATION_NORMAL) {
 			fsp_system_tablespace_truncate();
 		}
