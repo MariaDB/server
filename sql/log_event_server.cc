@@ -2970,6 +2970,19 @@ Gtid_log_event::write(Log_event_writer *writer)
     }
   }
 
+#ifndef DBUG_OFF
+  /*
+    The following debug_dbug flags which simulate invalid events are only
+    valid for pre-FL_EXTRA_THREAD_ID events (i.e. before 11.5). So do not write
+    the thread id attribute when simulating these invalid events.
+  */
+  if (DBUG_IF("negate_xid_from_gtid") ||
+      DBUG_IF("negate_xid_data_from_gtid") ||
+      DBUG_IF("inject_fl_extra_multi_engine_into_gtid") ||
+      DBUG_IF("negate_alter_fl_from_gtid"))
+    flags_extra&= ~FL_EXTRA_THREAD_ID;
+#endif
+
   DBUG_EXECUTE_IF("inject_fl_extra_multi_engine_into_gtid", {
     flags_extra|= FL_EXTRA_MULTI_ENGINE_E1;
   });
