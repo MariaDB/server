@@ -45,6 +45,7 @@ Created 11/5/1995 Heikki Tuuri
 /** @name Modes for buf_page_get_gen */
 /* @{ */
 #define BUF_GET			10	/*!< get always */
+#define BUF_GET_RECOVER		9	/*!< like BUF_GET, but in recv_sys.recover() */
 #define	BUF_GET_IF_IN_POOL	11	/*!< get if in pool */
 #define BUF_PEEK_IF_IN_POOL	12	/*!< get if in pool, do not make
 					the block young in the LRU list */

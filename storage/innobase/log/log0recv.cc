@@ -3678,8 +3678,8 @@ recv_sys_t::recover(const page_id_t page_id, mtr_t *mtr, dberr_t *err)
 {
   if (!recovery_on)
   must_read:
-    return buf_page_get_gen(page_id, 0, RW_S_LATCH, nullptr, BUF_GET, mtr,
-                            err);
+    return buf_page_get_gen(page_id, 0, RW_NO_LATCH, nullptr, BUF_GET_RECOVER,
+                            mtr, err);
 
   mysql_mutex_lock(&mutex);
   map::iterator p= pages.find(page_id);
@@ -3728,7 +3728,7 @@ recv_sys_t::recover(const page_id_t page_id, mtr_t *mtr, dberr_t *err)
     goto corrupted;
   }
 
-  mtr->page_lock(block, RW_S_LATCH);
+  mtr->page_lock(block, RW_NO_LATCH);
   return block;
 }
 
