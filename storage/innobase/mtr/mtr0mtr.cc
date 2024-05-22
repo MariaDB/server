@@ -583,8 +583,9 @@ void mtr_t::commit_shrink(fil_space_t &space, uint32_t size)
 
   if (space.id == TRX_SYS_SPACE)
     srv_sys_space.set_last_file_size(file->size);
+  else
+    space.set_create_lsn(m_commit_lsn);
 
-  space.set_create_lsn(m_commit_lsn);
   mysql_mutex_unlock(&fil_system.mutex);
 
   space.clear_freed_ranges();
