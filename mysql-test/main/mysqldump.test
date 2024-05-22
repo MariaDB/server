@@ -3132,4 +3132,3 @@ EOF
 --replace_result mariadb-dump.exe mariadb-dump $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --error 3
 --exec $MYSQL_DUMP --dir=$MYSQLTEST_VARDIR/does_not_exist mysql 2>&1
-

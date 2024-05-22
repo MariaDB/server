@@ -2,9 +2,6 @@
 
 [mysqld.1]
 log-warnings=9
-rpl_semi_sync_master_enabled=1
-rpl_semi_sync_master_wait_point=AFTER_COMMIT
 
 [mysqld.2]
 log-warnings=9
-rpl_semi_sync_slave_enabled=1

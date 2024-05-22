@@ -136,7 +136,7 @@ tr#01:stmt#00 - slave run#0, before backup
 tr#01:stmt#01 - slave run#0, before backup
 tr#01:stmt#02 - slave run#0, before backup
 ### Slave: Execute the CHANGE MASTER statement to set up the host and port
-CHANGE MASTER '' TO MASTER_USER='root', MASTER_HOST='127.0.0.1', MASTER_PORT=###, MASTER_CONNECT_RETRY=1;
+CHANGE MASTER '' TO MASTER_USER='root', MASTER_HOST='127.0.0.1', MASTER_PORT=###, MASTER_CONNECT_RETRY=1, MASTER_SSL_VERIFY_SERVER_CERT=0;
 ### Slave: Execute the CHANGE MASTER statement from mariadb_backup_slave_info
 CHANGE MASTER TO MASTER_LOG_FILE='master_after_tr01_show_master_status_file', MASTER_LOG_POS=master_after_tr01_show_master_status_position;
 Warnings:
