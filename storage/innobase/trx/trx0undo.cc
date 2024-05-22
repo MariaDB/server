@@ -980,7 +980,7 @@ trx_undo_mem_create_at_db_start(trx_rseg_t *rseg, ulint id, uint32_t page_no)
 
 	mtr.start();
 	const page_id_t page_id{rseg->space->id, page_no};
-	const buf_block_t* block = buf_page_get(page_id, 0, RW_X_LATCH, &mtr);
+	const buf_block_t* block = recv_sys.recover(page_id, &mtr, nullptr);
 	if (UNIV_UNLIKELY(!block)) {
 corrupted:
 		mtr.commit();
@@ -1094,9 +1094,8 @@ corrupted_type:
 	undo->last_page_no = last_addr.page;
 	undo->top_page_no = last_addr.page;
 
-	const buf_block_t* last = buf_page_get(
-		page_id_t(rseg->space->id, undo->last_page_no), 0,
-		RW_X_LATCH, &mtr);
+	const buf_block_t* last = recv_sys.recover(
+		page_id_t(rseg->space->id, undo->last_page_no), &mtr, nullptr);
 
 	if (UNIV_UNLIKELY(!last)) {
 		goto corrupted_undo;
