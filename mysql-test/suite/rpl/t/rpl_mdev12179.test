@@ -288,7 +288,9 @@ EOF
 --enable_reconnect
 --enable_prepare_warnings
 --source include/wait_until_connected_again.inc
+--disable_cursor_protocol
 SELECT max(seq_no) FROM mysql.gtid_slave_pos_InnoDB into @seq_no;
+--enable_cursor_protocol
 --disable_prepare_warnings
 
 --connection server_1

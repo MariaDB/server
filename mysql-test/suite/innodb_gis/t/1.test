@@ -404,7 +404,10 @@ select (ST_asWKT(ST_geomfromwkb((0x010100000000000000000024400000000000002440)))
 --enable_metadata
 create table t1 (g GEOMETRY);
 select * from t1;
+#Check after fix MDEV-31540
+--disable_cursor_protocol
 select ST_asbinary(g) from t1;
+--enable_cursor_protocol
 --disable_metadata
 drop table t1;
 

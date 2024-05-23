@@ -31,9 +31,12 @@ CREATE TABLE diaries (
 INSERT INTO diaries VALUES('It is Groonga');
 INSERT INTO diaries VALUES('It is Mroonga');
 
+#Check after fix MDEV-31554
+--disable_cursor_protocol
 SELECT mroonga_command('select',
                        'table', 'diaries',
                        'filter', 'title @ "Groonga"');
+--enable_cursor_protocol
 
 DROP TABLE diaries;
 

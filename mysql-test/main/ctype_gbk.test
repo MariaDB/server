@@ -66,8 +66,10 @@ INSERT INTO t1 VALUES
   (REPEAT(0x1125,200000), REPEAT(0x1125,200000)), ('', ''), ('', '');
 
 --enable_prepare_warnings
+--disable_cursor_protocol
 SELECT a FROM t1 GROUP BY 1 LIMIT 1 INTO @nullll;
 SELECT b FROM t1 GROUP BY 1 LIMIT 1 INTO @nullll;
+--enable_cursor_protocol
 --disable_prepare_warnings
 
 DROP TABLES t1;

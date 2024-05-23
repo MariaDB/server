@@ -23,9 +23,11 @@ let $wait_condition =
 -- source include/wait_condition.inc
 
 --enable_prepare_warnings
+--disable_cursor_protocol
 SELECT ID FROM INFORMATION_SCHEMA.PROCESSLIST
 WHERE INFO="UPDATE bug51920 SET i=2"
 INTO @thread_id;
+--enable_cursor_protocol
 --disable_prepare_warnings
 
 KILL @thread_id;
