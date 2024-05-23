@@ -414,7 +414,7 @@ static void lock_table(MYSQL *mysql, int tablecount, char **raw_tablename)
     dynstr_append(&query, " WRITE,");
   }
   if (mysql_real_query(mysql, query.str, (ulong)query.length-1))
-    db_error(mysql); /* We shall countinue here, if --force was given */
+    db_error(mysql); /* We shall continue here, if --force was given */
 }
 
 
@@ -612,7 +612,7 @@ pthread_handler_t worker_thread(void *arg)
 
   if (mysql_query(mysql, "/*!40101 set @@character_set_database=binary */;"))
   {
-    db_error(mysql); /* We shall countinue here, if --force was given */
+    db_error(mysql); /* We shall continue here, if --force was given */
     goto error;
   }
 
@@ -736,12 +736,12 @@ int main(int argc, char **argv)
     if (!(mysql= db_connect(current_host,current_db,current_user,opt_password)))
     {
       free_defaults(argv_to_free);
-      return(1); /* purecov: deadcode */
+      return(1); /* purecov: dead code */
     }
 
     if (mysql_query(mysql, "/*!40101 set @@character_set_database=binary */;"))
     {
-      db_error(mysql); /* We shall countinue here, if --force was given */
+      db_error(mysql); /* We shall continue here, if --force was given */
       return(1);
     }
 
