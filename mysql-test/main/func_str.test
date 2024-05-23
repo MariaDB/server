@@ -2349,5 +2349,14 @@ DROP VIEW v1;
 
 
 --echo #
+--echo # MDEV-28387 UBSAN: runtime error: negation of -9223372036854775808 cannot be represented in type 'long long int'; cast to an unsigned type to negate this value to itself in my_strtoll10 on SELECT
+--echo #
+
+SET @a='-9223372036854775808';  # Quite specific value; considerably varying it will not work
+CREATE TABLE t (c1 INT,c2 CHAR);
+SELECT SUBSTR(0,@a) FROM t;
+DROP TABLE t;
+
+--echo #
 --echo # End of 10.5 tests
 --echo #

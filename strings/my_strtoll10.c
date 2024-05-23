@@ -241,7 +241,7 @@ end4:
   *endptr= (char*) s;
   if (negative)
   {
-   if (li > MAX_NEGATIVE_NUMBER)
+   if (li >= MAX_NEGATIVE_NUMBER)
      goto overflow;
    return -((longlong) li);
   }
