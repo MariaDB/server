@@ -686,15 +686,19 @@ use test;
 create view v1 as select 42;
 show create view v1;
 
+--disable_cursor_protocol
 select definer into @v1def1 from information_schema.views
   where table_schema = 'test' and table_name='v1';
+--enable_cursor_protocol
 drop view v1;
 
 create definer=`test14256`@`%` view v1 as select 42;
 show create view v1;
 
+--disable_cursor_protocol
 select definer into @v1def2 from information_schema.views
   where table_schema = 'test' and table_name='v1';
+--enable_cursor_protocol
 drop view v1;
 
 select @v1def1, @v1def2, @v1def1=@v1def2;

@@ -18,7 +18,10 @@
 --source ../../include/mroonga/have_mroonga.inc
 --source ../../include/mroonga/load_mroonga_functions.inc
 
+#Check after fix MDEV-31554
+--disable_cursor_protocol
 SELECT mroonga_normalize('aBcＡｂＣ㍑');
+--enable_cursor_protocol
 
 --source ../../include/mroonga/unload_mroonga_functions.inc
 --source ../../include/mroonga/have_mroonga_deinit.inc

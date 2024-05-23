@@ -4,7 +4,9 @@
 --source include/have_debug_sync.inc
 --source include/not_embedded.inc
 
+--disable_cursor_protocol
 select count_star into @init_count from performance_schema.events_waits_summary_global_by_event_name WHERE event_name LIKE '%wait%io%file%innodb%innodb_temp_file%';
+--enable_cursor_protocol
 connect (ddl, localhost, root,,);
 update performance_schema.setup_instruments set enabled='yes';
 update performance_schema.setup_consumers set enabled='yes';
@@ -26,7 +28,9 @@ send ALTER TABLE t1 ADD INDEX(b), ALGORITHM=INPLACE;
 connection default;
 SET DEBUG_SYNC = 'now WAIT_FOR go';
 
+--disable_cursor_protocol
 select count_star into @final_count from performance_schema.events_waits_summary_global_by_event_name WHERE event_name LIKE '%wait%io%file%innodb%innodb_temp_file%';
+--enable_cursor_protocol
 
 SELECT @final_count - @init_count;
 

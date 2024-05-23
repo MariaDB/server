@@ -24,7 +24,10 @@ select json_array(1);
 --disable_view_protocol
 select json_array(1, "text", false, null);
 
+#enable after fix MDEV-31554
+--disable_cursor_protocol
 select json_array_append('["a", "b"]', '$', FALSE);
+--enable_cursor_protocol
 --enable_view_protocol
 select json_array_append('{"k1":1, "k2":["a", "b"]}', '$.k2', 2);
 select json_array_append('["a", ["b", "c"], "d"]', '$[0]', 2);
@@ -87,12 +90,18 @@ select json_extract('[10, 20, [30, 40], 1, 10]', '$[1]') as exp;
 select json_extract('[10, 20, [30, 40], 1, 10]', '$[1]', '$[25]') as exp;
 select json_extract( '[{"a": [3, 4]}, {"b": 2}]', '$[0].a', '$[1].a') as exp;
 
+#enable after fix MDEV-31554
+--disable_cursor_protocol
 select json_insert('{"a":1, "b":{"c":1}, "d":[1, 2]}', '$.b.k1', 'word') as exp;
+--enable_cursor_protocol
 select json_insert('{"a":1, "b":{"c":1}, "d":[1, 2]}', '$.d[3]', 3) as exp;
 select json_insert('{"a":1, "b":{"c":1}, "d":[1, 2]}', '$.a[2]', 2) as exp;
 select json_insert('{"a":1, "b":{"c":1}, "d":[1, 2]}', '$.b.c', 'word') as exp;
 
+#enable after fix MDEV-31554
+--disable_cursor_protocol
 select json_set('{ "a": 1, "b": [2, 3]}', '$.a', 10, '$.c', '[true, false]') as exp;
+--enable_cursor_protocol
 
 select json_replace('{ "a": 1, "b": [2, 3]}', '$.a', 10, '$.c', '[true, false]') as exp;
 select json_replace('{ "a": 1, "b": [2, 3]}', '$.a', 10, '$.b', '[true, false]') as exp;
@@ -134,11 +143,14 @@ select json_merge('a','b');
 select json_merge('{"a":"b"}','{"c":"d"}');
 SELECT JSON_MERGE('[1, 2]', '{"id": 47}');
 
+#enable after fix MDEV-31554
+--disable_cursor_protocol
 select json_type('{"k1":123, "k2":345}');
 select json_type('[123, "k2", 345]');
 select json_type("true");
 select json_type('123');
 select json_type('123.12');
+--enable_cursor_protocol
 
 select json_keys('{"a":{"c":1, "d":2}, "b":2}');
 select json_keys('{"a":{"c":1, "d":2}, "b":2}', "$.a");
@@ -166,21 +178,30 @@ insert into t1 values
 select json_search( json_col, 'all', 'foot' ) as ex from t1;
 drop table t1;
 
-
+#enable after fix MDEV-31554
+--disable_cursor_protocol
 select json_unquote('"abc"');
 select json_unquote('abc');
+--enable_cursor_protocol
+
 #
 # MDEV-13703 Illegal mix of collations for operation 'json_object' on using JSON_UNQUOTE as an argument.
 #
 create table t1 (c VARCHAR(8)) DEFAULT CHARSET=latin1;
 insert into t1 values ('abc'),('def');
- 
+
+#enable after fix MDEV-31554
+--disable_cursor_protocol
 select json_object('foo', json_unquote(json_object('bar', c)),'qux', c) as fld from t1;
+--enable_cursor_protocol
 drop table t1;
 
 
 select json_object("a", json_object("b", "abcd"));
+#enable after fix MDEV-31554
+--disable_cursor_protocol
 select json_object("a", '{"b": "abcd"}');
+--enable_cursor_protocol
 select json_object("a", json_compact('{"b": "abcd"}'));
 
 select json_compact(NULL);
@@ -257,8 +278,11 @@ select json_merge('{"a":{"u":12, "x":"b"}}', '{"a":{"x":"c"}}') as ex ;
 select json_merge('{"a":{"u":12, "x":"b", "r":1}}', '{"a":{"x":"c", "r":2}}') as ex ;
 
 select json_compact('{"a":1, "b":[1,2,3], "c":{"aa":"v1", "bb": "v2"}}') as ex;
+#enable after fix MDEV-31554
+--disable_cursor_protocol
 select json_loose('{"a":1, "b":[1,2,3], "c":{"aa":"v1", "bb": "v2"}}') as ex;
 select json_detailed('{"a":1, "b":[1,2,3], "c":{"aa":"v1", "bb": "v2"}}') as ex;
+--enable_cursor_protocol
 
 #
 # MDEV-11856 json_search doesn't search for values with double quotes character (")
@@ -450,9 +474,12 @@ drop table t1;
 --echo # MDEV-16750 JSON_SET mishandles unicode every second pair of arguments.
 --echo #
 
+#enable after fix MDEV-31554
+--disable_cursor_protocol
 SELECT JSON_SET('{}', '$.a', _utf8 0xC3B6) as exp;
 SELECT JSON_SET('{}', '$.a', _utf8 0xC3B6, '$.b', _utf8 0xC3B6) as exp;
 SELECT JSON_SET('{}', '$.a', _utf8 X'C3B6', '$.x', 1, '$.b', _utf8 X'C3B6') as exp;
+--enable_cursor_protocol
 
 --echo #
 --echo # MDEV-17121 JSON_ARRAY_APPEND
@@ -1029,12 +1056,15 @@ create table t1 (a varchar(254));
 insert into t1 values (concat('x64-', repeat('a', 60)));
 insert into t1 values (concat('x64-', repeat('b', 60)));
 insert into t1 values (concat('x64-', repeat('c', 60)));
+#enable after fix MDEV-31554
+--disable_cursor_protocol
 #enable after MDEV-32454 fix
 --disable_view_protocol
 --disable_ps2_protocol
 select json_arrayagg(a) from t1;
 --enable_ps2_protocol
 --enable_view_protocol
+--enable_cursor_protocol
 drop table t1;
 SET group_concat_max_len= default;
 

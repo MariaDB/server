@@ -698,6 +698,7 @@ DROP INDEX CityName on City;
 CREATE INDEX Name ON City(Name);
 CREATE INDEX Population ON City(Population);
 
+--disable_cursor_protocol
 --disable_ps2_protocol
 --disable_view_protocol
 --replace_column 9 #
@@ -761,6 +762,7 @@ ORDER BY Population LIMIT 5;
 SHOW STATUS LIKE 'Handler_read_%';
 --enable_view_protocol
 --enable_ps2_protocol
+--enable_cursor_protocol
 
 set optimizer_switch=@save_optimizer_switch;
           

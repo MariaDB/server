@@ -17,6 +17,7 @@ SHOW VARIABLES LIKE 'secure_file_priv';
 # If we run tests with --mem, it will be /dev/shm.
 # If we run tests with --parallel, it will be mysql-test/var
 # (because MYSQLTEST_VARDIR in this case is mysql-test/var/N).
+--disable_cursor_protocol
 
 --perl
 use File::Basename;
@@ -38,6 +39,8 @@ EOF
 --source $MYSQL_TMP_DIR/bug50373.inc
 --remove_file $MYSQL_TMP_DIR/bug50373.inc
 --enable_query_log
+
+--enable_cursor_protocol
 
 DROP TABLE t1;
 

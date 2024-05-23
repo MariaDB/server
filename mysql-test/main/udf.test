@@ -250,6 +250,8 @@ DROP FUNCTION avgcost;
 
 #enable view prtotocol after fix MDEV-28677
 --disable_view_protocol
+#check after fix MDEV-31587
+--disable_cursor_protocol
 select * from mysql.func;
 --replace_result $UDF_EXAMPLE_SO UDF_EXAMPLE_LIB
 eval CREATE FUNCTION is_const RETURNS STRING SONAME "$UDF_EXAMPLE_SO";
@@ -262,6 +264,7 @@ select * from mysql.func;
 
 --error 1305
 select is_const(3);
+--enable_cursor_protocol
 --enable_view_protocol
 
 #
@@ -270,6 +273,8 @@ select is_const(3);
 --replace_result $UDF_EXAMPLE_SO UDF_EXAMPLE_LIB
 eval CREATE FUNCTION is_const RETURNS STRING SONAME "$UDF_EXAMPLE_SO";
 
+#check after fix MDEV-31587
+--disable_cursor_protocol
 select
   is_const(3) as const,
   is_const(3.14) as const,
@@ -297,6 +302,7 @@ select
 from
   bug18761;
 drop table bug18761;
+--enable_cursor_protocol
 
 --error 1241
 select is_const((1,2,3));

@@ -20,10 +20,13 @@ drop table com1;
 create table `clock$` (a int);
 drop table `clock$`;
 
+# Enable after fix MDEV-31553
+--disable_cursor_protocol
 # Enable after fix MDEV-29295
 --disable_view_protocol
 select convert(convert(',' using filename) using binary);
 --enable_view_protocol 
+--enable_cursor_protocol
 
 --echo #
 --echo # MDEV-7677 my_charset_handler_filename has a wrong "ismbchar" member

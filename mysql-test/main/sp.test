@@ -3019,8 +3019,10 @@ create procedure bug5251()
 begin
 end|
 
+--disable_cursor_protocol
 select created into @c1 from mysql.proc
   where db='test' and name='bug5251'|
+--enable_cursor_protocol
 --sleep 2
 alter procedure bug5251 comment 'foobar'|
 select count(*) from mysql.proc
@@ -8256,12 +8258,16 @@ drop procedure if exists p;
 --enable_warnings
 set @old_mode= @@sql_mode;
 set @@sql_mode= cast(pow(2,32)-1 as unsigned integer);
+--disable_cursor_protocol
 select @@sql_mode into @full_mode;
+--enable_cursor_protocol
 create procedure p() as begin end;
 call p();
 set @@sql_mode= @old_mode;
 # Rename SQL modes that differ in name between the server and the table definition.
+--disable_cursor_protocol
 select replace(@full_mode, 'ALLOW_INVALID_DATES', 'INVALID_DATES') into @full_mode;
+--enable_cursor_protocol
 select name from mysql.proc where name = 'p' and sql_mode = @full_mode;
 drop procedure p;
 
