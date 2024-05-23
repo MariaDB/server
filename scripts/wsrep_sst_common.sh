@@ -1338,6 +1338,7 @@ verify_ca_matches_cert()
     errmsg=$("$OPENSSL_BINARY" verify -verbose \
                  ${ca:+ -CAfile} ${ca:+ "$ca"} \
                  ${cap:+ -CApath} ${cap:+ "$cap"} \
+                 -untrusted "$cert" \
                  "$cert" 2>&1) || not_match=1
 
     if [ $not_match -eq 1 ]; then
