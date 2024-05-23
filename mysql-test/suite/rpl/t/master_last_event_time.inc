@@ -2,6 +2,7 @@
 --echo # Test that changes are properly applied by server_2 and server_3
 --echo #
 
+--connection server_1
 --source include/save_master_gtid.inc
 
 --connection server_2

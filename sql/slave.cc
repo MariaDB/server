@@ -3391,17 +3391,27 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
 
     if (full)
     {
+      MYSQL_TIME time;
       protocol->store((uint32)    mi->rli.retried_trans);
       protocol->store((ulonglong) mi->rli.max_relay_log_size);
       protocol->store(mi->rli.executed_entries);
       protocol->store((uint32)    mi->received_heartbeats);
       protocol->store_double(mi->heartbeat_period, 3);
       protocol->store(gtid_pos->ptr(), gtid_pos->length(), &my_charset_bin);
+
       if (mi->rli.newest_master_timestamp)
       {
-        MYSQL_TIME time;
         timestamp_to_my_time(&time, mi->rli.newest_master_timestamp);
         protocol->store_datetime(&time, 0);
+      }
+      else
+      {
+        protocol->store_null();
+      }
+
+      if (mi->rli.slave_timestamp)
+      {
+        DBUG_ASSERT(mi->rli.newest_master_timestamp);
         timestamp_to_my_time(&time, mi->rli.slave_timestamp);
         protocol->store_datetime(&time, 0);
         protocol->store((uint32) (mi->rli.newest_master_timestamp -
@@ -3409,7 +3419,6 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
       }
       else
       {
-        protocol->store_null();
         protocol->store_null();
         protocol->store_null();
       }
@@ -4310,7 +4319,8 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
         rli->sql_thread_caught_up= false;
         DBUG_ASSERT(rli->last_master_timestamp >= 0);
       }
-      if (unlikely(!rli->slave_timestamp))
+
+      if (unlikely(!rli->slave_timestamp) && Log_event::is_group_event(typ))
       {
         /*
           First event for this slave. Assume that all the slave was up to date
