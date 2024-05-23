@@ -93,10 +93,13 @@ let $message= Testcase 3.5.9.3:;
 	Update tb3 Set f136=8 where f122='Test 3.5.9.3';
 
 	select f118, f121, f122, f136, f163 from tb3 where f122='Test 3.5.9.3' order by f136;
+#Check after fix MDEV-31495
+--disable_cursor_protocol
 	select  @tr_var_b4_118, @tr_var_b4_121, @tr_var_b4_122,
 		@tr_var_b4_136, @tr_var_b4_163;
 	select  @tr_var_af_118, @tr_var_af_121, @tr_var_af_122,
 		@tr_var_af_136, @tr_var_af_163;
+--enable_cursor_protocol
 
 --disable_query_log
 	set @tr_var_b4_118=0, @tr_var_b4_121=0, @tr_var_b4_122=0,
@@ -112,10 +115,14 @@ let $message= Testcase 3.5.9.3:;
 	delete from tb3 where f122='Test 3.5.9.3';
 
 	select f118, f121, f122, f136, f163 from tb3 where f122='Test 3.5.9.3' order by f136;
+#Check after fix MDEV-31495
+--disable_cursor_protocol
 	select  @tr_var_b4_118, @tr_var_b4_121, @tr_var_b4_122,
 		@tr_var_b4_136, @tr_var_b4_163;
 	select  @tr_var_af_118, @tr_var_af_121, @tr_var_af_122,
 		@tr_var_af_136, @tr_var_af_163;
+--enable_cursor_protocol
+
 #Cleanup
 	--disable_warnings
 	drop trigger trg2_a;
@@ -167,10 +174,13 @@ let $message= Testcase 3.5.9.4:;
 
 	select f118, f121, f122, f136, f151, f163 from tb3
 		where f122 like 'Test 3.5.9.4%' order by f163;
+#Check after fix MDEV-31495
+--disable_cursor_protocol
 	select  @tr_var_b4_118, @tr_var_b4_121, @tr_var_b4_122,
 		@tr_var_b4_136, @tr_var_b4_151, @tr_var_b4_163;
 	select  @tr_var_af_118, @tr_var_af_121, @tr_var_af_122,
 		@tr_var_af_136, @tr_var_af_151, @tr_var_af_163;
+--enable_cursor_protocol
 
 --disable_query_log
 	set @tr_var_b4_118=0, @tr_var_b4_121=0, @tr_var_b4_122=0,
@@ -188,10 +198,14 @@ let $message= Testcase 3.5.9.4:;
 
 	select f118, f121, f122, f136, f151, f163 from tb3
 		where f122 like 'Test 3.5.9.4-trig' order by f163;
+#Check after fix MDEV-31495
+--disable_cursor_protocol
 	select  @tr_var_b4_118, @tr_var_b4_121, @tr_var_b4_122,
 		@tr_var_b4_136, @tr_var_b4_151, @tr_var_b4_163;
 	select  @tr_var_af_118, @tr_var_af_121, @tr_var_af_122,
 		@tr_var_af_136, @tr_var_af_151, @tr_var_af_163;
+--enable_cursor_protocol
+
 #Cleanup
 	--disable_warnings
 	drop trigger trg3_a;

@@ -140,7 +140,9 @@ update t set a=3 where a=1;
 select * from t;
 select * from t for system_time all;
 --enable_prepare_warnings
+--disable_cursor_protocol
 select row_start from t where a=3 into @tm;
+--enable_cursor_protocol
 --disable_prepare_warnings
 alter table t add column b int;
 select @tm=row_start from t where a=3;

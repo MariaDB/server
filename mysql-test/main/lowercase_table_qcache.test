@@ -13,6 +13,7 @@ set LOCAL query_cache_type=ON;
 drop database if exists MySQLtesT;
 --enable_warnings
 
+--disable_cursor_protocol
 create database MySQLtesT;
 create table MySQLtesT.t1 (a int);
 select * from MySQLtesT.t1;
@@ -30,6 +31,7 @@ disable_result_log;
 select * from MySQL.db;
 enable_result_log;
 show status like "Qcache_queries_in_cache";
+--enable_cursor_protocol
 
 set GLOBAL query_cache_size=@save_query_cache_size;
 set GLOBAL query_cache_type=default;

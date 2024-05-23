@@ -35,7 +35,9 @@ SET sql_mode=DEFAULT;
 --eval INSERT INTO t1 VALUES (DEFAULT,DEFAULT);
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --disable_ps2_protocol
+--disable_cursor_protocol
 --eval SELECT a INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/mdev-7824.txt' FROM t1
+--enable_cursor_protocol
 DELETE FROM t1;
 --enable_ps2_protocol
 SET sql_mode=TRADITIONAL;

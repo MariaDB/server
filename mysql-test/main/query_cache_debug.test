@@ -94,7 +94,9 @@ connection con1;
 --reap
 SHOW STATUS LIKE "Qcache_queries_in_cache";
 --echo # Test that it's cacheable
+--disable_cursor_protocol
 SELECT * FROM t1;
+--enable_cursor_protocol
 SHOW STATUS LIKE "Qcache_queries_in_cache";
 
 disconnect con1;

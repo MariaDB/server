@@ -25,24 +25,44 @@ insert into prefixinno values (1, 1001, repeat('a', 1)),
 
 select * from prefixinno;
 
+--disable_cursor_protocol
+--enable_cursor_protocol
 --echo # Eligible for optimization.
 select id, bigfield from prefixinno where bigfield = repeat('d', 31);
 
+--disable_cursor_protocol
+--enable_cursor_protocol
 --echo # Eligible for optimization, access via fake_id only.
 select id, bigfield from prefixinno where fake_id = 1031;
 
+--disable_cursor_protocol
+--enable_cursor_protocol
 --echo # Not eligible for optimization, access via fake_id of big row.
 select id, bigfield from prefixinno where fake_id = 1033;
 
+--disable_cursor_protocol
+--enable_cursor_protocol
 --echo # Not eligible for optimization.
 select id, bigfield from prefixinno where bigfield = repeat('x', 32);
+--disable_cursor_protocol
+--enable_cursor_protocol
 select id, bigfield from prefixinno where bigfield = repeat('y', 33);
 
+--disable_cursor_protocol
+--enable_cursor_protocol
 select id, bigfield from prefixinno where bigfield = repeat('b', 8);
+--disable_cursor_protocol
+--enable_cursor_protocol
 select id, bigfield from prefixinno where bigfield = repeat('c', 24);
+--disable_cursor_protocol
+--enable_cursor_protocol
 select id, bigfield from prefixinno where bigfield = repeat('z', 128);
+--disable_cursor_protocol
+--disable_cursor_protocol
 select id, bigfield from prefixinno where fake_id = 1033;
 
+--disable_cursor_protocol
+--enable_cursor_protocol
 drop table prefixinno;
 
 --echo # Multi-byte handling case
