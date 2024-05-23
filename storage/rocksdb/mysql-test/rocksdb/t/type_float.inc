@@ -56,6 +56,8 @@ INSERT INTO t1 (f,f0,r1_1,f23_0,f20_3,d,d1_0,d10_10,d53,d53_10,pk) VALUES (-9999
 --sorted_result
 --query_vertical SELECT f,f0,r1_1,f23_0,f20_3,d,d1_0,d10_10,d53,d53_10 FROM t1
 
+#Enable after fix MDEV-34624
+--disable_cursor_protocol
 --sorted_result
 query_vertical
 SELECT
@@ -69,6 +71,7 @@ SELECT
   CONCAT('', MAX(d10_10)),
   CONCAT('', MAX(d53)),
   CONCAT('', MAX(d53_10)) FROM t1;
+--enable_cursor_protocol
 
 # Invalid values
 

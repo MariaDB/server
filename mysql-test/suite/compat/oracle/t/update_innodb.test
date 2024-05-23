@@ -9,7 +9,9 @@ CREATE TABLE t1 (a INT NOT NULL PRIMARY KEY) engine=innodb;
 INSERT INTO t1 VALUES (1);
 START TRANSACTION;
 --enable_prepare_warnings
+--disable_cursor_protocol
 SELECT a AS a_con1 FROM t1 INTO @a FOR UPDATE;
+--enable_cursor_protocol
 
 --connect(con2,localhost,root,,)
 SET sql_mode='ORACLE';

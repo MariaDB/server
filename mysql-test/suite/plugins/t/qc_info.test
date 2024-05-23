@@ -4,10 +4,12 @@ set @save_query_cache_size=@@global.query_cache_size;
 
 # test that hits are correctly incremented
 reset query cache;
+--disable_cursor_protocol
 --disable_ps2_protocol
 select * from t1;
 select * from t1;
 --enable_ps2_protocol
+--enable_cursor_protocol
 select hits, statement_text from information_schema.query_cache_info;
 
 drop table t1;

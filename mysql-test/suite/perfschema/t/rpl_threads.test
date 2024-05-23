@@ -30,9 +30,11 @@ connection master;
 # Read the ID of the binlog dump connection,
 # as exposed in PROCESSLIST.
 --enable_prepare_warnings
+--disable_cursor_protocol
 select ID from INFORMATION_SCHEMA.PROCESSLIST
   where COMMAND = "Binlog Dump"
   into @master_dump_pid;
+--enable_cursor_protocol
 --disable_prepare_warnings
 
 select COMMAND, STATE
@@ -50,9 +52,11 @@ sync_slave_with_master;
 # Read the ID of the SLAVE IO thread,
 # as exposed in PROCESSLIST.
 --enable_prepare_warnings
+--disable_cursor_protocol
 select ID from INFORMATION_SCHEMA.PROCESSLIST
   where STATE like "Waiting for master to send event%"
   into @slave_io_pid;
+--enable_cursor_protocol
 --disable_prepare_warnings
 
 select COMMAND, STATE
@@ -67,9 +71,11 @@ select NAME, TYPE, PROCESSLIST_COMMAND, PROCESSLIST_STATE
 # Read the ID of the SLAVE SQL thread,
 # as exposed in PROCESSLIST.
 --enable_prepare_warnings
+--disable_cursor_protocol
 select ID from INFORMATION_SCHEMA.PROCESSLIST
   where STATE like "Slave has read all relay log%"
   into @slave_sql_pid;
+--enable_cursor_protocol
 --disable_prepare_warnings
 
 select COMMAND, STATE

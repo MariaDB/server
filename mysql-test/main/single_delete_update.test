@@ -12,6 +12,7 @@
 --echo #             limit efficiently
 --echo #
 
+--disable_cursor_protocol
 CREATE TABLE t1 (i INT);
 INSERT INTO t1 VALUES (10),(11),(12),(13),(14),(15),(16),(17),(18),(19),
                       (20),(21),(22),(23),(24),(25);
@@ -459,3 +460,4 @@ SELECT * FROM t2 WHERE c = 10 ORDER BY a DESC, b DESC;
 
 DROP TABLE t1, t2;
 --enable_ps2_protocol
+--enable_cursor_protocol
