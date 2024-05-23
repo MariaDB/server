@@ -32,7 +32,6 @@ include/diff_tables.inc [master:t0, slave:t0]
 include/diff_tables.inc [master:t1, slave:t1]
 connection slave;
 include/stop_slave.inc
-set global log_warnings=default;
 SET GLOBAL slave_parallel_mode=@old_parallel_mode;
 SET GLOBAL slave_parallel_threads=@old_parallel_threads;
 include/start_slave.inc

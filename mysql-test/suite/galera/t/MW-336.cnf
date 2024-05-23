@@ -2,6 +2,8 @@
 
 [mysqld.1]
 wsrep-debug=SERVER
+loose-wsrep-mw-336=1
 
 [mysqld.2]
 wsrep-debug=SERVER
+loose-wsrep-mw-336=2

@@ -404,13 +404,13 @@ SHOW CREATE TABLE t77_restart;
 --echo # Moving tablespace 't4_restart' from MYSQL_DATA_DIR to MYSQL_TMP_DIR/new_dir
 --copy_file $MYSQL_DATA_DIR/test/t4_restart.ibd $MYSQL_TMP_DIR/new_dir/test/t4_restart.ibd
 --remove_file $MYSQL_DATA_DIR/test/t4_restart.ibd
---exec echo $MYSQL_TMP_DIR/new_dir/test/t4_restart.ibd > $MYSQL_DATA_DIR/test/t4_restart.isl
+--write_line $MYSQL_TMP_DIR/new_dir/test/t4_restart.ibd $MYSQL_DATA_DIR/test/t4_restart.isl
 
 --echo # Moving tablespace 't55_restart' from MYSQL_TMP_DIR/alt_dir to MYSQL_TMP_DIR/new_dir
 --copy_file $MYSQL_TMP_DIR/alt_dir/test/t55_restart.ibd $MYSQL_TMP_DIR/new_dir/test/t55_restart.ibd
 --remove_file $MYSQL_TMP_DIR/alt_dir/test/t55_restart.ibd
 --remove_file $MYSQL_DATA_DIR/test/t55_restart.isl
---exec echo $MYSQL_TMP_DIR/new_dir/test/t55_restart.ibd > $MYSQL_DATA_DIR/test/t55_restart.isl
+--write_line $MYSQL_TMP_DIR/new_dir/test/t55_restart.ibd $MYSQL_DATA_DIR/test/t55_restart.isl
 
 --echo # Moving tablespace 't66_restart' from MYSQL_TMP_DIR/alt_dir to MYSQL_TMP_DIR/new_dir
 --copy_file $MYSQL_TMP_DIR/alt_dir/test/t66_restart#P#p0.ibd $MYSQL_TMP_DIR/new_dir/test/t66_restart#P#p0.ibd
@@ -422,9 +422,9 @@ SHOW CREATE TABLE t77_restart;
 --remove_file $MYSQL_DATA_DIR/test/t66_restart#P#p0.isl
 --remove_file $MYSQL_DATA_DIR/test/t66_restart#P#p1.isl
 --remove_file $MYSQL_DATA_DIR/test/t66_restart#P#p2.isl
---exec echo $MYSQL_TMP_DIR/new_dir/test/t66_restart#P#p0.ibd > $MYSQL_DATA_DIR/test/t66_restart#P#p0.isl
---exec echo $MYSQL_TMP_DIR/new_dir/test/t66_restart#P#p1.ibd > $MYSQL_DATA_DIR/test/t66_restart#P#p1.isl
---exec echo $MYSQL_TMP_DIR/new_dir/test/t66_restart#P#p2.ibd > $MYSQL_DATA_DIR/test/t66_restart#P#p2.isl
+--write_line $MYSQL_TMP_DIR/new_dir/test/t66_restart#P#p0.ibd $MYSQL_DATA_DIR/test/t66_restart#P#p0.isl
+--write_line $MYSQL_TMP_DIR/new_dir/test/t66_restart#P#p1.ibd $MYSQL_DATA_DIR/test/t66_restart#P#p1.isl
+--write_line $MYSQL_TMP_DIR/new_dir/test/t66_restart#P#p2.ibd $MYSQL_DATA_DIR/test/t66_restart#P#p2.isl
 
 --echo # Moving tablespace 't77_restart' from MYSQL_TMP_DIR/alt_dir to MYSQL_TMP_DIR/new_dir
 --copy_file $MYSQL_TMP_DIR/alt_dir/test/t77_restart#P#p0#SP#s0.ibd $MYSQL_TMP_DIR/new_dir/test/t77_restart#P#p0#SP#s0.ibd
@@ -439,10 +439,10 @@ SHOW CREATE TABLE t77_restart;
 --remove_file $MYSQL_DATA_DIR/test/t77_restart#P#p0#SP#s1.isl
 --remove_file $MYSQL_DATA_DIR/test/t77_restart#P#p1#SP#s2.isl
 --remove_file $MYSQL_DATA_DIR/test/t77_restart#P#p1#SP#s3.isl
---exec echo $MYSQL_TMP_DIR/new_dir/test/t77_restart#P#p0#SP#s0.ibd > $MYSQL_DATA_DIR/test/t77_restart#P#p0#SP#s0.isl
---exec echo $MYSQL_TMP_DIR/new_dir/test/t77_restart#P#p0#SP#s1.ibd > $MYSQL_DATA_DIR/test/t77_restart#P#p0#SP#s1.isl
---exec echo $MYSQL_TMP_DIR/new_dir/test/t77_restart#P#p1#SP#s2.ibd > $MYSQL_DATA_DIR/test/t77_restart#P#p1#SP#s2.isl
---exec echo $MYSQL_TMP_DIR/new_dir/test/t77_restart#P#p1#SP#s3.ibd > $MYSQL_DATA_DIR/test/t77_restart#P#p1#SP#s3.isl
+--write_line $MYSQL_TMP_DIR/new_dir/test/t77_restart#P#p0#SP#s0.ibd $MYSQL_DATA_DIR/test/t77_restart#P#p0#SP#s0.isl
+--write_line $MYSQL_TMP_DIR/new_dir/test/t77_restart#P#p0#SP#s1.ibd $MYSQL_DATA_DIR/test/t77_restart#P#p0#SP#s1.isl
+--write_line $MYSQL_TMP_DIR/new_dir/test/t77_restart#P#p1#SP#s2.ibd $MYSQL_DATA_DIR/test/t77_restart#P#p1#SP#s2.isl
+--write_line $MYSQL_TMP_DIR/new_dir/test/t77_restart#P#p1#SP#s3.ibd $MYSQL_DATA_DIR/test/t77_restart#P#p1#SP#s3.isl
 
 --echo ---- MYSQL_DATA_DIR/test
 --list_files_write_file $MYSQLD_DATADIR.files.txt $MYSQL_DATA_DIR/test

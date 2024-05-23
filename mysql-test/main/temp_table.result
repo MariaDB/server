@@ -618,6 +618,55 @@ tmp
 # in 11.2 and above here should be listed above used temporary tables
 DROP TEMPORARY TABLE t1, t2;
 #
+# MDEV-33218: Assertion `active_arena->is_stmt_prepare_or_first_stmt_execute() || active_arena->state == Query_arena::STMT_SP_QUERY_ARGUMENTS' failed. in st_select_lex::fix_prepare_information
+#
+CREATE VIEW v1 AS SELECT 5;
+CREATE PROCEDURE sp() SELECT * FROM v1;
+CREATE TEMPORARY TABLE v1 as SELECT 7;
+# sp() accesses the temporary table v1 that hides the view with the same name
+# Therefore expected output is the row (7)
+CALL sp();
+7
+7
+DROP TEMPORARY TABLE v1;
+# After the temporary table v1 has been dropped the next invocation of sp()
+# accesses the view v1. So, expected output is the row (5)
+CALL sp();
+5
+5
+# Clean up
+DROP VIEW v1;
+DROP PROCEDURE sp;
+# Another use case is when a temporary table hides a view is dropped
+# inside a stored routine being called.
+CREATE VIEW t1 AS SELECT 1;
+CREATE PROCEDURE p1()
+BEGIN
+DROP TEMPORARY TABLE t1;
+END
+|
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+CALL p1();
+RETURN 1;
+END
+|
+CREATE TEMPORARY TABLE t1 AS SELECT 1 AS a;
+PREPARE stmt FROM 'SELECT f1()';
+EXECUTE stmt;
+f1()
+1
+# The temporary table t1 has been dropped on first
+# execution of the prepared statement 'stmt',
+# next time this statement is run it results in issuing
+# the error ER_BAD_TABLE_ERROR
+EXECUTE stmt;
+ERROR 42S02: Unknown table 'test.t1'
+# Clean up
+DROP VIEW t1;
+DROP FUNCTION f1;
+DROP PROCEDURE p1;
+#
 # End of 10.4 tests
 #
 create function f1() returns int

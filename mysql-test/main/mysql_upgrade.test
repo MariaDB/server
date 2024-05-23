@@ -418,7 +418,7 @@ SET GLOBAL alter_algorithm=DEFAULT;
 SHOW GLOBAL VARIABLES LIKE 'alter_algorithm';
 --remove_file $MYSQLD_DATADIR/mariadb_upgrade_info
 
---echo End of 10.3 tests
+--echo # End of 10.3 tests
 
 --source include/switch_to_mysql_user.inc
 drop view mysql.user_bak;
@@ -561,3 +561,25 @@ call mtr.add_suppression("Column count of mysql.proc is wrong. Expected 21, foun
 
 --let $old_version= 10.4
 --source include/load_dump_and_upgrade.inc
+
+--echo # End of 10.5 tests
+
+--echo #
+--echo # MDEV-33554 Upgrade from 11.2 to 11.3 changes root's privileges
+--echo #
+alter table mysql.db drop column show_create_routine_priv;
+flush privileges;
+create user foo@bar;
+grant all privileges on mysql.* to foo@bar;
+show grants for foo@bar;
+flush privileges;
+show grants for foo@bar;
+
+--exec $MYSQL_UPGRADE --force --silent 2>&1
+--remove_file $MYSQLD_DATADIR/mariadb_upgrade_info
+
+select show_create_routine_priv from mysql.db where user='foo';
+show grants for foo@bar;
+drop user foo@bar;
+
+--echo # End of 11.3 tests

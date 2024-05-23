@@ -59,6 +59,10 @@
 #VARCHAR(M)    
 #
 
+--disable_query_log
+call mtr.add_suppression("Could not read packet:.* errno: 11");
+--enable_query_log
+
 --let $_saved_conn= $CURRENT_CONNECTION
 
 let $binformat = `SHOW VARIABLES LIKE '%binlog_format%'`;

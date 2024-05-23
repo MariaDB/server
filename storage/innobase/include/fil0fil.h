@@ -48,9 +48,6 @@ struct named_spaces_tag_t;
 
 using space_list_t= ilist<fil_space_t, space_list_tag_t>;
 
-// Forward declaration
-extern my_bool srv_use_doublewrite_buf;
-
 /** Undo tablespaces starts with space_id. */
 extern uint32_t srv_undo_space_id_start;
 /** The number of UNDO tablespaces that are open and ready to use. */
@@ -318,7 +315,6 @@ struct fil_space_t final
   ~fil_space_t()
   {
     ut_ad(!latch_owner);
-    ut_ad(!latch_count);
     latch.destroy();
   }
 
@@ -382,9 +378,9 @@ private:
   /** The reference count */
   static constexpr uint32_t PENDING= ~(STOPPING | CLOSING | NEEDS_FSYNC);
   /** latch protecting all page allocation bitmap pages */
-  srw_lock latch;
+  IF_DBUG(srw_lock_debug, srw_lock) latch;
+  /** the thread that holds the exclusive latch, or 0 */
   pthread_t latch_owner;
-  ut_d(Atomic_relaxed<uint32_t> latch_count;)
 public:
   /** MariaDB encryption data */
   fil_space_crypt_t *crypt_data;
@@ -982,45 +978,40 @@ public:
                                      bool recheck, bool encrypt);
 
 #ifdef UNIV_DEBUG
-  bool is_latched() const { return latch_count != 0; }
+  bool is_latched() const { return latch.have_any(); }
 #endif
-  bool is_owner() const { return latch_owner == pthread_self(); }
+  bool is_owner() const
+  {
+    const bool owner{latch_owner == pthread_self()};
+    ut_ad(owner == latch.have_wr());
+    return owner;
+  }
   /** Acquire the allocation latch in exclusive mode */
   void x_lock()
   {
     latch.wr_lock(SRW_LOCK_CALL);
     ut_ad(!latch_owner);
     latch_owner= pthread_self();
-    ut_ad(!latch_count.fetch_add(1));
   }
   /** Release the allocation latch from exclusive mode */
   void x_unlock()
   {
-    ut_ad(latch_count.fetch_sub(1) == 1);
     ut_ad(latch_owner == pthread_self());
     latch_owner= 0;
     latch.wr_unlock();
   }
   /** Acquire the allocation latch in shared mode */
-  void s_lock()
-  {
-    ut_ad(!is_owner());
-    latch.rd_lock(SRW_LOCK_CALL);
-    ut_ad(!latch_owner);
-    ut_d(latch_count.fetch_add(1));
-  }
+  void s_lock() { latch.rd_lock(SRW_LOCK_CALL); }
   /** Release the allocation latch from shared mode */
-  void s_unlock()
-  {
-    ut_ad(latch_count.fetch_sub(1));
-    ut_ad(!latch_owner);
-    latch.rd_unlock();
-  }
+  void s_unlock() { latch.rd_unlock(); }
 
   typedef span<const char> name_type;
 
   /** @return the tablespace name (databasename/tablename) */
   name_type name() const;
+
+  /** Update the data structures on write completion */
+  void complete_write();
 
 private:
   /** @return whether the file is usable for io() */
@@ -1094,9 +1085,6 @@ struct fil_node_t final
   @return detached handle or OS_FILE_CLOSED */
   inline pfs_os_file_t close_to_free(bool detach_handle= false);
 
-  /** Update the data structures on write completion */
-  inline void complete_write();
-
 private:
   /** Does stuff common for close() and detach() */
   void prepare_to_close_or_detach();
@@ -1104,8 +1092,7 @@ private:
 
 inline bool fil_space_t::use_doublewrite() const
 {
-  return !UT_LIST_GET_FIRST(chain)->atomic_write && srv_use_doublewrite_buf &&
-    buf_dblwr.is_created();
+  return !UT_LIST_GET_FIRST(chain)->atomic_write && buf_dblwr.in_use();
 }
 
 inline void fil_space_t::set_imported()
@@ -1366,9 +1353,9 @@ struct fil_system_t
     Some members may require late initialisation, thus we just mark object as
     uninitialised. Real initialisation happens in create().
   */
-  fil_system_t() : m_initialised(false) {}
+  fil_system_t() {}
 
-  bool is_initialised() const { return m_initialised; }
+  bool is_initialised() const { return spaces.array; }
 
   /**
     Create the file system interface at database start.
@@ -1381,8 +1368,6 @@ struct fil_system_t
   void close();
 
 private:
-  bool m_initialised;
-
   /** Points to the last opened space in space_list. Protected with
   fil_system.mutex. */
   fil_space_t *space_list_last_opened= nullptr;
@@ -1418,18 +1403,31 @@ public:
   /** Map of fil_space_t::id to fil_space_t* */
   hash_table_t spaces;
 
-  /** whether each write to data files is durable (O_DSYNC) */
+  /** false=invoke fsync() or fdatasync() on data files before checkpoint;
+  true=each write is durable (O_DSYNC) */
   my_bool write_through;
   /** whether data files are buffered (not O_DIRECT) */
   my_bool buffered;
+  /** whether fdatasync() is needed on data files */
+  Atomic_relaxed<bool> need_unflushed_spaces;
 
   /** Try to enable or disable write-through of data files */
   void set_write_through(bool write_through);
+  /** Update innodb_doublewrite */
+  void set_use_doublewrite(ulong use)
+  {
+    buf_dblwr.set_use(use);
+    need_unflushed_spaces= !write_through && buf_dblwr.need_fsync();
+  }
+
   /** Try to enable or disable file system caching of data files */
   void set_buffered(bool buffered);
 
   TPOOL_SUPPRESS_TSAN bool is_write_through() const { return write_through; }
   TPOOL_SUPPRESS_TSAN bool is_buffered() const { return buffered; }
+
+  /** @return whether to update unflushed_spaces */
+  bool use_unflushed_spaces() const { return need_unflushed_spaces; }
 
   /** tablespaces for which fil_space_t::needs_flush() holds */
   sized_ilist<fil_space_t, unflushed_spaces_tag_t> unflushed_spaces;
@@ -1624,16 +1622,33 @@ void fil_close_tablespace(uint32_t id);
 /*******************************************************************//**
 Allocates and builds a file name from a path, a table or tablespace name
 and a suffix. The string must be freed by caller with ut_free().
-@param[in] path NULL or the directory path or the full path and filename.
+@param[in] path nullptr or the directory path or the full path and filename
 @param[in] name {} if path is full, or Table/Tablespace name
-@param[in] ext the file extension to use
-@param[in] trim_name true if the last name on the path should be trimmed.
+@param[in] extension the file extension to use
+@param[in] trim_name true if the last name on the path should be trimmed
 @return own: file name */
-char* fil_make_filepath(const char *path, const fil_space_t::name_type &name,
-                        ib_extention ext, bool trim_name);
+char* fil_make_filepath_low(const char *path,
+                            const fil_space_t::name_type &name,
+                            ib_extention extension, bool trim_name);
 
 char *fil_make_filepath(const char* path, const table_name_t name,
                         ib_extention suffix, bool strip_name);
+
+/** Wrapper function over fil_make_filepath_low to build file name.
+@param path nullptr or the directory path or the full path and filename
+@param name {} if path is full, or Table/Tablespace name
+@param extension the file extension to use
+@param trim_name true if the last name on the path should be trimmed
+@return own: file name */
+static inline char*
+fil_make_filepath(const char* path, const fil_space_t::name_type &name,
+                  ib_extention extension, bool trim_name)
+{
+  /* If we are going to strip a name off the path, there better be a
+  path and a new name to put back on. */
+  ut_ad(!trim_name || (path && name.data()));
+  return fil_make_filepath_low(path, name, extension, trim_name);
+}
 
 /** Create a tablespace file.
 @param[in]	space_id	Tablespace ID

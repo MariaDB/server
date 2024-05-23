@@ -1,0 +1,143 @@
+include/rpl_init.inc [topology=1->2,1->3]
+connect  server_2b,127.0.0.1,root,,,$SERVER_MYPORT_2;
+connection server_2;
+SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
+SET @old_parallel_mode= @@GLOBAL.slave_parallel_mode;
+SET @old_timeout= @@GLOBAL.lock_wait_timeout;
+SET @old_innodb_timeout= @@GLOBAL.innodb_lock_wait_timeout;
+include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=5;
+set global slave_parallel_mode= aggressive;
+SET GLOBAL lock_wait_timeout= 86400;
+SET GLOBAL innodb_lock_wait_timeout= 86400;
+SET STATEMENT sql_log_bin=0 FOR ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+include/start_slave.inc
+connection server_1;
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 0), (2, 0), (3, 0), (4, 0), (5, 0), (6, 0), (7, 0), (8, 0);
+connection server_2;
+include/stop_slave.inc
+connection server_2b;
+BEGIN;
+SELECT * FROM t1 WHERE a=1 FOR UPDATE;
+a	b
+1	0
+SELECT * FROM t1 WHERE a=5 FOR UPDATE;
+a	b
+5	0
+connection server_1;
+SET SESSION gtid_domain_id= 1;
+BEGIN;
+UPDATE t1 SET b=1 WHERE a=1;
+UPDATE t1 SET b=1 WHERE a=7;
+COMMIT;
+UPDATE t1 SET b=2 WHERE a=3;
+SET SESSION gtid_domain_id=2;
+BEGIN;
+UPDATE t1 SET b=3 WHERE a=5;
+UPDATE t1 SET b=3 WHERE a=3;
+COMMIT;
+UPDATE t1 SET b=4 WHERE a=7;
+SET SESSION gtid_domain_id= 0;
+include/save_master_gtid.inc
+connection server_2;
+include/start_slave.inc
+connection server_2b;
+ROLLBACK;
+connection server_2;
+include/sync_with_master_gtid.inc
+SELECT a, (
+(a=1 AND b=1) OR
+(a=3 AND (b=2 OR b=3)) OR
+(a=5 AND b=3) OR
+(a=7 AND (b=1 OR b=4)) OR
+((a MOD 2)=0 AND b=0)) AS `ok`
+  FROM t1
+ORDER BY a;
+a	ok
+1	1
+2	1
+3	1
+4	1
+5	1
+6	1
+7	1
+8	1
+connection server_3;
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+connection server_2;
+include/stop_slave.inc
+CHANGE MASTER 'm2' to master_port=MYPORT_3 , master_host='127.0.0.1', master_user='root', master_use_gtid=slave_pos, master_ssl_verify_server_cert=0;
+connection server_1;
+SET SESSION gtid_domain_id= 1;
+BEGIN;
+UPDATE t1 SET b=11 WHERE a=1;
+UPDATE t1 SET b=11 WHERE a=7;
+COMMIT;
+UPDATE t1 SET b=12 WHERE a=3;
+SET SESSION gtid_domain_id= 1;
+connection server_3;
+SET SESSION gtid_domain_id=3;
+BEGIN;
+UPDATE t1 SET b=13 WHERE a=5;
+UPDATE t1 SET b=13 WHERE a=3;
+COMMIT;
+UPDATE t1 SET b=14 WHERE a=7;
+include/save_master_gtid.inc
+connection server_2b;
+BEGIN;
+SELECT * FROM t1 WHERE a=1 FOR UPDATE;
+a	b
+1	1
+SELECT * FROM t1 WHERE a=5 FOR UPDATE;
+a	b
+5	3
+START ALL SLAVES;
+Warnings:
+Note	1937	SLAVE 'm2' started
+Note	1937	SLAVE '' started
+connection server_2b;
+ROLLBACK;
+connection server_1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+connection server_3;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+SELECT a, (
+(a=1 AND b=11) OR
+(a=3 AND (b=12 OR b=13)) OR
+(a=5 AND b=13) OR
+(a=7 AND (b=11 OR b=14)) OR
+((a MOD 2)=0 AND b=0)) AS `ok`
+  FROM t1
+ORDER BY a;
+a	ok
+1	1
+2	1
+3	1
+4	1
+5	1
+6	1
+7	1
+8	1
+SET default_master_connection = 'm2';
+include/stop_slave.inc
+RESET SLAVE 'm2' ALL;
+SET default_master_connection = '';
+connection server_3;
+include/start_slave.inc
+disconnect server_2b;
+connection server_1;
+DROP TABLE t1;
+connection server_2;
+include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=@old_parallel_threads;
+set global slave_parallel_mode= @old_parallel_mode;
+SET GLOBAL lock_wait_timeout= @old_timeout;
+SET GLOBAL innodb_lock_wait_timeout= @old_innodb_timeout;
+include/start_slave.inc
+include/rpl_end.inc

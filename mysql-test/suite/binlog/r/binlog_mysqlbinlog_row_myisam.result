@@ -2459,7 +2459,10 @@ START TRANSACTION
 #Q> '',                           -- c76
 #Q> #
 #Q> 'a',                          -- c77
-#Q> '',   
+#Q> '',                           -- c78
+#Q> #
+#Q> 1                             -- crn -- row number
+#Q> )
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -2643,7 +2646,10 @@ START TRANSACTION
 #Q> 'longtext-ucs2',              -- c76 not using maximum value here
 #Q> #
 #Q> 'c',                          -- c77
-#Q> 'a,b,c
+#Q> 'a,b,c',                      -- c78
+#Q> #
+#Q> 2                             -- crn -- row number
+#Q> )
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -2912,7 +2918,13 @@ START TRANSACTION
 #Q>   'mediumtext-ucs2',            -- c73
 #Q>   'longblob',                   -- c74
 #Q>   'longtext',                   -- c75
-#Q>   'longtext
+#Q>   'longtext-ucs2',              -- c76
+#Q>   #
+#Q>   'b',                          -- c77
+#Q>   'b,c',                        -- c78
+#Q>   #
+#Q>   4                             -- crn -- row number
+#Q>   )
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -3255,7 +3267,21 @@ START TRANSACTION
 #Q> #
 #Q> c65 = '' AND
 #Q> c66 = '' AND
-#Q> c67 =
+#Q> c67 = '' AND
+#Q> c68 = '' AND
+#Q> c69 = '' AND
+#Q> c70 = '' AND
+#Q> c71 = '' AND
+#Q> c72 = '' AND
+#Q> c73 = '' AND
+#Q> c74 = '' AND
+#Q> c75 = '' AND
+#Q> c76 = '' AND
+#Q> #
+#Q> c77 = 'a' AND
+#Q> c78 = '' AND
+#Q> #
+#Q> crn = 1
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Update_rows: table id # flags: STMT_END_F
@@ -3602,7 +3628,17 @@ START TRANSACTION
 #Q> c68 = 'blob' AND
 #Q> c69 = 'text' AND
 #Q> c70 = 'text-ucs2' AND
-#Q> c71 = 'mediumblob
+#Q> c71 = 'mediumblob' AND
+#Q> c72 = 'mediumtext' AND
+#Q> c73 = 'mediumtext-ucs2' AND
+#Q> c74 = 'longblob' AND
+#Q> c75 = 'longtext' AND
+#Q> c76 = 'longtext-ucs2' AND
+#Q> #
+#Q> c77 = 'c' AND
+#Q> c78 = 'a,b,c' AND
+#Q> #
+#Q> crn = 2
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Update_rows: table id # flags: STMT_END_F
@@ -3947,7 +3983,18 @@ START TRANSACTION
 #Q>   c67 IS NULL AND
 #Q>   c68 IS NULL AND
 #Q>   c69 IS NULL AND
-#Q>   c70 IS NULL
+#Q>   c70 IS NULL AND
+#Q>   c71 IS NULL AND
+#Q>   c72 IS NULL AND
+#Q>   c73 IS NULL AND
+#Q>   c74 IS NULL AND
+#Q>   c75 IS NULL AND
+#Q>   c76 IS NULL AND
+#Q>   #
+#Q>   c77 IS NULL AND
+#Q>   c78 IS NULL AND
+#Q>   #
+#Q>   crn = 3
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Update_rows: table id # flags: STMT_END_F
@@ -4295,7 +4342,16 @@ START TRANSACTION
 #Q>   c69 = 'text' AND
 #Q>   c70 = 'text-ucs2' AND
 #Q>   c71 = 'mediumblob' AND
-#Q>   c72 = 'me
+#Q>   c72 = 'mediumtext' AND
+#Q>   c73 = 'mediumtext-ucs2' AND
+#Q>   c74 = 'longblob' AND
+#Q>   c75 = 'longtext' AND
+#Q>   c76 = 'longtext-ucs2' AND
+#Q>   #
+#Q>   c77 = 'b' AND
+#Q>   c78 = 'b,c' AND
+#Q>   #
+#Q>   crn = 4
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Update_rows: table id # flags: STMT_END_F
@@ -4557,7 +4613,13 @@ START TRANSACTION
 #Q> c72 = 'mediumtext' AND
 #Q> c73 = 'mediumtext-ucs2' AND
 #Q> c74 = 'longblob' AND
-#Q> c75 = '
+#Q> c75 = 'longtext' AND
+#Q> c76 = 'longtext-ucs2' AND
+#Q> #
+#Q> c77 = 'c' AND
+#Q> c78 = 'a,b,c' AND
+#Q> #
+#Q> crn = 1
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -4736,7 +4798,15 @@ START TRANSACTION
 #Q> c70 = '' AND
 #Q> c71 = '' AND
 #Q> c72 = '' AND
-#Q> c73 = '' A
+#Q> c73 = '' AND
+#Q> c74 = '' AND
+#Q> c75 = '' AND
+#Q> c76 = '' AND
+#Q> #
+#Q> c77 = 'a' AND
+#Q> c78 = '' AND
+#Q> #
+#Q> crn = 2
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -4918,7 +4988,13 @@ START TRANSACTION
 #Q>   c72 = 'mediumtext' AND
 #Q>   c73 = 'mediumtext-ucs2' AND
 #Q>   c74 = 'longblob' AND
-#Q>   c75 = 'longtext' 
+#Q>   c75 = 'longtext' AND
+#Q>   c76 = 'longtext-ucs2' AND
+#Q>   #
+#Q>   c77 = 'b' AND
+#Q>   c78 = 'b,c' AND
+#Q>   #
+#Q>   crn = 3
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -5098,7 +5174,14 @@ START TRANSACTION
 #Q> c71 IS NULL AND
 #Q> c72 IS NULL AND
 #Q> c73 IS NULL AND
-#Q> c74 IS NUL
+#Q> c74 IS NULL AND
+#Q> c75 IS NULL AND
+#Q> c76 IS NULL AND
+#Q> #
+#Q> c77 IS NULL AND
+#Q> c78 IS NULL AND
+#Q> #
+#Q> crn = 4
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -5331,7 +5414,7 @@ START TRANSACTION
 #Q> ('2008-08-06','VARCHAR-06',6),
 #Q> ('2008-08-07','VARCHAR-07',7),
 #Q> ('2008-08-08','VARCHAR-08',8),
-#Q> ('2008-08-09','VARCH
+#Q> ('2008-08-09','VARCHAR-09',9)
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -5764,7 +5847,7 @@ START TRANSACTION
 #Q> ('2008-01-06','VARCHAR-01-06',6),
 #Q> ('2008-01-07','VARCHAR-01-07',7),
 #Q> ('2008-01-08','VARCHAR-01-08',18),
-#Q> ('2008-01-09','VARCHAR-0
+#Q> ('2008-01-09','VARCHAR-01-09',19)
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -5836,7 +5919,7 @@ START TRANSACTION
 #Q> ('2008-02-06','VARCHAR-02-06',6),
 #Q> ('2008-02-07','VARCHAR-02-07',7),
 #Q> ('2008-02-08','VARCHAR-02-08',28),
-#Q> ('2008-02-09','VARCHAR-0
+#Q> ('2008-02-09','VARCHAR-02-09',29)
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t2` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -5908,7 +5991,7 @@ START TRANSACTION
 #Q> ('2008-03-06','VARCHAR-03-06',6),
 #Q> ('2008-03-07','VARCHAR-03-07',7),
 #Q> ('2008-03-08','VARCHAR-03-08',38),
-#Q> ('2008-03-09','VARCHAR-0
+#Q> ('2008-03-09','VARCHAR-03-09',39)
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t3` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -5975,7 +6058,7 @@ START TRANSACTION
 #Q> c_1_1 = ADDDATE(c_1_1,INTERVAL 10 YEAR),
 #Q> c_2_1 = ADDDATE(c_2_1,INTERVAL 20 YEAR),
 #Q> c_3_1 = ADDDATE(c_3_1,INTERVAL 30 YEAR)
-#Q> WHERE c_1_n = c_2_n AND c_2_n = c
+#Q> WHERE c_1_n = c_2_n AND c_2_n = c_3_n
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t2` mapped to number #
@@ -6164,7 +6247,7 @@ START TRANSACTION
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
 #Q> DELETE FROM t1,t2,t3 USING t1 INNER JOIN t2 INNER JOIN t3
-#Q> WHERE c_1_n = c_2_n AND c_2_n = c_3_
+#Q> WHERE c_1_n = c_2_n AND c_2_n = c_3_n
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t2` mapped to number #
@@ -6382,7 +6465,7 @@ START TRANSACTION
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
 #Q> LOAD DATA INFILE '../../std_data/loaddata5.dat'
 #Q>   INTO TABLE t1 FIELDS TERMINATED BY '' ENCLOSED BY '' (c1,c2)
-#Q> SET c3 = 'Wo
+#Q> SET c3 = 'Wow'
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F

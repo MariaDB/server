@@ -162,6 +162,9 @@ struct fts_token_t;
 struct fts_doc_ids_t;
 struct fts_index_cache_t;
 
+/** Compare two DOC_ID. */
+int fts_doc_id_cmp(const void *p1, const void *p2)
+  __attribute__((nonnull, warn_unused_result));
 
 /** Initialize the "fts_table" for internal query into FTS auxiliary
 tables */
@@ -410,6 +413,9 @@ inline void fts_doc_ids_free(fts_doc_ids_t* doc_ids)
 {
 	mem_heap_free(static_cast<mem_heap_t*>(doc_ids->self_heap->arg));
 }
+
+/** Sort an array of doc_id */
+void fts_doc_ids_sort(ib_vector_t *doc_ids);
 
 /******************************************************************//**
 Notify the FTS system about an operation on an FTS-indexed table. */

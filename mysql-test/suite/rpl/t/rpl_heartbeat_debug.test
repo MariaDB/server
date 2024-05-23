@@ -3,6 +3,12 @@
 --source include/have_debug.inc
 --source include/master-slave.inc
 
+--disable_query_log
+CALL mtr.add_suppression('SET @master_heartbeat_period to master failed with error');
+CALL mtr.add_suppression('Master command COM_REGISTER_SLAVE failed: failed registering on master, reconnecting to try again');
+call mtr.add_suppression("Could not read packet:.* errno: 11");
+--enable_query_log
+
 connection slave;
 --source include/stop_slave.inc
 set @restore_slave_net_timeout= @@global.slave_net_timeout;
@@ -14,14 +20,13 @@ set @@global.slave_net_timeout= 10;
 ### Checking the range
 ###
 
-#
+
 # default period slave_net_timeout/2
 #
 --query_vertical show status like 'Slave_heartbeat_period';
 SET @saved_dbug= @@GLOBAL.debug_dbug;
 SET GLOBAL debug_dbug="+d,simulate_slave_heartbeat_network_error";
-CALL mtr.add_suppression('SET @master_heartbeat_period to master failed with error');
-CALL mtr.add_suppression('Master command COM_REGISTER_SLAVE failed: failed registering on master, reconnecting to try again');
+
 --source include/start_slave.inc
 
 

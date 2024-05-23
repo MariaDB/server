@@ -51,7 +51,9 @@ DROP TABLE t1;
 # cleanup
 --source include/stop_slave.inc
 SET @@GLOBAL.debug_dbug = @saved_dbug;
+--disable_query_log
 --eval SET GLOBAL log_warnings = $log_warnings_save
+--enable_query_log
 --source include/start_slave.inc
 
 --source include/rpl_end.inc

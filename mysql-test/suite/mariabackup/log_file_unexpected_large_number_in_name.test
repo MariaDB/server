@@ -1,0 +1,47 @@
+--let $MYSQLD_DATADIR=`select @@datadir`
+
+--echo #
+--echo # Start of 10.5 tests
+--echo #
+
+--echo #
+--echo # MENT-1587 mariabackup failing due to aria log file copy
+--echo #
+
+
+--let $basedir=$MYSQLTEST_VARDIR/tmp/backup
+--let $incremental_dir=$MYSQLTEST_VARDIR/tmp/backup_inc1
+
+CREATE TABLE t1(i INT PRIMARY KEY) ENGINE=ARIA;
+INSERT INTO t1 VALUES (10);
+
+#
+# Add a log file with a number outside of last_log_number
+# specified in aria_log_control.
+# The actual file number written in the header is 4.
+# Let's rename it to 100 for test purposes.
+# Hopefully 100 should be enough.
+#
+--copy_file suite/mariabackup/std_data/ment1587_aria_log.00000004 $MYSQLD_DATADIR/aria_log.00000100
+
+--disable_result_log
+--exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --target-dir=$basedir
+--enable_result_log
+
+--disable_result_log
+--echo # Prepare full backup
+--exec $XTRABACKUP --prepare --target-dir=$basedir
+--enable_result_log
+
+--let $targetdir=$basedir
+--source include/restart_and_restore.inc
+--enable_result_log
+--rmdir $basedir
+
+SELECT * FROM t1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # End of 10.5 tests
+--echo #

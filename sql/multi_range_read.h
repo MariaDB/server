@@ -556,10 +556,6 @@ class DsMrr_impl
 public:
   typedef void (handler::*range_check_toggle_func_t)(bool on);
 
-  DsMrr_impl()
-    : secondary_file(NULL),
-      rowid_filter(NULL) {};
-  
   void init(handler *h_arg, TABLE *table_arg)
   {
     primary_file= h_arg; 
@@ -581,7 +577,7 @@ public:
   int dsmrr_explain_info(uint mrr_mode, char *str, size_t size);
 private:
   /* Buffer to store (key, range_id) pairs */
-  Lifo_buffer *key_buffer;
+  Lifo_buffer *key_buffer= nullptr;
 
   /*
     The "owner" handler object (the one that is expected to "own" this object
@@ -594,13 +590,13 @@ private:
     Secondary handler object. (created when needed, we need it when we need 
     to run both index scan and rnd_pos() scan at the same time)
   */
-  handler *secondary_file;
+  handler *secondary_file= nullptr;
 
   /*
     The rowid filter that DS-MRR has "unpushed" from the storage engine.
     If it's present, DS-MRR will use it.
   */
-  Rowid_filter *rowid_filter;
+  Rowid_filter *rowid_filter= nullptr;
 
   uint keyno; /* index we're running the scan on */
   /* TRUE <=> need range association, buffers hold {rowid, range_id} pairs */

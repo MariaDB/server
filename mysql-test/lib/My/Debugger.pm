@@ -263,6 +263,7 @@ sub pre_setup() {
     $::opt_suite_timeout= 24 * 60;                              # in minutes
     $::opt_shutdown_timeout= ($interactive ? 24 * 60 : 3) * 60; # in seconds
     $::opt_start_timeout= $::opt_shutdown_timeout;              # in seconds
+    $::opt_debug_sync_timeout= 3000;                            # in seconds
   }
 }
 

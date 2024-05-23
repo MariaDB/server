@@ -29,10 +29,10 @@ CREATE TABLE t1 (a INT KEY,b INT,KEY(b)) ENGINE=Aria;
 
 --echo # Restart with encryption enabled
 
---exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--write_line wait $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 --shutdown_server
 --source include/wait_until_disconnected.inc
---exec echo "restart:--aria-encrypt-tables=1 --plugin-load-add=file_key_management --file-key-management --file-key-management-filename=$MYSQLTEST_VARDIR/keys1.txt" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--write_line "restart:--aria-encrypt-tables=1 --plugin-load-add=file_key_management --file-key-management --file-key-management-filename=$MYSQLTEST_VARDIR/keys1.txt" $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 --enable_reconnect
 --source include/wait_until_connected_again.inc
 
@@ -43,10 +43,10 @@ LOAD INDEX INTO CACHE t1;
 
 # Restart without encryption. Above table should be unreadable
 
---exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--write_line wait $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 --shutdown_server
 --source include/wait_until_disconnected.inc
---exec echo "restart:--aria-encrypt-tables=0" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--write_line "restart:--aria-encrypt-tables=0" $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 --enable_reconnect
 --source include/wait_until_connected_again.inc
 

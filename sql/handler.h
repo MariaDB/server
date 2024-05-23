@@ -456,12 +456,6 @@ enum chf_create_flags {
 #define HA_FAST_CHANGE_PARTITION                (1UL << 13)
 #define HA_PARTITION_ONE_PHASE                  (1UL << 14)
 
-/* operations for disable/enable indexes */
-#define HA_KEY_SWITCH_NONUNIQ      0
-#define HA_KEY_SWITCH_ALL          1
-#define HA_KEY_SWITCH_NONUNIQ_SAVE 2
-#define HA_KEY_SWITCH_ALL_SAVE     3
-
 /*
   Note: the following includes binlog and closing 0.
   TODO remove the limit, use dynarrays
@@ -500,6 +494,12 @@ enum chf_create_flags {
 #define HA_LEX_CREATE_SEQUENCE  16U
 #define HA_VERSIONED_TABLE      32U
 #define HA_SKIP_KEY_SORT        64U
+/*
+  A temporary table that can be used by different threads, eg. replication
+  threads. This flag ensure that memory is not allocated with THREAD_SPECIFIC,
+  as we do for other temporary tables.
+*/
+#define HA_LEX_CREATE_GLOBAL_TMP_TABLE 128U
 
 #define HA_MAX_REC_LENGTH	65535
 
@@ -2723,6 +2723,7 @@ typedef struct st_ha_check_opt
   st_ha_check_opt() = default;                        /* Remove gcc warning */
   uint flags;       /* isam layer flags (e.g. for myisamchk) */
   uint sql_flags;   /* sql layer flags - for something myisamchk cannot do */
+  uint handler_flags; /* Reserved for handler usage */
   time_t start_time;   /* When check/repair starts */
   KEY_CACHE *key_cache; /* new key cache when changing key cache */
   void init();
@@ -3469,6 +3470,7 @@ public:
     */
     MEM_UNDEFINED(&optimizer_where_cost, sizeof(optimizer_where_cost));
     MEM_UNDEFINED(&optimizer_scan_setup_cost, sizeof(optimizer_scan_setup_cost));
+    active_handler_stats.active= 0;
   }
   virtual ~handler(void)
   {
@@ -3634,8 +3636,8 @@ public:
   int ha_optimize(THD* thd, HA_CHECK_OPT* check_opt);
   int ha_analyze(THD* thd, HA_CHECK_OPT* check_opt);
   bool ha_check_and_repair(THD *thd);
-  int ha_disable_indexes(uint mode);
-  int ha_enable_indexes(uint mode);
+  int ha_disable_indexes(key_map map, bool persist);
+  int ha_enable_indexes(key_map map, bool persist);
   int ha_discard_or_import_tablespace(my_bool discard);
   int ha_rename_table(const char *from, const char *to);
   void ha_drop_table(const char *name);
@@ -3659,6 +3661,7 @@ public:
   virtual void print_error(int error, myf errflag);
   virtual bool get_error_message(int error, String *buf);
   uint get_dup_key(int error);
+  bool has_dup_ref() const;
   /**
     Retrieves the names of the table and the key for which there was a
     duplicate entry in the case of HA_ERR_FOREIGN_DUPLICATE_KEY.
@@ -4444,7 +4447,6 @@ public:
   }
 
   virtual void update_create_info(HA_CREATE_INFO *create_info) {}
-  int check_old_types();
   virtual int assign_to_keycache(THD* thd, HA_CHECK_OPT* check_opt)
   { return HA_ADMIN_NOT_IMPLEMENTED; }
   virtual int preload_keys(THD* thd, HA_CHECK_OPT* check_opt)
@@ -5138,9 +5140,12 @@ public:
   }
   inline void ha_handler_stats_disable()
   {
-    handler_stats= 0;
-    active_handler_stats.active= 0;
-    handler_stats_updated();
+    if (handler_stats)
+    {
+      handler_stats= 0;
+      active_handler_stats.active= 0;
+      handler_stats_updated();
+    }
   }
 
 private:
@@ -5154,6 +5159,7 @@ private:
     }
   }
 
+  bool check_old_types() const;
   void mark_trx_read_write_internal();
   bool check_table_binlog_row_based_internal();
 
@@ -5399,8 +5405,8 @@ public:
   virtual int analyze(THD* thd, HA_CHECK_OPT* check_opt)
   { return HA_ADMIN_NOT_IMPLEMENTED; }
   virtual bool check_and_repair(THD *thd) { return TRUE; }
-  virtual int disable_indexes(uint mode) { return HA_ERR_WRONG_COMMAND; }
-  virtual int enable_indexes(uint mode) { return HA_ERR_WRONG_COMMAND; }
+  virtual int disable_indexes(key_map map, bool persist) { return HA_ERR_WRONG_COMMAND; }
+  virtual int enable_indexes(key_map map, bool persist) { return HA_ERR_WRONG_COMMAND; }
   virtual int discard_or_import_tablespace(my_bool discard)
   { return (my_errno=HA_ERR_WRONG_COMMAND); }
   virtual void drop_table(const char *name);

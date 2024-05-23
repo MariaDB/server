@@ -103,7 +103,7 @@ DROP USER test@localhost;
 
 disconnect con1;
 
---echo echo End of 5.1 tests 
+--echo # End of 5.1 tests
 
 --echo #
 --echo # Bug#33669: Transactional temporary tables do not work under --read-only
@@ -250,3 +250,29 @@ SET GLOBAL READ_ONLY = OFF;
 DROP USER bug33669@localhost;
 DROP DATABASE db1;
 
+--echo # End of 5.5 tests
+
+--echo #
+--echo # MDEV-33889 Read only server throws error when running a create temporary table as select statement
+--echo #
+create table t1(a int) engine=innodb;
+create user u1@localhost;
+grant insert, select, update, delete, create temporary tables on test.* to u1@localhost;
+insert into t1 values (1);
+set global read_only=1;
+
+connect u1,localhost,u1;
+set default_tmp_storage_engine=innodb;
+
+create temporary table tt1 (a int);
+create temporary table tt2 like t1;
+create temporary table tt3 as select * from t1;
+select * from tt3;
+disconnect u1;
+
+connection default;
+drop table t1;
+drop user u1@localhost;
+set global read_only=0;
+
+--echo # End of 10.5 tests

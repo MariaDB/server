@@ -155,7 +155,7 @@ DROP TABLE t1;
 #
 SELECT json_object('a', (SELECT json_objectagg(b, c) FROM (SELECT 'b','c') d)) AS j FROM DUAL;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					j	250 (format=json)	9437283	16	Y	0	39	33
+def					j	250 (format=json)	9437310	16	Y	0	39	33
 j
 {"a": {"b":"c"}}
 #

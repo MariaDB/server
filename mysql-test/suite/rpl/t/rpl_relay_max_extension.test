@@ -47,7 +47,7 @@ RESET SLAVE;
 --echo #
 
 --let $datadir = `select @@datadir`
---exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+--write_line wait $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
 --shutdown_server 10
 --source include/wait_until_disconnected.inc
 
@@ -64,7 +64,7 @@ RESET SLAVE;
 --echo # Restart slave server
 --echo #
 
---exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+--write_line restart $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
 --enable_reconnect
 --source include/wait_until_connected_again.inc
 SET @save_slave_parallel_threads= @@GLOBAL.slave_parallel_threads;

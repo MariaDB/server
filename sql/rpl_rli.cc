@@ -44,8 +44,6 @@ rpl_slave_state *rpl_global_gtid_slave_state;
 /* Object used for MASTER_GTID_WAIT(). */
 gtid_waiting rpl_global_gtid_waiting;
 
-const char *const Relay_log_info::state_delaying_string = "Waiting until MASTER_DELAY seconds after master executed event";
-
 Relay_log_info::Relay_log_info(bool is_slave_recovery, const char* thread_name)
   :Slave_reporting_capability(thread_name),
    replicate_same_server_id(::replicate_same_server_id),
@@ -2248,7 +2246,7 @@ delete_or_keep_event_post_apply(rpl_group_info *rgi,
 }
 
 
-void rpl_group_info::cleanup_context(THD *thd, bool error)
+void rpl_group_info::cleanup_context(THD *thd, bool error, bool keep_domain_owner)
 {
   DBUG_ENTER("rpl_group_info::cleanup_context");
   DBUG_PRINT("enter", ("error: %d", (int) error));
@@ -2303,7 +2301,7 @@ void rpl_group_info::cleanup_context(THD *thd, bool error)
       Ensure we always release the domain for others to process, when using
       --gtid-ignore-duplicates.
     */
-    if (gtid_ignore_duplicate_state != GTID_DUPLICATE_NULL)
+    if (gtid_ignore_duplicate_state != GTID_DUPLICATE_NULL && !keep_domain_owner)
       rpl_global_gtid_slave_state->release_domain_owner(this);
   }
 

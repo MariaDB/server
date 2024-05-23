@@ -62,3 +62,27 @@ SELECT @@global.innodb_undo_tablespaces;
 # Should list 2 undo log tablespaces, not 4
 undo001
 undo002
+#
+# MDEV-34200 InnoDB tries to write to read-only
+#    system tablespace in buf_dblwr_t::init_or_load_pages()
+#
+SET GLOBAL innodb_fast_shutdown=0;
+# restart: --innodb_undo_tablespaces=4
+# Should list 4 undo log tablespaces
+undo001
+undo002
+undo003
+undo004
+set global innodb_fast_shutdown=0;
+# restart: --innodb_read_only=1
+set global innodb_fast_shutdown=0;
+# restart: --innodb-data-file-path=ibdata1:1M:autoextend --innodb_undo_directory=MYSQLTEST_VARDIR/tmp/undo_dir --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/bugdir --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/bugdir --innodb_undo_tablespaces=3
+# Should list 3 undo log tablespaces
+undo001
+undo002
+undo003
+set global innodb_fast_shutdown=0;
+# restart: --innodb-data-file-path=ibdata1:1M:autoextend --innodb_undo_directory=MYSQLTEST_VARDIR/tmp/undo_dir --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/bugdir_1 --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/bugdir_1 --innodb_undo_tablespaces=0
+# Shouldn't list 0 undo log tablespaces
+set global innodb_fast_shutdown=0;
+# restart

@@ -63,6 +63,15 @@ enum enum_check_fields
   CHECK_FIELD_ERROR_FOR_NULL,
 };
 
+enum ignore_value_reaction
+{
+  IGNORE_MEANS_ERROR,
+  IGNORE_MEANS_DEFAULT,
+  IGNORE_MEANS_FIELD_VALUE
+};
+
+ignore_value_reaction find_ignore_reaction(THD *thd);
+
 
 enum enum_conv_type
 {
@@ -5763,7 +5772,8 @@ public:
   {
     List_iterator<Create_field> it(list);
     while (Create_field *f= it++)
-      f->type_handler()->Column_definition_implicit_upgrade(f);
+      f->type_handler()->type_handler_for_implicit_upgrade()->
+                           Column_definition_implicit_upgrade_to_this(f);
   }
 };
 

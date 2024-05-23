@@ -19,7 +19,7 @@ MY_ADD_TESTS(bitmap base64 my_atomic my_rdtsc lf my_malloc my_getopt dynstring
 MY_ADD_TESTS(my_vsnprintf LINK_LIBRARIES strings mysys)
 MY_ADD_TESTS(aes LINK_LIBRARIES  mysys mysys_ssl)
 ADD_DEFINITIONS(${SSL_DEFINES})
-INCLUDE_DIRECTORIES(${ZLIB_INCLUDE_DIR})
+INCLUDE_DIRECTORIES(${ZLIB_INCLUDE_DIRS})
 MY_ADD_TESTS(ma_dyncol LINK_LIBRARIES  mysys)
 
 IF(WIN32)
