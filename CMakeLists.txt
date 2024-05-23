@@ -425,7 +425,7 @@ INCLUDE(cpack_tgz)
 INCLUDE(cpack_rpm)
 INCLUDE(cpack_deb)
 
-SET(PYTHON_SHEBANG "/usr/bin/env python" CACHE STRING "python shebang")
+SET(PYTHON_SHEBANG "/usr/bin/env python3" CACHE STRING "python shebang")
 MARK_AS_ADVANCED(PYTHON_SHEBANG)
 
 # Add storage engines and plugins.
