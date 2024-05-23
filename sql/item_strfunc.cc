@@ -1386,6 +1386,12 @@ namespace fmt {
       string_view name = { c.ptr(), c.length() };
       return formatter<string_view>::format(name, ctx);
     };
+    /* needed below function for libfmt-7.1.3 compatibility, (not 9.1.0+) */
+    template <typename FormatContext>
+    auto format(String c, FormatContext& ctx) -> decltype(ctx.out()) {
+      string_view name = { c.ptr(), c.length() };
+      return formatter<string_view>::format(name, ctx);
+    };
   };
 };
 
