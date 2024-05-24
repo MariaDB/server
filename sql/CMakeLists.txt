@@ -194,6 +194,10 @@ SET (SQL_SOURCE
                ${MYSYS_LIBWRAP_SOURCE}
 )
 
+IF (WITH_BLACKBOX)
+  SET(SQL_SOURCE ${SQL_SOURCE} ../blackbox/src/blackbox.c)
+ENDIF()
+
 MY_CHECK_CXX_COMPILER_FLAG(-Wno-unused-but-set-variable)
 IF(have_CXX__Wno_unused_but_set_variable)
   ADD_COMPILE_FLAGS(${CMAKE_CURRENT_BINARY_DIR}/yy_mariadb.cc

@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2023 Codership Oy <http://www.codership.com>
+/* Copyright (c) 2008, 2024 Codership Oy <http://www.codership.com>
    Copyright (c) 2020, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or modify
@@ -129,6 +129,12 @@ ulong wsrep_SR_store_type= WSREP_SR_STORE_TABLE;
 uint  wsrep_ignore_apply_errors= 0;
 
 std::atomic <bool> wsrep_thread_create_failed;
+
+ulong       wsrep_debug_mode        = 0;
+#ifdef WITH_BLACKBOX
+long long wsrep_black_box_size      = 0;
+const char *wsrep_black_box_name    = nullptr;
+#endif /* WITH_BLACKBOX */
 
 /*
  * End configuration options
@@ -283,6 +289,7 @@ const char* wsrep_provider_version  = provider_version;
 const char* wsrep_provider_vendor   = provider_vendor;
 char* wsrep_provider_capabilities   = NULL;
 char* wsrep_cluster_capabilities    = NULL;
+
 /* End wsrep status variables */
 
 wsp::Config_state *wsrep_config_state;
@@ -292,7 +299,7 @@ void WSREP_LOG(void (*fun)(const char* fmt, ...), const char* fmt, ...)
   /* Allocate short buffer from stack. If the vsnprintf() return value
      indicates that the message was truncated, a new buffer will be allocated
      dynamically and the message will be reprinted. */
-  char msg[128] = {'\0'};
+  char msg[256] = {'\0'};
   va_list arglist;
   va_start(arglist, fmt);
   int n= vsnprintf(msg, sizeof(msg), fmt, arglist);

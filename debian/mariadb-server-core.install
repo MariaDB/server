@@ -1,4 +1,5 @@
 usr/bin/innochecksum
+usr/bin/mariadb-bbtool
 usr/bin/mariadb-install-db
 usr/bin/mariadb-upgrade
 usr/bin/resolveip

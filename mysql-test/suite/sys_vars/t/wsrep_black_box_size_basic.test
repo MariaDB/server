@@ -1,0 +1,29 @@
+--source include/have_wsrep.inc
+
+SET @start_value = @@global.wsrep_black_box_size;
+SELECT @start_value;
+
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@global.wsrep_black_box_size = 420;
+SHOW WARNINGS;
+SELECT @@global.wsrep_black_box_size;
+SET @@global.wsrep_black_box_size = 0;
+SELECT @@global.wsrep_black_box_size;
+
+--error ER_GLOBAL_VARIABLE
+SET @@session.wsrep_black_box_size = 0;
+--Error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT @@session.wsrep_black_box_size;
+
+# No error, truncation
+SET @@global.wsrep_black_box_size = -10;
+SELECT @@global.wsrep_black_box_size;
+
+--error ER_WRONG_TYPE_FOR_VAR
+SET @@global.wsrep_black_box_size = "/foo/bar.txt";
+SHOW WARNINGS;
+SELECT @@global.wsrep_black_box_size;
+
+SET @@global.wsrep_black_box_size = @start_value;
+SELECT @@global.wsrep_black_box_size;
+

@@ -113,6 +113,14 @@ extern bool wsrep_mode_check                 CHECK_ARGS;
 extern bool wsrep_buffered_error_log_size_update    UPDATE_ARGS;
 extern bool wsrep_buffered_error_log_size_check     CHECK_ARGS;
 extern bool wsrep_buffered_error_log_filename_check CHECK_ARGS;
+
+#ifdef WITH_BLACKBOX
+extern bool wsrep_black_box_size_update      CHECK_ARGS;
+extern bool wsrep_black_box_size_check       CHECK_ARGS;
+extern bool wsrep_resize_black_box           UPDATE_ARGS;
+extern bool wsrep_black_box_name_check       CHECK_ARGS;
+#endif
+
 #else  /* WITH_WSREP */
 
 #define wsrep_provider_init(X)

@@ -28,3 +28,7 @@ SELECT @@global.wsrep_buffered_error_log_size;
 100
 call mtr.add_suppression("mysqld got signal 11.*");
 call mtr.add_suppression("Attempting backtrace. You can use the following information to find out");
+SELECT COUNT(*) AS EXPECT_1000 FROM t1;
+EXPECT_1000
+1000
+DROP TABLE t1;

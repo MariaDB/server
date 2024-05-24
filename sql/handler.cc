@@ -2303,9 +2303,10 @@ int ha_rollback_trans(THD *thd, bool all)
         my_error(ER_ERROR_DURING_ROLLBACK, MYF(0), err);
         error=1;
 #ifdef WITH_WSREP
-        WSREP_WARN("handlerton rollback failed, thd %lld %lld conf %d SQL %s",
-                   thd->thread_id, thd->query_id, thd->wsrep_trx().state(),
-                   thd->query());
+	if (WSREP(thd))
+          WSREP_WARN("handlerton rollback failed, thd %lld %lld conf %d SQL %s",
+                     thd->thread_id, thd->query_id, thd->wsrep_trx().state(),
+                     wsrep_thd_query(thd));
 #endif /* WITH_WSREP */
       }
       status_var_increment(thd->status_var.ha_rollback_count);
@@ -2317,7 +2318,7 @@ int ha_rollback_trans(THD *thd, bool all)
   }
 
 #ifdef WITH_WSREP
-  if (thd->is_error())
+  if (WSREP(thd) && thd->is_error())
   {
     WSREP_DEBUG("ha_rollback_trans(%lld, %s) rolled back: %s: %s; is_real %d",
                 thd->thread_id, all?"TRUE":"FALSE", wsrep_thd_query(thd),

@@ -1,0 +1,26 @@
+SET @start_value = @@global.wsrep_black_box_name;
+SELECT @start_value;
+@start_value
+NULL
+SET @size_start_value = @@global.wsrep_black_box_size;
+SELECT @size_start_value;
+@size_start_value
+0
+SET @@global.wsrep_black_box_name = "/tmp/bar.txt";
+ERROR HY000: Variable 'wsrep_black_box_name' is a read only variable
+SHOW WARNINGS;
+Level	Code	Message
+Error	1238	Variable 'wsrep_black_box_name' is a read only variable
+SELECT @@global.wsrep_black_box_name;
+@@global.wsrep_black_box_name
+NULL
+SET @@global.wsrep_black_box_name = '';
+ERROR HY000: Variable 'wsrep_black_box_name' is a read only variable
+SELECT @@global.wsrep_black_box_name;
+@@global.wsrep_black_box_name
+NULL
+SET @@global.wsrep_black_box_name = NULL;
+ERROR HY000: Variable 'wsrep_black_box_name' is a read only variable
+SELECT @@global.wsrep_black_box_name;
+@@global.wsrep_black_box_name
+NULL

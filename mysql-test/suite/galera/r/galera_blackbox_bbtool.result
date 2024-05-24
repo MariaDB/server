@@ -1,0 +1,36 @@
+connection node_2;
+connection node_1;
+connection node_1;
+connection node_2;
+connection node_1;
+SELECT @@wsrep_black_box_size;
+@@wsrep_black_box_size
+0
+SELECT @@wsrep_black_box_name;
+@@wsrep_black_box_name
+NULL
+# Node1 should not have operational blackbox
+connection node_2;
+SELECT @@wsrep_black_box_size;
+@@wsrep_black_box_size
+100
+SELECT @@wsrep_black_box_name;
+@@wsrep_black_box_name
+bb_info2
+# Node2 should have operational blackbox
+bb_info2 is operational
+connection node_1;
+# Node2 should not have operational blackbox after clean shutdown
+# Restart node_2
+connection node_2;
+# Node2 should have operational blackbox
+bb_info2 is operational
+# Kill Node2
+connection node_2;
+SET SESSION wsrep_sync_wait = 0;
+Killing server ...
+connection node_1;
+# Node2 should have operational blackbox after kill
+bb_info2 is operational
+# start node_2
+connection node_2;

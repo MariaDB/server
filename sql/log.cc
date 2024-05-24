@@ -67,8 +67,11 @@
 #ifdef WITH_WSREP
 #include "wsrep_trans_observer.h"
 #include "wsrep_status.h"
+#include "wsrep_var.h"
 #endif /* WITH_WSREP */
-
+#ifdef WITH_BLACKBOX
+#include "blackbox/blackbox.h"
+#endif
 #ifdef HAVE_REPLICATION
 #include "semisync_master.h"
 #include "semisync_slave.h"
@@ -282,11 +285,12 @@ Silence_log_table_errors::handle_condition(THD *,
   return TRUE;
 }
 
-sql_print_message_func sql_print_message_handlers[3] =
+sql_print_message_func sql_print_message_handlers[4] =
 {
   sql_print_information,
   sql_print_warning,
-  sql_print_error
+  sql_print_error,
+  sql_print_debug
 };
 
 
@@ -1178,6 +1182,12 @@ void LOGGER::cleanup_end()
     file_log_handler=NULL;
   }
   inited= 0;
+#ifdef WITH_BLACKBOX
+  /* delete Black Box */
+  bb_unlink();
+  wsrep_black_box_size= 0;
+  wsrep_debug_mode &= ~WSREP_DEBUG_MODE_BLACKBOX;
+#endif /* WITH_BLACKBOX */
 }
 
 
@@ -9766,8 +9776,12 @@ static void print_buffer_to_file(enum loglevel level, const char *buffer,
   struct tm *start;
   THD *thd= 0;
   size_t tag_length= 0;
-  char tag[NAME_LEN];
-  int len= 0;
+  char tag[NAME_LEN] = {'\0'};
+  bool buf_allocated= false;
+  char tmp_buf[MAX_LOG_BUFFER_SIZE]= {'\0'};
+  size_t len= MAX_LOG_BUFFER_SIZE-1;
+  char *buf = &tmp_buf[0];
+
   DBUG_ENTER("print_buffer_to_file");
   DBUG_PRINT("enter",("buffer: %s", buffer));
 
@@ -9792,26 +9806,7 @@ static void print_buffer_to_file(enum loglevel level, const char *buffer,
   localtime_r(&skr, &tm_tmp);
   start=&tm_tmp;
 
-  len= fprintf(stderr, "%d-%02d-%02d %2d:%02d:%02d %lu [%s] %.*s%.*s\n",
-          start->tm_year + 1900,
-          start->tm_mon+1,
-          start->tm_mday,
-          start->tm_hour,
-          start->tm_min,
-          start->tm_sec,
-          (unsigned long) (thd ? thd->thread_id : 0),
-          (level == ERROR_LEVEL ? "ERROR" : level == WARNING_LEVEL ?
-           "Warning" : "Note"),
-          (int) tag_length, tag,
-          (int) length, buffer);
-
-  fflush(stderr);
-
-#ifdef WITH_WSREP
-  if (wsrep_buffered_error_log_size)
-  {
-    char *buf = (char *)my_malloc(PSI_INSTRUMENT_ME, len+1, MYF(MY_WME));
-    snprintf(buf, len, "%d-%02d-%02d %2d:%02d:%02d %lu [%s] %.*s%.*s\n",
+  len = snprintf(buf, len, "%d-%02d-%02d %2d:%02d:%02d %lu [%s] %.*s%.*s\n",
           start->tm_year + 1900,
           start->tm_mon+1,
           start->tm_mday,
@@ -9823,8 +9818,50 @@ static void print_buffer_to_file(enum loglevel level, const char *buffer,
            "Warning" : "Note"),
           (int) tag_length, tag,
 	  (int) length, buffer);
-    wsrep_buffered_error_log.log(buf, len);
-    my_free(buf);
+
+  if (len > sizeof(tmp_buf) -1 )
+  {
+    len += 2; // safety
+    buf= (char *)my_malloc(PSI_INSTRUMENT_ME, len, MYF(MY_WME));
+    buf_allocated= true;
+    len = snprintf(buf, len, "%d-%02d-%02d %2d:%02d:%02d %lu [%s] %.*s%.*s\n",
+            start->tm_year + 1900,
+            start->tm_mon+1,
+            start->tm_mday,
+            start->tm_hour,
+            start->tm_min,
+            start->tm_sec,
+            (unsigned long) (thd ? thd->thread_id : 0),
+            (level == ERROR_LEVEL ? "ERROR" : level == WARNING_LEVEL ?
+             "Warning" : "Note"),
+            (int) tag_length, tag,
+	    (int) length, buffer);
+  }
+
+#ifdef WITH_WSREP
+  if (level < DEBUG_LEVEL || (wsrep_debug_mode & WSREP_DEBUG_MODE_DEBUG))
+  {
+#endif
+    fprintf(stderr, "%s", buf);
+    fflush(stderr);
+#ifdef WITH_WSREP
+  }
+
+  if (wsrep_debug_mode)
+  {
+    if (wsrep_debug_mode & WSREP_DEBUG_MODE_BUFFERED)
+      wsrep_buffered_error_log.log(buf, len);
+
+#ifdef WITH_BLACKBOX
+    if (wsrep_debug_mode & WSREP_DEBUG_MODE_BLACKBOX)
+    {
+      assert(bb_get_state() == BB_STATE_OPERATIONAL);
+      buf[len-1]='\0';
+      bb_write((level == ERROR_LEVEL ? "ERROR" :
+		level == WARNING_LEVEL ? "Warning" : "Note"),
+	       buf, len);
+    }
+#endif /* WITH_BLACKBOX */
   }
 
   if (level <= WARNING_LEVEL)
@@ -9836,6 +9873,8 @@ static void print_buffer_to_file(enum loglevel level, const char *buffer,
   }
 #endif /* WITH_WSREP */
 
+  if (buf_allocated)
+    my_free(buf);
   mysql_mutex_unlock(&LOCK_error_log);
   DBUG_VOID_RETURN;
 }
@@ -9873,6 +9912,17 @@ int vprint_msg_to_log(enum loglevel level, const char *format, va_list args)
 }
 #endif /* EMBEDDED_LIBRARY */
 
+void sql_print_debug(const char *format, ...)
+{
+  va_list args;
+  DBUG_ENTER("sql_print_debug");
+
+  va_start(args, format);
+  error_log_print(DEBUG_LEVEL, format, args);
+  va_end(args);
+
+  DBUG_VOID_RETURN;
+}
 
 void sql_print_error(const char *format, ...) 
 {

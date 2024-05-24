@@ -1,0 +1,17 @@
+--source include/have_wsrep.inc
+
+SET @start_value = @@global.wsrep_black_box_name;
+SELECT @start_value;
+SET @size_start_value = @@global.wsrep_black_box_size;
+SELECT @size_start_value;
+
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SET @@global.wsrep_black_box_name = "/tmp/bar.txt";
+SHOW WARNINGS;
+SELECT @@global.wsrep_black_box_name;
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SET @@global.wsrep_black_box_name = '';
+SELECT @@global.wsrep_black_box_name;
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SET @@global.wsrep_black_box_name = NULL;
+SELECT @@global.wsrep_black_box_name;

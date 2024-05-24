@@ -22,12 +22,16 @@
 #include "wsrep_priv.h"
 #include "wsrep_thd.h"
 #include "wsrep_xid.h"
+#include "wsrep_var.h"
 #include <my_dir.h>
 #include <cstdio>
 #include <cstdlib>
 #include "wsrep_trans_observer.h"
 #include "wsrep_server_state.h"
 #include "wsrep_plugin.h" /* wsrep_provider_plugin_is_enabled() */
+#ifdef WITH_BLACKBOX
+#include "blackbox/blackbox.h"
+#endif
 
 ulong   wsrep_reject_queries;
 
@@ -596,6 +600,11 @@ bool wsrep_debug_update(sys_var *self, THD* thd, enum_var_type type)
   else
     Wsrep_server_state::instance().debug_log_level(wsrep_debug);
 
+  if (wsrep_debug)
+    wsrep_debug_mode |= WSREP_DEBUG_MODE_DEBUG;
+  else
+    wsrep_debug_mode &= ~WSREP_DEBUG_MODE_DEBUG;
+
   return false;
 }
 
@@ -1124,6 +1133,12 @@ bool wsrep_gtid_domain_id_update(sys_var* self, THD *thd, enum_var_type)
 bool wsrep_buffered_error_log_size_update(sys_var *, THD *, enum_var_type)
 {
   wsrep_buffered_error_log.resize(wsrep_buffered_error_log_size * 1024);
+
+  if (wsrep_buffered_error_log_size)
+    wsrep_debug_mode |= WSREP_DEBUG_MODE_BUFFERED;
+  else
+    wsrep_debug_mode &= ~WSREP_DEBUG_MODE_BUFFERED;
+
   return false;
 }
 
@@ -1185,3 +1200,96 @@ bool wsrep_buffered_error_log_filename_check(sys_var *self, THD* thd, set_var *v
 
   return false;
 }
+
+#ifdef WITH_BLACKBOX
+
+bool wsrep_black_box_name_check(sys_var *self, THD* thd, set_var *var)
+{
+  // Allow empty
+  if (!var->value ||
+      !var->save_result.string_value.str ||
+      strlen(var->save_result.string_value.str) == 0)
+    return false;
+
+  if (!WSREP(thd))
+  {
+    push_warning (thd, Sql_condition::WARN_LEVEL_WARN,
+                  ER_WRONG_VALUE_FOR_VAR,
+                  "Cannot set 'wsrep_black_box_name' "
+                  "because wsrep is switched off.");
+    return true;
+  }
+
+  return false;
+}
+
+
+bool wsrep_black_box_size_check(sys_var *self, THD* thd, set_var *var)
+{
+  const longlong new_log_size= (longlong)var->save_result.ulonglong_value;
+
+  // Allow zero
+  if (!new_log_size)
+    return false;
+
+  if (!WSREP(thd))
+  {
+    push_warning (thd, Sql_condition::WARN_LEVEL_WARN,
+                  ER_WRONG_VALUE_FOR_VAR,
+                  "Cannot set 'wsrep_black_box_size' to a value other than "
+                  "0 because wsrep is switched off.");
+    return true;
+  }
+
+  // Do not allow if name is not given
+  if (!wsrep_black_box_name || wsrep_black_box_name[0] == '\0')
+  {
+    push_warning (thd, Sql_condition::WARN_LEVEL_WARN,
+                  ER_WRONG_VALUE_FOR_VAR,
+                  "Cannot set 'wsrep_black_box_size' to a value other than "
+                  "0 because wsrep_black_box_name is not defined.");
+    return true;
+  }
+
+  return false;
+}
+
+static bool resize_black_box(ulonglong new_size)
+{
+  int rcode;
+  bool retcode=false;
+
+  /* delete existing Black Box */
+  bb_unlink();
+  /* re-create the Black Box with the new size */
+  rcode = bb_open(wsrep_black_box_name, wsrep_black_box_size,
+                  mysql_real_data_home);
+  if (rcode < 0)
+  {
+    /* failure */
+    my_error(ER_BLACKBOX_ERROR, MYF(0), "Resizing of", bb_get_error(rcode));
+    wsrep_black_box_size = 0;
+    retcode= true;
+  }
+
+  if (bb_get_state() == BB_STATE_OPERATIONAL)
+    wsrep_debug_mode |= WSREP_DEBUG_MODE_BLACKBOX;
+  else
+    wsrep_debug_mode &= ~WSREP_DEBUG_MODE_BLACKBOX;
+
+  WSREP_INFO("Blackbox %s %s current size=%lld Kb.",
+             wsrep_black_box_name ? wsrep_black_box_name : "NULL",
+             (bb_get_state() == BB_STATE_OPERATIONAL ?
+               "operational" : "disabled"),
+             wsrep_black_box_size*1024);
+
+  return retcode;
+}
+
+
+bool wsrep_resize_black_box(sys_var *, THD *, enum_var_type)
+{
+  return resize_black_box(wsrep_black_box_size * 1024);
+}
+
+#endif /* WITH_BLACKBOX */

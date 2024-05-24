@@ -54,7 +54,6 @@ void Buffered_error_logger::log(const char *msg, size_t len) {
     write_to_disk_();
   }
   *data += msg;
-  *data += '\n';
 }
 
 void Buffered_error_logger::write_to_disk() {
@@ -64,6 +63,7 @@ void Buffered_error_logger::write_to_disk() {
 
 void Buffered_error_logger::close() {
   std::lock_guard<std::mutex> lk{data_mtx};
+  free((void *)wsrep_buffered_error_log_filename);
   wsrep_buffered_error_log_filename = nullptr;
 }
 

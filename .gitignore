@@ -33,6 +33,8 @@ TAGS
 Testing/
 tmp/
 VERSION.dep
+blackbox/src/bbtool
+blackbox/tests/unittest
 configure
 client/async_example
 client/mysql

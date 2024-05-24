@@ -93,6 +93,17 @@ extern bool        wsrep_gtid_mode;
 extern uint32      wsrep_gtid_domain_id;
 extern std::atomic <bool > wsrep_thread_create_failed;
 extern ulonglong   wsrep_mode;
+#ifdef WITH_BLACKBOX
+extern long long   wsrep_black_box_size;
+extern const char* wsrep_black_box_name;
+#endif
+
+enum enum_wsrep_debug_mode {
+  WSREP_DEBUG_MODE_OFF = 0x0,
+  WSREP_DEBUG_MODE_DEBUG = 0x1,
+  WSREP_DEBUG_MODE_BUFFERED = 0x2,
+  WSREP_DEBUG_MODE_BLACKBOX = 0x4
+};
 
 enum enum_wsrep_reject_types {
   WSREP_REJECT_NONE,    /* nothing rejected */

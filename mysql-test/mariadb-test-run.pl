@@ -2339,6 +2339,14 @@ sub environment_setup {
       "$bindir/extra/mariabackup$multiconfig/mariabackup",
       "$path_client_bindir/mariabackup");
 
+  # ----------------------------------------------------
+  # bbtool
+  # ----------------------------------------------------
+  my $exe_bbtool=
+    mtr_exe_maybe_exists("$bindir/blackbox/src$multiconfig/bbtool",
+		         "$path_client_bindir/bbtool");
+  $ENV{'BBTOOL'}= native_path($exe_bbtool) if $exe_bbtool;
+
   $ENV{XTRABACKUP}= native_path($exe_mariabackup) if $exe_mariabackup;
 
   my $exe_xbstream= mtr_exe_maybe_exists(
