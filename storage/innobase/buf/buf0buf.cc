@@ -2587,6 +2587,15 @@ buf_page_get_gen(
 {
 	ulint		retries = 0;
 
+	/* BUF_GET_RECOVER is only used by recv_sys_t::recover(),
+	which must be invoked during early server startup when crash
+	recovery may be in progress. The only case when it may be
+	invoked outside recovery is when dict_create() has initialized
+	a new database and is invoking dict_boot(). In this case, the
+	LSN will be small. */
+	ut_ad(mode == BUF_GET_RECOVER
+	      ? recv_recovery_is_on() || log_sys.get_lsn() < 50000
+	      : !recv_recovery_is_on() || recv_sys.after_apply);
 	ut_ad(!mtr || mtr->is_active());
 	ut_ad(mtr || mode == BUF_PEEK_IF_IN_POOL);
 	ut_ad((rw_latch == RW_S_LATCH)
@@ -2608,6 +2617,7 @@ buf_page_get_gen(
 		/* The caller may pass a dummy page size,
 		because it does not really matter. */
 		break;
+	case BUF_GET_RECOVER:
 	case BUF_GET:
 		ut_ad(!mtr->is_freeing_tree());
 		fil_space_t* s = fil_space_get(page_id.space());

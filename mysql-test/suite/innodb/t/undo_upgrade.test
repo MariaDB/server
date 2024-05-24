@@ -76,3 +76,46 @@ SELECT @@global.innodb_undo_tablespaces;
 
 --echo # Should list 2 undo log tablespaces, not 4
 list_files $MYSQLD_DATADIR undo*;
+
+--echo #
+--echo # MDEV-34200 InnoDB tries to write to read-only
+--echo #    system tablespace in buf_dblwr_t::init_or_load_pages()
+--echo #
+
+SET GLOBAL innodb_fast_shutdown=0;
+let $restart_parameters=--innodb_undo_tablespaces=4;
+--source include/restart_mysqld.inc
+--echo # Should list 4 undo log tablespaces
+list_files $MYSQLD_DATADIR undo*;
+
+set global innodb_fast_shutdown=0;
+let $restart_parameters=--innodb_read_only=1;
+--source include/restart_mysqld.inc
+
+set global innodb_fast_shutdown=0;
+let bugdir= $MYSQLTEST_VARDIR/tmp/bugdir;
+mkdir $bugdir;
+let undodir= $MYSQLTEST_VARDIR/tmp/undo_dir;
+mkdir $undodir;
+let $d= --innodb-data-file-path=ibdata1:1M:autoextend;
+let $d=$d --innodb_undo_directory=$undodir;
+let $restart_parameters= $d --innodb-data-home-dir=$bugdir --innodb-log-group-home-dir=$bugdir --innodb_undo_tablespaces=3;
+--source include/restart_mysqld.inc
+--echo # Should list 3 undo log tablespaces
+list_files $undodir undo*;
+
+let bugdir_1= $MYSQLTEST_VARDIR/tmp/bugdir_1;
+mkdir $bugdir_1;
+
+set global innodb_fast_shutdown=0;
+let $restart_parameters= $d --innodb-data-home-dir=$bugdir_1 --innodb-log-group-home-dir=$bugdir_1 --innodb_undo_tablespaces=0;
+--source include/restart_mysqld.inc
+--echo # Shouldn't list 0 undo log tablespaces
+list_files $undodir undo*;
+
+set global innodb_fast_shutdown=0;
+let $restart_parameters=;
+--source include/restart_mysqld.inc
+rmdir $bugdir;
+rmdir $bugdir_1;
+rmdir $undodir;
