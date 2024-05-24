@@ -50,6 +50,7 @@ static const uchar to_upper_lex[]=
   208,209,210,211,212,213,214,247,216,217,218,219,220,221,222,255
 };
 
+
 static int lex_casecmp(const char *s, const char *t, uint len)
 {
   while (len-- != 0 &&
@@ -57,104 +58,74 @@ static int lex_casecmp(const char *s, const char *t, uint len)
   return (int) len + 1;
 }
 
-// OLEGS: refactor to avoid two bool parameters:
-SYMBOL *get_hash_symbol(const char *s,
-                        unsigned int len,bool function, bool hint)
-{
-  uchar *hash_map;
-  const char *cur_str= s;
 
+static SYMBOL *get_hash_symbol_from_map(const char *s, unsigned int len,
+                                        uchar *hash_map)
+{
+  const char *cur_str= s;
+  uint32 cur_struct= uint4korr(hash_map+((len-1)*4));
+
+  for (;;){
+    uchar first_char= (uchar)cur_struct;
+
+    if (first_char == 0) {
+      int16 ires= (int16)(cur_struct >> 16);
+      if (ires == array_elements(symbols))
+        return nullptr;
+      SYMBOL *res;
+      if (ires >= 0)
+        res= symbols + ires;
+      else
+        res= sql_functions - ires - 1;
+      uint count= (uint) (cur_str - s);
+      return lex_casecmp(cur_str, res->name+count, len-count) != 0 ? nullptr : res;
+    }
+
+    uchar cur_char= (uchar)to_upper_lex[(uchar)*cur_str];
+    if (cur_char < first_char)
+      return nullptr;
+    cur_struct >>= 8;
+    if (cur_char > (uchar)cur_struct)
+      return nullptr;
+
+    cur_struct >>= 8;
+    cur_struct= uint4korr(hash_map+
+                      (((uint16)cur_struct+cur_char-first_char)*4));
+    cur_str++;
+  }
+}
+
+
+SYMBOL *get_hash_symbol(const char *s, unsigned int len,
+                        symbol_type_t symbol_type)
+{
   if (len == 0) {
     DBUG_PRINT("warning", ("get_hash_symbol() received a request for "
                "a zero-length symbol, which is probably a mistake."));
     return(NULL);
   }
 
-  // OLEGS: remove this code duplication
-  if (hint)
+  if (symbol_type == symbol_type_t::REGULAR)
   {
-    if (len>hint_keywords_max_len) return 0;
-    hash_map= hint_keywords_map;
-    uint32 cur_struct= uint4korr(hash_map+((len-1)*4));
-
-    for (;;){
-      uchar first_char= (uchar)cur_struct;
-
-      if (first_char==0) {
-        int16 ires= (int16)(cur_struct>>16);
-        if (ires==array_elements(symbols)) return 0;
-        SYMBOL *res= symbols+ires;
-        uint count= (uint) (cur_str - s);
-        return lex_casecmp(cur_str,res->name+count,len-count)!=0 ? 0 : res;
-      }
-
-      uchar cur_char= (uchar)to_upper_lex[(uchar)*cur_str];
-      if (cur_char<first_char) return 0;
-      cur_struct>>=8;
-      if (cur_char>(uchar)cur_struct) return 0;
-
-      cur_struct>>=8;
-      cur_struct= uint4korr(hash_map+
-                        (((uint16)cur_struct + cur_char - first_char)*4));
-      cur_str++;
-    }
+    if (len > symbols_max_len)
+      return nullptr;
+    return get_hash_symbol_from_map(s, len, symbols_map);
   }
-  else if (function){
-    if (len>sql_functions_max_len) return 0;
-    hash_map= sql_functions_map;
-    uint32 cur_struct= uint4korr(hash_map+((len-1)*4));
-
-    for (;;){
-      uchar first_char= (uchar)cur_struct;
-
-      if (first_char == 0)
-      {
-        int16 ires= (int16)(cur_struct>>16);
-        if (ires==array_elements(symbols)) return 0;
-        SYMBOL *res;
-        if (ires>=0)
-          res= symbols+ires;
-        else
-          res= sql_functions-ires-1;
-        uint count= (uint) (cur_str - s);
-        return lex_casecmp(cur_str,res->name+count,len-count) ? 0 : res;
-      }
-
-      uchar cur_char= (uchar)to_upper_lex[(uchar)*cur_str];
-      if (cur_char<first_char) return 0;
-      cur_struct>>=8;
-      if (cur_char>(uchar)cur_struct) return 0;
-
-      cur_struct>>=8;
-      cur_struct= uint4korr(hash_map+
-                        (((uint16)cur_struct + cur_char - first_char)*4));
-      cur_str++;
-    }
-  }else{
-    if (len>symbols_max_len) return 0;
-    hash_map= symbols_map;
-    uint32 cur_struct= uint4korr(hash_map+((len-1)*4));
-
-    for (;;){
-      uchar first_char= (uchar)cur_struct;
-
-      if (first_char==0) {
-        int16 ires= (int16)(cur_struct>>16);
-        if (ires==array_elements(symbols)) return 0;
-        SYMBOL *res= symbols+ires;
-        uint count= (uint) (cur_str - s);
-        return lex_casecmp(cur_str,res->name+count,len-count)!=0 ? 0 : res;
-      }
-
-      uchar cur_char= (uchar)to_upper_lex[(uchar)*cur_str];
-      if (cur_char<first_char) return 0;
-      cur_struct>>=8;
-      if (cur_char>(uchar)cur_struct) return 0;
-
-      cur_struct>>=8;
-      cur_struct= uint4korr(hash_map+
-                        (((uint16)cur_struct + cur_char - first_char)*4));
-      cur_str++;
-    }
+  else if (symbol_type == symbol_type_t::FUNCTION)
+  {
+    if (len > sql_functions_max_len)
+      return nullptr;
+    return get_hash_symbol_from_map(s, len, sql_functions_map);
+  }
+  else if (symbol_type == symbol_type_t::HINT)
+  {
+    if (len > hint_keywords_max_len)
+      return nullptr;
+    return get_hash_symbol_from_map(s, len, hint_keywords_map);
+  }
+  else
+  {
+    DBUG_ASSERT(0);
+    return nullptr;
   }
 }

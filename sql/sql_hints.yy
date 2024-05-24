@@ -35,7 +35,7 @@
 #pragma GCC diagnostic ignored "-Wunused-label" /* yyexhaustedlab: */
 #endif
 
-// #define NEW_PTN new (thd->mem_root)
+#define NEW_PTN new (thd->mem_root)
 
 template<typename T>
 bool my_yyoverflow(T **yyss, YYSTYPE **yyvs, size_t *yystacksize);
@@ -70,7 +70,7 @@ bool my_yyoverflow(T **yyss, YYSTYPE **yyvs, size_t *yystacksize);
   This function is not for use in semantic actions and is internal to
   the parser, as it performs some pre-return cleanup.
   In semantic actions, please use thd->parse_error() or my_error to
-  push an error into the error stack and MYSQL_YYABORT
+  push an error into the error stack and YYABORT
   to abort from the parser.
 */
 
@@ -97,28 +97,18 @@ static void yyerror(THD *thd, const char *s)
 
 /* Hint keyword tokens */
 
-%token MAX_EXECUTION_TIME_HINT
-%token DEBUG_HINT1
-%token DEBUG_HINT2
-%token DEBUG_HINT3
-
 %token BKA_HINT
 %token BNL_HINT
-%token DUPSWEEDOUT_HINT
-%token FIRSTMATCH_HINT
-%token INTOEXISTS_HINT
-%token LOOSESCAN_HINT
-%token MATERIALIZATION_HINT
+%token INDEX_MERGE_HINT
 %token NO_BKA_HINT
 %token NO_BNL_HINT
 %token NO_ICP_HINT
+%token NO_INDEX_MERGE_HINT
 %token NO_MRR_HINT
 %token NO_RANGE_OPTIMIZATION_HINT
-%token NO_SEMIJOIN_HINT
 %token MRR_HINT
+
 %token QB_NAME_HINT
-%token SEMIJOIN_HINT
-%token SUBQUERY_HINT
 
 /* Other tokens */
 
@@ -130,16 +120,32 @@ static void yyerror(THD *thd, const char *s)
 %token HINT_ERROR
 
 /* Types */
-%type <hint> hint
+%type <hint_type>
+  key_level_hint_type_on
+  key_level_hint_type_off
+  table_level_hint_type_on
+  table_level_hint_type_off
+
+%type <hint>
+  hint
+  index_level_hint
+  table_level_hint
+  qb_name_hint
+
 %type <hint_list> hint_list
 
 %type <hint_string> hint_param_index
 %type <hint_param_index_list> hint_param_index_list opt_hint_param_index_list
-%type <hint_param_table> hint_param_table
-%type <hint_param_table_list> hint_param_table_list
+%type <hint_param_table>
+  hint_param_table
+  hint_param_table_ext
+  hint_param_table_empty_qb
 
-%type <hint>
-  debug_hint
+%type <hint_param_table_list>
+  hint_param_table_list
+  opt_hint_param_table_list
+  hint_param_table_list_empty_qb
+  opt_hint_param_table_list_empty_qb
 
 %type <hint_string>
   HINT_ARG_IDENT
@@ -162,7 +168,7 @@ start:
 hint_list:
           hint
           {
-            $$= new (thd->mem_root) PT_hint_list(thd->mem_root);
+            $$= NEW_PTN PT_hint_list(thd->mem_root);
             if ($$ == NULL || $$->push_back($1))
               YYABORT; // OOM
           }
@@ -174,43 +180,87 @@ hint_list:
         ;
 
 hint:
-        debug_hint
+          index_level_hint
+        | table_level_hint
+        | qb_name_hint
+        ;
+
+opt_hint_param_table_list:
+         /* empty */
+          {
+            $$= NEW_PTN Hint_param_table_list(thd->mem_root);
+            if ($$ == NULL)
+              YYABORT;
+          }
+        | hint_param_table_list
         ;
 
 hint_param_table_list:
-           hint_param_table
-           {
-             $$= new (thd->mem_root) Hint_param_table_list(thd->mem_root);
-             if ($$ == NULL)
-               YYABORT;
-             if ($$->push_back($1))
-               YYABORT; // OOM
-           }
-         | hint_param_table_list ',' hint_param_table
-           {
-             if ($1->push_back($3))
-               YYABORT; // OOM
-             $$= $1;
-           }
-         ;
+          hint_param_table
+          {
+            $$= NEW_PTN Hint_param_table_list(thd->mem_root);
+            if ($$ == NULL)
+              YYABORT;
+            if ($$->push_back($1))
+              YYABORT; // OOM
+          }
+        | hint_param_table_list ',' hint_param_table
+          {
+            if ($1->push_back($3))
+              YYABORT; // OOM
+            $$= $1;
+          }
+        ;
+
+opt_hint_param_table_list_empty_qb:
+         /* empty */
+          {
+            $$= NEW_PTN Hint_param_table_list(thd->mem_root);
+            if ($$ == NULL)
+              YYABORT;
+          }
+        | hint_param_table_list_empty_qb
+        ;
+
+hint_param_table_list_empty_qb:
+         hint_param_table_empty_qb
+         {
+           $$= NEW_PTN Hint_param_table_list(thd->mem_root);
+           if ($$ == NULL)
+             YYABORT;
+           if ($$->push_back($1))
+             YYABORT;
+         }
+       | hint_param_table_list_empty_qb ',' hint_param_table_empty_qb
+         {
+           if ($1->push_back($3))
+             YYABORT; // OOM
+           $$= $1;
+         }
+       ;
 
 opt_hint_param_index_list:
-          /* empty */ { $$= NULL; }
-        | hint_param_index_list
-        ;
+         /* empty */
+          {
+            $$= NEW_PTN Hint_param_index_list(thd->mem_root);
+            if ($$ == NULL)
+              YYABORT;
+          }
+       | hint_param_index_list
+       ;
 
 hint_param_index_list:
           hint_param_index
           {
-            $$= new (thd->mem_root) Hint_param_index_list(thd->mem_root);
+            $$= NEW_PTN Hint_param_index_list(thd->mem_root);
             if ($$ == NULL)
               YYABORT;
             if ($$->push_back(&$1))
               YYABORT; // OOM
-           }
-        | hint_param_index_list hint_param_index
+          }
+        | hint_param_index_list ',' hint_param_index
           {
-            if ($1->push_back(&$2))
+            if ($1->push_back(&$3))
               YYABORT; // OOM
             $$= $1;
           }
@@ -220,11 +270,22 @@ hint_param_index:
           HINT_ARG_IDENT
         ;
 
+hint_param_table_empty_qb:
+         HINT_ARG_IDENT
+         {
+           $$= (Hint_param_table *)
+               thd->alloc(sizeof(Hint_param_table));
+           if ($$ == NULL)
+             YYABORT;
+           new ($$) Hint_param_table;
+           $$->table= $1;
+           $$->opt_query_block= NULL_CSTR;
+         }
+       ;
+
 hint_param_table:
           HINT_ARG_IDENT opt_qb_name
           {
-            // OLEGS: why doesn't this work?
-            //$$= new (thd->mem_root) Hint_param_table;
             $$= (Hint_param_table *)
                 thd->alloc(sizeof(Hint_param_table));
             if ($$ == NULL)
@@ -235,28 +296,120 @@ hint_param_table:
           }
         ;
 
+hint_param_table_ext:
+         hint_param_table
+       | HINT_ARG_QB_NAME HINT_ARG_IDENT
+         {
+           $$= (Hint_param_table *)
+               thd->alloc(sizeof(Hint_param_table));
+           if ($$ == NULL)
+             YYABORT;
+           new ($$) Hint_param_table;
+           $$->table= $2;
+           $$->opt_query_block= $1;
+         }
+       ;
+
 opt_qb_name:
           /* empty */ { $$= NULL_CSTR; }
         | HINT_ARG_QB_NAME
         ;
 
-debug_hint:
-          DEBUG_HINT1 '(' opt_qb_name hint_param_table_list ')'
-          {
-            $$= new (thd->mem_root) PT_hint_debug1($3, $4);
-            if ($$ == NULL)
-              YYABORT; // OOM
-          }
-        | DEBUG_HINT2 '(' opt_hint_param_index_list ')'
-          {
-            $$= new (thd->mem_root) PT_hint_debug2($3);
-            if ($$ == NULL)
-              YYABORT; // OOM
-            $$= NULL;
-          }
-        | DEBUG_HINT3
-          {
-            scanner->syntax_warning("This warning is expected");
-            $$= NULL;
-          }
-        ;
+table_level_hint:
+         table_level_hint_type_on '(' opt_hint_param_table_list ')'
+         {
+           $$= NEW_PTN PT_table_level_hint(NULL_CSTR, *$3, TRUE, $1);
+           if ($$ == NULL)
+             YYABORT; // OOM
+         }
+       | table_level_hint_type_on
+         '(' HINT_ARG_QB_NAME opt_hint_param_table_list_empty_qb ')'
+         {
+           $$= NEW_PTN PT_table_level_hint($3, *$4, TRUE, $1);
+           if ($$ == NULL)
+             YYABORT; // OOM
+         }
+       | table_level_hint_type_off '(' opt_hint_param_table_list ')'
+         {
+           $$= NEW_PTN PT_table_level_hint(NULL_CSTR, *$3, FALSE, $1);
+           if ($$ == NULL)
+             YYABORT; // OOM
+         }
+       | table_level_hint_type_off
+         '(' HINT_ARG_QB_NAME opt_hint_param_table_list_empty_qb ')'
+         {
+           $$= NEW_PTN PT_table_level_hint($3, *$4, FALSE, $1);
+           if ($$ == NULL)
+             YYABORT; // OOM
+         }
+       ;
+
+index_level_hint:
+         key_level_hint_type_on
+         '(' hint_param_table_ext opt_hint_param_index_list ')'
+         {
+           $$= NEW_PTN PT_key_level_hint(*$3, *$4, TRUE, $1);
+           if ($$ == NULL)
+             YYABORT; // OOM
+         }
+       | key_level_hint_type_off
+         '(' hint_param_table_ext opt_hint_param_index_list ')'
+         {
+           $$= NEW_PTN PT_key_level_hint(*$3, *$4, FALSE, $1);
+           if ($$ == NULL)
+             YYABORT; // OOM
+         }
+       ;
+
+table_level_hint_type_on:
+         BKA_HINT
+         {
+           $$= BKA_HINT_ENUM;
+         }
+       | BNL_HINT
+         {
+           $$= BNL_HINT_ENUM;
+         }
+       ;
+
+table_level_hint_type_off:
+         NO_BKA_HINT
+         {
+           $$= BKA_HINT_ENUM;
+         }
+       | NO_BNL_HINT
+         {
+           $$= BNL_HINT_ENUM;
+         }
+       ;
+
+key_level_hint_type_on:
+         MRR_HINT
+         {
+           $$= MRR_HINT_ENUM;
+         }
+       | NO_RANGE_OPTIMIZATION_HINT
+         {
+           $$= NO_RANGE_HINT_ENUM;
+         }
+       ;
+
+key_level_hint_type_off:
+         NO_ICP_HINT
+         {
+           $$= ICP_HINT_ENUM;
+         }
+       | NO_MRR_HINT
+         {
+           $$= MRR_HINT_ENUM;
+         }
+       ;
+
+qb_name_hint:
+         QB_NAME_HINT '(' HINT_ARG_IDENT ')'
+         {
+           $$= NEW_PTN PT_hint_qb_name($3);
+           if ($$ == NULL)
+             YYABORT; // OOM
+         }
+       ;

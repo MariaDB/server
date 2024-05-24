@@ -2855,6 +2855,13 @@ SQL_SELECT::test_quick_select(THD *thd,
             add("cause", "not applicable");
         continue;
       }
+      if (hint_key_state(thd, head, idx, NO_RANGE_HINT_ENUM, 0))
+      {
+        trace_idx_details.
+            add("usable", false).
+            add("cause", "no_range_optimization hint");
+        continue;
+      }
       if (key_info->flags & HA_FULLTEXT)
       {
         trace_idx_details.add("usable", false).add("cause", "fulltext");

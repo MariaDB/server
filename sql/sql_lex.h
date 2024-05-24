@@ -389,13 +389,13 @@ union YYSTYPE {
   /*
     Hint parser section (sql_hints.yy)
   */
+  opt_hints_enum hint_type;
   LEX_CSTRING hint_string;
   class PT_hint *hint;
   class PT_hint_list *hint_list;
   Hint_param_index_list *hint_param_index_list;
   Hint_param_table *hint_param_table;
   Hint_param_table_list *hint_param_table_list;
-  class PT_hint_list *optimizer_hints;
 
   int  num;
   ulong ulong_num;
@@ -542,6 +542,7 @@ union YYSTYPE {
     Item *expr;
     LEX_CSTRING expr_str;
   } expr_and_query_str;
+  class PT_hint_list *optimizer_hints;
 };
 
 /* avoid unintentional %union size increases, it's what a parser stack made of */
@@ -1527,6 +1528,8 @@ public:
   */
   table_map select_list_tables;
 
+  Opt_hints_qb *opt_hints_qb;
+
   /* Set to 1 if any field in field list has ROWNUM() */
   bool rownum_in_field_list;
 
@@ -1537,6 +1540,8 @@ public:
 
   /* it is for correct printing SELECT options */
   thr_lock_type lock_type;
+
+  PT_hint_list *parse_tree_hint_list;
   
   /** System Versioning */
   int vers_setup_conds(THD *thd, TABLE_LIST *tables);
@@ -1833,6 +1838,7 @@ public:
   bool is_unit_nest() { return (nest_flags & UNIT_NEST_FL); }
   void mark_as_unit_nest() { nest_flags= UNIT_NEST_FL; }
   bool is_sj_conversion_prohibited(THD *thd);
+  void set_parse_tree_hints(PT_hint_list *hl) { parse_tree_hint_list= hl; }
 };
 typedef class st_select_lex SELECT_LEX;
 
@@ -3998,6 +4004,20 @@ public:
       current_select= select_stack[select_stack_top - 1];
 
     DBUG_RETURN(select_lex);
+  }
+
+  void contextualize_parse_tree_hints()
+  {
+    SELECT_LEX *select_lex;
+    if (likely(select_stack_top))
+      select_lex= select_stack[select_stack_top - 1];
+    else
+      select_lex= nullptr;
+    if (select_lex && select_lex->parse_tree_hint_list)
+    {
+      Parse_context pc(thd, select_lex);
+      select_lex->parse_tree_hint_list->contextualize(&pc);
+    }
   }
 
   SELECT_LEX *current_select_or_default()

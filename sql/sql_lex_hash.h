@@ -32,7 +32,14 @@
 
 struct SYMBOL;
 
+enum class symbol_type_t
+{
+  REGULAR,
+  FUNCTION,
+  HINT
+};
+
 SYMBOL *get_hash_symbol(const char *s,
-                               unsigned int len, bool function, bool hint);
+                        unsigned int len, symbol_type_t symbol_type);
 
 #endif /* SQL_LEX_HASH_INCLUDED */

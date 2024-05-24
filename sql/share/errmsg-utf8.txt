@@ -12276,3 +12276,7 @@ ER_WARN_OPTIMIZER_HINT_SYNTAX_ERROR
   eng "Optimizer hint syntax error"
 ER_WARN_CONFLICTING_HINT
   eng "Hint %s is ignored as conflicting/duplicated"
+ER_WARN_UNKNOWN_QB_NAME
+  eng "Query block name %s is not found for %s hint"
+ER_UNRESOLVED_HINT_NAME
+  eng "Unresolved name %s for %s hint"

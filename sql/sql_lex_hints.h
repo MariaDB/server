@@ -286,7 +286,8 @@ protected:
         return scan_ident();
       case HINT_CHR_EOF:
       default:
-        const SYMBOL *symbol= get_hash_symbol(yytext, yyleng, false, true);
+        const SYMBOL *symbol= get_hash_symbol(yytext, yyleng,
+                                              symbol_type_t::HINT);
         if (symbol) // keyword
         {
           /*

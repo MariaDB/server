@@ -538,6 +538,7 @@ static SYMBOL symbols[] = {
   { SYM("REORGANIZE",             REORGANIZE_SYM)},
   { SYM("REPAIR",                 REPAIR)},
   { SYM("REPEATABLE",             REPEATABLE_SYM)},
+  { SYM("REPLACE",                REPLACE)},
   { SYM("REPLAY",                 REPLAY_SYM)},
   { SYM("REPLICA",                SLAVE)},
   { SYM("REPLICAS",               SLAVES)},
@@ -754,7 +755,6 @@ static SYMBOL symbols[] = {
   */
   { SYM_HK("DELETE",              DELETE_SYM)},
   { SYM_HK("INSERT",              INSERT)},
-  { SYM_HK("REPLACE",             REPLACE)},
   { SYM_HK("SELECT",              SELECT_SYM)},
   { SYM_HK("UPDATE",              UPDATE_SYM)},
   /*
@@ -762,24 +762,13 @@ static SYMBOL symbols[] = {
   */
   { SYM_H("BKA",                  BKA_HINT)},
   { SYM_H("BNL",                  BNL_HINT)},
-  { SYM_H("DUPSWEEDOUT",          DUPSWEEDOUT_HINT)},
-  { SYM_H("FIRSTMATCH",           FIRSTMATCH_HINT)},
-  { SYM_H("INTOEXISTS",           INTOEXISTS_HINT)},
-  { SYM_H("LOOSESCAN",            LOOSESCAN_HINT)},
-  { SYM_H("MATERIALIZATION",      MATERIALIZATION_HINT)},
   { SYM_H("NO_BKA",               NO_BKA_HINT)},
   { SYM_H("NO_BNL",               NO_BNL_HINT)},
   { SYM_H("NO_ICP",               NO_ICP_HINT)},
   { SYM_H("NO_MRR",               NO_MRR_HINT)},
   { SYM_H("NO_RANGE_OPTIMIZATION", NO_RANGE_OPTIMIZATION_HINT)},
-  { SYM_H("NO_SEMIJOIN",          NO_SEMIJOIN_HINT)},
   { SYM_H("MRR",                  MRR_HINT)},
-  { SYM_H("QB_NAME",              QB_NAME_HINT)},
-  { SYM_H("SEMIJOIN",             SEMIJOIN_HINT)},
-  { SYM_H("SUBQUERY",             SUBQUERY_HINT)},
-  { SYM_H("DEBUG_HINT1",          DEBUG_HINT1)},
-  { SYM_H("DEBUG_HINT2",          DEBUG_HINT2)},
-  { SYM_H("DEBUG_HINT3",          DEBUG_HINT3)}
+  { SYM_H("QB_NAME",              QB_NAME_HINT)}
 };
 
 

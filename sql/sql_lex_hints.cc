@@ -147,25 +147,13 @@ void Hint_scanner::add_hint_token_digest()
       switch (prev_token) {
       case BKA_HINT:
       case BNL_HINT:
-      case DUPSWEEDOUT_HINT:
-      case FIRSTMATCH_HINT:
-      case INTOEXISTS_HINT:
-      case LOOSESCAN_HINT:
-      case MATERIALIZATION_HINT:
-      case MAX_EXECUTION_TIME_HINT:
       case MRR_HINT:
       case NO_BKA_HINT:
       case NO_BNL_HINT:
       case NO_ICP_HINT:
       case NO_MRR_HINT:
       case NO_RANGE_OPTIMIZATION_HINT:
-      case NO_SEMIJOIN_HINT:
       case QB_NAME_HINT:
-      case SEMIJOIN_HINT:
-      case SUBQUERY_HINT:
-      case DEBUG_HINT1:
-      case DEBUG_HINT2:
-      case DEBUG_HINT3:
         break;
       default:
         DBUG_ASSERT(false);

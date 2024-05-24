@@ -1035,6 +1035,10 @@ public:
   {
     return Binary_string::append(s);
   }
+  bool append(const char *s)
+  {
+    return append(s, (uint) strlen(s));
+  }
   inline bool append(char chr)
   {
     return Binary_string::append_char(chr);
@@ -1072,6 +1076,7 @@ public:
                  ls->length == strlen(ls->str)));
     return append(ls->str, (uint32) ls->length);
   }
+
   bool append(const LEX_CSTRING &ls)
   {
     return append(&ls);

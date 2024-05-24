@@ -259,6 +259,7 @@ private:
       Element_type *p= &m_array[ix];
       new (p) Element_type(other[ix]);
     }
+    m_size= other.m_size;
   }
 };
 

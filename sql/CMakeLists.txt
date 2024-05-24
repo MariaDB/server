@@ -194,6 +194,7 @@ SET (SQL_SOURCE
                ${GEN_SOURCES}
                ${MYSYS_LIBWRAP_SOURCE}
                parse_tree_hints.cc parse_tree_hints.h
+               opt_hints.cc opt_hints.h
 )
 
 MY_CHECK_CXX_COMPILER_FLAG(-Wno-unused-but-set-variable)

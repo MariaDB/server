@@ -342,7 +342,7 @@ void _CONCAT_UNDERSCORED(turn_parser_debug_on,yyparse)()
 %token  <kwd> DECLARE_ORACLE_SYM            /* Oracle-R   */
 %token  <kwd> DEFAULT                       /* SQL-2003-R */
 %token  <kwd> DELETE_DOMAIN_ID_SYM
-%token  <kwd> DELETE_SYM                    /* SQL-2003-R */
+%token  <optimizer_hints> DELETE_SYM        /* SQL-2003-R */
 %token  <kwd> DENSE_RANK_SYM
 %token  <kwd> DESCRIBE                      /* SQL-2003-R */
 %token  <kwd> DESC                          /* SQL-2003-N */
@@ -391,7 +391,7 @@ void _CONCAT_UNDERSCORED(turn_parser_debug_on,yyparse)()
 %token  <kwd> INNER_SYM                     /* SQL-2003-R */
 %token  <kwd> INOUT_SYM                     /* SQL-2003-R */
 %token  <kwd> INSENSITIVE_SYM               /* SQL-2003-R */
-%token  <kwd> INSERT                        /* SQL-2003-R */
+%token  <optimizer_hints> INSERT            /* SQL-2003-R */
 %token  <kwd> IN_SYM                        /* SQL-2003-R */
 %token  <kwd> INTERSECT_SYM                 /* SQL-2003-R */
 %token  <kwd> INTERVAL_SYM                  /* SQL-2003-R */
@@ -495,7 +495,7 @@ void _CONCAT_UNDERSCORED(turn_parser_debug_on,yyparse)()
 %token  <kwd> ROWS_SYM                      /* SQL-2003-R */
 %token  <kwd> ROWTYPE_ORACLE_SYM            /* PLSQL-R    */
 %token  <kwd> SECOND_MICROSECOND_SYM
-%token  <kwd> SELECT_SYM                    /* SQL-2003-R */
+%token  <optimizer_hints> SELECT_SYM        /* SQL-2003-R */
 %token  <kwd> SENSITIVE_SYM                 /* FUTURE-USE */
 %token  <kwd> SEPARATOR_SYM
 %token  <kwd> SERVER_OPTIONS
@@ -537,7 +537,7 @@ void _CONCAT_UNDERSCORED(turn_parser_debug_on,yyparse)()
 %token  <kwd> UNIQUE_SYM
 %token  <kwd> UNLOCK_SYM
 %token  <kwd> UNSIGNED
-%token  <kwd> UPDATE_SYM                    /* SQL-2003-R */
+%token  <optimizer_hints> UPDATE_SYM        /* SQL-2003-R */
 %token  <kwd> USAGE                         /* SQL-2003-N */
 %token  <kwd> USE_SYM
 %token  <kwd> USING                         /* SQL-2003-R */
@@ -8516,6 +8516,7 @@ query_specification_start:
             if (!(sel= lex->alloc_select(TRUE)) || lex->push_select(sel))
               MYSQL_YYABORT;
             sel->init_select();
+            sel->set_parse_tree_hints($1);
             sel->braces= FALSE;
           }
           select_options
@@ -8688,6 +8689,7 @@ query_expression_body:
           query_simple
           {
             Lex->push_select($1);
+            Lex->contextualize_parse_tree_hints();
             if (!($$= Lex->create_unit($1)))
               MYSQL_YYABORT;
           }
@@ -12983,11 +12985,13 @@ insert:
           }
           insert_start insert_lock_option opt_ignore opt_into insert_table
           {
+            Lex->first_select_lex()->set_parse_tree_hints($1);
             Select->set_lock_for_tables($4, true, false);
           }
           insert_field_spec opt_insert_update opt_returning
-          stmt_end
+          insert_stmt_end
           {
+            Lex->contextualize_parse_tree_hints();
             Lex->mark_first_table_as_inserting();
             thd->get_stmt_da()->reset_current_row_for_warning(0);
           }
@@ -13023,6 +13027,14 @@ insert_start: {
               ;
 
 stmt_end: {
+              Lex->contextualize_parse_tree_hints();
+              Lex->pop_select(); //main select
+              if (Lex->check_main_unit_semantics())
+                MYSQL_YYABORT;
+            }
+            ;
+
+insert_stmt_end: {
               Lex->pop_select(); //main select
               if (Lex->check_main_unit_semantics())
                 MYSQL_YYABORT;
@@ -13284,6 +13296,7 @@ update:
             if (Lex->main_select_push())
               MYSQL_YYABORT;
             lex->init_select();
+            Lex->first_select_lex()->set_parse_tree_hints($1);
             lex->sql_command= SQLCOM_UPDATE;
             lex->duplicates= DUP_ERROR; 
           }
@@ -13375,11 +13388,13 @@ delete:
             mysql_init_delete(lex);
             lex->ignore= 0;
             lex->first_select_lex()->order_list.empty();
+            lex->first_select_lex()->set_parse_tree_hints($1);
           }
           delete_part2
           {
             if (Lex->check_cte_dependencies_and_resolve_references())
               MYSQL_YYABORT;
+            Lex->contextualize_parse_tree_hints();
           }
           ;
 
@@ -16176,7 +16191,6 @@ reserved_keyword_udt_not_param_type:
         | DECLARE_ORACLE_SYM
         | DEFAULT
         | DELETE_DOMAIN_ID_SYM
-        | DELETE_SYM
         | DENSE_RANK_SYM
         | DESC
         | DESCRIBE
@@ -16219,7 +16233,6 @@ reserved_keyword_udt_not_param_type:
         | INFILE
         | INNER_SYM
         | INSENSITIVE_SYM
-        | INSERT
         | INTERSECT_SYM
         | INTERVAL_SYM
         | INTO
@@ -16310,7 +16323,6 @@ reserved_keyword_udt_not_param_type:
         | ROWTYPE_ORACLE_SYM
         | ROW_NUMBER_SYM
         | SECOND_MICROSECOND_SYM
-        | SELECT_SYM
         | SENSITIVE_SYM
         | SEPARATOR_SYM
         | SERVER_OPTIONS
@@ -16347,7 +16359,6 @@ reserved_keyword_udt_not_param_type:
         | UNION_SYM
         | UNIQUE_SYM
         | UNLOCK_SYM
-        | UPDATE_SYM
         | USAGE
         | USE_SYM
         | USING

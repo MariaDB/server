@@ -1309,6 +1309,7 @@ void LEX::start(THD *thd_arg)
   exchange= 0;
 
   table_count_update= 0;
+  opt_hints_global= 0;
 
   memset(&trg_chistics, 0, sizeof(trg_chistics));
   DBUG_VOID_RETURN;
@@ -1410,13 +1411,17 @@ bool Lex_input_stream::consume_optimizer_hints(YYSTYPE *yylval)
     {
       yylineno= hint_scanner.get_lineno();
       yySkipn((int)(hint_scanner.get_ptr() - get_ptr()));
-      yylval->optimizer_hints= hint_list; // NULL in case of syntax error
+      yylval->hint_list= hint_list; // NULL in case of syntax error
+      yylval->optimizer_hints= hint_list;
       m_digest= hint_scanner.get_digest(); // NULL is digest buf. is full.
       return false;
     }
   }
   else
+  {
+    yylval->optimizer_hints= NULL;
     return false;
+  }
 }
 
 int Lex_input_stream::find_keyword(YYSTYPE *yylval,
@@ -1425,7 +1430,8 @@ int Lex_input_stream::find_keyword(YYSTYPE *yylval,
 {
   const char *tok= m_tok_start;
 
-  SYMBOL *symbol= get_hash_symbol(tok, len, function, false);
+  SYMBOL *symbol= get_hash_symbol(tok, len,
+                  function ? symbol_type_t::FUNCTION : symbol_type_t::REGULAR);
   if (symbol)
   {
     kwd->set_keyword(tok, len);
@@ -1468,8 +1474,7 @@ int Lex_input_stream::find_keyword(YYSTYPE *yylval,
              ORACLE_CONCAT_SYM : MYSQL_CONCAT_SYM;
     }
 
-    // OLEGS was in MySQL: yylval->hint_list= NULL;
-    if (symbol->group & SG_HINTABLE_KEYWORDS)
+    if (yylval && symbol->group & SG_HINTABLE_KEYWORDS)
     {
       add_digest_token(symbol->tok, yylval);
       if (consume_optimizer_hints(yylval))
@@ -1498,7 +1503,7 @@ int Lex_input_stream::find_keyword(YYSTYPE *yylval,
 bool is_keyword(const char *name, uint len)
 {
   DBUG_ASSERT(len != 0);
-  return get_hash_symbol(name,len,0,false)!=0;
+  return get_hash_symbol(name, len, symbol_type_t::REGULAR)!=0;
 }
 
 /**
@@ -1514,7 +1519,8 @@ bool is_keyword(const char *name, uint len)
 bool is_lex_native_function(const LEX_CSTRING *name)
 {
   DBUG_ASSERT(name != NULL);
-  return (get_hash_symbol(name->str, (uint) name->length, 1, false) != 0);
+  return (get_hash_symbol(name->str, (uint) name->length,
+                          symbol_type_t::FUNCTION) != 0);
 }
 
 
@@ -3130,6 +3136,8 @@ void st_select_lex::init_query()
   versioned_tables= 0;
   pushdown_select= 0;
   orig_names_of_item_list_elems= 0;
+  opt_hints_qb= 0;
+  parse_tree_hint_list= 0;
 }
 
 void st_select_lex::init_select()
@@ -3183,6 +3191,8 @@ void st_select_lex::init_select()
   nest_flags= 0;
   orig_names_of_item_list_elems= 0;
   item_list_usage= MARK_COLUMNS_READ;
+  opt_hints_qb= 0;
+  parse_tree_hint_list= 0;
 }
 
 /*
@@ -4069,7 +4079,7 @@ void Query_tables_list::destroy_query_tables_list()
 */
 
 LEX::LEX()
-  : explain(NULL), result(0), part_info(NULL), arena_for_set_stmt(0),
+  : explain(NULL), result(0), opt_hints_global(NULL), part_info(NULL), arena_for_set_stmt(0),
     mem_root_for_set_stmt(0), json_table(NULL), analyze_stmt(0),
     default_used(0),
     with_rownum(0), is_lex_started(0), without_validation(0), option_type(OPT_DEFAULT),
@@ -10680,6 +10690,7 @@ bool LEX::parsed_insert_select(SELECT_LEX *first_select)
     return true;
 
   // fix "main" select
+  contextualize_parse_tree_hints();
   SELECT_LEX *blt __attribute__((unused))= pop_select();
   DBUG_ASSERT(blt == &builtin_select);
   push_select(first_select);

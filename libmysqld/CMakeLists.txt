@@ -160,6 +160,7 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ${GEN_SOURCES}
            ${MYSYS_LIBWRAP_SOURCE}
            ../sql/parse_tree_hints.cc ../sql/parse_tree_hints.h
+           ../sql/opt_hints.cc ../sql/opt_hints.h
 )
 
 
