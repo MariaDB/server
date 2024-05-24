@@ -554,7 +554,6 @@ err_exit:
     fsp_flags= mach_read_from_4(FSP_HEADER_OFFSET + FSP_SPACE_FLAGS + page);
     if (buf_page_is_corrupted(false, page, fsp_flags))
     {
-      ib::error() << "Checksum mismatch in the first page of file " << name;
       if (recv_sys.dblwr.restore_first_page(space_id, name, fh))
         goto err_exit;
     }
