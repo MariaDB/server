@@ -3115,98 +3115,123 @@ func_exit:
 /***********************************************************************//**
 Loads a table object based on the table id.
 @return table; NULL if table does not exist */
-dict_table_t*
+dict_table_t *
 dict_load_table_on_id(
 /*==================*/
-	table_id_t		table_id,	/*!< in: table id */
-	dict_err_ignore_t	ignore_err)	/*!< in: errors to ignore
+        table_id_t table_id,      /*!< in: table id */
+        dict_err_ignore_t ignore_err)      /*!< in: errors to ignore
 						when loading the table */
 {
-	byte		id_buf[8];
-	btr_pcur_t	pcur;
-	mem_heap_t*	heap;
-	dtuple_t*	tuple;
-	dfield_t*	dfield;
-	dict_index_t*	sys_table_ids;
-	dict_table_t*	sys_tables;
-	const rec_t*	rec;
-	const byte*	field;
-	ulint		len;
-	dict_table_t*	table;
-	mtr_t		mtr;
+       char *table_name;
+       dict_table_t *table;
 
-	ut_ad(mutex_own(&dict_sys.mutex));
+       ut_ad(mutex_own(&dict_sys.mutex));
 
-	table = NULL;
+       table_name = NULL;
+       table = NULL;
 
-	/* NOTE that the operation of this function is protected by
-	the dictionary mutex, and therefore no deadlocks can occur
-	with other dictionary operations. */
+       // read the table name ...
+       dict_find_table_name_from_id(table_id, &table_name);
+       if (table_name == NULL)
+              return NULL;
 
-	mtr_start(&mtr);
-	/*---------------------------------------------------*/
-	/* Get the secondary index based on ID for table SYS_TABLES */
-	sys_tables = dict_sys.sys_tables;
-	sys_table_ids = dict_table_get_next_index(
-		dict_table_get_first_index(sys_tables));
-	ut_ad(!dict_table_is_comp(sys_tables));
-	ut_ad(!dict_index_is_clust(sys_table_ids));
-	heap = mem_heap_create(256);
+       table = dict_load_table(table_name, ignore_err);
 
-	tuple  = dtuple_create(heap, 1);
-	dfield = dtuple_get_nth_field(tuple, 0);
+       // free table name ...
+       ut_free(table_name);
 
-	/* Write the table id in byte format to id_buf */
-	mach_write_to_8(id_buf, table_id);
+       return table;
+}
 
-	dfield_set_data(dfield, id_buf, 8);
-	dict_index_copy_types(tuple, sys_table_ids, 1);
+/***********************************************************************//**
+Returns the table file name for the given table id.
+Caller should free memory of table_name using ut_free.
+*/
+void
+dict_find_table_name_from_id(
+/*==================*/
+        table_id_t table_id,       /*!< in: table id */
+        char **table_name)       /*!< out: The table file name, null if table id is not found in sys_tables. */
+{
+       byte id_buf[8];
+       btr_pcur_t pcur;
+       mem_heap_t *heap;
+       dtuple_t *tuple;
+       dfield_t *dfield;
+       dict_index_t *sys_table_ids;
+       dict_table_t *sys_tables;
+       const rec_t *rec;
+       const byte *field;
+       ulint len;
+       mtr_t mtr;
+       (*table_name) = NULL;
 
-	btr_pcur_open_on_user_rec(sys_table_ids, tuple, PAGE_CUR_GE,
-				  BTR_SEARCH_LEAF, &pcur, &mtr);
+               ut_ad(mutex_own(&dict_sys.mutex));
 
-	rec = btr_pcur_get_rec(&pcur);
+       /* NOTE that the operation of this function is protected by
+       the dictionary mutex, and therefore no deadlocks can occur
+       with other dictionary operations. */
 
-	if (page_rec_is_user_rec(rec)) {
-		/*---------------------------------------------------*/
-		/* Now we have the record in the secondary index
-		containing the table ID and NAME */
-check_rec:
-		field = rec_get_nth_field_old(
-			rec, DICT_FLD__SYS_TABLE_IDS__ID, &len);
-		ut_ad(len == 8);
+       mtr_start(&mtr);
+       /*---------------------------------------------------*/
+       /* Get the secondary index based on ID for table SYS_TABLES */
+       sys_tables = dict_sys.sys_tables;
+       sys_table_ids = dict_table_get_next_index(
+               dict_table_get_first_index(sys_tables));
+               ut_ad(!dict_table_is_comp(sys_tables));
+               ut_ad(!dict_index_is_clust(sys_table_ids));
+       heap = mem_heap_create(256);
 
-		/* Check if the table id in record is the one searched for */
-		if (table_id == mach_read_from_8(field)) {
-			if (rec_get_deleted_flag(rec, 0)) {
-				/* Until purge has completed, there
-				may be delete-marked duplicate records
-				for the same SYS_TABLES.ID, but different
-				SYS_TABLES.NAME. */
-				while (btr_pcur_move_to_next(&pcur, &mtr)) {
-					rec = btr_pcur_get_rec(&pcur);
+       tuple = dtuple_create(heap, 1);
+       dfield = dtuple_get_nth_field(tuple, 0);
 
-					if (page_rec_is_user_rec(rec)) {
-						goto check_rec;
-					}
-				}
-			} else {
-				/* Now we get the table name from the record */
-				field = rec_get_nth_field_old(rec,
-					DICT_FLD__SYS_TABLE_IDS__NAME, &len);
-				/* Load the table definition to memory */
-				char*	table_name = mem_heap_strdupl(
-					heap, (char*) field, len);
-				table = dict_load_table(table_name, ignore_err);
-			}
-		}
-	}
+       /* Write the table id in byte format to id_buf */
+       mach_write_to_8(id_buf, table_id);
 
-	btr_pcur_close(&pcur);
-	mtr_commit(&mtr);
-	mem_heap_free(heap);
+       dfield_set_data(dfield, id_buf, 8);
+       dict_index_copy_types(tuple, sys_table_ids, 1);
 
-	return(table);
+       btr_pcur_open_on_user_rec(sys_table_ids, tuple, PAGE_CUR_GE,
+                                 BTR_SEARCH_LEAF, &pcur, &mtr);
+
+       rec = btr_pcur_get_rec(&pcur);
+
+       if (page_rec_is_user_rec(rec)) {
+              /*---------------------------------------------------*/
+              /* Now we have the record in the secondary index
+              containing the table ID and NAME */
+              check_rec:
+              field = rec_get_nth_field_old(
+                      rec, DICT_FLD__SYS_TABLE_IDS__ID, &len);
+                      ut_ad(len == 8);
+
+              /* Check if the table id in record is the one searched for */
+              if (table_id == mach_read_from_8(field)) {
+                     if (rec_get_deleted_flag(rec, 0)) {
+                            /* Until purge has completed, there
+                            may be delete-marked duplicate records
+                            for the same SYS_TABLES.ID, but different
+                            SYS_TABLES.NAME. */
+                            while (btr_pcur_move_to_next(&pcur, &mtr)) {
+                                   rec = btr_pcur_get_rec(&pcur);
+
+                                   if (page_rec_is_user_rec(rec)) {
+                                          goto check_rec;
+                                   }
+                            }
+                     } else {
+                            /* Now we get the table name from the record */
+                            field = rec_get_nth_field_old(rec,
+                                                          DICT_FLD__SYS_TABLE_IDS__NAME, &len);
+                            /* Load the table definition to memory */
+                            (*table_name) = mem_strdupl((char *) field, len);
+                     }
+              }
+       }
+
+       btr_pcur_close(&pcur);
+       mtr_commit(&mtr);
+       mem_heap_free(heap);
 }
 
 /********************************************************************//**

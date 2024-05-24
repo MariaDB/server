@@ -109,6 +109,15 @@ dict_load_table_on_id(
 	table_id_t		table_id,	/*!< in: table id */
 	dict_err_ignore_t	ignore_err);	/*!< in: errors to ignore
 						when loading the table */
+/***********************************************************************//**
+Returns the table file name for the given table id.
+Caller should free memory of table_name using ut_free.
+*/
+void
+dict_find_table_name_from_id(
+/*==================*/
+        table_id_t table_id,       /*!< in: table id */
+        char **table_name);       /*!< out: The table file name, null if table id is not found in sys_tables. */
 /********************************************************************//**
 This function is called when the database is booted.
 Loads system table index definitions except for the clustered index which
