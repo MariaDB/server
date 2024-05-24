@@ -348,8 +348,8 @@ static char *lc_messages;
 static char *lc_time_names_name;
 char *my_bind_addr_str;
 static char *default_collation_name;
-char *default_storage_engine, *default_tmp_storage_engine;
-char *enforced_storage_engine=NULL;
+const char *default_storage_engine, *default_tmp_storage_engine;
+const char *enforced_storage_engine=NULL;
 char *gtid_pos_auto_engines;
 plugin_ref *opt_gtid_pos_auto_plugins;
 static char compiled_default_collation_name[]= MYSQL_DEFAULT_COLLATION_NAME;
@@ -4815,7 +4815,8 @@ static void add_file_to_crash_report(char *file)
   init_default_storage_engine_impl(#X, X, &global_system_variables.Y)
 
 static int init_default_storage_engine_impl(const char *opt_name,
-                                            char *engine_name, plugin_ref *res)
+                                            const char *engine_name,
+                                            plugin_ref *res)
 {
   if (!engine_name)
   {

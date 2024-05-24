@@ -1639,7 +1639,7 @@ public:
   Sys_var_plugin(const char *name_arg,
           const char *comment, int flag_args, ptrdiff_t off, size_t size,
           CMD_LINE getopt,
-          int plugin_type_arg, char **def_val, PolyLock *lock=0,
+          int plugin_type_arg, const char **def_val, PolyLock *lock=0,
           enum binlog_status_enum binlog_status_arg=VARIABLE_NOT_IN_BINLOG,
           on_check_function on_check_func=0,
           on_update_function on_update_func=0,
