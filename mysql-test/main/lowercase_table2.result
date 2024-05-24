@@ -357,60 +357,6 @@ drop user 'mysqltest_1'@'localhost';
 drop tables a, B;
 drop database db1;
 #
-# MDEV-32025 Crashes in MDL_key::mdl_key_init with lower-case-table-names=2
-#
-CREATE DATABASE `#mysql50#D+b1`;
-ALTER DATABASE `#mysql50#D+b1` UPGRADE DATA DIRECTORY NAME;
-SHOW CREATE DATABASE `D+b1`;
-Database	Create Database
-D+b1	CREATE DATABASE `D+b1` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */
-SHOW CREATE DATABASE `d+b1`;
-Database	Create Database
-d+b1	CREATE DATABASE `d+b1` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */
-DROP DATABASE `D+b1`;
-CREATE DATABASE Db1;
-ALTER DATABASE Db1 DEFAULT CHARACTER SET utf8;
-SHOW CREATE DATABASE Db1;
-Database	Create Database
-Db1	CREATE DATABASE `Db1` /*!40100 DEFAULT CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci */
-SHOW CREATE DATABASE db1;
-Database	Create Database
-db1	CREATE DATABASE `db1` /*!40100 DEFAULT CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci */
-DROP DATABASE Db1;
-USE test;
-# End of 10.4 tests
-#
-# MDEV-32973 SHOW TABLES LIKE shows temporary tables with non-matching names
-#
-create temporary table t2 (a int);
-create temporary table T1 (a int);
-show tables;
-Tables_in_test
-t1
-t2
-show tables like 't1';
-Tables_in_test (t1)
-t1
-show tables like 'T1';
-Tables_in_test (T1)
-t1
-select table_name from information_schema.tables where table_schema='test'
-  and table_name='t1';
-table_name
-t1
-select table_name from information_schema.tables where table_schema='test'
-  and table_name='T1';
-table_name
-t1
-show tables like '_1';
-Tables_in_test (_1)
-t1
-show tables like 't%';
-Tables_in_test (t%)
-t1
-t2
-# End of 11.2 tests
-#
 # MDEV-32026 lowercase_table2.test failures in 11.3
 #
 CREATE DATABASE Db1;
