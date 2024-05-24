@@ -5761,7 +5761,7 @@ static NATSORT_ERR to_natsort_key(const String *in, String *out,
 {
   size_t n_digits= 0;
   size_t n_lead_zeros= 0;
-  size_t num_start;
+  size_t num_start= 0;
   size_t reserve_length= std::min(
       natsort_max_key_size(in->length()) + MAX_BIGINT_WIDTH + 2, max_key_size);
 
