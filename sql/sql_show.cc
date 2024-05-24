@@ -357,7 +357,8 @@ public:
                         const char* msg,
                         Sql_condition ** cond_hdl)
   {
-    if (sql_errno == ER_CANT_FIND_DL_ENTRY)
+    if (sql_errno == ER_CANT_FIND_DL_ENTRY ||
+        sql_errno == ER_CANT_OPEN_LIBRARY)
       return true;
     return false;
   }
