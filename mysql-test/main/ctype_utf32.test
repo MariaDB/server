@@ -1168,3 +1168,10 @@ SELECT HEX(DATE_FORMAT(TIME'11:22:33',@format));
 --echo #
 
 --enable_service_connection
+
+--echo #
+--echo # MDEV-33729 UBSAN negation of -X cannot be represented in type 'long long int'; cast to an unsigned type to negate this value to itself in my_strntoll_mb2_or_mb4
+--echo #
+
+SET NAMES utf8mb3, character_set_connection=utf32;
+SELECT CONV('-AzL8n0Y58m8', -62, -10);
