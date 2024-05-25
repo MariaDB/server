@@ -17,6 +17,8 @@
 -- The initial data for system tables of MySQL Server
 --
 
+SET NAMES latin1 COLLATE latin1_swedish_ci;
+
 -- When setting up a "cross bootstrap" database (e.g., creating data on a Unix
 -- host which will later be included in a Windows zip file), any lines
 -- containing "@current_hostname" are filtered out by mysql_install_db.

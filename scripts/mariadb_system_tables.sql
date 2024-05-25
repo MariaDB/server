@@ -18,6 +18,8 @@
 -- The system tables of MySQL Server
 --
 
+SET NAMES latin1 COLLATE latin1_swedish_ci;
+
 set sql_mode='';
 
 set @orig_storage_engine=@@default_storage_engine;

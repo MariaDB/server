@@ -9,6 +9,8 @@
 -- performance schema engine.
 --
 
+SET NAMES latin1 COLLATE latin1_swedish_ci;
+
 set @have_old_pfs= (select count(*) from information_schema.schemata where schema_name='performance_schema');
 
 SET @cmd="SET @broken_tables = (select count(*) from information_schema.tables  where engine != 'PERFORMANCE_SCHEMA' and table_schema='performance_schema')";
