@@ -60,6 +60,7 @@
 #include <my_bit.h>
 #include <hash.h>
 #include <ft_global.h>
+#include <scope.h>
 #include "sys_vars_shared.h"
 #include "sp_head.h"
 #include "sp_rcontext.h"
@@ -25413,6 +25414,13 @@ setup_group(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
   uint org_fields=all_fields.elements;
 
   thd->where="group statement";
+
+  // Don't allow markers to remain undefined upon return from setup_group
+  SCOPE_EXIT([order] () {
+    for (ORDER *ord= order; ord; ord= ord->next)
+      if ((*ord->item)->marker == UNDEF_POS)
+        (*ord->item)->marker= 0;
+  });
   for (ord= order; ord; ord= ord->next)
   {
     if (find_order_in_list(thd, ref_pointer_array, tables, ord, fields,
