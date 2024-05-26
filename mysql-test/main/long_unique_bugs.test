@@ -59,7 +59,7 @@ update t1 set f = 'bar';
 select * from t1;
 update t1 set f = 'foo';
 select * from t1;
-select pk, f, row_end > DATE'2106-01-01' from t1 for system_time all;
+select pk, f, row_end > DATE'2030-01-01' from t1 for system_time all;
 drop table t1;
 
 --echo #
