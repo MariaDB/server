@@ -1783,6 +1783,36 @@ Sys_max_connect_errors(
        VALID_RANGE(1, UINT_MAX), DEFAULT(MAX_CONNECT_ERRORS),
        BLOCK_SIZE(1));
 
+static bool check_password_errors_before_delay(sys_var *self, THD *thd,
+                                               set_var *var)
+{
+  if (var->value && var->value->val_int() > max_password_errors)
+  {
+    return true;
+  }
+  return false;
+}
+
+static Sys_var_on_access_global<Sys_var_uint,
+                                PRIV_SET_SYSTEM_GLOBAL_VAR_MAX_NONEXISTENT_USER_STORE_SIZE>
+    Sys_max_nonexistent_user_store_size(
+        "max_nonexistent_user_store_size",
+        "When enable connection delay feature, the failed-login size of different nonexistent user is larger than this number,"
+        " the failed-login of the lowest user@host will be reset. Order rule between user@host is same as string",
+        GLOBAL_VAR(max_nonexistent_user_store_size), CMD_LINE(REQUIRED_ARG),
+        VALID_RANGE(0, UINT8_MAX), DEFAULT(50), BLOCK_SIZE(1), NO_MUTEX_GUARD);
+
+static Sys_var_on_access_global<Sys_var_uint,
+                                PRIV_SET_SYSTEM_GLOBAL_VAR_PASSWORD_ERRORS_BEFORE_DELAY>
+Sys_password_errors_before_delay(
+        "password_errors_before_delay",
+        "If there is more than this number of failed connect attempts "
+        "due to invalid password, user will be delayed from further "
+        "connections as increasing delay time, until FLUSH_PRIVILEGES.",
+        GLOBAL_VAR(password_errors_before_delay), CMD_LINE(REQUIRED_ARG),
+        VALID_RANGE(0, UINT_MAX), DEFAULT(0), BLOCK_SIZE(1), NO_MUTEX_GUARD,
+        NOT_IN_BINLOG, ON_CHECK(check_password_errors_before_delay));
+
 static Sys_var_on_access_global<Sys_var_uint,
                                 PRIV_SET_SYSTEM_GLOBAL_VAR_MAX_PASSWORD_ERRORS>
 Sys_max_password_errors(

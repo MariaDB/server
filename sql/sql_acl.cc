@@ -59,7 +59,7 @@
 #include "wsrep_mysqld.h"
 
 #define MAX_SCRAMBLE_LENGTH 1024
-
+static std::map<std::string,uint64> nonexistent_user_failed_login_map;
 bool mysql_user_table_is_in_short_password_format= false;
 bool using_global_priv_table= true;
 
@@ -2948,6 +2948,8 @@ bool acl_reload(THD *thd)
   old_acl_roles_mappings= acl_roles_mappings;
   old_acl_proxy_users= acl_proxy_users;
   old_acl_dbs= acl_dbs;
+  /* Clear nonexistent user data, protect by acl_cache->lock */
+  nonexistent_user_failed_login_map.clear();
   my_init_dynamic_array(key_memory_acl_mem, &acl_hosts, sizeof(ACL_HOST), 20, 50, MYF(0));
   my_init_dynamic_array(key_memory_acl_mem, &acl_users, sizeof(ACL_USER), 50, 100, MYF(0));
   acl_dbs.init(key_memory_acl_mem, 50, 100);
@@ -14425,7 +14427,9 @@ enum PASSWD_ERROR_ACTION
 };
 
 /* Increment, or clear password errors for a user. */
-static void handle_password_errors(const char *user, const char *hostname, PASSWD_ERROR_ACTION action)
+static void handle_password_errors(THD *thd, const char *user,
+                                   const char *hostname,
+                                   PASSWD_ERROR_ACTION action)
 {
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   mysql_mutex_assert_not_owner(&acl_cache->lock);
@@ -14447,6 +14451,7 @@ static void handle_password_errors(const char *user, const char *hostname, PASSW
     }
   }
   mysql_mutex_unlock(&acl_cache->lock);
+  connection_delay_for_user(thd, user, hostname, u->password_errors);
 #endif
 }
 
@@ -14472,6 +14477,41 @@ static bool check_password_lifetime(THD *thd, const ACL_USER &acl_user)
     return true;
 
   return false;
+}
+
+static void handle_nonexistent_user_login_failed(THD *thd,
+                                                 const Security_context *sctx)
+{
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+  std::string key= std::string(sctx->user) + std::string(sctx->host);
+  mysql_mutex_assert_not_owner(&acl_cache->lock);
+  mysql_mutex_lock(&acl_cache->lock);
+  auto it= nonexistent_user_failed_login_map.find(key);
+  uint failed_count= 1;
+  /*Check if exists in map */
+  if (it != nonexistent_user_failed_login_map.end())
+  {
+    failed_count+= it->second;
+    /*Increment failed count */
+    it->second= failed_count;
+  }
+  else
+  {
+    nonexistent_user_failed_login_map.insert(
+        std::make_pair(key, failed_count));
+    /*Limit map growth , just erase minim key*/
+    if (nonexistent_user_failed_login_map.size() >
+        max_nonexistent_user_store_size)
+    {
+      nonexistent_user_failed_login_map.erase(
+          nonexistent_user_failed_login_map.begin());
+    }
+  }
+  mysql_mutex_unlock(&acl_cache->lock);
+  connection_delay_for_user(thd, sctx->user, sctx->host, failed_count);
+  DBUG_PRINT(("info"), ("nonexistent user failed login map size %d ",
+                        nonexistent_user_failed_login_map.size()));
+#endif
 }
 
 /**
@@ -14593,7 +14633,7 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
     case CR_AUTH_USER_CREDENTIALS:
       errors.m_authentication= 1;
       if (thd->password && !mpvio.make_it_fail)
-        handle_password_errors(acl_user->user.str, acl_user->host.hostname, PASSWD_ERROR_INCREMENT);
+        handle_password_errors(thd, acl_user->user.str, acl_user->host.hostname, PASSWD_ERROR_INCREMENT);
       break;
     case CR_ERROR:
     default:
@@ -14604,6 +14644,10 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
     inc_host_errors(mpvio.auth_info.thd->security_ctx->ip, &errors);
     if (!thd->is_error())
       login_failed_error(thd);
+    if (mpvio.make_it_fail)
+    {
+      handle_nonexistent_user_login_failed(thd,sctx);
+    }
     DBUG_RETURN(1);
   }
 
@@ -14611,7 +14655,7 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
   if (thd->password && acl_user->password_errors)
   {
     /* Login succeeded, clear password errors.*/
-    handle_password_errors(acl_user->user.str, acl_user->host.hostname, PASSWD_ERROR_CLEAR);
+    handle_password_errors(thd, acl_user->user.str, acl_user->host.hostname, PASSWD_ERROR_CLEAR);
   }
 
   if (initialized) // if not --skip-grant-tables
@@ -14839,7 +14883,6 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
   /* Ready to handle queries */
   DBUG_RETURN(0);
 }
-
 /**
   MySQL Server Password Authentication Plugin
 

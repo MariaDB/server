@@ -90,7 +90,7 @@ static int auth_cleartext_plugin(MYSQL_PLUGIN_VIO *vio,
 
   /* fail if the password is wrong */
   if (strcmp((const char *) pkt, info->auth_string))
-    return CR_ERROR;
+    return CR_AUTH_USER_CREDENTIALS;
 
   return CR_OK;
 }

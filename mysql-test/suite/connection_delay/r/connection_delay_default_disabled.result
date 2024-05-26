@@ -1,0 +1,73 @@
+# Connection delay tests for valid user accounts
+
+# ----------------------------------------------------------------------
+
+# Setup
+# Create user accounts for testing
+CREATE USER u1@localhost IDENTIFIED BY 'abcd';
+CREATE USER u2@localhost IDENTIFIED BY 'abcd';
+CREATE USER u3@localhost IDENTIFIED BY 'abcd';
+# Save original values of connection_delay variables
+SET @saved_connections_threshold = @@global.password_errors_before_delay;
+SET @saved_max_password_errors = @@global.max_password_errors;
+SET @saved_timeout=@@global.connect_timeout;
+SET @old_debug=@@global.debug_dbug;
+SET @@global.debug_dbug="+d,skip_connection_delay";
+
+# ----------------------------------------------------------------------
+
+# Make enough failed attempts to trigger delays
+connect(localhost,u1,haha,test,MASTER_PORT,MASTER_SOCKET);
+connect fail_con_u1, localhost, u1,haha,,,,;
+connect(localhost,u1,haha,test,MASTER_PORT,MASTER_SOCKET);
+connect fail_con_u1, localhost, u1,haha,,,,;
+connect(localhost,u1,haha,test,MASTER_PORT,MASTER_SOCKET);
+connect fail_con_u1, localhost, u1,haha,,,,;
+connect(localhost,u2,efgh,test,MASTER_PORT,MASTER_SOCKET);
+connect fail_con_u2, localhost, u2,efgh,,,,;
+connect(localhost,u2,efgh,test,MASTER_PORT,MASTER_SOCKET);
+connect fail_con_u2, localhost, u2,efgh,,,,;
+connect(localhost,u2,haha,test,MASTER_PORT,MASTER_SOCKET);
+connect fail_con_u2, localhost, u2,haha,,,,;
+connect(localhost,u3,efgh,test,MASTER_PORT,MASTER_SOCKET);
+connect fail_con_u3, localhost, u3,efgh,,,,;
+connect(localhost,u3,efgh,test,MASTER_PORT,MASTER_SOCKET);
+connect fail_con_u3, localhost, u3,efgh,,,,;
+connect(localhost,u3,efgh,test,MASTER_PORT,MASTER_SOCKET);
+connect fail_con_u3, localhost, u3,efgh,,,,;
+
+# Following attempts will not experience delay in server response , because connection delay is disabled by default
+connection default;
+# Connection attempt should fail.
+NOT FOUND /u1@localhost wait \d+ nanoseconds/ in mysqld.1.err
+connection default;
+# Connection attempt should fail.
+NOT FOUND /u2@localhost wait \d+ nanoseconds/ in mysqld.1.err
+connection default;
+# Connection attempt should fail.
+NOT FOUND /u3@localhost wait \d+ nanoseconds/ in mysqld.1.err
+connection default;
+# Connection attempt should succeed.
+NOT FOUND /u3@localhost wait \d+ nanoseconds/ in mysqld.1.err
+connection default;
+# Connection attempt should succeed.
+NOT FOUND /u2@localhost wait \d+ nanoseconds/ in mysqld.1.err
+connection default;
+# Connection attempt should succeed.
+NOT FOUND /u1@localhost wait \d+ nanoseconds/ in mysqld.1.err
+
+# ----------------------------------------------------------------------
+
+# Cleanup
+connection default;
+# Remove user accounts created for the test
+DROP USER u1@localhost;
+DROP USER u2@localhost;
+DROP USER u3@localhost;
+# Restore original values of connection delay variables
+SET @@global.password_errors_before_delay = @saved_connections_threshold;
+SET @@global.max_password_errors = @saved_max_password_errors;
+SET @@global.connect_timeout = @saved_timeout;
+SET @@global.debug_dbug=@old_debug;
+
+# ----------------------------------------------------------------------

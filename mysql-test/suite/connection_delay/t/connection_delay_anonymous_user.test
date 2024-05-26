@@ -1,0 +1,88 @@
+
+--source include/have_debug.inc
+# Save the initial number of concurrent sessions
+--source include/count_sessions.inc
+
+--echo # Connection delay tests for valid user accounts
+
+--echo
+--echo # ----------------------------------------------------------------------
+--echo
+
+--echo # Setup
+
+--echo # Create anonymous user
+CREATE USER ''@'localhost';
+--source ../inc/save_variables.inc
+--source ../inc/skip_connection_delay.inc
+let $failed_count=0;
+-- echo # Set small values for connection_delay variables
+SET @@global.password_errors_before_delay = 3;
+
+# We don't need to use client side authentication plugin for this test.
+let $USE_AUTH_PLUGIN= 0;
+let $HOST=localhost;
+--echo
+--echo # ----------------------------------------------------------------------
+--echo
+
+--echo # First round , following attempts will not experience any delay in server response
+
+let $USER=u1;
+let $PASSWORD=hoho;
+let $SUCCESS=0;
+--source ../inc/client_connection.inc
+
+let $USER=u2;
+let $PASSWORD=hoho;
+let $SUCCESS=0;
+--source ../inc/client_connection.inc
+
+let $USER=u3;
+let $PASSWORD=hoho;
+let $SUCCESS=0;
+--source ../inc/client_connection.inc
+
+let $failed_count=3;
+--echo
+--echo # Following attempts will experience delay in server response
+
+inc $failed_count;
+let $PASSWORD=hoho;
+let $SUCCESS=0;
+let $USER=u1;
+--source ../inc/client_connection.inc
+--source ../inc/check_delay_with_no_user.inc
+
+inc $failed_count;
+let $USER=u2;
+let $PASSWORD=hoho;
+let $SUCCESS=0;
+--source ../inc/client_connection.inc
+--source ../inc/check_delay_with_no_user.inc
+
+inc $failed_count;
+let $USER=u3;
+let $PASSWORD=hoho;
+let $SUCCESS=0;
+--source ../inc/client_connection.inc
+--source ../inc/check_delay_with_no_user.inc
+
+--echo
+--echo # ----------------------------------------------------------------------
+--echo
+
+--echo # Cleanup
+
+connection default;
+
+--source ../inc/restore_variables.inc
+
+--echo # Drop anonymous user
+DROP USER ''@'localhost';
+
+# Wait till all disconnects are completed.
+--source include/wait_until_count_sessions.inc
+
+--echo
+--echo # ----------------------------------------------------------------------

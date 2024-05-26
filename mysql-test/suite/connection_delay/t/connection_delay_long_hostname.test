@@ -1,0 +1,35 @@
+--source include/have_debug.inc
+
+# Save the initial number of concurrent sessions
+--source include/count_sessions.inc
+
+--echo # Setup
+
+# We don't need to use client side authentication plugin for this test.
+--source ../inc/save_variables.inc
+--source ../inc/skip_connection_delay.inc
+SET @@global.password_errors_before_delay = 3;
+--echo # Create user accounts for testing
+CREATE USER u1 IDENTIFIED BY 'abcd';
+FLUSH HOSTS;
+SET GLOBAL DEBUG_DBUG="+d,vio_peer_addr_fake_ipv4,getnameinfo_fake_long_host,getaddrinfo_fake_good_ipv4:+f,login_connection,ip_to_hostname";
+select @@debug_dbug;
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_ACCESS_DENIED_ERROR 
+connect('con1','127.0.0.1','u1',hoho,test);
+
+SET GLOBAL DEBUG_DBUG=@old_debug;
+let $USER=u1;
+let $HOST=%;
+let $count=1;
+--echo # Search $USER@$HOST failed count
+--let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err
+--let SEARCH_PATTERN=$USER@$HOST have login failed $count times
+--source include/search_pattern_in_file.inc
+  
+-- echo # Cleanup.
+DROP USER u1;
+
+--source ../inc/restore_variables.inc
+# Wait till all disconnects are completed.
+--source include/wait_until_count_sessions.inc
