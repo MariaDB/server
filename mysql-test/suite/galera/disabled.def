@@ -10,6 +10,7 @@
 #
 ##############################################################################
 
+MDEV-27862 : MDEV-34240
 galera_as_slave_ctas : MDEV-28378 timeout
 galera_pc_recovery : MDEV-25199 cluster fails to start up
 galera_bf_kill_debug : timeout after 900 seconds
