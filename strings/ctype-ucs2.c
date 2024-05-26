@@ -477,8 +477,12 @@ bs:
   
   if (negative)
   {
-    if (res  > (ulonglong) LONGLONG_MIN)
+    if (res >= (ulonglong) LONGLONG_MIN)
+    {
+      if (res == (ulonglong) LONGLONG_MIN)
+        return LONGLONG_MIN;
       overflow = 1;
+    }
   }
   else if (res > (ulonglong) LONGLONG_MAX)
     overflow = 1;
