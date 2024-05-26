@@ -2061,6 +2061,23 @@ mem_error:
   DBUG_RETURN(str_result);
 }
 
+longlong Item_func_isvalid::val_int()
+{
+  String tmp;
+  String *swkb= args[0]->val_str(&tmp);
+  Geometry_buffer buffer;
+  Geometry *g;
+
+  if ((args[0]->null_value || !(g= Geometry::construct(&buffer, swkb->ptr(), swkb->length()))))
+    return -1;
+
+  int valid;
+  if (g->is_valid(&valid))
+    return -1;
+
+  // Simplicity should be removed from here and checked for each polygon alone
+  return (longlong) valid && Item_func_issimple::val_int();
+}
 
 longlong Item_func_isempty::val_int()
 {
@@ -3601,6 +3618,20 @@ protected:
   virtual ~Create_func_isempty() = default;
 };
 
+class Create_func_isvalid : public Create_func_arg1
+{
+public:
+  Item *create_1_arg(THD *thd, Item *arg1) override
+  {
+    return new (thd->mem_root) Item_func_isvalid(thd, arg1);
+  }
+
+  static Create_func_isvalid s_singleton;
+
+protected:
+  Create_func_isvalid() = default;
+  virtual ~Create_func_isvalid() = default;
+};
 
 class Create_func_issimple : public Create_func_arg1
 {
@@ -3883,6 +3914,7 @@ Create_func_intersection Create_func_intersection::s_singleton;
 Create_func_intersects Create_func_intersects::s_singleton;
 Create_func_isclosed Create_func_isclosed::s_singleton;
 Create_func_isempty Create_func_isempty::s_singleton;
+Create_func_isvalid Create_func_isvalid::s_singleton;
 Create_func_isring Create_func_isring::s_singleton;
 Create_func_issimple Create_func_issimple::s_singleton;
 Create_func_mbr_contains Create_func_mbr_contains::s_singleton;
@@ -3950,6 +3982,7 @@ static Native_func_registry func_array_geom[] =
   { { STRING_WITH_LEN("INTERSECTS") }, GEOM_BUILDER(Create_func_mbr_intersects)},
   { { STRING_WITH_LEN("ISCLOSED") }, GEOM_BUILDER(Create_func_isclosed)},
   { { STRING_WITH_LEN("ISEMPTY") }, GEOM_BUILDER(Create_func_isempty)},
+  { { STRING_WITH_LEN("ISVALID") }, GEOM_BUILDER(Create_func_isvalid)},
   { { STRING_WITH_LEN("ISRING") }, GEOM_BUILDER(Create_func_isring)},
   { { STRING_WITH_LEN("ISSIMPLE") }, GEOM_BUILDER(Create_func_issimple)},
   { { STRING_WITH_LEN("LINEFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
@@ -4027,6 +4060,7 @@ static Native_func_registry func_array_geom[] =
   { { STRING_WITH_LEN("ST_INTERSECTS") }, GEOM_BUILDER(Create_func_intersects)},
   { { STRING_WITH_LEN("ST_ISCLOSED") }, GEOM_BUILDER(Create_func_isclosed)},
   { { STRING_WITH_LEN("ST_ISEMPTY") }, GEOM_BUILDER(Create_func_isempty)},
+  { { STRING_WITH_LEN("ST_ISVALID") }, GEOM_BUILDER(Create_func_isvalid)},
   { { STRING_WITH_LEN("ST_ISRING") }, GEOM_BUILDER(Create_func_isring)},
   { { STRING_WITH_LEN("ST_ISSIMPLE") }, GEOM_BUILDER(Create_func_issimple)},
   { { STRING_WITH_LEN("ST_LENGTH") }, GEOM_BUILDER(Create_func_glength)},
