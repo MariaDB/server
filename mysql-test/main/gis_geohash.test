@@ -1,0 +1,89 @@
+--echo #
+--echo # MDEV-17398 Feature request: Support for ST_GeoHash()
+--echo #
+
+--echo #
+--echo # Return ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT for incorrect number of parameters
+--echo #
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+SELECT ST_GeoHash();
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+SELECT ST_GeoHash(NULL);
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+SELECT ST_GeoHash(NULL, NULL, NULL, NULL);
+
+--echo #
+--echo # Return ER_GIS_INVALID_DATA for invalid geometry
+--echo #
+--error ER_GIS_INVALID_DATA
+SELECT ST_GeoHash(1, 1);
+--error ER_GIS_INVALID_DATA
+SELECT ST_GeoHash(ST_GEOMFROMTEXT('MULTIPOINT(1 1,2 2)'), 10);
+
+--echo #
+--echo # Return ER_GIS_INVALID_DATA for invalid max_length
+--echo #
+--error ER_GIS_INVALID_DATA If the max_length is less than 0
+SELECT ST_GeoHash(1, 1, -1);
+--error ER_GIS_INVALID_DATA
+SELECT ST_GeoHash(ST_GEOMFROMTEXT('POINT(1 0)'), -1);
+--error ER_GIS_INVALID_DATA
+SELECT ST_GeoHash(1, 1, 101);
+--error ER_GIS_INVALID_DATA
+SELECT ST_GeoHash(ST_GEOMFROMTEXT('POINT(1 0)'), 101);
+
+--echo #
+--echo # Longitude out of range [-180,180]
+--echo #
+set @pt1 = ST_GeomFromText('POINT(190 -30)');
+set @pt2 = ST_GeomFromText('POINT(-190  50)');
+--error ER_STD_OUT_OF_RANGE_ERROR
+SELECT ST_GeoHash(@pt1, 10);
+--error ER_STD_OUT_OF_RANGE_ERROR
+SELECT ST_GeoHash(@pt2, 10);
+
+--echo #
+--echo # Latitude out of range [-90, 90]
+--echo #
+set @pt1 = ST_GeomFromText('POINT(135 91)');
+set @pt2 = ST_GeomFromText('POINT(-30 -91)');
+--error ER_STD_OUT_OF_RANGE_ERROR
+SELECT ST_GeoHash(@pt1, 15);
+--error ER_STD_OUT_OF_RANGE_ERROR
+SELECT ST_GeoHash(@pt2, 15);
+
+--echo #
+--echo # Return NULL if any parameter is NULL
+--echo #
+SELECT ST_GeoHash(NULL, 10);
+SELECT ST_GeoHash(NULL, NULL);
+SELECT ST_GeoHash(NULL, NULL, 10);
+SELECT ST_GeoHash(NULL, 1, 10);
+SELECT ST_GeoHash(1, NULL, 10);
+SELECT ST_GeoHash(1, 1, NULL);
+
+--echo #
+--echo # POINT in form (longitude[-180, 180] latitude[-90, 90])
+--echo #
+set @pt1 = ST_GeomFromText('POINT(180 0)');
+set @pt2 = ST_GeomFromText('POINT(-180 -90)');
+set @pt3 = ST_GeomFromText('POINT(10.954984 50.8312806)');
+SELECT ST_GeoHash(@pt1, 10);
+SELECT ST_GeoHash(@pt2, 15);
+SELECT ST_GeoHash(@pt3, 10);
+
+--echo #
+--echo # Logitude and Latitude can be integers or decimals within a range.
+--echo #
+SELECT ST_GeoHash(180, 0, 10);
+SELECT ST_GeoHash(-180, -90, 15);
+SELECT ST_GeoHash(10.954984, 50.8312806, 10);
+SELECT ST_GeoHash(11.954992, 51.831286, 9);
+SELECT ST_GeoHash(11.954992, 51.831286, 38);
+SELECT ST_GeoHash(51.36752179, 35.69425997, 100);
+
+--echo #
+--echo # Note, The returned string may be shorter than the specified max_length value 
+--echo # because the algorithm has reached the most appropriate precision in advance.
+--echo #
+SELECT ST_GeoHash(1, 2, 100);

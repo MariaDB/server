@@ -26,6 +26,7 @@
 #pragma interface			/* gcc class implementation */
 #endif
 
+#include <bitset>
 #include "sql_type_geom.h"
 #include "item.h"
 #include "gstream.h"
@@ -1226,6 +1227,49 @@ public:
   }
   Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_sphere_distance>(thd, this); }
+};
+
+
+class Item_func_geohash: public Item_geometry_func
+{
+  double latitude;
+  double longitude;
+  uint geohash_max_output_length;
+  const double max_longitude;
+  const double min_longitude;
+  const double max_latitude;
+  const double min_latitude;
+  const uint upper_limit_output_length;
+  const std::string BASE32;
+
+  void encode_geohash(String *str);
+  void set_bit(double &max_value, double &min_value, const double &target_value,
+               std::bitset<8> &base_set, const uint &bit_index);
+public:
+  Item_func_geohash(THD *thd, Item *point, Item *max_length):
+    Item_geometry_func(thd, point, max_length),
+    max_longitude(180.0),
+    min_longitude(-180.0),
+    max_latitude(90.0),
+    min_latitude(-90.0),
+    upper_limit_output_length(100),
+    BASE32("0123456789bcdefghjkmnpqrstuvwxyz") {}
+  Item_func_geohash(THD *thd, Item *longitude, Item *latitude, Item *max_length):
+    Item_geometry_func(thd, longitude, latitude, max_length),
+    max_longitude(180.0),
+    min_longitude(-180.0),
+    max_latitude(90.0),
+    min_latitude(-90.0),
+    upper_limit_output_length(100),
+    BASE32("0123456789bcdefghjkmnpqrstuvwxyz") {}
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("st_geohash") };
+    return name;
+  }
+  String *val_str(String *) override;
+  Item *get_copy(THD *thd) override
+  { return get_item_copy<Item_func_geohash>(thd, this); }
 };
 
 
