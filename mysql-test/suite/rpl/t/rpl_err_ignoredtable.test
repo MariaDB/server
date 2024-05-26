@@ -53,7 +53,7 @@ insert into t4 values (3),(4);
 connection master;
 # The get_lock function causes warning for unsafe statement.
 --disable_warnings
---error 0,1317,2013
+--error 0,1317,2013,2023,2026
 reap;
 --enable_warnings
 connection master1;

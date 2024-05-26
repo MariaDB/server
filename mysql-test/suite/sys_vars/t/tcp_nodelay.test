@@ -1,4 +1,8 @@
 --source include/not_embedded.inc
+if (`select variable_value != "" from information_schema.session_status where variable_name="Ssl_version"`)
+{
+  --skip cannot run in TLS mode
+}
 # A smoke test for tcp_nodelay option
 SET tcp_nodelay=0;
 SET tcp_nodelay=1;

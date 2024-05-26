@@ -67,7 +67,7 @@ KILL @other_connection_id;
 
 --echo # Collect the error from the INSERT thread; it should be disconnected.
 connection other;
---error 2013,ER_CONNECTION_KILLED
+--error 2013,2026,ER_CONNECTION_KILLED
 reap;
 
 connection default;
@@ -175,7 +175,7 @@ KILL @other_connection_id;
 
 --echo # Collect the error from the INSERT thread; it should be disconnected.
 connection other;
---error 2013,ER_CONNECTION_KILLED
+--error 2013,ER_CONNECTION_KILLED,2026
 reap;
 
 connection default;
