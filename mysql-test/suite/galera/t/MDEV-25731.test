@@ -2,7 +2,6 @@
 --source include/have_aria.inc
 
 --connection node_1
-SET GLOBAL wsrep_load_data_splitting=ON;
 SET GLOBAL wsrep_mode=REPLICATE_MYISAM;
 CREATE TABLE t1 (c1 int) ENGINE=MYISAM;
 LOAD DATA INFILE '../../std_data/mdev-25731.dat' IGNORE INTO TABLE t1 LINES TERMINATED BY '\n';
@@ -30,5 +29,4 @@ SELECT COUNT(*) AS EXPECT_18 FROM t1;
 
 --connection node_1
 DROP TABLE t1;
-SET GLOBAL wsrep_load_data_splitting=OFF;
 SET GLOBAL wsrep_mode=DEFAULT;

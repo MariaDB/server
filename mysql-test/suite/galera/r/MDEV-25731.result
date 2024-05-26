@@ -1,14 +1,9 @@
 connection node_2;
 connection node_1;
 connection node_1;
-SET GLOBAL wsrep_load_data_splitting=ON;
-Warnings:
-Warning	1287	'@@wsrep_load_data_splitting' is deprecated and will be removed in a future release
 SET GLOBAL wsrep_mode=REPLICATE_MYISAM;
 CREATE TABLE t1 (c1 int) ENGINE=MYISAM;
 LOAD DATA INFILE '../../std_data/mdev-25731.dat' IGNORE INTO TABLE t1 LINES TERMINATED BY '\n';
-Warnings:
-Warning	1235	wsrep_load_data_splitting for other than InnoDB tables
 SELECT COUNT(*) AS EXPECT_6 FROM t1;
 EXPECT_6
 6
@@ -20,8 +15,6 @@ connection node_1;
 ALTER TABLE t1 ENGINE=Aria;
 SET GLOBAL wsrep_mode=REPLICATE_ARIA;
 LOAD DATA INFILE '../../std_data/mdev-25731.dat' IGNORE INTO TABLE t1 LINES TERMINATED BY '\n';
-Warnings:
-Warning	1235	wsrep_load_data_splitting for other than InnoDB tables
 SELECT COUNT(*) AS EXPECT_12 FROM t1;
 EXPECT_12
 12
@@ -41,7 +34,4 @@ EXPECT_18
 18
 connection node_1;
 DROP TABLE t1;
-SET GLOBAL wsrep_load_data_splitting=OFF;
-Warnings:
-Warning	1287	'@@wsrep_load_data_splitting' is deprecated and will be removed in a future release
 SET GLOBAL wsrep_mode=DEFAULT;
