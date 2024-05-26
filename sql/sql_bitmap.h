@@ -142,9 +142,9 @@ public:
   }
   bool is_prefix(uint prefix_size) const
   {
-    DBUG_ASSERT(prefix_size <= width);
-
     size_t idx= prefix_size / BITS_PER_ELEMENT;
+
+    DBUG_ASSERT(idx <= ARRAY_ELEMENTS);
 
     for (size_t i= 0; i < idx; i++)
       if (buffer[i] != ALL_BITS_SET)
