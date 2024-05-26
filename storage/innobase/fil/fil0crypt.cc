@@ -2412,6 +2412,9 @@ DECLARE_THREAD(fil_crypt_thread)(void*)
 	/* if we find a space that is starting, skip over it and recheck it later */
 	bool recheck = false;
 
+	/* so key management plugins can call the sql service */
+	my_thread_init();
+
 	while (!thr.should_shutdown()) {
 
 		key_state_t new_state;
@@ -2492,6 +2495,8 @@ DECLARE_THREAD(fil_crypt_thread)(void*)
 			fil_crypt_return_iops(&thr);
 		}
 	}
+
+	my_thread_end();
 
 	/* return iops if shutting down */
 	fil_crypt_return_iops(&thr);
