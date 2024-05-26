@@ -184,6 +184,7 @@ extern my_off_t maria_max_temp_length;
 extern ulong maria_bulk_insert_tree_size, maria_data_pointer_size;
 extern MY_TMPDIR *maria_tmpdir;
 extern my_bool maria_encrypt_tables;
+extern my_bool aria_encrypt_translog;
 
 /*
   This is used to check if a symlink points into the mysql data home,
