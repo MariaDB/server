@@ -2723,7 +2723,7 @@ void var_query_set(VAR *var, const char *query, const char** query_end)
     uint i;
     ulong *lengths;
 
-    init_dynamic_string(&result, "", 512, 512);
+    init_dynamic_string(&result, "", 1024, 512);
     lengths= mysql_fetch_lengths(res);
     for (i= 0; i < mysql_num_fields(res); i++)
     {
