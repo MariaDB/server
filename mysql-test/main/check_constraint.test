@@ -135,34 +135,6 @@ set sql_mode=default;
 select * from t1;
 drop table t1;
 
---echo #
---echo # MDEV-16630: Ambiguous error message when check constraint
---echo #             matches table name
---echo #
-
-use test;
---disable_warnings
-drop table if exists t;
---enable_warnings
-
-create table t(a int, b int check(b>0),
-               constraint b check(a<b), constraint a check(a>0),
-               constraint x check (a>10));
-
-show create table t;
-
-# Generate error when field constraint 'b' is violated
---echo # Field constraint 'b' will fail
---error ER_CONSTRAINT_FAILED
-insert into t values (-1, 0);
-
-# Generate error when table constraint 'b' is violated.
---echo # Table constraint 'b' will fail
---error ER_CONSTRAINT_FAILED
-insert into t values (1,1);
-
-drop table t;
-
 #
 # check constraints and auto_is_null typo
 #
@@ -226,7 +198,7 @@ drop table t1;
 --echo #
 --echo # MDEV-24274 ALTER TABLE with CHECK CONSTRAINTS gives "Out of Memory" error
 --echo #
-create table t1 (id varchar(2), constraint id check (id regexp '[a-z]'));
+create table t1 (id varchar(2), constraint id1 check (id regexp '[a-z]'));
 alter table t1 force;
 show create table t1;
 drop table t1;
@@ -244,6 +216,109 @@ insert t1 (a) values (1);
 insert t1 (a) values (-1);
 drop table t1;
 
+--echo #
+--echo # MDEV-24598: duplicate CHECK constraint name
+--echo #
+
+# Field constraints have th name of columns, it is not possible to have duplicated
+# constraints (ER_DUP_FIELDNAME)
+
+# Table constraints with the same name will raise ER_DUP_CONSTRAINT_NAME
+--error ER_DUP_CONSTRAINT_NAME
+create table t (a int check (a>2),
+                constraint a1 check (a < 5),
+                constraint a1 check (a > 5));
+
+# Table constraint that has the same name as field
+--error ER_DUP_CONSTRAINT_NAME
+create table t (a int check (a>2),
+                constraint a check (a < 5));
+
+# Check native Json constraint
+--error ER_DUP_CONSTRAINT_NAME
+CREATE TABLE t (
+path VARCHAR(100) NOT NULL COLLATE 'utf8_general_ci',
+json_c1 JSON NOT NULL DEFAULT '' COLLATE 'utf8mb4_bin',
+json_c2 JSON NOT NULL DEFAULT '' COLLATE 'utf8mb4_bin',
+comment VARCHAR(100) NULL DEFAULT NULL COLLATE 'utf8_general_ci',
+UNIQUE INDEX path (path),
+CONSTRAINT json_c1 CHECK (path > 0)
+);
+select * from information_schema.check_constraints where table_name='t';
+
+# Check Alter table
+create table t(a int);
+--error ER_DUP_CONSTRAINT_NAME
+alter table t add constraint a check (a > 10);
+drop table t;
+
+--echo #
+--echo # MDEV-24602: cannot specify a name for a column check constraint
+--echo #
+# Table constraints (unnamed and named)
+create table t(t int,
+               check (t>0),
+               constraint check(t>1),
+               constraint t_named check(t>2));
+show create table t;
+SELECT CONSTRAINT_NAME, TABLE_NAME, CONSTRAINT_TYPE
+FROM information_schema.TABLE_CONSTRAINTS WHERE
+TABLE_NAME = 't' AND TABLE_SCHEMA = 'test';
+SELECT * from INFORMATION_SCHEMA.CHECK_CONSTRAINTS WHERE
+CONSTRAINT_SCHEMA = 'test';
+drop table t;
+
+# Field constraints (with and without the names)
+create table t(t0 int,
+               t1 int check (t1>0),
+               t2 int constraint check(t2>0),
+               t3 int constraint t_field check(t3>0));
+show create table t;
+SELECT CONSTRAINT_NAME, TABLE_NAME, CONSTRAINT_TYPE
+FROM information_schema.TABLE_CONSTRAINTS WHERE
+TABLE_NAME = 't' AND TABLE_SCHEMA = 'test';
+SELECT * from INFORMATION_SCHEMA.CHECK_CONSTRAINTS WHERE
+CONSTRAINT_SCHEMA = 'test';
+drop table t;
+
+# Field constraint names are the same
+--error ER_DUP_CONSTRAINT_NAME
+create table t(t1 int constraint t1_check check(t1>0),
+               t2 int check(t2>0),
+               t3 int constraint t_field check(t3>0),
+               t4 int constraint t_field check(t4>0));
+
+# Table constraint names are the same
+--error ER_DUP_CONSTRAINT_NAME
+create table t(t1 int constraint t1_check check(t1>0),
+               t2 int check(t2>0),
+               t3 int constraint t_field check(t3>0),
+               constraint table_check1 check(t1>0),
+               constraint table_check1 check(t2>0));
+
+# Table and field constraint names are the same
+--error ER_DUP_CONSTRAINT_NAME
+create table t(t1 int constraint t1_check check(t1>0),
+               t2 int check(t2>0),
+               t3 int constraint t_field check(t3>0),
+               constraint t_field check(t1>0));
+
+#  Adding table constraint with the same name will result in error for  alter table.
+create table t(t1 int constraint t1 check(t1>0));
+SELECT * from INFORMATION_SCHEMA.CHECK_CONSTRAINTS WHERE
+CONSTRAINT_SCHEMA = 'test';
+--error ER_DUP_CONSTRAINT_NAME
+alter table t add constraint t1 check (t1<0);
+SELECT * from INFORMATION_SCHEMA.CHECK_CONSTRAINTS WHERE
+CONSTRAINT_SCHEMA = 'test';
+# Show create table will show field constraint
+show create table t;
+alter table t modify column t1 int constraint t1_greater_pi_check check (t1>3.14);
+# Show create table will show again field constraint
+show create table t;
+SELECT * from INFORMATION_SCHEMA.CHECK_CONSTRAINTS WHERE
+CONSTRAINT_SCHEMA = 'test';
+drop table t;
 --echo #
 --echo # End of 10.4 tests
 --echo #

@@ -20,7 +20,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 insert t1 values ('[]');
 insert t1 values ('a');
-ERROR 23000: CONSTRAINT `t1.a` failed for `test`.`t1`
+ERROR 23000: CONSTRAINT `a` failed for `test`.`t1`
 create or replace table t1(a json not null);
 show create table t1;
 Table	Create Table
@@ -29,7 +29,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 insert t1 values ('[]');
 insert t1 values ('a');
-ERROR 23000: CONSTRAINT `t1.a` failed for `test`.`t1`
+ERROR 23000: CONSTRAINT `a` failed for `test`.`t1`
 set timestamp=unix_timestamp('2010:11:12 13:14:15');
 create or replace table t1(a json default(json_object('now', now())));
 show create table t1;
@@ -75,7 +75,7 @@ drop table t1;
 create table t1 (t text) engine=myisam;
 insert into t1 values ("{}"),("");
 create table t2 (t json) select t from t1;
-ERROR 23000: CONSTRAINT `t2.t` failed for `test`.`t2`
+ERROR 23000: CONSTRAINT `t` failed for `test`.`t2`
 select * from t2;
 ERROR 42S02: Table 'test.t2' doesn't exist
 drop table t1;
@@ -83,7 +83,7 @@ create or replace table t1(a json default(json_object('now', 1)) check (json_val
 insert into t1 values ();
 insert into t1 values ("{}");
 insert into t1 values ("xxx");
-ERROR 23000: CONSTRAINT `t1.a` failed for `test`.`t1`
+ERROR 23000: CONSTRAINT `a` failed for `test`.`t1`
 select * from t1;
 a
 {"now": 1}

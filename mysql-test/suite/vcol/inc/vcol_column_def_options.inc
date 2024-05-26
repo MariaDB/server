@@ -107,7 +107,7 @@ create table t1 (a int, b int as (a % 2) persistent references t2(a));
 show create table t1;
 drop table t1;
 create table t1 (a int, b int as (a % 2));
---error ER_PARSE_ERROR
+--error ER_UNSUPPORTED_ACTION_ON_GENERATED_COLUMN
 alter table t1 modify b int as (a % 2) persistent references t2(a);
 show create table t1;
 drop table t1;

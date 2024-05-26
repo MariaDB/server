@@ -639,7 +639,7 @@ static bool pack_vcols(THD *thd, String *buf, List<Create_field> &create_fields,
 {
   Sql_mode_save_for_frm_handling sql_mode_save(thd);
   List_iterator<Create_field> it(create_fields);
-  Create_field *field;
+  const Create_field *field;
 
   for (uint field_nr=0; (field= it++); field_nr++)
   {
