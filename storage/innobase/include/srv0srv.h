@@ -760,6 +760,9 @@ struct export_var_t{
 	ulint innodb_encryption_rotation_pages_flushed;
 	ulint innodb_encryption_rotation_estimated_iops;
 	int64_t innodb_encryption_key_requests;
+
+	/* Number of bulk insert operations */
+	ulong innodb_bulk_operations;
 };
 
 extern tpool::thread_pool *srv_thread_pool;

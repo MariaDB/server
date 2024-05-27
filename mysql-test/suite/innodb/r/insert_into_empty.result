@@ -20,9 +20,17 @@ DROP TEMPORARY TABLE t;
 SET @save_ahi = @@global.innodb_adaptive_hash_index;
 SET GLOBAL innodb_adaptive_hash_index = 1;
 CREATE TABLE t1(f1 INT NOT NULL)ENGINE=InnoDB;
+SET @old_bulk_op=
+(SELECT variable_value FROM information_schema.global_status
+WHERE variable_name = 'innodb_bulk_operations');
 BEGIN;
 INSERT INTO t1 SELECT * FROM seq_1_to_65536;
 ROLLBACK;
+SELECT variable_value-@old_bulk_op bulk_operations
+FROM information_schema.global_status
+WHERE variable_name = 'innodb_bulk_operations';
+bulk_operations
+1
 CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK

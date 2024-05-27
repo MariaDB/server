@@ -1104,6 +1104,10 @@ static SHOW_VAR innodb_status_variables[]= {
   {"encryption_num_key_requests", &export_vars.innodb_encryption_key_requests,
    SHOW_LONGLONG},
 
+  /* InnoDB bulk operations */
+  {"bulk_operations",
+   &export_vars.innodb_bulk_operations, SHOW_ULONG},
+
   {NullS, NullS, SHOW_LONG}
 };
 
