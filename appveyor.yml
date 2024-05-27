@@ -2,6 +2,9 @@ version: build-{build}~branch-{branch}
 
 clone_depth: 1
 
+environment:
+  OPENSSL_ROOT_DIR: C:/OpenSSL-v32-Win64
+
 build_script:
   # dump some system info
   - echo  processor='%PROCESSOR_IDENTIFIER%' , processor count= %NUMBER_OF_PROCESSORS%
@@ -15,14 +18,15 @@ build_script:
   - mkdir _build
   - cd _build
   - set BUILD_TYPE=MinSizeRel
+  - set PATH=%OPENSSL_ROOT_DIR%;%PATH%
   - set GENERATOR=-GNinja
   - call "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat"
-  - cmake -E time cmake %GENERATOR% .. -DCMAKE_BUILD_TYPE=%BUILD_TYPE% -DMYSQL_MAINTAINER_MODE=ERR -DFAST_BUILD=1 -DBISON_EXECUTABLE=C:\cygwin64\bin\bison.exe -DPLUGIN_PERFSCHEMA=NO -DPLUGIN_FEEDBACK=NO
+  - cmake -E time cmake %GENERATOR% .. -DWITH_SSL=system -DOPENSSL_ROOT_DIR=%OPENSSL_ROOT_DIR% -DCMAKE_BUILD_TYPE=%BUILD_TYPE% -DMYSQL_MAINTAINER_MODE=ERR -DFAST_BUILD=1 -DBISON_EXECUTABLE=C:\cygwin64\bin\bison.exe -DPLUGIN_PERFSCHEMA=NO -DPLUGIN_FEEDBACK=NO
   - set /A jobs=2*%NUMBER_OF_PROCESSORS%
   - cmake -E time cmake --build . -j %jobs% --config %BUILD_TYPE% --target minbuild
 
 test_script:
-  - set PATH=C:\Strawberry\perl\bin;%PATH%;C:\Program Files (x86)\Windows Kits\10\Debuggers\x64
+  - set PATH=C:\Strawberry\perl\bin;%OPENSSL_ROOT_DIR%;%PATH%;C:\Program Files (x86)\Windows Kits\10\Debuggers\x64
   - cd %APPVEYOR_BUILD_FOLDER%\_build\mysql-test
   - set /A parallel=4*%NUMBER_OF_PROCESSORS%
   - perl mysql-test-run.pl --force --max-test-fail=10 --retry=2 --parallel=%parallel% --testcase-timeout=4 --suite=main  --skip-test-list=%APPVEYOR_BUILD_FOLDER%\win\appveyor_skip_tests.txt --mysqld=--loose-innodb-flush-log-at-trx-commit=2
