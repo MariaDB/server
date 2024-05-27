@@ -26,8 +26,8 @@ fi
 ${DEBIAN_SCRIPT_TRACE:+ echo "#42#DEBUG# RUNNING $0 $*" 1>&2 }
 
 export PATH=$PATH:/sbin:/usr/sbin:/bin:/usr/bin
-mysql_datadir=/var/lib/mysql
-mysql_upgradedir=/var/lib/mysql-upgrade
+mariadb_datadir=/var/lib/mysql
+mariadb_upgradedir=/var/lib/mysql-upgrade
 
 # Try to stop the server in a sane way. If it does not success let the admin
 # do it himself. No database directories should be removed while the server
@@ -68,13 +68,13 @@ max_upgradeable_version=5.7
 # Check if a flag file is found that indicates a previous MariaDB or MySQL
 # version was installed. If multiple flags are found, check which one was
 # the biggest version number.
-for flag in "$mysql_datadir"/debian-*.flag
+for flag in "$mariadb_datadir"/debian-*.flag
 do
 
   # The for loop leaves $flag as the query string if there are no results,
   # so the check below is needed to stop further processing when there are
   # no real results.
-  if [ "$flag" = "$mysql_datadir/debian-*.flag" ]
+  if [ "$flag" = "$mariadb_datadir/debian-*.flag" ]
   then
     break
   fi
@@ -109,13 +109,13 @@ then
   # MySQL 8.0 in Ubuntu has a bug in packaging and the file is name wrongly
   # 'debian-5.7.flag', so in case '5.7' was encountered an extra check needs to
   # be done to see is there is a file called undo_001, which is a sign of 8.0.
-  if [ "$found_version" == "5.7" ] && [ -f "$mysql_datadir/undo_001" ]
+  if [ "$found_version" == "5.7" ] && [ -f "$mariadb_datadir/undo_001" ]
   then
     # Seems to be a 8.0, flag has wrongly 5.7 (know bug)
     found_version=8.0
   fi
 
-  echo "$mysql_datadir: found previous version $found_version"
+  echo "$mariadb_datadir: found previous version $found_version"
 
   if dpkg --compare-versions "$found_version" '>>' "$this_version"
   then
@@ -135,10 +135,10 @@ fi
 # installs), then that file is enough of additional indication to trigger the
 # move of the data directory.
 if [ -z "$found_version" ] &&
-   [ -z "$(find $mysql_datadir/debian-*.flag 2> /dev/null)" ] &&
-   [ -f "$mysql_datadir/undo_001" ]
+   [ -z "$(find $mariadb_datadir/debian-*.flag 2> /dev/null)" ] &&
+   [ -f "$mariadb_datadir/undo_001" ]
 then
-  echo "$mysql_datadir: no server version flag found, assuming MySQL 8.0 data encountered"
+  echo "$mariadb_datadir: no server version flag found, assuming MySQL 8.0 data encountered"
   downgrade_detected=true
   found_version="previous" # Just use dummy name as we don't know real version
 fi
@@ -149,12 +149,12 @@ if [ -n "$downgrade_detected" ]
 then
   db_input critical "mariadb-server/old_data_directory_saved" || true
   db_go
-  echo "The file $mysql_datadir/debian-$found_version.flag indicates a" 1>&2
+  echo "The file $mariadb_datadir/debian-$found_version.flag indicates a" 1>&2
   echo "version that cannot automatically be upgraded. Therefore the" 1>&2
-  echo "previous data directory will be renamed to $mysql_datadir-$found_version and" 1>&2
-  echo "a new data directory will be initialized at $mysql_datadir." 1>&2
+  echo "previous data directory will be renamed to $mariadb_datadir-$found_version and" 1>&2
+  echo "a new data directory will be initialized at $mariadb_datadir." 1>&2
   echo "Please manually export/import your data (e.g. with mysqldump) if needed." 1>&2
-  mv -f "$mysql_datadir" "$mysql_datadir-$found_version"
+  mv -f "$mariadb_datadir" "$mariadb_datadir-$found_version"
   # Also move away the old debian.cnf file that included credentials that are
   # no longer valid. If none existed, ignore error and let dpkg continue.
   mv -f /etc/mysql/debian.cnf "/etc/mysql/debian.cnf-$found_version" || true
@@ -213,33 +213,33 @@ do
   checkdir=$(eval echo "$"$dir)
   if [ -L "$checkdir" ]; then
     # Use mkdir option 'Z' to create with correct SELinux context.
-    mkdir -pZ "$mysql_upgradedir"
-    cp -dT "$checkdir" "$mysql_upgradedir/$dir.link"
+    mkdir -pZ "$mariadb_upgradedir"
+    cp -dT "$checkdir" "$mariadb_upgradedir/$dir.link"
   fi
 done
 
 # creating mysql home directory
-if [ ! -d $mysql_datadir ] && [ ! -L $mysql_datadir ]
+if [ ! -d $mariadb_datadir ] && [ ! -L $mariadb_datadir ]
 then
   # Use mkdir option 'Z' to create with correct SELinux context.
-  mkdir -Z $mysql_datadir
+  mkdir -Z $mariadb_datadir
 fi
 
 # Check if MariaDB datadir is available if not fails.
 # There should be symlink or directory available or something will fail.
-if [ -d "$mysql_datadir" ] || [ -L "$mysql_datadir" ]
+if [ -d "$mariadb_datadir" ] || [ -L "$mariadb_datadir" ]
 then
     # As preset blocksize of GNU df is 1024 then available bytes is $df_available_blocks * 1024
     # 4096 blocks is then lower than 4 MB
-    df_available_blocks="$(LC_ALL=C BLOCKSIZE='' df --output=avail "$mysql_datadir" | tail -n 1)"
+    df_available_blocks="$(LC_ALL=C BLOCKSIZE='' df --output=avail "$mariadb_datadir" | tail -n 1)"
     if [ "$df_available_blocks" -lt "4096" ]
     then
-      echo "ERROR: There's not enough space in $mysql_datadir/" 1>&2
+      echo "ERROR: There's not enough space in $mariadb_datadir/" 1>&2
       db_stop
       exit 1
     fi
 else
-    echo "ERROR: There's no directory or symlink available: $mysql_datadir/" 1>&2
+    echo "ERROR: There's no directory or symlink available: $mariadb_datadir/" 1>&2
     db_stop
     exit 1    
 fi
@@ -252,8 +252,8 @@ fi
 # The "set +e" is necessary as e.g. a ".journal" of a ext3 partition is
 # not chgrp'able (#318435).
 set +e
-find $mysql_datadir ! -uid "$(id -u mysql)" -print0 | xargs -0 -r chown mysql
-find $mysql_datadir -follow -not -group mysql -print0 2>/dev/null \
+find $mariadb_datadir ! -uid "$(id -u mysql)" -print0 | xargs -0 -r chown mysql
+find $mariadb_datadir -follow -not -group mysql -print0 2>/dev/null \
   | xargs -0 --no-run-if-empty chgrp mysql
 set -e
 
