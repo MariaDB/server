@@ -3283,10 +3283,12 @@ bool MYSQL_QUERY_LOG::write(THD *thd, time_t current_time,
 
       if (my_b_printf(&log_file,
                       "# Pages_accessed: %lu  Pages_read: %lu  "
+                      "Pages_prefetched: %lu  "
                       "Pages_updated: %lu  Old_rows_read: %lu\n"
                       "# Pages_read_time: %s  Engine_time: %s\n",
                       (ulong) stats->pages_accessed,
                       (ulong) stats->pages_read_count,
+                      (ulong) stats->pages_prefetched,
                       (ulong) stats->pages_updated,
                       (ulong) stats->undo_records_read,
                       query_time_buff, lock_time_buff))
