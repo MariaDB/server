@@ -2522,6 +2522,8 @@ bool THD::copy_with_error(CHARSET_INFO *dstcs, LEX_STRING *dst,
                           CHARSET_INFO *srccs,
                           const char *src, size_t src_length)
 {
+  // Don't allow NULL to avoid UB in the called functions: nullptr+0
+  DBUG_ASSERT(src);
   String_copier_with_error status;
   return copy_fix(dstcs, dst, srccs, src, src_length, &status) ||
          status.check_errors(srccs, src, src_length);
