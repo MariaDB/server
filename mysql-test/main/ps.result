@@ -1,4 +1,5 @@
 call mtr.add_suppression('Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT.');
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 drop table if exists t1,t2,t3,t4;
 drop database if exists mysqltest1;
 drop database if exists client_test_db;
@@ -5967,3 +5968,4 @@ DROP VIEW t1;
 #
 # End of 10.4 tests
 #
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

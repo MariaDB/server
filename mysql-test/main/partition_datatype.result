@@ -1,4 +1,5 @@
 drop table if exists t1;
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 # test with not null
 create table t1 (a bit not null) partition by key (a);
 insert into t1 values (b'1');
@@ -1325,3 +1326,4 @@ t2	CREATE TABLE `t2` (
 TRUNCATE TABLE t2;
 DROP TABLE t1, t2;
 SET @@session.time_zone= @old_time_zone;
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

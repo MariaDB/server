@@ -15,6 +15,7 @@
 
 --source include/default_optimizer_switch.inc
 --source include/default_charset.inc
+--source include/test_db_charset_latin1.inc
 
 set optimizer_switch='mrr=on,mrr_sort_keys=on,index_condition_pushdown=on';
 #
@@ -34,7 +35,7 @@ drop database if exists world;
 
 set names utf8;
 
-create database world;
+create database world character set latin1;
 use world;
 
 --source include/world_schema.inc
@@ -458,3 +459,4 @@ drop database world;
 #IN_EXIST transformation is applied to it)
 
 set optimizer_switch=default;
+--source include/test_db_charset_restore.inc

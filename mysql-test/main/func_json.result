@@ -272,8 +272,8 @@ create table t1 as select json_object('id', 87, 'name', 'carrot') as f;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f` varchar(46) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `f` varchar(46) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 select * from t1;
 f
 {"id": 87, "name": "carrot"}
@@ -298,7 +298,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `json_quote('foo')` varchar(38) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 select json_merge('string');
 ERROR 42000: Incorrect parameter count in the call to native function 'json_merge'
@@ -429,8 +429,8 @@ create table t2 as select json_object('foo', json_unquote(json_object('bar', c))
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `fld` varchar(110) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `fld` varchar(110) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t2;
 drop table t1;
 select json_object("a", json_object("b", "abcd"));
@@ -484,7 +484,7 @@ show create table json;
 Table	Create Table
 json	CREATE TABLE `json` (
   `j` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table json;
 select json_length( '[ 1, [ 2, 3, 4 ], 5 ]', '$[2]' ) as ex;
 ex
@@ -778,7 +778,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` varchar(38) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL,
   `c2` varchar(38) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 #
 # MDEV-16054 simple json functions flatline cpu on garbage input.
@@ -841,7 +841,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `JSON_ARRAY_INSERT(fld, '$.[0]', '0')` varchar(21) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1, t2;
 SET sql_mode=default;
 #

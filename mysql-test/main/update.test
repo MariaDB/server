@@ -4,6 +4,8 @@
 
 -- source include/have_innodb.inc
 
+--source include/test_db_charset_latin1.inc
+
 --disable_warnings
 drop table if exists t1,t2;
 --enable_warnings
@@ -743,3 +745,5 @@ DROP TABLE t1;
 --enable_ps2_protocol
 
 --echo # End of MariaDB 10.10 tests
+
+--source include/test_db_charset_restore.inc

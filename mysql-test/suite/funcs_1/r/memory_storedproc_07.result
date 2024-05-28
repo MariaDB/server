@@ -111,7 +111,7 @@ INSERT INTO result VALUES (@cur_val_sql_mode, 'value restored');
 ELSE
 INSERT INTO result VALUES (@cur_val_sql_mode, 'value not restored');
 END if;
-END	latin1	latin1_swedish_ci	latin1_swedish_ci
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 set @@sql_mode='';
 SHOW VARIABLES LIKE 'sql_mode';
 Variable_name	Value
@@ -155,7 +155,7 @@ sp2	STRICT_TRANS_TABLES,STRICT_ALL_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR
 BEGIN
 SET @@sql_mode='MAXDB';
 SHOW VARIABLES LIKE 'sql_mode';
-END	latin1	latin1_swedish_ci	latin1_swedish_ci
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 ... show value prior calling procedure
 SHOW VARIABLES LIKE 'sql_mode';
 Variable_name	Value

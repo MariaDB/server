@@ -1,3 +1,4 @@
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 RESET MASTER;
 SET GLOBAL binlog_row_metadata = MINIMAL;
 #
@@ -311,3 +312,4 @@ SET SESSION debug_dbug = '';
 SET GLOBAL binlog_row_metadata = NO_LOG;
 DROP TABLE t1;
 RESET MASTER;
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

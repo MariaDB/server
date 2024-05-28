@@ -51,7 +51,7 @@ Create Table	CREATE TABLE `t1` (
   `c3` int(3) unsigned NOT NULL,
   `c4` int(3) unsigned NOT NULL,
   `c5` int(3) unsigned NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 c1	255
 c2	255
 c3	255
@@ -66,7 +66,7 @@ Create Table	CREATE TABLE `t1` (
   `c3` int(5) unsigned NOT NULL,
   `c4` int(5) unsigned NOT NULL,
   `c5` int(5) unsigned NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 c1	65535
 c2	65535
 c3	65535
@@ -81,7 +81,7 @@ Create Table	CREATE TABLE `t1` (
   `c3` int(8) unsigned NOT NULL,
   `c4` int(8) unsigned NOT NULL,
   `c5` int(8) unsigned NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 c1	16777215
 c2	16777215
 c3	16777215
@@ -96,7 +96,7 @@ Create Table	CREATE TABLE `t1` (
   `c3` bigint(10) unsigned NOT NULL,
   `c4` bigint(10) unsigned NOT NULL,
   `c5` bigint(10) unsigned NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 c1	4294967295
 c2	4294967295
 c3	4294967295
@@ -111,7 +111,7 @@ Create Table	CREATE TABLE `t1` (
   `c3` bigint(13) unsigned NOT NULL,
   `c4` bigint(13) unsigned NOT NULL,
   `c5` bigint(13) unsigned NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 c1	1099511627775
 c2	1099511627775
 c3	1099511627775
@@ -126,7 +126,7 @@ Create Table	CREATE TABLE `t1` (
   `c3` bigint(15) unsigned NOT NULL,
   `c4` bigint(15) unsigned NOT NULL,
   `c5` bigint(15) unsigned NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 c1	281474976710655
 c2	281474976710655
 c3	281474976710655
@@ -141,7 +141,7 @@ Create Table	CREATE TABLE `t1` (
   `c3` bigint(17) unsigned NOT NULL,
   `c4` bigint(17) unsigned NOT NULL,
   `c5` bigint(17) unsigned NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 c1	72057594037927935
 c2	72057594037927935
 c3	72057594037927935
@@ -156,7 +156,7 @@ Create Table	CREATE TABLE `t1` (
   `c3` bigint(20) unsigned NOT NULL,
   `c4` bigint(20) unsigned NOT NULL,
   `c5` bigint(20) unsigned NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 c1	18446744073709551615
 c2	18446744073709551615
 c3	18446744073709551615
@@ -171,7 +171,7 @@ Create Table	CREATE TABLE `t1` (
   `c3` bigint(20) unsigned NOT NULL,
   `c4` bigint(20) unsigned NOT NULL,
   `c5` bigint(20) unsigned NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 c1	18446744073709551615
 c2	18446744073709551615
 c3	18446744073709551615
@@ -189,7 +189,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `ROUND(0xFFFFFFFFFFFFFFFF,-10)` decimal(21,0) unsigned NOT NULL,
   `ROUND(0xFFFFFFFFFFFFFFFF,-11)` decimal(21,0) unsigned NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t1;
 ROUND(0xFFFFFFFFFFFFFFFF,-10)	ROUND(0xFFFFFFFFFFFFFFFF,-11)
 18446744070000000000	18446744100000000000
@@ -229,7 +229,7 @@ Create Table	CREATE TABLE `t1` (
   `c3` decimal(21,0) unsigned NOT NULL,
   `c4` decimal(21,0) unsigned NOT NULL,
   `c5` decimal(21,0) unsigned NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 #
 # End of 10.4 tests

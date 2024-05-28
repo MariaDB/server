@@ -1,4 +1,5 @@
 drop table if exists t1,t2,t3;
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 set @save_derived_optimizer_switch=@@optimizer_switch;
 set optimizer_switch='derived_merge=off,derived_with_keys=off';
 select * from (select 2 from DUAL) b;
@@ -1862,3 +1863,4 @@ pk	a
 deallocate prepare stmt;
 drop table t1,t2,t3;
 # End of MariaDB 11.1 tests
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

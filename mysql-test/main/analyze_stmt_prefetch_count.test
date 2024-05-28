@@ -9,7 +9,7 @@ create table t1 (
   c varchar(255),
   d varchar(255),
   primary key(a,b,c,d)
-) engine=innodb;
+) engine=innodb character set latin1;
 
 # The data size is 16K * 1K = 16M 
 #  16M / (page_size=16K) = 1K pages.

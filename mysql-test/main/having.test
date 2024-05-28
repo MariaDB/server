@@ -643,7 +643,7 @@ DROP TABLE t1,t2,t3;
 --echo # LP bug:806955 HAVING not observed with aggregate +subquery
 --echo #
 
-CREATE TABLE t1 (f3 int, f10 varchar(1), f11 int, KEY (f10) );
+CREATE TABLE t1 (f3 int, f10 varchar(1), f11 int, KEY (f10)) CHARSET=latin1;
 INSERT INTO t1 VALUES (NULL,'a',0),(8,'b',0);
 
 CREATE TABLE t2 (f2 int);

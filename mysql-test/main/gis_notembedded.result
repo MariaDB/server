@@ -4,14 +4,14 @@ AddGeometryColumn		CREATE DEFINER=`mariadb.sys`@`localhost` PROCEDURE `AddGeomet
    t_name varchar(64), geometry_column varchar(64), t_srid int)
     SQL SECURITY INVOKER
 begin
-  set @qwe= concat('ALTER TABLE ', t_schema, '.', t_name, ' ADD ', geometry_column,' GEOMETRY REF_SYSTEM_ID=', t_srid); PREPARE ls from @qwe; execute ls; deallocate prepare ls; end	latin1	latin1_swedish_ci	latin1_swedish_ci
+  set @qwe= concat('ALTER TABLE ', t_schema, '.', t_name, ' ADD ', geometry_column,' GEOMETRY REF_SYSTEM_ID=', t_srid); PREPARE ls from @qwe; execute ls; deallocate prepare ls; end	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 show create procedure mysql.DropGeometryColumn;
 Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
 DropGeometryColumn		CREATE DEFINER=`mariadb.sys`@`localhost` PROCEDURE `DropGeometryColumn`(catalog varchar(64), t_schema varchar(64),
    t_name varchar(64), geometry_column varchar(64))
     SQL SECURITY INVOKER
 begin
-  set @qwe= concat('ALTER TABLE ', t_schema, '.', t_name, ' DROP ', geometry_column); PREPARE ls from @qwe; execute ls; deallocate prepare ls; end	latin1	latin1_swedish_ci	latin1_swedish_ci
+  set @qwe= concat('ALTER TABLE ', t_schema, '.', t_name, ' DROP ', geometry_column); PREPARE ls from @qwe; execute ls; deallocate prepare ls; end	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 create table t1 (a int, b int);
 call mysql.AddGeometryColumn('', 'test', 't1', 'c', 10);
 show create table t1;
@@ -20,20 +20,20 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   `c` geometry DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 call mysql.DropGeometryColumn('', 'test', 't1', 'c');
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 call mysql.DropGeometryColumn('', 'test', 't1', 'b');
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 create user foo@localhost;
 grant execute on mysql.* to foo@localhost;

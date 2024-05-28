@@ -6,6 +6,9 @@
 drop table if exists t1, t2;
 --enable_warnings
 
+--source include/test_db_charset_latin1.inc
+
+
 CREATE TABLE t1 (
        id           VARCHAR(255) NOT NULL PRIMARY KEY,
        sujet        VARCHAR(255),
@@ -111,3 +114,5 @@ SELECT * FROM t2 LEFT OUTER JOIN t1 ON (MATCH(f1) against (""));
 SELECT * FROM t1 RIGHT OUTER JOIN t2 ON (MATCH(f1) against (""));
 
 DROP table t1,t2;
+
+--source include/test_db_charset_restore.inc

@@ -70,7 +70,7 @@ let $engine_memory= `SELECT @ENGINE_MEMORY = 1`;
 --disable_warnings
 DROP DATABASE IF EXISTS test1;
 --enable_warnings
-CREATE DATABASE test1;
+CREATE DATABASE test1 CHARACTER SET latin1;
 USE test;
 
 if ($engine_innodb)

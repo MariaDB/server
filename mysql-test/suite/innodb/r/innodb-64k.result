@@ -1,3 +1,4 @@
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 call mtr.add_suppression('InnoDB: Cannot add field.*because after adding it, the row size is');
 SET SESSION innodb_strict_mode=ON;
 CREATE TABLE t1(a int PRIMARY KEY) ENGINE=InnoDB ROW_FORMAT=COMPRESSED;
@@ -1110,3 +1111,4 @@ INSERT INTO t1 (a) SELECT seq FROM seq_1_to_8191;
 ALTER TABLE t1 FORCE, ALGORITHM=INPLACE;
 DROP TABLE t1;
 # End of 10.3 tests
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

@@ -936,7 +936,7 @@ t1	CREATE TABLE `t1` (
   `curtime() - curtime()` int(9) NOT NULL,
   `sec_to_time(1) + 0` int(9) DEFAULT NULL,
   `from_unixtime(1) + 0` bigint(16) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 SELECT SEC_TO_TIME(3300000);
 SEC_TO_TIME(3300000)
@@ -2145,8 +2145,8 @@ Warning	1292	Truncated incorrect DECIMAL value: '2005-05-0410'
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `f2` varchar(22) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `f2` varchar(22) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t2;
 f2
 0.000000
@@ -2263,11 +2263,11 @@ CONCAT(CASE WHEN 1 THEN TIME(101010) ELSE TIME(101010) END) AS c4;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` varchar(10) DEFAULT NULL,
-  `c2` varchar(10) DEFAULT NULL,
-  `c3` varchar(10) DEFAULT NULL,
-  `c4` varchar(10) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `c1` varchar(10) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `c2` varchar(10) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `c3` varchar(10) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `c4` varchar(10) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 #
 # MDEV-4870 Wrong values of CASE, COALESCE, IFNULL on a combination of different temporal types
@@ -3228,7 +3228,7 @@ t2	CREATE TABLE `t2` (
   `EXTRACT(HOUR_MICROSECOND FROM a)` bigint(13) DEFAULT NULL,
   `EXTRACT(MINUTE_MICROSECOND FROM a)` bigint(11) DEFAULT NULL,
   `EXTRACT(SECOND_MICROSECOND FROM a)` int(9) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1,t2;
 CREATE TABLE t1 (a TIME(6));
 INSERT INTO t1 VALUES ('-838:59:59.999999'),('838:59:59.999999');
@@ -3409,7 +3409,7 @@ t2	CREATE TABLE `t2` (
   `EXTRACT(HOUR_MICROSECOND FROM a)` bigint(13) DEFAULT NULL,
   `EXTRACT(MINUTE_MICROSECOND FROM a)` bigint(11) DEFAULT NULL,
   `EXTRACT(SECOND_MICROSECOND FROM a)` int(9) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1,t2;
 #
 # MDEV-14926 AddressSanitizer: heap-use-after-free in make_date_time on weird combination of functions
@@ -3524,9 +3524,9 @@ ADDTIME('10:20:30',1) AS c2;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` varchar(19) DEFAULT NULL,
-  `c2` varchar(26) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `c1` varchar(19) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `c2` varchar(26) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t1;
 c1	c2
 2001-01-02	10:20:31
@@ -3592,7 +3592,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `TO_SECONDS('9999-12-31 23:59:59')` bigint(12) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 SET sql_mode=DEFAULT;
 #
@@ -3712,13 +3712,13 @@ DATE_FORMAT('2001-01-01',TIME'10:20:30') AS c5;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c0` char(0) DEFAULT NULL,
-  `c1` varchar(2) DEFAULT NULL,
-  `c2` varchar(2) DEFAULT NULL,
-  `c3` varchar(4) DEFAULT NULL,
-  `c4` varchar(2) DEFAULT NULL,
-  `c5` varchar(8) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `c0` char(0) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `c1` varchar(2) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `c2` varchar(2) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `c3` varchar(4) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `c4` varchar(2) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `c5` varchar(8) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 EXECUTE IMMEDIATE
 "CREATE TABLE t1 AS SELECT
@@ -3732,13 +3732,13 @@ USING NULL, '10', 10, 10.0, 10e0, TIME'10:20:30';
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c0` char(0) DEFAULT NULL,
-  `c1` varchar(2) DEFAULT NULL,
-  `c2` varchar(2) DEFAULT NULL,
-  `c3` varchar(4) DEFAULT NULL,
-  `c4` varchar(2) DEFAULT NULL,
-  `c5` varchar(100) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `c0` char(0) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `c1` varchar(2) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `c2` varchar(2) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `c3` varchar(4) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `c4` varchar(2) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `c5` varchar(100) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 #
 # MDEV-16152 Expressions with INTERVAL return bad results in some cases
@@ -6216,7 +6216,7 @@ t2	CREATE TABLE `t2` (
   `EXTRACT(DAY_MINUTE FROM a)` int(7) DEFAULT NULL,
   `EXTRACT(DAY_SECOND FROM a)` int(9) DEFAULT NULL,
   `EXTRACT(DAY_MICROSECOND FROM a)` bigint(15) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 DROP TABLE t1;
 #

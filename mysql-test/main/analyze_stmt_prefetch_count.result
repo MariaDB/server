@@ -4,7 +4,7 @@ b varchar(255),
 c varchar(255),
 d varchar(255),
 primary key(a,b,c,d)
-) engine=innodb;
+) engine=innodb character set latin1;
 SET unique_checks=0, foreign_key_checks= 0;
 begin;
 insert into t1 select

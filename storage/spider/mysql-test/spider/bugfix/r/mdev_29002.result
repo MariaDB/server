@@ -31,9 +31,9 @@ Warnings:
 Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 SHOW TABLE STATUS;
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	SPIDER	10		NULL	0	0	0	0	0	NULL	NULL	NULL	NULL	latin1_swedish_ci	NULL		Unable to connect to foreign data source: srv	0	
-t2	SPIDER	10		NULL	0	0	0	0	0	NULL	NULL	NULL	NULL	latin1_swedish_ci	NULL		Unable to connect to foreign data source: srv	0	
-t3	SPIDER	10		NULL	0	0	0	0	0	NULL	NULL	NULL	NULL	latin1_swedish_ci	NULL		Unable to connect to foreign data source: srv	0	
+t1	SPIDER	10		NULL	0	0	0	0	0	NULL	NULL	NULL	NULL	utf8mb4_uca1400_ai_ci	NULL		Unable to connect to foreign data source: srv	0	
+t2	SPIDER	10		NULL	0	0	0	0	0	NULL	NULL	NULL	NULL	utf8mb4_uca1400_ai_ci	NULL		Unable to connect to foreign data source: srv	0	
+t3	SPIDER	10		NULL	0	0	0	0	0	NULL	NULL	NULL	NULL	utf8mb4_uca1400_ai_ci	NULL		Unable to connect to foreign data source: srv	0	
 Warnings:
 Warning	1429	Unable to connect to foreign data source: srv
 Warning	1429	Unable to connect to foreign data source: srv

@@ -3,6 +3,9 @@
 # Testing string functions
 --source include/have_sequence.inc
 
+--source include/test_db_charset_latin1.inc
+
+
 set @save_max_allowed_packet=@@global.max_allowed_packet;
 set global max_allowed_packet=1048576;
 connect (conn1,localhost,root,,);
@@ -2583,3 +2586,5 @@ SELECT
 --echo #
 --echo # End of 11.5 tests
 --echo #
+
+--source include/test_db_charset_restore.inc

@@ -3,6 +3,7 @@
 --source include/have_innodb.inc
 --source include/have_innodb_64k.inc
 --source include/have_sequence.inc
+--source include/test_db_charset_latin1.inc
 
 call mtr.add_suppression('InnoDB: Cannot add field.*because after adding it, the row size is');
 
@@ -663,3 +664,5 @@ ALTER TABLE t1 FORCE, ALGORITHM=INPLACE;
 DROP TABLE t1;
 
 --echo # End of 10.3 tests
+
+--source include/test_db_charset_restore.inc

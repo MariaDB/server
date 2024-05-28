@@ -11,8 +11,8 @@
 # value" with binlog-row-image=minimal
 #
 
-CREATE TABLE t1 (pk INT PRIMARY KEY, f1 INT, f2 INT, f3 TINYINT, f4 MEDIUMINT, f5 BIGINT, f6 INT, f7 INT, f8 char(1));
-CREATE TABLE t2 (pk INT PRIMARY KEY, f1 INT, f2 INT, f3 INT, f4 INT, f5 MEDIUMINT, f6 INT, f7 INT, f8 char(1));
+CREATE TABLE t1 (pk INT PRIMARY KEY, f1 INT, f2 INT, f3 TINYINT, f4 MEDIUMINT, f5 BIGINT, f6 INT, f7 INT, f8 char(1)) CHARSET=latin1;
+CREATE TABLE t2 (pk INT PRIMARY KEY, f1 INT, f2 INT, f3 INT, f4 INT, f5 MEDIUMINT, f6 INT, f7 INT, f8 char(1)) CHARSET=latin1;
 INSERT INTO t1 VALUES (10, 1, 2, 3, 4, 5, 6, 7, "");
 INSERT INTO t1 VALUES (11, 1, 2, 3, 4, 5, 6, 7, NULL);
 INSERT INTO t1 VALUES (12, 1, 2, 3, NULL, 5, 6, 7, "A");
@@ -37,7 +37,7 @@ DROP TABLE t1,t2;
 --echo # MDEV-16372 ER_BASE64_DECODE_ERROR upon replaying binary log with system table
 --echo #
 FLUSH BINARY LOGS;
-CREATE TABLE t1 (pk INT PRIMARY KEY);
+CREATE TABLE t1 (pk INT PRIMARY KEY) CHARSET=latin1;
 INSERT INTO t1 VALUES (1);
 INSERT INTO t1 VALUES (1), (2) ON DUPLICATE KEY UPDATE pk= pk + 10;
 
@@ -72,13 +72,13 @@ CREATE TABLE `t1` (
   `ref_id` BIGINT(20) UNSIGNED NOT NULL,
   PRIMARY KEY (`id`),
   KEY `last_updated_KEY` (`last_updated`)
-);
+) CHARSET=latin1;
 
 CREATE TABLE `t2` (
   `id` BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
   `short_desc` VARCHAR(50) NOT NULL,
   PRIMARY KEY (`id`)
-);
+) CHARSET=latin1;
  
 
 INSERT INTO t2 (id, short_desc) VALUES (1, 'test');

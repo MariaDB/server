@@ -308,6 +308,8 @@ b VARCHAR(2499) AS (a) VIRTUAL
 INSERT INTO t1 (a) VALUES ('foo');
 ALTER TABLE t1 MODIFY a VARCHAR(2600), ALGORITHM=INPLACE;
 ALTER TABLE t1 ADD KEY (b), ALGORITHM=INPLACE;
+Warnings:
+Note	1071	Specified key was too long; max key length is 3072 bytes
 # Cleanup
 DROP TABLE t1;
 # End of 10.2 tests

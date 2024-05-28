@@ -365,12 +365,12 @@ POINT(0,0) MOD '0' LIMIT 0;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `POINT(0,0)+'0'` tinytext DEFAULT NULL,
-  `POINT(0,0)-'0'` tinytext DEFAULT NULL,
-  `POINT(0,0)*'0'` tinytext DEFAULT NULL,
-  `POINT(0,0)/'0'` tinytext DEFAULT NULL,
-  `POINT(0,0) MOD '0'` tinytext DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `POINT(0,0)+'0'` tinytext CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `POINT(0,0)-'0'` tinytext CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `POINT(0,0)*'0'` tinytext CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `POINT(0,0)/'0'` tinytext CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `POINT(0,0) MOD '0'` tinytext CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 CREATE TABLE t1 AS SELECT
 '0'+POINT(0,0),
@@ -378,9 +378,9 @@ CREATE TABLE t1 AS SELECT
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `'0'+POINT(0,0)` tinytext DEFAULT NULL,
-  `'0'*POINT(0,0)` tinytext DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `'0'+POINT(0,0)` tinytext CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `'0'*POINT(0,0)` tinytext CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 CREATE TABLE t1 AS SELECT '0'-POINT(0,0) LIMIT 0;
 ERROR HY000: Illegal parameter data types varchar and point for operation '-'

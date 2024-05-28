@@ -1,3 +1,4 @@
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 call mtr.add_suppression("InnoDB: Tablespace for table .* is set as discarded\\.");
 call mtr.add_suppression("InnoDB: Cannot calculate statistics for table .* because the .ibd file is missing. Please refer to .* for how to resolve the issue\\.");
 call mtr.add_suppression("InnoDB: Page 0 at offset 0 looks corrupted in file");
@@ -405,3 +406,4 @@ SET SESSION debug_dbug=@saved_debug_dbug;
 DROP TABLE t1;
 unlink: t1.ibd
 unlink: t1.cfg
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

@@ -405,5 +405,5 @@ SELECT db1.f2();
 DROP DATABASE Db1;
 
 --echo #
---echo # Start of 11.3 tests
+--echo # End of 11.3 tests
 --echo #

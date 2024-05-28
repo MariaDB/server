@@ -7,7 +7,7 @@ eval create table t1 (
   pk varchar(64) $character_set_collate,
   col1 varchar(64),
   primary key (pk)
-);
+) charset=latin1;
 insert into t1 values ('a','a');
 --error ER_DUP_ENTRY
 insert into t1 values ('a ', 'a-space');
@@ -37,7 +37,7 @@ eval create table t1 (
   col1 varchar(64) $character_set_collate,
   col2 varchar(64),
   key (col1)
-);
+) charset=latin1;
 insert into t1 values (0, 'ab', 'a-b');
 insert into t1 values (1, 'a ', 'a-space');
 insert into t1 values (2, 'a',  'a');
@@ -73,7 +73,7 @@ select pk, col1, hex(col1), length(col1) from t1;
 select pk, col1, hex(col1), length(col1) from t1;
 drop table t1;
 
-create table t1 (pk int primary key, a varchar(512), key(a)) engine=rocksdb;
+create table t1 (pk int primary key, a varchar(512), key(a)) engine=rocksdb charset=latin1;
 insert into t1 values (1, concat('a', repeat(' ', 300)));
 insert into t1 values (2, concat('b', repeat(' ', 300)));
 

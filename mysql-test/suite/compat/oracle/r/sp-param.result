@@ -1,3 +1,4 @@
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 SET sql_mode=ORACLE;
 #
 # MDEV-10596 Allow VARCHAR and VARCHAR2 without length as a data type of routine parameters and in RETURN clause
@@ -421,3 +422,4 @@ CALL p2(65536);
 ERROR 22001: Data too long for column 'pin' at row 0
 DROP PROCEDURE p2;
 DROP FUNCTION f1;
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

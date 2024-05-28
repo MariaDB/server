@@ -183,7 +183,7 @@ SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.uniq
 SET @@session.sql_mode=0/*!*/;
 SET @@session.auto_increment_increment=1, @@session.auto_increment_offset=1/*!*/;
 /*!\C latin1 *//*!*/;
-SET @@session.character_set_client=latin1,@@session.collation_connection=8,@@session.collation_server=8/*!*/;
+SET @@session.character_set_client=latin1,@@session.collation_connection=8,@@session.collation_server=2304/*!*/;
 SET @@session.lc_time_names=0/*!*/;
 SET @@session.collation_database=DEFAULT/*!*/;
 CREATE TABLE `t``1` (`a``1` VARCHAR(4) PRIMARY KEY, `b``2` VARCHAR(3),
@@ -268,7 +268,7 @@ master-bin.000001	#	User var	1	#	@`a``3`=9223372036854775807
 master-bin.000001	#	User var	1	#	@`a``4`=18446744073709551615
 master-bin.000001	#	User var	1	#	@`b```=-1.234560123456789e125
 master-bin.000001	#	User var	1	#	@```c`=-1234501234567890123456789012345678901234567890123456789.0123456789
-master-bin.000001	#	User var	1	#	@```d```=_latin1 X'78787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878' COLLATE latin1_swedish_ci
+master-bin.000001	#	User var	1	#	@```d```=_utf8mb4 X'78787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878' COLLATE utf8mb4_uca1400_ai_ci
 master-bin.000001	#	Query	1	#	use `db1``; select 'oops!'`; INSERT INTO t1 VALUES (@`a``1`+1, @`a``2`*100, @`a``3`-1, @`a``4`-1, @`b```/2, @```c`, substr(@```d```, 2, 98))
 master-bin.000001	#	Query	1	#	COMMIT
 /*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=1*/;
@@ -283,7 +283,7 @@ SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.uniq
 SET @@session.sql_mode=0/*!*/;
 SET @@session.auto_increment_increment=1, @@session.auto_increment_offset=1/*!*/;
 /*!\C latin1 *//*!*/;
-SET @@session.character_set_client=latin1,@@session.collation_connection=8,@@session.collation_server=8/*!*/;
+SET @@session.character_set_client=latin1,@@session.collation_connection=8,@@session.collation_server=2304/*!*/;
 SET @@session.lc_time_names=0/*!*/;
 SET @@session.collation_database=DEFAULT/*!*/;
 CREATE TABLE t1 (a1 BIGINT PRIMARY KEY, a2 BIGINT, a3 BIGINT, a4 BIGINT UNSIGNED, b DOUBLE, c DECIMAL(65,10), d VARCHAR(100))
@@ -304,7 +304,7 @@ SET @`a``3`:=9223372036854775807/*!*/;
 SET @`a``4`:=18446744073709551615/*!*/;
 SET @`b```:=-1.2345601234568e+125/*!*/;
 SET @```c`:=-1234501234567890123456789012345678901234567890123456789.0123456789/*!*/;
-SET @```d```:=_latin1 X'78787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878' COLLATE `latin1_swedish_ci`/*!*/;
+SET @```d```:=_utf8mb4 X'78787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878' COLLATE `utf8mb4_uca1400_ai_ci`/*!*/;
 SET TIMESTAMP=1000000000/*!*/;
 INSERT INTO t1 VALUES (@`a``1`+1, @`a``2`*100, @`a``3`-1, @`a``4`-1, @`b```/2, @```c`, substr(@```d```, 2, 98))
 /*!*/;
@@ -392,7 +392,7 @@ SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.uniq
 SET @@session.sql_mode=1411383296/*!*/;
 SET @@session.auto_increment_increment=1, @@session.auto_increment_offset=1/*!*/;
 /*!\C latin1 *//*!*/;
-SET @@session.character_set_client=latin1,@@session.collation_connection=8,@@session.collation_server=8/*!*/;
+SET @@session.character_set_client=latin1,@@session.collation_connection=8,@@session.collation_server=2304/*!*/;
 SET @@session.lc_time_names=0/*!*/;
 SET @@session.collation_database=DEFAULT/*!*/;
 INSERT INTO t1 VALUES(1)

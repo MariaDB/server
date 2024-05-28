@@ -7,6 +7,8 @@
 ################################################################################
 
 --source include/have_binlog_format_row.inc
+--source include/test_db_charset_latin1.inc
+
 --echo #
 --echo # FULL_NODUP mode works as expected
 --echo #
@@ -33,3 +35,4 @@ SET binlog_row_image = "FULL";
 
 RESET MASTER;
 
+--source include/test_db_charset_restore.inc

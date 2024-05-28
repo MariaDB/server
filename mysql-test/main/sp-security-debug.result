@@ -1,4 +1,4 @@
-set @@global.character_set_server=@@session.character_set_server;
+set @@global.collation_server=@@session.collation_server;
 #
 # MDEV-29167: new db-level SHOW CREATE ROUTINE privilege
 #
