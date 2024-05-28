@@ -815,14 +815,11 @@ static void write_header(FILE *sql_file, const char *db_name)
         fprintf(sql_file, "/*!40103 SET TIME_ZONE='+00:00' */;\n");
       }
 
-      if (!path)
+      if (!multi_file_output)
       {
-        if (!multi_file_output)
-        {
-          /* We don't need unique checks as the table is created just before */
-          fprintf(md_result_file,
-            "/*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;\n");
-        }
+        /* We don't need unique checks as the table is created just before */
+        fprintf(md_result_file,
+          "/*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;\n");
         fprintf(md_result_file,
           "/*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;\n");
       }
