@@ -1884,7 +1884,7 @@ a
 20
 SELECT @x;
 @x
-latin1
+utf8mb4
 SET @@debug_dbug=@orig_dbug;
 
 DROP TABLE t1;

@@ -8070,10 +8070,18 @@ int spider_mbase_share::discover_table_structure(
       conn->mta_conn_mutex_unlock_later = FALSE;
       SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
       pthread_mutex_unlock(&conn->mta_conn_mutex);
+      /*
+        Use ErrConvString as db_names_str and table_names_str
+        are not necessarily 0-terminated.
+      */
       my_printf_error(ER_SPIDER_REMOTE_TABLE_NOT_FOUND_NUM,
         ER_SPIDER_REMOTE_TABLE_NOT_FOUND_STR, MYF(0),
-        db_names_str[roop_count].ptr(),
-        table_names_str[roop_count].ptr());
+        ErrConvString(db_names_str[roop_count].ptr(),
+                      db_names_str[roop_count].length(),
+                      Lex_ident_db::charset_info()).ptr(),
+        ErrConvString(table_names_str[roop_count].ptr(),
+                      table_names_str[roop_count].length(),
+                      Lex_ident_table::charset_info()).ptr());
       error_num = ER_SPIDER_REMOTE_TABLE_NOT_FOUND_NUM;
       continue;
     }

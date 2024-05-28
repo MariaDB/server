@@ -30,8 +30,8 @@ connection con1;
 SHOW VARIABLES LIKE 'collation%';
 Variable_name	Value
 collation_connection	utf8mb3_bin
-collation_database	latin1_swedish_ci
-collation_server	latin1_swedish_ci
+collation_database	utf8mb4_uca1400_ai_ci
+collation_server	utf8mb4_uca1400_ai_ci
 disconnect con1;
 connection default;
 SET global debug_dbug=@old_debug;

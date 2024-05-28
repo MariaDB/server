@@ -976,7 +976,7 @@ Security_type	DEFINER
 Comment	
 character_set_client	latin1
 collation_connection	latin1_swedish_ci
-Database Collation	latin1_swedish_ci
+Database Collation	utf8mb4_uca1400_ai_ci
 connection slave;
 SHOW PROCEDURE STATUS LIKE 'p1';
 Db	mysqltest1
@@ -989,7 +989,7 @@ Security_type	DEFINER
 Comment	
 character_set_client	latin1
 collation_connection	latin1_swedish_ci
-Database Collation	latin1_swedish_ci
+Database Collation	utf8mb4_uca1400_ai_ci
 connection master;
 
 ######## ALTER PROCEDURE p1 COMMENT "I have been altered" ########
@@ -1039,7 +1039,7 @@ Security_type	DEFINER
 Comment	I have been altered
 character_set_client	latin1
 collation_connection	latin1_swedish_ci
-Database Collation	latin1_swedish_ci
+Database Collation	utf8mb4_uca1400_ai_ci
 connection slave;
 SHOW PROCEDURE STATUS LIKE 'p1';
 Db	mysqltest1
@@ -1052,7 +1052,7 @@ Security_type	DEFINER
 Comment	I have been altered
 character_set_client	latin1
 collation_connection	latin1_swedish_ci
-Database Collation	latin1_swedish_ci
+Database Collation	utf8mb4_uca1400_ai_ci
 connection master;
 
 ######## DROP PROCEDURE p1 ########
@@ -1267,11 +1267,11 @@ TEST-INFO: SLAVE:  The INSERT is committed (Succeeded)
 connection master;
 SHOW TRIGGERS;
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
-trg1	INSERT	t1	SET @a:=1	BEFORE	#		root@localhost	latin1	latin1_swedish_ci	latin1_swedish_ci
+trg1	INSERT	t1	SET @a:=1	BEFORE	#		root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 connection slave;
 SHOW TRIGGERS;
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
-trg1	INSERT	t1	SET @a:=1	BEFORE	#		root@localhost	latin1	latin1_swedish_ci	latin1_swedish_ci
+trg1	INSERT	t1	SET @a:=1	BEFORE	#		root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 connection master;
 
 ######## DROP TRIGGER trg1 ########

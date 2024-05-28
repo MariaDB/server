@@ -239,7 +239,7 @@ set @@global.max_tmp_total_space_usage=@save_max_tmp_total_space_usage;
 
 set @save_max_tmp_total_space_usage=@@global.max_tmp_total_space_usage;
 connect(c1, localhost, root,,);
-CREATE TABLE t1 (a varchar(1024)) engine=aria;
+CREATE TABLE t1 (a varchar(1024)) engine=aria CHARSET=latin1;
 INSERT INTO t1 VALUES ('this'),('is'),('just'),('a'),('filling'),('for'),(REPEAT('a',500));
 set @@global.max_tmp_total_space_usage=2*1024*1024;
 SET max_tmp_session_space_usage= 1024*1024, max_heap_table_size= 4*1024*1024;

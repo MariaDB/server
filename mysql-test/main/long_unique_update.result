@@ -225,7 +225,7 @@ t1	CREATE TABLE `t1` (
   UNIQUE KEY `b` (`b`,`c`) USING HASH,
   UNIQUE KEY `e` (`e`,`g`) USING HASH,
   UNIQUE KEY `a` (`a`,`b`,`c`,`d`,`e`,`f`,`g`) USING HASH
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show keys from t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t1	0	PRIMARY	1	a	A	0	NULL	NULL		BTREE			NO

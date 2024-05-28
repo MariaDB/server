@@ -978,7 +978,7 @@ t1
 t2
 SHOW TRIGGERS;
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
-trg1	INSERT	t1	INSERT INTO t2 VALUES(CURRENT_USER())	AFTER	#			latin1	latin1_swedish_ci	latin1_swedish_ci
+trg1	INSERT	t1	INSERT INTO t2 VALUES(CURRENT_USER())	AFTER	#			latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 SELECT * FROM t1;
 c
 1

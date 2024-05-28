@@ -13,9 +13,9 @@
 -- along with this program; if not, write to the Free Software
 -- Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA
 
-SET NAMES latin1 COLLATE latin1_swedish_ci;
+SET NAMES utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;
 
-CREATE DATABASE IF NOT EXISTS test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
+CREATE DATABASE IF NOT EXISTS test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;
 
 --- Fill "db" table with default grants for anyone to
 --- access database 'test' and 'test_%' if "db" table didn't exist

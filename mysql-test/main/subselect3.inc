@@ -249,7 +249,7 @@ drop table t1,t2,t3,t4;
 --echo # More tests for tricky multi-column cases, where some of pushed-down
 --echo # equalities are used for index lookups and some are not.
 
-create table t1 (oref char(4), grp int, ie1 int, ie2 int);
+create table t1 (oref char(4), grp int, ie1 int, ie2 int) charset=latin1;
 insert into t1 (oref, grp, ie1, ie2) values
  ('aa', 10, 2, 1),
  ('aa', 10, 1, 1),
@@ -263,7 +263,7 @@ insert into t1 (oref, grp, ie1, ie2) values
  
  ('ff', 20, 2, 2),
  ('ff', 20, 1, 2);
-create table t2 (oref char(4), a int, b int);
+create table t2 (oref char(4), a int, b int) charset=latin1;
 insert into t2 values 
   ('ee', NULL, 1),
   ('bb', 2, 1),
@@ -285,7 +285,7 @@ select oref, a, b, (a,b) in (select ie1,ie2 from t1 where oref=t2.oref) Z from t
 drop table t1, t2;
 
 # Now test different column types:
-create table t1 (oref char(4), grp int, ie int);
+create table t1 (oref char(4), grp int, ie int) charset=latin1;
 insert into t1 (oref, grp, ie) values
  ('aa', 10, 2),
  ('aa', 10, 1),
@@ -302,7 +302,7 @@ insert into t1 (oref, grp, ie) values
  ('ff', 20, 2),
  ('ff', 20, 1);
 
-create table t2 (oref char(4), a int);
+create table t2 (oref char(4), a int) charset=latin1;
 insert into t2 values 
   ('ee', NULL),
   ('bb', 2),
@@ -450,7 +450,7 @@ select oref, a, b, (a,b) in (select ie1,ie2 from t1 where oref=t2.oref) Z from t
 
 drop table t1,t2;
 
-create table t1 (oref char(4), grp int, ie int primary key);
+create table t1 (oref char(4), grp int, ie int primary key) charset=latin1;
 insert into t1 (oref, grp, ie) values
  ('aa', 10, 2),
  ('aa', 10, 1),
@@ -461,7 +461,7 @@ insert into t1 (oref, grp, ie) values
  ('cc', 20, 5),
  ('cc', 10, 6);
  
-create table t2 (oref char(4), a int);
+create table t2 (oref char(4), a int) charset=latin1;
 insert into t2 values 
   ('ee', NULL),
   ('bb', 2),
@@ -1186,7 +1186,7 @@ create table t3 (
   idAddress int primary key,
   idContact int,
   postalStripped varchar(100)
-);
+) charset=latin1;
 
 insert into t3 values (1,1, 'foo'), (2,2,'T2H3B2');
 

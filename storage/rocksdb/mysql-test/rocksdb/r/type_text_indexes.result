@@ -7,7 +7,7 @@ tt TINYTEXT,
 m MEDIUMTEXT,
 l LONGTEXT,
 PRIMARY KEY t (t(32))
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 Warnings:
 Warning	1280	Name 't' ignored for PRIMARY key.
 SHOW INDEX IN t1;
@@ -46,7 +46,7 @@ m MEDIUMTEXT,
 l LONGTEXT,
 pk TINYTEXT PRIMARY KEY,
 UNIQUE INDEX l_tt (l(256),tt(64))
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 ERROR 42000: BLOB/TEXT column 'pk' used in key specification without a key length
 CREATE TABLE t1 (
 t TEXT,
@@ -56,7 +56,7 @@ l LONGTEXT,
 pk MEDIUMTEXT,
 PRIMARY KEY mt (pk(1)),
 INDEX (m(128))
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 Warnings:
 Warning	1280	Name 'mt' ignored for PRIMARY key.
 SHOW INDEX IN t1;
@@ -83,7 +83,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (
 b TEXT,
 PRIMARY KEY b (b(32))
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 Warnings:
 Warning	1280	Name 'b' ignored for PRIMARY key.
 INSERT INTO t1 (b) VALUES
@@ -99,7 +99,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (
 b TINYTEXT,
 PRIMARY KEY b (b(32))
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 Warnings:
 Warning	1280	Name 'b' ignored for PRIMARY key.
 INSERT INTO t1 (b) VALUES
@@ -115,7 +115,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (
 b MEDIUMTEXT,
 PRIMARY KEY b (b(32))
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 Warnings:
 Warning	1280	Name 'b' ignored for PRIMARY key.
 INSERT INTO t1 (b) VALUES
@@ -131,7 +131,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (
 b LONGTEXT,
 PRIMARY KEY b (b(32))
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 Warnings:
 Warning	1280	Name 'b' ignored for PRIMARY key.
 INSERT INTO t1 (b) VALUES
@@ -147,7 +147,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (
 b LONGTEXT CHARACTER SET "binary" COLLATE "binary",
 PRIMARY KEY b (b(32))
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 Warnings:
 Warning	1280	Name 'b' ignored for PRIMARY key.
 INSERT INTO t1 (b) VALUES
@@ -167,7 +167,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (
 b LONGTEXT CHARACTER SET "latin1" COLLATE "latin1_bin",
 PRIMARY KEY b (b(32))
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 Warnings:
 Warning	1280	Name 'b' ignored for PRIMARY key.
 INSERT INTO t1 (b) VALUES (''), (_binary 0x0), (' ');

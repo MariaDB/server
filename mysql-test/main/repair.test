@@ -22,7 +22,7 @@ drop table t1;
 #
 # disabled keys during repair
 #
-create table t1(id int PRIMARY KEY, st varchar(10), KEY st_key(st));
+create table t1(id int PRIMARY KEY, st varchar(10), KEY st_key(st)) CHARSET=latin1;
 insert into t1 values(1, "One");
 alter table t1 disable keys;
 show keys from t1;
@@ -66,7 +66,7 @@ DROP TABLE t1;
 #
 # BUG#23175 - MYISAM crash/repair failed during repair
 #
-CREATE TABLE t1(a CHAR(255), KEY(a));
+CREATE TABLE t1(a CHAR(255), KEY(a)) CHARSET=latin1;
 SET myisam_sort_buffer_size=4096;
 --replace_regex /Current myisam_sort_buffer_size.*/X/
 INSERT INTO t1 VALUES
@@ -97,7 +97,7 @@ DROP TABLE t1;
 # BUG#31174 - "Repair" command on MyISAM crashes with small 
 #              myisam_sort_buffer_size
 #
-CREATE TABLE t1(a CHAR(255), KEY(a));
+CREATE TABLE t1(a CHAR(255), KEY(a)) CHARSET=latin1;
 SET myisam_sort_buffer_size=4496;
 INSERT INTO t1 VALUES
 ('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),
@@ -214,8 +214,8 @@ drop tables t1, t2;
 --echo # Test with a saved table from 3.23
 let $MYSQLD_DATADIR= `select @@datadir`;
 
-SET @save_global_character_set_server= @@global.character_set_server;
-set @@global.character_set_server=@@character_set_server;
+SET @save_global_collation_server= @@global.collation_server;
+set @@global.collation_server=@@collation_server;
 --copy_file std_data/host_old.frm $MYSQLD_DATADIR/test/t1.frm
 --copy_file std_data/host_old.MYD $MYSQLD_DATADIR/test/t1.MYD
 --copy_file std_data/host_old.MYI $MYSQLD_DATADIR/test/t1.MYI
@@ -231,7 +231,7 @@ alter table t1 force;
 check table t1;
 drop table t1;
 
-set @@global.character_set_server=@save_global_character_set_server;
+set @@global.collation_server=@save_global_collation_server;
 
 #
 # MDEV-8115 mysql_upgrade crashes the server with REPAIR VIEW

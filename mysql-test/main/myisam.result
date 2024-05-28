@@ -1,5 +1,6 @@
 call mtr.add_suppression("Can't find record in '.*'");
 call mtr.add_suppression("Table 't1' is marked as crashed and should be repaired");
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 CREATE TABLE t1 (
 STRING_DATA char(255) default NULL,
 KEY string_data (STRING_DATA)
@@ -2855,3 +2856,4 @@ DROP TABLE t1, t2, t3, t4;
 #
 # End of 11.0 tests
 #
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

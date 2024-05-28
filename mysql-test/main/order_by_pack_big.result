@@ -71,7 +71,7 @@ id INT NOT NULL,
 names VARCHAR(64),
 address VARCHAR(128),
 PRIMARY KEY (id)
-);
+) CHARSET=latin1;
 #
 # table t3 stores random strings calculated from the length stored in
 # table t2

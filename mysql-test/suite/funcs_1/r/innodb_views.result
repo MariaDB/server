@@ -1,3 +1,4 @@
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 USE test;
 drop table if exists tb2 ;
 create table tb2 (
@@ -22917,3 +22918,4 @@ DROP DATABASE IF EXISTS test2;
 DROP DATABASE IF EXISTS test3;
 DROP DATABASE test1;
 DROP TABLE test.tb2;
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

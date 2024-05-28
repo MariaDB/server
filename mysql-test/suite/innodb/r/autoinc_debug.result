@@ -16,7 +16,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 # restart
 # SETTING auto_increment_increment IN CONNECTION1
 SET AUTO_INCREMENT_INCREMENT = 2;
@@ -37,7 +37,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SET DEBUG_SYNC= 'now SIGNAL opened1';
 connection con1;
 SELECT * FROM t1;
@@ -50,7 +50,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 connection default;
 disconnect con1;
 DROP TABLE t1;
@@ -66,7 +66,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SET DEBUG_SYNC = 'now SIGNAL flushed';
 connect con1, localhost, root,,;
 # SETTING auto_increment_increment in connection1
@@ -88,7 +88,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SET DEBUG_SYNC= 'now SIGNAL opened1';
 disconnect con1;
 connection default;
@@ -102,7 +102,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 SET DEBUG_SYNC='RESET';
 #

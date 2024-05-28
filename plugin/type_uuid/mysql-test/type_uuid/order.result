@@ -148,7 +148,7 @@ t1	CREATE TABLE `t1` (
   `a` uuid DEFAULT NULL,
   `b` int(11) NOT NULL,
   KEY `a` (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 # now let's use the table as above, but created in 10.11.4
 select * from t2 order by b;
 a	b

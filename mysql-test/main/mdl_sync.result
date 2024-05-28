@@ -2684,11 +2684,11 @@ connection default;
 SET DEBUG_SYNC= "now WAIT_FOR waiting";
 SHOW FULL COLUMNS FROM t1;
 Field	Type	Collation	Null	Key	Default	Extra	Privileges	Comment
-a	char(255)	latin1_swedish_ci	YES		NULL		#	
+a	char(255)	utf8mb4_uca1400_ai_ci	YES		NULL		#	
 SET DEBUG_SYNC= "now SIGNAL completed";
 connection con1;
 Field	Type	Collation	Null	Key	Default	Extra	Privileges	Comment
-a	char(255)	latin1_swedish_ci	YES		NULL		#	
+a	char(255)	utf8mb4_uca1400_ai_ci	YES		NULL		#	
 connection default;
 DROP TABLE t1;
 disconnect con1;

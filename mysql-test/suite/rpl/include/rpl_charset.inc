@@ -144,5 +144,14 @@ sync_slave_with_master;
 --echo # End of 10.3 tests
 --echo #
 
+# The above tests change global and session @@collation_server
+# Restore them back to avoid internal check failures.
+
+connection master;
+SET GLOBAL collation_server=utf8mb4_uca1400_ai_ci;
+SET SESSION collation_server=utf8mb4_uca1400_ai_ci;
+connection slave;
+SET GLOBAL collation_server=utf8mb4_uca1400_ai_ci;
+SET SESSION collation_server=utf8mb4_uca1400_ai_ci;
 
 --source include/rpl_end.inc

@@ -572,7 +572,7 @@ t1	CREATE TABLE `t1` (
   `b` varchar(50) CHARACTER SET ucs2 COLLATE ucs2_unicode_520_nopad_ci DEFAULT NULL,
   KEY `a` (`a`),
   KEY `b` (`b`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('111', '111');
 INSERT INTO t1 VALUES ('222', '222');
 INSERT INTO t1 VALUES ('333', '333');

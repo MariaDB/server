@@ -1,4 +1,5 @@
-SET @@global.character_set_server= @@session.character_set_server;
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
+SET @@global.collation_server= @@session.collation_server;
 set @@sql_mode="STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION";
 drop table if exists t1,t2;
 drop table if exists t1aa,t2aa;
@@ -523,7 +524,7 @@ drop table t1, t2, t3;
 create database mysqltest;
 show create database mysqltest;
 Database	Create Database
-mysqltest	CREATE DATABASE `mysqltest` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */
+mysqltest	CREATE DATABASE `mysqltest` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci */
 create table mysqltest.t1(a int);
 insert into mysqltest.t1 values(1);
 create user mysqltest_1@localhost;
@@ -539,7 +540,7 @@ a
 1
 show create database mysqltest;
 Database	Create Database
-mysqltest	CREATE DATABASE `mysqltest` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */
+mysqltest	CREATE DATABASE `mysqltest` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci */
 drop table t1;
 ERROR 42000: DROP command denied to user 'mysqltest_1'@'localhost' for table `mysqltest`.`t1`
 drop database mysqltest;
@@ -562,7 +563,7 @@ select * from mysqltest.t1;
 ERROR 42000: SELECT command denied to user 'mysqltest_3'@'localhost' for table `mysqltest`.`t1`
 show create database mysqltest;
 Database	Create Database
-mysqltest	CREATE DATABASE `mysqltest` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */
+mysqltest	CREATE DATABASE `mysqltest` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci */
 drop table mysqltest.t1;
 drop database mysqltest;
 disconnect con3;
@@ -898,9 +899,9 @@ latin1_bin	latin1	47		Yes	1
 SHOW CREATE DATABASE mysqltest1;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
 def					Database	253	192	10	N	1	39	33
-def					Create Database	253	3072	95	N	1	39	33
+def					Create Database	253	3072	100	N	1	39	33
 Database	Create Database
-mysqltest1	CREATE DATABASE `mysqltest1` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */
+mysqltest1	CREATE DATABASE `mysqltest1` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci */
 ----------------------------------------------------------------
 SHOW DATABASES LIKE 'mysqltest1';
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
@@ -1286,7 +1287,7 @@ SHOW AUTHORS;
 create database mysqltest;
 show create database mysqltest;
 Database	Create Database
-mysqltest	CREATE DATABASE `mysqltest` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */
+mysqltest	CREATE DATABASE `mysqltest` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci */
 create table mysqltest.t1(a int);
 insert into mysqltest.t1 values(1);
 create user mysqltest_4@localhost;
@@ -1295,7 +1296,7 @@ connect  con4,localhost,mysqltest_4,,mysqltest;
 connection con4;
 show create database mysqltest;
 Database	Create Database
-mysqltest	CREATE DATABASE `mysqltest` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */
+mysqltest	CREATE DATABASE `mysqltest` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci */
 disconnect con4;
 connection default;
 delete from mysql.user where user='mysqltest_4';
@@ -1350,7 +1351,7 @@ CREATE DATABASE `ä`;
 CREATE TABLE `ä`.`ä` (a int) ENGINE=Memory;
 SHOW TABLE STATUS FROM `ä` LIKE 'ä';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-ä	MEMORY	10	Fixed	0	#	#	#	#	0	NULL	#	NULL	NULL	latin1_swedish_ci	NULL			0	N
+ä	MEMORY	10	Fixed	0	#	#	#	#	0	NULL	#	NULL	NULL	utf8mb4_uca1400_ai_ci	NULL			0	N
 DROP DATABASE `ä`;
 show columns from `#mysql50#????????`;
 Got one of the listed errors
@@ -1587,4 +1588,5 @@ Level	Code	Message
 SHOW CONTRIBUTORS;
 SHOW WARNINGS;
 Level	Code	Message
-SET @@global.character_set_server=@save_character_set_server;
+SET @@global.collation_server=@save_collation_server;
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

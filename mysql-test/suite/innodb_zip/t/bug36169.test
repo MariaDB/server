@@ -4,6 +4,7 @@
 #
 
 -- source include/innodb_page_size_small.inc
+--source include/test_db_charset_latin1.inc
 
 #
 # The following is copied from http://bugs.mysql.com/36169
@@ -1154,3 +1155,5 @@ DROP TABLE IF EXISTS table4;
 DROP TABLE IF EXISTS table5;
 -- enable_query_log
 DROP TABLE IF EXISTS table6;
+
+--source include/test_db_charset_restore.inc
