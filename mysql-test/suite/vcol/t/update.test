@@ -4,7 +4,7 @@
 # stored column depends on virtual column depends on updated column.
 # this tests TABLE::mark_virtual_columns_for_write()
 #
-create table t1 (a int, b int as (a+1), c int as (b+1) stored);
+create table t1 (a int, b int as (a+1), c int as (b+1) stored) charset=latin1;
 insert t1 set a=1;
 select * from t1;
 update t1 set a=2;
@@ -14,7 +14,7 @@ drop table t1;
 # one keypart is virtual, the other keypart is updated
 # this tests TABLE::mark_columns_needed_for_update()
 #
-create table t1 (a int, c int as(a), p varchar(20) as(rtrim(y)), y char(20), index (p,c));
+create table t1 (a int, c int as(a), p varchar(20) as(rtrim(y)), y char(20), index (p,c)) charset=latin1;
 show create table t1;
 insert into t1 (a,y) values(1, "yyy");
 update t1 set a = 100 where a = 1;
@@ -31,7 +31,7 @@ create table t1 (
   d varchar(5000) generated always as (b) virtual,
   e int(11) generated always as (10) virtual,
   h int(11) not null primary key,
-  index(c(100), d(20)));
+  index(c(100), d(20))) charset=latin1;
 insert t1 (a,b,h) values (repeat('g', 10000), repeat('x', 2800), 1);
 update t1 set a = repeat(cast(1 as char), 2000);
 drop table t1;
@@ -44,7 +44,7 @@ create table t1 (
   d varchar(5000) generated always as (i) virtual,
   e int(11) generated always as (10) virtual,
   h int(11) not null primary key,
-  index(c(100), d(20)));
+  index(c(100), d(20))) charset=latin1;
 insert t1 (a,b,h) values (repeat('g', 10000), repeat('x', 2800), 1);
 update t1 set a = repeat(cast(1 as char), 2000);
 drop table t1;

@@ -1,3 +1,4 @@
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7,t8,t9,t10,t11;
 DROP DATABASE IF EXISTS world;
 set @org_optimizer_switch=@@optimizer_switch;
@@ -17,7 +18,7 @@ set @innodb_stats_persistent_sample_pages_save=
 set global innodb_stats_persistent= 1;
 set global innodb_stats_persistent_sample_pages=100;
 set names utf8;
-CREATE DATABASE world;
+CREATE DATABASE world CHARACTER SET latin1;
 use world;
 CREATE TABLE Country (
 Code char(3) NOT NULL default '',
@@ -820,7 +821,7 @@ Lázaro Cárdenas	Mexico	Spanish
 set join_cache_level=@save_join_cache_level;
 set join_buffer_size=@save_join_buffer_size;
 DROP DATABASE world;
-CREATE DATABASE world;
+CREATE DATABASE world CHARACTER SET latin1;
 use world;
 CREATE TABLE Country (
 Code char(3) NOT NULL default '',
@@ -6488,3 +6489,4 @@ DROP TABLE t1,t2,t3;
 #
 # End of 10.4 tests
 #
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

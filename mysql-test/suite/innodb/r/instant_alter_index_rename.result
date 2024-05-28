@@ -153,7 +153,7 @@ Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL,
   UNIQUE KEY `a_key` (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci STATS_PERSISTENT=1
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci STATS_PERSISTENT=1
 drop table t;
 create table rename_column_and_index (
 a int,
@@ -170,7 +170,7 @@ Table	Create Table
 rename_column_and_index	CREATE TABLE `rename_column_and_index` (
   `aa` int(11) DEFAULT NULL,
   UNIQUE KEY `aa_key` (`aa`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 check table rename_column_and_index;
 Table	Op	Msg_type	Msg_text
 test.rename_column_and_index	check	status	OK

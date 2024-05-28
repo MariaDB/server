@@ -14,8 +14,10 @@
 
 --source include/not_embedded.inc
 --source include/default_charset.inc
+--source include/test_db_charset_latin1.inc
 
 --enable_prepare_warnings
+
 
 let $engine_type= MyISAM;
 SET @@session.sql_mode = 'NO_ENGINE_SUBSTITUTION';
@@ -28,3 +30,4 @@ let $my_where = WHERE table_schema LIKE 'test%';
 --disable_prepare_warnings
 
 --source suite/funcs_1/include/cleanup.inc
+--source include/test_db_charset_restore.inc

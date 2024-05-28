@@ -17,7 +17,7 @@ DROP TABLE IF EXISTS t1;
 --echo # $col_type NOT NULL columns without a default
 --echo #----------------------------------
 
-eval CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY, c $col_type NOT NULL) ENGINE=rocksdb;
+eval CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY, c $col_type NOT NULL) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 
 --error ER_BAD_NULL_ERROR
@@ -34,7 +34,7 @@ DROP TABLE t1;
 eval CREATE TABLE t1 (
   pk INT AUTO_INCREMENT PRIMARY KEY,
   c $col_type NOT NULL DEFAULT $col_default
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 
 SHOW COLUMNS IN t1;
 

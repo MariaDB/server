@@ -1,5 +1,9 @@
 -- source include/have_compress.inc
 -- source include/have_normal_zlib.inc
+
+--source include/test_db_charset_latin1.inc
+
+
 #
 # Test for compress and uncompress functions:
 #
@@ -198,3 +202,5 @@ select 'foo' in (cast(compress('bar') as char(4)), 'qux');
 --echo #
 --echo # End of 10.2 tests
 --echo #
+
+--source include/test_db_charset_restore.inc

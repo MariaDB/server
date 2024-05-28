@@ -1,5 +1,5 @@
---- /home/alice/git/10.3/mysql-test/suite/engines/funcs/r/rpl_sp,myisam,mix.result~
-+++ /home/alice/git/10.3/mysql-test/suite/engines/funcs/r/rpl_sp,myisam,mix.reject
+--- rpl_sp.result	2024-06-02 12:49:36.425852985 +0400
++++ rpl_sp,myisam,mix.reject	2024-06-02 13:14:01.023420644 +0400
 @@ -126,12 +126,15 @@
  show warnings;
  Level	Code	Message
@@ -55,7 +55,7 @@
 +100
  connection con1;
  create trigger trg before insert on t1 for each row set new.a= 10;
- ERROR 42000: TRIGGER command denied to user 'zedjzlcsjhd'@'localhost' for table 't1'
+ ERROR 42000: TRIGGER command denied to user 'zedjzlcsjhd'@'localhost' for table `mysqltest1`.`t1`
 @@ -472,13 +476,13 @@
  end
  master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
@@ -193,7 +193,7 @@
 @@ -663,7 +676,7 @@
  INSERT INTO t1 VALUES(arg)
  master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
- master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t1 VALUES( NAME_CONST('arg',_latin1'test' COLLATE 'latin1_swedish_ci'))
+ master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t1 VALUES( NAME_CONST('arg',_utf8mb4'test' COLLATE 'utf8mb4_uca1400_ai_ci'))
 -master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 +master-bin.000001	#	Query	#	#	COMMIT
  master-bin.000001	#	Gtid	#	#	GTID #-#-#
@@ -446,7 +446,7 @@
  /*!*/;
 @@ -1106,7 +1181,9 @@
  SET TIMESTAMP=t/*!*/;
- INSERT INTO t1 VALUES( NAME_CONST('arg',_latin1'test' COLLATE 'latin1_swedish_ci'))
+ INSERT INTO t1 VALUES( NAME_CONST('arg',_utf8mb4'test' COLLATE 'utf8mb4_uca1400_ai_ci'))
  /*!*/;
 -COMMIT/*!*/;
 +SET TIMESTAMP=t/*!*/;

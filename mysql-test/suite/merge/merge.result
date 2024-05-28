@@ -1,3 +1,4 @@
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 set @save_default_storage_engine=@@global.default_storage_engine;
 set global default_storage_engine=myisam;
 set session default_storage_engine=myisam;
@@ -185,7 +186,7 @@ ERROR HY000: Unable to open underlying table which is differently defined or of 
 flush tables;
 select * from t4;
 ERROR HY000: Unable to open underlying table which is differently defined or of non-MyISAM type or doesn't exist
-create database mysqltest;
+create database mysqltest character set latin1;
 create table mysqltest.t6 (a int not null primary key auto_increment, message char(20));
 create table t5 (a int not null, b char(20), key(a)) engine=MERGE UNION=(test.t1,mysqltest.t6);
 show create table t5;
@@ -2312,7 +2313,7 @@ SHOW CREATE TABLE `test/1`.m1;
 Table	Create Table
 m1	CREATE TABLE `m1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MRG_MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci UNION=(`t/1`)
+) ENGINE=MRG_MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci UNION=(`t/1`)
 DROP TABLE `test/1`.m1;
 DROP TABLE `test/1`.`t/1`;
 CREATE TEMPORARY TABLE `test/1`.`t/1`(a INT);
@@ -2332,7 +2333,7 @@ SHOW CREATE TABLE `test/1`.m1;
 Table	Create Table
 m1	CREATE TEMPORARY TABLE `m1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MRG_MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci UNION=(`t/1`)
+) ENGINE=MRG_MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci UNION=(`t/1`)
 DROP TABLE `test/1`.m1;
 DROP TABLE `test/1`.`t/1`;
 DROP DATABASE `test/1`;
@@ -4002,3 +4003,4 @@ UPDATE v1 SET a=0;
 DROP VIEW v1;
 DROP TABLE t1;
 # End of 11.1 tests
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

@@ -1,5 +1,5 @@
 DROP DATABASE IF EXISTS dbt3_s001;
-CREATE DATABASE dbt3_s001;
+CREATE DATABASE dbt3_s001 CHARACTER SET latin1;
 use dbt3_s001;
 create index i_n_name on nation(n_name);
 analyze table

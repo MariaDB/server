@@ -225,7 +225,7 @@ t1	CREATE TABLE `t1` (
   KEY `t1f3` (`h`(767)),
   KEY `t1f4` (`i`(767)),
   KEY `t1f5` (`j`(767))
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci ROW_FORMAT=DYNAMIC
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci ROW_FORMAT=DYNAMIC
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
@@ -289,5 +289,5 @@ t2	CREATE TABLE `t2` (
   KEY `t1f1` (`f`(767)),
   KEY `t1f2` (`g`(767)),
   KEY `t1f3` (`h`(767))
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci ROW_FORMAT=COMPACT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci ROW_FORMAT=COMPACT
 drop table t1,t2;

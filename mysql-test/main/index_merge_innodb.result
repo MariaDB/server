@@ -263,7 +263,7 @@ t1	CREATE TABLE `t1` (
   PRIMARY KEY (`t_cpac`,`t_vers`,`t_rele`,`t_cust`),
   UNIQUE KEY `IX_4` (`t_cust`,`t_cpac`,`t_vers`,`t_rele`),
   KEY `IX_5` (`t_vers`,`t_rele`,`t_cust`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 select t_vers,t_rele,t_cust,filler1 from t1 where t_vers = '7.6';
 t_vers	t_rele	t_cust	filler1
 7.6 	a 	    	
@@ -642,10 +642,10 @@ drop table t1;
 #
 # Bug#50402 Optimizer producing wrong results when using Index Merge on InnoDB
 #
-CREATE TABLE t1 (f1 INT, PRIMARY KEY (f1));
+CREATE TABLE t1 (f1 INT, PRIMARY KEY (f1)) CHARSET=latin1;
 INSERT INTO t1 VALUES (2);
 CREATE TABLE t2 (f1 INT, f2 INT, f3 char(1),
-PRIMARY KEY (f1), KEY (f2), KEY (f3) );
+PRIMARY KEY (f1), KEY (f2), KEY (f3)) CHARSET=latin1;
 INSERT INTO t2 VALUES (1, 1, 'h'), (2, 3, 'h'), (3, 2, ''), (4, 2, '');
 SELECT t1.f1 FROM t1
 WHERE (SELECT COUNT(*) FROM t2 WHERE t2.f3 = 'h' AND t2.f2 = t1.f1) = 0 AND t1.f1 = 2;

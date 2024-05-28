@@ -3,6 +3,7 @@ set @save_optimizer_switch_for_selectivity_test=@@optimizer_switch;
 set optimizer_switch='extended_keys=on';
 SET @save_stats_persistent=@@GLOBAL.innodb_stats_persistent;
 SET GLOBAL innodb_stats_persistent=0;
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 drop table if exists t0,t1,t2,t3;
 select @@global.use_stat_tables;
 @@global.use_stat_tables
@@ -45,7 +46,7 @@ Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` i
 drop table t1;
 set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
 DROP DATABASE IF EXISTS dbt3_s001;
-CREATE DATABASE dbt3_s001;
+CREATE DATABASE dbt3_s001 CHARACTER SET latin1;
 use dbt3_s001;
 === Q2 ===
 set optimizer_use_condition_selectivity=5;
@@ -1480,13 +1481,13 @@ set use_stat_tables=@save_use_stat_tables;
 #
 set use_stat_tables='preferably';
 set optimizer_use_condition_selectivity=3;
-create table t1(col1 char(32));
+create table t1(col1 char(32)) charset=latin1;
 insert into t1 values ('a'),('b'),('c'),('d'), ('e'),('f'),('g'),('h');
 analyze table t1;
 Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
-create table t2(col1 text);
+create table t2(col1 text) charset=latin1;
 insert into t2 values ('a'),('b'),('c'),('d'), ('e'),('f'),('g'),('h');
 analyze table t2;
 Table	Op	Msg_type	Msg_text
@@ -1704,7 +1705,7 @@ set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivit
 #
 set @@optimizer_use_condition_selectivity=2;
 set names utf8;
-CREATE DATABASE world;
+CREATE DATABASE world CHARACTER SET latin1;
 use world;
 CREATE TABLE Country (
 Code char(3) NOT NULL default '',
@@ -2120,6 +2121,7 @@ a	b	c	d	e
 2	NULL	NULL	NULL	NULL
 set join_cache_level= default;
 DROP TABLE t1, t2, t3;
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;
 set optimizer_switch=@save_optimizer_switch_for_selectivity_test;
 set @tmp_ust= @@use_stat_tables;
 set @tmp_oucs= @@optimizer_use_condition_selectivity;
@@ -2210,7 +2212,7 @@ drop table t1,t2,t3;
 #
 set use_stat_tables = preferably;
 set optimizer_use_condition_selectivity=3;
-CREATE TABLE t1 (f1 char(32)) ENGINE=InnoDB;
+CREATE TABLE t1 (f1 char(32)) ENGINE=InnoDB CHARSET=latin1;
 INSERT INTO t1 VALUES ('foo'),('bar'),('qux');
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text

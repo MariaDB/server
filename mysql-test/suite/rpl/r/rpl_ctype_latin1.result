@@ -25,7 +25,7 @@ hex(table_name)
 76C391E28098
 SHOW PROCEDURE STATUS WHERE Name LIKE 'p%' and Db = 'test';
 Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
-test	pё	PROCEDURE	root@localhost	ts	ts	DEFINER		latin1	latin1_swedish_ci	latin1_swedish_ci
+test	pё	PROCEDURE	root@localhost	ts	ts	DEFINER		latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 connection master;
 DROP TABLE `tё`;
 DROP VIEW `vё`;

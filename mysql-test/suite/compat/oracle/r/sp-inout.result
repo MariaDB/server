@@ -35,7 +35,7 @@ Package	sql_mode	Create Package	character_set_client	collation_connection	Databa
 pkg2	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	CREATE DEFINER="root"@"localhost" PACKAGE "pkg2" AS
 PROCEDURE proc_main(a IN INT, b IN INT, c INOUT INT, d OUT INT);
 FUNCTION func_sub(d OUT INT, a IN INT, b IN INT, c INOUT INT) RETURN INT;
-END	latin1	latin1_swedish_ci	latin1_swedish_ci
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 SHOW CREATE PACKAGE BODY pkg2;
 Package body	sql_mode	Create Package Body	character_set_client	collation_connection	Database Collation
 pkg2	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	CREATE DEFINER="root"@"localhost" PACKAGE BODY "pkg2" AS
@@ -53,7 +53,7 @@ c := c + 6;
 d := 10;
 RETURN a - b;
 END;
-END	latin1	latin1_swedish_ci	latin1_swedish_ci
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 DROP PACKAGE pkg2;
 # 
 # CREATE FUNCTION with IN, OUT, INOUT qualifiers
@@ -75,7 +75,7 @@ BEGIN
 c := 100;
 d := d + 1;
 RETURN a + b;
-END	latin1	latin1_swedish_ci	latin1_swedish_ci
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 DROP FUNCTION add_func;
 # 
 # CREATE PROCEDURE with IN, OUT, INOUT qualifiers
@@ -93,7 +93,7 @@ add_proc	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE
 AS
 BEGIN
 d := a + b + c + d;
-END	latin1	latin1_swedish_ci	latin1_swedish_ci
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 DROP PROCEDURE add_proc;
 # 
 # Call function from SELECT query

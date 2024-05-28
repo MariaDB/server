@@ -3,6 +3,8 @@ Warnings:
 Note	1051	Unknown table 'test.t1,test.t2'
 create table t1 (id int(10) unsigned not null auto_increment primary key, v varchar(2000), b blob) row_format=page max_rows=2 engine=aria;
 create table t2 (id int(10) unsigned not null auto_increment primary key, v varchar(2000), b blob, key(v)) row_format=page max_rows=20000000 engine=aria;
+Warnings:
+Note	1071	Specified key was too long; max key length is 2300 bytes
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -10,7 +12,7 @@ t1	CREATE TABLE `t1` (
   `v` varchar(2000) DEFAULT NULL,
   `b` blob DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci MAX_ROWS=2 PAGE_CHECKSUM=1 ROW_FORMAT=PAGE
+) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci MAX_ROWS=2 PAGE_CHECKSUM=1 ROW_FORMAT=PAGE
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
@@ -18,13 +20,13 @@ t2	CREATE TABLE `t2` (
   `v` varchar(2000) DEFAULT NULL,
   `b` blob DEFAULT NULL,
   PRIMARY KEY (`id`),
-  KEY `v` (`v`)
-) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci MAX_ROWS=20000000 PAGE_CHECKSUM=1 ROW_FORMAT=PAGE
+  KEY `v` (`v`(575))
+) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci MAX_ROWS=20000000 PAGE_CHECKSUM=1 ROW_FORMAT=PAGE
 lock tables t1 write,t2 write;
 show table status like "t_";
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	Aria	10	Page	0	0	8192	268320768	8192	0	1	#	#	#	latin1_swedish_ci	NULL	max_rows=2 row_format=PAGE transactional=1		536862720	N
-t2	Aria	10	Page	0	0	8192	17592186011648	8192	0	1	#	#	#	latin1_swedish_ci	NULL	max_rows=20000000 row_format=PAGE transactional=1		137438945280	N
+t1	Aria	10	Page	0	0	8192	268320768	8192	0	1	#	#	#	utf8mb4_uca1400_ai_ci	NULL	max_rows=2 row_format=PAGE transactional=1		536862720	N
+t2	Aria	10	Page	0	0	8192	17592186011648	8192	0	1	#	#	#	utf8mb4_uca1400_ai_ci	NULL	max_rows=20000000 row_format=PAGE transactional=1		35184372080640	N
 insert into t1 values(null, repeat("ab",100),repeat("def",1000));
 insert into t1 values(null, repeat("de",200),repeat("ghi",2000));
 insert into t1 values(null, repeat("fe",300),repeat("ghi",3000));
@@ -79,7 +81,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(10) unsigned DEFAULT NULL,
   `c2` char(80) DEFAULT NULL
-) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci MIN_ROWS=1000000 PAGE_CHECKSUM=1 ROW_FORMAT=FIXED
+) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci MIN_ROWS=1000000 PAGE_CHECKSUM=1 ROW_FORMAT=FIXED
 insert into t1 select seq,seq from seq_1_to_100000;
 create or replace table t1 (
 c1 int unsigned,
@@ -90,7 +92,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(10) unsigned DEFAULT NULL,
   `c2` char(80) DEFAULT NULL
-) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 ROW_FORMAT=FIXED
+) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 ROW_FORMAT=FIXED
 insert into t1 select seq,seq from seq_1_to_100000;
 create or replace table t1 (
 c1 int unsigned,
@@ -101,7 +103,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(10) unsigned DEFAULT NULL,
   `c2` char(80) DEFAULT NULL
-) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 ROW_FORMAT=PAGE TRANSACTIONAL=0
+) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 ROW_FORMAT=PAGE TRANSACTIONAL=0
 insert into t1 select seq,seq from seq_1_to_100000;
 create or replace table t1 (
 c1 int unsigned,
@@ -112,7 +114,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(10) unsigned DEFAULT NULL,
   `c2` char(80) DEFAULT NULL
-) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci MAX_ROWS=10 PAGE_CHECKSUM=1 ROW_FORMAT=FIXED
+) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci MAX_ROWS=10 PAGE_CHECKSUM=1 ROW_FORMAT=FIXED
 insert into t1 select seq,seq from seq_1_to_100000;
 ERROR HY000: The table 't1' is full
 select count(*) from t1;
@@ -127,7 +129,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(10) unsigned DEFAULT NULL,
   `c2` char(80) DEFAULT NULL
-) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci MAX_ROWS=10 PAGE_CHECKSUM=1 ROW_FORMAT=DYNAMIC
+) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci MAX_ROWS=10 PAGE_CHECKSUM=1 ROW_FORMAT=DYNAMIC
 insert into t1 select seq,seq from seq_1_to_100000;
 ERROR HY000: The table 't1' is full
 select count(*) from t1;
@@ -146,7 +148,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(10) unsigned DEFAULT NULL,
   `c2` char(80) DEFAULT NULL
-) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci MAX_ROWS=10 PAGE_CHECKSUM=1 ROW_FORMAT=PAGE
+) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci MAX_ROWS=10 PAGE_CHECKSUM=1 ROW_FORMAT=PAGE
 insert into t1 select seq,seq from seq_1_to_100000;
 select count(*) from t1;
 count(*)
@@ -164,7 +166,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(10) unsigned DEFAULT NULL,
   `c2` char(80) DEFAULT NULL
-) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci MAX_ROWS=10 PAGE_CHECKSUM=1 ROW_FORMAT=PAGE
+) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci MAX_ROWS=10 PAGE_CHECKSUM=1 ROW_FORMAT=PAGE
 insert into t1 select seq,seq from seq_1_to_10000000;
 ERROR HY000: The table 't1' is full
 select count(*) from t1;
@@ -176,9 +178,9 @@ test.t1	check	warning	Datafile is almost full,  268320768 of  268320768 used
 test.t1	check	status	OK
 show table status like "t1";
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	Aria	10	Page	6189940	43	268320768	268320768	8192	0	NULL	#	#	#	latin1_swedish_ci	NULL	max_rows=10 row_format=PAGE transactional=1		137438945280	N
+t1	Aria	10	Page	6189940	43	268320768	268320768	8192	0	NULL	#	#	#	utf8mb4_uca1400_ai_ci	NULL	max_rows=10 row_format=PAGE transactional=1		137438945280	N
 create index seq on t1(c1);
 show table status like "t1";
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	Aria	10	Page	6189940	43	268320768	268320768	49750016	0	NULL	#	#	#	latin1_swedish_ci	NULL	max_rows=10 page_checksum=1 row_format=PAGE transactional=1		536862720	N
+t1	Aria	10	Page	6189940	43	268320768	268320768	49750016	0	NULL	#	#	#	utf8mb4_uca1400_ai_ci	NULL	max_rows=10 page_checksum=1 row_format=PAGE transactional=1		536862720	N
 drop table t1;

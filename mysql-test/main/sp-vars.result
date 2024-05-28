@@ -5,6 +5,7 @@ DROP FUNCTION IF EXISTS sp_vars_check_ret2;
 DROP FUNCTION IF EXISTS sp_vars_check_ret3;
 DROP FUNCTION IF EXISTS sp_vars_check_ret4;
 DROP FUNCTION IF EXISTS sp_vars_div_zero;
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 SET @@sql_mode = 'ansi';
 CREATE PROCEDURE sp_vars_check_dflt()
 BEGIN
@@ -1171,7 +1172,7 @@ SET j= 1 + i;
 END|
 CALL ctest();
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'string          '
+Warning	1292	Truncated incorrect DOUBLE value: 'string'
 DROP PROCEDURE ctest;
 CREATE PROCEDURE vctest()
 BEGIN
@@ -1713,3 +1714,4 @@ ERROR 42000: Undeclared variable: unknown_ident
 #
 # End of MDEV-14347 CREATE PROCEDURE returns no error when using an unknown variable
 #
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

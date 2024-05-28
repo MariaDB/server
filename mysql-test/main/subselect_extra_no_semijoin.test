@@ -23,7 +23,7 @@ SET GLOBAL slow_query_log = 1;
 SET long_query_time = 0.000001;
 SET log_slow_verbosity = 'explain';
 
-CREATE TABLE t1 (a VARCHAR(3)) ENGINE=MyISAM;
+CREATE TABLE t1 (a VARCHAR(3)) ENGINE=MyISAM CHARSET=latin1;
 SELECT * FROM t1 WHERE a >= ANY ( SELECT 'foo');
 --error ER_CANT_AGGREGATE_2COLLATIONS
 SELECT * FROM t1 WHERE a >= ANY ( SELECT 'foo' UNION SELECT 'bar' );

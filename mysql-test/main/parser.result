@@ -1311,7 +1311,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
   UNIQUE KEY `id` (`id`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 create or replace view v1 as select 1 between (2 between 3 and 4) and 5;
 Select view_definition from information_schema.views where table_schema='test' and table_name='v1';
@@ -1372,7 +1372,7 @@ sql_mode	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_E
 SQL Original Statement	CREATE DEFINER=`root`@`localhost` trigger a before insert on t1 for each row set @a:=1
 character_set_client	latin1
 collation_connection	latin1_swedish_ci
-Database Collation	latin1_swedish_ci
+Database Collation	utf8mb4_uca1400_ai_ci
 Created	2020-10-10 05:05:05.00
 drop table t1;
 create procedure a() select 1;select 2$
@@ -1385,7 +1385,7 @@ Create Procedure	CREATE DEFINER=`root`@`localhost` PROCEDURE `a`()
 select 1
 character_set_client	latin1
 collation_connection	latin1_swedish_ci
-Database Collation	latin1_swedish_ci
+Database Collation	utf8mb4_uca1400_ai_ci
 drop procedure a;
 create function a() returns int return 1;select 2$
 2
@@ -1397,7 +1397,7 @@ Create Function	CREATE DEFINER=`root`@`localhost` FUNCTION `a`() RETURNS int(11)
 return 1
 character_set_client	latin1
 collation_connection	latin1_swedish_ci
-Database Collation	latin1_swedish_ci
+Database Collation	utf8mb4_uca1400_ai_ci
 drop function a;
 set timestamp=default;
 #
@@ -1916,7 +1916,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `f` int(11) GENERATED ALWAYS AS (1 = 2 not between 3 and 4) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 CREATE TABLE t1 ( f INT, CHECK ( 1 IN ( 2 NOT BETWEEN 3 AND 4 ) ) );
 SHOW CREATE TABLE t1;
@@ -1924,7 +1924,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `f` int(11) DEFAULT NULL,
   CONSTRAINT `CONSTRAINT_1` CHECK (1 = 2 not between 3 and 4)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 CREATE VIEW v1 AS SELECT 1 IN ( 2 NOT BETWEEN 3 AND 4 );
 SHOW CREATE VIEW v1;

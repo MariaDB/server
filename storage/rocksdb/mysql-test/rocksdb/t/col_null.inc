@@ -19,7 +19,7 @@ eval CREATE TABLE t1 (
   c1 $col_type NULL DEFAULT NULL,
   c2 $col_type NULL DEFAULT $col_default,
   pk INT AUTO_INCREMENT PRIMARY KEY
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 
 SHOW COLUMNS IN t1;
 

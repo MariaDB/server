@@ -10,7 +10,7 @@ INSERT INTO t1 VALUES(2, repeat('b', 100), repeat('a', 100));
 COMMIT;
 SET DEBUG_SYNC="now SIGNAL dml_commit";
 connection default;
-ERROR 23000: Duplicate entry 'bbbbbbbbbb' for key 'f2'
+ERROR 23000: Duplicate entry 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' for key 'f2'
 connection default;
 SET DEBUG_SYNC="inplace_after_index_build SIGNAL dml_start WAIT_FOR dml_commit";
 ALTER TABLE t1 ADD PRIMARY KEY(f1);
@@ -33,7 +33,7 @@ UPDATE t1 set f3=repeat('c', 100) where f1=1;
 COMMIT;
 SET DEBUG_SYNC="now SIGNAL dml_commit";
 connection default;
-ERROR 23000: Duplicate entry 'cccccccccc' for key 'PRIMARY'
+ERROR 23000: Duplicate entry 'cccccccccccccccccccccccccccccccccccccccc' for key 'PRIMARY'
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -41,7 +41,7 @@ t1	CREATE TABLE `t1` (
   `f2` char(200) DEFAULT NULL,
   `f3` char(200) DEFAULT NULL,
   PRIMARY KEY (`f1`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 #
 #  MDEV-30183  Assertion `!memcmp(rec_trx_id, old_pk_trx_id->data,

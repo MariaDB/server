@@ -6,7 +6,7 @@ if (!$SERVER_AUDIT_SO) {
 }
 
 --disable_ps2_protocol
-# An unfortunate wait for check-testcase.test to complete disconnect.
+# An unfortunate wait for check-testcase.inc to complete disconnect.
 let count_sessions= 1;
 source include/wait_until_count_sessions.inc;
 

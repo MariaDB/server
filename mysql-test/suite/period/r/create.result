@@ -9,7 +9,7 @@ t	CREATE TABLE `t` (
   `e` date NOT NULL,
   PERIOD FOR `mytime` (`s`, `e`),
   PRIMARY KEY (`id`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 create view v as select * from t;
 select * from information_schema.periods;
 TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	PERIOD	START_COLUMN_NAME	END_COLUMN_NAME
@@ -35,7 +35,7 @@ t	CREATE TABLE `t` (
   `e` timestamp(6) NOT NULL,
   PERIOD FOR `mytime` (`s`, `e`),
   PRIMARY KEY (`id`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 # SQL16, Part 2, 11.3  <table definition>, Syntax Rules, 2)a)
 # 2) If a <table period definition> TPD is specified, then:
 # a) <table scope> shall not be specified.
@@ -108,7 +108,7 @@ t	CREATE TABLE `t` (
   `e` date NOT NULL,
   PERIOD FOR `mytime` (`s`, `e`),
   CONSTRAINT `mytime` CHECK (`x` > 1)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert t values (2, '2001-01-01', '2001-01-01');
 ERROR 23000: CONSTRAINT `mytime_1` failed for `test`.`t`
 show status like "Feature_application_time_periods";

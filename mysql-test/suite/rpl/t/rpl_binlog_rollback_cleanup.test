@@ -24,7 +24,7 @@
 --connection master
 let $old_max_binlog_cache_size= query_get_value(SHOW VARIABLES LIKE "max_binlog_cache_size", Value, 1);
 SET GLOBAL max_binlog_cache_size = 65536;
-CREATE TABLE t1(a INT PRIMARY KEY, data VARCHAR(30000)) ENGINE=INNODB;
+CREATE TABLE t1(a INT PRIMARY KEY, data VARCHAR(30000)) ENGINE=INNODB CHARSET=latin1;
 let $data = `select concat('"', repeat('a',6000), '"')`;
 let $data1 = `select concat('"', repeat('b',6000), '"')`;
 --disable_query_log

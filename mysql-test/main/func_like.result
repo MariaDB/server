@@ -1,5 +1,5 @@
 drop table if exists t1;
-create table t1 (a varchar(10), key(a));
+create table t1 (a varchar(10), key(a)) charset=latin1;
 insert into t1 values ("a"),("abc"),("abcd"),("hello"),("test");
 explain extended select * from t1 where a like 'abc%';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
@@ -265,7 +265,7 @@ drop view v1;
 create table t1 (a varchar(100),
 b int default (a like '%f\\_'),
 c int default (a like '%f\\_' escape ''),
-d int default (a like '%f\\_' escape '\\'));
+d int default (a like '%f\\_' escape '\\')) charset=latin1;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (

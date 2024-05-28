@@ -11140,7 +11140,7 @@ t2	CREATE TABLE `t2` (
   `fld3` char(30) NOT NULL DEFAULT '',
   `fld4` char(35) NOT NULL DEFAULT '',
   `fld5` char(35) NOT NULL DEFAULT ''
-) ENGINE=ARCHIVE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ARCHIVE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t2 WHERE auto != 100000;
 auto	fld1	companynr	fld3	fld4	fld5
 1	000001	00	Omaha	teethe	neat
@@ -12874,7 +12874,7 @@ DROP TABLE t1, t2;
 #
 # BUG#917689 Using wrong archive table causes crash
 #
-create table t1 (a int, b char(50)) engine=archive;
+create table t1 (a int, b char(50)) engine=archive charset=latin1;
 select * from t1;
 a	b
 flush tables;
@@ -12898,7 +12898,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=ARCHIVE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ARCHIVE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 alter table t1 add column b varchar(10);
 select * from t1;
 a	b
@@ -12910,7 +12910,7 @@ Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(10) DEFAULT NULL
-) ENGINE=ARCHIVE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ARCHIVE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 #
 # End of 10.0 tests

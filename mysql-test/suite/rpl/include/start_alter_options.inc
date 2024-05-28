@@ -21,9 +21,9 @@ set global gtid_strict_mode=1;
 start slave;
 --connection master
 set binlog_alter_two_phase=true;
-create table t1(a int , b int) engine=innodb;
-create table a1(a int , b int) engine=myisam;
-create temporary table tmp_tbl(a int, b int) engine=innodb;
+create table t1(a int , b int) engine=innodb charset=latin1;
+create table a1(a int , b int) engine=myisam charset=latin1;
+create temporary table tmp_tbl(a int, b int) engine=innodb charset=latin1;
 
 #  These are grammer rules for ALTER TABLE we will got through all alter table
 #  rules in this test.

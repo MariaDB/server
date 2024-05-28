@@ -3115,7 +3115,7 @@ sub mysql_install_db {
   mtr_add_arg($args, "--tmpdir=%s", "$opt_vardir/tmp/");
   mtr_add_arg($args, "--core-file");
   mtr_add_arg($args, "--console");
-  mtr_add_arg($args, "--character-set-server=latin1");
+  mtr_add_arg($args, "--character-set-server=utf8mb4");
   mtr_add_arg($args, "--loose-disable-performance-schema");
 
   if ( $opt_debug )
@@ -3216,7 +3216,7 @@ sub mysql_install_db {
       mtr_appendfile_to_file("$gis_sp_path/mariadb_sys_schema.sql",
            $bootstrap_sql_file);
 
-      mtr_tofile($bootstrap_sql_file, "CREATE DATABASE IF NOT EXISTS test CHARACTER SET latin1 COLLATE latin1_swedish_ci;\n");
+      mtr_tofile($bootstrap_sql_file, "CREATE DATABASE IF NOT EXISTS test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;\n");
 
       # mysql.gtid_slave_pos was created in InnoDB, but many tests
       # run without InnoDB. Alter it to Aria now
@@ -3241,7 +3241,7 @@ sub mysql_install_db {
 
     # Create mtr database
     mtr_tofile($bootstrap_sql_file,
-         "CREATE DATABASE mtr CHARSET=latin1;\n");
+         "CREATE DATABASE mtr CHARSET=utf8mb4;\n");
 
     # Add help tables and data for warning detection and supression
     mtr_tofile($bootstrap_sql_file,
@@ -4598,7 +4598,7 @@ sub extract_warning_lines ($$) {
 }
 
 
-# Run include/check-warnings.test
+# Run include/check-warnings.inc
 #
 # RETURN VALUE
 #  0 OK
@@ -4620,7 +4620,7 @@ sub start_check_warnings ($$) {
 
   mtr_add_arg($args, "--defaults-file=%s", $path_config_file);
   mtr_add_arg($args, "--defaults-group-suffix=%s", $mysqld->after('mysqld'));
-  mtr_add_arg($args, "--test-file=%s", "include/check-warnings.test");
+  mtr_add_arg($args, "--test-file=%s", "include/check-warnings.inc");
 
   if ( $opt_embedded_server )
   {
@@ -5556,7 +5556,7 @@ sub start_servers($) {
 
 
 #
-# Run include/check-testcase.test
+# Run include/check-testcase.inc
 # Before a testcase, run in record mode and save result file to var/tmp
 # After testcase, run and compare with the recorded file, they should be equal!
 #
@@ -5579,7 +5579,7 @@ sub start_check_testcase ($$$) {
   mtr_add_arg($args, "--defaults-file=%s", $path_config_file);
   mtr_add_arg($args, "--defaults-group-suffix=%s", $mysqld->after('mysqld'));
   mtr_add_arg($args, "--result-file=%s", "$opt_vardir/tmp/$name.result");
-  mtr_add_arg($args, "--test-file=%s", "include/check-testcase.test");
+  mtr_add_arg($args, "--test-file=%s", "include/check-testcase.inc");
   mtr_add_arg($args, "--verbose");
 
   if ( $mode eq "before" )

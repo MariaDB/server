@@ -3,7 +3,7 @@ let $MYSQLD_DATADIR= `select @@datadir`;
 --echo #
 --echo # Testing indexing with ALTER on inward table (in-place)
 --echo #
-CREATE TABLE t1 (c INT NOT NULL, d CHAR(10) NOT NULL) ENGINE=CONNECT;
+CREATE TABLE t1 (c INT NOT NULL, d CHAR(10) NOT NULL) ENGINE=CONNECT CHARSET=latin1;
 INSERT INTO t1 VALUES (1,'One'), (2,'Two'), (3,'Three');
 SELECT * FROM t1;
 CREATE INDEX xc ON t1(c);
@@ -38,14 +38,14 @@ SELECT * FROM t1;
 SHOW CREATE TABLE t1;
 
 --echo # create an outward table used to see the t1 file
-CREATE TABLE t2 (line VARCHAR(100) NOT NULL) ENGINE=CONNECT FILE_NAME='t1.csv';
+CREATE TABLE t2 (line VARCHAR(100) NOT NULL) ENGINE=CONNECT FILE_NAME='t1.csv' CHARSET=latin1;
 SELECT * FROM t2;
 
 --echo #
 --echo # Testing changing engine
 --echo #
 DROP TABLE t1;
-CREATE TABLE t1 (c INT NOT NULL, d CHAR(10) NOT NULL) ENGINE=CONNECT;
+CREATE TABLE t1 (c INT NOT NULL, d CHAR(10) NOT NULL) ENGINE=CONNECT CHARSET=latin1;
 INSERT INTO t1 VALUES (1,'One'), (2,'Two'), (3,'Three');
 ALTER TABLE t1 ADD INDEX xc (c), ADD INDEX xd (d);
 ALTER TABLE t1 ENGINE = MYISAM;
@@ -61,7 +61,7 @@ DROP TABLE t1, t2;
 --echo #
 --echo # Testing ALTER on outward tables
 --echo #
-CREATE TABLE t1 (c INT NOT NULL, d CHAR(10) NOT NULL) ENGINE=CONNECT TABLE_TYPE=fix FILE_NAME='tf1.txt' ENDING=1;
+CREATE TABLE t1 (c INT NOT NULL, d CHAR(10) NOT NULL) ENGINE=CONNECT TABLE_TYPE=fix FILE_NAME='tf1.txt' ENDING=1 CHARSET=latin1;
 INSERT INTO t1 VALUES (1,'One'), (2,'Two'), (3,'Three');
 SELECT * FROM t1;
 CREATE TABLE t2 (line VARCHAR(100) NOT NULL) ENGINE=CONNECT FILE_NAME='tf1.txt';

@@ -149,7 +149,7 @@ t1	CREATE TABLE `t1` (
   `name` varchar(25) NOT NULL,
   `event` date DEFAULT NULL,
   PRIMARY KEY (`c2`,`c1`) COMMENT 'custom_p0_cfname=foo;custom_p1_cfname=bar;custom_p2_cfname=baz;'
-) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='custom_p0_ttl_duration=9999;custom_p2_ttl_duration=5;'
+) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='custom_p0_ttl_duration=9999;custom_p2_ttl_duration=5;'
  PARTITION BY LIST (`c1`)
 (PARTITION `custom_p0` VALUES IN (1,2,3) ENGINE = ROCKSDB,
  PARTITION `custom_p1` VALUES IN (4,5,6) ENGINE = ROCKSDB,

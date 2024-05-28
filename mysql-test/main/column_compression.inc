@@ -1,7 +1,7 @@
 FLUSH STATUS;
 
 --error ER_COMPRESSED_COLUMN_USED_AS_KEY
-eval CREATE TABLE t1(a $typec, KEY(a(10)));
+eval CREATE TABLE t1(a $typec, KEY(a(10))) CHARSET=latin1;
 
 eval CREATE TABLE t1(a $typec);
 --error ER_COMPRESSED_COLUMN_USED_AS_KEY

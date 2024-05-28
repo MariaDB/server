@@ -176,6 +176,8 @@ SUBPARTITION sp1),
 PARTITION p1 VALUES LESS THAN MAXVALUE
 (SUBPARTITION sp2,
 SUBPARTITION sp3));
+Warnings:
+Note	1071	Specified key was too long; max key length is 1000 bytes
 CREATE TABLE t2 (
 a INT,
 b VARCHAR(257),
@@ -183,6 +185,8 @@ c INT NOT NULL,
 PRIMARY KEY (a),
 KEY `inx_b` (b),
 KEY `inx_c`(c));
+Warnings:
+Note	1071	Specified key was too long; max key length is 1000 bytes
 SET @a:=1167602400;
 CREATE VIEW v AS SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4;
 CREATE VIEW x AS SELECT 1 FROM v,v a,v b;

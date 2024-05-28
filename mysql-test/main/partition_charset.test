@@ -8,6 +8,8 @@
 drop table if exists t1;
 --enable_warnings
 
+--source include/test_db_charset_latin1.inc
+
 set names utf8;
 create table t1 (s1 int)
   partition by list (s1)
@@ -58,3 +60,4 @@ DROP TABLE t1;
 --echo # End of 10.9 tests
 --echo #
 
+--source include/test_db_charset_restore.inc

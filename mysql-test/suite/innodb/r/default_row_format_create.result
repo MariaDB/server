@@ -1,3 +1,4 @@
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 CREATE TABLE t1(c1 TEXT,c2 BLOB) ENGINE=InnoDB;
 SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
@@ -68,3 +69,4 @@ ERROR HY000: Can't create table `test`.`t` (errno: 140 "Wrong create options")
 DROP TABLE t;
 TRUNCATE tt;
 SET GLOBAL innodb_compression_level=@save_level;
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

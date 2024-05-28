@@ -266,7 +266,7 @@ Tables_in_db	Table_type
 tmp	TEMPORARY TABLE
 show table status;
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-tmp	MyISAM	10	Fixed	0	0	X	X	X	X	X	X	X	X	latin1_swedish_ci	NULL			X	Y
+tmp	MyISAM	10	Fixed	0	0	X	X	X	X	X	X	X	X	utf8mb4_uca1400_ai_ci	NULL			X	Y
 show index in tmp;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 tmp	1	a	1	a	A	NULL	NULL	NULL	YES	BTREE			NO
@@ -443,7 +443,7 @@ show create table db.t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 delete from db.t1 returning *;
 ERROR 42000: SELECT command denied to user 'foo'@'localhost' for column 'a' in table 't1'
 disconnect con1;

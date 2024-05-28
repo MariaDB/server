@@ -1,6 +1,7 @@
 #
 # Test that we can store JSON arrays in histogram field mysql.column_stats when histogram_type=JSON
 #
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 set @SINGLE_PREC_TYPE='single_prec_hb';
 set @DOUBLE_PREC_TYPE='double_prec_hb';
 set @DEFAULT_HIST_TYPE='double_prec_hb';
@@ -4482,6 +4483,8 @@ set analyze_sample_percentage=@save_analyze_sample_percentage;
 set histogram_size=@save_histogram_size;
 set use_stat_tables=@save_use_stat_tables;
 set @@global.histogram_size=@save_histogram_size;
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 drop table if exists t1;
 set @save_histogram_type=@@histogram_type;
 set @save_histogram_size=@@histogram_size;
@@ -7799,3 +7802,4 @@ EXPLAIN
   }
 }
 drop table t1;
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

@@ -18,7 +18,7 @@ eval CREATE TABLE t1 (
   tt TINYTEXT $extra_col_opts,
   m MEDIUMTEXT $extra_col_opts,
   l LONGTEXT $extra_col_opts
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 
 SHOW COLUMNS IN t1;
 

@@ -213,7 +213,7 @@ INSERT INTO t1 VALUES ('This is a test.');
 connection slave;
 START SLAVE;
 include/wait_for_slave_sql_error.inc [errno=1677]
-Last_SQL_Error = 'Column 0 of table 'test.t1' cannot be converted from type 'char(20 octets)' to type 'char(10 octets) character set latin1''
+Last_SQL_Error = 'Column 0 of table 'test.t1' cannot be converted from type 'char(80 octets)' to type 'char(40 octets) character set utf8mb4''
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 0
@@ -300,7 +300,7 @@ INSERT INTO t1 VALUES ('This is a test.');
 connection slave;
 START SLAVE;
 include/wait_for_slave_sql_error.inc [errno=1677]
-Last_SQL_Error = 'Column 0 of table 'test.t1' cannot be converted from type 'varchar(2000 octets)' to type 'varchar(100 octets) character set latin1''
+Last_SQL_Error = 'Column 0 of table 'test.t1' cannot be converted from type 'varchar(8000 octets)' to type 'varchar(400 octets) character set utf8mb4''
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 0
@@ -327,7 +327,7 @@ INSERT INTO t1 VALUES ('This is a test.');
 connection slave;
 START SLAVE;
 include/wait_for_slave_sql_error.inc [errno=1677]
-Last_SQL_Error = 'Column 0 of table 'test.t1' cannot be converted from type 'varchar(200 octets)' to type 'varchar(10 octets) character set latin1''
+Last_SQL_Error = 'Column 0 of table 'test.t1' cannot be converted from type 'varchar(800 octets)' to type 'varchar(40 octets) character set utf8mb4''
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 0
@@ -354,7 +354,7 @@ INSERT INTO t1 VALUES ('This is a test.');
 connection slave;
 START SLAVE;
 include/wait_for_slave_sql_error.inc [errno=1677]
-Last_SQL_Error = 'Column 0 of table 'test.t1' cannot be converted from type 'varchar(2000 octets)' to type 'varchar(1000 octets) character set latin1''
+Last_SQL_Error = 'Column 0 of table 'test.t1' cannot be converted from type 'varchar(8000 octets)' to type 'varchar(4000 octets) character set utf8mb4''
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 0

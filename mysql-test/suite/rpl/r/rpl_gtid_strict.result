@@ -147,7 +147,7 @@ Table	t3
 Create Table	CREATE TABLE `t3` (
   `a` int(11) NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES (8);
 connection server_1;
 INSERT INTO t2 VALUES (3);

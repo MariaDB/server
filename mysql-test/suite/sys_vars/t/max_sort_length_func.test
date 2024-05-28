@@ -31,9 +31,9 @@ SET @start_value= @@global.max_sort_length;
 #########################
 
 --echo ** creating tables **
-CREATE TABLE t (id INT AUTO_INCREMENT PRIMARY KEY, c TEXT);
-CREATE TABLE t1 (id INT AUTO_INCREMENT PRIMARY KEY, c BLOB);
-CREATE TABLE t2 (id INT AUTO_INCREMENT PRIMARY KEY, c TEXT);
+CREATE TABLE t (id INT AUTO_INCREMENT PRIMARY KEY, c TEXT) CHARSET=latin1;
+CREATE TABLE t1 (id INT AUTO_INCREMENT PRIMARY KEY, c BLOB) CHARSET=latin1;
+CREATE TABLE t2 (id INT AUTO_INCREMENT PRIMARY KEY, c TEXT) CHARSET=latin1;
 
 --echo '#--------------------FN_DYNVARS_098_01-------------------------#'
 ##########################################################

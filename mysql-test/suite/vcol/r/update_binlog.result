@@ -1,6 +1,6 @@
 set binlog_row_image="FULL";
 set @@default_storage_engine="myisam";
-create table t1 (a int, b int as (a+1), c int as (b+1) stored);
+create table t1 (a int, b int as (a+1), c int as (b+1) stored) charset=latin1;
 insert t1 set a=1;
 select * from t1;
 a	b	c
@@ -10,7 +10,7 @@ select * from t1;
 a	b	c
 2	3	4
 drop table t1;
-create table t1 (a int, c int as(a), p varchar(20) as(rtrim(y)), y char(20), index (p,c));
+create table t1 (a int, c int as(a), p varchar(20) as(rtrim(y)), y char(20), index (p,c)) charset=latin1;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -33,7 +33,7 @@ c varchar(14000) generated always as (concat(a,b)) virtual,
 d varchar(5000) generated always as (b) virtual,
 e int(11) generated always as (10) virtual,
 h int(11) not null primary key,
-index(c(100), d(20)));
+index(c(100), d(20))) charset=latin1;
 insert t1 (a,b,h) values (repeat('g', 10000), repeat('x', 2800), 1);
 update t1 set a = repeat(cast(1 as char), 2000);
 drop table t1;
@@ -45,7 +45,7 @@ i varchar(5000) generated always as (b) virtual,
 d varchar(5000) generated always as (i) virtual,
 e int(11) generated always as (10) virtual,
 h int(11) not null primary key,
-index(c(100), d(20)));
+index(c(100), d(20))) charset=latin1;
 insert t1 (a,b,h) values (repeat('g', 10000), repeat('x', 2800), 1);
 update t1 set a = repeat(cast(1 as char), 2000);
 drop table t1;
@@ -180,7 +180,7 @@ update v set f3 = 52;
 drop view v;
 drop table t;
 set binlog_row_image="MINIMAL";
-create table t1 (a int, b int as (a+1), c int as (b+1) stored);
+create table t1 (a int, b int as (a+1), c int as (b+1) stored) charset=latin1;
 insert t1 set a=1;
 select * from t1;
 a	b	c
@@ -190,7 +190,7 @@ select * from t1;
 a	b	c
 2	3	4
 drop table t1;
-create table t1 (a int, c int as(a), p varchar(20) as(rtrim(y)), y char(20), index (p,c));
+create table t1 (a int, c int as(a), p varchar(20) as(rtrim(y)), y char(20), index (p,c)) charset=latin1;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -213,7 +213,7 @@ c varchar(14000) generated always as (concat(a,b)) virtual,
 d varchar(5000) generated always as (b) virtual,
 e int(11) generated always as (10) virtual,
 h int(11) not null primary key,
-index(c(100), d(20)));
+index(c(100), d(20))) charset=latin1;
 insert t1 (a,b,h) values (repeat('g', 10000), repeat('x', 2800), 1);
 update t1 set a = repeat(cast(1 as char), 2000);
 drop table t1;
@@ -225,7 +225,7 @@ i varchar(5000) generated always as (b) virtual,
 d varchar(5000) generated always as (i) virtual,
 e int(11) generated always as (10) virtual,
 h int(11) not null primary key,
-index(c(100), d(20)));
+index(c(100), d(20))) charset=latin1;
 insert t1 (a,b,h) values (repeat('g', 10000), repeat('x', 2800), 1);
 update t1 set a = repeat(cast(1 as char), 2000);
 drop table t1;

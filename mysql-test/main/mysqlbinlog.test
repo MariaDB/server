@@ -9,6 +9,8 @@
 CALL mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
 --enable_query_log
 
+--source include/test_db_charset_latin1.inc
+
 # Deletes all the binary logs
 reset master;
 
@@ -637,3 +639,6 @@ FLUSH LOGS;
 --exec $MYSQL_BINLOG --rewrite-db=" ->" --short-form $MYSQLD_DATADIR/master-bin.000001 2>&1
 
 --exec $MYSQL_BINLOG --rewrite-db=" test -> foo " --short-form $MYSQLD_DATADIR/master-bin.000001 > /dev/null 2> $MYSQLTEST_VARDIR/tmp/mysqlbinlog.warn
+
+
+--source include/test_db_charset_restore.inc

@@ -4,6 +4,9 @@
 
 -- source include/have_ucs2.inc
 
+--source include/test_db_charset_latin1.inc
+
+
 --disable_warnings
 drop table if exists t1, t2;
 --enable_warnings
@@ -666,6 +669,7 @@ create table t1(a point);
 --error ER_CANT_CREATE_GEOMETRY_OBJECT
 --eval LOAD DATA INFILE '$file' INTO TABLE t1
 drop table t1;
+--remove_file $file
 
 --echo End of 5.1 tests
 
@@ -754,6 +758,7 @@ LOAD DATA INFILE '15645.data' IGNORE INTO TABLE v (a,b);
 LOAD DATA INFILE '15645.data' REPLACE INTO TABLE v (a,b);
 drop table t1,t2;
 drop view v;
+--remove_file $MYSQLD_DATADIR/test/15645.data
 
 
 --echo #
@@ -794,3 +799,5 @@ CREATE TABLE t1 (id integer not null auto_increment primary key);
 LOAD DATA INFILE '../../std_data/loaddata/nl.txt' INTO TABLE t1 FIELDS TERMINATED BY '';
 SELECT * FROM t1;
 DROP TABLE t1;
+
+--source include/test_db_charset_restore.inc

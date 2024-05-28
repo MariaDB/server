@@ -1,5 +1,8 @@
 --source include/have_innodb.inc
 
+--source include/test_db_charset_latin1.inc
+
+
 #
 # Bug 10838
 # Insert causes warnings for no default values and corrupts tables
@@ -2186,3 +2189,6 @@ drop table t1;
 --echo #
 --echo # End of 10.4 test
 --echo #
+
+
+--source include/test_db_charset_restore.inc

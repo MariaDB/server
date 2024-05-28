@@ -194,7 +194,7 @@ CREATE TABLE t1 (
   col_varchar_nokey varchar(1) NOT NULL,
   PRIMARY KEY (pk),
   KEY col_varchar_key (col_varchar_key,col_int_key)
-);
+) CHARSET=latin1;
 INSERT INTO t1 VALUES 
   (10,8,'v','v'),(11,8,'f','f'), (12,5,'v','v'),
   (13,8,'s','s'),(14,8,'a','a'),(15,6,'p','p'),

@@ -1,3 +1,5 @@
+--source include/test_db_charset_latin1.inc
+
 SET optimizer_switch='rowid_filter=on';
 
 --echo #
@@ -2042,3 +2044,5 @@ drop table t1;
 --echo #
 --echo # End of 11.0 tests
 --echo #
+
+--source include/test_db_charset_restore.inc

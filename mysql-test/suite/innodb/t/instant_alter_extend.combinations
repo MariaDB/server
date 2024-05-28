@@ -1,5 +1,6 @@
 [latin1]
 character-set-server=latin1
+collation-server=latin1_swedish_ci
 
 [utf8]
 character-set-server=utf8

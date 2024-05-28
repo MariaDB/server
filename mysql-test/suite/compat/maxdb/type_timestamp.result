@@ -15,7 +15,7 @@ t1	CREATE TABLE `t1` (
   `mdb_timestamp` timestamp NULL DEFAULT NULL,
   `ora_timestamp` timestamp NULL DEFAULT NULL,
   `max_timestamp` datetime DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SET sql_mode=MAXDB;
 SHOW CREATE TABLE t1;
 Table	Create Table
@@ -49,5 +49,5 @@ t1	CREATE TABLE `t1` (
   `mdb_timestamp` timestamp NULL DEFAULT NULL,
   `ora_timestamp` timestamp NULL DEFAULT NULL,
   `max_timestamp` datetime DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;

@@ -14,7 +14,7 @@ SHOW CREATE TABLE T1;
 Table	Create Table
 T1	CREATE TABLE `T1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 RENAME TABLE T1 TO T2;
 SHOW TABLES LIKE "T2";
 Tables_in_test (T2)
@@ -70,7 +70,7 @@ SHOW CREATE TABLE T1;
 Table	Create Table
 T1	CREATE TABLE `T1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 RENAME TABLE T1 TO T2;
 SHOW TABLES LIKE "T2";
 Tables_in_test (T2)
@@ -319,20 +319,20 @@ Database (mysql_t%)
 mysql_TEST
 show create database mysql_test;
 Database	Create Database
-mysql_test	CREATE DATABASE `mysql_test` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */
+mysql_test	CREATE DATABASE `mysql_test` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci */
 show create database mysql_TEST;
 Database	Create Database
-mysql_TEST	CREATE DATABASE `mysql_TEST` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */
+mysql_TEST	CREATE DATABASE `mysql_TEST` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci */
 show create table mysql_TEST.T1;
 Table	Create Table
 T1	CREATE TABLE `T1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show create table mysql_test.t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop database mysql_TEST;
 # MDEV-30765 SHOW TABLES not working properly with
 # lower_case_table_names=2
@@ -362,7 +362,7 @@ drop database db1;
 CREATE DATABASE Db1;
 SHOW CREATE DATABASE Db1;
 Database	Create Database
-Db1	CREATE DATABASE `Db1` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */
+Db1	CREATE DATABASE `Db1` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci */
 USE Db1;
 SELECT DATABASE();
 DATABASE()
@@ -387,10 +387,10 @@ CREATE DATABASE `#mysql50#D+b1`;
 ALTER DATABASE `#mysql50#D+b1` UPGRADE DATA DIRECTORY NAME;
 SHOW CREATE DATABASE `D+b1`;
 Database	Create Database
-D+b1	CREATE DATABASE `D+b1` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */
+D+b1	CREATE DATABASE `D+b1` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci */
 SHOW CREATE DATABASE `d+b1`;
 Database	Create Database
-d+b1	CREATE DATABASE `d+b1` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */
+d+b1	CREATE DATABASE `d+b1` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci */
 DROP DATABASE `D+b1`;
 CREATE DATABASE Db1;
 ALTER DATABASE Db1 DEFAULT CHARACTER SET utf8;

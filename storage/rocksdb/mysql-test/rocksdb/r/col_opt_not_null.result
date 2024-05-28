@@ -53,7 +53,7 @@ DROP TABLE IF EXISTS t1;
 #----------------------------------
 # BINARY NOT NULL columns without a default
 #----------------------------------
-CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY, c BINARY NOT NULL) ENGINE=rocksdb;
+CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY, c BINARY NOT NULL) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment
@@ -71,7 +71,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (
 pk INT AUTO_INCREMENT PRIMARY KEY,
 c BINARY NOT NULL DEFAULT 0
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment
@@ -187,7 +187,7 @@ DROP TABLE IF EXISTS t1;
 #----------------------------------
 # VARBINARY(64) NOT NULL columns without a default
 #----------------------------------
-CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY, c VARBINARY(64) NOT NULL) ENGINE=rocksdb;
+CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY, c VARBINARY(64) NOT NULL) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment
@@ -205,7 +205,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (
 pk INT AUTO_INCREMENT PRIMARY KEY,
 c VARBINARY(64) NOT NULL DEFAULT 'test'
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment
@@ -281,7 +281,7 @@ DROP TABLE IF EXISTS t1;
 #----------------------------------
 # BIT NOT NULL columns without a default
 #----------------------------------
-CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY, c BIT NOT NULL) ENGINE=rocksdb;
+CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY, c BIT NOT NULL) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment
@@ -299,7 +299,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (
 pk INT AUTO_INCREMENT PRIMARY KEY,
 c BIT NOT NULL DEFAULT 1
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment
@@ -379,7 +379,7 @@ DROP TABLE IF EXISTS t1;
 #----------------------------------
 # BLOB NOT NULL columns without a default
 #----------------------------------
-CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY, c BLOB NOT NULL) ENGINE=rocksdb;
+CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY, c BLOB NOT NULL) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment
@@ -397,7 +397,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (
 pk INT AUTO_INCREMENT PRIMARY KEY,
 c BLOB NOT NULL DEFAULT ''
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment
@@ -417,7 +417,7 @@ DROP TABLE IF EXISTS t1;
 #----------------------------------
 # TINYBLOB NOT NULL columns without a default
 #----------------------------------
-CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY, c TINYBLOB NOT NULL) ENGINE=rocksdb;
+CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY, c TINYBLOB NOT NULL) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment
@@ -435,7 +435,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (
 pk INT AUTO_INCREMENT PRIMARY KEY,
 c TINYBLOB NOT NULL DEFAULT ''
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment
@@ -455,7 +455,7 @@ DROP TABLE IF EXISTS t1;
 #----------------------------------
 # MEDIUMBLOB NOT NULL columns without a default
 #----------------------------------
-CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY, c MEDIUMBLOB NOT NULL) ENGINE=rocksdb;
+CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY, c MEDIUMBLOB NOT NULL) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment
@@ -473,7 +473,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (
 pk INT AUTO_INCREMENT PRIMARY KEY,
 c MEDIUMBLOB NOT NULL DEFAULT ''
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment
@@ -493,7 +493,7 @@ DROP TABLE IF EXISTS t1;
 #----------------------------------
 # LONGBLOB NOT NULL columns without a default
 #----------------------------------
-CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY, c LONGBLOB NOT NULL) ENGINE=rocksdb;
+CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY, c LONGBLOB NOT NULL) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment
@@ -511,7 +511,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (
 pk INT AUTO_INCREMENT PRIMARY KEY,
 c LONGBLOB NOT NULL DEFAULT ''
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment
@@ -607,7 +607,7 @@ DROP TABLE IF EXISTS t1;
 #----------------------------------
 # BOOL NOT NULL columns without a default
 #----------------------------------
-CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY, c BOOL NOT NULL) ENGINE=rocksdb;
+CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY, c BOOL NOT NULL) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment
@@ -625,7 +625,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (
 pk INT AUTO_INCREMENT PRIMARY KEY,
 c BOOL NOT NULL DEFAULT '0'
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment
@@ -652,7 +652,7 @@ c1 CHAR(1) NOT NULL,
 c20 CHAR(20) NOT NULL,
 c255 CHAR(255) NOT NULL,
 PRIMARY KEY (c255)
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARACTER SET latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 c	char(1)	NO		NULL	
@@ -706,7 +706,7 @@ DROP TABLE IF EXISTS t1;
 #----------------------------------
 # CHAR NOT NULL columns without a default
 #----------------------------------
-CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY, c CHAR NOT NULL) ENGINE=rocksdb;
+CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY, c CHAR NOT NULL) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment
@@ -724,7 +724,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (
 pk INT AUTO_INCREMENT PRIMARY KEY,
 c CHAR NOT NULL DEFAULT '_'
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment
@@ -750,14 +750,14 @@ v1 VARCHAR(1) NOT NULL,
 v64 VARCHAR(64) NOT NULL,
 v65000 VARCHAR(65000) NOT NULL,
 PRIMARY KEY (v64)
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 v0	varchar(0)	NO		NULL	
 v1	varchar(1)	NO		NULL	
 v64	varchar(64)	NO	PRI	NULL	
 v65000	varchar(65000)	NO		NULL	
-CREATE TABLE t2 (v VARCHAR(65532), PRIMARY KEY (v(255))) ENGINE=rocksdb;
+CREATE TABLE t2 (v VARCHAR(65532), PRIMARY KEY (v(255))) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t2;
 Field	Type	Null	Key	Default	Extra
 v	varchar(65532)	NO	PRI	NULL	
@@ -875,7 +875,7 @@ DROP TABLE IF EXISTS t1;
 #----------------------------------
 # VARCHAR(64) NOT NULL columns without a default
 #----------------------------------
-CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY, c VARCHAR(64) NOT NULL) ENGINE=rocksdb;
+CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY, c VARCHAR(64) NOT NULL) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment
@@ -893,7 +893,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (
 pk INT AUTO_INCREMENT PRIMARY KEY,
 c VARCHAR(64) NOT NULL DEFAULT 'test default'
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment
@@ -975,7 +975,7 @@ DROP TABLE IF EXISTS t1;
 #----------------------------------
 # DATE NOT NULL columns without a default
 #----------------------------------
-CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY, c DATE NOT NULL) ENGINE=rocksdb;
+CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY, c DATE NOT NULL) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment
@@ -993,7 +993,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (
 pk INT AUTO_INCREMENT PRIMARY KEY,
 c DATE NOT NULL DEFAULT '2012-12-21'
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment
@@ -1013,7 +1013,7 @@ DROP TABLE IF EXISTS t1;
 #----------------------------------
 # DATETIME NOT NULL columns without a default
 #----------------------------------
-CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY, c DATETIME NOT NULL) ENGINE=rocksdb;
+CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY, c DATETIME NOT NULL) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment
@@ -1031,7 +1031,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (
 pk INT AUTO_INCREMENT PRIMARY KEY,
 c DATETIME NOT NULL DEFAULT '2012-12-21 12:21:12'
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment
@@ -1092,7 +1092,7 @@ DROP TABLE IF EXISTS t1;
 #----------------------------------
 # TIME NOT NULL columns without a default
 #----------------------------------
-CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY, c TIME NOT NULL) ENGINE=rocksdb;
+CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY, c TIME NOT NULL) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment
@@ -1110,7 +1110,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (
 pk INT AUTO_INCREMENT PRIMARY KEY,
 c TIME NOT NULL DEFAULT '12:21:12'
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment
@@ -1130,7 +1130,7 @@ DROP TABLE IF EXISTS t1;
 #----------------------------------
 # YEAR NOT NULL columns without a default
 #----------------------------------
-CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY, c YEAR NOT NULL) ENGINE=rocksdb;
+CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY, c YEAR NOT NULL) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment
@@ -1148,7 +1148,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (
 pk INT AUTO_INCREMENT PRIMARY KEY,
 c YEAR NOT NULL DEFAULT '2012'
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment
@@ -1168,7 +1168,7 @@ DROP TABLE IF EXISTS t1;
 #----------------------------------
 # YEAR(2) NOT NULL columns without a default
 #----------------------------------
-CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY, c YEAR(2) NOT NULL) ENGINE=rocksdb;
+CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY, c YEAR(2) NOT NULL) ENGINE=rocksdb CHARSET=latin1;
 Warnings:
 Warning	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use 'YEAR(4)' instead
 SHOW COLUMNS IN t1;
@@ -1188,7 +1188,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (
 pk INT AUTO_INCREMENT PRIMARY KEY,
 c YEAR(2) NOT NULL DEFAULT '12'
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 Warnings:
 Warning	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use 'YEAR(4)' instead
 SHOW COLUMNS IN t1;
@@ -1261,7 +1261,7 @@ DROP TABLE IF EXISTS t1;
 #----------------------------------
 # ENUM('test1','test2','test3') NOT NULL columns without a default
 #----------------------------------
-CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY, c ENUM('test1','test2','test3') NOT NULL) ENGINE=rocksdb;
+CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY, c ENUM('test1','test2','test3') NOT NULL) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment
@@ -1279,7 +1279,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (
 pk INT AUTO_INCREMENT PRIMARY KEY,
 c ENUM('test1','test2','test3') NOT NULL DEFAULT 'test2'
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment
@@ -1433,7 +1433,7 @@ DROP TABLE IF EXISTS t1;
 #----------------------------------
 # DECIMAL NOT NULL columns without a default
 #----------------------------------
-CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY, c DECIMAL NOT NULL) ENGINE=rocksdb;
+CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY, c DECIMAL NOT NULL) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment
@@ -1453,7 +1453,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (
 pk INT AUTO_INCREMENT PRIMARY KEY,
 c DECIMAL NOT NULL DEFAULT 1.1
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 Warnings:
 Note	1265	Data truncated for column 'c' at row 0
 SHOW COLUMNS IN t1;
@@ -1477,7 +1477,7 @@ DROP TABLE IF EXISTS t1;
 #----------------------------------
 # NUMERIC NOT NULL columns without a default
 #----------------------------------
-CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY, c NUMERIC NOT NULL) ENGINE=rocksdb;
+CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY, c NUMERIC NOT NULL) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment
@@ -1495,7 +1495,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (
 pk INT AUTO_INCREMENT PRIMARY KEY,
 c NUMERIC NOT NULL DEFAULT 0
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment
@@ -1832,7 +1832,7 @@ DROP TABLE IF EXISTS t1;
 #----------------------------------
 # FLOAT NOT NULL columns without a default
 #----------------------------------
-CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY, c FLOAT NOT NULL) ENGINE=rocksdb;
+CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY, c FLOAT NOT NULL) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment
@@ -1850,7 +1850,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (
 pk INT AUTO_INCREMENT PRIMARY KEY,
 c FLOAT NOT NULL DEFAULT 1.1
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment
@@ -1870,7 +1870,7 @@ DROP TABLE IF EXISTS t1;
 #----------------------------------
 # DOUBLE NOT NULL columns without a default
 #----------------------------------
-CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY, c DOUBLE NOT NULL) ENGINE=rocksdb;
+CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY, c DOUBLE NOT NULL) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment
@@ -1888,7 +1888,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (
 pk INT AUTO_INCREMENT PRIMARY KEY,
 c DOUBLE NOT NULL DEFAULT 0
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment
@@ -2123,7 +2123,7 @@ DROP TABLE IF EXISTS t1;
 #----------------------------------
 # INT NOT NULL columns without a default
 #----------------------------------
-CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY, c INT NOT NULL) ENGINE=rocksdb;
+CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY, c INT NOT NULL) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment
@@ -2141,7 +2141,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (
 pk INT AUTO_INCREMENT PRIMARY KEY,
 c INT NOT NULL DEFAULT 2147483647
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment
@@ -2161,7 +2161,7 @@ DROP TABLE IF EXISTS t1;
 #----------------------------------
 # TINYINT NOT NULL columns without a default
 #----------------------------------
-CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY, c TINYINT NOT NULL) ENGINE=rocksdb;
+CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY, c TINYINT NOT NULL) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment
@@ -2179,7 +2179,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (
 pk INT AUTO_INCREMENT PRIMARY KEY,
 c TINYINT NOT NULL DEFAULT 127
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment
@@ -2199,7 +2199,7 @@ DROP TABLE IF EXISTS t1;
 #----------------------------------
 # SMALLINT NOT NULL columns without a default
 #----------------------------------
-CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY, c SMALLINT NOT NULL) ENGINE=rocksdb;
+CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY, c SMALLINT NOT NULL) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment
@@ -2217,7 +2217,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (
 pk INT AUTO_INCREMENT PRIMARY KEY,
 c SMALLINT NOT NULL DEFAULT 0
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment
@@ -2237,7 +2237,7 @@ DROP TABLE IF EXISTS t1;
 #----------------------------------
 # MEDIUMINT NOT NULL columns without a default
 #----------------------------------
-CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY, c MEDIUMINT NOT NULL) ENGINE=rocksdb;
+CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY, c MEDIUMINT NOT NULL) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment
@@ -2255,7 +2255,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (
 pk INT AUTO_INCREMENT PRIMARY KEY,
 c MEDIUMINT NOT NULL DEFAULT 1
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment
@@ -2275,7 +2275,7 @@ DROP TABLE IF EXISTS t1;
 #----------------------------------
 # BIGINT NOT NULL columns without a default
 #----------------------------------
-CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY, c BIGINT NOT NULL) ENGINE=rocksdb;
+CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY, c BIGINT NOT NULL) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment
@@ -2293,7 +2293,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (
 pk INT AUTO_INCREMENT PRIMARY KEY,
 c BIGINT NOT NULL DEFAULT 9223372036854775807
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment
@@ -2365,7 +2365,7 @@ DROP TABLE IF EXISTS t1;
 #----------------------------------
 # SET('test1','test2','test3') NOT NULL columns without a default
 #----------------------------------
-CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY, c SET('test1','test2','test3') NOT NULL) ENGINE=rocksdb;
+CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY, c SET('test1','test2','test3') NOT NULL) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment
@@ -2383,7 +2383,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (
 pk INT AUTO_INCREMENT PRIMARY KEY,
 c SET('test1','test2','test3') NOT NULL DEFAULT 'test2,test3'
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment
@@ -2415,7 +2415,7 @@ t17m TEXT(17000000) NOT NULL,
 tt TINYTEXT NOT NULL,
 m MEDIUMTEXT NOT NULL,
 l LONGTEXT NOT NULL
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment
@@ -2463,7 +2463,7 @@ DROP TABLE IF EXISTS t1;
 #----------------------------------
 # TEXT NOT NULL columns without a default
 #----------------------------------
-CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY, c TEXT NOT NULL) ENGINE=rocksdb;
+CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY, c TEXT NOT NULL) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment
@@ -2481,7 +2481,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (
 pk INT AUTO_INCREMENT PRIMARY KEY,
 c TEXT NOT NULL DEFAULT ''
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment
@@ -2501,7 +2501,7 @@ DROP TABLE IF EXISTS t1;
 #----------------------------------
 # TINYTEXT NOT NULL columns without a default
 #----------------------------------
-CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY, c TINYTEXT NOT NULL) ENGINE=rocksdb;
+CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY, c TINYTEXT NOT NULL) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment
@@ -2519,7 +2519,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (
 pk INT AUTO_INCREMENT PRIMARY KEY,
 c TINYTEXT NOT NULL DEFAULT ''
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment
@@ -2539,7 +2539,7 @@ DROP TABLE IF EXISTS t1;
 #----------------------------------
 # MEDIUMTEXT NOT NULL columns without a default
 #----------------------------------
-CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY, c MEDIUMTEXT NOT NULL) ENGINE=rocksdb;
+CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY, c MEDIUMTEXT NOT NULL) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment
@@ -2557,7 +2557,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (
 pk INT AUTO_INCREMENT PRIMARY KEY,
 c MEDIUMTEXT NOT NULL DEFAULT ''
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment
@@ -2577,7 +2577,7 @@ DROP TABLE IF EXISTS t1;
 #----------------------------------
 # LONGTEXT NOT NULL columns without a default
 #----------------------------------
-CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY, c LONGTEXT NOT NULL) ENGINE=rocksdb;
+CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY, c LONGTEXT NOT NULL) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment
@@ -2595,7 +2595,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (
 pk INT AUTO_INCREMENT PRIMARY KEY,
 c LONGTEXT NOT NULL DEFAULT ''
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment

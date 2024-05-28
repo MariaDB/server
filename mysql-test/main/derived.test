@@ -6,6 +6,8 @@
 drop table if exists t1,t2,t3;
 --enable_warnings
 
+--source include/test_db_charset_latin1.inc
+
 set @save_derived_optimizer_switch=@@optimizer_switch;
 set optimizer_switch='derived_merge=off,derived_with_keys=off';
 
@@ -1511,3 +1513,5 @@ deallocate prepare stmt;
 drop table t1,t2,t3;
 
 --echo # End of MariaDB 11.1 tests
+
+--source include/test_db_charset_restore.inc

@@ -1,7 +1,7 @@
 #
 # Testing indexing with ALTER on inward table (in-place)
 #
-CREATE TABLE t1 (c INT NOT NULL, d CHAR(10) NOT NULL) ENGINE=CONNECT;
+CREATE TABLE t1 (c INT NOT NULL, d CHAR(10) NOT NULL) ENGINE=CONNECT CHARSET=latin1;
 Warnings:
 Warning	1105	No table_type. Will be set to DOS
 Warning	1105	No file name. Table will use t1.dos
@@ -63,7 +63,7 @@ t1	CREATE TABLE `t1` (
   `d` char(10) NOT NULL
 ) ENGINE=CONNECT DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `TABLE_TYPE`=CSV `HEADER`=1 `QUOTED`=1
 # create an outward table used to see the t1 file
-CREATE TABLE t2 (line VARCHAR(100) NOT NULL) ENGINE=CONNECT FILE_NAME='t1.csv';
+CREATE TABLE t2 (line VARCHAR(100) NOT NULL) ENGINE=CONNECT FILE_NAME='t1.csv' CHARSET=latin1;
 Warnings:
 Warning	1105	No table_type. Will be set to DOS
 SELECT * FROM t2;
@@ -76,7 +76,7 @@ line
 # Testing changing engine
 #
 DROP TABLE t1;
-CREATE TABLE t1 (c INT NOT NULL, d CHAR(10) NOT NULL) ENGINE=CONNECT;
+CREATE TABLE t1 (c INT NOT NULL, d CHAR(10) NOT NULL) ENGINE=CONNECT CHARSET=latin1;
 Warnings:
 Warning	1105	No table_type. Will be set to DOS
 Warning	1105	No file name. Table will use t1.dos
@@ -122,7 +122,7 @@ DROP TABLE t1, t2;
 #
 # Testing ALTER on outward tables
 #
-CREATE TABLE t1 (c INT NOT NULL, d CHAR(10) NOT NULL) ENGINE=CONNECT TABLE_TYPE=fix FILE_NAME='tf1.txt' ENDING=1;
+CREATE TABLE t1 (c INT NOT NULL, d CHAR(10) NOT NULL) ENGINE=CONNECT TABLE_TYPE=fix FILE_NAME='tf1.txt' ENDING=1 CHARSET=latin1;
 INSERT INTO t1 VALUES (1,'One'), (2,'Two'), (3,'Three');
 SELECT * FROM t1;
 c	d

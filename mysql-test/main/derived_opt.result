@@ -69,8 +69,8 @@ explain select count(*) from t1 as tt1, (select * from t1) as tt2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
 drop table t1;
-create table t1 (mat_id MEDIUMINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, matintnum CHAR(6) NOT NULL, test MEDIUMINT UNSIGNED NULL);
-create table t2 (mat_id MEDIUMINT UNSIGNED NOT NULL, pla_id MEDIUMINT UNSIGNED NOT NULL);
+create table t1 (mat_id MEDIUMINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, matintnum CHAR(6) NOT NULL, test MEDIUMINT UNSIGNED NULL) CHARSET=latin1;
+create table t2 (mat_id MEDIUMINT UNSIGNED NOT NULL, pla_id MEDIUMINT UNSIGNED NOT NULL) CHARSET=latin1;
 insert into t1 values (NULL, 'a', 1), (NULL, 'b', 2), (NULL, 'c', 3), (NULL, 'd', 4), (NULL, 'e', 5), (NULL, 'f', 6), (NULL, 'g', 7), (NULL, 'h', 8), (NULL, 'i', 9);
 insert into t2 values (1, 100), (1, 101), (1, 102), (2, 100), (2, 103), (2, 104), (3, 101), (3, 102), (3, 105);
 SELECT STRAIGHT_JOIN d.pla_id, m2.mat_id FROM t1 m2 INNER JOIN (SELECT mp.pla_id, MIN(m1.matintnum) AS matintnum FROM t2 mp INNER JOIN t1 m1 ON mp.mat_id=m1.mat_id GROUP BY mp.pla_id) d ON d.matintnum=m2.matintnum;
@@ -291,7 +291,7 @@ pk int(10) unsigned NOT NULL AUTO_INCREMENT,
 a char(2) DEFAULT NULL,
 PRIMARY KEY (pk),
 KEY a (a)
-) ENGINE=MyISAM;
+) ENGINE=MyISAM CHARSET=latin1;
 INSERT INTO t1 (a)
 VALUES (NULL),(NULL),(NULL),('AB'),(NULL),('CD'),(NULL),(NULL);
 INSERT INTO t1 SELECT NULL, a1.a FROM t1 a1, t1 a2, t1 a3, t1 a4, t1 a5;
@@ -308,7 +308,7 @@ INSERT INTO t3 SELECT NULL FROM t3 a1, t3 a2, t3 a3, t3 a4, t3 a5;
 CREATE TABLE t4 (
 a char(2) NOT NULL DEFAULT '',
 PRIMARY KEY (a)
-) ENGINE=MyISAM;
+) ENGINE=MyISAM CHARSET=latin1;
 INSERT INTO t4 VALUES ('CD');
 set @@tmp_table_size=8192;
 EXPLAIN

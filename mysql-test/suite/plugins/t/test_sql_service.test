@@ -5,7 +5,7 @@ if (!$TEST_SQL_SERVICE_SO) {
   skip No TEST_SQL_SERVICE plugin;
 }
 
-# An unfortunate wait for check-testcase.test to complete disconnect.
+# An unfortunate wait for check-testcase.inc to complete disconnect.
 let count_sessions= 1;
 source include/wait_until_count_sessions.inc;
 

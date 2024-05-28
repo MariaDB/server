@@ -1759,7 +1759,7 @@ DROP TABLE t1, t2;
 --echo #
 --echo # BUG#917689 Using wrong archive table causes crash
 --echo #
-create table t1 (a int, b char(50)) engine=archive;
+create table t1 (a int, b char(50)) engine=archive charset=latin1;
 select * from t1; # open the table to create the frm
 flush tables;     # and close the table again
 --remove_file $MYSQLD_DATADIR/test/t1.ARZ

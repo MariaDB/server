@@ -216,7 +216,7 @@ CREATE TABLE t3 (
   c1 TINYTEXT NOT NULL,
   i1 INT NOT NULL,
   KEY (c1(6),i1)
-);
+) CHARSET=latin1;
 
 INSERT INTO t3 SELECT CONCAT('c-',1000+t2.a,'=w'), 1 FROM t2;
 
@@ -691,7 +691,7 @@ set optimizer_switch= @tmp_778434;
 --echo # Bug#885168: ICP for one index + potential ORDER BY for another
 --echo #
 
-CREATE TABLE t1 (a varchar(64), b varchar(10), INDEX(a), INDEX(b)) ;
+CREATE TABLE t1 (a varchar(64), b varchar(10), INDEX(a), INDEX(b)) CHARSET=latin1;
 INSERT INTO t1 VALUES 
   ('Ohio','Iowa'), ('k','d'), ('bdkpj','mbdkpjdanp'), ('d','xdmbdkpjda'),
   ('fkxdmbdkpjdanpje','o'), ('f','Pennsylvan'), ('Virginia','ei');
@@ -722,10 +722,10 @@ DROP TABLE t1;
 --echo # Bug#886145: join with ICP + ORDER BY  
 --echo #
 
-CREATE TABLE t1 (b int NOT NULL, c int, a varchar(1024), PRIMARY KEY (b));
+CREATE TABLE t1 (b int NOT NULL, c int, a varchar(1024), PRIMARY KEY (b)) CHARSET=latin1;
 INSERT INTO t1 VALUES (1,4,'Ill');
 
-CREATE TABLE t2 (a varchar(1024), KEY (a(512)));
+CREATE TABLE t2 (a varchar(1024), KEY (a(512))) CHARSET=latin1;
 INSERT INTO t2 VALUES
   ('Ill'), ('eckqzsflbzaffti'), ('w'), ('she'), ('gxbwypqtjzwywwer'), ('w');
 insert into t2 select seq from seq_1_to_100;
@@ -930,7 +930,7 @@ CREATE TABLE t1 (
   c2 VARCHAR(2) ,
   INDEX idx1 (c2,c1(2)),
   INDEX idx2 (c2,c1(1))
-);
+) CHARSET=latin1;
 
 INSERT INTO t1 (c1,c2) VALUES ('aa','x'), ('a' ,'y');
  

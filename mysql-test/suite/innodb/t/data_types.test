@@ -10,7 +10,7 @@
 #
 
 --source include/have_innodb.inc
-
+--source include/test_db_charset_latin1.inc
 --enable_prepare_warnings
 
 CREATE TABLE t1
@@ -150,3 +150,5 @@ INSERT INTO t1 SET b='',v='';
 DROP TABLE t1;
 
 --echo # End of 10.4 tests
+
+--source include/test_db_charset_restore.inc

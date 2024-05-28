@@ -467,7 +467,7 @@ show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` varchar(400) CHARACTER SET cp1250 COLLATE cp1250_general_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 select collation(group_concat(a,_koi8r'test')) from t1;
 collation(group_concat(a,_koi8r'test'))
 cp1250_general_ci
@@ -637,17 +637,17 @@ create table t3 (select group_concat(a) as a from t1 where a = 'a') union
 (select group_concat(b) as a from t1 where a = 'b');
 select charset(a) from t2;
 charset(a)
-latin1
+utf8mb4
 select charset(a) from t3;
 charset(a)
-latin1
-latin1
+utf8mb4
+utf8mb4
 drop table t1, t2, t3;
 set names default;
 create table t1 (c1 varchar(10), c2 int);
 select charset(group_concat(c1 order by c2)) from t1;
 charset(group_concat(c1 order by c2))
-latin1
+utf8mb4
 drop table t1;
 CREATE TABLE t1 (a INT(10), b LONGTEXT, PRIMARY KEY (a));
 SET GROUP_CONCAT_MAX_LEN = 20000000;
@@ -1153,15 +1153,15 @@ CREATE TABLE t2 SELECT GROUP_CONCAT(f1 order by f2) FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `GROUP_CONCAT(f1 order by f2)` mediumtext DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `GROUP_CONCAT(f1 order by f2)` longtext DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 CREATE TABLE t2 SELECT GROUP_CONCAT(UPPER(f1) ORDER BY f2) FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `GROUP_CONCAT(UPPER(f1) ORDER BY f2)` mediumtext DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `GROUP_CONCAT(UPPER(f1) ORDER BY f2)` longtext DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 SET group_concat_max_len= 1024;
 SELECT LENGTH(GROUP_CONCAT(f1 ORDER BY f2)) FROM t1;

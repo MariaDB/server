@@ -2,6 +2,8 @@
 # Test of MERGE TABLES
 #
 
+--source include/test_db_charset_latin1.inc
+
 # Save the initial number of concurrent sessions.
 --source include/count_sessions.inc
 
@@ -65,7 +67,7 @@ select * from t4;
 #
 # Test tables in different databases
 #
-create database mysqltest;
+create database mysqltest character set latin1;
 create table mysqltest.t6 (a int not null primary key auto_increment, message char(20));
 create table t5 (a int not null, b char(20), key(a)) engine=MERGE UNION=(test.t1,mysqltest.t6);
 show create table t5;
@@ -2960,3 +2962,5 @@ DROP VIEW v1;
 DROP TABLE t1;
 
 --echo # End of 11.1 tests
+
+--source include/test_db_charset_restore.inc

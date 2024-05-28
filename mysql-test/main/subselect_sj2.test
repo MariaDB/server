@@ -186,7 +186,7 @@ CREATE TABLE t1 (
   PRIMARY KEY  (ID),
   INDEX (Population),
   INDEX (Country) 
-);
+) CHARSET=latin1;
 CREATE TABLE t2 (
   Code char(3) NOT NULL default '',
   Name char(52) NOT NULL default '',
@@ -196,14 +196,14 @@ CREATE TABLE t2 (
   PRIMARY KEY  (Code),
   UNIQUE INDEX (Name),
   INDEX (Population)
-);
+) CHARSET=latin1;
 CREATE TABLE t3 (
   Country char(3) NOT NULL default '',
   Language char(30) NOT NULL default '',
   Percentage float(3,1) NOT NULL default '0.0',
   PRIMARY KEY  (Country, Language),
   INDEX (Percentage)
-);
+) CHARSET=latin1;
 
 --disable_query_log
 INSERT INTO t1 VALUES
@@ -288,7 +288,7 @@ CREATE TABLE t1 (
   Capital int(11) DEFAULT NULL,
   Code2 char(2) NOT NULL DEFAULT '',
   PRIMARY KEY (Code)
-);
+) CHARSET=latin1;
 
 CREATE TABLE t2 (
   ID int(11) NOT NULL AUTO_INCREMENT,
@@ -298,7 +298,7 @@ CREATE TABLE t2 (
   Population int(11) NOT NULL DEFAULT '0',
   PRIMARY KEY (ID),
   KEY CountryCode (CountryCode)
-);
+) CHARSET=latin1;
 
 --echo Fill the table with test data
 --disable_query_log
@@ -995,13 +995,13 @@ DROP TABLE t1, t2;
 --echo #
 --echo # BUG#858732: Wrong result with semijoin + loosescan + comma join
 --echo #
-CREATE TABLE t1 (f13 int(11) NOT NULL , PRIMARY KEY (f13)) ENGINE=InnoDB;
+CREATE TABLE t1 (f13 int(11) NOT NULL , PRIMARY KEY (f13)) ENGINE=InnoDB CHARSET=latin1;
 INSERT INTO t1 VALUES (16),(24);
 
-CREATE TABLE t2 (f14 int(11) NOT NULL, f12 varchar(1) NOT NULL, KEY (f12,f14)) ENGINE=InnoDB;
+CREATE TABLE t2 (f14 int(11) NOT NULL, f12 varchar(1) NOT NULL, KEY (f12,f14)) ENGINE=InnoDB CHARSET=latin1;
 INSERT INTO t2 VALUES (6,'y');
 
-CREATE TABLE t3 (f12 varchar(1) NOT NULL) ENGINE=InnoDB;
+CREATE TABLE t3 (f12 varchar(1) NOT NULL) ENGINE=InnoDB CHARSET=latin1;
 INSERT INTO t3 VALUES ('r'),('s'),('t'),('v'),('w'),('x'),('y');
 
 analyze table t1,t2,t3 persistent for all;
@@ -1073,15 +1073,15 @@ set optimizer_switch= @tmp869001_os;
 --echo #              with empty materialized derived inner table
 --echo #
 
-CREATE TABLE t1 (b varchar(1)) ENGINE=InnoDB;
+CREATE TABLE t1 (b varchar(1)) ENGINE=InnoDB CHARSET=latin1;
 
-CREATE TABLE t2 (a varchar(1)) ENGINE=InnoDB;
+CREATE TABLE t2 (a varchar(1)) ENGINE=InnoDB CHARSET=latin1;
 INSERT INTO t2 VALUES ('a');
 
-CREATE TABLE t3 (a varchar(1), b varchar(1)) ENGINE=InnoDB;
+CREATE TABLE t3 (a varchar(1), b varchar(1)) ENGINE=InnoDB CHARSET=latin1;
 INSERT INTO t3 VALUES ('c','c');
 
-CREATE TABLE t4 (b varchar(1)) ENGINE=InnoDB;
+CREATE TABLE t4 (b varchar(1)) ENGINE=InnoDB CHARSET=latin1;
 INSERT INTO t4 VALUES ('c'), ('b');
 
 CREATE ALGORITHM=TEMPTABLE VIEW v1 AS SELECT * FROM t1;
@@ -1116,7 +1116,7 @@ DROP TABLE t1,t2;
 CREATE TABLE t1 (
   a INT, b VARCHAR(1), c INT,
   KEY(a), KEY(b)
-) ENGINE=InnoDB;
+) ENGINE=InnoDB CHARSET=latin1;
 
 INSERT INTO t1 VALUES
 (1,'v',9),(2,'v',8),(3,'c',7),(4,'m',6),(5,'x',5),
@@ -1127,7 +1127,7 @@ INSERT INTO t1 VALUES
 CREATE TABLE t2 (
   pk INT, d VARCHAR(1), e INT, f int,
   PRIMARY KEY(pk), KEY(d,e)
-) ENGINE=InnoDB;
+) ENGINE=InnoDB CHARSET=latin1;
 
 INSERT INTO t2 (pk,d,e) VALUES
 (1,'x',1),(2,'d',2),(3,'r',3),(4,'f',4),(5,'y',5),
@@ -1165,7 +1165,7 @@ CREATE TABLE t1 (
   a VARCHAR(1),
   b VARCHAR(1) NOT NULL,
   KEY(a)
-) ENGINE=InnoDB;
+) ENGINE=InnoDB CHARSET=latin1;
 INSERT INTO t1 VALUES
 ('j','j'),('v','v'),('c','c'),('m','m'),('d','d'),
 ('y','y'),('t','t'),('d','d'),('s','s'),('r','r'),
@@ -1187,7 +1187,7 @@ WHERE ( a, a ) IN (
 );
 
 --echo # Another testcase, without the VIEW:
-CREATE TABLE t2 (a VARCHAR(1), b VARCHAR(1) NOT NULL, KEY(a)) ENGINE=InnoDB;
+CREATE TABLE t2 (a VARCHAR(1), b VARCHAR(1) NOT NULL, KEY(a)) ENGINE=InnoDB CHARSET=latin1;
 INSERT INTO t2 SELECT * FROM t1;
 INSERT INTO t2 SELECT * FROM t1;
 
@@ -1236,7 +1236,7 @@ CREATE TABLE t2 (
   c VARCHAR(1),
   d VARCHAR(1),
   KEY(c)
-) ENGINE=InnoDB;
+) ENGINE=InnoDB CHARSET=latin1;
 
 INSERT INTO t2 VALUES
   (1,'j','j'),(2,'v','v'),(3,'c','c'),(4,'m','m'),
@@ -1332,13 +1332,13 @@ DROP TABLE IF EXISTS t1,t2,t3,t4;
 --echo #
 --echo # MDEV-4782: Valgrind warnings (Conditional jump or move depends on uninitialised value) with InnoDB, semijoin
 --echo #
-CREATE TABLE t1 ( t1_pk1 varchar(3), t1_pk2 varchar(52), PRIMARY KEY (t1_pk1,t1_pk2)) ENGINE=InnoDB;
+CREATE TABLE t1 ( t1_pk1 varchar(3), t1_pk2 varchar(52), PRIMARY KEY (t1_pk1,t1_pk2)) ENGINE=InnoDB CHARSET=latin1;
 INSERT INTO t1 VALUES ('CHN','Chinese'),('USA','English');
 
-CREATE TABLE t2 ( t2_i int(11), t2_c varchar(52)) ENGINE=InnoDB;
+CREATE TABLE t2 ( t2_i int(11), t2_c varchar(52)) ENGINE=InnoDB CHARSET=latin1;
 INSERT INTO t2 VALUES (86,'English');
 
-CREATE TABLE t3 ( t3_i int(11), t3_c varchar(35)) ENGINE=InnoDB;
+CREATE TABLE t3 ( t3_i int(11), t3_c varchar(35)) ENGINE=InnoDB CHARSET=latin1;
 INSERT INTO t3 VALUES (3989,'Abilene'),(3873,'Akron');
 
 create table t4 like t1;

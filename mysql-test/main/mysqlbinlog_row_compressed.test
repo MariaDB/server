@@ -15,8 +15,8 @@ reset master;
 
 SET GLOBAL log_bin_compress=on;
 SET GLOBAL log_bin_compress_min_len=10;
-CREATE TABLE t1 (pk INT PRIMARY KEY, f1 INT, f2 INT, f3 TINYINT, f4 MEDIUMINT, f5 BIGINT, f6 INT, f7 INT, f8 char(1));
-CREATE TABLE t2 (pk INT PRIMARY KEY, f1 INT, f2 INT, f3 INT, f4 INT, f5 MEDIUMINT, f6 INT, f7 INT, f8 char(1));
+CREATE TABLE t1 (pk INT PRIMARY KEY, f1 INT, f2 INT, f3 TINYINT, f4 MEDIUMINT, f5 BIGINT, f6 INT, f7 INT, f8 char(1)) CHARSET=latin1;
+CREATE TABLE t2 (pk INT PRIMARY KEY, f1 INT, f2 INT, f3 INT, f4 INT, f5 MEDIUMINT, f6 INT, f7 INT, f8 char(1)) CHARSET=latin1;
 INSERT INTO t1 VALUES (10, 1, 2, 3, 4, 5, 6, 7, "");
 INSERT INTO t1 VALUES (11, 1, 2, 3, 4, 5, 6, 7, NULL);
 INSERT INTO t1 VALUES (12, 1, 2, 3, NULL, 5, 6, 7, "A");
@@ -40,7 +40,7 @@ FLUSH BINARY LOGS;
 
 FLUSH BINARY LOGS;
 --let $binlog_file = query_get_value(SHOW MASTER STATUS, File, 1)
-CREATE TABLE t3 (a INT PRIMARY KEY, b INT, c VARCHAR(100));
+CREATE TABLE t3 (a INT PRIMARY KEY, b INT, c VARCHAR(100)) CHARSET=latin1;
 INSERT INTO t3 VALUES (0, 10, "hello");
 BEGIN;
 INSERT INTO t3 VALUES (1, 10, "cat"), (2, 10, "mouse"), (3, 10, "dog");

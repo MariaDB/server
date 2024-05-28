@@ -1,4 +1,5 @@
 call mtr.add_suppression("\\[Warning\\] InnoDB: Compute virtual");
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 set default_storage_engine=innodb;
 CREATE TABLE t (a INT, b INT GENERATED ALWAYS AS (a), c CHAR(10), d CHAR(20), e CHAR(10) GENERATED ALWAYS AS (c), g INT);
 INSERT INTO t VALUES(10, DEFAULT, "aa", "bb", DEFAULT, 20);
@@ -1493,3 +1494,4 @@ SELECT * FROM t1;
 a	b	c
 1	2	3
 DROP TABLE t1;
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

@@ -1,5 +1,6 @@
 --source include/have_binlog_format_row.inc
 --source include/have_innodb.inc
+--source include/test_db_charset_latin1.inc
 
 --echo #
 --echo # Preparatory cleanup.
@@ -443,3 +444,5 @@ DROP TABLE t1;
 SET binlog_format=statement;
 --error ER_FLASHBACK_NOT_SUPPORTED
 SET GLOBAL binlog_format=statement;
+
+--source include/test_db_charset_restore.inc

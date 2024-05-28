@@ -105,7 +105,7 @@ t1	CREATE TABLE `t1` (
   UNIQUE KEY `f2_2` (`f2`,`msg`,`f3`,`msg_1`,`f1`),
   UNIQUE KEY `f3` (`f3`,`f2`,`msg`,`msg_1`,`f1`),
   UNIQUE KEY `f3_2` (`f3`,`msg`,`msg_1`,`f1`,`f2`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES(3, 3, 3, 3, 'ccc', 'ccc');
 DROP TABLE t1;
 CREATE TABLE t1(id INT PRIMARY KEY, msg VARCHAR(100),

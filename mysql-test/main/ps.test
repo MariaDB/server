@@ -2,6 +2,9 @@
 -- source include/have_log_bin.inc
 
 call mtr.add_suppression('Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT.'); 
+
+--source include/test_db_charset_latin1.inc
+
 #
 # SQL Syntax for Prepared Statements test
 #
@@ -5436,3 +5439,5 @@ DROP VIEW t1;
 --echo #
 --echo # End of 10.4 tests
 --echo #
+
+--source include/test_db_charset_restore.inc

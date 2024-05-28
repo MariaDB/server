@@ -7,6 +7,8 @@
 call mtr.add_suppression("Can't find record in '.*'");
 call mtr.add_suppression("Table 't1' is marked as crashed and should be repaired");
 
+--source include/test_db_charset_latin1.inc
+
 #
 # Test problem with CHECK TABLE;
 #
@@ -1948,3 +1950,5 @@ DROP TABLE t1, t2, t3, t4;
 --echo #
 --echo # End of 11.0 tests
 --echo #
+
+--source include/test_db_charset_restore.inc

@@ -55,7 +55,7 @@ c BINARY NULL,
 c1 BINARY NULL DEFAULT NULL,
 c2 BINARY NULL DEFAULT 0,
 pk INT AUTO_INCREMENT PRIMARY KEY
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 c	binary(1)	YES		NULL	
@@ -178,7 +178,7 @@ c VARBINARY(64) NULL,
 c1 VARBINARY(64) NULL DEFAULT NULL,
 c2 VARBINARY(64) NULL DEFAULT 'test',
 pk INT AUTO_INCREMENT PRIMARY KEY
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 c	varbinary(64)	YES		NULL	
@@ -261,7 +261,7 @@ c BIT NULL,
 c1 BIT NULL DEFAULT NULL,
 c2 BIT NULL DEFAULT 1,
 pk INT AUTO_INCREMENT PRIMARY KEY
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 c	bit(1)	YES		NULL	
@@ -348,7 +348,7 @@ c BLOB NULL,
 c1 BLOB NULL DEFAULT NULL,
 c2 BLOB NULL DEFAULT '',
 pk INT AUTO_INCREMENT PRIMARY KEY
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 c	blob	YES		NULL	
@@ -375,7 +375,7 @@ c TINYBLOB NULL,
 c1 TINYBLOB NULL DEFAULT NULL,
 c2 TINYBLOB NULL DEFAULT '',
 pk INT AUTO_INCREMENT PRIMARY KEY
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 c	tinyblob	YES		NULL	
@@ -402,7 +402,7 @@ c MEDIUMBLOB NULL,
 c1 MEDIUMBLOB NULL DEFAULT NULL,
 c2 MEDIUMBLOB NULL DEFAULT '',
 pk INT AUTO_INCREMENT PRIMARY KEY
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 c	mediumblob	YES		NULL	
@@ -429,7 +429,7 @@ c LONGBLOB NULL,
 c1 LONGBLOB NULL DEFAULT NULL,
 c2 LONGBLOB NULL DEFAULT '',
 pk INT AUTO_INCREMENT PRIMARY KEY
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 c	longblob	YES		NULL	
@@ -532,7 +532,7 @@ c BOOL NULL,
 c1 BOOL NULL DEFAULT NULL,
 c2 BOOL NULL DEFAULT '0',
 pk INT AUTO_INCREMENT PRIMARY KEY
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 c	tinyint(1)	YES		NULL	
@@ -564,7 +564,7 @@ c1 CHAR(1) NULL,
 c20 CHAR(20) NULL,
 c255 CHAR(255) NULL,
 PRIMARY KEY (c255)
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARACTER SET latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 c	char(1)	YES		NULL	
@@ -620,7 +620,7 @@ c CHAR NULL,
 c1 CHAR NULL DEFAULT NULL,
 c2 CHAR NULL DEFAULT '_',
 pk INT AUTO_INCREMENT PRIMARY KEY
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 c	char(1)	YES		NULL	
@@ -651,14 +651,14 @@ v1 VARCHAR(1) NULL,
 v64 VARCHAR(64) NULL,
 v65000 VARCHAR(65000) NULL,
 PRIMARY KEY (v64)
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 v0	varchar(0)	YES		NULL	
 v1	varchar(1)	YES		NULL	
 v64	varchar(64)	NO	PRI	NULL	
 v65000	varchar(65000)	YES		NULL	
-CREATE TABLE t2 (v VARCHAR(65532), PRIMARY KEY (v(255))) ENGINE=rocksdb;
+CREATE TABLE t2 (v VARCHAR(65532), PRIMARY KEY (v(255))) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t2;
 Field	Type	Null	Key	Default	Extra
 v	varchar(65532)	NO	PRI	NULL	
@@ -778,7 +778,7 @@ c VARCHAR(64) NULL,
 c1 VARCHAR(64) NULL DEFAULT NULL,
 c2 VARCHAR(64) NULL DEFAULT 'test default',
 pk INT AUTO_INCREMENT PRIMARY KEY
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 c	varchar(64)	YES		NULL	
@@ -866,7 +866,7 @@ c DATE NULL,
 c1 DATE NULL DEFAULT NULL,
 c2 DATE NULL DEFAULT '2012-12-21',
 pk INT AUTO_INCREMENT PRIMARY KEY
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 c	date	YES		NULL	
@@ -893,7 +893,7 @@ c DATETIME NULL,
 c1 DATETIME NULL DEFAULT NULL,
 c2 DATETIME NULL DEFAULT '2012-12-21 12:21:12',
 pk INT AUTO_INCREMENT PRIMARY KEY
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 c	datetime	YES		NULL	
@@ -920,7 +920,7 @@ c TIMESTAMP NULL,
 c1 TIMESTAMP NULL DEFAULT NULL,
 c2 TIMESTAMP NULL DEFAULT '2012-12-21 12:21:12',
 pk INT AUTO_INCREMENT PRIMARY KEY
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 c	timestamp	YES		NULL	
@@ -947,7 +947,7 @@ c TIME NULL,
 c1 TIME NULL DEFAULT NULL,
 c2 TIME NULL DEFAULT '12:21:12',
 pk INT AUTO_INCREMENT PRIMARY KEY
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 c	time	YES		NULL	
@@ -974,7 +974,7 @@ c YEAR NULL,
 c1 YEAR NULL DEFAULT NULL,
 c2 YEAR NULL DEFAULT '2012',
 pk INT AUTO_INCREMENT PRIMARY KEY
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 c	year(4)	YES		NULL	
@@ -1001,7 +1001,7 @@ c YEAR(2) NULL,
 c1 YEAR(2) NULL DEFAULT NULL,
 c2 YEAR(2) NULL DEFAULT '12',
 pk INT AUTO_INCREMENT PRIMARY KEY
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 Warnings:
 Warning	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use 'YEAR(4)' instead
 Warning	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use 'YEAR(4)' instead
@@ -1083,7 +1083,7 @@ c ENUM('test1','test2','test3') NULL,
 c1 ENUM('test1','test2','test3') NULL DEFAULT NULL,
 c2 ENUM('test1','test2','test3') NULL DEFAULT 'test2',
 pk INT AUTO_INCREMENT PRIMARY KEY
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 c	enum('test1','test2','test3')	YES		NULL	
@@ -1244,7 +1244,7 @@ c DECIMAL NULL,
 c1 DECIMAL NULL DEFAULT NULL,
 c2 DECIMAL NULL DEFAULT 1.1,
 pk INT AUTO_INCREMENT PRIMARY KEY
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 Warnings:
 Note	1265	Data truncated for column 'c2' at row 0
 SHOW COLUMNS IN t1;
@@ -1277,7 +1277,7 @@ c NUMERIC NULL,
 c1 NUMERIC NULL DEFAULT NULL,
 c2 NUMERIC NULL DEFAULT 0 ,
 pk INT AUTO_INCREMENT PRIMARY KEY
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 c	decimal(10,0)	YES		NULL	
@@ -1621,7 +1621,7 @@ c FLOAT NULL,
 c1 FLOAT NULL DEFAULT NULL,
 c2 FLOAT NULL DEFAULT 1.1 ,
 pk INT AUTO_INCREMENT PRIMARY KEY
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 c	float	YES		NULL	
@@ -1648,7 +1648,7 @@ c DOUBLE NULL,
 c1 DOUBLE NULL DEFAULT NULL,
 c2 DOUBLE NULL DEFAULT 0  ,
 pk INT AUTO_INCREMENT PRIMARY KEY
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 c	double	YES		NULL	
@@ -1890,7 +1890,7 @@ c INT NULL,
 c1 INT NULL DEFAULT NULL,
 c2 INT NULL DEFAULT 2147483647,
 pk INT AUTO_INCREMENT PRIMARY KEY
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 c	int(11)	YES		NULL	
@@ -1917,7 +1917,7 @@ c TINYINT NULL,
 c1 TINYINT NULL DEFAULT NULL,
 c2 TINYINT NULL DEFAULT 127  ,
 pk INT AUTO_INCREMENT PRIMARY KEY
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 c	tinyint(4)	YES		NULL	
@@ -1944,7 +1944,7 @@ c SMALLINT NULL,
 c1 SMALLINT NULL DEFAULT NULL,
 c2 SMALLINT NULL DEFAULT 0,
 pk INT AUTO_INCREMENT PRIMARY KEY
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 c	smallint(6)	YES		NULL	
@@ -1971,7 +1971,7 @@ c MEDIUMINT NULL,
 c1 MEDIUMINT NULL DEFAULT NULL,
 c2 MEDIUMINT NULL DEFAULT 1,
 pk INT AUTO_INCREMENT PRIMARY KEY
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 c	mediumint(9)	YES		NULL	
@@ -1998,7 +1998,7 @@ c BIGINT NULL,
 c1 BIGINT NULL DEFAULT NULL,
 c2 BIGINT NULL DEFAULT 9223372036854775807,
 pk INT AUTO_INCREMENT PRIMARY KEY
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 c	bigint(20)	YES		NULL	
@@ -2077,7 +2077,7 @@ c SET('test1','test2','test3') NULL,
 c1 SET('test1','test2','test3') NULL DEFAULT NULL,
 c2 SET('test1','test2','test3') NULL DEFAULT 'test2,test3',
 pk INT AUTO_INCREMENT PRIMARY KEY
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 c	set('test1','test2','test3')	YES		NULL	
@@ -2114,7 +2114,7 @@ t17m TEXT(17000000) NULL,
 tt TINYTEXT NULL,
 m MEDIUMTEXT NULL,
 l LONGTEXT NULL
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment
@@ -2164,7 +2164,7 @@ c TEXT NULL,
 c1 TEXT NULL DEFAULT NULL,
 c2 TEXT NULL DEFAULT '',
 pk INT AUTO_INCREMENT PRIMARY KEY
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 c	text	YES		NULL	
@@ -2191,7 +2191,7 @@ c TINYTEXT NULL,
 c1 TINYTEXT NULL DEFAULT NULL,
 c2 TINYTEXT NULL DEFAULT '',
 pk INT AUTO_INCREMENT PRIMARY KEY
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 c	tinytext	YES		NULL	
@@ -2218,7 +2218,7 @@ c MEDIUMTEXT NULL,
 c1 MEDIUMTEXT NULL DEFAULT NULL,
 c2 MEDIUMTEXT NULL DEFAULT '',
 pk INT AUTO_INCREMENT PRIMARY KEY
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 c	mediumtext	YES		NULL	
@@ -2245,7 +2245,7 @@ c LONGTEXT NULL,
 c1 LONGTEXT NULL DEFAULT NULL,
 c2 LONGTEXT NULL DEFAULT '',
 pk INT AUTO_INCREMENT PRIMARY KEY
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 c	longtext	YES		NULL	

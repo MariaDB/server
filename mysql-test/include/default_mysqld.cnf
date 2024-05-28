@@ -20,7 +20,8 @@ disable-getopt-prefix-matching
 plugin-maturity=unknown
 open-files-limit=           1024
 local-infile
-character-set-server=      latin1
+character-set-server=      utf8mb4
+collation-server=          utf8mb4_uca1400_ai_ci
 
 # Increase default connect_timeout to avoid intermittent
 # disconnects when test servers are put under load see BUG#28359

@@ -79,7 +79,7 @@ p1	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIO
 as
 begin
 select t1.a, b from t1, (select max(a) as b from t2);
-end	latin1	latin1_swedish_ci	latin1_swedish_ci
+end	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 drop view v1;
 drop procedure p1;
 drop table t1,t2;

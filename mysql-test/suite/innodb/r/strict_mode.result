@@ -1,3 +1,4 @@
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 #
 # Bug #17852083 PRINT A WARNING WHEN DDL HAS AN ERROR IN
 # INNODB_STRICT_MODE = 1
@@ -411,3 +412,4 @@ c29 char(255), c30 char(255), c31 char(255), c32 char(255)
 ) engine=innodb;
 ERROR 42000: Row size too large (> 8126). Changing some columns to TEXT or BLOB may help. In current row format, BLOB prefix of 0 bytes is stored inline.
 FOUND 1 /Cannot add field `c32` in table `test`.`t1` because/ in mysqld.1.err
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

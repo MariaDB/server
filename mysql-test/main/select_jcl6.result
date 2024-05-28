@@ -1,3 +1,4 @@
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 set @save_optimizer_switch_jcl6=@@optimizer_switch;
 set @@optimizer_switch='optimize_join_buffer_size=on';
 set @@optimizer_switch='semijoin_with_cache=on';
@@ -9,6 +10,7 @@ Variable_name	Value
 join_cache_level	6
 set @optimizer_switch_for_select_test=@@optimizer_switch;
 set @join_cache_level_for_select_test=@@join_cache_level;
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 drop table if exists t1,t2,t3,t4,t11;
 drop table if exists t1_1,t1_2,t9_1,t9_2,t1aa,t2aa;
 drop view if exists v1;
@@ -5754,7 +5756,9 @@ a
 DROP TABLE t1;
 DROP VIEW v1, v2;
 End of 10.0 tests
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;
 set join_cache_level=default;
 set @@optimizer_switch=@save_optimizer_switch_jcl6;
 set @optimizer_switch_for_select_test=NULL;
 set @join_cache_level_for_select_test=NULL;
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

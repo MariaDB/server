@@ -152,7 +152,7 @@ t	CREATE TABLE `t` (
   `a` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
   `b` int(11) DEFAULT NULL,
   UNIQUE KEY `a` (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 # a is unique in the old table, but is shrunk in the new one.
 # Only unsafe approach is fine because of possible collisions.
 alter table t modify a int, modify b serial, algorithm=copy, lock=none;
@@ -177,7 +177,7 @@ t	CREATE TABLE `t` (
   `b` int(11) NOT NULL AUTO_INCREMENT,
   `c` int(11) DEFAULT 0,
   UNIQUE KEY `b` (`b`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 alter table t drop b, change c c serial, algorithm=copy, lock=none;
 ERROR 0A000: LOCK=NONE is not supported. Reason: CHANGE COLUMN ... AUTO_INCREMENT. Try LOCK=SHARED
 # Check existed unique keys.

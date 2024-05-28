@@ -1,3 +1,4 @@
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 #
 #  Engine-agnostic tests for statistics-based selectivity calculations.
 #   - selectivity tests that depend on the engine should go into
@@ -363,3 +364,4 @@ set use_stat_tables= @save_use_stat_tables;
 set histogram_type=@save_histogram_type;
 set histogram_size=@save_histogram_size;
 set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

@@ -5,10 +5,10 @@
 # MDEV-19675 Wrong charset is chosen when opening a pre-4.1 table
 #
 # Test with a saved table from 3.23
-SELECT @@character_set_database;
-@@character_set_database
-latin1
-SET @@character_set_database="latin1";
+SELECT @@collation_database;
+@@collation_database
+utf8mb4_uca1400_ai_ci
+SET @@collation_database="latin1_swedish_ci";
 SELECT COUNT(*) FROM t1;
 ERROR HY000: Got error 190 "Incompatible key or row definition between the MariaDB .frm file and the information in the storage engine. You can try REPAIR TABLE ... USE_FRM possibly followed by ALTER TABLE ... FORCE or dump and restore the table to fix this" from storage engine MyISAM
 ALTER TABLE t1 FORCE;
@@ -61,23 +61,23 @@ t1	CREATE TABLE `t1` (
   PRIMARY KEY (`Host`,`Db`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='Host privileges;  Merged with database privileges'
 DROP TABLE t1;
-SET @@character_set_database=DEFAULT;
+SET @@collation_database=DEFAULT;
 # Now do the same, but doing 'ALTER DATABASE' to create the db.opt file,
 # instead of setting variables directly.
 # Emulate a pre-4.1 database without db.opt
 SHOW CREATE DATABASE db1;
 Database	Create Database
-db1	CREATE DATABASE `db1` /*!40100 DEFAULT CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci */
+db1	CREATE DATABASE `db1` /*!40100 DEFAULT CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci */
 USE db1;
-SELECT @@character_set_database, 'taken from defaults' AS comment;
-@@character_set_database	comment
-utf8mb3	taken from defaults
+SELECT @@collation_database, 'taken from defaults' AS comment;
+@@collation_database	comment
+utf8mb3_general_ci	taken from defaults
 USE test;
 ALTER DATABASE db1 DEFAULT CHARACTER SET latin1;
 USE db1;
-SELECT @@character_set_database, 'taken from db.opt' AS comment;
-@@character_set_database	comment
-latin1	taken from db.opt
+SELECT @@collation_database, 'taken from db.opt' AS comment;
+@@collation_database	comment
+latin1_swedish_ci	taken from db.opt
 SELECT COUNT(*) FROM t1;
 ERROR HY000: Got error 190 "Incompatible key or row definition between the MariaDB .frm file and the information in the storage engine. You can try REPAIR TABLE ... USE_FRM possibly followed by ALTER TABLE ... FORCE or dump and restore the table to fix this" from storage engine MyISAM
 REPAIR TABLE t1 USE_FRM;

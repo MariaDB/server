@@ -1,4 +1,7 @@
 --source include/innodb_page_size.inc
+--disable_query_log
+--source include/test_db_charset_latin1.inc
+--enable_query_log
 
 SET @old_instant=
 (SELECT variable_value FROM information_schema.global_status
@@ -74,3 +77,7 @@ if ($innodb_page_size == 4k) {
 --error $error_code
 ALTER TABLE t1 ADD COLUMN f5 TEXT, ALGORITHM=INPLACE;
 DROP TABLE t1;
+
+--disable_query_log
+--source include/test_db_charset_restore.inc
+--enable_query_log

@@ -1,6 +1,8 @@
 # For stable statistics
 #--source include/have_innodb_16k.inc
 --source include/have_innodb.inc
+--source include/test_db_charset_latin1.inc
+
 --echo # 
 --echo # WL#8867: Add JSON_TABLE table function
 --echo # 
@@ -1313,7 +1315,7 @@ SELECT * FROM v1;
 SET NAMES latin1;
 # Used to return zero rows.
 SELECT * FROM v1;
-SET NAMES DEFAULT;
+SET NAMES latin1;
 DROP VIEW v1;
 
 CREATE VIEW v2 AS
@@ -1492,3 +1494,5 @@ SELECT HEX(a) FROM JSON_TABLE(
   '$'
   COLUMNS(a BINARY(5) PATH '$[1]' NULL ON EMPTY)
 ) e;
+
+--source include/test_db_charset_restore.inc

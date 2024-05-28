@@ -3,6 +3,7 @@
 --source include/have_sequence.inc
 --source include/default_charset.inc
 --source include/have_partition.inc
+--source include/test_db_charset_latin1.inc
 
 --disable_warnings
 drop table if exists t0,t1,t2,t3;
@@ -50,7 +51,7 @@ set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivit
 DROP DATABASE IF EXISTS dbt3_s001;
 --enable_warnings
 
-CREATE DATABASE dbt3_s001;
+CREATE DATABASE dbt3_s001 CHARACTER SET latin1;
 
 use dbt3_s001;
 
@@ -1011,11 +1012,11 @@ set use_stat_tables=@save_use_stat_tables;
 set use_stat_tables='preferably';
 set optimizer_use_condition_selectivity=3;
 
-create table t1(col1 char(32));
+create table t1(col1 char(32)) charset=latin1;
 insert into t1 values ('a'),('b'),('c'),('d'), ('e'),('f'),('g'),('h');
 analyze table t1;
 
-create table t2(col1 text);
+create table t2(col1 text) charset=latin1;
 insert into t2 values ('a'),('b'),('c'),('d'), ('e'),('f'),('g'),('h');
 analyze table t2;
 
@@ -1151,7 +1152,7 @@ set @@optimizer_use_condition_selectivity=2;
 
 set names utf8;
 
-CREATE DATABASE world;
+CREATE DATABASE world CHARACTER SET latin1;
 
 use world;
 
@@ -1454,3 +1455,5 @@ SELECT * FROM t1 LEFT JOIN (t2 JOIN t3 ON t2.b = t3.e) ON t2.c = 1;
 
 set join_cache_level= default;
 DROP TABLE t1, t2, t3;
+
+--source include/test_db_charset_restore.inc

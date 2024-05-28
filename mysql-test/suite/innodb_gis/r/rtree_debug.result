@@ -37,7 +37,7 @@ t1	CREATE TABLE `t1` (
   `c1` int(11) DEFAULT NULL,
   `c2` geometry NOT NULL,
   SPATIAL KEY `idx` (`c2`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SET @save_dbug = @@SESSION.debug_dbug;
 SET debug_dbug='+d,row_merge_ins_spatial_fail';
 create spatial index idx2 on t1(c2);
@@ -49,7 +49,7 @@ t1	CREATE TABLE `t1` (
   `c1` int(11) DEFAULT NULL,
   `c2` geometry NOT NULL,
   SPATIAL KEY `idx` (`c2`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 check table t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK

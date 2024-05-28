@@ -2,6 +2,8 @@
 # Test of heap tables.
 #
 
+--source include/test_db_charset_latin1.inc
+
 --disable_warnings
 drop table if exists t1,t2,t3;
 --enable_warnings
@@ -660,3 +662,5 @@ INSERT INTO t1 VALUES("7","GREEN", 2);
 DELETE FROM t1 WHERE ts = 1 AND color = 'GREEN';
 SELECT * from t1 WHERE ts = 1 AND color = 'GREEN';
 DROP TABLE t1;
+
+--source include/test_db_charset_restore.inc

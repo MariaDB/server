@@ -879,7 +879,8 @@ static bool fix_thd_charset(sys_var *self, THD *thd, enum_var_type type)
     thd->update_charset();
   return false;
 }
-static Sys_var_struct Sys_character_set_client(
+
+static Sys_var_charset Sys_character_set_client(
        "character_set_client", "The character set for statements "
        "that arrive from the client",
        NO_SET_STMT SESSION_VAR(character_set_client), NO_CMD_LINE,

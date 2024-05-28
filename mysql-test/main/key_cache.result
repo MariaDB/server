@@ -1,4 +1,5 @@
 drop table if exists t1, t2, t3;
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 SET @save_key_buffer_size=@@key_buffer_size;
 SET @save_key_cache_block_size=@@key_cache_block_size;
 SET @save_key_cache_segments=@@key_cache_segments;
@@ -860,3 +861,4 @@ SET GLOBAL keycache1.key_buffer_size=0;
 #
 # End of 10.3 tests
 #
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

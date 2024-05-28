@@ -64,7 +64,7 @@ a	b	c
 connection slave;
 START SLAVE;
 include/wait_for_slave_sql_error.inc [errno=1677]
-Last_SQL_Error = 'Column 2 of table 'test.t2' cannot be converted from type 'char(10 octets)' to type 'char(5 octets) character set latin1''
+Last_SQL_Error = 'Column 2 of table 'test.t2' cannot be converted from type 'char(40 octets)' to type 'char(20 octets) character set utf8mb4''
 STOP SLAVE;
 include/reset_slave.inc
 Warnings:
@@ -162,7 +162,7 @@ INSERT INTO t5 () VALUES(1,'Kyle',200.23,1,'b1b1',23.00098),
 ********************************************
 connection slave;
 include/wait_for_slave_sql_error_and_skip.inc [errno=1677]
-Last_SQL_Error = 'Column 1 of table 'test.t5' cannot be converted from type 'varchar(6 octets)' to type 'char(5 octets) character set latin1''
+Last_SQL_Error = 'Column 1 of table 'test.t5' cannot be converted from type 'varchar(24 octets)' to type 'char(20 octets) character set utf8mb4''
 *** Drop t5  ***
 connection master;
 DROP TABLE t5;
@@ -190,7 +190,7 @@ INSERT INTO t6 () VALUES(1,'Kyle',200.23,1),
 ********************************************
 connection slave;
 include/wait_for_slave_sql_error.inc [errno=1677]
-Last_SQL_Error = 'Column 1 of table 'test.t6' cannot be converted from type 'varchar(6 octets)' to type 'char(5 octets) character set latin1''
+Last_SQL_Error = 'Column 1 of table 'test.t6' cannot be converted from type 'varchar(24 octets)' to type 'char(20 octets) character set utf8mb4''
 *** Drop t6  ***
 include/rpl_reset.inc
 connection master;
@@ -311,7 +311,7 @@ INSERT INTO t10 () VALUES(1,@b1,'Kyle'),(2,@b1,'JOE'),(3,@b1,'QA');
 ********************************************
 connection slave;
 include/wait_for_slave_sql_error_and_skip.inc [errno=1677]
-Last_SQL_Error = 'Column 2 of table 'test.t10' cannot be converted from type 'char(5 octets)' to type 'double''
+Last_SQL_Error = 'Column 2 of table 'test.t10' cannot be converted from type 'char(20 octets)' to type 'double''
 *** Drop t10  ***
 connection master;
 DROP TABLE t10;
@@ -339,7 +339,7 @@ INSERT INTO t11 () VALUES(1,@b1,'Kyle'),(2,@b1,'JOE'),(3,@b1,'QA');
 ********************************************
 connection slave;
 include/wait_for_slave_sql_error_and_skip.inc [errno=1677]
-Last_SQL_Error = 'Column 2 of table 'test.t11' cannot be converted from type 'varchar(254 octets)' to type 'int(11)''
+Last_SQL_Error = 'Column 2 of table 'test.t11' cannot be converted from type 'varchar(1016 octets)' to type 'int(11)''
 *** Drop t11  ***
 connection master;
 DROP TABLE t11;
@@ -662,7 +662,7 @@ t16	CREATE TABLE `t16` (
   `c4` blob DEFAULT NULL,
   `c5` char(5) DEFAULT NULL,
   PRIMARY KEY (`c1`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY KEY (`c1`)
 PARTITIONS 4
 *** Show table on Slave ****
@@ -678,7 +678,7 @@ t16	CREATE TABLE `t16` (
   `c6` int(11) DEFAULT 1,
   `c7` timestamp NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`c1`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY KEY (`c1`)
 PARTITIONS 4
 *** DROP TABLE t16 ***

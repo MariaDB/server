@@ -9174,6 +9174,19 @@ Item_func_like::get_mm_leaf(RANGE_OPT_PARAM *param,
                                    &min_length, &max_length))
     DBUG_RETURN(0);              // Can't optimize with LIKE
 
+  /*
+    In case of a multi-byte character set let's limit the charcter length
+    of min_str and max_str to the character length of the field. Otherwise
+    we'd get a warning in Field_{string|varstring|blob}::set_key_image().
+    For performance purposes let's eventually add a new "nchars" argument
+    to CHARSET_INFO::like_range().
+  */
+  min_length= Well_formed_prefix(field->charset(),
+                                 (const char *) min_str + offset, min_length,
+                                 field->char_length()).length();
+  max_length= Well_formed_prefix(field->charset(),
+                                 (const char *) max_str + offset, max_length,
+                                 field->char_length()).length();
   if (offset != maybe_null)			// BLOB or VARCHAR
   {
     int2store(min_str + maybe_null, min_length);

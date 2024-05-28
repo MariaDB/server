@@ -1,4 +1,5 @@
 SET @global_start_value = @@global.character_set_connection;
+SET @global_collation_connection = @@global.collation_connection;
 SET @save_character_set_client=@@global.character_set_client;
 SET @@global.character_set_client=@@character_set_client;
 SET @session_start_value = @@character_set_connection;
@@ -510,5 +511,5 @@ collation_connection	latin2_general_ci
 SET @@pseudo_slave_mode=0;
 Warnings:
 Warning	1231	Slave applier execution mode not active, statement ineffective.
-SET @@global.character_set_connection = @global_start_value;
+SET @@global.collation_connection = @global_collation_connection;
 SET @@global.character_set_client = @save_character_set_client;

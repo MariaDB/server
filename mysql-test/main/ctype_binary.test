@@ -106,13 +106,13 @@ DROP TABLE t1;
 
 --echo # 0x00 in the beginning of the second (and following) value of the *last* ENUM/SET in the table:
 
-CREATE TABLE t1 (a ENUM('a',0x0061));
+CREATE TABLE t1 (a ENUM('a',0x0061)) CHARSET=latin1;
 SHOW CREATE TABLE t1;
 INSERT INTO t1 VALUES (1),(2);
 SELECT HEX(a) FROM t1 ORDER BY a;
 DROP TABLE t1;
 
-CREATE TABLE t1 (a ENUM('a'), b ENUM('b',0x0061));
+CREATE TABLE t1 (a ENUM('a'), b ENUM('b',0x0061)) CHARSET=latin1;
 SHOW CREATE TABLE t1;
 INSERT INTO t1 VALUES (1,1);
 INSERT INTO t1 VALUES (1,2);
@@ -122,7 +122,7 @@ DROP TABLE t1;
 --echo 0x00 in the beginning of a value of a non-last ENUM/SET causes an error:
 --replace_regex /'.*t1.frm'/'DIR\/t1.frm'/
 --error ER_NOT_FORM_FILE
-CREATE TABLE t1 (a ENUM('a',0x0061), b ENUM('b'));
+CREATE TABLE t1 (a ENUM('a',0x0061), b ENUM('b')) CHARSET=latin1;
 
 
 --echo #

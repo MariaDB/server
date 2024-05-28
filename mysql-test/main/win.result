@@ -3312,7 +3312,7 @@ SHOW CREATE TABLE fv_result;
 Table	Create Table
 fv_result	CREATE TABLE `fv_result` (
   `somedate` datetime DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM fv_result;
 somedate
 2017-07-20 12:47:56
@@ -4438,7 +4438,7 @@ t2	CREATE TABLE `t2` (
   `pk` int(11) DEFAULT NULL,
   `a` int(11) DEFAULT NULL,
   `bit_or` bigint(21) unsigned NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t1;
 pk	a	b
 1	0	1
@@ -4453,7 +4453,7 @@ t2	CREATE TABLE `t2` (
   `pk` int(11) DEFAULT NULL,
   `a` int(11) DEFAULT NULL,
   `bit_or` bigint(21) unsigned NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t2;
 pk	a	bit_or
 1	0	18446744073709551615

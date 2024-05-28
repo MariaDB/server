@@ -5,8 +5,8 @@
 drop table if exists t1,t2;
 --enable_warnings
 
-create table t1 (name char(20) not null, primary key (name));
-create table t2 (name char(20) binary not null, primary key (name));
+create table t1 (name char(20) not null, primary key (name)) charset=latin1;
+create table t2 (name char(20) binary not null, primary key (name)) charset=latin1;
 insert into t1 values ("å");
 insert into t1 values ("ä");
 insert into t1 values ("ö");
@@ -59,7 +59,7 @@ drop table t1;
 #
 # Test of binary and upper/lower
 #
-create table t1 (a char(3) binary, b binary(3));
+create table t1 (a char(3) binary, b binary(3)) charset=latin1;
 insert into t1 values ('aaa','bbb'),('AAA','BBB');
 select upper(a),upper(b) from t1;
 select lower(a),lower(b) from t1;
@@ -75,7 +75,7 @@ drop table t1;
 # Bug5134: WHERE x = 'bar' AND x LIKE BINARY 'bar' returns wrong results
 #
 
-create table t1( firstname char(20), lastname char(20));
+create table t1( firstname char(20), lastname char(20)) charset=latin1;
 insert into t1 values ("john","doe"),("John","Doe");
 select * from t1 where firstname='john' and firstname like binary 'john';
 select * from t1 where firstname='john' and binary 'john' = firstname;
@@ -134,7 +134,7 @@ CREATE TABLE t1 (
   lang varchar(8) NOT NULL,
   msg varchar(32) NOT NULL,
   PRIMARY KEY (id,lang)
-);
+) CHARSET=latin1;
 INSERT INTO t1 VALUES (33, 'en', 'zzzzzzz');
 INSERT INTO t1 VALUES (31, 'en', 'xxxxxxx');
 INSERT INTO t1 VALUES (32, 'en', 'yyyyyyy');

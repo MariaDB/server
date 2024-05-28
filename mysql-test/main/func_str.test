@@ -3,6 +3,9 @@
 # Testing string functions
 --source include/have_sequence.inc
 
+--source include/test_db_charset_latin1.inc
+
+
 set @save_max_allowed_packet=@@global.max_allowed_packet;
 set global max_allowed_packet=1048576;
 connect (conn1,localhost,root,,);
@@ -1550,6 +1553,7 @@ SELECT insert( substring_index( 'a', 'a', 'b' ), 1, 0, 'x' );
 --eval LOAD DATA INFILE '$MYSQLTEST_VARDIR/tmp/bug58165.txt' INTO TABLE t1;
 SELECT * FROM t1;
 DROP TABLE t1;
+--remove_file $MYSQLTEST_VARDIR/tmp/bug58165.txt
 
 #
 # MDEV-759 lp:998340 - Valgrind complains on simple selects containing expression DAY(FROM_UNIXTIME(-1))
@@ -2608,3 +2612,5 @@ SELECT
 --echo #
 --echo # End of 11.5 tests
 --echo #
+
+--source include/test_db_charset_restore.inc

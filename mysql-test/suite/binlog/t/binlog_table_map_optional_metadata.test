@@ -17,6 +17,7 @@
 ################################################################################
 --source include/have_debug.inc
 --source include/have_binlog_format_row.inc
+--source include/test_db_charset_latin1.inc
 
 RESET MASTER;
 SET GLOBAL binlog_row_metadata = MINIMAL;
@@ -332,3 +333,5 @@ SET SESSION debug_dbug = '';
 SET GLOBAL binlog_row_metadata = NO_LOG;
 DROP TABLE t1;
 RESET MASTER;
+
+--source include/test_db_charset_restore.inc

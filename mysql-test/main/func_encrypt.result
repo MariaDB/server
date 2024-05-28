@@ -362,7 +362,7 @@ t1	CREATE TABLE `t1` (
   `a` varchar(30) DEFAULT NULL,
   `b` blob DEFAULT des_encrypt(`a`,'passwd'),
   `c` text DEFAULT des_decrypt(`b`,'passwd')
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 (a) VALUES ('test');
 SELECT c FROM t1;
 c

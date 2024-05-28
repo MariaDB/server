@@ -135,7 +135,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `x` int(11) NOT NULL,
   PRIMARY KEY (`x`)
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
 insert into t1(x, row_start, row_end) values (3, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
 insert into t2(y, row_start, row_end) values (4, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
 insert into t3 values (5, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
@@ -246,14 +246,14 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `x` int(11) NOT NULL,
   PRIMARY KEY (`x`)
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
 set @@system_versioning_insert_history= 1;
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `x` int(11) NOT NULL,
   PRIMARY KEY (`x`)
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
 load data infile 'DATAFILE' into table t2 (x, row_start, row_end);
 select x, check_row_ts(row_start, row_end) from t2 for system_time all order by x;
 x	check_row_ts(row_start, row_end)

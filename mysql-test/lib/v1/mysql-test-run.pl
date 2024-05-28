@@ -3041,7 +3041,7 @@ sub mysqld_arguments ($$$$) {
     mtr_add_arg($args, "%s--log-bin-trust-function-creators", $prefix);
   }
 
-  mtr_add_arg($args, "%s--character-set-server=latin1", $prefix);
+  mtr_add_arg($args, "%s--character-set-server=utf8mb4", $prefix);
   mtr_add_arg($args, "%s--lc-messages-dir=%s", $prefix, $path_language);
   mtr_add_arg($args, "%s--tmpdir=$opt_tmpdir", $prefix);
 
@@ -3661,7 +3661,7 @@ sub run_testcase_start_servers($) {
 }
 
 #
-# Run include/check-testcase.test
+# Run include/check-testcase.inc
 # Before a testcase, run in record mode, save result file to var
 # After testcase, run and compare with the recorded file, they should be equal!
 #
@@ -3699,7 +3699,7 @@ sub run_check_testcase ($$) {
   }
 
   my $res = mtr_run_test($exe_mysqltest,$args,
-	        "include/check-testcase.test", "", "", "");
+	        "include/check-testcase.inc", "", "", "");
 
   if ( $res == 1  and $mode eq "after")
   {

@@ -146,7 +146,7 @@ Field	Type	Null	Key	Default	Extra
 a	int(11)	YES		NULL	
 drop view v1,v2;
 drop table t1,t2;
-create table  folks(id int, name char(32), dob date, father int, mother int);
+create table  folks(id int, name char(32), dob date, father int, mother int) charset=latin1;
 insert into folks values
 (100, 'Me', '2000-01-01', 20, 30),
 (20, 'Dad', '1970-02-02', 10, 9),
@@ -3155,7 +3155,7 @@ create table flights
 (departure varchar(32),
 arrival varchar(32),
 carrier varchar(20),
-flight_number char(7));
+flight_number char(7)) charset=latin1;
 insert into flights values
 ('Seattle', 'Frankfurt', 'Lufthansa', 'LH 491'),
 ('Seattle', 'Chicago', 'American', 'AA 2573'),
@@ -3886,11 +3886,11 @@ drop table t1,t2;
 #
 # MDEV-22042: ANALYZE of query using stored function and recursive CTE
 #
-create table t1 (a1 varchar(20),a2 varchar(20)) engine=myisam;
+create table t1 (a1 varchar(20),a2 varchar(20)) engine=myisam charset=latin1;
 insert into t1 values (1,1),(2,2),(3,3);
 create table t2 (
 a2 varchar(20) primary key, b1 varchar(20), key (b1)
-) engine=myisam;
+) engine=myisam charset=latin1;
 insert into t2 values (1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7);
 insert into t2 values (11,11),(12,12),(13,13),(14,14),(15,15),(16,16),(17,17);
 create  function f1(id varchar(20)) returns varchar(50)
@@ -5093,7 +5093,7 @@ DROP TABLE t1;
 CREATE TABLE t1
 (
 id INT, mid INT, name TEXT
-);
+) CHARSET=latin1;
 INSERT INTO t1 VALUES (0,NULL,'Name'),(1,0,'Name1'),(2,0,'Name2'),(11,1,'Name11'),(12,1,'Name12');
 WITH RECURSIVE
 cteReports (level, id, mid, name) AS
@@ -5144,9 +5144,9 @@ t2	CREATE TABLE `t2` (
   `level` int(1) DEFAULT NULL,
   `id` int(11) DEFAULT NULL,
   `mid` int(11) DEFAULT NULL,
-  `name` text DEFAULT NULL,
-  `mname` text DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `name` text CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `mname` text CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t2 WITH RECURSIVE
 cteReports (level, id, mid, name) AS
 (
@@ -5225,9 +5225,9 @@ t2	CREATE TABLE `t2` (
   `level` int(1) DEFAULT NULL,
   `id` int(11) DEFAULT NULL,
   `mid` int(11) DEFAULT NULL,
-  `name` text DEFAULT NULL,
-  `mname` text DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `name` text CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `mname` text CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 set @@sql_mode=default;
 drop table t1,t2;
 #

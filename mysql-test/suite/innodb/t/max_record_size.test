@@ -7,6 +7,9 @@
 
 call mtr.add_suppression("Cannot add field `.*` in table `test`.`t1` because after adding it, the row size is");
 
+--disable_query_log
+--source include/test_db_charset_latin1.inc
+--enable_query_log
 
 if ($page_size == 4096) {
 CREATE TABLE t1 (
@@ -1420,3 +1423,7 @@ CREATE TABLE t1 (
   c1016 TEXT, c1017 TEXT, c1018 TEXT
 ) ENGINE=INNODB;
 } }
+
+--disable_query_log
+--source include/test_db_charset_restore.inc
+--enable_query_log

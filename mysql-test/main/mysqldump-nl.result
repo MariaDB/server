@@ -23,7 +23,7 @@ use test;
 1tsetlqsym`*/;
 
 CREATE DATABASE /*!32312 IF NOT EXISTS*/ `mysqltest1
-1tsetlqsym` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */;
+1tsetlqsym` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci */;
 
 USE `mysqltest1
 1tsetlqsym`;
@@ -39,7 +39,7 @@ CREATE TABLE `t1
 1t` (
   `foobar
 raboof` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -143,7 +143,7 @@ test`
 
 /*!40000 DROP DATABASE IF EXISTS `test```*/;
 
-CREATE DATABASE /*!32312 IF NOT EXISTS*/ `test``` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */;
+CREATE DATABASE /*!32312 IF NOT EXISTS*/ `test``` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci */;
 
 USE `test```;
 
@@ -159,7 +159,7 @@ USE `test```;
 
 CREATE DATABASE /*!32312 IF NOT EXISTS*/ `test\``
 \! ls
-#` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */;
+#` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci */;
 
 USE `test\``
 \! ls

@@ -37,6 +37,9 @@
 #############################################################
 #                 Save initial value                        #
 #############################################################
+SET @global_start_value_collation_server = @@global.collation_server;
+SET @session_start_value_collation_server = @@session.collation_server;
+
 SET @global_start_value = @@global.character_set_server;
 SET @@global.character_set_server=@@character_set_client;
 SELECT @@global.character_set_server;
@@ -281,8 +284,8 @@ SET @@pseudo_slave_mode=0;
 ####################################
 #     Restore initial value        #
 ####################################
-SET @@global.character_set_server = @global_start_value;
-SET @@session.character_set_server = @session_start_value;
+SET @@global.collation_server = @global_start_value_collation_server;
+SET @@session.collation_server = @session_start_value_collation_server;
 
 #############################################################
 #                 END OF character_set_server TESTS         #

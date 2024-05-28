@@ -1,4 +1,5 @@
 call mtr.add_suppression("Invalid .old.. table or database name");
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 drop database if exists `mysqltest1`;
 drop database if exists `mysqltest-1`;
 drop database if exists `#mysql50#mysqltest-1`;
@@ -162,3 +163,4 @@ Tables_in_test	Table_type
 ltoriaeinnovacionendesarrolloempres#9120761097220077376#cio_com	BASE TABLE
 drop table `ltoriaeinnovacionendesarrolloempres#9120761097220077376#cio_com`;
 # End of 5.1 tests
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;
