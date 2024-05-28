@@ -82,7 +82,7 @@ child	CREATE TABLE `child` (
   CONSTRAINT `fk_10` FOREIGN KEY (`a1`, `a2`) REFERENCES `parent` (`a`, `b`) ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT `fk_2` FOREIGN KEY (`a1`, `a2`) REFERENCES `parent` (`a`, `b`) ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT `fk_3` FOREIGN KEY (`a1`, `a2`) REFERENCES `parent` (`a`, `b`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DELETE FROM parent where a = 1;
 SELECT * FROM child;
 a1	a2
@@ -258,7 +258,7 @@ child	CREATE TABLE `child` (
   PRIMARY KEY (`a1`),
   KEY `fk_4` (`a2`),
   CONSTRAINT `fk_4` FOREIGN KEY (`a2`) REFERENCES `parent` (`b`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM information_schema.INNODB_SYS_FOREIGN;
 ID	FOR_NAME	REF_NAME	N_COLS	TYPE
 test/fk_4	test/child	test/parent	1	5
@@ -352,7 +352,7 @@ child	CREATE TABLE `child` (
   PRIMARY KEY (`a3`),
   KEY `tb` (`a2`),
   CONSTRAINT `fk_1` FOREIGN KEY (`a2`) REFERENCES `parent` (`b`) ON DELETE SET NULL ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE child;
 CREATE TABLE child (a1 INT NOT NULL, a2 INT) ENGINE = InnoDB;
 ALTER TABLE child ADD PRIMARY KEY idx (a1),
@@ -389,7 +389,7 @@ child	CREATE TABLE `child` (
   PRIMARY KEY (`a1`),
   KEY `fk_1` (`a2`),
   CONSTRAINT `fk_1` FOREIGN KEY (`a2`) REFERENCES `parent` (`b`) ON DELETE SET NULL ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE child;
 CREATE TABLE child (a1 INT NOT NULL, a2 INT) ENGINE = InnoDB;
 ALTER TABLE child CHANGE a1 a3 INT,
@@ -423,7 +423,7 @@ child	CREATE TABLE `child` (
   `a2` int(11) DEFAULT NULL,
   KEY `fk_1` (`a3`),
   CONSTRAINT `fk_1` FOREIGN KEY (`a3`) REFERENCES `parent` (`b`) ON DELETE SET NULL ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE child;
 CREATE TABLE child (a1 INT NOT NULL, a2 INT) ENGINE = InnoDB;
 ALTER TABLE child ADD PRIMARY KEY idx (a3), CHANGE a1 a3 INT,
@@ -456,7 +456,7 @@ child	CREATE TABLE `child` (
   KEY `fk_b` (`a1_new`),
   CONSTRAINT `fk_a` FOREIGN KEY (`a2_new`) REFERENCES `parent` (`b`) ON DELETE SET NULL ON UPDATE CASCADE,
   CONSTRAINT `fk_b` FOREIGN KEY (`a1_new`) REFERENCES `parent` (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * from information_schema.INNODB_SYS_FOREIGN;
 ID	FOR_NAME	REF_NAME	N_COLS	TYPE
 test/fk_a	test/child	test/parent	1	6
@@ -481,7 +481,7 @@ child	CREATE TABLE `child` (
   KEY `fk_b` (`a1_new`),
   CONSTRAINT `fk_a` FOREIGN KEY (`a2_new`) REFERENCES `parent` (`b`) ON DELETE SET NULL ON UPDATE CASCADE,
   CONSTRAINT `fk_b` FOREIGN KEY (`a1_new`) REFERENCES `parent` (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * from information_schema.INNODB_SYS_FOREIGN;
 ID	FOR_NAME	REF_NAME	N_COLS	TYPE
 test/fk_a	test/child	test/parent	1	6
@@ -509,7 +509,7 @@ child	CREATE TABLE `child` (
   CONSTRAINT `fk_new_1` FOREIGN KEY (`a1_new`) REFERENCES `parent` (`b`),
   CONSTRAINT `fk_new_2` FOREIGN KEY (`a2_new`) REFERENCES `parent` (`a`),
   CONSTRAINT `fk_new_3` FOREIGN KEY (`a3`) REFERENCES `parent` (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * from information_schema.INNODB_SYS_FOREIGN;
 ID	FOR_NAME	REF_NAME	N_COLS	TYPE
 test/fk_a	test/child	test/parent	1	6
@@ -540,7 +540,7 @@ child	CREATE TABLE `child` (
   `a2` int(11) DEFAULT NULL,
   `a3` int(11) DEFAULT NULL,
   KEY `tb` (`a2`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * from information_schema.INNODB_SYS_FOREIGN;
 ID	FOR_NAME	REF_NAME	N_COLS	TYPE
 SELECT * from information_schema.INNODB_SYS_FOREIGN_COLS;
@@ -564,7 +564,7 @@ child	CREATE TABLE `child` (
   CONSTRAINT `fk_new_1` FOREIGN KEY (`a1`) REFERENCES `parent` (`b`),
   CONSTRAINT `fk_new_2` FOREIGN KEY (`a2`) REFERENCES `parent` (`a`),
   CONSTRAINT `fk_new_3` FOREIGN KEY (`a3`) REFERENCES `parent` (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * from information_schema.INNODB_SYS_FOREIGN;
 ID	FOR_NAME	REF_NAME	N_COLS	TYPE
 test/fk_new_1	test/child	test/parent	1	0
@@ -626,7 +626,7 @@ t2	CREATE TABLE `t2` (
   `f2` int(11) DEFAULT NULL,
   `f3` int(11) DEFAULT NULL,
   CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`f2`) REFERENCES `t1` (`f1`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t2;
 drop table t1;
 create table t1(f1 int ,primary key(f1))engine=innodb;
@@ -641,7 +641,7 @@ t2	CREATE TABLE `t2` (
   `f3` int(11) DEFAULT NULL,
   KEY `t1` (`f2`,`f3`),
   CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`f2`) REFERENCES `t1` (`f1`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t2;
 drop table t1;
 #
@@ -656,7 +656,7 @@ t1	CREATE TABLE `t1` (
   `f1` int(11) DEFAULT NULL,
   KEY `f1` (`f1`),
   CONSTRAINT `t1_ibfk_1` FOREIGN KEY (`f1`) REFERENCES `t1` (`f1`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 CREATE TABLE t1(f1 INT, KEY(f1),
 FOREIGN KEY(f1) REFERENCES t1(f1))ENGINE=InnoDB;
@@ -666,12 +666,12 @@ t1	CREATE TABLE `t1` (
   `f1` int(11) DEFAULT NULL,
   KEY `f1` (`f1`),
   CONSTRAINT `t1_ibfk_1` FOREIGN KEY (`f1`) REFERENCES `t1` (`f1`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE t1 DROP KEY f1;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `f1` int(11) DEFAULT NULL,
   CONSTRAINT `t1_ibfk_1` FOREIGN KEY (`f1`) REFERENCES `t1` (`f1`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;

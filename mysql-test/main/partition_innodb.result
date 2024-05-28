@@ -16,7 +16,7 @@ CREATE TABLE t1
 b varchar(64),
 PRIMARY KEY (a),
 KEY (b))
-ENGINE = InnoDB
+ENGINE = InnoDB CHARSET=latin1
 PARTITION BY RANGE (a)
 SUBPARTITION BY HASH (a) SUBPARTITIONS 10
 (PARTITION pNeg VALUES LESS THAN (0),
@@ -60,7 +60,7 @@ c2 varchar(40) not null default '',
 c3 datetime not  NULL,
 PRIMARY KEY (c1,c3),
 KEY partidx(c3))
-ENGINE=InnoDB
+ENGINE=InnoDB CHARSET=latin1
 PARTITION BY RANGE (TO_DAYS(c3))
 (PARTITION p200912 VALUES LESS THAN (to_days('2010-01-01')),
 PARTITION p201103 VALUES LESS THAN (to_days('2011-04-01')),
@@ -394,33 +394,33 @@ DROP TABLE t1;
 create table t1 (a int) engine=innodb partition by hash(a) ;
 show table status like 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	InnoDB	10	Dynamic	2	8192	16384	0	0	0	NULL	#	NULL	NULL	latin1_swedish_ci	NULL	partitioned		0	N
+t1	InnoDB	10	Dynamic	2	8192	16384	0	0	0	NULL	#	NULL	NULL	utf8mb4_uca1400_ai_ci	NULL	partitioned		0	N
 drop table t1;
 create table t1 (a int)
 engine = innodb
 partition by key (a);
 show table status;
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	InnoDB	10	Dynamic	2	8192	16384	0	0	0	NULL	Create_time	NULL	NULL	latin1_swedish_ci	NULL	partitioned		0	N
+t1	InnoDB	10	Dynamic	2	8192	16384	0	0	0	NULL	Create_time	NULL	NULL	utf8mb4_uca1400_ai_ci	NULL	partitioned		0	N
 insert into t1 values (0), (1), (2), (3);
 show table status;
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	InnoDB	10	Dynamic	Rows	Avg_row_length	16384	0	0	0	NULL	Create_time	Update_time	NULL	latin1_swedish_ci	NULL	partitioned		0	N
+t1	InnoDB	10	Dynamic	Rows	Avg_row_length	16384	0	0	0	NULL	Create_time	Update_time	NULL	utf8mb4_uca1400_ai_ci	NULL	partitioned		0	N
 drop table t1;
 create table t1 (a int auto_increment primary key)
 engine = innodb
 partition by key (a);
 show table status;
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	InnoDB	10	Dynamic	2	8192	16384	0	0	0	1	Create_time	NULL	NULL	latin1_swedish_ci	NULL	partitioned		0	N
+t1	InnoDB	10	Dynamic	2	8192	16384	0	0	0	1	Create_time	NULL	NULL	utf8mb4_uca1400_ai_ci	NULL	partitioned		0	N
 insert into t1 values (NULL), (NULL), (NULL), (NULL);
 show table status;
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	InnoDB	10	Dynamic	Rows	Avg_row_length	16384	0	0	0	5	Create_time	Update_time	NULL	latin1_swedish_ci	NULL	partitioned		0	N
+t1	InnoDB	10	Dynamic	Rows	Avg_row_length	16384	0	0	0	5	Create_time	Update_time	NULL	utf8mb4_uca1400_ai_ci	NULL	partitioned		0	N
 insert into t1 values (NULL), (NULL), (NULL), (NULL);
 show table status;
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	InnoDB	10	Dynamic	Rows	Avg_row_length	16384	0	0	0	9	Create_time	Update_time	NULL	latin1_swedish_ci	NULL	partitioned		0	N
+t1	InnoDB	10	Dynamic	Rows	Avg_row_length	16384	0	0	0	9	Create_time	Update_time	NULL	utf8mb4_uca1400_ai_ci	NULL	partitioned		0	N
 drop table t1;
 create table t1 (a int)
 partition by key (a)
@@ -454,7 +454,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY KEY (`a`)
 drop table t1;
 create table t1 (a int)
@@ -468,7 +468,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (`a`)
 (PARTITION `p0` VALUES IN (0) ENGINE = InnoDB)
 drop table t1;
@@ -547,7 +547,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `int_column` int(11) DEFAULT NULL,
   `char_column` char(5) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`int_column`)
 SUBPARTITION BY KEY (`char_column`)
 SUBPARTITIONS 2
@@ -594,7 +594,7 @@ t1	CREATE TABLE `t1` (
   `a` bigint(20) NOT NULL,
   `b` int(11) NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY KEY (`a`)
 PARTITIONS 2
 SELECT * FROM t1;
@@ -622,7 +622,7 @@ t1	CREATE TABLE `t1` (
   `a` bigint(20) NOT NULL,
   `b` int(11) NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY KEY (`a`)
 PARTITIONS 2
 SELECT * FROM t1;

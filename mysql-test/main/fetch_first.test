@@ -276,7 +276,7 @@ drop table t_keyword;
 --echo # Test behaviour with a simple select.
 --echo #
 
-create table t1 (id int, first_name varchar(100), last_name varchar(100), score double);
+create table t1 (id int, first_name varchar(100), last_name varchar(100), score double) charset=latin1;
 insert into t1 values
   (1, 'Alice', 'Fowler', 5),
   (2, 'John', 'Doe', 6),
@@ -553,7 +553,7 @@ drop view v3;
 --echo #
 --echo # Test with ties when an index is used to provide the order by.
 --echo #
-create table t1 (id int, first_name varchar(100), last_name varchar(100), score double);
+create table t1 (id int, first_name varchar(100), last_name varchar(100), score double) charset=latin1;
 
 create index t1_name on t1 (first_name, last_name);
 

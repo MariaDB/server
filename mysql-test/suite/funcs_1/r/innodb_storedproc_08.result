@@ -139,7 +139,7 @@ ROUTINE_COMMENT
 DEFINER	root@localhost
 CHARACTER_SET_CLIENT	latin1
 COLLATION_CONNECTION	latin1_swedish_ci
-DATABASE_COLLATION	latin1_swedish_ci
+DATABASE_COLLATION	utf8mb4_uca1400_ai_ci
 SPECIFIC_NAME	fn_2
 ROUTINE_CATALOG	def
 ROUTINE_SCHEMA	db_storedproc
@@ -174,7 +174,7 @@ ROUTINE_COMMENT	created with INVOKER
 DEFINER	root@localhost
 CHARACTER_SET_CLIENT	latin1
 COLLATION_CONNECTION	latin1_swedish_ci
-DATABASE_COLLATION	latin1_swedish_ci
+DATABASE_COLLATION	utf8mb4_uca1400_ai_ci
 SPECIFIC_NAME	sp_1
 ROUTINE_CATALOG	def
 ROUTINE_SCHEMA	db_storedproc
@@ -207,7 +207,7 @@ ROUTINE_COMMENT
 DEFINER	root@localhost
 CHARACTER_SET_CLIENT	latin1
 COLLATION_CONNECTION	latin1_swedish_ci
-DATABASE_COLLATION	latin1_swedish_ci
+DATABASE_COLLATION	utf8mb4_uca1400_ai_ci
 SPECIFIC_NAME	sp_2
 ROUTINE_CATALOG	def
 ROUTINE_SCHEMA	db_storedproc
@@ -240,7 +240,7 @@ ROUTINE_COMMENT	created with INVOKER
 DEFINER	root@localhost
 CHARACTER_SET_CLIENT	latin1
 COLLATION_CONNECTION	latin1_swedish_ci
-DATABASE_COLLATION	latin1_swedish_ci
+DATABASE_COLLATION	utf8mb4_uca1400_ai_ci
 SHOW CREATE FUNCTION  fn_1;
 Function	fn_1
 sql_mode	
@@ -252,7 +252,7 @@ return i4;
 END
 character_set_client	latin1
 collation_connection	latin1_swedish_ci
-Database Collation	latin1_swedish_ci
+Database Collation	utf8mb4_uca1400_ai_ci
 SHOW CREATE FUNCTION  fn_2;
 Function	fn_2
 sql_mode	
@@ -266,7 +266,7 @@ return i4;
 END
 character_set_client	latin1
 collation_connection	latin1_swedish_ci
-Database Collation	latin1_swedish_ci
+Database Collation	utf8mb4_uca1400_ai_ci
 SHOW CREATE PROCEDURE sp_1;
 Procedure	sp_1
 sql_mode	
@@ -276,7 +276,7 @@ set @x=i1;
 END
 character_set_client	latin1
 collation_connection	latin1_swedish_ci
-Database Collation	latin1_swedish_ci
+Database Collation	utf8mb4_uca1400_ai_ci
 SHOW CREATE PROCEDURE sp_2;
 Procedure	sp_2
 sql_mode	
@@ -288,7 +288,7 @@ set @x=i1;
 END
 character_set_client	latin1
 collation_connection	latin1_swedish_ci
-Database Collation	latin1_swedish_ci
+Database Collation	utf8mb4_uca1400_ai_ci
 SHOW FUNCTION STATUS LIKE 'fn_%';
 Db	db_storedproc
 Name	fn_1
@@ -300,7 +300,7 @@ Security_type	DEFINER
 Comment	
 character_set_client	latin1
 collation_connection	latin1_swedish_ci
-Database Collation	latin1_swedish_ci
+Database Collation	utf8mb4_uca1400_ai_ci
 Db	db_storedproc
 Name	fn_2
 Type	FUNCTION
@@ -311,7 +311,7 @@ Security_type	INVOKER
 Comment	created with INVOKER
 character_set_client	latin1
 collation_connection	latin1_swedish_ci
-Database Collation	latin1_swedish_ci
+Database Collation	utf8mb4_uca1400_ai_ci
 SHOW PROCEDURE STATUS LIKE 'sp_%';
 Db	db_storedproc
 Name	sp_1
@@ -323,7 +323,7 @@ Security_type	DEFINER
 Comment	
 character_set_client	latin1
 collation_connection	latin1_swedish_ci
-Database Collation	latin1_swedish_ci
+Database Collation	utf8mb4_uca1400_ai_ci
 Db	db_storedproc
 Name	sp_2
 Type	PROCEDURE
@@ -334,7 +334,7 @@ Security_type	INVOKER
 Comment	created with INVOKER
 character_set_client	latin1
 collation_connection	latin1_swedish_ci
-Database Collation	latin1_swedish_ci
+Database Collation	utf8mb4_uca1400_ai_ci
 
 ... now change some stuff:
 --------------------------
@@ -389,7 +389,7 @@ ROUTINE_COMMENT	new comment, FN changed to INVOKER
 DEFINER	root@localhost
 CHARACTER_SET_CLIENT	latin1
 COLLATION_CONNECTION	latin1_swedish_ci
-DATABASE_COLLATION	latin1_swedish_ci
+DATABASE_COLLATION	utf8mb4_uca1400_ai_ci
 SPECIFIC_NAME	fn_2
 ROUTINE_CATALOG	def
 ROUTINE_SCHEMA	db_storedproc
@@ -424,7 +424,7 @@ ROUTINE_COMMENT	FN changed to DEFINER
 DEFINER	root@localhost
 CHARACTER_SET_CLIENT	latin1
 COLLATION_CONNECTION	latin1_swedish_ci
-DATABASE_COLLATION	latin1_swedish_ci
+DATABASE_COLLATION	utf8mb4_uca1400_ai_ci
 SPECIFIC_NAME	sp_1
 ROUTINE_CATALOG	def
 ROUTINE_SCHEMA	db_storedproc
@@ -457,7 +457,7 @@ ROUTINE_COMMENT	new comment, SP changed to INVOKER
 DEFINER	root@localhost
 CHARACTER_SET_CLIENT	latin1
 COLLATION_CONNECTION	latin1_swedish_ci
-DATABASE_COLLATION	latin1_swedish_ci
+DATABASE_COLLATION	utf8mb4_uca1400_ai_ci
 SPECIFIC_NAME	sp_2
 ROUTINE_CATALOG	def
 ROUTINE_SCHEMA	db_storedproc
@@ -490,7 +490,7 @@ ROUTINE_COMMENT	SP changed to DEFINER
 DEFINER	root@localhost
 CHARACTER_SET_CLIENT	latin1
 COLLATION_CONNECTION	latin1_swedish_ci
-DATABASE_COLLATION	latin1_swedish_ci
+DATABASE_COLLATION	utf8mb4_uca1400_ai_ci
 SHOW CREATE FUNCTION  fn_1;
 Function	fn_1
 sql_mode	
@@ -505,7 +505,7 @@ return i4;
 END
 character_set_client	latin1
 collation_connection	latin1_swedish_ci
-Database Collation	latin1_swedish_ci
+Database Collation	utf8mb4_uca1400_ai_ci
 SHOW CREATE FUNCTION  fn_2;
 Function	fn_2
 sql_mode	
@@ -519,7 +519,7 @@ return i4;
 END
 character_set_client	latin1
 collation_connection	latin1_swedish_ci
-Database Collation	latin1_swedish_ci
+Database Collation	utf8mb4_uca1400_ai_ci
 SHOW CREATE PROCEDURE sp_1;
 Procedure	sp_1
 sql_mode	
@@ -531,7 +531,7 @@ set @x=i1;
 END
 character_set_client	latin1
 collation_connection	latin1_swedish_ci
-Database Collation	latin1_swedish_ci
+Database Collation	utf8mb4_uca1400_ai_ci
 SHOW CREATE PROCEDURE sp_2;
 Procedure	sp_2
 sql_mode	
@@ -543,7 +543,7 @@ set @x=i1;
 END
 character_set_client	latin1
 collation_connection	latin1_swedish_ci
-Database Collation	latin1_swedish_ci
+Database Collation	utf8mb4_uca1400_ai_ci
 SHOW FUNCTION STATUS LIKE 'fn_%';
 Db	db_storedproc
 Name	fn_1
@@ -555,7 +555,7 @@ Security_type	INVOKER
 Comment	new comment, FN changed to INVOKER
 character_set_client	latin1
 collation_connection	latin1_swedish_ci
-Database Collation	latin1_swedish_ci
+Database Collation	utf8mb4_uca1400_ai_ci
 Db	db_storedproc
 Name	fn_2
 Type	FUNCTION
@@ -566,7 +566,7 @@ Security_type	DEFINER
 Comment	FN changed to DEFINER
 character_set_client	latin1
 collation_connection	latin1_swedish_ci
-Database Collation	latin1_swedish_ci
+Database Collation	utf8mb4_uca1400_ai_ci
 SHOW PROCEDURE STATUS LIKE 'sp_%';
 Db	db_storedproc
 Name	sp_1
@@ -578,7 +578,7 @@ Security_type	INVOKER
 Comment	new comment, SP changed to INVOKER
 character_set_client	latin1
 collation_connection	latin1_swedish_ci
-Database Collation	latin1_swedish_ci
+Database Collation	utf8mb4_uca1400_ai_ci
 Db	db_storedproc
 Name	sp_2
 Type	PROCEDURE
@@ -589,7 +589,7 @@ Security_type	DEFINER
 Comment	SP changed to DEFINER
 character_set_client	latin1
 collation_connection	latin1_swedish_ci
-Database Collation	latin1_swedish_ci
+Database Collation	utf8mb4_uca1400_ai_ci
 
 ... change back to default and check result:
 --------------------------------------------
@@ -632,7 +632,7 @@ ROUTINE_COMMENT	new comment, FN changed to INVOKER
 DEFINER	root@localhost
 CHARACTER_SET_CLIENT	latin1
 COLLATION_CONNECTION	latin1_swedish_ci
-DATABASE_COLLATION	latin1_swedish_ci
+DATABASE_COLLATION	utf8mb4_uca1400_ai_ci
 SPECIFIC_NAME	fn_2
 ROUTINE_CATALOG	def
 ROUTINE_SCHEMA	db_storedproc
@@ -667,7 +667,7 @@ ROUTINE_COMMENT	FN changed to DEFINER
 DEFINER	root@localhost
 CHARACTER_SET_CLIENT	latin1
 COLLATION_CONNECTION	latin1_swedish_ci
-DATABASE_COLLATION	latin1_swedish_ci
+DATABASE_COLLATION	utf8mb4_uca1400_ai_ci
 SPECIFIC_NAME	sp_1
 ROUTINE_CATALOG	def
 ROUTINE_SCHEMA	db_storedproc
@@ -700,7 +700,7 @@ ROUTINE_COMMENT	new comment, SP changed to INVOKER
 DEFINER	root@localhost
 CHARACTER_SET_CLIENT	latin1
 COLLATION_CONNECTION	latin1_swedish_ci
-DATABASE_COLLATION	latin1_swedish_ci
+DATABASE_COLLATION	utf8mb4_uca1400_ai_ci
 SPECIFIC_NAME	sp_2
 ROUTINE_CATALOG	def
 ROUTINE_SCHEMA	db_storedproc
@@ -733,7 +733,7 @@ ROUTINE_COMMENT	SP changed to DEFINER
 DEFINER	root@localhost
 CHARACTER_SET_CLIENT	latin1
 COLLATION_CONNECTION	latin1_swedish_ci
-DATABASE_COLLATION	latin1_swedish_ci
+DATABASE_COLLATION	utf8mb4_uca1400_ai_ci
 SHOW CREATE FUNCTION  fn_1;
 Function	fn_1
 sql_mode	
@@ -748,7 +748,7 @@ return i4;
 END
 character_set_client	latin1
 collation_connection	latin1_swedish_ci
-Database Collation	latin1_swedish_ci
+Database Collation	utf8mb4_uca1400_ai_ci
 SHOW CREATE FUNCTION  fn_2;
 Function	fn_2
 sql_mode	
@@ -761,7 +761,7 @@ return i4;
 END
 character_set_client	latin1
 collation_connection	latin1_swedish_ci
-Database Collation	latin1_swedish_ci
+Database Collation	utf8mb4_uca1400_ai_ci
 SHOW CREATE PROCEDURE sp_1;
 Procedure	sp_1
 sql_mode	
@@ -773,7 +773,7 @@ set @x=i1;
 END
 character_set_client	latin1
 collation_connection	latin1_swedish_ci
-Database Collation	latin1_swedish_ci
+Database Collation	utf8mb4_uca1400_ai_ci
 SHOW CREATE PROCEDURE sp_2;
 Procedure	sp_2
 sql_mode	
@@ -785,7 +785,7 @@ set @x=i1;
 END
 character_set_client	latin1
 collation_connection	latin1_swedish_ci
-Database Collation	latin1_swedish_ci
+Database Collation	utf8mb4_uca1400_ai_ci
 SHOW FUNCTION STATUS LIKE 'fn_%';
 Db	db_storedproc
 Name	fn_1
@@ -797,7 +797,7 @@ Security_type	INVOKER
 Comment	new comment, FN changed to INVOKER
 character_set_client	latin1
 collation_connection	latin1_swedish_ci
-Database Collation	latin1_swedish_ci
+Database Collation	utf8mb4_uca1400_ai_ci
 Db	db_storedproc
 Name	fn_2
 Type	FUNCTION
@@ -808,7 +808,7 @@ Security_type	DEFINER
 Comment	FN changed to DEFINER
 character_set_client	latin1
 collation_connection	latin1_swedish_ci
-Database Collation	latin1_swedish_ci
+Database Collation	utf8mb4_uca1400_ai_ci
 SHOW PROCEDURE STATUS LIKE 'sp_%';
 Db	db_storedproc
 Name	sp_1
@@ -820,7 +820,7 @@ Security_type	INVOKER
 Comment	new comment, SP changed to INVOKER
 character_set_client	latin1
 collation_connection	latin1_swedish_ci
-Database Collation	latin1_swedish_ci
+Database Collation	utf8mb4_uca1400_ai_ci
 Db	db_storedproc
 Name	sp_2
 Type	PROCEDURE
@@ -831,7 +831,7 @@ Security_type	DEFINER
 Comment	SP changed to DEFINER
 character_set_client	latin1
 collation_connection	latin1_swedish_ci
-Database Collation	latin1_swedish_ci
+Database Collation	utf8mb4_uca1400_ai_ci
 
 ... cleanup
 -----------

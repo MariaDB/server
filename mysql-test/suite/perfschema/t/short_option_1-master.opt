@@ -1,1 +1,1 @@
--a -Cutf8 -W1
+-a -Cutf8 -W1 --collation-server=utf8_general_ci

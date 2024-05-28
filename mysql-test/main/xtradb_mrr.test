@@ -23,7 +23,7 @@ set mrr_buffer_size=64;
 # Verify that DS-MRR's code extra(HA_EXTRA_RETRIEVE_ALL_COLS) call has effect:
 create table t1(a int);
 insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
-create table t2(a char(8), b char(8), c char(8), filler char(100), key(a,b,c) ) engine=InnoDB;
+create table t2(a char(8), b char(8), c char(8), filler char(100), key(a,b,c) ) engine=InnoDB charset=latin1;
 
 insert into t2 select 
   concat('a-', 1000 + A.a, '-a'),

@@ -1,4 +1,5 @@
 drop table if exists t1, t2;
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 #
 # Bug#11765667: bug#58655: ASSERTION FAILED,
 #                          SERVER CRASHES WITH MYSQLD GOT SIGNAL 6
@@ -2908,3 +2909,4 @@ a	b	c	d
 2	NULL	NULL	NULL
 drop table t1,t2,t3,t4;
 # End of 11.0 tests
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

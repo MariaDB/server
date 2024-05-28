@@ -3119,6 +3119,7 @@ EOF
 --replace_result mariadb-dump.exe mariadb-dump $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --error 3
 --exec $MYSQL_DUMP --dir=$MYSQLTEST_VARDIR/tmp mysql 2>&1
+--remove_file $MYSQLTEST_VARDIR/tmp/mysql
 
 # --dir is a file, not directory
 --write_file $MYSQLTEST_VARDIR/tmp/dump
@@ -3132,3 +3133,5 @@ EOF
 --replace_result mariadb-dump.exe mariadb-dump $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --error 3
 --exec $MYSQL_DUMP --dir=$MYSQLTEST_VARDIR/does_not_exist mysql 2>&1
+
+--source include/test_db_charset_restore.inc

@@ -16,7 +16,7 @@ show create table t;
 Table	Create Table
 t	CREATE TEMPORARY TABLE `t` (
   `t` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 select table_schema, table_name, temporary from information_schema.tables where table_name='t';
 table_schema	table_name	temporary
 some_db	t	Y
@@ -133,16 +133,16 @@ show table status in mysqltest;
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
 show table status in test;
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-tmp_innodb_in_test	InnoDB	10	Dynamic	0	0	16384	0	0	6291456	NULL	#	#	#	latin1_swedish_ci	NULL			0	Y
-tmp_in_test	MyISAM	10	Fixed	0	0	0	1970324836974591	1024	0	NULL	#	#	#	latin1_swedish_ci	NULL			17179868160	Y
-base_in_test	MyISAM	10	Fixed	0	0	0	1970324836974591	1024	0	NULL	#	#	#	latin1_swedish_ci	NULL			17179868160	N
-tmp_in_test	MyISAM	10	Fixed	0	0	0	1970324836974591	1024	0	NULL	#	#	#	latin1_swedish_ci	NULL			17179868160	N
+tmp_innodb_in_test	InnoDB	10	Dynamic	0	0	16384	0	0	6291456	NULL	#	#	#	utf8mb4_uca1400_ai_ci	NULL			0	Y
+tmp_in_test	MyISAM	10	Fixed	0	0	0	1970324836974591	1024	0	NULL	#	#	#	utf8mb4_uca1400_ai_ci	NULL			17179868160	Y
+base_in_test	MyISAM	10	Fixed	0	0	0	1970324836974591	1024	0	NULL	#	#	#	utf8mb4_uca1400_ai_ci	NULL			17179868160	N
+tmp_in_test	MyISAM	10	Fixed	0	0	0	1970324836974591	1024	0	NULL	#	#	#	utf8mb4_uca1400_ai_ci	NULL			17179868160	N
 show table status from test;
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-tmp_innodb_in_test	InnoDB	10	Dynamic	0	0	16384	0	0	6291456	NULL	#	#	#	latin1_swedish_ci	NULL			0	Y
-tmp_in_test	MyISAM	10	Fixed	0	0	0	1970324836974591	1024	0	NULL	#	#	#	latin1_swedish_ci	NULL			17179868160	Y
-base_in_test	MyISAM	10	Fixed	0	0	0	1970324836974591	1024	0	NULL	#	#	#	latin1_swedish_ci	NULL			17179868160	N
-tmp_in_test	MyISAM	10	Fixed	0	0	0	1970324836974591	1024	0	NULL	#	#	#	latin1_swedish_ci	NULL			17179868160	N
+tmp_innodb_in_test	InnoDB	10	Dynamic	0	0	16384	0	0	6291456	NULL	#	#	#	utf8mb4_uca1400_ai_ci	NULL			0	Y
+tmp_in_test	MyISAM	10	Fixed	0	0	0	1970324836974591	1024	0	NULL	#	#	#	utf8mb4_uca1400_ai_ci	NULL			17179868160	Y
+base_in_test	MyISAM	10	Fixed	0	0	0	1970324836974591	1024	0	NULL	#	#	#	utf8mb4_uca1400_ai_ci	NULL			17179868160	N
+tmp_in_test	MyISAM	10	Fixed	0	0	0	1970324836974591	1024	0	NULL	#	#	#	utf8mb4_uca1400_ai_ci	NULL			17179868160	N
 # check that InnoDB temporary table
 # has a NULL value for `Create time` column (MDEV-28333)
 select create_time from information_schema.tables where table_name='tmp_innodb_in_test';
@@ -186,13 +186,13 @@ s1	SEQUENCE
 t	BASE TABLE
 show table status;
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-s2	MyISAM	10	Fixed	1	58	58	16325548649218047	1024	0	NULL	#	#	#	latin1_swedish_ci	NULL			17179868160	Y
-s1	MyISAM	10	Fixed	1	58	58	16325548649218047	1024	0	NULL	#	#	#	latin1_swedish_ci	NULL			17179868160	Y
-tmp_table	MyISAM	10	Fixed	0	0	0	1970324836974591	1024	0	NULL	#	#	#	latin1_swedish_ci	NULL			288230376151710720	Y
-t	MyISAM	10	Fixed	0	0	0	1970324836974591	1024	0	NULL	#	#	#	latin1_swedish_ci	NULL			288230376151710720	Y
-base_table	MyISAM	10	Fixed	0	0	0	1970324836974591	1024	0	NULL	#	#	#	latin1_swedish_ci	NULL			17179868160	N
-s1	MyISAM	10	Fixed	1	58	58	16325548649218047	1024	0	NULL	#	#	#	latin1_swedish_ci	NULL			17179868160	N
-t	Aria	10	Page	0	0	8192	17592186011648	8192	0	NULL	#	#	#	latin1_swedish_ci	NULL	transactional=1		9007199254732800	N
+s2	MyISAM	10	Fixed	1	58	58	16325548649218047	1024	0	NULL	#	#	#	utf8mb4_uca1400_ai_ci	NULL			17179868160	Y
+s1	MyISAM	10	Fixed	1	58	58	16325548649218047	1024	0	NULL	#	#	#	utf8mb4_uca1400_ai_ci	NULL			17179868160	Y
+tmp_table	MyISAM	10	Fixed	0	0	0	1970324836974591	1024	0	NULL	#	#	#	utf8mb4_uca1400_ai_ci	NULL			288230376151710720	Y
+t	MyISAM	10	Fixed	0	0	0	1970324836974591	1024	0	NULL	#	#	#	utf8mb4_uca1400_ai_ci	NULL			288230376151710720	Y
+base_table	MyISAM	10	Fixed	0	0	0	1970324836974591	1024	0	NULL	#	#	#	utf8mb4_uca1400_ai_ci	NULL			17179868160	N
+s1	MyISAM	10	Fixed	1	58	58	16325548649218047	1024	0	NULL	#	#	#	utf8mb4_uca1400_ai_ci	NULL			17179868160	N
+t	Aria	10	Page	0	0	8192	17592186011648	8192	0	NULL	#	#	#	utf8mb4_uca1400_ai_ci	NULL	transactional=1		9007199254732800	N
 show columns in t;
 Field	Type	Null	Key	Default	Extra
 b	int(11)	YES	MUL	NULL	
@@ -227,9 +227,9 @@ CREATE TEMPORARY TABLE t2 (a INT) ENGINE=MERGE UNION=(t1);
 CREATE TABLE t3 (a INT) ENGINE=MERGE UNION=(t1);
 SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'test';
 TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	TABLE_TYPE	ENGINE	VERSION	ROW_FORMAT	TABLE_ROWS	AVG_ROW_LENGTH	DATA_LENGTH	MAX_DATA_LENGTH	INDEX_LENGTH	DATA_FREE	AUTO_INCREMENT	CREATE_TIME	UPDATE_TIME	CHECK_TIME	TABLE_COLLATION	CHECKSUM	CREATE_OPTIONS	TABLE_COMMENT	MAX_INDEX_LENGTH	TEMPORARY
-def	test	t1	BASE TABLE	MyISAM	10	Fixed	1	7	X	X	X	X	NULL	X	X	NULL	latin1_swedish_ci	NULL			X	N
-def	test	t2	TEMPORARY	MRG_MyISAM	10	Fixed	0	0	X	X	X	X	NULL	X	X	NULL	latin1_swedish_ci	NULL			X	Y
-def	test	t3	BASE TABLE	MRG_MyISAM	10	Fixed	1	5	X	X	X	X	NULL	X	X	NULL	latin1_swedish_ci	NULL			X	N
+def	test	t1	BASE TABLE	MyISAM	10	Fixed	1	7	X	X	X	X	NULL	X	X	NULL	utf8mb4_uca1400_ai_ci	NULL			X	N
+def	test	t2	TEMPORARY	MRG_MyISAM	10	Fixed	0	0	X	X	X	X	NULL	X	X	NULL	utf8mb4_uca1400_ai_ci	NULL			X	Y
+def	test	t3	BASE TABLE	MRG_MyISAM	10	Fixed	1	5	X	X	X	X	NULL	X	X	NULL	utf8mb4_uca1400_ai_ci	NULL			X	N
 DROP TABLE t1,t2,t3;
 #
 # MDEV-31618: Server crashes in

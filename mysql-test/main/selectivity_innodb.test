@@ -121,7 +121,7 @@ drop table t1,t2,t3;
 set use_stat_tables = preferably;
 set optimizer_use_condition_selectivity=3;
  
-CREATE TABLE t1 (f1 char(32)) ENGINE=InnoDB;
+CREATE TABLE t1 (f1 char(32)) ENGINE=InnoDB CHARSET=latin1;
 INSERT INTO t1 VALUES ('foo'),('bar'),('qux');
 ANALYZE TABLE t1;
 

@@ -14,6 +14,8 @@
 drop table if exists t1, t2;
 --enable_warnings
 
+--source include/test_db_charset_latin1.inc
+
 --echo #
 --echo # Bug#11765667: bug#58655: ASSERTION FAILED,
 --echo #                          SERVER CRASHES WITH MYSQLD GOT SIGNAL 6
@@ -3117,3 +3119,5 @@ SELECT * FROM t1 LEFT JOIN (t2 JOIN t3 ON (0 IN (SELECT e FROM t4) AND t3.d = t2
 drop table t1,t2,t3,t4;
 
 --echo # End of 11.0 tests
+
+--source include/test_db_charset_restore.inc

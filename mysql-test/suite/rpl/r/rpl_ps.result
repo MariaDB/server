@@ -45,8 +45,8 @@ EXECUTE stmt_d_1;
 connection slave;
 SELECT * FROM t1;
 db_name	db_col_name
-test	latin1_swedish_ci
-test	latin1_swedish_ci
+test	utf8mb4_uca1400_ai_ci
+test	utf8mb4_uca1400_ai_ci
 connection master;
 DROP DATABASE mysqltest1;
 use test;

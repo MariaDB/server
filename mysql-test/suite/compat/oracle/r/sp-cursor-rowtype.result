@@ -1437,13 +1437,13 @@ $$
 Table	Create Table
 t2	CREATE TABLE "t2" (
   "a" int(11) DEFAULT NULL,
-  "b" varchar(3) DEFAULT NULL,
+  "b" varchar(3) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
   "c" time DEFAULT NULL
 )
 Table	Create Table
 t2	CREATE TABLE "t2" (
   "a" int(11) DEFAULT NULL,
-  "b" varchar(3) DEFAULT NULL,
+  "b" varchar(3) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
   "c" time DEFAULT NULL
 )
 #

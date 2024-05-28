@@ -357,8 +357,8 @@ create table t1 (a varchar(100));
 insert into t1 values ('`select 42`');
 `select 42`
 insert into t1 values ('$dollar');
-$dollar
 `select 42`
+$dollar
 drop table t1;
 mysqltest: At line 1: query 'let $var2= `failing query`' failed: ER_PARSE_ERROR (1064): You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'failing query' at line 1
 mysqltest: At line 1: Missing required argument 'filename' to command 'source'

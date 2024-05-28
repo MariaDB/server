@@ -317,7 +317,7 @@ t1	CREATE TABLE `t1` (
   KEY `d` (`c`),
   KEY `b` (`d`),
   KEY `c` (`e`,`c`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 select * from mysql.index_stats order by index_name, prefix_arity;
 db_name	table_name	index_name	prefix_arity	avg_frequency
 test	t1	PRIMARY	1	1.0000
@@ -365,7 +365,7 @@ t1	CREATE TABLE `t1` (
   KEY `b` (`b`),
   KEY `idx` (`aaaa`),
   CONSTRAINT `t1_ibfk_1` FOREIGN KEY (`aaaa`) REFERENCES `t1` (`b`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT index_name FROM mysql.index_stats WHERE table_name = 't1' order by index_name;
 index_name
 b
@@ -393,7 +393,7 @@ t1	CREATE TABLE `t1` (
   `c` int(11) DEFAULT NULL,
   PRIMARY KEY (`a`),
   KEY `b` (`b`,`c`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 analyze table t1 persistent for all;
 Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected

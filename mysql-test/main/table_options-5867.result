@@ -14,24 +14,24 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL `complex`='c,f,f,f' `invalid`=3
-) ENGINE=EXAMPLE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `ull`=10000 `str`='dskj' `one_or_two`='one' `yesno`=0 `foobar`=barfoo
+) ENGINE=EXAMPLE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci `ull`=10000 `str`='dskj' `one_or_two`='one' `yesno`=0 `foobar`=barfoo
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   KEY `a` (`a`) `some_option`=2014
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 set sql_mode='';
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL `complex`='c,f,f,f' /* `invalid`=3 */
-) ENGINE=EXAMPLE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `ull`=10000 `str`='dskj' `one_or_two`='one' `yesno`=0 /* `foobar`=barfoo */
+) ENGINE=EXAMPLE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci `ull`=10000 `str`='dskj' `one_or_two`='one' `yesno`=0 /* `foobar`=barfoo */
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   KEY `a` (`a`) /* `some_option`=2014 */
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1, t2;
 uninstall soname 'ha_example';

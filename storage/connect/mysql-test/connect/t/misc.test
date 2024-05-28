@@ -133,7 +133,7 @@ EOF
 
 execute immediate CONCAT('create table jsampall
 (Author char(128) jpath=''$.AUTHOR["', REPEAT('a',10000),'"]'')
-engine=CONNECT table_type=JSON
+engine=CONNECT charset=latin1 table_type=JSON
 file_name=''',REPLACE(@@secure_file_priv,'\\','/'),'tmp/test.json''');
 
 select  author from jsampall;

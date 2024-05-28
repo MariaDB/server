@@ -935,7 +935,7 @@ CREATE TABLE t1 (pk INTEGER,
  col_int_key INTEGER,
  col_varchar_key VARCHAR(8),
  PRIMARY KEY (pk),
- KEY (col_varchar_key, col_int_key, pk));
+ KEY (col_varchar_key, col_int_key, pk)) CHARSET=latin1;
 
 INSERT INTO t1 values (1,1,"A"),(2,2,"B");
 explain SELECT * FROM t1 AS alias1

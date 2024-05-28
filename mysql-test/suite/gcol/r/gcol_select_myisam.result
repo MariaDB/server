@@ -7,6 +7,7 @@ DROP TRIGGER IF EXISTS trg2;
 set sql_warnings = 0;
 SET @@session.default_storage_engine = 'MyISAM';
 SET optimizer_switch='derived_merge=off';
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 create table t1 (a int,
 b int generated always as (-a) virtual,
 c int generated always as (-a) stored,
@@ -1599,6 +1600,7 @@ t	7
 t	9
 t	9
 DROP TABLE t1, t2, t3, t4;
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;
 SET optimizer_switch='derived_merge=default';
 DROP VIEW  IF EXISTS v1,v2;
 DROP TABLE IF EXISTS t1,t2,t3;

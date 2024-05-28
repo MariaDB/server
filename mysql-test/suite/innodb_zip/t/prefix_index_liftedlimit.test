@@ -14,6 +14,7 @@
 
 --source include/have_innodb.inc
 --source include/have_innodb_16k.inc
+--source include/test_db_charset_latin1.inc
 
 --disable_query_log
 SET @save_innodb_read_only_compressed=@@GLOBAL.innodb_read_only_compressed;
@@ -1328,3 +1329,5 @@ SHOW CREATE TABLE worklog5743;
 SET GLOBAL innodb_read_only_compressed=@save_innodb_read_only_compressed;
 --enable_query_log
 DROP TABLE worklog5743;
+
+--source include/test_db_charset_restore.inc

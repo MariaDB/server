@@ -9,7 +9,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` float NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY KEY (`a`)
 (PARTITION `pa1` MAX_ROWS = 20 MIN_ROWS = 2 ENGINE = MyISAM,
  PARTITION `pa2` MAX_ROWS = 30 MIN_ROWS = 3 ENGINE = MyISAM,
@@ -45,7 +45,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` float NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY KEY (`a`)
 PARTITIONS 10
 insert into t2 values (-3.402823466E+38), (-3.402823466E+37), (-123.456), (0), (1234546.789), (123.456), (1.5);

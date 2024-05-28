@@ -37,7 +37,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ref	idx_id	idx_id	5	const	1	
 EXPLAIN SELECT * FROM t1 WHERE title = 'a10';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	idx_title	idx_title	103	const	1	Using index condition
+1	SIMPLE	t1	ref	idx_title	idx_title	403	const	1	Using index condition
 SELECT * FROM t1 WHERE id = 10;
 class	id	title
 10	10	a10
@@ -209,7 +209,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ref	idx_id	idx_id	5	const	1	
 EXPLAIN SELECT * FROM t1 WHERE title = 'a10';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	idx_title	idx_title	103	const	1	Using index condition
+1	SIMPLE	t1	ref	idx_title	idx_title	403	const	1	Using index condition
 SELECT * FROM t1 WHERE id = 10;
 class	id	title
 10	10	a10
@@ -381,7 +381,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ref	idx_id	idx_id	5	const	1	
 EXPLAIN SELECT * FROM t1 WHERE title = 'a10';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	idx_title	idx_title	103	const	1	Using index condition
+1	SIMPLE	t1	ref	idx_title	idx_title	403	const	1	Using index condition
 SELECT * FROM t1 WHERE id = 10;
 class	id	title
 10	10	a10
@@ -553,7 +553,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ref	idx_id	idx_id	5	const	1	
 EXPLAIN SELECT * FROM t1 WHERE title = 'a10';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	idx_title	idx_title	103	const	1	Using index condition
+1	SIMPLE	t1	ref	idx_title	idx_title	403	const	1	Using index condition
 SELECT * FROM t1 WHERE id = 10;
 class	id	title
 10	10	a10
@@ -726,7 +726,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ref	idx_id	idx_id	5	const	1	
 EXPLAIN SELECT * FROM t1 WHERE title = 'a10';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	idx_title	idx_title	103	const	1	Using index condition
+1	SIMPLE	t1	ref	idx_title	idx_title	403	const	1	Using index condition
 SELECT * FROM t1 WHERE id = 10;
 class	id	title
 10	10	a10
@@ -899,7 +899,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ref	idx_id	idx_id	5	const	1	
 EXPLAIN SELECT * FROM t1 WHERE title = 'a10';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	idx_title	idx_title	103	const	1	Using index condition
+1	SIMPLE	t1	ref	idx_title	idx_title	403	const	1	Using index condition
 SELECT * FROM t1 WHERE id = 10;
 class	id	title
 10	10	a10

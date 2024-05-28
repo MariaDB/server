@@ -54,7 +54,7 @@ SHOW CREATE PACKAGE pkg1;
 Package	sql_mode	Create Package	character_set_client	collation_connection	Database Collation
 pkg1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` PACKAGE `pkg1` PROCEDURE p1();
 FUNCTION f1() RETURNS TEXT;
-END	latin1	latin1_swedish_ci	latin1_swedish_ci
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 #
 # u1 cannot SHOW yet:
 # - the standalone procedure earlier created by root
@@ -92,10 +92,10 @@ disconnect conn1;
 connect  conn1,localhost,u1,,db1;
 SHOW CREATE PROCEDURE db1.p1root;
 Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
-p1root	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	NULL	latin1	latin1_swedish_ci	latin1_swedish_ci
+p1root	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	NULL	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 SHOW CREATE PACKAGE db1.pkg1;
 Package	sql_mode	Create Package	character_set_client	collation_connection	Database Collation
-pkg1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	NULL	latin1	latin1_swedish_ci	latin1_swedish_ci
+pkg1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	NULL	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 #
 # Now revoke EXECUTE and grant CREATE ROUTINE instead
 #
@@ -115,10 +115,10 @@ connect  conn1,localhost,u1,,db1;
 #
 SHOW CREATE PROCEDURE p1root;
 Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
-p1root	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	NULL	latin1	latin1_swedish_ci	latin1_swedish_ci
+p1root	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	NULL	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 SHOW CREATE PACKAGE pkg1;
 Package	sql_mode	Create Package	character_set_client	collation_connection	Database Collation
-pkg1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	NULL	latin1	latin1_swedish_ci	latin1_swedish_ci
+pkg1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	NULL	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 #
 # Now u1 can CREATE, DROP and EXECUTE its own standalone procedures
 #
@@ -149,7 +149,7 @@ SHOW CREATE PACKAGE pkg2;
 Package	sql_mode	Create Package	character_set_client	collation_connection	Database Collation
 pkg2	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`u1`@`localhost` PACKAGE `pkg2` PROCEDURE p1();
 FUNCTION f1() RETURNS TEXT;
-END	latin1	latin1_swedish_ci	latin1_swedish_ci
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 SHOW GRANTS;
 Grants for u1@localhost
 GRANT USAGE ON *.* TO `u1`@`localhost`
@@ -170,12 +170,12 @@ END;
 $$
 SHOW CREATE PACKAGE pkg1;
 Package	sql_mode	Create Package	character_set_client	collation_connection	Database Collation
-pkg1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	NULL	latin1	latin1_swedish_ci	latin1_swedish_ci
+pkg1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	NULL	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 SHOW CREATE PACKAGE BODY pkg1;
 Package body	sql_mode	Create Package Body	character_set_client	collation_connection	Database Collation
 pkg1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`u1`@`localhost` PACKAGE BODY `pkg1` PROCEDURE p1() BEGIN SELECT 'This is pkg1.p1' AS `comment`; END;
 FUNCTION f1() RETURNS TEXT BEGIN RETURN 'This is pkg1.f1'; END;
-END	latin1	latin1_swedish_ci	latin1_swedish_ci
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 SHOW GRANTS;
 Grants for u1@localhost
 GRANT USAGE ON *.* TO `u1`@`localhost`
@@ -205,10 +205,10 @@ $$
 connection conn1;
 SHOW CREATE PACKAGE pkg1;
 Package	sql_mode	Create Package	character_set_client	collation_connection	Database Collation
-pkg1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	NULL	latin1	latin1_swedish_ci	latin1_swedish_ci
+pkg1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	NULL	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 SHOW CREATE PACKAGE BODY pkg1;
 Package body	sql_mode	Create Package Body	character_set_client	collation_connection	Database Collation
-pkg1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	NULL	latin1	latin1_swedish_ci	latin1_swedish_ci
+pkg1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	NULL	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 CALL pkg1.p1;
 ERROR 42000: execute command denied to user 'u1'@'localhost' for routine 'db1.pkg1'
 SELECT pkg1.f1();

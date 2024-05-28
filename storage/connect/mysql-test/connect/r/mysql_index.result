@@ -24,7 +24,7 @@ CREATE TABLE t2 (
 id int(11) NOT NULL,
 msg char(100) DEFAULT NULL,
 PRIMARY KEY (id)
-) ENGINE=CONNECT DEFAULT CHARSET=latin1 TABLE_TYPE=MYSQL TABNAME=t1;
+) ENGINE=CONNECT CHARSET=latin1 DEFAULT CHARSET=latin1 TABLE_TYPE=MYSQL TABNAME=t1;
 #
 # Testing SELECT, etc.
 #
@@ -140,7 +140,7 @@ service   INT(2) NOT NULL,
 sitmat    CHAR(1) NOT NULL,
 formation CHAR(5) NOT NULL,
 INDEX NP(nom,prenom)
-) ENGINE=CONNECT TABLE_TYPE=FIX FILE_NAME='emp.txt' ENDING=2;
+) ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=FIX FILE_NAME='emp.txt' ENDING=2;
 #
 # Make MYSQL table with same indices
 #
@@ -160,7 +160,7 @@ service   INT(2) NOT NULL,
 sitmat    CHAR(1) NOT NULL,
 formation CHAR(5) NOT NULL,
 INDEX NP(nom,prenom)
-) ENGINE=CONNECT TABLE_TYPE=MYSQL CONNECTIOn='mysql://root@localhost/test/t1';
+) ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=MYSQL CONNECTIOn='mysql://root@localhost/test/t1';
 SELECT * FROM t2 limit 10;
 matricule	nom	prenom	sexe	aanais	mmnais	ddentree	ddnom	brut	net	service	sitmat	formation
 5745	ESCOURCHE	BENEDICTE	2	1935	7	1962-12-01	1994-05-01	18345	14275.50	0	M	TECHN

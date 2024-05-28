@@ -11,7 +11,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT (1 + 1),
   `b` bigint(20) DEFAULT uuid_short(),
   `u` blob DEFAULT user()
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	uuid	user
 1	1	1
 connection master;

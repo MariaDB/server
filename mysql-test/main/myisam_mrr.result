@@ -11,7 +11,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 create table t2(a int);
 insert into t2 select A.a + 10*(B.a + 10*C.a) from t1 A, t1 B, t1 C;
@@ -175,7 +175,7 @@ c-1022=w	filler
 c-1023=w	filler
 drop table if exists t4;
 create table t4 (a varchar(10), b int, c char(10), filler char(200),
-key idx1 (a, b, c));
+key idx1 (a, b, c)) charset=latin1;
 insert into t4 (filler) select concat('NULL-', 15-a) from t2 order by a limit 15;
 insert into t4 (a,b,c,filler) 
 select 'b-1',NULL,'c-1', concat('NULL-', 15-a) from t2 order by a limit 15;
@@ -482,7 +482,7 @@ col_varchar_key varchar(1) NOT NULL,
 col_varchar_nokey varchar(1) NOT NULL,
 PRIMARY KEY (pk),
 KEY col_varchar_key (col_varchar_key,col_int_key)
-);
+) CHARSET=latin1;
 INSERT INTO t1 VALUES 
 (10,8,'v','v'),(11,8,'f','f'), (12,5,'v','v'),
 (13,8,'s','s'),(14,8,'a','a'),(15,6,'p','p'),

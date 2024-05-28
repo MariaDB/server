@@ -1,4 +1,5 @@
 drop table if exists t1, t2;
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 CREATE TABLE t1 (
 id           VARCHAR(255) NOT NULL PRIMARY KEY,
 sujet        VARCHAR(255),
@@ -111,3 +112,4 @@ SELECT * FROM t1 RIGHT OUTER JOIN t2 ON (MATCH(f1) against (""));
 f1	f2
 NULL	test
 DROP table t1,t2;
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

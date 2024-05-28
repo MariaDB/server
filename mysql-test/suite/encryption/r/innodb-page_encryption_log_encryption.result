@@ -18,25 +18,25 @@ Table	Create Table
 innodb_compact	CREATE TABLE `innodb_compact` (
   `c1` bigint(20) NOT NULL,
   `b` char(200) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci ROW_FORMAT=COMPACT `encrypted`=yes `encryption_key_id`=1
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci ROW_FORMAT=COMPACT `encrypted`=yes `encryption_key_id`=1
 show create table innodb_compressed;
 Table	Create Table
 innodb_compressed	CREATE TABLE `innodb_compressed` (
   `c1` bigint(20) NOT NULL,
   `b` char(200) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci ROW_FORMAT=COMPRESSED `encrypted`=yes `encryption_key_id`=2
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci ROW_FORMAT=COMPRESSED `encrypted`=yes `encryption_key_id`=2
 show create table innodb_dynamic;
 Table	Create Table
 innodb_dynamic	CREATE TABLE `innodb_dynamic` (
   `c1` bigint(20) NOT NULL,
   `b` char(200) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci ROW_FORMAT=DYNAMIC `encrypted`=yes `encryption_key_id`=33
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci ROW_FORMAT=DYNAMIC `encrypted`=yes `encryption_key_id`=33
 show create table innodb_redundant;
 Table	Create Table
 innodb_redundant	CREATE TABLE `innodb_redundant` (
   `c1` bigint(20) NOT NULL,
   `b` char(200) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci ROW_FORMAT=REDUNDANT `encrypted`=yes `encryption_key_id`=4
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci ROW_FORMAT=REDUNDANT `encrypted`=yes `encryption_key_id`=4
 FLUSH TABLES innodb_normal FOR EXPORT;
 UNLOCK TABLES;
 FLUSH TABLES innodb_compact FOR EXPORT;
@@ -82,28 +82,28 @@ Table	Create Table
 innodb_compact	CREATE TABLE `innodb_compact` (
   `c1` bigint(20) NOT NULL,
   `b` char(200) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci ROW_FORMAT=COMPACT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci ROW_FORMAT=COMPACT
 alter table innodb_compressed engine=innodb encrypted=DEFAULT encryption_key_id=DEFAULT;
 show create table innodb_compressed;
 Table	Create Table
 innodb_compressed	CREATE TABLE `innodb_compressed` (
   `c1` bigint(20) NOT NULL,
   `b` char(200) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci ROW_FORMAT=COMPRESSED
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci ROW_FORMAT=COMPRESSED
 alter table innodb_dynamic engine=innodb encrypted=DEFAULT encryption_key_id=DEFAULT;
 show create table innodb_dynamic;
 Table	Create Table
 innodb_dynamic	CREATE TABLE `innodb_dynamic` (
   `c1` bigint(20) NOT NULL,
   `b` char(200) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci ROW_FORMAT=DYNAMIC
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci ROW_FORMAT=DYNAMIC
 alter table innodb_redundant engine=innodb encrypted=DEFAULT encryption_key_id=DEFAULT;
 show create table innodb_redundant;
 Table	Create Table
 innodb_redundant	CREATE TABLE `innodb_redundant` (
   `c1` bigint(20) NOT NULL,
   `b` char(200) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci ROW_FORMAT=REDUNDANT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci ROW_FORMAT=REDUNDANT
 FLUSH TABLES innodb_normal FOR EXPORT;
 UNLOCK TABLES;
 FLUSH TABLES innodb_compact FOR EXPORT;

@@ -8,7 +8,7 @@ DROP DATABASE IF EXISTS world;
 
 set names utf8;
 
-CREATE DATABASE world;
+CREATE DATABASE world CHARACTER SET latin1;
 
 use world;
 
@@ -446,7 +446,7 @@ CREATE TABLE t1 (
   f5 int,
   PRIMARY KEY (f1),
   KEY (f4)
-);
+) CHARSET=latin1;
 
 INSERT INTO t1 VALUES 
   (5,'H',1), (9,'g',0), (527,'i',0), (528,'y',1), (529,'S',6),

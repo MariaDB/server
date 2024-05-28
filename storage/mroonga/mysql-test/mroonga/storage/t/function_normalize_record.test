@@ -26,7 +26,7 @@ DROP TABLE IF EXISTS memos;
 
 CREATE TABLE memos (
   content text
-);
+) CHARSET=latin1;
 
 INSERT INTO memos VALUES ('aBcＡｂＣ㍑');
 

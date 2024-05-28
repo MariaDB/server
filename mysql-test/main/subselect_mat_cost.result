@@ -1,3 +1,4 @@
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 set optimizer_switch='mrr=on,mrr_sort_keys=on,index_condition_pushdown=on';
 set long_query_time=0.1;
 TEST GROUP 1:
@@ -5,7 +6,7 @@ Typical cases of in-to-exists and materialization subquery strategies
 =====================================================================
 drop database if exists world;
 set names utf8;
-create database world;
+create database world character set latin1;
 use world;
 CREATE TABLE Country (
 Code char(3) NOT NULL default '',
@@ -569,3 +570,4 @@ Tests of various combinations of optimizer switches, types of queries,
 available indexes, column nullability, constness of tables/predicates.
 =====================================================================
 set optimizer_switch=default;
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

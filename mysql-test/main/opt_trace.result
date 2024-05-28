@@ -2262,7 +2262,7 @@ filler char(100),
 KEY c(c),
 KEY a_c(a,c),
 KEY a_b(a,b)
-);
+) charset=latin1;
 insert into t1 select seq, seq,seq,seq, 'filler-dataaa' from seq_0_to_999;
 update t1 set a=1 where pk between 0 and 180;
 update t1 set b=2 where pk between 0 and 20;
@@ -10802,7 +10802,7 @@ JS
     }
 ]
 drop table t1;
-CREATE TABLE t1(i INT PRIMARY KEY, b CHAR(10), INDEX i_b(b));
+CREATE TABLE t1(i INT PRIMARY KEY, b CHAR(10), INDEX i_b(b)) CHARSET=latin1;
 INSERT INTO t1 VALUES (1, 'ab\n');
 INSERT INTO t1 VALUES (2, NULL);
 EXPLAIN SELECT * FROM t1 WHERE b='ab\n';
@@ -10871,7 +10871,7 @@ JS
     }
 ]
 drop table t1;
-CREATE TABLE t1(i INT PRIMARY KEY, b VARCHAR(10), INDEX i_b(b));
+CREATE TABLE t1(i INT PRIMARY KEY, b VARCHAR(10), INDEX i_b(b)) CHARSET=latin1;
 INSERT INTO t1 VALUES (1, 'ab\n');
 INSERT INTO t1 VALUES (2, 'ab\n');
 set optimizer_trace=1;
@@ -12738,11 +12738,11 @@ drop table t1,t2,t3;
 #
 # MDEV-24325: Optimizer trace doesn't cover LATERAL DERIVED
 #
-create table t1 (a int, b int, index idx_b(b)) engine=myisam;
+create table t1 (a int, b int, index idx_b(b)) engine=myisam charset=latin1;
 insert into t1 values
 (8,3), (5,7), (1,2), (2,1), (9,7), (7,5), (2,2), (7,3),
 (9,3), (8,1), (4,5), (2,3);
-create table t2 (a int, b int, c char(127), index idx_a(a)) engine=myisam;
+create table t2 (a int, b int, c char(127), index idx_a(a)) engine=myisam charset=latin1;
 insert into t2 values
 (7,10,'x'), (1,20,'a'), (2,23,'b'), (7,18,'z'), (1,30,'c'),
 (4,71,'d'), (3,15,'x'), (7,82,'y'), (8,12,'t'), (4,15,'b'),

@@ -3,6 +3,9 @@
 --source include/have_debug.inc
 --source include/have_debug_sync.inc
 --source include/have_sequence.inc
+--disable_query_log
+--source include/test_db_charset_latin1.inc
+--enable_query_log
 
 SET GLOBAL innodb_monitor_reset_all=all;
 --disable_warnings
@@ -479,3 +482,7 @@ disconnect con1;
 SET GLOBAL innodb_monitor_enable  = default;
 SET GLOBAL innodb_monitor_disable = default;
 --enable_warnings
+
+--disable_query_log
+--source include/test_db_charset_restore.inc
+--enable_query_log

@@ -3056,7 +3056,7 @@ Table	Create Table
 case_folding	CREATE TABLE `case_folding` (
   `code` int(1) NOT NULL,
   `c` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_test_520_nopad_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO case_folding (code) VALUES
 (0x23A),
 (0x23E),
@@ -3258,7 +3258,7 @@ Table	Create Table
 case_folding	CREATE TABLE `case_folding` (
   `code` int(1) NOT NULL,
   `c` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_test01_as_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO case_folding (code) VALUES
 (0x23A),
 (0x23E),
@@ -3314,7 +3314,7 @@ case_folding	CREATE TABLE `case_folding` (
   `code` int(1) NOT NULL,
   `c` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_test01_as_ci DEFAULT NULL,
   `comment` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_test01_as_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO case_folding (code, comment) VALUES (0x10595, 'VITHKUQI CAPITAL LETTER ZE (Unicode-14.0)');
 INSERT INTO case_folding (code, comment) VALUES (0x105BC, 'VITHKUQI SMALL LETTER ZE (Unicode-14.0)');
 INSERT INTO case_folding (code, comment) VALUES (0x1E921, 'ADLAM CAPITAL LETTER SHA (Unicode-9.0)');

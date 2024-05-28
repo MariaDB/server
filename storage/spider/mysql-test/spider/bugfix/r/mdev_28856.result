@@ -160,7 +160,7 @@ t2	CREATE TABLE `t2` (
   `d` int(11) DEFAULT NULL,
   PRIMARY KEY (`c`),
   KEY `d` (`d`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 create table t1 (c int, d int, primary key (c), key (d)) ENGINE=Spider
 COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2", idx000 "f d"';
 Warnings:
@@ -172,7 +172,7 @@ t1	CREATE TABLE `t1` (
   `d` int(11) DEFAULT NULL,
   PRIMARY KEY (`c`),
   KEY `d` (`d`)
-) ENGINE=SPIDER DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2", idx000 "f d"'
+) ENGINE=SPIDER DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2", idx000 "f d"'
 /* 13 */ insert into t1 values (42, 23), (37, 93);
 select max(d) from t1;
 max(d)
@@ -188,7 +188,7 @@ t2	CREATE TABLE `t2` (
   PRIMARY KEY (`c`),
   UNIQUE KEY `e` (`e`),
   KEY `d` (`d`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 create table t1 (c int, d int, e int, primary key (c), key (d), unique key (e)) ENGINE=Spider
 COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2", idx000 "f PRIMARY", idx001 "u d", idx002 "ig e"';
 Warnings:
@@ -202,7 +202,7 @@ t1	CREATE TABLE `t1` (
   PRIMARY KEY (`c`),
   UNIQUE KEY `e` (`e`),
   KEY `d` (`d`)
-) ENGINE=SPIDER DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2", idx000 "f PRIMARY", idx001 "u d", idx002 "ig e"'
+) ENGINE=SPIDER DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2", idx000 "f PRIMARY", idx001 "u d", idx002 "ig e"'
 /* 14 */ insert into t1 values (42, 23, 89), (37, 93, 47);
 select max(d) from t1;
 max(d)

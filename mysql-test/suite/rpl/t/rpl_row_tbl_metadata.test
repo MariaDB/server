@@ -183,7 +183,7 @@ CREATE TABLE `t1` (
   `c145` varchar(30) DEFAULT NULL,
   `c146` varchar(30) DEFAULT NULL,
   PRIMARY KEY (`c1`)
-) ENGINE=InnoDB;
+) ENGINE=InnoDB CHARSET=latin1;
 
 LOCK TABLES `t1` WRITE;
 INSERT INTO `t1`(c2) VALUES ('1');
@@ -279,7 +279,7 @@ for my $i (1..$ntables)
     }
   }
 
-  print FILE ") Engine=InnoDB;\n";
+  print FILE ") Engine=InnoDB CHARSET=latin1;\n";
 
   $tables.= " t$i WRITE";
   if ($i < $ntables)

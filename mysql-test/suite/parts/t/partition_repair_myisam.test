@@ -9,6 +9,7 @@ call mtr.add_suppression("is marked as crashed and should be repaired");
 
 --enable_query_log
 --enable_warnings
+--source include/test_db_charset_latin1.inc
 
 --echo # REPAIR USE_FRM is not implemented for partitioned tables.
 
@@ -286,3 +287,5 @@ SELECT (b % 7) AS `partition`, COUNT(*) AS rows_cnt FROM t1_will_crash GROUP BY 
 SELECT (b % 7) AS `partition`, b, a, length(c) FROM t1_will_crash ORDER BY `partition`, b, a;
 ALTER TABLE t1_will_crash CHECK PARTITION all EXTENDED;
 DROP TABLE t1_will_crash;
+
+--source include/test_db_charset_restore.inc

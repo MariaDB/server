@@ -3,6 +3,7 @@
 --source include/count_sessions.inc
 --source include/default_optimizer_switch.inc
 --source include/have_innodb.inc
+--source include/test_db_charset_latin1.inc
 
 SET optimizer_switch='outer_join_with_cache=off';
 
@@ -6855,3 +6856,5 @@ DROP TABLE table1;
 --echo #
 --echo # End of 10.11 test
 --echo #
+
+--source include/test_db_charset_restore.inc

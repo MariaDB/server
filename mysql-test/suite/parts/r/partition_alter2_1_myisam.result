@@ -73,7 +73,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY HASH (`f_int1`)
 PARTITIONS 2
 
@@ -539,7 +539,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY KEY (`f_int1`)
 PARTITIONS 5
 
@@ -1019,7 +1019,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (`f_int1` MOD 4)
 (PARTITION `part_3` VALUES IN (-3) ENGINE = MyISAM,
  PARTITION `part_2` VALUES IN (-2) ENGINE = MyISAM,
@@ -1510,7 +1510,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1`)
 (PARTITION `parta` VALUES LESS THAN (0) ENGINE = MyISAM,
  PARTITION `partb` VALUES LESS THAN (5) ENGINE = MyISAM,
@@ -1991,7 +1991,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1` DIV 2)
 SUBPARTITION BY HASH (`f_int1`)
 SUBPARTITIONS 2
@@ -2482,7 +2482,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1`)
 SUBPARTITION BY KEY (`f_int1`)
 (PARTITION `part1` VALUES LESS THAN (0)
@@ -2978,7 +2978,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (abs(`f_int1` MOD 3))
 SUBPARTITION BY HASH (`f_int1` + 1)
 (PARTITION `part1` VALUES IN (0)
@@ -3472,7 +3472,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (abs(`f_int1` MOD 2))
 SUBPARTITION BY KEY (`f_int1`)
 SUBPARTITIONS 3
@@ -3959,7 +3959,7 @@ t1	CREATE TABLE `t1` (
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL,
   UNIQUE KEY `uidx1` (`f_int1`,`f_int2`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY HASH (`f_int1`)
 PARTITIONS 2
 
@@ -4477,7 +4477,7 @@ t1	CREATE TABLE `t1` (
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL,
   UNIQUE KEY `uidx1` (`f_int1`,`f_int2`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY KEY (`f_int1`)
 PARTITIONS 5
 
@@ -5009,7 +5009,7 @@ t1	CREATE TABLE `t1` (
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL,
   UNIQUE KEY `uidx1` (`f_int1`,`f_int2`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (`f_int1` MOD 4)
 (PARTITION `part_3` VALUES IN (-3) ENGINE = MyISAM,
  PARTITION `part_2` VALUES IN (-2) ENGINE = MyISAM,
@@ -5552,7 +5552,7 @@ t1	CREATE TABLE `t1` (
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL,
   UNIQUE KEY `uidx1` (`f_int1`,`f_int2`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1`)
 (PARTITION `parta` VALUES LESS THAN (0) ENGINE = MyISAM,
  PARTITION `partb` VALUES LESS THAN (5) ENGINE = MyISAM,
@@ -6085,7 +6085,7 @@ t1	CREATE TABLE `t1` (
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL,
   UNIQUE KEY `uidx1` (`f_int1`,`f_int2`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1` DIV 2)
 SUBPARTITION BY HASH (`f_int1`)
 SUBPARTITIONS 2
@@ -6628,7 +6628,7 @@ t1	CREATE TABLE `t1` (
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL,
   UNIQUE KEY `uidx1` (`f_int1`,`f_int2`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1`)
 SUBPARTITION BY KEY (`f_int1`)
 (PARTITION `part1` VALUES LESS THAN (0)
@@ -7176,7 +7176,7 @@ t1	CREATE TABLE `t1` (
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL,
   UNIQUE KEY `uidx1` (`f_int1`,`f_int2`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (abs(`f_int1` MOD 3))
 SUBPARTITION BY HASH (`f_int1` + 1)
 (PARTITION `part1` VALUES IN (0)
@@ -7722,7 +7722,7 @@ t1	CREATE TABLE `t1` (
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL,
   UNIQUE KEY `uidx1` (`f_int1`,`f_int2`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (abs(`f_int1` MOD 2))
 SUBPARTITION BY KEY (`f_int1`)
 SUBPARTITIONS 3
@@ -8259,7 +8259,7 @@ t1	CREATE TABLE `t1` (
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL,
   UNIQUE KEY `uidx1` (`f_int2`,`f_int1`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY HASH (`f_int1`)
 PARTITIONS 2
 
@@ -8777,7 +8777,7 @@ t1	CREATE TABLE `t1` (
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL,
   UNIQUE KEY `uidx1` (`f_int2`,`f_int1`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY KEY (`f_int1`)
 PARTITIONS 5
 
@@ -9309,7 +9309,7 @@ t1	CREATE TABLE `t1` (
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL,
   UNIQUE KEY `uidx1` (`f_int2`,`f_int1`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (`f_int1` MOD 4)
 (PARTITION `part_3` VALUES IN (-3) ENGINE = MyISAM,
  PARTITION `part_2` VALUES IN (-2) ENGINE = MyISAM,
@@ -9852,7 +9852,7 @@ t1	CREATE TABLE `t1` (
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL,
   UNIQUE KEY `uidx1` (`f_int2`,`f_int1`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1`)
 (PARTITION `parta` VALUES LESS THAN (0) ENGINE = MyISAM,
  PARTITION `partb` VALUES LESS THAN (5) ENGINE = MyISAM,
@@ -10385,7 +10385,7 @@ t1	CREATE TABLE `t1` (
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL,
   UNIQUE KEY `uidx1` (`f_int2`,`f_int1`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1` DIV 2)
 SUBPARTITION BY HASH (`f_int1`)
 SUBPARTITIONS 2
@@ -10928,7 +10928,7 @@ t1	CREATE TABLE `t1` (
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL,
   UNIQUE KEY `uidx1` (`f_int2`,`f_int1`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1`)
 SUBPARTITION BY KEY (`f_int1`)
 (PARTITION `part1` VALUES LESS THAN (0)
@@ -11476,7 +11476,7 @@ t1	CREATE TABLE `t1` (
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL,
   UNIQUE KEY `uidx1` (`f_int2`,`f_int1`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (abs(`f_int1` MOD 3))
 SUBPARTITION BY HASH (`f_int1` + 1)
 (PARTITION `part1` VALUES IN (0)
@@ -12022,7 +12022,7 @@ t1	CREATE TABLE `t1` (
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL,
   UNIQUE KEY `uidx1` (`f_int2`,`f_int1`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (abs(`f_int1` MOD 2))
 SUBPARTITION BY KEY (`f_int1`)
 SUBPARTITIONS 3
@@ -12563,7 +12563,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY HASH (`f_int1` + `f_int2`)
 PARTITIONS 2
 
@@ -13029,7 +13029,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY KEY (`f_int1`,`f_int2`)
 PARTITIONS 5
 
@@ -13509,7 +13509,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST ((`f_int1` + `f_int2`) MOD 4)
 (PARTITION `part_3` VALUES IN (-3) ENGINE = MyISAM,
  PARTITION `part_2` VALUES IN (-2) ENGINE = MyISAM,
@@ -14000,7 +14000,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE ((`f_int1` + `f_int2`) DIV 2)
 (PARTITION `parta` VALUES LESS THAN (0) ENGINE = MyISAM,
  PARTITION `partb` VALUES LESS THAN (5) ENGINE = MyISAM,
@@ -14481,7 +14481,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1`)
 SUBPARTITION BY HASH (`f_int2`)
 SUBPARTITIONS 2
@@ -14970,7 +14970,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1`)
 SUBPARTITION BY KEY (`f_int2`)
 (PARTITION `part1` VALUES LESS THAN (0)
@@ -15466,7 +15466,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (abs(`f_int1` MOD 3))
 SUBPARTITION BY HASH (`f_int2` + 1)
 (PARTITION `part1` VALUES IN (0)
@@ -15960,7 +15960,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (abs(`f_int1` MOD 2))
 SUBPARTITION BY KEY (`f_int2`)
 SUBPARTITIONS 3
@@ -16447,7 +16447,7 @@ t1	CREATE TABLE `t1` (
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL,
   UNIQUE KEY `uidx` (`f_int1`,`f_int2`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY HASH (`f_int1` + `f_int2`)
 PARTITIONS 2
 
@@ -16965,7 +16965,7 @@ t1	CREATE TABLE `t1` (
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL,
   UNIQUE KEY `uidx` (`f_int1`,`f_int2`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY KEY (`f_int1`,`f_int2`)
 PARTITIONS 5
 
@@ -17497,7 +17497,7 @@ t1	CREATE TABLE `t1` (
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL,
   UNIQUE KEY `uidx` (`f_int1`,`f_int2`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST ((`f_int1` + `f_int2`) MOD 4)
 (PARTITION `part_3` VALUES IN (-3) ENGINE = MyISAM,
  PARTITION `part_2` VALUES IN (-2) ENGINE = MyISAM,
@@ -18040,7 +18040,7 @@ t1	CREATE TABLE `t1` (
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL,
   UNIQUE KEY `uidx` (`f_int1`,`f_int2`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE ((`f_int1` + `f_int2`) DIV 2)
 (PARTITION `parta` VALUES LESS THAN (0) ENGINE = MyISAM,
  PARTITION `partb` VALUES LESS THAN (5) ENGINE = MyISAM,
@@ -18573,7 +18573,7 @@ t1	CREATE TABLE `t1` (
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL,
   UNIQUE KEY `uidx` (`f_int1`,`f_int2`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1`)
 SUBPARTITION BY HASH (`f_int2`)
 SUBPARTITIONS 2
@@ -19114,7 +19114,7 @@ t1	CREATE TABLE `t1` (
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL,
   UNIQUE KEY `uidx` (`f_int1`,`f_int2`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1`)
 SUBPARTITION BY KEY (`f_int2`)
 (PARTITION `part1` VALUES LESS THAN (0)
@@ -19662,7 +19662,7 @@ t1	CREATE TABLE `t1` (
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL,
   UNIQUE KEY `uidx` (`f_int1`,`f_int2`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (abs(`f_int1` MOD 3))
 SUBPARTITION BY HASH (`f_int2` + 1)
 (PARTITION `part1` VALUES IN (0)
@@ -20208,7 +20208,7 @@ t1	CREATE TABLE `t1` (
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL,
   UNIQUE KEY `uidx` (`f_int1`,`f_int2`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (abs(`f_int1` MOD 2))
 SUBPARTITION BY KEY (`f_int2`)
 SUBPARTITIONS 3
@@ -20745,7 +20745,7 @@ t1	CREATE TABLE `t1` (
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL,
   UNIQUE KEY `uidx` (`f_int2`,`f_int1`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY HASH (`f_int1` + `f_int2`)
 PARTITIONS 2
 
@@ -21263,7 +21263,7 @@ t1	CREATE TABLE `t1` (
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL,
   UNIQUE KEY `uidx` (`f_int2`,`f_int1`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY KEY (`f_int1`,`f_int2`)
 PARTITIONS 5
 
@@ -21795,7 +21795,7 @@ t1	CREATE TABLE `t1` (
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL,
   UNIQUE KEY `uidx` (`f_int2`,`f_int1`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST ((`f_int1` + `f_int2`) MOD 4)
 (PARTITION `part_3` VALUES IN (-3) ENGINE = MyISAM,
  PARTITION `part_2` VALUES IN (-2) ENGINE = MyISAM,
@@ -22338,7 +22338,7 @@ t1	CREATE TABLE `t1` (
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL,
   UNIQUE KEY `uidx` (`f_int2`,`f_int1`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE ((`f_int1` + `f_int2`) DIV 2)
 (PARTITION `parta` VALUES LESS THAN (0) ENGINE = MyISAM,
  PARTITION `partb` VALUES LESS THAN (5) ENGINE = MyISAM,
@@ -22871,7 +22871,7 @@ t1	CREATE TABLE `t1` (
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL,
   UNIQUE KEY `uidx` (`f_int2`,`f_int1`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1`)
 SUBPARTITION BY HASH (`f_int2`)
 SUBPARTITIONS 2
@@ -23412,7 +23412,7 @@ t1	CREATE TABLE `t1` (
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL,
   UNIQUE KEY `uidx` (`f_int2`,`f_int1`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1`)
 SUBPARTITION BY KEY (`f_int2`)
 (PARTITION `part1` VALUES LESS THAN (0)
@@ -23960,7 +23960,7 @@ t1	CREATE TABLE `t1` (
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL,
   UNIQUE KEY `uidx` (`f_int2`,`f_int1`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (abs(`f_int1` MOD 3))
 SUBPARTITION BY HASH (`f_int2` + 1)
 (PARTITION `part1` VALUES IN (0)
@@ -24506,7 +24506,7 @@ t1	CREATE TABLE `t1` (
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL,
   UNIQUE KEY `uidx` (`f_int2`,`f_int1`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (abs(`f_int1` MOD 2))
 SUBPARTITION BY KEY (`f_int2`)
 SUBPARTITIONS 3

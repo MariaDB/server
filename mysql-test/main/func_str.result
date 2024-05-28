@@ -1,3 +1,4 @@
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 set @save_max_allowed_packet=@@global.max_allowed_packet;
 set global max_allowed_packet=1048576;
 connect  conn1,localhost,root,,;
@@ -4906,7 +4907,7 @@ DROP TABLE t1;
 #
 # MDEV-10850 Wrong result for WHERE .. (f2=TO_BASE64('test') OR f2=TO_BASE64('TEST'))
 #
-CREATE TABLE t1 (f1 VARCHAR(4), f2 VARCHAR(255), UNIQUE KEY k1 (f1,f2));
+CREATE TABLE t1 (f1 VARCHAR(4), f2 VARCHAR(255), UNIQUE KEY k1 (f1,f2)) CHARSET=latin1;
 INSERT INTO t1 VALUES ('test',hex('test')), ('TEST', hex('TEST'));
 SELECT * FROM t1 IGNORE INDEX(k1) WHERE f1='test' AND (f2= hex("test") OR f2= hex("TEST"));
 f1	f2
@@ -4934,7 +4935,7 @@ DEALLOCATE PREPARE stmt;
 #
 # MDEV-10850 Wrong result for WHERE .. (f2=TO_BASE64('test') OR f2=TO_BASE64('TEST'))
 #
-CREATE TABLE t1 (f1 VARCHAR(4), f2 VARCHAR(255), UNIQUE KEY k1 (f1,f2));
+CREATE TABLE t1 (f1 VARCHAR(4), f2 VARCHAR(255), UNIQUE KEY k1 (f1,f2)) CHARSET=latin1;
 INSERT INTO t1 VALUES ('test',to_base64('test')), ('TEST', to_base64('TEST'));
 SELECT * FROM t1 IGNORE INDEX(k1) WHERE f1='test' AND (f2= to_base64("test") OR f2= to_base64("TEST"));
 f1	f2
@@ -5701,3 +5702,4 @@ coercibility(database())	3
 #
 # End of 11.5 tests
 #
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

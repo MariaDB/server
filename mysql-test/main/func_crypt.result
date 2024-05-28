@@ -146,7 +146,7 @@ SET optimizer_switch=@save_optimizer_switch;
 #
 # MDEV-10850 Wrong result for WHERE .. (f2=TO_BASE64('test') OR f2=TO_BASE64('TEST'))
 #
-CREATE TABLE t1 (f1 VARCHAR(4), f2 VARCHAR(255), UNIQUE KEY k1 (f1,f2));
+CREATE TABLE t1 (f1 VARCHAR(4), f2 VARCHAR(255), UNIQUE KEY k1 (f1,f2)) CHARSET=latin1;
 INSERT INTO t1 VALUES ('test',password('test')), ('TEST', password('TEST'));
 SELECT * FROM t1 IGNORE INDEX(k1) WHERE f1='test' AND (f2= password("test") OR f2= password("TEST"));
 f1	f2
@@ -174,7 +174,7 @@ DEALLOCATE PREPARE stmt;
 #
 # MDEV-10850 Wrong result for WHERE .. (f2=TO_BASE64('test') OR f2=TO_BASE64('TEST'))
 #
-CREATE TABLE t1 (f1 VARCHAR(4), f2 VARCHAR(255), UNIQUE KEY k1 (f1,f2));
+CREATE TABLE t1 (f1 VARCHAR(4), f2 VARCHAR(255), UNIQUE KEY k1 (f1,f2)) CHARSET=latin1;
 INSERT INTO t1 VALUES ('test',old_password('test')), ('TEST', old_password('TEST'));
 SELECT * FROM t1 IGNORE INDEX(k1) WHERE f1='test' AND (f2= old_password("test") OR f2= old_password("TEST"));
 f1	f2
@@ -223,7 +223,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(30) DEFAULT encrypt(`a`,123)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 (a) VALUES ('hello');
 SELECT * FROM t1;
 a	b

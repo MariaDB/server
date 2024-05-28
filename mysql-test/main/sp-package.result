@@ -28,7 +28,7 @@ SHOW CREATE PACKAGE pkg;
 Package	sql_mode	Create Package	character_set_client	collation_connection	Database Collation
 pkg		CREATE DEFINER=`root`@`localhost` PACKAGE `pkg` PROCEDURE p1();
 FUNCTION f1() RETURNS INT;
-END	latin1	latin1_swedish_ci	latin1_swedish_ci
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 SHOW CREATE PACKAGE BODY pkg;
 Package body	sql_mode	Create Package Body	character_set_client	collation_connection	Database Collation
 pkg		CREATE DEFINER=`root`@`localhost` PACKAGE BODY `pkg` DECLARE a INT DEFAULT 11;
@@ -44,7 +44,7 @@ RETURN a;
 END;
 -- initialization section
 SET a=a-b;
-END	latin1	latin1_swedish_ci	latin1_swedish_ci
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 CALL pkg.p1();
 CURRENT_USER
 root@localhost

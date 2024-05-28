@@ -146,7 +146,7 @@ drop view v1,v2;
 drop table t1,t2;
 
 
-create table  folks(id int, name char(32), dob date, father int, mother int);
+create table  folks(id int, name char(32), dob date, father int, mother int) charset=latin1;
 
 insert into folks values
 (100, 'Me', '2000-01-01', 20, 30),
@@ -2089,7 +2089,7 @@ create table flights
 (departure varchar(32),
  arrival varchar(32),
  carrier varchar(20),
- flight_number char(7));
+ flight_number char(7)) charset=latin1;
 
 insert into flights values
 ('Seattle', 'Frankfurt', 'Lufthansa', 'LH 491'),
@@ -2612,12 +2612,12 @@ drop table t1,t2;
 --echo # MDEV-22042: ANALYZE of query using stored function and recursive CTE
 --echo #
 
-create table t1 (a1 varchar(20),a2 varchar(20)) engine=myisam;
+create table t1 (a1 varchar(20),a2 varchar(20)) engine=myisam charset=latin1;
 insert into t1 values (1,1),(2,2),(3,3);
 
 create table t2 (
 a2 varchar(20) primary key, b1 varchar(20), key (b1)
-) engine=myisam;
+) engine=myisam charset=latin1;
 insert into t2 values (1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7);
 insert into t2 values (11,11),(12,12),(13,13),(14,14),(15,15),(16,16),(17,17);
 
@@ -3185,7 +3185,7 @@ DROP TABLE t1;
 CREATE TABLE t1
 (
   id INT, mid INT, name TEXT
-);
+) CHARSET=latin1;
 INSERT INTO t1 VALUES (0,NULL,'Name'),(1,0,'Name1'),(2,0,'Name2'),(11,1,'Name11'),(12,1,'Name12');
 
 let $query=

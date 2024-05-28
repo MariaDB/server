@@ -42,7 +42,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` bit(1) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 create table t1 (a bit(64));
 insert into t1 values 
@@ -497,7 +497,7 @@ show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` bit(7) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1, t2;
 create table t1 (id1 int(11), b1 bit(1));
 create table t2 (id2 int(11), b2 bit(1));
@@ -792,7 +792,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` bit(8) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 #
 # Bug#50591 bit(31) causes Duplicate entry '1-NULL' for key 'group_key'
@@ -826,7 +826,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `c` decimal(1,0) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 SELECT COALESCE(val, 1) FROM t1;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
@@ -907,7 +907,7 @@ Create Table	CREATE TABLE `t2` (
   `cc` int(1) unsigned DEFAULT NULL,
   `cr` int(1) unsigned DEFAULT NULL,
   `ct` int(1) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	1
 cf	1
 cc	1
@@ -922,7 +922,7 @@ Create Table	CREATE TABLE `t2` (
   `cc` int(1) unsigned DEFAULT NULL,
   `cr` int(1) unsigned DEFAULT NULL,
   `ct` int(1) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	3
 cf	3
 cc	3
@@ -937,7 +937,7 @@ Create Table	CREATE TABLE `t2` (
   `cc` int(1) unsigned DEFAULT NULL,
   `cr` int(1) unsigned DEFAULT NULL,
   `ct` int(1) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	7
 cf	7
 cc	7
@@ -952,7 +952,7 @@ Create Table	CREATE TABLE `t2` (
   `cc` int(2) unsigned DEFAULT NULL,
   `cr` int(2) unsigned DEFAULT NULL,
   `ct` int(2) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	15
 cf	15
 cc	15
@@ -967,7 +967,7 @@ Create Table	CREATE TABLE `t2` (
   `cc` int(2) unsigned DEFAULT NULL,
   `cr` int(2) unsigned DEFAULT NULL,
   `ct` int(2) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	31
 cf	31
 cc	31
@@ -982,7 +982,7 @@ Create Table	CREATE TABLE `t2` (
   `cc` int(2) unsigned DEFAULT NULL,
   `cr` int(2) unsigned DEFAULT NULL,
   `ct` int(2) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	63
 cf	63
 cc	63
@@ -997,7 +997,7 @@ Create Table	CREATE TABLE `t2` (
   `cc` int(3) unsigned DEFAULT NULL,
   `cr` int(3) unsigned DEFAULT NULL,
   `ct` int(3) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	127
 cf	127
 cc	127
@@ -1012,7 +1012,7 @@ Create Table	CREATE TABLE `t2` (
   `cc` int(3) unsigned DEFAULT NULL,
   `cr` int(3) unsigned DEFAULT NULL,
   `ct` int(3) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	255
 cf	255
 cc	255
@@ -1027,7 +1027,7 @@ Create Table	CREATE TABLE `t2` (
   `cc` int(3) unsigned DEFAULT NULL,
   `cr` int(3) unsigned DEFAULT NULL,
   `ct` int(3) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	511
 cf	511
 cc	511
@@ -1042,7 +1042,7 @@ Create Table	CREATE TABLE `t2` (
   `cc` int(4) unsigned DEFAULT NULL,
   `cr` int(4) unsigned DEFAULT NULL,
   `ct` int(4) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	1023
 cf	1023
 cc	1023
@@ -1057,7 +1057,7 @@ Create Table	CREATE TABLE `t2` (
   `cc` int(4) unsigned DEFAULT NULL,
   `cr` int(4) unsigned DEFAULT NULL,
   `ct` int(4) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	2047
 cf	2047
 cc	2047
@@ -1072,7 +1072,7 @@ Create Table	CREATE TABLE `t2` (
   `cc` int(4) unsigned DEFAULT NULL,
   `cr` int(4) unsigned DEFAULT NULL,
   `ct` int(4) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	4095
 cf	4095
 cc	4095
@@ -1087,7 +1087,7 @@ Create Table	CREATE TABLE `t2` (
   `cc` int(4) unsigned DEFAULT NULL,
   `cr` int(4) unsigned DEFAULT NULL,
   `ct` int(4) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	8191
 cf	8191
 cc	8191
@@ -1102,7 +1102,7 @@ Create Table	CREATE TABLE `t2` (
   `cc` int(5) unsigned DEFAULT NULL,
   `cr` int(5) unsigned DEFAULT NULL,
   `ct` int(5) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	16383
 cf	16383
 cc	16383
@@ -1117,7 +1117,7 @@ Create Table	CREATE TABLE `t2` (
   `cc` int(5) unsigned DEFAULT NULL,
   `cr` int(5) unsigned DEFAULT NULL,
   `ct` int(5) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	32767
 cf	32767
 cc	32767
@@ -1132,7 +1132,7 @@ Create Table	CREATE TABLE `t2` (
   `cc` int(5) unsigned DEFAULT NULL,
   `cr` int(5) unsigned DEFAULT NULL,
   `ct` int(5) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	65535
 cf	65535
 cc	65535
@@ -1147,7 +1147,7 @@ Create Table	CREATE TABLE `t2` (
   `cc` int(6) unsigned DEFAULT NULL,
   `cr` int(6) unsigned DEFAULT NULL,
   `ct` int(6) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	131071
 cf	131071
 cc	131071
@@ -1162,7 +1162,7 @@ Create Table	CREATE TABLE `t2` (
   `cc` int(6) unsigned DEFAULT NULL,
   `cr` int(6) unsigned DEFAULT NULL,
   `ct` int(6) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	262143
 cf	262143
 cc	262143
@@ -1177,7 +1177,7 @@ Create Table	CREATE TABLE `t2` (
   `cc` int(6) unsigned DEFAULT NULL,
   `cr` int(6) unsigned DEFAULT NULL,
   `ct` int(6) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	524287
 cf	524287
 cc	524287
@@ -1192,7 +1192,7 @@ Create Table	CREATE TABLE `t2` (
   `cc` int(7) unsigned DEFAULT NULL,
   `cr` int(7) unsigned DEFAULT NULL,
   `ct` int(7) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	1048575
 cf	1048575
 cc	1048575
@@ -1207,7 +1207,7 @@ Create Table	CREATE TABLE `t2` (
   `cc` int(7) unsigned DEFAULT NULL,
   `cr` int(7) unsigned DEFAULT NULL,
   `ct` int(7) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	2097151
 cf	2097151
 cc	2097151
@@ -1222,7 +1222,7 @@ Create Table	CREATE TABLE `t2` (
   `cc` int(7) unsigned DEFAULT NULL,
   `cr` int(7) unsigned DEFAULT NULL,
   `ct` int(7) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	4194303
 cf	4194303
 cc	4194303
@@ -1237,7 +1237,7 @@ Create Table	CREATE TABLE `t2` (
   `cc` int(7) unsigned DEFAULT NULL,
   `cr` int(7) unsigned DEFAULT NULL,
   `ct` int(7) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	8388607
 cf	8388607
 cc	8388607
@@ -1252,7 +1252,7 @@ Create Table	CREATE TABLE `t2` (
   `cc` int(8) unsigned DEFAULT NULL,
   `cr` int(8) unsigned DEFAULT NULL,
   `ct` int(8) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	16777215
 cf	16777215
 cc	16777215
@@ -1267,7 +1267,7 @@ Create Table	CREATE TABLE `t2` (
   `cc` int(8) unsigned DEFAULT NULL,
   `cr` int(8) unsigned DEFAULT NULL,
   `ct` int(8) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	33554431
 cf	33554431
 cc	33554431
@@ -1282,7 +1282,7 @@ Create Table	CREATE TABLE `t2` (
   `cc` int(8) unsigned DEFAULT NULL,
   `cr` int(8) unsigned DEFAULT NULL,
   `ct` int(8) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	67108863
 cf	67108863
 cc	67108863
@@ -1297,7 +1297,7 @@ Create Table	CREATE TABLE `t2` (
   `cc` int(9) unsigned DEFAULT NULL,
   `cr` int(9) unsigned DEFAULT NULL,
   `ct` int(9) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	134217727
 cf	134217727
 cc	134217727
@@ -1312,7 +1312,7 @@ Create Table	CREATE TABLE `t2` (
   `cc` int(9) unsigned DEFAULT NULL,
   `cr` int(9) unsigned DEFAULT NULL,
   `ct` int(9) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	268435455
 cf	268435455
 cc	268435455
@@ -1327,7 +1327,7 @@ Create Table	CREATE TABLE `t2` (
   `cc` int(9) unsigned DEFAULT NULL,
   `cr` int(9) unsigned DEFAULT NULL,
   `ct` int(9) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	536870911
 cf	536870911
 cc	536870911
@@ -1342,7 +1342,7 @@ Create Table	CREATE TABLE `t2` (
   `cc` int(10) unsigned DEFAULT NULL,
   `cr` int(10) unsigned DEFAULT NULL,
   `ct` int(10) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	1073741823
 cf	1073741823
 cc	1073741823
@@ -1357,7 +1357,7 @@ Create Table	CREATE TABLE `t2` (
   `cc` int(10) unsigned DEFAULT NULL,
   `cr` int(10) unsigned DEFAULT NULL,
   `ct` int(10) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	2147483647
 cf	2147483647
 cc	2147483647
@@ -1372,7 +1372,7 @@ Create Table	CREATE TABLE `t2` (
   `cc` int(10) unsigned DEFAULT NULL,
   `cr` int(10) unsigned DEFAULT NULL,
   `ct` int(10) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	4294967295
 cf	4294967295
 cc	4294967295
@@ -1387,7 +1387,7 @@ Create Table	CREATE TABLE `t2` (
   `cc` bigint(10) unsigned DEFAULT NULL,
   `cr` bigint(10) unsigned DEFAULT NULL,
   `ct` bigint(10) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	8589934591
 cf	8589934591
 cc	8589934591
@@ -1402,7 +1402,7 @@ Create Table	CREATE TABLE `t2` (
   `cc` bigint(11) unsigned DEFAULT NULL,
   `cr` bigint(11) unsigned DEFAULT NULL,
   `ct` bigint(11) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	17179869183
 cf	17179869183
 cc	17179869183
@@ -1417,7 +1417,7 @@ Create Table	CREATE TABLE `t2` (
   `cc` bigint(11) unsigned DEFAULT NULL,
   `cr` bigint(11) unsigned DEFAULT NULL,
   `ct` bigint(11) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	34359738367
 cf	34359738367
 cc	34359738367
@@ -1432,7 +1432,7 @@ Create Table	CREATE TABLE `t2` (
   `cc` bigint(11) unsigned DEFAULT NULL,
   `cr` bigint(11) unsigned DEFAULT NULL,
   `ct` bigint(11) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	68719476735
 cf	68719476735
 cc	68719476735
@@ -1447,7 +1447,7 @@ Create Table	CREATE TABLE `t2` (
   `cc` bigint(12) unsigned DEFAULT NULL,
   `cr` bigint(12) unsigned DEFAULT NULL,
   `ct` bigint(12) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	137438953471
 cf	137438953471
 cc	137438953471
@@ -1462,7 +1462,7 @@ Create Table	CREATE TABLE `t2` (
   `cc` bigint(12) unsigned DEFAULT NULL,
   `cr` bigint(12) unsigned DEFAULT NULL,
   `ct` bigint(12) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	274877906943
 cf	274877906943
 cc	274877906943
@@ -1477,7 +1477,7 @@ Create Table	CREATE TABLE `t2` (
   `cc` bigint(12) unsigned DEFAULT NULL,
   `cr` bigint(12) unsigned DEFAULT NULL,
   `ct` bigint(12) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	549755813887
 cf	549755813887
 cc	549755813887
@@ -1492,7 +1492,7 @@ Create Table	CREATE TABLE `t2` (
   `cc` bigint(13) unsigned DEFAULT NULL,
   `cr` bigint(13) unsigned DEFAULT NULL,
   `ct` bigint(13) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	1099511627775
 cf	1099511627775
 cc	1099511627775
@@ -1507,7 +1507,7 @@ Create Table	CREATE TABLE `t2` (
   `cc` bigint(13) unsigned DEFAULT NULL,
   `cr` bigint(13) unsigned DEFAULT NULL,
   `ct` bigint(13) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	2199023255551
 cf	2199023255551
 cc	2199023255551
@@ -1522,7 +1522,7 @@ Create Table	CREATE TABLE `t2` (
   `cc` bigint(13) unsigned DEFAULT NULL,
   `cr` bigint(13) unsigned DEFAULT NULL,
   `ct` bigint(13) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	4398046511103
 cf	4398046511103
 cc	4398046511103
@@ -1537,7 +1537,7 @@ Create Table	CREATE TABLE `t2` (
   `cc` bigint(13) unsigned DEFAULT NULL,
   `cr` bigint(13) unsigned DEFAULT NULL,
   `ct` bigint(13) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	8796093022207
 cf	8796093022207
 cc	8796093022207
@@ -1552,7 +1552,7 @@ Create Table	CREATE TABLE `t2` (
   `cc` bigint(14) unsigned DEFAULT NULL,
   `cr` bigint(14) unsigned DEFAULT NULL,
   `ct` bigint(14) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	17592186044415
 cf	17592186044415
 cc	17592186044415
@@ -1567,7 +1567,7 @@ Create Table	CREATE TABLE `t2` (
   `cc` bigint(14) unsigned DEFAULT NULL,
   `cr` bigint(14) unsigned DEFAULT NULL,
   `ct` bigint(14) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	35184372088831
 cf	35184372088831
 cc	35184372088831
@@ -1582,7 +1582,7 @@ Create Table	CREATE TABLE `t2` (
   `cc` bigint(14) unsigned DEFAULT NULL,
   `cr` bigint(14) unsigned DEFAULT NULL,
   `ct` bigint(14) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	70368744177663
 cf	70368744177663
 cc	70368744177663
@@ -1597,7 +1597,7 @@ Create Table	CREATE TABLE `t2` (
   `cc` bigint(15) unsigned DEFAULT NULL,
   `cr` bigint(15) unsigned DEFAULT NULL,
   `ct` bigint(15) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	140737488355327
 cf	140737488355327
 cc	140737488355327
@@ -1612,7 +1612,7 @@ Create Table	CREATE TABLE `t2` (
   `cc` bigint(15) unsigned DEFAULT NULL,
   `cr` bigint(15) unsigned DEFAULT NULL,
   `ct` bigint(15) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	281474976710655
 cf	281474976710655
 cc	281474976710655
@@ -1627,7 +1627,7 @@ Create Table	CREATE TABLE `t2` (
   `cc` bigint(15) unsigned DEFAULT NULL,
   `cr` bigint(15) unsigned DEFAULT NULL,
   `ct` bigint(15) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	562949953421311
 cf	562949953421311
 cc	562949953421311
@@ -1642,7 +1642,7 @@ Create Table	CREATE TABLE `t2` (
   `cc` bigint(16) unsigned DEFAULT NULL,
   `cr` bigint(16) unsigned DEFAULT NULL,
   `ct` bigint(16) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	1125899906842623
 cf	1125899906842623
 cc	1125899906842623
@@ -1657,7 +1657,7 @@ Create Table	CREATE TABLE `t2` (
   `cc` bigint(16) unsigned DEFAULT NULL,
   `cr` bigint(16) unsigned DEFAULT NULL,
   `ct` bigint(16) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	2251799813685247
 cf	2251799813685247
 cc	2251799813685247
@@ -1672,7 +1672,7 @@ Create Table	CREATE TABLE `t2` (
   `cc` bigint(16) unsigned DEFAULT NULL,
   `cr` bigint(16) unsigned DEFAULT NULL,
   `ct` bigint(16) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	4503599627370495
 cf	4503599627370495
 cc	4503599627370495
@@ -1687,7 +1687,7 @@ Create Table	CREATE TABLE `t2` (
   `cc` bigint(16) unsigned DEFAULT NULL,
   `cr` bigint(16) unsigned DEFAULT NULL,
   `ct` bigint(16) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	9007199254740991
 cf	9007199254740991
 cc	9007199254740991
@@ -1702,7 +1702,7 @@ Create Table	CREATE TABLE `t2` (
   `cc` bigint(17) unsigned DEFAULT NULL,
   `cr` bigint(17) unsigned DEFAULT NULL,
   `ct` bigint(17) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	18014398509481983
 cf	18014398509481983
 cc	18014398509481983
@@ -1717,7 +1717,7 @@ Create Table	CREATE TABLE `t2` (
   `cc` bigint(17) unsigned DEFAULT NULL,
   `cr` bigint(17) unsigned DEFAULT NULL,
   `ct` bigint(17) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	36028797018963967
 cf	36028797018963967
 cc	36028797018963967
@@ -1732,7 +1732,7 @@ Create Table	CREATE TABLE `t2` (
   `cc` bigint(17) unsigned DEFAULT NULL,
   `cr` bigint(17) unsigned DEFAULT NULL,
   `ct` bigint(17) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	72057594037927935
 cf	72057594037927935
 cc	72057594037927935
@@ -1747,7 +1747,7 @@ Create Table	CREATE TABLE `t2` (
   `cc` bigint(18) unsigned DEFAULT NULL,
   `cr` bigint(18) unsigned DEFAULT NULL,
   `ct` bigint(18) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	144115188075855871
 cf	144115188075855871
 cc	144115188075855871
@@ -1762,7 +1762,7 @@ Create Table	CREATE TABLE `t2` (
   `cc` bigint(18) unsigned DEFAULT NULL,
   `cr` bigint(18) unsigned DEFAULT NULL,
   `ct` bigint(18) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	288230376151711743
 cf	288230376151711743
 cc	288230376151711743
@@ -1777,7 +1777,7 @@ Create Table	CREATE TABLE `t2` (
   `cc` bigint(18) unsigned DEFAULT NULL,
   `cr` bigint(18) unsigned DEFAULT NULL,
   `ct` bigint(18) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	576460752303423487
 cf	576460752303423487
 cc	576460752303423487
@@ -1792,7 +1792,7 @@ Create Table	CREATE TABLE `t2` (
   `cc` bigint(19) unsigned DEFAULT NULL,
   `cr` bigint(19) unsigned DEFAULT NULL,
   `ct` bigint(19) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	1152921504606846975
 cf	1152921504606846975
 cc	1152921504606846975
@@ -1807,7 +1807,7 @@ Create Table	CREATE TABLE `t2` (
   `cc` bigint(19) unsigned DEFAULT NULL,
   `cr` bigint(19) unsigned DEFAULT NULL,
   `ct` bigint(19) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	2305843009213693951
 cf	2305843009213693951
 cc	2305843009213693951
@@ -1822,7 +1822,7 @@ Create Table	CREATE TABLE `t2` (
   `cc` bigint(19) unsigned DEFAULT NULL,
   `cr` bigint(19) unsigned DEFAULT NULL,
   `ct` bigint(19) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	4611686018427387903
 cf	4611686018427387903
 cc	4611686018427387903
@@ -1837,7 +1837,7 @@ Create Table	CREATE TABLE `t2` (
   `cc` bigint(19) unsigned DEFAULT NULL,
   `cr` bigint(19) unsigned DEFAULT NULL,
   `ct` bigint(19) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	9223372036854775807
 cf	9223372036854775807
 cc	9223372036854775807
@@ -1852,7 +1852,7 @@ Create Table	CREATE TABLE `t2` (
   `cc` bigint(20) unsigned DEFAULT NULL,
   `cr` bigint(20) unsigned DEFAULT NULL,
   `ct` bigint(20) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	18446744073709551615
 cf	18446744073709551615
 cc	18446744073709551615
@@ -1875,7 +1875,7 @@ t2	CREATE TABLE `t2` (
   `c2` bit(1) DEFAULT NULL,
   `c3` bit(1) DEFAULT NULL,
   `c4` bit(1) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 DROP TABLE t1;
 #
@@ -1898,7 +1898,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `MIN(CASE WHEN 0 THEN b END)` bigint(1) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 DROP TABLE t1;
 #
@@ -2040,7 +2040,7 @@ INSERT INTO t2 VALUES (0x30),(0x31);
 SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
 indexed_col	not_indexed_col
 DROP TABLE t2;
-CREATE TABLE t2 (not_indexed_col VARCHAR(32));
+CREATE TABLE t2 (not_indexed_col VARCHAR(32)) CHARACTER SET latin1;
 INSERT INTO t2 VALUES ('2001-01-01'),('2001-01-02');
 SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
 indexed_col	not_indexed_col

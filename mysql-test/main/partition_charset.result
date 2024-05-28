@@ -1,4 +1,5 @@
 drop table if exists t1;
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 set names utf8;
 create table t1 (s1 int)
 partition by list (s1)
@@ -53,3 +54,4 @@ DROP TABLE t1;
 #
 # End of 10.9 tests
 #
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

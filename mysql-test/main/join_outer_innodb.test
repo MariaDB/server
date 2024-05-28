@@ -12,7 +12,7 @@ SET GLOBAL innodb_stats_persistent=0;
 # 
 
 CREATE TABLE t1 (id int(11) NOT NULL PRIMARY KEY, name varchar(20),
-                 INDEX (name)) ENGINE=InnoDB;
+                 INDEX (name)) ENGINE=InnoDB CHARSET=latin1;
 CREATE TABLE t2 (id int(11) NOT NULL PRIMARY KEY, fkey int(11),
                  FOREIGN KEY (fkey) REFERENCES t2(id)) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (1,'A1'),(2,'A2'),(3,'B');
@@ -69,7 +69,7 @@ DROP TABLE t1,t2;
 # Bug #848652: crash with RIGHT JOIN and GROUP BY
 # 
 
-CREATE TABLE t1(a int, b int, KEY (a), PRIMARY KEY (b))  ENGINE=InnoDB;
+CREATE TABLE t1(a int, b int, KEY (a), PRIMARY KEY (b)) ENGINE=InnoDB CHARSET=latin1;
 
 CREATE TABLE t2 (b int, PRIMARY KEY (b));
 INSERT INTO t2 VALUES (4),(9);

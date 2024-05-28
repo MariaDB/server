@@ -1,3 +1,4 @@
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 set @save_max_allowed_packet=@@max_allowed_packet;
 set global max_allowed_packet=1048576;
 connect  conn1,localhost,root,,;
@@ -220,3 +221,4 @@ Warning	1292	Truncated incorrect CHAR(4) value: '\x03\x00\x00\x00x\x9CKJ,\x02\x0
 #
 # End of 10.2 tests
 #
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

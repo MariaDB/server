@@ -1,7 +1,7 @@
 create schema foo;
 show create schema foo;
 Database	Create Database
-foo	CREATE DATABASE `foo` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */
+foo	CREATE DATABASE `foo` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci */
 show schemas;
 Database
 foo

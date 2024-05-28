@@ -1,3 +1,5 @@
+--source include/test_db_charset_latin1.inc
+
 set @sav_dpi= @@div_precision_increment;
 set div_precision_increment= 5;
 show variables like 'div_precision_increment';
@@ -540,3 +542,5 @@ SELECT NULLIF( CAST( 'foo' AS DATE ), NULL & 'bar' ) AS f FROM t1 GROUP BY f WIT
 DROP TABLE t1;
 
 --echo # End of 10.3 Tests
+
+--source include/test_db_charset_restore.inc

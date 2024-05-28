@@ -10,7 +10,7 @@ let $MYSQLD_DATADIR= `select @@datadir`;
 CREATE TABLE t1
 (
   ID INT NOT NULL
-) Engine=CONNECT TABLE_TYPE=DOS FILE_NAME='nonexistent.txt';
+) ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=DOS FILE_NAME='nonexistent.txt';
 --replace_regex /on .*test.nonexistent.txt/on DATADIR\/test\/nonexistent.txt/
 # TODO: check why this is needed for Windows
 --replace_result Open(rt) Open(rb)
@@ -23,7 +23,7 @@ DROP TABLE t1;
 CREATE TABLE t1
 (
   id INT NOT NULL
-) ENGINE=CONNECT TABLE_TYPE=FIX FILE_NAME='t1.txt';
+) ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=FIX FILE_NAME='t1.txt';
 INSERT INTO t1 VALUES (10);
 SELECT * FROM t1;
 ALTER TABLE t1 READONLY=1;
@@ -54,7 +54,7 @@ CREATE TABLE t1
   director CHAR(5) NOT NULL flag=20,
   function CHAR(12) NOT NULL flag=26,
   name     CHAR(22) NOT NULL flag=38
-) ENGINE=CONNECT TABLE_TYPE=DOS FILE_NAME='dept.dat';
+) ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=DOS FILE_NAME='dept.dat';
 SELECT * FROM t1;
 DROP TABLE t1;
 
@@ -64,7 +64,7 @@ CREATE TABLE t1
   city char(11) not null,
   birth date not null date_format='DD/MM/YYYY',
   hired date not null date_format='DD/MM/YYYY' flag=36
-) ENGINE=CONNECT TABLE_TYPE=FIX FILE_NAME='boys.txt' ENDING=1;
+) ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=FIX FILE_NAME='boys.txt' ENDING=1;
 SELECT * FROM t1;
 DROP TABLE t1;
 
@@ -74,7 +74,7 @@ CREATE TABLE t1
   city char(11) not null,
   birth date not null date_format='DD/MM/YYYY',
   hired date not null date_format='DD/MM/YYYY' flag=36
-) ENGINE=CONNECT TABLE_TYPE=FIX FILE_NAME='boys.txt' LRECL=47 ENDING=1;
+) ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=FIX FILE_NAME='boys.txt' LRECL=47 ENDING=1;
 SELECT * FROM t1;
 DROP TABLE t1;
 
@@ -85,7 +85,7 @@ CREATE TABLE t1
   city char(11) not null,
   birth date not null date_format='DD/MM/YYYY',
   hired date not null date_format='DD/MM/YYYY' flag=36
-) ENGINE=CONNECT TABLE_TYPE=FIX FILE_NAME='boyswin.txt' ENDING=2;
+) ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=FIX FILE_NAME='boyswin.txt' ENDING=2;
 SELECT * FROM t1;
 DROP TABLE t1;
 
@@ -95,7 +95,7 @@ CREATE TABLE t1
   city char(11) not null,
   birth date not null date_format='DD/MM/YYYY',
   hired date not null date_format='DD/MM/YYYY' flag=36
-) ENGINE=CONNECT TABLE_TYPE=FIX FILE_NAME='boyswin.txt' LRECL=47 ENDING=2;
+) ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=FIX FILE_NAME='boyswin.txt' LRECL=47 ENDING=2;
 SELECT * FROM t1;
 DROP TABLE t1;
 

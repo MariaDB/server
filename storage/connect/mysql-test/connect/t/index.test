@@ -22,7 +22,7 @@ CREATE TABLE t1
   sitmat    CHAR(1) NOT NULL,
   formation CHAR(5) NOT NULL,
   INDEX NP(nom,prenom)
-) ENGINE=CONNECT TABLE_TYPE=FIX FILE_NAME='emp.txt' ENDING=2;
+) ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=FIX FILE_NAME='emp.txt' ENDING=2;
 SELECT * FROM t1 LIMIT 10;
 SELECT SUM(brut) from t1;
 
@@ -55,7 +55,7 @@ create table t2
 (
   sexe  INT(1) KEY,
   genre CHAR(8) NOT NULL
-) ENGINE=CONNECT TABLE_TYPE=CSV FILE_NAME='sexe.csv' SEP_CHAR=';' ENDING=2;
+) ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=CSV FILE_NAME='sexe.csv' SEP_CHAR=';' ENDING=2;
 SELECT * FROM t2;
 --echo # t2 has only 3 rows. Force eq_ref by increasing table scan cost!
 set @@optimizer_scan_setup_cost=10000;
@@ -68,7 +68,7 @@ set @@optimizer_scan_setup_cost=default;
 CREATE TABLE t3 (
   sitmat    CHAR(1) KEY,
   situation CHAR(12) NOT NULL
-) ENGINE=CONNECT TABLE_TYPE=CSV FILE_NAME='sitmat.csv' SEP_CHAR=';' ENDING=2;
+) ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=CSV FILE_NAME='sitmat.csv' SEP_CHAR=';' ENDING=2;
 SELECT * FROM t3;
 SELECT nom, prenom, genre, situation FROM t1 NATURAL JOIN t2 NATURAL JOIN t3 WHERE nom = 'FOCH';
 
@@ -115,7 +115,7 @@ CREATE TABLE t1 (
   id INT,
   f VARCHAR(32),
   PRIMARY KEY (id DESC)
-) ENGINE=CONNECT TABLE_TYPE=DOS FILE_NAME='emp.txt';
+) ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=DOS FILE_NAME='emp.txt';
 
 #
 # Clean up

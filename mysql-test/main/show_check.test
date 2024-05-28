@@ -18,8 +18,9 @@
 --source include/have_csv.inc
 
 # Test results assumes we are using latin1
+--source include/test_db_charset_latin1.inc
 --source include/default_charset.inc
-SET @@global.character_set_server= @@session.character_set_server;
+SET @@global.collation_server= @@session.collation_server;
 set @@sql_mode="STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION";
 
 #
@@ -1416,4 +1417,5 @@ SHOW CONTRIBUTORS;
 --enable_result_log
 SHOW WARNINGS;
 
-SET @@global.character_set_server=@save_character_set_server;
+SET @@global.collation_server=@save_collation_server;
+--source include/test_db_charset_restore.inc

@@ -1,3 +1,4 @@
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS;
 create table t1(a varchar(2) primary key) engine=innodb;
 insert into t1 values('');
@@ -1995,3 +1996,4 @@ a
 c
 DROP TABLE t1;
 # End of 10.8 tests
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

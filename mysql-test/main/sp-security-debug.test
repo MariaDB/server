@@ -6,7 +6,7 @@
 # Can't test with embedded server that doesn't support grants
 --source include/not_embedded.inc
 --source include/default_charset.inc
-set @@global.character_set_server=@@session.character_set_server;
+set @@global.collation_server=@@session.collation_server;
 
 
 --echo #

@@ -1,3 +1,4 @@
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 select * from json_table('[{"a": 1, "b": [11,111]}, {"a": 2, "b": [22,222]}]', '$[*]' COLUMNS( a INT PATH '$.a')) as tt;
 a
 1
@@ -547,14 +548,14 @@ SET NAMES utf8;
 SELECT * FROM ( SELECT * FROM JSON_TABLE('{}', '$' COLUMNS( a BINARY(12) PATH '$.*', b VARCHAR(40) PATH '$[*]', c VARCHAR(8) PATH '$**.*')) AS jt ) AS sq;
 a	b	c
 NULL	NULL	NULL
-SET NAMES default;
+SET NAMES latin1;
 #
 # MDEV-25189 JSON_TABLE: Assertion `l_offset >= 0 && table->s->rec_buff_length - l_offset > 0' failed upon CREATE .. SELECT.
 #
 SET NAMES utf8;
 CREATE TABLE t1 AS SELECT * FROM JSON_TABLE('{}', '$' COLUMNS(a CHAR(16) PATH '$.*', b TIMESTAMP PATH '$**.*')) AS jt;
 DROP TABLE t1;
-SET NAMES default;
+SET NAMES latin1;
 #
 # MDEV-25230 SON_TABLE: CREATE VIEW with 2nd level NESTED PATH ends up with invalid frm, Assertion `m_status == DA_ERROR || m_status == DA_OK || m_status == DA_OK_BULK' failed.
 #
@@ -1247,3 +1248,4 @@ drop table t1;
 #
 # End of 11.0 tests
 #
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

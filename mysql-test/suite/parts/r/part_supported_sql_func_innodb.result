@@ -619,7 +619,7 @@ Table	Create Table
 t55	CREATE TABLE `t55` (
   `colint` int(11) DEFAULT NULL,
   `col1` int(11) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (`colint`)
 SUBPARTITION BY HASH (abs(`col1`))
 SUBPARTITIONS 5
@@ -2316,7 +2316,7 @@ Table	Create Table
 t55	CREATE TABLE `t55` (
   `colint` int(11) DEFAULT NULL,
   `col1` int(11) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (`colint`)
 SUBPARTITION BY HASH (`col1` MOD 10)
 SUBPARTITIONS 5
@@ -3666,7 +3666,7 @@ Table	Create Table
 t55	CREATE TABLE `t55` (
   `colint` int(11) DEFAULT NULL,
   `col1` date DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (`colint`)
 SUBPARTITION BY HASH (dayofmonth(`col1`))
 SUBPARTITIONS 5
@@ -4183,7 +4183,7 @@ Table	Create Table
 t55	CREATE TABLE `t55` (
   `colint` int(11) DEFAULT NULL,
   `col1` date DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (`colint`)
 SUBPARTITION BY HASH (dayofmonth(`col1`))
 SUBPARTITIONS 5
@@ -4700,7 +4700,7 @@ Table	Create Table
 t55	CREATE TABLE `t55` (
   `colint` int(11) DEFAULT NULL,
   `col1` date DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (`colint`)
 SUBPARTITION BY HASH (dayofweek(`col1`))
 SUBPARTITIONS 5
@@ -5229,7 +5229,7 @@ Table	Create Table
 t55	CREATE TABLE `t55` (
   `colint` int(11) DEFAULT NULL,
   `col1` date DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (`colint`)
 SUBPARTITION BY HASH (dayofyear(`col1`))
 SUBPARTITIONS 5
@@ -5748,7 +5748,7 @@ Table	Create Table
 t55	CREATE TABLE `t55` (
   `colint` int(11) DEFAULT NULL,
   `col1` date DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (`colint`)
 SUBPARTITION BY HASH (extract(month from `col1`))
 SUBPARTITIONS 5
@@ -6267,7 +6267,7 @@ Table	Create Table
 t55	CREATE TABLE `t55` (
   `colint` int(11) DEFAULT NULL,
   `col1` time DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (`colint`)
 SUBPARTITION BY HASH (hour(`col1`))
 SUBPARTITIONS 5
@@ -6792,7 +6792,7 @@ Table	Create Table
 t55	CREATE TABLE `t55` (
   `colint` int(11) DEFAULT NULL,
   `col1` time(6) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (`colint`)
 SUBPARTITION BY HASH (microsecond(`col1`))
 SUBPARTITIONS 5
@@ -7313,7 +7313,7 @@ Table	Create Table
 t55	CREATE TABLE `t55` (
   `colint` int(11) DEFAULT NULL,
   `col1` time DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (`colint`)
 SUBPARTITION BY HASH (minute(`col1`))
 SUBPARTITIONS 5
@@ -7844,7 +7844,7 @@ Table	Create Table
 t55	CREATE TABLE `t55` (
   `colint` int(11) DEFAULT NULL,
   `col1` time DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (`colint`)
 SUBPARTITION BY HASH (second(`col1`))
 SUBPARTITIONS 5
@@ -8375,7 +8375,7 @@ Table	Create Table
 t55	CREATE TABLE `t55` (
   `colint` int(11) DEFAULT NULL,
   `col1` date DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (`colint`)
 SUBPARTITION BY HASH (month(`col1`))
 SUBPARTITIONS 5
@@ -8900,7 +8900,7 @@ Table	Create Table
 t55	CREATE TABLE `t55` (
   `colint` int(11) DEFAULT NULL,
   `col1` date DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (`colint`)
 SUBPARTITION BY HASH (quarter(`col1`))
 SUBPARTITIONS 5
@@ -9423,7 +9423,7 @@ Table	Create Table
 t55	CREATE TABLE `t55` (
   `colint` int(11) DEFAULT NULL,
   `col1` date DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (`colint`)
 SUBPARTITION BY HASH (weekday(`col1`))
 SUBPARTITIONS 5
@@ -9944,7 +9944,7 @@ Table	Create Table
 t55	CREATE TABLE `t55` (
   `colint` int(11) DEFAULT NULL,
   `col1` date DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (`colint`)
 SUBPARTITION BY HASH (year(`col1`) - 1990)
 SUBPARTITIONS 5
@@ -10469,7 +10469,7 @@ Table	Create Table
 t55	CREATE TABLE `t55` (
   `colint` int(11) DEFAULT NULL,
   `col1` date DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (`colint`)
 SUBPARTITION BY HASH (yearweek(`col1`,0) - 200600)
 SUBPARTITIONS 5

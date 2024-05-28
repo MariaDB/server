@@ -1,5 +1,6 @@
 --source include/have_stat_tables.inc
 --source include/default_optimizer_switch.inc
+--source include/test_db_charset_latin1.inc
 
 --echo #
 --echo #  Engine-agnostic tests for statistics-based selectivity calculations.
@@ -301,3 +302,4 @@ set histogram_type=@save_histogram_type;
 set histogram_size=@save_histogram_size;
 set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
 
+--source include/test_db_charset_restore.inc

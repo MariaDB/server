@@ -9,20 +9,20 @@ let $typec= BLOB COMPRESSED;
 let $typeu= BLOB;
 --source column_compression.inc
 
-let $typec= TEXT COMPRESSED;
-let $typeu= TEXT;
+let $typec= TEXT COMPRESSED CHARACTER SET latin1;
+let $typeu= TEXT CHARACTER SET latin1;
 --source column_compression.inc
 
 let $typec= VARBINARY(10000) COMPRESSED;
 let $typeu= VARBINARY(10000);
 --source column_compression.inc
 
-let $typec= VARCHAR(10000) COMPRESSED;
-let $typeu= VARCHAR(10000);
+let $typec= VARCHAR(10000) COMPRESSED CHARACTER SET latin1;
+let $typeu= VARCHAR(10000) CHARACTER SET latin1;
 --source column_compression.inc
 
 let $typec= TEXT COMPRESSED CHARSET ucs2;
-let $typeu= TEXT;
+let $typeu= TEXT CHARACTER SET latin1;
 --source column_compression.inc
 
 SET column_compression_zlib_wrap=DEFAULT;
@@ -61,14 +61,14 @@ SHOW CREATE TABLE t1;
 DROP TABLE t1;
 
 --echo # Test fields that don't fit data
-CREATE TABLE t1(a VARCHAR(9) COMPRESSED);
+CREATE TABLE t1(a VARCHAR(9) COMPRESSED) CHARSET=latin1;
 --error ER_DATA_TOO_LONG
 INSERT INTO t1 VALUES(REPEAT('a', 10));
 INSERT INTO t1 VALUES(REPEAT(' ', 10));
 SELECT a, LENGTH(a) FROM t1;
 DROP TABLE t1;
 
-CREATE TABLE t1(a TINYTEXT COMPRESSED);
+CREATE TABLE t1(a TINYTEXT COMPRESSED) CHARSET=latin1;
 SET column_compression_threshold=300;
 INSERT INTO t1 VALUES(REPEAT('a', 254));
 INSERT INTO t1 VALUES(REPEAT(' ', 254));
@@ -86,7 +86,7 @@ SELECT LEFT(a, 10), LENGTH(a) FROM t1 ORDER BY 1;
 DROP TABLE t1;
 
 --echo # Corner case: VARCHAR(255) COMPRESSED must have 2 bytes pack length
-CREATE TABLE t1(a VARCHAR(255) COMPRESSED);
+CREATE TABLE t1(a VARCHAR(255) COMPRESSED) CHARSET=latin1;
 SHOW CREATE TABLE t1;
 SET column_compression_threshold=300;
 INSERT INTO t1 VALUES(REPEAT('a', 255));
@@ -94,7 +94,7 @@ SET column_compression_threshold=DEFAULT;
 SELECT a, LENGTH(a) FROM t1;
 DROP TABLE t1;
 
-CREATE TABLE t1(a VARCHAR(65531) COMPRESSED);
+CREATE TABLE t1(a VARCHAR(65531) COMPRESSED) CHARSET=latin1;
 SET column_compression_threshold=65537;
 INSERT INTO t1 VALUES(REPEAT('a', 65530));
 INSERT INTO t1 VALUES(REPEAT(' ', 65530));
@@ -126,7 +126,7 @@ DROP TABLE t1;
 --echo #
 --echo # MDEV-15762 - VARCHAR(0) COMPRESSED crashes the server
 --echo #
-CREATE TABLE t1(a VARCHAR(0) COMPRESSED);
+CREATE TABLE t1(a VARCHAR(0) COMPRESSED) CHARSET=latin1;
 --error ER_DATA_TOO_LONG
 INSERT INTO t1 VALUES('a');
 INSERT INTO t1 VALUES(' ');
@@ -137,7 +137,7 @@ DROP TABLE t1;
 --echo #
 --echo # MDEV-15763 - VARCHAR(1) COMPRESSED crashes the server
 --echo #
-CREATE TABLE t1(a VARCHAR(1) COMPRESSED);
+CREATE TABLE t1(a VARCHAR(1) COMPRESSED) CHARSET=latin1;
 SET column_compression_threshold=0;
 INSERT INTO t1 VALUES('a');
 SET column_compression_threshold=DEFAULT;
@@ -161,7 +161,7 @@ CREATE TABLE t1
 (
   a VARCHAR(10) COMPRESSED CHARACTER SET latin1,
   b VARCHAR(10) COMPRESSED CHARACTER SET utf8
-);
+) CHARSET=latin1;
 SELECT COLUMN_NAME, CHARACTER_MAXIMUM_LENGTH, CHARACTER_OCTET_LENGTH
 FROM INFORMATION_SCHEMA.COLUMNS
 WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1' AND COLUMN_NAME IN ('a','b')
@@ -172,7 +172,7 @@ DROP TABLE t1;
 --echo #
 --echo # MDEV-15592 - Column COMPRESSED should select a 'high order' datatype
 --echo #
-CREATE TABLE t1(a TINYTEXT COMPRESSED);
+CREATE TABLE t1(a TINYTEXT COMPRESSED) CHARSET=latin1;
 INSERT INTO t1 VALUES(REPEAT('a', 255));
 SELECT LEFT(a, 10), LENGTH(a) FROM t1;
 DROP TABLE t1;

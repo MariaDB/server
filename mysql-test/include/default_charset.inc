@@ -10,6 +10,6 @@
 --disable_query_log
 SET @save_character_set_server= @@character_set_server;
 SET @save_collation_server= @@collation_server;
-set @@character_set_server="latin1";
-set @@collation_server="latin1_swedish_ci";
+set @@character_set_server=utf8mb4;
+set @@collation_server=utf8mb4_uca1400_ai_ci;
 --enable_query_log

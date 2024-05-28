@@ -18,7 +18,7 @@ CREATE TABLE `bookstore` (
   `category` CHAR(16) NOT NULL XPATH='@',
   `title` VARCHAR(50) NOT NULL,
   `lang` char(2) NOT NULL XPATH='title/@',
-  `author` VARCHAR(24) NOT NULL,
+  `author` VARCHAR(80) NOT NULL,
   `year` INT(4) NOT NULL,
   `price` DOUBLE(8,2) NOT NULL)
 ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='bookstore.xml' OPTION_LIST='expand=1,mulnode=author,limit=6,xmlsup=domdoc';

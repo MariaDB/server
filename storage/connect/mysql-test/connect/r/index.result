@@ -17,7 +17,7 @@ service   INT(2) NOT NULL,
 sitmat    CHAR(1) NOT NULL,
 formation CHAR(5) NOT NULL,
 INDEX NP(nom,prenom)
-) ENGINE=CONNECT TABLE_TYPE=FIX FILE_NAME='emp.txt' ENDING=2;
+) ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=FIX FILE_NAME='emp.txt' ENDING=2;
 SELECT * FROM t1 LIMIT 10;
 matricule	nom	prenom	sexe	aanais	mmnais	ddentree	ddnom	brut	net	service	sitmat	formation
 5745	ESCOURCHE	BENEDICTE	2	1935	7	1962-12-01	1994-05-01	18345	14275.50	0	M	TECHN
@@ -90,7 +90,7 @@ create table t2
 (
 sexe  INT(1) KEY,
 genre CHAR(8) NOT NULL
-) ENGINE=CONNECT TABLE_TYPE=CSV FILE_NAME='sexe.csv' SEP_CHAR=';' ENDING=2;
+) ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=CSV FILE_NAME='sexe.csv' SEP_CHAR=';' ENDING=2;
 SELECT * FROM t2;
 sexe	genre
 0	Inconnu
@@ -121,7 +121,7 @@ set @@optimizer_scan_setup_cost=default;
 CREATE TABLE t3 (
 sitmat    CHAR(1) KEY,
 situation CHAR(12) NOT NULL
-) ENGINE=CONNECT TABLE_TYPE=CSV FILE_NAME='sitmat.csv' SEP_CHAR=';' ENDING=2;
+) ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=CSV FILE_NAME='sitmat.csv' SEP_CHAR=';' ENDING=2;
 SELECT * FROM t3;
 sitmat	situation
 .	Inconnu
@@ -189,5 +189,5 @@ CREATE TABLE t1 (
 id INT,
 f VARCHAR(32),
 PRIMARY KEY (id DESC)
-) ENGINE=CONNECT TABLE_TYPE=DOS FILE_NAME='emp.txt';
+) ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=DOS FILE_NAME='emp.txt';
 ERROR HY000: Descending indexes are not supported

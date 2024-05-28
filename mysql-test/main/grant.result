@@ -2791,7 +2791,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(30) DEFAULT user()
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ();
 GRANT ALL PRIVILEGES ON test.* TO dummy@localhost IDENTIFIED BY 'pwd';
 connect  conn1,localhost,dummy,pwd,test;

@@ -4,6 +4,7 @@
 
 --source include/no_valgrind_without_big.inc
 --source include/protocol.inc
+--source include/test_db_charset_latin1.inc
 
 #
 # Simple select test
@@ -4810,3 +4811,5 @@ DROP TABLE t1;
 DROP VIEW v1, v2;
 
 --echo End of 10.0 tests
+
+--source include/test_db_charset_restore.inc

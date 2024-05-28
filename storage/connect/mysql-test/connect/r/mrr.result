@@ -8,14 +8,14 @@
 CREATE TABLE t2 (
 name VARCHAR(64) NOT NULL,
 value VARCHAR(1024) NOT NULL
-) ENGINE=CONNECT TABLE_TYPE=DOS;
+) ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=DOS;
 Warnings:
 Warning	1105	No file name. Table will use t2.dos
 INSERT INTO t2 SELECT * FROM information_schema.session_variables WHERE variable_name = 'OPTIMIZER_SWITCH';
 create table t3 (
 name CHAR(32) NOT NULL,
 value CHAR(64) NOT NULL
-) ENGINE=CONNECT TABLE_TYPE=XCOL TABNAME=t2 OPTION_LIST='Colname=value';
+) ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=XCOL TABNAME=t2 OPTION_LIST='Colname=value';
 SELECT value FROM t3 WHERE value LIKE 'mrr%';
 value
 mrr=off
@@ -40,7 +40,7 @@ service   INT(2) NOT NULL,
 sitmat    CHAR(1) NOT NULL,
 formation CHAR(5) NOT NULL,
 INDEX NP(nom,prenom)
-) ENGINE=CONNECT TABLE_TYPE=FIX FILE_NAME='emp.txt' ENDING=2;
+) ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=FIX FILE_NAME='emp.txt' ENDING=2;
 SELECT * FROM t1 LIMIT 10;
 matricule	nom	prenom	sexe	aanais	mmnais	ddentree	ddnom	brut	net	service	sitmat	formation
 5745	ESCOURCHE	BENEDICTE	2	1935	7	1962-12-01	1994-05-01	18345	14275.50	0	M	TECHN

@@ -1,5 +1,8 @@
 include/master-slave.inc
 [connection master]
+connection master;
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
+connection slave;
 connection slave;
 include/stop_slave.inc
 connection master;
@@ -50,6 +53,8 @@ DROP TABLE table1_key_pk_parts_2_int_autoinc;
 DROP TABLE table2_int_autoinc;
 DROP TABLE table2_key_pk_parts_2_int_autoinc;
 SET sql_log_bin=1;
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;
 include/start_slave.inc
 connection master;
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;
 include/rpl_end.inc

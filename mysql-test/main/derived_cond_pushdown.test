@@ -27,13 +27,13 @@ insert into t2_double values
   (4,33.4,14.3333), (5,22.4,13.65), (7,17.89,18.9),
   (6,33.4,14.3333), (10,31.4,13.65), (12,33.4,13.65);
 
-create table t1_char(a char, b char(8), c int);
+create table t1_char(a char, b char(8), c int) charset=latin1;
 insert into t1_char values
   ('a','Ivan',1), ('b','Vika',2), ('b','Inga',6), ('c','Vika',7),
   ('b','Ivan',7), ('a','Alex',6), ('b','Inga',5), ('d','Ron',9),
   ('d','Harry',2), ('d','Hermione',3), ('c','Ivan',3), ('c','Harry',4);
 
-create table t2_char(a char, b char(8), c int);
+create table t2_char(a char, b char(8), c int) charset=latin1;
 insert into t2_char values
   ('b','Ivan',1), ('c','Vinny',3), ('c','Inga',9), ('a','Vika',1),
   ('c','Ivan',2), ('b','Ali',6), ('c','Inga',2), ('a','Ron',9),
@@ -1394,11 +1394,11 @@ DROP TABLE t1;
 --echo # MDEV-11608: pushdown of the predicate with cached null value
 --echo #
 
-CREATE TABLE t1 (c VARCHAR(3));
+CREATE TABLE t1 (c VARCHAR(3)) CHARSET=latin1;
 CREATE ALGORITHM=TEMPTABLE VIEW v1 AS SELECT * FROM t1;
 INSERT INTO t1 VALUES ('foo'),('bar');
 
-CREATE TABLE t2 (c VARCHAR(3));
+CREATE TABLE t2 (c VARCHAR(3)) CHARSET=latin1;
 INSERT INTO t2 VALUES ('foo'),('xyz');
 
 SELECT * FROM v1 WHERE v1.c IN ( SELECT MIN(c) FROM t2 WHERE 0 );
@@ -3079,12 +3079,12 @@ drop table t1,t2,t3;
 set @save_optimizer_switch= @@optimizer_switch;
 set optimizer_switch='split_materialized=off';
 
-create table t1 (a int, c varchar(16));
+create table t1 (a int, c varchar(16)) charset=latin1;
 insert into t1 values
 (8,'aa'), (5,'cc'), (1,'bb'), (2,'aa'), (9,'cc'),
 (7,'aa'), (2,'aa'), (7,'bb');
 
-create table t2 (a int, b int, c varchar(16), index idx(a,c));
+create table t2 (a int, b int, c varchar(16), index idx(a,c)) charset=latin1;
 insert into t2 values
   (7,10,'cc'), (1,20,'aa'), (2,23,'bb'), (7,18,'cc'), (1,30,'bb'),
   (4,71,'xx'), (3,15,'aa'), (7,82,'bb'), (8,12,'dd'), (4,15,'aa'),
@@ -3209,12 +3209,12 @@ set optimizer_switch= @save_optimizer_switch;
 let
 $no_splitting= set statement optimizer_switch='split_materialized=off' for;
 
-create table t1 (a int, b int, index idx_b(b)) engine=myisam;
+create table t1 (a int, b int, index idx_b(b)) engine=myisam charset=latin1;
 insert into t1 values
 (8,3), (5,7), (1,2), (2,1), (9,7), (7,5), (2,2), (7,3),
 (9,3), (8,1), (4,5), (2,3);
 
-create table t2 (a int, b int, c char(127), index idx_a(a)) engine=myisam;
+create table t2 (a int, b int, c char(127), index idx_a(a)) engine=myisam charset=latin1;
 insert into t2 values
   (7,10,'x'), (1,20,'a'), (2,23,'b'), (7,18,'z'), (1,30,'c'),
   (4,71,'d'), (3,15,'x'), (7,82,'y'), (8,12,'t'), (4,15,'b'),
@@ -3278,13 +3278,13 @@ eval explain extended $q2;
 --source include/explain-no-costs.inc
 eval explain format=json $q2;
 
-create table t3 (a int, b int, c char(127), index idx_b(b)) engine=myisam;
+create table t3 (a int, b int, c char(127), index idx_b(b)) engine=myisam charset=latin1;
 insert into t3 values
 (8,11,'aa'), (5,15,'cc'), (1,14,'bb'), (2,12,'aa'), (7,17,'cc'),
 (7,18,'aa'), (2,11,'aa'), (7,10,'bb'), (3,11,'dd'), (4,12,'ee'),
 (5,14,'dd'), (9,12,'ee');
 
-create table t4 (a int, b int, c char(127), index idx(a,c)) engine=myisam;
+create table t4 (a int, b int, c char(127), index idx(a,c)) engine=myisam charset=latin1;
 insert into t4 values
   (7,10,'cc'), (1,20,'aa'), (2,23,'bb'), (7,18,'cc'), (1,30,'bb'),
   (4,71,'xx'), (3,15,'aa'), (7,82,'aa'), (8,12,'dd'), (4,15,'aa'),
@@ -3421,11 +3421,11 @@ INSERT INTO t1 VALUES (1),(9),(3);
 CREATE TABLE t2 (a int, i int);
 INSERT INTO t2 VALUES (1,9),(2,3),(3,7),(4,1);
 
-CREATE TABLE t3 (a int, c char(127), index(c));
+CREATE TABLE t3 (a int, c char(127), index(c)) charset=latin1;
 INSERT INTO t3 VALUES (1,'foo'),(3,'bar'),(4,'foo'),(2,'bar');
 INSERT INTO t3 SELECT a, concat(c,'a') FROM t3;
 
-CREATE TABLE t4 (a int, c char(127), index(a));
+CREATE TABLE t4 (a int, c char(127), index(a)) charset=latin1;
 INSERT INTO t4 VALUES
   (3,'abc'),(1,'foo'),(4,'def'),(8,'xxx'),(3,'yyy'),
   (5,'zzz'),(9,'xyz'),(2,'yxz'),(5,'zxy'),(7,'zyx') ;

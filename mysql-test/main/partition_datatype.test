@@ -13,6 +13,8 @@
 drop table if exists t1;
 --enable_warnings
 
+--source include/test_db_charset_latin1.inc
+
 -- echo # test with not null
 create table t1 (a bit not null) partition by key (a);
 insert into t1 values (b'1');
@@ -545,3 +547,5 @@ TRUNCATE TABLE t2;
 
 DROP TABLE t1, t2;
 SET @@session.time_zone= @old_time_zone;
+
+--source include/test_db_charset_restore.inc

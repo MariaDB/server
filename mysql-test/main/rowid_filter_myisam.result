@@ -1,3 +1,4 @@
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 SET optimizer_switch='rowid_filter=on';
 #
 # MDEV-22553: Assertion `info->lastpos == (~ (my_off_t) 0)' failed in mi_rkey with rowid_filer=on
@@ -714,3 +715,4 @@ drop table t1;
 #
 # End of 11.0 tests
 #
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

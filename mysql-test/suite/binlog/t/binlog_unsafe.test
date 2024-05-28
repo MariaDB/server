@@ -661,7 +661,7 @@ DROP TABLE t1,t2,t3;
 #
 SET SESSION binlog_format = STATEMENT;
 
-CREATE TABLE t1 (a VARCHAR(1000));
+CREATE TABLE t1 (a VARBINARY(1000));
 INSERT INTO t1 VALUES (CURRENT_USER());       #marked unsafe before BUG#47995
 INSERT INTO t1 VALUES (FOUND_ROWS());         #marked unsafe before BUG#47995
 INSERT INTO t1 VALUES (GET_LOCK('tmp', 1));   #marked unsafe in BUG#47995

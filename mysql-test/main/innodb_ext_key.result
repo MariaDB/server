@@ -370,7 +370,7 @@ set optimizer_switch=@save_optimizer_switch;
 #
 CREATE TABLE t1 (
 a int NOT NULL, b varchar(1) NOT NULL, KEY(a), KEY(b,a)
-) ENGINE=MyISAM;
+) ENGINE=MyISAM CHARSET=latin1;
 INSERT INTO t1 VALUES
 (0,'j'), (8,'v'), (1,'c'), (8,'m'), (9,'d'), 
 (24,'d'), (6,'y'), (1,'t'), (6,'d'), (2,'s');
@@ -835,7 +835,7 @@ pk VARCHAR(50),
 a VARCHAR(20),
 KEY k1(a),
 PRIMARY KEY(pk)
-)ENGINE=INNODB;
+)ENGINE=INNODB CHARSET=latin1;
 INSERT INTO t2 SELECT a,a FROM t1;
 EXPLAIN SELECT pk FROM t2 FORCE INDEX(k1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra

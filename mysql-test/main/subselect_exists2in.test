@@ -21,13 +21,13 @@ drop table t1;
 --echo # LP BUG#884657 Wrong result with exists2in , correlated subquery
 --echo #
 
-CREATE TABLE t1 ( a varchar(1)) ;
+CREATE TABLE t1 ( a varchar(1)) CHARSET=latin1;
 INSERT INTO t1 VALUES ('c'),('b');
 
-CREATE TABLE t2 ( b varchar(1)) ;
+CREATE TABLE t2 ( b varchar(1)) CHARSET=latin1;
 INSERT INTO t2 VALUES ('v'),('v'),('c'),(NULL),('x'),('i'),('e'),('p'),('s'),('j'),('z'),('c'),('a'),('q'),('y'),(NULL),('r'),('v'),(NULL),('r');
 
-CREATE TABLE t3 ( a int NOT NULL , b varchar(1)) ;
+CREATE TABLE t3 ( a int NOT NULL , b varchar(1)) CHARSET=latin1;
 INSERT INTO t3 VALUES (29,'c');
 
 SELECT *
@@ -73,7 +73,7 @@ drop table t1,t2,t3;
 --echo # 
 create table t1 (
   a1 char(64), a2 char(64), b char(16), c char(16) not null, d char(16), dummy char(64) default ' '
-);
+) charset=latin1;
 
 insert into t1 (a1, a2, b, c, d) values
 ('a','a','a','a111','xy1'),('a','a','a','b111','xy2'),('a','a','a','c111','xy3'),('a','a','a','d111','xy4'),
@@ -119,7 +119,7 @@ analyze table t1;
 
 create table t2 (
   a1 char(64), a2 char(64) not null, b char(16), c char(16), d char(16), dummy char(64) default ' '
-);
+) charset=latin1;
 insert into t2 select * from t1;
 # add few rows with NULL's in the MIN/MAX column
 insert into t2 (a1, a2, b, c, d) values
@@ -152,7 +152,7 @@ analyze table t2;
 
 create table t3 (
   a1 char(1), a2 char(1), b char(1), c char(4) not null, d char(3), dummy char(1) default ' '
-);
+) charset=latin1;
 
 insert into t3 (a1, a2, b, c, d) values
 ('a','a','a','a111','xy1'),('a','a','a','b111','xy2'),('a','a','a','c111','xy3'),('a','a','a','d111','xy4'),
@@ -294,10 +294,10 @@ set optimizer_switch='exists_to_in=on';
 drop table t1,t2,t3;
 
 --echo # multi condition test
-CREATE TABLE t1 ( a varchar(1), a1 varchar(1)) ;
+CREATE TABLE t1 ( a varchar(1), a1 varchar(1)) CHARSET=latin1;
 INSERT INTO t1 VALUES ('c', 'c'), ('b', 'b');
 
-CREATE TABLE t3 ( a int NOT NULL , b varchar(1), b1 varchar(1)) ;
+CREATE TABLE t3 ( a int NOT NULL , b varchar(1), b1 varchar(1)) CHARSET=latin1;
 INSERT INTO t3 VALUES (29,'c','c');
 INSERT INTO t3 VALUES (2,'c','c');
 alter table t1 add index aa (a,a1);

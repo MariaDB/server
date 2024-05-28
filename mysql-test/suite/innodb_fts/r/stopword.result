@@ -151,7 +151,7 @@ articles	CREATE TABLE `articles` (
   `body` text DEFAULT NULL,
   PRIMARY KEY (`id`),
   FULLTEXT KEY `idx` (`title`,`body`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO articles (title,body) VALUES
 ('MySQL from Tutorial','DBMS stands for DataBase ...')  ,
 ('when To Use MySQL Well','After that you went through a ...'),
@@ -248,7 +248,7 @@ articles	CREATE TABLE `articles` (
   `title` varchar(200) DEFAULT NULL,
   `body` text DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=9 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB AUTO_INCREMENT=9 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE articles ADD FULLTEXT INDEX idx (title,body);
 ANALYZE TABLE articles;
 Table	Op	Msg_type	Msg_text
@@ -430,7 +430,7 @@ articles	CREATE TABLE `articles` (
   `body` text DEFAULT NULL,
   PRIMARY KEY (`id`),
   FULLTEXT KEY `idx` (`title`,`body`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO articles (title,body) VALUES
 ('MySQL from Tutorial','DBMS stands for DataBase ...')  ,
 ('when To Use MySQL Well','After that you went through a ...'),
@@ -541,7 +541,7 @@ articles	CREATE TABLE `articles` (
   `body` text DEFAULT NULL,
   PRIMARY KEY (`id`),
   FULLTEXT KEY `idx` (`title`,`body`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO articles (title,body) VALUES
 ('MySQL from Tutorial','DBMS stands for DataBase ...')  ,
 ('when To Use MySQL Well','After that you went through a ...'),

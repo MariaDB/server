@@ -1,6 +1,7 @@
 --source include/no_valgrind_without_big.inc
 --source include/default_optimizer_switch.inc
 --source include/default_charset.inc
+--source include/test_db_charset_latin1.inc
 
 --disable_warnings
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7,t8,t9,t10,t11;
@@ -30,7 +31,7 @@ set global innodb_stats_persistent_sample_pages=100;
 
 set names utf8;
 
-CREATE DATABASE world;
+CREATE DATABASE world CHARACTER SET latin1;
 
 use world;
 
@@ -394,7 +395,7 @@ set join_buffer_size=@save_join_buffer_size;
 DROP DATABASE world; 
 
 
-CREATE DATABASE world;
+CREATE DATABASE world CHARACTER SET latin1;
 
 use world;
 
@@ -4386,3 +4387,5 @@ DROP TABLE t1,t2,t3;
 --echo #
 --echo # End of 10.4 tests
 --echo #
+
+--source include/test_db_charset_restore.inc

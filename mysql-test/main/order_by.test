@@ -13,6 +13,8 @@ call mtr.add_suppression("Sort aborted.*");
 call mtr.add_suppression("Out of sort memory; increase server sort buffer size");
 --source include/have_sequence.inc
 
+--source include/test_db_charset_latin1.inc
+
 #
 # Test old ORDER BY bug
 #
@@ -2805,3 +2807,5 @@ explain select * from t1 force index(r) order by a,b limit 20;
 explain select * from t1 force index(r) order by a desc,b limit 20;
         select * from t1 force index(r) order by a desc,b limit 20;
 drop table t1;
+
+--source include/test_db_charset_restore.inc

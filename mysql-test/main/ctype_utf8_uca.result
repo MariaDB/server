@@ -572,7 +572,7 @@ t1	CREATE TABLE `t1` (
   `b` varchar(50) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL,
   KEY `a` (`a`),
   KEY `b` (`b`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('111', '111');
 INSERT INTO t1 VALUES ('222', '222');
 INSERT INTO t1 VALUES ('333', '333');
@@ -600,7 +600,7 @@ Table	Create Table
 case_folding	CREATE TABLE `case_folding` (
   `code` int(1) NOT NULL,
   `c` varchar(32) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO case_folding (code) VALUES
 (0x23A),
 (0x23E),
@@ -652,7 +652,7 @@ Table	Create Table
 case_folding	CREATE TABLE `case_folding` (
   `code` int(1) NOT NULL,
   `c` varchar(32) CHARACTER SET utf8mb3 COLLATE utf8mb3_turkish_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO case_folding (code) VALUES
 (0x23A),
 (0x23E),
@@ -704,7 +704,7 @@ Table	Create Table
 case_folding	CREATE TABLE `case_folding` (
   `code` int(1) NOT NULL,
   `c` varchar(32) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_520_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO case_folding (code) VALUES
 (0x23A),
 (0x23E),
@@ -756,7 +756,7 @@ Table	Create Table
 case_folding	CREATE TABLE `case_folding` (
   `code` int(1) NOT NULL,
   `c` varchar(32) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_520_nopad_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO case_folding (code) VALUES
 (0x23A),
 (0x23E),
@@ -808,7 +808,7 @@ Table	Create Table
 case_folding	CREATE TABLE `case_folding` (
   `code` int(1) NOT NULL,
   `c` varchar(32) CHARACTER SET utf8mb3 COLLATE utf8mb3_myanmar_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO case_folding (code) VALUES
 (0x23A),
 (0x23E),
@@ -860,7 +860,7 @@ Table	Create Table
 case_folding	CREATE TABLE `case_folding` (
   `code` int(1) NOT NULL,
   `c` varchar(32) CHARACTER SET utf8mb3 COLLATE utf8mb3_thai_520_w2 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO case_folding (code) VALUES
 (0x23A),
 (0x23E),
@@ -926,7 +926,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` text CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL,
   UNIQUE KEY `a` (`a`(3))
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('ss ');
 INSERT INTO t1 VALUES (_utf8mb3 0xC39F20)/*SZ+SPACE*/;
 ERROR 23000: Duplicate entry 'ß ' for key 'a'
@@ -941,7 +941,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` text CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL,
   UNIQUE KEY `a` (`a`(3)) USING HASH
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('ss ');
 INSERT INTO t1 VALUES (_utf8mb3 0xC39F20)/*SZ+SPACE*/;
 ERROR 23000: Duplicate entry 'ß ' for key 'a'
@@ -956,7 +956,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(2000) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL,
   UNIQUE KEY `a` (`a`(3))
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('ss ');
 INSERT INTO t1 VALUES (_utf8mb3 0xC39F20)/*SZ+SPACE*/;
 ERROR 23000: Duplicate entry 'ß ' for key 'a'
@@ -971,7 +971,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(2000) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL,
   UNIQUE KEY `a` (`a`(3)) USING HASH
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('ss ');
 INSERT INTO t1 VALUES (_utf8mb3 0xC39F20)/*SZ+SPACE*/;
 ERROR 23000: Duplicate entry 'ß ' for key 'a'
@@ -986,7 +986,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` char(20) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL,
   UNIQUE KEY `a` (`a`(3))
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('ss ');
 INSERT INTO t1 VALUES (_utf8mb3 0xC39F20)/*SZ+SPACE*/;
 DROP TABLE t1;
@@ -1000,7 +1000,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` char(20) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL,
   UNIQUE KEY `a` (`a`(3)) USING HASH
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('ss ');
 INSERT INTO t1 VALUES (_utf8mb3 0xC39F20)/*SZ+SPACE*/;
 DROP TABLE t1;
@@ -1018,7 +1018,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(2000) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL,
   UNIQUE KEY `a` (`a`(3))
-) ENGINE=MEMORY DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('ss ');
 INSERT INTO t1 VALUES (_utf8mb3 0xC39F20)/*SZ+SPACE*/;
 ERROR 23000: Duplicate entry 'ß ' for key 'a'
@@ -1033,7 +1033,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(2000) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL,
   UNIQUE KEY `a` (`a`(3)) USING HASH
-) ENGINE=MEMORY DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('ss ');
 INSERT INTO t1 VALUES (_utf8mb3 0xC39F20)/*SZ+SPACE*/;
 ERROR 23000: Duplicate entry 'ß ' for key 'a'
@@ -1048,7 +1048,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` char(20) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL,
   UNIQUE KEY `a` (`a`(3))
-) ENGINE=MEMORY DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('ss ');
 INSERT INTO t1 VALUES (_utf8mb3 0xC39F20)/*SZ+SPACE*/;
 DROP TABLE t1;
@@ -1062,7 +1062,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` char(20) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL,
   UNIQUE KEY `a` (`a`(3)) USING HASH
-) ENGINE=MEMORY DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('ss ');
 INSERT INTO t1 VALUES (_utf8mb3 0xC39F20)/*SZ+SPACE*/;
 DROP TABLE t1;
@@ -1078,7 +1078,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` char(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL,
   UNIQUE KEY `a` (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('ss'),('ß');
 DROP TABLE t1;
 CREATE TABLE t1 (a CHAR(10) COLLATE utf8mb3_unicode_nopad_ci, UNIQUE KEY(a(2)));
@@ -1087,7 +1087,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` char(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL,
   UNIQUE KEY `a` (`a`(2))
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('ss'),('ß');
 DROP TABLE t1;
 CREATE TABLE t1 (a CHAR(120) COLLATE utf8mb3_unicode_nopad_ci, UNIQUE KEY(a));
@@ -1096,7 +1096,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` char(120) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL,
   UNIQUE KEY `a` (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('ss'),('ß');
 DROP TABLE t1;
 CREATE TABLE t1 (a CHAR(120) COLLATE utf8mb3_unicode_nopad_ci, UNIQUE KEY(a(100)));
@@ -1105,7 +1105,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` char(120) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL,
   UNIQUE KEY `a` (`a`(100))
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('ss'),('ß');
 DROP TABLE t1;
 #
@@ -1116,7 +1116,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c` char(100) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('ss'),('ß');
 SET big_tables=0;
 Warnings:
@@ -1147,7 +1147,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` char(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL,
   UNIQUE KEY `a` (`a`)
-) ENGINE=MEMORY DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('ss'),('ß');
 DROP TABLE t1;
 CREATE TABLE t1 (a CHAR(10) COLLATE utf8mb3_unicode_nopad_ci, UNIQUE KEY(a(2)));
@@ -1156,7 +1156,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` char(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL,
   UNIQUE KEY `a` (`a`(2))
-) ENGINE=MEMORY DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('ss'),('ß');
 DROP TABLE t1;
 CREATE TABLE t1 (a CHAR(120) COLLATE utf8mb3_unicode_nopad_ci, UNIQUE KEY(a));
@@ -1165,7 +1165,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` char(120) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL,
   UNIQUE KEY `a` (`a`)
-) ENGINE=MEMORY DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('ss'),('ß');
 DROP TABLE t1;
 CREATE TABLE t1 (a CHAR(120) COLLATE utf8mb3_unicode_nopad_ci, UNIQUE KEY(a(100)));
@@ -1174,7 +1174,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` char(120) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL,
   UNIQUE KEY `a` (`a`(100))
-) ENGINE=MEMORY DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('ss'),('ß');
 DROP TABLE t1;
 #
@@ -1185,7 +1185,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c` char(100) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL
-) ENGINE=MEMORY DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('ss'),('ß');
 SET big_tables=0;
 Warnings:
@@ -1994,7 +1994,7 @@ Table	Create Table
 case_folding	CREATE TABLE `case_folding` (
   `code` int(1) NOT NULL,
   `c` varchar(32) CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO case_folding (code) VALUES
 (0x23A),
 (0x23E),

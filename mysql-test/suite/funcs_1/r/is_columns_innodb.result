@@ -1,3 +1,4 @@
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 DROP DATABASE IF EXISTS test1;
 CREATE DATABASE test1;
 USE test;
@@ -646,8 +647,8 @@ def	test1	tb2	f104	46	'2000-12-31 23:59:59'	NO	timestamp	NULL	NULL	NULL	NULL	0	N
 def	test1	tb2	f105	47	2000	NO	year	NULL	NULL	NULL	NULL	NULL	NULL	NULL	year(4)			select,insert,update,references		NEVER	NULL	NO	NO
 def	test1	tb2	f106	48	2000	NO	year	NULL	NULL	NULL	NULL	NULL	NULL	NULL	year(4)			select,insert,update,references		NEVER	NULL	NO	NO
 def	test1	tb2	f107	49	2000	NO	year	NULL	NULL	NULL	NULL	NULL	NULL	NULL	year(4)			select,insert,update,references		NEVER	NULL	NO	NO
-def	test1	tb2	f108	50	'1enum'	NO	enum	5	5	NULL	NULL	NULL	latin1	latin1_swedish_ci	enum('1enum','2enum')			select,insert,update,references		NEVER	NULL	NO	NO
-def	test1	tb2	f109	51	'1set'	NO	set	9	9	NULL	NULL	NULL	latin1	latin1_swedish_ci	set('1set','2set')			select,insert,update,references		NEVER	NULL	NO	NO
+def	test1	tb2	f108	50	'1enum'	NO	enum	5	20	NULL	NULL	NULL	utf8mb4	utf8mb4_uca1400_ai_ci	enum('1enum','2enum')			select,insert,update,references		NEVER	NULL	NO	NO
+def	test1	tb2	f109	51	'1set'	NO	set	9	36	NULL	NULL	NULL	utf8mb4	utf8mb4_uca1400_ai_ci	set('1set','2set')			select,insert,update,references		NEVER	NULL	NO	NO
 def	test1	tb2	f59	1	NULL	YES	decimal	NULL	NULL	10	0	NULL	NULL	NULL	decimal(10,0) unsigned			select,insert,update,references		NEVER	NULL	NO	NO
 def	test1	tb2	f60	2	NULL	YES	decimal	NULL	NULL	64	0	NULL	NULL	NULL	decimal(64,0) unsigned			select,insert,update,references		NEVER	NULL	NO	NO
 def	test1	tb2	f61	3	NULL	YES	decimal	NULL	NULL	10	0	NULL	NULL	NULL	decimal(10,0) unsigned zerofill			select,insert,update,references		NEVER	NULL	NO	NO
@@ -689,11 +690,11 @@ def	test1	tb2	f96	38	8.8	NO	double	NULL	NULL	22	NULL	NULL	NULL	NULL	double unsig
 def	test1	tb2	f97	39	0000000008.8	NO	float	NULL	NULL	12	NULL	NULL	NULL	NULL	float unsigned zerofill			select,insert,update,references		NEVER	NULL	NO	NO
 def	test1	tb2	f98	40	00000000000000000008.8	NO	double	NULL	NULL	22	NULL	NULL	NULL	NULL	double unsigned zerofill			select,insert,update,references		NEVER	NULL	NO	NO
 def	test1	tb2	f99	41	0000000008.8	NO	float	NULL	NULL	12	NULL	NULL	NULL	NULL	float unsigned zerofill			select,insert,update,references		NEVER	NULL	NO	NO
-def	test4	t6	f1	1	NULL	YES	char	20	20	NULL	NULL	NULL	latin1	latin1_swedish_ci	char(20)			select,insert,update,references		NEVER	NULL	NO	NO
-def	test4	t6	f2	2	NULL	YES	char	25	25	NULL	NULL	NULL	latin1	latin1_swedish_ci	char(25)			select,insert,update,references		NEVER	NULL	NO	NO
+def	test4	t6	f1	1	NULL	YES	char	20	80	NULL	NULL	NULL	utf8mb4	utf8mb4_uca1400_ai_ci	char(20)			select,insert,update,references		NEVER	NULL	NO	NO
+def	test4	t6	f2	2	NULL	YES	char	25	100	NULL	NULL	NULL	utf8mb4	utf8mb4_uca1400_ai_ci	char(25)			select,insert,update,references		NEVER	NULL	NO	NO
 def	test4	t6	f3	3	NULL	YES	date	NULL	NULL	NULL	NULL	NULL	NULL	NULL	date			select,insert,update,references		NEVER	NULL	NO	NO
 def	test4	t6	f4	4	NULL	YES	int	NULL	NULL	10	0	NULL	NULL	NULL	int(11)			select,insert,update,references		NEVER	NULL	NO	NO
-def	test4	t6	f5	5	NULL	YES	char	25	25	NULL	NULL	NULL	latin1	latin1_swedish_ci	char(25)			select,insert,update,references		NEVER	NULL	NO	NO
+def	test4	t6	f5	5	NULL	YES	char	25	100	NULL	NULL	NULL	utf8mb4	utf8mb4_uca1400_ai_ci	char(25)			select,insert,update,references		NEVER	NULL	NO	NO
 def	test4	t6	f6	6	NULL	YES	int	NULL	NULL	10	0	NULL	NULL	NULL	int(11)			select,insert,update,references		NEVER	NULL	NO	NO
 ##########################################################################
 # Show the quotient of CHARACTER_OCTET_LENGTH and CHARACTER_MAXIMUM_LENGTH
@@ -739,6 +740,9 @@ WHERE table_schema LIKE 'test%'
 AND CHARACTER_OCTET_LENGTH / CHARACTER_MAXIMUM_LENGTH <> 1
 ORDER BY CHARACTER_SET_NAME, COLLATION_NAME, COL_CML;
 COL_CML	DATA_TYPE	CHARACTER_SET_NAME	COLLATION_NAME
+4.0000	char	utf8mb4	utf8mb4_uca1400_ai_ci
+4.0000	enum	utf8mb4	utf8mb4_uca1400_ai_ci
+4.0000	set	utf8mb4	utf8mb4_uca1400_ai_ci
 Warnings:
 Warning	1365	Division by 0
 Warning	1365	Division by 0
@@ -1116,13 +1120,13 @@ NULL	test1	tb2	f104	timestamp	NULL	NULL	NULL	NULL	timestamp
 NULL	test1	tb2	f105	year	NULL	NULL	NULL	NULL	year(4)
 NULL	test1	tb2	f106	year	NULL	NULL	NULL	NULL	year(4)
 NULL	test1	tb2	f107	year	NULL	NULL	NULL	NULL	year(4)
-1.0000	test1	tb2	f108	enum	5	5	latin1	latin1_swedish_ci	enum('1enum','2enum')
-1.0000	test1	tb2	f109	set	9	9	latin1	latin1_swedish_ci	set('1set','2set')
-1.0000	test4	t6	f1	char	20	20	latin1	latin1_swedish_ci	char(20)
-1.0000	test4	t6	f2	char	25	25	latin1	latin1_swedish_ci	char(25)
+4.0000	test1	tb2	f108	enum	5	20	utf8mb4	utf8mb4_uca1400_ai_ci	enum('1enum','2enum')
+4.0000	test1	tb2	f109	set	9	36	utf8mb4	utf8mb4_uca1400_ai_ci	set('1set','2set')
+4.0000	test4	t6	f1	char	20	80	utf8mb4	utf8mb4_uca1400_ai_ci	char(20)
+4.0000	test4	t6	f2	char	25	100	utf8mb4	utf8mb4_uca1400_ai_ci	char(25)
 NULL	test4	t6	f3	date	NULL	NULL	NULL	NULL	date
 NULL	test4	t6	f4	int	NULL	NULL	NULL	NULL	int(11)
-1.0000	test4	t6	f5	char	25	25	latin1	latin1_swedish_ci	char(25)
+4.0000	test4	t6	f5	char	25	100	utf8mb4	utf8mb4_uca1400_ai_ci	char(25)
 NULL	test4	t6	f6	int	NULL	NULL	NULL	NULL	int(11)
 Warnings:
 Warning	1365	Division by 0
@@ -1145,3 +1149,4 @@ DROP TABLE test.tb1;
 DROP TABLE test.tb2;
 DROP TABLE test.tb3;
 DROP TABLE test.tb4;
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

@@ -1,6 +1,9 @@
 --source innodb_default_row_format.inc
 --source include/have_debug.inc
 --source include/have_debug_sync.inc
+--disable_query_log
+--source include/test_db_charset_latin1.inc
+--enable_query_log
 
 --echo #
 --echo # MDEV-23244 ALTER TABLE…ADD PRIMARY KEY fails to flag
@@ -33,3 +36,7 @@ SET DEBUG_SYNC='RESET';
 
 SELECT * FROM t1;
 DROP TABLE t0,t1;
+
+--disable_query_log
+--source include/test_db_charset_restore.inc
+--enable_query_log
