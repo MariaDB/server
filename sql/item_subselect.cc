@@ -6654,7 +6654,7 @@ subselect_rowid_merge_engine::init(MY_BITMAP *non_null_key_parts,
     if (merge_keys[i]->sort_keys())
       return TRUE;
 
-  if (pq.init(merge_keys_count, 0, false,
+  if (pq.init(merge_keys_count, false,
               subselect_rowid_merge_engine::cmp_keys_by_cur_rownum))
     return TRUE;
 
@@ -6713,8 +6713,9 @@ subselect_rowid_merge_engine::cmp_keys_by_null_selectivity(Ordered_key **k1,
 */
 
 int
-subselect_rowid_merge_engine::cmp_keys_by_cur_rownum(void *, Ordered_key *k1,
-                                                     Ordered_key *k2)
+subselect_rowid_merge_engine::cmp_keys_by_cur_rownum(void *,
+                                                     const Ordered_key *k1,
+                                                     const Ordered_key *k2)
 {
   rownum_t r1= k1->current();
   rownum_t r2= k2->current();

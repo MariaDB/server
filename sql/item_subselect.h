@@ -1368,7 +1368,7 @@ public:
     return FALSE;
   };
   /* Return the current index element. */
-  rownum_t current()
+  rownum_t current() const
   {
     DBUG_ASSERT(key_buff_elements && cur_key_idx < key_buff_elements);
     return key_buff[cur_key_idx];
@@ -1507,7 +1507,7 @@ protected:
     Priority queue of Ordered_key indexes, one per NULLable column.
     This queue is used by the partial match algorithm in method exec().
   */
-  Queue<Ordered_key, Ordered_key> pq;
+  Queue<Ordered_key> pq;
 protected:
   /*
     Comparison function to compare keys in order of decreasing bitmap
@@ -1518,7 +1518,9 @@ protected:
     Comparison function used by the priority queue pq, the 'smaller' key
     is the one with the smaller current row number.
   */
-  static int cmp_keys_by_cur_rownum(void *arg, Ordered_key *k1, Ordered_key *k2);
+  static int cmp_keys_by_cur_rownum(void *arg,
+                                    const Ordered_key *k1,
+                                    const Ordered_key *k2);
 
   bool test_null_row(rownum_t row_num);
   bool exists_complementing_null_row(MY_BITMAP *keys_to_complement);
