@@ -16,24 +16,25 @@
 #ifndef QUEUE_INCLUDED
 #define QUEUE_INCLUDED
 
+#include <my_global.h>
 #include "queues.h"
 
 /**
   A typesafe wrapper of QUEUE, a priority heap
 */
-template<typename Element, typename Key, typename Param=void>
+template<typename Element, typename Param=void>
 class Queue
 {
 public:
-  typedef int (*Queue_compare)(Param *, Key *, Key *);
+  typedef int (*Queue_compare)(Param *, const Element *, const Element *);
 
   Queue() { m_queue.root= 0; }
   ~Queue() { delete_queue(&m_queue); }
-  int init(uint max_elements, uint offset_to_key, bool max_at_top,
-           Queue_compare compare, Param *param= 0)
+  int init(uint max_elements, bool max_at_top, Queue_compare compare,
+           Param *param= 0)
   {
-    return init_queue(&m_queue, max_elements, offset_to_key, max_at_top,
-                      (queue_compare)compare, param, 0, 0);
+    return init_queue(&m_queue, max_elements, 0, max_at_top,
+                      (queue_compare)compare, (void *)param, 0, 0);
   }
 
   size_t elements() const { return m_queue.elements; }
@@ -42,11 +43,11 @@ public:
   bool is_empty() const { return elements() == 0; }
   Element *top() const { return (Element*)queue_top(&m_queue); }
 
-  void push(Element *element) { queue_insert(&m_queue, (uchar*)element); }
+  void push(const Element *element) { queue_insert(&m_queue, (uchar*)element); }
   Element *pop() { return (Element *)queue_remove_top(&m_queue); }
   void clear() { queue_remove_all(&m_queue); }
   void propagate_top() { queue_replace_top(&m_queue); }
-  void replace_top(Element *element)
+  void replace_top(const Element *element)
   {
     queue_top(&m_queue)= (uchar*)element;
     propagate_top();
