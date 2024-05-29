@@ -224,6 +224,11 @@ static void print_stack(void **frame)
 {
   const char *err;
   int i;
+#ifdef __APPLE__
+  char** strptr= 0;
+#else
+  my_addr_loc loc;
+#endif
 
   if ((err= my_addr_resolve_init()))
   {
@@ -231,18 +236,29 @@ static void print_stack(void **frame)
     return;
   }
 
+#ifdef __APPLE__
+  for (i= 0; i < SF_REMEMBER_FRAMES && frame[i]; i++);
+  strptr= backtrace_symbols(frame, i);
+#endif
+
   for (i=0; i < SF_REMEMBER_FRAMES && frame[i]; i++)
   {
-    my_addr_loc loc;
     if (i)
       fprintf(stderr, ", ");
 
+#ifdef __APPLE__
+    fprintf(stderr, "%s", strptr[i]);
+#else
     if (my_addr_resolve(frame[i], &loc))
       fprintf(stderr, "%p", frame[i]);
     else
       fprintf(stderr, "%s:%u", loc.file, loc.line);
+#endif
   }
   fprintf(stderr, "\n");
+#ifdef __APPLE__
+  free(strptr);
+#endif
 }
 #else
 #define print_stack(X)          fprintf(stderr, "???\n")
