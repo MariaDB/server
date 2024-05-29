@@ -496,8 +496,8 @@ public:
   inline List() :base_list() {}
   inline List(const List<T> &tmp, MEM_ROOT *mem_root) :
     base_list(tmp, mem_root) {}
-  inline bool push_back(T *a) { return base_list::push_back(a); }
-  inline bool push_back(T *a, MEM_ROOT *mem_root)
+  inline bool push_back(const T *a) { return base_list::push_back((void *)a); }
+  inline bool push_back(const T *a, MEM_ROOT *mem_root)
   { return base_list::push_back((void*) a, mem_root); }
   inline bool push_front(const T *a) { return base_list::push_front(a); }
   inline bool push_front(const T *a, MEM_ROOT *mem_root)
