@@ -52,7 +52,7 @@ private:
   uchar                     **m_sort_keys;
   size_t                      m_compare_length;
   Sort_param                 *m_sort_param;
-  Queue<uchar*,uchar*,size_t> m_queue;
+  Queue<uchar*, size_t> m_queue;
 };
 
 
@@ -68,7 +68,7 @@ int Bounded_queue::init(ha_rows max_elements, size_t cmplen,
   if (max_elements >= UINT_MAX - 1)
     return 1;
   // We allocate space for one extra element, for replace when queue is full.
-  return m_queue.init((uint)max_elements + 1, 0, true,
+  return m_queue.init((uint)max_elements + 1, true,
                       (decltype(m_queue)::Queue_compare)get_ptr_compare(cmplen),
                       &m_compare_length);
 }
