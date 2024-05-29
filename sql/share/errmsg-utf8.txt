@@ -9111,3 +9111,6 @@ ER_NOT_ALLOWED_IN_THIS_CONTEXT
         eng "'%-.128s' is not allowed in this context"
 ER_DATA_WAS_COMMITED_UNDER_ROLLBACK
         eng "Engine %s does not support rollback. Changes were committed during rollback call"
+ER_KILL_DENIED_HIGH_PRIORITY
+        eng "This is an high priority thread/query and cannot be killed without compromising consistency of the cluster"
+
