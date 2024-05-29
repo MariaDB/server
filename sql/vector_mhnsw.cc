@@ -78,21 +78,21 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
   return err == HA_ERR_END_OF_FILE ? 0 : err;
 }
 
-static int cmp_float(void *, float *a, float *b)
-{
-  return *a < *b ? -1 : *a == *b ? 0 : 1;
-}
-
 struct Node
 {
   float distance;
   uchar ref[1000];
 };
 
+static int cmp_float(void *, const Node *a, const Node *b)
+{
+  return a->distance < b->distance ? -1 : a->distance == b->distance ? 0 : 1;
+}
+
 int mhnsw_first(TABLE *table, Item *dist, ulonglong limit)
 {
   TABLE *graph= table->hlindex;
-  Queue<Node, float> todo, result;
+  Queue<Node> todo, result;
   Node *cur;
   String *str, strbuf;
   const size_t ref_length= table->file->ref_length;
@@ -105,10 +105,10 @@ int mhnsw_first(TABLE *table, Item *dist, ulonglong limit)
 
   DBUG_ASSERT(graph);
 
-  if (todo.init(1000, 0, 0, cmp_float)) // XXX + autoextent
+  if (todo.init(1000, 0, cmp_float)) // XXX + autoextent
     return HA_ERR_OUT_OF_MEM;
 
-  if (result.init(limit, 0, 1, cmp_float))
+  if (result.init(limit, 1, cmp_float))
     return HA_ERR_OUT_OF_MEM;
 
   if ((err= graph->file->ha_index_init(0, 1)))
