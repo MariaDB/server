@@ -205,6 +205,7 @@ Section: libs
 Depends: ${misc:Depends},
          ${shlibs:Depends}
 Breaks: libmariadbd-dev (<< ${source:Version})
+Conflicts: libmariadbd19t64
 Replaces: libmariadbd-dev (<< ${source:Version})
 Multi-Arch: same
 Description: MariaDB embedded database, shared library
