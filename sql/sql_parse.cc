@@ -9415,17 +9415,21 @@ kill_one_thread(THD *thd, my_thread_id id, killed_state kill_signal, killed_type
 
     mysql_mutex_lock(&tmp->LOCK_thd_data); // Lock from concurrent usage
 
-#ifdef WITH_WSREP
-    if (((thd->security_ctx->master_access & PRIV_KILL_OTHER_USER_PROCESS) ||
-        thd->security_ctx->user_matches(tmp->security_ctx)) &&
-        !wsrep_thd_is_BF(tmp, false) && !tmp->wsrep_applier)
-#else
     if ((thd->security_ctx->master_access & PRIV_KILL_OTHER_USER_PROCESS) ||
         thd->security_ctx->user_matches(tmp->security_ctx))
-#endif /* WITH_WSREP */
     {
-      {
 #ifdef WITH_WSREP
+      if (wsrep_thd_is_BF(tmp, false) || tmp->wsrep_applier)
+      {
+        error= ER_KILL_DENIED_HIGH_PRIORITY;
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                            ER_KILL_DENIED_HIGH_PRIORITY,
+                            "Thread %lld is %s and cannot be killed",
+                            tmp->thread_id,
+                           (tmp->wsrep_applier ? "wsrep applier" : "high priority"));
+      }
+      else
+      {
         if (WSREP(tmp))
         {
           /* Object tmp is not guaranteed to exist after wsrep_kill_thd()
@@ -9435,7 +9439,9 @@ kill_one_thread(THD *thd, my_thread_id id, killed_state kill_signal, killed_type
 #endif /* WITH_WSREP */
         tmp->awake_no_mutex(kill_signal);
         error= 0;
+#ifdef WITH_WSREP
       }
+#endif /* WITH_WSREP */
     }
     else
       error= (type == KILL_TYPE_QUERY ? ER_KILL_QUERY_DENIED_ERROR :
@@ -9565,7 +9571,9 @@ void sql_kill(THD *thd, my_thread_id id, killed_state state, killed_type type)
       thd->send_kill_message();
   }
   else
+  {
     my_error(error, MYF(0), id);
+  }
 }
 
 
