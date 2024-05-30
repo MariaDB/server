@@ -6265,7 +6265,7 @@ int do_done(struct st_command *command)
     if (*cur_block->delim) 
     {
       /* Restore "old" delimiter after false if block */
-      if (safe_strcpy(delimiter, sizeof(delimiter), cur_block->delim))
+      if (safe_strcpy_truncated(delimiter, sizeof delimiter, cur_block->delim))
         die("Delimiter too long, truncated");
 
       delimiter_length= strlen(delimiter);
@@ -6526,7 +6526,8 @@ void do_block(enum block_cmd cmd, struct st_command* command)
   else
   {
     /* Remember "old" delimiter if entering a false if block */
-    if (safe_strcpy(cur_block->delim, sizeof(cur_block->delim), delimiter))
+    if (safe_strcpy_truncated(cur_block->delim, sizeof cur_block->delim,
+                              delimiter))
       die("Delimiter too long, truncated");
   }
   
