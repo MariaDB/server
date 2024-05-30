@@ -18194,12 +18194,12 @@ trigger_follows_precedes_clause:
 trigger_tail:
           remember_name
           opt_if_not_exists
+          sp_name
+          trg_action_time
           {
             if (unlikely(Lex->add_create_options_with_check($2)))
               MYSQL_YYABORT;
           }
-          sp_name
-          trg_action_time
           trg_event
           ON
           remember_name /* $8 */
@@ -18228,11 +18228,11 @@ trigger_tail:
             lex->stmt_definition_begin= $1;
             lex->ident.str= $8;
             lex->ident.length= $12 - $8;
-            lex->spname= $4;
+            lex->spname= $3;
             (*static_cast<st_trg_execution_order*>(&lex->trg_chistics))= ($17);
             lex->trg_chistics.ordering_clause_end= lip->get_cpp_ptr();
 
-            if (unlikely(!lex->make_sp_head(thd, $4, &sp_handler_trigger,
+            if (unlikely(!lex->make_sp_head(thd, $3, &sp_handler_trigger,
                                             DEFAULT_AGGREGATE)))
               MYSQL_YYABORT;
 
@@ -18257,6 +18257,8 @@ trigger_tail:
                                    MDL_SHARED_NO_WRITE))
               MYSQL_YYABORT;
           }
+        |
+          event_tail
         ;
 
 /**************************************************************************
