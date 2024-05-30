@@ -5876,7 +5876,7 @@ static int dump_selected_tables(char *db, char **table_names, int tables)
         free_root(&glob_root, MYF(0));
       }
       maybe_die(EX_ILLEGAL_TABLE, "Couldn't find table: \"%s\"", *table_names);
-      /* We shall countinue here, if --force was given */
+      /* We shall continue here, if --force was given */
     }
   }
   end= pos;
@@ -5897,7 +5897,7 @@ static int dump_selected_tables(char *db, char **table_names, int tables)
         free_root(&glob_root, MYF(0));
       }
       DB_error(mysql, "when doing LOCK TABLES");
-       /* We shall countinue here, if --force was given */
+       /* We shall continue here, if --force was given */
     }
   }
   dynstr_free(&lock_tables_query);
@@ -5909,7 +5909,7 @@ static int dump_selected_tables(char *db, char **table_names, int tables)
         free_root(&glob_root, MYF(0));
       DB_error(mysql, "when doing refresh");
     }
-     /* We shall countinue here, if --force was given */
+     /* We shall continue here, if --force was given */
     else
       verbose_msg("-- dump_selected_tables : logs flushed successfully!\n");
   }

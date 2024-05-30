@@ -6487,7 +6487,7 @@ static bool check_all_privileges()
 	if (opt_galera_info || opt_slave_info
 		|| opt_safe_slave_backup) {
 		check_result |= check_privilege(granted_privileges,
-			"REPLICA MONITOR", "*", "*",
+			"SLAVE MONITOR", "*", "*",
 			PRIVILEGE_WARNING);
 	}
 

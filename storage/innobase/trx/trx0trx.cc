@@ -538,6 +538,7 @@ TRANSACTIONAL_TARGET void trx_free_at_shutdown(trx_t *trx)
 	DBUG_LOG("trx", "Free prepared: " << trx);
 	trx->state = TRX_STATE_NOT_STARTED;
 	ut_ad(!UT_LIST_GET_LEN(trx->lock.trx_locks));
+	ut_d(*trx->detailed_error = '\0');
 	trx->free();
 }
 

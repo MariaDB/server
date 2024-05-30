@@ -1417,6 +1417,11 @@ lock_rec_find_similar_on_page(
 	const trx_t*    trx)            /*!< in: transaction */
 {
 	lock_sys.rec_hash.assert_locked(lock->un_member.rec_lock.page_id);
+	DBUG_EXECUTE_IF("innodb_skip_lock_bitmap", {
+		if (!trx->in_rollback) {
+			return nullptr;
+		}
+	});
 
 	for (/* No op */;
 	     lock != NULL;

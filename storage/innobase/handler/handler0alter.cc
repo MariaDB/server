@@ -8503,6 +8503,15 @@ field_changed:
 			DBUG_RETURN(true);
 		}
 
+		if ((ha_alter_info->handler_flags & ALTER_OPTIONS)
+		    && ctx->page_compression_level
+		    && !ctx->old_table->not_redundant()) {
+			my_error(ER_ILLEGAL_HA_CREATE_OPTION, MYF(0),
+				 table_type(),
+				 "PAGE_COMPRESSED=1 ROW_FORMAT=REDUNDANT");
+			DBUG_RETURN(true);
+		}
+
 		if (!(ha_alter_info->handler_flags & INNOBASE_ALTER_DATA)
 		    && alter_templ_needs_rebuild(altered_table, ha_alter_info,
 						 ctx->new_table)

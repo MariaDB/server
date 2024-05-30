@@ -942,7 +942,7 @@ public:
     mysql_mutex_assert_not_owner(&LOCK_binlog_end_pos);
     lock_binlog_end_pos();
     binlog_end_pos= pos;
-    strcpy(binlog_end_pos_file, file_name);
+    safe_strcpy(binlog_end_pos_file, sizeof(binlog_end_pos_file), file_name);
     signal_bin_log_update();
     unlock_binlog_end_pos();
   }
@@ -955,7 +955,7 @@ public:
   {
     mysql_mutex_assert_not_owner(&LOCK_log);
     mysql_mutex_assert_owner(&LOCK_binlog_end_pos);
-    strcpy(file_name_buf, binlog_end_pos_file);
+    safe_strcpy(file_name_buf, FN_REFLEN, binlog_end_pos_file);
     return binlog_end_pos;
   }
   void lock_binlog_end_pos() { mysql_mutex_lock(&LOCK_binlog_end_pos); }

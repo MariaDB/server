@@ -94,6 +94,7 @@ public:
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   SPIDER_PARTITION_HANDLER *partition_handler;
 #endif
+  /* Whether this ha_spider is the owner of its wide_handler. */
   bool                wide_handler_owner = FALSE;
   SPIDER_WIDE_HANDLER *wide_handler = NULL;
 
