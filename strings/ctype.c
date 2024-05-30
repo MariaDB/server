@@ -871,7 +871,7 @@ static void
 my_string_metadata_get_mb(MY_STRING_METADATA *metadata,
                           CHARSET_INFO *cs, const char *str, ulong length)
 {
-  const char *strend= str + length;
+  const char *strend= str ? str + length : NULL; // Avoid UB nullptr+0
   for (my_string_metadata_init(metadata) ;
        str < strend;
        metadata->char_length++)

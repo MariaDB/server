@@ -7325,8 +7325,8 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
       continue;					// Add next user
     }
 
-    db_name= table_list->get_db_name();
-    table_name= table_list->get_table_name();
+    db_name= table_list->get_db_name().str;
+    table_name= table_list->get_table_name().str;
 
     /* Find/create cached table grant */
     grant_table= table_hash_search(Str->host.str, NullS, db_name,
@@ -8398,8 +8398,8 @@ bool check_grant(THD *thd, privilege_t want_access, TABLE_LIST *tables,
 
     const ACL_internal_table_access *access=
       get_cached_table_access(&t_ref->grant.m_internal,
-                              t_ref->get_db_name(),
-                              t_ref->get_table_name());
+                              t_ref->get_db_name().str,
+                              t_ref->get_table_name().str);
 
     if (access)
     {
@@ -8464,7 +8464,8 @@ bool check_grant(THD *thd, privilege_t want_access, TABLE_LIST *tables,
       mysql_rwlock_rdlock(&LOCK_grant);
     }
 
-    t_ref->grant.read(sctx, t_ref->get_db_name(), t_ref->get_table_name());
+    t_ref->grant.read(sctx,
+                      t_ref->get_db_name().str, t_ref->get_table_name().str);
 
     if (!t_ref->grant.grant_table_user &&
         !t_ref->grant.grant_table_role &&
@@ -8509,7 +8510,7 @@ err:
              command,
              sctx->priv_user,
              sctx->host_or_ip, tl ? tl->db.str : "unknown",
-             tl ? tl->get_table_name() : "unknown");
+             tl ? tl->get_table_name().str : "unknown");
   }
   DBUG_RETURN(TRUE);
 }
@@ -13972,9 +13973,11 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
     Since 4.1 all database names are stored in utf8
     The cast is ok as copy_with_error will create a new area for db
   */
+  DBUG_ASSERT(db || !db_len);
+  // Don't pass db==nullptr to avoid UB nullptr+0 inside copy_with_error()
   if (unlikely(thd->copy_with_error(system_charset_info,
                                     (LEX_STRING*) &mpvio->db,
-                                    thd->charset(), db, db_len)))
+                                    thd->charset(), db ? db : "", db_len)))
     return packet_error;
 
   user_len= copy_and_convert(user_buff, sizeof(user_buff) - 1,

@@ -110,3 +110,27 @@ DEALLOCATE PREPARE stmt;
 DROP TABLE t1;
 
 --echo # End of 10.4 tests
+
+--echo #
+--echo # MDEV-33769: Memory leak found in the test main.rownum run with --ps-protocol against a server built with the option -DWITH_PROTECT_STATEMENT_MEMROOT
+--echo #
+CREATE OR REPLACE TABLE t1(a INT);
+PREPARE stmt FROM 'SELECT 1 FROM t1 WHERE ROWNUM() < 2';
+EXECUTE stmt;
+EXECUTE stmt;
+
+INSERT INTO t1 VALUES (1), (2), (3), (4), (5);
+
+PREPARE stmt FROM 'SELECT * FROM t1 WHERE ROWNUM() < ?';
+--echo # Expected output is two rows (1), (2)
+EXECUTE stmt USING 3;
+--echo # Expected output is one row (1)
+EXECUTE stmt USING 2;
+--echo # Expected output is three rows (1), (2), (3)
+EXECUTE stmt USING 4;
+
+--echo # Clean up
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1;
+
+--echo # End of 10.6 tests

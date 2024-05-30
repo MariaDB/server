@@ -483,7 +483,8 @@ error_get_share:
     owner->wide_handler = NULL;
     owner->wide_handler_owner = FALSE;
   }
-  wide_handler = NULL;
+  if (!wide_handler_owner)
+    wide_handler = NULL;
 error_wide_handler_alloc:
   DBUG_RETURN(error_num);
 }
@@ -6567,8 +6568,6 @@ int ha_spider::info(
                   spider_init_error_table->init_error_time =
                     (time_t) time((time_t*) 0);
                 }
-                share->init_error = TRUE;
-                share->init = TRUE;
               }
               if (wide_handler->sql_command == SQLCOM_SHOW_CREATE ||
                   wide_handler->sql_command == SQLCOM_SHOW_FIELDS)
@@ -6619,10 +6618,6 @@ int ha_spider::info(
                       share, TRUE))
                 ) {
                   spider_init_error_table->init_error = error_num;
-/*
-                  if (!thd->is_error())
-                    my_error(error_num, MYF(0), "");
-*/
                   if ((spider_init_error_table->init_error_with_message =
                     thd->is_error()))
                     strmov(spider_init_error_table->init_error_msg,
@@ -6630,8 +6625,6 @@ int ha_spider::info(
                   spider_init_error_table->init_error_time =
                     (time_t) time((time_t*) 0);
                 }
-                share->init_error = TRUE;
-                share->init = TRUE;
               }
               if (wide_handler->sql_command == SQLCOM_SHOW_CREATE ||
                   wide_handler->sql_command == SQLCOM_SHOW_FIELDS)
@@ -6911,8 +6904,6 @@ ha_rows ha_spider::records_in_range(
                   spider_init_error_table->init_error_time =
                     (time_t) time((time_t*) 0);
                 }
-                share->init_error = TRUE;
-                share->init = TRUE;
               }
               if (check_error_mode(error_num))
                 my_errno = error_num;
@@ -7202,8 +7193,6 @@ int ha_spider::check_crd()
                 spider_init_error_table->init_error_time =
                   (time_t) time((time_t*) 0);
               }
-              share->init_error = TRUE;
-              share->init = TRUE;
             }
             DBUG_RETURN(check_error_mode(error_num));
           }
@@ -7590,18 +7579,6 @@ int ha_spider::update_auto_increment()
   DBUG_ENTER("ha_spider::update_auto_increment");
   DBUG_PRINT("info",("spider this=%p", this));
   force_auto_increment = TRUE;
-/*
-  if (
-    next_insert_id >= auto_inc_interval_for_cur_row.maximum() &&
-    wide_handler->trx->thd->auto_inc_intervals_forced.get_current()
-  ) {
-    force_auto_increment = TRUE;
-    DBUG_PRINT("info",("spider force_auto_increment=TRUE"));
-  } else {
-    force_auto_increment = FALSE;
-    DBUG_PRINT("info",("spider force_auto_increment=FALSE"));
-  }
-*/
   DBUG_PRINT("info",("spider auto_increment_mode=%d",
     auto_increment_mode));
   DBUG_PRINT("info",("spider next_number_field=%lld",
@@ -7831,7 +7808,12 @@ int ha_spider::write_row(
         pthread_mutex_lock(&share->lgtm_tblhnd_share->auto_increment_mutex);
         if (!share->lgtm_tblhnd_share->auto_increment_init)
         {
-          info(HA_STATUS_AUTO);
+          if ((error_num= info(HA_STATUS_AUTO)))
+          {
+            pthread_mutex_unlock(
+              &share->lgtm_tblhnd_share->auto_increment_mutex);
+            DBUG_RETURN(error_num);
+          }
           share->lgtm_tblhnd_share->auto_increment_lclval =
             stats.auto_increment_value;
           share->lgtm_tblhnd_share->auto_increment_init = TRUE;
