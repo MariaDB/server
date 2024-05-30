@@ -3714,7 +3714,7 @@ inline void fil_space_t::clear_freed_ranges(uint32_t threshold)
   {
     if (range.first >= threshold)
       continue;
-    else if (range.last > threshold)
+    else if (range.last >= threshold)
     {
       range_t new_range{range.first, threshold - 1};
       current_ranges.add_range(new_range);
