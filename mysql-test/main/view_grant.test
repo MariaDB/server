@@ -2234,3 +2234,5 @@ SELECT CURRENT_USER;
 DROP VIEW v1;
 DROP USER foo;
 DROP USER FOO;
+
+--echo # End of 10.5 tests
