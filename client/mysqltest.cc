@@ -5899,7 +5899,10 @@ int connect_n_handle_errors(struct st_command *command,
       Otherwise, give it some extra time to rule out race-conditions.
       If extra-time doesn't help, we have an unexpected error and
       must abort -- just proceeding to handle_error() when second
-      and third chances are used up will handle that for us.
+      and third chances are used up will handle that for us.  Sometimes
+      we fail because mysql_real_connect returns NULL yet the errno
+      associated with con is zero (such as in a failure to set a
+      socket option within the PVIO plugin): in that case, try again.
 
       There are various user-limits of which only max_user_connections
       and max_connections_per_hour apply at connect time. For the
@@ -5910,7 +5913,8 @@ int connect_n_handle_errors(struct st_command *command,
     */
 
     if (((mysql_errno(con) == ER_TOO_MANY_USER_CONNECTIONS) ||
-         (mysql_errno(con) == ER_USER_LIMIT_REACHED)) &&
+         (mysql_errno(con) == ER_USER_LIMIT_REACHED) ||
+         (mysql_errno(con) == 0)) &&
         (failed_attempts++ < opt_max_connect_retries))
     {
       int i;
