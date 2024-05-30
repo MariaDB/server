@@ -3549,96 +3549,6 @@ int spider_db_mbase::select_binlog_gtid_pos(
   DBUG_RETURN(0);
 }
 
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-int spider_db_mbase::append_sql(
-  char *sql,
-  ulong sql_length,
-  st_spider_db_request_key *request_key
-) {
-  DBUG_ENTER("spider_db_mbase::append_sql");
-  DBUG_PRINT("info",("spider this=%p", this));
-  DBUG_ASSERT(0);
-  DBUG_RETURN(0);
-}
-
-int spider_db_mbase::append_open_handler(
-  uint handler_id,
-  const char *db_name,
-  const char *table_name,
-  const char *index_name,
-  const char *sql,
-  st_spider_db_request_key *request_key
-) {
-  DBUG_ENTER("spider_db_mbase::append_open_handler");
-  DBUG_PRINT("info",("spider this=%p", this));
-  DBUG_ASSERT(0);
-  DBUG_RETURN(0);
-}
-
-int spider_db_mbase::append_select(
-  uint handler_id,
-  spider_string *sql,
-  SPIDER_DB_HS_STRING_REF_BUFFER *keys,
-  int limit,
-  int skip,
-  st_spider_db_request_key *request_key
-) {
-  DBUG_ENTER("spider_db_mbase::append_select");
-  DBUG_PRINT("info",("spider this=%p", this));
-  DBUG_ASSERT(0);
-  DBUG_RETURN(0);
-}
-
-int spider_db_mbase::append_insert(
-  uint handler_id,
-  SPIDER_DB_HS_STRING_REF_BUFFER *upds,
-  st_spider_db_request_key *request_key
-) {
-  DBUG_ENTER("spider_db_mbase::append_insert");
-  DBUG_PRINT("info",("spider this=%p", this));
-  DBUG_ASSERT(0);
-  DBUG_RETURN(0);
-}
-
-int spider_db_mbase::append_update(
-  uint handler_id,
-  spider_string *sql,
-  SPIDER_DB_HS_STRING_REF_BUFFER *keys,
-  SPIDER_DB_HS_STRING_REF_BUFFER *upds,
-  int limit,
-  int skip,
-  bool increment,
-  bool decrement,
-  st_spider_db_request_key *request_key
-) {
-  DBUG_ENTER("spider_db_mbase::append_update");
-  DBUG_PRINT("info",("spider this=%p", this));
-  DBUG_ASSERT(0);
-  DBUG_RETURN(0);
-}
-
-int spider_db_mbase::append_delete(
-  uint handler_id,
-  spider_string *sql,
-  SPIDER_DB_HS_STRING_REF_BUFFER *keys,
-  int limit,
-  int skip,
-  st_spider_db_request_key *request_key
-) {
-  DBUG_ENTER("spider_db_mbase::append_delete");
-  DBUG_PRINT("info",("spider this=%p", this));
-  DBUG_ASSERT(0);
-  DBUG_RETURN(0);
-}
-
-void spider_db_mbase::reset_request_queue()
-{
-  DBUG_ENTER("spider_db_mbase::reset_request_queue");
-  DBUG_PRINT("info",("spider this=%p", this));
-  DBUG_ASSERT(0);
-  DBUG_VOID_RETURN;
-}
-#endif
 
 size_t spider_db_mbase::escape_string(
   char *to,
@@ -8511,9 +8421,6 @@ int spider_mbase_handler::init()
       mysql_share->db_table_str_hash_value[roop_count];
 #endif
   }
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-  hs_upds.init();
-#endif
   DBUG_RETURN(0);
 }
 
@@ -9424,66 +9331,6 @@ int spider_mbase_handler::append_delete(
   DBUG_RETURN(0);
 }
 
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
-int spider_mbase_handler::append_increment_update_set_part()
-{
-  int error_num;
-  DBUG_ENTER("spider_mbase_handler::append_increment_update_set_part");
-  DBUG_PRINT("info",("spider this=%p", this));
-  error_num = append_increment_update_set(&update_sql);
-  DBUG_RETURN(error_num);
-}
-
-int spider_mbase_handler::append_increment_update_set(
-  spider_string *str
-) {
-  uint field_name_length;
-  uint roop_count;
-  Field *field;
-  DBUG_ENTER("spider_mbase_handler::append_increment_update_set");
-  if (str->reserve(SPIDER_SQL_SET_LEN))
-    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-  str->q_append(SPIDER_SQL_SET_STR, SPIDER_SQL_SET_LEN);
-  const SPIDER_HS_STRING_REF *value = hs_upds.ptr();
-  for (roop_count = 0; roop_count < hs_upds.size();
-    roop_count++)
-  {
-    if (
-      value[roop_count].size() == 1 &&
-      *(value[roop_count].begin()) == '0'
-    )
-      continue;
-
-    Field *top_table_field =
-      spider->get_top_table_field(spider->hs_pushed_ret_fields[roop_count]);
-    if (!(field = spider->field_exchange(top_table_field)))
-      continue;
-    field_name_length =
-      mysql_share->column_name_str[field->field_index].length();
-
-    if (str->reserve(field_name_length * 2 + /* SPIDER_SQL_NAME_QUOTE_LEN */
-      4 + SPIDER_SQL_EQUAL_LEN + SPIDER_SQL_HS_INCREMENT_LEN +
-      SPIDER_SQL_COMMA_LEN + value[roop_count].size()))
-      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-
-    mysql_share->append_column_name(str, field->field_index);
-    str->q_append(SPIDER_SQL_EQUAL_STR, SPIDER_SQL_EQUAL_LEN);
-    mysql_share->append_column_name(str, field->field_index);
-    if (spider->hs_increment)
-      str->q_append(SPIDER_SQL_HS_INCREMENT_STR,
-        SPIDER_SQL_HS_INCREMENT_LEN);
-    else
-      str->q_append(SPIDER_SQL_HS_DECREMENT_STR,
-        SPIDER_SQL_HS_DECREMENT_LEN);
-    str->q_append(value[roop_count].begin(), value[roop_count].size());
-    str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
-  }
-  str->length(str->length() - SPIDER_SQL_COMMA_LEN);
-  DBUG_RETURN(0);
-}
-#endif
-#endif
 
 int spider_mbase_handler::append_update_set_part()
 {
@@ -9564,13 +9411,6 @@ int spider_mbase_handler::append_direct_update_set_part()
 int spider_mbase_handler::append_direct_update_set(
   spider_string *str
 ) {
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-  uint field_name_length;
-  SPIDER_SHARE *share = spider->share;
-#ifndef DBUG_OFF
-  TABLE *table = spider->get_table();
-#endif
-#endif
   DBUG_ENTER("spider_mbase_handler::append_direct_update_set");
   if (
     spider->direct_update_kinds == SPIDER_SQL_KIND_SQL &&
@@ -9586,61 +9426,7 @@ int spider_mbase_handler::append_direct_update_set(
   if (
     (spider->direct_update_kinds & SPIDER_SQL_KIND_SQL)
   ) {
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-    size_t roop_count;
-    Field *field;
-    if (str->reserve(SPIDER_SQL_SET_LEN))
-      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-    str->q_append(SPIDER_SQL_SET_STR, SPIDER_SQL_SET_LEN);
-    for (roop_count = 0; roop_count < spider->hs_pushed_ret_fields_num;
-      roop_count++)
-    {
-      Field *top_table_field =
-        spider->get_top_table_field(spider->hs_pushed_ret_fields[roop_count]);
-      if (!(field = spider->field_exchange(top_table_field)))
-        continue;
-      field_name_length =
-        mysql_share->column_name_str[field->field_index].length();
-      if (top_table_field->is_null())
-      {
-        if (str->reserve(field_name_length + /* SPIDER_SQL_NAME_QUOTE_LEN */
-          2 + SPIDER_SQL_EQUAL_LEN + SPIDER_SQL_NULL_LEN +
-          SPIDER_SQL_COMMA_LEN))
-          DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-        mysql_share->append_column_name(str, field->field_index);
-        str->q_append(SPIDER_SQL_EQUAL_STR, SPIDER_SQL_EQUAL_LEN);
-        str->q_append(SPIDER_SQL_NULL_STR, SPIDER_SQL_NULL_LEN);
-      } else {
-        if (str->reserve(field_name_length + /* SPIDER_SQL_NAME_QUOTE_LEN */
-          2 + SPIDER_SQL_EQUAL_LEN))
-          DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-        mysql_share->append_column_name(str, field->field_index);
-        str->q_append(SPIDER_SQL_EQUAL_STR, SPIDER_SQL_EQUAL_LEN);
-#ifndef DBUG_OFF
-        my_bitmap_map *tmp_map = dbug_tmp_use_all_columns(table,
-          table->read_set);
-#endif
-        if (
-          spider_db_mbase_utility->
-            append_column_value(spider, str, top_table_field, NULL,
-              share->access_charset) ||
-          str->reserve(SPIDER_SQL_COMMA_LEN)
-        ) {
-#ifndef DBUG_OFF
-          dbug_tmp_restore_column_map(table->read_set, tmp_map);
-#endif
-          DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-        }
-#ifndef DBUG_OFF
-        dbug_tmp_restore_column_map(table->read_set, tmp_map);
-#endif
-      }
-      str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
-    }
-    str->length(str->length() - SPIDER_SQL_COMMA_LEN);
-#else
     DBUG_ASSERT(0);
-#endif
   }
   DBUG_RETURN(0);
 }
@@ -12695,23 +12481,14 @@ int spider_mbase_handler::append_from(
   DBUG_RETURN(0);
 }
 
-int spider_mbase_handler::append_flush_tables_part(
-  ulong sql_type,
-  int link_idx,
-  bool lock
-) {
+int spider_mbase_handler::append_flush_tables_part(int link_idx, bool lock)
+{
   int error_num;
   spider_string *str;
   DBUG_ENTER("spider_mbase_handler::append_flush_tables_part");
   DBUG_PRINT("info",("spider this=%p", this));
-  switch (sql_type)
-  {
-    case SPIDER_SQL_TYPE_OTHER_SQL:
-      str = &spider->result_list.sqls[link_idx];
-      break;
-    default:
-      DBUG_RETURN(0);
-  }
+
+  str= &spider->result_list.sqls[link_idx];
   error_num = append_flush_tables(str, link_idx, lock);
   DBUG_RETURN(error_num);
 }
@@ -12739,22 +12516,14 @@ int spider_mbase_handler::append_flush_tables(
   DBUG_RETURN(0);
 }
 
-int spider_mbase_handler::append_optimize_table_part(
-  ulong sql_type,
-  int link_idx
-) {
+int spider_mbase_handler::append_optimize_table_part(int link_idx)
+{
   int error_num;
   spider_string *str;
   DBUG_ENTER("spider_mbase_handler::append_optimize_table_part");
   DBUG_PRINT("info",("spider this=%p", this));
-  switch (sql_type)
-  {
-    case SPIDER_SQL_TYPE_OTHER_SQL:
-      str = &spider->result_list.sqls[link_idx];
-      break;
-    default:
-      DBUG_RETURN(0);
-  }
+
+  str= &spider->result_list.sqls[link_idx];
   error_num = append_optimize_table(str, link_idx);
   DBUG_RETURN(error_num);
 }
@@ -12785,22 +12554,14 @@ int spider_mbase_handler::append_optimize_table(
   DBUG_RETURN(0);
 }
 
-int spider_mbase_handler::append_analyze_table_part(
-  ulong sql_type,
-  int link_idx
-) {
+int spider_mbase_handler::append_analyze_table_part(int link_idx)
+{
   int error_num;
   spider_string *str;
   DBUG_ENTER("spider_mbase_handler::append_analyze_table_part");
   DBUG_PRINT("info",("spider this=%p", this));
-  switch (sql_type)
-  {
-    case SPIDER_SQL_TYPE_OTHER_SQL:
-      str = &spider->result_list.sqls[link_idx];
-      break;
-    default:
-      DBUG_RETURN(0);
-  }
+
+  str= &spider->result_list.sqls[link_idx];
   error_num = append_analyze_table(str, link_idx);
   DBUG_RETURN(error_num);
 }
@@ -12831,23 +12592,15 @@ int spider_mbase_handler::append_analyze_table(
   DBUG_RETURN(0);
 }
 
-int spider_mbase_handler::append_repair_table_part(
-  ulong sql_type,
-  int link_idx,
-  HA_CHECK_OPT* check_opt
-) {
+int spider_mbase_handler::append_repair_table_part(int link_idx,
+                                                   HA_CHECK_OPT *check_opt)
+{
   int error_num;
   spider_string *str;
   DBUG_ENTER("spider_mbase_handler::append_repair_table_part");
   DBUG_PRINT("info",("spider this=%p", this));
-  switch (sql_type)
-  {
-    case SPIDER_SQL_TYPE_OTHER_SQL:
-      str = &spider->result_list.sqls[link_idx];
-      break;
-    default:
-      DBUG_RETURN(0);
-  }
+
+  str= &spider->result_list.sqls[link_idx];
   error_num = append_repair_table(str, link_idx, check_opt);
   DBUG_RETURN(error_num);
 }
@@ -12897,23 +12650,15 @@ int spider_mbase_handler::append_repair_table(
   DBUG_RETURN(0);
 }
 
-int spider_mbase_handler::append_check_table_part(
-  ulong sql_type,
-  int link_idx,
-  HA_CHECK_OPT* check_opt
-) {
+int spider_mbase_handler::append_check_table_part(int link_idx,
+                                                  HA_CHECK_OPT *check_opt)
+{
   int error_num;
   spider_string *str;
   DBUG_ENTER("spider_mbase_handler::append_check_table_part");
   DBUG_PRINT("info",("spider this=%p", this));
-  switch (sql_type)
-  {
-    case SPIDER_SQL_TYPE_OTHER_SQL:
-      str = &spider->result_list.sqls[link_idx];
-      break;
-    default:
-      DBUG_RETURN(0);
-  }
+
+  str= &spider->result_list.sqls[link_idx];
   error_num = append_check_table(str, link_idx, check_opt);
   DBUG_RETURN(error_num);
 }
@@ -12962,22 +12707,14 @@ int spider_mbase_handler::append_check_table(
   DBUG_RETURN(0);
 }
 
-int spider_mbase_handler::append_enable_keys_part(
-  ulong sql_type,
-  int link_idx
-) {
+int spider_mbase_handler::append_enable_keys_part(int link_idx)
+{
   int error_num;
   spider_string *str;
   DBUG_ENTER("spider_mbase_handler::append_enable_keys_part");
   DBUG_PRINT("info",("spider this=%p", this));
-  switch (sql_type)
-  {
-    case SPIDER_SQL_TYPE_OTHER_SQL:
-      str = &spider->result_list.sqls[link_idx];
-      break;
-    default:
-      DBUG_RETURN(0);
-  }
+
+  str= &spider->result_list.sqls[link_idx];
   error_num = append_enable_keys(str, link_idx);
   DBUG_RETURN(error_num);
 }
@@ -13003,22 +12740,14 @@ int spider_mbase_handler::append_enable_keys(
   DBUG_RETURN(0);
 }
 
-int spider_mbase_handler::append_disable_keys_part(
-  ulong sql_type,
-  int link_idx
-) {
+int spider_mbase_handler::append_disable_keys_part(int link_idx)
+{
   int error_num;
   spider_string *str;
   DBUG_ENTER("spider_mbase_handler::append_disable_keys_part");
   DBUG_PRINT("info",("spider this=%p", this));
-  switch (sql_type)
-  {
-    case SPIDER_SQL_TYPE_OTHER_SQL:
-      str = &spider->result_list.sqls[link_idx];
-      break;
-    default:
-      DBUG_RETURN(0);
-  }
+
+  str= &spider->result_list.sqls[link_idx];
   error_num = append_disable_keys(str, link_idx);
   DBUG_RETURN(error_num);
 }
@@ -13623,53 +13352,6 @@ int spider_mbase_handler::reset_sql(
   DBUG_RETURN(0);
 }
 
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-int spider_mbase_handler::reset_keys(
-  ulong sql_type
-) {
-  DBUG_ENTER("spider_mbase_handler::reset_keys");
-  DBUG_PRINT("info",("spider this=%p", this));
-  DBUG_ASSERT(0);
-  DBUG_RETURN(0);
-}
-
-int spider_mbase_handler::reset_upds(
-  ulong sql_type
-) {
-  DBUG_ENTER("spider_mbase_handler::reset_upds");
-  DBUG_PRINT("info",("spider this=%p", this));
-  hs_upds.clear();
-  DBUG_RETURN(0);
-}
-
-int spider_mbase_handler::reset_strs(
-  ulong sql_type
-) {
-  DBUG_ENTER("spider_mbase_handler::reset_strs");
-  DBUG_PRINT("info",("spider this=%p", this));
-  DBUG_ASSERT(0);
-  DBUG_RETURN(0);
-}
-
-int spider_mbase_handler::reset_strs_pos(
-  ulong sql_type
-) {
-  DBUG_ENTER("spider_mbase_handler::reset_strs_pos");
-  DBUG_PRINT("info",("spider this=%p", this));
-  DBUG_ASSERT(0);
-  DBUG_RETURN(0);
-}
-
-int spider_mbase_handler::push_back_upds(
-  SPIDER_HS_STRING_REF &info
-) {
-  int error_num;
-  DBUG_ENTER("spider_mbase_handler::push_back_upds");
-  DBUG_PRINT("info",("spider this=%p", this));
-  error_num = hs_upds.push_back(info);
-  DBUG_RETURN(error_num);
-}
-#endif
 
 #ifdef SPIDER_HAS_GROUP_BY_HANDLER
 int spider_mbase_handler::set_sql_for_exec(
@@ -15141,8 +14823,7 @@ int spider_mbase_handler::disable_keys(
   DBUG_ENTER("spider_mbase_handler::disable_keys");
   DBUG_PRINT("info",("spider this=%p", this));
   str->length(0);
-  if ((error_num = append_disable_keys_part(SPIDER_SQL_TYPE_OTHER_HS,
-    link_idx)))
+  if ((error_num= append_disable_keys_part(link_idx)))
   {
     DBUG_RETURN(error_num);
   }
@@ -15200,8 +14881,7 @@ int spider_mbase_handler::enable_keys(
   DBUG_ENTER("spider_mbase_handler::enable_keys");
   DBUG_PRINT("info",("spider this=%p", this));
   str->length(0);
-  if ((error_num = append_enable_keys_part(SPIDER_SQL_TYPE_OTHER_HS,
-    link_idx)))
+  if ((error_num= append_enable_keys_part(link_idx)))
   {
     DBUG_RETURN(error_num);
   }
@@ -15260,8 +14940,7 @@ int spider_mbase_handler::check_table(
   DBUG_ENTER("spider_mbase_handler::check_table");
   DBUG_PRINT("info",("spider this=%p", this));
   str->length(0);
-  if ((error_num = append_check_table_part(SPIDER_SQL_TYPE_OTHER_HS,
-    link_idx, check_opt)))
+  if ((error_num= append_check_table_part(link_idx, check_opt)))
   {
     DBUG_RETURN(error_num);
   }
@@ -15320,8 +14999,7 @@ int spider_mbase_handler::repair_table(
   DBUG_ENTER("spider_mbase_handler::repair_table");
   DBUG_PRINT("info",("spider this=%p", this));
   str->length(0);
-  if ((error_num = append_repair_table_part(SPIDER_SQL_TYPE_OTHER_HS,
-    link_idx, check_opt)))
+  if ((error_num= append_repair_table_part(link_idx, check_opt)))
   {
     DBUG_RETURN(error_num);
   }
@@ -15379,8 +15057,7 @@ int spider_mbase_handler::analyze_table(
   DBUG_ENTER("spider_mbase_handler::analyze_table");
   DBUG_PRINT("info",("spider this=%p", this));
   str->length(0);
-  if ((error_num = append_analyze_table_part(SPIDER_SQL_TYPE_OTHER_HS,
-    link_idx)))
+  if ((error_num= append_analyze_table_part(link_idx)))
   {
     DBUG_RETURN(error_num);
   }
@@ -15438,8 +15115,7 @@ int spider_mbase_handler::optimize_table(
   DBUG_ENTER("spider_mbase_handler::optimize_table");
   DBUG_PRINT("info",("spider this=%p", this));
   str->length(0);
-  if ((error_num = append_optimize_table_part(SPIDER_SQL_TYPE_OTHER_HS,
-    link_idx)))
+  if ((error_num= append_optimize_table_part(link_idx)))
   {
     DBUG_RETURN(error_num);
   }
@@ -15498,8 +15174,7 @@ int spider_mbase_handler::flush_tables(
   DBUG_ENTER("spider_mbase_handler::flush_tables");
   DBUG_PRINT("info",("spider this=%p", this));
   str->length(0);
-  if ((error_num = append_flush_tables_part(SPIDER_SQL_TYPE_OTHER_HS,
-    link_idx, lock)))
+  if ((error_num= append_flush_tables_part(link_idx, lock)))
   {
     DBUG_RETURN(error_num);
   }
