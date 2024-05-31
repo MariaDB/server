@@ -10,7 +10,7 @@ create table t1 (id int auto_increment primary key, v blob not null, vector inde
 show create table t1;
 show keys from t1;
 query_vertical select * from information_schema.statistics where table_name='t1';
-# print unpack(H40,pack(f5,map{rand}1..5))
+# print unpack("H*",pack("f*",map{rand}1..5))
 insert t1 (v) values (x'e360d63ebe554f3fcdbc523f4522193f5236083d'),
                      (x'f511303f72224a3fdd05fe3eb22a133ffae86a3f'),
                      (x'f09baa3ea172763f123def3e0c7fe53e288bf33e'),
@@ -24,8 +24,23 @@ insert t1 (v) values (x'e360d63ebe554f3fcdbc523f4522193f5236083d'),
 
 select id, hex(v) from t1;
 flush tables;
+# test with a valid query vector
 select id,vec_distance(v, x'b047263c9f87233fcfd27e3eae493e3f0329f43e') d from t1 order by d limit 3;
+# swapped arguments
+select id,vec_distance(x'b047263c9f87233fcfd27e3eae493e3f0329f43e', v) d from t1 order by d limit 3;
+# test with NULL (id is unpredictable)
+select id>0,vec_distance(v, NULL) d from t1 order by d limit 3;
+# test with invalid query vector (id is unpredictable)
+select id>0,vec_distance(v, x'123456') d from t1 order by d limit 3;
 select t1.id as id1, t2.id as id2, vec_distance(t1.v, t2.v) from t1, t1 as t2 order by 3,1,2;
+
+--error ER_TRUNCATED_WRONG_VALUE_FOR_FIELD
+insert t1 (v) values ('');
+--error ER_TRUNCATED_WRONG_VALUE_FOR_FIELD
+insert t1 (v) values (x'1234');
+--error ER_TRUNCATED_WRONG_VALUE_FOR_FIELD
+insert t1 (v) values (x'12345678');
+
 drop table t1;
 let $datadir=`select @@datadir`;
 list_files $datadir/test;
