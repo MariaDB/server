@@ -5526,6 +5526,8 @@ sub start_check_testcase ($$$) {
     mtr_add_arg($args, "--record");
   }
   my $errfile= "$opt_vardir/tmp/$name.err";
+
+  My::Debugger::setup_client_args(\$args, \$exe_mysqltest);
   my $proc= My::SafeProcess->new
     (
      name          => $name,
