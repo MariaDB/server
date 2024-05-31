@@ -332,8 +332,8 @@ parse_arguments PICK-ARGS-FROM-ARGV "$@"
 rel_mysqld="$dirname0/@INSTALL_SBINDIR@/mariadbd"
 
 if test "$cross_bootstrap" -eq 0 -a "$in_rpm" -eq 0 -a "$force" -eq 0
-  do_resolve=1
 then
+  do_resolve=1
 fi
 
 # Configure paths to support files
