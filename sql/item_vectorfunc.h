@@ -51,10 +51,17 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("vec_distance") };
     return name;
   }
+  Item *get_const_arg() const
+  {
+    if (args[0]->type() == Item::FIELD_ITEM && args[1]->const_item())
+      return args[1];
+    if (args[1]->type() == Item::FIELD_ITEM && args[0]->const_item())
+      return args[0];
+    return NULL;
+  }
   key_map part_of_sortkey() const override;
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_vec_distance>(thd, this); }
-  virtual ~Item_func_vec_distance() {};
 };
 
 
