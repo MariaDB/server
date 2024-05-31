@@ -2582,44 +2582,50 @@ fts_get_next_doc_id(
 	return(DB_SUCCESS);
 }
 
-/*********************************************************************//**
-This function fetch the Doc ID from CONFIG table, and compare with
+/** This function fetch the Doc ID from CONFIG table, and compare with
 the Doc ID supplied. And store the larger one to the CONFIG table.
+@param table		fts table
+@param cmp_doc_id	Doc ID to compare
+@param read_only	TRUE if read the synced_doc_id only
+@param doc_id		larger document id after comparing
+			"cmp_doc_id" to the one stored in CONFIG table
+@param trx		transaction
 @return DB_SUCCESS if OK */
-static MY_ATTRIBUTE((nonnull))
+static
 dberr_t
 fts_cmp_set_sync_doc_id(
-/*====================*/
-	const dict_table_t*	table,		/*!< in: table */
-	doc_id_t		cmp_doc_id,	/*!< in: Doc ID to compare */
-	ibool			read_only,	/*!< in: TRUE if read the
-						synced_doc_id only */
-	doc_id_t*		doc_id)		/*!< out: larger document id
-						after comparing "cmp_doc_id"
-						to the one stored in CONFIG
-						table */
+	const dict_table_t	*table,
+	doc_id_t		cmp_doc_id,
+	ibool			read_only,
+	doc_id_t*		doc_id,
+	trx_t			*trx=nullptr)
 {
 	if (srv_read_only_mode) {
 		return DB_READ_ONLY;
 	}
 
-	trx_t*		trx;
 	pars_info_t*	info;
 	dberr_t		error;
 	fts_table_t	fts_table;
 	que_t*		graph = NULL;
 	fts_cache_t*	cache = table->fts->cache;
 	char		table_name[MAX_FULL_NAME_LEN];
+	bool		created_trx = (trx == nullptr);
 	ut_a(table->fts->doc_col != ULINT_UNDEFINED);
 
 	fts_table.suffix = "CONFIG";
 	fts_table.table_id = table->id;
 	fts_table.type = FTS_COMMON_TABLE;
 	fts_table.table = table;
-
-	trx= trx_create();
 retry:
-	trx_start_internal(trx);
+	if (trx == nullptr) {
+		trx= trx_create();
+		if (srv_read_only_mode) {
+			trx_start_internal_read_only(trx);
+		} else {
+			trx_start_internal(trx);
+		}
+	}
 
 	trx->op_info = "update the next FTS document id";
 
@@ -2690,13 +2696,18 @@ retry:
 func_exit:
 
 	if (UNIV_LIKELY(error == DB_SUCCESS)) {
+		if (!created_trx) {
+			return DB_SUCCESS;
+		}
 		fts_sql_commit(trx);
 	} else {
 		*doc_id = 0;
 
 		ib::error() << "(" << error << ") while getting next doc id "
 			"for table " << table->name;
-		fts_sql_rollback(trx);
+		if (created_trx) {
+			fts_sql_rollback(trx);
+		}
 
 		if (error == DB_DEADLOCK || error == DB_LOCK_WAIT_TIMEOUT) {
 			DEBUG_SYNC_C("fts_cmp_set_sync_doc_id_retry");
@@ -2705,7 +2716,9 @@ func_exit:
 		}
 	}
 
-	trx->free();
+	if (created_trx) {
+		trx->free();
+	}
 
 	return(error);
 }
@@ -4175,7 +4188,7 @@ fts_sync_commit(
 	/* After each Sync, update the CONFIG table about the max doc id
 	we just sync-ed to index table */
 	error = fts_cmp_set_sync_doc_id(sync->table, sync->max_doc_id, FALSE,
-					&last_doc_id);
+					&last_doc_id, trx);
 
 	/* Get the list of deleted documents that are either in the
 	cache or were headed there but were deleted before the add
@@ -4195,6 +4208,7 @@ fts_sync_commit(
 	mysql_mutex_unlock(&cache->lock);
 
 	if (UNIV_LIKELY(error == DB_SUCCESS)) {
+		DEBUG_SYNC_C("fts_crash_before_commit_sync");
 		fts_sql_commit(trx);
 	} else {
 		fts_sql_rollback(trx);
