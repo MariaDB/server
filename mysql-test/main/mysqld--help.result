@@ -402,10 +402,10 @@ The following specify which files/extra groups are read (specified before remain
  height-balanced, DOUBLE_PREC_HB - double precision
  height-balanced, JSON_HB - height-balanced, stored as
  JSON
- --hnsw-ef-constructor 
+ --hnsw-ef-constructor=# 
  hnsw_ef_constructor
- --hnsw-ef-search    hnsw_ef_search
- --hnsw-max-connection-per-layer 
+ --hnsw-ef-search=#  hnsw_ef_search
+ --hnsw-max-connection-per-layer=# 
  hnsw_max_connection_per_layer
  --host-cache-size=# How many host names should be cached to avoid resolving
  (Automatically configured unless set explicitly)
