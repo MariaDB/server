@@ -2745,6 +2745,7 @@ int spider_internal_xa_rollback_by_xid(
   int error_num;
   char xa_key[MAX_KEY_LENGTH];
   char xa_member_key[MAX_KEY_LENGTH];
+  /* This share has only one link */
   SPIDER_SHARE tmp_share;
   char *tmp_connect_info[SPIDER_TMP_SHARE_CHAR_PTR_COUNT];
   uint tmp_connect_info_length[SPIDER_TMP_SHARE_UINT_COUNT];
