@@ -80,6 +80,21 @@ id	d
 9	0.4719976290006591
 10	0.5069011044450041
 3	0.5865673124650332
+select id,vec_distance(x'b047263c9f87233fcfd27e3eae493e3f0329f43e', v) d from t1 order by d limit 3;
+id	d
+9	0.4719976290006591
+10	0.5069011044450041
+3	0.5865673124650332
+select id>0,vec_distance(v, NULL) d from t1 order by d limit 3;
+id>0	d
+1	NULL
+1	NULL
+1	NULL
+select id>0,vec_distance(v, x'123456') d from t1 order by d limit 3;
+id>0	d
+1	NULL
+1	NULL
+1	NULL
 select t1.id as id1, t2.id as id2, vec_distance(t1.v, t2.v) from t1, t1 as t2 order by 3,1,2;
 id1	id2	vec_distance(t1.v, t2.v)
 1	1	0
@@ -182,5 +197,11 @@ id1	id2	vec_distance(t1.v, t2.v)
 9	8	1.2575258643523053
 7	8	1.288239696195716
 8	7	1.288239696195716
+insert t1 (v) values ('');
+ERROR 22007: Incorrect vector value: '...' for column `test`.`t1`.`v` at row 1
+insert t1 (v) values (x'1234');
+ERROR 22007: Incorrect vector value: '...' for column `test`.`t1`.`v` at row 1
+insert t1 (v) values (x'12345678');
+ERROR 22007: Incorrect vector value: '...' for column `test`.`t1`.`v` at row 1
 drop table t1;
 db.opt
