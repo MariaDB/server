@@ -475,7 +475,7 @@ str_to_DDhhmmssff_internal(my_bool neg, const char *str, size_t length,
 
 
   DESCRIPTION
-    At least the following formats are recogniced (based on number of digits)
+    At least the following formats are recognized (based on number of digits)
     YYMMDD, YYYYMMDD, YYMMDDHHMMSS, YYYYMMDDHHMMSS
     YY-MM-DD, YYYY-MM-DD, YY-MM-DD HH.MM.SS
     YYYYMMDDTHHMMSS  where T is a the character T (ISO8601)
@@ -1223,7 +1223,7 @@ long calc_daynr(uint year,uint month,uint day)
 
 /*
   Convert time in MYSQL_TIME representation in system time zone to its
-  my_time_t form (number of seconds in UTC since begginning of Unix Epoch).
+  my_time_t form (number of seconds in UTC since beginning of Unix Epoch).
 
   SYNOPSIS
     my_system_gmt_sec()
@@ -1291,7 +1291,7 @@ my_system_gmt_sec(const MYSQL_TIME *t_src, long *my_timezone, uint *error_code)
     two days earlier, and then add these days to the final value.
 
     The same trick is done for the values close to 0 in time_t
-    representation for platfroms with unsigned time_t (QNX).
+    representation for platforms with unsigned time_t (QNX).
 
     To be more verbose, here is a sample (extracted from the code below):
     (calc_daynr(2038, 1, 19) - (long) days_at_timestart)*86400L + 4*3600L
@@ -1303,9 +1303,9 @@ my_system_gmt_sec(const MYSQL_TIME *t_src, long *my_timezone, uint *error_code)
     will give -3600.
 
     On some platforms, (E.g. on QNX) time_t is unsigned and localtime(-3600)
-    wil give us a date around 2106 year. Which is no good.
+    will give us a date around 2106 year. Which is no good.
 
-    Theoreticaly, there could be problems with the latter conversion:
+    Theoretically, there could be problems with the latter conversion:
     there are at least two timezones, which had time switches near 1 Jan
     of 1970 (because of political reasons). These are America/Hermosillo and
     America/Mazatlan time zones. They changed their offset on
@@ -1335,7 +1335,7 @@ my_system_gmt_sec(const MYSQL_TIME *t_src, long *my_timezone, uint *error_code)
   else
   {
     /*
-      We can get 0 in time_t representaion only on 1969, 31 of Dec or on
+      We can get 0 in time_t representation only on 1969, 31 of Dec or on
       1970, 1 of Jan. For both dates we use shift, which is added
       to t->day in order to step out a bit from the border.
       This is required for platforms, where time_t is unsigned.
@@ -1430,9 +1430,9 @@ my_system_gmt_sec(const MYSQL_TIME *t_src, long *my_timezone, uint *error_code)
     First check will pass for platforms with signed time_t.
     instruction above (tmp+= shift*86400L) could exceed
     MAX_INT32 (== TIMESTAMP_MAX_VALUE) and overflow will happen.
-    So, tmp < TIMESTAMP_MIN_VALUE will be triggered. On platfroms
+    So, tmp < TIMESTAMP_MIN_VALUE will be triggered. On platforms
     with unsigned time_t tmp+= shift*86400L might result in a number,
-    larger then TIMESTAMP_MAX_VALUE, so another check will work.
+    larger than TIMESTAMP_MAX_VALUE, so another check will work.
   */
   if (!IS_TIME_T_VALID_FOR_TIMESTAMP(tmp))
   {
@@ -1545,8 +1545,8 @@ static inline char* fmt_number2(uint8 val, char *out)
   - 0.225 sec (current)
   - 0.219 sec (array)
 
-  It demonstrated an additional 3% performance imrovement one these queries.
-  However, as the array size is too huge, we afraid that it will flush data
+  It demonstrated an additional 3% performance improvement one these queries.
+  However, as the array size is too huge, we are afraid that it will flush data
   from the CPU memory cache, which under real load may affect negatively.
 
   Let's keep using the fmt_number4() version with division and remainder

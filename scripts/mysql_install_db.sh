@@ -38,6 +38,7 @@ force=0
 in_rpm=0
 ip_only=0
 cross_bootstrap=0
+do_resolve=0
 auth_root_authentication_method=socket
 auth_root_socket_user=""
 skip_test_db=0
@@ -336,6 +337,11 @@ parse_arguments PICK-ARGS-FROM-ARGV "$@"
 
 rel_mysqld="$dirname0/@INSTALL_SBINDIR@/mariadbd"
 
+if test "$cross_bootstrap" -eq 0 -a "$in_rpm" -eq 0 -a "$force" -eq 0
+  do_resolve=1
+then
+fi
+
 # Configure paths to support files
 if test -n "$srcdir"
 then
@@ -428,7 +434,7 @@ fi
 hostname=`@HOSTNAME@`
 
 # Check if hostname is valid
-if test "$cross_bootstrap" -eq 0 -a "$in_rpm" -eq 0 -a "$force" -eq 0
+if test "$do_resolve" -eq 1
 then
   resolved=`"$resolveip" $hostname 2>&1`
   if test $? -ne 0
@@ -454,7 +460,7 @@ then
   fi
 fi
 
-if test "$ip_only" -eq 1
+if test "$do_resolve" -eq 1 -a "$ip_only" -eq 1
 then
   hostname=`echo "$resolved" | while read a; do echo ${a##* }; done`
 fi

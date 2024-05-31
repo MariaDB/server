@@ -24,7 +24,11 @@
 # endif
 #else
 # include <cpuid.h>
-# if __GNUC__ >= 11 || (defined __clang_major__ && __clang_major__ >= 8)
+# ifdef __APPLE__ /* AVX512 states are not enabled in XCR0 */
+# elif __GNUC__ >= 14 || (defined __clang_major__ && __clang_major__ >= 18)
+#  define TARGET "pclmul,evex512,avx512f,avx512dq,avx512bw,avx512vl,vpclmulqdq"
+#  define USE_VPCLMULQDQ __attribute__((target(TARGET)))
+# elif __GNUC__ >= 11 || (defined __clang_major__ && __clang_major__ >= 8)
 #  define TARGET "pclmul,avx512f,avx512dq,avx512bw,avx512vl,vpclmulqdq"
 #  define USE_VPCLMULQDQ __attribute__((target(TARGET)))
 # endif
@@ -173,19 +177,11 @@ static inline __m512i combine512(__m512i a, __m512i tab, __m512i b)
 # define and128(a, b) _mm_and_si128(a, b)
 
 template<uint8_t bits> USE_VPCLMULQDQ
-/** Pick a 128-bit component of a 512-bit vector */
+/** Pick and zero-extend 128 bits of a 512-bit vector (vextracti32x4) */
 static inline __m512i extract512_128(__m512i a)
 {
   static_assert(bits <= 3, "usage");
-# if defined __GNUC__ && __GNUC__ >= 11
-  /* While technically incorrect, this would seem to translate into a
-  vextracti32x4 instruction, which actually outputs a ZMM register
-  (anything above the XMM range is cleared). */
-  return _mm512_castsi128_si512(_mm512_extracti64x2_epi64(a, bits));
-# else
-  /* On clang, this is needed in order to get a correct result. */
-  return _mm512_maskz_shuffle_i64x2(3, a, a, bits);
-# endif
+  return _mm512_zextsi128_si512(_mm512_extracti64x2_epi64(a, bits));
 }
 
 alignas(16) static const uint64_t shuffle128[4] = {

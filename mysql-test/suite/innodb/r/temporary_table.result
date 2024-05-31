@@ -801,4 +801,14 @@ CHECK TABLE t EXTENDED;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
 DROP TEMPORARY TABLE t;
+#
+# MDEV-34118 fsp_alloc_free_extent() fails to flag DB_OUT_OF_FILE_SPACE
+#
+SET @save_increment = @@GLOBAL.innodb_autoextend_increment;
+SET GLOBAL innodb_autoextend_increment=1;
+CREATE TEMPORARY TABLE t (c LONGTEXT) ENGINE=INNODB;
+INSERT INTO t VALUES (REPEAT ('1',16777216));
+ERROR HY000: The table 't' is full
+DROP TEMPORARY TABLE t;
+SET GLOBAL innodb_autoextend_increment=@save_increment;
 # End of 10.6 tests

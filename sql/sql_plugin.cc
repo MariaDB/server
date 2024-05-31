@@ -379,9 +379,10 @@ static void fix_dl_name(MEM_ROOT *root, LEX_CSTRING *dl)
       my_strcasecmp(&my_charset_latin1, dl->str + dl->length - so_ext_len,
                     SO_EXT))
   {
-    char *s= (char*)alloc_root(root, dl->length + so_ext_len + 1);
+    size_t s_size= dl->length + so_ext_len + 1;
+    char *s= (char*)alloc_root(root, s_size);
     memcpy(s, dl->str, dl->length);
-    strcpy(s + dl->length, SO_EXT);
+    safe_strcpy(s + dl->length, s_size - dl->length, SO_EXT);
     dl->str= s;
     dl->length+= so_ext_len;
   }
@@ -3845,7 +3846,7 @@ static int construct_options(MEM_ROOT *mem_root, struct st_plugin_int *tmp,
   DBUG_ENTER("construct_options");
 
   plugin_name_ptr= (char*) alloc_root(mem_root, plugin_name_len + 1);
-  strcpy(plugin_name_ptr, plugin_name);
+  safe_strcpy(plugin_name_ptr, plugin_name_len + 1, plugin_name);
   my_casedn_str(&my_charset_latin1, plugin_name_ptr);
   convert_underscore_to_dash(plugin_name_ptr, plugin_name_len);
   plugin_name_with_prefix_ptr= (char*) alloc_root(mem_root,

@@ -3027,6 +3027,7 @@ void st_select_lex::init_query()
   is_correlated= 0;
   first_natural_join_processing= 1;
   first_cond_optimization= 1;
+  first_rownum_optimization= true;
   no_wrap_view_item= 0;
   exclude_from_table_unique_test= 0;
   in_tvc= 0;
