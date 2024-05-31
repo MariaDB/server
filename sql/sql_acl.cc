@@ -13556,8 +13556,8 @@ static bool send_server_handshake_packet(MPVIO_EXT *mpvio,
   end= (char*) memcpy(end, data + SCRAMBLE_LENGTH_323,
                       data_len - SCRAMBLE_LENGTH_323);
   end+= data_len - SCRAMBLE_LENGTH_323;
-  end= strmake(end, plugin_name(mpvio->plugin)->str,
-                    plugin_name(mpvio->plugin)->length);
+  st_mysql_auth *info= (st_mysql_auth*)plugin_decl(mpvio->plugin)->info;
+  end= strmake(end, info->client_auth_plugin, strlen(info->client_auth_plugin));
 
   int res= my_net_write(&mpvio->auth_info.thd->net, (uchar*) buff,
                         (size_t) (end - buff + 1)) ||
