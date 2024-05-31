@@ -965,6 +965,10 @@ public:
   {
     return store(to, length, &my_charset_bin);
   }
+  int store_binary(const uchar *to, size_t length)
+  {
+    return store_binary((const char*)(to), length);
+  }
   virtual int  store_hex_hybrid(const char *str, size_t length);
   virtual int  store(double nr)=0;
   virtual int  store(longlong nr, bool unsigned_val)=0;
