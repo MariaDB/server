@@ -2542,7 +2542,7 @@ bool THD::reinterpret_string_from_binary(LEX_CSTRING *to, CHARSET_INFO *cs,
   {
     size_t zeros= cs->mbminlen - incomplete;
     size_t aligned_length= zeros + length;
-    char *dst= (char*) alloc(aligned_length + 1);
+    char *dst= alloc(aligned_length + 1);
     if (!dst)
     {
       to->str= NULL; // Safety
@@ -4516,8 +4516,7 @@ create_result_table(THD *thd_arg, List<Item> *column_types,
                                  !create_table, keep_row_order)))
     return TRUE;
 
-  col_stat= (Column_statistics*) table->in_use->alloc(table->s->fields *
-                                                      sizeof(Column_statistics));
+  col_stat= table->in_use->alloc<Column_statistics>(table->s->fields);
   if (!col_stat)
     return TRUE;
 
@@ -5135,7 +5134,7 @@ TABLE *open_purge_table(THD *thd, const char *db, size_t dblen,
 
   /* Purge already hold the MDL for the table */
   Open_table_context ot_ctx(thd, MYSQL_OPEN_HAS_MDL_LOCK);
-  TABLE_LIST *tl= (TABLE_LIST*)thd->alloc(sizeof(TABLE_LIST));
+  TABLE_LIST *tl= thd->alloc<TABLE_LIST>(1);
   LEX_CSTRING db_name= {db, dblen };
   LEX_CSTRING table_name= { tb, tblen };
 

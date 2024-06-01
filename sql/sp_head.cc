@@ -2563,7 +2563,7 @@ int
 sp_head::push_backpatch(THD *thd, sp_instr *i, sp_label *lab,
                         List<bp_t> *list, backpatch_instr_type itype)
 {
-  bp_t *bp= (bp_t *) thd->alloc(sizeof(bp_t));
+  bp_t *bp= thd->alloc<bp_t>(1);
 
   if (!bp)
     return 1;
@@ -3567,7 +3567,7 @@ sp_head::merge_table_list(THD *thd, TABLE_LIST *table, LEX *lex_for_tmp_check)
       }
       else
       {
-        if (!(tab= (SP_TABLE *)thd->calloc(sizeof(SP_TABLE))))
+        if (!(tab= thd->calloc<SP_TABLE>(1)))
           return FALSE;
         if ((lex_for_tmp_check->sql_command == SQLCOM_CREATE_TABLE ||
              lex_for_tmp_check->sql_command == SQLCOM_CREATE_SEQUENCE) &&
@@ -3646,7 +3646,7 @@ sp_head::add_used_tables_to_table_list(THD *thd,
     if (stab->temp)
       continue;
 
-    if (!(tab_buff= (char *)thd->alloc(ALIGN_SIZE(sizeof(TABLE_LIST)) *
+    if (!(tab_buff= thd->alloc(ALIGN_SIZE(sizeof(TABLE_LIST)) *
                                         stab->lock_count)) ||
         !(key_buff= (char*)thd->memdup(stab->qname.str,
                                        stab->qname.length)))
@@ -3698,7 +3698,7 @@ sp_add_to_query_tables(THD *thd, LEX *lex,
 {
   TABLE_LIST *table;
 
-  if (!(table= (TABLE_LIST *)thd->calloc(sizeof(TABLE_LIST))))
+  if (!(table= thd->calloc<TABLE_LIST>(1)))
     return NULL;
   if (!thd->make_lex_string(&table->db, db->str, db->length) ||
       !thd->make_lex_string(&table->table_name, name->str, name->length) ||
