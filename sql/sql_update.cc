@@ -1882,13 +1882,10 @@ int multi_update::prepare(List<Item> &not_used_values,
   table_count=  update.elements;
   update_tables= update.first;
 
-  tmp_tables = (TABLE**) thd->calloc(sizeof(TABLE *) * table_count);
-  tmp_table_param = (TMP_TABLE_PARAM*) thd->calloc(sizeof(TMP_TABLE_PARAM) *
-						   table_count);
-  fields_for_table= (List_item **) thd->alloc(sizeof(List_item *) *
-					      table_count);
-  values_for_table= (List_item **) thd->alloc(sizeof(List_item *) *
-					      table_count);
+  tmp_tables = thd->calloc<TABLE*>(table_count);
+  tmp_table_param = thd->calloc<TMP_TABLE_PARAM>(table_count);
+  fields_for_table= thd->alloc<List_item*>(table_count);
+  values_for_table= thd->alloc<List_item*>(table_count);
   if (unlikely(thd->is_fatal_error))
     DBUG_RETURN(1);
   for (i=0 ; i < table_count ; i++)

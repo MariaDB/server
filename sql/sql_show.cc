@@ -2881,7 +2881,7 @@ static my_bool list_callback(THD *tmp, list_callback_arg *arg)
     if (tmp->peer_port && (tmp_sctx->host || tmp_sctx->ip) &&
         arg->thd->security_ctx->host_or_ip[0])
     {
-      if ((thd_info->host= (char*) arg->thd->alloc(LIST_PROCESS_HOST_LEN+1)))
+      if ((thd_info->host= arg->thd->alloc(LIST_PROCESS_HOST_LEN+1)))
         my_snprintf((char *) thd_info->host, LIST_PROCESS_HOST_LEN,
                     "%s:%u", tmp_sctx->host_or_ip, tmp->peer_port);
     }
@@ -3125,7 +3125,7 @@ int select_result_text_buffer::append_row(List<Item> &items, bool send_names)
   char **row;
   int column= 0;
 
-  if (!(row= (char**) thd->alloc(sizeof(char*) * n_columns)) ||
+  if (!(row= thd->alloc<char*>(n_columns)) ||
       rows.push_back(row, thd->mem_root))
     return true;
 
@@ -3298,7 +3298,7 @@ int fill_show_explain_or_analyze(THD *thd, TABLE_LIST *table, COND *cond,
                               fromcs->mbminlen;
         uint dummy_errors;
         char *to, *p;
-        if (!(to= (char*)thd->alloc(conv_length + 1)))
+        if (!(to= thd->alloc(conv_length + 1)))
           DBUG_RETURN(1);
         p= to;
         p+= copy_and_convert(to, conv_length, tocs,
@@ -8849,7 +8849,7 @@ int fill_slave_status(THD *thd, TABLE_LIST *tables, COND *cond)
     Sort lines to get them into a predicted order
     (needed for test cases and to not confuse users)
   */
-  if (!(tmp= (Master_info**) thd->alloc(sizeof(Master_info*) * elements)))
+  if (!(tmp= thd->alloc<Master_info*>(elements)))
     goto error;
 
   if (single_slave)
@@ -9193,10 +9193,8 @@ int mysql_schema_table(THD *thd, LEX *lex, TABLE_LIST *table_list)
       DBUG_RETURN(0);
     }
     List_iterator_fast<Item> it(sel->item_list);
-    if (!(transl=
-          (Field_translator*)(thd->active_stmt_arena_to_use()->
-                              alloc(sel->item_list.elements *
-                                    sizeof(Field_translator))))) // ???
+    if (!(transl= thd->active_stmt_arena_to_use()->
+          alloc<Field_translator>(sel->item_list.elements))) // ???
     {
       DBUG_RETURN(1);
     }
@@ -11017,7 +11015,7 @@ TABLE_LIST *get_trigger_table(THD *thd, const sp_name *trg_name)
     return NULL;
 
   /* We need to reset statement table list to be PS/SP friendly. */
-  if (!(table= (TABLE_LIST*) thd->alloc(sizeof(TABLE_LIST))))
+  if (!(table= thd->alloc<TABLE_LIST>(1)))
     return NULL;
 
   db= thd->make_ident_opt_casedn(trg_name->m_db, lower_case_table_names);
