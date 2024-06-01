@@ -1184,7 +1184,7 @@ make_name(THD *thd,
   uint errors;
   size_t dst_nbytes= length * system_charset_info->mbmaxlen;
   set_if_smaller(dst_nbytes, max_octet_length);
-  char *dst= (char*) thd->alloc(dst_nbytes + 1);
+  char *dst= thd->alloc(dst_nbytes + 1);
   if (!dst)
     return Lex_ident_column();
   uint32 cnv_length= my_convert_using_func(dst, dst_nbytes, system_charset_info,
@@ -1569,7 +1569,7 @@ bool mark_unsupported_function(const char *where, void *store, uint result)
 bool mark_unsupported_function(const char *w1, const char *w2,
                                void *store, uint result)
 {
-  char *ptr= (char*)current_thd->alloc(strlen(w1) + strlen(w2) + 1);
+  char *ptr= current_thd->alloc(strlen(w1) + strlen(w2) + 1);
   if (ptr)
     strxmov(ptr, w1, w2, NullS);
   return mark_unsupported_function(ptr, store, result);
@@ -3300,9 +3300,8 @@ LEX_CSTRING Item_ident::full_name_cstring() const
   }
   if (db_name.str && db_name.str[0])
   {
-    THD *thd= current_thd;
-    tmp=(char*) thd->alloc((uint) db_name.length+ (uint) table_name.length +
-			   (uint) field_name.length+3);
+    tmp= current_thd->alloc((uint) db_name.length+ (uint) table_name.length +
+                            (uint) field_name.length+3);
     length= (strxmov(tmp,db_name.str,".",table_name.str,".",field_name.str,
                      NullS) - tmp);
   }
@@ -3311,9 +3310,7 @@ LEX_CSTRING Item_ident::full_name_cstring() const
     if (!table_name.str[0])
       return field_name;
 
-    THD *thd= current_thd;
-    tmp= (char*) thd->alloc((uint) table_name.length +
-                            field_name.length + 2);
+    tmp= current_thd->alloc((uint) table_name.length + field_name.length + 2);
     length= (strxmov(tmp, table_name.str, ".", field_name.str, NullS) - tmp);
   }
   return {tmp, length};
@@ -5170,7 +5167,7 @@ static Field *make_default_field(THD *thd, Field *field_arg)
   if (def_field->default_value &&
       (def_field->default_value->flags || (def_field->flags & BLOB_FLAG)))
   {
-    uchar *newptr= (uchar*) thd->alloc(1+def_field->pack_length());
+    uchar *newptr= (uchar*)thd->alloc(1+def_field->pack_length());
     if (!newptr)
       return nullptr;
 
@@ -7213,7 +7210,7 @@ Item *Item_float::neg(THD *thd)
     else
     {
       size_t presentation_length= strlen(presentation);
-      if (char *tmp= (char*) thd->alloc(presentation_length + 2))
+      if (char *tmp= thd->alloc(presentation_length + 2))
       {
         tmp[0]= '-';
         // Copy with the trailing '\0'
@@ -7352,7 +7349,7 @@ inline uint char_val(char X)
 void Item_hex_constant::hex_string_init(THD *thd, const char *str, size_t str_length)
 {
   max_length=(uint)((str_length+1)/2);
-  char *ptr=(char*) thd->alloc(max_length+1);
+  char *ptr= thd->alloc(max_length+1);
   if (!ptr)
   {
     str_value.set("", 0, &my_charset_bin);
@@ -7419,7 +7416,7 @@ Item_bin_string::Item_bin_string(THD *thd, const char *str, size_t str_length):
   uint power= 1;
 
   max_length= (uint)((str_length + 7) >> 3);
-  if (!(ptr= (char*) thd->alloc(max_length + 1)))
+  if (!(ptr= thd->alloc(max_length + 1)))
     return;
   str_value.set(ptr, max_length, &my_charset_bin);
 
@@ -10790,9 +10787,7 @@ int Item_cache_str::save_in_field(Field *field, bool no_conversions)
 bool Item_cache_row::allocate(THD *thd, uint num)
 {
   item_count= num;
-  return (!values &&
-          !(values=
-	    (Item_cache **) thd->calloc(sizeof(Item_cache *)*item_count)));
+  return (!values && !(values= thd->calloc<Item_cache *>(item_count)));
 }
 
 

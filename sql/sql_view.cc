@@ -904,7 +904,7 @@ int mariadb_fix_view(THD *thd, TABLE_LIST *view, bool wrong_checksum,
   {
     if (view->md5.length != VIEW_MD5_LEN)
     {
-       if ((view->md5.str= (char *)thd->alloc(VIEW_MD5_LEN + 1)) == NULL)
+       if ((view->md5.str= thd->alloc(VIEW_MD5_LEN + 1)) == NULL)
          DBUG_RETURN(HA_ADMIN_FAILED);
     }
     view->calc_md5(const_cast<char*>(view->md5.str));
@@ -1722,8 +1722,8 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
         For suid views prepare a security context for checking underlying
         objects of the view.
       */
-      if (!(table->view_sctx= (Security_context *)
-            thd->active_stmt_arena_to_use()->calloc(sizeof(Security_context))))
+      if (!(table->view_sctx=
+            thd->active_stmt_arena_to_use()->calloc<Security_context>(1)))
         goto err;
       security_ctx= table->view_sctx;
     }

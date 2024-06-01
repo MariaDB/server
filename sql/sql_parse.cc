@@ -2264,8 +2264,7 @@ dispatch_command_return dispatch_command(enum enum_server_command command, THD *
     char buff[250];
     uint buff_len= sizeof(buff);
 
-    if (!(current_global_status_var= (STATUS_VAR*)
-          thd->alloc(sizeof(STATUS_VAR))))
+    if (!(current_global_status_var= thd->alloc<STATUS_VAR>(1)))
       break;
     general_log_print(thd, command, NullS);
     status_var_increment(thd->status_var.com_stat[SQLCOM_SHOW_STATUS]);
@@ -7957,7 +7956,7 @@ add_proc_to_list(THD* thd, Item *item)
   ORDER *order;
   Item	**item_ptr;
 
-  if (unlikely(!(order = (ORDER *) thd->alloc(sizeof(ORDER)+sizeof(Item*)))))
+  if (unlikely(!(order= (ORDER *) thd->alloc(sizeof(ORDER)+sizeof(Item*)))))
     return 1;
   item_ptr = (Item**) (order+1);
   *item_ptr= item;
@@ -7975,7 +7974,7 @@ bool add_to_list(THD *thd, SQL_I_List<ORDER> &list, Item *item,bool asc)
 {
   ORDER *order;
   DBUG_ENTER("add_to_list");
-  if (unlikely(!(order = (ORDER *) thd->alloc(sizeof(ORDER)))))
+  if (unlikely(!(order= thd->alloc<ORDER>(1))))
     DBUG_RETURN(1);
   order->item_ptr= item;
   order->item= &order->item_ptr;
@@ -9286,8 +9285,7 @@ bool append_file_to_dir(THD *thd, const char **filename_ptr,
   /* Fix is using unix filename format on dos */
   strmov(buff,*filename_ptr);
   end=convert_dirname(buff, *filename_ptr, NullS);
-  if (unlikely(!(ptr= (char*) thd->alloc((size_t) (end-buff) +
-                                         table_name->length + 1))))
+  if (unlikely(!(ptr= thd->alloc((size_t)(end-buff) + table_name->length + 1))))
     return 1;					// End of memory
   *filename_ptr=ptr;
   strxmov(ptr,buff,table_name->str,NullS);
@@ -9935,7 +9933,7 @@ LEX_USER *create_default_definer(THD *thd, bool role)
 {
   LEX_USER *definer;
 
-  if (unlikely(! (definer= (LEX_USER*) thd->alloc(sizeof(LEX_USER)))))
+  if (unlikely(!(definer= thd->alloc<LEX_USER>(1))))
     return 0;
 
   thd->get_definer(definer, role);
@@ -9970,7 +9968,7 @@ LEX_USER *create_definer(THD *thd, LEX_CSTRING *user_name,
 
   /* Create and initialize. */
 
-  if (unlikely(!(definer= (LEX_USER*) thd->alloc(sizeof(LEX_USER)))))
+  if (unlikely(!(definer= thd->alloc<LEX_USER>(1))))
     return 0;
 
   definer->user= *user_name;

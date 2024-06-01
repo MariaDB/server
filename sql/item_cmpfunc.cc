@@ -2020,8 +2020,7 @@ bool Item_func_interval::fix_length_and_dec(THD *thd)
 
     if (not_null_consts)
     {
-      intervals= (interval_range*) current_thd->alloc(sizeof(interval_range) *
-                                                         (rows - 1));
+      intervals= current_thd->alloc<interval_range>(rows - 1);
       if (!intervals)
         return TRUE;
 
@@ -4072,11 +4071,8 @@ Item *in_decimal::create_item(THD *thd)
 
 bool Predicant_to_list_comparator::alloc_comparators(THD *thd, uint nargs)
 {
-  size_t nbytes= sizeof(Predicant_to_value_comparator) * nargs;
-  if (!(m_comparators= (Predicant_to_value_comparator *) thd->alloc(nbytes)))
-    return true;
-  memset(m_comparators, 0, nbytes);
-  return false;
+  m_comparators= thd->calloc<Predicant_to_value_comparator>(nargs);
+  return m_comparators == NULL;
 }
 
 
@@ -4207,8 +4203,7 @@ bool cmp_item_row::alloc_comparators(THD *thd, uint cols)
     DBUG_ASSERT(cols == n);
     return false;
   }
-  return
-    !(comparators= (cmp_item **) thd->calloc(sizeof(cmp_item *) * (n= cols)));
+  return !(comparators= thd->calloc<cmp_item *>(n= cols));
 }
 
 
@@ -4239,7 +4234,7 @@ bool cmp_item_row::store_value_by_template(THD *thd, cmp_item *t, Item *item)
   }
   n= tmpl->n;
   bool rc= false;
-  if ((comparators= (cmp_item **) thd->alloc(sizeof(cmp_item *)*n)))
+  if ((comparators= thd->alloc<cmp_item *>(n)))
   {
     item->bring_value();
     item->null_value= 0;
@@ -6076,9 +6071,7 @@ bool Item_func_like::fix_fields(THD *thd, Item **ref)
         pattern_len = (int) len - 2;
         pattern     = thd->strmake(first + 1, pattern_len);
         DBUG_PRINT("info", ("Initializing pattern: '%s'", first));
-        int *suff = (int*) thd->alloc((int) (sizeof(int)*
-                                      ((pattern_len + 1)*2+
-                                      alphabet_size)));
+        int *suff = thd->alloc<int>((pattern_len + 1) * 2 + alphabet_size);
         bmGs      = suff + pattern_len + 1;
         bmBc      = bmGs + pattern_len + 1;
         turboBM_compute_good_suffix_shifts(suff);
@@ -6108,7 +6101,7 @@ bool Item_func_like::find_selective_predicates_list_processor(void *arg)
     THD *thd= data->table->in_use;
     COND_STATISTIC *stat;
     Item *arg0;
-    if (!(stat= (COND_STATISTIC *) thd->alloc(sizeof(COND_STATISTIC))))
+    if (!(stat= thd->alloc<COND_STATISTIC>(1)))
       return TRUE;
     stat->cond= this;
     arg0= args[0]->real_item();
@@ -7719,7 +7712,7 @@ longlong Item_func_dyncol_exists::val_int()
     {
       uint strlen= nm->length() * DYNCOL_UTF->mbmaxlen + 1;
       uint dummy_errors;
-      buf.str= (char *) current_thd->alloc(strlen);
+      buf.str= current_thd->alloc(strlen);
       if (buf.str)
       {
         buf.length=
