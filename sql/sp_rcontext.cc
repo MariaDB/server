@@ -167,18 +167,12 @@ bool sp_rcontext::alloc_arrays(THD *thd)
 {
   {
     size_t n= m_root_parsing_ctx->max_cursor_index();
-    m_cstack.reset(
-      static_cast<sp_cursor **> (
-        thd->alloc(n * sizeof (sp_cursor*))),
-      n);
+    m_cstack.reset(thd->alloc<sp_cursor*>(n), n);
   }
 
   {
     size_t n= m_root_parsing_ctx->get_num_case_exprs();
-    m_case_expr_holders.reset(
-      static_cast<Item_cache **> (
-        thd->calloc(n * sizeof (Item_cache*))),
-      n);
+    m_case_expr_holders.reset(thd->calloc<Item_cache *>(n), n);
   }
 
   return !m_cstack.array() || !m_case_expr_holders.array();
@@ -355,10 +349,7 @@ bool sp_rcontext::init_var_items(THD *thd,
 {
   uint num_vars= m_root_parsing_ctx->max_var_index();
 
-  m_var_items.reset(
-    static_cast<Item_field **> (
-      thd->alloc(num_vars * sizeof (Item *))),
-    num_vars);
+  m_var_items.reset(thd->alloc<Item_field*>(num_vars), num_vars);
 
   if (!m_var_items.array())
     return true;
