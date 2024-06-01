@@ -510,9 +510,7 @@ bool JOIN::check_for_splittable_materialized()
     the collected info on potential splittability of T
   */
   SplM_opt_info *spl_opt_info= new (thd->mem_root) SplM_opt_info();
-  SplM_field_info *spl_field=
-    (SplM_field_info *) (thd->calloc(sizeof(SplM_field_info) *
-                                            spl_field_cnt));
+  SplM_field_info *spl_field= thd->calloc<SplM_field_info>(spl_field_cnt);
 
   if (!(spl_opt_info && spl_field)) // consider T as not good for splitting
     return false;
@@ -615,8 +613,7 @@ void TABLE::add_splitting_info_for_key_field(KEY_FIELD *key_field)
   }
   if (!eq_item)
     return;
-  KEY_FIELD *added_key_field=
-    (KEY_FIELD *) thd->alloc(sizeof(KEY_FIELD));
+  KEY_FIELD *added_key_field= thd->alloc<KEY_FIELD>(1);
   if (!added_key_field ||
       spl_opt_info->added_key_fields.push_back(added_key_field,thd->mem_root))
     return;
@@ -1106,9 +1103,8 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(uint idx,
       key_map spl_keys= table->keys_usable_for_splitting;
       if (!(first_non_const_pos->key &&
             spl_keys.is_set(first_non_const_pos->key->key)) ||
-          !(spl_plan= (SplM_plan_info *) thd->alloc(sizeof(SplM_plan_info))) ||
-	  !(spl_plan->best_positions=
-	     (POSITION *) thd->alloc(sizeof(POSITION) * join->table_count)) ||
+          !(spl_plan= thd->alloc<SplM_plan_info>(1)) ||
+	  !(spl_plan->best_positions= thd->alloc<POSITION>(join->table_count)) ||
 	  spl_opt_info->plan_cache.push_back(spl_plan))
       {
         reset_validity_vars_for_keyuses(best_key_keyuse_ext_start, best_table,

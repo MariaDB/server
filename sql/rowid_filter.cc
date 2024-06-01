@@ -399,10 +399,8 @@ void TABLE::init_cost_info_for_usable_range_rowid_filters(THD *thd)
   if (!range_rowid_filter_cost_info_elems)
     return;
 
-  range_rowid_filter_cost_info_ptr=
-    (Range_rowid_filter_cost_info **)
-      thd->calloc(sizeof(Range_rowid_filter_cost_info *) *
-                  range_rowid_filter_cost_info_elems);
+  range_rowid_filter_cost_info_ptr= thd->calloc<Range_rowid_filter_cost_info*>
+                                      (range_rowid_filter_cost_info_elems);
   range_rowid_filter_cost_info=
     new (thd->mem_root)
       Range_rowid_filter_cost_info[range_rowid_filter_cost_info_elems];

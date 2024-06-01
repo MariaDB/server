@@ -14178,8 +14178,7 @@ show_param:
         | GRANTS
           {
             Lex->sql_command= SQLCOM_SHOW_GRANTS;
-            if (unlikely(!(Lex->grant_user=
-                          (LEX_USER*)thd->calloc(sizeof(LEX_USER)))))
+            if (unlikely(!(Lex->grant_user= thd->calloc<LEX_USER>(1))))
               MYSQL_YYABORT;
             Lex->grant_user->user= current_user_and_current_role;
           }
@@ -14287,8 +14286,7 @@ show_param:
         | CREATE USER_SYM
           {
             Lex->sql_command= SQLCOM_SHOW_CREATE_USER;
-            if (unlikely(!(Lex->grant_user=
-                          (LEX_USER*)thd->calloc(sizeof(LEX_USER)))))
+            if (unlikely(!(Lex->grant_user= thd->calloc<LEX_USER>(1))))
               MYSQL_YYABORT;
             Lex->grant_user->user= current_user;
           }
@@ -15788,7 +15786,7 @@ ident_or_text:
 user_maybe_role:
           ident_or_text
           {
-            if (unlikely(!($$=(LEX_USER*) thd->calloc(sizeof(LEX_USER)))))
+            if (unlikely(!($$= thd->calloc<LEX_USER>(1))))
               MYSQL_YYABORT;
             $$->user = $1;
 
@@ -15799,7 +15797,7 @@ user_maybe_role:
           }
         | ident_or_text '@' ident_or_text
           {
-            if (unlikely(!($$=(LEX_USER*) thd->calloc(sizeof(LEX_USER)))))
+            if (unlikely(!($$= thd->calloc<LEX_USER>(1))))
               MYSQL_YYABORT;
             $$->user = $1; $$->host=$3;
 
@@ -15823,7 +15821,7 @@ user_maybe_role:
           }
         | CURRENT_USER optional_braces
           {
-            if (unlikely(!($$=(LEX_USER*)thd->calloc(sizeof(LEX_USER)))))
+            if (unlikely(!($$= thd->calloc<LEX_USER>(1))))
               MYSQL_YYABORT;
             $$->user= current_user;
             $$->auth= new (thd->mem_root) USER_AUTH();
@@ -17059,7 +17057,7 @@ option_value_no_option_type:
               MYSQL_YYABORT;
             LEX *lex = Lex;
             LEX_USER *user;
-            if (unlikely(!(user=(LEX_USER *) thd->calloc(sizeof(LEX_USER)))))
+            if (unlikely(!(user= thd->calloc<LEX_USER>(1))))
               MYSQL_YYABORT;
             user->user= current_user;
             set_var_default_role *var= (new (thd->mem_root)
@@ -17550,7 +17548,7 @@ role_list:
 current_role:
           CURRENT_ROLE optional_braces
           {
-            if (unlikely(!($$=(LEX_USER*) thd->calloc(sizeof(LEX_USER)))))
+            if (unlikely(!($$= thd->calloc<LEX_USER>(1))))
               MYSQL_YYABORT;
             $$->user= current_role;
           }
@@ -17565,7 +17563,7 @@ role_name: ident_or_text
              ((char*) $1.str)[$1.length] = '\0';
              if (unlikely($1.length == 0))
                my_yyabort_error((ER_INVALID_ROLE, MYF(0), ""));
-             if (unlikely(!($$=(LEX_USER*) thd->calloc(sizeof(LEX_USER)))))
+             if (unlikely(!($$= thd->calloc<LEX_USER>(1))))
                MYSQL_YYABORT;
              if (lex_string_eq(&$1, &none))
                $$->user= none;
@@ -17838,18 +17836,18 @@ auth_token:
 opt_auth_str:
         /* empty */
         {
-          if (!($$=(USER_AUTH*) thd->calloc(sizeof(USER_AUTH))))
+          if (!($$=thd->calloc<USER_AUTH>(1)))
             MYSQL_YYABORT;
         }
       | using_or_as TEXT_STRING_sys
         {
-          if (!($$=(USER_AUTH*) thd->calloc(sizeof(USER_AUTH))))
+          if (!($$=thd->calloc<USER_AUTH>(1)))
             MYSQL_YYABORT;
           $$->auth_str= $2;
         }
       | using_or_as PASSWORD_SYM '(' TEXT_STRING ')'
         {
-          if (!($$=(USER_AUTH*) thd->calloc(sizeof(USER_AUTH))))
+          if (!($$=thd->calloc<USER_AUTH>(1)))
             MYSQL_YYABORT;
           $$->pwtext= $4;
         }
@@ -18355,14 +18353,14 @@ xid:
           text_string
           {
             MYSQL_YYABORT_UNLESS($1->length() <= MAXGTRIDSIZE);
-            if (unlikely(!(Lex->xid=(XID *)thd->alloc(sizeof(XID)))))
+            if (unlikely(!(Lex->xid= thd->alloc<XID>(1))))
               MYSQL_YYABORT;
             Lex->xid->set(1L, $1->ptr(), $1->length(), 0, 0);
           }
           | text_string ',' text_string
           {
             MYSQL_YYABORT_UNLESS($1->length() <= MAXGTRIDSIZE && $3->length() <= MAXBQUALSIZE);
-            if (unlikely(!(Lex->xid=(XID *)thd->alloc(sizeof(XID)))))
+            if (unlikely(!(Lex->xid= thd->alloc<XID>(1))))
               MYSQL_YYABORT;
             Lex->xid->set(1L, $1->ptr(), $1->length(), $3->ptr(), $3->length());
           }
@@ -18372,7 +18370,7 @@ xid:
                                  $3->length() <= MAXBQUALSIZE &&
                                  $5 <= static_cast<ulong>(
                                          std::numeric_limits<int32_t>::max()));
-            if (unlikely(!(Lex->xid=(XID *)thd->alloc(sizeof(XID)))))
+            if (unlikely(!(Lex->xid= thd->alloc<XID>(1))))
               MYSQL_YYABORT;
             Lex->xid->set($5, $1->ptr(), $1->length(), $3->ptr(), $3->length());
           }

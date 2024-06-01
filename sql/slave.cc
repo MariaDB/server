@@ -3478,7 +3478,7 @@ bool show_all_master_info(THD* thd)
     Sort lines to get them into a predicted order
     (needed for test cases and to not confuse users)
   */
-  if (!(tmp= (Master_info**) thd->alloc(sizeof(Master_info*) * elements)))
+  if (!(tmp= thd->alloc<Master_info*>(elements)))
     DBUG_RETURN(TRUE);
 
   for (i= 0; i < elements; i++)

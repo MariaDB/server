@@ -462,7 +462,7 @@ int ha_myisammrg::add_children_list(void)
     LEX_CSTRING db;
     LEX_CSTRING table_name;
 
-    child_l= (TABLE_LIST*) thd->alloc(sizeof(TABLE_LIST));
+    child_l= thd->alloc<TABLE_LIST>(1);
     db.str= (char*) thd->memdup(mrg_child_def->db.str, mrg_child_def->db.length+1);
     db.length= mrg_child_def->db.length;
     table_name.str= (char*) thd->memdup(mrg_child_def->name.str,
@@ -1456,7 +1456,7 @@ void ha_myisammrg::update_create_info(HA_CREATE_INFO *create_info)
       {
         TABLE_LIST *ptr;
 
-        if (!(ptr= (TABLE_LIST *) thd->calloc(sizeof(TABLE_LIST))))
+        if (!(ptr= thd->calloc<TABLE_LIST>(1)))
           DBUG_VOID_RETURN;
 
         if (!(ptr->table_name.str= thd->strmake(child_table->table_name.str,
@@ -1501,7 +1501,7 @@ int ha_myisammrg::create_mrg(const char *name, HA_CREATE_INFO *create_info)
     ntables++;
 
   /* Allocate a table_names array in thread mem_root. */
-  if (!(pos= table_names= (const char**) thd->alloc((ntables + 1) * sizeof(char*))))
+  if (!(pos= table_names= thd->alloc<const char*>(ntables + 1)))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM); /* purecov: inspected */
 
   /* Create child path names. */
