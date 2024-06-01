@@ -650,8 +650,7 @@ ulong get_system_variable_hash_records(void)
 SHOW_VAR* enumerate_sys_vars(THD *thd, bool sorted, enum enum_var_type scope)
 {
   int count= system_variable_hash.records, i;
-  int size= sizeof(SHOW_VAR) * (count + 1);
-  SHOW_VAR *result= (SHOW_VAR*) thd->alloc(size);
+  SHOW_VAR *result= thd->alloc<SHOW_VAR>(count + 1);
 
   if (result)
   {
@@ -1416,7 +1415,7 @@ resolve_engine_list(THD *thd, const char *str_arg, size_t str_arg_len,
   }
 
   if (temp_copy)
-    res= (plugin_ref *)thd->calloc((count+1)*sizeof(*res));
+    res= thd->calloc<plugin_ref>(count+1);
   else
     res= (plugin_ref *)my_malloc(PSI_INSTRUMENT_ME, (count+1)*sizeof(*res), MYF(MY_ZEROFILL|MY_WME));
   if (!res)
@@ -1494,7 +1493,7 @@ temp_copy_engine_list(THD *thd, plugin_ref *list)
 
   for (p= list, count= 0; *p; ++p, ++count)
     ;
-  p= (plugin_ref *)thd->alloc((count+1)*sizeof(*p));
+  p= thd->alloc<plugin_ref>(count+1);
   if (!p)
   {
     my_error(ER_OUTOFMEMORY, MYF(0), (int)((count+1)*sizeof(*p)));
@@ -1520,7 +1519,7 @@ pretty_print_engine_list(THD *thd, plugin_ref *list)
   size= 0;
   for (p= list; *p; ++p)
     size+= plugin_name(*p)->length + 1;
-  buf= static_cast<char *>(thd->alloc(size));
+  buf= thd->alloc(size);
   if (!buf)
     return NULL;
   pos= buf;

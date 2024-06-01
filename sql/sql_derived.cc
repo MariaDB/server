@@ -388,7 +388,7 @@ bool mysql_derived_merge(THD *thd, LEX *lex, TABLE_LIST *derived)
       make_leaves_list(thd, dt_select->leaf_tables, derived, TRUE, 0);
     } 
 
-    derived->nested_join= (NESTED_JOIN*) thd->calloc(sizeof(NESTED_JOIN));
+    derived->nested_join= thd->calloc<NESTED_JOIN>(1);
     if (!derived->nested_join)
     {
       res= TRUE;

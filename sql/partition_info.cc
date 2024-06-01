@@ -305,7 +305,7 @@ char *partition_info::create_default_partition_names(THD *thd, uint part_no,
                                                      uint num_parts_arg,
                                                      uint start_no)
 {
-  char *ptr= (char*) thd->calloc(num_parts_arg * MAX_PART_NAME_SIZE + 1);
+  char *ptr= thd->calloc(num_parts_arg * MAX_PART_NAME_SIZE + 1);
   char *move_ptr= ptr;
   uint i= 0;
   DBUG_ENTER("create_default_partition_names");
@@ -339,7 +339,7 @@ char *partition_info::create_default_subpartition_name(THD *thd, uint subpart_no
                                                const char *part_name)
 {
   size_t size_alloc= strlen(part_name) + MAX_PART_NAME_SIZE;
-  char *ptr= (char*) thd->calloc(size_alloc);
+  char *ptr= thd->calloc(size_alloc);
   DBUG_ENTER("create_default_subpartition_name");
 
   if (likely(ptr != NULL))
@@ -1653,7 +1653,6 @@ bool partition_info::set_up_charset_field_preps(THD *thd)
   Field *field, **ptr;
   uchar **char_ptrs;
   unsigned i;
-  size_t size;
   uint tot_part_fields= 0;
   uint tot_subpart_fields= 0;
   DBUG_ENTER("set_up_charset_field_preps");
@@ -1667,15 +1666,13 @@ bool partition_info::set_up_charset_field_preps(THD *thd)
     while ((field= *(ptr++)))
       if (field_is_partition_charset(field))
         tot_part_fields++;
-    size= tot_part_fields * sizeof(char*);
-    if (!(char_ptrs= (uchar**)thd->calloc(size)))
+    if (!(char_ptrs= thd->calloc<uchar*>(tot_part_fields)))
       goto error;
     part_field_buffers= char_ptrs;
-    if (!(char_ptrs= (uchar**)thd->calloc(size)))
+    if (!(char_ptrs= thd->calloc<uchar*>(tot_part_fields)))
       goto error;
     restore_part_field_ptrs= char_ptrs;
-    size= (tot_part_fields + 1) * sizeof(Field*);
-    if (!(char_ptrs= (uchar**)thd->alloc(size)))
+    if (!(char_ptrs= thd->alloc<uchar*>(tot_part_fields + 1)))
       goto error;
     part_charset_field_array= (Field**)char_ptrs;
     ptr= part_field_array;
@@ -1685,8 +1682,7 @@ bool partition_info::set_up_charset_field_preps(THD *thd)
       if (field_is_partition_charset(field))
       {
         uchar *field_buf;
-        size= field->pack_length();
-        if (!(field_buf= (uchar*) thd->calloc(size)))
+        if (!(field_buf= thd->calloc<uchar>(field->pack_length())))
           goto error;
         part_charset_field_array[i]= field;
         part_field_buffers[i++]= field_buf;
@@ -1702,15 +1698,13 @@ bool partition_info::set_up_charset_field_preps(THD *thd)
     while ((field= *(ptr++)))
       if (field_is_partition_charset(field))
         tot_subpart_fields++;
-    size= tot_subpart_fields * sizeof(char*);
-    if (!(char_ptrs= (uchar**) thd->calloc(size)))
+    if (!(char_ptrs= (uchar**) thd->calloc<uchar*>(tot_subpart_fields)))
       goto error;
     subpart_field_buffers= char_ptrs;
-    if (!(char_ptrs= (uchar**) thd->calloc(size)))
+    if (!(char_ptrs= (uchar**) thd->calloc<uchar*>(tot_subpart_fields)))
       goto error;
     restore_subpart_field_ptrs= char_ptrs;
-    size= (tot_subpart_fields + 1) * sizeof(Field*);
-    if (!(char_ptrs= (uchar**) thd->alloc(size)))
+    if (!(char_ptrs= (uchar**) thd->alloc<uchar*>(tot_subpart_fields + 1)))
       goto error;
     subpart_charset_field_array= (Field**)char_ptrs;
     ptr= subpart_field_array;
@@ -1721,8 +1715,7 @@ bool partition_info::set_up_charset_field_preps(THD *thd)
 
       if (!field_is_partition_charset(field))
         continue;
-      size= field->pack_length();
-      if (!(field_buf= (uchar*) thd->calloc(size)))
+      if (!(field_buf= thd->calloc<uchar>(field->pack_length())))
         goto error;
       subpart_charset_field_array[i]= field;
       subpart_field_buffers[i++]= field_buf;
@@ -2036,8 +2029,7 @@ bool partition_info::init_column_part(THD *thd)
   uint loc_num_columns;
   DBUG_ENTER("partition_info::init_column_part");
 
-  if (!(list_val=
-      (part_elem_value*) thd->calloc(sizeof(part_elem_value))) ||
+  if (!(list_val= thd->calloc<part_elem_value>(1)) ||
       p_elem->list_val_list.push_back(list_val, thd->mem_root))
     DBUG_RETURN(TRUE);
 
@@ -2045,9 +2037,7 @@ bool partition_info::init_column_part(THD *thd)
     loc_num_columns= num_columns;
   else
     loc_num_columns= MAX_REF_PARTS;
-  if (!(col_val_array=
-        (part_column_list_val*) thd->calloc(loc_num_columns *
-                                            sizeof(part_column_list_val))))
+  if (!(col_val_array= thd->calloc<part_column_list_val>(loc_num_columns)))
     DBUG_RETURN(TRUE);
 
   list_val->col_val_array= col_val_array;

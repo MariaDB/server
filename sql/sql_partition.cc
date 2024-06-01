@@ -322,12 +322,10 @@ err:
     function.
 */
 
-static bool set_up_field_array(THD *thd, TABLE *table,
-                              bool is_sub_part)
+static bool set_up_field_array(THD *thd, TABLE *table, bool is_sub_part)
 {
   Field **ptr, *field, **field_array;
   uint num_fields= 0;
-  uint size_field_array;
   uint i= 0;
   uint inx;
   partition_info *part_info= table->part_info;
@@ -366,8 +364,7 @@ static bool set_up_field_array(THD *thd, TABLE *table,
     DBUG_ASSERT(!is_sub_part);
     DBUG_RETURN(FALSE);
   }
-  size_field_array= (num_fields+1)*sizeof(Field*);
-  field_array= (Field**) thd->calloc(size_field_array);
+  field_array= thd->calloc<Field*>(num_fields + 1);
   if (unlikely(!field_array))
     DBUG_RETURN(TRUE);
 
@@ -480,15 +477,14 @@ static bool create_full_part_field_array(THD *thd, TABLE *table,
   else
   {
     Field *field, **field_array;
-    uint num_part_fields=0, size_field_array;
+    uint num_part_fields=0;
     ptr= table->field;
     while ((field= *(ptr++)))
     {
       if (field->flags & FIELD_IN_PART_FUNC_FLAG)
         num_part_fields++;
     }
-    size_field_array= (num_part_fields+1)*sizeof(Field*);
-    field_array= (Field**) thd->calloc(size_field_array);
+    field_array= thd->calloc<Field*>(num_part_fields + 1);
     if (unlikely(!field_array))
     {
       result= TRUE;
@@ -1290,8 +1286,8 @@ static bool check_range_constants(THD *thd, partition_info *part_info)
     part_column_list_val *UNINIT_VAR(current_largest_col_val);
     uint num_column_values= part_info->part_field_list.elements;
     uint size_entries= sizeof(part_column_list_val) * num_column_values;
-    part_info->range_col_array= (part_column_list_val*)
-      thd->calloc(part_info->num_parts * size_entries);
+    part_info->range_col_array= thd->calloc<part_column_list_val>
+                                  (part_info->num_parts * num_column_values);
     if (unlikely(part_info->range_col_array == NULL))
       goto end;
 
@@ -1326,8 +1322,7 @@ static bool check_range_constants(THD *thd, partition_info *part_info)
     longlong part_range_value;
     bool signed_flag= !part_info->part_expr->unsigned_flag;
 
-    part_info->range_int_array= (longlong*)
-      thd->alloc(part_info->num_parts * sizeof(longlong));
+    part_info->range_int_array= thd->alloc<longlong>(part_info->num_parts);
     if (unlikely(part_info->range_int_array == NULL))
       goto end;
 
@@ -1554,8 +1549,7 @@ static bool check_vers_constants(THD *thd, partition_info *part_info)
   if (!vers_info->interval.is_set())
     return 0;
 
-  part_info->range_int_array=
-    (longlong*) thd->alloc(part_info->num_parts * sizeof(longlong));
+  part_info->range_int_array= thd->alloc<longlong>(part_info->num_parts);
 
   MYSQL_TIME ltime;
   List_iterator<partition_element> it(part_info->partitions);

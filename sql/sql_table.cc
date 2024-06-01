@@ -3088,7 +3088,7 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
     }
   }
 
-  KEY *key_info= *key_info_buffer= (KEY*)thd->calloc(sizeof(KEY) * (*key_count));
+  KEY *key_info= *key_info_buffer= thd->calloc<KEY>(*key_count);
   if (!*key_info_buffer)
     DBUG_RETURN(true);				// Out of memory
 
@@ -3151,7 +3151,7 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
     DBUG_RETURN(TRUE);
   }
 
-  key_part_info=(KEY_PART_INFO*) thd->calloc(sizeof(KEY_PART_INFO)*key_parts);
+  key_part_info= thd->calloc<KEY_PART_INFO>(key_parts);
   if (!key_part_info)
     DBUG_RETURN(true);				// Out of memory
 
@@ -6606,15 +6606,12 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table,
 
   /* Allocate result buffers. */
   DBUG_ASSERT(ha_alter_info->rename_keys.mem_root() == thd->mem_root);
-  if (! (ha_alter_info->index_drop_buffer=
-          (KEY**) thd->alloc(sizeof(KEY*) * table->s->keys)) ||
+  if (! (ha_alter_info->index_drop_buffer= thd->alloc<KEY*>(table->s->keys)) ||
       ! (ha_alter_info->index_add_buffer=
-          (uint*) thd->alloc(sizeof(uint) *
-                            alter_info->key_list.elements)) ||
+           thd->alloc<uint>(alter_info->key_list.elements)) ||
       ha_alter_info->rename_keys.reserve(ha_alter_info->index_add_count) ||
       ! (ha_alter_info->index_altered_ignorability_buffer=
-           (KEY_PAIR*)thd->alloc(sizeof(KEY_PAIR) *
-                         alter_info->alter_index_ignorability_list.elements)))
+           thd->alloc<KEY_PAIR>(alter_info->alter_index_ignorability_list.elements)))
     DBUG_RETURN(true);
 
   /*
@@ -8220,10 +8217,10 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
 
   restore_record(table, s->default_values);     // Empty record for DEFAULT
 
-  if ((create_info->fields_option_struct= (ha_field_option_struct**)
-         thd->calloc(sizeof(void*) * table->s->fields)) == NULL ||
-      (create_info->indexes_option_struct= (ha_index_option_struct**)
-         thd->calloc(sizeof(void*) * table->s->keys)) == NULL)
+  if ((create_info->fields_option_struct= 
+         thd->calloc<ha_field_option_struct*>(table->s->fields)) == NULL ||
+      (create_info->indexes_option_struct= 
+         thd->calloc<ha_index_option_struct*>(table->s->keys)) == NULL)
     DBUG_RETURN(1);
 
   if (merge_engine_options(table->s->option_list, create_info->option_list,
@@ -10112,7 +10109,7 @@ const char *online_alter_check_supported(const THD *thd,
       LEX_CSTRING dflt{STRING_WITH_LEN("DEFAULT")};
       LEX_CSTRING nxvl{STRING_WITH_LEN("NEXTVAL()")};
       size_t len= strlen(fmt) + nxvl.length + c.field_name.length + dflt.length;
-      char *resp= (char*)thd->alloc(len);
+      char *resp= thd->alloc(len);
       // expression %s cannot be used in the %s clause of %`s
       my_snprintf(resp, len, fmt, nxvl.str, dflt.str, c.field_name.str);
       return resp;
