@@ -1222,7 +1222,7 @@ update_binlog:
     char *query, *query_pos, *query_end, *query_data_start;
     TABLE_LIST *tbl;
 
-    if (!(query= (char*) thd->alloc(MAX_DROP_TABLE_Q_LEN)))
+    if (!(query= thd->alloc(MAX_DROP_TABLE_Q_LEN)))
       goto exit; /* not much else we can do */
     query_pos= query_data_start= strmov(query,"DROP TABLE IF EXISTS ");
     query_end= query + MAX_DROP_TABLE_Q_LEN;
@@ -1332,7 +1332,7 @@ static bool find_db_tables_and_rm_known_files(THD *thd, MY_DIR *dirp,
     const LEX_CSTRING *table= files.at(idx);
 
     /* Drop the table nicely */
-    TABLE_LIST *table_list=(TABLE_LIST*)thd->calloc(sizeof(*table_list));
+    TABLE_LIST *table_list= thd->calloc<TABLE_LIST>(1);
 
     if (!table_list)
       DBUG_RETURN(true);

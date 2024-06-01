@@ -374,7 +374,7 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
 
   if (!create_info->tabledef_version.str)
   {
-    uchar *to= (uchar*) thd->alloc(MY_UUID_SIZE);
+    uchar *to= thd->alloc<uchar>(MY_UUID_SIZE);
     if (unlikely(!to))
       DBUG_RETURN(frm);
     my_uuid(to);
@@ -911,12 +911,10 @@ static bool pack_header(THD *thd, uchar *forminfo,
         */
         uint count= field->typelib()->count;
         field->save_interval= field->typelib();
-        field->set_typelib(tmpint= (TYPELIB*) thd->alloc(sizeof(TYPELIB)));
+        field->set_typelib(tmpint= thd->alloc<TYPELIB>(1));
         *tmpint= *field->save_interval;
-        tmpint->type_names=
-          (const char **) thd->alloc(sizeof(char*) *
-                                     (count + 1));
-        tmpint->type_lengths= (uint *) thd->alloc(sizeof(uint) * (count + 1));
+        tmpint->type_names= thd->alloc<const char*>(count + 1);
+        tmpint->type_lengths= thd->alloc<uint>(count + 1);
         tmpint->type_names[count]= 0;
         tmpint->type_lengths[count]= 0;
 
@@ -928,7 +926,7 @@ static bool pack_header(THD *thd, uchar *forminfo,
           length= field->save_interval->type_lengths[pos];
           hex_length= length * 2;
           tmpint->type_lengths[pos]= (uint) hex_length;
-          tmpint->type_names[pos]= dst= (char*) thd->alloc(hex_length + 1);
+          tmpint->type_names[pos]= dst= thd->alloc(hex_length + 1);
           octet2hex(dst, (uchar*)src, length);
         }
       }

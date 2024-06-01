@@ -642,7 +642,7 @@ Filesort::make_sortorder(THD *thd, JOIN *join, table_map first_table_bit)
 
   DBUG_ASSERT(sort_keys == NULL);
 
-  sortorder= (SORT_FIELD*) thd->alloc(sizeof(SORT_FIELD) * count);
+  sortorder= thd->alloc<SORT_FIELD>(count);
   pos= sort= sortorder;
 
   if (!pos)

@@ -3391,7 +3391,7 @@ request_backoff_action(enum_open_table_action action_arg,
   {
     DBUG_ASSERT(action_arg == OT_DISCOVER || action_arg == OT_REPAIR ||
                 action_arg == OT_ADD_HISTORY_PARTITION);
-    m_failed_table= (TABLE_LIST*) m_thd->alloc(sizeof(TABLE_LIST));
+    m_failed_table= m_thd->alloc<TABLE_LIST>(1);
     if (m_failed_table == NULL)
       return TRUE;
     m_failed_table->init_one_table(&table->db, &table->table_name, &table->alias, TL_WRITE);
@@ -4997,7 +4997,7 @@ add_internal_tables(THD *thd, Query_tables_list *prelocking_ctx,
       continue;
     }
 
-    TABLE_LIST *tl= (TABLE_LIST *) thd->alloc(sizeof(TABLE_LIST));
+    TABLE_LIST *tl= thd->alloc<TABLE_LIST>(1);
     if (!tl)
       DBUG_RETURN(TRUE);
     tl->init_one_table_for_prelocking(&tables->db,
@@ -5069,18 +5069,13 @@ prepare_fk_prelocking_list(THD *thd, Query_tables_list *prelocking_ctx,
       lock_type= TL_READ;
 
     if (table_already_fk_prelocked(prelocking_ctx->query_tables,
-          fk->foreign_db, fk->foreign_table,
-          lock_type))
+          fk->foreign_db, fk->foreign_table, lock_type))
       continue;
 
-    TABLE_LIST *tl= (TABLE_LIST *) thd->alloc(sizeof(TABLE_LIST));
-    tl->init_one_table_for_prelocking(fk->foreign_db,
-        fk->foreign_table,
-        NULL, lock_type,
-        TABLE_LIST::PRELOCK_FK,
-        table_list->belong_to_view, op,
-        &prelocking_ctx->query_tables_last,
-        table_list->for_insert_data);
+    TABLE_LIST *tl= thd->alloc<TABLE_LIST>(1);
+    tl->init_one_table_for_prelocking(fk->foreign_db, fk->foreign_table,
+        NULL, lock_type, TABLE_LIST::PRELOCK_FK, table_list->belong_to_view,
+        op, &prelocking_ctx->query_tables_last, table_list->for_insert_data);
   }
   if (arena)
     thd->restore_active_arena(arena, &backup);
@@ -5881,7 +5876,7 @@ bool lock_tables(THD *thd, TABLE_LIST *tables, uint count, uint flags)
     TABLE **start,**ptr;
     bool found_first_not_own= 0;
 
-    if (!(ptr=start=(TABLE**) thd->alloc(sizeof(TABLE*)*count)))
+    if (!(ptr= start= thd->alloc<TABLE*>(count)))
       DBUG_RETURN(TRUE);
 
     /*
