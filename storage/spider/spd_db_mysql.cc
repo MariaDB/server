@@ -7024,8 +7024,7 @@ int spider_db_mbase_util::append_join(spider_fields *fields,
   }
   ti.rewind();
 
-  if (!(table= static_cast<TABLE_LIST **>(thd->alloc(sizeof(TABLE_LIST*) *
-                                                     tables_to_print))))
+  if (!(table= thd->alloc<TABLE_LIST *>(tables_to_print)))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
 
   TABLE_LIST *tmp, **t= table + (tables_to_print - 1);

@@ -6119,10 +6119,7 @@ allocate:
 
   /* Create view fields translation table */
 
-  if (!(transl=
-        (Field_translator*)(thd->
-                            alloc(select->item_list.elements *
-                                  sizeof(Field_translator)))))
+  if (!(transl= thd->alloc<Field_translator>(select->item_list.elements)))
   {
     res= TRUE;
     goto exit;
@@ -10183,7 +10180,7 @@ bool TABLE_LIST::change_refs_to_fields()
   if (!used_items.elements)
     return FALSE;
 
-  materialized_items= (Item **)thd->calloc(sizeof(void *) * table->s->fields);
+  materialized_items= thd->calloc<Item*>(table->s->fields);
   ctx= new (thd->mem_root) Name_resolution_context(this);
   if (!materialized_items || !ctx)
     return TRUE;

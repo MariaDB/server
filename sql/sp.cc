@@ -2362,8 +2362,7 @@ bool sp_add_used_routine(Query_tables_list *prelocking_ctx, Query_arena *arena,
 
   if (!my_hash_search(&prelocking_ctx->sroutines, key->ptr(), key->length()))
   {
-    Sroutine_hash_entry *rn=
-      (Sroutine_hash_entry *)arena->alloc(sizeof(Sroutine_hash_entry));
+    Sroutine_hash_entry *rn= arena->alloc<Sroutine_hash_entry>(1);
     if (unlikely(!rn)) // OOM. Error will be reported using fatal_error().
       return FALSE;
     MDL_REQUEST_INIT_BY_KEY(&rn->mdl_request, key, MDL_SHARED, MDL_TRANSACTION);
