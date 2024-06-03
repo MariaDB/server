@@ -1,0 +1,266 @@
+create table t1(i int);
+insert t1 values(100);
+create view v1 as select 1;
+drop table t1;
+test.t1: Records: 1  Deleted: 0  Skipped: 0  Warnings: 0
+select * from t1;
+i
+100
+# Content of dump directory
+mtr
+mysql
+test
+# Content of 'test' dump subdirectory
+t1.sql
+t1.txt
+v1.sql
+# Content of 'mysql' dump subdirectory
+column_stats.sql
+column_stats.txt
+columns_priv.sql
+columns_priv.txt
+db.sql
+db.txt
+event.sql
+func.sql
+func.txt
+general_log.sql
+global_priv.sql
+global_priv.txt
+gtid_slave_pos.sql
+gtid_slave_pos.txt
+help_category.sql
+help_category.txt
+help_keyword.sql
+help_keyword.txt
+help_relation.sql
+help_relation.txt
+help_topic.sql
+help_topic.txt
+index_stats.sql
+index_stats.txt
+innodb_index_stats.sql
+innodb_table_stats.sql
+plugin.sql
+plugin.txt
+proc.sql
+proc.txt
+procs_priv.sql
+procs_priv.txt
+proxies_priv.sql
+proxies_priv.txt
+roles_mapping.sql
+roles_mapping.txt
+servers.sql
+servers.txt
+slow_log.sql
+table_stats.sql
+table_stats.txt
+tables_priv.sql
+tables_priv.txt
+time_zone.sql
+time_zone.txt
+time_zone_leap_second.sql
+time_zone_leap_second.txt
+time_zone_name.sql
+time_zone_name.txt
+time_zone_transition.sql
+time_zone_transition.txt
+time_zone_transition_type.sql
+time_zone_transition_type.txt
+transaction_registry.sql
+user.sql
+# Content of 'mtr' dump subdirectory
+global_suppressions.sql
+global_suppressions.txt
+test_suppressions.sql
+test_suppressions.txt
+Connecting to localhost
+Executing SQL script vardir/tmp/dump/mysql/help_topic.sql
+Loading data from LOCAL file: vardir/tmp/dump/mysql/help_topic.txt into help_topic
+mysql.help_topic: Records: 839  Deleted: 0  Skipped: 0  Warnings: 0
+Executing SQL script vardir/tmp/dump/mysql/time_zone_transition.sql
+Loading data from LOCAL file: vardir/tmp/dump/mysql/time_zone_transition.txt into time_zone_transition
+mysql.time_zone_transition: Records: 394  Deleted: 0  Skipped: 0  Warnings: 0
+Executing SQL script vardir/tmp/dump/mtr/global_suppressions.sql
+Loading data from LOCAL file: vardir/tmp/dump/mtr/global_suppressions.txt into global_suppressions
+mtr.global_suppressions: Records: 99  Deleted: 0  Skipped: 0  Warnings: 0
+Executing SQL script vardir/tmp/dump/mysql/help_keyword.sql
+Loading data from LOCAL file: vardir/tmp/dump/mysql/help_keyword.txt into help_keyword
+mysql.help_keyword: Records: 106  Deleted: 0  Skipped: 0  Warnings: 0
+Executing SQL script vardir/tmp/dump/mysql/help_relation.sql
+Loading data from LOCAL file: vardir/tmp/dump/mysql/help_relation.txt into help_relation
+mysql.help_relation: Records: 202  Deleted: 0  Skipped: 0  Warnings: 0
+Executing SQL script vardir/tmp/dump/mysql/help_category.sql
+Loading data from LOCAL file: vardir/tmp/dump/mysql/help_category.txt into help_category
+mysql.help_category: Records: 50  Deleted: 0  Skipped: 0  Warnings: 0
+Executing SQL script vardir/tmp/dump/mysql/time_zone_transition_type.sql
+Loading data from LOCAL file: vardir/tmp/dump/mysql/time_zone_transition_type.txt into time_zone_transition_type
+mysql.time_zone_transition_type: Records: 32  Deleted: 0  Skipped: 0  Warnings: 0
+Executing SQL script vardir/tmp/dump/mysql/global_priv.sql
+Loading data from LOCAL file: vardir/tmp/dump/mysql/global_priv.txt into global_priv
+mysql.global_priv: Records: 5  Deleted: 0  Skipped: 0  Warnings: 0
+Executing SQL script vardir/tmp/dump/mysql/time_zone_leap_second.sql
+Loading data from LOCAL file: vardir/tmp/dump/mysql/time_zone_leap_second.txt into time_zone_leap_second
+mysql.time_zone_leap_second: Records: 23  Deleted: 0  Skipped: 0  Warnings: 0
+Executing SQL script vardir/tmp/dump/mysql/proxies_priv.sql
+Loading data from LOCAL file: vardir/tmp/dump/mysql/proxies_priv.txt into proxies_priv
+mysql.proxies_priv: Records: 4  Deleted: 0  Skipped: 0  Warnings: 0
+Executing SQL script vardir/tmp/dump/mysql/tables_priv.sql
+Loading data from LOCAL file: vardir/tmp/dump/mysql/tables_priv.txt into tables_priv
+mysql.tables_priv: Records: 1  Deleted: 0  Skipped: 0  Warnings: 0
+Executing SQL script vardir/tmp/dump/mysql/time_zone_name.sql
+Loading data from LOCAL file: vardir/tmp/dump/mysql/time_zone_name.txt into time_zone_name
+mysql.time_zone_name: Records: 7  Deleted: 0  Skipped: 0  Warnings: 0
+Executing SQL script vardir/tmp/dump/mysql/time_zone.sql
+Loading data from LOCAL file: vardir/tmp/dump/mysql/time_zone.txt into time_zone
+mysql.time_zone: Records: 6  Deleted: 0  Skipped: 0  Warnings: 0
+Executing SQL script vardir/tmp/dump/test/t1.sql
+Loading data from LOCAL file: vardir/tmp/dump/test/t1.txt into t1
+test.t1: Records: 1  Deleted: 0  Skipped: 0  Warnings: 0
+Executing SQL script vardir/tmp/dump/mysql/column_stats.sql
+Loading data from LOCAL file: vardir/tmp/dump/mysql/column_stats.txt into column_stats
+mysql.column_stats: Records: 0  Deleted: 0  Skipped: 0  Warnings: 0
+Executing SQL script vardir/tmp/dump/mysql/columns_priv.sql
+Loading data from LOCAL file: vardir/tmp/dump/mysql/columns_priv.txt into columns_priv
+mysql.columns_priv: Records: 0  Deleted: 0  Skipped: 0  Warnings: 0
+Executing SQL script vardir/tmp/dump/mysql/db.sql
+Loading data from LOCAL file: vardir/tmp/dump/mysql/db.txt into db
+mysql.db: Records: 0  Deleted: 0  Skipped: 0  Warnings: 0
+Executing SQL script vardir/tmp/dump/mysql/func.sql
+Loading data from LOCAL file: vardir/tmp/dump/mysql/func.txt into func
+mysql.func: Records: 0  Deleted: 0  Skipped: 0  Warnings: 0
+Executing SQL script vardir/tmp/dump/mysql/gtid_slave_pos.sql
+Loading data from LOCAL file: vardir/tmp/dump/mysql/gtid_slave_pos.txt into gtid_slave_pos
+mysql.gtid_slave_pos: Records: 0  Deleted: 0  Skipped: 0  Warnings: 0
+Executing SQL script vardir/tmp/dump/mysql/index_stats.sql
+Loading data from LOCAL file: vardir/tmp/dump/mysql/index_stats.txt into index_stats
+mysql.index_stats: Records: 0  Deleted: 0  Skipped: 0  Warnings: 0
+Executing SQL script vardir/tmp/dump/mysql/plugin.sql
+Loading data from LOCAL file: vardir/tmp/dump/mysql/plugin.txt into plugin
+mysql.plugin: Records: 0  Deleted: 0  Skipped: 0  Warnings: 0
+Executing SQL script vardir/tmp/dump/mysql/procs_priv.sql
+Loading data from LOCAL file: vardir/tmp/dump/mysql/procs_priv.txt into procs_priv
+mysql.procs_priv: Records: 0  Deleted: 0  Skipped: 0  Warnings: 0
+Executing SQL script vardir/tmp/dump/mysql/roles_mapping.sql
+Loading data from LOCAL file: vardir/tmp/dump/mysql/roles_mapping.txt into roles_mapping
+mysql.roles_mapping: Records: 0  Deleted: 0  Skipped: 0  Warnings: 0
+Executing SQL script vardir/tmp/dump/mysql/servers.sql
+Loading data from LOCAL file: vardir/tmp/dump/mysql/servers.txt into servers
+mysql.servers: Records: 0  Deleted: 0  Skipped: 0  Warnings: 0
+Executing SQL script vardir/tmp/dump/mysql/table_stats.sql
+Loading data from LOCAL file: vardir/tmp/dump/mysql/table_stats.txt into table_stats
+mysql.table_stats: Records: 0  Deleted: 0  Skipped: 0  Warnings: 0
+Executing SQL script vardir/tmp/dump/mysql/event.sql
+Executing SQL script vardir/tmp/dump/mysql/general_log.sql
+Executing SQL script vardir/tmp/dump/mysql/innodb_index_stats.sql
+Executing SQL script vardir/tmp/dump/mysql/innodb_table_stats.sql
+Executing SQL script vardir/tmp/dump/mysql/slow_log.sql
+Executing SQL script vardir/tmp/dump/mysql/transaction_registry.sql
+Executing SQL script vardir/tmp/dump/mysql/user.sql
+Executing SQL script vardir/tmp/dump/test/v1.sql
+Disconnecting from localhost
+drop table t1;
+drop view v1;
+create database db2;
+use db2;
+CREATE TABLE parent (
+id INT NOT NULL,
+PRIMARY KEY (id)
+) ENGINE=INNODB;
+CREATE TABLE child (
+id INT,
+parent_id INT,
+INDEX par_ind (parent_id),
+FOREIGN KEY (parent_id)
+REFERENCES parent(id)
+ON DELETE CASCADE
+) ENGINE=INNODB;
+insert into parent values(1),(2);
+insert into child values (1,1),(1,2),(2,1),(2,2);
+drop database db2;
+use db2;
+select * from parent;
+id
+1
+2
+select * from child;
+id	parent_id
+1	1
+1	2
+2	1
+2	2
+drop table child;
+drop table parent;
+CREATE TABLE animals (id mediumint(9)
+NOT NULL AUTO_INCREMENT,
+name char(30) NOT NULL,
+PRIMARY KEY (`id`));
+CREATE TABLE animal_count (animals int);
+INSERT INTO animal_count (animals) VALUES(0);
+CREATE TRIGGER increment_animal
+AFTER INSERT ON animals
+FOR EACH ROW
+UPDATE animal_count SET animal_count.animals = animal_count.animals+1;
+INSERT INTO animals (name) VALUES('aardvark');
+INSERT INTO animals (name) VALUES('baboon');
+# Content of tables before backup
+select * from animals;
+id	name
+1	aardvark
+2	baboon
+select * from animal_count;
+animals
+2
+use test;
+drop database db2;
+Connecting to localhost
+Executing SQL script vardir/tmp/dump/db2/animals.sql
+Loading data from LOCAL file: vardir/tmp/dump/db2/animals.txt into animals
+db2.animals: Records: 2  Deleted: 0  Skipped: 0  Warnings: 0
+Executing SQL script vardir/tmp/dump/db2/animal_count.sql
+Loading data from LOCAL file: vardir/tmp/dump/db2/animal_count.txt into animal_count
+db2.animal_count: Records: 1  Deleted: 0  Skipped: 0  Warnings: 0
+Disconnecting from localhost
+use db2;
+# Content of tables after import
+select * from animals;
+id	name
+1	aardvark
+2	baboon
+select * from animal_count;
+animals
+2
+drop table animals;
+drop table animal_count;
+create table t1 as select 1 as val;
+create view a1 as select * from t1;
+use test;
+drop database db2;
+Connecting to localhost
+Executing SQL script vardir/tmp/dump/db2/t1.sql
+Loading data from LOCAL file: vardir/tmp/dump/db2/t1.txt into t1
+db2.t1: Records: 1  Deleted: 0  Skipped: 0  Warnings: 0
+Executing SQL script vardir/tmp/dump/db2/a1.sql
+Disconnecting from localhost
+use db2;
+select * from t1;
+val
+1
+select * from a1;
+val
+1
+drop database db2;
+use test;
+create database db;
+use db;
+create table t1 as select 1 as val;
+use test;
+drop database db;
+use db;
+ERROR 42000: Unknown database 'db'
+use test;
+# Test non-existing --dir
+mariadb-import: Path 'MYSQLTEST_VARDIR/tmp/non_existing' specified by option '--dir' does not exist
+# Test too many threads, builtin limit 256
+Too many connections, max value for --parallel is 256
