@@ -1061,7 +1061,7 @@ static SHOW_VAR innodb_status_variables[]= {
   {"defragment_count", &export_vars.innodb_defragment_count, SHOW_SIZE_T},
 
   {"instant_alter_column",
-   &export_vars.innodb_instant_alter_column, SHOW_ULONG},
+   &export_vars.innodb_instant_alter_column, SHOW_SIZE_T},
 
   /* Online alter table status variables */
   {"onlineddl_rowlog_rows",
@@ -1103,6 +1103,9 @@ static SHOW_VAR innodb_status_variables[]= {
    &export_vars.innodb_n_temp_blocks_decrypted, SHOW_LONGLONG},
   {"encryption_num_key_requests", &export_vars.innodb_encryption_key_requests,
    SHOW_LONGLONG},
+
+  /* InnoDB bulk operations */
+  {"bulk_operations", &export_vars.innodb_bulk_operations, SHOW_SIZE_T},
 
   {NullS, NullS, SHOW_LONG}
 };
