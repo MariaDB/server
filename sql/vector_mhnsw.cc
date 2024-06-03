@@ -79,8 +79,10 @@ class FVector: public FVectorRef
 private:
   float *vec;
   size_t vec_len;
+  mutable float cached_distance;
+  mutable const FVector *cached_other;
 public:
-  FVector(): vec(nullptr), vec_len(0) {}
+  FVector(): vec(nullptr), vec_len(0), cached_other(0) {}
   ~FVector() { my_free(this->ref); }
 
   bool init(const uchar *ref, size_t ref_len, const void *vec, size_t bytes)
@@ -107,7 +109,12 @@ public:
   float distance_to(const FVector &other) const
   {
     DBUG_ASSERT(other.vec_len == vec_len);
-    return euclidean_vec_distance(vec, other.vec, vec_len);
+    if (cached_other != &other)
+    {
+      cached_other= &other;
+      cached_distance= euclidean_vec_distance(vec, other.vec, vec_len);
+    }
+    return cached_distance;
   }
 
   static FVectorRef *get_fvector_ref(const uchar *ref, size_t ref_len)
@@ -154,10 +161,10 @@ public:
   }
 };
 
-static int cmp_vec(const FVector *reference, const FVector *a, const FVector *b)
+static int cmp_vec(const FVector *target, const FVector *a, const FVector *b)
 {
-  float a_dist= reference->distance_to(*a);
-  float b_dist= reference->distance_to(*b);
+  float a_dist= a->distance_to(*target);
+  float b_dist= b->distance_to(*target);
 
   if (a_dist < b_dist)
     return -1;
@@ -474,17 +481,17 @@ static int search_layer(TABLE *source, TABLE *graph, Field *vec_field,
     candidates.push(v);
     if (best.elements() < max_candidates_return)
       best.push(v);
-    else if (target.distance_to(*v) > target.distance_to(*best.top()))
+    else if (v->distance_to(target) > best.top()->distance_to(target))
       best.replace_top(v);
     visited.insert(v);
     dbug_print_vec_ref("INSERTING node in visited: ", layer, node);
   }
 
-  float furthest_best= target.distance_to(*best.top());
+  float furthest_best= best.top()->distance_to(target);
   while (candidates.elements())
   {
     const FVector &cur_vec= *candidates.pop();
-    float cur_distance= target.distance_to(cur_vec);
+    float cur_distance= cur_vec.distance_to(target);
     if (cur_distance > furthest_best && best.elements() == max_candidates_return)
     {
       break; // All possible candidates are worse than what we have.
@@ -507,13 +514,13 @@ static int search_layer(TABLE *source, TABLE *graph, Field *vec_field,
       {
         candidates.push(clone);
         best.push(clone);
-        furthest_best= target.distance_to(*best.top());
+        furthest_best= best.top()->distance_to(target);
       }
-      else if (target.distance_to(*clone) < furthest_best)
+      else if (clone->distance_to(target) < furthest_best)
       {
         best.replace_top(clone);
         candidates.push(clone);
-        furthest_best= target.distance_to(*best.top());
+        furthest_best= best.top()->distance_to(target);
       }
     }
     neighbors.empty();
