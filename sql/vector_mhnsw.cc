@@ -739,31 +739,30 @@ int mhnsw_first(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit)
                             ef_search, 0, &candidates))
     return err;
 
-  // 8. return results
-  FVectorRef **context= thd->alloc<FVectorRef*>(limit + 1);
+  size_t context_size=limit * h->ref_length + sizeof(ulonglong);
+  char *context= thd->alloc(context_size);
   graph->context= context;
 
-  FVectorRef **ptr= context;
+  *(ulonglong*)context= limit;
+  context+= context_size;
+
   while (limit--)
-    *ptr++= candidates.pop();
-  *ptr= nullptr;
+  {
+    context-= h->ref_length;
+    memcpy(context, candidates.pop()->get_ref(), h->ref_length);
+  }
+  DBUG_ASSERT(context - sizeof(ulonglong) == graph->context);
 
   return mhnsw_next(table);
 }
 
 int mhnsw_next(TABLE *table)
 {
-  FVectorRef ***context= (FVectorRef ***)&table->hlindex->context;
-  FVectorRef *cur_vec= **context;
-  if (cur_vec)
+  uchar *ref= (uchar*)(table->hlindex->context);
+  if (ulonglong *limit= (ulonglong*)ref)
   {
-    int err= table->file->ha_rnd_pos(table->record[0],
-                                     (uchar *)(cur_vec)->get_ref());
-    // release vectors
-    // delete cur_vec;
-
-    (*context)++;
-    return err;
+    ref+= sizeof(ulonglong) + (--*limit) * table->file->ref_length;
+    return table->file->ha_rnd_pos(table->record[0], ref);
   }
   return HA_ERR_END_OF_FILE;
 }
