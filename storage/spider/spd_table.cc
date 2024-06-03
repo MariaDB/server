@@ -860,6 +860,8 @@ int spider_free_share_alloc(
     }
     spider_free(spider_current_trx, share->tgt_drivers, MYF(0));
   }
+  if (share->tgt_odbc_conn_str)
+    spider_free(spider_current_trx, share->tgt_odbc_conn_str, MYF(0));
   if (share->tgt_pk_names)
   {
     for (roop_count = 0; roop_count < (int) share->tgt_pk_names_length;
@@ -2483,9 +2485,6 @@ int st_spider_param_string_parse::fail(bool restore_delim)
 /*
   Parse connection information specified by COMMENT, CONNECT, or engine-defined
   options.
-
-  TODO: Deprecate the connection specification by COMMENT and CONNECT,
-  and then solely utilize engine-defined options.
 */
 int spider_parse_connect_info(
   SPIDER_SHARE *share,
@@ -2512,6 +2511,7 @@ int spider_parse_connect_info(
   DBUG_PRINT("info",("spider s->path=%s", table_share->path.str));
   DBUG_PRINT("info",
     ("spider s->normalized_path=%s", table_share->normalized_path.str));
+  parse.error_num = ER_SPIDER_INVALID_CONNECT_INFO_NUM;
   spider_get_partition_info(share->table_name, share->table_name_length,
     table_share, part_info, &part_elem, &sub_elem);
   /* Find the correct table options, depending on if we are parsing a
@@ -2600,8 +2600,9 @@ int spider_parse_connect_info(
       goto error_alloc_conn_string;
     }
     DBUG_ASSERT(error_num_1 == 0);
-    /* If the connect string is explicitly ignored for parsing, or if
-    any option is specified, skip the parsing. */
+    /* If the COMMENT or CONNECTION string is explicitly ignored for
+    table param parsing, or if any option is specified, skip the
+    parsing. */
     if (spider_param_ignore_comments(current_thd) || option_specified)
     {
       if (!spider_param_suppress_comment_ignored_warning(current_thd))
@@ -2621,7 +2622,6 @@ int spider_parse_connect_info(
                           "and will be removed in a future release. "
                           "Please use table options instead.");
     start_param = connect_string;
-    parse.error_num = ER_SPIDER_INVALID_CONNECT_INFO_NUM;
     while (*start_param != '\0')
     {
       if (parse.locate_param_def(start_param))
