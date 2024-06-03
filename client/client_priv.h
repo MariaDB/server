@@ -73,6 +73,7 @@ enum options_client
   OPT_DO_SERVER_IDS,
   OPT_SSL_FP, OPT_SSL_FPLIST,
   OPT_UPDATE_HISTORY,
+  OPT_DATABASE,
   OPT_MAX_CLIENT_OPTION /* should be always the last */
 };
 
