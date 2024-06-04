@@ -841,7 +841,7 @@ static Sys_var_struct Sys_character_set_system(
        READ_ONLY GLOBAL_VAR(system_charset_info_for_i_s), NO_CMD_LINE,
        offsetof(CHARSET_INFO, cs_name.str), DEFAULT(0));
 
-static Sys_var_struct Sys_character_set_server(
+static Sys_var_charset Sys_character_set_server(
        "character_set_server", "The default character set",
        SESSION_VAR(collation_server), NO_CMD_LINE,
        offsetof(CHARSET_INFO, cs_name.str), DEFAULT(&default_charset_info),
@@ -855,7 +855,7 @@ static bool check_charset_db(sys_var *self, THD *thd, set_var *var)
     var->save_result.ptr= thd->db_charset;
   return false;
 }
-static Sys_var_struct Sys_character_set_database(
+static Sys_var_charset Sys_character_set_database(
        "character_set_database",
        "The character set used by the default database",
        SESSION_VAR(collation_database), NO_CMD_LINE,
@@ -879,7 +879,8 @@ static bool fix_thd_charset(sys_var *self, THD *thd, enum_var_type type)
     thd->update_charset();
   return false;
 }
-static Sys_var_struct Sys_character_set_client(
+
+static Sys_var_charset Sys_character_set_client(
        "character_set_client", "The character set for statements "
        "that arrive from the client",
        NO_SET_STMT SESSION_VAR(character_set_client), NO_CMD_LINE,
@@ -889,7 +890,7 @@ static Sys_var_struct Sys_character_set_client(
 // for check changing
 export sys_var *Sys_character_set_client_ptr= &Sys_character_set_client;
 
-static Sys_var_struct Sys_character_set_connection(
+static Sys_var_charset Sys_character_set_connection(
        "character_set_connection", "The character set used for "
        "literals that do not have a character set introducer and for "
        "number-to-string conversion",
@@ -900,7 +901,7 @@ static Sys_var_struct Sys_character_set_connection(
 // for check changing
 export sys_var *Sys_character_set_connection_ptr= &Sys_character_set_connection;
 
-static Sys_var_struct Sys_character_set_results(
+static Sys_var_charset Sys_character_set_results(
        "character_set_results", "The character set used for returning "
        "query results to the client",
        SESSION_VAR(character_set_results), NO_CMD_LINE,
