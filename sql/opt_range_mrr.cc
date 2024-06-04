@@ -79,6 +79,13 @@ range_seq_t sel_arg_range_seq_init(void *init_param, uint n_ranges, uint flags)
 {
   SEL_ARG_RANGE_SEQ *seq= (SEL_ARG_RANGE_SEQ*)init_param;
   seq->param->range_count=0;
+
+  /*
+    Start by assuming that we only have equalities on all key parts. As soon as
+    we encounter a non-equality interval, we will decrease the number.
+  */
+  seq->param->first_non_equality_key_part= UINT_MAX;
+
   seq->at_start= TRUE;
   seq->param->max_key_parts= 0;
   seq->stack[0].key_tree= NULL;
@@ -222,6 +229,7 @@ walk_right_n_up:
                                           &cur->min_key, &cur->min_key_flag,
                                           &cur->max_key, &cur->max_key_flag,
                                           &cur->min_key_parts, &cur->max_key_parts);
+        set_if_smaller(seq->param->first_non_equality_key_part, key_tree->part);
         break;
       }
     }
@@ -319,6 +327,9 @@ walk_up_n_right:
          )
         range->range_flag |= UNIQUE_RANGE | (cur->min_key_flag & NULL_RANGE);
     }
+    else
+      set_if_smaller(seq->param->first_non_equality_key_part, key_tree->part);
+
       
     if (seq->is_ror_scan)
     {
