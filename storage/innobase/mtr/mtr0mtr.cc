@@ -896,7 +896,7 @@ ATTRIBUTE_COLD static void log_overwrite_warning(lsn_t lsn)
                   " last checkpoint LSN=" LSN_PF ", current LSN=" LSN_PF
                   "%s.",
                   lsn_t{log_sys.last_checkpoint_lsn}, lsn,
-                  srv_shutdown_state != SRV_SHUTDOWN_INITIATED
+                  srv_shutdown_state > SRV_SHUTDOWN_INITIATED
                   ? ". Shutdown is in progress" : "");
 }
 

@@ -200,9 +200,9 @@ uint get_table_def_key(const TABLE_LIST *table_list, const char **key)
     is properly initialized, so table definition cache can be produced
     from key used by MDL subsystem.
   */
-  DBUG_ASSERT(!strcmp(table_list->get_db_name(),
+  DBUG_ASSERT(!strcmp(table_list->get_db_name().str,
                       table_list->mdl_request.key.db_name()));
-  DBUG_ASSERT(!strcmp(table_list->get_table_name(),
+  DBUG_ASSERT(!strcmp(table_list->get_table_name().str,
                       table_list->mdl_request.key.name()));
 
   *key= (const char*)table_list->mdl_request.key.ptr() + 1;
@@ -233,33 +233,40 @@ uint get_table_def_key(const TABLE_LIST *table_list, const char **key)
     #		Pointer to list of names of open tables.
 */
 
-struct list_open_tables_arg
+class list_open_tables_arg
 {
+public:
   THD *thd;
-  const char *db;
+  const Lex_ident_db db;
   const char *wild;
   TABLE_LIST table_list;
   OPEN_TABLE_LIST **start_list, *open_list;
+
+  list_open_tables_arg(THD *thd_arg, const LEX_CSTRING &db_arg,
+                       const char *wild_arg)
+   :thd(thd_arg), db(db_arg), wild(wild_arg),
+    start_list(&open_list), open_list(0)
+  {
+    bzero((char*) &table_list, sizeof(table_list));
+  }
 };
 
 
 static my_bool list_open_tables_callback(TDC_element *element,
                                          list_open_tables_arg *arg)
 {
-  const char *db= (char*) element->m_key;
-  size_t db_length= strlen(db);
-  const char *table_name= db + db_length + 1;
+  const Lex_ident_db
+    db= Lex_ident_db(Lex_cstring_strlen((const char*) element->m_key));
+  const char *table_name= db.str + db.length + 1;
 
-  if (arg->db && my_strcasecmp(system_charset_info, arg->db, db))
+  if (arg->db.str && !arg->db.streq(db))
     return FALSE;
   if (arg->wild && wild_compare(table_name, arg->wild, 0))
     return FALSE;
 
   /* Check if user has SELECT privilege for any column in the table */
-  arg->table_list.db.str= db;
-  arg->table_list.db.length= db_length;
-  arg->table_list.table_name.str= table_name;
-  arg->table_list.table_name.length= strlen(table_name);
+  arg->table_list.db= db;
+  arg->table_list.table_name= Lex_cstring_strlen(table_name);
   arg->table_list.grant.privilege= NO_ACL;
 
   if (check_table_access(arg->thd, SELECT_ACL, &arg->table_list, TRUE, 1, TRUE))
@@ -271,7 +278,7 @@ static my_bool list_open_tables_callback(TDC_element *element,
 
   strmov((*arg->start_list)->table=
          strmov(((*arg->start_list)->db= (char*) ((*arg->start_list) + 1)),
-                db) + 1, table_name);
+                db.str) + 1, table_name);
   (*arg->start_list)->in_use= 0;
 
   mysql_mutex_lock(&element->LOCK_table_share);
@@ -288,17 +295,12 @@ static my_bool list_open_tables_callback(TDC_element *element,
 }
 
 
-OPEN_TABLE_LIST *list_open_tables(THD *thd, const char *db, const char *wild)
+OPEN_TABLE_LIST *list_open_tables(THD *thd,
+                                  const LEX_CSTRING &db,
+                                  const char *wild)
 {
-  list_open_tables_arg argument;
   DBUG_ENTER("list_open_tables");
-
-  argument.thd= thd;
-  argument.db= db;
-  argument.wild= wild;
-  bzero((char*) &argument.table_list, sizeof(argument.table_list));
-  argument.start_list= &argument.open_list;
-  argument.open_list= 0;
+  list_open_tables_arg argument(thd, db, wild);
 
   if (tdc_iterate(thd, (my_hash_walk_action) list_open_tables_callback,
                   &argument, true))
@@ -1870,7 +1872,7 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
   TABLE *table;
   const char *key;
   uint	key_length;
-  const char *alias= table_list->alias.str;
+  const LEX_CSTRING &alias= table_list->alias;
   uint flags= ot_ctx->get_flags();
   MDL_ticket *mdl_ticket;
   TABLE_SHARE *share;
@@ -1938,7 +1940,7 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
       if (table->s->table_cache_key.length == key_length &&
 	  !memcmp(table->s->table_cache_key.str, key, key_length))
       {
-        if (!my_strcasecmp(system_charset_info, table->alias.c_ptr(), alias) &&
+        if (Lex_ident_table(table->alias.to_lex_cstring()).streq(alias) &&
             table->query_id != thd->query_id && /* skip tables already used */
             (thd->locked_tables_mode == LTM_LOCK_TABLES ||
              table->query_id == 0))
@@ -2012,7 +2014,7 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
     if (thd->locked_tables_mode == LTM_PRELOCKED)
       my_error(ER_NO_SUCH_TABLE, MYF(0), table_list->db.str, table_list->alias.str);
     else
-      my_error(ER_TABLE_NOT_LOCKED, MYF(0), alias);
+      my_error(ER_TABLE_NOT_LOCKED, MYF(0), alias.str);
     DBUG_RETURN(TRUE);
   }
 

@@ -1496,7 +1496,7 @@ public:
   {
     return !recv_recovery_is_on() &&
       UT_LIST_GET_LEN(free) + UT_LIST_GET_LEN(LRU) <
-        n_chunks_new / 4 * chunks->size;
+        (n_chunks_new * chunks->size) / 4;
   }
 
   /** @return whether the buffer pool is running low */

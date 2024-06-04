@@ -370,6 +370,11 @@ inline dberr_t trx_sys_t::reset_page(mtr_t *mtr)
       sys_header->page.frame + TRX_SYS_DOUBLEWRITE
       + FSEG_HEADER_SIZE + TRX_SYS_DOUBLEWRITE_REPEAT,
       sys_header->page.frame + TRX_SYS_DOUBLEWRITE + FSEG_HEADER_SIZE, 12);
+    mtr->write<4>(
+      *sys_header,
+      TRX_SYS_DOUBLEWRITE + TRX_SYS_DOUBLEWRITE_SPACE_ID_STORED +
+      sys_header->page.frame,
+      TRX_SYS_DOUBLEWRITE_SPACE_ID_STORED_N);
   }
 
   return DB_SUCCESS;
@@ -675,13 +680,9 @@ err_exit:
     space_id= id;
     fsp_flags= mach_read_from_4(FSP_HEADER_OFFSET + FSP_SPACE_FLAGS + page);
 
-    if (buf_page_is_corrupted(false, page, fsp_flags))
-    {
-      sql_print_error("InnoDB: Checksum mismatch in the first page of file %s",
-                      name);
-      if (recv_sys.dblwr.restore_first_page(space_id, name, fh))
-        goto err_exit;
-    }
+    if (buf_page_is_corrupted(false, page, fsp_flags) &&
+        recv_sys.dblwr.restore_first_page(space_id, name, fh))
+      goto err_exit;
 
     aligned_free(page);
   }
@@ -822,7 +823,7 @@ unused_undo:
   {
      char name[OS_FILE_MAX_PATH];
      snprintf(name, sizeof name, "%s/undo%03u", srv_undo_dir, i);
-     uint32_t space_id= srv_undo_tablespace_open(create_new_undo, name, i);
+     uint32_t space_id= srv_undo_tablespace_open(false, name, i);
      if (!space_id || space_id == ~0U)
        break;
      if (0 == srv_undo_tablespaces_open++)

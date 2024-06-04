@@ -78,6 +78,7 @@ public:
   SPIDER_POSITION    *pushed_pos;
   SPIDER_POSITION    pushed_pos_buf;
   SPIDER_PARTITION_HANDLER *partition_handler;
+  /* Whether this ha_spider is the owner of its wide_handler. */
   bool                wide_handler_owner = FALSE;
   SPIDER_WIDE_HANDLER *wide_handler = NULL;
 

@@ -3025,6 +3025,7 @@ void st_select_lex::init_query()
   is_correlated= 0;
   first_natural_join_processing= 1;
   first_cond_optimization= 1;
+  first_rownum_optimization= true;
   no_wrap_view_item= 0;
   exclude_from_table_unique_test= 0;
   in_tvc= 0;
@@ -12130,10 +12131,31 @@ bool LEX::sp_create_set_password_instr(THD *thd,
 }
 
 
+/*
+  Handle the SET NAMES statement variants, e.g.:
+    SET NAMES DEFAULT;
+    SET NAMES DEFAULT COLLATE DEFAULT;
+    SET NAMES DEFAULT COLLATE latin1_bin;
+    SET NAMES latin1;
+    SET NAMES latin1 COLLATE DEFAULT;
+    SET NAMES latin1 COLLATE latin1_bin;
+    SET NAMES utf8mb4 COLLATE uca1400_ai_ci;
+
+  @param pos          - The position of the keyword `NAMES` inside the query
+  @param cs           - The character set part, or nullptr if DEFAULT
+  @param cl           - The collation (explicit or contextually typed)
+  @param no_lookahead - The tokinizer lookahead state
+*/
 bool LEX::set_names(const char *pos,
-                    const Lex_exact_charset_opt_extended_collate &cscl,
+                    CHARSET_INFO *cs,
+                    const Lex_extended_collation_st &cl,
                     bool no_lookahead)
 {
+  CHARSET_INFO *def= global_system_variables.character_set_client;
+  Lex_exact_charset_opt_extended_collate cscl(cs ? cs : def, true);
+  if (cscl.merge_collation_override(cl))
+    return true;
+
   if (sp_create_assignment_lex(thd, pos))
     return true;
   CHARSET_INFO *ci= cscl.collation().charset_info();

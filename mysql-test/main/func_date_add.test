@@ -169,3 +169,20 @@ select 30 + (20010101 + interval 2 day), x from v1;
 drop view v1;
 
 --echo End of 10.2 tests
+
+--echo #
+--echo # Start of 10.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-30931 UBSAN: negation of -X cannot be represented in type 'long long int'; cast to an unsigned type to negate this value to itself in get_interval_value on SELECT
+--echo #
+
+SELECT DATE_ADD('01-01-23',INTERVAL '9223372036854775808-02' WEEK);
+SELECT DATE_ADD('01-01-23',INTERVAL -9223372036854775807 WEEK);
+SELECT DATE_ADD('01-01-23',INTERVAL -9223372036854775808 WEEK);
+SELECT DATE_ADD('01-01-23',INTERVAL -9223372036854775809 WEEK);
+
+--echo #
+--echo # End of 10.5 tests
+--echo #
