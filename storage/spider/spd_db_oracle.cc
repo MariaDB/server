@@ -332,7 +332,7 @@ SPIDER_DBTON spider_dbton_oracle = {
   spider_oracle_create_conn,
   spider_oracle_support_direct_join,
   &spider_db_oracle_utility,
-  "For communicating Oracle using native protocol",
+  "For communication with Oracle using the native protocol",
   "1.0.0",
   SPIDER_MATURITY_BETA
 };
