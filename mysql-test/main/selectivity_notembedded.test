@@ -209,6 +209,51 @@ set optimizer_trace=@trace_tmp;
 drop table t1;
 
 --echo #
+--echo # MDEV-33697: Improve selectivity computations for multi-part keys
+--echo #
+--source include/have_sequence.inc
+
+create table t1 (
+  id int auto_increment primary key,
+  a int,
+  b int,
+  f varchar(256) default 'xxx',
+  index idx1(a),
+  index idx2(b)
+) engine=Aria;
+# (using Aria to get predictable records_in_range estimates)
+insert into t1(a,b) select  rand(13) * 1000 mod 200, rand(17) * 1000 mod 50 from seq_1_to_1000;
+create index idx3 on t1(a,b);
+# Use query plans that are easier to read:
+set @tmp_os=@@optimizer_switch, optimizer_switch='rowid_filter=off';
+
+explain format=json
+select *
+from t1 ignore index (idx3)
+where
+  a between 50 and 80 and b between 33 and 41;
+
+--echo # Must produce the same (or close) selectivity as the plan above:
+set @tmp_ot=@@optimizer_trace, optimizer_trace=1;
+explain format=json
+select *
+from t1
+where
+  a between 50 and 80 and b between 33 and 41;
+
+--echo # This should list idx3 and key_parts=2, effective_key_parts=1:
+select json_detailed(json_extract(trace, '$**.selectivity_for_indexes')) as sel
+from information_schema.optimizer_trace;
+
+--echo # This won't list anything as for both columns a and b we now have
+--echo #  effectively single-column estimates from the range optimizer:
+select json_detailed(json_extract(trace, '$**.selectivity_for_columns')) as sel
+from information_schema.optimizer_trace;
+
+drop table t1;
+set optimizer_switch=@tmp_os, optimizer_trace=@tmp_ot;
+
+--echo #
 --echo # Clean up
 --echo #
 --source include/restore_charset.inc

@@ -1409,7 +1409,34 @@ public:
   */
   struct OPT_RANGE
   {
+    /* Max number of key parts that potential range access is using */
     uint        key_parts;
+
+    /*
+      Number of keyparts for which the quick select's range list is "dense".
+
+      We define "dense" as follows: for condition $COND and columns (kp1, ... kpN)
+      the range_list($COND, INDEX(kp1, ... kpN)) is dense if it covers the same
+      set of rows that would match
+
+        INTERSECT{over i}(matching_rows(range_list($COND, INDEX(kp{i}))))
+
+      Examples: for columns (kp1, kp2) range lists are dense for these
+      conditions:
+         kp1 = 1      AND kp2 > 'foo'
+         kp1 IN (1,2) AND kp2 > 'foo'
+
+      On the other hand, for condition
+        kp1>=1 and kp2>'foo'
+      the range list is  ["(1,foo) < (kp1,kp2)"] and it is not dense, as it
+      includes rows for which kp1>1 but kp2<='foo'.
+
+      A rough criteria: a range list will be considered dense over (kp1,...kpM)
+      if the condition used to create had only equalities kp1... kp{M-1}. There
+      could be either one equality kpK=const or multiple OR-ed equalities.
+    */
+    uint        key_parts_w_dense_ranges;
+
     uint        ranges;
     ha_rows     rows, max_index_blocks, max_row_blocks;
     Cost_estimate cost;

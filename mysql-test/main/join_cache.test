@@ -4257,7 +4257,7 @@ explain format=json
 select *
 from t1 a, t3 b
 where
-  b.kp1=a.a and
+  b.kp1+1=a.a+1 and
   b.kp1 <= 10 and
   b.kp2 <= 10 and
   b.col1 +1 < 33333;

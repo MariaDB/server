@@ -316,6 +316,9 @@ public:
   longlong baseflag;
   uint max_key_parts, range_count;
 
+  /* First keypart on which we saw a non-equality (non-singlepoint) interval */
+  uint first_non_equality_key_part;
+
   bool quick;				// Don't calulate possible keys
 
   uint fields_bitmap_size;
@@ -3446,7 +3449,8 @@ int cmp_quick_ranges(TABLE::OPT_RANGE **a, TABLE::OPT_RANGE **b)
   int tmp=CMP_NUM((*a)->rows, (*b)->rows);
   if (tmp)
     return tmp;
-  return -CMP_NUM((*a)->key_parts, (*b)->key_parts);
+  return -CMP_NUM((*a)->key_parts_w_dense_ranges,
+                  (*b)->key_parts_w_dense_ranges);
 }
 
 
@@ -3556,7 +3560,7 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
     TABLE::OPT_RANGE *range= optimal_key_order[range_index];
     uint keynr= (uint)(range - table->opt_range);
     uint i;
-    uint used_key_parts= range->key_parts;
+    uint used_key_parts= range->key_parts_w_dense_ranges;
     double quick_cond_selectivity= (range->rows / table_records);
     KEY *key_info= table->key_info + keynr;
     KEY_PART_INFO* key_part= key_info->key_part;
@@ -3634,6 +3638,13 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
       selectivity_for_index.
         add("index_name", key_info->name).
         add("selectivity_from_index", quick_cond_selectivity);
+      if (range->key_parts_w_dense_ranges != range->key_parts)
+      {
+        selectivity_for_index.
+          add("key_parts", range->key_parts).
+          add("key_parts_w_dense_ranges",
+              range->key_parts_w_dense_ranges);
+      }
     }
     /*
       We need to set selectivity for fields supported by indexes.
@@ -12118,6 +12129,30 @@ ha_rows check_quick_select(PARAM *param, uint idx, ha_rows limit,
       TABLE::OPT_RANGE *range= param->table->opt_range + keynr;
       param->table->opt_range_keys.set_bit(keynr);
       range->key_parts= param->max_key_parts;
+
+      if (param->first_non_equality_key_part == UINT_MAX)
+      {
+        /* We only saw equality (=single-point) intervals. */
+        range->key_parts_w_dense_ranges= range->key_parts;
+      }
+      else
+      {
+        /*
+          If we have
+            keypart1=const AND {any range on keypart2}
+          then the range list on {keypart1,keypart2} is dense.
+
+          It is also possible to have multiple equalities: for
+            keypart1 IN (const1, ..., constN) AND {any ranges on keypart2}
+          the range list on {keypart1, keypart2} is dense.
+
+          Any non-equality range on keypart1 makes the range list on
+          {keypart1, keypart2} non-dense.
+        */
+        range->key_parts_w_dense_ranges=
+          param->first_non_equality_key_part+1;
+      }
+
       range->ranges= param->range_count;
       param->table->set_opt_range_condition_rows(rows);
       range->selectivity= (rows ?

@@ -224,6 +224,108 @@ JS
 set optimizer_trace=@trace_tmp;
 drop table t1;
 #
+# MDEV-33697: Improve selectivity computations for multi-part keys
+#
+create table t1 (
+id int auto_increment primary key,
+a int,
+b int,
+f varchar(256) default 'xxx',
+index idx1(a),
+index idx2(b)
+) engine=Aria;
+insert into t1(a,b) select  rand(13) * 1000 mod 200, rand(17) * 1000 mod 50 from seq_1_to_1000;
+create index idx3 on t1(a,b);
+set @tmp_os=@@optimizer_switch, optimizer_switch='rowid_filter=off';
+explain format=json
+select *
+from t1 ignore index (idx3)
+where
+a between 50 and 80 and b between 33 and 41;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.035274286,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "range",
+          "possible_keys": ["idx1", "idx2"],
+          "key": "idx1",
+          "key_length": "5",
+          "used_key_parts": ["a"],
+          "loops": 1,
+          "rows": 91,
+          "cost": 0.035274286,
+          "filtered": 10.69999981,
+          "index_condition": "t1.a between 50 and 80",
+          "attached_condition": "t1.b between 33 and 41"
+        }
+      }
+    ]
+  }
+}
+# Must produce the same (or close) selectivity as the plan above:
+set @tmp_ot=@@optimizer_trace, optimizer_trace=1;
+explain format=json
+select *
+from t1
+where
+a between 50 and 80 and b between 33 and 41;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.035274286,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "range",
+          "possible_keys": ["idx1", "idx2", "idx3"],
+          "key": "idx1",
+          "key_length": "5",
+          "used_key_parts": ["a"],
+          "loops": 1,
+          "rows": 91,
+          "cost": 0.035274286,
+          "filtered": 10.69999981,
+          "index_condition": "t1.a between 50 and 80",
+          "attached_condition": "t1.b between 33 and 41"
+        }
+      }
+    ]
+  }
+}
+# This should list idx3 and key_parts=2, effective_key_parts=1:
+select json_detailed(json_extract(trace, '$**.selectivity_for_indexes')) as sel
+from information_schema.optimizer_trace;
+sel
+[
+    [
+        {
+            "index_name": "idx1",
+            "selectivity_from_index": 0.091
+        },
+        {
+            "index_name": "idx2",
+            "selectivity_from_index": 0.107
+        }
+    ]
+]
+# This won't list anything as for both columns a and b we now have
+#  effectively single-column estimates from the range optimizer:
+select json_detailed(json_extract(trace, '$**.selectivity_for_columns')) as sel
+from information_schema.optimizer_trace;
+sel
+[
+    []
+]
+drop table t1;
+set optimizer_switch=@tmp_os, optimizer_trace=@tmp_ot;
+#
 # Clean up
 #
 set optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
