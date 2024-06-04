@@ -69,7 +69,7 @@ drop table t1, t2;
 # table param takes effect
 SET session spider_read_only_mode = -1;
 create table t2 (c int);
-eval create table t1 (c int) ENGINE=Spider COMMENT='read_only_mode "1", WRAPPER "mysql", srv "$srv",TABLE "t2"';
+create table t1 (c int) ENGINE=Spider COMMENT='read_only_mode "1", WRAPPER "mysql", srv "srv",TABLE "t2"';
 --error 12518
 /* 6 */ insert into t1 values (42);
 drop table t1, t2;
