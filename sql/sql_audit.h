@@ -139,6 +139,7 @@ void mysql_audit_general_log(THD *thd, time_t time,
       event.general_charset= thd->variables.character_set_client;
       event.database= thd->db;
       event.query_id= thd->query_id;
+      event.port= thd->peer_port;
     }
     else
     {
@@ -146,6 +147,7 @@ void mysql_audit_general_log(THD *thd, time_t time,
       event.general_charset= global_system_variables.character_set_client;
       event.database= null_clex_str;
       event.query_id= 0;
+      event.port= 0;
     }
 
     mysql_audit_notify(thd, MYSQL_AUDIT_GENERAL_CLASS, &event);
@@ -191,6 +193,7 @@ void mysql_audit_general(THD *thd, uint event_subtype,
       event.general_rows= thd->get_stmt_da()->current_row_for_warning();
       event.database= thd->db;
       event.query_id= thd->query_id;
+      event.port= thd->peer_port;
     }
     else
     {
@@ -203,6 +206,7 @@ void mysql_audit_general(THD *thd, uint event_subtype,
       event.general_rows= 0;
       event.database= null_clex_str;
       event.query_id= 0;
+      event.port= thd->peer_port;
     }
 
     mysql_audit_notify(thd, MYSQL_AUDIT_GENERAL_CLASS, &event);
@@ -233,6 +237,7 @@ void mysql_audit_notify_connection_connect(THD *thd)
     event.host= sctx->host;
     event.host_length= safe_strlen_uint(sctx->host);
     event.ip= sctx->ip;
+    event.port= thd->peer_port;
     event.ip_length= safe_strlen_uint(sctx->ip);
     event.database= thd->db;
     set_tls_version_of_event(thd, &event);
@@ -263,6 +268,7 @@ void mysql_audit_notify_connection_disconnect(THD *thd, int errcode)
     event.host= sctx->host;
     event.host_length= safe_strlen_uint(sctx->host);
     event.ip= sctx->ip;
+    event.port= thd->peer_port;
     event.ip_length= safe_strlen_uint(sctx->ip) ;
     event.database= thd->db;
     set_tls_version_of_event(thd, &event);
@@ -294,6 +300,7 @@ void mysql_audit_notify_connection_change_user(THD *thd,
     event.host= old_ctx->host;
     event.host_length= safe_strlen_uint(old_ctx->host);
     event.ip= old_ctx->ip;
+    event.port= thd->peer_port;
     event.ip_length= safe_strlen_uint(old_ctx->ip);
     event.database= thd->db;
     set_tls_version_of_event(thd, &event);
@@ -323,6 +330,7 @@ void mysql_audit_external_lock_ex(THD *thd, my_thread_id thread_id,
     event.proxy_user= sctx->proxy_user;
     event.host= host;
     event.ip= ip;
+    event.port= thd->peer_port;
     event.database= share->db;
     event.table= share->table_name;
     event.new_database= null_clex_str;
@@ -361,6 +369,7 @@ void mysql_audit_create_table(TABLE *table)
     event.proxy_user= sctx->proxy_user;
     event.host= sctx->host;
     event.ip= sctx->ip;
+    event.port= thd->peer_port;
     event.database=     share->db;
     event.table=        share->table_name;
     event.new_database= null_clex_str;
@@ -389,6 +398,7 @@ void mysql_audit_drop_table(THD *thd, TABLE_LIST *table)
     event.proxy_user= sctx->proxy_user;
     event.host= sctx->host;
     event.ip= sctx->ip;
+    event.port= thd->peer_port;
     event.database=     table->db;
     event.table=        table->table_name;
     event.new_database= null_clex_str;
@@ -419,6 +429,7 @@ void mysql_audit_rename_table(THD *thd, const LEX_CSTRING *old_db,
     event.proxy_user= sctx->proxy_user;
     event.host= sctx->host;
     event.ip= sctx->ip;
+    event.port= thd->peer_port;
     event.database=  *old_db;
     event.table=     *old_tb;
     event.new_database= *new_db;
@@ -447,6 +458,7 @@ void mysql_audit_alter_table(THD *thd, TABLE_LIST *table)
     event.proxy_user= sctx->proxy_user;
     event.host= sctx->host;
     event.ip= sctx->ip;
+    event.port= thd->peer_port;
     event.database= table->db;
     event.table= table->table_name;
     event.new_database= null_clex_str;
