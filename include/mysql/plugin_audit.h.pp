@@ -708,6 +708,7 @@ struct mysql_event_general
   unsigned long long general_time;
   unsigned long long general_rows;
   unsigned long long query_id;
+  unsigned int port;
   MYSQL_CONST_LEX_STRING database;
 };
 struct mysql_event_connection
@@ -727,6 +728,7 @@ struct mysql_event_connection
   unsigned int host_length;
   const char *ip;
   unsigned int ip_length;
+  unsigned int port;
   MYSQL_CONST_LEX_STRING database;
   const char *tls_version;
   unsigned int tls_version_length;
@@ -742,6 +744,7 @@ struct mysql_event_table
   const char *proxy_user;
   const char *host;
   const char *ip;
+  unsigned int port;
   MYSQL_CONST_LEX_STRING database;
   MYSQL_CONST_LEX_STRING table;
   MYSQL_CONST_LEX_STRING new_database;
