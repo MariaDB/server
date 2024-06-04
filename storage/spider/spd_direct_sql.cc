@@ -219,25 +219,25 @@ int spider_udf_direct_sql_create_conn_key(
         tables_on_different_db_are_joinable();
     direct_sql->conn_key_length
       = 1
-      + direct_sql->tgt_wrapper_length + 1
-      + direct_sql->tgt_host_length + 1
-      + 5 + 1
-      + direct_sql->tgt_socket_length + 1
-      + (tables_on_different_db_are_joinable ?
-        0 : direct_sql->tgt_default_db_name_length + 1)
-      + direct_sql->tgt_username_length + 1
-      + direct_sql->tgt_password_length + 1
-      + direct_sql->tgt_ssl_ca_length + 1
-      + direct_sql->tgt_ssl_capath_length + 1
-      + direct_sql->tgt_ssl_cert_length + 1
-      + direct_sql->tgt_ssl_cipher_length + 1
-      + direct_sql->tgt_ssl_key_length + 1
-      + 1 + 1
-      + direct_sql->tgt_default_file_length + 1
-      + direct_sql->tgt_default_group_length + 1
-      + direct_sql->tgt_dsn_length + 1
-      + direct_sql->tgt_filedsn_length + 1
-      + direct_sql->tgt_driver_length;
+      + (direct_sql->tgt_wrapper ? direct_sql->tgt_wrapper_length + 2 : 0)
+      + (direct_sql->tgt_host ? direct_sql->tgt_host_length + 2 : 0)
+      + 5 + 2
+      + (direct_sql->tgt_socket ? direct_sql->tgt_socket_length + 2 : 0)
+      + (!tables_on_different_db_are_joinable && direct_sql->tgt_default_db_name ?
+         direct_sql->tgt_default_db_name_length + 2 : 0)
+      + (direct_sql->tgt_username ? direct_sql->tgt_username_length + 2 : 0)
+      + (direct_sql->tgt_password ? direct_sql->tgt_password_length + 2 : 0)
+      + (direct_sql->tgt_ssl_ca ? direct_sql->tgt_ssl_ca_length + 2 : 0)
+      + (direct_sql->tgt_ssl_capath ? direct_sql->tgt_ssl_capath_length + 2 : 0)
+      + (direct_sql->tgt_ssl_cert ? direct_sql->tgt_ssl_cert_length + 2 : 0)
+      + (direct_sql->tgt_ssl_cipher ? direct_sql->tgt_ssl_cipher_length + 2 : 0)
+      + (direct_sql->tgt_ssl_key ? direct_sql->tgt_ssl_key_length + 2 : 0)
+      + 1 + 2
+      + (direct_sql->tgt_default_file ? direct_sql->tgt_default_file_length + 2 : 0)
+      + (direct_sql->tgt_default_group ? direct_sql->tgt_default_group_length + 2 : 0)
+      + (direct_sql->tgt_dsn ? direct_sql->tgt_dsn_length + 2 : 0)
+      + (direct_sql->tgt_filedsn ? direct_sql->tgt_filedsn_length + 2 : 0)
+      + (direct_sql->tgt_driver ? direct_sql->tgt_driver_length + 2 : 0);
   if (!(direct_sql->conn_key = (char *)
     spider_malloc(spider_current_trx, SPD_MID_UDF_DIRECT_SQL_CREATE_CONN_KEY_1, direct_sql->conn_key_length + 1,
       MYF(MY_WME | MY_ZEROFILL)))
@@ -247,116 +247,38 @@ int spider_udf_direct_sql_create_conn_key(
     *direct_sql->conn_key = '0' + 48 - direct_sql->connection_channel;
   else
     *direct_sql->conn_key = '0' + direct_sql->connection_channel;
-  DBUG_PRINT("info",("spider tgt_wrapper=%s", direct_sql->tgt_wrapper));
-  tmp_name = strmov(direct_sql->conn_key + 1, direct_sql->tgt_wrapper);
-  if (direct_sql->tgt_host)
-  {
-    DBUG_PRINT("info",("spider tgt_host=%s", direct_sql->tgt_host));
-    tmp_name = strmov(tmp_name + 1, direct_sql->tgt_host);
-  } else {
-    DBUG_PRINT("info",("spider tgt_host=NULL"));
-    tmp_name++;
-  }
+  int counter= 0;
+  tmp_name= direct_sql->conn_key + 1;
+  spider_create_conn_key_add_one(&counter, &tmp_name, direct_sql->tgt_wrapper);
+  spider_create_conn_key_add_one(&counter, &tmp_name, direct_sql->tgt_host);
   my_sprintf(port_str, (port_str, "%05ld", direct_sql->tgt_port));
-  DBUG_PRINT("info",("spider port_str=%s", port_str));
-  tmp_name = strmov(tmp_name + 1, port_str);
-  if (direct_sql->tgt_socket)
+  spider_create_conn_key_add_one(&counter, &tmp_name, port_str);
+  spider_create_conn_key_add_one(&counter, &tmp_name, direct_sql->tgt_socket);
+  counter++;
+  if (!tables_on_different_db_are_joinable && direct_sql->tgt_default_db_name)
   {
-    DBUG_PRINT("info",("spider tgt_socket=%s", direct_sql->tgt_socket));
-    tmp_name = strmov(tmp_name + 1, direct_sql->tgt_socket);
-  } else
+    *tmp_name= (char) counter;
+    tmp_name = strmov(tmp_name + 1, direct_sql->tgt_default_db_name);
     tmp_name++;
-  if (!tables_on_different_db_are_joinable)
-  {
-    if (direct_sql->tgt_default_db_name)
-    {
-      DBUG_PRINT("info",("spider tgt_default_db_name=%s",
-                         direct_sql->tgt_default_db_name));
-      tmp_name = strmov(tmp_name + 1, direct_sql->tgt_default_db_name);
-    } else
-      tmp_name++;
   }
-    if (direct_sql->tgt_username)
-    {
-      DBUG_PRINT("info",("spider tgt_username=%s", direct_sql->tgt_username));
-      tmp_name = strmov(tmp_name + 1, direct_sql->tgt_username);
-    } else
-      tmp_name++;
-    if (direct_sql->tgt_password)
-    {
-      DBUG_PRINT("info",("spider tgt_password=%s", direct_sql->tgt_password));
-      tmp_name = strmov(tmp_name + 1, direct_sql->tgt_password);
-    } else
-      tmp_name++;
-    if (direct_sql->tgt_ssl_ca)
-    {
-      DBUG_PRINT("info",("spider tgt_ssl_ca=%s", direct_sql->tgt_ssl_ca));
-      tmp_name = strmov(tmp_name + 1, direct_sql->tgt_ssl_ca);
-    } else
-      tmp_name++;
-    if (direct_sql->tgt_ssl_capath)
-    {
-      DBUG_PRINT("info",("spider tgt_ssl_capath=%s",
-        direct_sql->tgt_ssl_capath));
-      tmp_name = strmov(tmp_name + 1, direct_sql->tgt_ssl_capath);
-    } else
-      tmp_name++;
-    if (direct_sql->tgt_ssl_cert)
-    {
-      DBUG_PRINT("info",("spider tgt_ssl_cert=%s", direct_sql->tgt_ssl_cert));
-      tmp_name = strmov(tmp_name + 1, direct_sql->tgt_ssl_cert);
-    } else
-      tmp_name++;
-    if (direct_sql->tgt_ssl_cipher)
-    {
-      DBUG_PRINT("info",("spider tgt_ssl_cipher=%s",
-        direct_sql->tgt_ssl_cipher));
-      tmp_name = strmov(tmp_name + 1, direct_sql->tgt_ssl_cipher);
-    } else
-      tmp_name++;
-    if (direct_sql->tgt_ssl_key)
-    {
-      DBUG_PRINT("info",("spider tgt_ssl_key=%s", direct_sql->tgt_ssl_key));
-      tmp_name = strmov(tmp_name + 1, direct_sql->tgt_ssl_key);
-    } else
-      tmp_name++;
-    tmp_name++;
-    *tmp_name = '0' + ((char) direct_sql->tgt_ssl_vsc);
-    if (direct_sql->tgt_default_file)
-    {
-      DBUG_PRINT("info",("spider tgt_default_file=%s",
-        direct_sql->tgt_default_file));
-      tmp_name = strmov(tmp_name + 1, direct_sql->tgt_default_file);
-    } else
-      tmp_name++;
-    if (direct_sql->tgt_default_group)
-    {
-      DBUG_PRINT("info",("spider tgt_default_group=%s",
-        direct_sql->tgt_default_group));
-      tmp_name = strmov(tmp_name + 1, direct_sql->tgt_default_group);
-    } else
-      tmp_name++;
-    if (direct_sql->tgt_dsn)
-    {
-      DBUG_PRINT("info",("spider tgt_dsn=%s",
-        direct_sql->tgt_dsn));
-      tmp_name = strmov(tmp_name + 1, direct_sql->tgt_dsn);
-    } else
-      tmp_name++;
-    if (direct_sql->tgt_filedsn)
-    {
-      DBUG_PRINT("info",("spider tgt_filedsn=%s",
-        direct_sql->tgt_filedsn));
-      tmp_name = strmov(tmp_name + 1, direct_sql->tgt_filedsn);
-    } else
-      tmp_name++;
-    if (direct_sql->tgt_driver)
-    {
-      DBUG_PRINT("info",("spider tgt_driver=%s",
-        direct_sql->tgt_driver));
-      tmp_name = strmov(tmp_name + 1, direct_sql->tgt_driver);
-    } else
-      tmp_name++;
+  spider_create_conn_key_add_one(&counter, &tmp_name, direct_sql->tgt_username);
+  spider_create_conn_key_add_one(&counter, &tmp_name, direct_sql->tgt_password);
+  spider_create_conn_key_add_one(&counter, &tmp_name, direct_sql->tgt_ssl_ca);
+  spider_create_conn_key_add_one(&counter, &tmp_name, direct_sql->tgt_ssl_capath);
+  spider_create_conn_key_add_one(&counter, &tmp_name, direct_sql->tgt_ssl_cert);
+  spider_create_conn_key_add_one(&counter, &tmp_name, direct_sql->tgt_ssl_cipher);
+  spider_create_conn_key_add_one(&counter, &tmp_name, direct_sql->tgt_ssl_key);
+  counter++;
+  *tmp_name= (char) counter;
+  tmp_name++;
+  *tmp_name = '0' + ((char) direct_sql->tgt_ssl_vsc);
+  tmp_name++;
+  spider_create_conn_key_add_one(&counter, &tmp_name, direct_sql->tgt_default_file);
+  spider_create_conn_key_add_one(&counter, &tmp_name, direct_sql->tgt_default_group);
+  spider_create_conn_key_add_one(&counter, &tmp_name, direct_sql->tgt_dsn);
+  spider_create_conn_key_add_one(&counter, &tmp_name, direct_sql->tgt_filedsn);
+  spider_create_conn_key_add_one(&counter, &tmp_name, direct_sql->tgt_driver);
+  tmp_name++;
 #ifdef SPIDER_HAS_HASH_VALUE_TYPE
   direct_sql->conn_key_hash_value = my_calc_hash(&spider_open_connections,
     (uchar*) direct_sql->conn_key, direct_sql->conn_key_length);
@@ -372,7 +294,7 @@ static inline void spider_maybe_memcpy_string(
   uint src_len)
 {
     *dest_len= src_len;
-    if (src_len)
+    if (src)
     {
       *dest= tmp;
       memcpy(*dest, src, src_len);
@@ -442,13 +364,12 @@ SPIDER_CONN *spider_udf_direct_sql_create_conn(
   conn->conn_key_length = direct_sql->conn_key_length;
   conn->conn_key = tmp_name;
   memcpy(conn->conn_key, direct_sql->conn_key, direct_sql->conn_key_length);
-  conn->tgt_wrapper_length = direct_sql->tgt_wrapper_length;
-  conn->tgt_wrapper = tmp_wrapper;
-  memcpy(conn->tgt_wrapper, direct_sql->tgt_wrapper,
-    direct_sql->tgt_wrapper_length);
-  conn->tgt_host_length = direct_sql->tgt_host_length;
-  conn->tgt_host = tmp_host;
-  memcpy(conn->tgt_host, direct_sql->tgt_host, direct_sql->tgt_host_length);
+    spider_maybe_memcpy_string(
+      &conn->tgt_wrapper, direct_sql->tgt_wrapper, tmp_wrapper,
+      &conn->tgt_wrapper_length, direct_sql->tgt_wrapper_length);
+    spider_maybe_memcpy_string(
+      &conn->tgt_host, direct_sql->tgt_host, tmp_host,
+      &conn->tgt_host_length, direct_sql->tgt_host_length);
     conn->tgt_port = direct_sql->tgt_port;
     spider_maybe_memcpy_string(
       &conn->tgt_socket, direct_sql->tgt_socket, tmp_socket,
