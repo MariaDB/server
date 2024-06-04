@@ -79,7 +79,7 @@ class MHNSW_Context
   Field *vec_field;
   size_t vec_len= 0;
 
-  Hash_set<FVectorNode> vector_cache{PSI_INSTRUMENT_MEM, FVectorNode::get_key};
+  Hash_set<FVectorNode> node_cache{PSI_INSTRUMENT_MEM, FVectorNode::get_key};
 
   MHNSW_Context(TABLE *table, Field *vec_field)
     : table(table), vec_field(vec_field)
@@ -91,6 +91,8 @@ class MHNSW_Context
   {
     free_root(&root, MYF(0));
   }
+
+  FVectorNode *get_node(const void *ref_);
 };
 
 FVector::FVector(MHNSW_Context *ctx_, const void *vec_) : ctx(ctx_)
@@ -144,6 +146,17 @@ uchar *FVectorNode::get_key(const FVectorNode *elem, size_t *key_len, my_bool)
   return elem->ref;
 }
 
+FVectorNode *MHNSW_Context::get_node(const void *ref)
+{
+  FVectorNode *node= node_cache.find(ref, table->file->ref_length);
+  if (!node)
+  {
+    node= new (&root) FVectorNode(this, ref);
+    node_cache.insert(node);
+  }
+  return node;
+}
+
 static int cmp_vec(const FVector *target, const FVectorNode *a, const FVectorNode *b)
 {
   float a_dist= a->distance_to(*target);
@@ -186,7 +199,7 @@ static int get_neighbors(MHNSW_Context *ctx, size_t layer_number,
   const char *pos= neigh_arr_bytes + HNSW_MAX_M_WIDTH;
   for (uint i= 0; i < number_of_neighbors; i++)
   {
-    FVectorNode *neigh= new (&ctx->root) FVectorNode(ctx, pos);
+    FVectorNode *neigh= ctx->get_node(pos);
     neighbors->push_back(neigh, &ctx->root);
     pos+= ref_length;
   }
