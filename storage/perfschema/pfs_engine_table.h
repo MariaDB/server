@@ -47,15 +47,7 @@ using PFS_ident_table = Lex_ident_i_s_table;
 */
 
 #include "pfs_instr_class.h"
-extern thread_local void* THR_PFS_VG;   // global_variables
-extern thread_local void* THR_PFS_SV;   // session_variables
-extern thread_local void* THR_PFS_VBT;  // variables_by_thread
-extern thread_local void* THR_PFS_SG;   // global_status
-extern thread_local void* THR_PFS_SS;   // session_status
-extern thread_local void* THR_PFS_SBT;  // status_by_thread
-extern thread_local void* THR_PFS_SBU;  // status_by_user
-extern thread_local void* THR_PFS_SBH;  // status_by_host
-extern thread_local void* THR_PFS_SBA;  // status_by_account
+#include "pfs.h"
 
 class Field;
 struct PFS_engine_table_share;

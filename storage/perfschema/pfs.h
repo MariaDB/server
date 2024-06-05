@@ -41,16 +41,31 @@
 extern struct PSI_bootstrap PFS_bootstrap;
 /** Performance schema Thread Local Storage key.  */
 struct PFS_thread;
-extern thread_local PFS_thread* THR_PFS;
-extern thread_local void* THR_PFS_VG;  // global_variables
-extern thread_local void* THR_PFS_SV;  // session_variables
-extern thread_local void* THR_PFS_VBT; // variables_by_thread
-extern thread_local void* THR_PFS_SG;  // global_status
-extern thread_local void* THR_PFS_SS;  // session_status
-extern thread_local void* THR_PFS_SBT; // status_by_thread
-extern thread_local void* THR_PFS_SBU; // status_by_user
-extern thread_local void* THR_PFS_SBA; // status_by_host
-extern thread_local void* THR_PFS_SBH; // status_by_account
+
+/*
+   C++11 thread_local incurs a performance penalty on some platforms.
+   So we use the platform specific thread local storage mechanism, if available.
+*/
+#if __cplusplus >= 202002L
+#  define PFS_THREAD_LOCAL constinit thread_local
+#elif defined (_MSC_VER)
+#  define PFS_THREAD_LOCAL __declspec(thread)
+#elif defined(__GNUC__)
+#  define PFS_THREAD_LOCAL __thread
+#else
+#  define PFS_THREAD_LOCAL thread_local
+#endif
+
+extern PFS_THREAD_LOCAL PFS_thread* THR_PFS;
+extern PFS_THREAD_LOCAL void* THR_PFS_VG;  // global_variables
+extern PFS_THREAD_LOCAL void* THR_PFS_SV;  // session_variables
+extern PFS_THREAD_LOCAL void* THR_PFS_VBT; // variables_by_thread
+extern PFS_THREAD_LOCAL void* THR_PFS_SG;  // global_status
+extern PFS_THREAD_LOCAL void* THR_PFS_SS;  // session_status
+extern PFS_THREAD_LOCAL void* THR_PFS_SBT; // status_by_thread
+extern PFS_THREAD_LOCAL void* THR_PFS_SBU; // status_by_user
+extern PFS_THREAD_LOCAL void* THR_PFS_SBA; // status_by_host
+extern PFS_THREAD_LOCAL void* THR_PFS_SBH; // status_by_account
 
 #define PSI_VOLATILITY_UNKNOWN 0
 #define PSI_VOLATILITY_SESSION 1

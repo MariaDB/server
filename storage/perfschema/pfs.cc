@@ -1351,17 +1351,17 @@ static inline int mysql_mutex_lock(...)
   @ingroup Performance_schema_implementation
 */
 
-thread_local void* THR_PFS_VG;   // global_variables
-thread_local void* THR_PFS_SV;   // session_variables
-thread_local void* THR_PFS_VBT;  // variables_by_thread
-thread_local void* THR_PFS_SG;   // global_status
-thread_local void* THR_PFS_SS;   // session_status
-thread_local void* THR_PFS_SBT;  // status_by_thread
-thread_local void* THR_PFS_SBU;  // status_by_user
-thread_local void* THR_PFS_SBH;  // status_by_host
-thread_local void* THR_PFS_SBA;  // status_by_account
+PFS_THREAD_LOCAL void* THR_PFS_VG;   // global_variables
+PFS_THREAD_LOCAL void* THR_PFS_SV;   // session_variables
+PFS_THREAD_LOCAL void* THR_PFS_VBT;  // variables_by_thread
+PFS_THREAD_LOCAL void* THR_PFS_SG;   // global_status
+PFS_THREAD_LOCAL void* THR_PFS_SS;   // session_status
+PFS_THREAD_LOCAL void* THR_PFS_SBT;  // status_by_thread
+PFS_THREAD_LOCAL void* THR_PFS_SBU;  // status_by_user
+PFS_THREAD_LOCAL void* THR_PFS_SBH;  // status_by_host
+PFS_THREAD_LOCAL void* THR_PFS_SBA;  // status_by_account
 
-thread_local PFS_thread* THR_PFS;
+PFS_THREAD_LOCAL PFS_thread* THR_PFS;
 
 static inline PFS_thread*
 my_thread_get_THR_PFS()
