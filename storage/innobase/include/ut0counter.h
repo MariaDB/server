@@ -41,30 +41,6 @@ Created 2012/04/12 by Sunny Bains
 /** Default number of slots to use in ib_counter_t */
 #define IB_N_SLOTS		64
 
-/** Use the result of my_timer_cycles(), which mainly uses RDTSC for cycles
-as a random value. See the comments for my_timer_cycles() */
-/** @return result from RDTSC or similar functions. */
-static inline size_t
-get_rnd_value()
-{
-	size_t c = static_cast<size_t>(my_timer_cycles());
-
-	if (c != 0) {
-		return c;
-	}
-
-	/* We may go here if my_timer_cycles() returns 0,
-	so we have to have the plan B for the counter. */
-#if !defined(_WIN32)
-	return (size_t)os_thread_get_curr_id();
-#else
-	LARGE_INTEGER cnt;
-	QueryPerformanceCounter(&cnt);
-
-	return static_cast<size_t>(cnt.QuadPart);
-#endif /* !_WIN32 */
-}
-
 /** Class for using fuzzy counters. The counter is multi-instance relaxed atomic
 so the results are not guaranteed to be 100% accurate but close
 enough. Creates an array of counters and separates each element by the
@@ -80,7 +56,7 @@ struct ib_counter_t {
 
 	/** Add to the counter.
 	@param[in]	n	amount to be added */
-	void add(Type n) { add(get_rnd_value(), n); }
+	void add(Type n) { add(my_pseudo_random(), n); }
 
 	/** Add to the counter.
 	@param[in]	index	a reasonably thread-unique identifier
