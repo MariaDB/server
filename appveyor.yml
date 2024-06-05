@@ -32,4 +32,9 @@ skip_commits:
     - debian/
     - '**/*.sh'
 
+branches:
+  only:
+    - /bb-/
+    - /d+\.\d+/
+
 image: Visual Studio 2022
