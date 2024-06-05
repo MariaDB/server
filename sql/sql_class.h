@@ -2569,6 +2569,20 @@ public:
     return static_cast<PSI_thread*>(my_atomic_loadptr((void*volatile*)&m_psi));
   }
 
+  inline bool is_first_query_execution()
+  {
+    return  (stmt_arena->is_conventional() ||
+             stmt_arena->state != Query_arena::STMT_EXECUTED) &&
+            !stmt_arena->is_stmt_prepare();
+  }
+
+  inline bool is_noninitial_query_execution()
+  {
+    return  !stmt_arena->is_conventional() &&
+             stmt_arena->state == Query_arena::STMT_EXECUTED &&
+            !stmt_arena->is_stmt_prepare() ;
+  }
+
 private:
   unsigned int m_current_stage_key;
 
