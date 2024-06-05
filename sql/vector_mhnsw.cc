@@ -399,24 +399,17 @@ static int update_second_degree_neighbors(MHNSW_Context *ctx, size_t layer,
                                           uint max_neighbors,
                                           const FVectorNode &node)
 {
-  for (const FVectorNode &neigh: node.get_neighbors(layer)) // XXX why this loop?
-  {
-    neigh.get_neighbors(layer).push_back(&node, &ctx->root);
-    if (int err= write_neighbors(ctx, layer, neigh))
-      return err;
-  }
-
   for (const FVectorNode &neigh: node.get_neighbors(layer))
   {
+    neigh.get_neighbors(layer).push_back(&node, &ctx->root);
     if (neigh.get_neighbors(layer).elements > max_neighbors)
     {
-      // shrink the neighbors
       if (int err= select_neighbors(ctx, layer, neigh,
                                     neigh.get_neighbors(layer), max_neighbors))
         return err;
-      if (int err= write_neighbors(ctx, layer, neigh))
-        return err;
     }
+    if (int err= write_neighbors(ctx, layer, neigh))
+      return err;
   }
 
   return 0;
