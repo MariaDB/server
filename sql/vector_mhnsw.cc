@@ -28,11 +28,6 @@
 #include "sql_queue.h"
 #include <scope.h>
 
-#define HNSW_MAX_M 10000 // practically the number of neighbors should be ~100
-#define HNSW_MAX_M_WIDTH 2
-#define HNSW_MAX_M_store int2store
-#define HNSW_MAX_M_read  uint2korr
-
 const LEX_CSTRING mhnsw_hlindex_table={STRING_WITH_LEN("\
   CREATE TABLE i (                                      \
     layer int not null,                                 \
@@ -158,18 +153,11 @@ int FVectorNode::instantiate_neighbors(size_t layer)
         return err;
 
       String strbuf, *str= graph->field[2]->val_str(&strbuf);
-      const char *neigh_arr_bytes= str->ptr();
-      uint number_of_neighbors= HNSW_MAX_M_read(neigh_arr_bytes);
-      if (number_of_neighbors * ref_len + HNSW_MAX_M_WIDTH != str->length())
+      if (str->length() % ref_len)
         return HA_ERR_CRASHED; // should not happen, corrupted HNSW index
 
-      const char *pos= neigh_arr_bytes + HNSW_MAX_M_WIDTH;
-      for (uint i= 0; i < number_of_neighbors; i++)
-      {
-        FVectorNode *neigh= ctx->get_node(pos);
-        neighbors[layer].push_back(neigh, &ctx->root);
-        pos+= ref_len;
-      }
+      for (const char *pos= str->ptr(); pos < str->end(); pos+= ref_len)
+        neighbors[layer].push_back(ctx->get_node(pos), &ctx->root);
     }
     neighbors_read[layer]= 1;
   }
@@ -350,16 +338,13 @@ static int write_neighbors(MHNSW_Context *ctx, size_t layer,
   int err;
   TABLE *graph= ctx->table->hlindex;
   const List<FVectorNode> &new_neighbors= source_node.get_neighbors(layer);
-  DBUG_ASSERT(new_neighbors.elements <= HNSW_MAX_M);
 
-  size_t total_size= HNSW_MAX_M_WIDTH + new_neighbors.elements * source_node.get_ref_len();
+  size_t total_size= new_neighbors.elements * source_node.get_ref_len();
 
   // Allocate memory for the struct and the flexible array member
   char *neighbor_array_bytes= static_cast<char *>(my_safe_alloca(total_size));
 
-  // XXX why bother storing it?
-  HNSW_MAX_M_store(neighbor_array_bytes, new_neighbors.elements);
-  char *pos= neighbor_array_bytes + HNSW_MAX_M_WIDTH;
+  char *pos= neighbor_array_bytes;
   for (const auto &node: new_neighbors)
   {
     DBUG_ASSERT(node.get_ref_len() == source_node.get_ref_len());
