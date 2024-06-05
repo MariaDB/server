@@ -35,6 +35,6 @@ skip_commits:
 branches:
   only:
     - /bb-/
-    - /d+\.\d+/
+    - /\d+\.\d+$/
 
 image: Visual Studio 2022
