@@ -1985,3 +1985,4 @@ connection default;
 DROP VIEW v1;
 DROP USER foo;
 DROP USER FOO;
+# End of 10.5 tests

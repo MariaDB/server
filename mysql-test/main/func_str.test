@@ -1545,6 +1545,7 @@ CREATE TABLE t1 ( a TEXT );
 SELECT insert( substring_index( 'a', 'a', 'b' ), 1, 0, 'x' );
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --eval LOAD DATA INFILE '$MYSQLTEST_VARDIR/tmp/bug58165.txt' INTO TABLE t1;
+--remove_file $MYSQLTEST_VARDIR/tmp/bug58165.txt
 SELECT * FROM t1;
 DROP TABLE t1;
 
