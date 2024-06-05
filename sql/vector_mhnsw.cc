@@ -559,8 +559,6 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
     return write_neighbors(&ctx, 0, target);
   }
 
-  longlong max_layer= graph->field[0]->val_int();
-
   List<FVectorNode> candidates;
   List<FVectorNode> start_nodes;
   String ref_str, *ref_ptr;
@@ -585,36 +583,37 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
   double new_num= my_rnd(&thd->rand);
   double log= -std::log(new_num) * NORMALIZATION_FACTOR;
   longlong new_node_layer= static_cast<longlong>(std::floor(log));
+  longlong max_layer= graph->field[0]->val_int();
 
-  // XXX what is that?
-  for (longlong cur_layer= new_node_layer; cur_layer >= max_layer + 1;
-       cur_layer--)
+  if (new_node_layer > max_layer)
   {
-    if (int err= write_neighbors(&ctx, cur_layer, target))
+    if (int err= write_neighbors(&ctx, max_layer + 1, target))
       return err;
+    new_node_layer= max_layer;
+  }
+  else
+  {
+    for (longlong cur_layer= max_layer; cur_layer > new_node_layer; cur_layer--)
+    {
+      if (int err= search_layer(&ctx, start_nodes,
+                                thd->variables.hnsw_ef_constructor, cur_layer,
+                                &candidates))
+        return err;
+      start_nodes.empty();
+      start_nodes.push_back(candidates.head(), &ctx.root); // XXX ef=1
+      candidates.empty();
+    }
   }
 
-  for (longlong cur_layer= max_layer; cur_layer > new_node_layer; cur_layer--)
+  for (longlong cur_layer= new_node_layer; cur_layer >= 0; cur_layer--)
   {
     if (int err= search_layer(&ctx, start_nodes,
                               thd->variables.hnsw_ef_constructor, cur_layer,
                               &candidates))
       return err;
-    start_nodes.empty();
-    start_nodes.push_back(candidates.head(), &ctx.root); // XXX ef=1
-    candidates.empty();
-  }
 
-  for (longlong cur_layer= std::min(max_layer, new_node_layer);
-       cur_layer >= 0; cur_layer--)
-  {
-    if (int err= search_layer(&ctx, start_nodes,
-                              thd->variables.hnsw_ef_constructor, cur_layer,
-                              &candidates))
-      return err;
-
-    uint max_neighbors= (cur_layer == 0) ? // heuristics from the paper
-     thd->variables.hnsw_max_connection_per_layer * 2
+    uint max_neighbors= (cur_layer == 0)   // heuristics from the paper
+     ? thd->variables.hnsw_max_connection_per_layer * 2
      : thd->variables.hnsw_max_connection_per_layer;
 
     if (int err= select_neighbors(&ctx, cur_layer, target, candidates,
@@ -624,7 +623,6 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
       return err;
     start_nodes= candidates;
   }
-  start_nodes.empty();
 
   dbug_tmp_restore_column_map(&table->read_set, old_map);
 
