@@ -1,5 +1,6 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
+--source include/log_bin.inc
 
 #
 # This tests simple autocommit replication of MyISAM tables.
