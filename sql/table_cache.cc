@@ -293,9 +293,11 @@ static void tc_remove_all_unused_tables(TDC_element *element,
         periodicly flush all not used tables.
 */
 
-static my_bool tc_purge_callback(TDC_element *element,
-                                 Share_free_tables::List *purge_tables)
+static my_bool tc_purge_callback(void *_element, void *_purge_tables)
 {
+  TDC_element *element= static_cast<TDC_element *>(_element);
+  Share_free_tables::List *purge_tables=
+      static_cast<Share_free_tables::List *>(_purge_tables);
   mysql_mutex_lock(&element->LOCK_table_share);
   tc_remove_all_unused_tables(element, purge_tables);
   mysql_mutex_unlock(&element->LOCK_table_share);
@@ -566,17 +568,20 @@ static void lf_alloc_destructor(uchar *arg)
 
 
 static void tdc_hash_initializer(LF_HASH *,
-                                 TDC_element *element, LEX_STRING *key)
+                                 void *_element, const void *_key)
 {
+  TDC_element *element= static_cast<TDC_element *>(_element);
+  const LEX_STRING *key= static_cast<const LEX_STRING *>(_key);
   memcpy(element->m_key, key->str, key->length);
   element->m_key_length= (uint)key->length;
   tdc_assert_clean_share(element);
 }
 
 
-static uchar *tdc_hash_key(const TDC_element *element, size_t *length,
+static uchar *tdc_hash_key(const unsigned char *_element, size_t *length,
                            my_bool)
 {
+  const TDC_element *element= (const TDC_element *) _element;
   *length= element->m_key_length;
   return (uchar*) element->m_key;
 }
