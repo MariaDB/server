@@ -437,10 +437,15 @@ class rw_trx_hash_t
     not accessible by concurrent threads.
   */
 
+ // static void rw_trx_hash_initializer(LF_HASH *,
+ //                                     rw_trx_hash_element_t *element,
+ //                                     trx_t *trx)
   static void rw_trx_hash_initializer(LF_HASH *,
-                                      rw_trx_hash_element_t *element,
-                                      trx_t *trx)
+                                      void *_element,
+                                      const void *_trx)
   {
+    rw_trx_hash_element_t *element= (rw_trx_hash_element_t *) _element;
+    trx_t *trx= (trx_t *) _trx;
     ut_ad(element->trx == 0);
     element->trx= trx;
     element->id= trx->id;
