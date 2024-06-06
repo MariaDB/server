@@ -3700,15 +3700,13 @@ void buf_refresh_io_stats()
 All pages must be in a replaceable state (not modified or latched). */
 void buf_pool_invalidate()
 {
-	mysql_mutex_lock(&buf_pool.mutex);
-
 	/* It is possible that a write batch that has been posted
 	earlier is still not complete. For buffer pool invalidation to
 	proceed we must ensure there is NO write activity happening. */
 
-	ut_d(mysql_mutex_unlock(&buf_pool.mutex));
+	os_aio_wait_until_no_pending_writes(false);
 	ut_d(buf_pool.assert_all_freed());
-	ut_d(mysql_mutex_lock(&buf_pool.mutex));
+	mysql_mutex_lock(&buf_pool.mutex);
 
 	while (UT_LIST_GET_LEN(buf_pool.LRU)) {
 		buf_LRU_scan_and_free_block();
