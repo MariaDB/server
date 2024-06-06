@@ -210,9 +210,6 @@ static int cmp_vec(const FVector *target, const FVectorNode *a, const FVectorNod
   return 0;
 }
 
-const bool KEEP_PRUNED_CONNECTIONS=true; // XXX why?
-const bool EXTEND_CANDIDATES=true; // XXX or false?
-
 static int select_neighbors(MHNSW_Context *ctx, size_t layer,
                             const FVectorNode &target,
                             const List<FVectorNode> &candidates_unsafe,
@@ -246,20 +243,6 @@ static int select_neighbors(MHNSW_Context *ctx, size_t layer,
     pq.push(&candidate);
   }
 
-  if (EXTEND_CANDIDATES)
-  {
-    for (const FVectorNode &candidate : candidates)
-    {
-      for (const FVectorNode &extra_candidate : candidate.get_neighbors(layer))
-      {
-        if (visited.find(&extra_candidate))
-          continue;
-        visited.insert(&extra_candidate);
-        pq.push(&extra_candidate);
-      }
-    }
-  }
-
   DBUG_ASSERT(pq.elements());
   neighbors.push_back(pq.pop(), &ctx->root);
 
@@ -279,13 +262,10 @@ static int select_neighbors(MHNSW_Context *ctx, size_t layer,
       neighbors.push_back(vec, &ctx->root);
   }
 
-  if (KEEP_PRUNED_CONNECTIONS)
+  while (pq_discard.elements() &&
+         neighbors.elements < max_neighbor_connections)
   {
-    while (pq_discard.elements() &&
-           neighbors.elements < max_neighbor_connections)
-    {
-      neighbors.push_back(pq_discard.pop(), &ctx->root);
-    }
+    neighbors.push_back(pq_discard.pop(), &ctx->root);
   }
 
   return 0;
@@ -550,8 +530,8 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
   ref_ptr= graph->field[1]->val_str(&ref_str);
   FVectorNode start_node(&ctx, ref_ptr->ptr());
 
-  // TODO(cvicentiu) use a random start node in last layer.
-  // XXX or may be *all* nodes in the last layer? there should be few
+  // XXX may be *all* nodes in the last layer? there should be few
+  // xxx could boost recall, if needed
   if (start_nodes.push_back(&start_node, &ctx.root))
     return HA_ERR_OUT_OF_MEM;
 
@@ -635,14 +615,14 @@ int mhnsw_first(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit)
 
   longlong max_layer= graph->field[0]->val_int();
 
-  List<FVectorNode> candidates; // XXX List? not Queue by distance?
+  List<FVectorNode> candidates;
   List<FVectorNode> start_nodes;
   String ref_str, *ref_ptr= graph->field[1]->val_str(&ref_str);
 
   FVectorNode start_node(&ctx, ref_ptr->ptr());
 
-  // TODO(cvicentiu) use a random start node in last layer.
   // XXX or may be *all* nodes in the last layer? there should be few
+  // xxx could boost recall, if needed
   if (start_nodes.push_back(&start_node, &ctx.root))
     return HA_ERR_OUT_OF_MEM;
 
