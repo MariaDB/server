@@ -579,12 +579,9 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
   {
     for (longlong cur_layer= max_layer; cur_layer > new_node_layer; cur_layer--)
     {
-      if (int err= search_layer(&ctx, start_nodes,
-                                thd->variables.hnsw_ef_constructor, cur_layer,
-                                &candidates))
+      if (int err= search_layer(&ctx, start_nodes, 1, cur_layer, &candidates))
         return err;
-      start_nodes.empty();
-      start_nodes.push_back(candidates.head(), &ctx.root); // XXX ef=1
+      start_nodes= candidates;
       candidates.empty();
     }
   }
@@ -606,6 +603,7 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
     if (int err= update_neighbors(&ctx, cur_layer, max_neighbors, target))
       return err;
     start_nodes= candidates;
+    candidates.empty();
   }
 
   dbug_tmp_restore_column_map(&table->read_set, old_map);
@@ -667,12 +665,9 @@ int mhnsw_first(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit)
 
   for (size_t cur_layer= max_layer; cur_layer > 0; cur_layer--)
   {
-    //XXX in the paper ef_search=1 here
-    if (int err= search_layer(&ctx, start_nodes, ef_search, cur_layer,
-                              &candidates))
+    if (int err= search_layer(&ctx, start_nodes, 1, cur_layer, &candidates))
       return err;
-    start_nodes.empty();
-    start_nodes.push_back(candidates.head(), &ctx.root); // XXX so ef_search=1 ???
+    start_nodes= candidates;
     candidates.empty();
   }
 
