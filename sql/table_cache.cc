@@ -576,17 +576,20 @@ static void lf_alloc_destructor(uchar *arg)
 
 
 static void tdc_hash_initializer(LF_HASH *,
-                                 TDC_element *element, LEX_STRING *key)
+                                 void *_element, const void *_key)
 {
+  TDC_element *element= (TDC_element *) _element;
+  LEX_STRING *key= (LEX_STRING *) _key;
   memcpy(element->m_key, key->str, key->length);
   element->m_key_length= (uint)key->length;
   tdc_assert_clean_share(element);
 }
 
 
-static uchar *tdc_hash_key(const TDC_element *element, size_t *length,
+static uchar *tdc_hash_key(const unsigned char *_element, size_t *length,
                            my_bool)
 {
+  const TDC_element *element= (const TDC_element *) _element;
   *length= element->m_key_length;
   return (uchar*) element->m_key;
 }
