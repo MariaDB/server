@@ -673,8 +673,10 @@ public:
   { ((MDL_lock*)(arg + LF_HASH_OVERHEAD))->~MDL_lock(); }
 
   static void lf_hash_initializer(LF_HASH *hash __attribute__((unused)),
-                                  MDL_lock *lock, MDL_key *key_arg)
+                                  void *_lock, const void *_key_arg)
   {
+    MDL_lock *lock= static_cast<MDL_lock *>(_lock);
+    const MDL_key *key_arg= static_cast<const MDL_key *>(_key_arg);
     DBUG_ASSERT(key_arg->mdl_namespace() != MDL_key::BACKUP);
     new (&lock->key) MDL_key(key_arg);
     if (key_arg->mdl_namespace() == MDL_key::SCHEMA)
