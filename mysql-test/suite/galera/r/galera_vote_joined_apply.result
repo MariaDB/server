@@ -1,0 +1,93 @@
+connection node_4;
+connection node_3;
+connection node_2;
+connection node_1;
+connection node_1;
+connection node_2;
+connection node_3;
+connection node_4;
+connection node_1;
+CREATE TABLE t1(pk INT AUTO_INCREMENT PRIMARY KEY);
+CREATE PROCEDURE p1(IN max INT)
+BEGIN
+DECLARE i INT;
+DECLARE CONTINUE HANDLER FOR SQLEXCEPTION BEGIN END;
+SET i = 0;
+WHILE i < max DO
+INSERT IGNORE INTO t1 VALUES (DEFAULT);
+SET i = i + 1;
+END WHILE;
+END|
+CALL p1(130);
+connection node_4;
+Shutting down server 4...
+connection node_1;
+SET SESSION wsrep_on = ON;
+SET SESSION wsrep_sync_wait = 15;
+SET GLOBAL debug = "+d,sync.wsrep_donor_state";
+connection node_4;
+Restarting server 4...
+connection node_1;
+SET SESSION DEBUG_SYNC = "now WAIT_FOR sync.wsrep_donor_state_reached";
+Tables on server 1 flushed and locked for SST to server 4
+SET SESSION DEBUG_SYNC = "now SIGNAL signal.wsrep_donor_state";
+SET GLOBAL debug = "";
+SET DEBUG_SYNC='RESET';
+Wait for the state snapshot to be copied to server 4
+SST script unlocked server 1
+connection node_1;
+CALL p1(130);
+connection node_1;
+SET SESSION wsrep_on = OFF;
+CREATE TABLE t2(pk INT AUTO_INCREMENT PRIMARY KEY);
+SET SESSION wsrep_on = ON;
+connection node_2;
+SET SESSION wsrep_on = OFF;
+CREATE TABLE t2(pk INT AUTO_INCREMENT PRIMARY KEY);
+SET SESSION wsrep_on = ON;
+connection node_3;
+SET SESSION wsrep_on = OFF;
+CREATE TABLE t2(pk INT AUTO_INCREMENT PRIMARY KEY);
+SET SESSION wsrep_on = ON;
+INSERT INTO t2 VALUES (DEFAULT);
+CALL p1(130);
+Waiting for server 4 to leave the cluster
+SET SESSION wsrep_on = ON;
+SET SESSION wsrep_sync_wait = 15;
+connection node_2;
+SET SESSION wsrep_on = ON;
+SET SESSION wsrep_sync_wait = 15;
+connection node_1;
+SET SESSION wsrep_on = ON;
+SET SESSION wsrep_sync_wait = 15;
+connection node_4;
+Server 4 left the cluster, killing it...
+Killed server 4...
+Restarting server 4...
+DROP TABLE t2;
+connection node_1;
+SET SESSION wsrep_on = ON;
+SET SESSION wsrep_sync_wait = 15;
+connection node_1;
+SELECT count(*) AS expect1_390 FROM t1;
+expect1_390
+390
+connection node_2;
+SELECT count(*) AS expect2_390 FROM t1;
+expect2_390
+390
+connection node_3;
+SELECT count(*) AS expect3_390 FROM t1;
+expect3_390
+390
+connection node_4;
+SELECT count(*) AS expect4_390 FROM t1;
+expect4_390
+390
+DROP TABLE t1;
+DROP PROCEDURE p1;
+connection node_4;
+CALL mtr.add_suppression("BF applier failed to open_and_lock_tables: 1146");
+CALL mtr.add_suppression("Event 3 Write_rows_v1 apply failed: 1146");
+CALL mtr.add_suppression("Inconsistency detected: Inconsistent by consensus");
+CALL mtr.add_suppression("Failed to apply write set: gtid:");

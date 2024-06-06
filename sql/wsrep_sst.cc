@@ -1871,8 +1871,17 @@ wait_signal:
                    wsrep::seqno(err ? wsrep::seqno::undefined() :
                                 wsrep::seqno(ret_seqno)));
 
-  Wsrep_server_state::instance().sst_sent(gtid, err);
+#ifdef ENABLED_DEBUG_SYNC
+  DBUG_EXECUTE_IF("sync.wsrep_sst_donor_after_donation", {
+    const char act[] =
+        "now "
+        "SIGNAL sync.wsrep_sst_donor_after_donation_reached "
+        "WAIT_FOR signal.wsrep_sst_donor_after_donation_continue";
+    assert(!debug_sync_set_action(thd.ptr, STRING_WITH_LEN(act)));
+  });
+#endif /* ENABLED_DEBUG_SYNC */
 
+  Wsrep_server_state::instance().sst_sent(gtid, err);
   proc.wait();
 
   wsrep_donor_monitor_end();
