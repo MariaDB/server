@@ -224,11 +224,6 @@ static int select_neighbors(MHNSW_Context *ctx, size_t layer,
                             const List<FVectorNode> &candidates_unsafe,
                             size_t max_neighbor_connections)
 {
-  /*
-    TODO: If the input neighbors list is already sorted in search_layer, then
-    no need to do additional queue build steps here.
-   */
-
   Hash_set<FVectorNode> visited(PSI_INSTRUMENT_MEM, FVectorNode::get_key);
   Queue<FVectorNode, const FVector> pq; // working queue
   Queue<FVectorNode, const FVector> pq_discard; // queue for discarded candidates
@@ -240,8 +235,6 @@ static int select_neighbors(MHNSW_Context *ctx, size_t layer,
   List<FVectorNode> &neighbors= target.get_neighbors(layer);
   neighbors.empty();
 
-  // TODO(cvicentiu) this 1000 here is a hardcoded value for max queue size.
-  // This should not be fixed.
   if (pq.init(10000, 0, cmp_vec, &target) ||
       pq_discard.init(10000, 0, cmp_vec, &target))
     return HA_ERR_OUT_OF_MEM;
@@ -467,10 +460,7 @@ static int search_layer(MHNSW_Context *ctx,
   DBUG_PRINT("VECTOR", ("SEARCH_LAYER_END %d best", best.elements()));
 
   while (best.elements())
-  {
-    // TODO(cvicentiu) this is n*log(n), we need a queue iterator.
     result->push_front(best.pop(), &ctx->root);
-  }
 
   return 0;
 }
@@ -544,8 +534,6 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
   ref_ptr= graph->field[1]->val_str(&ref_str);
   FVectorNode start_node(&ctx, ref_ptr->ptr());
 
-  // XXX may be *all* nodes in the last layer? there should be few
-  // xxx could boost recall, if needed
   if (start_nodes.push_back(&start_node, &ctx.root))
     return HA_ERR_OUT_OF_MEM;
 
@@ -635,8 +623,8 @@ int mhnsw_first(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit)
 
   FVectorNode start_node(&ctx, ref_ptr->ptr());
 
-  // XXX or may be *all* nodes in the last layer? there should be few
-  // xxx could boost recall, if needed
+  // one could put all max_layer nodes in start_nodes
+  // but it has no effect of the recall or speed
   if (start_nodes.push_back(&start_node, &ctx.root))
     return HA_ERR_OUT_OF_MEM;
 
