@@ -184,7 +184,7 @@ static inline uint64_t CombineCRC(
 // Compute CRC-32C using the Intel hardware instruction.
 extern "C"
 USE_PCLMUL
-uint32_t crc32c_3way(uint32_t crc, const char *buf, size_t len)
+uint32_t crc32c_3way(uint32_t crc, const void *buf, size_t len)
 {
   const unsigned char* next = (const unsigned char*)buf;
   uint64_t count;
