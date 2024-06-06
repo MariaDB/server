@@ -2165,6 +2165,12 @@ void buf_page_free(fil_space_t *space, uint32_t page, mtr_t *mtr)
   mtr->memo_push(block, MTR_MEMO_PAGE_X_MODIFY);
 }
 
+static void buf_inc_get(ha_handler_stats *stats)
+{
+  mariadb_increment_pages_accessed(stats);
+  ++buf_pool.stat.n_page_gets;
+}
+
 /** Get read access to a compressed page (usually of type
 FIL_PAGE_TYPE_ZBLOB or FIL_PAGE_TYPE_ZBLOB2).
 The page must be released with unfix().
@@ -2180,8 +2186,8 @@ buf_page_t* buf_page_get_zip(const page_id_t page_id, ulint zip_size)
 {
   ut_ad(zip_size);
   ut_ad(ut_is_2pow(zip_size));
-  ++buf_pool.stat.n_page_gets;
-  mariadb_increment_pages_accessed();
+  ha_handler_stats *const stats= mariadb_stats;
+  buf_inc_get(stats);
 
   buf_pool_t::hash_chain &chain= buf_pool.page_hash.cell_get(page_id.fold());
   page_hash_latch &hash_lock= buf_pool.page_hash.lock_get(chain);
@@ -2283,7 +2289,7 @@ must_read_page:
   switch (dberr_t err= buf_read_page(page_id, zip_size)) {
   case DB_SUCCESS:
   case DB_SUCCESS_LOCKED_REC:
-    mariadb_increment_pages_read();
+    mariadb_increment_pages_read(stats);
     goto lookup;
   default:
     ib::error() << "Reading compressed page " << page_id
@@ -2460,9 +2466,8 @@ buf_page_get_low(
 	ut_ad(!mtr || !ibuf_inside(mtr)
 	      || ibuf_page_low(page_id, zip_size, FALSE, NULL));
 
-	++buf_pool.stat.n_page_gets;
-        mariadb_increment_pages_accessed();
-
+	ha_handler_stats* const stats = mariadb_stats;
+	buf_inc_get(stats);
 	auto& chain= buf_pool.page_hash.cell_get(page_id.fold());
 	page_hash_latch& hash_lock = buf_pool.page_hash.lock_get(chain);
 loop:
@@ -2533,7 +2538,7 @@ loop:
 	switch (dberr_t local_err = buf_read_page(page_id, zip_size)) {
 	case DB_SUCCESS:
 	case DB_SUCCESS_LOCKED_REC:
-                mariadb_increment_pages_read();
+		mariadb_increment_pages_read(stats);
 		buf_read_ahead_random(page_id, zip_size, ibuf_inside(mtr));
 		break;
 	default:
@@ -3127,8 +3132,7 @@ buf_block_t *buf_page_try_get(const page_id_t page_id, mtr_t *mtr)
   ut_ad(block->page.buf_fix_count());
   ut_ad(block->page.id() == page_id);
 
-  ++buf_pool.stat.n_page_gets;
-  mariadb_increment_pages_accessed();
+  buf_inc_get(mariadb_stats);
   return block;
 }
 

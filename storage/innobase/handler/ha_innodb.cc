@@ -110,8 +110,7 @@ extern my_bool opt_readonly;
 #include "ut0mem.h"
 #include "row0ext.h"
 #include "mariadb_stats.h"
-thread_local ha_handler_stats mariadb_dummy_stats;
-thread_local ha_handler_stats *mariadb_stats= &mariadb_dummy_stats;
+simple_thread_local ha_handler_stats *mariadb_stats;
 
 #include <limits>
 #include <myisamchk.h>                          // TT_FOR_UPGRADE
