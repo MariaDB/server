@@ -4705,7 +4705,9 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
 #ifdef WITH_WSREP
       if (wsrep && !first_table->view)
       {
-        bool is_innodb= (first_table->table->file->ht->db_type == DB_TYPE_INNODB);
+        const handlerton *hton = first_table->table->file->partition_ht() ?
+          first_table->table->file->partition_ht() : first_table->table->file->ht;
+        bool is_innodb= (hton->db_type == DB_TYPE_INNODB);
 
         // For consistency check inserted table needs to be InnoDB
         if (!is_innodb && thd->wsrep_consistency_check != NO_CONSISTENCY_CHECK)
