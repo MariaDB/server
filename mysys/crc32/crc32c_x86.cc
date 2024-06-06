@@ -56,7 +56,7 @@ static uint32_t cpuid_ecx()
 
 typedef unsigned (*my_crc32_t)(unsigned, const void *, size_t);
 extern "C" unsigned int crc32_pclmul(unsigned int, const void *, size_t);
-extern "C" unsigned int crc32c_3way(unsigned int, const void *, size_t);
+extern "C" unsigned int crc32c_3way(unsigned int, const char *, size_t);
 
 #ifdef USE_VPCLMULQDQ
 # include <immintrin.h>
@@ -417,6 +417,11 @@ extern "C" my_crc32_t crc32_pclmul_enabled(void)
   return crc32_pclmul;
 }
 
+extern "C" unsigned ma_crc32c_3way(unsigned crc, const void *buf, size_t size)
+{
+  return crc32c_3way(crc, (const char *) buf, size);
+}
+
 extern "C" my_crc32_t crc32c_x86_available(void)
 {
 #ifdef USE_VPCLMULQDQ
@@ -426,7 +431,7 @@ extern "C" my_crc32_t crc32c_x86_available(void)
 #if SIZEOF_SIZE_T == 8
   switch (cpuid_ecx() & cpuid_ecx_SSE42_AND_PCLMUL) {
   case cpuid_ecx_SSE42_AND_PCLMUL:
-    return crc32c_3way;
+    return ma_crc32c_3way;
   case cpuid_ecx_SSE42:
     return crc32c_sse42;
   }
@@ -444,7 +449,7 @@ extern "C" const char *crc32c_x86_impl(my_crc32_t c)
     return "Using AVX512 instructions";
 #endif
 #if SIZEOF_SIZE_T == 8
-  if (c == crc32c_3way)
+  if (c == ma_crc32c_3way)
     return "Using crc32 + pclmulqdq instructions";
 #endif
   if (c == crc32c_sse42)
