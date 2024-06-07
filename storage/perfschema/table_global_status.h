@@ -59,7 +59,7 @@ class table_global_status_context : public PFS_table_context
 {
 public:
   table_global_status_context(ulonglong current_version, bool restore) :
-    PFS_table_context(current_version, restore, THR_PFS_SG) { }
+    PFS_table_context(current_version, restore, &THR_PFS_SG) { }
 };
 
 /** Table PERFORMANCE_SCHEMA.GLOBAL_STATUS. */

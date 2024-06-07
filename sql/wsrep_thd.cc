@@ -30,7 +30,6 @@
 #include "rpl_rli.h"
 #include "rpl_mi.h"
 
-extern "C" pthread_key(struct st_my_thread_var*, THR_KEY_mysys);
 
 static Wsrep_thd_queue* wsrep_rollback_queue= 0;
 static Atomic_counter<uint64_t> wsrep_bf_aborts_counter;
@@ -513,8 +512,8 @@ int wsrep_create_threadvars()
   {
     /* Caller should have called wsrep_reset_threadvars() before this
        method. */
-    DBUG_ASSERT(!pthread_getspecific(THR_KEY_mysys));
-    pthread_setspecific(THR_KEY_mysys, 0);
+    DBUG_ASSERT(!my_thread_var);
+    set_mysys_var(0);
     ret= my_thread_init();
   }
   return ret;
@@ -526,7 +525,7 @@ void wsrep_delete_threadvars()
   {
     /* The caller should have called wsrep_store_threadvars() before
        this method. */
-    DBUG_ASSERT(pthread_getspecific(THR_KEY_mysys));
+    DBUG_ASSERT(my_thread_var);
     /* Reset psi state to avoid deallocating applier thread
        psi_thread. */
 #ifdef HAVE_PSI_INTERFACE
@@ -538,7 +537,7 @@ void wsrep_delete_threadvars()
 #endif /* HAVE_PSI_INTERFACE */
     my_thread_end();
     PSI_CALL_set_thread(psi_thread);
-    pthread_setspecific(THR_KEY_mysys, 0);
+    set_mysys_var(0);
   }
 }
 
@@ -546,9 +545,7 @@ void wsrep_assign_from_threadvars(THD *thd)
 {
   if (thread_handling == SCHEDULER_TYPES_COUNT)
   {
-    st_my_thread_var *mysys_var= (st_my_thread_var *)pthread_getspecific(THR_KEY_mysys);
-    DBUG_ASSERT(mysys_var);
-    thd->set_mysys_var(mysys_var);
+    thd->set_mysys_var(my_thread_var);
   }
 }
 
@@ -556,21 +553,21 @@ Wsrep_threadvars wsrep_save_threadvars()
 {
   return Wsrep_threadvars{
     current_thd,
-    (st_my_thread_var*) pthread_getspecific(THR_KEY_mysys)
+    my_thread_var
   };
 }
 
 void wsrep_restore_threadvars(const Wsrep_threadvars& globals)
 {
   set_current_thd(globals.cur_thd);
-  pthread_setspecific(THR_KEY_mysys, globals.mysys_var);
+  set_mysys_var(globals.mysys_var);
 }
 
 void wsrep_store_threadvars(THD *thd)
 {
   if (thread_handling ==  SCHEDULER_TYPES_COUNT)
   {
-    pthread_setspecific(THR_KEY_mysys, thd->mysys_var);
+    set_mysys_var(thd->mysys_var);
   }
   thd->store_globals();
 }
@@ -579,7 +576,7 @@ void wsrep_reset_threadvars(THD *thd)
 {
   if (thread_handling == SCHEDULER_TYPES_COUNT)
   {
-    pthread_setspecific(THR_KEY_mysys, 0);
+    set_mysys_var(0);
   }
   else
   {

@@ -61,7 +61,7 @@ class table_session_status_context : public PFS_table_context
 {
 public:
   table_session_status_context(ulonglong current_version, bool restore) :
-    PFS_table_context(current_version, restore, THR_PFS_SS) { }
+    PFS_table_context(current_version, restore, &THR_PFS_SS) { }
 };
 
 /** Table PERFORMANCE_SCHEMA.SESSION_STATUS. */
