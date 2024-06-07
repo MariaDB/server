@@ -6427,7 +6427,10 @@ int ha_create_table(THD *thd, const char *path, const char *db,
       LEX_CSTRING sql= mhnsw_hlindex_table_def(thd, ref_length);
       if ((error= index_share.init_from_sql_statement_string(thd, false,
                         sql.str, sql.length)))
+      {
+        index_share.db_plugin= NULL;
         break;
+      }
 
       uint unused;
       if ((error= ha_create_table_from_share(thd, &index_share, &index_cinfo,
