@@ -29,6 +29,7 @@ typedef struct st_federated_server
   long port;
   size_t server_name_length;
   const char *db, *scheme, *username, *password, *socket, *owner, *host, *sport;
+  engine_option_value *option_list;
 } FOREIGN_SERVER;
 
 /* cache handlers */

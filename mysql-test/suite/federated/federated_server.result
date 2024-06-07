@@ -61,9 +61,9 @@ PORT SLAVE_PORT,
 SOCKET '',
 OWNER 'root');
 select * from mysql.servers order by db;
-Server_name	Host	Db	Username	Password	Port	Socket	Wrapper	Owner
-server_one	127.0.0.1	first_db	root		SLAVE_PORT		mysql	root
-server_two	127.0.0.1	second_db	root		SLAVE_PORT		mysql	root
+Server_name	Host	Db	Username	Password	Port	Socket	Wrapper	Owner	Options
+server_one	127.0.0.1	first_db	root		SLAVE_PORT		mysql	root	{"HOST": "127.0.0.1", "DATABASE": "first_db", "USER": "root", "PASSWORD": "", "PORT": "SLAVE_PORT", "SOCKET": "", "OWNER": "root"}
+server_two	127.0.0.1	second_db	root		SLAVE_PORT		mysql	root	{"HOST": "127.0.0.1", "DATABASE": "second_db", "USER": "root", "PASSWORD": "", "PORT": "SLAVE_PORT", "SOCKET": "", "OWNER": "root"}
 DROP TABLE IF EXISTS federated.old;
 Warnings:
 Note	1051	Unknown table 'federated.old'
@@ -161,7 +161,7 @@ drop table federated.t1;
 drop server 'server_one';
 drop server 'server_two';
 select * from mysql.servers order by db;
-Server_name	Host	Db	Username	Password	Port	Socket	Wrapper	Owner
+Server_name	Host	Db	Username	Password	Port	Socket	Wrapper	Owner	Options
 connection slave;
 drop table first_db.t1;
 drop table second_db.t1;
