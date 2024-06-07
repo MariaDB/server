@@ -12297,3 +12297,5 @@ WARN_INDEX_HINTS_IGNORED
         ukr "Підказки по використанню индексів ігноруются тому що вони несумісні з RETURNING"
 ER_SIGNAL_SKIP_ROW_FROM_TRIGGER
         eng "The row is skipped by a trigger implementation"
+ER_NOT_IMPLEMENTED_FOR_GEOGRAPHIC_SRS
+        eng "%s has not been implemented for geographic spatial reference systems."
