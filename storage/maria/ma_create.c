@@ -745,7 +745,7 @@ int maria_create(const char *name, enum data_file_type datafile_type,
   share.state.sortkey=  (ushort) ~0;
   share.state.auto_increment=ci->auto_increment;
   share.options=options;
-  share.base.rec_reflength=pointer;
+  share.base.rec_reflength= ci->rec_reflength= pointer;
   share.base.block_size= maria_block_size;
   share.base.language= (ci->language ? ci->language :
                         default_charset_info->number);
