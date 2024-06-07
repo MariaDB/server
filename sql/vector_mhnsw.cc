@@ -48,6 +48,7 @@ private:
   char *neighbors_read= 0;
   mutable float cached_distance;
   mutable const FVector *cached_other= nullptr;
+  mutable ulonglong visited= 0;
 public:
   FVectorNode(MHNSW_Context *ctx_, const void *ref_);
   FVectorNode(MHNSW_Context *ctx_, const void *ref_, const void *vec_);
@@ -58,6 +59,7 @@ public:
   uchar *get_ref() const { return ref; }
   List<FVectorNode> &get_neighbors(size_t layer) const;
   bool is_new() const;
+  bool is_visited() const;
 
   static uchar *get_key(const FVectorNode *elem, size_t *key_len, my_bool);
 };
@@ -70,6 +72,7 @@ class MHNSW_Context
   Field *vec_field;
   size_t vec_len= 0;
   FVector *target= 0;
+  ulonglong visited= 0;
 
   Hash_set<FVectorNode> node_cache{PSI_INSTRUMENT_MEM, FVectorNode::get_key};
 
@@ -179,6 +182,14 @@ bool FVectorNode::is_new() const
   return this == ctx->target;
 }
 
+bool FVectorNode::is_visited() const
+{
+  if (visited == ctx->visited)
+    return 1;
+  visited= ctx->visited;
+  return 0;
+}
+
 uchar *FVectorNode::get_key(const FVectorNode *elem, size_t *key_len, my_bool)
 {
   *key_len= elem->get_ref_len();
@@ -215,7 +226,6 @@ static int select_neighbors(MHNSW_Context *ctx, size_t layer,
                             const List<FVectorNode> &candidates_unsafe,
                             size_t max_neighbor_connections)
 {
-  Hash_set<FVectorNode> visited(PSI_INSTRUMENT_MEM, FVectorNode::get_key);
   Queue<FVectorNode, const FVector> pq; // working queue
   Queue<FVectorNode, const FVector> pq_discard; // queue for discarded candidates
   /*
@@ -231,10 +241,7 @@ static int select_neighbors(MHNSW_Context *ctx, size_t layer,
     return HA_ERR_OUT_OF_MEM;
 
   for (const FVectorNode &candidate : candidates)
-  {
-    visited.insert(&candidate);
     pq.push(&candidate);
-  }
 
   DBUG_ASSERT(pq.elements());
   neighbors.push_back(pq.pop(), &ctx->root);
@@ -249,10 +256,10 @@ static int select_neighbors(MHNSW_Context *ctx, size_t layer,
       if ((discard= vec->distance_to(neigh) < target_dist))
         break;
     }
-    if (discard)
-      pq_discard.push(vec);
-    else
+    if (!discard)
       neighbors.push_back(vec, &ctx->root);
+    else if (pq_discard.elements() + neighbors.elements < max_neighbour_connections)
+      pq_discard.push(vec);
   }
 
   if (KEEP_PRUNED_CONNECTIONS)
@@ -352,11 +359,12 @@ static int search_layer(MHNSW_Context *ctx,
 
   Queue<FVectorNode, const FVector> candidates;
   Queue<FVectorNode, const FVector> best;
-  Hash_set<FVectorNode> visited(PSI_INSTRUMENT_MEM, FVectorNode::get_key);
   const FVector &target= *ctx->target;
 
   candidates.init(10000, false, cmp_vec, &target);
   best.init(max_candidates_return, true, cmp_vec, &target);
+
+  ctx->visited++;
 
   for (const FVectorNode &node : start_nodes)
   {
@@ -365,7 +373,7 @@ static int search_layer(MHNSW_Context *ctx,
       best.push(&node);
     else if (node.distance_to(target) > best.top()->distance_to(target))
       best.replace_top(&node);
-    visited.insert(&node);
+    node.is_visited();
   }
 
   float furthest_best= best.top()->distance_to(target);
@@ -381,10 +389,8 @@ static int search_layer(MHNSW_Context *ctx,
 
     for (const FVectorNode &neigh: cur_vec.get_neighbors(layer))
     {
-      if (visited.find(&neigh))
+      if (neigh.is_visited())
         continue;
-
-      visited.insert(&neigh);
       if (best.elements() < max_candidates_return)
       {
         candidates.push(&neigh);
@@ -473,12 +479,12 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
   String ref_str, *ref_ptr;
 
   ref_ptr= graph->field[1]->val_str(&ref_str);
-  FVectorNode start_node(&ctx, ref_ptr->ptr());
+  FVectorNode *start_node= ctx.get_node(ref_ptr->ptr());
 
-  if (start_nodes.push_back(&start_node, &ctx.root))
+  if (start_nodes.push_back(start_node, &ctx.root))
     return HA_ERR_OUT_OF_MEM;
 
-  if (int err= start_node.instantiate_vector())
+  if (int err= start_node->instantiate_vector())
     return err;
 
   if (ctx.vec_len * sizeof(float) != res->length())
@@ -562,14 +568,14 @@ int mhnsw_first(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit)
   List<FVectorNode> start_nodes;
   String ref_str, *ref_ptr= graph->field[1]->val_str(&ref_str);
 
-  FVectorNode start_node(&ctx, ref_ptr->ptr());
+  FVectorNode *start_node= ctx.get_node(ref_ptr->ptr());
 
   // one could put all max_layer nodes in start_nodes
   // but it has no effect of the recall or speed
-  if (start_nodes.push_back(&start_node, &ctx.root))
+  if (start_nodes.push_back(start_node, &ctx.root))
     return HA_ERR_OUT_OF_MEM;
 
-  if (int err= start_node.instantiate_vector())
+  if (int err= start_node->instantiate_vector())
     return err;
 
   /*
