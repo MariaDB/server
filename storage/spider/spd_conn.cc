@@ -376,6 +376,19 @@ void spider_free_conn_from_trx(
   DBUG_VOID_RETURN;
 }
 
+static inline void spider_memcpy_or_null(char **dest, char *alloced,
+                                         char *src, uint *dest_len,
+                                         uint tgt_len)
+{
+  *dest_len= tgt_len;
+  if (src)
+  {
+    *dest= alloced;
+    memcpy(*dest, src, tgt_len);
+  } else
+    *dest= NULL;
+}
+
 SPIDER_CONN *spider_create_conn(
   SPIDER_SHARE *share,
   ha_spider *spider,
@@ -454,124 +467,70 @@ SPIDER_CONN *spider_create_conn(
     memcpy(conn->conn_key, share->conn_keys[link_idx],
       share->conn_keys_lengths[link_idx]);
     conn->conn_key_hash_value = share->conn_keys_hash_value[link_idx];
-    conn->tgt_host_length = share->tgt_hosts_lengths[link_idx];
-    conn->tgt_host = tmp_host;
-    memcpy(conn->tgt_host, share->tgt_hosts[link_idx],
-      share->tgt_hosts_lengths[link_idx]);
-
-    conn->tgt_username_length = share->tgt_usernames_lengths[link_idx];
-    conn->tgt_username = tmp_username;
-    if (conn->tgt_username_length)
-      memcpy(conn->tgt_username, share->tgt_usernames[link_idx],
-             share->tgt_usernames_lengths[link_idx]);
-
-    conn->tgt_password_length = share->tgt_passwords_lengths[link_idx];
-    conn->tgt_password = tmp_password;
-    if (conn->tgt_password_length)
-      memcpy(conn->tgt_password, share->tgt_passwords[link_idx],
-             share->tgt_passwords_lengths[link_idx]);
-
-    conn->tgt_socket_length = share->tgt_sockets_lengths[link_idx];
-    conn->tgt_socket = tmp_socket;
-    if (conn->tgt_socket_length)
-      memcpy(conn->tgt_socket, share->tgt_sockets[link_idx],
-             share->tgt_sockets_lengths[link_idx]);
-
-    conn->tgt_wrapper_length = share->tgt_wrappers_lengths[link_idx];
-    conn->tgt_wrapper = tmp_wrapper;
-    memcpy(conn->tgt_wrapper, share->tgt_wrappers[link_idx],
-      share->tgt_wrappers_lengths[link_idx]);
+    spider_memcpy_or_null(&conn->tgt_host, tmp_host,
+                          share->tgt_hosts[link_idx], &conn->tgt_host_length,
+                          share->tgt_hosts_lengths[link_idx]);
+    spider_memcpy_or_null(&conn->tgt_username, tmp_username,
+                          share->tgt_usernames[link_idx],
+                          &conn->tgt_username_length,
+                          share->tgt_usernames_lengths[link_idx]);
+    spider_memcpy_or_null(&conn->tgt_password, tmp_password,
+                          share->tgt_passwords[link_idx],
+                          &conn->tgt_password_length,
+                          share->tgt_passwords_lengths[link_idx]);
+    spider_memcpy_or_null(&conn->tgt_socket, tmp_socket,
+                          share->tgt_sockets[link_idx],
+                          &conn->tgt_socket_length,
+                          share->tgt_sockets_lengths[link_idx]);
+    spider_memcpy_or_null(&conn->tgt_wrapper, tmp_wrapper,
+                          share->tgt_wrappers[link_idx],
+                          &conn->tgt_wrapper_length,
+                          share->tgt_wrappers_lengths[link_idx]);
     if (!tables_on_different_db_are_joinable)
     {
-      conn->tgt_db_length = share->tgt_dbs_lengths[link_idx];
-      conn->tgt_db = tmp_db;
-      memcpy(conn->tgt_db, share->tgt_dbs[link_idx],
-        share->tgt_dbs_lengths[link_idx]);
+      spider_memcpy_or_null(&conn->tgt_db, tmp_db, share->tgt_dbs[link_idx],
+                            &conn->tgt_db_length,
+                            share->tgt_dbs_lengths[link_idx]);
     }
-    conn->tgt_ssl_ca_length = share->tgt_ssl_cas_lengths[link_idx];
-    if (conn->tgt_ssl_ca_length)
-    {
-      conn->tgt_ssl_ca = tmp_ssl_ca;
-      memcpy(conn->tgt_ssl_ca, share->tgt_ssl_cas[link_idx],
-        share->tgt_ssl_cas_lengths[link_idx]);
-    } else
-      conn->tgt_ssl_ca = NULL;
-    conn->tgt_ssl_capath_length = share->tgt_ssl_capaths_lengths[link_idx];
-    if (conn->tgt_ssl_capath_length)
-    {
-      conn->tgt_ssl_capath = tmp_ssl_capath;
-      memcpy(conn->tgt_ssl_capath, share->tgt_ssl_capaths[link_idx],
-        share->tgt_ssl_capaths_lengths[link_idx]);
-    } else
-      conn->tgt_ssl_capath = NULL;
-    conn->tgt_ssl_cert_length = share->tgt_ssl_certs_lengths[link_idx];
-    if (conn->tgt_ssl_cert_length)
-    {
-      conn->tgt_ssl_cert = tmp_ssl_cert;
-      memcpy(conn->tgt_ssl_cert, share->tgt_ssl_certs[link_idx],
-        share->tgt_ssl_certs_lengths[link_idx]);
-    } else
-      conn->tgt_ssl_cert = NULL;
-    conn->tgt_ssl_cipher_length = share->tgt_ssl_ciphers_lengths[link_idx];
-    if (conn->tgt_ssl_cipher_length)
-    {
-      conn->tgt_ssl_cipher = tmp_ssl_cipher;
-      memcpy(conn->tgt_ssl_cipher, share->tgt_ssl_ciphers[link_idx],
-        share->tgt_ssl_ciphers_lengths[link_idx]);
-    } else
-      conn->tgt_ssl_cipher = NULL;
-    conn->tgt_ssl_key_length = share->tgt_ssl_keys_lengths[link_idx];
-    if (conn->tgt_ssl_key_length)
-    {
-      conn->tgt_ssl_key = tmp_ssl_key;
-      memcpy(conn->tgt_ssl_key, share->tgt_ssl_keys[link_idx],
-        share->tgt_ssl_keys_lengths[link_idx]);
-    } else
-      conn->tgt_ssl_key = NULL;
-    conn->tgt_default_file_length = share->tgt_default_files_lengths[link_idx];
-    if (conn->tgt_default_file_length)
-    {
-      conn->tgt_default_file = tmp_default_file;
-      memcpy(conn->tgt_default_file, share->tgt_default_files[link_idx],
-        share->tgt_default_files_lengths[link_idx]);
-    } else
-      conn->tgt_default_file = NULL;
-    conn->tgt_default_group_length =
-      share->tgt_default_groups_lengths[link_idx];
-    if (conn->tgt_default_group_length)
-    {
-      conn->tgt_default_group = tmp_default_group;
-      memcpy(conn->tgt_default_group, share->tgt_default_groups[link_idx],
-        share->tgt_default_groups_lengths[link_idx]);
-    } else
-      conn->tgt_default_group = NULL;
-    conn->tgt_dsn_length =
-      share->tgt_dsns_lengths[link_idx];
-    if (conn->tgt_dsn_length)
-    {
-      conn->tgt_dsn = tmp_dsn;
-      memcpy(conn->tgt_dsn, share->tgt_dsns[link_idx],
-        share->tgt_dsns_lengths[link_idx]);
-    } else
-      conn->tgt_dsn = NULL;
-    conn->tgt_filedsn_length =
-      share->tgt_filedsns_lengths[link_idx];
-    if (conn->tgt_filedsn_length)
-    {
-      conn->tgt_filedsn = tmp_filedsn;
-      memcpy(conn->tgt_filedsn, share->tgt_filedsns[link_idx],
-        share->tgt_filedsns_lengths[link_idx]);
-    } else
-      conn->tgt_filedsn = NULL;
-    conn->tgt_driver_length =
-      share->tgt_drivers_lengths[link_idx];
-    if (conn->tgt_driver_length)
-    {
-      conn->tgt_driver = tmp_driver;
-      memcpy(conn->tgt_driver, share->tgt_drivers[link_idx],
-        share->tgt_drivers_lengths[link_idx]);
-    } else
-      conn->tgt_driver = NULL;
+    spider_memcpy_or_null(&conn->tgt_ssl_ca, tmp_ssl_ca,
+                          share->tgt_ssl_cas[link_idx],
+                          &conn->tgt_ssl_ca_length,
+                          share->tgt_ssl_cas_lengths[link_idx]);
+    spider_memcpy_or_null(&conn->tgt_ssl_capath, tmp_ssl_capath,
+                          share->tgt_ssl_capaths[link_idx],
+                          &conn->tgt_ssl_capath_length,
+                          share->tgt_ssl_capaths_lengths[link_idx]);
+    spider_memcpy_or_null(&conn->tgt_ssl_cert, tmp_ssl_cert,
+                          share->tgt_ssl_certs[link_idx],
+                          &conn->tgt_ssl_cert_length,
+                          share->tgt_ssl_certs_lengths[link_idx]);
+    spider_memcpy_or_null(&conn->tgt_ssl_cipher, tmp_ssl_cipher,
+                          share->tgt_ssl_ciphers[link_idx],
+                          &conn->tgt_ssl_cipher_length,
+                          share->tgt_ssl_ciphers_lengths[link_idx]);
+    spider_memcpy_or_null(&conn->tgt_ssl_key, tmp_ssl_key,
+                          share->tgt_ssl_keys[link_idx],
+                          &conn->tgt_ssl_key_length,
+                          share->tgt_ssl_keys_lengths[link_idx]);
+    spider_memcpy_or_null(&conn->tgt_default_file, tmp_default_file,
+                          share->tgt_default_files[link_idx],
+                          &conn->tgt_default_file_length,
+                          share->tgt_default_files_lengths[link_idx]);
+    spider_memcpy_or_null(&conn->tgt_default_group, tmp_default_group,
+                          share->tgt_default_groups[link_idx],
+                          &conn->tgt_default_group_length,
+                          share->tgt_default_groups_lengths[link_idx]);
+    spider_memcpy_or_null(&conn->tgt_dsn, tmp_dsn, share->tgt_dsns[link_idx],
+                          &conn->tgt_dsn_length,
+                          share->tgt_dsns_lengths[link_idx]);
+    spider_memcpy_or_null(&conn->tgt_filedsn, tmp_filedsn,
+                          share->tgt_filedsns[link_idx],
+                          &conn->tgt_filedsn_length,
+                          share->tgt_filedsns_lengths[link_idx]);
+    spider_memcpy_or_null(&conn->tgt_driver, tmp_driver,
+                          share->tgt_drivers[link_idx],
+                          &conn->tgt_driver_length,
+                          share->tgt_drivers_lengths[link_idx]);
     conn->tgt_port = share->tgt_ports[link_idx];
     conn->tgt_ssl_vsc = share->tgt_ssl_vscs[link_idx];
     conn->dbton_id = share->sql_dbton_ids[link_idx];
