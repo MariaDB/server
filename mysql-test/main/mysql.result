@@ -658,4 +658,15 @@ tee
 source
 ^^^
 3
+#
+# MDEV-34203: Sandbox mode \- is not compatible with --binary-mode
+#
+create table t1 (a int);
+drop table t1;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+drop table t1;
 # End of 10.5 tests
