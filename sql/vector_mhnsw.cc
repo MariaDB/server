@@ -233,10 +233,10 @@ static int select_neighbors(MHNSW_Context *ctx, size_t layer,
       if ((discard= vec->distance_to(neigh) < target_dist))
         break;
     }
-    if (discard)
-      pq_discard.push(vec);
-    else
+    if (!discard)
       neighbors.push_back(vec, &ctx->root);
+    else if (pq_discard.elements() + neighbors.elements < max_neighbor_connections)
+      pq_discard.push(vec);
   }
 
   while (pq_discard.elements() &&
@@ -454,12 +454,12 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
   String ref_str, *ref_ptr;
 
   ref_ptr= graph->field[1]->val_str(&ref_str);
-  FVectorNode start_node(&ctx, ref_ptr->ptr());
+  FVectorNode *start_node= ctx.get_node(ref_ptr->ptr());
 
-  if (start_nodes.push_back(&start_node, &ctx.root))
+  if (start_nodes.push_back(start_node, &ctx.root))
     return HA_ERR_OUT_OF_MEM;
 
-  if (int err= start_node.instantiate_vector())
+  if (int err= start_node->instantiate_vector())
     return err;
 
   if (ctx.vec_len * sizeof(float) != res->length())
@@ -543,14 +543,14 @@ int mhnsw_first(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit)
   List<FVectorNode> start_nodes;
   String ref_str, *ref_ptr= graph->field[1]->val_str(&ref_str);
 
-  FVectorNode start_node(&ctx, ref_ptr->ptr());
+  FVectorNode *start_node= ctx.get_node(ref_ptr->ptr());
 
   // one could put all max_layer nodes in start_nodes
   // but it has no effect of the recall or speed
-  if (start_nodes.push_back(&start_node, &ctx.root))
+  if (start_nodes.push_back(start_node, &ctx.root))
     return HA_ERR_OUT_OF_MEM;
 
-  if (int err= start_node.instantiate_vector())
+  if (int err= start_node->instantiate_vector())
     return err;
 
   /*
