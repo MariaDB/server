@@ -2304,6 +2304,7 @@ int ha_myisam::create(const char *name, TABLE *table_arg,
                    record_count, recinfo,
                    0, (MI_UNIQUEDEF*) 0,
                    &create_info, create_flags);
+  ref_length= create_info.rec_reflength;
   my_free(recinfo);
   DBUG_RETURN(error);
 }
