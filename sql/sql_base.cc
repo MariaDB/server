@@ -9832,8 +9832,9 @@ int TABLE::hlindex_open(uint nr)
       init_tmp_table_share(in_use, share, s->db.str, 0, s->table_name.str, path);
       share->db_plugin= s->db_plugin;
 
+      LEX_CSTRING sql= mhnsw_hlindex_table_def(in_use, file->ref_length);
       if (share->init_from_sql_statement_string(in_use, false,
-                        mhnsw_hlindex_table.str, mhnsw_hlindex_table.length))
+                        sql.str, sql.length))
       {
         free_table_share(share);
         return 1;

@@ -134,7 +134,7 @@ typedef struct st_maria_create_info
   ulong s3_block_size;
   /* Size of null bitmap at start of row */
   uint null_bytes;
-  uint old_options;
+  uint old_options, rec_reflength;
   uint compression_algorithm;
   enum data_file_type org_data_file_type;
   uint16 language;

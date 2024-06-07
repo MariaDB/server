@@ -528,7 +528,7 @@ int mi_create(const char *name,uint keys,MI_KEYDEF *keydefs,
   share.state.sortkey=  (ushort) ~0;
   share.state.auto_increment=ci->auto_increment;
   share.options=options;
-  share.base.rec_reflength=pointer;
+  share.base.rec_reflength= ci->rec_reflength= pointer;
   /* Get estimate for index file length (this may be wrong for FT keys) */
   tmp= (tot_length + max_key_block_length * keys *
 	MI_INDEX_BLOCK_MARGIN) / MI_MIN_KEY_BLOCK_LENGTH;
