@@ -18,7 +18,6 @@
 #include <cstdint>
 #endif
 
-typedef pthread_key_t thread_local_key_t;
 typedef pthread_t my_thread_handle;
 typedef pthread_attr_t my_thread_attr_t;
 #if defined(HAVE_PTHREAD_THREADID_NP) || defined(HAVE_GETTID) || defined(HAVE_SYS_GETTID) || defined(HAVE_GETTHRID)
@@ -34,19 +33,6 @@ typedef unsigned long long my_thread_os_id_t;
 #endif
 
 #define LOCK_plugin_delete LOCK_plugin
-
-static inline int my_create_thread_local_key(thread_local_key_t *key, void (*destructor)(void*))
-{ return pthread_key_create(key, destructor); }
-
-static inline int my_delete_thread_local_key(thread_local_key_t key)
-{ return pthread_key_delete(key); }
-
-static inline void *my_get_thread_local(thread_local_key_t key)
-{ return pthread_getspecific(key); }
-
-static inline int my_set_thread_local(thread_local_key_t key, const void *ptr)
-{ return pthread_setspecific(key, ptr); }
-
 static inline int my_thread_create(my_thread_handle *thread,
         const my_thread_attr_t *attr, void *(*start_routine)(void *), void *arg)
 { return pthread_create(thread, attr, start_routine, arg); }

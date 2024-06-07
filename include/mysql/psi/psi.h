@@ -54,7 +54,6 @@
 #ifdef _WIN32
 typedef struct thread_attr pthread_attr_t;
 typedef DWORD pthread_t;
-typedef DWORD pthread_key_t;
 #endif
 
 /*

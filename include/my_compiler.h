@@ -183,4 +183,16 @@ rarely invoked function for size instead for speed. */
 
 #include <my_attribute.h>
 
+/*
+   C++11 thread_local incurs a performance penalty on some platforms
+   accessing "extern thread_local" variable (not static).
+   To workaround, we use the platform specific thread local
+   storage mechanism, which also available in plain C.
+*/
+#if defined (_MSC_VER)
+#  define MY_THREAD_LOCAL __declspec(thread)
+#else
+#  define MY_THREAD_LOCAL __thread
+#endif
+
 #endif /* MY_COMPILER_INCLUDED */
