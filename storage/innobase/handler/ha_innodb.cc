@@ -3860,6 +3860,21 @@ static int innodb_init_params()
 		}
 	}
 
+	ulint min_open_files_limit = srv_undo_tablespaces
+				+ srv_sys_space.m_files.size()
+				+ srv_tmp_space.m_files.size() + 1;
+	if (min_open_files_limit > innobase_open_files) {
+		sql_print_warning(
+			"InnoDB: innodb_open_files=%lu is not greater "
+			"than the number of system tablespace files, "
+			"temporary tablespace files, "
+			"innodb_undo_tablespaces=%lu; adjusting "
+			"to innodb_open_files=%zu",
+			innobase_open_files, srv_undo_tablespaces,
+			min_open_files_limit);
+		innobase_open_files = (ulong) min_open_files_limit;
+	}
+
 	srv_max_n_open_files = innobase_open_files;
 	srv_innodb_status = (ibool) innobase_create_status_file;
 
