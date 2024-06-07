@@ -21,15 +21,6 @@
 #include "key.h"
 #include <scope.h>
 
-const LEX_CSTRING mhnsw_hlindex_table={STRING_WITH_LEN("\
-  CREATE TABLE i (                                      \
-    layer int not null,                                 \
-    src varbinary(255) not null,                        \
-    neighbors blob not null,                            \
-    index (layer, src))                                 \
-")};
-
-
 class MHNSW_Context;
 
 class FVector: public Sql_alloc
@@ -613,4 +604,18 @@ int mhnsw_next(TABLE *table)
     return table->file->ha_rnd_pos(table->record[0], ref);
   }
   return HA_ERR_END_OF_FILE;
+}
+
+const LEX_CSTRING mhnsw_hlindex_table_def(THD *thd, uint ref_length)
+{
+  const char templ[]="CREATE TABLE i (                   "
+                     "  layer int not null,              "
+                     "  src varbinary(%u) not null,      "
+                     "  neighbors varbinary(%u) not null,"
+                     "  index (layer, src))              ";
+  size_t len= sizeof(templ) + 32;
+  char *s= thd->alloc(len);
+  len= my_snprintf(s, len, templ, ref_length, 2 * ref_length *
+                   thd->variables.hnsw_max_connection_per_layer);
+  return {s, len};
 }
