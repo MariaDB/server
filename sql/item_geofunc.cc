@@ -2149,6 +2149,69 @@ longlong Item_func_issimple::val_int()
 }
 
 
+String *Item_func_simplify::val_str(String *str)
+{
+  DBUG_ENTER("Item_func_simplify::val_str");
+  String *res= args[0]->val_str(&tmp_value);
+  double max_distance= (double) args[1]->val_real();
+  Geometry_buffer buffer;
+  Geometry *geometry;
+  uint32 num_points;
+
+  null_value= 1;
+  if ((null_value= (args[0]->null_value || args[1]->null_value)) ||
+       !(geometry= Geometry::construct(&buffer, res->ptr(), res->length())))
+  {
+    null_value= 1;
+    DBUG_RETURN(NULL);
+  }
+
+  if (max_distance <= 0)
+  {
+    my_error(ER_WRONG_ARGUMENTS, MYF(0), func_name());
+    null_value= 1;
+    DBUG_RETURN(NULL);
+  }
+
+  uint32 srid= uint4korr(res->ptr());
+  if (srid != 0)
+  {
+    my_error(ER_NOT_IMPLEMENTED_FOR_GEOGRAPHIC_SRS, MYF(0), func_name());
+    null_value= 1;
+    DBUG_RETURN(NULL);
+  }
+
+  if (geometry->get_class_info()->m_type_id == Geometry::wkb_point ||
+      geometry->get_class_info()->m_type_id == Geometry::wkb_multipoint)
+  {
+    str = res;
+    DBUG_RETURN(str);
+  }
+
+  if (geometry->get_class_info()->m_type_id == Geometry::wkb_linestring)
+  {
+    if (geometry->num_points(&num_points))
+    {
+      null_value= 1;
+      DBUG_RETURN(NULL);
+    }
+
+    if (num_points < 3)
+    {
+      str = res;
+      DBUG_RETURN(str);
+    }
+  }
+
+  if (geometry->simplify(str, max_distance))
+  {
+    null_value= 1;
+    DBUG_RETURN(NULL);
+  }
+  DBUG_RETURN(str);
+}
+
+
 longlong Item_func_isclosed::val_int()
 {
   DBUG_ASSERT(fixed());
@@ -4253,6 +4316,22 @@ protected:
 };
 
 
+class Create_func_simplify : public Create_func_arg2
+{
+public:
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override
+  {
+    return new (thd->mem_root) Item_func_simplify(thd, arg1, arg2);
+  }
+
+  static Create_func_simplify s_singleton;
+
+protected:
+  Create_func_simplify() = default;
+  ~Create_func_simplify() override = default;
+};
+
+
 class Create_func_numgeometries : public Create_func_arg1
 {
 public:
@@ -4525,6 +4604,7 @@ Create_func_isempty Create_func_isempty::s_singleton;
 Create_func_isvalid Create_func_isvalid::s_singleton;
 Create_func_isring Create_func_isring::s_singleton;
 Create_func_issimple Create_func_issimple::s_singleton;
+Create_func_simplify Create_func_simplify::s_singleton;
 Create_func_mbr_contains Create_func_mbr_contains::s_singleton;
 Create_func_mbr_coveredby Create_func_mbr_coveredby::s_singleton;
 Create_func_mbr_disjoint Create_func_mbr_disjoint::s_singleton;
@@ -4595,6 +4675,7 @@ static Native_func_registry func_array_geom[] =
   { { STRING_WITH_LEN("ISVALID") }, GEOM_BUILDER(Create_func_isvalid)},
   { { STRING_WITH_LEN("ISRING") }, GEOM_BUILDER(Create_func_isring)},
   { { STRING_WITH_LEN("ISSIMPLE") }, GEOM_BUILDER(Create_func_issimple)},
+  { { STRING_WITH_LEN("SIMPLIFY") }, GEOM_BUILDER(Create_func_simplify)},
   { { STRING_WITH_LEN("LINEFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
   { { STRING_WITH_LEN("LINEFROMWKB") }, GEOM_BUILDER(Create_func_geometry_from_wkb)},
   { { STRING_WITH_LEN("LINESTRINGFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
@@ -4678,6 +4759,7 @@ static Native_func_registry func_array_geom[] =
   { { STRING_WITH_LEN("ST_ISVALID") }, GEOM_BUILDER(Create_func_isvalid)},
   { { STRING_WITH_LEN("ST_ISRING") }, GEOM_BUILDER(Create_func_isring)},
   { { STRING_WITH_LEN("ST_ISSIMPLE") }, GEOM_BUILDER(Create_func_issimple)},
+  { { STRING_WITH_LEN("ST_SIMPLIFY") }, GEOM_BUILDER(Create_func_simplify)},
   { { STRING_WITH_LEN("ST_LENGTH") }, GEOM_BUILDER(Create_func_glength)},
   { { STRING_WITH_LEN("ST_LINEFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
   { { STRING_WITH_LEN("ST_LINEFROMWKB") }, GEOM_BUILDER(Create_func_geometry_from_wkb)},
