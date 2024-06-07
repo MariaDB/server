@@ -1,0 +1,5 @@
+[mysqld.1.1]
+socket=                   /tmp/1234567890_1234567890_1234567890_1234567890_1234567890_1234567890.sock
+
+[ENV]
+MASTER_1_MYSOCK=          @mysqld.1.1.socket

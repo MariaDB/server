@@ -172,7 +172,7 @@ servers	CREATE TABLE `servers` (
   `Username` char(128) NOT NULL DEFAULT '',
   `Password` char(64) NOT NULL DEFAULT '',
   `Port` int(4) NOT NULL DEFAULT 0,
-  `Socket` char(64) NOT NULL DEFAULT '',
+  `Socket` char(108) NOT NULL DEFAULT '',
   `Wrapper` char(64) NOT NULL DEFAULT '',
   `Owner` varchar(512) NOT NULL DEFAULT '',
   PRIMARY KEY (`Server_name`)
