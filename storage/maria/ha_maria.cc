@@ -3411,6 +3411,7 @@ int ha_maria::create(const char *name, TABLE *table_arg,
                  &create_info, create_flags);
 
   my_free(recinfo);
+  ref_length= create_info.rec_reflength;
   DBUG_RETURN(error);
 }
 
