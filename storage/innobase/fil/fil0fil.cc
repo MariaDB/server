@@ -2814,12 +2814,12 @@ fil_io_t fil_space_t::io(const IORequest &type, os_offset_t offset, size_t len,
 	}
 
 	DBUG_EXECUTE_IF("intermittent_recovery_failure",
-			if (type.is_read() && !(~get_rnd_value() & 0x3ff0))
+			if (type.is_read() && !(~my_timer_cycles() & 0x3ff0))
 			goto io_error;);
 
 	DBUG_EXECUTE_IF("intermittent_read_failure",
 			if (srv_was_started && type.is_read() &&
-			    !(~get_rnd_value() & 0x3ff0)) goto io_error;);
+			    !(~my_timer_cycles() & 0x3ff0)) goto io_error;);
 
 	if (UNIV_LIKELY_NULL(UT_LIST_GET_NEXT(chain, node))) {
 		ut_ad(this == fil_system.sys_space

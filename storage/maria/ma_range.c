@@ -191,8 +191,8 @@ static ha_rows _ma_record_pos(MARIA_HA *info, const uchar *key_data,
                       info->s->state.key_root[inx], final_page);
   if (pos >= 0.0)
   {
-    DBUG_PRINT("exit",("pos: %ld",(ulong) (pos*info->state->records)));
-    DBUG_RETURN((ulong) (pos*info->state->records+0.5));
+    DBUG_PRINT("exit",("pos: %lld",(longlong) (pos*info->state->records)));
+    DBUG_RETURN((ha_rows) (pos*info->state->records+0.5));
   }
   DBUG_RETURN(HA_POS_ERROR);
 }
@@ -214,7 +214,7 @@ static double _ma_search_pos(MARIA_HA *info, MARIA_KEY *key,
 {
   int flag;
   uint keynr, UNINIT_VAR(max_keynr);
-  my_bool after_key;
+  my_bool last_key_on_page;
   uchar *keypos;
   double offset;
   MARIA_KEYDEF *keyinfo= key->keyinfo;
@@ -230,7 +230,7 @@ static double _ma_search_pos(MARIA_HA *info, MARIA_KEY *key,
     goto err;
   *final_page= pos;
   flag= (*keyinfo->bin_search)(key, &page, nextflag, &keypos,
-                               info->lastkey_buff, &after_key);
+                               info->lastkey_buff, &last_key_on_page);
   keynr= _ma_keynr(&page, keypos, &max_keynr);
 
   if (flag)
@@ -274,7 +274,7 @@ static double _ma_search_pos(MARIA_HA *info, MARIA_KEY *key,
         There may be identical keys in the tree. Try to match on of those.
         Matches keynr + [0-1]
       */
-      if ((offset= _ma_search_pos(info, key, SEARCH_FIND,
+      if ((offset= _ma_search_pos(info, key, nextflag,
                                   _ma_kpos(page.node,keypos),
                                   final_page)) < 0)
 	DBUG_RETURN(offset);			/* Read error */
@@ -290,9 +290,10 @@ err:
 
 
 /*
-  Get keynummer of current key and max number of keys in nod
+  Get keynumber of current key and max number of keys in nod
 
-  keynr >= 0 && key_nr <= max_key
+  @return key position on page (0 - (ret_max_key - 1))
+          ret_max_key contains how many keys there was on the page
 */
 
 static uint _ma_keynr(MARIA_PAGE *page, uchar *keypos, uint *ret_max_key)

@@ -1,0 +1,6 @@
+connection node_2;
+connection node_1;
+SET SESSION wsrep_on=OFF;
+BEGIN;
+ROLLBACK;
+SET SESSION wsrep_on=OFF;

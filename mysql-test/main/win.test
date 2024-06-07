@@ -2875,6 +2875,99 @@ SELECT  row_number() OVER (order by a) FROM t1  order by NAME_CONST('myname',NUL
 drop table t1;
 
 --echo #
+--echo # MDEV-29307: join of 2 derived tables over the same grouping view such
+--echo #             that the first of the joined tables contains a window
+--echo #             function and the view's specification contains a subquery
+--echo #             with a set function aggregated on the top level
+--echo #
+
+CREATE TABLE t1 (
+  tst int NOT NULL,
+  flat tinyint unsigned NOT NULL,
+  type tinyint unsigned NOT NULL,
+  val int NOT NULL,
+  PRIMARY KEY (tst,flat,type)
+) ENGINE=ARIA;
+
+INSERT INTO t1 VALUES
+(5, 20, 2,  100),
+(7, 20, 2,  150),
+(9, 20, 1, 200);
+
+CREATE VIEW v1 AS (
+  SELECT
+    flat,
+    type,
+    ( SELECT val FROM t1 sw
+        WHERE sw.tst = MAX(w.tst) AND sw.flat = w.flat AND sw.type = w.type)
+    AS total
+  FROM t1 w
+  GROUP BY flat, type
+);
+
+let $q1=
+SELECT w2.total AS w2_total, w1.total AS w1_total
+FROM
+(
+  SELECT flat, type, total
+  FROM v1
+  WHERE type = 1
+) AS w1
+JOIN
+(
+  SELECT flat, type, total
+  FROM v1
+  WHERE type = 2
+) AS w2
+ON w1.flat = w2.flat;
+
+eval EXPLAIN EXTENDED $q1;
+eval $q1;
+
+let $q2=
+SELECT w2.total AS w2_total, w1.total AS w1_total
+FROM
+(
+  SELECT flat, type, total,
+  COUNT(total) OVER (PARTITION BY type ORDER BY type) AS u
+  FROM v1
+  WHERE type = 1
+) AS w1
+JOIN
+(
+  SELECT flat, type, total
+  FROM v1
+  WHERE type = 2
+) AS w2
+ON w1.flat = w2.flat;
+
+eval EXPLAIN EXTENDED $q2;
+eval $q2;
+
+let $q3=
+SELECT w2.total AS w2_total, w1.total AS w1_total, u
+FROM
+(
+  SELECT flat, type, total,
+  COUNT(total) OVER (PARTITION BY flat ORDER BY flat) AS u
+  FROM v1
+) AS w1
+JOIN
+(
+  SELECT flat, type, total
+  FROM v1
+) AS w2;
+
+eval EXPLAIN EXTENDED $q3;
+--sorted_result
+eval $q3;
+
+DROP VIEW v1;
+DROP TABLE t1;
+
+--echo # End of 10.5 tests
+
+--echo #
 --echo # MDEV-28206 SIGSEGV in Item_field::fix_fields when using LEAD...OVER
 --echo #
 
