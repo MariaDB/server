@@ -20,6 +20,7 @@
 #include "spatial.h"
 #include "gstream.h"                            // Gis_read_stream
 #include "sql_string.h"                         // String
+#include <vector>
 
 /* This is from item_func.h. Didn't want to #include the whole file. */
 double my_double_round(double value, longlong dec, bool dec_unsigned,
@@ -152,6 +153,79 @@ int MBR::coveredby(const MBR *mbr)
 
   return ((xmin >= mbr->xmin) && (xmax <= mbr->xmax) &&
           (ymin >= mbr->ymin) && (ymax <= mbr->ymax));
+}
+
+
+/********************** Ramer–Douglas–Peucker algorithm **********************/
+
+static double perpendicular_distance(const st_point_2d& point,
+                            const st_point_2d& line_start,
+                            const st_point_2d& line_end) {
+  double difference_x= line_end.x - line_start.x;
+  double difference_y= line_end.y - line_start.y;
+
+  double magnitude = sqrt((difference_x * difference_x) +
+                               (difference_y * difference_y));
+
+  if (magnitude > 0.0)
+  {
+    difference_x /= magnitude;
+    difference_y /= magnitude;
+  }
+
+  double point_vector_x= point.x - line_start.x;
+  double point_vector_y= point.y - line_start.y;
+
+  double point_vector_dot_product= ((difference_x * point_vector_x) +
+                                   (difference_y * point_vector_y));
+
+  double adjusted_x= point_vector_x - (point_vector_dot_product * difference_x);
+  double adjusted_y= point_vector_y - (point_vector_dot_product * difference_y);
+
+  return sqrt((adjusted_x * adjusted_x) + (adjusted_y * adjusted_y));
+}
+
+
+static void recursive_RDP(const std::vector<st_point_2d>& points,
+                          const double max_distance,
+                          std::vector<st_point_2d>& out,
+                          const uint32 start, const uint32 end)
+{
+  if (start >= end) return;
+
+  double greatest_distance= 0.0;
+  uint32 index= start;
+
+  for (uint32 i = start + 1; i < end; ++i) {
+    double dist = perpendicular_distance(points[i], points[start], points[end]);
+    if (dist > greatest_distance) {
+      index = i;
+      greatest_distance = dist;
+    }
+  }
+
+  if (greatest_distance > max_distance)
+  {
+    recursive_RDP(points, max_distance, out, start, index);
+    recursive_RDP(points, max_distance, out, index, end);
+  } else if (start != 0)
+    out.push_back(points[start]);
+}
+
+
+/*
+  Implements the Ramer–Douglas–Peucker. Given the points that compose a line,
+  finds a similar curve with fewer points. The simplified curve consists of a
+  subset of the points that defined the original curve.
+  https://en.wikipedia.org/wiki/Ramer%E2%80%93Douglas%E2%80%93Peucker_algorithm
+*/
+static void simplify_RDP(std::vector<st_point_2d>& points,
+                         const double max_distance) {
+  std::vector<st_point_2d> result;
+  result.push_back(points.front());
+  recursive_RDP(points, max_distance, result, 0,(uint32) points.size() - 1);
+  result.push_back(points.back());
+  points = std::move(result);
 }
 
 
@@ -1545,6 +1619,53 @@ int Gis_line_string::is_valid(int *valid) const
 }
 
 
+int Gis_line_string::simplify(String *result, double max_distance) const {
+  Geometry_buffer buffer;
+  Geometry *geometry= NULL;
+  std::vector<st_point_2d> points;
+  double x, y;
+
+  uint32 n_points= 0;
+  if(this->num_points(&n_points))
+    return 1;
+
+  for (uint32 i = 1; i <= n_points; i++)
+  {
+    String wkb= 0;
+    if (wkb.reserve(SRID_SIZE + WKB_HEADER_SIZE + POINT_DATA_SIZE))
+      return 1;
+
+    wkb.q_append(SRID_PLACEHOLDER);
+    this->point_n(i, &wkb);
+    if (!(geometry= Geometry::construct(&buffer, wkb.ptr(), wkb.length())))
+      return 1;
+    if(((Gis_point *) geometry)->get_xy(&x, &y))
+      return 1;
+
+    points.push_back(st_point_2d{x, y});
+  }
+
+  simplify_RDP(points, max_distance);
+
+  result->length(0);
+  result->reserve(SRID_SIZE + WKB_HEADER_SIZE +
+                  (POINT_DATA_SIZE * points.size()));
+
+  result->q_append(SRID_PLACEHOLDER);
+  result->q_append((char) wkb_ndr);
+  result->q_append((uint32) wkb_linestring);
+  result->q_append((uint32) points.size());
+
+  for (auto point : points)
+  {
+    result->q_append((double) point.x);
+    result->q_append((double) point.y);
+  }
+
+  return 0;
+}
+
+
 int Gis_line_string::num_points(uint32 *n_points) const
 {
   *n_points= uint4korr(m_data);
@@ -2017,6 +2138,80 @@ int Gis_polygon::area(double *ar, const char **end_of_data) const
   return 0;
 }
 
+int Gis_polygon::simplify(String *result, double max_distance) const
+{
+  uint32 num_interior_ring= 0, num_invalid_ring= 0, num_points;
+  Geometry_buffer buffer;
+  Geometry *geometry= NULL;
+  String exterior_ring= 0;
+
+  exterior_ring.q_append(SRID_PLACEHOLDER);
+  if (this->num_interior_ring(&num_interior_ring) ||
+      this->exterior_ring(&exterior_ring) ||
+      !(geometry= Geometry::construct(&buffer, exterior_ring.ptr(),
+      exterior_ring.length())))
+    return 1;
+
+  if (geometry->simplify(&exterior_ring, max_distance))
+    return 1;
+
+  if (!(geometry= Geometry::construct(&buffer, exterior_ring.ptr(),
+                          exterior_ring.length())))
+    return 1;
+
+  if (geometry->num_points(&num_points) || num_points <= 3)
+    return 1;
+
+  result->length(0);
+  result->reserve(SRID_SIZE + WKB_HEADER_SIZE);
+  result->q_append(SRID_PLACEHOLDER);
+  result->q_append((char) wkb_ndr);
+  result->q_append((uint32) wkb_polygon);
+  result->q_append((uint32) 1 + num_interior_ring);
+  result->append(exterior_ring.ptr() + SRID_SIZE + WKB_HEADER_SIZE,
+                 (exterior_ring.length() - SRID_SIZE -
+                  WKB_HEADER_SIZE));
+
+  for (uint32 i = 1; i <= num_interior_ring; i++)
+  {
+    String interior_ring= 0;
+    interior_ring.q_append((uint) 0);
+    if (this->interior_ring_n(i, &interior_ring) ||
+        !(geometry= Geometry::construct(&buffer, interior_ring.ptr(),
+          interior_ring.length())))
+    {
+      num_invalid_ring++;
+      continue;
+    }
+
+    if(geometry->simplify(&interior_ring, max_distance))
+      return 1;
+
+    if (!(geometry= Geometry::construct(&buffer, interior_ring.ptr(),
+                          interior_ring.length())))
+    {
+      num_invalid_ring++;
+      continue;
+    }
+
+    if (geometry->num_points(&num_points))
+      return 1;
+
+    if (num_points <= 3)
+    {
+      num_invalid_ring++;
+      continue;
+    }
+
+    result->append(interior_ring.ptr() + SRID_SIZE + WKB_HEADER_SIZE,
+                   (interior_ring.length() - SRID_SIZE - WKB_HEADER_SIZE));
+  }
+
+  result->write_at_position(SRID_SIZE + WKB_HEADER_SIZE,
+                            ((uint32) 1 + num_interior_ring -
+                             num_invalid_ring));
+  return 0;
+}
 
 int Gis_polygon::exterior_ring(String *result) const
 {
@@ -2034,7 +2229,7 @@ int Gis_polygon::exterior_ring(String *result) const
   result->q_append((char) wkb_ndr);
   result->q_append((uint32) wkb_linestring);
   result->q_append(n_points);
-  result->q_append(data, n_points * POINT_DATA_SIZE); 
+  result->q_append(data, n_points * POINT_DATA_SIZE);
   return 0;
 }
 
@@ -2635,18 +2830,19 @@ bool Gis_multi_line_string::init_from_wkt(Gis_read_stream *trs, String *wkb)
   if (wkb->reserve(4, 512))
     return 1;
   wkb->length(wkb->length()+4);			// Reserve space for points
-  
+
   for (;;)
   {
     Gis_line_string ls;
 
     if (wkb->reserve(1 + 4, 512))
       return 1;
-    wkb->q_append((char) wkb_ndr); wkb->q_append((uint32) wkb_linestring);
+    wkb->q_append((char) wkb_ndr);
+    wkb->q_append((uint32) wkb_linestring);
 
     if (trs->check_next_symbol('(') ||
-	ls.init_from_wkt(trs, wkb) ||
-	trs->check_next_symbol(')'))
+	      ls.init_from_wkt(trs, wkb) ||
+	      trs->check_next_symbol(')'))
       return 1;
     n_line_strings++;
     if (trs->skip_char(','))			// Didn't find ','
@@ -2720,7 +2916,7 @@ uint Gis_multi_line_string::init_from_wkb(const char *wkb, uint len,
     if (!(ls_len= ls.init_from_wkb(wkb + WKB_HEADER_SIZE, len,
                                    (wkbByteOrder) wkb[0], res)))
       return 0;
-    ls_len+= WKB_HEADER_SIZE;;
+    ls_len+= WKB_HEADER_SIZE;
     wkb+= ls_len;
     len-= ls_len;
   }
@@ -2989,6 +3185,37 @@ int Gis_multi_line_string::is_closed(int *closed) const
     */
     data+= ls.get_data_size() + WKB_HEADER_SIZE;
   }
+  return 0;
+}
+
+
+int Gis_multi_line_string::simplify(String *result, double max_distance) const
+{
+  uint32 num_lines= 0;
+  Geometry_buffer buffer;
+  Geometry *geometry= NULL;
+
+  if (this->num_geometries(&num_lines))
+    return 1;
+
+  result->length(0);
+  result->reserve(SRID_SIZE + WKB_HEADER_SIZE);
+  result->q_append(SRID_PLACEHOLDER);
+  result->q_append((char) wkb_ndr);
+  result->q_append((uint32) wkb_multilinestring);
+  result->q_append((uint32) num_lines);
+
+  for (uint32 i = 1; i <= num_lines; i++)
+  {
+    String wkb= 0;
+    wkb.q_append((uint) 0);
+    this->geometry_n(i, &wkb);
+    if (!(geometry= Geometry::construct(&buffer, wkb.ptr(), wkb.length())))
+      return 1;
+    geometry->simplify(&wkb, max_distance);
+    result->append(wkb.ptr() + SRID_SIZE, wkb.length() - SRID_SIZE);
+  }
+
   return 0;
 }
 
@@ -3446,6 +3673,48 @@ int Gis_multi_polygon::area(double *ar,  const char **end_of_data) const
   return 0;
 }
 
+int Gis_multi_polygon::simplify(String *result, double max_distance) const
+{
+  uint32 num_polygon= 0, num_invalid_polygon= 0;
+  Geometry_buffer buffer;
+  Geometry *geometry= NULL;
+
+  if (this->num_geometries(&num_polygon))
+    return 1;
+
+  result->length(0);
+  result->reserve(SRID_SIZE + WKB_HEADER_SIZE);
+  result->q_append(SRID_PLACEHOLDER);
+  result->q_append((char) wkb_ndr);
+  result->q_append((uint32) wkb_multipolygon);
+  result->q_append((uint32) num_polygon);
+
+  for (uint32 i = 1; i <= num_polygon; i++)
+  {
+    String polygon= 0, simplified_polygon= 0;
+    polygon.q_append((uint) 0);
+    if (this->geometry_n(i, &polygon) ||
+        !(geometry= Geometry::construct(&buffer, polygon.ptr(),
+          polygon.length())))
+      return 1;
+
+    if(geometry->simplify(&simplified_polygon, max_distance))
+    {
+      num_invalid_polygon++;
+      continue;
+    }
+
+    result->append(simplified_polygon.ptr() + SRID_SIZE,
+                   simplified_polygon.length() - SRID_SIZE);
+  }
+
+  if (num_polygon == num_invalid_polygon)
+    return 1;
+
+  result->write_at_position(SRID_SIZE + WKB_HEADER_SIZE,
+                            ((uint32) num_polygon - num_invalid_polygon));
+  return 0;
+}
 
 int Gis_multi_polygon::centroid(String *result) const
 {
@@ -3920,6 +4189,58 @@ int Gis_geometry_collection::area(double *ar,  const char **end) const
 exit:
   *end= data;
   *ar= result;
+  return 0;
+}
+
+
+int Gis_geometry_collection::simplify(String *result,
+                                      double max_distance) const
+{
+  uint32 num_geometries= 0, num_invalid_geometries= 0;
+  Geometry_buffer buffer;
+  Geometry *geometry= NULL;
+
+  if (this->num_geometries(&num_geometries))
+    return 1;
+
+  result->length(0);
+  result->reserve(SRID_SIZE + BYTE_ORDER_SIZE + WKB_HEADER_SIZE);
+  result->q_append(SRID_PLACEHOLDER);
+  result->q_append((char) wkb_ndr);
+  result->q_append((uint32) wkb_geometrycollection);
+  result->q_append((uint32) num_geometries);
+
+  for (uint32 i = 1; i <= num_geometries; i++)
+  {
+    String wkb= 0, simplified_wkb= 0;
+
+    wkb.q_append((uint) 0);
+    if (this->geometry_n(i, &wkb) ||
+        !(geometry= Geometry::construct(&buffer, wkb.ptr(), wkb.length())))
+      return 1;
+
+    if (geometry->get_class_info()->m_type_id == Geometry::wkb_point ||
+        geometry->get_class_info()->m_type_id == Geometry::wkb_multipoint)
+    {
+      result->append(wkb.ptr() + SRID_SIZE, wkb.length() - SRID_SIZE);
+      continue;
+    }
+
+    if(geometry->simplify(&simplified_wkb, max_distance))
+    {
+      num_invalid_geometries++;
+      continue;
+    }
+
+    result->append(simplified_wkb.ptr() + SRID_SIZE,
+                   simplified_wkb.length() - SRID_SIZE);
+  }
+
+  if (num_geometries == num_invalid_geometries)
+    return 1;
+
+  result->write_at_position(SRID_SIZE + WKB_HEADER_SIZE,
+                            (uint32) num_geometries - num_invalid_geometries);
   return 0;
 }
 

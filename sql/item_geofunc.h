@@ -975,6 +975,29 @@ public:
   { return get_item_copy<Item_func_issimple>(thd, this); }
 };
 
+class Item_func_simplify: public Item_geometry_func_args_geometry
+{
+  String tmp_value;
+  Gcalc_heap collector;
+  Gcalc_function func;
+  Gcalc_scan_iterator scan_it;
+public:
+  Item_func_simplify(THD *thd, Item *a, Item *b)
+   :Item_geometry_func_args_geometry(thd, a, b) {}
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("st_simplify") };
+    return name;
+  }
+  String *val_str(String *) override;
+  const Type_handler *type_handler() const override
+  {
+    return &type_handler_geometry;
+  }
+  Item *get_copy(THD *thd) override
+  { return get_item_copy<Item_func_simplify>(thd, this); }
+};
+
 class Item_func_isclosed: public Item_long_func_args_geometry
 {
 public:
