@@ -268,47 +268,6 @@ static int select_neighbors(MHNSW_Context *ctx, size_t layer,
 }
 
 
-static void dbug_print_vec_ref(const char *prefix, uint layer,
-                               const FVectorNode &ref)
-{
-#ifndef DBUG_OFF
-  // TODO(cvicentiu) disable this in release build.
-  char *ref_str= static_cast<char *>(alloca(ref.get_ref_len() * 2 + 1));
-  DBUG_ASSERT(ref_str);
-  char *ptr= ref_str;
-  for (size_t i= 0; i < ref.get_ref_len(); ptr += 2, i++)
-  {
-    snprintf(ptr, 3, "%02x", ref.get_ref()[i]);
-  }
-  DBUG_PRINT("VECTOR", ("%s %u %s", prefix, layer, ref_str));
-#endif
-}
-
-static void dbug_print_vec_neigh(uint layer, const List<FVectorNode> &neighbors)
-{
-#ifndef DBUG_OFF
-  DBUG_PRINT("VECTOR", ("NEIGH: NUM: %d", neighbors.elements));
-  for (const FVectorNode& ref : neighbors)
-  {
-    dbug_print_vec_ref("NEIGH: ", layer, ref);
-  }
-#endif
-}
-
-static void dbug_print_hash_vec(Hash_set<FVectorNode> &h)
-{
-#ifndef DBUG_OFF
-  Hash_set<FVectorNode>::Iterator it(h);
-  FVectorNode *ptr;
-  while ((ptr= it++))
-  {
-    DBUG_PRINT("VECTOR", ("HASH elem: %p", ptr));
-    dbug_print_vec_ref("VISITED: ", 0, *ptr);
-  }
-#endif
-}
-
-
 static int write_neighbors(MHNSW_Context *ctx, size_t layer,
                            const FVectorNode &source_node)
 {
@@ -334,15 +293,9 @@ static int write_neighbors(MHNSW_Context *ctx, size_t layer,
   graph->field[2]->store_binary(neighbor_array_bytes, total_size);
 
   if (source_node.is_new())
-  {
-    dbug_print_vec_ref("INSERT ", layer, source_node);
     err= graph->file->ha_write_row(graph->record[0]);
-  }
   else
   {
-    dbug_print_vec_ref("UPDATE ", layer, source_node);
-    dbug_print_vec_neigh(layer, new_neighbors);
-
     uchar *key= static_cast<uchar*>(alloca(graph->key_info->key_length));
     key_copy(key, graph->record[0], graph->key_info, graph->key_info->key_length);
 
@@ -413,7 +366,6 @@ static int search_layer(MHNSW_Context *ctx,
     else if (node.distance_to(target) > best.top()->distance_to(target))
       best.replace_top(&node);
     visited.insert(&node);
-    dbug_print_vec_ref("INSERTING node in visited: ", layer, node);
   }
 
   float furthest_best= best.top()->distance_to(target);
@@ -429,7 +381,6 @@ static int search_layer(MHNSW_Context *ctx,
 
     for (const FVectorNode &neigh: cur_vec.get_neighbors(layer))
     {
-      dbug_print_hash_vec(visited);
       if (visited.find(&neigh))
         continue;
 
@@ -448,7 +399,6 @@ static int search_layer(MHNSW_Context *ctx,
       }
     }
   }
-  DBUG_PRINT("VECTOR", ("SEARCH_LAYER_END %d best", best.elements()));
 
   while (best.elements())
     result->push_front(best.pop(), &ctx->root);
