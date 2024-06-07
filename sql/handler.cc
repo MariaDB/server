@@ -6321,7 +6321,8 @@ int handler::calculate_checksum()
 ****************************************************************************/
 
 static int ha_create_table_from_share(THD *thd, TABLE_SHARE *share,
-                                      HA_CREATE_INFO *create_info)
+                                      HA_CREATE_INFO *create_info,
+                                      uint *ref_length)
 {
   TABLE table;
 
@@ -6342,6 +6343,7 @@ static int ha_create_table_from_share(THD *thd, TABLE_SHARE *share,
                share->table_name.str, error);
     table.file->print_error(error, MYF(ME_WARNING));
   }
+  *ref_length= table.file->ref_length; // for hlindexes
 
   (void) closefrm(&table);
   return error;
@@ -6368,6 +6370,7 @@ int ha_create_table(THD *thd, const char *path, const char *db,
                     LEX_CUSTRING *frm, bool skip_frm_file)
 {
   int error= 1;
+  uint ref_length;
   TABLE_SHARE share;
   Abort_on_warning_instant_set old_abort_on_warning(thd, 0);
   bool is_tmp __attribute__((unused)) =
@@ -6398,7 +6401,7 @@ int ha_create_table(THD *thd, const char *path, const char *db,
   }
 
   share.m_psi= PSI_CALL_get_table_share(is_tmp, &share);
-  if ((error= ha_create_table_from_share(thd, &share, create_info)))
+  if ((error= ha_create_table_from_share(thd, &share, create_info, &ref_length)))
   {
     PSI_CALL_drop_table_share(is_tmp, share.db.str, (uint)share.db.length,
                         share.table_name.str, (uint)share.table_name.length);
@@ -6424,11 +6427,14 @@ int ha_create_table(THD *thd, const char *path, const char *db,
       my_snprintf(path_end, HLINDEX_BUF_LEN, HLINDEX_TEMPLATE, i);
       init_tmp_table_share(thd, &index_share, db, 0, table_name, file_name, 1);
       index_share.db_plugin= share.db_plugin;
+      LEX_CSTRING sql= mhnsw_hlindex_table_def(thd, ref_length);
       if ((error= index_share.init_from_sql_statement_string(thd, false,
-                        mhnsw_hlindex_table.str, mhnsw_hlindex_table.length)))
+                        sql.str, sql.length)))
         break;
 
-      if ((error= ha_create_table_from_share(thd, &index_share, &index_cinfo)))
+      uint unused;
+      if ((error= ha_create_table_from_share(thd, &index_share, &index_cinfo,
+                                             &unused)))
         break;
     }
     free_table_share(&index_share);
