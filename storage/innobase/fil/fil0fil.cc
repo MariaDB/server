@@ -66,9 +66,10 @@ inline bool fil_is_user_tablespace_id(ulint space_id)
 }
 
 /** Try to close a file to adhere to the innodb_open_files limit.
+@param ignore_space Ignore the tablespace which is acquired by caller
 @param print_info   whether to diagnose why a file cannot be closed
 @return whether a file was closed */
-bool fil_space_t::try_to_close(bool print_info)
+bool fil_space_t::try_to_close(fil_space_t *ignore_space, bool print_info)
 {
   ut_ad(mutex_own(&fil_system.mutex));
   for (fil_space_t *space= UT_LIST_GET_FIRST(fil_system.space_list); space;
@@ -80,7 +81,8 @@ bool fil_space_t::try_to_close(bool print_info)
     case FIL_TYPE_IMPORT:
       break;
     case FIL_TYPE_TABLESPACE:
-      if (!fil_is_user_tablespace_id(space->id))
+      if (space == ignore_space
+          || !fil_is_user_tablespace_id(space->id))
         continue;
     }
 
@@ -354,7 +356,7 @@ fil_node_t* fil_space_t::add(const char* name, pfs_os_file_t handle,
 		n_pending.fetch_and(~CLOSING, std::memory_order_relaxed);
 		if (++fil_system.n_open >= srv_max_n_open_files) {
 			reacquire();
-			try_to_close(true);
+			try_to_close(this, true);
 			release();
 		}
 	}
@@ -405,7 +407,7 @@ static bool fil_node_open_file_low(fil_node_t *node)
 
     /* The following call prints an error message */
     if (os_file_get_last_error(true) == EMFILE + 100 &&
-        fil_space_t::try_to_close(true))
+        fil_space_t::try_to_close(nullptr, true))
       continue;
 
     ib::warn() << "Cannot open '" << node->name << "'.";
@@ -449,7 +451,7 @@ static bool fil_node_open_file(fil_node_t *node)
 
   for (ulint count= 0; fil_system.n_open >= srv_max_n_open_files; count++)
   {
-    if (fil_space_t::try_to_close(count > 1))
+    if (fil_space_t::try_to_close(nullptr, count > 1))
       count= 0;
     else if (count >= 2)
     {
