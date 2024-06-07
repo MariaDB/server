@@ -17,7 +17,9 @@
 #
 # Galera library does not compile with windows
 #
-IF (NOT WITHOUT_SERVER)
+IF(WITHOUT_SERVER)
+  OPTION(WITH_WSREP "Galera server compatibility in build client utilities" ON)
+ELSE()
 IF(UNIX)
   SET(with_wsrep_default ON)
 ELSE()
