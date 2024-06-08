@@ -9900,8 +9900,6 @@ int TABLE::open_hlindexes_for_write()
   for (uint i= s->keys; i < s->total_keys; i++)
   {
     KEY *key= s->key_info + i;
-    if (hlindex)
-      hlindex->in_use= 0;
     for (uint j=0; j < key->usable_key_parts; j++)
       if (bitmap_is_set(write_set, key->key_part[j].fieldnr - 1))
       {
@@ -9915,8 +9913,11 @@ int TABLE::open_hlindexes_for_write()
 
 int TABLE::reset_hlindexes()
 {
-  if (hlindex)
+  if (hlindex && hlindex->in_use)
+  {
     hlindex->file->ha_external_unlock(in_use);
+    hlindex->in_use= 0;
+  }
   return 0;
 }
 
