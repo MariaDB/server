@@ -6413,8 +6413,11 @@ int ha_create_table(THD *thd, const char *path, const char *db,
     DBUG_ASSERT(share.key_info[share.keys].algorithm == HA_KEY_ALG_VECTOR);
     TABLE_SHARE index_share;
     char file_name[FN_REFLEN+1];
+    Alter_info index_ainfo;
     HA_CREATE_INFO index_cinfo;
     char *path_end= strmov(file_name, path);
+
+    index_cinfo.alter_info= &index_ainfo;
 
     if ((error= share.path.length > sizeof(file_name) - HLINDEX_BUF_LEN))
       goto err;

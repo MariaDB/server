@@ -283,8 +283,11 @@ static int write_neighbors(MHNSW_Context *ctx, size_t layer,
     err= graph->file->ha_index_read_map(graph->record[1], key,
                                             HA_WHOLE_KEY, HA_READ_KEY_EXACT);
     if (!err)
+    {
       err= graph->file->ha_update_row(graph->record[1], graph->record[0]);
-
+      if (err == HA_ERR_RECORD_IS_THE_SAME)
+        err= 0;
+    }
   }
   my_safe_afree(neighbor_array_bytes, total_size);
   return err;
@@ -426,7 +429,9 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
 
   const double NORMALIZATION_FACTOR= 1 / std::log(thd->variables.hnsw_max_connection_per_layer);
 
-  if (int err= h->ha_rnd_init(1))
+  table->file->position(table->record[0]);
+
+  if (int err= h->ha_rnd_init(0))
     return err;
 
   SCOPE_EXIT([h](){ h->ha_rnd_end(); });
@@ -436,15 +441,13 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
 
   SCOPE_EXIT([graph](){ graph->file->ha_index_end(); });
 
-  h->position(table->record[0]);
-
   if (int err= graph->file->ha_index_last(graph->record[0]))
   {
     if (err != HA_ERR_END_OF_FILE)
       return err;
 
     // First insert!
-    FVectorNode target(&ctx, h->ref);
+    FVectorNode target(&ctx, table->file->ref);
     ctx.target= &target;
     return write_neighbors(&ctx, 0, target);
   }
@@ -465,7 +468,7 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
   if (ctx.vec_len * sizeof(float) != res->length())
     return bad_value_on_insert(vec_field);
 
-  FVectorNode target(&ctx, h->ref, res->ptr());
+  FVectorNode target(&ctx, table->file->ref, res->ptr());
   ctx.target= &target;
 
   double new_num= my_rnd(&thd->rand);
@@ -612,7 +615,7 @@ const LEX_CSTRING mhnsw_hlindex_table_def(THD *thd, uint ref_length)
                      "  layer int not null,              "
                      "  src varbinary(%u) not null,      "
                      "  neighbors varbinary(%u) not null,"
-                     "  index (layer, src))              ";
+                     "  primary key (layer, src))        ";
   size_t len= sizeof(templ) + 32;
   char *s= thd->alloc(len);
   len= my_snprintf(s, len, templ, ref_length, 2 * ref_length *
