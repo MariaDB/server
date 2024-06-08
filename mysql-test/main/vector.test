@@ -1,3 +1,4 @@
+replace_result InnoDB MyISAM;
 error ER_NO_INDEX_ON_TEMPORARY;
 create temporary table t1 (id int auto_increment primary key, v blob not null, vector index (v));
 
@@ -7,6 +8,7 @@ create table t1 (id int auto_increment primary key,
   v blob not null, vector index (v));
 
 create table t1 (id int auto_increment primary key, v blob not null, vector index (v));
+replace_result InnoDB MyISAM;
 show create table t1;
 show keys from t1;
 query_vertical select * from information_schema.statistics where table_name='t1';
