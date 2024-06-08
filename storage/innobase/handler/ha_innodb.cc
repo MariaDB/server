@@ -8322,13 +8322,15 @@ calc_row_difference(
 
 	ut_a(buf <= (byte*) original_upd_buff + buff_len);
 
-	const TABLE_LIST *tl= table->pos_in_table_list;
-	const uint8 op_map= tl->trg_event_map | tl->slave_fk_event_map;
-	/* Used to avoid reading history in FK check on DELETE (see MDEV-16210). */
-	prebuilt->upd_node->is_delete =
-		(op_map & trg2bit(TRG_EVENT_DELETE)
-		 && table->versioned(VERS_TIMESTAMP))
-		? VERSIONED_DELETE : NO_DELETE;
+	if (const TABLE_LIST *tl= table->pos_in_table_list)
+	{
+		const uint8 op_map= tl->trg_event_map | tl->slave_fk_event_map;
+		/* Used to avoid reading history in FK check on DELETE (see MDEV-16210). */
+		prebuilt->upd_node->is_delete =
+			(op_map & trg2bit(TRG_EVENT_DELETE)
+			&& table->versioned(VERS_TIMESTAMP))
+			? VERSIONED_DELETE : NO_DELETE;
+	}
 
 	if (prebuilt->versioned_write) {
 		/* Guaranteed by CREATE TABLE, but anyway we make sure we
@@ -13200,6 +13202,11 @@ ha_innobase::create(const char *name, TABLE *form, HA_CREATE_INFO *create_info,
   }
   else if (!error && m_prebuilt)
     m_prebuilt->table= info.table();
+
+  if (form->s->primary_key >= MAX_KEY)
+    ref_length = DATA_ROW_ID_LEN;
+  else
+    ref_length = form->key_info[form->s->primary_key].key_length;
 
   DBUG_RETURN(error);
 }
