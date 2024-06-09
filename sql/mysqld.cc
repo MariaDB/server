@@ -3210,6 +3210,7 @@ pthread_handler_t signal_hand(void *)
   sigset_t set;
   int sig;
   my_thread_init();				// Init new thread
+  my_thread_set_name("signal_hand");
   signal_thread_in_use= 1;
 
   if (test_flags & TEST_SIGINT)

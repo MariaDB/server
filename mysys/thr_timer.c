@@ -304,6 +304,7 @@ static sig_handler process_timers(struct timespec *now)
 static void *timer_handler(void *arg __attribute__((unused)))
 {
   my_thread_init();
+  my_thread_set_name("statement_timer");
 
   mysql_mutex_lock(&LOCK_timer);
   while (likely(thr_timer_inited))

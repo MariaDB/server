@@ -2362,6 +2362,7 @@ pools. As of now we'll have only one coordinator. */
 static void buf_flush_page_cleaner()
 {
   my_thread_init();
+  my_thread_set_name("ib_page_cleaner");
 #ifdef UNIV_PFS_THREAD
   pfs_register_thread(page_cleaner_thread_key);
 #endif /* UNIV_PFS_THREAD */

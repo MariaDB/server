@@ -1223,6 +1223,7 @@ handle_rpl_parallel_thread(void *arg)
   struct rpl_parallel_thread *rpt= (struct rpl_parallel_thread *)arg;
 
   my_thread_init();
+  my_thread_set_name("rpl_parallel");
   thd = new THD(next_thread_id());
   thd->thread_stack = (char*)&thd;
   server_threads.insert(thd);

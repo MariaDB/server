@@ -1342,6 +1342,7 @@ pthread_handler_t handle_one_connection(void *arg)
   CONNECT *connect= (CONNECT*) arg;
 
   mysql_thread_set_psi_id(connect->thread_id);
+  my_thread_set_name("one_connection");
 
   if (init_new_connection_handler_thread())
     connect->close_with_error(0, 0, ER_OUT_OF_RESOURCES);

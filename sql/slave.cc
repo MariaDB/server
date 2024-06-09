@@ -4790,6 +4790,7 @@ pthread_handler_t handle_slave_io(void *arg)
 #endif
   // needs to call my_thread_init(), otherwise we get a coredump in DBUG_ stuff
   my_thread_init();
+  my_thread_set_name("slave_io");
   DBUG_ENTER("handle_slave_io");
 
   DBUG_ASSERT(mi->inited);
@@ -5448,6 +5449,7 @@ pthread_handler_t handle_slave_sql(void *arg)
 
   // needs to call my_thread_init(), otherwise we get a coredump in DBUG_ stuff
   my_thread_init();
+  my_thread_set_name("slave_sql");
   DBUG_ENTER("handle_slave_sql");
 
 #ifdef WITH_WSREP

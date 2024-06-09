@@ -11129,6 +11129,7 @@ binlog_background_thread(void *arg __attribute__((unused)))
   Binlog_background_job **freelist_endptr= &freelist;
   THD *thd;
   my_thread_init();
+  my_thread_set_name("binlog_background");
   DBUG_ENTER("binlog_background_thread");
 
   thd= new THD(next_thread_id());

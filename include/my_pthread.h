@@ -642,6 +642,7 @@ typedef uint64 my_thread_id;
 
 extern void my_threadattr_global_init(void);
 extern my_bool my_thread_global_init(void);
+extern void my_thread_set_name(const char *);
 extern void my_thread_global_reinit(void);
 extern void my_thread_global_end(void);
 extern my_bool my_thread_init(void);

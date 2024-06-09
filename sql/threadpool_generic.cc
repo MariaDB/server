@@ -559,6 +559,7 @@ static void* timer_thread(void *param)
   pool_timer_t* timer=(pool_timer_t *)param;
 
   my_thread_init();
+  my_thread_set_name("timer_thread");
   DBUG_ENTER("timer_thread");
   timer->next_timeout_check.store(std::numeric_limits<uint64_t>::max(),
                                   std::memory_order_relaxed);
@@ -1533,6 +1534,7 @@ static void *worker_main(void *param)
   worker_thread_t this_thread;
   pthread_detach_this_thread();
   my_thread_init();
+  my_thread_set_name("connection_worker");
 
   DBUG_ENTER("worker_main");
 

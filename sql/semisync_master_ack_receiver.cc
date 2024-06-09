@@ -33,6 +33,7 @@ pthread_handler_t ack_receive_handler(void *arg)
   Ack_receiver *recv= reinterpret_cast<Ack_receiver *>(arg);
 
   my_thread_init();
+  my_thread_set_name("ack_receive");
   recv->run();
   my_thread_end();
 
