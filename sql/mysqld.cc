@@ -1183,9 +1183,9 @@ static PSI_thread_info all_server_threads[]=
   { &key_thread_main, "main", PSI_FLAG_GLOBAL},
   { &key_thread_one_connection, "one_connection", 0},
   { &key_thread_signal_hand, "signal_handler", PSI_FLAG_GLOBAL},
-  { &key_thread_slave_background, "slave_background", PSI_FLAG_GLOBAL},
+  { &key_thread_slave_background, "slave_bg", PSI_FLAG_GLOBAL},
   { &key_thread_ack_receiver, "Ack_receiver", PSI_FLAG_GLOBAL},
-  { &key_rpl_parallel_thread, "rpl_parallel_thread", 0}
+  { &key_rpl_parallel_thread, "rpl_parallel", 0}
 };
 
 #ifdef HAVE_MMAP

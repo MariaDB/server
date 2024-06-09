@@ -53,8 +53,15 @@ static void dbug_verify_thread_name(const char *name)
   }
   if (psi_name && strcmp(psi_name, name))
   {
-    fprintf(stderr, "my_thread_set_name() mismatch: PSI name '%s' != '%s'\n",
+    fprintf(stderr, "ERROR: my_thread_set_name() mismatch: PSI name '%s' != '%s'\n",
             psi_name, name);
+    abort();
+  }
+  size_t len= strlen(name);
+  if (len > 15)
+  {
+    /* Linux can' handle "long" (> 15 chars) names */
+    fprintf(stderr, "ERROR: my_thread_set_name() name too long: '%s'\n", name);
     abort();
   }
 }
