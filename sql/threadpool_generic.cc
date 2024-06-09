@@ -1534,7 +1534,7 @@ static void *worker_main(void *param)
   worker_thread_t this_thread;
   pthread_detach_this_thread();
   my_thread_init();
-  my_thread_set_name("connection_worker");
+  my_thread_set_name("worker_thread");
 
   DBUG_ENTER("worker_main");
 

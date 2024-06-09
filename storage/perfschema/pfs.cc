@@ -2328,6 +2328,14 @@ pfs_get_thread_v1(void)
   return reinterpret_cast<PSI_thread*> (pfs);
 }
 
+const char *pfs_get_thread_class_name_v1(void)
+{
+  PFS_thread *pfs= my_thread_get_THR_PFS();
+  if (!pfs)
+    return NULL;
+  return pfs->m_class->m_name;
+}
+
 /**
   Implementation of the thread instrumentation interface.
   @sa PSI_v1::set_thread_user.
@@ -7043,6 +7051,7 @@ PSI_v1 PFS_v1=
   pfs_set_thread_THD_v1,
   pfs_set_thread_os_id_v1,
   pfs_get_thread_v1,
+  pfs_get_thread_class_name_v1,
   pfs_set_thread_user_v1,
   pfs_set_thread_account_v1,
   pfs_set_thread_db_v1,

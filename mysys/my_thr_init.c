@@ -192,35 +192,6 @@ my_bool my_thread_global_init(void)
   return 0;
 }
 
-#ifdef _WIN32
-#define MAX_THREAD_NAME 256
-#elif defined(__linux__)
-#define MAX_THREAD_NAME 16
-#elif defined(__FreeBSD__) || defined(__OpenBSD__)
-#include <pthread_np.h>
-#endif
-
-void my_thread_set_name(const char *name)
-{
-#ifdef _WIN32
-  wchar_t wname[MAX_THREAD_NAME];
-  wname[0]= 0;
-  MultiByteToWideChar(CP_UTF8, 0, name, -1, wname, MAX_THREAD_NAME);
-  SetThreadDescription(GetCurrentThread(), wname);
-#elif defined __linux__
-  char shortname[MAX_THREAD_NAME];
-  snprintf(shortname, MAX_THREAD_NAME, "%s", name);
-  pthread_setname_np(pthread_self(), shortname);
-#elif defined __NetBSD__
-  pthread_setname_np(pthread_self(), "%s", (void *) name);
-#elif defined __FreeBSD__ || defined __OpenBSD__
-  pthread_set_name_np(pthread_self(), name);
-#elif defined __APPLE__
-  pthread_setname_np(name);
-#else
-  (void) name;
-#endif
-}
 
 /**
    End the mysys thread system. Called when ending the last thread
