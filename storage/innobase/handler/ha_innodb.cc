@@ -612,9 +612,9 @@ static PSI_rwlock_info all_innodb_rwlocks[] =
 performance schema instrumented if "UNIV_PFS_THREAD"
 is defined */
 static PSI_thread_info	all_innodb_threads[] = {
-	PSI_KEY(page_cleaner_thread),
-	PSI_KEY(trx_rollback_clean_thread),
-	PSI_KEY(thread_pool_thread)
+  {&page_cleaner_thread_key, "page_cleaner", 0},
+  {&trx_rollback_clean_thread_key, "trx_rollback", 0},
+  {&thread_pool_thread_key,"ib_tpool_worker", 0}
 };
 # endif /* UNIV_PFS_THREAD */
 

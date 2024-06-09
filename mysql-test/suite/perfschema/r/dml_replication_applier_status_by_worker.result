@@ -31,7 +31,7 @@ from information_schema.columns
 where table_schema='performance_schema' and table_name='replication_applier_status_by_worker';
 column_name	column_comment
 CHANNEL_NAME	Name of replication channel through which the transaction is received.
-THREAD_ID	Thread_Id as displayed in the performance_schema.threads table for thread with name 'thread/sql/rpl_parallel_thread'. THREAD_ID will be NULL when worker threads are stopped due to error/force stop.
+THREAD_ID	Thread_Id as displayed in the performance_schema.threads table for thread with name 'thread/sql/rpl_parallel'. THREAD_ID will be NULL when worker threads are stopped due to error/force stop.
 SERVICE_STATE	Whether or not the thread is running.
 LAST_SEEN_TRANSACTION	Last GTID executed by worker
 LAST_ERROR_NUMBER	Last Error that occurred on a particular worker.
