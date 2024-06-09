@@ -75,7 +75,7 @@ pthread_handler_t handle_manager(void *arg __attribute__((unused)))
   struct timespec abstime;
   bool reset_flush_time = TRUE;
   my_thread_init();
-  my_thread_set_name("handle_manager");
+  my_thread_set_name("manager");
   DBUG_ENTER("handle_manager");
 
   pthread_detach_this_thread();
