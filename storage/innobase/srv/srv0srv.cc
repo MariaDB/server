@@ -530,6 +530,7 @@ srv_print_master_thread_info(
 static void thread_pool_thread_init()
 {
 	my_thread_init();
+	my_thread_set_name("ib_tpool_worker");
 	pfs_register_thread(thread_pool_thread_key);
 }
 static void thread_pool_thread_end()
