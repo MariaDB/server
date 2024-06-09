@@ -346,9 +346,9 @@ static PSI_rwlock_info all_aria_rwlocks[]=
 
 static PSI_thread_info all_aria_threads[]=
 {
-  { &key_thread_checkpoint, "checkpoint_background", PSI_FLAG_GLOBAL},
-  { &key_thread_soft_sync, "soft_sync_background", PSI_FLAG_GLOBAL},
-  { &key_thread_find_all_keys, "thr_find_all_keys", 0}
+  { &key_thread_checkpoint, "checkpoint_bg", PSI_FLAG_GLOBAL},
+  { &key_thread_soft_sync, "soft_sync_bg", PSI_FLAG_GLOBAL},
+  { &key_thread_find_all_keys, "find_all_keys", 0}
 };
 
 static PSI_file_info all_aria_files[]=
