@@ -2,6 +2,7 @@
 --source include/have_partition.inc
 --source include/big_test.inc
 --source include/force_restart.inc
+--source include/log_bin.inc
 
 --connection node_1
 

@@ -133,9 +133,10 @@ struct close_cached_connection_tables_arg
 };
 
 
-static my_bool close_cached_connection_tables_callback(
-  TDC_element *element, close_cached_connection_tables_arg *arg)
+static my_bool close_cached_connection_tables_callback(void *el, void *a)
 {
+  TDC_element *element= static_cast<TDC_element*>(el);
+  auto arg= static_cast<close_cached_connection_tables_arg*>(a);
   TABLE_LIST *tmp;
 
   mysql_mutex_lock(&element->LOCK_table_share);
@@ -188,9 +189,7 @@ static bool close_cached_connection_tables(THD *thd, LEX_CSTRING *connection)
   close_cached_connection_tables_arg argument= { thd, connection, 0 };
   DBUG_ENTER("close_cached_connections");
 
-  if (tdc_iterate(thd,
-                  (my_hash_walk_action) close_cached_connection_tables_callback,
-                  &argument))
+  if (tdc_iterate(thd, close_cached_connection_tables_callback, &argument))
     DBUG_RETURN(true);
 
   DBUG_RETURN(argument.tables ?
