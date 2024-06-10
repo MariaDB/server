@@ -1,6 +1,7 @@
 # In embedded server we don't really have a control over stack usage
 -- source include/not_embedded.inc
 -- source include/not_asan.inc
+-- source include/not_ubsan.inc
 
 #
 # Bug#21476: Lost Database Connection During Query

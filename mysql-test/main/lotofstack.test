@@ -2,6 +2,7 @@
 # For tests that need a lot of stack - they likely won't work under ASAN
 #
 source include/not_asan.inc;
+source include/not_ubsan.inc;
 source include/not_embedded.inc;
 
 #

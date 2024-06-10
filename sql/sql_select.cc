@@ -8050,8 +8050,13 @@ best_access_path(JOIN      *join,
             }
 
             /* Limit the number of matched rows */
-            tmp= cost_for_index_read(thd, table, key, (ha_rows) records,
-                                     (ha_rows) s->worst_seeks);
+            ha_rows worst_seeks; 
+            if (isnan(s->worst_seeks))
+              worst_seeks = (ha_rows) UINT_MAX;
+            else
+              worst_seeks = (ha_rows) s->worst_seeks;
+            tmp= cost_for_index_read(thd, table, key,
+                                     (ha_rows) records, worst_seeks);
             records_for_key= (ha_rows) records;
             set_if_smaller(records_for_key, thd->variables.max_seeks_for_key);
             keyread_tmp= table->file->keyread_time(key, 1, records_for_key);
