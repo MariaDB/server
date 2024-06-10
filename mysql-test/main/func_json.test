@@ -1155,7 +1155,9 @@ SELECT JSON_REMOVE('{"A": { "B": 1 }}', '$.A.B.C.D');
 SET @save_collation_connection= @@collation_connection;
 
 SET collation_connection='utf16_bin';
+--disable_service_connection
 SELECT JSON_EXTRACT('{"a": 1,"b": 2}','$.a');
+--enable_service_connection
 
 SET @@collation_connection= @save_collation_connection;
 
