@@ -116,7 +116,7 @@ static void print_cached_tables(void)
   /* purecov: begin tested */
   puts("DB             Table                            Version  Thread  Open  Lock");
 
-  tdc_iterate(0, (my_hash_walk_action) print_cached_tables_callback, NULL, true);
+  tdc_iterate(0, print_cached_tables_callback, NULL, true);
 
   fflush(stdout);
   /* purecov: end */

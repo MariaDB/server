@@ -309,7 +309,7 @@ void tc_purge()
 {
   Share_free_tables::List purge_tables;
 
-  tdc_iterate(0, (my_hash_walk_action) tc_purge_callback, &purge_tables);
+  tdc_iterate(0, tc_purge_callback, &purge_tables);
   while (auto table= purge_tables.pop_front())
     intern_close_table(table);
 }
@@ -1126,7 +1126,7 @@ struct eliminate_duplicates_arg
 
 
 static uchar *eliminate_duplicates_get_key(const uchar *element, size_t *length,
-                                       my_bool not_used __attribute__((unused)))
+                                           my_bool)
 {
   LEX_STRING *key= (LEX_STRING *) element;
   *length= key->length;
@@ -1134,9 +1134,10 @@ static uchar *eliminate_duplicates_get_key(const uchar *element, size_t *length,
 }
 
 
-static my_bool eliminate_duplicates(TDC_element *element,
-                                    eliminate_duplicates_arg *arg)
+static my_bool eliminate_duplicates(void *el, void *a)
 {
+  TDC_element *element= static_cast<TDC_element*>(el);
+  eliminate_duplicates_arg *arg= static_cast<eliminate_duplicates_arg*>(a);
   LEX_STRING *key= (LEX_STRING *) alloc_root(&arg->root, sizeof(LEX_STRING));
 
   if (!key || !(key->str= (char*) memdup_root(&arg->root, element->m_key,
@@ -1182,7 +1183,7 @@ int tdc_iterate(THD *thd, my_hash_walk_action action, void *argument,
                  hash_flags);
     no_dups_argument.action= action;
     no_dups_argument.argument= argument;
-    action= (my_hash_walk_action) eliminate_duplicates;
+    action= eliminate_duplicates;
     argument= &no_dups_argument;
   }
 

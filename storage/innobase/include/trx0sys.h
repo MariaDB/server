@@ -453,10 +453,10 @@ class rw_trx_hash_t
     not accessible by concurrent threads.
   */
 
-  static void rw_trx_hash_initializer(LF_HASH *,
-                                      rw_trx_hash_element_t *element,
-                                      trx_t *trx)
+  static void rw_trx_hash_initializer(LF_HASH *, void *el, const void *t)
   {
+    rw_trx_hash_element_t *element= static_cast<rw_trx_hash_element_t*>(el);
+    trx_t *trx= static_cast<trx_t*>(const_cast<void*>(t));
     ut_ad(element->trx == 0);
     element->trx= trx;
     element->id= trx->id;
@@ -470,7 +470,7 @@ class rw_trx_hash_t
 
     Pins are used to protect object from being destroyed or reused. They are
     normally stored in trx object for quick access. If caller doesn't have trx
-    available, we try to get it using currnet_trx(). If caller doesn't have trx
+    available, we try to get it using current_trx(). If caller doesn't have trx
     at all, temporary pins are allocated.
   */
 
@@ -496,9 +496,10 @@ class rw_trx_hash_t
 
 
   template <typename T>
-  static my_bool eliminate_duplicates(rw_trx_hash_element_t *element,
-                                      eliminate_duplicates_arg<T> *arg)
+  static my_bool eliminate_duplicates(void *el, void *a)
   {
+    rw_trx_hash_element_t *element= static_cast<rw_trx_hash_element_t*>(el);
+    auto arg= static_cast<eliminate_duplicates_arg<T>*>(a);
     for (trx_ids_t::iterator it= arg->ids.begin(); it != arg->ids.end(); it++)
     {
       if (*it == element->id)
@@ -524,17 +525,17 @@ class rw_trx_hash_t
   }
 
 
-  template <typename T> struct debug_iterator_arg
+  struct debug_iterator_arg
   {
-    walk_action<T> *action;
-    T *argument;
+    my_hash_walk_action action;
+    void *argument;
   };
 
 
-  template <typename T>
-  static my_bool debug_iterator(rw_trx_hash_element_t *element,
-                                debug_iterator_arg<T> *arg)
+  static my_bool debug_iterator(void *el, void *a)
   {
+    rw_trx_hash_element_t *element= static_cast<rw_trx_hash_element_t*>(el);
+    debug_iterator_arg *arg= static_cast<debug_iterator_arg*>(a);
     mutex_enter(&element->mutex);
     if (element->trx)
       validate_element(element->trx);
@@ -744,7 +745,7 @@ public:
 
     @param caller_trx  used to get/set pins
     @param action      called for every element in hash
-    @param argument    opque argument passed to action
+    @param argument    opaque argument passed to action
 
     May return the same element multiple times if hash is under contention.
     If caller doesn't like to see the same transaction multiple times, it has
@@ -767,28 +768,24 @@ public:
       @retval 1 iteration was interrupted (action returned 1)
   */
 
-  template <typename T>
-  int iterate(trx_t *caller_trx, walk_action<T> *action, T *argument= nullptr)
+  int iterate(trx_t *caller_trx, my_hash_walk_action action,
+              void *argument= nullptr)
   {
     LF_PINS *pins= caller_trx ? get_pins(caller_trx) : lf_hash_get_pins(&hash);
     ut_a(pins);
 #ifdef UNIV_DEBUG
-    debug_iterator_arg<T> debug_arg= { action, argument };
-    action= reinterpret_cast<decltype(action)>(debug_iterator<T>);
-    argument= reinterpret_cast<T*>(&debug_arg);
+    debug_iterator_arg debug_arg= { action, argument };
+    action= debug_iterator;
+    argument= reinterpret_cast<void*>(&debug_arg);
 #endif
-    int res= lf_hash_iterate(&hash, pins,
-                             reinterpret_cast<my_hash_walk_action>(action),
-                             const_cast<void*>(static_cast<const void*>
-                             (argument)));
+    int res= lf_hash_iterate(&hash, pins, action, argument);
     if (!caller_trx)
       lf_hash_put_pins(pins);
     return res;
   }
 
 
-  template <typename T>
-  int iterate(walk_action<T> *action, T *argument= nullptr)
+  int iterate(my_hash_walk_action action, void *argument= nullptr)
   {
     return iterate(current_trx(), action, argument);
   }
@@ -1176,9 +1173,10 @@ public:
   }
 
 private:
-  static my_bool get_min_trx_id_callback(rw_trx_hash_element_t *element,
-                                         trx_id_t *id)
+  static my_bool get_min_trx_id_callback(void *el, void *i)
   {
+    auto element= static_cast<rw_trx_hash_element_t *>(el);
+    auto id= static_cast<trx_id_t*>(i);
     if (element->id < *id)
     {
       mutex_enter(&element->mutex);
@@ -1200,9 +1198,10 @@ private:
   };
 
 
-  static my_bool copy_one_id(rw_trx_hash_element_t *element,
-                             snapshot_ids_arg *arg)
+  static my_bool copy_one_id(void* el, void *a)
   {
+    auto element= static_cast<const rw_trx_hash_element_t *>(el);
+    auto arg= static_cast<snapshot_ids_arg*>(a);
     if (element->id < arg->m_id)
     {
       trx_id_t no= element->no;
