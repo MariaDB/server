@@ -2708,7 +2708,10 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
     only_single_index_range_scan= 1;
 
   if (head->force_index || force_quick_range)
+  {
+    DEBUG_SYNC(thd, "in_forced_range_optimize");
     scan_time= read_time= DBL_MAX;
+  }
   else
   {
     scan_time= rows2double(records) / TIME_FOR_COMPARE;

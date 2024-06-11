@@ -1783,7 +1783,9 @@ int JOIN::optimize()
     object a pointer to which is set in the field JOIN_TAB::rowid_filter of
     the joined table.
 
-  @retval false  always
+  @retval
+    false OK
+    true  Error, query should abort
 */
 
 bool JOIN::make_range_rowid_filters()
@@ -1830,8 +1832,11 @@ bool JOIN::make_range_rowid_filters()
                                    (ha_rows) HA_POS_ERROR,
                                    true, false, true, true);
     tab->table->force_index= force_index_save;
-    if (thd->is_error())
-      goto no_filter;
+    if (thd->is_error() || thd->check_killed())
+    {
+      delete sel;
+      DBUG_RETURN(true);
+    }
     /*
       If SUBS_IN_TO_EXISTS strtrategy is chosen for the subquery then
       additional conditions are injected into WHERE/ON/HAVING and it may
@@ -1855,8 +1860,6 @@ bool JOIN::make_range_rowid_filters()
         continue;
     }
   no_filter:
-    if (sel->quick)
-      delete sel->quick;
     delete sel;
   }
 
