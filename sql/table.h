@@ -1456,6 +1456,9 @@ public:
   */
   bool force_index;
 
+  /* Flag set when the statement contains FORCE INDEX FOR JOIN */
+  bool force_index_join;
+
   /**
     Flag set when the statement contains FORCE INDEX FOR ORDER BY
     See TABLE_LIST::process_index_hints().

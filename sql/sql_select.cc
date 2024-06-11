@@ -390,6 +390,7 @@ POSITION::POSITION()
   records_read= cond_selectivity= read_time= 0.0;
   prefix_record_count= 0.0;
   key= 0;
+  forced_index= 0;
   use_join_buffer= 0;
   sj_strategy= SJ_OPT_NONE;
   n_sj_tables= 0;
@@ -1973,8 +1974,6 @@ bool JOIN::make_range_rowid_filters()
     filter_map.clear_all();
     filter_map.set_bit(tab->range_rowid_filter_info->key_no);
     filter_map.merge(tab->table->with_impossible_ranges);
-    bool force_index_save= tab->table->force_index;
-    tab->table->force_index= true;
     quick_select_return rc;
     /*
       EQ_FUNC and EQUAL_FUNC already sent unusable key notes (if any)
@@ -1984,7 +1983,6 @@ bool JOIN::make_range_rowid_filters()
     rc= sel->test_quick_select(thd, filter_map, (table_map) 0,
                                (ha_rows) HA_POS_ERROR, true, false, true,
                                true, Item_func::BITMAP_EXCEPT_ANY_EQUALITY);
-    tab->table->force_index= force_index_save;
     if (rc == SQL_SELECT::ERROR || thd->is_error())
     {
       DBUG_RETURN(true); /* Fatal error */
@@ -3255,6 +3253,7 @@ int JOIN::optimize_stage2()
     */
     if ((order || group_list) &&
         tab->type != JT_ALL &&
+        tab->type != JT_NEXT &&
         tab->type != JT_FT &&
         tab->type != JT_REF_OR_NULL &&
         ((order && simple_order) || (group_list && simple_group)))
@@ -8026,6 +8025,7 @@ best_access_path(JOIN      *join,
   uint use_cond_selectivity= thd->variables.optimizer_use_condition_selectivity;
   KEYUSE *best_key=         0;
   uint best_max_key_part=   0;
+  uint best_forced_index= MAX_KEY, forced_index= MAX_KEY;
   my_bool found_constraint= 0;
   double best=              DBL_MAX;
   double best_time=         DBL_MAX;
@@ -8825,7 +8825,7 @@ best_access_path(JOIN      *join,
         best_max_key_part >= s->table->opt_range[best_key->key].key_parts) &&// (2)
       !((s->table->file->ha_table_flags() & HA_TABLE_SCAN_ON_INDEX) &&   // (3)
         ! s->table->covering_keys.is_clear_all() && best_key && !s->quick) &&// (3)
-      !(s->table->force_index && best_key && !s->quick) &&               // (4)
+      !(s->table->force_index_join && best_key && !s->quick) &&          // (4)
       !(best_key && s->table->pos_in_table_list->jtbm_subselect))        // (5)
   {                                             // Check full join
     bool force_estimate= 0;
@@ -8890,15 +8890,55 @@ best_access_path(JOIN      *join,
     else
     {
       /* Estimate cost of reading table. */
-      if (s->table->force_index && !best_key) // index scan
+      if (s->cached_forced_index_type)
       {
-        type= JT_NEXT;
-        tmp= s->table->file->read_time(s->ref.key, 1, s->records);
+        type=         s->cached_forced_index_type;
+        tmp=          s->cached_forced_index_cost;
+        forced_index= s->cached_forced_index;
       }
-      else // table scan
+      else
       {
-        tmp= s->scan_time();
-        type= JT_ALL;
+        TABLE* table= s->table;
+        if (table->force_index_join && !best_key)
+        {
+          /*
+            The query is using 'forced_index' and we did not find a complete
+            key.  Determine if we can do a non-index-only full index scan
+            if query specifies FORCE INDEX on a covering index.
+          */
+          type= JT_NEXT;
+
+          /* No cached key, use shortest allowed key */
+          key_map keys= *table->file->keys_to_use_for_scanning();
+          keys.intersect(table->keys_in_use_for_query);
+          if ((forced_index= find_shortest_key(table, &keys)) < MAX_KEY)
+          {
+            tmp= cost_for_index_read(thd, table,
+                                     forced_index,
+                                     s->records,
+                                     s->worst_seeks);
+            /* Calculate cost of checking the attached WHERE.  The code
+               from which this is ported exposes optimizer_where_cost as
+               a sysvar, with a default of 3.2e-05 and a cost adjustment
+               factor of 1000. */
+            const double where_cost= ((double) 3.2e-05) * 1000;
+            tmp+= s->records * where_cost;
+          }
+          else
+          {
+            /* No usable key, use table scan */
+            tmp= s->scan_time();
+            type= JT_ALL;
+          }
+        }
+        else // table scan
+        {
+          tmp= s->scan_time();
+          type= JT_ALL;
+        }
+        s->cached_forced_index_type= type;
+        s->cached_forced_index_cost= tmp;
+        s->cached_forced_index= forced_index;
       }
 
       if ((s->table->map & join->outer_join) || disable_jbuf)     // Can't use join cache
@@ -8963,6 +9003,7 @@ best_access_path(JOIN      *join,
       best= tmp;
       records= rnd_records;
       best_key= 0;
+      best_forced_index= forced_index;
       best_filter= 0;
       if (s->quick && s->quick->get_type() == QUICK_SELECT_I::QS_TYPE_RANGE)
         best_filter= filter;
@@ -8987,6 +9028,7 @@ best_access_path(JOIN      *join,
   pos->records_read= records;
   pos->read_time=    best;
   pos->key=          best_key;
+  pos->forced_index= best_forced_index;
   pos->type=         best_type;
   pos->table=        s;
   pos->ref_depend_map= best_ref_depends_map;
@@ -11471,7 +11513,13 @@ bool JOIN::get_best_combination()
       goto loop_end;
     if ( !(keyuse= best_positions[tablenr].key))
     {
-      j->type=JT_ALL;
+      if (cur_pos->type == JT_NEXT)             // Forced index
+      {
+        j->type= JT_NEXT;
+        j->index= cur_pos->forced_index;
+      }
+      else
+       j->type=JT_ALL;
       if (best_positions[tablenr].use_join_buffer &&
           tablenr != const_tables)
 	full_join= 1;
@@ -12728,7 +12776,8 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
               tab->table->reginfo.impossible_range)
 	    DBUG_RETURN(1);
 	}
-	else if (tab->type == JT_ALL && ! use_quick_range)
+	else if ((tab->type == JT_ALL || tab->type == JT_NEXT) &&
+                 ! use_quick_range)
 	{
 	  if (!tab->const_keys.is_clear_all() &&
 	      tab->table->reginfo.impossible_range)
@@ -13850,6 +13899,7 @@ uint check_join_cache_usage(JOIN_TAB *tab,
   prev_cache= prev_tab->cache;
 
   switch (tab->type) {
+  case JT_NEXT:
   case JT_ALL:
     if (cache_level == 1)
       prev_cache= 0;
@@ -14011,6 +14061,7 @@ restart:
     case JT_EQ_REF:
     case JT_REF:
     case JT_REF_OR_NULL:
+    case JT_NEXT:
     case JT_ALL:
       tab->used_join_cache_level= check_join_cache_usage(tab, options,
                                                          no_jbuf_after,
@@ -14265,6 +14316,25 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
           (!jcl || jcl > 4) && !tab->ref.is_access_triggered())
         push_index_cond(tab, tab->ref.key);
       break;
+    case JT_NEXT:                               // Index scan
+      DBUG_ASSERT(!(tab->select && tab->select->quick));
+      if (tab->use_quick == 2)
+      {
+        join->thd->set_status_no_good_index_used();
+	tab->read_first_record= join_init_quick_read_record;
+	if (statistics)
+	  join->thd->inc_status_select_range_check();
+      }
+      else
+      {
+        tab->read_first_record= join_read_first;
+        if (statistics)
+        {
+          join->thd->inc_status_select_scan();
+          join->thd->query_plan_flags|= QPLAN_FULL_SCAN;
+        }
+      }
+      break;
     case JT_ALL:
     case JT_HASH:
       /*
@@ -14457,7 +14527,8 @@ bool error_if_full_join(JOIN *join)
   for (JOIN_TAB *tab=first_top_level_tab(join, WITH_CONST_TABLES); tab;
        tab= next_top_level_tab(join, tab))
   {
-    if (tab->type == JT_ALL && (!tab->select || !tab->select->quick))
+      if ((tab->type == JT_ALL || tab->type == JT_NEXT) &&
+          (!tab->select || !tab->select->quick))
     {
       my_message(ER_UPDATE_WITHOUT_KEY_IN_SAFE_MODE,
                  ER_THD(join->thd,
@@ -22921,9 +22992,29 @@ int join_init_read_record(JOIN_TAB *tab)
   save_copy=     tab->read_record.copy_field;
   save_copy_end= tab->read_record.copy_field_end;
   
-  if (init_read_record(&tab->read_record, tab->join->thd, tab->table,
-                       tab->select, tab->filesort_result, 1, 1, FALSE))
-    return 1;
+  /*
+    JT_NEXT means that we should use an index scan on index 'tab->index'
+    However if filesort is set, the table was already sorted above
+    and now have to retrive the rows from the tmp file or by rnd_pos()
+    If !(tab->select && tab->select->quick)) it means that we are
+    in "Range checked for each record" and we better let the normal
+    init_read_record() handle this case
+  */
+
+  if (tab->type == JT_NEXT && ! tab->filesort &&
+      !(tab->select && tab->select->quick))
+  {
+    /* Used with covered_index scan or force index */
+    if (init_read_record_idx(&tab->read_record, tab->join->thd, tab->table,
+                             1, tab->index, 0))
+      return 1;
+  }
+  else
+  {
+    if (init_read_record(&tab->read_record, tab->join->thd, tab->table,
+                         tab->select, tab->filesort_result, 1, 1, FALSE))
+      return 1;
+  }
 
   tab->read_record.copy_field=     save_copy;
   tab->read_record.copy_field_end= save_copy_end;
