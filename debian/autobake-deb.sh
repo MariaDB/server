@@ -78,6 +78,7 @@ disable_libfmt()
 }
 
 architecture=$(dpkg-architecture -q DEB_BUILD_ARCH)
+uname_machine=$(uname -m)
 
 # Parse release name and number from Linux standard base release
 # Example:
@@ -185,6 +186,14 @@ fi
 if which eatmydata > /dev/null
 then
   BUILDPACKAGE_DPKGCMD+=("eatmydata")
+fi
+
+# If running autobake-debs.sh inside docker/podman host machine which
+# has 64 bits cpu but container image is 32 bit make sure that we set
+# correct arch with linux32 for 32 bit enviroment
+if [ "$architecture" = "i386" ] && [ "$uname_machine" = "x86_64" ]
+then
+  BUILDPACKAGE_DPKGCMD+=("linux32")
 fi
 
 BUILDPACKAGE_DPKGCMD+=("dpkg-buildpackage")

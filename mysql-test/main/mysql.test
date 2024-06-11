@@ -757,4 +757,20 @@ source $MYSQL_TMP_DIR/mysql_in;" $MYSQL_TMP_DIR/mysql_in2;
 --remove_file $MYSQL_TMP_DIR/mysql_in
 --remove_file $MYSQL_TMP_DIR/mysql_in2
 
+--echo #
+--echo # MDEV-34203: Sandbox mode \- is not compatible with --binary-mode
+--echo #
+
+create table t1 (a int);
+
+--exec $MYSQL_DUMP test t1 > $MYSQLTEST_VARDIR/tmp/MDEV-34203.sql
+
+drop table t1;
+
+--exec $MYSQL --binary-mode test 2>&1 < $MYSQLTEST_VARDIR/tmp/MDEV-34203.sql
+
+show create table t1;
+drop table t1;
+--remove_file $MYSQLTEST_VARDIR/tmp/MDEV-34203.sql
+
 --echo # End of 10.5 tests

@@ -191,7 +191,7 @@ bool trans_begin(THD *thd, uint flags)
   }
 
 #ifdef WITH_WSREP
-  if (wsrep_thd_is_local(thd))
+  if (WSREP(thd) && wsrep_thd_is_local(thd))
   {
     if (wsrep_sync_wait(thd))
       DBUG_RETURN(TRUE);

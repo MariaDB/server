@@ -109,8 +109,7 @@ extern my_bool opt_readonly;
 #include "ut0mem.h"
 #include "row0ext.h"
 #include "mariadb_stats.h"
-thread_local ha_handler_stats mariadb_dummy_stats;
-thread_local ha_handler_stats *mariadb_stats= &mariadb_dummy_stats;
+simple_thread_local ha_handler_stats *mariadb_stats;
 
 #include "lz4.h"
 #include "lzo/lzo1x.h"
@@ -1044,7 +1043,7 @@ static SHOW_VAR innodb_status_variables[]= {
   {"defragment_count", &export_vars.innodb_defragment_count, SHOW_SIZE_T},
 
   {"instant_alter_column",
-   &export_vars.innodb_instant_alter_column, SHOW_ULONG},
+   &export_vars.innodb_instant_alter_column, SHOW_SIZE_T},
 
   /* Online alter table status variables */
   {"onlineddl_rowlog_rows",
@@ -1079,6 +1078,9 @@ static SHOW_VAR innodb_status_variables[]= {
    &export_vars.innodb_n_temp_blocks_decrypted, SHOW_LONGLONG},
   {"encryption_num_key_requests", &export_vars.innodb_encryption_key_requests,
    SHOW_LONGLONG},
+
+  /* InnoDB bulk operations */
+  {"bulk_operations", &export_vars.innodb_bulk_operations, SHOW_SIZE_T},
 
   {NullS, NullS, SHOW_LONG}
 };
@@ -3994,6 +3996,21 @@ static int innodb_init_params()
 		if (innobase_open_files > tc_size) {
 			innobase_open_files = tc_size;
 		}
+	}
+
+	ulint min_open_files_limit = srv_undo_tablespaces
+				+ srv_sys_space.m_files.size()
+				+ srv_tmp_space.m_files.size() + 1;
+	if (min_open_files_limit > innobase_open_files) {
+		sql_print_warning(
+			"InnoDB: innodb_open_files=%lu is not greater "
+			"than the number of system tablespace files, "
+			"temporary tablespace files, "
+			"innodb_undo_tablespaces=%lu; adjusting "
+			"to innodb_open_files=%zu",
+			innobase_open_files, srv_undo_tablespaces,
+			min_open_files_limit);
+		innobase_open_files = (ulong) min_open_files_limit;
 	}
 
 	srv_max_n_open_files = innobase_open_files;

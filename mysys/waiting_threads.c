@@ -424,8 +424,10 @@ static void wt_resource_destroy(uchar *arg)
   It's called from lf_hash when an element is inserted.
 */
 static void wt_resource_init(LF_HASH *hash __attribute__((unused)),
-                             WT_RESOURCE *rc, WT_RESOURCE_ID *id)
+                             void *resource, const void *ident)
 {
+  WT_RESOURCE *rc= resource;
+  const WT_RESOURCE_ID *id= ident;
   DBUG_ENTER("wt_resource_init");
   rc->id= *id;
   rc->waiter_count= 0;

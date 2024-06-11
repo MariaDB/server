@@ -16,54 +16,67 @@ this program; if not, write to the Free Software Foundation, Inc.,
 
 *****************************************************************************/
 
-#ifndef mariadb_stats_h
-#define mariadb_stats_h
-
-/* Include file to handle mariadbd handler specific stats */
+#pragma once
 
 #include "ha_handler_stats.h"
 #include "my_rdtsc.h"
 
-/* Not active threads are ponting to this structure */
-extern thread_local ha_handler_stats mariadb_dummy_stats;
+/* We do not want a dynamic initialization function to be
+conditionally invoked on each access to a C++11 extern thread_local. */
+#if __cplusplus >= 202002L
+# define simple_thread_local constinit thread_local
+#else
+# define simple_thread_local IF_WIN(__declspec(thread),__thread)
+#endif
 
-/* Points to either THD->handler_stats or mariad_dummy_stats */
-extern thread_local ha_handler_stats *mariadb_stats;
+/** Pointer to handler::active_handler_stats or nullptr (via .tbss) */
+extern simple_thread_local ha_handler_stats *mariadb_stats;
 
 /*
-  Returns 1 if MariaDB wants engine status
+  Returns nonzero if MariaDB wants engine status
 */
 
-inline bool mariadb_stats_active()
+inline uint mariadb_stats_active()
 {
-  return mariadb_stats->active != 0;
-}
-
-inline bool mariadb_stats_active(ha_handler_stats *stats)
-{
-  return stats->active != 0;
+  if (ha_handler_stats *stats= mariadb_stats)
+    return stats->active;
+  return 0;
 }
 
 /* The following functions increment different engine status */
 
+inline void mariadb_increment_pages_accessed(ha_handler_stats *stats)
+{
+  if (stats)
+    stats->pages_accessed++;
+}
+
 inline void mariadb_increment_pages_accessed()
 {
-  mariadb_stats->pages_accessed++;
+  mariadb_increment_pages_accessed(mariadb_stats);
 }
 
 inline void mariadb_increment_pages_updated(ulonglong count)
 {
-  mariadb_stats->pages_updated+= count;
+  if (ha_handler_stats *stats= mariadb_stats)
+    stats->pages_updated+= count;
+}
+
+inline void mariadb_increment_pages_read(ha_handler_stats *stats)
+{
+  if (stats)
+    stats->pages_read_count++;
 }
 
 inline void mariadb_increment_pages_read()
 {
-  mariadb_stats->pages_read_count++;
+  mariadb_increment_pages_read(mariadb_stats);
 }
 
 inline void mariadb_increment_undo_records_read()
 {
-  mariadb_stats->undo_records_read++;
+  if (ha_handler_stats *stats= mariadb_stats)
+    stats->undo_records_read++;
 }
 
 /*
@@ -92,7 +105,7 @@ inline void mariadb_increment_pages_read_time(ulonglong start_time)
   ulonglong end_time= mariadb_measure();
   /* Check that we only call this if active, see example! */
   DBUG_ASSERT(start_time);
-  DBUG_ASSERT(mariadb_stats_active(stats));
+  DBUG_ASSERT(stats->active);
 
   stats->pages_read_time+= (end_time - start_time);
 }
@@ -105,15 +118,12 @@ inline void mariadb_increment_pages_read_time(ulonglong start_time)
 class mariadb_set_stats
 {
 public:
-  uint flag;
   mariadb_set_stats(ha_handler_stats *stats)
   {
-    mariadb_stats= stats ? stats : &mariadb_dummy_stats;
+    mariadb_stats= stats;
   }
   ~mariadb_set_stats()
   {
-    mariadb_stats= &mariadb_dummy_stats;
+    mariadb_stats= nullptr;
   }
 };
-
-#endif /* mariadb_stats_h */

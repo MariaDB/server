@@ -756,6 +756,7 @@ static bool btr_cur_need_opposite_intention(const buf_page_t &bpage,
                                             ulint compress_limit,
                                             const rec_t *rec)
 {
+  ut_ad(bpage.frame == page_align(rec));
   if (UNIV_LIKELY_NULL(bpage.zip.data) &&
       !page_zip_available(&bpage.zip, is_clust, node_ptr_max_size, 1))
     return true;
@@ -1438,11 +1439,6 @@ release_tree:
           !btr_block_get(*index(), btr_page_get_next(block->page.frame),
                          RW_X_LATCH, false, mtr, &err))
         goto func_exit;
-      if (btr_cur_need_opposite_intention(block->page, index()->is_clust(),
-                                          lock_intention,
-                                          node_ptr_max_size, compress_limit,
-                                          page_cur.rec))
-        goto need_opposite_intention;
     }
 
   reached_latched_leaf:
@@ -1463,6 +1459,13 @@ release_tree:
     ut_ad(up_match != ULINT_UNDEFINED || mode != PAGE_CUR_GE);
     ut_ad(up_match != ULINT_UNDEFINED || mode != PAGE_CUR_LE);
     ut_ad(low_match != ULINT_UNDEFINED || mode != PAGE_CUR_LE);
+
+    if (latch_mode == BTR_MODIFY_TREE &&
+        btr_cur_need_opposite_intention(block->page, index()->is_clust(),
+                                        lock_intention,
+                                        node_ptr_max_size, compress_limit,
+                                        page_cur.rec))
+        goto need_opposite_intention;
 
 #ifdef BTR_CUR_HASH_ADAPT
     /* We do a dirty read of btr_search_enabled here.  We will

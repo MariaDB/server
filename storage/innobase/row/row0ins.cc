@@ -2771,6 +2771,7 @@ avoid_bulk:
 				goto avoid_bulk;
 			}
 
+			export_vars.innodb_bulk_operations++;
 			goto err_exit;
 		}
 	}

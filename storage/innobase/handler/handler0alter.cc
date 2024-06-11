@@ -7372,6 +7372,7 @@ error_handling_drop_uncached:
 		ut_d(dict_table_check_for_dup_indexes(user_table,
 						      CHECK_PARTIAL_OK));
 		if (ctx->need_rebuild()) {
+			export_vars.innodb_bulk_operations++;
 			ctx->new_table->acquire();
 		}
 

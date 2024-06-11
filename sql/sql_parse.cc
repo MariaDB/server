@@ -4704,7 +4704,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
 #ifdef WITH_WSREP
       if (wsrep && !first_table->view)
       {
-        bool is_innodb= (first_table->table->file->ht->db_type == DB_TYPE_INNODB);
+        bool is_innodb= first_table->table->file->partition_ht()->db_type == DB_TYPE_INNODB;
 
         // For consistency check inserted table needs to be InnoDB
         if (!is_innodb && thd->wsrep_consistency_check != NO_CONSISTENCY_CHECK)
@@ -6596,6 +6596,23 @@ show_create_db(THD *thd, LEX *lex)
   LEX_CSTRING db_name;
   DBUG_EXECUTE_IF("4x_server_emul",
                   my_error(ER_UNKNOWN_ERROR, MYF(0)); return 1;);
+
+#if MYSQL_VERSION_ID<=110301
+  /*
+    This piece of the code was added in 10.5 to fix MDEV-32376.
+    It should not get to 11.3 or higer, as MDEV-32376 was fixed
+    in a different way in 11.3.1 (see MDEV-31948).
+  */
+  if (lex->name.length > sizeof(db_name_buff) - 1)
+  {
+    my_error(ER_WRONG_DB_NAME, MYF(0),
+             ErrConvString(lex->name.str, lex->name.length,
+                           system_charset_info).ptr());
+    return 1;
+  }
+#else
+#error Remove this preprocessor-conditional code in 11.3.1+
+#endif
 
   db_name.str= db_name_buff;
   db_name.length= lex->name.length;

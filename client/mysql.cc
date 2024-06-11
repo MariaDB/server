@@ -1206,6 +1206,8 @@ inline int get_command_index(char cmd_char)
 
 static int delimiter_index= -1;
 static int charset_index= -1;
+static int sandbox_index= -1;
+
 static bool real_binary_mode= FALSE;
 
 
@@ -1216,7 +1218,8 @@ int main(int argc,char *argv[])
   MY_INIT(argv[0]);
   DBUG_ENTER("main");
   DBUG_PROCESS(argv[0]);
-  
+
+  sandbox_index= get_command_index('-');
   charset_index= get_command_index('C');
   delimiter_index= get_command_index('d');
   delimiter_str= delimiter;
@@ -2367,8 +2370,9 @@ static int read_and_execute(bool interactive)
 
 /**
    It checks if the input is a short form command. It returns the command's
-   pointer if a command is found, else return NULL. Note that if binary-mode
-   is set, then only \C is searched for.
+   pointer if a command is found, else return NULL.
+
+   Note that if binary-mode is set, then only \C and \- are searched for.
 
    @param cmd_char    A character of one byte.
 
@@ -2383,13 +2387,23 @@ static COMMANDS *find_command(char cmd_char)
   int index= -1;
 
   /*
-    In binary-mode, we disallow all mysql commands except '\C'
-    and DELIMITER.
+    In binary-mode, we disallow all client commands except '\C',
+    DELIMITER (see long comand finding find_command(char *))
+    and  '\-' (sandbox, see following comment).
   */
   if (real_binary_mode)
   {
     if (cmd_char == 'C')
       index= charset_index;
+    /*
+       binary-mode enforces stricter controls compared to sandbox mode.
+       Whether sandbox mode is enabled or not is irrelevant when
+       binary-mode is active.
+       The only purpose of processing sandbox mode here is to avoid error
+       messages on files made by mysqldump.
+    */
+    else if (cmd_char == '-')
+      index= sandbox_index;
   }
   else
     index= get_command_index(cmd_char);
@@ -2445,6 +2459,12 @@ static COMMANDS *find_command(char *name)
     len= (uint) strlen(name);
 
   int index= -1;
+  /*
+    In binary-mode, we disallow all client commands except DELIMITER
+    and short commands '\C' and  '\-' (see short command finding
+    find_command(char)).
+  */
+
   if (real_binary_mode)
   {
     if (is_delimiter_command(name, len))

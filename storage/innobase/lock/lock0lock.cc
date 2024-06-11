@@ -5445,8 +5445,10 @@ static void lock_rec_block_validate(const page_id_t page_id)
 	}
 }
 
-static my_bool lock_validate_table_locks(rw_trx_hash_element_t *element, void*)
+
+static my_bool lock_validate_table_locks(void *el, void*)
 {
+  rw_trx_hash_element_t *element= static_cast<rw_trx_hash_element_t*>(el);
   lock_sys.assert_locked();
   element->mutex.wr_lock();
   if (element->trx)
@@ -5654,10 +5656,10 @@ struct lock_rec_other_trx_holds_expl_arg
 };
 
 
-static my_bool lock_rec_other_trx_holds_expl_callback(
-  rw_trx_hash_element_t *element,
-  lock_rec_other_trx_holds_expl_arg *arg)
+static my_bool lock_rec_other_trx_holds_expl_callback(void *el, void *a)
 {
+  auto element= static_cast<rw_trx_hash_element_t*>(el);
+  auto arg= static_cast<lock_rec_other_trx_holds_expl_arg*>(a);
   element->mutex.wr_lock();
   if (element->trx)
   {
@@ -6473,13 +6475,14 @@ dberr_t lock_trx_handle_wait(trx_t *trx)
 /**
   Do an exhaustive check for any locks (table or rec) against the table.
 
-  @param[in]  table  check if there are any locks held on records in this table
-                     or on the table itself
+  @param t  check if there are any locks held on records in this table
+            or on the table itself
 */
 
-static my_bool lock_table_locks_lookup(rw_trx_hash_element_t *element,
-                                       const dict_table_t *table)
+static my_bool lock_table_locks_lookup(void *el, void *t)
 {
+  auto element= static_cast<rw_trx_hash_element_t*>(el);
+  const dict_table_t *table= static_cast<const dict_table_t*>(t);
   lock_sys.assert_locked();
   element->mutex.wr_lock();
   if (element->trx)
@@ -6539,7 +6542,7 @@ bool lock_table_has_locks(dict_table_t *table)
   {
     LockMutexGuard g{SRW_LOCK_CALL};
     trx_sys.rw_trx_hash.iterate(lock_table_locks_lookup,
-                                const_cast<const dict_table_t*>(table));
+                                static_cast<void*>(table));
   }
 #endif /* UNIV_DEBUG */
   return false;
