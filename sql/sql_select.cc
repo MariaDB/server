@@ -1987,6 +1987,7 @@ bool JOIN::make_range_rowid_filters()
     tab->table->force_index= force_index_save;
     if (rc == SQL_SELECT::ERROR || thd->is_error())
     {
+      delete sel;
       DBUG_RETURN(true); /* Fatal error */
     }
     /*
@@ -2012,8 +2013,6 @@ bool JOIN::make_range_rowid_filters()
         continue;
     }
   no_filter:
-    if (sel->quick)
-      delete sel->quick;
     delete sel;
   }
 
@@ -2031,7 +2030,9 @@ bool JOIN::make_range_rowid_filters()
     rowid container employed by the filter. On success it lets the table engine
     know that what rowid filter will be used when accessing the table rows.
 
-  @retval false  always
+  @retval
+    false OK
+    true  Error, query should abort
 */
 
 bool
