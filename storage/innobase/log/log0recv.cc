@@ -2768,8 +2768,7 @@ restart:
       case INIT_PAGE:
         last_offset= FIL_PAGE_TYPE;
       free_or_init_page:
-        if (store)
-          store_freed_or_init_rec(id, (b & 0x70) == FREE_PAGE);
+        store_freed_or_init_rec(id, (b & 0x70) == FREE_PAGE);
         if (UNIV_UNLIKELY(rlen != 0))
           goto record_corrupted;
       copy_if_needed:
@@ -2833,7 +2832,7 @@ restart:
         {
           if (UNIV_UNLIKELY(rlen + last_offset > srv_page_size))
             goto record_corrupted;
-          if (store && UNIV_UNLIKELY(!page_no) && file_checkpoint)
+          if (UNIV_UNLIKELY(!page_no) && file_checkpoint)
           {
             const bool has_size= last_offset <= FSP_HEADER_OFFSET + FSP_SIZE &&
               last_offset + rlen >= FSP_HEADER_OFFSET + FSP_SIZE + 4;
