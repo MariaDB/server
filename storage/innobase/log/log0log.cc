@@ -1181,9 +1181,7 @@ loop:
 	}
 
 	/* We need these threads to stop early in shutdown. */
-	const char* thread_name = srv_fast_shutdown != 2
-		&& trx_rollback_is_active
-		? "rollback of recovered transactions" : nullptr;
+	const char* thread_name= nullptr;
 
 	if (thread_name) {
 		ut_ad(!srv_read_only_mode);
@@ -1215,6 +1213,7 @@ wait_suspend_loop:
 	}
 
 	buf_load_dump_end();
+	rollback_all_recovered_task.wait();
 
 	if (!buf_pool.is_initialised()) {
 		ut_ad(!srv_was_started);

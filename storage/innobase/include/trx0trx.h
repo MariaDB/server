@@ -715,10 +715,10 @@ public:
   XA (2PC):
   * NOT_STARTED -> ACTIVE -> PREPARED -> COMMITTED -> NOT_STARTED
 
-  Recovered XA:
+  Recovered XA(2PC) followed by XA COMMIT :
   * NOT_STARTED -> PREPARED -> COMMITTED -> (freed)
 
-  Recovered XA followed by XA ROLLBACK:
+  Recovered XA followed by XA ROLLBACK or recover_rollback_by_xid:
   * NOT_STARTED -> PREPARED -> ACTIVE -> COMMITTED -> (freed)
 
   XA (2PC) (shutdown or disconnect before ROLLBACK or COMMIT):

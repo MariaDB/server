@@ -4108,6 +4108,11 @@ static int innodb_init(void* p)
 	innobase_hton->recover = innobase_xa_recover;
 	innobase_hton->commit_by_xid = innobase_commit_by_xid;
 	innobase_hton->rollback_by_xid = innobase_rollback_by_xid;
+#ifndef EMBEDDED_LIBRARY
+	innobase_hton->recover_rollback_by_xid =
+		innobase_recover_rollback_by_xid;
+	innobase_hton->signal_tc_log_recovery_done = innobase_tc_log_recovery_done;
+#endif
 	innobase_hton->commit_checkpoint_request = innodb_log_flush_request;
 	innobase_hton->create = innobase_create_handler;
 
@@ -17170,6 +17175,80 @@ int innobase_rollback_by_xid(handlerton* hton, XID* xid)
 		return(XAER_NOTA);
 	}
 }
+
+#ifndef EMBEDDED_LIBRARY
+/**
+  This function is used to rollback one X/Open XA distributed transaction
+  which is in the prepared state asynchronously.
+
+  It only set the transaction's status to ACTIVE and persist the status.
+  The transaction will be rolled back by background rollback thread.
+
+  @param xid X/Open XA transaction identification
+
+  @return 0 or error number
+*/
+int innobase_recover_rollback_by_xid(const XID *xid)
+{
+  DBUG_EXECUTE_IF("innobase_xa_fail", return XAER_RMFAIL;);
+
+  if (high_level_read_only)
+    return XAER_RMFAIL;
+
+  /*
+    trx_get_trx_by_xid() sets trx's xid to null. Thus only one call for any
+    given XID can find the transaction. Subsequent calls by other threads
+    would return nullptr. That is what guarantees that no other thread can be
+    modifying the state of the transaction at this point.
+  */
+  trx_t *trx= trx_get_trx_by_xid(xid);
+  if (!trx)
+    return XAER_RMFAIL;
+
+  // ddl should not be rolled back through recovery
+  ut_ad(!trx->dict_operation);
+  ut_ad(trx->is_recovered);
+  ut_ad(trx->state == TRX_STATE_PREPARED);
+
+#ifdef WITH_WSREP
+  ut_ad(!wsrep_is_wsrep_xid(&trx->xid));
+#endif
+
+  if (trx->rsegs.m_redo.undo)
+  {
+    ut_ad(trx->rsegs.m_redo.undo->rseg == trx->rsegs.m_redo.rseg);
+
+    mtr_t mtr;
+    mtr.start();
+    trx_undo_set_state_at_prepare(trx, trx->rsegs.m_redo.undo, true, &mtr);
+    mtr.commit();
+
+    ut_ad(mtr.commit_lsn() > 0);
+  }
+
+  /* The above state change from XA PREPARE will be made durable in
+  innobase_tc_log_recovery_done(), which will also initiate
+  trx_rollback_recovered() to roll back this transaction. */
+  trx->state= TRX_STATE_ACTIVE;
+  return 0;
+}
+
+void innobase_tc_log_recovery_done()
+{
+  if (high_level_read_only)
+    return;
+
+  /* Make durable any innobase_recover_rollback_by_xid(). */
+  log_buffer_flush_to_disk(true);
+
+  if (srv_force_recovery < SRV_FORCE_NO_TRX_UNDO)
+  {
+    /* Rollback incomplete non-DDL transactions */
+    trx_rollback_is_active= true;
+    srv_thread_pool->submit_task(&rollback_all_recovered_task);
+  }
+}
+#endif // EMBEDDED_LIBRARY
 
 bool
 ha_innobase::check_if_incompatible_data(

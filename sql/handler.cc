@@ -2682,8 +2682,12 @@ static void xarecover_do_commit_or_rollback(handlerton *hton,
   else
     x= *member->full_xid;
 
-  rc= xarecover_decide_to_commit(member, ptr_commit_max) ?
-    hton->commit_by_xid(hton, &x) : hton->rollback_by_xid(hton, &x);
+  if (xarecover_decide_to_commit(member, ptr_commit_max))
+    rc= hton->commit_by_xid(hton, &x);
+  else if (hton->recover_rollback_by_xid)
+    rc= hton->recover_rollback_by_xid(&x);
+  else
+    rc= hton->rollback_by_xid(hton, &x);
 
   /*
     It's fine to have non-zero rc which would be from transaction
@@ -2748,6 +2752,21 @@ static my_bool xarecover_complete_and_count(void *member_arg,
   }
 
   return false;
+}
+
+static my_bool tc_log_recover_done_handlerton(THD*, plugin_ref plugin, void *arg)
+{
+  handlerton *hton= plugin_hton(plugin);
+
+  if (hton->signal_tc_log_recovery_done)
+    hton->signal_tc_log_recovery_done();
+  return false;
+}
+
+void ha_signal_tc_log_recovery_done()
+{
+  std::ignore = plugin_foreach(nullptr, tc_log_recover_done_handlerton,
+                               MYSQL_STORAGE_ENGINE_PLUGIN, 0);
 }
 
 /*
