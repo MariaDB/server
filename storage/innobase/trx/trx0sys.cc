@@ -362,3 +362,21 @@ size_t trx_sys_t::any_active_transactions(size_t *prepared)
 
   return total_trx;
 }
+
+#ifndef EMBEDDED_LIBRARY
+/** @return true if any active (non-prepared) transactions is recovered */
+bool trx_sys_t::any_active_transaction_recovered()
+{
+  return trx_sys.trx_list.find_first([&](trx_t &trx)
+  {
+    if (trx.state != TRX_STATE_ACTIVE)
+      return false;
+
+    bool found= false;
+    trx.mutex_lock();
+    found= trx.is_recovered;
+    trx.mutex_unlock();
+    return found;
+  });
+}
+#endif

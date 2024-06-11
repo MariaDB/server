@@ -1428,6 +1428,23 @@ struct handlerton
    int  (*commit_by_xid)(handlerton *hton, XID *xid);
    int  (*rollback_by_xid)(handlerton *hton, XID *xid);
    /*
+     recover_rollback_by_xid is optional. If set, it will be called instead of
+     rollback_by_xid when transactions should be rolled back at server startup.
+
+     This function should just change the transaction's state from prepared to
+     active before returing. The actual rollback should then happen
+     asynchroneously (eg. in a background thread). This way, rollbacks that
+     take a long time to complete will not block server startup, and the
+     database becomes available sooner to serve user queries.
+   */
+   int  (*recover_rollback_by_xid)(const XID *xid);
+   /*
+     It is called after binlog recovery has done commit/rollback of
+     all transactions. It is used together with recover_rollback_by_xid()
+     together to rollback prepared transactions asynchronously.
+   */
+   void (*signal_tc_log_recovery_done)();
+   /*
      The commit_checkpoint_request() handlerton method is used to checkpoint
      the XA recovery process for storage engines that support two-phase
      commit.
@@ -5622,6 +5639,7 @@ int ha_panic(enum ha_panic_function flag);
 void ha_close_connection(THD* thd);
 void ha_kill_query(THD* thd, enum thd_kill_levels level);
 void ha_signal_ddl_recovery_done();
+void ha_signal_tc_log_recovery_done();
 bool ha_flush_logs();
 void ha_drop_database(const char* path);
 void ha_checkpoint_state(bool disable);

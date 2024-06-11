@@ -42,6 +42,8 @@ Created 3/26/1996 Heikki Tuuri
 extern mysql_pfs_key_t trx_sys_mutex_key;
 #endif
 
+extern bool trx_rollback_is_active;
+
 /** Checks if a page address is the trx sys header page.
 @param[in]	page_id	page id
 @return true if trx sys header page */
@@ -822,6 +824,21 @@ public:
     mysql_mutex_unlock(&mutex);
   }
 
+  template <typename Callable> bool find_first(Callable &&callback) const
+  {
+    mysql_mutex_lock(&mutex);
+    for (trx_t &trx : trx_list)
+    {
+      if (callback(trx))
+      {
+        mysql_mutex_unlock(&mutex);
+        return true;
+      }
+    }
+    mysql_mutex_unlock(&mutex);
+    return false;
+  }
+
   template <typename Callable> void for_each(Callable &&callback) const
   {
     mysql_mutex_lock(&mutex);
@@ -1072,6 +1089,10 @@ public:
   /** @return total number of active (non-prepared) transactions */
   size_t any_active_transactions(size_t *prepared= nullptr);
 
+#ifndef EMBEDDED_LIBRARY
+  /** @return true if any active (non-prepared) transactions is recovered */
+  bool any_active_transaction_recovered();
+#endif
 
   /**
     Determine the rollback segment identifier.

@@ -48,6 +48,11 @@ Created 3/26/1996 Heikki Tuuri
 mysql_pfs_key_t	trx_rollback_clean_thread_key;
 #endif
 
+tpool::task_group rollback_all_recovered_group(1);
+tpool::waitable_task rollback_all_recovered_task(trx_rollback_all_recovered,
+                                                 nullptr,
+                                                 &rollback_all_recovered_group);
+
 /** true if trx_rollback_all_recovered() thread is active */
 bool			trx_rollback_is_active;
 

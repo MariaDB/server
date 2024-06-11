@@ -5601,6 +5601,8 @@ static int init_server_components()
   if (ha_recover(0))
     unireg_abort(1);
 
+  ha_signal_tc_log_recovery_done();
+
   if (opt_bin_log)
   {
     int error;

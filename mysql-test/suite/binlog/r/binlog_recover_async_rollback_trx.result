@@ -1,0 +1,52 @@
+CREATE TABLE t1 (id int primary key, data int) ENGINE = InnoDB;
+INSERT INTO t1 VALUES (0, 1);
+#
+# 1. Check DML in prepared state can rollback correctly.
+#
+connect con1, localhost, root,,;
+SET debug_sync = "ha_commit_trans_after_prepare SIGNAL prepared1 WAIT_FOR continue";
+INSERT INTO t1 VALUES(1, 1);;
+connect con2, localhost, root,,;
+SET debug_sync = "now WAIT_FOR prepared1";
+SET debug_sync = "ha_commit_trans_after_prepare SIGNAL prepared2 WAIT_FOR continue";
+UPDATE t1 SET data = data + 1 WHERE id = 0;
+connection default;
+SET debug_sync = "now WAIT_FOR prepared2";
+# Kill the server
+disconnect con1;
+disconnect con2;
+# restart
+# Expect (0, 1)
+SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+SELECT * FROM t1;
+id	data
+0	1
+INSERT INTO t1 VALUES(1, 1);
+UPDATE t1 SET data = data + 1 WHERE id = 0;
+# Expect (0, 2), (1, 1)
+SELECT * FROM t1;
+id	data
+0	2
+1	1
+#
+# 2. Test that innodb shutdown as expected if any error happens before
+#    normal rollback task is started. In the situation, rollback task
+#    should be started at preshutdown accordingly to rollback or
+#    deregister all recovered active transactions.
+#
+INSERT INTO t1 SELECT seq + 2, 1 FROM seq_1_to_1024;
+BEGIN;
+UPDATE t1 SET data = 10;
+SET GLOBAL innodb_log_checkpoint_now = 1;
+# Kill the server
+# restart: --innodb-read-only
+SELECT count(*) FROM information_schema.innodb_trx;
+count(*)
+1
+# Kill the server
+# restart: --innodb-read-only
+SELECT count(*) FROM information_schema.innodb_trx;
+count(*)
+1
+# restart
+DROP TABLE t1;
