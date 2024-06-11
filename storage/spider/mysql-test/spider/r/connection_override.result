@@ -1,0 +1,44 @@
+for master_1
+for child2
+for child3
+set spider_same_server_link= 1;
+CREATE SERVER srv FOREIGN DATA WRAPPER mysql
+OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'invalid',user 'root');
+create table t2 (c int);
+create table t1 (c int) ENGINE=Spider
+COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2", database "test"';
+insert into t1 values (1), (2), (3);
+select * from t1;
+c
+1
+2
+3
+drop table t1, t2;
+drop server srv;
+CREATE SERVER srv FOREIGN DATA WRAPPER mysql
+OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'invalid',user 'root');
+create table t2 (c int);
+create table t1 (c int) ENGINE=Spider
+CONNECTION='WRAPPER "mysql", srv "srv",TABLE "t2", database "test"';
+insert into t1 values (1), (2), (3);
+select * from t1;
+c
+1
+2
+3
+drop table t1, t2;
+drop server srv;
+create table t2 (c int);
+create table t1 (c int) ENGINE=Spider
+CONNECTION='user "root", database "invalid"'
+COMMENT='WRAPPER "mysql", SOCKET "$MASTER_1_MYSOCK",TABLE "t2", database "test"';
+insert into t1 values (1), (2), (3);
+select * from t1;
+c
+1
+2
+3
+drop table t1, t2;
+for master_1
+for child2
+for child3

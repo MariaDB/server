@@ -1,0 +1,43 @@
+--disable_query_log
+--disable_result_log
+--source test_init.inc
+--enable_result_log
+--enable_query_log
+set spider_same_server_link= 1;
+
+# COMMENT overrides SERVER
+evalp CREATE SERVER srv FOREIGN DATA WRAPPER mysql
+OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'invalid',user 'root');
+create table t2 (c int);
+create table t1 (c int) ENGINE=Spider
+COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2", database "test"';
+insert into t1 values (1), (2), (3);
+select * from t1;
+drop table t1, t2;
+drop server srv;
+
+# CONNECTION overrides SERVER
+evalp CREATE SERVER srv FOREIGN DATA WRAPPER mysql
+OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'invalid',user 'root');
+create table t2 (c int);
+create table t1 (c int) ENGINE=Spider
+CONNECTION='WRAPPER "mysql", srv "srv",TABLE "t2", database "test"';
+insert into t1 values (1), (2), (3);
+select * from t1;
+drop table t1, t2;
+drop server srv;
+
+# COMMENT overrides CONNECTION
+create table t2 (c int);
+evalp create table t1 (c int) ENGINE=Spider
+CONNECTION='user "root", database "invalid"'
+COMMENT='WRAPPER "mysql", SOCKET "$MASTER_1_MYSOCK",TABLE "t2", database "test"';
+insert into t1 values (1), (2), (3);
+select * from t1;
+drop table t1, t2;
+
+--disable_query_log
+--disable_result_log
+--source test_deinit.inc
+--enable_result_log
+--enable_query_log
