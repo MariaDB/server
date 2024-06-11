@@ -919,9 +919,8 @@ typedef struct system_variables
   Charset_collation_map_st character_set_collations;
 
   /* Temporary for HNSW tests */
-  uint hnsw_max_connection_per_layer;
-  uint hnsw_ef_constructor;
-  uint hnsw_ef_search;
+  uint mhnsw_max_edges_per_node;
+  double mhnsw_limit_multiplier;
 } SV;
 
 /**

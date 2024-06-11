@@ -7363,22 +7363,18 @@ static Sys_var_enum Sys_block_encryption_mode(
   SESSION_VAR(block_encryption_mode), CMD_LINE(REQUIRED_ARG),
   block_encryption_mode_values, DEFAULT(0));
 
-/* Temporary for HNSW tests */
-static Sys_var_uint Sys_hnsw_ef_search(
-       "hnsw_ef_search",
-       "hnsw_ef_search",
-       SESSION_VAR(hnsw_ef_search), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(0, UINT_MAX), DEFAULT(10),
-       BLOCK_SIZE(1));
-static Sys_var_uint Sys_hnsw_ef_constructor(
-       "hnsw_ef_constructor",
-       "hnsw_ef_constructor",
-       SESSION_VAR(hnsw_ef_constructor), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(0, UINT_MAX), DEFAULT(10),
-       BLOCK_SIZE(1));
-static Sys_var_uint Sys_hnsw_max_connection_per_layer(
-       "hnsw_max_connection_per_layer",
-       "hnsw_max_connection_per_layer",
-       SESSION_VAR(hnsw_max_connection_per_layer), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(0, UINT_MAX), DEFAULT(50),
-       BLOCK_SIZE(1));
+static Sys_var_double Sys_mhnsw_limit_multiplier(
+       "mhnsw_limit_multiplier",
+       "Defines the number of result candidates to look for in the "
+       "vector index for ORDER BY ... LIMIT N queries. Specified in term "
+       "of LIMIT (1 means look for exactly N candidates, 2 means look for "
+       "2*N, etc). Larger values means the search will be slower, but the "
+       "result will be closer to perfect",
+       SESSION_VAR(mhnsw_limit_multiplier), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(1, 100), DEFAULT(2));
+static Sys_var_uint Sys_mhnsw_max_edges_per_node(
+       "mhnsw_max_edges_per_node",
+       "Larger values means slower INSERT, larger index size and higher "
+       "memory consumption, but better search results. Not used for SELECT",
+       SESSION_VAR(mhnsw_max_edges_per_node), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(2, 200), DEFAULT(15), BLOCK_SIZE(1));
