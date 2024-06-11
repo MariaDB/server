@@ -17080,6 +17080,7 @@ static
 void print_range(String *out, const KEY_PART_INFO *key_part,
                  KEY_MULTI_RANGE *range, uint n_key_parts)
 {
+  Check_level_instant_set check_field(current_thd, CHECK_FIELD_IGNORE);
   uint flag= range->range_flag;
   String key_name;
   key_name.set_charset(system_charset_info);

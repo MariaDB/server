@@ -871,6 +871,41 @@ select QUERY, LENGTH(trace)>1 from information_schema.optimizer_trace;
 drop table t1, t2;
 
 --echo #
+--echo # MDEV-34305 Redundant truncation errors/warnings with optimizer_trace enabled
+--echo #
+
+SET @@optimizer_trace='enabled=on';
+
+CREATE TABLE t1 (
+  a CHAR(2) NOT NULL PRIMARY KEY,
+  b VARCHAR(20) NOT NULL,
+  KEY (b)
+) CHARSET=utf8mb4;
+
+CREATE TABLE t2 (
+  a CHAR(2) NOT NULL PRIMARY KEY,
+  b VARCHAR(20) NOT NULL,
+  KEY (b)
+) CHARSET=utf8mb4;
+
+INSERT INTO t1 VALUES
+('AB','MySQLAB'),
+('JA','Sun Microsystems'),
+('MS','Microsoft'),
+('IB','IBM- Inc.'),
+('GO','Google Inc.');
+
+INSERT IGNORE INTO t2 VALUES
+('AB','Sweden'),
+('JA','USA'),
+('MS','United States'),
+('IB','North America'),
+('GO','South America');
+
+UPDATE t1,t2 SET t1.b=UPPER(t1.b) WHERE t1.b LIKE 'Unknown%';
+DROP TABLE t1, t2;
+
+--echo #
 --echo # End of 10.5 tests
 --echo #
 
