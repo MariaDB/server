@@ -47,10 +47,19 @@ if ! $MYSQL_CLIENT --version | grep -q -E '(Distrib 10\.[1-9])|( from 1[1-9]\.)'
 fi
 
 AUTH=""
-usrst=0
 if [ -n "$WSREP_SST_OPT_USER" ]; then
     AUTH="-u$WSREP_SST_OPT_USER"
-    usrst=1
+fi
+
+# Both donor and joiner must have the same wsrep_sst_auth
+# configuration and different (and thus automatically generated)
+# authentication credentials can't be used for this type of SST.
+# In this case the SST will fail if joiner does not provide
+# correct authentication.
+REMOTE_AUTH="$AUTH"
+if [ -n "$WSREP_SST_OPT_REMOTE_USER" ]; then
+   REMOTE_AUTH="-u$WSREP_SST_OPT_REMOTE_USER"
+   [ -z "$AUTH" ] && AUTH="$REMOTE_AUTH"
 fi
 
 # Refs https://github.com/codership/mysql-wsrep/issues/141
@@ -64,18 +73,15 @@ fi
 # word, it is arguably more secure than passing password on the command line.
 if [ -n "$WSREP_SST_OPT_REMOTE_PSWD" ]; then
     export MYSQL_PWD="$WSREP_SST_OPT_REMOTE_PSWD"
-elif [ $usrst -eq 1 ]; then
+elif [ -n "$WSREP_SST_OPT_REMOTE_USER" ]; then
+    # Empty password, used for testing, debugging etc.
+    unset MYSQL_PWD
+elif [ -n "$WSREP_SST_OPT_PSWD" ]; then
+    export MYSQL_PWD="$WSREP_SST_OPT_PSWD"
+elif [ -n "$WSREP_SST_OPT_USER" ]; then
     # Empty password, used for testing, debugging etc.
     unset MYSQL_PWD
 fi
-
-# The above also means that both donor and joiner must have the same
-# wsrep_sst_auth configuration and and different (and thus automatically
-# generated) authentication credentials can't be used for this type of SST
-# In this case the SST will fail if joiner does not provide correct
-# authentication.
-[ -n "$WSREP_SST_OPT_REMOTE_USER" ] && REMOTE_AUTH="-u$WSREP_SST_OPT_REMOTE_USER" || REMOTE_AUTH=
-[ -n "$REMOTE_AUTH" ] && AUTH="$REMOTE_AUTH" || AUTH=
 
 STOP_WSREP='SET wsrep_on=OFF;'
 

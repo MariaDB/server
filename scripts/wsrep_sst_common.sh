@@ -152,7 +152,6 @@ WSREP_SST_OPT_DATA=""
 WSREP_SST_OPT_AUTH="${WSREP_SST_OPT_AUTH:-}"
 WSREP_SST_OPT_USER="${WSREP_SST_OPT_USER:-}"
 WSREP_SST_OPT_PSWD="${WSREP_SST_OPT_PSWD:-}"
-WSREP_SST_OPT_REMOTE_AUTH="${WSREP_SST_OPT_REMOTE_AUTH:-}"
 WSREP_SST_OPT_DEFAULT=""
 WSREP_SST_OPT_DEFAULTS=""
 WSREP_SST_OPT_EXTRA_DEFAULT=""
@@ -1008,11 +1007,6 @@ in_config()
     echo $found
 }
 
-wsrep_auth_not_set()
-{
-    [ -z "$WSREP_SST_OPT_AUTH" ]
-}
-
 # Get rid of incorrect values resulting from substitution
 # in programs external to the script:
 if [ "$WSREP_SST_OPT_USER" = '(null)' ]; then
@@ -1028,12 +1022,12 @@ fi
 # Let's read the value of the authentication string from the
 # configuration file so that it does not go to the command line
 # and does not appear in the ps output:
-if wsrep_auth_not_set; then
+if [ -z "$WSREP_SST_OPT_AUTH" ]; then
     WSREP_SST_OPT_AUTH=$(parse_cnf 'sst' 'wsrep-sst-auth')
 fi
 
 # Splitting WSREP_SST_OPT_AUTH as "user:password" pair:
-if ! wsrep_auth_not_set; then
+if [ -n "$WSREP_SST_OPT_AUTH" ]; then
     # Extract username as shortest prefix up to first ':' character:
     WSREP_SST_OPT_AUTH_USER="${WSREP_SST_OPT_AUTH%%:*}"
     if [ -z "$WSREP_SST_OPT_USER" ]; then
@@ -1057,12 +1051,13 @@ if ! wsrep_auth_not_set; then
     fi
 fi
 
+WSREP_SST_OPT_REMOTE_AUTH="${WSREP_SST_OPT_REMOTE_AUTH:-}"
 WSREP_SST_OPT_REMOTE_USER=
 WSREP_SST_OPT_REMOTE_PSWD=
 if [ -n "$WSREP_SST_OPT_REMOTE_AUTH" ]; then
     # Split auth string at the last ':'
-    readonly WSREP_SST_OPT_REMOTE_USER="${WSREP_SST_OPT_REMOTE_AUTH%%:*}"
-    readonly WSREP_SST_OPT_REMOTE_PSWD="${WSREP_SST_OPT_REMOTE_AUTH#*:}"
+    WSREP_SST_OPT_REMOTE_USER="${WSREP_SST_OPT_REMOTE_AUTH%%:*}"
+    WSREP_SST_OPT_REMOTE_PSWD="${WSREP_SST_OPT_REMOTE_AUTH#*:}"
 fi
 
 # Reads incoming data from STDIN and sets the variables
@@ -1077,8 +1072,9 @@ fi
 read_variables_from_stdin()
 {
     while read line; do
-        key=${line%%=*}
-        value=${line#*=}
+        local key="${line%%=*}"
+        local value=""
+        [ "$key" != "$line" ] && value="${line#*=}"
         case "$key" in
             'sst_user')
                 WSREP_SST_OPT_USER="$value"

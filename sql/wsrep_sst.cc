@@ -1576,7 +1576,9 @@ wsrep_sst_cleanup_user(THD* const thd)
   if ((err = mysql.errnum()) ||
       (err = mysql.disable_replication()) ||
       ((err = mysql.execute("DELETE FROM mysql.user WHERE user LIKE '" SST_USER_PREFIX "%';")) &&
-        err != ER_NO_SUCH_TABLE)) {
+        err != ER_NO_SUCH_TABLE &&
+        err != ER_UPDATE_WITHOUT_KEY_IN_SAFE_MODE))
+  {
     WSREP_WARN("Failed to clean up SST user(s): %d (%s)", err, mysql.errstr());
   }
 }

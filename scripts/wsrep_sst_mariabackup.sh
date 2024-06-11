@@ -1098,15 +1098,13 @@ if [ "$WSREP_SST_OPT_ROLE" = 'donor' ]; then
         itmpdir="$(mktemp -d)"
         wsrep_log_info "Using '$itmpdir' as mariadb-abackup working directory"
 
-        usrst=0
         if [ -n "$WSREP_SST_OPT_USER" ]; then
            INNOEXTRA="$INNOEXTRA --user='$WSREP_SST_OPT_USER'"
-           usrst=1
         fi
 
         if [ -n "$WSREP_SST_OPT_PSWD" ]; then
             export MYSQL_PWD="$WSREP_SST_OPT_PSWD"
-        elif [ $usrst -eq 1 ]; then
+        elif [ -n "$WSREP_SST_OPT_USER" ]; then
             # Empty password, used for testing, debugging etc.
             unset MYSQL_PWD
         fi
