@@ -21,6 +21,10 @@
 #include "key.h"
 #include <scope.h>
 
+// Algorithm parameters
+static constexpr float alpha = 1.1f;
+static constexpr uint ef_construction= 10;
+
 class MHNSW_Context;
 
 class FVector: public Sql_alloc
@@ -230,7 +234,7 @@ static int select_neighbors(MHNSW_Context *ctx, size_t layer,
     bool discard= false;
     for (const FVectorNode &neigh : neighbors)
     {
-      if ((discard= vec->distance_to(neigh) < target_dist))
+      if ((discard= vec->distance_to(neigh) * alpha < target_dist))
         break;
     }
     if (!discard)
@@ -427,7 +431,7 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
   if (res->length() == 0 || res->length() % 4)
     return bad_value_on_insert(vec_field);
 
-  const double NORMALIZATION_FACTOR= 1 / std::log(thd->variables.hnsw_max_connection_per_layer);
+  const double NORMALIZATION_FACTOR= 1 / std::log(thd->variables.mhnsw_max_edges_per_node);
 
   table->file->position(table->record[0]);
 
@@ -495,14 +499,12 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
 
   for (longlong cur_layer= new_node_layer; cur_layer >= 0; cur_layer--)
   {
-    if (int err= search_layer(&ctx, start_nodes,
-                              thd->variables.hnsw_ef_constructor, cur_layer,
+    uint max_neighbors= (cur_layer == 0)   // heuristics from the paper
+     ? thd->variables.mhnsw_max_edges_per_node * 2
+     : thd->variables.mhnsw_max_edges_per_node;
+    if (int err= search_layer(&ctx, start_nodes, ef_construction, cur_layer,
                               &candidates))
       return err;
-
-    uint max_neighbors= (cur_layer == 0)   // heuristics from the paper
-     ? thd->variables.hnsw_max_connection_per_layer * 2
-     : thd->variables.hnsw_max_connection_per_layer;
 
     if (int err= select_neighbors(&ctx, cur_layer, target, candidates,
                                   max_neighbors))
@@ -567,8 +569,7 @@ int mhnsw_first(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit)
   FVector target(&ctx, res->ptr());
   ctx.target= &target;
 
-  ulonglong ef_search= std::max<ulonglong>( //XXX why not always limit?
-    thd->variables.hnsw_ef_search, limit);
+  uint ef_search= thd->variables.mhnsw_min_limit;
 
   for (size_t cur_layer= max_layer; cur_layer > 0; cur_layer--)
   {
@@ -619,6 +620,6 @@ const LEX_CSTRING mhnsw_hlindex_table_def(THD *thd, uint ref_length)
   size_t len= sizeof(templ) + 32;
   char *s= thd->alloc(len);
   len= my_snprintf(s, len, templ, ref_length, 2 * ref_length *
-                   thd->variables.hnsw_max_connection_per_layer);
+                   thd->variables.mhnsw_max_edges_per_node);
   return {s, len};
 }
