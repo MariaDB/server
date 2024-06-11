@@ -21,6 +21,14 @@
 #include "key.h"
 #include <scope.h>
 
+// Algorithm parameters
+// best by test (fastest construction with recall > 99% for ef=20, limit=10)
+// for random-xs-20-euclidean (9000) [ 3, 1.1, M=7 ]
+// for mnist-784-euclidean   (60000) [ 4, 1.1, M=13 ]
+// for sift-128-euclidean  (1000000) [ 4, 1.1, M>64 ] (98% with M=64)
+static const double ef_construction_multiplier = 4;
+static const double alpha = 1.1;
+
 class MHNSW_Context;
 
 class FVector: public Sql_alloc
@@ -230,7 +238,7 @@ static int select_neighbors(MHNSW_Context *ctx, size_t layer,
     bool discard= false;
     for (const FVectorNode &neigh : neighbors)
     {
-      if ((discard= vec->distance_to(neigh) < target_dist))
+      if ((discard= vec->distance_to(neigh) * alpha < target_dist))
         break;
     }
     if (!discard)
@@ -427,7 +435,7 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
   if (res->length() == 0 || res->length() % 4)
     return bad_value_on_insert(vec_field);
 
-  const double NORMALIZATION_FACTOR= 1 / std::log(thd->variables.hnsw_max_connection_per_layer);
+  const double NORMALIZATION_FACTOR= 1 / std::log(thd->variables.mhnsw_max_edges_per_node);
 
   table->file->position(table->record[0]);
 
@@ -495,14 +503,13 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
 
   for (longlong cur_layer= new_node_layer; cur_layer >= 0; cur_layer--)
   {
-    if (int err= search_layer(&ctx, start_nodes,
-                              thd->variables.hnsw_ef_constructor, cur_layer,
-                              &candidates))
-      return err;
-
     uint max_neighbors= (cur_layer == 0)   // heuristics from the paper
-     ? thd->variables.hnsw_max_connection_per_layer * 2
-     : thd->variables.hnsw_max_connection_per_layer;
+     ? thd->variables.mhnsw_max_edges_per_node * 2
+     : thd->variables.mhnsw_max_edges_per_node;
+    if (int err= search_layer(&ctx, start_nodes,
+                  static_cast<uint>(ef_construction_multiplier * max_neighbors),
+                  cur_layer, &candidates))
+      return err;
 
     if (int err= select_neighbors(&ctx, cur_layer, target, candidates,
                                   max_neighbors))
@@ -567,8 +574,9 @@ int mhnsw_first(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit)
   FVector target(&ctx, res->ptr());
   ctx.target= &target;
 
-  ulonglong ef_search= std::max<ulonglong>( //XXX why not always limit?
-    thd->variables.hnsw_ef_search, limit);
+  // this auto-scales ef with the limit, providing more adequate
+  // behavior than a fixed ef_search
+  uint ef_search= static_cast<uint>(limit * thd->variables.mhnsw_limit_multiplier);
 
   for (size_t cur_layer= max_layer; cur_layer > 0; cur_layer--)
   {
@@ -619,6 +627,6 @@ const LEX_CSTRING mhnsw_hlindex_table_def(THD *thd, uint ref_length)
   size_t len= sizeof(templ) + 32;
   char *s= thd->alloc(len);
   len= my_snprintf(s, len, templ, ref_length, 2 * ref_length *
-                   thd->variables.hnsw_max_connection_per_layer);
+                   thd->variables.mhnsw_max_edges_per_node);
   return {s, len};
 }

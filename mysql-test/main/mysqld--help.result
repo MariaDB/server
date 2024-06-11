@@ -400,11 +400,6 @@ The following specify which files/extra groups are read (specified before remain
  height-balanced, DOUBLE_PREC_HB - double precision
  height-balanced, JSON_HB - height-balanced, stored as
  JSON
- --hnsw-ef-constructor=# 
- hnsw_ef_constructor
- --hnsw-ef-search=#  hnsw_ef_search
- --hnsw-max-connection-per-layer=# 
- hnsw_max_connection_per_layer
  --host-cache-size=# How many host names should be cached to avoid resolving
  (Automatically configured unless set explicitly)
  --idle-readonly-transaction-timeout=# 
@@ -693,6 +688,17 @@ The following specify which files/extra groups are read (specified before remain
  Unused. Deprecated, will be removed in a future release.
  --metadata-locks-hash-instances=# 
  Unused. Deprecated, will be removed in a future release.
+ --mhnsw-limit-multiplier=# 
+ Defines the number of result candidates to look for in
+ the vector index for ORDER BY ... LIMIT N queries.
+ Specified in term of LIMIT (1 means look for exactly N
+ candidates, 2 means look for 2*N, etc). Larger values
+ means the search will be slower, but the result will be
+ closer to perfect
+ --mhnsw-max-edges-per-node=# 
+ Larger values means slower INSERT, larger index size and
+ higher memory consumption, but better search results. Not
+ used for SELECT
  --min-examined-row-limit=# 
  Alias for log_slow_min_examined_row_limit. Don't write
  queries to slow log that examine fewer rows than that
@@ -1697,9 +1703,6 @@ gtid-strict-mode FALSE
 help TRUE
 histogram-size 254
 histogram-type JSON_HB
-hnsw-ef-constructor 10
-hnsw-ef-search 10
-hnsw-max-connection-per-layer 50
 host-cache-size 279
 idle-readonly-transaction-timeout 0
 idle-transaction-timeout 0
@@ -1788,6 +1791,8 @@ max-write-lock-count 18446744073709551615
 memlock FALSE
 metadata-locks-cache-size 1024
 metadata-locks-hash-instances 8
+mhnsw-limit-multiplier 2
+mhnsw-max-edges-per-node 15
 min-examined-row-limit 0
 mrr-buffer-size 262144
 myisam-block-size 1024
