@@ -35,11 +35,8 @@ extern "C" {
 #include <mrn_operations.hpp>
 #include <mrn_database.hpp>
 
-#if __cplusplus >= 201402
-#  define mrn_override override
-#else
-#  define mrn_override
-#endif
+#define mrn_override override
+
 
 #if (MYSQL_VERSION_ID >= 50514 && MYSQL_VERSION_ID < 50600)
 #  define MRN_HANDLER_HAVE_FINAL_ADD_INDEX 1
@@ -455,10 +452,10 @@ public:
   int update_row(const uchar *old_data, const uchar *new_data) mrn_override;
   int delete_row(const uchar *buf) mrn_override;
 
-  uint max_supported_record_length()   const mrn_override;
-  uint max_supported_keys()            const mrn_override;
-  uint max_supported_key_parts()       const mrn_override;
-  uint max_supported_key_length()      const mrn_override;
+  uint max_supported_record_length() const   mrn_override;
+  uint max_supported_keys() const            mrn_override;
+  uint max_supported_key_parts() const       mrn_override;
+  uint max_supported_key_length() const      mrn_override;
   uint max_supported_key_part_length() const mrn_override;
 
   ha_rows records_in_range(uint inx, const key_range *min_key,

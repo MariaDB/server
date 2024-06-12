@@ -47,7 +47,7 @@ public:
   {
     thr_lock_init(&lock);
   }
-  ~Sequence_share()
+  ~Sequence_share() override
   {
     thr_lock_delete(&lock);
   }
@@ -64,45 +64,45 @@ public:
   Sequence_share *seqs;
   ha_seq(handlerton *hton, TABLE_SHARE *table_arg)
     : handler(hton, table_arg), seqs(0) { }
-  ulonglong table_flags() const
+  ulonglong table_flags() const override
   { return HA_BINLOG_ROW_CAPABLE | HA_BINLOG_STMT_CAPABLE; }
 
   /* open/close/locking */
   int create(const char *name, TABLE *table_arg,
-             HA_CREATE_INFO *create_info)
+             HA_CREATE_INFO *create_info) override
   { return HA_ERR_WRONG_COMMAND; }
 
-  int open(const char *name, int mode, uint test_if_locked);
-  int close(void);
-  int delete_table(const char *name)
+  int open(const char *name, int mode, uint test_if_locked) override;
+  int close(void) override;
+  int delete_table(const char *name) override
   {
     return 0;
   }
-  THR_LOCK_DATA **store_lock(THD *, THR_LOCK_DATA **, enum thr_lock_type);
+  THR_LOCK_DATA **store_lock(THD *, THR_LOCK_DATA **, enum thr_lock_type) override;
 
   /* table scan */
-  int rnd_init(bool scan);
-  int rnd_next(unsigned char *buf);
-  void position(const uchar *record);
-  int rnd_pos(uchar *buf, uchar *pos);
-  int info(uint flag);
+  int rnd_init(bool scan) override;
+  int rnd_next(unsigned char *buf) override;
+  void position(const uchar *record) override;
+  int rnd_pos(uchar *buf, uchar *pos) override;
+  int info(uint flag) override;
 
   /* indexes */
-  ulong index_flags(uint inx, uint part, bool all_parts) const
+  ulong index_flags(uint inx, uint part, bool all_parts) const override
   { return HA_READ_NEXT | HA_READ_PREV | HA_READ_ORDER |
            HA_READ_RANGE | HA_KEYREAD_ONLY; }
-  uint max_supported_keys() const { return 1; }
+  uint max_supported_keys() const override { return 1; }
   int index_read_map(uchar *buf, const uchar *key, key_part_map keypart_map,
-                     enum ha_rkey_function find_flag);
-  int index_next(uchar *buf);
-  int index_prev(uchar *buf);
-  int index_first(uchar *buf);
-  int index_last(uchar *buf);
+                     enum ha_rkey_function find_flag) override;
+  int index_next(uchar *buf) override;
+  int index_prev(uchar *buf) override;
+  int index_first(uchar *buf) override;
+  int index_last(uchar *buf) override;
   ha_rows records_in_range(uint inx, const key_range *start_key,
-                           const key_range *end_key, page_range *pages);
-  double scan_time() { return (double)nvalues(); }
-  double read_time(uint index, uint ranges, ha_rows rows) { return (double)rows; }
-  double keyread_time(uint index, uint ranges, ha_rows rows) { return (double)rows; }
+                           const key_range *end_key, page_range *pages) override;
+  double scan_time() override { return (double)nvalues(); }
+  double read_time(uint index, uint ranges, ha_rows rows) override { return (double)rows; }
+  double keyread_time(uint index, uint ranges, ha_rows rows) override { return (double)rows; }
 
 private:
   void set(uchar *buf);
@@ -382,10 +382,10 @@ public:
       // Reset limit because we are handling it now
       orig_lim->set_unlimited();
     }
-  ~ha_seq_group_by_handler() = default;
-  int init_scan() { first_row= 1 ; return 0; }
-  int next_row();
-  int end_scan()  { return 0; }
+  ~ha_seq_group_by_handler() override = default;
+  int init_scan() override { first_row= 1 ; return 0; }
+  int next_row() override;
+  int end_scan() override  { return 0; }
 };
 
 static group_by_handler *

@@ -26,18 +26,18 @@ public:
 	CMGFAM(PCMGFAM txfp);
 
 	// Implementation
-	virtual AMT   GetAmType(void) { return TYPE_AM_MGO; }
+	AMT   GetAmType(void) override { return TYPE_AM_MGO; }
 	virtual bool  GetUseTemp(void) { return false; }
 	virtual int   GetPos(void);
 	virtual int   GetNextPos(void);
 	void  SetTdbp(PTDBDOS tdbp) { Tdbp = tdbp; }
-	virtual PTXF  Duplicate(PGLOBAL g) { return (PTXF)new(g) CMGFAM(this); }
+	PTXF  Duplicate(PGLOBAL g) { return (PTXF)new(g) CMGFAM(this); }
 	void  SetLrecl(int lrecl) { Lrecl = lrecl; }
 
 	// Methods
 	virtual void  Reset(void);
 	virtual int   GetFileLength(PGLOBAL g);
-	virtual int   Cardinality(PGLOBAL g);
+	int   Cardinality(PGLOBAL g) override;
 	virtual int   MaxBlkSize(PGLOBAL g, int s);
 	virtual bool  AllocateBuffer(PGLOBAL g) { return false; }
 	virtual int   GetRowID(void);

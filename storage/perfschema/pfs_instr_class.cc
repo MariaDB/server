@@ -2022,7 +2022,7 @@ public:
     : m_thread(thread)
   {}
 
-  virtual void operator()(PFS_table_share *pfs)
+  void operator()(PFS_table_share *pfs) override
   {
     pfs->refresh_setup_object_flags(m_thread);
   }
@@ -2045,7 +2045,7 @@ public:
     : m_thread(thread)
   {}
 
-  virtual void operator()(PFS_program *pfs)
+  void operator()(PFS_program *pfs) override
   {
     pfs->refresh_setup_object_flags(m_thread);
   }

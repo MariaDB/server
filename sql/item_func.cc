@@ -2150,7 +2150,7 @@ class Func_handler_shift_left_int_to_ulonglong:
         public Item_handled_func::Handler_ulonglong
 {
 public:
-  Longlong_null to_longlong_null(Item_handled_func *item) const
+  Longlong_null to_longlong_null(Item_handled_func *item) const override
   {
     DBUG_ASSERT(item->is_fixed());
     return item->arguments()[0]->to_longlong_null() <<
@@ -2163,7 +2163,7 @@ class Func_handler_shift_left_decimal_to_ulonglong:
         public Item_handled_func::Handler_ulonglong
 {
 public:
-  Longlong_null to_longlong_null(Item_handled_func *item) const
+  Longlong_null to_longlong_null(Item_handled_func *item) const override
   {
     DBUG_ASSERT(item->is_fixed());
     return VDec(item->arguments()[0]).to_xlonglong_null() <<
@@ -2184,7 +2184,7 @@ class Func_handler_shift_right_int_to_ulonglong:
         public Item_handled_func::Handler_ulonglong
 {
 public:
-  Longlong_null to_longlong_null(Item_handled_func *item) const
+  Longlong_null to_longlong_null(Item_handled_func *item) const override
   {
     DBUG_ASSERT(item->fixed == 1);
     return item->arguments()[0]->to_longlong_null() >>
@@ -2197,7 +2197,7 @@ class Func_handler_shift_right_decimal_to_ulonglong:
         public Item_handled_func::Handler_ulonglong
 {
 public:
-  Longlong_null to_longlong_null(Item_handled_func *item) const
+  Longlong_null to_longlong_null(Item_handled_func *item) const override
   {
     DBUG_ASSERT(item->is_fixed());
     return VDec(item->arguments()[0]).to_xlonglong_null() >>
@@ -2218,7 +2218,7 @@ class Func_handler_bit_neg_int_to_ulonglong:
         public Item_handled_func::Handler_ulonglong
 {
 public:
-  Longlong_null to_longlong_null(Item_handled_func *item) const
+  Longlong_null to_longlong_null(Item_handled_func *item) const override
   {
     DBUG_ASSERT(item->is_fixed());
     return ~ item->arguments()[0]->to_longlong_null();
@@ -2230,7 +2230,7 @@ class Func_handler_bit_neg_decimal_to_ulonglong:
         public Item_handled_func::Handler_ulonglong
 {
 public:
-  Longlong_null to_longlong_null(Item_handled_func *item) const
+  Longlong_null to_longlong_null(Item_handled_func *item) const override
   {
     DBUG_ASSERT(item->is_fixed());
     return ~ VDec(item->arguments()[0]).to_xlonglong_null();
@@ -3428,7 +3428,7 @@ class Func_handler_bit_count_int_to_slong:
         public Item_handled_func::Handler_slong2
 {
 public:
-  Longlong_null to_longlong_null(Item_handled_func *item) const
+  Longlong_null to_longlong_null(Item_handled_func *item) const override
   {
     DBUG_ASSERT(item->is_fixed());
     return item->arguments()[0]->to_longlong_null().bit_count();
@@ -3440,7 +3440,7 @@ class Func_handler_bit_count_decimal_to_slong:
         public Item_handled_func::Handler_slong2
 {
 public:
-  Longlong_null to_longlong_null(Item_handled_func *item) const
+  Longlong_null to_longlong_null(Item_handled_func *item) const override
   {
     DBUG_ASSERT(item->is_fixed());
     return VDec(item->arguments()[0]).to_xlonglong_null().bit_count();
@@ -4182,7 +4182,7 @@ public:
                         const char * /* sqlstate */,
                         Sql_condition::enum_warning_level* /* level */,
                         const char *message,
-                        Sql_condition ** /* cond_hdl */);
+                        Sql_condition ** /* cond_hdl */) override;
 };
 
 bool
@@ -6500,7 +6500,7 @@ class Func_handler_bit_xor_int_to_ulonglong:
         public Item_handled_func::Handler_ulonglong
 {
 public:
-  Longlong_null to_longlong_null(Item_handled_func *item) const
+  Longlong_null to_longlong_null(Item_handled_func *item) const override
   {
     DBUG_ASSERT(item->is_fixed());
     return item->arguments()[0]->to_longlong_null() ^
@@ -6513,7 +6513,7 @@ class Func_handler_bit_xor_dec_to_ulonglong:
         public Item_handled_func::Handler_ulonglong
 {
 public:
-  Longlong_null to_longlong_null(Item_handled_func *item) const
+  Longlong_null to_longlong_null(Item_handled_func *item) const override
   {
     DBUG_ASSERT(item->is_fixed());
     return VDec(item->arguments()[0]).to_xlonglong_null() ^

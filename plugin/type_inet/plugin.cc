@@ -44,7 +44,7 @@ public:
   static Create_func_inet_ntoa s_singleton;
 protected:
   Create_func_inet_ntoa() {}
-  virtual ~Create_func_inet_ntoa() {}
+  ~Create_func_inet_ntoa() override {}
 };
 
 
@@ -58,7 +58,7 @@ public:
   static Create_func_inet_aton s_singleton;
 protected:
   Create_func_inet_aton() {}
-  virtual ~Create_func_inet_aton() {}
+  ~Create_func_inet_aton() override {}
 };
 
 
@@ -72,7 +72,7 @@ public:
   static Create_func_inet6_aton s_singleton;
 protected:
   Create_func_inet6_aton() {}
-  virtual ~Create_func_inet6_aton() {}
+  ~Create_func_inet6_aton() override {}
 };
 
 
@@ -86,7 +86,7 @@ public:
   static Create_func_inet6_ntoa s_singleton;
 protected:
   Create_func_inet6_ntoa() {}
-  virtual ~Create_func_inet6_ntoa() {}
+  ~Create_func_inet6_ntoa() override {}
 };
 
 
@@ -100,7 +100,7 @@ public:
   static Create_func_is_ipv4 s_singleton;
 protected:
   Create_func_is_ipv4() {}
-  virtual ~Create_func_is_ipv4() {}
+  ~Create_func_is_ipv4() override {}
 };
 
 
@@ -114,7 +114,7 @@ public:
   static Create_func_is_ipv6 s_singleton;
 protected:
   Create_func_is_ipv6() {}
-  virtual ~Create_func_is_ipv6() {}
+  ~Create_func_is_ipv6() override {}
 };
 
 
@@ -128,7 +128,7 @@ public:
   static Create_func_is_ipv4_compat s_singleton;
 protected:
   Create_func_is_ipv4_compat() {}
-  virtual ~Create_func_is_ipv4_compat() {}
+  ~Create_func_is_ipv4_compat() override {}
 };
 
 
@@ -142,7 +142,7 @@ public:
   static Create_func_is_ipv4_mapped s_singleton;
 protected:
   Create_func_is_ipv4_mapped() {}
-  virtual ~Create_func_is_ipv4_mapped() {}
+  ~Create_func_is_ipv4_mapped() override {}
 };
 
 
