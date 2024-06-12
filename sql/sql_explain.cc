@@ -1804,28 +1804,9 @@ void Explain_table_access::tag_to_json(Json_writer *writer,
       writer->add_member("open_frm_only").add_bool(true);
       break;
     case ET_USING_INDEX_CONDITION:
-      writer->add_member("index_condition");
-      write_item(writer, pushed_index_cond);
-      break;
     case ET_USING_INDEX_CONDITION_BKA:
-      writer->add_member("index_condition_bka");
-      write_item(writer, pushed_index_cond);
-      break;
     case ET_USING_WHERE:
-      {
-        /*
-          We are printing the condition that is checked when scanning this
-          table.
-          - when join buffer is used, it is cache_cond. 
-          - in other cases, it is where_cond.
-        */
-        Item *item= bka_type.is_using_jbuf()? cache_cond: where_cond;
-        if (item)
-        {
-          writer->add_member("attached_condition");
-          write_item(writer, item);
-        }
-      }
+      /* Conditions are printed outside of this function */
       break;
     case ET_USING_INDEX:
       writer->add_member("using_index").add_bool(true);
@@ -1912,6 +1893,7 @@ void add_json_keyset(Json_writer *writer, const char *elem_name,
 
 
 void Explain_rowid_filter::print_explain_json(Explain_query *query,
+                                              ha_rows loops,
                                               Json_writer *writer,
                                               bool is_analyze)
 {
@@ -1923,7 +1905,13 @@ void Explain_rowid_filter::print_explain_json(Explain_query *query,
   if (is_analyze)
   {
     writer->add_member("r_rows").add_double(tracker->get_container_elements());
-    writer->add_member("r_lookups").add_ll(tracker->get_container_lookups());
+
+    double r_lookups= tracker->get_container_lookups();
+    /* if loops==0 then we should have lookups==0, too: */
+    DBUG_ASSERT(loops != 0 || tracker->get_container_lookups() == 0);
+    r_lookups= loops? r_lookups / rows2double(loops) : r_lookups;
+    writer->add_member("r_lookups").add_double(r_lookups);
+
     writer->add_member("r_selectivity_pct").
       add_double(tracker->get_r_selectivity_pct() * 100.0);
     writer->add_member("r_buffer_size").
@@ -1952,6 +1940,17 @@ static void trace_engine_stats(handler *file, Json_writer *writer)
     if (hs->undo_records_read)
       writer->add_member("old_rows_read").add_ull(hs->undo_records_read);
     writer->end_object();
+  }
+}
+
+static void print_r_icp_filtered(handler *file, Json_writer *writer)
+{
+  if (file && file->handler_stats && file->pushed_idx_cond)
+  {
+    ha_handler_stats *hs= file->handler_stats;
+    double r_icp_filtered = hs->icp_attempts ?
+      (double)(hs->icp_match) / (double)(hs->icp_attempts) : 1.0;
+    writer->add_member("r_icp_filtered").add_double(r_icp_filtered * 100);
   }
 }
 
@@ -2054,7 +2053,8 @@ void Explain_table_access::print_explain_json(Explain_query *query,
 
   if (rowid_filter)
   {
-    rowid_filter->print_explain_json(query, writer, is_analyze);
+    rowid_filter->print_explain_json(query, tracker.get_loops(), writer,
+                                     is_analyze);
   }
 
   if (loops != 0.0)
@@ -2078,9 +2078,40 @@ void Explain_table_access::print_explain_json(Explain_query *query,
   if (rows_set)
     writer->add_member("rows").add_ull(rows);
 
-  /* `r_rows` */
+  double r_index_rows;
+  bool have_icp_or_rowid_filter= false;
+  /* `r_index_rows` and `r_rows` */
   if (is_analyze)
   {
+    /*
+      r_index_rows is the number of rows enumerated in the index before
+      any kind of checking. The number is the average across all scans.
+    */
+    double loops= rows2double(tracker.get_loops());
+    if (!loops)
+      loops= 1.0;
+    handler *file= handler_for_stats;
+
+    if (file && file->handler_stats && file->pushed_idx_cond)
+    {
+      /*
+        Pushed Index Condition is checked before checking the Rowid Filter, 
+        so try getting it first.
+      */
+      r_index_rows= file->handler_stats->icp_attempts / loops;
+      have_icp_or_rowid_filter= true;
+    }
+    else if (rowid_filter)
+    {
+      /* If ICP wasn't used, get the number from Rowid Filter */
+      r_index_rows= rowid_filter->tracker->get_container_lookups() / loops;
+      have_icp_or_rowid_filter= true;
+    }
+
+    /* Print r_index_rows only if ICP and/or Rowid Filter were used */
+    if (have_icp_or_rowid_filter)
+      writer->add_member("r_index_rows").add_double(r_index_rows);
+
     writer->add_member("r_rows");
     if (pre_join_sort)
     {
@@ -2119,12 +2150,14 @@ void Explain_table_access::print_explain_json(Explain_query *query,
   if (filtered_set)
     writer->add_member("filtered").add_double(filtered);
 
-  /* `r_filtered` */
+  bool have_r_cond_filtered= false;
+  double r_cond_filtered;
+  /* `r_cond_filtered` and `r_filtered` */
   if (is_analyze)
   {
-    writer->add_member("r_filtered");
     if (pre_join_sort)
     {
+      writer->add_member("r_filtered");
       /* Get r_filtered value from filesort */
       if (pre_join_sort->tracker.get_r_loops())
         writer->add_double(pre_join_sort->tracker.get_r_filtered()*100);
@@ -2133,11 +2166,57 @@ void Explain_table_access::print_explain_json(Explain_query *query,
     }
     else
     {
+      /*
+        Add r_filtered, as combined "filtered" of all kinds of filtering: Rowid
+        Filter, Index Condition Pushdown, attached condition.
+      */
+      writer->add_member("r_filtered");
+
       /* Get r_filtered from the NL-join runtime */
       if (tracker.has_scans())
-        writer->add_double(tracker.get_filtered_after_where()*100.0);
+      {
+        if (have_icp_or_rowid_filter)
+        {
+          have_r_cond_filtered= true;
+          r_cond_filtered= tracker.get_filtered_after_where()*100.0;
+
+          writer->add_double(tracker.get_avg_rows_after_where()* 100.0 /
+                             r_index_rows);
+        }
+        else
+          writer->add_double(tracker.get_filtered_after_where()*100.0);
+      }
       else
         writer->add_null();
+    }
+  }
+
+  /*
+    `index_condition[_bka]` and its selectivity
+  */
+  if (pushed_index_cond)
+  {
+    writer->add_member(bka_type.is_bka? "index_condition_bka": "index_condition");
+    write_item(writer, pushed_index_cond);
+    print_r_icp_filtered(handler_for_stats, writer);
+  }
+
+  /* `attached_condition` and its selectivity, `r_condition_filtered` */
+  {
+    /*
+      we are printing the condition that is checked when scanning this
+      table.
+      - when join buffer is used, it is cache_cond.
+      - in other cases, it is where_cond.
+    */
+    Item *item= bka_type.is_using_jbuf()? cache_cond: where_cond;
+    if (item)
+    {
+      writer->add_member("attached_condition");
+      write_item(writer, item);
+
+      if (have_r_cond_filtered)
+        writer->add_member("r_condition_filtered").add_double(r_cond_filtered);
     }
   }
 
