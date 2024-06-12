@@ -3465,10 +3465,10 @@ dberr_t fsp_traverse_extents(
   else
   {
     err= old_xdes_entry->insert(0, mtr);
-    if (err) return err;
-    if (threshold & (srv_page_size - 1))
+    if (err == DB_SUCCESS && threshold & (srv_page_size - 1))
       err= old_xdes_entry->insert(
         xdes_calc_descriptor_page(0, threshold), mtr);
+    if (err) return err;
   }
 
   buf_block_t *block= nullptr;
