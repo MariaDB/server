@@ -362,7 +362,7 @@ protected:
 
   virtual ~Sql_cmd_common_alter_table() = default;
 
-  virtual enum_sql_command sql_command_code() const
+  enum_sql_command sql_command_code() const override
   {
     return SQLCOM_ALTER_TABLE;
   }
@@ -383,9 +383,9 @@ public:
 
   ~Sql_cmd_alter_table() = default;
 
-  Storage_engine_name *option_storage_engine_name() { return this; }
+  Storage_engine_name *option_storage_engine_name() override { return this; }
 
-  bool execute(THD *thd);
+  bool execute(THD *thd) override;
 };
 
 
@@ -405,11 +405,11 @@ public:
 
   ~Sql_cmd_alter_sequence() = default;
 
-  enum_sql_command sql_command_code() const
+  enum_sql_command sql_command_code() const override
   {
     return SQLCOM_ALTER_SEQUENCE;
   }
-  bool execute(THD *thd);
+  bool execute(THD *thd) override;
 };
 
 
@@ -429,7 +429,7 @@ public:
     : m_tablespace_op(tablespace_op_arg)
   {}
 
-  bool execute(THD *thd);
+  bool execute(THD *thd) override;
 
 private:
   const enum_tablespace_op_type m_tablespace_op;

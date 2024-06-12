@@ -3583,13 +3583,13 @@ public:
 class Vers_type_timestamp: public Vers_type_handler
 {
 public:
-  virtual vers_kind_t kind() const
+  vers_kind_t kind() const override
   {
     return VERS_TIMESTAMP;
   }
   bool check_sys_fields(const LEX_CSTRING &table_name,
                         const Column_definition *row_start,
-                        const Column_definition *row_end) const;
+                        const Column_definition *row_end) const override;
 };
 extern Vers_type_timestamp vers_type_timestamp;
 
@@ -3597,13 +3597,13 @@ extern Vers_type_timestamp vers_type_timestamp;
 class Vers_type_trx: public Vers_type_handler
 {
 public:
-  virtual vers_kind_t kind() const
+  vers_kind_t kind() const override
   {
     return VERS_TRX_ID;
   }
   bool check_sys_fields(const LEX_CSTRING &table_name,
                         const Column_definition *row_start,
-                        const Column_definition *row_end) const;
+                        const Column_definition *row_end) const override;
 };
 extern MYSQL_PLUGIN_IMPORT Vers_type_trx vers_type_trx;
 

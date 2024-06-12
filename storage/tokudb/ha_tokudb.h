@@ -728,21 +728,21 @@ public:
     ~ha_tokudb();
 
     const char *table_type() const;
-    const char *index_type(uint inx);
+    const char *index_type(uint inx) override;
     const char **bas_ext() const;
 
     //
     // Returns a bit mask of capabilities of storage engine. Capabilities 
     // defined in sql/handler.h
     //
-    ulonglong table_flags() const;
+    ulonglong table_flags() const override;
     
-    ulong index_flags(uint inx, uint part, bool all_parts) const;
+    ulong index_flags(uint inx, uint part, bool all_parts) const override;
 
     //
     // Returns limit on the number of keys imposed by tokudb.
     //
-    uint max_supported_keys() const {
+    uint max_supported_keys() const override {
         return MAX_KEY;
     } 
 
@@ -754,43 +754,43 @@ public:
     //
     // Returns the limit on the key length imposed by tokudb.
     //
-    uint max_supported_key_length() const {
+    uint max_supported_key_length() const override {
         return UINT_MAX32;
     } 
 
     //
     // Returns limit on key part length imposed by tokudb.
     //
-    uint max_supported_key_part_length() const {
+    uint max_supported_key_part_length() const override {
         return UINT_MAX32;
     } 
-    const key_map *keys_to_use_for_scanning() {
+    const key_map *keys_to_use_for_scanning() override {
         return &key_map_full;
     }
 
-    double scan_time();
+    double scan_time() override;
 
-    double read_time(uint index, uint ranges, ha_rows rows);
+    double read_time(uint index, uint ranges, ha_rows rows) override;
     
     // Defined in mariadb
-    double keyread_time(uint index, uint ranges, ha_rows rows);
+    double keyread_time(uint index, uint ranges, ha_rows rows) override;
 
     // Defined in mysql 5.6
     double index_only_read_time(uint keynr, double records);
 
-    int open(const char *name, int mode, uint test_if_locked);
-    int close();
-    void update_create_info(HA_CREATE_INFO* create_info);
-    int create(const char *name, TABLE * form, HA_CREATE_INFO * create_info);
-    int delete_table(const char *name);
-    int rename_table(const char *from, const char *to);
-    int optimize(THD * thd, HA_CHECK_OPT * check_opt);
-    int analyze(THD * thd, HA_CHECK_OPT * check_opt);
-    int write_row(const uchar * buf);
-    int update_row(const uchar * old_data, const uchar * new_data);
-    int delete_row(const uchar * buf);
+    int open(const char *name, int mode, uint test_if_locked) override;
+    int close() override;
+    void update_create_info(HA_CREATE_INFO* create_info) override;
+    int create(const char *name, TABLE * form, HA_CREATE_INFO * create_info) override;
+    int delete_table(const char *name) override;
+    int rename_table(const char *from, const char *to) override;
+    int optimize(THD * thd, HA_CHECK_OPT * check_opt) override;
+    int analyze(THD * thd, HA_CHECK_OPT * check_opt) override;
+    int write_row(const uchar * buf) override;
+    int update_row(const uchar * old_data, const uchar * new_data) override;
+    int delete_row(const uchar * buf) override;
 #if MYSQL_VERSION_ID >= 100000
-    void start_bulk_insert(ha_rows rows, uint flags);
+    void start_bulk_insert(ha_rows rows, uint flags) override;
 #else
     void start_bulk_insert(ha_rows rows);
 #endif
@@ -807,49 +807,49 @@ public:
                            DBT* key,
                            DBT* val,
                            void* error_extra);
-    int end_bulk_insert();
+    int end_bulk_insert() override;
     int end_bulk_insert(bool abort);
 
-    int prepare_index_scan();
-    int prepare_index_key_scan( const uchar * key, uint key_len );
-    int prepare_range_scan( const key_range *start_key, const key_range *end_key);
-    void column_bitmaps_signal();
-    int index_init(uint index, bool sorted);
-    int index_end();
-    int index_next_same(uchar * buf, const uchar * key, uint keylen); 
-    int index_read(uchar * buf, const uchar * key, uint key_len, enum ha_rkey_function find_flag);
-    int index_read_last(uchar * buf, const uchar * key, uint key_len);
-    int index_next(uchar * buf);
-    int index_prev(uchar * buf);
-    int index_first(uchar * buf);
-    int index_last(uchar * buf);
+    int prepare_index_scan() override;
+    int prepare_index_key_scan( const uchar * key, uint key_len ) override;
+    int prepare_range_scan( const key_range *start_key, const key_range *end_key) override;
+    void column_bitmaps_signal() override;
+    int index_init(uint index, bool sorted) override;
+    int index_end() override;
+    int index_next_same(uchar * buf, const uchar * key, uint keylen) override;
+    int index_read(uchar * buf, const uchar * key, uint key_len, enum ha_rkey_function find_flag) override;
+    int index_read_last(uchar * buf, const uchar * key, uint key_len) override;
+    int index_next(uchar * buf) override;
+    int index_prev(uchar * buf) override;
+    int index_first(uchar * buf) override;
+    int index_last(uchar * buf) override;
 
     bool has_gap_locks() const { return true; }
 
-    int rnd_init(bool scan);
-    int rnd_end();
-    int rnd_next(uchar * buf);
-    int rnd_pos(uchar * buf, uchar * pos);
+    int rnd_init(bool scan) override;
+    int rnd_end() override;
+    int rnd_next(uchar * buf) override;
+    int rnd_pos(uchar * buf, uchar * pos) override;
 
     int read_range_first(const key_range *start_key,
                                  const key_range *end_key,
-                                 bool eq_range, bool sorted);
-    int read_range_next();
+                                 bool eq_range, bool sorted) override;
+    int read_range_next() override;
 
 
-    void position(const uchar * record);
-    int info(uint);
-    int extra(enum ha_extra_function operation);
-    int reset();
-    int external_lock(THD * thd, int lock_type);
-    int start_stmt(THD * thd, thr_lock_type lock_type);
+    void position(const uchar * record) override;
+    int info(uint) override;
+    int extra(enum ha_extra_function operation) override;
+    int reset() override;
+    int external_lock(THD * thd, int lock_type) override;
+    int start_stmt(THD * thd, thr_lock_type lock_type) override;
 
     ha_rows records_in_range(uint inx, const key_range * min_key,
                              const key_range * max_key,
-                             page_range *pages);
+                             page_range *pages) override;
 
     uint32_t get_cursor_isolation_flags(enum thr_lock_type lock_type, THD* thd);
-    THR_LOCK_DATA **store_lock(THD * thd, THR_LOCK_DATA ** to, enum thr_lock_type lock_type);
+    THR_LOCK_DATA **store_lock(THD * thd, THR_LOCK_DATA ** to, enum thr_lock_type lock_type) override;
 
     int get_status(DB_TXN* trans);
     void init_hidden_prim_key_info(DB_TXN *txn);
@@ -859,20 +859,20 @@ public:
         hpk_num_to_char(to, share->auto_ident);
         share->unlock();
     }
-    virtual void get_auto_increment(
+    void get_auto_increment(
         ulonglong offset,
         ulonglong increment,
         ulonglong nb_desired_values,
         ulonglong* first_value,
-        ulonglong* nb_reserved_values);
+        ulonglong* nb_reserved_values) override;
     bool is_optimize_blocking();
     bool is_auto_inc_singleton();
-    void print_error(int error, myf errflag);
-    uint8 table_cache_type() {
+    void print_error(int error, myf errflag) override;
+    uint8 table_cache_type() override {
         return HA_CACHE_TBL_TRANSACT;
     }
-    int cmp_ref(const uchar * ref1, const uchar * ref2);
-    bool check_if_incompatible_data(HA_CREATE_INFO * info, uint table_changes);
+    int cmp_ref(const uchar * ref1, const uchar * ref2) override;
+    bool check_if_incompatible_data(HA_CREATE_INFO * info, uint table_changes) override;
 
 #ifdef MARIADB_BASE_VERSION
 
@@ -884,16 +884,16 @@ public:
     int multi_range_read_init(RANGE_SEQ_IF* seq,
                               void* seq_init_param,
                               uint n_ranges, uint mode,
-                              HANDLER_BUFFER *buf);
-    int multi_range_read_next(range_id_t *range_info);
+                              HANDLER_BUFFER *buf) override;
+    int multi_range_read_next(range_id_t *range_info) override;
     ha_rows multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
                                         void *seq_init_param, 
                                         uint n_ranges, uint *bufsz,
-                                        uint *flags, COST_VECT *cost);
+                                        uint *flags, COST_VECT *cost) override;
     ha_rows multi_range_read_info(uint keyno, uint n_ranges, uint keys,
                                   uint key_parts, uint *bufsz, 
-                                  uint *flags, COST_VECT *cost);
-    int multi_range_read_explain_info(uint mrr_mode, char *str, size_t size);
+                                  uint *flags, COST_VECT *cost) override;
+    int multi_range_read_explain_info(uint mrr_mode, char *str, size_t size) override;
 
 #else
 
@@ -912,18 +912,18 @@ public:
 
 #endif
 
-    Item* idx_cond_push(uint keyno, class Item* idx_cond);
-    void cancel_pushed_idx_cond();
+    Item* idx_cond_push(uint keyno, class Item* idx_cond) override;
+    void cancel_pushed_idx_cond() override;
 
     bool can_convert_varstring(const Field_varstring* field,
                                const Column_definition&new_type) const;
 
 #if defined(TOKU_INCLUDE_ALTER_56) && TOKU_INCLUDE_ALTER_56
  public:
-    enum_alter_inplace_result check_if_supported_inplace_alter(TABLE *altered_table, Alter_inplace_info *ha_alter_info);
-    bool prepare_inplace_alter_table(TABLE *altered_table, Alter_inplace_info *ha_alter_info);
-    bool inplace_alter_table(TABLE *altered_table, Alter_inplace_info *ha_alter_info);
-    bool commit_inplace_alter_table(TABLE *altered_table, Alter_inplace_info *ha_alter_info, bool commit);
+    enum_alter_inplace_result check_if_supported_inplace_alter(TABLE *altered_table, Alter_inplace_info *ha_alter_info) override;
+    bool prepare_inplace_alter_table(TABLE *altered_table, Alter_inplace_info *ha_alter_info) override;
+    bool inplace_alter_table(TABLE *altered_table, Alter_inplace_info *ha_alter_info) override;
+    bool commit_inplace_alter_table(TABLE *altered_table, Alter_inplace_info *ha_alter_info, bool commit) override;
  private:
     int alter_table_add_index(Alter_inplace_info* ha_alter_info);
     int alter_table_drop_index(Alter_inplace_info* ha_alter_info);
@@ -968,9 +968,9 @@ public:
  public:
     // delete all rows from the table
     // effect: all dictionaries, including the main and indexes, should be empty
-    int discard_or_import_tablespace(my_bool discard);
-    int truncate();
-    int delete_all_rows();
+    int discard_or_import_tablespace(my_bool discard) override;
+    int truncate() override;
+    int delete_all_rows() override;
     void extract_hidden_primary_key(uint keynr, DBT const *found_key);
     void read_key_only(uchar * buf, uint keynr, DBT const *found_key);
     int read_row_callback (uchar * buf, uint keynr, DBT const *row, DBT const *found_key);
@@ -1003,7 +1003,7 @@ public:
     //
     uint primary_key;
 
-    int check(THD *thd, HA_CHECK_OPT *check_opt);
+    int check(THD *thd, HA_CHECK_OPT *check_opt) override;
 
     int fill_range_query_buf(
         bool need_val, 

@@ -177,7 +177,7 @@ public:
     Print information about the latch
     @return the string representation
   */
-  virtual std::string to_string() const
+  std::string to_string() const override
   {
     std::ostringstream msg;
     const MutexDebug ctx= get();

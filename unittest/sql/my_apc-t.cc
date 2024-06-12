@@ -123,7 +123,7 @@ public:
   int *where_to;  // Where to write it
   Apc_order(int a, int *b) : value(a), where_to(b) {}
 
-  void call_in_target_thread()
+  void call_in_target_thread() override
   {
     my_sleep(int_rand(1000));
     *where_to = value;

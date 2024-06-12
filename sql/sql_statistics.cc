@@ -746,7 +746,7 @@ private:
     table_name_field= stat_table->field[TABLE_STAT_TABLE_NAME];
   }
 
-  void change_full_table_name(const LEX_CSTRING *db, const LEX_CSTRING *tab)
+  void change_full_table_name(const LEX_CSTRING *db, const LEX_CSTRING *tab) override
   {
     db_name_field->store(db->str, db->length, system_charset_info);
     table_name_field->store(tab->str, tab->length, system_charset_info);
@@ -816,7 +816,7 @@ public:
     the field write_stat.cardinality' from the TABLE structure for 'table'.
   */    
 
-  void store_stat_fields()
+  void store_stat_fields() override
   {
     Field *stat_field= stat_table->field[TABLE_STAT_CARDINALITY];
     if (table->collected_stats->cardinality_is_null)
@@ -843,7 +843,7 @@ public:
     for 'table' accordingly.
   */    
 
-  void get_stat_values()
+  void get_stat_values() override
   {
     Table_statistics *read_stats= table_share->stats_cb.table_stats;
     read_stats->cardinality_is_null= TRUE;
@@ -890,7 +890,7 @@ private:
     column_name_field= stat_table->field[COLUMN_STAT_COLUMN_NAME];
   } 
 
-  void change_full_table_name(const LEX_CSTRING *db, const LEX_CSTRING *tab)
+  void change_full_table_name(const LEX_CSTRING *db, const LEX_CSTRING *tab) override
   {
      db_name_field->store(db->str, db->length, system_charset_info);
      table_name_field->store(tab->str, tab->length, system_charset_info);
@@ -1019,7 +1019,7 @@ public:
     length of the column. 
   */    
 
-  void store_stat_fields()
+  void store_stat_fields() override
   {
     StringBuffer<MAX_FIELD_WIDTH> val;
 
@@ -1097,7 +1097,7 @@ public:
     'table_field'.
   */    
 
-  void get_stat_values()
+  void get_stat_values() override
   {
     table_field->read_stats->set_all_nulls();
 
@@ -1233,7 +1233,7 @@ private:
     prefix_arity_field= stat_table->field[INDEX_STAT_PREFIX_ARITY];
   } 
 
-  void change_full_table_name(const LEX_CSTRING *db, const LEX_CSTRING *tab)
+  void change_full_table_name(const LEX_CSTRING *db, const LEX_CSTRING *tab) override
   {
      db_name_field->store(db->str, db->length, system_charset_info);
      table_name_field->store(tab->str, tab->length, system_charset_info);
@@ -1355,7 +1355,7 @@ public:
     equal  to 0, the value of the column is set to NULL.
   */    
 
-  void store_stat_fields()
+  void store_stat_fields() override
   {
     Field *stat_field= stat_table->field[INDEX_STAT_AVG_FREQUENCY];
     double avg_frequency=
@@ -1386,7 +1386,7 @@ public:
     set to the value of the column.
   */    
 
-  void get_stat_values()
+  void get_stat_values() override
   {
     double avg_frequency= 0;
     if(find_stat())
@@ -1760,7 +1760,7 @@ public:
                      tree_key_length, max_heap_table_size, 1);
   }
 
-  bool add()
+  bool add() override
   {
     longlong val= table_field->val_int();   
     return tree->unique_add(&val);

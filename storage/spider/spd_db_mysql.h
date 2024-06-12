@@ -245,29 +245,29 @@ public:
   int store_to_field(
     Field *field,
     CHARSET_INFO *access_charset
-  );
+  ) override;
   int append_to_str(
     spider_string *str
-  );
+  ) override;
   int append_escaped_to_str(
     spider_string *str,
     uint dbton_id
-  );
-  void first();
-  void next();
-  bool is_null();
-  int val_int();
-  double val_real();
+  ) override;
+  void first() override;
+  void next() override;
+  bool is_null() override;
+  int val_int() override;
+  double val_real() override;
   my_decimal *val_decimal(
     my_decimal *decimal_value,
     CHARSET_INFO *access_charset
-  );
-  SPIDER_DB_ROW *clone();
+  ) override;
+  SPIDER_DB_ROW *clone() override;
   int store_to_tmp_table(
     TABLE *tmp_table,
     spider_string *str
-  );
-  uint get_byte_size();
+  ) override;
+  uint get_byte_size() override;
 };
 
 class spider_db_mysql_row: public spider_db_mbase_row
@@ -295,20 +295,20 @@ public:
     SPIDER_DB_CONN *in_db_conn
   );
   virtual ~spider_db_mbase_result();
-  bool has_result();
-  void free_result();
-  SPIDER_DB_ROW *current_row();
-  SPIDER_DB_ROW *fetch_row();
+  bool has_result() override;
+  void free_result() override;
+  SPIDER_DB_ROW *current_row() override;
+  SPIDER_DB_ROW *fetch_row() override;
   SPIDER_DB_ROW *fetch_row_from_result_buffer(
     spider_db_result_buffer *spider_res_buf
-  );
+  ) override;
   SPIDER_DB_ROW *fetch_row_from_tmp_table(
     TABLE *tmp_table
-  );
+  ) override;
   int fetch_table_status(
     int mode,
     ha_statistics &stat
-  );
+  ) override;
   int fetch_simple_action(
     uint simple_action,
     uint position,
@@ -317,11 +317,11 @@ public:
   int fetch_table_records(
     int mode,
     ha_rows &records
-  );
+  ) override;
 #ifdef HA_HAS_CHECKSUM_EXTENDED
   int fetch_table_checksum(
     ha_spider *spider
-  );
+  ) override;
 #endif
   int fetch_table_cardinality(
     int mode,
@@ -329,10 +329,10 @@ public:
     longlong *cardinality,
     uchar *cardinality_upd,
     int bitmap_size
-  );
+  ) override;
   int fetch_table_mon_status(
     int &status
-  );
+  ) override;
   int fetch_show_master_status(
     const char **binlog_file_name,
     const char **binlog_pos
@@ -340,26 +340,26 @@ public:
   int fetch_select_binlog_gtid_pos(
     const char **gtid_pos
   );
-  longlong num_rows();
-  uint num_fields();
+  longlong num_rows() override;
+  uint num_fields() override;
   void move_to_pos(
     longlong pos
-  );
-  int get_errno();
+  ) override;
+  int get_errno() override;
 #ifdef SPIDER_HAS_DISCOVER_TABLE_STRUCTURE
   int fetch_columns_for_discover_table_structure(
     spider_string *str,
     CHARSET_INFO *access_charset
-  );
+  ) override;
   int fetch_index_for_discover_table_structure(
     spider_string *str,
     CHARSET_INFO *access_charset
-  );
+  ) override;
   int fetch_table_for_discover_table_structure(
     spider_string *str,
     SPIDER_SHARE *spider_share,
     CHARSET_INFO *access_charset
-  );
+  ) override;
 #endif
 };
 
@@ -405,9 +405,9 @@ public:
     spider_db_mbase_util *spider_db_mbase_utility
   );
   virtual ~spider_db_mbase();
-  int init();
-  bool is_connected();
-  void bg_connect();
+  int init() override;
+  bool is_connected() override;
+  void bg_connect() override;
   int connect(
     char *tgt_host,
     char *tgt_username,
@@ -417,116 +417,116 @@ public:
     char *server_name,
     int connect_retry_count,
     longlong connect_retry_interval
-  );
-  int ping();
-  void bg_disconnect();
-  void disconnect();
-  int set_net_timeout();
+  ) override;
+  int ping() override;
+  void bg_disconnect() override;
+  void disconnect() override;
+  int set_net_timeout() override;
   int exec_query(
     const char *query,
     uint length,
     int quick_mode
-  );
-  int get_errno();
-  const char *get_error();
+  ) override;
+  int get_errno() override;
+  const char *get_error() override;
   bool is_server_gone_error(
     int error_num
-  );
+  ) override;
   bool is_dup_entry_error(
     int error_num
-  );
+  ) override;
   bool is_xa_nota_error(
     int error_num
-  );
+  ) override;
   int fetch_and_print_warnings(struct tm *l_time);
   spider_db_result *store_result(
     spider_db_result_buffer **spider_res_buf,
     st_spider_db_request_key *request_key,
     int *error_num
-  );
+  ) override;
   spider_db_result *use_result(
     ha_spider *spider,
     st_spider_db_request_key *request_key,
     int *error_num
-  );
-  int next_result();
-  uint affected_rows();
-  uint matched_rows();
+  ) override;
+  int next_result() override;
+  uint affected_rows() override;
+  uint matched_rows() override;
   bool inserted_info(
     spider_db_handler *handler,
     ha_copy_info *copy_info
-  );
-  ulonglong last_insert_id();
+  ) override;
+  ulonglong last_insert_id() override;
   int set_character_set(
     const char *csname
-  );
+  ) override;
   int select_db(
     const char *dbname
-  );
+  ) override;
   int consistent_snapshot(
     int *need_mon
-  );
-  bool trx_start_in_bulk_sql();
+  ) override;
+  bool trx_start_in_bulk_sql() override;
   int start_transaction(
     int *need_mon
-  );
+  ) override;
   int commit(
     int *need_mon
-  );
+  ) override;
   int rollback(
     int *need_mon
-  );
-  bool xa_start_in_bulk_sql();
+  ) override;
+  bool xa_start_in_bulk_sql() override;
   int xa_start(
     XID *xid,
     int *need_mon
-  );
+  ) override;
   int xa_end(
     XID *xid,
     int *need_mon
-  );
+  ) override;
   int xa_prepare(
     XID *xid,
     int *need_mon
-  );
+  ) override;
   int xa_commit(
     XID *xid,
     int *need_mon
-  );
+  ) override;
   int xa_rollback(
     XID *xid,
     int *need_mon
-  );
-  bool set_trx_isolation_in_bulk_sql();
+  ) override;
+  bool set_trx_isolation_in_bulk_sql() override;
   int set_trx_isolation(
     int trx_isolation,
     int *need_mon
-  );
-  bool set_autocommit_in_bulk_sql();
+  ) override;
+  bool set_autocommit_in_bulk_sql() override;
   int set_autocommit(
     bool autocommit,
     int *need_mon
-  );
-  bool set_sql_log_off_in_bulk_sql();
+  ) override;
+  bool set_sql_log_off_in_bulk_sql() override;
   int set_sql_log_off(
     bool sql_log_off,
     int *need_mon
-  );
-  bool set_wait_timeout_in_bulk_sql();
+  ) override;
+  bool set_wait_timeout_in_bulk_sql() override;
   int set_wait_timeout(
     int wait_timeout,
     int *need_mon
-  );
-  bool set_sql_mode_in_bulk_sql();
+  ) override;
+  bool set_sql_mode_in_bulk_sql() override;
   int set_sql_mode(
     sql_mode_t sql_mode,
     int *need_mon
-  );
-  bool set_time_zone_in_bulk_sql();
+  ) override;
+  bool set_time_zone_in_bulk_sql() override;
   int set_time_zone(
     Time_zone *time_zone,
     int *need_mon
-  );
+  ) override;
   int exec_simple_sql_with_result(
     SPIDER_TRX *trx,
     SPIDER_SHARE *share,
@@ -546,7 +546,7 @@ public:
     int mode,
     SPIDER_DB_RESULT **res1,
     SPIDER_DB_RESULT **res2
-  );
+  ) override;
   int select_binlog_gtid_pos(
     SPIDER_TRX *trx,
     SPIDER_SHARE *share,
@@ -564,25 +564,25 @@ public:
     char *to,
     const char *from,
     size_t from_length
-  );
-  bool have_lock_table_list();
+  ) override;
+  bool have_lock_table_list() override;
   int append_lock_tables(
     spider_string *str
-  );
+  ) override;
   int append_unlock_tables(
     spider_string *str
-  );
-  uint get_lock_table_hash_count();
-  void reset_lock_table_hash();
-  uint get_opened_handler_count();
-  void reset_opened_handler();
+  ) override;
+  uint get_lock_table_hash_count() override;
+  void reset_lock_table_hash() override;
+  uint get_opened_handler_count() override;
+  void reset_opened_handler() override;
   void set_dup_key_idx(
     ha_spider *spider,
     int link_idx
-  );
+  ) override;
   bool cmp_request_key_to_snd(
     st_spider_db_request_key *request_key
-  );
+  ) override;
 };
 
 class spider_db_mysql: public spider_db_mbase
@@ -637,20 +637,20 @@ public:
     spider_db_mbase_util *spider_db_mbase_utility
   );
   virtual ~spider_mbase_share();
-  int init();
+  int init() override;
   uint get_column_name_length(
     uint field_index
-  );
+  ) override;
   int append_column_name(
     spider_string *str,
     uint field_index
-  );
+  ) override;
   int append_column_name_with_alias(
     spider_string *str,
     uint field_index,
     const char *alias,
     uint alias_length
-  );
+  ) override;
   int append_table_name(
     spider_string *str,
     int all_link_idx
@@ -663,16 +663,16 @@ public:
     spider_string *str,
     int *table_name_pos
   );
-  bool need_change_db_table_name();
+  bool need_change_db_table_name() override;
 #ifdef SPIDER_HAS_DISCOVER_TABLE_STRUCTURE
   int discover_table_structure(
     SPIDER_TRX *trx,
     SPIDER_SHARE *spider_share,
     spider_string *str
-  );
+  ) override;
 #endif
 #ifdef HA_HAS_CHECKSUM_EXTENDED
-  bool checksum_support();
+  bool checksum_support() override;
 #endif
 protected:
   int create_table_names_str();
@@ -763,17 +763,17 @@ public:
     spider_db_mbase_util *spider_db_mbase_utility
   );
   virtual ~spider_mbase_handler();
-  int init();
+  int init() override;
   int append_index_hint(
     spider_string *str,
     int link_idx,
     ulong sql_type
-    );
+  ) override;
   int append_table_name_with_adjusting(
     spider_string *str,
     int link_idx,
     ulong sql_type
-  );
+  ) override;
   int append_key_column_types(
     const key_range *start_key,
     spider_string *str
@@ -786,8 +786,8 @@ public:
   );
   int append_tmp_table_and_sql_for_bka(
     const key_range *start_key
-  );
-  int reuse_tmp_table_and_sql_for_bka();
+  ) override;
+  int reuse_tmp_table_and_sql_for_bka() override;
   void create_tmp_bka_table_name(
     char *tmp_table_name,
     int *tmp_table_name_length,
@@ -818,62 +818,62 @@ public:
   );
   int append_union_table_and_sql_for_bka(
     const key_range *start_key
-  );
-  int reuse_union_table_and_sql_for_bka();
+  ) override;
+  int reuse_union_table_and_sql_for_bka() override;
   int append_insert_for_recovery(
     ulong sql_type,
     int link_idx
-  );
+  ) override;
   int append_update(
     const TABLE *table,
     my_ptrdiff_t ptr_diff
-  );
+  ) override;
   int append_update(
     const TABLE *table,
     my_ptrdiff_t ptr_diff,
     int link_idx
-  );
+  ) override;
   int append_delete(
     const TABLE *table,
     my_ptrdiff_t ptr_diff
-  );
+  ) override;
   int append_delete(
     const TABLE *table,
     my_ptrdiff_t ptr_diff,
     int link_idx
-  );
-  int append_insert_part();
+  ) override;
+  int append_insert_part() override;
   int append_insert(
     spider_string *str,
     int link_idx
   );
-  int append_update_part();
+  int append_update_part() override;
   int append_update(
     spider_string *str,
     int link_idx
   );
-  int append_delete_part();
+  int append_delete_part() override;
   int append_delete(
     spider_string *str
   );
-  int append_update_set_part();
+  int append_update_set_part() override;
   int append_update_set(
     spider_string *str
   );
   #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
-  int append_direct_update_set_part();
+  int append_direct_update_set_part() override;
   int append_direct_update_set(
     spider_string *str
   );
   int append_dup_update_pushdown_part(
     const char *alias,
     uint alias_length
-  );
+  ) override;
   int append_update_columns_part(
     const char *alias,
     uint alias_length
-  );
-  int check_update_columns_part();
+  ) override;
+  int check_update_columns_part() override;
   int append_update_columns(
     spider_string *str,
     const char *alias,
@@ -882,28 +882,28 @@ public:
   #endif
   int append_select_part(
     ulong sql_type
-  );
+  ) override;
   int append_select(
     spider_string *str,
     ulong sql_type
-  );
+  ) override;
   int append_table_select_part(
     ulong sql_type
-  );
+  ) override;
   int append_table_select(
     spider_string *str
   );
   int append_key_select_part(
     ulong sql_type,
     uint idx
-  );
+  ) override;
   int append_key_select(
     spider_string *str,
     uint idx
   );
   int append_minimum_select_part(
     ulong sql_type
-  );
+  ) override;
   int append_minimum_select(
     spider_string *str,
     ulong sql_type
@@ -931,47 +931,47 @@ public:
   );
   int append_hint_after_table_part(
     ulong sql_type
-  );
+  ) override;
   int append_hint_after_table(
     spider_string *str
   );
   void set_where_pos(
     ulong sql_type
-  );
+  ) override;
   void set_where_to_pos(
     ulong sql_type
-  );
+  ) override;
   int check_item_type(
     Item *item
-  );
+  ) override;
   int append_values_connector_part(
     ulong sql_type
-  );
+  ) override;
   int append_values_connector(
     spider_string *str
   );
   int append_values_terminator_part(
     ulong sql_type
-  );
+  ) override;
   int append_values_terminator(
     spider_string *str
   );
   int append_union_table_connector_part(
     ulong sql_type
-  );
+  ) override;
   int append_union_table_connector(
     spider_string *str
   );
   int append_union_table_terminator_part(
     ulong sql_type
-  );
+  ) override;
   int append_union_table_terminator(
     spider_string *str
   );
   int append_key_column_values_part(
     const key_range *start_key,
     ulong sql_type
-  );
+  ) override;
   int append_key_column_values(
     spider_string *str,
     const key_range *start_key
@@ -979,7 +979,7 @@ public:
   int append_key_column_values_with_name_part(
     const key_range *start_key,
     ulong sql_type
-  );
+  ) override;
   int append_key_column_values_with_name(
     spider_string *str,
     const key_range *start_key
@@ -988,7 +988,7 @@ public:
     const key_range *start_key,
     const key_range *end_key,
     ulong sql_type
-  );
+  ) override;
   int append_key_where(
     spider_string *str,
     spider_string *str_part,
@@ -1005,7 +1005,7 @@ public:
     const uchar **ptr,
     bool key_eq,
     bool tgt_final
-  );
+  ) override;
   int append_is_null(
     ulong sql_type,
     spider_string *str,
@@ -1021,7 +1021,7 @@ public:
     ulong sql_type,
     bool set_order,
     int key_count
-  );
+  ) override;
   int append_where_terminator(
     ulong sql_type,
     spider_string *str,
@@ -1032,7 +1032,7 @@ public:
   );
   int append_match_where_part(
     ulong sql_type
-  );
+  ) override;
   int append_match_where(
     spider_string *str
   );
@@ -1046,7 +1046,7 @@ public:
     uint alias_length,
     ulong sql_type,
     bool test_flg
-  );
+  ) override;
   int append_condition(
     spider_string *str,
     const char *alias,
@@ -1070,7 +1070,7 @@ public:
     ulong sql_type,
     const char *alias,
     uint alias_length
-  );
+  ) override;
   int append_match_select(
     spider_string *str,
     const char *alias,
@@ -1081,7 +1081,7 @@ public:
     ulong sql_type,
     const char *alias,
     uint alias_length
-  );
+  ) override;
   int append_sum_select(
     spider_string *str,
     const char *alias,
@@ -1090,16 +1090,16 @@ public:
 #endif
   void set_order_pos(
     ulong sql_type
-  );
+  ) override;
   void set_order_to_pos(
     ulong sql_type
-  );
+  ) override;
 #ifdef HANDLER_HAS_DIRECT_AGGREGATE
   int append_group_by_part(
     const char *alias,
     uint alias_length,
     ulong sql_type
-  );
+  ) override;
   int append_group_by(
     spider_string *str,
     const char *alias,
@@ -1110,7 +1110,7 @@ public:
     const char *alias,
     uint alias_length,
     ulong sql_type
-  );
+  ) override;
   int append_key_order_for_merge_with_alias(
     spider_string *str,
     const char *alias,
@@ -1120,7 +1120,7 @@ public:
     const char *alias,
     uint alias_length,
     ulong sql_type
-  );
+  ) override;
   int append_key_order_for_direct_order_limit_with_alias(
     spider_string *str,
     const char *alias,
@@ -1130,7 +1130,7 @@ public:
     const char *alias,
     uint alias_length,
     ulong sql_type
-  );
+  ) override;
   int append_key_order_for_handler(
     spider_string *str,
     const char *alias,
@@ -1145,12 +1145,12 @@ public:
     longlong offset,
     longlong limit,
     ulong sql_type
-  );
+  ) override;
   int reappend_limit_part(
     longlong offset,
     longlong limit,
     ulong sql_type
-  );
+  ) override;
   int append_limit(
     spider_string *str,
     longlong offset,
@@ -1158,25 +1158,25 @@ public:
   );
   int append_select_lock_part(
     ulong sql_type
-  );
+  ) override;
   int append_select_lock(
     spider_string *str
   );
   int append_union_all_start_part(
     ulong sql_type
-  );
+  ) override;
   int append_union_all_start(
     spider_string *str
   );
   int append_union_all_part(
     ulong sql_type
-  );
+  ) override;
   int append_union_all(
     spider_string *str
   );
   int append_union_all_end_part(
     ulong sql_type
-  );
+  ) override;
   int append_union_all_end(
     spider_string *str
   );
@@ -1184,7 +1184,7 @@ public:
     ulong sql_type,
     uint multi_range_cnt,
     bool with_comma
-  );
+  ) override;
   int append_multi_range_cnt(
     spider_string *str,
     uint multi_range_cnt,
@@ -1193,7 +1193,7 @@ public:
   int append_multi_range_cnt_with_name_part(
     ulong sql_type,
     uint multi_range_cnt
-  );
+  ) override;
   int append_multi_range_cnt_with_name(
     spider_string *str,
     uint multi_range_cnt
@@ -1203,7 +1203,7 @@ public:
     uint handler_id,
     SPIDER_CONN *conn,
     int link_idx
-  );
+  ) override;
   int append_open_handler(
     spider_string *str,
     uint handler_id,
@@ -1213,36 +1213,36 @@ public:
   int append_close_handler_part(
     ulong sql_type,
     int link_idx
-  );
+  ) override;
   int append_close_handler(
     spider_string *str,
     int link_idx
   );
   int append_insert_terminator_part(
     ulong sql_type
-  );
+  ) override;
   int append_insert_terminator(
     spider_string *str
   );
   int append_insert_values_part(
     ulong sql_type
-  );
+  ) override;
   int append_insert_values(
     spider_string *str
   );
   int append_into_part(
     ulong sql_type
-  );
+  ) override;
   int append_into(
     spider_string *str
   );
   void set_insert_to_pos(
     ulong sql_type
-  );
+  ) override;
   int append_from_part(
     ulong sql_type,
     int link_idx
-  );
+  ) override;
   int append_from(
     spider_string *str,
     ulong sql_type,
@@ -1288,7 +1288,7 @@ public:
   );
   int append_delete_all_rows_part(
     ulong sql_type
-  );
+  ) override;
   int append_delete_all_rows(
     spider_string *str,
     ulong sql_type
@@ -1303,7 +1303,7 @@ public:
     const key_range *end_key,
     ulong sql_type,
     int link_idx
-  );
+  ) override;
   int append_explain_select(
     spider_string *str,
     const key_range *start_key,
@@ -1313,32 +1313,32 @@ public:
   );
   bool is_sole_projection_field(
     uint16 field_index
-  );
+  ) override;
   bool is_bulk_insert_exec_period(
     bool bulk_end
-  );
+  ) override;
   bool sql_is_filled_up(
     ulong sql_type
-  );
+  ) override;
   bool sql_is_empty(
     ulong sql_type
-  );
-  bool support_multi_split_read();
-  bool support_bulk_update();
-  int bulk_tmp_table_insert();
+  ) override;
+  bool support_multi_split_read() override;
+  bool support_bulk_update() override;
+  int bulk_tmp_table_insert() override;
   int bulk_tmp_table_insert(
     int link_idx
-  );
-  int bulk_tmp_table_end_bulk_insert();
-  int bulk_tmp_table_rnd_init();
-  int bulk_tmp_table_rnd_next();
-  int bulk_tmp_table_rnd_end();
+  ) override;
+  int bulk_tmp_table_end_bulk_insert() override;
+  int bulk_tmp_table_rnd_init() override;
+  int bulk_tmp_table_rnd_next() override;
+  int bulk_tmp_table_rnd_end() override;
   bool need_copy_for_update(
     int link_idx
-  );
-  bool bulk_tmp_table_created();
-  int mk_bulk_tmp_table_and_bulk_start();
-  void rm_bulk_tmp_table();
+  ) override;
+  bool bulk_tmp_table_created() override;
+  int mk_bulk_tmp_table_and_bulk_start() override;
+  void rm_bulk_tmp_table() override;
   int store_sql_to_bulk_tmp_table(
     spider_string *str,
     TABLE *tmp_table
@@ -1350,156 +1350,156 @@ public:
   int insert_lock_tables_list(
     SPIDER_CONN *conn,
     int link_idx
-  );
+  ) override;
   int append_lock_tables_list(
     SPIDER_CONN *conn,
     int link_idx,
     int *appended
-  );
+  ) override;
   int realloc_sql(
     ulong *realloced
-  );
+  ) override;
   int reset_sql(
     ulong sql_type
-  );
+  ) override;
 #ifdef SPIDER_HAS_GROUP_BY_HANDLER
   int set_sql_for_exec(
     ulong sql_type,
     int link_idx,
     SPIDER_LINK_IDX_CHAIN *link_idx_chain
-  );
+  ) override;
 #endif
   int set_sql_for_exec(
     ulong sql_type,
     int link_idx
-  );
+  ) override;
   int set_sql_for_exec(
     spider_db_copy_table *tgt_ct,
     ulong sql_type
-  );
+  ) override;
   int execute_sql(
     ulong sql_type,
     SPIDER_CONN *conn,
     int quick_mode,
     int *need_mon
-  );
-  int reset();
+  ) override;
+  int reset() override;
   int sts_mode_exchange(
     int sts_mode
-  );
+  ) override;
   int show_table_status(
     int link_idx,
     int sts_mode,
     uint flag
-  );
+  ) override;
   int crd_mode_exchange(
     int crd_mode
-  );
+  ) override;
   int show_index(
     int link_idx,
     int crd_mode
-  );
+  ) override;
   int simple_action(
     uint simple_action,
     int link_idx
   );
   int show_records(
     int link_idx
-  );
+  ) override;
 #ifdef HA_HAS_CHECKSUM_EXTENDED
   int checksum_table(
     int link_idx
-  );
+  ) override;
 #endif
   int show_last_insert_id(
     int link_idx,
     ulonglong &last_insert_id
-  );
+  ) override;
   ha_rows explain_select(
     const key_range *start_key,
     const key_range *end_key,
     int link_idx
-  );
+  ) override;
   int lock_tables(
     int link_idx
-  );
+  ) override;
   int unlock_tables(
     int link_idx
-  );
+  ) override;
   int disable_keys(
     SPIDER_CONN *conn,
     int link_idx
-  );
+  ) override;
   int enable_keys(
     SPIDER_CONN *conn,
     int link_idx
-  );
+  ) override;
   int check_table(
     SPIDER_CONN *conn,
     int link_idx,
     HA_CHECK_OPT* check_opt
-  );
+  ) override;
   int repair_table(
     SPIDER_CONN *conn,
     int link_idx,
     HA_CHECK_OPT* check_opt
-  );
+  ) override;
   int analyze_table(
     SPIDER_CONN *conn,
     int link_idx
-  );
+  ) override;
   int optimize_table(
     SPIDER_CONN *conn,
     int link_idx
-  );
+  ) override;
   int flush_tables(
     SPIDER_CONN *conn,
     int link_idx,
     bool lock
-  );
+  ) override;
   int flush_logs(
     SPIDER_CONN *conn,
     int link_idx
-  );
+  ) override;
   int insert_opened_handler(
     SPIDER_CONN *conn,
     int link_idx
-  );
+  ) override;
   int delete_opened_handler(
     SPIDER_CONN *conn,
     int link_idx
-  );
+  ) override;
   int sync_from_clone_source(
     spider_db_handler *dbton_hdl
-  );
+  ) override;
   bool support_use_handler(
     int use_handler
-  );
+  ) override;
   void minimum_select_bitmap_create();
   bool minimum_select_bit_is_set(
     uint field_index
-  );
+  ) override;
   void copy_minimum_select_bitmap(
     uchar *bitmap
-  );
-  int init_union_table_name_pos();
-  int set_union_table_name_pos();
+  ) override;
+  int init_union_table_name_pos() override;
+  int set_union_table_name_pos() override;
   int reset_union_table_name(
     spider_string *str,
     int link_idx,
     ulong sql_type
-  );
+  ) override;
 #ifdef SPIDER_HAS_GROUP_BY_HANDLER
   int append_from_and_tables_part(
     spider_fields *fields,
     ulong sql_type
-  );
+  ) override;
   int append_where_part(
     ulong sql_type
-  );
+  ) override;
   int append_having_part(
     ulong sql_type
-  );
+  ) override;
   int append_item_type_part(
     Item *item,
     const char *alias,
@@ -1507,7 +1507,7 @@ public:
     bool use_fields,
     spider_fields *fields,
     ulong sql_type
-  );
+  ) override;
   int append_list_item_select_part(
     List<Item> *select,
     const char *alias,
@@ -1515,7 +1515,7 @@ public:
     bool use_fields,
     spider_fields *fields,
     ulong sql_type
-  );
+  ) override;
   int append_list_item_select(
     List<Item> *select,
     spider_string *str,
@@ -1531,7 +1531,7 @@ public:
     bool use_fields,
     spider_fields *fields,
     ulong sql_type
-  );
+  ) override;
   int append_group_by(
     ORDER *order,
     spider_string *str,
@@ -1547,7 +1547,7 @@ public:
     bool use_fields,
     spider_fields *fields,
     ulong sql_type
-  );
+  ) override;
   int append_order_by(
     ORDER *order,
     spider_string *str,
@@ -1562,12 +1562,12 @@ public:
     st_select_lex *select_lex,
     longlong select_limit,
     longlong offset_limit
-  );
+  ) override;
   bool check_direct_delete(
     st_select_lex *select_lex,
     longlong select_limit,
     longlong offset_limit
-  );
+  ) override;
 #endif
 };
 
@@ -1601,49 +1601,49 @@ public:
     spider_mbase_share *db_share
   );
   virtual ~spider_mbase_copy_table();
-  int init();
+  int init() override;
   void set_sql_charset(
     CHARSET_INFO *cs
-  );
-  int append_select_str();
+  ) override;
+  int append_select_str() override;
   int append_insert_str(
     int insert_flg
-  );
+  ) override;
   int append_table_columns(
     TABLE_SHARE *table_share
-  );
-  int append_from_str();
+  ) override;
+  int append_from_str() override;
   int append_table_name(
     int link_idx
-  );
-  void set_sql_pos();
-  void set_sql_to_pos();
+  ) override;
+  void set_sql_pos() override;
+  void set_sql_to_pos() override;
   int append_copy_where(
     spider_db_copy_table *source_ct,
     KEY *key_info,
     ulong *last_row_pos,
     ulong *last_lengths
-  );
+  ) override;
   int append_key_order_str(
     KEY *key_info,
     int start_pos,
     bool desc_flg
-  );
+  ) override;
   int append_limit(
     longlong offset,
     longlong limit
-  );
-  int append_into_str();
-  int append_open_paren_str();
-  int append_values_str();
+  ) override;
+  int append_into_str() override;
+  int append_open_paren_str() override;
+  int append_values_str() override;
   int append_select_lock_str(
     int lock_mode
-  );
+  ) override;
   int exec_query(
     SPIDER_CONN *conn,
     int quick_mode,
     int *need_mon
-  );
+  ) override;
   int copy_key_row(
     spider_db_copy_table *source_ct,
     Field *field,
@@ -1661,15 +1661,15 @@ public:
     SPIDER_DB_ROW *row,
     ulong **last_row_pos,
     ulong **last_lengths
-  );
+  ) override;
   int copy_rows(
     TABLE *table,
     SPIDER_DB_ROW *row
-  );
-  int append_insert_terminator();
+  ) override;
+  int append_insert_terminator() override;
   int copy_insert_values(
     spider_db_copy_table *source_ct
-  );
+  ) override;
 };
 
 class spider_mysql_copy_table: public spider_mbase_copy_table
