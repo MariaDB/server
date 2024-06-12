@@ -3345,6 +3345,7 @@ public:
   { }
   virtual ~Type_all_attributes() = default;
   virtual void set_maybe_null(bool maybe_null_arg)= 0;
+  virtual uint32 character_octet_length() const { return max_length; }
   // Returns total number of decimal digits
   virtual uint decimal_precision() const= 0;
   virtual const TYPELIB *get_typelib() const= 0;

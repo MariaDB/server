@@ -3576,6 +3576,10 @@ public:
       return &type_handler_null;
     return field->type_handler();
   }
+  uint32 character_octet_length() const override
+  {
+    return field->character_octet_length();
+  }
   Field *create_tmp_field_from_item_field(MEM_ROOT *root, TABLE *new_table,
                                           Item_ref *orig_item,
                                           const Tmp_field_param *param);
@@ -5578,6 +5582,10 @@ public:
   { return (*ref)->type_handler(); }
   const Type_handler *real_type_handler() const override
   { return (*ref)->real_type_handler(); }
+  uint32 character_octet_length() const override
+  {
+    return Item_ref::real_item()->character_octet_length();
+  }
   Field *get_tmp_table_field() override
   { return result_field ? result_field : (*ref)->get_tmp_table_field(); }
   Item *get_tmp_table_item(THD *thd) override;
@@ -5616,6 +5624,10 @@ public:
     (*ref)->save_in_field(result_field, no_conversions);
   }
   Item *real_item() override { return ref ? (*ref)->real_item() : this; }
+  const Item *real_item() const
+  {
+    return const_cast<Item_ref*>(this)->Item_ref::real_item();
+  }
   const TYPELIB *get_typelib() const override
   {
     return ref ? (*ref)->get_typelib() : NULL;
