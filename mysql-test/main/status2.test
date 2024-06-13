@@ -170,6 +170,7 @@ set debug_sync='now WAIT_FOR parked';
 --replace_result $replace_conid id=#
 eval select examined_rows, sent_rows, info from information_schema.processlist where id=$conid;
 set debug_sync='now signal go';
+set debug_sync='now WAIT_FOR parked';
 --replace_result $replace_conid id=#
 eval select examined_rows, sent_rows, info from information_schema.processlist where id=$conid;
 set debug_sync='now signal go';
