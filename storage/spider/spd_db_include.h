@@ -1109,8 +1109,8 @@ public:
   spider_db_share *db_share;
   int first_link_idx;
   SPIDER_LINK_IDX_CHAIN *link_idx_chain;
-  bool strict_group_by;
-  bool no_where_cond;
+  bool strict_group_by= false;
+  bool no_where_cond= false;
   spider_db_handler(ha_spider *spider, spider_db_share *db_share) :
     dbton_id(db_share->dbton_id), spider(spider), db_share(db_share),
     first_link_idx(-1) {}

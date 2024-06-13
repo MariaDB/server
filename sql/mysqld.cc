@@ -3205,6 +3205,15 @@ static void start_signal_handler(void)
   DBUG_VOID_RETURN;
 }
 
+/** Called only from signal_hand function. */
+static void* exit_signal_handler()
+{
+    my_thread_end();
+    signal_thread_in_use= 0;
+    pthread_exit(0);  // Safety
+    return nullptr;  // Avoid compiler warnings
+}
+
 
 /** This threads handles all signals and alarms. */
 /* ARGSUSED */
@@ -3265,10 +3274,7 @@ pthread_handler_t signal_hand(void *arg __attribute__((unused)))
     if (abort_loop)
     {
       DBUG_PRINT("quit",("signal_handler: calling my_thread_end()"));
-      my_thread_end();
-      signal_thread_in_use= 0;
-      pthread_exit(0);				// Safety
-      return 0;                                 // Avoid compiler warnings
+      return exit_signal_handler();
     }
     switch (sig) {
     case SIGTERM:
@@ -3287,6 +3293,7 @@ pthread_handler_t signal_hand(void *arg __attribute__((unused)))
         PSI_CALL_delete_current_thread();
         my_sigset(sig, SIG_IGN);
         break_connect_loop(); // MIT THREAD has a alarm thread
+        return exit_signal_handler();
       }
       break;
     case SIGHUP:
