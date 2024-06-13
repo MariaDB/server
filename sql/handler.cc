@@ -8088,8 +8088,7 @@ int handler::prepare_for_insert(bool do_create)
     return 1;
 
   /* Preparation for unique of blob's */
-  if (table->s->long_unique_table || table->s->period.unique_keys ||
-      table->hlindex)
+  if (table->s->long_unique_table || table->s->period.unique_keys)
   {
     if (do_create && create_lookup_handler())
       return 1;
