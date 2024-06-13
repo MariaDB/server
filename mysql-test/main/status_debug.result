@@ -1,0 +1,119 @@
+#
+# MDEV-32441 SENT_ROWS shows random wrong values when stored function
+# is selected
+#
+create table t1 (a int) engine=aria;
+insert into t1 values (1),(2),(3),(4),(5),(6),(7);
+flush status;
+create function if not exists f() returns int return
+(
+select sum(a) > 0 from t1
+);
+select f() from seq_1_to_10 where seq%5 = 0;
+f()
+1
+1
+show status like "rows_sent";
+Variable_name	Value
+Rows_sent	2
+# Test simple query
+set debug_sync='RESET';
+connect con1,localhost,root,,;
+set debug_sync='end_of_statement SIGNAL parked WAIT_FOR go';
+select f() from seq_1_to_10 where seq%5 = 0;
+connection default;
+set debug_sync='now WAIT_FOR parked';
+# Result should be 2, 10+7*2=24
+select sent_rows, examined_rows from information_schema.processlist where id=#;
+sent_rows	examined_rows
+2	24
+set debug_sync='now signal go';
+connection con1;
+f()
+1
+1
+# Test union
+set debug_sync='end_of_statement SIGNAL parked WAIT_FOR go';
+select a from t1 where a not in (1,2,3,4) union select a from t1 where a not in (4,5,6,7);
+connection default;
+set debug_sync='now WAIT_FOR parked';
+# Result should be 6, 7+7+6=20 (2 scans of 7 rows + 6 rows in union)
+select sent_rows, examined_rows from information_schema.processlist where id=#;
+sent_rows	examined_rows
+6	20
+set debug_sync='now signal go';
+connection con1;
+a
+5
+6
+7
+1
+2
+3
+# Test handler calls
+handler t1 open;
+set debug_sync='end_of_statement SIGNAL parked WAIT_FOR go';
+handler t1 read NEXT LIMIT 2,4;
+connection default;
+set debug_sync='now WAIT_FOR parked';
+# Result should be 2, 10+7*2=24
+select sent_rows, examined_rows from information_schema.processlist where id=#;
+sent_rows	examined_rows
+4	6
+set debug_sync='now signal go';
+connection con1;
+a
+3
+4
+5
+6
+handler t1 close;
+connection default;
+drop function f;
+drop table t1;
+# Test Stored procedures
+create or replace table t (a int primary key);
+insert into t select seq from seq_1_to_100;
+create procedure pr()
+begin
+select * from t where a between 1 and 2 ;
+select * from t where a between 4 and 6 ;
+end $
+connection con1;
+flush status;
+set debug_sync='end_of_statement SIGNAL parked WAIT_FOR go EXECUTE 2';
+call pr();
+connection default;
+set debug_sync='now WAIT_FOR parked';
+select examined_rows, sent_rows, info from information_schema.processlist where id=#;
+examined_rows	sent_rows	info
+2	2	select * from t where a between 1 and 2
+set debug_sync='now signal go';
+set debug_sync='now WAIT_FOR parked';
+select examined_rows, sent_rows, info from information_schema.processlist where id=#;
+examined_rows	sent_rows	info
+3	3	select * from t where a between 4 and 6
+set debug_sync='now signal go';
+connection con1;
+a
+1
+2
+a
+4
+5
+6
+show status like '%rows%';
+Variable_name	Value
+Not_flushed_delayed_rows	0
+Rows_read	8
+Rows_sent	5
+Rows_tmp_read	0
+Sort_rows	0
+connection default;
+drop table t;
+drop procedure pr;
+disconnect con1;
+set debug_sync= RESET;
+#
+# End of 11.3 tests
+#
