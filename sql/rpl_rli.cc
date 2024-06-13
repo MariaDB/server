@@ -1039,6 +1039,7 @@ void Relay_log_info::inc_group_relay_log_pos(ulonglong log_pos,
     notify_group_relay_log_name_update();
     if (log_pos) // not 3.23 binlogs (no log_pos there) and not Stop_log_event
       group_master_log_pos= log_pos;
+    set_if_bigger(slave_timestamp, rgi->last_master_timestamp);
   }
 
   /*
@@ -1484,7 +1485,6 @@ bool Relay_log_info::stmt_done(my_off_t event_master_log_pos, THD *thd,
         mysql_mutex_unlock(&data_lock);
     }
     DBUG_EXECUTE_IF("inject_crash_after_flush_rli", DBUG_SUICIDE(););
-    set_if_bigger(slave_timestamp, rgi->last_master_timestamp);
   }
   DBUG_RETURN(error);
 }

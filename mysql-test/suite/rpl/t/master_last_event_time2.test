@@ -1,0 +1,70 @@
+#
+# This test ensures that the slave binlogs replicated transactions consistently
+# with the original values from the master.
+#
+# References:
+#  MDEV-34354: Shows replication time difference in master_last_event_time
+#              after setting MASTER_DELAY > 0 in chain replication
+#
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
+--echo # Configuration param
+--let $slave_delay= 3
+
+--connection master
+create table t1 (a int) engine=aria;
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+--source include/stop_slave.inc
+--replace_result $slave_delay SLAVE_DELAY
+--eval change master to master_delay=$slave_delay
+--source include/start_slave.inc
+
+--connection master
+--echo # Sleep 2 to ensure DDL and DML have different binlog timestamps
+--sleep 2
+--let $t1_time_begin= `select truncate(@@timestamp,0)`
+--connection slave
+flush logs;
+--connection master
+--replace_result $t1_time_begin TIMESTAMP
+--eval set @@timestamp= $t1_time_begin
+insert into t1 values (sleep(2));
+--source include/save_master_gtid.inc
+
+--echo # Waiting for slave to delay and commit transaction..
+--connection slave
+--source include/sync_with_master_gtid.inc
+
+# Slave will replicate the above with a row event which will be very fast
+# compared to the master event.
+# Check the exec time is not 0 (which is typical for very fast row events)
+
+--let $datadir= `select @@datadir`
+--let $filename= query_get_value(SHOW MASTER STATUS, File, 1)
+--let $slave_local_binlog=$datadir/$filename
+--let $slave_outfile=$MYSQLTEST_VARDIR/tmp/slave_binlog.sql
+--echo # MYSQL_BINLOG slave_local_binlog > slave_outfile
+--exec $MYSQL_BINLOG $slave_local_binlog > $slave_outfile
+--let $assert_count=0
+--let $assert_text= Ensure slave doesn't overwrite exec_time in the binlog event
+--let $assert_select=exec_time=0
+--let $assert_file= $slave_outfile
+--source include/assert_grep.inc
+
+--echo #
+--echo # Cleanup
+--connection slave
+--source include/stop_slave.inc
+change master to master_delay=0;
+--source include/start_slave.inc
+
+--connection master
+drop table t1;
+
+--source include/rpl_end.inc
+--remove_file $slave_outfile
+--echo # End of tests

@@ -129,8 +129,6 @@ unlock tables;
 --source include/sync_with_master.inc
 --source master_last_event_time.inc
 
-
-
 --echo #
 --echo # Test simple insert
 --echo #
@@ -155,6 +153,12 @@ begin;
 insert into t1 values (3+sleep(3));
 insert into t1 values (4+sleep(3));
 commit;
+--source master_last_event_time.inc
+
+begin;
+insert into t1 values (5+sleep(3));
+insert into t1 values (6+sleep(3));
+rollback;
 --source master_last_event_time.inc
 
 --echo # cleanup

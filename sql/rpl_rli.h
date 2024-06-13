@@ -405,7 +405,7 @@ public:
 
   /*
     Invalidate cached until_log_name and group_relay_log_name comparison
-    result. Should be called after any update of group_realy_log_name if
+    result. Should be called after any update of group_relay_log_name if
     there chances that sql_thread is running.
   */
   inline void notify_group_relay_log_name_update()

@@ -31,6 +31,7 @@ select * from t1;
 --disable_query_log
 --eval select "$master_time" <> "NULL" as "master <> NULL; Should be 1"
 --eval select "$master_time" = "$slave_time" as "master_time == slave_time ; Should be 1"
+#--echo MASTER: $master_time SLAVE: $slave_time
 --enable_query_log
 
 # Reset things for next test
