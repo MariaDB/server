@@ -68,7 +68,7 @@ eatmydata perl -I. ./mysql-test-run.pl \
     --parallel=auto --skip-rpl --suite=main \
     --skip-test-list="$MTR_SKIP_TEST_LIST" \
     --vardir="$WORKDIR/var" --tmpdir="$WORKDIR/tmp" \
-    --xml-report="$AUTOPKGTEST_ARTIFACTS/mysql-test-run-junit.xml" \
+    --xml-report="$AUTOPKGTEST_ARTIFACTS/mariadb-test-run-junit.xml" \
     $MTR_ARGUMENTS_APPEND \
     "$@" 2>&1
 echo "run: OK"
