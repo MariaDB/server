@@ -29,9 +29,11 @@ public:
   ulonglong pages_read_time;             /* Time reading pages, in microsec. */
   ulonglong undo_records_read;
   ulonglong engine_time;                 /* Time spent in engine in microsec */
+  ulonglong icp_attempts;                /* number of records read           */
+  ulonglong icp_match;                   /* number of records qualified icp  */
   uint      active;                      /* <> 0 if status has to be updated */
 #define first_stat pages_accessed
-#define last_stat  engine_time
+#define last_stat  icp_match
   inline void reset()
   {
     bzero((void*) this, sizeof(*this));
