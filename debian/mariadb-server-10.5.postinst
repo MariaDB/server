@@ -128,10 +128,12 @@ EOF
     # The mysql_statedir must not be writable by the mysql user under any
     # circumstances as it contains scripts that are executed by root.
     set +e
-    chown -R 0:0 $mysql_statedir
-    find $mysql_datadir ! -uid "$(id -u mysql)" -print0 | xargs -0 -r chown mysql
-    chown -R mysql:adm $mysql_logdir
-    chmod 2750 $mysql_logdir
+    chown 0:0 "$mysql_statedir"
+    find "$mysql_statedir" ! -uid 0 -print0 | xargs -0 -r chown 0:0
+    find "$mysql_datadir" ! -uid "$(id -u mysql)" -print0 | xargs -0 -r chown mysql
+    chown mysql:adm "$mysql_logdir"
+    find "$mysql_logdir" -print0 | xargs -0 -r chown mysql:adm
+    chmod 2750 "$mysql_logdir"
     set -e
 
     ## Set the correct filesystem ownership for the PAM v2 plugin
