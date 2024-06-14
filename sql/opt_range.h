@@ -736,7 +736,6 @@ public:
   {
     return
       thd->killed ||
-      thd->is_fatal_error ||
       thd->is_error() ||
       alloced_sel_args > SEL_ARG::MAX_SEL_ARGS;
   }
