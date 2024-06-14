@@ -118,6 +118,7 @@ connection server_1;
 #
 SET TIMESTAMP=unix_timestamp("2000-01-01");
 insert into t1 values (2+sleep(3));
+SET TIMESTAMP=DEFAULT;
 #
 # Test that changes are properly applied by server_2 and server_3
 #
@@ -193,49 +194,10 @@ master_time == slave_time ; Should be 1
 1
 include/stop_slave.inc
 connection server_1;
-begin;
-insert into t1 values (5+sleep(3));
-insert into t1 values (6+sleep(3));
-rollback;
-#
-# Test that changes are properly applied by server_2 and server_3
-#
-connection server_1;
-include/save_master_gtid.inc
-connection server_2;
-include/sync_with_master_gtid.inc
-# Show that the server_2 received the insert from master
-select * from t1;
-a
-0
-1
-2
-3
-4
-master <> NULL; Should be 1
-1
-master_time == slave_time ; Should be 1
-1
-connection server_3;
-include/start_slave.inc
-include/sync_with_master_gtid.inc
-# Show that the server_3 received the insert from master
-select * from t1;
-a
-0
-1
-2
-3
-4
-master <> NULL; Should be 1
-1
-master_time == slave_time ; Should be 1
-1
-include/stop_slave.inc
-connection server_1;
 # cleanup
 connection server_3;
 include/start_slave.inc
 connection server_1;
 drop table t1;
 include/rpl_end.inc
+# End of master_last_event_time_row

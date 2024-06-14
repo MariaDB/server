@@ -15,7 +15,17 @@ select * from t1;
 --let $slave_time= query_get_value(SHOW ALL SLAVES STATUS, Slave_last_event_time, 1)
 --disable_query_log
 --eval select "$master_time" <> "NULL" as "master <> NULL; Should be 1"
+
+if (`SELECT NOT "$master_time" <> "NULL"`)
+{
+  --echo MASTER: $master_time
+}
+
 --eval select "$master_time" = "$slave_time" as "master_time == slave_time ; Should be 1"
+if (`SELECT NOT "$master_time" = "$slave_time"`)
+{
+  --echo MASTER: $master_time SLAVE: $slave_time
+}
 --enable_query_log
 
 --connection server_3
@@ -29,9 +39,18 @@ select * from t1;
 --let $master_time= query_get_value(SHOW ALL SLAVES STATUS, Master_last_event_time, 1)
 --let $slave_time= query_get_value(SHOW ALL SLAVES STATUS, Slave_last_event_time, 1)
 --disable_query_log
+
 --eval select "$master_time" <> "NULL" as "master <> NULL; Should be 1"
+if (`SELECT NOT "$master_time" <> "NULL"`)
+{
+  --echo MASTER: $master_time
+}
+
 --eval select "$master_time" = "$slave_time" as "master_time == slave_time ; Should be 1"
-#--echo MASTER: $master_time SLAVE: $slave_time
+if (`SELECT NOT "$master_time" = "$slave_time"`)
+{
+  --echo MASTER: $master_time SLAVE: $slave_time
+}
 --enable_query_log
 
 # Reset things for next test
