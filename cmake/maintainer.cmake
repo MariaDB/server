@@ -42,8 +42,18 @@ SET(MY_WARNING_FLAGS
   -Wwrite-strings
   )
 
+# Warning flags that are in testing before moving
+# to MY_WARNING_FLAGS if stable.
+SET(MY_WARNING_FLAGS_NON_FATAL
+  effc++
+  )
+
 FOREACH(F ${MY_WARNING_FLAGS})
   MY_CHECK_AND_SET_COMPILER_FLAG(${F} DEBUG RELWITHDEBINFO)
+ENDFOREACH()
+
+FOREACH(F ${MY_WARNING_FLAGS_NON_FATAL})
+  MY_CHECK_AND_SET_COMPILER_FLAG(-Wno-error=${F} DEBUG RELWITHDEBINFO)
 ENDFOREACH()
 
 SET(MY_ERROR_FLAGS -Werror -fno-operator-names)
