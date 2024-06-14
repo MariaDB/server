@@ -10,7 +10,7 @@
 # Default-Stop:      0 1 6
 # Short-Description: Start and stop the MariaDB database server daemon
 # Description:       Controls the main MariaDB database server daemon "mariadbd"
-#                    and its wrapper script "mysqld_safe".
+#                    and its wrapper script "mariadbd-safe".
 ### END INIT INFO
 #
 set -e
@@ -216,7 +216,7 @@ case "${1:-''}" in
       else
         ERROR_LOG_FILE="$(mktemp).err"
         echo # ensure newline
-        timeout --kill-after=20 10 /usr/bin/mysqld_safe "${@:2}" --log-error="$ERROR_LOG_FILE"
+        timeout --kill-after=20 10 /usr/bin/mariadbd-safe "${@:2}" --log-error="$ERROR_LOG_FILE"
         echo "Running '/etc/init.d/mariadb start' failed with error log:"
         cat "$ERROR_LOG_FILE"
       fi
