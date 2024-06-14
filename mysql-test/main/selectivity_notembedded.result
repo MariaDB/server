@@ -299,9 +299,9 @@ EXPLAIN
     ]
   }
 }
+set @trace=(select trace from information_schema.optimizer_trace);
 # This should list idx3 and key_parts=2, effective_key_parts=1:
-select json_detailed(json_extract(trace, '$**.selectivity_for_indexes')) as sel
-from information_schema.optimizer_trace;
+select json_detailed(json_extract(@trace, '$**.selectivity_for_indexes')) as sel;
 sel
 [
     [
@@ -317,8 +317,7 @@ sel
 ]
 # This won't list anything as for both columns a and b we now have
 #  effectively single-column estimates from the range optimizer:
-select json_detailed(json_extract(trace, '$**.selectivity_for_columns')) as sel
-from information_schema.optimizer_trace;
+select json_detailed(json_extract(@trace, '$**.selectivity_for_columns')) as sel;
 sel
 [
     []

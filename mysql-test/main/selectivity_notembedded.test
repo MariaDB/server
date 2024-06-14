@@ -241,14 +241,14 @@ from t1
 where
   a between 50 and 80 and b between 33 and 41;
 
+set @trace=(select trace from information_schema.optimizer_trace);
+
 --echo # This should list idx3 and key_parts=2, effective_key_parts=1:
-select json_detailed(json_extract(trace, '$**.selectivity_for_indexes')) as sel
-from information_schema.optimizer_trace;
+select json_detailed(json_extract(@trace, '$**.selectivity_for_indexes')) as sel;
 
 --echo # This won't list anything as for both columns a and b we now have
 --echo #  effectively single-column estimates from the range optimizer:
-select json_detailed(json_extract(trace, '$**.selectivity_for_columns')) as sel
-from information_schema.optimizer_trace;
+select json_detailed(json_extract(@trace, '$**.selectivity_for_columns')) as sel;
 
 drop table t1;
 set optimizer_switch=@tmp_os, optimizer_trace=@tmp_ot;
