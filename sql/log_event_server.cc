@@ -4151,8 +4151,6 @@ int Xid_apply_log_event::do_apply_event(rpl_group_info *rgi)
   enum enum_sql_command cmd= !thd->transaction->xid_state.is_explicit_XA()
     ? SQLCOM_COMMIT : SQLCOM_XA_PREPARE;
   status_var_increment(thd->status_var.com_stat[cmd]);
-  if (!res)
-    set_if_bigger(rgi->rli->slave_timestamp, when);
 
   return res;
 }

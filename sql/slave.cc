@@ -4318,6 +4318,15 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
         rli->last_master_timestamp= ev->when + (time_t) ev->exec_time;
         rli->sql_thread_caught_up= false;
         DBUG_ASSERT(rli->last_master_timestamp >= 0);
+
+        /*
+          For slave_timestamp, we update slave_timestamp at the end of the
+          transaction, so we follow the pattern of the parallel slave and
+          cache the timestamp of the last-event of the transaction within the
+          RGI, and then use it to update slave_timestamp at commit-time.
+        */
+        if (Log_event::is_group_event(typ))
+          serial_rgi->last_master_timestamp= rli->last_master_timestamp;
       }
 
       if (unlikely(!rli->slave_timestamp) && Log_event::is_group_event(typ))

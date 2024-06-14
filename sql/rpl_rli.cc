@@ -1026,10 +1026,7 @@ void Relay_log_info::inc_group_relay_log_pos(ulonglong log_pos,
       potentially thousands of events are still queued up for worker threads
       waiting for execution.
     */
-    if (rgi->last_master_timestamp &&
-        rgi->last_master_timestamp > last_master_timestamp)
-      last_master_timestamp= rgi->last_master_timestamp;
-    set_if_bigger(slave_timestamp, rgi->last_master_timestamp);
+    set_if_bigger(last_master_timestamp, rgi->last_master_timestamp);
   }
   else
   {
@@ -1039,8 +1036,8 @@ void Relay_log_info::inc_group_relay_log_pos(ulonglong log_pos,
     notify_group_relay_log_name_update();
     if (log_pos) // not 3.23 binlogs (no log_pos there) and not Stop_log_event
       group_master_log_pos= log_pos;
-    set_if_bigger(slave_timestamp, rgi->last_master_timestamp);
   }
+  set_if_bigger(slave_timestamp, rgi->last_master_timestamp);
 
   /*
     If the slave does not support transactions and replicates a transaction,
