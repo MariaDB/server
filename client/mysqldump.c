@@ -6951,11 +6951,11 @@ int main(int argc, char **argv)
     write_header(md_result_file, *argv);
 
   /* Set MAX_STATEMENT_TIME to 0 unless set in client */
-  my_snprintf(query, sizeof(query), "/*!100100 SET @@MAX_STATEMENT_TIME=%f */", opt_max_statement_time);
+  my_snprintf(query, sizeof(query), "/*M!100100 SET @@MAX_STATEMENT_TIME=%f */", opt_max_statement_time);
   mysql_query(mysql, query);
 
   /* Set server side timeout between client commands to server compiled-in default */
-  mysql_query(mysql, "/*!100100 SET WAIT_TIMEOUT=DEFAULT */");
+  mysql_query(mysql, "/*M!100100 SET WAIT_TIMEOUT=DEFAULT */");
 
   /* Check if the server support multi source */
   if (mysql_get_server_version(mysql) >= 100000)
