@@ -262,9 +262,12 @@ setup_windows(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
        For  "win_func() OVER (ORDER BY order_list RANGE BETWEEN ...)",
        - ORDER BY order_list must not be ommitted
        - the list must have a single element.
+       But it really only matters if the frame is bounded.
     */
     if (win_spec->window_frame && 
-        win_spec->window_frame->units == Window_frame::UNITS_RANGE)
+        win_spec->window_frame->units == Window_frame::UNITS_RANGE &&
+	!(win_spec->window_frame->top_bound->is_unbounded() &&
+          win_spec->window_frame->bottom_bound->is_unbounded()))
     {
       if (win_spec->order_list->elements != 1)
       {
