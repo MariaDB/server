@@ -40,17 +40,15 @@ then
 fi
 
 # Check client version
-if ! $MYSQL_CLIENT --version | grep -q -E 'Distrib 10\.[1-9]'; then
+if ! $MYSQL_CLIENT --version | grep -q -E '(Distrib 10\.[1-9])|( from 1[1-9]\.)'; then
     $MYSQL_CLIENT --version >&2
     wsrep_log_error "this operation requires MySQL client version 10.1 or newer"
     exit $EINVAL
 fi
 
 AUTH=""
-usrst=0
 if [ -n "$WSREP_SST_OPT_USER" ]; then
     AUTH="-u$WSREP_SST_OPT_USER"
-    usrst=1
 fi
 
 # Refs https://github.com/codership/mysql-wsrep/issues/141
@@ -64,7 +62,7 @@ fi
 # word, it is arguably more secure than passing password on the command line.
 if [ -n "$WSREP_SST_OPT_PSWD" ]; then
     export MYSQL_PWD="$WSREP_SST_OPT_PSWD"
-elif [ $usrst -eq 1 ]; then
+elif [ -n "$WSREP_SST_OPT_USER" ]; then
     # Empty password, used for testing, debugging etc.
     unset MYSQL_PWD
 fi
