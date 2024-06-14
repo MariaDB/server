@@ -23957,6 +23957,90 @@ void compute_part_of_sort_key_for_equals(JOIN *join, TABLE *table,
 }
 
 
+/*
+  @brief
+    This is called when switching table access to produce records
+    in reverse order.
+
+  @detail
+    - Disable "Range checked for each record" (Is this strictly necessary
+      here?)
+    - Disable Index Condition Pushdown and Rowid Filtering.
+
+  IndexConditionPushdownAndReverseScans, RowidFilteringAndReverseScans:
+  Suppose we're computing
+
+    select * from t1
+    where
+      key1 between 10 and 20 and extra_condition
+    order by key1 desc
+
+  here the range access uses a reverse-ordered scan on (1 <= key1 <= 10) and
+  extra_condition is checked by either ICP or Rowid Filtering.
+
+  Also suppose that extra_condition happens to be false for rows of t1 that
+  do not satisfy the "10 <= key1 <= 20" condition.
+
+  For forward ordered range scan, the SQL layer will make these calls:
+
+    h->read_range_first(RANGE(10 <= key1 <= 20));
+    while (h->read_range_next()) { ... }
+
+  The storage engine sees the end endpoint of "key1<=20" and can stop scanning
+  as soon as it encounters a row with key1>20.
+
+  For backward-ordered range scan, the SQL layer will make these calls:
+
+    h->index_read_map(key1=20, HA_READ_PREFIX_LAST_OR_PREV);
+    while (h->index_prev()) {
+      if (cmp_key(h->record, "key1=10" )<0)
+        break; // end of range
+      ...
+    }
+
+  Note that the check whether we've walked beyond the key=10 endpoint is
+  made at the SQL layer. The storage engine has no information about the left
+  endpoint of the interval we're scanning.  If all rows before that endpoint
+  do not satisfy ICP condition or do not pass the Rowid Filter, the storage
+  engine will enumerate the records until the table start.
+
+  In MySQL, the API is extended with set_end_range() call so that the storage
+  engine "knows" when to stop scanning.
+*/
+
+static void prepare_for_reverse_ordered_access(JOIN_TAB *tab)
+{
+  /* Cancel "Range checked for each record" */
+  if (tab->use_quick == 2)
+  {
+    tab->use_quick= 1;
+    tab->read_first_record= join_init_read_record;
+  }
+  /*
+    Cancel Pushed Index Condition, as it doesn't work for reverse scans.
+  */
+  if (tab->select && tab->select->pre_idx_push_select_cond)
+  {
+    tab->set_cond(tab->select->pre_idx_push_select_cond);
+     tab->table->file->cancel_pushed_idx_cond();
+  }
+  /*
+    The same with Rowid Filter: it doesn't work with reverse scans so cancel
+    it, too.
+  */
+  {
+    /*
+      Rowid Filter is initialized at a later stage. It is not pushed to
+      the storage engine yet:
+    */
+    DBUG_ASSERT(!tab->table->file->pushed_rowid_filter);
+    tab->range_rowid_filter_info= NULL;
+    delete tab->rowid_filter;
+    tab->rowid_filter= NULL;
+  }
+}
+
+
 /**
   Test if we can skip the ORDER BY by using an index.
 
@@ -24409,23 +24493,11 @@ check_reverse_order:
           tab->limit= 0;
           goto use_filesort;           // Reverse sort failed -> filesort
         }
-        /*
-          Cancel Pushed Index Condition, as it doesn't work for reverse scans.
-        */
-        if (tab->select && tab->select->pre_idx_push_select_cond)
-	{
-          tab->set_cond(tab->select->pre_idx_push_select_cond);
-           tab->table->file->cancel_pushed_idx_cond();
-        }
+        prepare_for_reverse_ordered_access(tab);
+
         if (select->quick == save_quick)
           save_quick= 0;                // make_reverse() consumed it
         select->set_quick(tmp);
-        /* Cancel "Range checked for each record" */
-        if (tab->use_quick == 2)
-        {
-          tab->use_quick= 1;
-          tab->read_first_record= join_init_read_record;
-        }
       }
       else if (tab->type != JT_NEXT && tab->type != JT_REF_OR_NULL &&
                tab->ref.key >= 0 && tab->ref.key_parts <= used_key_parts)
@@ -24438,20 +24510,7 @@ check_reverse_order:
         */
         tab->read_first_record= join_read_last_key;
         tab->read_record.read_record_func= join_read_prev_same;
-        /* Cancel "Range checked for each record" */
-        if (tab->use_quick == 2)
-        {
-          tab->use_quick= 1;
-          tab->read_first_record= join_init_read_record;
-        }
-        /*
-          Cancel Pushed Index Condition, as it doesn't work for reverse scans.
-        */
-        if (tab->select && tab->select->pre_idx_push_select_cond)
-	{
-          tab->set_cond(tab->select->pre_idx_push_select_cond);
-           tab->table->file->cancel_pushed_idx_cond();
-        }
+        prepare_for_reverse_ordered_access(tab);
       }
     }
     else if (select && select->quick)
