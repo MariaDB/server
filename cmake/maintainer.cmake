@@ -41,11 +41,25 @@ SET(MY_WARNING_FLAGS
   -Wwrite-strings
   )
 
+# Warning flags that are in testing before moving
+# to MY_WARNING_FLAGS if stable.
+SET(MY_WARNING_FLAGS_NON_FATAL
+  effc++
+  )
+
 FOREACH(F ${MY_WARNING_FLAGS})
   MY_CHECK_AND_SET_COMPILER_FLAG(${F} DEBUG RELWITHDEBINFO)
 ENDFOREACH()
 
+<<<<<<< HEAD
 SET(MY_ERROR_FLAGS -Werror -fno-operator-names -Wsuggest-override)
+=======
+FOREACH(F ${MY_WARNING_FLAGS_NON_FATAL})
+  MY_CHECK_AND_SET_COMPILER_FLAG(-Wno-error=${F} DEBUG RELWITHDEBINFO)
+ENDFOREACH()
+
+SET(MY_ERROR_FLAGS -Werror -fno-operator-names)
+>>>>>>> a2805683bc6 (MDEV-34408: Facilitate the addition of warnings into the build system)
 
 IF(CMAKE_COMPILER_IS_GNUCC AND CMAKE_C_COMPILER_VERSION VERSION_LESS "6.0.0")
   SET(MY_ERROR_FLAGS ${MY_ERROR_FLAGS} -Wno-error=maybe-uninitialized)
