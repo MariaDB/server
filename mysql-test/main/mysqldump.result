@@ -6413,9 +6413,13 @@ j integer
 INSERT INTO t VALUES (1,1),(2,2),(3,3),(4,4);
 # Dump database 1
 # Restore from database 1 to database 2
-ERROR 1100 (HY000) at line 46: Table 'seq_t_i' was not locked with LOCK TABLES
 SETVAL(`seq_t_i`, 1, 0)
 1
+--------------
+INSERT INTO `t` VALUES (1,1),(2,2),(3,3),(4,4)
+--------------
+
+ERROR 1100 (HY000) at line 46: Table 'seq_t_i' was not locked with LOCK TABLES
 DROP DATABASE IF EXISTS test1;
 DROP DATABASE IF EXISTS test2;
 #

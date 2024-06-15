@@ -628,7 +628,7 @@ static int run_query(const char *query, DYNAMIC_STRING *ds_res,
     {
       my_close(fd, MYF(MY_WME));
       my_delete(query_file_path, MYF(0));
-      die("Failed to write to '%s'", query_file_path);
+      die("Failed to write query to '%s'", query_file_path);
     }
   }
 
@@ -637,7 +637,7 @@ static int run_query(const char *query, DYNAMIC_STRING *ds_res,
   {
     my_close(fd, MYF(MY_WME));
     my_delete(query_file_path, MYF(0));
-    die("Failed to write to '%s'", query_file_path);
+    die("Failed to write query to '%s'", query_file_path);
   }
 
   ret= run_tool(mysql_path,
@@ -647,6 +647,7 @@ static int run_query(const char *query, DYNAMIC_STRING *ds_res,
                 "--batch", /* Turns off pager etc. */
                 force ? "--force": "--skip-force",
                 opt_verbose >= 5 ? "--verbose" : "",
+                "--print-query-on-error",
                 ds_res || opt_silent ? "--silent": "",
                 "<",
                 query_file_path,
@@ -1085,18 +1086,6 @@ static char* get_line(char* line)
   return line;
 }
 
-
-/* Print the current line to stderr */
-static void print_line(char* line)
-{
-  while (*line && *line != '\n')
-  {
-    fputc(*line, stderr);
-    line++;
-  }
-  fputc('\n', stderr);
-}
-
 static my_bool from_before_10_1()
 {
   my_bool ret= TRUE;
@@ -1308,16 +1297,21 @@ static int check_slave_repositories(void)
 
 static int run_sql_fix_privilege_tables(void)
 {
-  int found_real_errors= 0;
+  int found_real_errors= 0, query_started= 0;
   const char **query_ptr;
+  const char *end;
   DYNAMIC_STRING ds_script;
   DYNAMIC_STRING ds_result;
+  DYNAMIC_STRING ds_query;
   DBUG_ENTER("run_sql_fix_privilege_tables");
 
-  if (init_dynamic_string(&ds_script, "", 65536, 1024))
+  if (init_dynamic_string(&ds_script, "", 96*1024, 8196))
     die("Out of memory");
 
-  if (init_dynamic_string(&ds_result, "", 512, 512))
+  if (init_dynamic_string(&ds_result, "", 1024, 1024))
+    die("Out of memory");
+
+  if (init_dynamic_string(&ds_query, "", 1024, 1024))
     die("Out of memory");
 
   verbose("Phase %d/%d: Running 'mysql_fix_privilege_tables'",
@@ -1346,22 +1340,46 @@ static int run_sql_fix_privilege_tables(void)
       "Unknown column" and "Duplicate key name" since they just
       indicate the system tables are already up to date
     */
-    char *line= ds_result.str;
+    const char *line= ds_result.str;
     do
     {
+      size_t length;
+      end= strchr(line, '\n');
+      if (!end)
+        end= strend(line);
+      else
+        end++;                                  /* Include end \n */
+      length= (size_t) (end - line);
+
       if (!is_expected_error(line))
       {
         /* Something unexpected failed, dump error line to screen */
         found_real_errors++;
-        print_line(line);
+        if (ds_query.length)
+          fwrite(ds_query.str, sizeof(char), ds_query.length, stderr);
+        fwrite(line, sizeof(char), length, stderr);
+        query_started= 0;
       }
       else if (strncmp(line, "WARNING", 7) == 0)
       {
-        print_line(line);
+        fwrite(line, sizeof(char), length, stderr);
+        query_started= 0;
       }
-    } while ((line= get_line(line)) && *line);
+      else if (!strncmp(line, "--------------\n", 16))
+      {
+        /* mariadb separates query from the error with a line of '-' */
+        if (!query_started++)
+          ds_query.length= 0;                   /* Truncate */
+        else
+          query_started= 0;                     /* End of query */
+      }
+      else if (query_started)
+      {
+        dynstr_append_mem(&ds_query, line, length);
+      }
+    } while (*(line= end));
   }
-
+  dynstr_free(&ds_query);
   dynstr_free(&ds_result);
   dynstr_free(&ds_script);
   DBUG_RETURN(found_real_errors);
