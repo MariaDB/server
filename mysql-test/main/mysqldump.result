@@ -6326,14 +6326,6 @@ Table	Create Table
 s4	CREATE SEQUENCE `s4` start with 400 minvalue 400 maxvalue 1400 increment by 40 cache 1000 cycle ENGINE=MyISAM
 # Dump sequence without `--no-data`
 # Restore from mysqldump
-SETVAL(`s1`, 1101, 0)
-1101
-SETVAL(`s2`, 1201, 0)
-1201
-SETVAL(`s3`, 1301, 0)
-1301
-SETVAL(`s4`, 1401, 0)
-1401
 # Show create after restore
 show create sequence d.s1;
 Table	Create Table
@@ -6352,14 +6344,6 @@ NEXTVAL(d.s1)	NEXTVAL(d.s2)	NEXTVAL(d.s3)	NEXTVAL(d.s4)
 100	200	300	400
 # Dump sequence with `--no-data`
 # Restore from mysqldump
-SETVAL(`s1`, 1101, 0)
-1101
-SETVAL(`s2`, 1201, 0)
-1201
-SETVAL(`s3`, 1301, 0)
-1301
-SETVAL(`s4`, 1401, 0)
-1401
 # Show create after restore `--no-data`
 show create sequence d.s1;
 Table	Create Table
@@ -6378,14 +6362,6 @@ NEXTVAL(d.s1)	NEXTVAL(d.s2)	NEXTVAL(d.s3)	NEXTVAL(d.s4)
 100	200	300	400
 # Restore to different database than original
 create database d2;
-SETVAL(`s1`, 1101, 0)
-1101
-SETVAL(`s2`, 1201, 0)
-1201
-SETVAL(`s3`, 1301, 0)
-1301
-SETVAL(`s4`, 1401, 0)
-1401
 show create sequence d2.s1;
 Table	Create Table
 s1	CREATE SEQUENCE `s1` start with 100 minvalue 100 maxvalue 1100 increment by 10 cache 1000 cycle ENGINE=MyISAM
@@ -6413,8 +6389,6 @@ j integer
 INSERT INTO t VALUES (1,1),(2,2),(3,3),(4,4);
 # Dump database 1
 # Restore from database 1 to database 2
-SETVAL(`seq_t_i`, 1, 0)
-1
 --------------
 INSERT INTO `t` VALUES (1,1),(2,2),(3,3),(4,4)
 --------------

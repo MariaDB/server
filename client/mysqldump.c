@@ -2959,7 +2959,7 @@ static void get_sequence_structure(const char *seq, const char *db)
     row= mysql_fetch_row(result);
     if (row[0])
     {
-      fprintf(sql_file, "SELECT SETVAL(%s, %s, 0);\n", result_seq, row[0]);
+      fprintf(sql_file, "DO SETVAL(%s, %s, 0);\n", result_seq, row[0]);
     }
     // Sequences will not use inserts, so no need for REPLACE and LOCKS
     mysql_free_result(result);
