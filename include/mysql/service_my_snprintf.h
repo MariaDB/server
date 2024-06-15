@@ -39,40 +39,41 @@
 
   @post
   The syntax of a format string is generally the same:
-  % <flag> <width> <precision> <length modifier> <format>
+  % <flag> <width> <.precision> <length modifier> <format> <format extension>
   where everything but the format is optional.
 
-  Three one-character flags are recognized:
+  Two one-character flags are recognized:
     '0' has the standard zero-padding semantics;
     '-' is parsed, but silently ignored;
-    '`' (backtick) is only supported for strings (%s) and means that the
-        string will be quoted according to MySQL identifier quoting rules.
 
   Both <width> and <precision> can be specified as numbers or '*'.
   If an asterisk is used, an argument of type int is consumed.
 
   <length modifier> can be 'l', 'll', or 'z'.
 
-  Supported formats are 's' (null pointer is accepted, printed as
-  "(null)"), 'b' (extension, see below), 'c', 'd', 'i', 'u', 'x', 'o',
-  'X', 'p' (works as 0x%x), 'f', 'g', 'M' (extension, see below),
-  'T' (extension, see below).
+  Supported formats are 's' (null pointer is accepted, printed as "(null)"),
+  'c', 'd', 'i', 'u', 'x', 'X', 'o', 'p' (works as 0x%x), 'f', and 'g'.
 
   Standard syntax for positional arguments $n is supported.
 
-  Extensions:
+  Format extensions:
 
-  Flag '`' (backtick): see above.
+  Format 'sQ': quotes the string according to MySQL identifier quoting rules.
 
-  Format 'b': binary buffer, prints exactly <precision> bytes from the
-  argument, without stopping at '\0'.
+  Format 'sB': binary buffer, prints exactly <precision> bytes from the
+  argument, without stopping at '\0'. The behavior for unspecified <precision>
+  is not yet defined.
 
-  Format 'M': takes one integer, prints this integer, space, double quote
-  error message, double quote. In other words
-    printf("%M", n) === printf("%d \"%s\"", n, strerror(n))
+  Format 'uE': takes one integer, prints this integer, space, double quote,
+  error message corresponding to this integer errno, double quote. In other words:
+    printf("%uE", n) === printf("%d \"%sT\"", n, strerror(n))
 
-  Format 'T': takes string and print it like s but if the strints should be
+  Format 'sT': takes string and print it like s but if the strings should be
   truncated puts "..." at the end.
+
+  Format 'sS' and 'uU': prints synonymously as s and u respectively. These two
+  escape simple s and u from consuming the following plain text as one of the
+  above extension suffixes; for example, "Data size: %uUEiB".
 */
 
 #ifdef __cplusplus
@@ -107,4 +108,3 @@ size_t my_vsnprintf(char *to, size_t n, const char* fmt, va_list ap);
 
 #define MYSQL_SERVICE_MY_SNPRINTF_INCLUDED
 #endif
-
