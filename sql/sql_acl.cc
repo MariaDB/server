@@ -256,6 +256,28 @@ public:
 
     return compare_hostname(&host, host2, ip2 ? ip2 : host2);
   }
+
+  enum PASSWD_ERROR_ACTION
+  {
+    PASSWD_ERROR_CLEAR,
+    PASSWD_ERROR_INCREMENT
+  };
+
+  inline void update_password_errors(PASSWD_ERROR_ACTION action)
+  {
+    switch (action)
+    {
+      case PASSWD_ERROR_INCREMENT:
+        password_errors++;
+        break;
+      case PASSWD_ERROR_CLEAR:
+        password_errors= 0;
+        break;
+      default:
+        DBUG_ASSERT(0);
+        break;
+    }
+  }
 };
 
 class ACL_ROLE :public ACL_USER_BASE
@@ -14267,34 +14289,17 @@ static int do_auth_once(THD *thd, const LEX_CSTRING *auth_plugin_name,
   return res;
 }
 
-enum PASSWD_ERROR_ACTION
-{
-  PASSWD_ERROR_CLEAR,
-  PASSWD_ERROR_INCREMENT
-};
 
 /* Increment, or clear password errors for a user. */
-static void handle_password_errors(const char *user, const char *hostname, PASSWD_ERROR_ACTION action)
+static void handle_password_errors(const char *user, const char *hostname,
+                                   ACL_USER::PASSWD_ERROR_ACTION action)
 {
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   mysql_mutex_assert_not_owner(&acl_cache->lock);
   mysql_mutex_lock(&acl_cache->lock);
   ACL_USER *u = find_user_exact(hostname, user);
   if (u)
-  {
-    switch(action)
-    {
-      case PASSWD_ERROR_INCREMENT:
-        u->password_errors++;
-        break;
-      case PASSWD_ERROR_CLEAR:
-        u->password_errors= 0;
-        break;
-      default:
-        DBUG_ASSERT(0);
-        break;
-    }
-  }
+    u->update_password_errors(action);
   mysql_mutex_unlock(&acl_cache->lock);
 #endif
 }
@@ -14442,7 +14447,8 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
     case CR_AUTH_USER_CREDENTIALS:
       errors.m_authentication= 1;
       if (thd->password && !mpvio.make_it_fail)
-        handle_password_errors(acl_user->user.str, acl_user->host.hostname, PASSWD_ERROR_INCREMENT);
+        handle_password_errors(acl_user->user.str, acl_user->host.hostname,
+                               ACL_USER::PASSWD_ERROR_INCREMENT);
       break;
     case CR_ERROR:
     default:
@@ -14460,7 +14466,8 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
   if (thd->password && acl_user->password_errors)
   {
     /* Login succeeded, clear password errors.*/
-    handle_password_errors(acl_user->user.str, acl_user->host.hostname, PASSWD_ERROR_CLEAR);
+    handle_password_errors(acl_user->user.str, acl_user->host.hostname,
+                           ACL_USER::PASSWD_ERROR_CLEAR);
   }
 
   if (initialized) // if not --skip-grant-tables
@@ -14479,7 +14486,8 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
       DBUG_RETURN(1);
     }
 
-    if (acl_user->account_locked) {
+    if (acl_user->account_locked)
+    {
       status_var_increment(denied_connections);
       my_error(ER_ACCOUNT_HAS_BEEN_LOCKED, MYF(0));
       DBUG_RETURN(1);
