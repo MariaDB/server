@@ -998,6 +998,18 @@ err:
   DBUG_RETURN(res);
 }
 
+/*
+  Update thd->orig_exec_time
+*/
+
+inline void set_orig_exec_time_in_thd(ulong exec_time)
+{
+#if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
+  THD *thd= current_thd;
+  if (likely(thd))
+    thd->orig_exec_time= exec_time;
+#endif
+}
 
 /**
   Binlog format tolerance is in (buf, event_len, fdle)
@@ -1137,24 +1149,18 @@ Log_event* Log_event::read_log_event(const uchar *buf, uint event_len,
     switch(event_type) {
     case QUERY_EVENT:
       ev= new Query_log_event(buf, event_len, fdle, QUERY_EVENT);
-#if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
-      current_thd->orig_exec_time= ((Query_log_event*) ev)->exec_time;
-#endif
+      set_orig_exec_time_in_thd(((Query_log_event*) ev)->exec_time);
       break;
     case QUERY_COMPRESSED_EVENT:
       ev= new Query_compressed_log_event(buf, event_len, fdle,
-                                          QUERY_COMPRESSED_EVENT);
-#if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
-      current_thd->orig_exec_time= ((Query_compressed_log_event*) ev)->exec_time;
-#endif
+                                         QUERY_COMPRESSED_EVENT);
+      set_orig_exec_time_in_thd(((Query_compressed_log_event*) ev)->exec_time);
       break;
     case LOAD_EVENT:
     case NEW_LOAD_EVENT:
       /* This can only happen when reading old binary logs before MySQL 5.0 */
       ev= new Load_log_event(buf, event_len, fdle);
-#if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
-      current_thd->orig_exec_time= ((Load_log_event*) ev)->exec_time;
-#endif
+      set_orig_exec_time_in_thd(((Load_log_event*) ev)->exec_time);
       break;
     case ROTATE_EVENT:
       ev= new Rotate_log_event(buf, event_len, fdle);

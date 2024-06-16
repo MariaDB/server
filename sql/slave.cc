@@ -3435,10 +3435,290 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
 }
 
 
+inline void store_string_or_null(Field **field, const char *str)
+{
+  if (str)
+    (*field)->store(str, strlen(str), &my_charset_bin);
+  else
+    (*field)->set_null();
+}
+
+inline void store_string(Field **field, const char *str)
+{
+  (*field)->store(str, strlen(str), &my_charset_bin);
+}
+
+inline void store_string(Field **field, const LEX_CSTRING *str)
+{
+  (*field)->store(str->str, str->length, &my_charset_bin);
+}
+
+
+void store_list(Field **field, I_List<i_string>* str_list)
+{
+  char buf[256];
+  String tmp(buf, sizeof(buf), &my_charset_bin);
+  uint32 len;
+  I_List_iterator<i_string> it(*str_list);
+  i_string* s;
+
+  tmp.length(0);
+  while ((s=it++))
+  {
+    tmp.append(s->ptr, strlen(s->ptr));
+    tmp.append(',');
+  }
+  if ((len= tmp.length()))
+    len--;					// Remove last ','
+  (*field)->store((char*) tmp.ptr(), len,  tmp.charset());
+}
+
+
+/*
+  Store master info for information_schema_tables
+*/
+
+void store_master_info(THD *thd, Master_info *mi, TABLE *table,
+                       String *gtid_pos)
+{
+  Field **field= table->field;
+  uint i=0;
+  const char *msg;
+  Rpl_filter *rpl_filter= mi->rpl_filter;
+  StringBuffer<256> tmp;
+  DBUG_ENTER("store_master_info_data");
+
+  table->clear_null_bits();
+
+  (*field++)->store(mi->connection_name.str, mi->connection_name.length,
+                    &my_charset_bin);
+
+  mysql_mutex_lock(&mi->run_lock);
+  msg= (mi->rli.sql_driver_thd ?
+        mi->rli.sql_driver_thd->get_proc_info() : "");
+  store_string_or_null(field++, msg);
+  msg= mi->io_thd ? mi->io_thd->get_proc_info() : "";
+  store_string_or_null(field++, msg);
+  mysql_mutex_unlock(&mi->run_lock);
+
+  mysql_mutex_lock(&mi->data_lock);
+  mysql_mutex_lock(&mi->rli.data_lock);
+  /* err_lock is to protect mi->last_error() */
+  mysql_mutex_lock(&mi->err_lock);
+  /* err_lock is to protect mi->rli.last_error() */
+  mysql_mutex_lock(&mi->rli.err_lock);
+
+  DBUG_EXECUTE_IF("hold_sss_with_err_lock", {
+      DBUG_ASSERT(!debug_sync_set_action(thd,
+                                         STRING_WITH_LEN("now SIGNAL sss_got_err_lock "
+                                                         "WAIT_FOR sss_continue")));
+      DBUG_SET("-d,hold_sss_with_err_lock");
+    });
+
+  store_string_or_null(field++, mi->host);
+  store_string_or_null(field++, mi->user);
+  (*field++)->store((uint32) mi->port);
+  (*field++)->store((uint32) mi->connect_retry);
+  (*field++)->store(mi->master_log_name, strlen(mi->master_log_name),
+                    &my_charset_bin);
+  (*field++)->store((ulonglong) mi->master_log_pos);
+  msg= (mi->rli.group_relay_log_name +
+        dirname_length(mi->rli.group_relay_log_name));
+  store_string(field++, msg);
+  (*field++)->store((ulonglong) mi->rli.group_relay_log_pos);
+  store_string(field++, mi->rli.group_master_log_name);
+  store_string(field++, &slave_running[mi->slave_running]);
+  store_string(field++, mi->rli.slave_running ? &msg_yes : &msg_no);
+  store_list(field++, rpl_filter->get_do_db());
+  store_list(field++, rpl_filter->get_ignore_db());
+
+  rpl_filter->get_do_table(&tmp);
+  (*field++)->store(tmp.ptr(), tmp.length(), &my_charset_bin);
+  rpl_filter->get_ignore_table(&tmp);
+  (*field++)->store(tmp.ptr(), tmp.length(), &my_charset_bin);
+  rpl_filter->get_wild_do_table(&tmp);
+  (*field++)->store(tmp.ptr(), tmp.length(), &my_charset_bin);
+  rpl_filter->get_wild_ignore_table(&tmp);
+  (*field++)->store(tmp.ptr(), tmp.length(), &my_charset_bin);
+
+  (*field++)->store(mi->rli.last_error().number);
+  store_string_or_null(field++, mi->rli.last_error().message);
+  (*field++)->store((uint32) mi->rli.slave_skip_counter);
+  (*field++)->store((ulonglong) mi->rli.group_master_log_pos);
+  (*field++)->store((ulonglong) mi->rli.log_space_total);
+
+  msg= (mi->rli.until_condition==Relay_log_info::UNTIL_NONE ? "None" :
+        (mi->rli.until_condition==Relay_log_info::UNTIL_MASTER_POS? "Master":
+         (mi->rli.until_condition==Relay_log_info::UNTIL_RELAY_POS? "Relay":
+          "Gtid")));
+  (*field++)->store(msg, strlen(msg), &my_charset_bin);
+  store_string_or_null(field++, mi->rli.until_log_name);
+  (*field++)->store((ulonglong) mi->rli.until_log_pos);
+
+#ifdef HAVE_OPENSSL
+  (*field++)->store(mi->ssl ? &msg_yes : &msg_no, &my_charset_bin);
+#else
+  (*field++)->store(mi->ssl ? &msg_ignored: &msg_no, &my_charset_bin);
+#endif
+  store_string_or_null(field++, mi->ssl_ca);
+  store_string_or_null(field++, mi->ssl_capath);
+  store_string_or_null(field++, mi->ssl_cert);
+  store_string_or_null(field++, mi->ssl_cipher);
+  store_string_or_null(field++, mi->ssl_key);
+
+  /*
+    Seconds_Behind_Master: if SQL thread is running and I/O thread is
+    connected, we can compute it otherwise show NULL (i.e. unknown).
+  */
+  if ((mi->slave_running == MYSQL_SLAVE_RUN_READING) &&
+      mi->rli.slave_running)
+  {
+    long time_diff;
+    bool idle;
+    time_t stamp= mi->rli.last_master_timestamp;
+
+    if (!stamp)
+      idle= true;
+    else
+    {
+      idle= mi->rli.sql_thread_caught_up;
+
+      /*
+        The idleness of the SQL thread is needed for the parallel slave
+        because events can be ignored before distribution to a worker thread.
+        That is, Seconds_Behind_Master should still be calculated and visible
+        while the slave is processing ignored events, such as those skipped
+        due to slave_skip_counter.
+      */
+      if (mi->using_parallel() && idle &&
+          !rpl_parallel::workers_idle(&mi->rli))
+        idle= false;
+    }
+    if (idle)
+      time_diff= 0;
+    else
+    {
+      time_diff= ((long)(time(0) - stamp) - mi->clock_diff_with_master);
+      /*
+        Apparently on some systems time_diff can be <0. Here are possible
+        reasons related to MySQL:
+        - the master is itself a slave of another master whose time is ahead.
+        - somebody used an explicit SET TIMESTAMP on the master.
+        Possible reason related to granularity-to-second of time functions
+        (nothing to do with MySQL), which can explain a value of -1:
+        assume the master's and slave's time are perfectly synchronized, and
+        that at slave's connection time, when the master's timestamp is read,
+        it is at the very end of second 1, and (a very short time later) when
+        the slave's timestamp is read it is at the very beginning of second
+        2. Then the recorded value for master is 1 and the recorded value for
+        slave is 2. At SHOW SLAVE STATUS time, assume that the difference
+        between timestamp of slave and rli->last_master_timestamp is 0
+        (i.e. they are in the same second), then we get 0-(2-1)=-1 as a result.
+        This confuses users, so we don't go below 0.
+
+        last_master_timestamp == 0 (an "impossible" timestamp 1970) is a
+        special marker to say "consider we have caught up".
+      */
+      if (time_diff < 0)
+        time_diff= 0;
+    }
+    (*field++)->store((longlong)time_diff);
+  }
+  else
+    (*field++)->set_null();
+
+  (*field++)->store(mi->ssl_verify_server_cert? &msg_yes : &msg_no,
+                    &my_charset_bin);
+
+  // Last_IO_Errno
+  (*field++)->store(mi->last_error().number);
+  // Last_IO_Error
+  store_string_or_null(field++, mi->last_error().message);
+  // Last_SQL_Errno
+  (*field++)->store(mi->rli.last_error().number);
+  // Last_SQL_Error
+  store_string_or_null(field++, mi->rli.last_error().message);
+  // Replicate_Ignore_Server_Ids
+  field_store_ids((*field++), &mi->ignore_server_ids);
+  // Master_Server_id
+  (*field++)->store((uint32) mi->master_id);
+  // SQL_Delay
+  // Master_Ssl_Crl
+  store_string_or_null(field++, mi->ssl_crl);
+  // Master_Ssl_Crlpath
+  store_string_or_null(field++, mi->ssl_crlpath);
+  // Using_Gtid
+  store_string_or_null(field++, mi->using_gtid_astext(mi->using_gtid));
+  // Gtid_IO_Pos
+  {
+    mi->gtid_current_pos.to_string(&tmp);
+    (*field++)->store(tmp.ptr(), tmp.length(), &my_charset_bin);
+  }
+
+  // Replicate_Do_Domain_Ids & Replicate_Ignore_Domain_Ids
+  mi->domain_id_filter.store_ids(&field);
+
+  // Parallel_Mode
+  {
+    const char *mode_name= get_type(&slave_parallel_mode_typelib,
+                                    mi->parallel_mode);
+    (*field++)->store(mode_name, strlen(mode_name), &my_charset_bin);
+  }
+
+  (*field++)->store((uint32) mi->rli.get_sql_delay());
+  // SQL_Remaining_Delay
+  // THD::proc_info is not protected by any lock, so we read it once
+  // to ensure that we use the same value throughout this function.
+  const char *slave_sql_running_state=
+    mi->rli.sql_driver_thd ? mi->rli.sql_driver_thd->proc_info : "";
+  if (slave_sql_running_state == stage_sql_thd_waiting_until_delay.m_name)
+  {
+    time_t t= my_time(0), sql_delay_end= mi->rli.get_sql_delay_end();
+    (*field++)->store((uint32)(t < sql_delay_end ? sql_delay_end - t : 0));
+  }
+  else
+    (*field++)->set_null();
+  // Slave_SQL_Running_State
+  store_string_or_null(field++, slave_sql_running_state);
+
+  (*field++)->store(mi->total_ddl_groups);
+  (*field++)->store(mi->total_non_trans_groups);
+  (*field++)->store(mi->total_trans_groups);
+
+  (*field++)->store((uint32)    mi->rli.retried_trans);
+  (*field++)->store((ulonglong) mi->rli.max_relay_log_size);
+  (*field++)->store(mi->rli.executed_entries);
+  (*field++)->store((uint)      mi->received_heartbeats);
+  (*field++)->store((double)    mi->heartbeat_period);
+  (*field++)->store(gtid_pos->ptr(), gtid_pos->length(), &my_charset_bin);
+
+  if (mi->rli.newest_master_timestamp)
+    (*field++)->store_timestamp((my_time_t) mi->rli.newest_master_timestamp, 0);
+  else
+    field[i++]->set_null();
+
+  if (mi->rli.slave_timestamp)
+  {
+    DBUG_ASSERT(mi->rli.newest_master_timestamp);
+    (*field++)->store_timestamp((my_time_t) mi->rli.slave_timestamp, 0);
+    (*field++)->store((uint) (mi->rli.newest_master_timestamp -
+                              mi->rli.slave_timestamp));
+  }
+  else
+    field[i++]->set_null();
+
+  mysql_mutex_unlock(&mi->rli.err_lock);
+  mysql_mutex_unlock(&mi->err_lock);
+  mysql_mutex_unlock(&mi->rli.data_lock);
+  mysql_mutex_unlock(&mi->data_lock);
+  DBUG_VOID_RETURN;
+}
+
+
 /* Used to sort connections by name */
 
-static int cmp_mi_by_name(const Master_info **arg1,
-                          const Master_info **arg2)
+int cmp_mi_by_name(const Master_info **arg1,
+                   const Master_info **arg2)
 {
   return my_strcasecmp(system_charset_info, (*arg1)->connection_name.str,
                        (*arg2)->connection_name.str);
@@ -3501,7 +3781,8 @@ bool show_all_master_info(THD* thd)
 
   for (i= 0; i < elements; i++)
   {
-    if (send_show_master_info_data(thd, tmp[i], 1, &gtid_pos))
+    if (tmp[i]->host[0] &&
+        send_show_master_info_data(thd, tmp[i], 1, &gtid_pos))
       DBUG_RETURN(TRUE);
   }
 

@@ -1877,6 +1877,14 @@ void Domain_id_filter::store_ids(THD *thd)
   }
 }
 
+void Domain_id_filter::store_ids(Field ***field)
+{
+  for (int i= DO_DOMAIN_IDS; i <= IGNORE_DOMAIN_IDS; i ++)
+  {
+    field_store_ids(*((*field)++), &m_domain_ids[i]);
+  }
+}
+
 /**
   Initialize the given domain_id list (DYNAMIC_ARRAY) with the
   space-separated list of numbers from the specified IO_CACHE where
@@ -1951,6 +1959,32 @@ void update_change_master_ids(DYNAMIC_ARRAY *new_ids, DYNAMIC_ARRAY *old_ids)
   return;
 }
 
+static size_t store_ids(DYNAMIC_ARRAY *ids, char *buff, size_t buff_len)
+{
+  uint i;
+  size_t cur_len;
+
+  for (i= 0, buff[0]= 0, cur_len= 0; i < ids->elements; i++)
+  {
+    ulong id, len;
+    char dbuff[FN_REFLEN];
+    get_dynamic(ids, (void *) &id, i);
+    len= sprintf(dbuff, (i == 0 ? "%lu" : ", %lu"), id);
+    if (cur_len + len + 4 > buff_len)
+    {
+      /*
+        break the loop whenever remained space could not fit
+        ellipses on the next cycle
+      */
+      cur_len+= sprintf(dbuff + cur_len, "...");
+      break;
+    }
+    cur_len+= sprintf(buff + cur_len, "%s", dbuff);
+  }
+  return cur_len;
+}
+
+
 /**
   Serialize and store the ids from the given ids DYNAMIC_ARRAY into the thd's
   protocol buffer.
@@ -1964,27 +1998,16 @@ void update_change_master_ids(DYNAMIC_ARRAY *new_ids, DYNAMIC_ARRAY *old_ids)
 void prot_store_ids(THD *thd, DYNAMIC_ARRAY *ids)
 {
   char buff[FN_REFLEN];
-  uint i, cur_len;
-
-  for (i= 0, buff[0]= 0, cur_len= 0; i < ids->elements; i++)
-  {
-    ulong id, len;
-    char dbuff[FN_REFLEN];
-    get_dynamic(ids, (void *) &id, i);
-    len= sprintf(dbuff, (i == 0 ? "%lu" : ", %lu"), id);
-    if (cur_len + len + 4 > FN_REFLEN)
-    {
-      /*
-        break the loop whenever remained space could not fit
-        ellipses on the next cycle
-      */
-      cur_len+= sprintf(dbuff + cur_len, "...");
-      break;
-    }
-    cur_len+= sprintf(buff + cur_len, "%s", dbuff);
-  }
+  uint cur_len= store_ids(ids, buff, sizeof(buff));
   thd->protocol->store(buff, cur_len, &my_charset_bin);
-  return;
+}
+
+
+void field_store_ids(Field *field, DYNAMIC_ARRAY *ids)
+{
+  char buff[FN_REFLEN];
+  size_t cur_len= store_ids(ids, buff, sizeof(buff));
+  field->store(buff, cur_len, &my_charset_bin);
 }
 
 

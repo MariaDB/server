@@ -47,6 +47,8 @@
 #include "sql_derived.h"
 #include "sql_statistics.h"
 #include "sql_connect.h"
+#include "sql_repl.h"                       // rpl_load_gtid_state
+#include "rpl_mi.h"                         // master_info_index
 #include "authors.h"
 #include "contributors.h"
 #include "sql_partition.h"
@@ -8423,6 +8425,66 @@ TABLE *create_schema_table(THD *thd, TABLE_LIST *table_list)
 }
 
 
+#ifdef HAVE_REPLICATION
+int fill_slave_status(THD *thd, TABLE_LIST *tables, COND *cond)
+{
+  String gtid_pos;
+  Master_info **tmp;
+  TABLE *table= tables->table;
+  uint elements, i;
+  DBUG_ENTER("show_all_master_info");
+
+  if (check_global_access(thd, PRIV_STMT_SHOW_SLAVE_STATUS))
+    DBUG_RETURN(TRUE);
+
+  gtid_pos.length(0);
+  if (rpl_append_gtid_state(&gtid_pos, true))
+  {
+    my_error(ER_OUT_OF_RESOURCES, MYF(0));
+    DBUG_RETURN(TRUE);
+  }
+  if (!master_info_index ||
+      !(elements= master_info_index->master_info_hash.records))
+  {
+    /* No registered slaves */
+    return 0;
+  }
+
+  mysql_mutex_lock(&LOCK_active_mi);
+
+  /*
+    Sort lines to get them into a predicted order
+    (needed for test cases and to not confuse users)
+  */
+  if (!(tmp= (Master_info**) thd->alloc(sizeof(Master_info*) * elements)))
+    goto error;
+
+  for (i= 0; i < elements; i++)
+  {
+    tmp[i]= (Master_info *) my_hash_element(&master_info_index->
+                                            master_info_hash, i);
+  }
+  my_qsort(tmp, elements, sizeof(Master_info*), (qsort_cmp) cmp_mi_by_name);
+
+  for (i= 0; i < elements; i++)
+  {
+    if (tmp[i]->host[0])
+    {
+      store_master_info(thd, tmp[i], table, &gtid_pos);
+      if (schema_table_store_record(thd, table))
+        goto error;
+    }
+  }
+
+  mysql_mutex_unlock(&LOCK_active_mi);
+  DBUG_RETURN(0);
+
+error:
+  mysql_mutex_unlock(&LOCK_active_mi);
+  DBUG_RETURN(1);
+}
+#endif
+
 /*
   For old SHOW compatibility. It is used when
   old SHOW doesn't have generated column names
@@ -9730,10 +9792,7 @@ ST_FIELD_INFO files_fields_info[]=
 
 void init_fill_schema_files_row(TABLE* table)
 {
-  int i;
-  for(i=0; !Show::files_fields_info[i].end_marker(); i++)
-    table->field[i]->set_null();
-
+  table->set_null_bits();
   table->field[IS_FILES_STATUS]->set_notnull();
   table->field[IS_FILES_STATUS]->store("NORMAL", 6, system_charset_info);
 }
@@ -9841,8 +9900,76 @@ ST_FIELD_INFO check_constraints_fields_info[]=
   CEnd()
 };
 
-}; // namespace Show
+ST_FIELD_INFO slave_status_info[]=
+{
+  Column("Connection_name", Name(), NOT_NULL),
+  Column("Slave_SQL_State", Varchar(64), NULLABLE),
+  Column("Slave_IO_State", Varchar(64), NULLABLE),
+  Column("Master_Host", Varchar(HOSTNAME_LENGTH), NULLABLE),
+  Column("Master_User", Varchar(USERNAME_LENGTH), NULLABLE),
+  Column("Master_Port", ULong(7), NOT_NULL),
+  Column("Connect_Retry", SLong(10), NOT_NULL),
+  Column("Master_Log_File", Varchar(FN_REFLEN), NOT_NULL),
+  Column("Read_Master_Log_Pos", ULonglong(10), NOT_NULL),
+  Column("Relay_Log_File", Varchar(FN_REFLEN), NOT_NULL),
+  Column("Relay_Log_Pos", ULonglong(10), NOT_NULL),
+  Column("Relay_Master_Log_File", Varchar(FN_REFLEN), NOT_NULL),
+  Column("Slave_IO_Running", Varchar(3), NOT_NULL),
+  Column("Slave_SQL_Running", Varchar(3), NOT_NULL),
+  Column("Replicate_Do_DB", Name(), NOT_NULL),
+  Column("Replicate_Ignore_DB", Name(), NOT_NULL),
+  Column("Replicate_Do_Table", Name(), NOT_NULL),
+  Column("Replicate_Ignore_Table", Name(), NOT_NULL),
+  Column("Replicate_Wild_Do_Table", Name(), NOT_NULL),
+  Column("Replicate_Wild_Ignore_Table", Name(), NOT_NULL),
+  Column("Last_Errno", SLong(4), NOT_NULL),
+  Column("Last_Error", Varchar(20), NULLABLE),
+  Column("Skip_Counter", ULong(10), NOT_NULL),
+  Column("Exec_Master_Log_Pos", ULonglong(10), NOT_NULL),
+  Column("Relay_Log_Space", ULonglong(10), NOT_NULL),
+  Column("Until_Condition", Varchar(6), NOT_NULL),
+  Column("Until_Log_File", Varchar(FN_REFLEN), NULLABLE),
+  Column("Until_Log_Pos", ULonglong(10), NOT_NULL),
+  Column("Master_SSL_Allowed", Varchar(7), NULLABLE),
+  Column("Master_SSL_CA_File", Varchar(FN_REFLEN), NULLABLE),
+  Column("Master_SSL_CA_Path", Varchar(FN_REFLEN), NULLABLE),
+  Column("Master_SSL_Cert", Varchar(FN_REFLEN), NULLABLE),
+  Column("Master_SSL_Cipher", Varchar(FN_REFLEN), NULLABLE),
+  Column("Master_SSL_Key", Varchar(FN_REFLEN), NULLABLE),
+  Column("Seconds_Behind_Master", SLonglong(10), NULLABLE),
+  Column("Master_SSL_Verify_Server_Cert", Varchar(3), NOT_NULL),
+  Column("Last_IO_Errno", SLong(4), NOT_NULL),
+  Column("Last_IO_Error", Varchar(20), NULLABLE),
+  Column("Last_SQL_Errno", SLong(4), NOT_NULL),
+  Column("Last_SQL_Error", Varchar(20), NULLABLE),
+  Column("Replicate_Ignore_Server_Ids", Varchar(FN_REFLEN), NOT_NULL),
+  Column("Master_Server_Id", ULong(10), NOT_NULL),
+  Column("Master_SSL_Crl", Varchar(FN_REFLEN), NULLABLE),
+  Column("Master_SSL_Crlpath", Varchar(FN_REFLEN), NULLABLE),
+  Column("Using_Gtid", Varchar(15), NULLABLE),
+  Column("Gtid_IO_Pos", Varchar(30), NOT_NULL),
+  Column("Replicate_Do_Domain_Ids", Varchar(FN_REFLEN), NOT_NULL),
+  Column("Replicate_Ignore_Domain_Ids", Varchar(FN_REFLEN), NOT_NULL),
+  Column("Parallel_Mode", Varchar(15), NOT_NULL),
+  Column("SQL_Delay", ULong(10), NOT_NULL),
+  Column("SQL_Remaining_Delay", ULong(10), NULLABLE),
+  Column("Slave_SQL_Running_State", Varchar(64), NULLABLE),
+  Column("Slave_DDL_Groups", ULonglong(20), NOT_NULL),
+  Column("Slave_Non_Transactional_Groups", ULonglong(20), NOT_NULL),
+  Column("Slave_Transactional_Groups", ULonglong(20), NOT_NULL),
+  Column("Retried_transactions", ULong(10), NOT_NULL),
+  Column("Max_relay_log_size", ULonglong(10), NOT_NULL),
+  Column("Executed_log_entries", ULong(10), NOT_NULL),
+  Column("Slave_received_heartbeats", ULong(10), NOT_NULL),
+  Column("Slave_heartbeat_period", Float(310), NOT_NULL), // 3 decimals
+  Column("Gtid_Slave_Pos", Varchar(FN_REFLEN), NOT_NULL),
+  Column("Master_last_event_time", Datetime(0), NULLABLE),
+  Column("Slave_state_time", Datetime(0), NULLABLE),
+  Column("Master_Slave_time_diff", SLonglong(10), NULLABLE),
+  CEnd()
+};
 
+}; // namespace Show
 
 namespace Show {
 
@@ -9960,6 +10087,10 @@ ST_SCHEMA_TABLE schema_tables[]=
   {"VIEWS", Show::view_fields_info, 0,
    get_all_tables, 0, get_schema_views_record, 1, 2, 0,
    OPEN_VIEW_ONLY|OPTIMIZE_I_S_TABLE},
+#ifdef HAVE_REPLICATION
+  {"SLAVE_STATUS", Show::slave_status_info, 0,
+   fill_slave_status, make_old_format, 0, 1, 0, 0, 0 },
+#endif
   {0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
 };
 

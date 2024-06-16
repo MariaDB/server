@@ -34,10 +34,11 @@ SET STATEMENT sql_log_bin=0 FOR create table t1 (a int) engine=innodb;
 start slave io_thread;
 --source include/sync_io_with_master.inc
 
+select * from information_schema.slave_status;
 # Ensure Master_last_event_time and Slave_last_event_time are not yet set
---let $master_time= query_get_value(SHOW ALL SLAVES STATUS, Master_last_event_time, 1)
+--let $master_time= `select Master_last_event_time from information_schema.slave_status`
 --echo master_time: $master_time (should be NULL)
---let $slave_time= query_get_value(SHOW ALL SLAVES STATUS, Slave_last_event_time, 1)
+--let $slave_time=`select Slave_last_event_time from information_schema.slave_status`
 --echo slave_time: $slave_time (should be NULL)
 
 --echo # Sleep 2s to create a time gap between the header events (i.e.
@@ -57,7 +58,7 @@ insert into t1 values (0);
 --connection server_2
 --source include/sync_io_with_master.inc
 
---let $mle_time= query_get_value(SHOW ALL SLAVES STATUS, Master_last_event_time, 1)
+--let $mle_time= `select Master_last_event_time from information_schema.slave_status`
 --let $mle_time_unix= `select truncate(unix_timestamp("$mle_time"),0)`
 if (`SELECT ($mle_time_unix < $t1_time_begin)`)
 {
@@ -66,13 +67,14 @@ if (`SELECT ($mle_time_unix < $t1_time_begin)`)
   --die Master_last_event_time did not correspond to time that the transaction was binlogged on primary
 }
 
---let $slave_time= query_get_value(SHOW ALL SLAVES STATUS, Slave_last_event_time, 1)
+--let $slave_time= `Slave_last_event_time from information_schema.slave_status`
 if (`select strcmp("$slave_time", "NULL") != 0`)
 {
   --echo # Slave_last_event_time: $slave_time
   --die SQL thread was never started, Slave_last_event_time should be NULL
 }
 
+# Check that we also get the values from show all slaves status
 --let $time_diff= query_get_value(SHOW ALL SLAVES STATUS, Master_Slave_time_diff, 1)
 if (`select strcmp("$time_diff", "NULL") != 0`)
 {
@@ -86,7 +88,6 @@ if (`select strcmp("$time_diff", "NULL") != 0`)
 --echo # otherwise up-to-date. Note the table is locked to prevent the
 --echo # transaction from committing (and thereby progressing
 --echo # Slave_last_event_time to represent commit-time).
-
 
 --connect (server_2_2,127.0.0.1,root,,test,$SERVER_MYPORT_2,)
 lock tables t1 write;
