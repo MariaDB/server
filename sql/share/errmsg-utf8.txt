@@ -9922,9 +9922,9 @@ ER_BACKUP_UNKNOWN_STAGE
         eng "Unknown backup stage: '%s'. Stage should be one of START, FLUSH, BLOCK_DDL, BLOCK_COMMIT or END"
         spa "Fase de respaldo desconocida: '%s'. La fase debería de ser una de START, FLUSH, BLOCK_DDL, BLOCK_COMMIT o END"
 ER_USER_IS_BLOCKED
-        chi "由于凭证错误太多，用户被阻止;用'FLUSH PRIVILEGES'解锁"
-        eng "User is blocked because of too many credential errors; unblock with 'FLUSH PRIVILEGES'"
-        spa "El usuario está bloqueado a causa de demasiados errores de credenciales; desbloquee mediante 'FLUSH PRIVILEGES'"
+        chi "由于凭证错误太多，用户被阻止;用'ALTER USER / FLUSH PRIVILEGES'解锁"
+        eng "User is blocked because of too many credential errors; unblock with 'ALTER USER / FLUSH PRIVILEGES'"
+        spa "El usuario está bloqueado a causa de demasiados errores de credenciales; desbloquee mediante 'ALTER USER / FLUSH PRIVILEGES'"
 ER_ACCOUNT_HAS_BEEN_LOCKED
         chi "访问拒绝，此帐户已锁定"
         eng "Access denied, this account is locked"
