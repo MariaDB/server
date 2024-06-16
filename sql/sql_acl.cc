@@ -263,7 +263,7 @@ public:
     PASSWD_ERROR_INCREMENT
   };
 
-  inline void update_password_errors(PASSWD_ERROR_ACTION action)
+  void update_password_errors(PASSWD_ERROR_ACTION action)
   {
     switch (action)
     {
@@ -3559,6 +3559,9 @@ static int acl_user_update(THD *thd, ACL_USER *acl_user, uint nauth,
     acl_user->password_lifetime= options.num_expiration_days;
     break;
   }
+
+  // Any alter user resets password_errors;
+  acl_user->update_password_errors(ACL_USER::PASSWD_ERROR_CLEAR);
 
   return 0;
 }
