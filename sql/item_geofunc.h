@@ -907,11 +907,7 @@ class Item_func_isvalid: public Item_func_issimple
 public:
   Item_func_isvalid(THD *thd, Item *a): Item_func_issimple(thd, a) {}
   longlong val_int() override;
-  LEX_CSTRING func_name_cstring() const override
-  {
-    static LEX_CSTRING name= {STRING_WITH_LEN("st_isvalid") };
-    return name;
-  }
+  const char *func_name() const override { return "st_isvalid"; }
   Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_isvalid>(thd, this); }
 };

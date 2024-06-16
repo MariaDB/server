@@ -1443,6 +1443,57 @@ int Gis_line_string::is_closed(int *closed) const
   return 0;
 }
 
+int Gis_line_string::is_self_intersected(int *self_intersected) const
+{
+  MBR mbr;
+  const char *c_end;
+  Gcalc_heap collector;
+  Gcalc_scan_iterator scan_it;
+  Gcalc_function func;
+  Gcalc_operation_transporter trn(&func, &collector);
+  *self_intersected = 1;
+
+  if(this->get_mbr(&mbr, &c_end))
+    return -1;
+
+  collector.set_extent(mbr.xmin, mbr.xmax, mbr.ymin, mbr.ymax);
+  this->store_shapes(&trn);
+  collector.prepare_operation();
+  scan_it.init(&collector);
+
+  while (scan_it.more_points())
+  {
+    const Gcalc_scan_iterator::event_point *ev, *next_ev;
+
+    if (scan_it.step())
+      return -1;
+
+    ev= scan_it.get_events();
+    if (ev->simple_event())
+      continue;
+
+    next_ev= ev->get_next();
+    if ((ev->event & (scev_thread | scev_single_point)) && !next_ev)
+      continue;
+
+    if ((ev->event == scev_two_threads) && !next_ev->get_next())
+      continue;
+
+    /* If the first and last points of a curve coincide - that is     */
+    /* an exception to the rule and the line is considered as simple. */
+    if ((next_ev && !next_ev->get_next()) &&
+        (ev->event & (scev_thread | scev_end)) &&
+        (next_ev->event & (scev_thread | scev_end)))
+      continue;
+
+    *self_intersected= 1;
+    return 0;
+  }
+
+  *self_intersected = 0;
+  return 0;
+}
+
 
 int Gis_line_string::is_valid(int *valid) const
 {
@@ -1455,7 +1506,7 @@ int Gis_line_string::is_valid(int *valid) const
   if (n_points == 0 || not_enough_points(data, n_points))
     return 1;
 
-  *valid= 1;
+  *valid= this->has_two_distinct_points();
   return 0;
 }
 
@@ -1465,6 +1516,34 @@ int Gis_line_string::num_points(uint32 *n_points) const
   return 0;
 }
 
+int Gis_line_string::has_two_distinct_points() const
+{
+  uint32 n_points;
+  double x, y;
+  double UNINIT_VAR(prev_x), UNINIT_VAR(prev_y);
+  int first_point= 1;
+  const char *data= m_data;
+
+  if (no_data(m_data, 4))
+    return 0;
+  n_points= uint4korr(data);
+  data+= 4;
+  if (n_points < 1 || not_enough_points(data, n_points))
+    return 0;
+
+  while (n_points--)
+  {
+    get_point(&x, &y, data);
+    data+= POINT_DATA_SIZE;
+    if (!first_point && (x != prev_x || y != prev_y))
+      return 1;
+    first_point= 0;
+    prev_x= x;
+    prev_y= y;
+  }
+
+  return 0;
+}
 
 int Gis_line_string::start_point(String *result) const
 {
@@ -1815,15 +1894,14 @@ bool Gis_polygon::get_mbr(MBR *mbr, const char **end) const
   return 0;
 }
 
-
 int Gis_polygon::is_valid(int *valid) const
 {
-
   String swkb("", 0, &my_charset_bin);
   uint32 srid= uint4korr(swkb.ptr());
   swkb.set_charset(&my_charset_bin);
   swkb.length(0);
   const char *c_end;
+  *valid = 0;
 
   if (swkb.reserve(SRID_SIZE, 512))
     return 1;
@@ -1835,17 +1913,35 @@ int Gis_polygon::is_valid(int *valid) const
   Geometry_buffer buffer;
   Geometry *exteriorRing, *interiorRing;
   MBR exterior_mbr, interior_mbr;
+  int self_intersect;
 
   if (!(exteriorRing= Geometry::construct(&buffer, swkb.ptr(), swkb.length())))
     return 1;
 
+  if(exteriorRing->is_self_intersected(&self_intersect))
+    return 1;
+
+  if (self_intersect)
+    return 0;
+
   if (exteriorRing->get_mbr(&exterior_mbr, &c_end))
     return 1;
 
+  int closed;
+  uint32 points;
+  if (exteriorRing->is_closed(&closed))
+    return 1;
+
+  if (exteriorRing->num_points(&points))
+    return 1;
+
+  if (!closed || points < 3)
+    return 0;
+
   *valid= 1;
+  std::vector<MBR> interior_mbrs;
   for(uint32 i= 1;;i++)
   {
-
       uint32 srid= uint4korr(swkb.ptr());
       swkb.set_charset(&my_charset_bin);
       swkb.length(0);
@@ -1863,15 +1959,43 @@ int Gis_polygon::is_valid(int *valid) const
       if (interiorRing->get_mbr(&interior_mbr, &c_end))
         return 1;
 
-      if (exterior_mbr.contains(&interior_mbr)) continue;
+      if (!exterior_mbr.contains(&interior_mbr) ||
+          exterior_mbr.equals(&interior_mbr))
+      {
+        *valid = 0;
+        return 0;
+      }
+
+      if (interiorRing->is_self_intersected(&self_intersect))
+        return 1;
+
+      if (self_intersect)
+      {
+        *valid = 0;
+        return 0;
+      }
+
+      int overlaps = 0;
+      for (const auto &mbr : interior_mbrs)
+      {
+        if (interior_mbr.overlaps(&mbr) || interior_mbr.equals(&mbr))
+        {
+          overlaps = 1;
+          break;
+        }
+      }
+      interior_mbrs.push_back(interior_mbr);
+
+      if (!overlaps)
+      {
+        continue;
+      }
 
       *valid= 0;
       break;
   }
 
-
   return 0;
-
 }
 
 
@@ -2346,7 +2470,7 @@ int Gis_multi_point::is_valid(int *valid) const
     return 1;
 
   n_points= uint4korr(m_data);
-  *valid= (n_points >= 2);
+  *valid= (n_points >= 1);
   return 0;
 }
 
@@ -2745,13 +2869,16 @@ int Gis_multi_line_string::is_valid(int *valid) const
 {
   uint32 n_line_strings, n_points, length;
   const char *data= m_data;
+  double x, y;
+  double prev_x, prev_y;
+  bool valid_internal= false, first_point;
 
   if (no_data(data, 4))
     return 1;
   n_line_strings= uint4korr(data);
   data+= 4;
 
-  for (;;)
+  while (n_line_strings--)
   {
     if (no_data(data, WKB_HEADER_SIZE + 4))
       return 1;
@@ -2759,12 +2886,32 @@ int Gis_multi_line_string::is_valid(int *valid) const
     length= WKB_HEADER_SIZE + 4+ POINT_DATA_SIZE * n_points;
     if (not_enough_points(data+WKB_HEADER_SIZE+4, n_points))
       return 1;
+    first_point= true;
+    valid_internal= false;
+    const char *auxiliary_data= data;
+    while (n_points--)
+    {
+      get_point(&x, &y, auxiliary_data);
+      auxiliary_data+= POINT_DATA_SIZE;
+      if (!first_point && (x != prev_x || y != prev_y))
+      {
+        valid_internal = true;
+        break;
+      }
+      first_point= false;
+      prev_x= x;
+      prev_y= y;
+    }
     data+= length;
+    if (!valid_internal)
+    {
+      *valid = 0;
+      return 0;
+    }
   }
 
   *valid= (n_line_strings >= 1);
   return 0;
-
 }
 
 bool Gis_multi_line_string::get_mbr(MBR *mbr, const char **end) const
@@ -3204,10 +3351,12 @@ int Gis_multi_polygon::is_valid(int *valid) const
     return 1;
   swkb.q_append(srid);
   *valid= 1;
+  std::vector<MBR> mbrs;
+  const char *c_end;
+
   for (uint32 i= 1; i <= num_on_geometries; i++)
   {
     // extract the i-th geometry
-
     Geometry *temp;
     swkb.set_charset(&my_charset_bin);
     swkb.length(0);
@@ -3219,6 +3368,8 @@ int Gis_multi_polygon::is_valid(int *valid) const
     if (!temp)
       return 1;
 
+    [[maybe_unused]] auto type = temp->get_class_info()->m_type_id;
+
     int tempValid;
     if (temp->is_valid(&tempValid))
       return 1;
@@ -3228,6 +3379,19 @@ int Gis_multi_polygon::is_valid(int *valid) const
       *valid= 0;
       break;
     }
+
+    MBR temp_mbr;
+    if (temp->get_mbr(&temp_mbr, &c_end))
+      return 1;
+    for (const auto &mbr : mbrs)
+    {
+      if (temp_mbr.overlaps(&mbr) || temp_mbr.equals(&mbr))
+      {
+        *valid = 0;
+        return 0;
+      }
+    }
+    mbrs.push_back(temp_mbr);
   }
 
   return 0;

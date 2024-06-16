@@ -19,6 +19,7 @@
 #define _spatial_h
 
 #include "sql_string.h"                         /* String, LEX_STRING */
+#include <vector>
 #include <my_compiler.h>
 #include <json_lib.h>
 
@@ -291,9 +292,11 @@ public:
   virtual int geom_length(double *len, const char **end) const  { return -1; }
   virtual int area(double *ar, const char **end) const { return -1;}
   virtual int is_closed(int *closed) const { return -1; }
+  virtual int is_self_intersected(int *self_intersected) const {return -1; };
   virtual int is_valid(int *valid) const { return -1; }
   virtual int num_interior_ring(uint32 *n_int_rings) const { return -1; }
   virtual int num_points(uint32 *n_points) const { return -1; }
+  virtual int has_two_distinct_points() const { return false; };
   virtual int num_geometries(uint32 *num) const { return -1; }
   virtual int start_point(String *point) const { return -1; }
   virtual int end_point(String *point) const { return -1; }
@@ -408,7 +411,7 @@ public:
   bool get_data_as_json(String *txt, uint max_dec_digits,
                         const char **end) const override;
   bool get_mbr(MBR *mbr, const char **end) const override;
-  
+  int is_valid(int *valid) const override;
   int get_xy(double *x, double *y) const
   {
     const char *data= m_data;
@@ -481,6 +484,9 @@ public:
   int geom_length(double *len, const char **end) const override;
   int area(double *ar, const char **end) const override;
   int is_closed(int *closed) const override;
+  int has_two_distinct_points() const override;
+  int is_self_intersected(int *self_intersected) const override;
+  int is_valid(int *valid) const override;
   int num_points(uint32 *n_points) const override;
   int start_point(String *point) const override;
   int end_point(String *point) const override;
@@ -512,6 +518,7 @@ public:
   bool get_data_as_json(String *txt, uint max_dec_digits,
                         const char **end) const override;
   bool get_mbr(MBR *mbr, const char **end) const override;
+  int is_valid(int *valid) const override;
   int area(double *ar, const char **end) const override;
   int exterior_ring(String *result) const override;
   int num_interior_ring(uint32 *n_int_rings) const override;
@@ -549,6 +556,7 @@ public:
   bool get_data_as_json(String *txt, uint max_dec_digits,
                         const char **end) const override;
   bool get_mbr(MBR *mbr, const char **end) const override;
+  int is_valid(int *valid) const override;
   int num_geometries(uint32 *num) const override;
   int geometry_n(uint32 num, String *result) const override;
   bool dimension(uint32 *dim, const char **end) const override
@@ -580,6 +588,7 @@ public:
   bool get_data_as_json(String *txt, uint max_dec_digits,
                         const char **end) const override;
   bool get_mbr(MBR *mbr, const char **end) const override;
+  int is_valid(int *valid) const override;
   int num_geometries(uint32 *num) const override;
   int geometry_n(uint32 num, String *result) const override;
   int geom_length(double *len, const char **end) const override;
@@ -610,6 +619,7 @@ public:
   bool get_data_as_json(String *txt, uint max_dec_digits,
                         const char **end) const override;
   bool get_mbr(MBR *mbr, const char **end) const override;
+  int is_valid(int *valid) const override;
   int num_geometries(uint32 *num) const override;
   int geometry_n(uint32 num, String *result) const override;
   int area(double *ar, const char **end) const override;
@@ -642,6 +652,7 @@ public:
   bool get_data_as_json(String *txt, uint max_dec_digits,
                         const char **end) const override;
   bool get_mbr(MBR *mbr, const char **end) const override;
+  int is_valid(int *valid) const override;
   int area(double *ar, const char **end) const override;
   int geom_length(double *len, const char **end) const override;
   int num_geometries(uint32 *num) const override;

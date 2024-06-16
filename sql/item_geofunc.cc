@@ -2070,15 +2070,15 @@ longlong Item_func_isvalid::val_int()
   Geometry_buffer buffer;
   Geometry *g;
 
-  if ((args[0]->null_value || !(g= Geometry::construct(&buffer, swkb->ptr(), swkb->length()))))
-    return -1;
+  if ((args[0]->null_value ||
+      !(g= Geometry::construct(&buffer, swkb->ptr(), swkb->length()))))
+    return args[0]->null_value;
 
   int valid;
   if (g->is_valid(&valid))
     return -1;
 
-  // Simplicity should be removed from here and checked for each polygon alone
-  return (longlong) valid && Item_func_issimple::val_int();
+  return (longlong) valid;
 }
 
 longlong Item_func_isempty::val_int()
