@@ -1268,6 +1268,13 @@ public:
   bool is_correlated:1;
   bool first_natural_join_processing:1;
   bool first_cond_optimization:1;
+  /**
+    The purpose of this flag is to run initialization phase for rownum
+    only once. This flag is set on at st_select_lex::init_query and reset to
+    the value false after the method optimize_rownum() has been called
+    from the method JOIN::optimize_inner.
+  */
+  bool first_rownum_optimization:1;
   /* do not wrap view fields with Item_ref */
   bool no_wrap_view_item:1;
   /* exclude this select from check of unique_table() */
@@ -3907,7 +3914,8 @@ public:
   int case_stmt_action_then();
   bool setup_select_in_parentheses();
   bool set_names(const char *pos,
-                 const Lex_exact_charset_opt_extended_collate &cs,
+                 CHARSET_INFO *cs,
+                 const Lex_extended_collation_st &coll,
                  bool no_lookahead);
   bool set_trigger_new_row(const LEX_CSTRING *name, Item *val,
                            const LEX_CSTRING &expr_str);

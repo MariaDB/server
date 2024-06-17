@@ -409,6 +409,7 @@ show tables like 't%';
 Tables_in_test (t%)
 t1
 t2
+drop temporary table t2, T1;
 # End of 11.2 tests
 #
 # MDEV-32026 lowercase_table2.test failures in 11.3

@@ -242,8 +242,10 @@ void lf_pinbox_put_pins(LF_PINS *pins)
   return;
 }
 
-static int ptr_cmp(void **a, void **b)
+static int ptr_cmp(const void *pa, const void *pb)
 {
+  const void *const*a= pa;
+  const void *const*b= pb;
   return *a < *b ? -1 : *a == *b ? 0 : 1;
 }
 
@@ -283,8 +285,10 @@ struct st_harvester {
   callback forlf_dynarray_iterate:
   scan all pins of all threads and accumulate all pins
 */
-static int harvest_pins(LF_PINS *el, struct st_harvester *hv)
+static int harvest_pins(void *e, void *h)
 {
+  LF_PINS *el= e;
+  struct st_harvester *hv= h;
   int i;
   LF_PINS *el_end= el+MY_MIN(hv->npins, LF_DYNARRAY_LEVEL_LENGTH);
   for (; el < el_end; el++)
@@ -310,8 +314,9 @@ static int harvest_pins(LF_PINS *el, struct st_harvester *hv)
   callback forlf_dynarray_iterate:
   scan all pins of all threads and see if addr is present there
 */
-static int match_pins(LF_PINS *el, void *addr)
+static int match_pins(void *e, void *addr)
 {
+  LF_PINS *el= e;
   int i;
   LF_PINS *el_end= el+LF_DYNARRAY_LEVEL_LENGTH;
   for (; el < el_end; el++)
@@ -352,13 +357,12 @@ static void lf_pinbox_real_free(LF_PINS *pins)
       hv.granary= addr;
       hv.npins= npins;
       /* scan the dynarray and accumulate all pinned addresses */
-     lf_dynarray_iterate(&pinbox->pinarray,
-                           (lf_dynarray_func)harvest_pins, &hv);
+     lf_dynarray_iterate(&pinbox->pinarray, harvest_pins, &hv);
 
       npins= (int)(hv.granary-addr);
       /* and sort them */
       if (npins)
-        qsort(addr, npins, sizeof(void *), (qsort_cmp)ptr_cmp);
+        qsort(addr, npins, sizeof(void *), ptr_cmp);
     }
   }
 #endif
@@ -387,8 +391,7 @@ static void lf_pinbox_real_free(LF_PINS *pins)
       }
       else /* no alloca - no cookie. linear search here */
       {
-        if (lf_dynarray_iterate(&pinbox->pinarray,
-                                 (lf_dynarray_func)match_pins, cur))
+        if (lf_dynarray_iterate(&pinbox->pinarray, match_pins, cur))
           goto found;
       }
     }
@@ -416,10 +419,11 @@ found:
     'first' and 'last' are the ends of the linked list of nodes:
     first->el->el->....->el->last. Use first==last to free only one element.
 */
-static void alloc_free(uchar *first,
-                       uchar volatile *last,
-                       LF_ALLOCATOR *allocator)
+static void alloc_free(void *f, void *l, void *alloc)
 {
+  uchar *first= f;
+  uchar volatile *last= l;
+  LF_ALLOCATOR *allocator= alloc;
   /*
     we need a union here to access type-punned pointer reliably.
     otherwise gcc -fstrict-aliasing will not see 'tmp' changed in the loop
@@ -448,8 +452,7 @@ static void alloc_free(uchar *first,
 */
 void lf_alloc_init(LF_ALLOCATOR *allocator, uint size, uint free_ptr_offset)
 {
-  lf_pinbox_init(&allocator->pinbox, free_ptr_offset,
-                 (lf_pinbox_free_func *)alloc_free, allocator);
+  lf_pinbox_init(&allocator->pinbox, free_ptr_offset, alloc_free, allocator);
   allocator->top= 0;
   allocator->mallocs= 0;
   allocator->element_size= size;

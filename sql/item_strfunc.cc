@@ -1545,6 +1545,12 @@ bool Item_func_sformat::fix_length_and_dec(THD *thd)
 namespace fmt {
   template <> struct formatter<String>: formatter<string_view> {
     template <typename FormatContext>
+    auto format(String c, FormatContext& ctx) const -> decltype(ctx.out()) {
+      string_view name = { c.ptr(), c.length() };
+      return formatter<string_view>::format(name, ctx);
+    };
+    /* needed below function for libfmt-7.1.3 compatibility, (not 9.1.0+) */
+    template <typename FormatContext>
     auto format(String c, FormatContext& ctx) -> decltype(ctx.out()) {
       string_view name = { c.ptr(), c.length() };
       return formatter<string_view>::format(name, ctx);
@@ -5920,7 +5926,7 @@ static NATSORT_ERR to_natsort_key(const String *in, String *out,
 {
   size_t n_digits= 0;
   size_t n_lead_zeros= 0;
-  size_t num_start;
+  size_t num_start= 0;
   size_t reserve_length= std::min(
       natsort_max_key_size(in->length()) + MAX_BIGINT_WIDTH + 2, max_key_size);
 
