@@ -901,14 +901,14 @@ bool is_system_table(const char *dbname, const char *tablename)
 	DBUG_ASSERT(dbname);
 	DBUG_ASSERT(tablename);
 
-	LEX_CSTRING lex_dbname;
-	LEX_CSTRING lex_tablename;
+	Lex_ident_db lex_dbname;
+	Lex_ident_table lex_tablename;
 	lex_dbname.str = dbname;
 	lex_dbname.length = strlen(dbname);
 	lex_tablename.str = tablename;
 	lex_tablename.length = strlen(tablename);
 
-	TABLE_CATEGORY tg = get_table_category(&lex_dbname, &lex_tablename);
+	TABLE_CATEGORY tg = get_table_category(lex_dbname, lex_tablename);
 
 	return (tg == TABLE_CATEGORY_LOG) || (tg == TABLE_CATEGORY_SYSTEM);
 }

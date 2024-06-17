@@ -1084,7 +1084,8 @@ public:
                   ER_THD(thd, ER_TABLEACCESS_DENIED_ERROR), "SHOW VIEW",
                   m_sctx->priv_user,
                   m_sctx->host_or_ip,
-                  m_top_view->get_db_name(), m_top_view->get_table_name());
+                  m_top_view->get_db_name().str,
+                  m_top_view->get_table_name().str);
     }
     return m_view_access_denied_message_ptr;
   }
@@ -1129,8 +1130,8 @@ public:
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, 
                           ER_VIEW_INVALID,
                           ER_THD(thd, ER_VIEW_INVALID),
-                          m_top_view->get_db_name(),
-                          m_top_view->get_table_name());
+                          m_top_view->get_db_name().str,
+                          m_top_view->get_table_name().str);
       is_handled= TRUE;
       break;
 
@@ -3883,7 +3884,7 @@ static bool show_status_array(THD *thd, const char *wild,
     */
     for (var=variables; var->type == SHOW_FUNC ||
            var->type == SHOW_SIMPLE_FUNC; var= &tmp)
-      ((mysql_show_var_func)(var->value))(thd, &tmp, buff,
+      ((mysql_show_var_func)(var->value))(thd, &tmp, (void *) buff,
                                           status_var, scope);
     
     SHOW_TYPE show_type=var->type;
@@ -7215,8 +7216,7 @@ static int get_schema_views_record(THD *thd, TABLE_LIST *tables,
     Security_context *sctx= thd->security_ctx;
     if (!tables->allowed_show)
     {
-      if (!my_strcasecmp(system_charset_info, tables->definer.user.str,
-                         sctx->priv_user) &&
+      if (!strcmp(tables->definer.user.str, sctx->priv_user) &&
           !my_strcasecmp(system_charset_info, tables->definer.host.str,
                          sctx->priv_host))
         tables->allowed_show= TRUE;
@@ -8289,7 +8289,7 @@ int fill_open_tables(THD *thd, TABLE_LIST *tables, COND *cond)
   TABLE *table= tables->table;
   CHARSET_INFO *cs= system_charset_info;
   OPEN_TABLE_LIST *open_list;
-  if (!(open_list= list_open_tables(thd, thd->lex->first_select_lex()->db.str,
+  if (!(open_list= list_open_tables(thd, thd->lex->first_select_lex()->db,
                                     wild))
             && thd->is_fatal_error)
     DBUG_RETURN(1);

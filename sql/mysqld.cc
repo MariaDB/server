@@ -3210,6 +3210,15 @@ static void start_signal_handler(void)
   DBUG_VOID_RETURN;
 }
 
+/** Called only from signal_hand function. */
+static void* exit_signal_handler()
+{
+    my_thread_end();
+    signal_thread_in_use= 0;
+    pthread_exit(0);  // Safety
+    return nullptr;  // Avoid compiler warnings
+}
+
 
 /** This threads handles all signals and alarms. */
 /* ARGSUSED */
@@ -3270,10 +3279,7 @@ pthread_handler_t signal_hand(void *arg __attribute__((unused)))
     if (abort_loop)
     {
       DBUG_PRINT("quit",("signal_handler: calling my_thread_end()"));
-      my_thread_end();
-      signal_thread_in_use= 0;
-      pthread_exit(0);				// Safety
-      return 0;                                 // Avoid compiler warnings
+      return exit_signal_handler();
     }
     switch (sig) {
     case SIGTERM:
@@ -3292,6 +3298,7 @@ pthread_handler_t signal_hand(void *arg __attribute__((unused)))
         PSI_CALL_delete_current_thread();
         my_sigset(sig, SIG_IGN);
         break_connect_loop(); // MIT THREAD has a alarm thread
+        return exit_signal_handler();
       }
       break;
     case SIGHUP:
@@ -4353,8 +4360,10 @@ static int init_common_variables()
   if (is_supported_parser_charset(default_charset_info))
   {
     global_system_variables.collation_connection= default_charset_info;
-    global_system_variables.character_set_results= default_charset_info;
-    global_system_variables.character_set_client= default_charset_info;
+    global_system_variables.character_set_results=
+    global_system_variables.character_set_client=
+      Lex_exact_charset_opt_extended_collate(default_charset_info, true).
+        find_compiled_default_collation();
   }
   else
   {

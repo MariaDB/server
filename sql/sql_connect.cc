@@ -509,7 +509,8 @@ extern "C" void free_table_stats(TABLE_STATS* table_stats)
 
 void init_global_table_stats(void)
 {
-  my_hash_init(PSI_INSTRUMENT_ME, &global_table_stats, system_charset_info,
+  my_hash_init(PSI_INSTRUMENT_ME, &global_table_stats,
+               Lex_ident_fs::charset_info(),
                max_connections, 0, 0, (my_hash_get_key) get_key_table_stats,
                (my_hash_free_key) free_table_stats, 0);
 }
@@ -528,7 +529,8 @@ extern "C" void free_index_stats(INDEX_STATS* index_stats)
 
 void init_global_index_stats(void)
 {
-  my_hash_init(PSI_INSTRUMENT_ME, &global_index_stats, system_charset_info,
+  my_hash_init(PSI_INSTRUMENT_ME, &global_index_stats,
+               Lex_ident_fs::charset_info(),
                max_connections, 0, 0, (my_hash_get_key) get_key_index_stats,
                (my_hash_free_key) free_index_stats, 0);
 }
@@ -1009,7 +1011,7 @@ static int check_connection(THD *thd)
                       /* See RFC 5737, 192.0.2.0/24 is reserved. */
                       const char* fake= "192.0.2.4";
                       inet_pton(AF_INET,fake, ip4);
-                      strcpy(ip, fake);
+                      safe_strcpy(ip, sizeof(ip), fake);
                       peer_rc= 0;
                     }
                     );
@@ -1039,7 +1041,7 @@ static int check_connection(THD *thd)
                       ip6->s6_addr[13] = 0x06;
                       ip6->s6_addr[14] = 0x00;
                       ip6->s6_addr[15] = 0x06;
-                      strcpy(ip, fake);
+                      safe_strcpy(ip, sizeof(ip), fake);
                       peer_rc= 0;
                     }
                     );

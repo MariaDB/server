@@ -1,0 +1,8 @@
+install soname 'ha_spider';
+SET @@insert_id=128;
+CREATE TABLE t(c TINYINT AUTO_INCREMENT KEY) ENGINE=Spider;
+INSERT IGNORE INTO t VALUES(0);
+ERROR HY000: Unable to connect to foreign data source: localhost
+drop table t;
+Warnings:
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
