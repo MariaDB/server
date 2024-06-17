@@ -1331,6 +1331,15 @@ my_decimal *Item_func_time_to_sec::decimal_op(my_decimal* buf)
 }
 
 
+static inline
+uint32 adjust_interval_field_uint32(ulonglong value, int32 multiplier)
+{
+  return value > ((ulonglong) (uint32) (UINT_MAX32)) / multiplier ?
+         (uint32) UINT_MAX32 :
+         (uint32) (value * multiplier);
+}
+
+
 /**
   Convert a string to a interval value.
 
@@ -1341,7 +1350,7 @@ bool get_interval_value(THD *thd, Item *args,
                         interval_type int_type, INTERVAL *interval)
 {
   ulonglong array[5];
-  longlong UNINIT_VAR(value);
+  ulonglong UNINIT_VAR(value);
   const char *UNINIT_VAR(str);
   size_t UNINIT_VAR(length);
   CHARSET_INFO *UNINIT_VAR(cs);
@@ -1368,14 +1377,17 @@ bool get_interval_value(THD *thd, Item *args,
   }
   else if ((int) int_type <= INTERVAL_MICROSECOND)
   {
-    value= args->val_int();
-    if (args->null_value)
-      return 1;
-    if (value < 0)
-    {
-      interval->neg=1;
-      value= -value;
-    }
+    /*
+      Let's use Longlong_hybrid_null to handle correctly:
+      - signed and unsigned values
+      - the corner case with LONGLONG_MIN
+        (avoid undefined behavior with its negation)
+    */
+    const Longlong_hybrid_null nr= args->to_longlong_hybrid_null();
+    if (nr.is_null())
+      return true;
+    value= nr.abs();
+    interval->neg= nr.neg() ? 1 : 0;
   }
   else
   {
@@ -1402,13 +1414,13 @@ bool get_interval_value(THD *thd, Item *args,
     interval->year= (ulong) value;
     break;
   case INTERVAL_QUARTER:
-    interval->month= (ulong)(value*3);
+    interval->month= adjust_interval_field_uint32(value, 3);
     break;
   case INTERVAL_MONTH:
     interval->month= (ulong) value;
     break;
   case INTERVAL_WEEK:
-    interval->day= (ulong)(value*7);
+    interval->day= adjust_interval_field_uint32(value, 7);
     break;
   case INTERVAL_DAY:
     interval->day= (ulong) value;

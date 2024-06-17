@@ -1600,11 +1600,11 @@ struct my_option xb_client_options[]= {
      GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
 
     {"rsync", OPT_RSYNC,
-     "Obsolete depricated option",
+     "Obsolete, deprecated option",
      &ignored_option, &ignored_option,  0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
 
     {"no-backup-locks", OPT_NO_BACKUP_LOCKS,
-     "Obsolete depricated option",
+     "Obsolete, deprecated option",
      &ignored_option, &ignored_option,  0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
 
     {"force-non-empty-directories", OPT_FORCE_NON_EMPTY_DIRS,
@@ -6996,7 +6996,7 @@ static bool check_all_privileges()
 	if (opt_galera_info || opt_slave_info
 		|| opt_safe_slave_backup) {
 		check_result |= check_privilege(granted_privileges,
-			"REPLICA MONITOR", "*", "*",
+			"SLAVE MONITOR", "*", "*",
 			PRIVILEGE_WARNING);
 	}
 

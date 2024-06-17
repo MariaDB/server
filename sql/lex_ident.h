@@ -20,6 +20,7 @@
 
 #include "char_buffer.h"
 
+extern MYSQL_PLUGIN_IMPORT CHARSET_INFO *table_alias_charset;
 
 /*
   Identifiers for the database objects stored on disk,
@@ -45,6 +46,33 @@ public:
   bool is_in_lower_case() const;
   bool ok_for_lower_case_names() const;
 #endif
+#if MYSQL_VERSION_ID<=110501
+private:
+  static bool is_valid_ident(const LEX_CSTRING &str)
+  {
+    // NULL identifier, or 0-terminated identifier
+    return (str.str == NULL && str.length == 0) || str.str[str.length] == 0;
+  }
+public:
+  static CHARSET_INFO *charset_info()
+  {
+    return table_alias_charset;
+  }
+  bool streq(const LEX_CSTRING &rhs) const
+  {
+    DBUG_ASSERT(is_valid_ident(*this));
+    DBUG_ASSERT(is_valid_ident(rhs));
+    return length == rhs.length &&
+           my_strcasecmp(charset_info(), str, rhs.str) == 0;
+  }
+#else
+/*
+  Starting from 11.5.1 streq() is inherited from the base.
+  The above implementations of
+  charset_info(), streq() and is_valid_ident() should be removed.
+*/
+#error Remove streq() above.
+#endif // MYSQL_VERSION_ID<=110501
 };
 
 
@@ -56,6 +84,10 @@ public:
 */
 class Lex_ident_db: public Lex_ident_fs
 {
+  bool is_null() const
+  {
+    return length == 0 && str == NULL;
+  }
   // {empty_c_string,0} is used by derived tables
   bool is_empty() const
   {
@@ -65,10 +97,15 @@ public:
   Lex_ident_db()
    :Lex_ident_fs(NULL, 0)
   { }
+  explicit Lex_ident_db(const LEX_CSTRING &str)
+   :Lex_ident_fs(str)
+  {
+    DBUG_SLOW_ASSERT(is_null() || is_empty() || !check_db_name());
+  }
   Lex_ident_db(const char *str, size_t length)
    :Lex_ident_fs(str, length)
   {
-    DBUG_SLOW_ASSERT(is_empty() || !check_db_name());
+    DBUG_SLOW_ASSERT(is_null() || is_empty() || !check_db_name());
   }
 };
 
@@ -91,6 +128,13 @@ public:
   {
     DBUG_SLOW_ASSERT(ok_for_lower_case_names());
   }
+};
+
+
+class Lex_ident_table: public Lex_ident_fs
+{
+public:
+  using Lex_ident_fs::Lex_ident_fs;
 };
 
 

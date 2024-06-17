@@ -62,14 +62,10 @@ my_bool safe_mutex_deadlock_detector= 1;        /* On by default */
 static struct st_safe_mutex_create_info_t *safe_mutex_create_root= NULL;
 #endif
 
-static my_bool add_used_to_locked_mutex(safe_mutex_t *used_mutex,
-                                        safe_mutex_deadlock_t *locked_mutex);
-static my_bool add_to_locked_mutex(safe_mutex_deadlock_t *locked_mutex,
-                                   safe_mutex_t *current_mutex);
-static my_bool remove_from_locked_mutex(safe_mutex_t *mp,
-                                        safe_mutex_t *delete_mutex);
-static my_bool remove_from_used_mutex(safe_mutex_deadlock_t *locked_mutex,
-                                      safe_mutex_t *mutex);
+static my_bool add_used_to_locked_mutex(void *used, void *locked);
+static my_bool add_to_locked_mutex(void *locked, void *current);
+static my_bool remove_from_locked_mutex(void *m, void* remove);
+static my_bool remove_from_used_mutex(void *locked, void *m);
 static void print_deadlock_warning(safe_mutex_t *new_mutex,
                                    safe_mutex_t *conflicting_mutex);
 #endif
@@ -375,8 +371,7 @@ int safe_mutex_lock(safe_mutex_t *mp, myf my_flags, const char *file,
             are now locking (C) in B->C, then we would add C into
             B->locked_mutex and A->locked_mutex
           */
-          my_hash_iterate(mutex_root->used_mutex,
-                          (my_hash_walk_action) add_used_to_locked_mutex,
+          my_hash_iterate(mutex_root->used_mutex, add_used_to_locked_mutex,
                           deadlock);
 
           /*
@@ -656,12 +651,8 @@ void safe_mutex_free_deadlock_data(safe_mutex_t *mp)
   if (!(mp->create_flags & MYF_NO_DEADLOCK_DETECTION) && mp->used_mutex != NULL)
   {
     pthread_mutex_lock(&THR_LOCK_mutex);
-    my_hash_iterate(mp->used_mutex,
-                    (my_hash_walk_action) remove_from_locked_mutex,
-                    mp);
-    my_hash_iterate(mp->locked_mutex,
-                    (my_hash_walk_action) remove_from_used_mutex,
-                    mp);
+    my_hash_iterate(mp->used_mutex, remove_from_locked_mutex, mp);
+    my_hash_iterate(mp->locked_mutex, remove_from_used_mutex, mp);
     pthread_mutex_unlock(&THR_LOCK_mutex);
 
     my_hash_free(mp->used_mutex);
@@ -712,15 +703,15 @@ void safe_mutex_end(FILE *file __attribute__((unused)))
 #endif /* SAFE_MUTEX_DETECT_DESTROY */
 }
 
-static my_bool add_used_to_locked_mutex(safe_mutex_t *used_mutex,
-                                        safe_mutex_deadlock_t *locked_mutex)
+static my_bool add_used_to_locked_mutex(void *used, void *locked)
 {
+  safe_mutex_t *used_mutex= used;
+  safe_mutex_deadlock_t *locked_mutex= locked;
   /* Add mutex to all parent of the current mutex */
   if (!locked_mutex->warning_only)
   {
     (void) my_hash_iterate(locked_mutex->mutex->locked_mutex,
-                           (my_hash_walk_action) add_to_locked_mutex,
-                           used_mutex);
+                           add_to_locked_mutex, used_mutex);
     /* mark that locked_mutex is locked after used_mutex */
     (void) add_to_locked_mutex(locked_mutex, used_mutex);
   }
@@ -732,12 +723,13 @@ static my_bool add_used_to_locked_mutex(safe_mutex_t *used_mutex,
    register that locked_mutex was locked after current_mutex
 */
 
-static my_bool add_to_locked_mutex(safe_mutex_deadlock_t *locked_mutex,
-                                   safe_mutex_t *current_mutex)
+static my_bool add_to_locked_mutex(void *locked, void *current)
 {
+  safe_mutex_deadlock_t *locked_mutex= locked;
+  safe_mutex_t *current_mutex= current;
   DBUG_ENTER("add_to_locked_mutex");
-  DBUG_PRINT("info", ("inserting 0x%lx  into  0x%lx  (id: %lu -> %lu)",
-                      (ulong) locked_mutex, (long) current_mutex,
+  DBUG_PRINT("info", ("inserting %p  into  %p  (id: %lu -> %lu)",
+                      locked_mutex, current_mutex,
                       locked_mutex->id, current_mutex->id));
   if (my_hash_insert(current_mutex->locked_mutex, (uchar*) locked_mutex))
   {
@@ -765,13 +757,14 @@ static my_bool add_to_locked_mutex(safe_mutex_deadlock_t *locked_mutex,
     When counter goes to 0, we delete the safe_mutex_deadlock_t entry.
 */
 
-static my_bool remove_from_locked_mutex(safe_mutex_t *mp,
-                                        safe_mutex_t *delete_mutex)
+static my_bool remove_from_locked_mutex(void *m, void *remove)
 {
+  safe_mutex_t *mp= m;
+  safe_mutex_t *delete_mutex= remove;
   safe_mutex_deadlock_t *found;
   DBUG_ENTER("remove_from_locked_mutex");
-  DBUG_PRINT("enter", ("delete_mutex: 0x%lx  mutex: 0x%lx  (id: %lu <- %lu)",
-                       (ulong) delete_mutex, (ulong) mp, 
+  DBUG_PRINT("enter", ("delete_mutex: %p  mutex: %p  (id: %lu <- %lu)",
+                       delete_mutex, mp,
                        delete_mutex->id, mp->id));
 
   found= (safe_mutex_deadlock_t *) my_hash_search(mp->locked_mutex,
@@ -790,12 +783,13 @@ static my_bool remove_from_locked_mutex(safe_mutex_t *mp,
   DBUG_RETURN(0);
 }
 
-static my_bool remove_from_used_mutex(safe_mutex_deadlock_t *locked_mutex,
-                                      safe_mutex_t *mutex)
+static my_bool remove_from_used_mutex(void *locked, void *m)
 {
+  safe_mutex_deadlock_t *locked_mutex= locked;
+  safe_mutex_t *mutex= m;
   DBUG_ENTER("remove_from_used_mutex");
-  DBUG_PRINT("enter", ("delete_mutex: 0x%lx  mutex: 0x%lx  (id: %lu <- %lu)",
-                       (ulong) mutex, (ulong) locked_mutex, 
+  DBUG_PRINT("enter", ("delete_mutex: %p  mutex: %p  (id: %lu <- %lu)",
+                       mutex, locked_mutex,
                        mutex->id, locked_mutex->id));
   if (my_hash_delete(locked_mutex->mutex->used_mutex, (uchar*) mutex))
   {

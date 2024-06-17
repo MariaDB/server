@@ -2060,4 +2060,11 @@ DROP TABLE t1;
 #
 CREATE TABLE t1 (id1 INT, id2 INT, primary key (id1), unique index (id2) visible);
 drop table t1;
+#
+# MDEV-32376 SHOW CREATE DATABASE statement crashes the server when db name contains some unicode characters, ASAN stack-buffer-overflow
+#
+SET NAMES utf8mb3;
+SHOW CREATE DATABASE `#testone#￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭`;
+ERROR 42000: Incorrect database name '#testone#￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭...'
+SET NAMES DEFAULT;
 # End of 10.5 Test

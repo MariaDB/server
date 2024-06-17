@@ -616,9 +616,10 @@ public:
   /** Reopen all files on set_write_through() or set_buffered(). */
   static void reopen_all();
   /** Try to close a file to adhere to the innodb_open_files limit.
+  @param ignore_space Ignore the tablespace which is acquired by caller
   @param print_info   whether to diagnose why a file cannot be closed
   @return whether a file was closed */
-  static bool try_to_close(bool print_info);
+  static bool try_to_close(fil_space_t *ignore_space, bool print_info);
 
   /** Close all tablespace files at shutdown */
   static void close_all();

@@ -614,7 +614,7 @@ void make_truncated_value_warning(THD *thd,
 bool date_add_interval(THD *thd, MYSQL_TIME *ltime, interval_type int_type,
                        const INTERVAL &interval, bool push_warn)
 {
-  long period, sign;
+  long sign;
 
   sign= (interval.neg == (bool)ltime->neg ? 1 : -1);
 
@@ -685,13 +685,17 @@ bool date_add_interval(THD *thd, MYSQL_TIME *ltime, interval_type int_type,
     break;
   }
   case INTERVAL_WEEK:
-    period= (calc_daynr(ltime->year,ltime->month,ltime->day) +
-             sign * (long) interval.day);
+  {
+    longlong period= calc_daynr(ltime->year, ltime->month, ltime->day) +
+                     (longlong) sign * (longlong) interval.day;
+    if (period < 0 || period > 0x7FFFFFFF)
+      goto invalid_date;
     /* Daynumber from year 0 to 9999-12-31 */
     if (get_date_from_daynr((long) period,&ltime->year,&ltime->month,
                             &ltime->day))
       goto invalid_date;
     break;
+  }
   case INTERVAL_YEAR:
     ltime->year+= sign * (long) interval.year;
     if ((ulong) ltime->year >= 10000L)
@@ -703,8 +707,9 @@ bool date_add_interval(THD *thd, MYSQL_TIME *ltime, interval_type int_type,
   case INTERVAL_YEAR_MONTH:
   case INTERVAL_QUARTER:
   case INTERVAL_MONTH:
-    period= (ltime->year*12 + sign * (long) interval.year*12 +
-	     ltime->month-1 + sign * (long) interval.month);
+  {
+    long period= (ltime->year*12 + sign * (long) interval.year*12 +
+	         ltime->month-1 + sign * (long) interval.month);
     if ((ulong) period >= 120000L)
       goto invalid_date;
     ltime->year= (uint) (period / 12);
@@ -717,6 +722,7 @@ bool date_add_interval(THD *thd, MYSQL_TIME *ltime, interval_type int_type,
 	ltime->day++;				// Leap-year
     }
     break;
+  }
   default:
     goto null_date;
   }

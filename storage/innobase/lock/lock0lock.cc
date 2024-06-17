@@ -1242,6 +1242,13 @@ lock_rec_create_low(
 		type_mode = type_mode & ~(LOCK_GAP | LOCK_REC_NOT_GAP);
 	}
 
+	/* Extra bitmap size in bytes over and above the current number of
+	records when a record lock is created. 8 x LOCK_PAGE_DEFAULT_BITMAP_SIZE
+	extra record locks of same type for newly inserted records can be added
+	without needing to create a new lock object. Useful when the number of
+	records in a page is growing. */
+	static constexpr size_t LOCK_PAGE_DEFAULT_BITMAP_SIZE = 8;
+
 	if (UNIV_LIKELY(!(type_mode & (LOCK_PREDICATE | LOCK_PRDT_PAGE)))) {
 		n_bytes = (page_dir_get_n_heap(page) + 7) / 8;
 	} else {
@@ -1270,13 +1277,19 @@ lock_rec_create_low(
 	ut_ad(trx->mutex_is_owner());
 	ut_ad(trx->state != TRX_STATE_NOT_STARTED);
 
+	auto cached_bytes = sizeof *trx->lock.rec_pool - sizeof *lock;
+
 	if (trx->lock.rec_cached >= UT_ARR_SIZE(trx->lock.rec_pool)
-	    || sizeof *lock + n_bytes > sizeof *trx->lock.rec_pool) {
+	    || n_bytes > cached_bytes) {
+		n_bytes += LOCK_PAGE_DEFAULT_BITMAP_SIZE;
 		lock = static_cast<lock_t*>(
 			mem_heap_alloc(trx->lock.lock_heap,
 				       sizeof *lock + n_bytes));
 	} else {
 		lock = &trx->lock.rec_pool[trx->lock.rec_cached++].lock;
+		/* Use all the extra bytes for lock bitmap. */
+		ut_ad(n_bytes <= cached_bytes);
+		n_bytes = cached_bytes;
 	}
 
 	lock->trx = trx;
@@ -1404,6 +1417,11 @@ lock_rec_find_similar_on_page(
 	const trx_t*    trx)            /*!< in: transaction */
 {
 	lock_sys.rec_hash.assert_locked(lock->un_member.rec_lock.page_id);
+	DBUG_EXECUTE_IF("innodb_skip_lock_bitmap", {
+		if (!trx->in_rollback) {
+			return nullptr;
+		}
+	});
 
 	for (/* No op */;
 	     lock != NULL;
@@ -5427,8 +5445,10 @@ static void lock_rec_block_validate(const page_id_t page_id)
 	}
 }
 
-static my_bool lock_validate_table_locks(rw_trx_hash_element_t *element, void*)
+
+static my_bool lock_validate_table_locks(void *el, void*)
 {
+  rw_trx_hash_element_t *element= static_cast<rw_trx_hash_element_t*>(el);
   lock_sys.assert_locked();
   element->mutex.wr_lock();
   if (element->trx)
@@ -5636,10 +5656,10 @@ struct lock_rec_other_trx_holds_expl_arg
 };
 
 
-static my_bool lock_rec_other_trx_holds_expl_callback(
-  rw_trx_hash_element_t *element,
-  lock_rec_other_trx_holds_expl_arg *arg)
+static my_bool lock_rec_other_trx_holds_expl_callback(void *el, void *a)
 {
+  auto element= static_cast<rw_trx_hash_element_t*>(el);
+  auto arg= static_cast<lock_rec_other_trx_holds_expl_arg*>(a);
   element->mutex.wr_lock();
   if (element->trx)
   {
@@ -6455,13 +6475,14 @@ dberr_t lock_trx_handle_wait(trx_t *trx)
 /**
   Do an exhaustive check for any locks (table or rec) against the table.
 
-  @param[in]  table  check if there are any locks held on records in this table
-                     or on the table itself
+  @param t  check if there are any locks held on records in this table
+            or on the table itself
 */
 
-static my_bool lock_table_locks_lookup(rw_trx_hash_element_t *element,
-                                       const dict_table_t *table)
+static my_bool lock_table_locks_lookup(void *el, void *t)
 {
+  auto element= static_cast<rw_trx_hash_element_t*>(el);
+  const dict_table_t *table= static_cast<const dict_table_t*>(t);
   lock_sys.assert_locked();
   element->mutex.wr_lock();
   if (element->trx)
@@ -6521,7 +6542,7 @@ bool lock_table_has_locks(dict_table_t *table)
   {
     LockMutexGuard g{SRW_LOCK_CALL};
     trx_sys.rw_trx_hash.iterate(lock_table_locks_lookup,
-                                const_cast<const dict_table_t*>(table));
+                                static_cast<void*>(table));
   }
 #endif /* UNIV_DEBUG */
   return false;

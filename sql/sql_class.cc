@@ -857,7 +857,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   my_hash_init(key_memory_user_var_entry, &user_vars, system_charset_info,
                USER_VARS_HASH_SIZE, 0, 0, (my_hash_get_key) get_var_key,
                (my_hash_free_key) free_user_var, HASH_THREAD_SPECIFIC);
-  my_hash_init(PSI_INSTRUMENT_ME, &sequences, system_charset_info,
+  my_hash_init(PSI_INSTRUMENT_ME, &sequences, Lex_ident_fs::charset_info(),
                SEQUENCES_HASH_SIZE, 0, 0, (my_hash_get_key)
                get_sequence_last_key, (my_hash_free_key) free_sequence_last,
                HASH_THREAD_SPECIFIC);
@@ -1494,7 +1494,8 @@ void THD::change_user(void)
   my_hash_init(key_memory_user_var_entry, &user_vars, system_charset_info,
                USER_VARS_HASH_SIZE, 0, 0, (my_hash_get_key) get_var_key,
                (my_hash_free_key) free_user_var, HASH_THREAD_SPECIFIC);
-  my_hash_init(key_memory_user_var_entry, &sequences, system_charset_info,
+  my_hash_init(key_memory_user_var_entry, &sequences,
+               Lex_ident_fs::charset_info(),
                SEQUENCES_HASH_SIZE, 0, 0, (my_hash_get_key)
                get_sequence_last_key, (my_hash_free_key) free_sequence_last,
                HASH_THREAD_SPECIFIC);
@@ -2546,6 +2547,8 @@ bool THD::copy_with_error(CHARSET_INFO *dstcs, LEX_STRING *dst,
                           CHARSET_INFO *srccs,
                           const char *src, size_t src_length) const
 {
+  // Don't allow NULL to avoid UB in the called functions: nullptr+0
+  DBUG_ASSERT(src);
   String_copier_with_error status;
   return copy_fix(dstcs, dst, srccs, src, src_length, &status) ||
          status.check_errors(srccs, src, src_length);
