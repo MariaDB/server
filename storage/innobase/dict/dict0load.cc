@@ -45,26 +45,6 @@ Created 4/24/1996 Heikki Tuuri
 #include "fts0opt.h"
 #include "row0vers.h"
 
-/** Loads a table definition and also all its index definitions.
-
-Loads those foreign key constraints whose referenced table is already in
-dictionary cache.  If a foreign key constraint is not loaded, then the
-referenced table is pushed into the output stack (fk_tables), if it is not
-NULL.  These tables must be subsequently loaded so that all the foreign
-key constraints are loaded into memory.
-
-@param[in]	name		Table name in the db/tablename format
-@param[in]	ignore_err	Error to be ignored when loading table
-				and its index definition
-@param[out]	fk_tables	Related table names that must also be
-				loaded to ensure that all foreign key
-				constraints are loaded.
-@return table, possibly with file_unreadable flag set
-@retval nullptr if the table does not exist */
-static dict_table_t *dict_load_table_one(const span<const char> &name,
-                                         dict_err_ignore_t ignore_err,
-                                         dict_names_t &fk_tables);
-
 /** Load an index definition from a SYS_INDEXES record to dict_index_t.
 @return	error message
 @retval	NULL on success */
@@ -2309,6 +2289,7 @@ dict_load_tablespace(
 	ut_free(filepath);
 }
 
+ATTRIBUTE_NOINLINE
 /** Loads a table definition and also all its index definitions.
 
 Loads those foreign key constraints whose referenced table is already in
@@ -2625,13 +2606,16 @@ dict_load_table_on_id(
 	dict_table_t* table = nullptr;
 
 	if (btr_pcur_open_on_user_rec(&tuple, BTR_SEARCH_LEAF, &pcur, &mtr)
-	    == DB_SUCCESS
-	    && btr_pcur_is_on_user_rec(&pcur)) {
+	    == DB_SUCCESS) {
 		/*---------------------------------------------------*/
 		/* Now we have the record in the secondary index
 		containing the table ID and NAME */
-		const rec_t* rec = btr_pcur_get_rec(&pcur);
 check_rec:
+		const rec_t* rec = btr_pcur_get_rec(&pcur);
+		if (!page_rec_is_user_rec(rec)) {
+			goto func_exit;
+		}
+
 		field = rec_get_nth_field_old(
 			rec, DICT_FLD__SYS_TABLE_IDS__ID, &len);
 		ut_ad(len == 8);
@@ -2643,22 +2627,17 @@ check_rec:
 			table = dict_sys.load_table(
 				{reinterpret_cast<const char*>(field),
 				 len}, ignore_err);
-			if (table && table->id != table_id) {
-				ut_ad(rec_get_deleted_flag(rec, 0));
+			if (!table || table->id != table_id) {
+				ut_ad(!table || rec_get_deleted_flag(rec, 0));
 				table = nullptr;
-			}
-			if (!table) {
-				while (btr_pcur_move_to_next(&pcur, &mtr)) {
-					rec = btr_pcur_get_rec(&pcur);
-
-					if (page_rec_is_user_rec(rec)) {
-						goto check_rec;
-					}
+				if (btr_pcur_move_to_next(&pcur, &mtr)) {
+					goto check_rec;
 				}
 			}
 		}
 	}
 
+func_exit:
 	mtr.commit();
 	return table;
 }
@@ -2683,7 +2662,7 @@ dict_load_sys_table(
 	mem_heap_free(heap);
 }
 
-MY_ATTRIBUTE((nonnull, warn_unused_result))
+MY_ATTRIBUTE((nonnull, warn_unused_result)) ATTRIBUTE_NOINLINE
 /********************************************************************//**
 Loads foreign key constraint col names (also for the referenced table).
 Members that must be set (and valid) in foreign:
@@ -2736,8 +2715,6 @@ static dberr_t dict_load_foreign_cols(dict_foreign_t *foreign, trx_id_t trx_id)
 		goto func_exit;
 	}
 	for (ulint i = 0; i < foreign->n_fields; i++) {
-		ut_a(btr_pcur_is_on_user_rec(&pcur));
-
 		const rec_t* rec = btr_pcur_get_rec(&pcur);
 		ulint len;
 		const byte* field = rec_get_nth_field_old(
