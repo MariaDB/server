@@ -89,9 +89,9 @@ print_where(COND *cond,const char *info, enum_query_type query_type)
 
 #ifdef EXTRA_DEBUG
 	/* This is for debugging purposes */
-static my_bool print_cached_tables_callback(TDC_element *element,
-                                            void *arg __attribute__((unused)))
+static my_bool print_cached_tables_callback(void *el, void*)
 {
+  TDC_element *element= static_cast<TDC_element*>(el);
   TABLE *entry;
 
   mysql_mutex_lock(&element->LOCK_table_share);

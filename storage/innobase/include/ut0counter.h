@@ -66,7 +66,7 @@ struct ib_counter_t {
 
 	/** Add to the counter.
 	@param[in]	n	amount to be added */
-	void add(Type n) { add(my_pseudo_random(), n); }
+	void add(Type n) { add(size_t(my_pseudo_random()), n); }
 
 	/** Add to the counter.
 	@param[in]	index	a reasonably thread-unique identifier
