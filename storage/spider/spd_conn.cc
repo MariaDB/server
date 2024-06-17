@@ -276,7 +276,6 @@ int spider_free_conn_alloc(
     conn->db_conn = NULL;
   }
   spider_conn_done(conn);
-  DBUG_ASSERT(!conn->mta_conn_mutex_file_pos.file_name);
   pthread_mutex_destroy(&conn->mta_conn_mutex);
   conn->default_database.free();
   DBUG_RETURN(0);
@@ -1441,10 +1440,6 @@ void spider_conn_clear_queue(
 ) {
   DBUG_ENTER("spider_conn_clear_queue");
   DBUG_PRINT("info", ("spider conn=%p", conn));
-/*
-  conn->queued_connect = FALSE;
-  conn->queued_ping = FALSE;
-*/
   conn->queued_trx_isolation = FALSE;
   conn->queued_semi_trx_isolation = FALSE;
   conn->queued_autocommit = FALSE;
@@ -2576,7 +2571,6 @@ void *spider_bg_conn_action(
           }
         }
         pthread_mutex_lock(&conn->mta_conn_mutex);
-        SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
         sql_type &= ~SPIDER_SQL_TYPE_TMP_SQL;
         DBUG_PRINT("info",("spider sql_type=%lu", sql_type));
 #ifdef HA_CAN_BULK_ACCESS
@@ -2672,10 +2666,8 @@ void *spider_bg_conn_action(
           DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
           conn->mta_conn_mutex_lock_already = FALSE;
           conn->mta_conn_mutex_unlock_later = FALSE;
-          SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
           pthread_mutex_unlock(&conn->mta_conn_mutex);
         } else {
-          SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
           pthread_mutex_unlock(&conn->mta_conn_mutex);
         }
       } else {
@@ -2753,7 +2745,6 @@ void *spider_bg_conn_action(
       spider = (ha_spider*) conn->bg_target;
       pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
       pthread_mutex_lock(&conn->mta_conn_mutex);
-      SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
       conn->need_mon = &spider->need_mons[conn->link_idx];
       DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
       DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
@@ -2769,7 +2760,6 @@ void *spider_bg_conn_action(
       DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
       conn->mta_conn_mutex_lock_already = FALSE;
       conn->mta_conn_mutex_unlock_later = FALSE;
-      SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
       pthread_mutex_unlock(&conn->mta_conn_mutex);
       conn->bg_exec_sql = FALSE;
       continue;
