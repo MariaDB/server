@@ -1185,7 +1185,6 @@ static int spider_send_query(
              SPIDER_SQL_TYPE_SELECT_SQL, link_idx, link_idx_chain)))
         DBUG_RETURN(error_num);
       pthread_mutex_lock(&conn->mta_conn_mutex);
-      SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
       conn->need_mon = &spider->need_mons[link_idx];
       DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
       DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
@@ -1199,7 +1198,6 @@ static int spider_send_query(
         DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
         conn->mta_conn_mutex_lock_already = FALSE;
         conn->mta_conn_mutex_unlock_later = FALSE;
-        SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
         pthread_mutex_unlock(&conn->mta_conn_mutex);
         if (spider->need_mons[link_idx])
           error_num = fields->ping_table_mon_from_table(link_idx_chain);
@@ -1257,7 +1255,6 @@ static int spider_send_query(
       } else
       {
         spider_db_discard_result(spider, link_idx, conn);
-        SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
         pthread_mutex_unlock(&conn->mta_conn_mutex);
       }
     }
