@@ -755,7 +755,7 @@ static void write_header(FILE *sql_file, const char *db_name)
   }
   else
   {
-    fprintf(sql_file, "/*!999999\\- enable the sandbox mode */ \n");
+    fprintf(sql_file, "/*M!999999\\- enable the sandbox mode */ \n");
     if (!opt_compact)
     {
       print_comment(sql_file, 0,
