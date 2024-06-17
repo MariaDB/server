@@ -17,6 +17,11 @@ SET NAMES utf8;
 SET @sql_log_bin = @@sql_log_bin;
 SET sql_log_bin = 0;
 
-CREATE DATABASE IF NOT EXISTS sys DEFAULT CHARACTER SET utf8;
+CREATE DATABASE IF NOT EXISTS sys DEFAULT CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci;
+
+-- If the database had existed, let's recreate its db.opt:
+-- * to fix it if it contained unexpected charset/collation values
+-- * to create it if it was removed in a mistake
+ALTER DATABASE sys CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci;
 
 USE sys;
