@@ -2122,60 +2122,84 @@ ATTRIBUTE_COLD void buf_flush_ahead(lsn_t lsn, bool furious)
 /** Conduct checkpoint-related flushing for innodb_flush_sync=ON,
 and try to initiate checkpoints until the target is met.
 @param lsn   minimum value of buf_pool.get_oldest_modification(LSN_MAX) */
-ATTRIBUTE_COLD static void buf_flush_sync_for_checkpoint(lsn_t lsn)
+ATTRIBUTE_COLD ATTRIBUTE_NOINLINE
+static void buf_flush_sync_for_checkpoint(lsn_t lsn)
 {
   ut_ad(!srv_read_only_mode);
   mysql_mutex_assert_not_owner(&buf_pool.flush_list_mutex);
 
-  for (;;)
+  /* During furious flush, we need to keep generating free pages. Otherwise
+  concurrent mtrs could be blocked holding latches for the pages to be flushed
+  causing deadlock in rare occasion.
+
+  Ideally we should be acquiring buffer pool mutex for the check but it is more
+  expensive and we are not using the mutex while calling need_LRU_eviction() as
+  of today. It is a quick and dirty read of the LRU and free list length.
+  Atomic read of try_LRU_scan should eventually let us do the eviction.
+  Correcting the inaccuracy would need more consideration to avoid any possible
+  performance regression. */
+  if (buf_pool.need_LRU_eviction())
   {
-    if (ulint n_flushed= buf_flush_list(srv_max_io_capacity, lsn))
-    {
-      MONITOR_INC_VALUE_CUMULATIVE(MONITOR_FLUSH_SYNC_TOTAL_PAGE,
-                                   MONITOR_FLUSH_SYNC_COUNT,
-                                   MONITOR_FLUSH_SYNC_PAGES, n_flushed);
-    }
-
-    fil_flush_file_spaces();
-
-    log_sys.latch.wr_lock(SRW_LOCK_CALL);
-    const lsn_t newest_lsn= log_sys.get_lsn();
     mysql_mutex_lock(&buf_pool.flush_list_mutex);
-    lsn_t measure= buf_pool.get_oldest_modification(0);
-    const lsn_t checkpoint_lsn= measure ? measure : newest_lsn;
-
-    if (!recv_recovery_is_on() &&
-        checkpoint_lsn > log_sys.last_checkpoint_lsn + SIZE_OF_FILE_CHECKPOINT)
-    {
-      mysql_mutex_unlock(&buf_pool.flush_list_mutex);
-      log_checkpoint_low(checkpoint_lsn, newest_lsn);
-      mysql_mutex_lock(&buf_pool.flush_list_mutex);
-      measure= buf_pool.get_oldest_modification(LSN_MAX);
-    }
-    else
-    {
-      log_sys.latch.wr_unlock();
-      if (!measure)
-        measure= LSN_MAX;
-    }
-
-    /* After attempting log checkpoint, check if we have reached our target. */
-    const lsn_t target= buf_flush_sync_lsn;
-
-    if (measure >= target)
-      buf_flush_sync_lsn= 0;
-    else if (measure >= buf_flush_async_lsn)
-      buf_flush_async_lsn= 0;
-
-    /* wake up buf_flush_wait() */
-    pthread_cond_broadcast(&buf_pool.done_flush_list);
+    buf_pool.page_cleaner_set_idle(false);
+    buf_pool.n_flush_inc();
     mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 
-    lsn= std::max(lsn, target);
+    mysql_mutex_lock(&buf_pool.mutex);
+    /* Confirm that eviction is needed after acquiring buffer pool mutex. */
+    if (buf_pool.need_LRU_eviction())
+      /* We intend to only evict pages keeping maximum flush bandwidth for
+      flush list pages advancing checkpoint. However, if the LRU tail is full
+      of dirty pages, we might need some flushing. */
+      std::ignore= buf_flush_LRU(srv_io_capacity);
+    mysql_mutex_unlock(&buf_pool.mutex);
 
-    if (measure >= lsn)
-      return;
+    mysql_mutex_lock(&buf_pool.flush_list_mutex);
+    buf_pool.n_flush_dec();
+    mysql_mutex_unlock(&buf_pool.flush_list_mutex);
   }
+
+  if (ulint n_flushed= buf_flush_list(srv_max_io_capacity, lsn))
+  {
+    MONITOR_INC_VALUE_CUMULATIVE(MONITOR_FLUSH_SYNC_TOTAL_PAGE,
+                                 MONITOR_FLUSH_SYNC_COUNT,
+                                 MONITOR_FLUSH_SYNC_PAGES, n_flushed);
+  }
+
+  fil_flush_file_spaces();
+
+  log_sys.latch.wr_lock(SRW_LOCK_CALL);
+  const lsn_t newest_lsn= log_sys.get_lsn();
+  mysql_mutex_lock(&buf_pool.flush_list_mutex);
+  lsn_t measure= buf_pool.get_oldest_modification(0);
+  const lsn_t checkpoint_lsn= measure ? measure : newest_lsn;
+
+  if (!recv_recovery_is_on() &&
+      checkpoint_lsn > log_sys.last_checkpoint_lsn + SIZE_OF_FILE_CHECKPOINT)
+  {
+    mysql_mutex_unlock(&buf_pool.flush_list_mutex);
+    log_checkpoint_low(checkpoint_lsn, newest_lsn);
+    mysql_mutex_lock(&buf_pool.flush_list_mutex);
+    measure= buf_pool.get_oldest_modification(LSN_MAX);
+  }
+  else
+  {
+    log_sys.latch.wr_unlock();
+    if (!measure)
+      measure= LSN_MAX;
+  }
+
+  /* After attempting log checkpoint, check if we have reached our target. */
+  const lsn_t target= buf_flush_sync_lsn;
+
+  if (measure >= target)
+    buf_flush_sync_lsn= 0;
+  else if (measure >= buf_flush_async_lsn)
+    buf_flush_async_lsn= 0;
+
+  /* wake up buf_flush_wait() */
+  pthread_cond_broadcast(&buf_pool.done_flush_list);
+  mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 }
 
 /** Check if the adpative flushing threshold is recommended based on
@@ -2389,6 +2413,10 @@ static void buf_flush_page_cleaner()
 
   for (;;)
   {
+    DBUG_EXECUTE_IF("ib_page_cleaner_sleep",
+    {
+      std::this_thread::sleep_for(std::chrono::seconds(1));
+    });
     lsn_limit= buf_flush_sync_lsn;
 
     if (UNIV_UNLIKELY(lsn_limit != 0) && UNIV_LIKELY(srv_flush_sync))

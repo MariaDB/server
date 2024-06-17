@@ -1132,11 +1132,18 @@ String *Item_func_json_extract::read_json(String *str,
         je= sav_je;
     }
 
-    for (int count= 0; count < count_path; count++)
+    if ((not_first_value && str->append(", ", 2)))
+      goto error;
+    while(count_path)
     {
-      if (str->append((const char *) value, v_len) ||
-          str->append(", ", 2))
-        goto error; /* Out of memory. */
+      if (str->append((const char *) value, v_len))
+        goto error;
+      count_path--;
+      if (count_path)
+      {
+        if (str->append(", ", 2))
+          goto error;
+      }
     }
 
     not_first_value= 1;
@@ -1158,11 +1165,6 @@ String *Item_func_json_extract::read_json(String *str,
     goto return_null;
   }
 
-  if (str->length()>2)
-  {
-    str->chop();
-    str->chop();
-  }
   if (possible_multiple_values && str->append(']'))
     goto error; /* Out of memory. */
 

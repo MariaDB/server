@@ -1,0 +1,22 @@
+--source include/have_sequence.inc
+
+--echo #
+--echo # MDEV-22935 Erroneous Aria Index / Optimizer behaviour
+--echo #
+
+create table t1 (a char(255), b datetime, primary key(a,b)) engine=aria transactional=0 pack_keys=0;
+insert into t1 select concat("hello world hello world", truncate(seq/100,0)),from_unixtime(seq+1) from seq_1_to_20000;
+
+let $i= 200;
+--disable_query_log
+while ($i)
+{
+  let $tmp= `select count(*) from t1 where a="hello world hello world$i" and b <= from_unixtime($i*100+1)`;
+  if (`SELECT $tmp != 1`)
+  {
+    --echo "Found $tmp rows, expected 1, for value $i"
+  }  
+  dec $i;
+}
+--enable_query_log
+drop table t1;

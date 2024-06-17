@@ -66,13 +66,16 @@ ATTRIBUTE_COLD void fil_space_t::set_corrupted() const
 }
 
 /** Try to close a file to adhere to the innodb_open_files limit.
+@param ignore_space Ignore the tablespace which is acquired by caller
 @param print_info   whether to diagnose why a file cannot be closed
 @return whether a file was closed */
-bool fil_space_t::try_to_close(bool print_info)
+bool fil_space_t::try_to_close(fil_space_t *ignore_space, bool print_info)
 {
   mysql_mutex_assert_owner(&fil_system.mutex);
   for (fil_space_t &space : fil_system.space_list)
   {
+    if (&space == ignore_space)
+      continue;
     switch (space.purpose) {
     case FIL_TYPE_TEMPORARY:
       continue;
@@ -324,7 +327,7 @@ fil_node_t* fil_space_t::add(const char* name, pfs_os_file_t handle,
 		clear_closing();
 		if (++fil_system.n_open >= srv_max_n_open_files) {
 			reacquire();
-			try_to_close(true);
+			try_to_close(this, true);
 			release();
 		}
 	}
@@ -381,7 +384,7 @@ static bool fil_node_open_file_low(fil_node_t *node)
 
     /* The following call prints an error message */
     if (os_file_get_last_error(true) == EMFILE + 100 &&
-        fil_space_t::try_to_close(true))
+        fil_space_t::try_to_close(nullptr, true))
       continue;
 
     ib::warn() << "Cannot open '" << node->name << "'.";
@@ -439,7 +442,7 @@ static bool fil_node_open_file(fil_node_t *node)
 
   for (ulint count= 0; fil_system.n_open >= srv_max_n_open_files; count++)
   {
-    if (fil_space_t::try_to_close(count > 1))
+    if (fil_space_t::try_to_close(nullptr, count > 1))
       count= 0;
     else if (count >= 2)
     {
@@ -2885,12 +2888,12 @@ fil_io_t fil_space_t::io(const IORequest &type, os_offset_t offset, size_t len,
 	}
 
 	DBUG_EXECUTE_IF("intermittent_recovery_failure",
-			if (type.is_read() && !(~get_rnd_value() & 0x3ff0))
+			if (type.is_read() && !(~my_timer_cycles() & 0x3ff0))
 			goto io_error;);
 
 	DBUG_EXECUTE_IF("intermittent_read_failure",
 			if (srv_was_started && type.is_read() &&
-			    !(~get_rnd_value() & 0x3ff0)) goto io_error;);
+			    !(~my_timer_cycles() & 0x3ff0)) goto io_error;);
 
 	if (UNIV_LIKELY_NULL(UT_LIST_GET_NEXT(chain, node))) {
 		ut_ad(this == fil_system.sys_space

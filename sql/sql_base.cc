@@ -254,9 +254,10 @@ public:
 };
 
 
-static my_bool list_open_tables_callback(TDC_element *element,
-                                         list_open_tables_arg *arg)
+static my_bool list_open_tables_callback(void *el, void *a)
 {
+  TDC_element *element= static_cast<TDC_element*>(el);
+  list_open_tables_arg *arg= static_cast<list_open_tables_arg*>(a);
   const Lex_ident_db
     db= Lex_ident_db(Lex_cstring_strlen((const char*) element->m_key));
   const char *table_name= db.str + db.length + 1;
@@ -304,8 +305,7 @@ OPEN_TABLE_LIST *list_open_tables(THD *thd,
   DBUG_ENTER("list_open_tables");
   list_open_tables_arg argument(thd, db, wild);
 
-  if (tdc_iterate(thd, (my_hash_walk_action) list_open_tables_callback,
-                  &argument, true))
+  if (tdc_iterate(thd, list_open_tables_callback, &argument, true))
     DBUG_RETURN(0);
 
   DBUG_RETURN(argument.open_list);
@@ -464,9 +464,10 @@ struct tc_collect_arg
   flush_tables_type flush_type;
 };
 
-static my_bool tc_collect_used_shares(TDC_element *element,
-                                      tc_collect_arg *arg)
+static my_bool tc_collect_used_shares(void *el, void *a)
 {
+  TDC_element *element= static_cast<TDC_element*>(el);
+  tc_collect_arg *arg= static_cast<tc_collect_arg*>(a);
   my_bool result= FALSE;
 
   DYNAMIC_ARRAY *shares= &arg->shares;
@@ -576,8 +577,7 @@ bool flush_tables(THD *thd, flush_tables_type flag)
   my_init_dynamic_array(PSI_INSTRUMENT_ME, &collect_arg.shares,
                         sizeof(TABLE_SHARE*), 100, 100, MYF(0));
   collect_arg.flush_type= flag;
-  if (tdc_iterate(thd, (my_hash_walk_action) tc_collect_used_shares,
-                  &collect_arg, true))
+  if (tdc_iterate(thd, tc_collect_used_shares, &collect_arg, true))
   {
     /* Release already collected shares */
     for (uint i= 0 ; i < collect_arg.shares.elements ; i++)

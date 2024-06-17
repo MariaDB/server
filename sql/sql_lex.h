@@ -3925,7 +3925,8 @@ public:
   int case_stmt_action_then();
   bool setup_select_in_parentheses();
   bool set_names(const char *pos,
-                 const Lex_exact_charset_opt_extended_collate &cs,
+                 CHARSET_INFO *cs,
+                 const Lex_extended_collation_st &coll,
                  bool no_lookahead);
   bool set_trigger_new_row(const LEX_CSTRING *name, Item *val);
   bool set_trigger_field(const LEX_CSTRING *name1, const LEX_CSTRING *name2,

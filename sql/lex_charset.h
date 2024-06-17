@@ -288,6 +288,12 @@ public:
     DBUG_ASSERT(0);
     return m_ci->coll_name;
   }
+  static Lex_extended_collation_st collate_default()
+  {
+    Lex_extended_collation_st res;
+    res.set_collate_default();
+    return res;
+  }
   void set_collate_default()
   {
     m_ci= &my_collation_contextually_typed_default;

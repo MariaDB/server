@@ -614,7 +614,10 @@ struct export_var_t{
 	ulong innodb_undo_truncations;
 
 	/** Number of instant ALTER TABLE operations that affect columns */
-	ulong innodb_instant_alter_column;
+	Atomic_counter<ulint> innodb_instant_alter_column;
+
+	/* Number of InnoDB bulk operations */
+	Atomic_counter<ulint> innodb_bulk_operations;
 
 	ulint innodb_onlineddl_rowlog_rows;	/*!< Online alter rows */
 	ulint innodb_onlineddl_rowlog_pct_used; /*!< Online alter percentage

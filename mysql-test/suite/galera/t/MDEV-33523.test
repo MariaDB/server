@@ -1,0 +1,11 @@
+#
+# MDEV-33523: Spurious deadlock error when wsrep_on=OFF
+#
+--source include/galera_cluster.inc
+
+SET SESSION wsrep_on=OFF;
+BEGIN;
+# If bug is present, the following rollback
+# results in ER_LOCK_DEADLOCK error.
+ROLLBACK;
+SET SESSION wsrep_on=OFF;

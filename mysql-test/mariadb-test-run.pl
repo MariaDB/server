@@ -339,7 +339,11 @@ my $opt_max_test_fail= env_or_val(MTR_MAX_TEST_FAIL => 10);
 my $opt_core_on_failure= 0;
 
 my $opt_parallel= $ENV{MTR_PARALLEL} || 1;
-my $opt_port_group_size = $ENV{MTR_PORT_GROUP_SIZE} || 20;
+# Some galera tests starts 6 galera nodes. Each galera node requires
+# three ports: 6*3 = 18. Plus 6 ports are needed for 6 mariadbd servers.
+# Since the number of ports is rounded up to 10 everywhere, we will
+# take 30 as the default value:
+my $opt_port_group_size = $ENV{MTR_PORT_GROUP_SIZE} || 30;
 
 # lock file to stop tests
 my $opt_stop_file= $ENV{MTR_STOP_FILE};
@@ -5586,6 +5590,8 @@ sub start_check_testcase ($$$) {
     mtr_add_arg($args, "--record");
   }
   my $errfile= "$opt_vardir/tmp/$name.err";
+
+  My::Debugger::setup_client_args(\$args, \$exe_mysqltest);
   my $proc= My::SafeProcess->new
     (
      name          => $name,

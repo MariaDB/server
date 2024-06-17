@@ -94,27 +94,43 @@ select * from t1;
 --disconnect node_2b
 
 #
-# Test case 5: Start a transaction on node_2a with wsrep disabled 
-# and start a DDL on other transaction that will then abort node_2a
-# transactions
+# Test case 5: Start a transaction on node_2a with wsrep disabled.
+# A conflicting DDL on other transaction can't BF abort
+# transaction from node_2a (wsrep disabled).
 #
 
 --connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
+--connect node_2b, 127.0.0.1, root, , test, $NODE_MYPORT_2
 --connection node_2a
 SET SESSION wsrep_on=OFF;
 begin;
 update t1 set a =5, b=2;
 
 --connection node_2
-ALTER TABLE t1 ADD UNIQUE KEY b3(b);
+--send ALTER TABLE t1 ADD UNIQUE KEY b3(b)
 
+--connection node_2b
+SET SESSION wsrep_sync_wait=0;
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE = 'Waiting for table metadata lock';
+--source include/wait_condition.inc
+
+--connection node_2a
 select * from t1;
 
+# We expect that ALTER should not be able to BF abort
+# this transaction, it must wait for it to finish.
+# Expect commit to succeed.
+commit;
+
+--connection node_2
+--reap
+
 --disconnect node_2a
+--disconnect node_2b
 
 #
-# Test case 6: Start a transaction on node_2a with wsrep disabled 
-# and kill it from other connection on same node
+# Test case 6: Start a transaction on node_2a with wsrep disabled
+# and kill it from other connection on same node.
 #
 
 --connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
