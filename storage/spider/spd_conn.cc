@@ -17,7 +17,6 @@
 #define MYSQL_SERVER 1
 #include <my_global.h>
 #include "mysql_version.h"
-#include "spd_environ.h"
 #include "sql_priv.h"
 #include "probes_mysql.h"
 #include "sql_class.h"
@@ -3003,32 +3002,6 @@ void *spider_bg_sts_action(
             trx, &spider, FALSE, FALSE, SPIDER_CONN_KIND_MYSQL,
             &error_num);
           conns[spider.search_link_idx]->error_mode = 0;
-/*
-          if (
-            error_num &&
-            share->monitoring_kind[spider.search_link_idx] &&
-            need_mons[spider.search_link_idx]
-          ) {
-            lex_start(thd);
-            error_num = spider_ping_table_mon_from_table(
-                trx,
-                thd,
-                share,
-                spider.search_link_idx,
-                (uint32) share->monitoring_sid[spider.search_link_idx],
-                share->table_name,
-                share->table_name_length,
-                spider.conn_link_idx[spider.search_link_idx],
-                NULL,
-                0,
-                share->monitoring_kind[spider.search_link_idx],
-                share->monitoring_limit[spider.search_link_idx],
-                share->monitoring_flag[spider.search_link_idx],
-                TRUE
-              );
-            lex_end(thd->lex);
-          }
-*/
           spider.search_link_idx = -1;
         }
         if (spider.search_link_idx != -1 && conns[spider.search_link_idx])
@@ -3039,31 +3012,6 @@ void *spider_bg_sts_action(
             share->bg_sts_sync,
             2, HA_STATUS_CONST | HA_STATUS_VARIABLE))
           {
-/*
-            if (
-              share->monitoring_kind[spider.search_link_idx] &&
-              need_mons[spider.search_link_idx]
-            ) {
-              lex_start(thd);
-              error_num = spider_ping_table_mon_from_table(
-                  trx,
-                  thd,
-                  share,
-                  spider.search_link_idx,
-                  (uint32) share->monitoring_sid[spider.search_link_idx],
-                  share->table_name,
-                  share->table_name_length,
-                  spider.conn_link_idx[spider.search_link_idx],
-                  NULL,
-                  0,
-                  share->monitoring_kind[spider.search_link_idx],
-                  share->monitoring_limit[spider.search_link_idx],
-                  share->monitoring_flag[spider.search_link_idx],
-                  TRUE
-                );
-              lex_end(thd->lex);
-            }
-*/
             spider.search_link_idx = -1;
           }
         }
@@ -3306,12 +3254,6 @@ void *spider_bg_crd_action(
     if (spider.search_link_idx < 0)
     {
       spider_trx_set_link_idx_for_all(&spider);
-/*
-      spider.search_link_idx = spider_conn_next_link_idx(
-        thd, share->link_statuses, share->access_balances,
-        spider.conn_link_idx, spider.search_link_idx, share->link_count,
-        SPIDER_LINK_STATUS_OK);
-*/
       spider.search_link_idx = spider_conn_first_link_idx(thd,
         share->link_statuses, share->access_balances, spider.conn_link_idx,
         share->link_count, SPIDER_LINK_STATUS_OK);
@@ -3328,32 +3270,6 @@ void *spider_bg_crd_action(
             trx, &spider, FALSE, FALSE, SPIDER_CONN_KIND_MYSQL,
             &error_num);
           conns[spider.search_link_idx]->error_mode = 0;
-/*
-          if (
-            error_num &&
-            share->monitoring_kind[spider.search_link_idx] &&
-            need_mons[spider.search_link_idx]
-          ) {
-            lex_start(thd);
-            error_num = spider_ping_table_mon_from_table(
-                trx,
-                thd,
-                share,
-                spider.search_link_idx,
-                (uint32) share->monitoring_sid[spider.search_link_idx],
-                share->table_name,
-                share->table_name_length,
-                spider.conn_link_idx[spider.search_link_idx],
-                NULL,
-                0,
-                share->monitoring_kind[spider.search_link_idx],
-                share->monitoring_limit[spider.search_link_idx],
-                share->monitoring_flag[spider.search_link_idx],
-                TRUE
-              );
-            lex_end(thd->lex);
-          }
-*/
           spider.search_link_idx = -1;
         }
         if (spider.search_link_idx != -1 && conns[spider.search_link_idx])
@@ -3364,31 +3280,6 @@ void *spider_bg_crd_action(
             share->bg_crd_sync,
             2))
           {
-/*
-            if (
-              share->monitoring_kind[spider.search_link_idx] &&
-              need_mons[spider.search_link_idx]
-            ) {
-              lex_start(thd);
-              error_num = spider_ping_table_mon_from_table(
-                  trx,
-                  thd,
-                  share,
-                  spider.search_link_idx,
-                  (uint32) share->monitoring_sid[spider.search_link_idx],
-                  share->table_name,
-                  share->table_name_length,
-                  spider.conn_link_idx[spider.search_link_idx],
-                  NULL,
-                  0,
-                  share->monitoring_kind[spider.search_link_idx],
-                  share->monitoring_limit[spider.search_link_idx],
-                  share->monitoring_flag[spider.search_link_idx],
-                  TRUE
-                );
-              lex_end(thd->lex);
-            }
-*/
             spider.search_link_idx = -1;
           }
         }
@@ -3693,17 +3584,11 @@ void *spider_bg_mon_action(
         share->monitoring_bg_interval[link_idx] * 1000);
       pthread_cond_timedwait(&share->bg_mon_sleep_conds[link_idx],
         &share->bg_mon_mutexes[link_idx], &abstime);
-/*
-      my_sleep((ulong) share->monitoring_bg_interval[link_idx]);
-*/
     }
     DBUG_PRINT("info",("spider bg mon roop start"));
     if (share->bg_mon_kill)
     {
       DBUG_PRINT("info",("spider bg mon kill start"));
-/*
-      pthread_mutex_lock(&share->bg_mon_mutexes[link_idx]);
-*/
       pthread_cond_signal(&share->bg_mon_conds[link_idx]);
       pthread_mutex_unlock(&share->bg_mon_mutexes[link_idx]);
       spider_free_trx(trx, TRUE);
