@@ -274,6 +274,8 @@ private:
   std::atomic<lsn_t> resize_lsn;
   /** the log sequence number at the start of the log file */
   lsn_t first_lsn;
+  /** write block size - 1 during the previous write_buf() */
+  uint32_t old_block_size_1;
 #if defined __linux__ || defined _WIN32
   /** The physical block size of the storage */
   uint32_t block_size;
@@ -368,9 +370,14 @@ public:
   inline void resize_write(lsn_t lsn, const byte *end,
                            size_t len, size_t seq) noexcept;
 
-  /** Write resize_buf to resize_log.
-  @param length  the used length of resize_buf */
-  ATTRIBUTE_COLD void resize_write_buf(size_t length) noexcept;
+private:
+  ATTRIBUTE_COLD ATTRIBUTE_NOINLINE
+  /** Write to resize_log.
+  @param buf             resize_buf or resize_flush_buf
+  @param length          the used length of resize_buf */
+  void resize_write_buf(const byte *buf, size_t length)
+    noexcept;
+public:
 
   /** Rename a log file after resizing.
   @return whether an error occurred */
@@ -402,6 +409,11 @@ public:
   bool attach(log_file_t file, os_offset_t size)
   { attach_low(file, size); return true; }
 #endif
+
+  /** Update innodb_log_write_ahead_size
+  @param size   the requested size
+  @return whether the size was assigned as is */
+  bool set_write_ahead_size(size_t size);
 
 #if defined __linux__ || defined _WIN32
   /** Try to enable or disable file system caching (update log_buffered) */

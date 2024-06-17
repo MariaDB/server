@@ -151,6 +151,7 @@ at startup (while disallowing writes to the redo log). */
 ulonglong	srv_log_file_size;
 /** innodb_flush_log_at_trx_commit */
 ulong		srv_flush_log_at_trx_commit;
+uint innodb_log_write_ahead_size;
 /** innodb_flush_log_at_timeout */
 uint		srv_flush_log_at_timeout;
 /** innodb_page_size */

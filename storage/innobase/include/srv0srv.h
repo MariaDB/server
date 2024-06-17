@@ -219,6 +219,7 @@ extern char*	srv_log_group_home_dir;
 at startup (while disallowing writes to the redo log). */
 extern ulonglong	srv_log_file_size;
 extern ulong	srv_flush_log_at_trx_commit;
+extern uint	innodb_log_write_ahead_size;
 extern uint	srv_flush_log_at_timeout;
 extern my_bool	srv_adaptive_flushing;
 extern my_bool	srv_flush_sync;

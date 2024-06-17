@@ -321,6 +321,7 @@ void log_t::create(lsn_t lsn) noexcept
   this->flushed_to_disk_lsn.store(lsn, std::memory_order_relaxed);
   first_lsn= lsn;
   write_lsn= lsn;
+  old_block_size_1= 0;
 
   last_checkpoint_lsn= 0;
 
@@ -408,6 +409,20 @@ void log_resize_release()
   }
 }
 
+bool log_t::set_write_ahead_size(size_t size)
+{
+  ut_ad(size >= 512);
+  ut_ad(size <= log_sys.buf_size);
+
+  latch.rd_lock(SRW_LOCK_CALL);
+  const bool is_valid= ut_is_2pow(size) &&
+    !((size_t(file_size) | size_t(resize_target)) & (size - 1));
+  if (is_valid)
+    innodb_log_write_ahead_size= uint(size);
+  latch.rd_unlock();
+  return is_valid;
+}
+
 #if defined __linux__ || defined _WIN32
 /** Try to enable or disable file system caching (update log_buffered) */
 void log_t::set_buffered(bool buffered)
@@ -467,6 +482,8 @@ log_t::resize_start_status log_t::resize_start(os_offset_t size) noexcept
                           OS_FILE_NORMAL, OS_LOG_FILE, false, &success);
     if (success)
     {
+      ut_ad(!((size_t(file_size) | size_t(resize_target)) &
+              (innodb_log_write_ahead_size - 1)));
       log_resize_release();
 
       void *ptr= nullptr, *ptr2= nullptr;
@@ -510,6 +527,10 @@ log_t::resize_start_status log_t::resize_start(os_offset_t size) noexcept
       }
       else
       {
+        uint32_t bs= innodb_log_write_ahead_size;
+        while (size & (bs - 1))
+          bs>>= 1;
+        innodb_log_write_ahead_size= bs;
         resize_target= size;
         resize_buf= static_cast<byte*>(ptr);
         resize_flush_buf= static_cast<byte*>(ptr2);
@@ -522,7 +543,7 @@ log_t::resize_start_status log_t::resize_start(os_offset_t size) noexcept
         {
           memcpy_aligned<16>(resize_buf, buf, (buf_free + 15) & ~15);
           start_lsn= first_lsn +
-            (~lsn_t{get_block_size() - 1} & (write_lsn - first_lsn));
+            (~lsn_t{old_block_size_1} & (write_lsn - first_lsn));
         }
       }
       resize_lsn.store(start_lsn, std::memory_order_relaxed);
@@ -578,32 +599,29 @@ void log_t::resize_abort() noexcept
 
 /** Write an aligned buffer to ib_logfile0.
 @param buf    buffer to be written
-@param len    length of data to be written
+@param length length of data to be written
 @param offset log file offset */
-static void log_write_buf(const byte *buf, size_t len, lsn_t offset)
+static void log_write_buf(const byte *buf, size_t length, lsn_t offset)
 {
   ut_ad(write_lock.is_owner());
   ut_ad(!recv_no_log_write);
   ut_d(const size_t block_size_1= log_sys.get_block_size() - 1);
   ut_ad(!(offset & block_size_1));
-  ut_ad(!(len & block_size_1));
+  ut_ad(!(length & block_size_1));
   ut_ad(!(size_t(buf) & block_size_1));
-  ut_ad(len);
+  ut_ad(length);
 
-  if (UNIV_LIKELY(offset + len <= log_sys.file_size))
+  const lsn_t maximum_write_length{log_sys.file_size - offset};
+
+  if (UNIV_UNLIKELY(length > maximum_write_length))
   {
-write:
-    log_sys.log.write(offset, {buf, len});
-    return;
+    log_sys.log.write(offset, {buf, size_t(maximum_write_length)});
+    length-= size_t(maximum_write_length);
+    buf+= size_t(maximum_write_length);
+    ut_ad(log_sys.START_OFFSET + length < offset);
+    offset= log_sys.START_OFFSET;
   }
-
-  const size_t write_len= size_t(log_sys.file_size - offset);
-  log_sys.log.write(offset, {buf, write_len});
-  len-= write_len;
-  buf+= write_len;
-  ut_ad(log_sys.START_OFFSET + len < offset);
-  offset= log_sys.START_OFFSET;
-  goto write;
+  log_sys.log.write(offset, {buf, length});
 }
 
 /** Invoke commit_checkpoint_notify_ha() to notify that outstanding
@@ -778,31 +796,33 @@ inline void log_t::persist(lsn_t lsn) noexcept
 }
 #endif
 
-/** Write resize_buf to resize_log.
-@param length  the used length of resize_buf */
-ATTRIBUTE_COLD void log_t::resize_write_buf(size_t length) noexcept
+ATTRIBUTE_COLD ATTRIBUTE_NOINLINE
+/** Write to resize_log.
+@param buf             resize_buf or resize_flush_buf
+@param length          the used length of resize_buf */
+void log_t::resize_write_buf(const byte *buf, size_t length) noexcept
 {
-  const size_t block_size_1= get_block_size() - 1;
-  ut_ad(!(resize_target & block_size_1));
-  ut_ad(!(length & block_size_1));
-  ut_ad(length > block_size_1);
+  ut_ad(!(resize_target & old_block_size_1));
+  ut_ad(!(length & old_block_size_1));
+  ut_ad(length > old_block_size_1);
   ut_ad(length <= resize_target);
+  ut_ad(buf == (length > old_block_size_1 + 1
+                ? resize_flush_buf : resize_buf));
   const lsn_t resizing{resize_in_progress()};
   ut_ad(resizing <= write_lsn);
   lsn_t offset= START_OFFSET +
-    ((write_lsn - resizing) & ~lsn_t{block_size_1}) %
-    (resize_target - START_OFFSET);
+    ((write_lsn - resizing) & ~lsn_t{old_block_size_1});
 
   if (UNIV_UNLIKELY(offset + length > resize_target))
   {
     offset= START_OFFSET;
     resize_lsn.store(first_lsn +
-                     (~lsn_t{block_size_1} & (write_lsn - first_lsn)),
+                     (~lsn_t{old_block_size_1} & (write_lsn - first_lsn)),
                      std::memory_order_relaxed);
   }
 
   ut_a(os_file_write_func(IORequestWrite, "ib_logfile101", resize_log.m_file,
-                          resize_flush_buf, offset, length) == DB_SUCCESS);
+                          buf, offset, length) == DB_SUCCESS);
 }
 
 /** Write buf to ib_logfile0.
@@ -824,64 +844,112 @@ template<bool release_latch> inline lsn_t log_t::write_buf() noexcept
   }
   else
   {
+    ut_ad(write_lock.is_owner());
     ut_ad(!recv_no_log_write);
     write_lock.set_pending(lsn);
     ut_ad(write_lsn >= get_flushed_lsn());
     const size_t block_size_1{get_block_size() - 1};
-    lsn_t offset{calc_lsn_offset(write_lsn) & ~lsn_t{block_size_1}};
-
-    DBUG_PRINT("ib_log", ("write " LSN_PF " to " LSN_PF " at " LSN_PF,
-                          write_lsn, lsn, offset));
-    const byte *write_buf{buf};
-    size_t length{buf_free};
-    ut_ad(length >= (calc_lsn_offset(write_lsn) & block_size_1));
-    const size_t new_buf_free{length & block_size_1};
-    buf_free= new_buf_free;
-    ut_ad(new_buf_free == ((lsn - first_lsn) & block_size_1));
-
-    if (new_buf_free)
+    size_t write_size_1{innodb_log_write_ahead_size - 1};
+    ut_ad(ut_is_2pow(write_size_1 + 1));
+    ut_ad(write_size_1 >= block_size_1);
+    size_t length{buf_free.load(std::memory_order_relaxed)};
+    lsn_t offset{calc_lsn_offset(write_lsn)};
+    ut_ad(length >= (offset & block_size_1));
     {
-#if 0 /* TODO: Pad the last log block with dummy records. */
-      buf_free= log_pad(lsn, get_block_size() - new_buf_free,
-                        buf + new_buf_free, flush_buf);
-      ... /* TODO: Update the LSN and adjust other code. */
-#else
-      /* The rest of the block will be written as garbage.
-      (We want to avoid memset() while holding exclusive log_sys.latch)
-      This block will be overwritten later, once records beyond
-      the current LSN are generated. */
-# ifdef HAVE_valgrind
-      MEM_MAKE_DEFINED(buf + length, get_block_size() - new_buf_free);
-      if (UNIV_LIKELY_NULL(resize_flush_buf))
-        MEM_MAKE_DEFINED(resize_buf + length, get_block_size() - new_buf_free);
-# endif
-      buf[length]= 0; /* allow recovery to catch EOF faster */
-      length&= ~block_size_1;
-      memcpy_aligned<16>(flush_buf, buf + length, (new_buf_free + 15) & ~15);
-      if (UNIV_LIKELY_NULL(resize_flush_buf))
-        memcpy_aligned<16>(resize_flush_buf, resize_buf + length,
-                           (new_buf_free + 15) & ~15);
-      length+= get_block_size();
-#endif
+      const size_t mask{(length ^ (size_t(lsn) - size_t(first_lsn))) |
+                        (size_t(offset) &
+                         ~size_t{old_block_size_1 ? old_block_size_1 : 511})};
+      while (write_size_1 & mask)
+        write_size_1>>= 1;
+    }
+    ut_ad(write_size_1 >= block_size_1);
+    if (UNIV_UNLIKELY(write_size_1 < old_block_size_1))
+    {
+      /* The write unit size is being reduced. Discard a part of the buffer
+      that may already have been written out using this smaller size. */
+      ssize_t old_buf_free= length - size_t(lsn - write_lsn);
+      if (old_buf_free > ssize_t(write_size_1))
+      {
+        size_t written= (size_t(old_buf_free) + write_size_1) & ~write_size_1;
+        length-= written;
+        memmove_aligned<512>(buf, buf + written, length);
+        if (resize_buf)
+          memmove_aligned<512>(resize_buf, resize_buf + written, length);
+      }
     }
 
-    std::swap(buf, flush_buf);
-    std::swap(resize_buf, resize_flush_buf);
+    const byte *const write_buf{buf};
+    const byte *const rbuf{resize_buf};
+    offset&= ~lsn_t{write_size_1};
+
+    if (length <= write_size_1)
+    {
+      /* Keep filling the same buffer until we have more than one block. */
+#if 0 /* TODO: Pad the last log block with dummy records. */
+      buf_free= log_pad(lsn, (write_size_1 + 1) - length,
+                        buf + length, flush_buf);
+      ... /* TODO: Update the LSN and adjust other code. */
+#else
+# ifdef HAVE_valgrind
+      MEM_MAKE_DEFINED(buf + length, (write_size_1 + 1) - length);
+      if (UNIV_LIKELY_NULL(rbuf))
+        MEM_MAKE_DEFINED(rbuf + length, (write_size_1 + 1) - length);
+# endif
+      buf[length]= 0; /* allow recovery to catch EOF faster */
+#endif
+      length= write_size_1 + 1;
+    }
+    else
+    {
+      const size_t new_buf_free{length & write_size_1};
+      ut_ad(new_buf_free == ((lsn - first_lsn) & write_size_1));
+      buf_free.store(new_buf_free, std::memory_order_relaxed);
+
+      if (new_buf_free)
+      {
+        /* The rest of the block will be written as garbage.
+        (We want to avoid memset() while holding exclusive log_sys.latch)
+        This block will be overwritten later, once records beyond
+        the current LSN are generated. */
+#ifdef HAVE_valgrind
+          MEM_MAKE_DEFINED(buf + length, (write_size_1 + 1) - new_buf_free);
+        if (UNIV_LIKELY_NULL(resize_buf))
+          MEM_MAKE_DEFINED(resize_buf + length, (write_size_1 + 1) -
+                           new_buf_free);
+#endif
+        buf[length]= 0; /* allow recovery to catch EOF faster */
+        length&= ~write_size_1;
+        memcpy_aligned<16>(flush_buf, buf + length, (new_buf_free + 15) & ~15);
+        if (UNIV_LIKELY_NULL(resize_buf))
+          memcpy_aligned<16>(resize_flush_buf, resize_buf + length,
+                             (new_buf_free + 15) & ~15);
+        length+= write_size_1 + 1;
+      }
+
+      std::swap(buf, flush_buf);
+      std::swap(resize_buf, resize_flush_buf);
+    }
+
+    old_block_size_1= uint32_t(write_size_1);
     write_to_log++;
     if (release_latch)
       latch.wr_unlock();
+
+    DBUG_PRINT("ib_log", ("write " LSN_PF " to " LSN_PF " at " LSN_PF,
+                          write_lsn, lsn, offset));
+
+    /* Do the write to the log file */
+    log_write_buf(write_buf, length, offset);
+
+    if (UNIV_LIKELY_NULL(rbuf))
+      resize_write_buf(rbuf, length);
+    write_lsn= lsn;
 
     if (UNIV_UNLIKELY(srv_shutdown_state > SRV_SHUTDOWN_INITIATED))
     {
       service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
                                      "InnoDB log write: " LSN_PF, write_lsn);
     }
-
-    /* Do the write to the log file */
-    log_write_buf(write_buf, length, offset);
-    if (UNIV_LIKELY_NULL(resize_buf))
-      resize_write_buf(length);
-    write_lsn= lsn;
   }
 
   set_check_for_checkpoint(false);
