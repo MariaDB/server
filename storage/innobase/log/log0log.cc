@@ -870,7 +870,7 @@ template<bool release_latch> inline lsn_t log_t::write_buf() noexcept
       ssize_t old_buf_free= length - size_t(lsn - write_lsn);
       if (old_buf_free > ssize_t(write_size_1))
       {
-        size_t written= (size_t(old_buf_free) + write_size_1) & ~write_size_1;
+        const size_t written{size_t(old_buf_free) & ~write_size_1};
         length-= written;
         memmove_aligned<512>(buf, buf + written, length);
         if (resize_buf)
