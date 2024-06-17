@@ -52,7 +52,7 @@ int spider_udf_set_copy_tables_param_default(
     copy_tables->database_length = SPIDER_THD_db_length(copy_tables->trx->thd);
     if (
       !(copy_tables->database = spider_create_string(
-        SPIDER_THD_db_str(copy_tables->trx->thd),
+        copy_tables->trx->thd->get_db(),
         copy_tables->database_length))
     ) {
       my_error(ER_OUT_OF_RESOURCES, MYF(0), HA_ERR_OUT_OF_MEM);

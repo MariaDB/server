@@ -5039,7 +5039,7 @@ public:
     */
     return Lex_ident_db_normalized(ident);
   }
-  /* Get db name or "". Use for printing current db */
+  /* Get db name or "". */
   const char *get_db()
   { return safe_str(db.str); }
 
