@@ -66,6 +66,7 @@ enum {
 #include "que0types.h"
 #include "row0types.h"
 
+#define btr_cur_get_page(cursor) ((cursor)->block()->page.frame)
 #define btr_cur_get_page_cur(cursor)	(&(cursor)->page_cur)
 #define btr_cur_get_block(cursor)	((cursor)->page_cur.block)
 #define btr_cur_get_rec(cursor)	((cursor)->page_cur.rec)
@@ -77,14 +78,6 @@ UNIV_INLINE
 page_zip_des_t*
 btr_cur_get_page_zip(
 /*=================*/
-	btr_cur_t*	cursor);/*!< in: tree cursor */
-/*********************************************************//**
-Returns the page of a tree cursor.
-@return pointer to page */
-UNIV_INLINE
-page_t*
-btr_cur_get_page(
-/*=============*/
 	btr_cur_t*	cursor);/*!< in: tree cursor */
 /*********************************************************//**
 Returns the index of a cursor.

@@ -469,14 +469,14 @@ public:
     MY_ATTRIBUTE((nonnull));
 
   /** Log a write of a byte string to a page.
-  @param[in]      b       buffer page
-  @param[in]      ofs     byte offset from b->frame
-  @param[in]      len     length of the data to write */
-  inline void memcpy(const buf_block_t &b, ulint ofs, ulint len);
+  @param block   buffer page
+  @param offset  byte offset within page frame
+  @param len     length of the data, in bytes */
+  inline void memcpy(const buf_block_t &block, const void *offset, size_t len);
 
   /** Write a byte string to a page.
   @param[in,out]  b       buffer page
-  @param[in]      dest    destination within b.frame
+  @param[in]      dest    destination within page frame
   @param[in]      str     the data to write
   @param[in]      len     length of the data to write
   @tparam w       write request type */
@@ -486,9 +486,9 @@ public:
 
   /** Log a write of a byte string to a ROW_FORMAT=COMPRESSED page.
   @param[in]      b       ROW_FORMAT=COMPRESSED index page
-  @param[in]      offset  byte offset from b.zip.data
+  @param[in]      offset  offset within b.page.zip.data
   @param[in]      len     length of the data to write */
-  inline void zmemcpy(const buf_block_t &b, ulint offset, ulint len);
+  void zmemcpy(const buf_block_t &b, const byte *offset, ulint len);
 
   /** Write a byte string to a ROW_FORMAT=COMPRESSED page.
   @param[in]      b       ROW_FORMAT=COMPRESSED index page
@@ -497,47 +497,63 @@ public:
   @param[in]      len     length of the data to write
   @tparam w       write request type */
   template<write_type w= NORMAL>
-  inline void zmemcpy(const buf_block_t &b, void *dest, const void *str,
-                      ulint len);
+  void zmemcpy(const buf_block_t &b, void *dest, const void *str, ulint len);
 
   /** Log an initialization of a string of bytes.
-  @param[in]      b       buffer page
-  @param[in]      ofs     byte offset from b->frame
-  @param[in]      len     length of the data to write
-  @param[in]      val     the data byte to write */
-  inline void memset(const buf_block_t &b, ulint ofs, ulint len, byte val);
+  @param b       buffer page
+  @param ofs     byte offset within buffer page frame
+  @param len     length of the data to write
+  @param val     the data byte to write */
+  inline void memset(const buf_block_t &b, size_t ofs, size_t len, byte val);
 
   /** Initialize a string of bytes.
-  @param[in,out]        b       buffer page
-  @param[in]            ofs     byte offset from b->frame
-  @param[in]            len     length of the data to write
-  @param[in]            val     the data byte to write */
-  inline void memset(const buf_block_t *b, ulint ofs, ulint len, byte val);
+  @param b       buffer page
+  @param ofs     byte offset within buffer page frame
+  @param len     length of the data to write
+  @param val     the data byte to write */
+  inline void memset(const buf_block_t *b, byte *ofs, ulint len, byte val);
 
   /** Log an initialization of a repeating string of bytes.
-  @param[in]      b       buffer page
-  @param[in]      ofs     byte offset from b->frame
-  @param[in]      len     length of the data to write, in bytes
-  @param[in]      str     the string to write
-  @param[in]      size    size of str, in bytes */
-  inline void memset(const buf_block_t &b, ulint ofs, size_t len,
+  @param b       buffer page
+  @param ofs     byte offset within buffer page frame
+  @param len     length of the data to write, in bytes
+  @param str     the string to write
+  @param size    size of str, in bytes */
+  inline void memset(const buf_block_t &b, size_t ofs, size_t len,
                      const void *str, size_t size);
 
   /** Initialize a repeating string of bytes.
-  @param[in,out]  b       buffer page
-  @param[in]      ofs     byte offset from b->frame
-  @param[in]      len     length of the data to write, in bytes
-  @param[in]      str     the string to write
-  @param[in]      size    size of str, in bytes */
-  inline void memset(const buf_block_t *b, ulint ofs, size_t len,
+  @param b       buffer page
+  @param ofs     byte offset within buffer page frame
+  @param len     length of the data to write, in bytes
+  @param str     the string to write
+  @param size    size of str, in bytes */
+  inline void memset(const buf_block_t *b, byte *ofs, size_t len,
                      const void *str, size_t size);
 
   /** Log that a string of bytes was copied from the same page.
-  @param[in]      b       buffer page
-  @param[in]      d       destination offset within the page
-  @param[in]      s       source offset within the page
-  @param[in]      len     length of the data to copy */
-  inline void memmove(const buf_block_t &b, ulint d, ulint s, ulint len);
+  @param b       buffer page
+  @param d       destination offset within the page
+  @param s       source offset within the page
+  @param len     length of the data to copy */
+  inline void memmove(const buf_block_t &b, const byte *d, const byte *s,
+                      size_t len);
+
+  /** Log that a string of bytes was copied from the same
+  ROW_FORMAT=COMPRESSED page.
+  @param b       buffer page
+  @param d       destination offset within the page
+  @param s       source offset within the page
+  @param len     length of the data to copy */
+  void zmemmove(const buf_block_t &b, const byte *d, const byte *s,
+                size_t len);
+
+  /** Log an initialization of a string of bytes.
+  @param b       ROW_FORMAT=COMPRESSED buffer page
+  @param ofs     byte offset within the compressed buffer page frame
+  @param len     length of the data to write
+  @param val     the data byte to write */
+  void zmemset(const buf_block_t &b, const byte *ofs, size_t len, byte val);
 
   /** Initialize an entire page.
   @param[in,out]        b       buffer page */
@@ -657,13 +673,6 @@ public:
   };
 
 private:
-  /** Log a write of a byte string to a page.
-  @param block   buffer page
-  @param offset  byte offset within page
-  @param data    data to be written
-  @param len     length of the data, in bytes */
-  inline void memcpy_low(const buf_block_t &block, uint16_t offset,
-                         const void *data, size_t len);
   /**
   Write a log record.
   @tparam type  redo log record type

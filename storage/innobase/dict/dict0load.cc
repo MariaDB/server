@@ -2612,7 +2612,7 @@ dict_load_table_on_id(
 		containing the table ID and NAME */
 check_rec:
 		const rec_t* rec = btr_pcur_get_rec(&pcur);
-		if (!page_rec_is_user_rec(rec)) {
+		if (!page_rec_is_user_rec(btr_pcur_get_page(&pcur), rec)) {
 			goto func_exit;
 		}
 

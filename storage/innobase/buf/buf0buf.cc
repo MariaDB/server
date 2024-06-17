@@ -1201,11 +1201,11 @@ inline bool buf_pool_t::realloc(buf_block_t *block)
 	hash_lock.lock();
 
 	if (block->page.can_relocate()) {
+		page_t* page = block->page.frame;
+		page_t* frame = new_block->page.frame;
 		memcpy_aligned<OS_FILE_LOG_BLOCK_SIZE>(
-			new_block->page.frame, block->page.frame,
-			srv_page_size);
+			frame, page, srv_page_size);
 		mysql_mutex_lock(&buf_pool.flush_list_mutex);
-		const auto frame = new_block->page.frame;
 		new_block->page.lock.free();
 		new (&new_block->page) buf_page_t(block->page);
 		new_block->page.frame = frame;
@@ -1252,13 +1252,12 @@ inline bool buf_pool_t::realloc(buf_block_t *block)
 					   &new_block->page);
 		buf_block_modify_clock_inc(block);
 		static_assert(FIL_PAGE_OFFSET % 4 == 0, "alignment");
-		memset_aligned<4>(block->page.frame
-				  + FIL_PAGE_OFFSET, 0xff, 4);
+		memset_aligned<4>(page + FIL_PAGE_OFFSET, 0xff, 4);
 		static_assert(FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID % 4 == 2,
 			      "not perfect alignment");
-		memset_aligned<2>(block->page.frame
+		memset_aligned<2>(page
 				  + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID, 0xff, 4);
-		MEM_UNDEFINED(block->page.frame, srv_page_size);
+		MEM_UNDEFINED(page, srv_page_size);
 		block->page.set_state(buf_page_t::REMOVE_HASH);
 		if (!fsp_is_system_temporary(id.space())) {
 			buf_flush_relocate_on_flush_list(&block->page,
@@ -2343,6 +2342,7 @@ buf_zip_decompress(
 
 	ut_ad(block->zip_size());
 	ut_a(block->page.id().space() != 0);
+	page_t* page = block->page.frame;
 
 	if (UNIV_UNLIKELY(check && !page_zip_verify_checksum(frame, size))) {
 
@@ -2360,8 +2360,7 @@ buf_zip_decompress(
 	switch (fil_page_get_type(frame)) {
 	case FIL_PAGE_INDEX:
 	case FIL_PAGE_RTREE:
-		if (page_zip_decompress(&block->page.zip,
-					block->page.frame, TRUE)) {
+		if (page_zip_decompress(&block->page.zip, page, TRUE)) {
 func_exit:
 			if (space) {
 				space->release();
@@ -2381,7 +2380,7 @@ func_exit:
 	case FIL_PAGE_TYPE_ZBLOB:
 	case FIL_PAGE_TYPE_ZBLOB2:
 		/* Copy to uncompressed storage. */
-		memcpy(block->page.frame, frame, block->zip_size());
+		memcpy(page, frame, block->zip_size());
 		goto func_exit;
 	}
 
@@ -2826,7 +2825,8 @@ re_evict_fail:
 #ifdef UNIV_DEBUG
 	if (!(++buf_dbg_counter % 5771)) buf_pool.validate();
 #endif /* UNIV_DEBUG */
-	ut_ad(block->page.frame);
+	page_t* page = block->page.frame;
+	ut_ad(page);
 
 	/* The state = block->page.state() may be stale at this point,
 	and in fact, at any point of time if we consider its
@@ -2839,8 +2839,8 @@ re_evict_fail:
 
 	if (state >= buf_page_t::UNFIXED
 	    && allow_ibuf_merge
-	    && fil_page_get_type(block->page.frame) == FIL_PAGE_INDEX
-	    && page_is_leaf(block->page.frame)) {
+	    && fil_page_get_type(page) == FIL_PAGE_INDEX
+	    && page_is_leaf(page)) {
 		block->page.lock.x_lock();
 		state = block->page.state();
 		ut_ad(state < buf_page_t::READ_FIX);
@@ -2979,39 +2979,41 @@ buf_page_get_gen(
     mysql_mutex_unlock(&buf_pool.mutex);
     goto corrupted;
   }
-  else if (must_merge &&
-           fil_page_get_type(block->page.frame) == FIL_PAGE_INDEX &&
-           page_is_leaf(block->page.frame))
+  else if (must_merge)
   {
-    block->page.lock.x_lock();
-    s= block->page.state();
-    ut_ad(s > buf_page_t::FREED);
-    ut_ad(s < buf_page_t::READ_FIX);
-    if (s < buf_page_t::UNFIXED)
+    const page_t *const page= block->page.frame;
+    if (page_is_leaf(page) && fil_page_get_type(page) == FIL_PAGE_INDEX)
     {
-      block->page.lock.x_unlock();
-      goto got_freed_page;
-    }
-    else
-    {
-      if (block->page.is_ibuf_exist())
-        block->page.clear_ibuf_exist();
-      if (dberr_t e=
-          ibuf_merge_or_delete_for_page(block, page_id, block->zip_size()))
+      block->page.lock.x_lock();
+      s= block->page.state();
+      ut_ad(s > buf_page_t::FREED);
+      ut_ad(s < buf_page_t::READ_FIX);
+      if (s < buf_page_t::UNFIXED)
       {
-        if (err)
-          *err= e;
-        buf_pool.corrupted_evict(&block->page, s);
-        return nullptr;
+        block->page.lock.x_unlock();
+        goto got_freed_page;
       }
-    }
+      else
+      {
+        if (block->page.is_ibuf_exist())
+          block->page.clear_ibuf_exist();
+        if (dberr_t e=
+            ibuf_merge_or_delete_for_page(block, page_id, block->zip_size()))
+        {
+          if (err)
+            *err= e;
+          buf_pool.corrupted_evict(&block->page, s);
+          return nullptr;
+        }
+      }
 
-    if (rw_latch == RW_X_LATCH)
-    {
-      mtr->memo_push(block, MTR_MEMO_PAGE_X_FIX);
-      return block;
+      if (rw_latch == RW_X_LATCH)
+      {
+        mtr->memo_push(block, MTR_MEMO_PAGE_X_FIX);
+        return block;
+      }
+      block->page.lock.x_unlock();
     }
-    block->page.lock.x_unlock();
   }
   mtr->page_lock(block, rw_latch);
   return block;
@@ -3317,9 +3319,10 @@ retry:
       !recv_recovery_is_on())
     ibuf_merge_or_delete_for_page(nullptr, page_id, zip_size);
 
+  page_t *const page= bpage->frame;
   static_assert(FIL_PAGE_PREV + 4 == FIL_PAGE_NEXT, "adjacent");
-  memset_aligned<8>(bpage->frame + FIL_PAGE_PREV, 0xff, 8);
-  mach_write_to_2(bpage->frame + FIL_PAGE_TYPE, FIL_PAGE_TYPE_ALLOCATED);
+  memset_aligned<8>(page + FIL_PAGE_PREV, 0xff, 8);
+  mach_write_to_2(page + FIL_PAGE_TYPE, FIL_PAGE_TYPE_ALLOCATED);
 
   /* FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION is only used on the
   following pages:
@@ -3327,8 +3330,8 @@ retry:
   (2) FIL_RTREE_SPLIT_SEQ_NUM on R-tree pages
   (3) key_version on encrypted pages (not page 0:0) */
 
-  memset(bpage->frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION, 0, 8);
-  memset_aligned<8>(bpage->frame + FIL_PAGE_LSN, 0, 8);
+  memset(page + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION, 0, 8);
+  memset_aligned<8>(page + FIL_PAGE_LSN, 0, 8);
 
 #ifdef UNIV_DEBUG
   if (!(++buf_dbg_counter % 5771)) buf_pool.validate();
@@ -3556,7 +3559,8 @@ dberr_t buf_page_t::read_complete(const fil_node_t &node)
   ut_ad(zip_size() == node.space->zip_size());
   ut_ad(!!zip.ssize == !!zip.data);
 
-  const byte *read_frame= zip.data ? zip.data : frame;
+  page_t *page= frame;
+  const byte *read_frame= zip.data ? zip.data : page;
   ut_ad(read_frame);
 
   dberr_t err;
@@ -3566,7 +3570,7 @@ dberr_t buf_page_t::read_complete(const fil_node_t &node)
     goto database_corrupted;
   }
 
-  if (belongs_to_unzip_LRU())
+  if (zip.data && page)
   {
     buf_pool.n_pend_unzip++;
     auto ok= buf_zip_decompress(reinterpret_cast<buf_block_t*>(this), false);
@@ -3618,8 +3622,9 @@ dberr_t buf_page_t::read_complete(const fil_node_t &node)
   if (UNIV_UNLIKELY(err != DB_SUCCESS))
   {
 database_corrupted:
-    if (belongs_to_unzip_LRU())
-      memset_aligned<UNIV_PAGE_SIZE_MIN>(frame, 0, srv_page_size);
+    if (!zip.data);
+    else if (page)
+      memset_aligned<UNIV_PAGE_SIZE_MIN>(page, 0, srv_page_size);
 
     if (err == DB_PAGE_CORRUPTED)
     {
@@ -3653,7 +3658,7 @@ release_page:
   if (recovery && !recv_recover_page(node.space, this))
     return DB_PAGE_CORRUPTED;
 
-  const bool ibuf_may_exist= frame && !recv_no_ibuf_operations &&
+  const bool ibuf_may_exist= page && !recv_no_ibuf_operations &&
     (!expected_id.space() || !is_predefined_tablespace(expected_id.space())) &&
     fil_page_get_type(read_frame) == FIL_PAGE_INDEX &&
     page_is_leaf(read_frame);

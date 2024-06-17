@@ -213,7 +213,7 @@ btr_pcur_move_to_next_page(
 
 #define btr_pcur_get_btr_cur(cursor) (&(cursor)->btr_cur)
 #define btr_pcur_get_page_cur(cursor) (&(cursor)->btr_cur.page_cur)
-#define btr_pcur_get_page(cursor) btr_pcur_get_block(cursor)->page.frame
+#define btr_pcur_get_page(cursor) btr_cur_get_page(&(cursor)->btr_cur)
 
 /*********************************************************//**
 Checks if the persistent cursor is on a user record. */

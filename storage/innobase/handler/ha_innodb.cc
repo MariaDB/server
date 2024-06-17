@@ -17670,11 +17670,8 @@ func_exit:
 
 	if (block != NULL) {
 		ib::info() << "Dirtying page: " << block->page.id();
-		mtr.write<1,mtr_t::FORCED>(*block,
-					   block->page.frame
-					   + FIL_PAGE_SPACE_ID,
-					   block->page.frame
-					   [FIL_PAGE_SPACE_ID]);
+		byte* space_id = block->page.frame + FIL_PAGE_SPACE_ID;
+		mtr.write<1,mtr_t::FORCED>(*block, space_id, *space_id);
 	}
 	mtr.commit();
 	log_write_up_to(mtr.commit_lsn(), true);

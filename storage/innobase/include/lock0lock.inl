@@ -35,10 +35,8 @@ UNIV_INLINE
 ulint
 lock_get_min_heap_no(
 /*=================*/
-	const buf_block_t*	block)	/*!< in: buffer block */
+	const page_t*	page)	/*!< in: index page */
 {
-	const page_t*	page	= block->page.frame;
-
 	if (page_is_comp(page)) {
 		return(rec_get_heap_no_new(
 			       page

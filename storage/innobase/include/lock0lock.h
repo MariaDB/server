@@ -59,7 +59,7 @@ UNIV_INLINE
 ulint
 lock_get_min_heap_no(
 /*=================*/
-	const buf_block_t*	block);	/*!< in: buffer block */
+	const page_t*	page);	/*!< in: index page */
 
 /** Discard locks for an index when purging DELETE FROM SYS_INDEXES
 after an aborted CREATE INDEX operation.

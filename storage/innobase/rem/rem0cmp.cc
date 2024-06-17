@@ -490,7 +490,7 @@ cmp_dtuple_rec_with_match_bytes(
 
 	if (UNIV_UNLIKELY(REC_INFO_MIN_REC_FLAG
 			  & rec_get_info_bits(rec, rec_offs_comp(offsets)))) {
-		ut_ad(page_rec_is_first(rec, page_align(rec)));
+		ut_ad(page_rec_is_first(page_align(rec), rec));
 		ut_ad(!page_has_prev(page_align(rec)));
 		ut_ad(rec_is_metadata(rec, *index));
 		return 1;

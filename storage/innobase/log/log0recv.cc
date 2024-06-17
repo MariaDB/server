@@ -158,8 +158,9 @@ public:
                           size_t len)
   {
     ut_ad(len > 2);
+    page_t *page= block.page.frame;
     byte *free_p= my_assume_aligned<2>
-      (TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_FREE + block.page.frame);
+      (TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_FREE + page);
     const uint16_t free= mach_read_from_2(free_p);
     if (UNIV_UNLIKELY(free < TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_HDR_SIZE ||
                       free + len + 6 >= srv_page_size - FIL_PAGE_DATA_END))
@@ -169,7 +170,7 @@ public:
       return true;
     }
 
-    byte *p= block.page.frame + free;
+    byte *p= page + free;
     mach_write_to_2(free_p, free + 4 + len);
     memcpy(p, free_p, 2);
     p+= 2;
@@ -337,9 +338,9 @@ page_corrupted:
           page_create_low(&block, *l != INIT_ROW_FORMAT_REDUNDANT);
           break;
         case UNDO_INIT:
-          if (UNIV_UNLIKELY(rlen != 1))
+          if (UNIV_UNLIKELY(rlen != 1 || block.page.zip.data))
             goto record_corrupted;
-          trx_undo_page_init(block);
+          trx_undo_page_init(block, frame);
           break;
         case UNDO_APPEND:
           if (UNIV_UNLIKELY(rlen <= 3))
@@ -2302,9 +2303,9 @@ append:
       ut_calc_align<uint16_t>(static_cast<uint16_t>(size), ALIGNMENT);
     static_assert(ut_is_2pow(ALIGNMENT), "ALIGNMENT must be a power of 2");
     UT_LIST_ADD_FIRST(blocks, block);
-    MEM_MAKE_ADDRESSABLE(block->page.frame, size);
-    MEM_NOACCESS(block->page.frame + size, srv_page_size - size);
     buf= block->page.frame;
+    MEM_MAKE_ADDRESSABLE(buf, size);
+    MEM_NOACCESS(static_cast<byte*>(buf) + size, srv_page_size - size);
   }
   else
   {
@@ -2323,8 +2324,8 @@ append:
 
     block->page.access_time= ((block->page.access_time >> 16) + 1) << 16 |
       ut_calc_align<uint16_t>(static_cast<uint16_t>(free_offset), ALIGNMENT);
-    MEM_MAKE_ADDRESSABLE(block->page.frame + free_offset - size, size);
     buf= block->page.frame + free_offset - size;
+    MEM_MAKE_ADDRESSABLE(buf, size);
   }
 
   recs.log.append(new (my_assume_aligned<ALIGNMENT>(buf))
@@ -3129,14 +3130,13 @@ set_start_lsn:
 	if (start_lsn) {
 		ut_ad(end_lsn >= start_lsn);
 		mach_write_to_8(FIL_PAGE_LSN + frame, end_lsn);
-		if (UNIV_LIKELY(frame == block->page.frame)) {
+		if (UNIV_LIKELY_NULL(block->page.zip.data)) {
+			buf_zip_decompress(block, false);
+		} else {
 			mach_write_to_8(srv_page_size
 					- FIL_PAGE_END_LSN_OLD_CHKSUM
 					+ frame, end_lsn);
-		} else {
-			buf_zip_decompress(block, false);
 		}
-
 		buf_block_modify_clock_inc(block);
 		mysql_mutex_lock(&log_sys.flush_order_mutex);
 		buf_flush_note_modification(block, start_lsn, end_lsn);
@@ -3272,7 +3272,6 @@ void IORequest::fake_read_complete(os_offset_t offset) const
   mtr.start();
   mtr.set_log_mode(MTR_LOG_NO_REDO);
 
-  ut_ad(bpage->frame);
   /* Move the ownership of the x-latch on the page to this OS thread,
   so that we can acquire a second x-latch on it. This is needed for
   the operations to the page to pass the debug checks. */

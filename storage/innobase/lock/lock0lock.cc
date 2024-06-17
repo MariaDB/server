@@ -1120,17 +1120,18 @@ trx_t*
 lock_sec_rec_some_has_impl(
 /*=======================*/
 	trx_t*		caller_trx,/*!<in/out: trx of current thread */
+	const page_t*	page,	/*!< in: secondary index leaf page */
 	const rec_t*	rec,	/*!< in: user record */
 	dict_index_t*	index,	/*!< in: secondary index */
 	const rec_offs*	offsets)/*!< in: rec_get_offsets(rec, index) */
 {
   lock_sys.assert_unlocked();
   ut_ad(!dict_index_is_clust(index));
-  ut_ad(page_rec_is_user_rec(rec));
+  ut_ad(page_rec_is_user_rec(page, rec));
   ut_ad(rec_offs_validate(rec, index, offsets));
   ut_ad(!rec_is_metadata(rec, *index));
 
-  const trx_id_t max_trx_id= page_get_max_trx_id(page_align(rec));
+  const trx_id_t max_trx_id= page_get_max_trx_id(page);
 
   /* Note: It is possible to have caller_trx->id == 0 in a locking read
   if caller_trx has not modified any persistent tables. */
@@ -1620,6 +1621,7 @@ lock_rec_lock(
 					LOCK_GAP or LOCK_REC_NOT_GAP */
 	const buf_block_t*	block,	/*!< in: buffer block containing
 					the record */
+	const page_t*		page,	/*!< in: page frame of record */
 	ulint			heap_no,/*!< in: heap number of record */
 	dict_index_t*		index,	/*!< in: index of record */
 	que_thr_t*		thr)	/*!< in: query thread */
@@ -1672,9 +1674,8 @@ lock_rec_lock(
         lock->type_mode != mode ||
         lock_rec_get_n_bits(lock) <= heap_no)
     {
-
       unsigned checked_mode= (heap_no != PAGE_HEAP_NO_SUPREMUM &&
-                          lock_mode_is_next_key_lock(mode))
+                              lock_mode_is_next_key_lock(mode))
                              ? mode | LOCK_REC_NOT_GAP
                              : mode;
 
@@ -1692,12 +1693,12 @@ lock_rec_lock(
             have a lock strong enough already granted on the
             record, we have to wait.
           */
-          err= lock_rec_enqueue_waiting(c_lock, mode, id, block->page.frame,
+          err= lock_rec_enqueue_waiting(c_lock, mode, id, page,
                                         heap_no, index, thr, nullptr);
         else if (!impl)
         {
           /* Set the requested lock on the record. */
-          lock_rec_add_to_queue(mode, g.cell(), id, block->page.frame, heap_no,
+          lock_rec_add_to_queue(mode, g.cell(), id, page, heap_no,
                                 index, trx, true);
           err= DB_SUCCESS_LOCKED_REC;
         }
@@ -1710,7 +1711,7 @@ lock_rec_lock(
         ut_ad(!impl);
 
         lock_reuse_for_next_key_lock(held_lock, mode, g.cell(), id,
-                                     block->page.frame, heap_no, index, trx);
+                                     page, heap_no, index, trx);
       }
     }
     else if (!impl)
@@ -1731,8 +1732,7 @@ lock_rec_lock(
 
   /* Simplified and faster path for the most common cases */
   if (!impl)
-    lock_rec_create_low(nullptr, mode, id, block->page.frame, heap_no, index,
-                        trx, false);
+    lock_rec_create_low(nullptr, mode, id, page, heap_no, index, trx, false);
 
   return DB_SUCCESS_LOCKED_REC;
 }
@@ -2458,6 +2458,7 @@ void
 lock_rec_inherit_to_gap_if_gap_lock(
 /*================================*/
 	const buf_block_t*	block,		/*!< in: buffer block */
+	const page_t*		page,		/*!< in: buffer page */
 	ulint			heir_heap_no,	/*!< in: heap_no of
 						record which inherits */
 	ulint			heap_no)	/*!< in: heap_no of record
@@ -2475,7 +2476,7 @@ lock_rec_inherit_to_gap_if_gap_lock(
                                           !lock->is_record_not_gap()) &&
          !lock_table_has(lock->trx, lock->index->table, LOCK_X))
        lock_rec_add_to_queue(LOCK_GAP | lock->mode(),
-                             g.cell(), id, block->page.frame,
+                             g.cell(), id, page,
                              heir_heap_no, lock->index, lock->trx, false);
 }
 
@@ -2487,7 +2488,7 @@ static
 void
 lock_rec_move(
 	hash_cell_t&		receiver_cell,	/*!< in: hash table cell */
-	const buf_block_t&	receiver,	/*!< in: buffer block containing
+	const page_t*		receiver,	/*!< in: buffer block containing
 						the receiving record */
 	const page_id_t		receiver_id,	/*!< in: page identifier */
 	const hash_cell_t&	donator_cell,	/*!< in: hash table cell */
@@ -2521,8 +2522,7 @@ lock_rec_move(
 		the function works also if donator_id == receiver_id */
 
 		lock_rec_add_to_queue(type_mode, receiver_cell,
-				      receiver_id, receiver.page.frame,
-				      receiver_heap_no,
+				      receiver_id, receiver, receiver_heap_no,
 				      lock->index, lock_trx, true);
 		lock_trx->mutex_unlock();
 	}
@@ -2592,6 +2592,9 @@ lock_move_reorganize_page(
         return;
     }
 
+    const page_t *page= block->page.frame;
+    const page_t *opage= oblock->page.frame;
+
     /* We will modify arbitrary trx->lock.trx_locks.
     Do not bother with a memory transaction; we are going
     to allocate memory and copy a lot of data. */
@@ -2632,8 +2635,8 @@ lock_move_reorganize_page(
     }
     while (lock);
 
-    const ulint comp= page_is_comp(block->page.frame);
-    ut_ad(comp == page_is_comp(oblock->page.frame));
+    const ulint comp= page_is_comp(page);
+    ut_ad(comp == page_is_comp(opage));
 
     lock_move_granted_locks_to_front(old_locks);
 
@@ -2647,8 +2650,8 @@ lock_move_reorganize_page(
       supremum of the page; the infimum may carry locks if an
       update of a record is occurring on the page, and its locks
       were temporarily stored on the infimum */
-      const rec_t *rec1= page_get_infimum_rec(block->page.frame);
-      const rec_t *rec2= page_get_infimum_rec(oblock->page.frame);
+      const rec_t *rec1= page_get_infimum_rec(page);
+      const rec_t *rec2= page_get_infimum_rec(opage);
 
       /* Set locks according to old locks */
       for (;;)
@@ -2663,8 +2666,8 @@ lock_move_reorganize_page(
           old_heap_no= rec_get_heap_no_new(rec2);
           new_heap_no= rec_get_heap_no_new(rec1);
 
-          rec1= page_rec_get_next_low(rec1, TRUE);
-          rec2= page_rec_get_next_low(rec2, TRUE);
+          rec1= page_rec_get_next_low(page, rec1, TRUE);
+          rec2= page_rec_get_next_low(opage, rec2, TRUE);
         }
         else
         {
@@ -2672,8 +2675,8 @@ lock_move_reorganize_page(
           new_heap_no= rec_get_heap_no_old(rec1);
           ut_ad(!memcmp(rec1, rec2, rec_get_data_size_old(rec2)));
 
-          rec1= page_rec_get_next_low(rec1, FALSE);
-          rec2= page_rec_get_next_low(rec2, FALSE);
+          rec1= page_rec_get_next_low(page, rec1, FALSE);
+          rec2= page_rec_get_next_low(opage, rec2, FALSE);
         }
 
         trx_t *lock_trx= lock->trx;
@@ -2687,7 +2690,7 @@ lock_move_reorganize_page(
 
           /* NOTE that the old lock bitmap could be too
           small for the new heap number! */
-          lock_rec_add_to_queue(lock->type_mode, cell, id, block->page.frame,
+          lock_rec_add_to_queue(lock->type_mode, cell, id, page,
                                 new_heap_no, lock->index, lock_trx, true);
         }
 
@@ -2729,10 +2732,11 @@ lock_move_rec_list_end(
 	const rec_t*		rec)		/*!< in: record on page: this
 						is the first record moved */
 {
-  const ulint comp= page_rec_is_comp(rec);
-
-  ut_ad(block->page.frame == page_align(rec));
-  ut_ad(comp == page_is_comp(new_block->page.frame));
+  const page_t *const page= block->page.frame;
+  const page_t *const new_page= new_block->page.frame;
+  const ulint comp= page_is_comp(page);
+  ut_ad(page == page_align(rec));
+  ut_ad(comp == page_is_comp(new_page));
 
   const page_id_t id{block->page.id()};
   const page_id_t new_id{new_block->page.id()};
@@ -2754,17 +2758,15 @@ lock_move_rec_list_end(
 
       if (comp)
       {
-        if (page_offset(rec1) == PAGE_NEW_INFIMUM)
-          rec1= page_rec_get_next_low(rec1, TRUE);
-        rec2= page_rec_get_next_low(new_block->page.frame + PAGE_NEW_INFIMUM,
-                                    TRUE);
+        if (rec1 == &page[PAGE_NEW_INFIMUM])
+          rec1= page_rec_get_next_low(page, rec1, TRUE);
+        rec2= page_rec_get_next_low(new_page, new_page + PAGE_NEW_INFIMUM, 1);
       }
       else
       {
-        if (page_offset(rec1) == PAGE_OLD_INFIMUM)
-          rec1= page_rec_get_next_low(rec1, FALSE);
-        rec2= page_rec_get_next_low(new_block->page.frame + PAGE_OLD_INFIMUM,
-                                    FALSE);
+        if (rec1 == &page[PAGE_OLD_INFIMUM])
+          rec1= page_rec_get_next_low(page, rec1, FALSE);
+        rec2= page_rec_get_next_low(new_page, new_page + PAGE_OLD_INFIMUM, 0);
       }
 
       if (UNIV_UNLIKELY(!rec1 || !rec2))
@@ -2786,19 +2788,19 @@ lock_move_rec_list_end(
         if (comp)
         {
           rec1_heap_no= rec_get_heap_no_new(rec1);
-          if (!(rec1= page_rec_get_next_low(rec1, TRUE)))
+          if (!(rec1= page_rec_get_next_low(page, rec1, TRUE)))
           {
             ut_ad(rec1_heap_no == PAGE_HEAP_NO_SUPREMUM);
             break;
           }
           rec2_heap_no= rec_get_heap_no_new(rec2);
-          rec2= page_rec_get_next_low(rec2, TRUE);
+          rec2= page_rec_get_next_low(new_page, rec2, TRUE);
         }
         else
         {
           ut_d(const rec_t *old1= rec1);
           rec1_heap_no= rec_get_heap_no_old(rec1);
-          if (!(rec1= page_rec_get_next_low(rec1, FALSE)))
+          if (!(rec1= page_rec_get_next_low(page, rec1, FALSE)))
           {
             ut_ad(rec1_heap_no == PAGE_HEAP_NO_SUPREMUM);
             break;
@@ -2808,7 +2810,7 @@ lock_move_rec_list_end(
           ut_ad(!memcmp(old1, rec2, rec_get_data_size_old(old1)));
 
           rec2_heap_no= rec_get_heap_no_old(rec2);
-          rec2= page_rec_get_next_low(rec2, FALSE);
+          rec2= page_rec_get_next_low(new_page, rec2, FALSE);
         }
 
         if (UNIV_UNLIKELY(!rec2))
@@ -2831,8 +2833,7 @@ lock_move_rec_list_end(
             lock->type_mode&= ~LOCK_WAIT;
           }
 
-          lock_rec_add_to_queue(type_mode, g.cell2(), new_id,
-                                new_block->page.frame,
+          lock_rec_add_to_queue(type_mode, g.cell2(), new_id, new_page,
                                 rec2_heap_no, lock->index, lock_trx, true);
         }
 
@@ -2871,11 +2872,13 @@ lock_move_rec_list_start(
 						before the records
 						were copied */
 {
-  const ulint comp= page_rec_is_comp(rec);
+  const page_t *page= block->page.frame;
+  const ulint comp= page_is_comp(page);
+  const page_t *new_page= new_block->page.frame;
 
-  ut_ad(block->page.frame == page_align(rec));
-  ut_ad(comp == page_is_comp(new_block->page.frame));
-  ut_ad(new_block->page.frame == page_align(old_end));
+  ut_ad(page_align(rec) == page);
+  ut_ad(comp == page_is_comp(new_page));
+  ut_ad(page_align(old_end) == new_page);
   ut_ad(!page_rec_is_metadata(rec));
   const page_id_t id{block->page.id()};
   const page_id_t new_id{new_block->page.id()};
@@ -2893,15 +2896,13 @@ lock_move_rec_list_start(
 
       if (comp)
       {
-        rec1= page_rec_get_next_low(block->page.frame + PAGE_NEW_INFIMUM,
-                                    TRUE);
-        rec2= page_rec_get_next_low(old_end, TRUE);
+        rec1= page_rec_get_next_low(page, page + PAGE_NEW_INFIMUM, TRUE);
+        rec2= page_rec_get_next_low(new_page, old_end, TRUE);
       }
       else
       {
-        rec1= page_rec_get_next_low(block->page.frame + PAGE_OLD_INFIMUM,
-                                    FALSE);
-        rec2= page_rec_get_next_low(old_end, FALSE);
+        rec1= page_rec_get_next_low(page, page + PAGE_OLD_INFIMUM, FALSE);
+        rec2= page_rec_get_next_low(new_page, old_end, FALSE);
       }
 
       /* Copy lock requests on user records to new page and
@@ -2926,8 +2927,8 @@ lock_move_rec_list_start(
           rec1_heap_no= rec_get_heap_no_new(rec1);
           rec2_heap_no= rec_get_heap_no_new(rec2);
 
-          rec1= page_rec_get_next_low(rec1, TRUE);
-          rec2= page_rec_get_next_low(rec2, TRUE);
+          rec1= page_rec_get_next_low(page, rec1, TRUE);
+          rec2= page_rec_get_next_low(new_page, rec2, TRUE);
         }
         else
         {
@@ -2936,8 +2937,8 @@ lock_move_rec_list_start(
 
           ut_ad(!memcmp(rec1, rec2, rec_get_data_size_old(rec2)));
 
-          rec1= page_rec_get_next_low(rec1, FALSE);
-          rec2= page_rec_get_next_low(rec2, FALSE);
+          rec1= page_rec_get_next_low(page, rec1, FALSE);
+          rec2= page_rec_get_next_low(new_page, rec2, FALSE);
         }
 
         trx_t *lock_trx= lock->trx;
@@ -2954,8 +2955,7 @@ lock_move_rec_list_start(
             lock->type_mode&= ~LOCK_WAIT;
           }
 
-          lock_rec_add_to_queue(type_mode, g.cell2(), new_id,
-                                new_block->page.frame,
+          lock_rec_add_to_queue(type_mode, g.cell2(), new_id, new_page,
                                 rec2_heap_no, lock->index, lock_trx, true);
         }
 
@@ -2963,7 +2963,7 @@ lock_move_rec_list_start(
       }
 
 #ifdef UNIV_DEBUG
-      if (page_rec_is_supremum(rec))
+      if (page_rec_is_supremum(page, rec))
         for (auto i= lock_rec_get_n_bits(lock); --i > PAGE_HEAP_NO_USER_LOW; )
           ut_ad(!lock_rec_get_nth_bit(lock, i));
 #endif /* UNIV_DEBUG */
@@ -2992,11 +2992,12 @@ lock_rtr_move_rec_list(
   if (!num_move)
     return;
 
-  const ulint comp= page_rec_is_comp(rec_move[0].old_rec);
+  const page_t *const new_page= page_align(rec_move[0].new_rec);
+  const ulint comp= page_rec_is_comp(new_page);
 
   ut_ad(block->page.frame == page_align(rec_move[0].old_rec));
-  ut_ad(new_block->page.frame == page_align(rec_move[0].new_rec));
-  ut_ad(comp == page_rec_is_comp(rec_move[0].new_rec));
+  ut_ad(new_block->page.frame == new_page);
+  ut_ad(comp == page_rec_is_comp(rec_move[0].old_rec));
   const page_id_t id{block->page.id()};
   const page_id_t new_id{new_block->page.id()};
 
@@ -3049,8 +3050,7 @@ lock_rtr_move_rec_list(
             lock->type_mode&= ~LOCK_WAIT;
           }
 
-          lock_rec_add_to_queue(type_mode, g.cell2(), new_id,
-                                new_block->page.frame,
+          lock_rec_add_to_queue(type_mode, g.cell2(), new_id, new_page,
                                 rec2_heap_no, lock->index, lock_trx, true);
 
           rec_move[moved].moved= true;
@@ -3073,7 +3073,9 @@ lock_update_split_right(
 	const buf_block_t*	right_block,	/*!< in: right page */
 	const buf_block_t*	left_block)	/*!< in: left page */
 {
-  const ulint h= lock_get_min_heap_no(right_block);
+  const page_t *right_page= right_block->page.frame;
+  const page_t *left_page= left_block->page.frame;
+  const ulint h= lock_get_min_heap_no(right_page);
   const page_id_t l{left_block->page.id()};
   const page_id_t r{right_block->page.id()};
 
@@ -3083,25 +3085,25 @@ lock_update_split_right(
   /* Move the locks on the supremum of the left page to the supremum
   of the right page */
 
-  lock_rec_move(g.cell2(), *right_block, r, g.cell1(), l,
+  lock_rec_move(g.cell2(), right_page, r, g.cell1(), l,
                 PAGE_HEAP_NO_SUPREMUM, PAGE_HEAP_NO_SUPREMUM);
 
   /* Inherit the locks to the supremum of left page from the successor
   of the infimum on right page */
   lock_rec_inherit_to_gap<true>(g.cell1(), l, g.cell2(), r,
-                                left_block->page.frame, PAGE_HEAP_NO_SUPREMUM,
-                                h);
+                                left_page, PAGE_HEAP_NO_SUPREMUM, h);
 }
 
 void lock_update_node_pointer(const buf_block_t *left_block,
                               const buf_block_t *right_block)
 {
-  const ulint h= lock_get_min_heap_no(right_block);
+  const page_t *right_page= right_block->page.frame;
+  const ulint h= lock_get_min_heap_no(right_page);
   const page_id_t l{left_block->page.id()};
   const page_id_t r{right_block->page.id()};
   LockMultiGuard g{lock_sys.rec_hash, l, r};
 
-  lock_rec_inherit_to_gap(g.cell2(), r, g.cell1(), l, right_block->page.frame,
+  lock_rec_inherit_to_gap(g.cell2(), r, g.cell1(), l, right_page,
                           h, PAGE_HEAP_NO_SUPREMUM);
 }
 
@@ -3141,6 +3143,7 @@ lock_update_merge_right(
 {
   ut_ad(!page_rec_is_metadata(orig_succ));
 
+  const page_t *right_page= right_block->page.frame;
   const page_id_t l{left_block->page.id()};
   const page_id_t r{right_block->page.id()};
   /* This would likely be too large for a memory transaction. */
@@ -3149,8 +3152,8 @@ lock_update_merge_right(
   /* Inherit the locks from the supremum of the left page to the
   original successor of infimum on the right page, to which the left
   page was merged */
-  lock_rec_inherit_to_gap(g.cell2(), r, g.cell1(), l, right_block->page.frame,
-                          page_rec_get_heap_no(orig_succ),
+  lock_rec_inherit_to_gap(g.cell2(), r, g.cell1(), l, right_page,
+                          page_rec_get_heap_no(right_page, orig_succ),
                           PAGE_HEAP_NO_SUPREMUM);
 
   /* Reset the locks on the supremum of the left page, releasing
@@ -3169,11 +3172,12 @@ of the root page will act as a dummy carrier of the locks of the record
 to be updated. */
 void lock_update_root_raise(const buf_block_t &block, const page_id_t root)
 {
+  const page_t *const page= block.page.frame;
   const page_id_t id{block.page.id()};
   /* This would likely be too large for a memory transaction. */
   LockMultiGuard g{lock_sys.rec_hash, id, root};
   /* Move the locks on the supremum of the root to the supremum of block */
-  lock_rec_move(g.cell1(), block, id, g.cell2(), root,
+  lock_rec_move(g.cell1(), page, id, g.cell2(), root,
                 PAGE_HEAP_NO_SUPREMUM, PAGE_HEAP_NO_SUPREMUM);
 }
 
@@ -3182,11 +3186,12 @@ void lock_update_root_raise(const buf_block_t &block, const page_id_t root)
 @param old        old page (not index root page) */
 void lock_update_copy_and_discard(const buf_block_t &new_block, page_id_t old)
 {
+  const page_t *const page= new_block.page.frame;
   const page_id_t id{new_block.page.id()};
   /* This would likely be too large for a memory transaction. */
   LockMultiGuard g{lock_sys.rec_hash, id, old};
   /* Move the locks on the supremum of the old page to the supremum of new */
-  lock_rec_move(g.cell1(), new_block, id, g.cell2(), old,
+  lock_rec_move(g.cell1(), page, id, g.cell2(), old,
                 PAGE_HEAP_NO_SUPREMUM, PAGE_HEAP_NO_SUPREMUM);
   lock_rec_free_all_from_discard_page(old, g.cell2(), lock_sys.rec_hash);
 }
@@ -3199,15 +3204,16 @@ lock_update_split_left(
 	const buf_block_t*	right_block,	/*!< in: right page */
 	const buf_block_t*	left_block)	/*!< in: left page */
 {
-  ulint h= lock_get_min_heap_no(right_block);
+  ulint h= lock_get_min_heap_no(right_block->page.frame);
+  const page_t *left_page= left_block->page.frame;
+
   const page_id_t l{left_block->page.id()};
   const page_id_t r{right_block->page.id()};
   LockMultiGuard g{lock_sys.rec_hash, l, r};
   /* Inherit the locks to the supremum of the left page from the
   successor of the infimum on the right page */
   lock_rec_inherit_to_gap<true>(g.cell1(), l, g.cell2(), r,
-                                left_block->page.frame, PAGE_HEAP_NO_SUPREMUM,
-                                h);
+                                left_page, PAGE_HEAP_NO_SUPREMUM, h);
 }
 
 /** Update the lock table when a page is merged to the left.
@@ -3217,10 +3223,10 @@ lock_update_split_left(
 void lock_update_merge_left(const buf_block_t& left, const rec_t *orig_pred,
                             const page_id_t right)
 {
-  ut_ad(left.page.frame == page_align(orig_pred));
-
   const page_id_t l{left.page.id()};
-  const rec_t *left_next_rec= page_rec_get_next_const(orig_pred);
+  const page_t *const left_page= left.page.frame;
+  const rec_t *left_next_rec= page_rec_get_next(left_page, orig_pred);
+
   if (UNIV_UNLIKELY(!left_next_rec))
   {
     ut_ad("corrupted page" == 0);
@@ -3229,12 +3235,12 @@ void lock_update_merge_left(const buf_block_t& left, const rec_t *orig_pred,
 
   /* This would likely be too large for a memory transaction. */
   LockMultiGuard g{lock_sys.rec_hash, l, right};
-  if (!page_rec_is_supremum(left_next_rec))
+  if (!page_rec_is_supremum(left_page, left_next_rec))
   {
     /* Inherit the locks on the supremum of the left page to the
     first record which was moved from the right page */
-    lock_rec_inherit_to_gap(g.cell1(), l, g.cell1(), l, left.page.frame,
-                            page_rec_get_heap_no(left_next_rec),
+    lock_rec_inherit_to_gap(g.cell1(), l, g.cell1(), l, left_page,
+                            page_rec_get_heap_no(left_page, left_next_rec),
                             PAGE_HEAP_NO_SUPREMUM);
 
     /* Reset the locks on the supremum of the left page,
@@ -3244,7 +3250,7 @@ void lock_update_merge_left(const buf_block_t& left, const rec_t *orig_pred,
 
   /* Move the locks from the supremum of right page to the supremum
   of the left page */
-  lock_rec_move(g.cell1(), left, l, g.cell2(), right,
+  lock_rec_move(g.cell1(), left_page, l, g.cell2(), right,
                 PAGE_HEAP_NO_SUPREMUM, PAGE_HEAP_NO_SUPREMUM);
   lock_rec_free_all_from_discard_page(right, g.cell2(), lock_sys.rec_hash);
 
@@ -3270,12 +3276,13 @@ lock_rec_reset_and_inherit_gap_locks(
 	ulint			heap_no)	/*!< in: heap_no of the
 						donating record */
 {
+  const page_t *heir_page= heir_block.page.frame;
   const page_id_t heir{heir_block.page.id()};
   /* This is a rare operation and likely too large for a memory transaction. */
   LockMultiGuard g{lock_sys.rec_hash, heir, donor};
   lock_rec_reset_and_release_wait(g.cell1(), heir, heir_heap_no);
   lock_rec_inherit_to_gap(g.cell1(), heir, g.cell2(), donor,
-                          heir_block.page.frame, heir_heap_no, heap_no);
+                          heir_page, heir_heap_no, heap_no);
 }
 
 /*************************************************************//**
@@ -3290,6 +3297,7 @@ lock_update_discard(
 	const buf_block_t*	block)		/*!< in: index page
 						which will be discarded */
 {
+	const page_t*	heir_page = heir_block->page.frame;
 	const page_t*	page = block->page.frame;
 	const rec_t*	rec;
 	ulint		heap_no;
@@ -3311,7 +3319,7 @@ lock_update_discard(
 
 				lock_rec_inherit_to_gap(g.cell1(), heir,
 							g.cell2(), page_id,
-							heir_block->page.frame,
+							heir_page,
 							heir_heap_no, heap_no);
 
 				lock_rec_reset_and_release_wait(
@@ -3327,7 +3335,7 @@ lock_update_discard(
 
 				lock_rec_inherit_to_gap(g.cell1(), heir,
 							g.cell2(), page_id,
-							heir_block->page.frame,
+							heir_page,
 							heir_heap_no, heap_no);
 
 				lock_rec_reset_and_release_wait(
@@ -3367,22 +3375,24 @@ lock_update_insert(
 	ulint	receiver_heap_no;
 	ulint	donator_heap_no;
 
-	ut_ad(block->page.frame == page_align(rec));
+	const page_t* const page = block->page.frame;
+
+	ut_ad(page == page_align(rec));
 	ut_ad(!page_rec_is_metadata(rec));
 
 	/* Inherit the gap-locking locks for rec, in gap mode, from the next
 	record */
 
-	if (page_rec_is_comp(rec)) {
+	if (page_is_comp(page)) {
 		receiver_heap_no = rec_get_heap_no_new(rec);
-		rec = page_rec_get_next_low(rec, TRUE);
+		rec = page_rec_get_next_low(page, rec, TRUE);
 		if (UNIV_UNLIKELY(!rec)) {
 			return;
 		}
 		donator_heap_no = rec_get_heap_no_new(rec);
 	} else {
 		receiver_heap_no = rec_get_heap_no_old(rec);
-		rec = page_rec_get_next_low(rec, FALSE);
+		rec = page_rec_get_next_low(page, rec, FALSE);
 		if (UNIV_UNLIKELY(!rec)) {
 			return;
 		}
@@ -3390,7 +3400,7 @@ lock_update_insert(
 	}
 
 	lock_rec_inherit_to_gap_if_gap_lock(
-		block, receiver_heap_no, donator_heap_no);
+		block, page, receiver_heap_no, donator_heap_no);
 }
 
 /*************************************************************//**
@@ -3425,7 +3435,7 @@ lock_update_delete(
 
 	/* Let the next record inherit the locks from rec, in gap mode */
 
-	lock_rec_inherit_to_gap(g.cell(), id, g.cell(), id, block->page.frame,
+	lock_rec_inherit_to_gap(g.cell(), id, g.cell(), id, page,
 				next_heap_no, heap_no);
 
 	/* Reset the lock bits on rec and release waiting transactions */
@@ -3449,16 +3459,16 @@ lock_rec_store_on_page_infimum(
 					bits are reset on the
 					record */
 {
-  const ulint heap_no= page_rec_get_heap_no(rec);
-
-  ut_ad(block->page.frame == page_align(rec));
+  const page_t *const page= block->page.frame;
+  const ulint heap_no= page_rec_get_heap_no(page, rec);
   const page_id_t id{block->page.id()};
+  ut_ad(block->page.frame == page);
 #ifdef ENABLED_DEBUG_SYNC
   SCOPE_EXIT([]() { DEBUG_SYNC_C("lock_rec_store_on_page_infimum_end"); });
 #endif
 
   LockGuard g{lock_sys.rec_hash, id};
-  lock_rec_move(g.cell(), *block, id, g.cell(), id,
+  lock_rec_move(g.cell(), page, id, g.cell(), id,
                 PAGE_HEAP_NO_INFIMUM, heap_no);
 }
 
@@ -3471,10 +3481,11 @@ whose infimum stored the lock state; lock bits are reset on the infimum */
 void lock_rec_restore_from_page_infimum(const buf_block_t &block,
 					const rec_t *rec, page_id_t donator)
 {
-  const ulint heap_no= page_rec_get_heap_no(rec);
+  const page_t *const page= block.page.frame;
+  const ulint heap_no= page_rec_get_heap_no(page, rec);
   const page_id_t id{block.page.id()};
   LockMultiGuard g{lock_sys.rec_hash, id, donator};
-  lock_rec_move(g.cell1(), block, id, g.cell2(), donator, heap_no,
+  lock_rec_move(g.cell1(), page, id, g.cell2(), donator, heap_no,
                 PAGE_HEAP_NO_INFIMUM);
 }
 
@@ -4165,7 +4176,7 @@ lock_rec_unlock(
 	ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE));
 	ut_ad(!page_rec_is_metadata(rec));
 
-	heap_no = page_rec_get_heap_no(rec);
+	heap_no = page_rec_get_heap_no(page_align(rec), rec);
 
 	LockGuard g{lock_sys.rec_hash, id};
 
@@ -4443,7 +4454,9 @@ static void lock_rec_unlock_unmodified(hash_cell_t &cell, lock_t *lock,
       btr_block_get(*index, lock->un_member.rec_lock.page_id.page_no(),
                     RW_S_LATCH, true, &mtr))
   {
-    if (UNIV_UNLIKELY(!page_is_leaf(block->page.frame)))
+    const page_t *const page= block->page.frame;
+
+    if (UNIV_UNLIKELY(!page_is_leaf(page)))
     {
       ut_ad("corrupted lock system" == 0);
       goto func_exit;
@@ -4452,8 +4465,7 @@ static void lock_rec_unlock_unmodified(hash_cell_t &cell, lock_t *lock,
     for (ulint i= PAGE_HEAP_NO_USER_LOW; i < lock_rec_get_n_bits(lock); ++i)
     {
       if (!lock_rec_get_nth_bit(lock, i));
-      else if (const rec_t *rec=
-               page_find_rec_with_heap_no(block->page.frame, i))
+      else if (const rec_t *rec= page_find_rec_with_heap_no(page, i))
       {
         if (index->is_clust())
         {
@@ -4468,7 +4480,7 @@ static void lock_rec_unlock_unmodified(hash_cell_t &cell, lock_t *lock,
           offsets= rec_get_offsets(rec, index, offsets, index->n_core_fields,
                                    ULINT_UNDEFINED, &heap);
           if (lock->trx !=
-              lock_sec_rec_some_has_impl(lock->trx, rec, index, offsets))
+              lock_sec_rec_some_has_impl(lock->trx, page, rec, index, offsets))
             goto unlock_rec;
         }
       }
@@ -4814,6 +4826,7 @@ static void lock_rec_print(FILE* file, const lock_t* lock, mtr_t& mtr)
 
 	mtr.start();
 	const buf_block_t* block = buf_page_try_get(page_id, &mtr);
+	const page_t* page = block ? block->page.frame : nullptr;
 
 	for (ulint i = 0; i < lock_rec_get_n_bits(lock); ++i) {
 
@@ -4823,12 +4836,11 @@ static void lock_rec_print(FILE* file, const lock_t* lock, mtr_t& mtr)
 
 		fprintf(file, "Record lock, heap no %lu", (ulong) i);
 
-		if (block) {
-			ut_ad(page_is_leaf(block->page.frame));
+		if (page) {
+			ut_ad(page_is_leaf(page));
 			const rec_t*	rec;
 
-			rec = page_find_rec_with_heap_no(
-				buf_block_get_frame(block), i);
+			rec = page_find_rec_with_heap_no(page, i);
 			ut_ad(!page_rec_is_metadata(rec));
 
 			offsets = rec_get_offsets(
@@ -5142,14 +5154,14 @@ lock_rec_queue_validate(
 	const lock_t*	lock;
 	ulint		heap_no;
 
-	ut_a(rec);
+	const page_t* const page = page_align(rec);
 	ut_ad(rec_offs_validate(rec, index, offsets));
-	ut_ad(!page_rec_is_comp(rec) == !rec_offs_comp(offsets));
-	ut_ad(page_rec_is_leaf(rec));
-	ut_ad(!index || dict_index_is_clust(index)
+	ut_ad(!page_is_comp(page) == !rec_offs_comp(offsets));
+	ut_ad(page_is_leaf(page));
+	ut_ad(!index || index->is_primary()
 	      || !dict_index_is_online_ddl(index));
 
-	heap_no = page_rec_get_heap_no(rec);
+	heap_no = page_rec_get_heap_no(page, rec);
 
 	if (!locked_lock_trx_sys) {
 		lock_sys.wr_lock(SRW_LOCK_CALL);
@@ -5158,7 +5170,7 @@ lock_rec_queue_validate(
 	hash_cell_t &cell= *lock_sys.rec_hash.cell_get(id.fold());
 	lock_sys.assert_locked(cell);
 
-	if (!page_rec_is_user_rec(rec)) {
+	if (!page_rec_is_user_rec(page, rec)) {
 
 		for (lock = lock_sys_t::get_first(cell, id, heap_no);
 		     lock != NULL;
@@ -5310,6 +5322,7 @@ static bool lock_rec_validate_page(const buf_block_t *block, bool latched)
 	rec_offs*	offsets		= offsets_;
 	rec_offs_init(offsets_);
 
+	const page_t* page = block->page.frame;
 	const page_id_t id{block->page.id()};
 
 	LockGuard g{lock_sys.rec_hash, id};
@@ -5341,7 +5354,7 @@ loop:
 		bool locked = lock_rec_get_nth_bit(lock, i);
 		if (locked || i == PAGE_HEAP_NO_SUPREMUM) {
 
-			rec = page_find_rec_with_heap_no(block->page.frame, i);
+			rec = page_find_rec_with_heap_no(page, i);
 			ut_a(rec);
 			ut_ad(!locked || page_rec_is_leaf(rec));
 
@@ -5514,19 +5527,20 @@ lock_rec_insert_check_and_lock(
 				LOCK_GAP type locks from the successor
 				record */
 {
-  ut_ad(block->page.frame == page_align(rec));
+  const page_t *const page= block->page.frame;
+  ut_ad(page == page_align(rec));
   ut_ad(mtr->is_named_space(index->table->space));
-  ut_ad(page_is_leaf(block->page.frame));
+  ut_ad(page_is_leaf(page));
   ut_ad(!index->table->is_temporary());
 
-  const rec_t *next_rec= page_rec_get_next_const(rec);
+  const rec_t *next_rec= page_rec_get_next(page, rec);
   if (UNIV_UNLIKELY(!next_rec || rec_is_metadata(next_rec, *index)))
     return DB_CORRUPTION;
 
   dberr_t err= DB_SUCCESS;
   bool inherit_in= *inherit;
   trx_t *trx= thr_get_trx(thr);
-  ulint heap_no= page_rec_get_heap_no(next_rec);
+  ulint heap_no= page_rec_get_heap_no(page, next_rec);
   const page_id_t id{block->page.id()};
 
   {
@@ -5565,7 +5579,7 @@ lock_rec_insert_check_and_lock(
                                                          heap_no, trx))
       {
         trx->mutex_lock();
-        err= lock_rec_enqueue_waiting(c_lock, type_mode, id, block->page.frame,
+        err= lock_rec_enqueue_waiting(c_lock, type_mode, id, page,
                                       heap_no, index, thr, nullptr);
         trx->mutex_unlock();
       }
@@ -5615,16 +5629,19 @@ has an implicit lock on the record.
 @return trx, with the reference released */
 static trx_t *lock_rec_convert_impl_to_expl_for_trx(trx_t *trx,
                                                     const page_id_t id,
+                                                    const page_t *page,
                                                     const rec_t *rec,
                                                     dict_index_t *index)
 {
+  ut_ad(page == page_align(rec));
+
   if (trx)
   {
     ut_ad(trx->is_referenced());
-    ut_ad(page_rec_is_leaf(rec));
+    ut_ad(page_is_leaf(page));
     ut_ad(!rec_is_metadata(rec, *index));
 
-    ulint heap_no= page_rec_get_heap_no(rec);
+    ulint heap_no= page_rec_get_heap_no(page, rec);
 
     {
       LockGuard g{lock_sys.rec_hash, id};
@@ -5635,7 +5652,7 @@ static trx_t *lock_rec_convert_impl_to_expl_for_trx(trx_t *trx,
           !lock_rec_has_expl(LOCK_X | LOCK_REC_NOT_GAP, g.cell(), id, heap_no,
                              trx))
         lock_rec_add_to_queue(LOCK_X | LOCK_REC_NOT_GAP, g.cell(), id,
-                              page_align(rec), heap_no, index, trx, true);
+                              page, heap_no, index, trx, true);
     }
 
     trx->release_reference();
@@ -5691,11 +5708,12 @@ static my_bool lock_rec_other_trx_holds_expl_callback(void *el, void *a)
 
   @param      caller_trx  trx of current thread
   @param[in]  trx         trx holding implicit lock on rec
-  @param[in]  rec         user record
+  @param[in]  page        index leaf page
+  @param[in]  rec         user record on page
   @param[in]  id          page identifier
 */
 static void lock_rec_other_trx_holds_expl(trx_t *caller_trx, trx_t *trx,
-                                          const rec_t *rec,
+                                          const page_t *page, const rec_t *rec,
                                           const page_id_t id)
 {
   if (trx)
@@ -5709,7 +5727,7 @@ static void lock_rec_other_trx_holds_expl(trx_t *caller_trx, trx_t *trx,
       /* The transaction was committed before we acquired LockGuard. */
       return;
     lock_rec_other_trx_holds_expl_arg arg=
-    { page_rec_get_heap_no(rec), g.cell(), id, *trx };
+    { page_rec_get_heap_no(page, rec), g.cell(), id, *trx };
     trx_sys.rw_trx_hash.iterate(caller_trx,
                                 lock_rec_other_trx_holds_expl_callback, &arg);
   }
@@ -5729,7 +5747,7 @@ should be created.
 
 @tparam		is_primary	whether the index is the primary key
 @param[in,out]	caller_trx	current transaction
-@param[in]	id		index tree leaf page identifier
+@param[in]	block		index tree leaf page
 @param[in]	rec		record on the leaf page
 @param[in]	index		the index of the record
 @param[in]	offsets		rec_get_offsets(rec,index)
@@ -5740,18 +5758,20 @@ static
 const trx_t *
 lock_rec_convert_impl_to_expl(
 	trx_t*			caller_trx,
-	page_id_t		id,
+	const buf_block_t&	block,
 	const rec_t*		rec,
 	dict_index_t*		index,
 	const rec_offs*		offsets)
 {
-	trx_t*		trx;
+	trx_t* trx;
+	const page_t* const page = block.page.frame;
+	const page_id_t id{block.page.id()};
 
 	lock_sys.assert_unlocked();
-	ut_ad(page_rec_is_user_rec(rec));
+	ut_ad(page_rec_is_user_rec(page, rec));
 	ut_ad(rec_offs_validate(rec, index, offsets));
-	ut_ad(!page_rec_is_comp(rec) == !rec_offs_comp(offsets));
-	ut_ad(page_rec_is_leaf(rec));
+	ut_ad(!page_is_comp(page) == !rec_offs_comp(offsets));
+	ut_ad(page_is_leaf(page));
 	ut_ad(!rec_is_metadata(rec, *index));
 	ut_ad(index->is_primary() == is_primary);
 
@@ -5771,17 +5791,18 @@ lock_rec_convert_impl_to_expl(
 	} else {
 		ut_ad(!dict_index_is_online_ddl(index));
 
-		trx = lock_sec_rec_some_has_impl(caller_trx, rec, index,
+		trx = lock_sec_rec_some_has_impl(caller_trx, page, rec, index,
 						 offsets);
 		if (trx == caller_trx) {
 			trx->release_reference();
 			return trx;
 		}
 
-		ut_d(lock_rec_other_trx_holds_expl(caller_trx, trx, rec, id));
+		ut_d(lock_rec_other_trx_holds_expl(caller_trx, trx,
+						   page, rec, id));
 	}
 
-	return lock_rec_convert_impl_to_expl_for_trx(trx, id, rec, index);
+	return lock_rec_convert_impl_to_expl_for_trx(trx, id, page, rec, index);
 }
 
 /*********************************************************************//**
@@ -5804,11 +5825,12 @@ lock_clust_rec_modify_check_and_lock(
 {
 	dberr_t	err;
 	ulint	heap_no;
+        const page_t* const page = block->page.frame;
 
 	ut_ad(rec_offs_validate(rec, index, offsets));
-	ut_ad(page_rec_is_leaf(rec));
-	ut_ad(dict_index_is_clust(index));
-	ut_ad(block->page.frame == page_align(rec));
+	ut_ad(page_is_leaf(page));
+	ut_ad(index->is_primary());
+	ut_ad(page == page_align(rec));
 
 	ut_ad(!rec_is_metadata(rec, *index));
 	ut_ad(!index->table->is_temporary());
@@ -5822,7 +5844,7 @@ lock_clust_rec_modify_check_and_lock(
 
 	trx_t *trx = thr_get_trx(thr);
 	if (const trx_t *owner =
-	    lock_rec_convert_impl_to_expl<true>(trx, block->page.id(),
+	    lock_rec_convert_impl_to_expl<true>(trx, *block,
 						rec, index, offsets)) {
 		if (owner == trx) {
 			/* We already hold an exclusive lock. */
@@ -5835,7 +5857,7 @@ lock_clust_rec_modify_check_and_lock(
 	}
 
 	err = lock_rec_lock(true, LOCK_X | LOCK_REC_NOT_GAP,
-			    block, heap_no, index, thr);
+			    block, page, heap_no, index, thr);
 
 	ut_ad(lock_rec_queue_validate(false, block->page.id(),
 				      rec, index, offsets));
@@ -5867,14 +5889,13 @@ lock_sec_rec_modify_check_and_lock(
 				(can be NULL if BTR_NO_LOCKING_FLAG) */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 {
-	dberr_t	err;
-	ulint	heap_no;
+	const page_t* const page = block->page.frame;
 
 	ut_ad(!dict_index_is_clust(index));
 	ut_ad(!dict_index_is_online_ddl(index) || (flags & BTR_CREATE_FLAG));
-	ut_ad(block->page.frame == page_align(rec));
+	ut_ad(page == page_align(rec));
 	ut_ad(mtr->is_named_space(index->table->space));
-	ut_ad(page_rec_is_leaf(rec));
+	ut_ad(page_is_leaf(page));
 	ut_ad(!rec_is_metadata(rec, *index));
 
 	if (flags & BTR_NO_LOCKING_FLAG) {
@@ -5883,7 +5904,7 @@ lock_sec_rec_modify_check_and_lock(
 	}
 	ut_ad(!index->table->is_temporary());
 
-	heap_no = page_rec_get_heap_no(rec);
+	ulint heap_no = page_rec_get_heap_no(page, rec);
 
 #ifdef WITH_WSREP
 	trx_t *trx= thr_get_trx(thr);
@@ -5903,8 +5924,8 @@ lock_sec_rec_modify_check_and_lock(
 	index record, and this would not have been possible if another active
 	transaction had modified this secondary index record. */
 
-	err = lock_rec_lock(true, LOCK_X | LOCK_REC_NOT_GAP,
-			    block, heap_no, index, thr);
+	dberr_t err = lock_rec_lock(true, LOCK_X | LOCK_REC_NOT_GAP,
+				    block, page, heap_no, index, thr);
 
 #ifdef WITH_WSREP
 	if (trx->wsrep == 3) trx->wsrep = 1;
@@ -5974,9 +5995,9 @@ lock_sec_rec_read_check_and_lock(
 	ut_ad(!dict_index_is_clust(index));
 	ut_ad(!dict_index_is_online_ddl(index));
 	ut_ad(block->page.frame == page_align(rec));
-	ut_ad(page_rec_is_user_rec(rec) || page_rec_is_supremum(rec));
+	ut_ad(!page_rec_is_infimum(block->page.frame, rec));
 	ut_ad(rec_offs_validate(rec, index, offsets));
-	ut_ad(page_rec_is_leaf(rec));
+	ut_ad(page_is_leaf(block->page.frame));
 	ut_ad(mode == LOCK_X || mode == LOCK_S);
 
 	if ((flags & BTR_NO_LOCKING_FLAG)
@@ -5994,9 +6015,11 @@ lock_sec_rec_read_check_and_lock(
 		return DB_SUCCESS;
 	}
 
-	if (page_rec_is_supremum(rec)) {
+	const page_t* const page = block->page.frame;
+
+	if (page_rec_is_supremum(page, rec)) {
 	} else if (const trx_t *owner =
-		   lock_rec_convert_impl_to_expl<false>(trx, block->page.id(),
+		   lock_rec_convert_impl_to_expl<false>(trx, *block,
 							rec, index, offsets)) {
 		if (owner == trx) {
 			if (gap_mode == LOCK_REC_NOT_GAP) {
@@ -6022,7 +6045,8 @@ lock_sec_rec_read_check_and_lock(
 #endif /* WITH_WSREP */
 
 	err = lock_rec_lock(false, gap_mode | mode,
-			    block, page_rec_get_heap_no(rec), index, thr);
+			    block, page, page_rec_get_heap_no(page, rec),
+			    index, thr);
 
 #ifdef WITH_WSREP
 	if (trx->wsrep == 3) trx->wsrep = 1;
@@ -6065,13 +6089,14 @@ lock_clust_rec_read_check_and_lock(
 					LOCK_REC_NOT_GAP */
 	que_thr_t*		thr)	/*!< in: query thread */
 {
-	ut_ad(dict_index_is_clust(index));
-	ut_ad(block->page.frame == page_align(rec));
-	ut_ad(page_rec_is_user_rec(rec) || page_rec_is_supremum(rec));
+	const page_t* page = block->page.frame;
+
+	ut_ad(index->is_primary());
+	ut_ad(page_rec_is_user_rec(page, rec) || page_rec_is_supremum(page, rec));
 	ut_ad(gap_mode == LOCK_ORDINARY || gap_mode == LOCK_GAP
 	      || gap_mode == LOCK_REC_NOT_GAP);
 	ut_ad(rec_offs_validate(rec, index, offsets));
-	ut_ad(page_rec_is_leaf(rec));
+	ut_ad(page_is_leaf(page));
 	ut_ad(!rec_is_metadata(rec, *index));
 
 	if ((flags & BTR_NO_LOCKING_FLAG)
@@ -6081,15 +6106,13 @@ lock_clust_rec_read_check_and_lock(
 		return(DB_SUCCESS);
 	}
 
-	const page_id_t id{block->page.id()};
-
-	ulint heap_no = page_rec_get_heap_no(rec);
+	ulint heap_no = page_rec_get_heap_no(page, rec);
 
 	trx_t *trx = thr_get_trx(thr);
 	if (lock_table_has(trx, index->table, LOCK_X)
 	    || heap_no == PAGE_HEAP_NO_SUPREMUM) {
 	} else if (const trx_t *owner =
-		   lock_rec_convert_impl_to_expl<true>(trx, id,
+		   lock_rec_convert_impl_to_expl<true>(trx, *block,
 						       rec, index, offsets)) {
 		if (owner == trx) {
 			if (gap_mode == LOCK_REC_NOT_GAP) {
@@ -6111,9 +6134,10 @@ lock_clust_rec_read_check_and_lock(
 	}
 
 	dberr_t err = lock_rec_lock(false, gap_mode | mode,
-				    block, heap_no, index, thr);
+				    block, page, heap_no, index, thr);
 
-	ut_ad(lock_rec_queue_validate(false, id, rec, index, offsets));
+	ut_ad(lock_rec_queue_validate(false, block->page.id(),
+				      rec, index, offsets));
 
 	DEBUG_SYNC_C("after_lock_clust_rec_read_check_and_lock");
 
@@ -6997,13 +7021,15 @@ void lock_update_split_and_merge(
 					supremum on the left page before merge*/
 	const buf_block_t* right_block)	/*!< in: right page from which merged */
 {
-  ut_ad(page_is_leaf(left_block->page.frame));
-  ut_ad(page_is_leaf(right_block->page.frame));
-  ut_ad(page_align(orig_pred) == left_block->page.frame);
+  const page_t *left_page= left_block->page.frame;
+  const page_t *right_page= right_block->page.frame;
+
+  ut_ad(page_is_leaf(left_page));
+  ut_ad(page_is_leaf(right_page));
 
   const page_id_t l{left_block->page.id()};
   const page_id_t r{right_block->page.id()};
-  const rec_t *left_next_rec= page_rec_get_next_const(orig_pred);
+  const rec_t *left_next_rec= page_rec_get_next(left_page, orig_pred);
   if (UNIV_UNLIKELY(!left_next_rec))
   {
     ut_ad("corrupted page" == 0);
@@ -7016,8 +7042,8 @@ void lock_update_split_and_merge(
 
   /* Inherit the locks on the supremum of the left page to the
   first record which was moved from the right page */
-  lock_rec_inherit_to_gap(g.cell1(), l, g.cell1(), l, left_block->page.frame,
-                          page_rec_get_heap_no(left_next_rec),
+  lock_rec_inherit_to_gap(g.cell1(), l, g.cell1(), l, left_page,
+                          page_rec_get_heap_no(left_page, left_next_rec),
                           PAGE_HEAP_NO_SUPREMUM);
 
   /* Reset the locks on the supremum of the left page,
@@ -7026,7 +7052,7 @@ void lock_update_split_and_merge(
 
   /* Inherit the locks to the supremum of the left page from the
   successor of the infimum on the right page */
-  lock_rec_inherit_to_gap(g.cell1(), l, g.cell2(), r, left_block->page.frame,
+  lock_rec_inherit_to_gap(g.cell1(), l, g.cell2(), r, left_page,
                           PAGE_HEAP_NO_SUPREMUM,
-                          lock_get_min_heap_no(right_block));
+                          lock_get_min_heap_no(right_page));
 }

@@ -101,30 +101,30 @@ trx_undo_trx_id_is_insert(
 @param[in]	offset		undo log header offset
 @return end offset */
 inline
-uint16_t trx_undo_page_get_end(const buf_block_t *undo_page, uint32_t page_no,
-                               uint16_t offset)
+uint16_t trx_undo_page_get_end(const buf_block_t *undo_page,
+                               uint32_t page_no, const byte *offset)
 {
   if (page_no == undo_page->page.id().page_no())
-    if (uint16_t end = mach_read_from_2(TRX_UNDO_NEXT_LOG + offset +
-					undo_page->page.frame))
+    if (uint16_t end = mach_read_from_2(TRX_UNDO_NEXT_LOG + offset))
       return end;
 
   return mach_read_from_2(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_FREE +
-			  undo_page->page.frame);
+                          undo_page->page.frame);
 }
 
 /** Get the next record in an undo log.
 @param[in]      undo_page       undo log page
-@param[in]      rec             undo record offset in the page
+@param[in]      rec             undo record in the page
 @param[in]      page_no         undo log header page number
 @param[in]      offset          undo log header offset on page
 @return undo log record, the page latched, NULL if none */
 inline trx_undo_rec_t*
-trx_undo_page_get_next_rec(const buf_block_t *undo_page, uint16_t rec,
+trx_undo_page_get_next_rec(const buf_block_t *undo_page, const byte *rec,
                            uint32_t page_no, uint16_t offset)
 {
-  uint16_t end= trx_undo_page_get_end(undo_page, page_no, offset);
-  uint16_t next= mach_read_from_2(undo_page->page.frame + rec);
+  const uint16_t next= mach_read_from_2(rec);
+  const page_t *upage= undo_page->page.frame;
+  uint16_t end= trx_undo_page_get_end(undo_page, page_no, upage + offset);
   ut_ad(next <= end);
-  return next >= end ? nullptr : undo_page->page.frame + next;
+  return next >= end ? nullptr : const_cast<page_t*>(upage) + next;
 }

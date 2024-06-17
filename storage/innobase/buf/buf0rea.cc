@@ -597,7 +597,9 @@ failed:
       on the page, we do not acquire an s-latch on the page, this is to
       prevent deadlocks. The hash_lock is only protecting the
       buf_pool.page_hash for page i, not the bpage contents itself. */
-      const byte *f= bpage->frame ? bpage->frame : bpage->zip.data;
+      const byte *f= bpage->frame;
+      if (UNIV_UNLIKELY(!f))
+        f= bpage->zip.data;
       uint32_t prev= mach_read_from_4(my_assume_aligned<4>(f + FIL_PAGE_PREV));
       uint32_t next= mach_read_from_4(my_assume_aligned<4>(f + FIL_PAGE_NEXT));
       hash_lock.unlock_shared();

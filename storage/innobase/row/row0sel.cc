@@ -817,7 +817,7 @@ row_sel_build_prev_vers(
 /*====================*/
 	ReadView*	read_view,	/*!< in: read view */
 	dict_index_t*	index,		/*!< in: plan node for table */
-	rec_t*		rec,		/*!< in: record in a clustered index */
+	const rec_t*	rec,		/*!< in: record in a clustered index */
 	rec_offs**	offsets,	/*!< in/out: offsets returned by
 					rec_get_offsets(rec, plan->index) */
 	mem_heap_t**	offset_heap,	/*!< in/out: memory heap from which
@@ -960,7 +960,7 @@ static dberr_t row_sel_clust_sees(const rec_t *rec, const dict_index_t &index,
                                   const ReadView &view)
 {
   ut_ad(index.is_primary());
-  ut_ad(page_rec_is_user_rec(rec));
+  ut_ad(page_rec_is_user_rec(page_align(rec), rec));
   ut_ad(rec_offs_validate(rec, &index, offsets));
   ut_ad(!rec_is_metadata(rec, index));
   ut_ad(!index.table->is_temporary());
@@ -987,9 +987,9 @@ row_sel_get_clust_rec(
 /*==================*/
 	sel_node_t*	node,	/*!< in: select_node */
 	plan_t*		plan,	/*!< in: plan node for table */
-	rec_t*		rec,	/*!< in: record in a non-clustered index */
+	const rec_t*	rec,	/*!< in: record in a non-clustered index */
 	que_thr_t*	thr,	/*!< in: query thread */
-	rec_t**		out_rec,/*!< out: clustered record or an old version of
+	const rec_t**	out_rec,/*!< out: clustered record or an old version of
 				it, NULL if the old version did not exist
 				in the read view, i.e., it was a fresh
 				inserted version */
@@ -1028,7 +1028,8 @@ row_sel_get_clust_rec(
 	/* Note: only if the search ends up on a non-infimum record is the
 	low_match value the real match to the search tuple */
 
-	if (!page_rec_is_user_rec(clust_rec)
+	if (!page_rec_is_user_rec(btr_pcur_get_page(&plan->clust_pcur),
+				  clust_rec)
 	    || btr_pcur_get_low_match(&(plan->clust_pcur))
 	    < dict_index_get_n_unique(index)) {
 
@@ -1181,15 +1182,16 @@ sel_set_rtr_rec_lock(
 	rtr_rec_vector*	match_rec;
 	rtr_rec_vector::iterator end;
 
-	rec_offs_init(offsets_);
+	ut_ad(page_align(first_rec) == cur_block->page.frame);
 
-	if (match->locked || page_rec_is_supremum(first_rec)) {
+	if (match->locked
+	    || page_rec_is_supremum(cur_block->page.frame, first_rec)) {
 		return(DB_SUCCESS_LOCKED_REC);
 	}
 
-	ut_ad(page_align(first_rec) == cur_block->page.frame);
 	ut_ad(match->valid);
 
+	rec_offs_init(offsets_);
 	match->block->page.lock.x_lock();
 retry:
 	cur_block = btr_pcur_get_block(pcur);
@@ -1254,10 +1256,18 @@ re_scan:
 			&pcur->btr_cur.page_cur,
 			pcur->btr_cur.rtr_info);
 
-		if (!page_is_leaf(buf_block_get_frame(cur_block))) {
+		if (!page_is_leaf(cur_block->page.frame)) {
 			/* Page got splitted and promoted (only for
 			root page it is possible).  Release the
 			page and ask for a re-search */
+			mtr->commit();
+			mtr->start();
+			err = DB_RECORD_NOT_FOUND;
+			goto func_end;
+		}
+
+		/* No match record */
+		if (!match->valid || btr_pcur_is_after_last_on_page(pcur)) {
 			mtr->commit();
 			mtr->start();
 			err = DB_RECORD_NOT_FOUND;
@@ -1269,15 +1279,6 @@ re_scan:
 		my_offsets = rec_get_offsets(rec, index, my_offsets,
 					     index->n_fields,
 					     ULINT_UNDEFINED, &heap);
-
-		/* No match record */
-		if (page_rec_is_supremum(rec) || !match->valid) {
-			mtr->commit();
-			mtr->start();
-			err = DB_RECORD_NOT_FOUND;
-			goto func_end;
-		}
-
 		goto retry;
 	}
 
@@ -1580,8 +1581,9 @@ row_sel_try_search_shortcut(
 	}
 
 	const rec_t* rec = btr_pcur_get_rec(&(plan->pcur));
+	const page_t* const page = btr_pcur_get_page(&plan->pcur);
 
-	if (!page_rec_is_user_rec(rec) || rec_is_metadata(rec, *index)) {
+	if (!page_rec_is_user_rec(page, rec) || rec_is_metadata(rec, *index)) {
 		return SEL_RETRY;
 	}
 
@@ -1618,7 +1620,7 @@ row_sel_try_search_shortcut(
 			return SEL_RETRY;
 		}
 	} else if (!srv_read_only_mode) {
-		trx_id_t trx_id = page_get_max_trx_id(page_align(rec));
+		trx_id_t trx_id = page_get_max_trx_id(page);
 		ut_ad(trx_id);
 		if (!node->read_view->sees(trx_id)) {
 			return SEL_RETRY;
@@ -1667,10 +1669,10 @@ row_sel(
 	dict_index_t*	index;
 	plan_t*		plan;
 	mtr_t		mtr;
-	ibool		moved;
-	rec_t*		rec;
+	const page_t*	page;
+	const rec_t*	rec;
 	rec_t*		old_vers;
-	rec_t*		clust_rec;
+	const rec_t*	clust_rec;
 
 	/* The following flag becomes TRUE when we are doing a
 	consistent read from a non-clustered index and we must look
@@ -1806,11 +1808,12 @@ rec_loop:
 	ut_ad(mtr_has_extra_clust_latch == FALSE);
 
 	rec = btr_pcur_get_rec(&(plan->pcur));
+	page = btr_pcur_get_page(&plan->pcur);
 
 	/* PHASE 1: Set a lock if specified */
 
 	if (!node->asc && cursor_just_opened
-	    && !page_rec_is_supremum(rec)) {
+	    && !page_rec_is_supremum(page, rec)) {
 
 		/* Do not support "descending search" for Spatial index */
 		ut_ad(!dict_index_is_spatial(index));
@@ -1822,29 +1825,29 @@ rec_loop:
 		search result set, resulting in the phantom problem. */
 
 		if (!node->read_view) {
-			const rec_t* next_rec = page_rec_get_next_const(rec);
+			const rec_t* next_rec = page_rec_get_next(page, rec);
 			if (UNIV_UNLIKELY(!next_rec)) {
 				err = DB_CORRUPTION;
 				goto lock_wait_or_error;
 			}
 			unsigned lock_type;
 
-			offsets = rec_get_offsets(next_rec, index, offsets,
-						  index->n_core_fields,
-						  ULINT_UNDEFINED, &heap);
-
 			/* At READ UNCOMMITTED or READ COMMITTED
 			isolation level, we lock only the record,
 			i.e., next-key locking is not used. */
 			if (trx->isolation_level <= TRX_ISO_READ_COMMITTED) {
-				if (page_rec_is_supremum(next_rec)) {
-					goto skip_lock;
+				if (page_rec_is_supremum(page, next_rec)) {
+					goto next_rec;
 				}
 
 				lock_type = LOCK_REC_NOT_GAP;
 			} else {
 				lock_type = LOCK_ORDINARY;
 			}
+
+			offsets = rec_get_offsets(next_rec, index, offsets,
+						  index->n_core_fields,
+						  ULINT_UNDEFINED, &heap);
 
 			err = sel_set_rec_lock(&plan->pcur,
 					       next_rec, index, offsets,
@@ -1866,8 +1869,7 @@ rec_loop:
 		}
 	}
 
-skip_lock:
-	if (page_rec_is_infimum(rec)) {
+	if (page_rec_is_infimum(page, rec)) {
 
 		/* The infimum record on a page cannot be in the result set,
 		and neither can a record lock be placed on it: we skip such
@@ -1889,17 +1891,13 @@ skip_lock:
 		/* Try to place a lock on the index record */
 		unsigned lock_type;
 
-		offsets = rec_get_offsets(rec, index, offsets,
-					  index->n_core_fields,
-					  ULINT_UNDEFINED, &heap);
-
 		/* At READ UNCOMMITTED or READ COMMITTED isolation level,
 		we lock only the record, i.e., next-key locking is
 		not used. */
 		if (trx->isolation_level <= TRX_ISO_READ_COMMITTED
 		    || dict_index_is_spatial(index)) {
 
-			if (page_rec_is_supremum(rec)) {
+			if (page_rec_is_supremum(page, rec)) {
 
 				goto next_rec;
 			}
@@ -1908,6 +1906,10 @@ skip_lock:
 		} else {
 			lock_type = LOCK_ORDINARY;
 		}
+
+		offsets = rec_get_offsets(rec, index, offsets,
+					  index->n_core_fields,
+					  ULINT_UNDEFINED, &heap);
 
 		err = sel_set_rec_lock(&plan->pcur,
 				       rec, index, offsets,
@@ -1925,7 +1927,7 @@ skip_lock:
 		}
 	}
 
-	if (page_rec_is_supremum(rec)) {
+	if (page_rec_is_supremum(page, rec)) {
 
 		/* A page supremum record cannot be in the result set: skip
 		it now when we have placed a possible lock on it */
@@ -1933,7 +1935,7 @@ skip_lock:
 		goto next_rec;
 	}
 
-	ut_ad(page_rec_is_user_rec(rec));
+	ut_ad(page_rec_is_user_rec(page, rec));
 
 	if (cost_counter > SEL_COST_LIMIT) {
 
@@ -2039,7 +2041,8 @@ skip_lock:
 				rec = old_vers;
 			}
 		} else if (!srv_read_only_mode) {
-			trx_id_t trx_id = page_get_max_trx_id(page_align(rec));
+			trx_id_t trx_id = page_get_max_trx_id(
+				btr_pcur_get_page(&plan->pcur));
 			ut_ad(trx_id);
 			if (!node->read_view->sees(trx_id)) {
 				cons_read_requires_clust_rec = TRUE;
@@ -2182,13 +2185,9 @@ next_rec:
 		goto commit_mtr_for_a_while;
 	}
 
-	if (node->asc) {
-		moved = btr_pcur_move_to_next(&(plan->pcur), &mtr);
-	} else {
-		moved = btr_pcur_move_to_prev(&(plan->pcur), &mtr);
-	}
-
-	if (!moved) {
+	if (!(node->asc
+	      ? btr_pcur_move_to_next(&plan->pcur, &mtr)
+	      : btr_pcur_move_to_prev(&plan->pcur, &mtr))) {
 
 		goto table_exhausted;
 	}
@@ -3398,7 +3397,8 @@ Row_sel_get_clust_rec_for_mysql::operator()(
 	/* Note: only if the search ends up on a non-infimum record is the
 	low_match value the real match to the search tuple */
 
-	if (!page_rec_is_user_rec(clust_rec)
+	if (!page_rec_is_user_rec(btr_pcur_get_page(prebuilt->clust_pcur),
+				  clust_rec)
 	    || btr_pcur_get_low_match(prebuilt->clust_pcur)
 	    < dict_index_get_n_unique(clust_index)) {
 		btr_cur_t*	btr_cur = btr_pcur_get_btr_cur(prebuilt->pcur);
@@ -3535,9 +3535,11 @@ Row_sel_get_clust_rec_for_mysql::operator()(
 		case DB_SUCCESS_LOCKED_REC:
 			const buf_page_t& bpage = btr_pcur_get_block(
 				prebuilt->clust_pcur)->page;
+			ut_ad(clust_rec
+			      == btr_pcur_get_rec(prebuilt->clust_pcur));
 
 			const lsn_t lsn = mach_read_from_8(
-				page_align(clust_rec) + FIL_PAGE_LSN);
+				bpage.frame + FIL_PAGE_LSN);
 
 			if (lsn != cached_lsn
 			    || bpage.id() != cached_page_id
@@ -3978,7 +3980,8 @@ row_sel_try_search_shortcut_for_mysql(
 
 	rec = btr_pcur_get_rec(pcur);
 
-	if (!page_rec_is_user_rec(rec) || rec_is_metadata(rec, *index)) {
+	if (!page_rec_is_user_rec(btr_pcur_get_page(pcur), rec)
+	    || rec_is_metadata(rec, *index)) {
 		return SEL_RETRY;
 	}
 
@@ -4810,12 +4813,13 @@ page_corrupted:
 
 		if (!moves_up
 		    && set_also_gap_locks
-		    && !page_rec_is_supremum(rec)
+		    && !page_rec_is_supremum(btr_pcur_get_page(pcur), rec)
 		    && !dict_index_is_spatial(index)) {
 
 			/* Try to place a gap lock on the next index record
 			to prevent phantoms in ORDER BY ... DESC queries */
-			const rec_t*	next_rec = page_rec_get_next_const(rec);
+			const rec_t*	next_rec = page_rec_get_next(
+				btr_pcur_get_page(pcur), rec);
 			if (UNIV_UNLIKELY(!next_rec)) {
 				err = DB_CORRUPTION;
 				goto page_corrupted;
@@ -4914,11 +4918,12 @@ rec_loop:
 	/* PHASE 4: Look for matching records in a loop */
 
 	rec = btr_pcur_get_rec(pcur);
+	const page_t* page = btr_pcur_get_page(pcur);
 
-	ut_ad(!!page_rec_is_comp(rec) == comp);
-	ut_ad(page_rec_is_leaf(rec));
+	ut_ad(!!page_is_comp(page) == comp);
+	ut_ad(page_is_leaf(page));
 
-	if (page_rec_is_infimum(rec)) {
+	if (page_rec_is_infimum(page, rec)) {
 
 		/* The infimum record on a page cannot be in the result set,
 		and neither can a record lock be placed on it: we skip such
@@ -4927,7 +4932,7 @@ rec_loop:
 		goto next_rec;
 	}
 
-	if (page_rec_is_supremum(rec)) {
+	if (page_rec_is_supremum(page, rec)) {
 
 		if (set_also_gap_locks
 		    && !dict_index_is_spatial(index)) {
@@ -5005,8 +5010,8 @@ wrong_offs:
 				.buf_fix_count();
 
 			ib::error() << "Index corruption: rec offs "
-				<< page_offset(rec) << " next offs "
-				<< next_offs
+				<< rec - btr_pcur_get_page(pcur)
+				<< " next offs " << next_offs
 				<< btr_pcur_get_block(pcur)->page.id()
 				<< ", index " << index->name
 				<< " of table " << index->table->name
@@ -5022,8 +5027,8 @@ wrong_offs:
 			over the corruption to recover as much as possible. */
 
 			ib::info() << "Index corruption: rec offs "
-				<< page_offset(rec) << " next offs "
-				<< next_offs
+				<< rec - btr_pcur_get_page(pcur)
+				<< " next offs " << next_offs
 				<< btr_pcur_get_block(pcur)->page.id()
 				<< ", index " << index->name
 				<< " of table " << index->table->name
@@ -5039,18 +5044,18 @@ wrong_offs:
 
 	/* Calculate the 'offsets' associated with 'rec' */
 
-	ut_ad(fil_page_index_page_check(btr_pcur_get_page(pcur)));
-	ut_ad(btr_page_get_index_id(btr_pcur_get_page(pcur)) == index->id);
+	ut_ad(fil_page_index_page_check(page));
+	ut_ad(btr_page_get_index_id(page) == index->id);
 
 	offsets = rec_get_offsets(rec, index, offsets, index->n_core_fields,
 				  ULINT_UNDEFINED, &heap);
 
 	if (UNIV_UNLIKELY(srv_force_recovery > 0)) {
 		if (!rec_validate(rec, offsets)
-		    || !btr_index_rec_validate(rec, index, FALSE)) {
+		    || !btr_index_rec_validate(page, rec, index, false)) {
 
 			ib::error() << "Index corruption: rec offs "
-				<< page_offset(rec) << " next offs "
+				<< rec - page << " next offs "
 				<< next_offs
 				<< btr_pcur_get_block(pcur)->page.id()
 				<< ", index " << index->name
@@ -6276,7 +6281,7 @@ rec_loop:
   const rec_t *rec= btr_pcur_get_rec(prebuilt->pcur);
   rec_offs *offsets= offsets_;
 
-  if (page_rec_is_supremum(rec))
+  if (btr_pcur_is_after_last_on_page(prebuilt->pcur))
   {
   next_page:
     if (btr_pcur_is_after_last_in_tree(prebuilt->pcur))
@@ -6406,8 +6411,9 @@ rec_loop:
       /* Note: only if the search ends up on a non-infimum record is the
       low_match value the real match to the search tuple */
 
-      if (!page_rec_is_user_rec(clust_rec) ||
-          btr_pcur_get_low_match(prebuilt->clust_pcur) < clust_index->n_uniq)
+      if (btr_pcur_get_low_match(prebuilt->clust_pcur) < clust_index->n_uniq ||
+          !page_rec_is_user_rec(btr_pcur_get_page(prebuilt->clust_pcur),
+                                clust_rec))
       {
         if (!rec_deleted)
         {
@@ -6903,7 +6909,7 @@ row_search_get_max_rec(
 		page = btr_pcur_get_page(&pcur);
 		rec = page_find_rec_max_not_deleted(page);
 
-		if (page_rec_is_user_rec(rec)) {
+		if (page_rec_is_user_rec(page, rec)) {
 			break;
 		} else {
 			rec = NULL;

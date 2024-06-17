@@ -70,7 +70,7 @@ PageBulk::init()
 			return err;
 		}
 
-		new_page = buf_block_get_frame(new_block);
+		new_page = new_block->page.frame;
 		m_page_no = new_block->page.id().page_no();
 
 		byte* index_id = my_assume_aligned<2>
@@ -101,11 +101,11 @@ PageBulk::init()
 			return(DB_CORRUPTION);
 		}
 
-		new_page = buf_block_get_frame(new_block);
+		new_page = new_block->page.frame;
 
 		ut_ad(page_dir_get_n_heap(new_page) == PAGE_HEAP_NO_USER_LOW);
 
-		btr_page_set_level(new_block, m_level, &m_mtr);
+		btr_page_set_level(new_block, new_page, m_level, &m_mtr);
 	}
 
 	m_page_zip = buf_block_get_page_zip(new_block);
@@ -162,10 +162,10 @@ inline void PageBulk::insertPage(rec_t *rec, rec_offs *offsets)
 
 #ifdef UNIV_DEBUG
   /* Check whether records are in order. */
-  if (page_offset(m_cur_rec) !=
+  if (m_cur_rec - m_page !=
       (fmt == REDUNDANT ? PAGE_OLD_INFIMUM : PAGE_NEW_INFIMUM))
   {
-    const rec_t *old_rec = m_cur_rec;
+    const rec_t *old_rec= m_cur_rec;
     rec_offs *old_offsets= rec_get_offsets(old_rec, m_index, nullptr, is_leaf
                                            ? m_index->n_core_fields : 0,
                                            ULINT_UNDEFINED, &m_heap);
@@ -180,8 +180,7 @@ inline void PageBulk::insertPage(rec_t *rec, rec_offs *offsets)
   /* Insert the record in the linked list. */
   if (fmt != REDUNDANT)
   {
-    const rec_t *next_rec= m_page +
-      page_offset(m_cur_rec + mach_read_from_2(m_cur_rec - REC_NEXT));
+    const rec_t *next_rec= m_cur_rec + mach_read_from_2(m_cur_rec - REC_NEXT);
     if (fmt != COMPRESSED)
       m_mtr.write<2>(*m_block, m_cur_rec - REC_NEXT,
                      static_cast<uint16_t>(insert_rec - m_cur_rec));
@@ -204,7 +203,7 @@ inline void PageBulk::insertPage(rec_t *rec, rec_offs *offsets)
   else
   {
     memcpy(const_cast<rec_t*>(rec) - REC_NEXT, m_cur_rec - REC_NEXT, 2);
-    m_mtr.write<2>(*m_block, m_cur_rec - REC_NEXT, page_offset(insert_rec));
+    m_mtr.write<2>(*m_block, m_cur_rec - REC_NEXT, insert_rec - m_page);
     rec_set_bit_field_1(const_cast<rec_t*>(rec), 0,
                         REC_OLD_N_OWNED, REC_N_OWNED_MASK, REC_N_OWNED_SHIFT);
     rec_set_bit_field_2(const_cast<rec_t*>(rec),
@@ -214,7 +213,7 @@ inline void PageBulk::insertPage(rec_t *rec, rec_offs *offsets)
 
   if (fmt == COMPRESSED)
     /* We already wrote the record. Log is written in PageBulk::compress(). */;
-  else if (page_offset(m_cur_rec) ==
+  else if (m_cur_rec - m_page ==
            (fmt == REDUNDANT ? PAGE_OLD_INFIMUM : PAGE_NEW_INFIMUM))
     m_mtr.memcpy(*m_block, m_heap_top, rec - extra_size, rec_size);
   else
@@ -246,7 +245,7 @@ inline void PageBulk::insertPage(rec_t *rec, rec_offs *offsets)
       if (len > 2)
       {
         memcpy(b, c, len);
-        m_mtr.memmove(*m_block, page_offset(b), page_offset(c), len);
+        m_mtr.memmove(*m_block, b, c, len);
         c= cm;
         b= bm;
         r= rm;
@@ -285,7 +284,7 @@ no_data:
         {
           m_mtr.memcpy<mtr_t::FORCED>(*m_block, b, r, m_cur_rec - c);
           memcpy(bd, cd, len);
-          m_mtr.memmove(*m_block, page_offset(bd), page_offset(cd), len);
+          m_mtr.memmove(*m_block, bd, cd, len);
           c= cdm;
           b= rdm - rd + bd;
           r= rdm;
@@ -401,7 +400,7 @@ inline void PageBulk::finishPage()
       /* Merge the last two slots, like page_cur_insert_rec_low() does. */
       count+= (PAGE_DIR_SLOT_MAX_N_OWNED + 1) / 2;
 
-      rec_t *rec= const_cast<rec_t*>(page_dir_slot_get_rec(slot));
+      rec_t *rec= const_cast<rec_t*>(page_dir_slot_get_rec(m_page, slot));
       if (fmt != COMPRESSED)
         page_rec_set_n_owned<false>(m_block, rec, 0, true, &m_mtr);
       else
@@ -430,7 +429,7 @@ inline void PageBulk::finishPage()
       if (count == (PAGE_DIR_SLOT_MAX_N_OWNED + 1) / 2)
       {
         slot-= PAGE_DIR_SLOT_SIZE;
-        mach_write_to_2(slot, page_offset(insert_rec));
+        mach_write_to_2(slot, insert_rec - m_page);
         page_rec_set_n_owned<false>(m_block, insert_rec, count, false, &m_mtr);
         count= 0;
       }
@@ -444,7 +443,7 @@ inline void PageBulk::finishPage()
       /* Merge the last two slots, like page_cur_insert_rec_low() does. */
       count+= (PAGE_DIR_SLOT_MAX_N_OWNED + 1) / 2;
 
-      rec_t *rec= const_cast<rec_t*>(page_dir_slot_get_rec(slot));
+      rec_t *rec= const_cast<rec_t*>(page_dir_slot_get_rec(m_page, slot));
       page_rec_set_n_owned<false>(m_block, rec, 0, false, &m_mtr);
     }
     else
@@ -469,7 +468,7 @@ inline void PageBulk::finishPage()
     m_mtr.memcpy(*m_block, PAGE_HEADER + m_page, page_header,
                  sizeof page_header);
     m_mtr.write<2>(*m_block, PAGE_HEADER + PAGE_N_RECS + m_page, m_rec_no);
-    m_mtr.memcpy(*m_block, page_offset(slot), slot0 - slot);
+    m_mtr.memcpy(*m_block, slot, slot0 - slot);
   }
   else
   {
@@ -577,8 +576,7 @@ PageBulk::getNodePtr()
 	dtuple_t*	node_ptr;
 
 	/* Create node pointer */
-	first_rec = page_rec_get_next(page_get_infimum_rec(m_page));
-	ut_a(page_rec_is_user_rec(first_rec));
+	first_rec = page_rec_get_first(m_page);
 	node_ptr = dict_index_build_node_ptr(m_index, first_rec, m_page_no,
 					     m_heap, m_level);
 
@@ -612,8 +610,8 @@ PageBulk::getSplitRec()
 	const ulint n_core = page_is_leaf(m_page) ? m_index->n_core_fields : 0;
 
 	do {
-		rec = page_rec_get_next(rec);
-		ut_ad(page_rec_is_user_rec(rec));
+		rec = page_rec_get_next(m_page, rec);
+		ut_ad(page_rec_is_user_rec(m_page, rec));
 
 		offsets = rec_get_offsets(rec, m_index, offsets, n_core,
 					  ULINT_UNDEFINED, &m_heap);
@@ -623,28 +621,23 @@ PageBulk::getSplitRec()
 		 < total_used_size / 2);
 
 	/* Keep at least one record on left page */
-	if (page_rec_is_first(rec, m_page)) {
-		rec = page_rec_get_next(rec);
-		ut_ad(page_rec_is_user_rec(rec));
+	if (page_rec_is_first(m_page, rec)) {
+		rec = page_rec_get_next(m_page, rec);
+		ut_ad(page_rec_is_user_rec(m_page, rec));
 	}
 
 	return(rec);
 }
 
-/** Copy all records after split rec including itself.
-@param[in]	rec	split rec */
-void
-PageBulk::copyIn(
-	rec_t*		split_rec)
+void PageBulk::copyIn(const page_t *page, const rec_t *rec)
 {
 
-	rec_t*		rec = split_rec;
 	rec_offs*	offsets = NULL;
 
 	ut_ad(m_rec_no == 0);
-	ut_ad(page_rec_is_user_rec(rec));
+	ut_ad(page_rec_is_user_rec(page, rec));
 
-	const ulint n_core = page_rec_is_leaf(rec)
+	const ulint n_core = page_is_leaf(page)
 		? m_index->n_core_fields : 0;
 
 	do {
@@ -653,17 +646,13 @@ PageBulk::copyIn(
 
 		insert(rec, offsets);
 
-		rec = page_rec_get_next(rec);
-	} while (!page_rec_is_supremum(rec));
+		rec = page_rec_get_next(page, rec);
+	} while (!page_rec_is_supremum(page, rec));
 
 	ut_ad(m_rec_no > 0);
 }
 
-/** Remove all records after split rec including itself.
-@param[in]	rec	split rec	*/
-void
-PageBulk::copyOut(
-	rec_t*		split_rec)
+inline void PageBulk::copyOut(rec_t *split_rec)
 {
 	/* Suppose before copyOut, we have 5 records on the page:
 	infimum->r1->r2->r3->r4->r5->supremum, and r3 is the split rec.
@@ -675,7 +664,7 @@ PageBulk::copyOut(
 	ulint n;
 
 	for (n = 0;; n++) {
-		rec_t *next = page_rec_get_next(rec);
+		rec_t *next = page_rec_get_next(m_page, rec);
 		if (next == split_rec) {
 			break;
 		}
@@ -684,24 +673,23 @@ PageBulk::copyOut(
 
 	ut_ad(n > 0);
 
-        const rec_t *last_rec = split_rec;
+	const rec_t *last_rec = split_rec;
 	for (;;) {
-		const rec_t *next = page_rec_get_next_const(last_rec);
-		if (page_rec_is_supremum(next)) {
+		const rec_t *next = page_rec_get_next(m_page, last_rec);
+		if (page_rec_is_supremum(m_page, next)) {
 			break;
 		}
 		last_rec = next;
 	}
 
 	/* Set last record's next in page */
-	const ulint n_core = page_rec_is_leaf(split_rec)
+	const ulint n_core = page_is_leaf(m_page)
 		? m_index->n_core_fields : 0;
 
 	rec_offs* offsets = rec_get_offsets(rec, m_index, nullptr, n_core,
 					    ULINT_UNDEFINED, &m_heap);
 	mach_write_to_2(rec - REC_NEXT, m_is_comp
-			? static_cast<uint16_t>
-			(PAGE_NEW_SUPREMUM - page_offset(rec))
+			? uint16_t(PAGE_NEW_SUPREMUM - (rec - m_page))
 			: PAGE_OLD_SUPREMUM);
 
 	/* Set related members */
@@ -883,7 +871,7 @@ BtrBulk::pageSplit(
 
 	/* Copy the upper half to the new page. */
 	rec_t*	split_rec = page_bulk->getSplitRec();
-	new_page_bulk.copyIn(split_rec);
+	new_page_bulk.copyIn(page_bulk->getPage(), split_rec);
 	page_bulk->copyOut(split_rec);
 
 	/* Commit the pages after split. */
@@ -1190,19 +1178,18 @@ err_exit:
 			return err;
 		}
 
-		first_rec = page_rec_get_next(
-			page_get_infimum_rec(last_block->page.frame));
+		page_t* last_page = last_block->page.frame;
+		first_rec = page_rec_get_first(last_page);
 		/* Because this index tree is being created by this thread,
 		we assume that it cannot be corrupted. */
 		ut_ad(first_rec);
-		ut_ad(page_rec_is_user_rec(first_rec));
 
 		/* Copy last page to root page. */
 		err = root_page_bulk.init();
 		if (err != DB_SUCCESS) {
 			goto err_exit;
 		}
-		root_page_bulk.copyIn(first_rec);
+		root_page_bulk.copyIn(last_page, first_rec);
 		root_page_bulk.finish();
 
 		/* Remove last page. */

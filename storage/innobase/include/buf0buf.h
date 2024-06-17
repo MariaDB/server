@@ -420,8 +420,6 @@ void buf_pool_invalidate();
 --------------------------- LOWER LEVEL ROUTINES -------------------------
 =========================================================================*/
 
-#define buf_block_get_frame(block) (block)->page.frame
-
 /*********************************************************************//**
 Gets the compressed page descriptor corresponding to an uncompressed page
 if applicable. */
@@ -834,6 +832,12 @@ public:
   {
     return zip.ssize ? (UNIV_ZIP_SIZE_MIN >> 1) << zip.ssize : 0;
   }
+
+#ifdef UNIV_DEBUG
+  /** @return whether the address is within the page frame */
+  bool is_physical_address(const byte *p) const
+  { return size_t(p - frame) < physical_size(); }
+#endif
 
   /** @return the byte offset of the page within a file */
   os_offset_t physical_offset() const
@@ -1679,7 +1683,7 @@ public:
   indexed by page_id_t. Protected by both mutex and page_hash.lock_get(). */
   page_hash_table page_hash;
 
-  /** map of block->frame to buf_block_t blocks that belong
+  /** map of buf_page_t::frame to buf_block_t blocks that belong
   to buf_buddy_alloc(); protected by buf_pool.mutex */
   hash_table_t zip_hash;
 	Atomic_counter<ulint>

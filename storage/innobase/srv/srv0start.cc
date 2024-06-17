@@ -463,10 +463,13 @@ static ulint trx_rseg_get_n_undo_tablespaces()
   mtr.start();
 
   if (const buf_block_t *sys_header= trx_sysf_get(&mtr, false))
+  {
+    const page_t *sys_page= sys_header->page.frame;
     for (ulint rseg_id= 0; rseg_id < TRX_SYS_N_RSEGS; rseg_id++)
-      if (trx_sysf_rseg_get_page_no(sys_header, rseg_id) != FIL_NULL)
-        if (uint32_t space= trx_sysf_rseg_get_space(sys_header, rseg_id))
+      if (trx_sysf_rseg_get_page_no(sys_page, rseg_id) != FIL_NULL)
+        if (uint32_t space= trx_sysf_rseg_get_space(sys_page, rseg_id))
           space_ids.insert(space);
+  }
   mtr.commit();
   return space_ids.size();
 }
@@ -1789,7 +1792,8 @@ dberr_t srv_start(bool create_new_db)
 				mtr.commit();
 				return srv_init_abort(DB_CORRUPTION);
 			}
-			fil_block_check_type(*block, FIL_PAGE_TYPE_SYS, &mtr);
+			fil_block_check_type(*block, block->page.frame,
+					     FIL_PAGE_TYPE_SYS, &mtr);
 			/* Already MySQL 3.23.53 initialized
 			FSP_IBUF_TREE_ROOT_PAGE_NO to
 			FIL_PAGE_INDEX. No need to reset that one. */
@@ -1799,8 +1803,8 @@ dberr_t srv_start(bool create_new_db)
 			if (UNIV_UNLIKELY(!block)) {
 				goto corrupted_old_page;
 			}
-			fil_block_check_type(*block, FIL_PAGE_TYPE_TRX_SYS,
-					     &mtr);
+			fil_block_check_type(*block, block->page.frame,
+					     FIL_PAGE_TYPE_TRX_SYS, &mtr);
 			block = buf_page_get(
 				page_id_t(TRX_SYS_SPACE,
 					  FSP_FIRST_RSEG_PAGE_NO),
@@ -1808,14 +1812,16 @@ dberr_t srv_start(bool create_new_db)
 			if (UNIV_UNLIKELY(!block)) {
 				goto corrupted_old_page;
 			}
-			fil_block_check_type(*block, FIL_PAGE_TYPE_SYS, &mtr);
+			fil_block_check_type(*block, block->page.frame,
+					     FIL_PAGE_TYPE_SYS, &mtr);
 			block = buf_page_get(
 				page_id_t(TRX_SYS_SPACE, FSP_DICT_HDR_PAGE_NO),
 				0, RW_X_LATCH, &mtr);
 			if (UNIV_UNLIKELY(!block)) {
 				goto corrupted_old_page;
 			}
-			fil_block_check_type(*block, FIL_PAGE_TYPE_SYS, &mtr);
+			fil_block_check_type(*block, block->page.frame,
+					     FIL_PAGE_TYPE_SYS, &mtr);
 			mtr.commit();
 		}
 

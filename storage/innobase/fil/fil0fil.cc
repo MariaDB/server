@@ -2683,7 +2683,8 @@ void fsp_flags_try_adjust(fil_space_t* space, ulint flags)
 	if (buf_block_t* b = buf_page_get(
 		    page_id_t(space->id, 0), space->zip_size(),
 		    RW_X_LATCH, &mtr)) {
-		uint32_t f = fsp_header_get_flags(b->page.frame);
+		page_t* page = b->page.frame;
+		uint32_t f = fsp_header_get_flags(page);
 		if (fil_space_t::full_crc32(f)) {
 			goto func_exit;
 		}
@@ -2701,7 +2702,7 @@ void fsp_flags_try_adjust(fil_space_t* space, ulint flags)
 		mtr.set_named_space(space);
 		mtr.write<4,mtr_t::FORCED>(*b,
 					   FSP_HEADER_OFFSET + FSP_SPACE_FLAGS
-					   + b->page.frame, flags);
+					   + page, flags);
 	}
 func_exit:
 	mtr.commit();

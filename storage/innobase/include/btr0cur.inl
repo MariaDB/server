@@ -49,18 +49,6 @@ btr_cur_get_page_zip(
 }
 
 /*********************************************************//**
-Returns the page of a tree cursor.
-@return pointer to page */
-UNIV_INLINE
-page_t*
-btr_cur_get_page(
-/*=============*/
-	btr_cur_t*	cursor)	/*!< in: tree cursor */
-{
-	return(page_align(page_cur_get_rec(&(cursor->page_cur))));
-}
-
-/*********************************************************//**
 Positions a tree cursor at a given record. */
 UNIV_INLINE
 void

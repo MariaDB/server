@@ -68,8 +68,7 @@ trx_sys_print_mysql_binlog_offset()
 @param[in]	sys_header
 @return an unallocated rollback segment slot in the TRX_SYS header
 @retval ULINT_UNDEFINED if not found */
-ulint
-trx_sys_rseg_find_free(const buf_block_t* sys_header)
+static ulint trx_sys_rseg_find_free(const page_t* sys_header)
 {
 	for (ulint rseg_id = 0; rseg_id < TRX_SYS_N_RSEGS; rseg_id++) {
 		if (trx_sysf_rseg_get_page_no(sys_header, rseg_id)
@@ -91,10 +90,11 @@ trx_sysf_get_n_rseg_slots()
 
 	srv_available_undo_logs = 0;
 	if (const buf_block_t* sys_header = trx_sysf_get(&mtr, false)) {
+		const page_t* sys_page = sys_header->page.frame;
+
 		for (ulint rseg_id = 0; rseg_id < TRX_SYS_N_RSEGS; rseg_id++) {
 			srv_available_undo_logs
-				+= trx_sysf_rseg_get_page_no(sys_header,
-							     rseg_id)
+				+= trx_sysf_rseg_get_page_no(sys_page, rseg_id)
 				!= FIL_NULL;
 		}
 	}
@@ -121,8 +121,9 @@ dberr_t trx_sys_create_sys_pages(mtr_t *mtr)
   }
   ut_a(block->page.id() == page_id_t(0, TRX_SYS_PAGE_NO));
 
-  mtr->write<2>(*block, FIL_PAGE_TYPE + block->page.frame,
-                FIL_PAGE_TYPE_TRX_SYS);
+  page_t *page= block->page.frame;
+
+  mtr->write<2>(*block, FIL_PAGE_TYPE + page, FIL_PAGE_TYPE_TRX_SYS);
 
   /* Reset the rollback segment slots.  Old versions of InnoDB
   (before MySQL 5.5) define TRX_SYS_N_RSEGS as 256 and expect
@@ -130,9 +131,9 @@ dberr_t trx_sys_create_sys_pages(mtr_t *mtr)
   static_assert(256 >= TRX_SYS_N_RSEGS, "");
   static_assert(TRX_SYS + TRX_SYS_RSEGS + 256 * TRX_SYS_RSEG_SLOT_SIZE <=
                 UNIV_PAGE_SIZE_MIN - FIL_PAGE_DATA_END, "");
-  mtr->write<4>(*block, TRX_SYS + TRX_SYS_RSEGS + TRX_SYS_RSEG_PAGE_NO +
-                block->page.frame, FSP_FIRST_RSEG_PAGE_NO);
-  mtr->memset(block, TRX_SYS + TRX_SYS_RSEGS + TRX_SYS_RSEG_SLOT_SIZE,
+  mtr->write<4>(*block, TRX_SYS + TRX_SYS_RSEGS + TRX_SYS_RSEG_PAGE_NO + page,
+                FSP_FIRST_RSEG_PAGE_NO);
+  mtr->memset(block, TRX_SYS + TRX_SYS_RSEGS + TRX_SYS_RSEG_SLOT_SIZE + page,
               255 * TRX_SYS_RSEG_SLOT_SIZE, 0xff);
 
   buf_block_t *r= trx_rseg_header_create(fil_system.sys_space, 0, 0,
@@ -224,7 +225,8 @@ static trx_rseg_t *trx_rseg_create(ulint space_id)
     ut_ad(space->purpose == FIL_TYPE_TABLESPACE);
     if (buf_block_t *sys_header= trx_sysf_get(&mtr))
     {
-      ulint rseg_id= trx_sys_rseg_find_free(sys_header);
+      page_t *sys_page= sys_header->page.frame;
+      ulint rseg_id= trx_sys_rseg_find_free(sys_page);
       dberr_t err;
       if (buf_block_t *rblock= rseg_id == ULINT_UNDEFINED
           ? nullptr : trx_rseg_header_create(space, rseg_id, 0, &mtr, &err))
@@ -234,12 +236,10 @@ static trx_rseg_t *trx_rseg_create(ulint space_id)
         ut_ad(rseg->is_persistent());
         mtr.write<4,mtr_t::MAYBE_NOP>
           (*sys_header, TRX_SYS + TRX_SYS_RSEGS + TRX_SYS_RSEG_SPACE +
-           rseg_id * TRX_SYS_RSEG_SLOT_SIZE + sys_header->page.frame,
-           space_id);
+           rseg_id * TRX_SYS_RSEG_SLOT_SIZE + sys_page, space_id);
         mtr.write<4,mtr_t::MAYBE_NOP>
           (*sys_header, TRX_SYS + TRX_SYS_RSEGS + TRX_SYS_RSEG_PAGE_NO +
-           rseg_id * TRX_SYS_RSEG_SLOT_SIZE + sys_header->page.frame,
-           rseg->page_no);
+           rseg_id * TRX_SYS_RSEG_SLOT_SIZE + sys_page, rseg->page_no);
       }
     }
   }

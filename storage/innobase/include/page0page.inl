@@ -45,11 +45,11 @@ page_update_max_trx_id(
 	ut_ad(block);
 	ut_ad(mtr->memo_contains_flagged(block, MTR_MEMO_PAGE_X_FIX));
 	ut_ad(trx_id);
-	ut_ad(page_is_leaf(buf_block_get_frame(block)));
+	page_t* page = block->page.frame;
+	ut_ad(page_is_leaf(page));
 
-	if (page_get_max_trx_id(buf_block_get_frame(block)) < trx_id) {
-
-		page_set_max_trx_id(block, page_zip, trx_id, mtr);
+	if (page_get_max_trx_id(page) < trx_id) {
+		page_set_max_trx_id(block, page, page_zip, trx_id, mtr);
 	}
 }
 
@@ -118,93 +118,16 @@ page_header_get_offs(
 /**
 Reset PAGE_LAST_INSERT.
 @param[in,out]  block    file page
+@param[in,out]  page     file page frame
 @param[in,out]  mtr      mini-transaction */
-inline void page_header_reset_last_insert(buf_block_t *block, mtr_t *mtr)
+inline void page_header_reset_last_insert(buf_block_t *block, page_t *page,
+                                          mtr_t *mtr)
 {
   constexpr uint16_t field= PAGE_HEADER + PAGE_LAST_INSERT;
-  byte *b= my_assume_aligned<2>(&block->page.frame[field]);
+  byte *b= my_assume_aligned<2>(&page[field]);
   if (mtr->write<2,mtr_t::MAYBE_NOP>(*block, b, 0U) &&
       UNIV_LIKELY_NULL(block->page.zip.data))
     memset_aligned<2>(&block->page.zip.data[field], 0, 2);
-}
-
-/***************************************************************//**
-Returns the heap number of a record.
-@return heap number */
-UNIV_INLINE
-ulint
-page_rec_get_heap_no(
-/*=================*/
-	const rec_t*	rec)	/*!< in: the physical record */
-{
-	if (page_rec_is_comp(rec)) {
-		return(rec_get_heap_no_new(rec));
-	} else {
-		return(rec_get_heap_no_old(rec));
-	}
-}
-
-/** Determine whether an index page record is a user record.
-@param[in]	rec	record in an index page
-@return true if a user record */
-inline
-bool
-page_rec_is_user_rec(const rec_t* rec)
-{
-	ut_ad(page_rec_check(rec));
-	return(page_rec_is_user_rec_low(page_offset(rec)));
-}
-
-/** Determine whether an index page record is the supremum record.
-@param[in]	rec	record in an index page
-@return true if the supremum record */
-inline
-bool
-page_rec_is_supremum(const rec_t* rec)
-{
-	ut_ad(page_rec_check(rec));
-	return(page_rec_is_supremum_low(page_offset(rec)));
-}
-
-/** Determine whether an index page record is the infimum record.
-@param[in]	rec	record in an index page
-@return true if the infimum record */
-inline
-bool
-page_rec_is_infimum(const rec_t* rec)
-{
-	ut_ad(page_rec_check(rec));
-	return(page_rec_is_infimum_low(page_offset(rec)));
-}
-
-/************************************************************//**
-true if the record is the first user record on a page.
-@return true if the first user record */
-UNIV_INLINE
-bool
-page_rec_is_first(
-/*==============*/
-	const rec_t*	rec,	/*!< in: record */
-	const page_t*	page)	/*!< in: page */
-{
-	ut_ad(page_get_n_recs(page) > 0);
-
-	return(page_rec_get_next_const(page_get_infimum_rec(page)) == rec);
-}
-
-/************************************************************//**
-true if the record is the last user record on a page.
-@return true if the last user record */
-UNIV_INLINE
-bool
-page_rec_is_last(
-/*=============*/
-	const rec_t*	rec,	/*!< in: record */
-	const page_t*	page)	/*!< in: page */
-{
-	ut_ad(page_get_n_recs(page) > 0);
-
-	return(page_rec_get_next_const(rec) == page_get_supremum_rec(page));
 }
 
 /************************************************************//**
@@ -294,42 +217,6 @@ page_dir_get_n_heap(
 	return(page_header_get_field(page, PAGE_N_HEAP) & 0x7fff);
 }
 
-/**************************************************************//**
-Used to check the consistency of a record on a page.
-@return TRUE if succeed */
-UNIV_INLINE
-ibool
-page_rec_check(
-/*===========*/
-	const rec_t*	rec)	/*!< in: record */
-{
-	const page_t*	page = page_align(rec);
-
-	ut_a(rec);
-
-	ut_a(page_offset(rec) <= page_header_get_field(page, PAGE_HEAP_TOP));
-	ut_a(page_offset(rec) >= PAGE_DATA);
-
-	return(TRUE);
-}
-
-/***************************************************************//**
-Gets the number of records owned by a directory slot.
-@return number of records */
-UNIV_INLINE
-ulint
-page_dir_slot_get_n_owned(
-/*======================*/
-	const page_dir_slot_t*	slot)	/*!< in: page directory slot */
-{
-	const rec_t*	rec	= page_dir_slot_get_rec(slot);
-	if (page_rec_is_comp(slot)) {
-		return(rec_get_n_owned_new(rec));
-	} else {
-		return(rec_get_n_owned_old(rec));
-	}
-}
-
 /************************************************************//**
 Calculates the space reserved for directory slots of a given number of
 records. The exact value is a fraction number n * PAGE_DIR_SLOT_SIZE /
@@ -344,54 +231,6 @@ page_dir_calc_reserved_space(
 	       / PAGE_DIR_SLOT_MIN_N_OWNED);
 }
 
-/************************************************************//**
-Gets the pointer to the next record on the page.
-@return pointer to next record */
-UNIV_INLINE
-const rec_t*
-page_rec_get_next_low(
-/*==================*/
-	const rec_t*	rec,	/*!< in: pointer to record */
-	ulint		comp)	/*!< in: nonzero=compact page layout */
-{
-  const page_t *page= page_align(rec);
-  ut_ad(page_rec_check(rec));
-  ulint offs= rec_get_next_offs(rec, comp);
-  if (!offs)
-    return nullptr;
-  if (UNIV_UNLIKELY(offs < (comp ? PAGE_NEW_SUPREMUM : PAGE_OLD_SUPREMUM)))
-    return nullptr;
-  if (UNIV_UNLIKELY(offs > page_header_get_field(page, PAGE_HEAP_TOP)))
-    return nullptr;
-  ut_ad(page_rec_is_infimum(rec) ||
-        (!page_is_leaf(page) && !page_has_prev(page)) ||
-        !(rec_get_info_bits(page + offs, comp) & REC_INFO_MIN_REC_FLAG));
-  return page + offs;
-}
-
-/************************************************************//**
-Gets the pointer to the next record on the page.
-@return pointer to next record */
-UNIV_INLINE
-rec_t*
-page_rec_get_next(
-/*==============*/
-	rec_t*	rec)	/*!< in: pointer to record */
-{
-	return((rec_t*) page_rec_get_next_low(rec, page_rec_is_comp(rec)));
-}
-
-/************************************************************//**
-Gets the pointer to the next record on the page.
-@return pointer to next record */
-UNIV_INLINE
-const rec_t*
-page_rec_get_next_const(
-/*====================*/
-	const rec_t*	rec)	/*!< in: pointer to record */
-{
-	return(page_rec_get_next_low(rec, page_rec_is_comp(rec)));
-}
 #endif /* UNIV_INNOCHECKSUM */
 
 /************************************************************//**

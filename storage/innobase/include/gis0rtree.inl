@@ -36,8 +36,6 @@ rtr_page_cal_mbr(
 	mem_heap_t*		heap)	/*!< in: heap for the memory
 					allocation */
 {
-	page_t*		page;
-	rec_t*		rec;
 	const byte*	field;
 	ulint		len;
 	rec_offs*	offsets = NULL;
@@ -54,9 +52,9 @@ rtr_page_cal_mbr(
 
 	mbr = reinterpret_cast<double*>(rtr_mbr);
 
-	page = buf_block_get_frame(block);
+	const page_t* page = block->page.frame;
 
-	rec = page_rec_get_next(page_get_infimum_rec(page));
+	const rec_t* rec = page_rec_get_first(page);
 	if (UNIV_UNLIKELY(!rec)) {
 		return;
 	}
@@ -85,12 +83,12 @@ rtr_page_cal_mbr(
 			inc += 2 * sizeof(double);
 		}
 
-		rec = page_rec_get_next(rec);
+		rec = page_rec_get_next(page, rec);
 
 		if (rec == NULL) {
 			break;
 		}
-	} while (!page_rec_is_supremum(rec));
+	} while (!page_rec_is_supremum(page, rec));
 }
 
 /**************************************************************//**

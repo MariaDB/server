@@ -2120,7 +2120,6 @@ static bool innobase_table_is_empty(const dict_table_t *table,
   btr_pcur_t pcur;
   buf_block_t *block;
   page_cur_t *cur;
-  rec_t *rec;
   bool next_page= false;
 
   mtr.start();
@@ -2130,7 +2129,8 @@ non_empty:
     mtr.commit();
     return false;
   }
-  rec= page_rec_get_next(btr_pcur_get_rec(&pcur));
+  page_t *page= btr_pcur_get_page(&pcur);
+  rec_t *rec= page_rec_get_next(page, btr_pcur_get_rec(&pcur));
   if (UNIV_UNLIKELY(!rec))
     goto non_empty;
   if (rec_is_metadata(rec, *clust_index))
@@ -2160,14 +2160,15 @@ next_page:
     mtr.rollback_to_savepoint(s - 2, s - 1);
   }
 
+  page= btr_pcur_get_page(&pcur);
   rec= page_cur_get_rec(cur);
-  if (rec_get_deleted_flag(rec, dict_table_is_comp(table)))
+  if (rec_get_deleted_flag(rec, page_is_comp(page)))
   {
     if (ignore_delete_marked)
       goto scan_leaf;
     goto non_empty;
   }
-  else if (!page_rec_is_supremum(rec))
+  else if (!page_rec_is_supremum(page, rec))
     goto non_empty;
   else
   {
@@ -6086,8 +6087,10 @@ func_exit:
 	ut_ad(btr_pcur_is_before_first_on_page(&pcur));
 
 	buf_block_t* block = btr_pcur_get_block(&pcur);
-	ut_ad(page_is_leaf(block->page.frame));
-	ut_ad(!page_has_prev(block->page.frame));
+	page_t* page = btr_pcur_get_page(&pcur);
+
+	ut_ad(page_is_leaf(page));
+	ut_ad(!page_has_prev(page));
 	ut_ad(!buf_block_get_page_zip(block));
 	const rec_t* rec = btr_pcur_move_to_next_on_page(&pcur);
 	if (UNIV_UNLIKELY(!rec)) {
@@ -6101,12 +6104,12 @@ func_exit:
 	const bool is_root = id.page_no() == index->page;
 
 	if (rec_is_metadata(rec, *index)) {
-		ut_ad(page_rec_is_user_rec(rec));
+		ut_ad(page_rec_is_user_rec(page, rec));
 		if (is_root
 		    && !rec_is_alter_metadata(rec, *index)
 		    && !index->table->instant
-		    && !page_has_next(block->page.frame)
-		    && page_rec_is_last(rec, block->page.frame)) {
+		    && !page_has_next(page)
+		    && page_rec_is_last(page, rec)) {
 			goto empty_table;
 		}
 
@@ -6195,12 +6198,12 @@ func_exit:
 		}
 		ut_free(pcur.old_rec_buf);
 		goto func_exit;
-	} else if (is_root && page_rec_is_supremum(rec)
+	} else if (is_root && page_rec_is_supremum(page, rec)
 		   && !index->table->instant) {
 empty_table:
 		/* The table is empty. */
-		ut_ad(fil_page_index_page_check(block->page.frame));
-		ut_ad(!page_has_siblings(block->page.frame));
+		ut_ad(fil_page_index_page_check(page));
+		ut_ad(!page_has_siblings(page));
 		ut_ad(block->page.id().page_no() == index->page);
 		/* MDEV-17383: free metadata BLOBs! */
 		btr_page_empty(block, NULL, index, 0, &mtr);

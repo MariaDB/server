@@ -696,13 +696,17 @@ static void row_purge_reset_trx_id(purge_node_t* node, mtr_t* mtr)
 				byte*	ptr = rec_get_nth_field(
 					rec, offsets, trx_id_pos, &len);
 				ut_ad(len == DATA_TRX_ID_LEN);
-				size_t offs = page_offset(ptr);
-				mtr->memset(block, offs, DATA_TRX_ID_LEN, 0);
-				offs += DATA_TRX_ID_LEN;
-				mtr->write<1,mtr_t::MAYBE_NOP>(
-					*block, block->page.frame + offs,
-					0x80U);
-				mtr->memset(block, offs + 1,
+				size_t offs = size_t(ptr - block->page.frame);
+				memset(ptr, 0, DATA_TRX_ID_LEN);
+				mtr->memset(*block, offs, DATA_TRX_ID_LEN, 0);
+				ptr += DATA_TRX_ID_LEN;
+				if (*ptr != 0x80) {
+					*ptr = 0x80;
+					mtr->memcpy(*block, ptr, 1);
+				}
+				memset(ptr + 1, 0, DATA_ROLL_PTR_LEN - 1);
+				mtr->memset(*block,
+					    offs + DATA_TRX_ID_LEN + 1,
 					    DATA_ROLL_PTR_LEN - 1, 0);
 			}
 		}

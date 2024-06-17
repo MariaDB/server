@@ -59,12 +59,11 @@ typedef	byte	flst_node_t;
 @param[in,out]	block	file page
 @param[in]	ofs	byte offset of the list base node
 @param[in,out]	mtr	mini-transaction */
-inline void flst_init(const buf_block_t* block, uint16_t ofs, mtr_t* mtr)
+inline void flst_init(const buf_block_t* block, byte *ofs, mtr_t* mtr)
 {
-  ut_d(const page_t *page= block->page.frame);
-  ut_ad(!mach_read_from_2(FLST_LEN + ofs + page));
-  ut_ad(!mach_read_from_2(FLST_FIRST + FIL_ADDR_BYTE + ofs + page));
-  ut_ad(!mach_read_from_2(FLST_LAST + FIL_ADDR_BYTE + ofs + page));
+  ut_ad(!mach_read_from_2(FLST_LEN + ofs));
+  ut_ad(!mach_read_from_2(FLST_FIRST + FIL_ADDR_BYTE + ofs));
+  ut_ad(!mach_read_from_2(FLST_LAST + FIL_ADDR_BYTE + ofs));
   compile_time_assert(FIL_NULL == 0xffU * 0x1010101U);
   mtr->memset(block, FLST_FIRST + FIL_ADDR_PAGE + ofs, 4, 0xff);
   mtr->memset(block, FLST_LAST + FIL_ADDR_PAGE + ofs, 4, 0xff);
@@ -85,9 +84,9 @@ void flst_init(const buf_block_t &block, byte *base, mtr_t *mtr)
 @param limit   fil_space_t::free_limit
 @param mtr     mini-transaction
 @return error code */
-dberr_t flst_add_last(buf_block_t *base, uint16_t boffset,
-                      buf_block_t *add, uint16_t aoffset,
-                      uint32_t limit, mtr_t *mtr)
+dberr_t flst_add_last(buf_block_t *base, byte *boffset,
+                      buf_block_t *add, byte *aoffset,
+		      uint32_t limit, mtr_t *mtr)
   MY_ATTRIBUTE((nonnull, warn_unused_result));
 /** Prepend a file list node to a list.
 @param base    base node block
@@ -97,9 +96,9 @@ dberr_t flst_add_last(buf_block_t *base, uint16_t boffset,
 @param limit   fil_space_t::free_limit
 @param mtr     mini-transaction
 @return error code */
-dberr_t flst_add_first(buf_block_t *base, uint16_t boffset,
-                       buf_block_t *add, uint16_t aoffset,
-                       uint32_t limit, mtr_t *mtr)
+dberr_t flst_add_first(buf_block_t *base, byte *boffset,
+                       buf_block_t *add, byte *aoffset,
+		       uint32_t limit, mtr_t *mtr)
   MY_ATTRIBUTE((nonnull, warn_unused_result));
 /** Remove a file list node.
 @param base    base node block
@@ -109,9 +108,9 @@ dberr_t flst_add_first(buf_block_t *base, uint16_t boffset,
 @param limit   fil_space_t::free_limit
 @param mtr     mini-transaction
 @return error code */
-dberr_t flst_remove(buf_block_t *base, uint16_t boffset,
-                    buf_block_t *cur, uint16_t coffset,
-                    uint32_t limit, mtr_t *mtr)
+dberr_t flst_remove(buf_block_t *base, byte *boffset,
+                    buf_block_t *cur, byte *coffset,
+		    uint32_t limit, mtr_t *mtr)
   MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /** @return the length of a list */

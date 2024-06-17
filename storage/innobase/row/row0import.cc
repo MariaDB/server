@@ -348,33 +348,32 @@ public:
 	bool remove(rec_offs* offsets) UNIV_NOTHROW
 	{
 		const dict_index_t* const index = m_cur.index;
-		ut_ad(page_is_leaf(m_cur.block->page.frame));
+		page_t* const page = page_cur_get_page(&m_cur);
+		ut_ad(page_is_leaf(page));
 		/* We can't end up with an empty page unless it is root. */
-		if (page_get_n_recs(m_cur.block->page.frame) <= 1) {
+		if (page_get_n_recs(page) <= 1) {
 			return(false);
 		}
 
 		if (!rec_offs_any_extern(offsets)
 		    && m_cur.block->page.id().page_no() != index->page
-		    && ((page_get_data_size(m_cur.block->page.frame)
+		    && ((page_get_data_size(page)
 			 - rec_offs_size(offsets)
 			 < BTR_CUR_PAGE_COMPRESS_LIMIT(index))
-			|| !page_has_siblings(m_cur.block->page.frame)
-			|| (page_get_n_recs(m_cur.block->page.frame) < 2))) {
+			|| !page_has_siblings(page)
+			|| (page_get_n_recs(page) < 2))) {
 			return false;
 		}
 
 #ifdef UNIV_ZIP_DEBUG
 		page_zip_des_t* page_zip = buf_block_get_page_zip(m_cur.block);
-		ut_a(!page_zip || page_zip_validate(
-			     page_zip, m_cur.block->page.frame, index));
+		ut_a(!page_zip || page_zip_validate(page_zip, page, index));
 #endif /* UNIV_ZIP_DEBUG */
 
 		page_cur_delete_rec(&m_cur, offsets, &m_mtr);
 
 #ifdef UNIV_ZIP_DEBUG
-		ut_a(!page_zip || page_zip_validate(
-			     page_zip, m_cur.block->page.frame, index));
+		ut_a(!page_zip || page_zip_validate(page_zip, page, index));
 #endif /* UNIV_ZIP_DEBUG */
 
 		return true;
@@ -1596,7 +1595,8 @@ inline bool IndexPurge::open() noexcept
   if (m_pcur.open_leaf(true, m_index, BTR_MODIFY_LEAF, &m_mtr) != DB_SUCCESS)
     return false;
 
-  rec_t *rec= page_rec_get_next(btr_pcur_get_rec(&m_pcur));
+  rec_t *rec= page_rec_get_next(btr_pcur_get_page(&m_pcur),
+                                btr_pcur_get_rec(&m_pcur));
   if (!rec)
     return false;
   if (rec_is_metadata(rec, *m_index))
@@ -1863,7 +1863,6 @@ dberr_t
 PageConverter::update_records(
 	buf_block_t*	block) UNIV_NOTHROW
 {
-	ibool	comp = dict_table_is_comp(m_cfg->m_table);
 	bool	clust_index = m_index->m_srv_index == m_cluster_index;
 
 	/* This will also position the cursor on the first user record. */
@@ -1873,12 +1872,14 @@ PageConverter::update_records(
 		return DB_CORRUPTION;
 	}
 
+        page_t* page = block->page.frame;
+	const auto comp = page_is_comp(page);
 	ulint deleted;
 
-	if (!page_has_prev(block->page.frame)
+	if (!page_has_prev(page)
 	    && m_index->m_srv_index->is_instant()) {
 		/* Expect to find the hidden metadata record */
-		if (page_rec_is_supremum(rec)) {
+		if (page_rec_is_supremum(page, rec)) {
 			return DB_CORRUPTION;
 		}
 
@@ -2010,7 +2011,7 @@ PageConverter::update_index_page(
 			m_index->m_srv_index->id);
 	if (UNIV_LIKELY_NULL(block->page.zip.data)) {
 		memcpy(&block->page.zip.data[PAGE_HEADER + PAGE_INDEX_ID],
-		       &block->page.frame[PAGE_HEADER + PAGE_INDEX_ID], 8);
+		       &page[PAGE_HEADER + PAGE_INDEX_ID], 8);
 	}
 
 	if (m_index->m_srv_index->is_clust()) {
@@ -2019,12 +2020,12 @@ PageConverter::update_index_page(
 		}
 	} else if (page_is_leaf(page)) {
 		/* Set PAGE_MAX_TRX_ID on secondary index leaf pages. */
-		mach_write_to_8(&block->page.frame
-				[PAGE_HEADER + PAGE_MAX_TRX_ID], m_trx->id);
+		mach_write_to_8(&page[PAGE_HEADER + PAGE_MAX_TRX_ID],
+				m_trx->id);
 		if (UNIV_LIKELY_NULL(block->page.zip.data)) {
 			memcpy_aligned<8>(&block->page.zip.data
 					  [PAGE_HEADER + PAGE_MAX_TRX_ID],
-					  &block->page.frame
+					  &page
 					  [PAGE_HEADER + PAGE_MAX_TRX_ID], 8);
 		}
 	} else {
@@ -2034,9 +2035,7 @@ clear_page_max_trx_id:
 		in MySQL 5.6, 5.7 and MariaDB 10.0 and 10.1
 		would set the field to the transaction ID even
 		on clustered index pages. */
-		memset_aligned<8>(&block->page.frame
-				  [PAGE_HEADER + PAGE_MAX_TRX_ID],
-				  0, 8);
+		memset_aligned<8>(&page[PAGE_HEADER + PAGE_MAX_TRX_ID], 0, 8);
 		if (UNIV_LIKELY_NULL(block->page.zip.data)) {
 			memset_aligned<8>(&block->page.zip.data
 					  [PAGE_HEADER + PAGE_MAX_TRX_ID],
@@ -2057,7 +2056,7 @@ clear_page_max_trx_id:
 		return(DB_SUCCESS);
 	}
 
-	return page_is_leaf(block->page.frame)
+	return page_is_leaf(page)
 		? update_records(block)
 		: DB_SUCCESS;
 }
@@ -2095,10 +2094,11 @@ PageConverter::update_page(buf_block_t* block, uint16_t& page_type)
 	UNIV_NOTHROW
 {
 	dberr_t		err = DB_SUCCESS;
+	byte* frame = get_frame(block);
 
 	ut_ad(!block->page.zip.data == !is_compressed_table());
 
-	switch (page_type = fil_page_get_type(get_frame(block))) {
+	switch (page_type = fil_page_get_type(frame)) {
 	case FIL_PAGE_TYPE_FSP_HDR:
 		ut_a(block->page.id().page_no() == 0);
 		/* Work directly on the uncompressed page headers. */
@@ -2116,9 +2116,8 @@ PageConverter::update_page(buf_block_t* block, uint16_t& page_type)
 		/* fall through */
 	case FIL_PAGE_TYPE_INSTANT:
 		/* This is on every page in the tablespace. */
-		mach_write_to_4(
-			get_frame(block)
-			+ FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID, get_space_id());
+		mach_write_to_4(frame + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID,
+				get_space_id());
 
 		/* Only update the Btree nodes. */
 		return(update_index_page(block));
@@ -2128,8 +2127,7 @@ PageConverter::update_page(buf_block_t* block, uint16_t& page_type)
 		return(DB_CORRUPTION);
 
 	case FIL_PAGE_TYPE_XDES:
-		err = set_current_xdes(
-			block->page.id().page_no(), get_frame(block));
+		err = set_current_xdes(block->page.id().page_no(), frame);
 		/* fall through */
 	case FIL_PAGE_INODE:
 	case FIL_PAGE_TYPE_TRX_SYS:
@@ -2142,9 +2140,8 @@ PageConverter::update_page(buf_block_t* block, uint16_t& page_type)
 
 		/* Work directly on the uncompressed page headers. */
 		/* This is on every page in the tablespace. */
-		mach_write_to_4(
-			get_frame(block)
-			+ FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID, get_space_id());
+		mach_write_to_4(frame + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID,
+				get_space_id());
 
 		return(err);
 	}
@@ -2178,8 +2175,7 @@ dberr_t PageConverter::operator()(buf_block_t* block) UNIV_NOTHROW
 	memset_aligned<8>(frame + FIL_PAGE_LSN, 0, 8);
 
 	if (!block->page.zip.data) {
-		buf_flush_init_for_writing(
-			NULL, block->page.frame, NULL, full_crc32);
+		buf_flush_init_for_writing(NULL, frame, NULL, full_crc32);
 	} else if (fil_page_type_is_index(page_type)) {
 		buf_flush_init_for_writing(
 			NULL, block->page.zip.data, &block->page.zip,
@@ -2452,7 +2448,7 @@ row_import_set_sys_max_row_id(
 
 		if (!rec) {
 			/* The table is corrupted. */
-		} else if (page_rec_is_infimum(rec)) {
+		} else if (btr_pcur_is_before_first_on_page(&pcur)) {
 			/* The table is empty. */
 		} else if (rec_is_metadata(rec, *index)) {
 			/* The clustered index contains the metadata
@@ -3455,7 +3451,7 @@ static dberr_t handle_instant_metadata(dict_table_t *table,
 
     while (btr_page_get_level(page.get()) != 0)
     {
-      const rec_t *rec= page_rec_get_next(page_get_infimum_rec(page.get()));
+      const rec_t *rec= page_rec_get_first(page.get());
       if (!rec)
         return DB_CORRUPTION;
 
@@ -3480,10 +3476,10 @@ static dberr_t handle_instant_metadata(dict_table_t *table,
         return err;
     }
 
-    const auto *rec= page_rec_get_next_const(page_get_infimum_rec(page.get()));
-    const auto comp= dict_table_is_comp(index->table);
+    const auto *rec= page_rec_get_first(page.get());
+    const auto comp= page_is_comp(page.get());
 
-    if (!rec || page_rec_is_supremum(rec))
+    if (!rec || page_rec_is_supremum(page.get(), rec))
     {
     corrupted_metadata:
       ib::error() << "Table " << index->table->name

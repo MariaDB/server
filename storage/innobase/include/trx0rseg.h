@@ -251,12 +251,14 @@ If no binlog information is present, the first byte is NUL. */
 # include "trx0xa.h"
 
 /** Update the WSREP XID information in rollback segment header.
-@param[in,out]	rseg_header	rollback segment header
-@param[in]	xid		WSREP XID
-@param[in,out]	mtr		mini-transaction */
+@param[in,out]	rseg_header		rollback segment header
+@param[in,out]	rseg_header_page	rollback segment header page frame
+@param[in]	xid			WSREP XID
+@param[in,out]	mtr			mini-transaction */
 void
 trx_rseg_update_wsrep_checkpoint(
 	buf_block_t*	rseg_header,
+	page_t*		rseg_header_page,
 	const XID*	xid,
 	mtr_t*		mtr);
 
@@ -278,24 +280,16 @@ bool trx_rseg_read_wsrep_checkpoint(XID& xid);
 /** Read the page number of an undo log slot.
 @param[in]      rseg_header     rollback segment header
 @param[in]      n               slot number */
-inline uint32_t trx_rsegf_get_nth_undo(const buf_block_t *rseg_header, ulint n)
+inline uint32_t trx_rsegf_get_nth_undo(const page_t *rseg_header, ulint n)
 {
   ut_ad(n < TRX_RSEG_N_SLOTS);
   return mach_read_from_4(TRX_RSEG + TRX_RSEG_UNDO_SLOTS +
-                          n * TRX_RSEG_SLOT_SIZE + rseg_header->page.frame);
+                          n * TRX_RSEG_SLOT_SIZE + rseg_header);
 }
 
 /** Upgrade a rollback segment header page to MariaDB 10.3 format.
-@param[in,out]	rseg_header	rollback segment header page
-@param[in,out]	mtr		mini-transaction */
-void trx_rseg_format_upgrade(buf_block_t *rseg_header, mtr_t *mtr);
-
-/** Update the offset information about the end of the binlog entry
-which corresponds to the transaction just being committed.
-In a replication slave, this updates the master binlog position
-up to which replication has proceeded.
-@param[in,out]	rseg_header	rollback segment header
-@param[in]	trx		committing transaction
-@param[in,out]	mtr		mini-transaction */
-void trx_rseg_update_binlog_offset(buf_block_t *rseg_header, const trx_t *trx,
-                                   mtr_t *mtr);
+@param rseg_header	rollback segment header page
+@param rseg_header_page rollback segment header page frame
+@param mtr		mini-transaction */
+void trx_rseg_format_upgrade(buf_block_t *rseg_header,
+                             page_t *rseg_header_page, mtr_t *mtr);

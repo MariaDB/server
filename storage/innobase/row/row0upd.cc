@@ -2201,7 +2201,6 @@ row_upd_clust_rec_by_insert(
 {
 	mem_heap_t*	heap;
 	btr_pcur_t*	pcur;
-	btr_cur_t*	btr_cur;
 	trx_t*		trx;
 	dict_table_t*	table;
 	dtuple_t*	entry;
@@ -2217,7 +2216,6 @@ row_upd_clust_rec_by_insert(
 	trx = thr_get_trx(thr);
 	table = node->table;
 	pcur = node->pcur;
-	btr_cur	= btr_pcur_get_btr_cur(pcur);
 
 	heap = mem_heap_create(1000);
 
@@ -2245,11 +2243,11 @@ row_upd_clust_rec_by_insert(
 		/* This is the first invocation of the function where
 		we update the primary key.  Delete-mark the old record
 		in the clustered index and prepare to insert a new entry. */
-		rec = btr_cur_get_rec(btr_cur);
+		ut_ad(btr_pcur_is_on_user_rec(pcur));
+		rec = btr_pcur_get_rec(pcur);
 		offsets = rec_get_offsets(rec, index, offsets,
 					  index->n_core_fields,
 					  ULINT_UNDEFINED, &heap);
-		ut_ad(page_rec_is_user_rec(rec));
 
 		if (rec_get_deleted_flag(rec, rec_offs_comp(offsets))) {
 			/* If the clustered index record is already delete
@@ -2269,7 +2267,7 @@ row_upd_clust_rec_by_insert(
 		}
 
 		err = btr_cur_del_mark_set_clust_rec(
-			btr_cur_get_block(btr_cur), rec, index, offsets,
+			btr_pcur_get_block(pcur), rec, index, offsets,
 			thr, node->row, mtr);
 		if (err != DB_SUCCESS) {
 			goto err_exit;
@@ -2289,7 +2287,7 @@ row_upd_clust_rec_by_insert(
 				insert fails, then this disown will be undone
 				when the operation is rolled back. */
 				btr_cur_disown_inherited_fields(
-					btr_cur_get_block(btr_cur),
+					btr_pcur_get_block(pcur),
 					rec, index, offsets, node->update,
 					mtr);
 			}
@@ -2651,7 +2649,9 @@ row_upd_clust_step(
 	      || row_get_rec_trx_id(rec, index, offsets) == trx->id
 	      || lock_trx_has_expl_x_lock(*trx, *index->table,
 					  btr_pcur_get_block(pcur)->page.id(),
-					  page_rec_get_heap_no(rec)));
+					  page_rec_get_heap_no(
+						btr_pcur_get_page(pcur),
+						rec)));
 
 	if (node->is_delete == PLAIN_DELETE) {
 		err = row_upd_del_mark_clust_rec(

@@ -1718,7 +1718,7 @@ err_exit:
 flag_ok:
 #endif /* UNIV_DEBUG */
 
-		if (page_rec_is_infimum(btr_pcur_get_rec(pcur))
+		if (btr_pcur_is_before_first_on_page(pcur)
 		    || btr_pcur_get_low_match(pcur) < index->n_uniq) {
 			/* All secondary index entries should be
 			found, because new_table is being modified by
@@ -1802,7 +1802,7 @@ row_log_table_apply_delete(
 flag_ok:
 #endif /* UNIV_DEBUG */
 
-	if (page_rec_is_infimum(btr_pcur_get_rec(&pcur))
+	if (btr_pcur_is_before_first_on_page(&pcur)
 	    || btr_pcur_get_low_match(&pcur) < index->n_uniq) {
 all_done:
 		mtr_commit(&mtr);
@@ -1948,8 +1948,8 @@ func_exit_committed:
 	}
 #endif /* UNIV_DEBUG */
 
-	ut_ad(!page_rec_is_infimum(btr_pcur_get_rec(&pcur))
-	      && btr_pcur_get_low_match(&pcur) >= index->n_uniq);
+	ut_ad(!btr_pcur_is_before_first_on_page(&pcur));
+        ut_ad(btr_pcur_get_low_match(&pcur) >= index->n_uniq);
 
 	/* Prepare to update (or delete) the record. */
 	rec_offs*		cur_offsets	= rec_get_offsets(
@@ -3098,15 +3098,16 @@ row_log_apply_op_low(
 	/* This test is somewhat similar to row_ins_must_modify_rec(),
 	but not identical for unique secondary indexes. */
 	if (cursor.low_match >= dict_index_get_n_unique(index)
-	    && !page_rec_is_infimum(btr_cur_get_rec(&cursor))) {
+	    && !page_rec_is_infimum(btr_cur_get_page(&cursor),
+				    btr_cur_get_rec(&cursor))) {
 		/* We have a matching record. */
 		bool	exists	= (cursor.low_match
 				   == dict_index_get_n_fields(index));
-#ifdef UNIV_DEBUG
-		rec_t*	rec	= btr_cur_get_rec(&cursor);
-		ut_ad(page_rec_is_user_rec(rec));
-		ut_ad(!rec_get_deleted_flag(rec, page_rec_is_comp(rec)));
-#endif /* UNIV_DEBUG */
+		ut_ad(!page_cur_is_before_first(&cursor.page_cur));
+		ut_ad(!page_cur_is_after_last(&cursor.page_cur));
+		ut_ad(!rec_get_deleted_flag(
+			      btr_cur_get_rec(&cursor),
+			      page_is_comp(btr_cur_get_page(&cursor))));
 
 		ut_ad(exists || dict_index_is_unique(index));
 
@@ -3150,8 +3151,10 @@ row_log_apply_op_low(
 				Thus, the record should still exist. */
 				ut_ad(cursor.low_match
 				      >= dict_index_get_n_fields(index));
-				ut_ad(page_rec_is_user_rec(
-					      btr_cur_get_rec(&cursor)));
+				ut_ad(!page_cur_is_before_first(
+					&cursor.page_cur));
+				ut_ad(!page_cur_is_after_last(
+					&cursor.page_cur));
 			}
 
 			/* As there are no externally stored fields in

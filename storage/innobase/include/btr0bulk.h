@@ -151,12 +151,13 @@ public:
 	rec_t*	getSplitRec();
 
 	/** Copy all records after split rec including itself.
-	@param[in]	rec	split rec */
-	void copyIn(rec_t*	split_rec);
+	@param page	page to copy from
+	@param rec	first record to copy */
+	void copyIn(const page_t *page, const rec_t *rec);
 
-	/** Remove all records after split rec including itself.
-	@param[in]	rec	split rec	*/
-	void copyOut(rec_t*	split_rec);
+	/** Remove all records starting with split rec.
+	@param split_rec	first record to remove */
+	inline void copyOut(rec_t *split_rec);
 
 	/** Set next page
 	@param[in]	next_page_no	next page no */

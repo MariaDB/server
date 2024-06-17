@@ -971,9 +971,10 @@ void mtr_t::page_lock(buf_block_t *block, ulint rw_latch)
 #endif
 
 done:
+  ut_d(const page_t *page= block->page.frame);
   ut_ad(state < buf_page_t::UNFIXED ||
-        page_id_t(page_get_space_id(block->page.frame),
-                  page_get_page_no(block->page.frame)) == block->page.id());
+        page_id_t(page_get_space_id(page),
+                  page_get_page_no(page)) == block->page.id());
   memo_push(block, fix_type);
 }
 
@@ -1010,8 +1011,9 @@ void mtr_t::upgrade_buffer_fix(ulint savepoint, rw_lock_type_t rw_latch)
 #ifdef BTR_CUR_HASH_ADAPT
   btr_search_drop_page_hash_index(block, true);
 #endif
-  ut_ad(page_id_t(page_get_space_id(block->page.frame),
-                  page_get_page_no(block->page.frame)) == block->page.id());
+  ut_d(const page_t *page= block->page.frame);
+  ut_ad(page_id_t(page_get_space_id(page),
+                  page_get_page_no(page)) == block->page.id());
 }
 
 #ifdef UNIV_DEBUG

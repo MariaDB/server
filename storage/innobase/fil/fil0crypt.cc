@@ -399,7 +399,7 @@ void fil_space_crypt_t::write_page0(buf_block_t* block, mtr_t* mtr)
 	ut_ad(b - start == 11 + MY_AES_BLOCK_SIZE);
 	/* We must log also any unchanged bytes, because recovery will
 	invoke fil_crypt_parse() based on this log record. */
-	mtr->memcpy(*block, offset + MAGIC_SZ, b - start);
+	mtr->memcpy(*block, start, b - start);
 }
 
 /** Encrypt a buffer for non full checksum.
@@ -1753,7 +1753,7 @@ fil_crypt_rotate_page(
 							     offset, &mtr,
 							     &sleeptime_ms)) {
 		bool modified = false;
-		byte* frame = buf_block_get_frame(block);
+		byte* frame = block->page.frame;
 		const lsn_t block_lsn = mach_read_from_8(FIL_PAGE_LSN + frame);
 		uint kv = buf_page_get_key_version(frame, space->flags);
 
