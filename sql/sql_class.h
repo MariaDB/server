@@ -4580,7 +4580,7 @@ public:
     to->length= db.length;
     return to->str == NULL;                     /* True on error */
   }
-  /* Get db name or "". Use for printing current db */
+  /* Get db name or "". */
   const char *get_db()
   { return safe_str(db.str); }
 
