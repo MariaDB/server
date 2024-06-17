@@ -4,6 +4,9 @@ source include/not_embedded.inc;
 if (!$AUTH_PARSEC_SO) {
   skip No auth_parsec plugin;
 }
+if (!$PARSEC_SO) {
+  skip No auth_parsec plugin;
+}
 install soname 'auth_parsec';
 --error ER_CANNOT_USER
 create user test1@'%' identified via parsec using 'pwd';
