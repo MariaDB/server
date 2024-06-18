@@ -1766,8 +1766,6 @@ typedef struct st_spider_result_list
     SPIDER_RESULT         *current;
   KEY                     *key_info;
   int                     key_order;
-#ifdef HA_CAN_BULK_ACCESS
-#endif
   spider_string           *sqls;
   int                     ha_read_kind;
   bool                    have_sql_kind_backup;
