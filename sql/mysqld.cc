@@ -365,6 +365,7 @@ char server_uid[SERVER_UID_SIZE+1];   // server uid will be written here
 /* Global variables */
 
 bool opt_bin_log, opt_bin_log_used=0, opt_ignore_builtin_innodb= 0;
+my_bool opt_binlog_in_innodb= FALSE;
 bool opt_bin_log_compress;
 uint opt_bin_log_compress_min_len;
 my_bool opt_log, debug_assert_if_crashed_table= 0, opt_help= 0;
@@ -5496,6 +5497,13 @@ static int init_server_components()
   start_handle_manager();
 #endif
 
+  /*
+    When binlog is stored in InnoDB, checksums are done on the page level, so
+    set the default for per-event checksums to OFF.
+  */
+  if (opt_binlog_in_innodb)
+    binlog_checksum_options= 0;
+
   tc_log= get_tc_log_implementation();
 
   if (tc_log->open(opt_bin_log ? opt_bin_logname : opt_tc_log_file))
@@ -6520,6 +6528,12 @@ struct my_option my_long_options[]=
   {"binlog-ignore-db", OPT_BINLOG_IGNORE_DB,
    "Tells the master that updates to the given database should not be logged to the binary log.",
    0, 0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  /* ToDo: option --binlog-storage-engine={binlog|innodb|<potentially other supporting engine>) */
+  {"binlog-in-innodb", OPT_BINLOG_IN_INNODB,
+   "Store the binlog transactionally in an InnoDB tablespace instead of as separate file.",
+   &opt_binlog_in_innodb,
+   &opt_binlog_in_innodb,
+   0, GET_BOOL, OPT_ARG, 0, 0, 1, 0, 0, 0},
 #ifndef DISABLE_GRANT_OPTIONS
   {"bootstrap", OPT_BOOTSTRAP, "Used by mysql installation scripts.", 0, 0, 0,
    GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},

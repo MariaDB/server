@@ -45,6 +45,7 @@ Created 11/29/1995 Heikki Tuuri
 #include <unordered_map>
 #include <unordered_set>
 #include "trx0undo.h"
+#include "trx0trx.h"
 
 /** Returns the first extent descriptor for a segment.
 We think of the extent lists of the segment catenated in the order
@@ -6144,6 +6145,114 @@ void fsp_binlog_append(const uchar *data, uint32_t len, mtr_t *mtr)
     data+= this_len;
     binlog_cur_page_offset+= this_len;
   }
+}
+
+void fsp_binlog_write_cache(IO_CACHE *cache, size_t main_size, mtr_t *mtr)
+{
+  fil_space_t *space= binlog_space;
+  if (!space) {
+    fsp_binlog_tablespace_create("./binlog-000000.ibb");
+    space= binlog_space;
+  }
+  /* ToDo: Is this set_named_space() needed / appropriate? */
+  mtr->set_named_space(space);
+  const uint32_t page_end= (uint32_t)srv_page_size - FIL_PAGE_DATA_END;
+  uint32_t page_no= binlog_cur_page_no;
+  uint32_t page_offset= binlog_cur_page_offset;
+  /* ToDo: What is the lifetime of what's pointed to by binlog_cur_block, is there some locking needed around it or something? */
+  buf_block_t *block= binlog_cur_block;
+
+  /*
+    Write out the event data in chunks of whatever size will fit in the current
+    page, until all data has been written.
+  */
+  size_t remain= my_b_tell(cache);
+  ut_ad(remain > main_size);
+  /* Start with the GTID event, which is put at the end of the IO_CACHE. */
+  my_bool res= reinit_io_cache(cache, READ_CACHE, main_size, 0, 0);
+  ut_a(!res /* ToDo: Error handling. */);
+  size_t gtid_remain= remain - main_size;
+  while (remain > 0) {
+    if (page_offset == FIL_PAGE_DATA) {
+      block= fsp_page_create(space, page_no, mtr);
+    } else {
+      dberr_t err;
+      /* ToDo: Is RW_SX_LATCH appropriate here? */
+      block= buf_page_get_gen(page_id_t{space->id, page_no},
+                              0, RW_SX_LATCH, binlog_cur_block,
+                              BUF_GET, mtr, &err);
+      ut_a(err == DB_SUCCESS);
+    }
+
+    ut_ad(page_offset < page_end);
+    uint32_t page_remain= page_end - page_offset;
+    byte *ptr= page_offset + block->page.frame;
+    /* ToDo: Do this check at the end instead, to save one buf_page_get_gen()? */
+    if (page_remain < 4) {
+      /* Pad the remaining few bytes, and move to next page. */
+      mtr->memset(block, page_offset, page_remain, 0xff);
+      block= nullptr;
+      ++page_no;
+      page_offset= FIL_PAGE_DATA;
+      continue;
+    }
+    page_remain-= 3;    /* Type byte and 2-byte length. */
+    uint32_t size= 0;
+    /* Write GTID data, if any still available. */
+    if (gtid_remain > 0)
+    {
+      size= gtid_remain > page_remain ? page_remain : (uint32_t)gtid_remain;
+      int res2= my_b_read(cache, ptr+3, size);
+      ut_a(!res2 /* ToDo: Error handling */);
+      gtid_remain-= size;
+      page_remain-= size;
+      if (gtid_remain == 0)
+        my_b_seek(cache, 0);    /* Move to read the rest of the events. */
+    }
+    /* Write remaining data, if any available _and_ more room on page. */
+    ut_ad(remain >= size);
+    size_t remain2= remain - size;
+    if (remain2 + page_remain > 0) {
+      uint32_t size2= remain2 > page_remain ? page_remain : (uint32_t)remain2;
+      int res2= my_b_read(cache, ptr+3+size, size2);
+      ut_a(!res2 /* ToDo: Error handling */);
+      size+= size2;
+      page_remain-= size2;
+    }
+    ptr[0]= 0x01 /* ToDo: FSP_BINLOG_TYPE_COMMIT */ | ((size < remain) << 7);
+    ptr[1]= size & 0xff;
+    ptr[2]= (byte)(size >> 8);
+    ut_ad(size <= 0xffff);
+
+    mtr->memcpy(*block, page_offset, size+3);
+    remain-= size;
+    if (page_remain == 0) {
+      block= nullptr;
+      page_offset= FIL_PAGE_DATA;
+      ++page_no;
+    } else {
+      page_offset+= size+3;
+    }
+  }
+  binlog_cur_block= block;
+  binlog_cur_page_no= page_no;
+  binlog_cur_page_offset= page_offset;
+}
+
+
+extern "C" void binlog_get_cache(THD *, IO_CACHE **, size_t *);
+
+void
+fsp_binlog_trx(trx_t *trx, mtr_t *mtr)
+{
+  IO_CACHE *cache;
+  size_t main_size;
+
+  if (!trx->mysql_thd)
+    return;
+  binlog_get_cache(trx->mysql_thd, &cache, &main_size);
+  if (main_size)
+    fsp_binlog_write_cache(cache, main_size, mtr);
 }
 
 

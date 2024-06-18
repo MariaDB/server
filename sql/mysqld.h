@@ -105,6 +105,7 @@ uint temp_pool_set_next();
 
 extern bool opt_large_files;
 extern bool opt_update_log, opt_bin_log, opt_error_log, opt_bin_log_compress; 
+extern my_bool opt_binlog_in_innodb;
 extern uint opt_bin_log_compress_min_len;
 extern my_bool opt_log, opt_bootstrap;
 extern my_bool opt_backup_history_log;
@@ -810,6 +811,7 @@ enum options_mysqld
   OPT_BINLOG_DO_DB,
   OPT_BINLOG_FORMAT,
   OPT_BINLOG_IGNORE_DB,
+  OPT_BINLOG_IN_INNODB,
   OPT_BIN_LOG,
   OPT_BOOTSTRAP,
   OPT_COSTS_DISK_READ_COST,
