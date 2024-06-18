@@ -3521,11 +3521,11 @@ void store_master_info(THD *thd, Master_info *mi, TABLE *table,
   (*field++)->store((uint32) mi->connect_retry);
   (*field++)->store(mi->master_log_name, strlen(mi->master_log_name),
                     &my_charset_bin);
-  (*field++)->store((ulonglong) mi->master_log_pos);
+  (*field++)->store((ulonglong) mi->master_log_pos, true);
   msg= (mi->rli.group_relay_log_name +
         dirname_length(mi->rli.group_relay_log_name));
   store_string(field++, msg);
-  (*field++)->store((ulonglong) mi->rli.group_relay_log_pos);
+  (*field++)->store((ulonglong) mi->rli.group_relay_log_pos, true);
   store_string(field++, mi->rli.group_master_log_name);
   store_string(field++, &slave_running[mi->slave_running]);
   store_string(field++, mi->rli.slave_running ? &msg_yes : &msg_no);
@@ -3544,8 +3544,8 @@ void store_master_info(THD *thd, Master_info *mi, TABLE *table,
   (*field++)->store(mi->rli.last_error().number);
   store_string_or_null(field++, mi->rli.last_error().message);
   (*field++)->store((uint32) mi->rli.slave_skip_counter);
-  (*field++)->store((ulonglong) mi->rli.group_master_log_pos);
-  (*field++)->store((ulonglong) mi->rli.log_space_total);
+  (*field++)->store((ulonglong) mi->rli.group_master_log_pos, true);
+  (*field++)->store((ulonglong) mi->rli.log_space_total, true);
 
   msg= (mi->rli.until_condition==Relay_log_info::UNTIL_NONE ? "None" :
         (mi->rli.until_condition==Relay_log_info::UNTIL_MASTER_POS? "Master":
@@ -3553,7 +3553,7 @@ void store_master_info(THD *thd, Master_info *mi, TABLE *table,
           "Gtid")));
   (*field++)->store(msg, strlen(msg), &my_charset_bin);
   store_string_or_null(field++, mi->rli.until_log_name);
-  (*field++)->store((ulonglong) mi->rli.until_log_pos);
+  (*field++)->store((ulonglong) mi->rli.until_log_pos, true);
 
 #ifdef HAVE_OPENSSL
   (*field++)->store(mi->ssl ? &msg_yes : &msg_no, &my_charset_bin);
@@ -3622,7 +3622,7 @@ void store_master_info(THD *thd, Master_info *mi, TABLE *table,
       if (time_diff < 0)
         time_diff= 0;
     }
-    (*field++)->store((longlong)time_diff);
+    (*field++)->store((longlong)time_diff, true);
   }
   else
     (*field++)->set_null();
@@ -3681,14 +3681,14 @@ void store_master_info(THD *thd, Master_info *mi, TABLE *table,
   // Slave_SQL_Running_State
   store_string_or_null(field++, slave_sql_running_state);
 
-  (*field++)->store(mi->total_ddl_groups);
-  (*field++)->store(mi->total_non_trans_groups);
-  (*field++)->store(mi->total_trans_groups);
+  (*field++)->store(mi->total_ddl_groups, true);
+  (*field++)->store(mi->total_non_trans_groups, true);
+  (*field++)->store(mi->total_trans_groups, true);
 
-  (*field++)->store((uint32)    mi->rli.retried_trans);
-  (*field++)->store((ulonglong) mi->rli.max_relay_log_size);
-  (*field++)->store(mi->rli.executed_entries);
-  (*field++)->store((uint)      mi->received_heartbeats);
+  (*field++)->store((uint32)    mi->rli.retried_trans, true);
+  (*field++)->store((ulonglong) mi->rli.max_relay_log_size, true);
+  (*field++)->store(mi->rli.executed_entries, true);
+  (*field++)->store((uint)      mi->received_heartbeats, true);
   (*field++)->store((double)    mi->heartbeat_period);
   (*field++)->store(gtid_pos->ptr(), gtid_pos->length(), &my_charset_bin);
 
@@ -3702,7 +3702,7 @@ void store_master_info(THD *thd, Master_info *mi, TABLE *table,
     DBUG_ASSERT(mi->rli.newest_master_timestamp);
     (*field++)->store_timestamp((my_time_t) mi->rli.slave_timestamp, 0);
     (*field++)->store((uint) (mi->rli.newest_master_timestamp -
-                              mi->rli.slave_timestamp));
+                              mi->rli.slave_timestamp), true);
   }
   else
     field[i++]->set_null();
