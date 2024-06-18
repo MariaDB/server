@@ -696,3 +696,32 @@ DROP TABLE t1;
 --echo #
 --echo # End of MariaDB-10.2 tests
 --echo #
+
+
+--echo #
+--echo # Start of 10.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-34417 Wrong result set with utf8mb4_danish_ci and BNLH join
+--echo #
+
+CREATE TABLE t1 (a VARCHAR(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_danish_ci);
+INSERT INTO t1 VALUES ('aaaa'),('åå');
+SELECT * FROM t1 WHERE a='aaaa';
+
+SET join_cache_level=1;
+SELECT * FROM t1 NATURAL JOIN t1 t2;
+
+--echo # Expect a BNHL join
+SET join_cache_level=3;
+EXPLAIN SELECT * FROM t1 NATURAL JOIN t1 t2;
+SELECT * FROM t1 NATURAL JOIN t1 t2;
+
+DROP TABLE t1;
+SET join_cache_level=DEFAULT;
+
+
+--echo #
+--echo # End of 10.5 tests
+--echo #
