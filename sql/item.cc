@@ -11085,8 +11085,13 @@ bool Item::cleanup_excluding_immutables_processor (void *arg)
   if (!(get_extraction_flag() == IMMUTABLE_FL))
     return cleanup_processor(arg);
   else
-  {
-    clear_extraction_flag();
     return false;
-  }
+}
+
+
+bool Item::remove_immutable_flag_processor (void *arg)
+{
+  if (get_extraction_flag() == IMMUTABLE_FL)
+    clear_extraction_flag();
+  return false;
 }
