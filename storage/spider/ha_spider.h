@@ -86,21 +86,6 @@ public:
   bool                wide_handler_owner = FALSE;
   SPIDER_WIDE_HANDLER *wide_handler = NULL;
 
-#ifdef HA_CAN_BULK_ACCESS
-  int                pre_direct_init_result;
-  bool               is_bulk_access_clone;
-  bool               synced_from_clone_source;
-  bool               bulk_access_started;
-  bool               bulk_access_executing;
-  bool               bulk_access_pre_called;
-  SPIDER_BULK_ACCESS_LINK *bulk_access_link_first;
-  SPIDER_BULK_ACCESS_LINK *bulk_access_link_current;
-  SPIDER_BULK_ACCESS_LINK *bulk_access_link_exec_tgt;
-/*
-  bool               init_ha_mem_root;
-  MEM_ROOT           ha_mem_root;
-*/
-#endif
   bool               is_clone;
   ha_spider          *pt_clone_source_handler;
   ha_spider          *pt_clone_last_searcher;
@@ -213,12 +198,6 @@ public:
   void check_access_kind(
     THD *thd
   );
-#ifdef HA_CAN_BULK_ACCESS
-  int additional_lock(
-    THD *thd,
-    enum thr_lock_type lock_type
-  );
-#endif
   THR_LOCK_DATA **store_lock(
     THD *thd,
     THR_LOCK_DATA **to,
@@ -240,16 +219,7 @@ public:
     uint idx,
     bool sorted
   ) override;
-#ifdef HA_CAN_BULK_ACCESS
-  int pre_index_init(
-    uint idx,
-    bool sorted
-  );
-#endif
   int index_end() override;
-#ifdef HA_CAN_BULK_ACCESS
-  int pre_index_end();
-#endif
   int index_read_map(
     uchar *buf,
     const uchar *key,
@@ -337,15 +307,7 @@ public:
   int rnd_init(
     bool scan
   ) override;
-#ifdef HA_CAN_BULK_ACCESS
-  int pre_rnd_init(
-    bool scan
-  );
-#endif
   int rnd_end() override;
-#ifdef HA_CAN_BULK_ACCESS
-  int pre_rnd_end();
-#endif
   int rnd_next(
     uchar *buf
   ) override;
@@ -459,11 +421,6 @@ public:
   int write_row(
     const uchar *buf
   ) override;
-#ifdef HA_CAN_BULK_ACCESS
-  int pre_write_row(
-    uchar *buf
-  );
-#endif
   void direct_update_init(
     THD *thd,
     bool hs_request
@@ -506,27 +463,6 @@ public:
     List<Item> *update_fields
   ) override;
 #endif
-#ifdef HA_CAN_BULK_ACCESS
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS_WITH_HS
-  inline int pre_direct_update_rows_init(
-    List<Item> *update_fields
-  ) {
-    return pre_direct_update_rows_init(update_fields, 2, NULL, 0, FALSE, NULL);
-  }
-  int pre_direct_update_rows_init(
-    List<Item> *update_fields,
-    uint mode,
-    KEY_MULTI_RANGE *ranges,
-    uint range_count,
-    bool sorted,
-    uchar *new_data
-  );
-#else
-  int pre_direct_update_rows_init(
-    List<Item> *update_fields
-  );
-#endif
-#endif
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS_WITH_HS
   inline int direct_update_rows(ha_rows *update_rows, ha_rows *found_rows)
   {
@@ -545,28 +481,6 @@ public:
     ha_rows *update_rows,
     ha_rows *found_row
   ) override;
-#endif
-#ifdef HA_CAN_BULK_ACCESS
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS_WITH_HS
-  inline int pre_direct_update_rows()
-  {
-    ha_rows update_rows;
-    ha_rows found_rows;
-
-    return pre_direct_update_rows(NULL, 0, FALSE, NULL, &update_rows,
-      &found_rows);
-  }
-  int pre_direct_update_rows(
-    KEY_MULTI_RANGE *ranges,
-    uint range_count,
-    bool sorted,
-    uchar *new_data,
-    ha_rows *update_rows,
-    ha_rows *found_row
-  );
-#else
-  int pre_direct_update_rows();
-#endif
 #endif
   bool start_bulk_delete() override;
   int end_bulk_delete() override;
@@ -592,22 +506,6 @@ public:
 #else
   int direct_delete_rows_init() override;
 #endif
-#ifdef HA_CAN_BULK_ACCESS
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS_WITH_HS
-  inline int pre_direct_delete_rows_init()
-  {
-    return pre_direct_delete_rows_init(2, NULL, 0, FALSE);
-  }
-  int pre_direct_delete_rows_init(
-    uint mode,
-    KEY_MULTI_RANGE *ranges,
-    uint range_count,
-    bool sorted
-  );
-#else
-  int pre_direct_delete_rows_init();
-#endif
-#endif
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS_WITH_HS
   inline int direct_delete_rows(ha_rows *delete_rows)
   {
@@ -624,24 +522,6 @@ public:
     ha_rows *delete_rows
   ) override;
 #endif
-#ifdef HA_CAN_BULK_ACCESS
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS_WITH_HS
-  inline int pre_direct_delete_rows()
-  {
-    ha_rows delete_rows;
-
-    return pre_direct_delete_rows(NULL, 0, FALSE, &delete_rows);
-  }
-  int pre_direct_delete_rows(
-    KEY_MULTI_RANGE *ranges,
-    uint range_count,
-    bool sorted,
-    ha_rows *delete_rows
-  );
-#else
-  int pre_direct_delete_rows();
-#endif
-#endif
   int delete_all_rows() override;
   int truncate() override;
   double scan_time() override;
@@ -650,9 +530,6 @@ public:
     uint ranges,
     ha_rows rows
   ) override;
-#ifdef HA_CAN_BULK_ACCESS
-  void bulk_req_exec();
-#endif
   const key_map *keys_to_use_for_scanning() override;
   ha_rows estimate_rows_upper_bound() override;
   void print_error(
@@ -810,15 +687,6 @@ public:
     bool use_parallel
   );
   void check_insert_dup_update_pushdown();
-#ifdef HA_CAN_BULK_ACCESS
-  SPIDER_BULK_ACCESS_LINK *create_bulk_access_link();
-  void delete_bulk_access_link(
-    SPIDER_BULK_ACCESS_LINK *bulk_access_link
-  );
-  int sync_from_clone_source(
-    ha_spider *spider
-  );
-#endif
   void sync_from_clone_source_base(
     ha_spider *spider
   );
@@ -1036,15 +904,6 @@ public:
   int append_lock_tables_list();
   int lock_tables();
   int dml_init();
-#ifdef HA_CAN_BULK_ACCESS
-  int bulk_access_begin(
-    void *info
-  );
-  int bulk_access_current(
-    void *info
-  );
-  void bulk_access_end();
-#endif
 };
 
 

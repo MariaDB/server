@@ -337,11 +337,6 @@ int spider_param_read_only_mode(
   THD *thd,
   int read_only_mode
 );
-#ifdef HA_CAN_BULK_ACCESS
-int spider_param_bulk_access_free(
-  int bulk_access_free
-);
-#endif
 int spider_param_udf_ds_use_real_table(
   THD *thd,
   int udf_ds_use_real_table
