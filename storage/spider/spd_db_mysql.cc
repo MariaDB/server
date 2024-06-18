@@ -15079,11 +15079,7 @@ void spider_mbase_handler::minimum_select_bitmap_create()
   memset(minimum_select_bitmap, 0, my_bitmap_buffer_size(table->read_set));
   if (
     spider->use_index_merge ||
-#ifdef HA_CAN_BULK_ACCESS
-    (spider->is_clone && !spider->is_bulk_access_clone)
-#else
     spider->is_clone
-#endif
   ) {
     /* need preparing for cmp_ref */
     TABLE_SHARE *table_share = table->s;

@@ -2601,13 +2601,6 @@ void *spider_bg_conn_action(
         pthread_mutex_lock(&conn->mta_conn_mutex);
         sql_type &= ~SPIDER_SQL_TYPE_TMP_SQL;
         DBUG_PRINT("info",("spider sql_type=%lu", sql_type));
-#ifdef HA_CAN_BULK_ACCESS
-        if (spider->is_bulk_access_clone)
-        {
-          spider->connection_ids[conn->link_idx] = conn->connection_id;
-          spider_trx_add_bulk_access_conn(spider->trx, conn);
-        }
-#endif
         if (!result_list->bgs_error)
         {
           conn->need_mon = &spider->need_mons[conn->link_idx];
@@ -2615,10 +2608,6 @@ void *spider_bg_conn_action(
           DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
           conn->mta_conn_mutex_lock_already = TRUE;
           conn->mta_conn_mutex_unlock_later = TRUE;
-#ifdef HA_CAN_BULK_ACCESS
-          if (!spider->is_bulk_access_clone)
-          {
-#endif
             if (!(result_list->bgs_error =
               spider_db_set_names(spider, conn, conn->link_idx)))
             {
@@ -2687,9 +2676,6 @@ void *spider_bg_conn_action(
                 strmov(result_list->bgs_error_msg,
                   spider_stmt_da_message(thd));
             }
-#ifdef HA_CAN_BULK_ACCESS
-          }
-#endif
           DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
           DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
           conn->mta_conn_mutex_lock_already = FALSE;

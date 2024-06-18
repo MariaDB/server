@@ -266,9 +266,3 @@ int spider_trx_check_link_idx_failed(
   ha_spider *spider
 );
 
-#ifdef HA_CAN_BULK_ACCESS
-void spider_trx_add_bulk_access_conn(
-  SPIDER_TRX *trx,
-  SPIDER_CONN *conn
-);
-#endif
