@@ -1002,7 +1002,7 @@ err:
   Update thd->orig_exec_time
 */
 
-inline void set_orig_exec_time_in_thd(ulong exec_time)
+inline void set_orig_exec_time_in_thd(my_time_t exec_time)
 {
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
   THD *thd= current_thd;
