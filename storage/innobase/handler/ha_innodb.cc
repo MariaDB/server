@@ -4479,10 +4479,6 @@ innobase_commit(
 	if (commit_trx
 	    || (!thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))) {
 
-		/* ToDo: This is just a random very initial test of writing
-		something into a binlog tablespace. */
-		if (!opt_bootstrap)
-			fsp_binlog_test((const uchar *)"Hulubulu!!?!", 12);
 		/* Run the fast part of commit if we did not already. */
 		if (!trx->active_commit_ordered) {
 			innobase_commit_ordered_2(trx, thd);
