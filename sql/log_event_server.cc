@@ -1461,7 +1461,7 @@ Query_log_event::Query_log_event(THD* thd_arg, const char* query_arg,
   */
   exec_time= ((thd->slave_thread) ?
               thd->orig_exec_time :
-              (ulong) (my_time(0) - thd_arg->start_time));
+              (my_time(0) - thd_arg->start_time));
 
   /**
     @todo this means that if we have no catalog, then it is replicated

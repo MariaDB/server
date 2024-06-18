@@ -2930,7 +2930,7 @@ public:
   ulonglong  start_utime, utime_after_lock, utime_after_query;
   /* This can be used by handlers to send signals to the SQL level */
   ulonglong  replication_flags;
-  ulong orig_exec_time;              // Exec time for last read binlog event
+  my_time_t orig_exec_time= 0;       // Exec time for last read binlog event
   // Process indicator
   struct {
     /*
