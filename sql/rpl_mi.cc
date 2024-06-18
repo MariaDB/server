@@ -2034,7 +2034,7 @@ static size_t store_ids(DYNAMIC_ARRAY *ids, char *buff, size_t buff_len)
 void prot_store_ids(THD *thd, DYNAMIC_ARRAY *ids)
 {
   char buff[FN_REFLEN];
-  uint cur_len= store_ids(ids, buff, sizeof(buff));
+  size_t cur_len= store_ids(ids, buff, sizeof(buff));
   thd->protocol->store(buff, cur_len, &my_charset_bin);
 }
 
