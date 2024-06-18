@@ -223,12 +223,7 @@ public:
 
   bool u_lock_try()
   {
-    if (!writer.wr_lock_try())
-      return false;
-    IF_DBUG_ASSERT(uint32_t lk=,)
-    readers.fetch_add(1, std::memory_order_acquire);
-    DBUG_ASSERT(lk < WRITER - 1);
-    return true;
+    return writer.wr_lock_try();
   }
 
   bool wr_lock_try()
@@ -248,9 +243,6 @@ public:
   void u_lock()
   {
     writer.wr_lock();
-    IF_DBUG_ASSERT(uint32_t lk=,)
-    readers.fetch_add(1, std::memory_order_acquire);
-    DBUG_ASSERT(lk < WRITER - 1);
   }
   void wr_lock()
   {
@@ -272,15 +264,15 @@ public:
   void u_wr_upgrade()
   {
     DBUG_ASSERT(writer.is_locked());
-    uint32_t lk= readers.fetch_add(WRITER - 1, std::memory_order_acquire);
-    if (lk != 1)
-      wr_wait(lk - 1);
+    uint32_t lk= readers.fetch_add(WRITER, std::memory_order_acquire);
+    if (lk)
+      wr_wait(lk);
   }
   void wr_u_downgrade()
   {
     DBUG_ASSERT(writer.is_locked());
     DBUG_ASSERT(is_write_locked());
-    readers.store(1, std::memory_order_release);
+    readers.store(0, std::memory_order_release);
     /* Note: Any pending rd_lock() will not be woken up until u_unlock() */
   }
 
@@ -293,10 +285,6 @@ public:
   }
   void u_unlock()
   {
-    IF_DBUG_ASSERT(uint32_t lk=,)
-    readers.fetch_sub(1, std::memory_order_release);
-    DBUG_ASSERT(lk);
-    DBUG_ASSERT(lk < WRITER);
     writer.wr_unlock();
   }
   void wr_unlock()

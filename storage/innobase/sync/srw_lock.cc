@@ -525,7 +525,7 @@ void ssux_lock::psi_u_wr_upgrade(const char *file, unsigned line)
 {
   PSI_rwlock_locker_state state;
   DBUG_ASSERT(lock.writer.is_locked());
-  uint32_t lk= 1;
+  uint32_t lk= 0;
   const bool nowait=
     lock.readers.compare_exchange_strong(lk, ssux_lock_impl<false>::WRITER,
                                          std::memory_order_acquire,
