@@ -863,6 +863,11 @@ template<bool release_latch> inline lsn_t log_t::write_buf() noexcept
         write_size_1>>= 1;
     }
     ut_ad(write_size_1 >= block_size_1);
+
+    const byte *const write_buf{buf};
+    const byte *const rbuf{resize_buf};
+    offset&= ~lsn_t{write_size_1};
+
     if (UNIV_UNLIKELY(write_size_1 < old_block_size_1))
     {
       /* The write unit size is being reduced. Discard a part of the buffer
@@ -875,15 +880,16 @@ template<bool release_latch> inline lsn_t log_t::write_buf() noexcept
         memmove_aligned<512>(buf, buf + written, length);
         if (resize_buf)
           memmove_aligned<512>(resize_buf, resize_buf + written, length);
+        if (length > write_size_1)
+          goto buffer_swap;
+        buf_free.store(length, std::memory_order_relaxed);
+        goto no_buffer_swap;
       }
     }
 
-    const byte *const write_buf{buf};
-    const byte *const rbuf{resize_buf};
-    offset&= ~lsn_t{write_size_1};
-
     if (length <= write_size_1)
     {
+    no_buffer_swap:
       /* Keep filling the same buffer until we have more than one block. */
 #if 0 /* TODO: Pad the last log block with dummy records. */
       buf_free= log_pad(lsn, (write_size_1 + 1) - length,
@@ -901,6 +907,7 @@ template<bool release_latch> inline lsn_t log_t::write_buf() noexcept
     }
     else
     {
+    buffer_swap:
       const size_t new_buf_free{length & write_size_1};
       ut_ad(new_buf_free == ((lsn - first_lsn) & write_size_1));
       buf_free.store(new_buf_free, std::memory_order_relaxed);
