@@ -1297,7 +1297,7 @@ public:
   my_time_t when;
   ulong     when_sec_part;
   /* The number of seconds the query took to run on the master. */
-  ulong exec_time;
+  my_time_t exec_time;
   /* Number of bytes written by write() function */
   size_t data_written;
 
