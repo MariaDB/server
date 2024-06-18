@@ -370,7 +370,7 @@ public:
                     ulong *param_ptr_binlog_cache_disk_use,
                     bool precompute_checksums)
     : stmt_cache(precompute_checksums), trx_cache(precompute_checksums),
-      last_commit_pos_offset(0), using_xa(FALSE), xa_xid(0)
+      last_commit_pos_offset(0), gtid_cache_offset(0), using_xa(FALSE), xa_xid(0)
   {
      stmt_cache.set_binlog_cache_info(param_max_binlog_stmt_cache_size,
                                       param_ptr_binlog_stmt_cache_use,
@@ -391,6 +391,7 @@ public:
       using_xa= FALSE;
       last_commit_pos_file[0]= 0;
       last_commit_pos_offset= 0;
+      gtid_cache_offset= 0;
     }
   }
 
@@ -417,6 +418,8 @@ public:
   */
   char last_commit_pos_file[FN_REFLEN];
   my_off_t last_commit_pos_offset;
+  /* Point in trx cache where GTID event sits after end event. */
+  my_off_t gtid_cache_offset;
 
   /*
     Flag set true if this transaction is committed with log_xid() as part of
@@ -1834,6 +1837,26 @@ binlog_flush_cache(THD *thd, binlog_cache_mngr *cache_mngr,
   DBUG_ASSERT(!using_stmt || cache_mngr->stmt_cache.empty());
   DBUG_ASSERT(!using_trx || cache_mngr->trx_cache.empty());
   DBUG_RETURN(error);
+}
+
+
+extern "C"
+void
+binlog_get_cache(THD *thd, IO_CACHE **out_cache, size_t *out_main_size)
+{
+  IO_CACHE *cache= nullptr;
+  size_t main_size= 0;
+  binlog_cache_mngr *cache_mngr;
+  if (likely(!opt_bootstrap /* ToDo needed? */) &&
+      opt_binlog_in_innodb &&
+      (cache_mngr= thd->binlog_get_cache_mngr()))
+  {
+    main_size= cache_mngr->gtid_cache_offset;
+    cache= !cache_mngr->trx_cache.empty() ?
+      &cache_mngr->trx_cache.cache_log : &cache_mngr->stmt_cache.cache_log;
+  }
+  *out_cache= cache;
+  *out_main_size= main_size;
 }
 
 
@@ -6948,7 +6971,7 @@ Event_log::prepare_pending_rows_event(THD *thd, TABLE* table,
 /* Generate a new global transaction ID, and write it to the binlog */
 
 bool
-MYSQL_BIN_LOG::write_gtid_event(THD *thd, bool standalone,
+MYSQL_BIN_LOG::write_gtid_event(THD *thd, IO_CACHE *dest, bool standalone,
                                 bool is_transactional, uint64 commit_id,
                                 bool has_xid, bool is_ro_1pc)
 {
@@ -7018,7 +7041,7 @@ MYSQL_BIN_LOG::write_gtid_event(THD *thd, bool standalone,
   }
 #endif
 
-  if (write_event(&gtid_event))
+  if (write_event(&gtid_event, NULL, dest))
     DBUG_RETURN(true);
   status_var_add(thd->status_var.binlog_bytes_written, gtid_event.data_written);
 
@@ -7346,7 +7369,7 @@ bool MYSQL_BIN_LOG::write(Log_event *event_info, my_bool *with_annotate)
                                              commit_name.length);
           commit_id= entry->val_int(&null_value);
         });
-      res= write_gtid_event(thd, true, using_trans, commit_id);
+      res= write_gtid_event(thd, &log_file, true, using_trans, commit_id);
       if (mdl_request.ticket)
         thd->mdl_context.release_lock(mdl_request.ticket);
       thd->backup_commit_lock= 0;
@@ -8485,7 +8508,7 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *orig_entry)
 
       If waitee->commit_started is set, it means that the transaction we need
       to wait for has already queued up for group commit. In this case it is
-      safe for us to queue up immediately as well, increasing the opprtunities
+      safe for us to queue up immediately as well, increasing the opportunities
       for group commit. Because waitee has taken the LOCK_prepare_ordered
       before setting the flag, so there is no risk that we can queue ahead of
       it.
@@ -9307,7 +9330,9 @@ MYSQL_BIN_LOG::write_transaction_or_stmt(group_commit_entry *entry,
   DBUG_ASSERT(!(entry->using_stmt_cache && !mngr->stmt_cache.empty() &&
                 mngr->get_binlog_cache_log(FALSE)->error));
 
-  if (write_gtid_event(entry->thd, is_prepared_xa(entry->thd),
+  if (!opt_binlog_in_innodb)
+  {
+  if (write_gtid_event(entry->thd, &log_file, is_prepared_xa(entry->thd),
                        entry->using_trx_cache, commit_id,
                        has_xid, entry->ro_1pc))
     DBUG_RETURN(ER_ERROR_ON_WRITE);
@@ -9354,6 +9379,34 @@ MYSQL_BIN_LOG::write_transaction_or_stmt(group_commit_entry *entry,
   }
   status_var_add(entry->thd->status_var.binlog_bytes_written,
                  entry->end_event->data_written);
+  }
+  else
+  {
+    DBUG_ASSERT((!entry->using_stmt_cache || mngr->stmt_cache.empty()) ||
+                (!entry->using_trx_cache || mngr->trx_cache.empty())
+                /* ToDo: Support combined stmt/trx caches?*/);
+    DBUG_ASSERT((entry->using_stmt_cache && !mngr->stmt_cache.empty()) ||
+                (entry->using_trx_cache && !mngr->trx_cache.empty())
+                /* Assert that empty transaction is handled elsewhere. */);
+    IO_CACHE *cache= (entry->using_trx_cache && !mngr->trx_cache.empty()) ?
+      &mngr->trx_cache.cache_log : &mngr->stmt_cache.cache_log;
+    /*
+      Prepare the full event data in the trx cache for the engine to binlog.
+      The GTID event cannot go first since we only allocate the GTID at binlog
+      time. So write the GTID at the very end, and record its offset so that the
+      engine can pick it out and binlog it at the start.
+    */
+    if (write_event(entry->end_event, NULL, cache))
+    {
+      entry->error_cache= NULL;
+      DBUG_RETURN(ER_ERROR_ON_WRITE);
+    }
+    mngr->gtid_cache_offset= my_b_tell(cache);
+    if (write_gtid_event(entry->thd, cache, is_prepared_xa(entry->thd),
+                         entry->using_trx_cache, commit_id,
+                         has_xid, entry->ro_1pc))
+      DBUG_RETURN(ER_ERROR_ON_WRITE);
+  }
 
   if (entry->incident_event)
   {
@@ -12704,6 +12757,12 @@ binlog_checksum_update(MYSQL_THD thd, struct st_mysql_sys_var *var,
   ulong UNINIT_VAR(prev_binlog_id);
 
   mysql_mutex_unlock(&LOCK_global_system_variables);
+  if (opt_binlog_in_innodb && value)
+  {
+    /* ToDo: Should this be an error instead? Or an SQL-level warning at least. */
+    sql_print_information("Value of binlog_checksum forced to NONE since binlog_in_innodb is enabled, and InnoDB uses its own superior checksumming of pages");
+    value= 0;
+  }
   mysql_mutex_lock(mysql_bin_log.get_log_lock());
   if(mysql_bin_log.is_open())
   {

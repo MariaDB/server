@@ -1168,6 +1168,10 @@ inline void trx_t::write_serialisation_history(mtr_t *mtr)
     }
     else
       trx_sys.assign_new_trx_no(this);
+
+    /* Include binlog data in the commit record, if any. */
+    fsp_binlog_trx(this, mtr);
+
     UT_LIST_REMOVE(rseg->undo_list, undo);
     /* Change the undo log segment state from TRX_UNDO_ACTIVE, to
     define the transaction as committed in the file based domain,
