@@ -498,7 +498,8 @@ void fil_space_t::modify_check(const mtr_t& mtr) const
     /* We may only write redo log for a persistent tablespace. */
     ut_ad(!is_temporary());
     ut_ad(!is_being_imported());
-    ut_ad(mtr.is_named_space(id));
+    ut_ad(mtr.is_named_space(id) ||
+          id == SRV_SPACE_ID_BINLOG0 || id == SRV_SPACE_ID_BINLOG1);
   }
 }
 #endif
@@ -6030,12 +6031,15 @@ func_exit:
 fil_space_t* binlog_space;
 buf_block_t *binlog_cur_block;
 uint32_t binlog_cur_page_no;
-uint32_t binlog_cur_page_offset;
+/* ToDo: This needs to be initialized to the current point in any existing binlog. */
+uint32_t binlog_cur_page_offset= FIL_PAGE_DATA;
+/* ToDo: This needs to discover existing binlogs and start from the next free index. */
+uint64_t binlog_file_no= 0;
 
 /** Create a binlog tablespace file
 @param[in] name	 file name
 @return DB_SUCCESS or error code */
-dberr_t fsp_binlog_tablespace_create(const char* name)
+dberr_t fsp_binlog_tablespace_create(uint64_t file_no)
 {
 	pfs_os_file_t	fh;
 	bool		ret;
@@ -6043,6 +6047,9 @@ dberr_t fsp_binlog_tablespace_create(const char* name)
 	uint32_t size= (1<<20) >> srv_page_size_shift /* ToDo --max-binlog-size */;
 	if(srv_read_only_mode)
 		return DB_ERROR;
+
+        char name[1 + 1 + 6 + 1 + 20 + 1 + 3 + 1];
+        sprintf(name, "./binlog-%06" PRIu64 ".ibb", file_no);
 
 	os_file_create_subdirs_if_needed(name);
 
@@ -6070,7 +6077,8 @@ dberr_t fsp_binlog_tablespace_create(const char* name)
 	}
 
 	mysql_mutex_lock(&fil_system.mutex);
-	uint32_t space_id= SRV_SPACE_ID_BINLOG0;
+        /* ToDo: Need to ensure file (N-2) is no longer active before creating (N). */
+	uint32_t space_id= SRV_SPACE_ID_BINLOG0 + (file_no & 1);
 	if (!(binlog_space= fil_space_t::create(space_id,
                                                 ( FSP_FLAGS_FCRC32_MASK_MARKER |
 						  FSP_FLAGS_FCRC32_PAGE_SSIZE()),
@@ -6140,12 +6148,6 @@ void fsp_binlog_append(const uchar *data, uint32_t len, mtr_t *mtr)
 void fsp_binlog_write_cache(IO_CACHE *cache, size_t main_size, mtr_t *mtr)
 {
   fil_space_t *space= binlog_space;
-  if (!space) {
-    fsp_binlog_tablespace_create("./binlog-000000.ibb");
-    space= binlog_space;
-  }
-  /* ToDo: Is this set_named_space() needed / appropriate? */
-  mtr->set_named_space(space);
   const uint32_t page_end= (uint32_t)srv_page_size - FIL_PAGE_DATA_END;
   uint32_t page_no= binlog_cur_page_no;
   uint32_t page_offset= binlog_cur_page_offset;
@@ -6164,6 +6166,18 @@ void fsp_binlog_write_cache(IO_CACHE *cache, size_t main_size, mtr_t *mtr)
   size_t gtid_remain= remain - main_size;
   while (remain > 0) {
     if (page_offset == FIL_PAGE_DATA) {
+      if (UNIV_UNLIKELY(!space) || page_no >= space->size) {
+        /*
+          Create a new binlog tablespace.
+          ToDo: pre-create the next tablespace in a background thread, avoiding
+          a large stall here in the common case where pre-allocation is fast
+          enough.
+        */
+        dberr_t res2= fsp_binlog_tablespace_create(binlog_file_no++);
+        ut_a(res2 == DB_SUCCESS /* ToDo: Error handling. */);
+        space= binlog_space;
+        binlog_cur_page_no= page_no= 0;
+      }
       block= fsp_page_create(space, page_no, mtr);
     } else {
       dberr_t err;
@@ -6251,8 +6265,7 @@ void fsp_binlog_test(const uchar *data, uint32_t len)
   mtr_t mtr;
   mtr.start();
   if (!binlog_space)
-    fsp_binlog_tablespace_create("./binlog-000000.ibb");
-  mtr.set_named_space(binlog_space);
+    fsp_binlog_tablespace_create(0);
   fsp_binlog_append(data, len, &mtr);
   mtr.commit();
 }

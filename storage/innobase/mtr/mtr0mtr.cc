@@ -1571,7 +1571,9 @@ void mtr_t::set_modified(const buf_block_t &block)
 void mtr_t::init(buf_block_t *b)
 {
   const page_id_t id{b->page.id()};
-  ut_ad(is_named_space(id.space()));
+  ut_ad(is_named_space(id.space()) ||
+        id.space() == SRV_SPACE_ID_BINLOG0 ||
+        id.space() == SRV_SPACE_ID_BINLOG1);
   ut_ad(!m_freed_pages == !m_freed_space);
   ut_ad(memo_contains_flagged(b, MTR_MEMO_PAGE_X_FIX));
 
