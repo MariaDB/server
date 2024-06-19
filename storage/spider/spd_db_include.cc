@@ -154,7 +154,6 @@ int spider_db_handler::checksum_table(
 }
 #endif
 
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
 bool spider_db_handler::check_direct_update(
   st_select_lex *select_lex,
   longlong select_limit,
@@ -188,4 +187,3 @@ bool spider_db_handler::check_direct_delete(
   }
   DBUG_RETURN(FALSE);
 }
-#endif
