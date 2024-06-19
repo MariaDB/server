@@ -70,10 +70,13 @@ inline void pthread_mutex_wrapper<true>::wr_lock()
 { if (!wr_lock_try()) wr_wait(); }
 # endif
 
+template<bool spinloop> class ssux_lock_impl;
+
 /** Futex-based mutex */
 template<bool spinloop>
 class srw_mutex_impl final
 {
+  friend ssux_lock_impl<spinloop>;
   /** The lock word, containing HOLDER + 1 if the lock is being held,
   plus the number of waiters */
   std::atomic<uint32_t> lock;
@@ -95,6 +98,8 @@ private:
   inline void wait(uint32_t lk);
   /** Wake up one wait() thread */
   void wake();
+  /** Wake up all wait() threads */
+  inline void wake_all();
 public:
   /** @return whether the mutex is being held or waited for */
   bool is_locked_or_waiting() const
@@ -207,27 +212,25 @@ public:
   /** @return whether the lock is being held or waited for */
   bool is_vacant() const { return !is_locked_or_waiting(); }
 #endif /* !DBUG_OFF */
-
-  bool rd_lock_try()
+private:
+  /** Try to acquire a shared latch.
+  @return the lock word value if the latch was not acquired
+  @retval 0  if the latch was acquired */
+  uint32_t rd_lock_try_low()
   {
     uint32_t lk= 0;
     while (!readers.compare_exchange_weak(lk, lk + 1,
                                           std::memory_order_acquire,
                                           std::memory_order_relaxed))
       if (lk & WRITER)
-        return false;
-    return true;
+        return lk;
+    return 0;
   }
+public:
 
-  bool u_lock_try()
-  {
-    if (!writer.wr_lock_try())
-      return false;
-    IF_DBUG_ASSERT(uint32_t lk=,)
-    readers.fetch_add(1, std::memory_order_acquire);
-    DBUG_ASSERT(lk < WRITER - 1);
-    return true;
-  }
+  bool rd_lock_try() { return rd_lock_try_low() == 0; }
+
+  bool u_lock_try() { return writer.wr_lock_try(); }
 
   bool wr_lock_try()
   {
@@ -246,9 +249,6 @@ public:
   void u_lock()
   {
     writer.wr_lock();
-    IF_DBUG_ASSERT(uint32_t lk=,)
-    readers.fetch_add(1, std::memory_order_acquire);
-    DBUG_ASSERT(lk < WRITER - 1);
   }
   void wr_lock()
   {
@@ -270,15 +270,15 @@ public:
   void u_wr_upgrade()
   {
     DBUG_ASSERT(writer.is_locked());
-    uint32_t lk= readers.fetch_add(WRITER - 1, std::memory_order_acquire);
-    if (lk != 1)
-      wr_wait(lk - 1);
+    uint32_t lk= readers.fetch_add(WRITER, std::memory_order_acquire);
+    if (lk)
+      wr_wait(lk);
   }
   void wr_u_downgrade()
   {
     DBUG_ASSERT(writer.is_locked());
     DBUG_ASSERT(is_write_locked());
-    readers.store(1, std::memory_order_release);
+    readers.store(0, std::memory_order_release);
     /* Note: Any pending rd_lock() will not be woken up until u_unlock() */
   }
 
@@ -291,10 +291,6 @@ public:
   }
   void u_unlock()
   {
-    IF_DBUG_ASSERT(uint32_t lk=,)
-    readers.fetch_sub(1, std::memory_order_release);
-    DBUG_ASSERT(lk);
-    DBUG_ASSERT(lk < WRITER);
     writer.wr_unlock();
   }
   void wr_unlock()
@@ -404,7 +400,7 @@ typedef srw_spin_lock_low srw_spin_lock;
 class ssux_lock
 {
   PSI_rwlock *pfs_psi;
-  ssux_lock_impl<false> lock;
+  ssux_lock_impl<true> lock;
 
   ATTRIBUTE_NOINLINE void psi_rd_lock(const char *file, unsigned line);
   ATTRIBUTE_NOINLINE void psi_wr_lock(const char *file, unsigned line);

@@ -2722,7 +2722,10 @@ SQL_SELECT::test_quick_select(THD *thd,
     only_single_index_range_scan= 1;
 
   if (head->force_index || force_quick_range)
+  {
+    DEBUG_SYNC(thd, "in_forced_range_optimize");
     scan_time= read_time= DBL_MAX;
+  }
   else
   {
     scan_time= rows2double(records) / TIME_FOR_COMPARE;
@@ -3119,6 +3122,12 @@ SQL_SELECT::test_quick_select(THD *thd,
     free_root(&alloc,MYF(0));			// Return memory & allocator
     thd->mem_root= param.old_root;
     thd->no_errors=0;
+    if (thd->killed || thd->is_error())
+    {
+      delete quick;
+      quick= NULL;
+      returnval= ERROR;
+    }
   }
 
   DBUG_EXECUTE("info", print_quick(quick, &needed_reg););

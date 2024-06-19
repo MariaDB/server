@@ -285,7 +285,7 @@ public:
 typedef sux_lock<ssux_lock_impl<true>> block_lock;
 
 #ifndef UNIV_PFS_RWLOCK
-typedef sux_lock<ssux_lock_impl<false>> index_lock;
+typedef sux_lock<ssux_lock_impl<true>> index_lock;
 #else
 typedef sux_lock<ssux_lock> index_lock;
 
