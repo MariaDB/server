@@ -1,0 +1,18 @@
+--source include/have_utf32.inc
+
+--echo #
+--echo # MDEV-27966 Assertion `fixed()' failed and Assertion `fixed == 1' failed, both in Item_func_concat::val_str on SELECT after INSERT with collation utf32_bin on utf8_bin table
+--echo #
+
+SET NAMES utf8mb3;
+SET sql_mode='';
+CREATE TABLE t (c1 INT,c2 CHAR AS (CONCAT ('',DAYNAME ('')))) COLLATE utf8_bin ENGINE=InnoDB;
+INSERT INTO t VALUES (0,0),(0,0),(0,0),(0,0),(0,0),(0,0),(0,0),(0,0),(0,0);
+SET collation_connection='utf32_bin';
+--error ER_CANT_AGGREGATE_2COLLATIONS
+INSERT INTO t VALUES (0,0),(0,0),(0,0),(0,0),(0,0),(0,0),(0,0),(0,0),(0,0);
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT * FROM t;
+DROP TABLE t;
+SET sql_mode=DEFAULT;
+SET NAMES utf8mb3;
