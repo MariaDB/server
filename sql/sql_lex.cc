@@ -5501,6 +5501,9 @@ void st_select_lex::update_correlated_cache()
 
   while ((tl= ti++))
   {
+    if (tl->table_function)
+      is_correlated|= MY_TEST(tl->table_function->used_tables() &
+                                OUTER_REF_TABLE_BIT);
     //    is_correlated|= tl->is_with_table_recursive_reference();
     if (tl->on_expr)
       is_correlated|= MY_TEST(tl->on_expr->used_tables() & OUTER_REF_TABLE_BIT);
