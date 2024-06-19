@@ -171,11 +171,9 @@ public:
   SPIDER_ITEM_HLD    *direct_aggregate_item_current;
 #endif
   ha_rows            table_rows;
-#ifdef HA_HAS_CHECKSUM_EXTENDED
   ha_checksum        checksum_val;
   bool               checksum_null;
   uint               action_flags;
-#endif
 
   /* for fulltext search */
   bool               ft_init_and_first;
@@ -422,10 +420,8 @@ public:
   int check_crd();
   int pre_records();
   ha_rows records();
-#ifdef HA_HAS_CHECKSUM_EXTENDED
   int pre_calculate_checksum();
   int calculate_checksum();
-#endif
   const char *table_type() const;
   ulonglong table_flags() const;
   ulong table_flags_for_partition();
