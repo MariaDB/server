@@ -7781,9 +7781,7 @@ int ha_spider::info(
     {
       tmp_auto_increment_mode = spider_param_auto_increment_mode(thd,
         share->auto_increment_mode);
-#ifdef HANDLER_HAS_NEED_INFO_FOR_AUTO_INC
       info_auto_called = TRUE;
-#endif
     }
     if (!share->sts_init)
     {
@@ -8875,7 +8873,6 @@ uint8 ha_spider::table_cache_type()
   DBUG_RETURN(HA_CACHE_TBL_NOCACHE);
 }
 
-#ifdef HANDLER_HAS_NEED_INFO_FOR_AUTO_INC
 bool ha_spider::need_info_for_auto_inc()
 {
   THD *thd = ha_thd();
@@ -8896,7 +8893,6 @@ bool ha_spider::need_info_for_auto_inc()
     )
   ));
 }
-#endif
 
 bool ha_spider::can_use_for_auto_inc_init()
 {

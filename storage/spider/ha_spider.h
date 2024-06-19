@@ -145,9 +145,7 @@ public:
   bool               use_pre_action;
   bool               pre_bitmap_checked;
   bool               bulk_insert;
-#ifdef HANDLER_HAS_NEED_INFO_FOR_AUTO_INC
   bool               info_auto_called;
-#endif
   bool               auto_inc_temporary;
   int                bulk_size;
   int                direct_dup_insert;
@@ -445,9 +443,7 @@ public:
   uint max_supported_key_length() const;
   uint max_supported_key_part_length() const;
   uint8 table_cache_type();
-#ifdef HANDLER_HAS_NEED_INFO_FOR_AUTO_INC
   bool need_info_for_auto_inc();
-#endif
   bool can_use_for_auto_inc_init();
   int update_auto_increment();
   void get_auto_increment(
