@@ -462,17 +462,40 @@ template<bool spinloop>
 void srw_lock_impl<spinloop>::psi_wr_lock(const char *file, unsigned line)
 {
   PSI_rwlock_locker_state state;
-  const bool nowait= lock.wr_lock_try();
+# if defined _WIN32 || defined SUX_LOCK_GENERIC
+  const bool nowait2= lock.wr_lock_try();
+# else
+  const bool nowait1= lock.writer.wr_lock_try();
+  uint32_t lk= 0;
+  const bool nowait2= nowait1 &&
+    lock.readers.compare_exchange_strong(lk, lock.WRITER,
+                                         std::memory_order_acquire,
+                                         std::memory_order_relaxed);
+# endif
   if (PSI_rwlock_locker *locker= PSI_RWLOCK_CALL(start_rwlock_wrwait)
       (&state, pfs_psi,
-       nowait ? PSI_RWLOCK_TRYWRITELOCK : PSI_RWLOCK_WRITELOCK, file, line))
+       nowait2 ? PSI_RWLOCK_TRYWRITELOCK : PSI_RWLOCK_WRITELOCK, file, line))
   {
-    if (!nowait)
+# if defined _WIN32 || defined SUX_LOCK_GENERIC
+    if (!nowait2)
       lock.wr_lock();
+# else
+    if (!nowait1)
+      lock.wr_lock();
+    else if (!nowait2)
+      lock.u_wr_upgrade();
+# endif
     PSI_RWLOCK_CALL(end_rwlock_rdwait)(locker, 0);
   }
-  else if (!nowait)
+# if defined _WIN32 || defined SUX_LOCK_GENERIC
+  else if (!nowait2)
     lock.wr_lock();
+# else
+  else if (!nowait1)
+    lock.wr_lock();
+  else if (!nowait2)
+    lock.u_wr_upgrade();
+# endif
 }
 
 void ssux_lock::psi_rd_lock(const char *file, unsigned line)
@@ -507,18 +530,41 @@ void ssux_lock::psi_u_lock(const char *file, unsigned line)
 void ssux_lock::psi_wr_lock(const char *file, unsigned line)
 {
   PSI_rwlock_locker_state state;
-  const bool nowait= lock.wr_lock_try();
+# if defined _WIN32 || defined SUX_LOCK_GENERIC
+  const bool nowait2= lock.wr_lock_try();
+# else
+  const bool nowait1= lock.writer.wr_lock_try();
+  uint32_t lk= 0;
+  const bool nowait2= nowait1 &&
+    lock.readers.compare_exchange_strong(lk, lock.WRITER,
+                                         std::memory_order_acquire,
+                                         std::memory_order_relaxed);
+# endif
   if (PSI_rwlock_locker *locker= PSI_RWLOCK_CALL(start_rwlock_wrwait)
       (&state, pfs_psi,
-       nowait ? PSI_RWLOCK_TRYEXCLUSIVELOCK : PSI_RWLOCK_EXCLUSIVELOCK,
+       nowait2 ? PSI_RWLOCK_TRYEXCLUSIVELOCK : PSI_RWLOCK_EXCLUSIVELOCK,
        file, line))
   {
-    if (!nowait)
+# if defined _WIN32 || defined SUX_LOCK_GENERIC
+    if (!nowait2)
       lock.wr_lock();
+# else
+    if (!nowait1)
+      lock.wr_lock();
+    else if (!nowait2)
+      lock.u_wr_upgrade();
+# endif
     PSI_RWLOCK_CALL(end_rwlock_rdwait)(locker, 0);
   }
-  else if (!nowait)
+# if defined _WIN32 || defined SUX_LOCK_GENERIC
+  else if (!nowait2)
     lock.wr_lock();
+# else
+  else if (!nowait1)
+    lock.wr_lock();
+  else if (!nowait2)
+    lock.u_wr_upgrade();
+# endif
 }
 
 void ssux_lock::psi_u_wr_upgrade(const char *file, unsigned line)
