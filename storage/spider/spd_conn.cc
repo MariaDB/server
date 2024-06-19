@@ -4048,7 +4048,6 @@ bool spider_conn_use_handler(
   DBUG_PRINT("info",("spider use_handler=%d", use_handler));
   DBUG_PRINT("info",("spider spider->conn_kind[link_idx]=%u",
     spider->conn_kind[link_idx]));
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
   if (spider->do_direct_update)
   {
     spider->sql_kinds |= SPIDER_SQL_KIND_SQL;
@@ -4057,7 +4056,6 @@ bool spider_conn_use_handler(
       DBUG_PRINT("info",("spider FALSE by using direct_update"));
       DBUG_RETURN(FALSE);
   }
-#endif
   if (spider->use_spatial_index)
   {
     DBUG_PRINT("info",("spider FALSE by use_spatial_index"));

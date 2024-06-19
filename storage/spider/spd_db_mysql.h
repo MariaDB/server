@@ -858,7 +858,6 @@ public:
   int append_update_set(
     spider_string *str
   );
-  #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
   int append_direct_update_set_part() override;
   int append_direct_update_set(
     spider_string *str
@@ -877,7 +876,6 @@ public:
     const char *alias,
     uint alias_length
   );
-  #endif
   int append_select_part(
     ulong sql_type
   ) override;
@@ -1555,7 +1553,6 @@ public:
     spider_fields *fields
   );
 #endif
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
   bool check_direct_update(
     st_select_lex *select_lex,
     longlong select_limit,
@@ -1566,7 +1563,6 @@ public:
     longlong select_limit,
     longlong offset_limit
   ) override;
-#endif
 };
 
 class spider_mysql_handler: public spider_mbase_handler
