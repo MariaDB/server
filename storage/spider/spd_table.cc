@@ -7977,9 +7977,7 @@ bool spider_check_direct_order_limit(
       DBUG_PRINT("info",("spider with distinct"));
       spider->result_list.direct_distinct = TRUE;
     }
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
     spider->result_list.direct_aggregate = spider_param_direct_aggregate(thd);
-#endif
     DBUG_PRINT("info",("spider select_limit=%lld", select_limit));
     DBUG_PRINT("info",("spider offset_limit=%lld", offset_limit));
     if (
@@ -7998,22 +7996,17 @@ bool spider_check_direct_order_limit(
       DBUG_PRINT("info",("spider first_check is FALSE"));
       first_check = FALSE;
       spider->result_list.direct_distinct = FALSE;
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
       spider->result_list.direct_aggregate = FALSE;
-#endif
     } else if (spider_db_append_condition(spider, NULL, 0, TRUE))
     {
       DBUG_PRINT("info",("spider FALSE by condition"));
       first_check = FALSE;
       spider->result_list.direct_distinct = FALSE;
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
       spider->result_list.direct_aggregate = FALSE;
-#endif
     } else if (spider->sql_kinds & SPIDER_SQL_KIND_HANDLER)
     {
       DBUG_PRINT("info",("spider sql_kinds with SPIDER_SQL_KIND_HANDLER"));
       spider->result_list.direct_distinct = FALSE;
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
       spider->result_list.direct_aggregate = FALSE;
     } else if (
       !select_lex->group_list.elements &&
@@ -8051,7 +8044,6 @@ bool spider_check_direct_order_limit(
         first_check = FALSE;
         spider->result_list.direct_distinct = FALSE;
       }
-#endif
     }
 
     longlong direct_order_limit = spider_param_direct_order_limit(thd,
@@ -8063,10 +8055,8 @@ bool spider_check_direct_order_limit(
         first_check ? "TRUE" : "FALSE"));
       DBUG_PRINT("info",("spider (select_lex->options & OPTION_FOUND_ROWS)=%s",
         select_lex && (select_lex->options & OPTION_FOUND_ROWS) ? "TRUE" : "FALSE"));
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
       DBUG_PRINT("info",("spider direct_aggregate=%s",
         spider->result_list.direct_aggregate ? "TRUE" : "FALSE"));
-#endif
       DBUG_PRINT("info",("spider select_lex->group_list.elements=%u",
         select_lex ? select_lex->group_list.elements : 0));
       DBUG_PRINT("info",("spider select_lex->with_sum_func=%s",
@@ -8080,9 +8070,7 @@ bool spider_check_direct_order_limit(
         !select_lex->limit_params.explicit_limit ||
         (select_lex->options & OPTION_FOUND_ROWS) ||
         (
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
           !spider->result_list.direct_aggregate &&
-#endif
           (
             select_lex->group_list.elements ||
             select_lex->with_sum_func
@@ -8116,7 +8104,6 @@ bool spider_check_direct_order_limit(
   DBUG_RETURN(FALSE);
 }
 
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
 bool spider_all_part_in_order(
   ORDER *order,
   TABLE *table
@@ -8193,7 +8180,6 @@ Field *spider_field_exchange(
   DBUG_PRINT("info",("spider out field=%p", field));
   DBUG_RETURN(field);
 }
-#endif
 
 int spider_set_direct_limit_offset(
   ha_spider *spider
@@ -8226,9 +8212,7 @@ int spider_set_direct_limit_offset(
 
   if (
     spider->wide_handler->sql_command != SQLCOM_SELECT ||
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
     spider->result_list.direct_aggregate ||
-#endif
     spider->result_list.direct_order_limit ||
     spider->prev_index_rnd_init != SPD_RND    // must be RND_INIT and not be INDEX_INIT
   )
