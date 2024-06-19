@@ -10,3 +10,15 @@ COMMIT;
 SELECT * FROM t1 ORDER BY a;
 DROP TABLE t1;
 SELECT @@GLOBAL.binlog_checksum;
+
+CREATE TABLE t2 (a INT PRIMARY KEY, b VARCHAR(2048)) ENGINE=InnoDB;
+
+SET SESSION binlog_format= ROW;
+--let $i= 0
+while ($i < 500) {
+  eval INSERT INTO t2 VALUES ($i, REPEAT("x", 2048));
+  inc $i;
+}
+SET SESSION binlog_format= MIXED;
+
+DROP TABLE t2;
