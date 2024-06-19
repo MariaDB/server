@@ -494,7 +494,6 @@ public:
     longlong offset_limit
   );
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS_WITH_HS
-#ifdef SPIDER_MDEV_16246
   inline int direct_update_rows_init(
     List<Item> *update_fields
   ) {
@@ -509,30 +508,12 @@ public:
     uchar *new_data
   );
 #else
-  inline int direct_update_rows_init()
-  {
-    return direct_update_rows_init(2, NULL, 0, FALSE, NULL);
-  }
-  int direct_update_rows_init(
-    uint mode,
-    KEY_MULTI_RANGE *ranges,
-    uint range_count,
-    bool sorted,
-    uchar *new_data
-  );
-#endif
-#else
-#ifdef SPIDER_MDEV_16246
   int direct_update_rows_init(
     List<Item> *update_fields
   );
-#else
-  int direct_update_rows_init();
-#endif
 #endif
 #ifdef HA_CAN_BULK_ACCESS
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS_WITH_HS
-#ifdef SPIDER_MDEV_16246
   inline int pre_direct_update_rows_init(
     List<Item> *update_fields
   ) {
@@ -547,26 +528,9 @@ public:
     uchar *new_data
   );
 #else
-  inline int pre_direct_update_rows_init()
-  {
-    return pre_direct_update_rows_init(2, NULL, 0, FALSE, NULL);
-  }
-  int pre_direct_update_rows_init(
-    uint mode,
-    KEY_MULTI_RANGE *ranges,
-    uint range_count,
-    bool sorted,
-    uchar *new_data
-  );
-#endif
-#else
-#ifdef SPIDER_MDEV_16246
   int pre_direct_update_rows_init(
     List<Item> *update_fields
   );
-#else
-  int pre_direct_update_rows_init();
-#endif
 #endif
 #endif
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS_WITH_HS
