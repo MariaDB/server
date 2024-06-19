@@ -7879,19 +7879,11 @@ int ha_spider::end_bulk_update(
   DBUG_RETURN(0);
 }
 
-#ifdef SPIDER_UPDATE_ROW_HAS_CONST_NEW_DATA
 int ha_spider::bulk_update_row(
   const uchar *old_data,
   const uchar *new_data,
   ha_rows *dup_key_found
 )
-#else
-int ha_spider::bulk_update_row(
-  const uchar *old_data,
-  uchar *new_data,
-  ha_rows *dup_key_found
-)
-#endif
 {
   DBUG_ENTER("ha_spider::bulk_update_row");
   DBUG_PRINT("info",("spider this=%p", this));
@@ -7899,17 +7891,10 @@ int ha_spider::bulk_update_row(
   DBUG_RETURN(update_row(old_data, new_data));
 }
 
-#ifdef SPIDER_UPDATE_ROW_HAS_CONST_NEW_DATA
 int ha_spider::update_row(
   const uchar *old_data,
   const uchar *new_data
 )
-#else
-int ha_spider::update_row(
-  const uchar *old_data,
-  uchar *new_data
-)
-#endif
 {
   int error_num;
   THD *thd = ha_thd();

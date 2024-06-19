@@ -393,7 +393,6 @@ public:
     ha_rows *dup_key_found
   );
   int end_bulk_update();
-#ifdef SPIDER_UPDATE_ROW_HAS_CONST_NEW_DATA
   int bulk_update_row(
     const uchar *old_data,
     const uchar *new_data,
@@ -403,17 +402,6 @@ public:
     const uchar *old_data,
     const uchar *new_data
   );
-#else
-  int bulk_update_row(
-    const uchar *old_data,
-    uchar *new_data,
-    ha_rows *dup_key_found
-  );
-  int update_row(
-    const uchar *old_data,
-    uchar *new_data
-  );
-#endif
   bool check_direct_update_sql_part(
     st_select_lex *select_lex,
     longlong select_limit,
