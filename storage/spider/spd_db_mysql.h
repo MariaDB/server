@@ -628,9 +628,7 @@ public:
   spider_string      *db_names_str;
   /* fixme: this field looks useless */
   spider_string      *db_table_str;
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   my_hash_value_type *db_table_str_hash_value;
-#endif
   uint               table_nm_max_length;
   uint               db_nm_max_length;
   spider_string      *column_name_str;

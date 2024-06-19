@@ -33,10 +33,8 @@
 typedef struct st_spider_conn_loop_check
 {
   uint               flag;
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   my_hash_value_type hash_value_to;
   my_hash_value_type hash_value_full;
-#endif
   LEX_CSTRING        from_name;
   LEX_CSTRING        cur_name;
   LEX_CSTRING        to_name;
