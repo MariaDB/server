@@ -3094,11 +3094,7 @@ int spider_db_oracle_util::open_item_func(
       {
         if (
           !strncasecmp("rand", func_name, func_name_length) &&
-#ifdef SPIDER_Item_args_arg_count_IS_PROTECTED
           !item_func->argument_count()
-#else
-          !item_func->arg_count
-#endif
         ) {
           if (str)
             str->length(str->length() - SPIDER_SQL_OPEN_PAREN_LEN);
