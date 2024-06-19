@@ -1414,10 +1414,7 @@ int ha_spider::extra(
       if (!(wide_handler->trx = spider_get_trx(ha_thd(), TRUE, &error_num)))
         DBUG_RETURN(error_num);
       break;
-#if defined(HA_EXTRA_HAS_STARTING_ORDERED_INDEX_SCAN) || defined(HA_EXTRA_HAS_HA_EXTRA_USE_CMP_REF)
-#ifdef HA_EXTRA_HAS_STARTING_ORDERED_INDEX_SCAN
     case HA_EXTRA_STARTING_ORDERED_INDEX_SCAN:
-#endif
 #ifdef HA_EXTRA_HAS_HA_EXTRA_USE_CMP_REF
     case HA_EXTRA_USE_CMP_REF:
 #endif
@@ -1448,7 +1445,6 @@ int ha_spider::extra(
         }
       }
       break;
-#endif
     default:
       break;
   }
