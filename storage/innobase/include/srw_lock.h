@@ -72,10 +72,13 @@ inline void pthread_mutex_wrapper<true>::wr_lock()
 # endif
 #endif
 
+template<bool spinloop> class ssux_lock_impl;
+
 /** Futex-based mutex */
 template<bool spinloop>
 class srw_mutex_impl final
 {
+  friend ssux_lock_impl<spinloop>;
   /** The lock word, containing HOLDER + 1 if the lock is being held,
   plus the number of waiters */
   std::atomic<uint32_t> lock;
@@ -97,6 +100,8 @@ private:
   inline void wait(uint32_t lk);
   /** Wake up one wait() thread */
   void wake();
+  /** Wake up all wait() threads */
+  inline void wake_all();
 public:
   /** @return whether the mutex is being held or waited for */
   bool is_locked_or_waiting() const
@@ -209,22 +214,25 @@ public:
   /** @return whether the lock is being held or waited for */
   bool is_vacant() const { return !is_locked_or_waiting(); }
 #endif /* !DBUG_OFF */
-
-  bool rd_lock_try()
+private:
+  /** Try to acquire a shared latch.
+  @return the lock word value if the latch was not acquired
+  @retval 0  if the latch was acquired */
+  uint32_t rd_lock_try_low()
   {
     uint32_t lk= 0;
     while (!readers.compare_exchange_weak(lk, lk + 1,
                                           std::memory_order_acquire,
                                           std::memory_order_relaxed))
       if (lk & WRITER)
-        return false;
-    return true;
+        return lk;
+    return 0;
   }
+public:
 
-  bool u_lock_try()
-  {
-    return writer.wr_lock_try();
-  }
+  bool rd_lock_try() { return rd_lock_try_low() == 0; }
+
+  bool u_lock_try() { return writer.wr_lock_try(); }
 
   bool wr_lock_try()
   {
