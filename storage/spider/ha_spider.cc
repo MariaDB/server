@@ -6433,9 +6433,7 @@ int ha_spider::info(
   DBUG_ENTER("ha_spider::info");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_PRINT("info",("spider flag=%x", flag));
-#ifdef HANDLER_HAS_CAN_USE_FOR_AUTO_INC_INIT
   auto_inc_temporary = FALSE;
-#endif
   wide_handler->sql_command = thd_sql_command(thd);
 /*
   if (
@@ -6451,9 +6449,7 @@ int ha_spider::info(
           share->lgtm_tblhnd_share->auto_increment_value;
       else {
         stats.auto_increment_value = 1;
-#ifdef HANDLER_HAS_CAN_USE_FOR_AUTO_INC_INIT
         auto_inc_temporary = TRUE;
-#endif
       }
     }
     if (
@@ -6712,9 +6708,7 @@ int ha_spider::info(
     }
     if (flag & HA_STATUS_AUTO)
     {
-#ifdef HANDLER_HAS_CAN_USE_FOR_AUTO_INC_INIT
       auto_inc_temporary = FALSE;
-#endif
       if (share->wide_share && table->next_number_field)
       {
         ulonglong first_value, nb_reserved_values;
@@ -7547,7 +7541,6 @@ bool ha_spider::need_info_for_auto_inc()
   ));
 }
 
-#ifdef HANDLER_HAS_CAN_USE_FOR_AUTO_INC_INIT
 bool ha_spider::can_use_for_auto_inc_init()
 {
   DBUG_ENTER("ha_spider::can_use_for_auto_inc_init");
@@ -7559,7 +7552,6 @@ bool ha_spider::can_use_for_auto_inc_init()
     !auto_inc_temporary
   ));
 }
-#endif
 
 int ha_spider::update_auto_increment()
 {
