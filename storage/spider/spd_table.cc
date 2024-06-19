@@ -4447,12 +4447,7 @@ SPIDER_SHARE *spider_get_share(
     }
 
     uint old_elements = spider_open_tables.array.max_element;
-#ifdef HASH_UPDATE_WITH_HASH_VALUE
-    if (my_hash_insert_with_hash_value(&spider_open_tables, hash_value,
-      (uchar*) share))
-#else
     if (my_hash_insert(&spider_open_tables, (uchar*) share))
-#endif
     {
       *error_num = HA_ERR_OUT_OF_MEM;
       goto error_hash_insert;
@@ -4605,14 +4600,9 @@ SPIDER_SHARE *spider_get_share(
           spider_free_share(share);
           goto error_sts_spider_init;
         }
-#ifdef HASH_UPDATE_WITH_HASH_VALUE
-        share->sts_thread = &spider_table_sts_threads[
-          hash_value % spider_param_table_sts_thread_count()];
-#else
         share->sts_thread = &spider_table_sts_threads[
           my_calc_hash(&spider_open_tables, (uchar*) table_name, length) %
           spider_param_table_sts_thread_count()];
-#endif
         share->sts_spider_init = TRUE;
       }
       pthread_mutex_unlock(&share->mutex);
@@ -4633,14 +4623,9 @@ SPIDER_SHARE *spider_get_share(
           spider_free_share(share);
           goto error_crd_spider_init;
         }
-#ifdef HASH_UPDATE_WITH_HASH_VALUE
-        share->crd_thread = &spider_table_crd_threads[
-          hash_value % spider_param_table_crd_thread_count()];
-#else
         share->crd_thread = &spider_table_crd_threads[
           my_calc_hash(&spider_open_tables, (uchar*) table_name, length) %
           spider_param_table_crd_thread_count()];
-#endif
         share->crd_spider_init = TRUE;
       }
       pthread_mutex_unlock(&share->mutex);
@@ -5099,14 +5084,9 @@ SPIDER_SHARE *spider_get_share(
           spider_free_share(share);
           goto error_sts_spider_init;
         }
-#ifdef HASH_UPDATE_WITH_HASH_VALUE
-        share->sts_thread = &spider_table_sts_threads[
-          hash_value % spider_param_table_sts_thread_count()];
-#else
         share->sts_thread = &spider_table_sts_threads[
           my_calc_hash(&spider_open_tables, (uchar*) table_name, length) %
           spider_param_table_sts_thread_count()];
-#endif
         share->sts_spider_init = TRUE;
       }
       pthread_mutex_unlock(&share->mutex);
@@ -5124,14 +5104,9 @@ SPIDER_SHARE *spider_get_share(
           spider_free_share(share);
           goto error_crd_spider_init;
         }
-#ifdef HASH_UPDATE_WITH_HASH_VALUE
-        share->crd_thread = &spider_table_crd_threads[
-          hash_value % spider_param_table_crd_thread_count()];
-#else
         share->crd_thread = &spider_table_crd_threads[
           my_calc_hash(&spider_open_tables, (uchar*) table_name, length) %
           spider_param_table_crd_thread_count()];
-#endif
         share->crd_spider_init = TRUE;
       }
       pthread_mutex_unlock(&share->mutex);
@@ -5494,12 +5469,7 @@ int spider_free_share(
     }
 #endif
     spider_free_share_alloc(share);
-#ifdef HASH_UPDATE_WITH_HASH_VALUE
-    my_hash_delete_with_hash_value(&spider_open_tables,
-      share->table_name_hash_value, (uchar*) share);
-#else
     my_hash_delete(&spider_open_tables, (uchar*) share);
-#endif
     pthread_mutex_destroy(&share->crd_mutex);
     pthread_mutex_destroy(&share->sts_mutex);
     pthread_mutex_destroy(&share->mutex);
@@ -5584,13 +5554,8 @@ SPIDER_LGTM_TBLHND_SHARE *spider_get_lgtm_tblhnd_share(
     }
 
     uint old_elements = spider_lgtm_tblhnd_share_hash.array.max_element;
-#ifdef HASH_UPDATE_WITH_HASH_VALUE
-    if (my_hash_insert_with_hash_value(&spider_lgtm_tblhnd_share_hash,
-      hash_value, (uchar*) lgtm_tblhnd_share))
-#else
     if (my_hash_insert(&spider_lgtm_tblhnd_share_hash,
       (uchar*) lgtm_tblhnd_share))
-#endif
     {
       *error_num = HA_ERR_OUT_OF_MEM;
       goto error_hash_insert;
@@ -5626,12 +5591,7 @@ void spider_free_lgtm_tblhnd_share_alloc(
   DBUG_ENTER("spider_free_lgtm_tblhnd_share");
   if (!locked)
     pthread_mutex_lock(&spider_lgtm_tblhnd_share_mutex);
-#ifdef HASH_UPDATE_WITH_HASH_VALUE
-  my_hash_delete_with_hash_value(&spider_lgtm_tblhnd_share_hash,
-    lgtm_tblhnd_share->table_path_hash_value, (uchar*) lgtm_tblhnd_share);
-#else
   my_hash_delete(&spider_lgtm_tblhnd_share_hash, (uchar*) lgtm_tblhnd_share);
-#endif
   pthread_mutex_destroy(&lgtm_tblhnd_share->auto_increment_mutex);
   spider_free(spider_current_trx, lgtm_tblhnd_share, MYF(0));
   if (!locked)
@@ -5696,13 +5656,7 @@ SPIDER_WIDE_SHARE *spider_get_wide_share(
     thr_lock_init(&wide_share->lock);
 
     uint old_elements = spider_open_wide_share.array.max_element;
-#ifdef HASH_UPDATE_WITH_HASH_VALUE
-    if (my_hash_insert_with_hash_value(&spider_open_wide_share,
-      share->table_path_hash_value,
-      (uchar*) wide_share))
-#else
     if (my_hash_insert(&spider_open_wide_share, (uchar*) wide_share))
-#endif
     {
       *error_num = HA_ERR_OUT_OF_MEM;
       goto error_hash_insert;
@@ -5740,12 +5694,7 @@ int spider_free_wide_share(
   if (!--wide_share->use_count)
   {
     thr_lock_delete(&wide_share->lock);
-#ifdef HASH_UPDATE_WITH_HASH_VALUE
-    my_hash_delete_with_hash_value(&spider_open_wide_share,
-      wide_share->table_path_hash_value, (uchar*) wide_share);
-#else
     my_hash_delete(&spider_open_wide_share, (uchar*) wide_share);
-#endif
     pthread_mutex_destroy(&wide_share->crd_mutex);
     pthread_mutex_destroy(&wide_share->sts_mutex);
     spider_free(spider_current_trx, wide_share, MYF(0));
@@ -6217,14 +6166,8 @@ int spider_db_done(
     while ((table_mon_list = (SPIDER_TABLE_MON_LIST *) my_hash_element(
       &spider_udf_table_mon_list_hash[roop_count], 0)))
     {
-#ifdef HASH_UPDATE_WITH_HASH_VALUE
-      my_hash_delete_with_hash_value(
-        &spider_udf_table_mon_list_hash[roop_count],
-        table_mon_list->key_hash_value, (uchar*) table_mon_list);
-#else
       my_hash_delete(&spider_udf_table_mon_list_hash[roop_count],
         (uchar*) table_mon_list);
-#endif
       spider_ping_table_free_mon_list(table_mon_list);
     }
     spider_free_mem_calc(spider_current_trx,
@@ -6260,12 +6203,7 @@ int spider_db_done(
   pthread_mutex_lock(&spider_conn_mutex);
   while ((conn = (SPIDER_CONN*) my_hash_element(&spider_open_connections, 0)))
   {
-#ifdef HASH_UPDATE_WITH_HASH_VALUE
-    my_hash_delete_with_hash_value(&spider_open_connections,
-      conn->conn_key_hash_value, (uchar*) conn);
-#else
     my_hash_delete(&spider_open_connections, (uchar*) conn);
-#endif
     spider_free_conn(conn);
   }
   pthread_mutex_unlock(&spider_conn_mutex);
@@ -6308,14 +6246,8 @@ int spider_db_done(
   while ((spider_init_error_table = (SPIDER_INIT_ERROR_TABLE*)
     my_hash_element(&spider_init_error_tables, 0)))
   {
-#ifdef HASH_UPDATE_WITH_HASH_VALUE
-    my_hash_delete_with_hash_value(&spider_init_error_tables,
-      spider_init_error_table->table_name_hash_value,
-      (uchar*) spider_init_error_table);
-#else
     my_hash_delete(&spider_init_error_tables,
       (uchar*) spider_init_error_table);
-#endif
     spider_free(NULL, spider_init_error_table, MYF(0));
   }
   pthread_mutex_unlock(&spider_init_error_tbl_mutex);
@@ -7337,13 +7269,8 @@ SPIDER_INIT_ERROR_TABLE *spider_get_init_error_table(
     spider_init_error_table->table_name_hash_value =
       share->table_name_hash_value;
     uint old_elements = spider_init_error_tables.array.max_element;
-#ifdef HASH_UPDATE_WITH_HASH_VALUE
-    if (my_hash_insert_with_hash_value(&spider_init_error_tables,
-      share->table_name_hash_value, (uchar*) spider_init_error_table))
-#else
     if (my_hash_insert(&spider_init_error_tables,
       (uchar*) spider_init_error_table))
-#endif
     {
       spider_free(trx, spider_init_error_table, MYF(0));
       pthread_mutex_unlock(&spider_init_error_tbl_mutex);
@@ -7374,14 +7301,8 @@ void spider_delete_init_error_table(
     my_hash_search_using_hash_value(&spider_init_error_tables, hash_value,
       (uchar*) name, length)))
   {
-#ifdef HASH_UPDATE_WITH_HASH_VALUE
-    my_hash_delete_with_hash_value(&spider_init_error_tables,
-      spider_init_error_table->table_name_hash_value,
-      (uchar*) spider_init_error_table);
-#else
     my_hash_delete(&spider_init_error_tables,
       (uchar*) spider_init_error_table);
-#endif
     spider_free(spider_current_trx, spider_init_error_table, MYF(0));
   }
   pthread_mutex_unlock(&spider_init_error_tbl_mutex);
