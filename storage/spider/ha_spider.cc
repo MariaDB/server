@@ -1415,9 +1415,6 @@ int ha_spider::extra(
         DBUG_RETURN(error_num);
       break;
     case HA_EXTRA_STARTING_ORDERED_INDEX_SCAN:
-#ifdef HA_EXTRA_HAS_HA_EXTRA_USE_CMP_REF
-    case HA_EXTRA_USE_CMP_REF:
-#endif
       DBUG_PRINT("info",("spider HA_EXTRA_STARTING_ORDERED_INDEX_SCAN"));
       if (table_share->primary_key != MAX_KEY)
       {
