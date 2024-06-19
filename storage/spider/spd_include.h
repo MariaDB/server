@@ -88,8 +88,6 @@
 #define SPIDER_FIELD_FIELDPTR_REQUIRES_THDPTR
 #define SPIDER_ENGINE_CONDITION_PUSHDOWN_IS_ALWAYS_ON
 
-#define SPIDER_Item_args_arg_count_IS_PROTECTED
-
 #define SPIDER_Item_func_conv_charset_conv_charset collation.collation
 
 #define SPIDER_WITHOUT_HA_STATISTIC_INCREMENT
