@@ -469,16 +469,10 @@ public:
     ulonglong value
   ) override;
   void release_auto_increment() override;
-#ifdef SPIDER_HANDLER_START_BULK_INSERT_HAS_FLAGS
   void start_bulk_insert(
     ha_rows rows,
     uint flags
   ) override;
-#else
-  void start_bulk_insert(
-    ha_rows rows
-  );
-#endif
   int end_bulk_insert() override;
   int write_row(
     const uchar *buf
