@@ -39,7 +39,11 @@ connect(slave_node,127.0.0.1,root,,test, $SERVER_MYPORT_2);
 --connection server_2
 select domain_id, seq_no from mysql.gtid_slave_pos order by seq_no desc limit 1;
 
+--connection server_1
+--source include/save_master_gtid.inc
 --connection server_3
+--source include/sync_with_master_gtid.inc
+
 select domain_id, seq_no from mysql.gtid_slave_pos order by seq_no desc limit 1;
 --source include/stop_slave.inc
 --eval set global slave_parallel_threads = $slave_parallel_threads;
@@ -49,6 +53,7 @@ select domain_id, seq_no from mysql.gtid_slave_pos order by seq_no desc limit 1;
 select @@slave_parallel_threads;
 
 --connection server_4
+--source include/sync_with_master_gtid.inc
 select domain_id, seq_no from mysql.gtid_slave_pos order by seq_no desc limit 1;
 
 --source include/rpl_end.inc
