@@ -8351,7 +8351,6 @@ int spider_discover_table_structure(
           SPIDER_SYS_TABLES_TABLE_NAME_LEN, TRUE, &open_tables_backup, FALSE,
           &error_num))
       ) {
-#ifdef SPIDER_SUPPORT_CREATE_OR_REPLACE_TABLE
         if (thd->lex->create_info.or_replace())
         {
           error_num = spider_delete_tables(table_tables,
@@ -8359,11 +8358,8 @@ int spider_discover_table_structure(
         }
         if (!error_num)
         {
-#endif
           error_num = spider_insert_tables(table_tables, spider_share);
-#ifdef SPIDER_SUPPORT_CREATE_OR_REPLACE_TABLE
         }
-#endif
         spider_close_sys_table(thd, table_tables,
           &open_tables_backup, FALSE);
       }
@@ -8467,7 +8463,6 @@ int spider_discover_table_structure(
               DBUG_RETURN(error_num);
             }
 
-#ifdef SPIDER_SUPPORT_CREATE_OR_REPLACE_TABLE
             if (thd->lex->create_info.or_replace())
             {
               error_num = spider_delete_tables(table_tables,
@@ -8475,11 +8470,8 @@ int spider_discover_table_structure(
             }
             if (!error_num)
             {
-#endif
               error_num = spider_insert_tables(table_tables, spider_share);
-#ifdef SPIDER_SUPPORT_CREATE_OR_REPLACE_TABLE
             }
-#endif
 
             spider_free_share_resource_only(spider_share);
             if (error_num)
@@ -8503,7 +8495,6 @@ int spider_discover_table_structure(
             DBUG_RETURN(error_num);
           }
 
-#ifdef SPIDER_SUPPORT_CREATE_OR_REPLACE_TABLE
           if (thd->lex->create_info.or_replace())
           {
             error_num = spider_delete_tables(table_tables,
@@ -8511,11 +8502,8 @@ int spider_discover_table_structure(
           }
           if (!error_num)
           {
-#endif
             error_num = spider_insert_tables(table_tables, spider_share);
-#ifdef SPIDER_SUPPORT_CREATE_OR_REPLACE_TABLE
           }
-#endif
 
           spider_free_share_resource_only(spider_share);
           if (error_num)
