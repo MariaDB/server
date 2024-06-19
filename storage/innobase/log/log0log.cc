@@ -806,8 +806,7 @@ void log_t::resize_write_buf(const byte *buf, size_t length) noexcept
   ut_ad(!(length & old_block_size_1));
   ut_ad(length > old_block_size_1);
   ut_ad(length <= resize_target);
-  ut_ad(buf == (length > old_block_size_1 + 1
-                ? resize_flush_buf : resize_buf));
+  ut_ad(buf == (length > old_block_size_1 ? resize_flush_buf : resize_buf));
   const lsn_t resizing{resize_in_progress()};
   ut_ad(resizing <= write_lsn);
   lsn_t offset= START_OFFSET +
