@@ -2749,6 +2749,7 @@ err_exit:
 #else /* BTR_CUR_HASH_ADAPT */
 			index->table->bulk_trx_id = trx->id;
 #endif /* BTR_CUR_HASH_ADAPT */
+			export_vars.innodb_bulk_operations++;
 		}
 
 		trx->bulk_insert = true;

@@ -119,10 +119,8 @@ public:
     */
     if (WSREP(thd) && wsrep_load_data_splitting)
     {
-      handlerton *ht= table->s->db_type();
       // For partitioned tables find underlying hton
-      if (table->file->partition_ht())
-        ht= table->file->partition_ht();
+      handlerton *ht= table->file->partition_ht();
       if (ht->db_type != DB_TYPE_INNODB)
       {
         push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,

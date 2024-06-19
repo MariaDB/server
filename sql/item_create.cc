@@ -6110,8 +6110,7 @@ const Native_func_registry func_array_oracle_overrides[] =
   { { STRING_WITH_LEN("REGEXP_REPLACE") },
                                     BUILDER(Create_func_regexp_replace_oracle)},
   { { STRING_WITH_LEN("RPAD") },    BUILDER(Create_func_rpad_oracle)},
-  { { STRING_WITH_LEN("RTRIM") },   BUILDER(Create_func_rtrim_oracle)},
-  { {0, 0}, NULL}
+  { { STRING_WITH_LEN("RTRIM") },   BUILDER(Create_func_rtrim_oracle)}
 };
 
 Native_func_registry_array

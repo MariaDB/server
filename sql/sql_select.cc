@@ -1987,6 +1987,7 @@ bool JOIN::make_range_rowid_filters()
     tab->table->force_index= force_index_save;
     if (rc == SQL_SELECT::ERROR || thd->is_error())
     {
+      delete sel;
       DBUG_RETURN(true); /* Fatal error */
     }
     /*
@@ -2012,8 +2013,6 @@ bool JOIN::make_range_rowid_filters()
         continue;
     }
   no_filter:
-    if (sel->quick)
-      delete sel->quick;
     delete sel;
   }
 
@@ -2031,7 +2030,9 @@ bool JOIN::make_range_rowid_filters()
     rowid container employed by the filter. On success it lets the table engine
     know that what rowid filter will be used when accessing the table rows.
 
-  @retval false  always
+  @retval
+    false OK
+    true  Error, query should abort
 */
 
 bool
@@ -3556,7 +3557,8 @@ bool JOIN::make_aggr_tables_info()
 {
   List<Item> *curr_all_fields= &all_fields;
   List<Item> *curr_fields_list= &fields_list;
-  JOIN_TAB *curr_tab= join_tab + const_tables;
+  // Avoid UB (applying .. offset to nullptr) when join_tab is nullptr
+  JOIN_TAB *curr_tab= join_tab ? join_tab + const_tables : nullptr;
   TABLE *exec_tmp_table= NULL;
   bool distinct= false;
   const bool has_group_by= this->group;
@@ -4117,9 +4119,9 @@ bool JOIN::make_aggr_tables_info()
     - duplicate value removal
     Both of these operations are done after window function computation step.
   */
-  curr_tab= join_tab + total_join_tab_cnt();
   if (select_lex->window_funcs.elements)
   {
+    curr_tab= join_tab + total_join_tab_cnt();
     if (!(curr_tab->window_funcs_step= new Window_funcs_computation))
       DBUG_RETURN(true);
     if (curr_tab->window_funcs_step->setup(thd, &select_lex->window_funcs,

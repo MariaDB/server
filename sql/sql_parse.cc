@@ -1134,8 +1134,9 @@ static bool wsrep_tables_accessible_when_detached(const TABLE_LIST *tables)
 {
   for (const TABLE_LIST *table= tables; table; table= table->next_global)
   {
-    LEX_CSTRING db= table->db, tn= table->table_name;
-    if (get_table_category(&db, &tn)  < TABLE_CATEGORY_INFORMATION)
+    if (get_table_category(Lex_ident_db(table->db),
+                           Lex_ident_table(table->table_name))
+                           < TABLE_CATEGORY_INFORMATION)
       return false;
   }
   return tables != NULL;
@@ -4704,7 +4705,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
 #ifdef WITH_WSREP
       if (wsrep && !first_table->view)
       {
-        bool is_innodb= (first_table->table->file->ht->db_type == DB_TYPE_INNODB);
+        bool is_innodb= first_table->table->file->partition_ht()->db_type == DB_TYPE_INNODB;
 
         // For consistency check inserted table needs to be InnoDB
         if (!is_innodb && thd->wsrep_consistency_check != NO_CONSISTENCY_CHECK)
@@ -6477,15 +6478,15 @@ static TABLE *find_temporary_table_for_rename(THD *thd,
   {
     TABLE_LIST *next= table->next_local;
 
-    if (!strcmp(table->get_db_name(),   cur_table->get_db_name()) &&
-        !strcmp(table->get_table_name(), cur_table->get_table_name()))
+    if (!strcmp(table->get_db_name().str,    cur_table->get_db_name().str) &&
+        !strcmp(table->get_table_name().str, cur_table->get_table_name().str))
     {
       /* Table was moved away, can't be same as 'table' */
       found= 1;
       res= 0;                      // Table can't be a temporary table
     }
-    if (!strcmp(next->get_db_name(),    cur_table->get_db_name()) &&
-        !strcmp(next->get_table_name(), cur_table->get_table_name()))
+    if (!strcmp(next->get_db_name().str,    cur_table->get_db_name().str) &&
+        !strcmp(next->get_table_name().str, cur_table->get_table_name().str))
     {
       /*
         Table has matching name with new name of this table. cur_table should
@@ -6590,6 +6591,23 @@ show_create_db(THD *thd, LEX *lex)
   LEX_CSTRING db_name;
   DBUG_EXECUTE_IF("4x_server_emul",
                   my_error(ER_UNKNOWN_ERROR, MYF(0)); return 1;);
+
+#if MYSQL_VERSION_ID<=110301
+  /*
+    This piece of the code was added in 10.5 to fix MDEV-32376.
+    It should not get to 11.3 or higer, as MDEV-32376 was fixed
+    in a different way in 11.3.1 (see MDEV-31948).
+  */
+  if (lex->name.length > sizeof(db_name_buff) - 1)
+  {
+    my_error(ER_WRONG_DB_NAME, MYF(0),
+             ErrConvString(lex->name.str, lex->name.length,
+                           system_charset_info).ptr());
+    return 1;
+  }
+#else
+#error Remove this preprocessor-conditional code in 11.3.1+
+#endif
 
   db_name.str= db_name_buff;
   db_name.length= lex->name.length;
@@ -7254,8 +7272,7 @@ check_table_access(THD *thd, privilege_t requirements, TABLE_LIST *tables,
                     INSERT_ACL : SELECT_ACL);
     }
 
-    if (check_access(thd, want_access,
-                     table_ref->get_db_name(),
+    if (check_access(thd, want_access, table_ref->get_db_name().str,
                      &table_ref->grant.privilege,
                      &table_ref->grant.m_internal,
                      0, no_errors))
@@ -9469,7 +9486,7 @@ sql_kill_user(THD *thd, LEX_USER *user, killed_state state)
     break;
   case ER_KILL_DENIED_ERROR:
     char buf[DEFINER_LENGTH+1];
-    strxnmov(buf, sizeof(buf), user->user.str, "@", user->host.str, NULL);
+    strxnmov(buf, sizeof(buf)-1, user->user.str, "@", user->host.str, NULL);
     my_printf_error(ER_KILL_DENIED_ERROR, ER_THD(thd, ER_CANNOT_USER), MYF(0),
                     "KILL USER", buf);
     break;

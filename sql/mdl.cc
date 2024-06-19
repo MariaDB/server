@@ -673,8 +673,10 @@ public:
   { ((MDL_lock*)(arg + LF_HASH_OVERHEAD))->~MDL_lock(); }
 
   static void lf_hash_initializer(LF_HASH *hash __attribute__((unused)),
-                                  MDL_lock *lock, MDL_key *key_arg)
+                                  void *_lock, const void *_key_arg)
   {
+    MDL_lock *lock= static_cast<MDL_lock *>(_lock);
+    const MDL_key *key_arg= static_cast<const MDL_key *>(_key_arg);
     DBUG_ASSERT(key_arg->mdl_namespace() != MDL_key::BACKUP);
     new (&lock->key) MDL_key(key_arg);
     if (key_arg->mdl_namespace() == MDL_key::SCHEMA)
@@ -760,8 +762,10 @@ struct mdl_iterate_arg
 };
 
 
-static my_bool mdl_iterate_lock(MDL_lock *lock, mdl_iterate_arg *arg)
+static my_bool mdl_iterate_lock(void *lk, void *a)
 {
+  MDL_lock *lock= static_cast<MDL_lock*>(lk);
+  mdl_iterate_arg *arg= static_cast<mdl_iterate_arg*>(a);
   /*
     We can skip check for m_strategy here, becase m_granted
     must be empty for such locks anyway.
@@ -784,14 +788,13 @@ int mdl_iterate(mdl_iterator_callback callback, void *arg)
 {
   DBUG_ENTER("mdl_iterate");
   mdl_iterate_arg argument= { callback, arg };
-  LF_PINS *pins= mdl_locks.get_pins();
   int res= 1;
 
-  if (pins)
+  if (LF_PINS *pins= mdl_locks.get_pins())
   {
     res= mdl_iterate_lock(mdl_locks.m_backup_lock, &argument) ||
-         lf_hash_iterate(&mdl_locks.m_locks, pins,
-                         (my_hash_walk_action) mdl_iterate_lock, &argument);
+         lf_hash_iterate(&mdl_locks.m_locks, pins, mdl_iterate_lock,
+                         &argument);
     lf_hash_put_pins(pins);
   }
   DBUG_RETURN(res);

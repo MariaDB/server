@@ -4706,7 +4706,7 @@ bool Sys_var_timestamp::on_check_access_session(THD *thd) const
     break;
   }
   char buf[1024];
-  strxnmov(buf, sizeof(buf), "--secure-timestamp=",
+  strxnmov(buf, sizeof(buf)-1, "--secure-timestamp=",
            secure_timestamp_levels[opt_secure_timestamp], NULL);
   my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), buf);
   return true;

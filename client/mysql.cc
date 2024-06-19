@@ -158,7 +158,8 @@ static my_bool ignore_errors=0,wait_flag=0,quick=0,
                default_pager_set= 0, opt_sigint_ignore= 0,
                auto_vertical_output= 0,
                show_warnings= 0, executing_query= 0,
-               ignore_spaces= 0, opt_binhex= 0, opt_progress_reports;
+               ignore_spaces= 0, opt_binhex= 0, opt_progress_reports,
+               opt_print_query_on_error;
 static my_bool debug_info_flag, debug_check_flag, batch_abort_on_error;
 static my_bool column_types_flag;
 static my_bool preserve_comments= 0;
@@ -237,6 +238,7 @@ static int com_quit(String *str,char*),
            com_prompt(String *str, char*), com_delimiter(String *str, char*),
      com_warnings(String *str, char*), com_nowarnings(String *str, char*),
      com_sandbox(String *str, char*);
+static void print_query_to_stderr(String *buffer);
 
 #ifdef USE_POPEN
 static int com_nopager(String *str, char*), com_pager(String *str, char*),
@@ -1117,6 +1119,8 @@ inline int get_command_index(char cmd_char)
 
 static int delimiter_index= -1;
 static int charset_index= -1;
+static int sandbox_index= -1;
+
 static bool real_binary_mode= FALSE;
 
 
@@ -1127,7 +1131,8 @@ int main(int argc,char *argv[])
   MY_INIT(argv[0]);
   DBUG_ENTER("main");
   DBUG_PROCESS(argv[0]);
-  
+
+  sandbox_index= get_command_index('-');
   charset_index= get_command_index('C');
   delimiter_index= get_command_index('d');
   delimiter_str= delimiter;
@@ -1659,6 +1664,10 @@ static struct my_option my_long_options[] =
 #endif
    "built-in default (" STRINGIFY_ARG(MYSQL_PORT) ").", &opt_mysql_port,
    &opt_mysql_port, 0, GET_UINT, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"print-query-on-error", 0,
+   "Print the query if there was an error. Is only enabled in --batch mode if verbose is not set (as then the query would be printed anyway)",
+   &opt_print_query_on_error, &opt_print_query_on_error, 0, GET_BOOL, NO_ARG,
+   1, 0, 0, 0, 0, 0},
   {"progress-reports", 0,
    "Get progress reports for long running commands (like ALTER TABLE)",
    &opt_progress_reports, &opt_progress_reports, 0, GET_BOOL, NO_ARG, 1, 0,
@@ -2261,8 +2270,9 @@ static int read_and_execute(bool interactive)
 
 /**
    It checks if the input is a short form command. It returns the command's
-   pointer if a command is found, else return NULL. Note that if binary-mode
-   is set, then only \C is searched for.
+   pointer if a command is found, else return NULL.
+
+   Note that if binary-mode is set, then only \C and \- are searched for.
 
    @param cmd_char    A character of one byte.
 
@@ -2277,13 +2287,23 @@ static COMMANDS *find_command(char cmd_char)
   int index= -1;
 
   /*
-    In binary-mode, we disallow all mysql commands except '\C'
-    and DELIMITER.
+    In binary-mode, we disallow all client commands except '\C',
+    DELIMITER (see long comand finding find_command(char *))
+    and  '\-' (sandbox, see following comment).
   */
   if (real_binary_mode)
   {
     if (cmd_char == 'C')
       index= charset_index;
+    /*
+       binary-mode enforces stricter controls compared to sandbox mode.
+       Whether sandbox mode is enabled or not is irrelevant when
+       binary-mode is active.
+       The only purpose of processing sandbox mode here is to avoid error
+       messages on files made by mysqldump.
+    */
+    else if (cmd_char == '-')
+      index= sandbox_index;
   }
   else
     index= get_command_index(cmd_char);
@@ -2339,6 +2359,12 @@ static COMMANDS *find_command(char *name)
     len= (uint) strlen(name);
 
   int index= -1;
+  /*
+    In binary-mode, we disallow all client commands except DELIMITER
+    and short commands '\C' and  '\-' (see short command finding
+    find_command(char)).
+  */
+
   if (real_binary_mode)
   {
     if (is_delimiter_command(name, len))
@@ -3094,6 +3120,11 @@ int mysql_real_query_for_lazy(const char *buf, size_t length)
     int error;
     if (!mysql_real_query(&mysql,buf,(ulong)length))
       return 0;
+    if (opt_print_query_on_error)
+    {
+      String query(buf, length, charset_info);
+      (void) print_query_to_stderr(&query);
+    }
     error= put_error(&mysql);
     if (mysql_errno(&mysql) != CR_SERVER_GONE_ERROR || retry > 1 ||
         !opt_reconnect)
@@ -3300,7 +3331,6 @@ static int com_charset(String *, char *line)
 	  1  if fatal error
 */
 
-
 static int com_go(String *buffer, char *)
 {
   char		buff[200]; /* about 110 chars used so far */
@@ -3373,6 +3403,8 @@ static int com_go(String *buffer, char *)
     {
       if (!(result=mysql_use_result(&mysql)) && mysql_field_count(&mysql))
       {
+        if (opt_print_query_on_error)
+          print_query_to_stderr(buffer);
         error= put_error(&mysql);
         goto end;
       }
@@ -3426,7 +3458,11 @@ static int com_go(String *buffer, char *)
 		(long) mysql_num_rows(result) == 1 ? "row" : "rows");
 	end_pager();
         if (mysql_errno(&mysql))
+        {
+          if (opt_print_query_on_error)
+            print_query_to_stderr(buffer);
           error= put_error(&mysql);
+        }
       }
     }
     else if (mysql_affected_rows(&mysql) == ~(ulonglong) 0)
@@ -3453,13 +3489,21 @@ static int com_go(String *buffer, char *)
     put_info("",INFO_RESULT);			// Empty row
 
     if (result && !mysql_eof(result))	/* Something wrong when using quick */
+    {
+      if (opt_print_query_on_error)
+        print_query_to_stderr(buffer);
       error= put_error(&mysql);
+    }
     else if (unbuffered)
       fflush(stdout);
     mysql_free_result(result);
   } while (!(err= mysql_next_result(&mysql)));
   if (err >= 1)
+  {
+    if (opt_print_query_on_error)
+      print_query_to_stderr(buffer);
     error= put_error(&mysql);
+  }
 
 end:
 
@@ -4385,14 +4429,35 @@ static int com_shell(String *, char *line)
 #endif
 
 
+static void print_query(String *buffer, FILE *file)
+{
+  tee_puts("--------------", file);
+  (void) tee_fputs(buffer->c_ptr(), file);
+  if (!buffer->length() || (*buffer)[buffer->length()-1] != '\n')
+    tee_putc('\n', file);
+  tee_puts("--------------\n", file);
+}
+
+
+/*
+  Print query to stderr in batch mode if verbose is not set
+*/
+
+static void print_query_to_stderr(String *buffer)
+{
+  if ((status.batch || in_com_source) && !verbose)
+  {
+    fflush(stdout);
+    print_query(buffer, stderr);
+    fflush(stderr);
+  }
+}
+
+
 static int com_print(String *buffer,char *)
 {
-  tee_puts("--------------", stdout);
-  (void) tee_fputs(buffer->c_ptr(), stdout);
-  if (!buffer->length() || (*buffer)[buffer->length()-1] != '\n')
-    tee_putc('\n', stdout);
-  tee_puts("--------------\n", stdout);
-  return 0;					/* If empty buffer */
+  print_query(buffer, stdout);
+  return 0;
 }
 
 
@@ -5134,8 +5199,9 @@ put_info(const char *str,INFO_TYPE info_type, uint error, const char *sqlstate)
 
 static int put_error(MYSQL *con)
 {
-  return put_info(mysql_error(con), INFO_ERROR, mysql_errno(con),
-		  mysql_sqlstate(con));
+  DBUG_ENTER("put_error");
+  DBUG_RETURN(put_info(mysql_error(con), INFO_ERROR,
+                       mysql_errno(con), mysql_sqlstate(con)));
 }  
 
 

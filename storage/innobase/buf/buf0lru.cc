@@ -406,16 +406,31 @@ got_block:
     ut_ad(LRU_size <= BUF_LRU_MIN_LEN ||
           available >= scan_depth || buf_pool.need_LRU_eviction());
 
+    ut_d(bool signalled = false);
+
     if (UNIV_UNLIKELY(available < scan_depth) && LRU_size > BUF_LRU_MIN_LEN)
     {
       mysql_mutex_lock(&buf_pool.flush_list_mutex);
       if (!buf_pool.page_cleaner_active())
+      {
         buf_pool.page_cleaner_wakeup(true);
+        ut_d(signalled = true);
+      }
       mysql_mutex_unlock(&buf_pool.flush_list_mutex);
     }
 
     if (!have_mutex)
       mysql_mutex_unlock(&buf_pool.mutex);
+
+    DBUG_EXECUTE_IF("ib_free_page_sleep",
+    {
+      static bool do_sleep = true;
+      if (do_sleep && signalled)
+      {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        do_sleep = false;
+      }
+    });
 
     block->page.zip.clear();
     return block;
@@ -451,7 +466,10 @@ got_block:
     mysql_mutex_unlock(&buf_pool.flush_list_mutex);
     if (my_cond_timedwait(&buf_pool.done_free, &buf_pool.mutex.m_mutex,
                           &abstime))
+    {
       buf_pool.LRU_warn();
+      buf_LRU_check_size_of_non_data_objects();
+    }
   }
 
   goto got_block;

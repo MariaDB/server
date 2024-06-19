@@ -5922,14 +5922,20 @@ int connect_n_handle_errors(struct st_command *command,
       stay clear of trying to work out which exact user-limit was
       exceeded.
     */
+    auto my_err= mysql_errno(con);
+    if(my_err == 0)
+    {
+      /* Workaround client library bug, not indicating connection error. */
+      my_err= CR_SERVER_LOST;
+    }
 
-    if (((mysql_errno(con) == ER_TOO_MANY_USER_CONNECTIONS) ||
-         (mysql_errno(con) == ER_USER_LIMIT_REACHED)) &&
+    if (((my_err == ER_TOO_MANY_USER_CONNECTIONS) ||
+         (my_err == ER_USER_LIMIT_REACHED)) &&
         (failed_attempts++ < opt_max_connect_retries))
     {
       int i;
 
-      i= match_expected_error(command, mysql_errno(con), mysql_sqlstate(con));
+      i= match_expected_error(command, my_err, mysql_sqlstate(con));
 
       if (i >= 0)
         goto do_handle_error;                 /* expected error, handle */
@@ -5939,9 +5945,9 @@ int connect_n_handle_errors(struct st_command *command,
     }
 
 do_handle_error:
-    var_set_errno(mysql_errno(con));
-    handle_error(command, mysql_errno(con), mysql_error(con),
-		 mysql_sqlstate(con), ds);
+    var_set_errno(my_err);
+    handle_error(command, my_err, mysql_error(con),
+                 mysql_sqlstate(con), ds);
     return 0; /* Not connected */
   }
 
@@ -6277,7 +6283,7 @@ int do_done(struct st_command *command)
     if (*cur_block->delim) 
     {
       /* Restore "old" delimiter after false if block */
-      if (safe_strcpy(delimiter, sizeof(delimiter), cur_block->delim))
+      if (safe_strcpy_truncated(delimiter, sizeof delimiter, cur_block->delim))
         die("Delimiter too long, truncated");
 
       delimiter_length= strlen(delimiter);
@@ -6538,7 +6544,8 @@ void do_block(enum block_cmd cmd, struct st_command* command)
   else
   {
     /* Remember "old" delimiter if entering a false if block */
-    if (safe_strcpy(cur_block->delim, sizeof(cur_block->delim), delimiter))
+    if (safe_strcpy_truncated(cur_block->delim, sizeof cur_block->delim,
+                              delimiter))
       die("Delimiter too long, truncated");
   }
   

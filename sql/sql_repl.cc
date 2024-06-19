@@ -3094,7 +3094,7 @@ err:
     info->error= ER_MASTER_FATAL_ERROR_READING_BINLOG;
   }
   else if (info->errmsg != NULL)
-    strcpy(info->error_text, info->errmsg);
+    safe_strcpy(info->error_text, sizeof(info->error_text), info->errmsg);
 
   my_message(info->error, info->error_text, MYF(0));
 

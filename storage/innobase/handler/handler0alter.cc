@@ -7355,6 +7355,7 @@ error_handling_drop_uncached:
 		ut_d(dict_table_check_for_dup_indexes(user_table,
 						      CHECK_PARTIAL_OK));
 		if (ctx->need_rebuild()) {
+			export_vars.innodb_bulk_operations++;
 			ctx->new_table->acquire();
 		}
 
@@ -8500,6 +8501,15 @@ field_changed:
 		     & ALTER_ADD_VIRTUAL_COLUMN)
 		    && prepare_inplace_add_virtual(
 			    ha_alter_info, altered_table, table)) {
+			DBUG_RETURN(true);
+		}
+
+		if ((ha_alter_info->handler_flags & ALTER_OPTIONS)
+		    && ctx->page_compression_level
+		    && !ctx->old_table->not_redundant()) {
+			my_error(ER_ILLEGAL_HA_CREATE_OPTION, MYF(0),
+				 table_type(),
+				 "PAGE_COMPRESSED=1 ROW_FORMAT=REDUNDANT");
 			DBUG_RETURN(true);
 		}
 

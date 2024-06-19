@@ -190,7 +190,7 @@ void Json_writer::add_ull(ulonglong val)
 }
 
 
-/* Add a memory size, printing in Kb, Kb, Gb if necessary */
+/* Add a memory size, printing in Kb, Mb if necessary */
 void Json_writer::add_size(longlong val)
 {
   char buf[64];
@@ -198,18 +198,10 @@ void Json_writer::add_size(longlong val)
   if (val < 1024) 
     len= my_snprintf(buf, sizeof(buf), "%lld", val);
   else if (val < 1024*1024*16)
-  {
     /* Values less than 16MB are specified in KB for precision */
-    len= my_snprintf(buf, sizeof(buf), "%lld", val/1024);
-    strcpy(buf + len, "Kb");
-    len+= 2;
-  }
+    len= my_snprintf(buf, sizeof(buf), "%lldKb", val/1024);
   else
-  {
-    len= my_snprintf(buf, sizeof(buf), "%lld", val/(1024*1024));
-    strcpy(buf + len, "Mb");
-    len+= 2;
-  }
+    len= my_snprintf(buf, sizeof(buf), "%lldMb", val/(1024*1024));
   add_str(buf, len);
 }
 
