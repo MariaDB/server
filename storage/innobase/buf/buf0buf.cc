@@ -2598,9 +2598,12 @@ buf_page_get_gen(
 	recovery may be in progress. The only case when it may be
 	invoked outside recovery is when dict_create() has initialized
 	a new database and is invoking dict_boot(). In this case, the
-	LSN will be small. */
+	LSN will be small. At the end of a bootstrap, the shutdown LSN
+	would typically be around 60000 with the default
+	innodb_undo_tablespaces=3, and less than 110000 with the maximum
+	innodb_undo_tablespaces=127. */
 	ut_ad(mode == BUF_GET_RECOVER
-	      ? recv_recovery_is_on() || log_sys.get_lsn() < 50000
+	      ? recv_recovery_is_on() || log_sys.get_lsn() < 120000
 	      : !recv_recovery_is_on() || recv_sys.after_apply);
 	ut_ad(!mtr || mtr->is_active());
 	ut_ad(mtr || mode == BUF_PEEK_IF_IN_POOL);
