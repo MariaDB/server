@@ -26,9 +26,7 @@
 #include "sql_base.h"
 #include "tztime.h"
 #include "errmsg.h"
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
 #include "sql_select.h"
-#endif
 #include "sql_common.h"
 #include <errmsg.h>
 #include "spd_err.h"
@@ -1390,14 +1388,12 @@ int spider_db_append_select_columns(
   DBUG_ENTER("spider_db_append_select_columns");
   if (spider->sql_kinds & SPIDER_SQL_KIND_SQL)
   {
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
     if (
       result_list->direct_aggregate &&
       (error_num = spider->append_sum_select_sql_part(
         SPIDER_SQL_TYPE_SELECT_SQL, NULL, 0))
     )
       DBUG_RETURN(error_num);
-#endif
     if ((error_num = spider->append_match_select_sql_part(
       SPIDER_SQL_TYPE_SELECT_SQL, NULL, 0)))
       DBUG_RETURN(error_num);
@@ -2536,7 +2532,6 @@ int spider_db_append_charset_name_before_string(
   DBUG_RETURN(0);
 }
 
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
 int spider_db_refetch_for_item_sum_funcs(
   ha_spider *spider
 ) {
@@ -2752,7 +2747,6 @@ int spider_db_fetch_for_item_sum_func(
   spider->wide_handler->trx->direct_aggregate_count++;
   DBUG_RETURN(0);
 }
-#endif
 
 int spider_db_append_match_fetch(
   ha_spider *spider,
@@ -2951,13 +2945,11 @@ int spider_db_fetch_table(
     }
 
     DBUG_PRINT("info", ("spider row=%p", row));
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
     DBUG_PRINT("info", ("spider direct_aggregate=%s",
       result_list->direct_aggregate ? "TRUE" : "FALSE"));
     result_list->snap_mrr_with_cnt = spider->mrr_with_cnt;
     result_list->snap_direct_aggregate = result_list->direct_aggregate;
     result_list->snap_row = row;
-#endif
 
     /* for mrr */
     if (spider->mrr_with_cnt)
@@ -2967,32 +2959,26 @@ int spider_db_fetch_table(
       {
         if (!row->is_null())
           spider->multi_range_hit_point = row->val_int();
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
         else if (result_list->direct_aggregate)
         {
           table->status = STATUS_NOT_FOUND;
           DBUG_RETURN(HA_ERR_END_OF_FILE);
         }
-#endif
         else
           DBUG_RETURN(ER_SPIDER_UNKNOWN_NUM);
         row->next();
       } else {
         spider->multi_range_hit_point = 0;
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
         result_list->snap_mrr_with_cnt = FALSE;
-#endif
       }
     }
 
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
     /* for direct_aggregate */
     if (result_list->direct_aggregate)
     {
       if ((error_num = spider_db_fetch_for_item_sum_funcs(row, spider)))
         DBUG_RETURN(error_num);
     }
-#endif
 
 #ifdef SPIDER_HAS_GROUP_BY_HANDLER
     if (!spider->use_fields)
@@ -3081,13 +3067,11 @@ int spider_db_fetch_key(
   }
 
   DBUG_PRINT("info", ("spider row=%p", row));
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
   DBUG_PRINT("info", ("spider direct_aggregate=%s",
     result_list->direct_aggregate ? "TRUE" : "FALSE"));
   result_list->snap_mrr_with_cnt = spider->mrr_with_cnt;
   result_list->snap_direct_aggregate = result_list->direct_aggregate;
   result_list->snap_row = row;
-#endif
 
   /* for mrr */
   if (spider->mrr_with_cnt)
@@ -3095,26 +3079,22 @@ int spider_db_fetch_key(
     DBUG_PRINT("info", ("spider mrr_with_cnt"));
     if (!row->is_null())
       spider->multi_range_hit_point = row->val_int();
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
     else if (result_list->direct_aggregate)
     {
       table->status = STATUS_NOT_FOUND;
       DBUG_RETURN(HA_ERR_END_OF_FILE);
     }
-#endif
     else
       DBUG_RETURN(ER_SPIDER_UNKNOWN_NUM);
     row->next();
   }
 
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
   /* for direct_aggregate */
   if (result_list->direct_aggregate)
   {
     if ((error_num = spider_db_fetch_for_item_sum_funcs(row, spider)))
       DBUG_RETURN(error_num);
   }
-#endif
 
   if ((error_num = spider_db_append_match_fetch(spider,
     spider->ft_first, spider->ft_current, row)))
@@ -3198,13 +3178,11 @@ int spider_db_fetch_minimum_columns(
   }
 
   DBUG_PRINT("info", ("spider row=%p", row));
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
   DBUG_PRINT("info", ("spider direct_aggregate=%s",
     result_list->direct_aggregate ? "TRUE" : "FALSE"));
   result_list->snap_mrr_with_cnt = spider->mrr_with_cnt;
   result_list->snap_direct_aggregate = result_list->direct_aggregate;
   result_list->snap_row = row;
-#endif
 
   /* for mrr */
   if (spider->mrr_with_cnt)
@@ -3212,26 +3190,22 @@ int spider_db_fetch_minimum_columns(
     DBUG_PRINT("info", ("spider mrr_with_cnt"));
     if (!row->is_null())
       spider->multi_range_hit_point = row->val_int();
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
     else if (result_list->direct_aggregate)
     {
       table->status = STATUS_NOT_FOUND;
       DBUG_RETURN(HA_ERR_END_OF_FILE);
     }
-#endif
     else
       DBUG_RETURN(ER_SPIDER_UNKNOWN_NUM);
     row->next();
   }
 
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
   /* for direct_aggregate */
   if (result_list->direct_aggregate)
   {
     if ((error_num = spider_db_fetch_for_item_sum_funcs(row, spider)))
       DBUG_RETURN(error_num);
   }
-#endif
 
   if ((error_num = spider_db_append_match_fetch(spider,
     spider->ft_first, spider->ft_current, row)))
@@ -5580,9 +5554,7 @@ void spider_db_create_position(
   current->use_position = TRUE;
   pos->use_position = TRUE;
   pos->mrr_with_cnt = spider->mrr_with_cnt;
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
   pos->direct_aggregate = result_list->direct_aggregate;
-#endif
   pos->sql_kind = spider->sql_kind[spider->result_link_idx];
   pos->position_bitmap = spider->wide_handler->position_bitmap;
   pos->ft_first = spider->ft_first;
@@ -5648,7 +5620,6 @@ int spider_db_seek_tmp_table(
   }
 
   DBUG_PRINT("info", ("spider row=%p", row));
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
   if (!spider->result_list.in_cmp_ref)
   {
     DBUG_PRINT("info", ("spider direct_aggregate=%s",
@@ -5657,7 +5628,6 @@ int spider_db_seek_tmp_table(
     spider->result_list.snap_direct_aggregate = pos->direct_aggregate;
     spider->result_list.snap_row = row;
   }
-#endif
 
   /* for mrr */
   if (pos->mrr_with_cnt)
@@ -5667,20 +5637,16 @@ int spider_db_seek_tmp_table(
     {
       row->next();
     } else {
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
       spider->result_list.snap_mrr_with_cnt = FALSE;
-#endif
     }
   }
 
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
   /* for direct_aggregate */
   if (pos->direct_aggregate)
   {
     if ((error_num = spider_db_fetch_for_item_sum_funcs(row, spider)))
       DBUG_RETURN(error_num);
   }
-#endif
 
   if ((error_num = spider_db_append_match_fetch(spider,
     pos->ft_first, pos->ft_current, row)))
@@ -5740,7 +5706,6 @@ int spider_db_seek_tmp_key(
   }
 
   DBUG_PRINT("info", ("spider row=%p", row));
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
   if (!spider->result_list.in_cmp_ref)
   {
     DBUG_PRINT("info", ("spider direct_aggregate=%s",
@@ -5749,7 +5714,6 @@ int spider_db_seek_tmp_key(
     spider->result_list.snap_direct_aggregate = pos->direct_aggregate;
     spider->result_list.snap_row = row;
   }
-#endif
 
   /* for mrr */
   if (pos->mrr_with_cnt)
@@ -5758,14 +5722,12 @@ int spider_db_seek_tmp_key(
     row->next();
   }
 
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
   /* for direct_aggregate */
   if (pos->direct_aggregate)
   {
     if ((error_num = spider_db_fetch_for_item_sum_funcs(row, spider)))
       DBUG_RETURN(error_num);
   }
-#endif
 
   if ((error_num = spider_db_append_match_fetch(spider,
     pos->ft_first, pos->ft_current, row)))
@@ -5825,7 +5787,6 @@ int spider_db_seek_tmp_minimum_columns(
   }
 
   DBUG_PRINT("info", ("spider row=%p", row));
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
   if (!spider->result_list.in_cmp_ref)
   {
     DBUG_PRINT("info", ("spider direct_aggregate=%s",
@@ -5834,7 +5795,6 @@ int spider_db_seek_tmp_minimum_columns(
     spider->result_list.snap_direct_aggregate = pos->direct_aggregate;
     spider->result_list.snap_row = row;
   }
-#endif
 
   /* for mrr */
   if (pos->mrr_with_cnt)
@@ -5843,14 +5803,12 @@ int spider_db_seek_tmp_minimum_columns(
     row->next();
   }
 
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
   /* for direct_aggregate */
   if (pos->direct_aggregate)
   {
     if ((error_num = spider_db_fetch_for_item_sum_funcs(row, spider)))
       DBUG_RETURN(error_num);
   }
-#endif
 
   if ((error_num = spider_db_append_match_fetch(spider,
     pos->ft_first, pos->ft_current, row)))
@@ -8554,11 +8512,9 @@ int spider_db_print_item_type(
     case Item::FUNC_ITEM:
       DBUG_RETURN(spider_db_open_item_func((Item_func *) item, spider, str,
         alias, alias_length, dbton_id, use_fields, fields));
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
     case Item::SUM_FUNC_ITEM:
       DBUG_RETURN(spider_db_open_item_sum_func((Item_sum *)item, spider, str,
         alias, alias_length, dbton_id, use_fields, fields));
-#endif
     case Item::COND_ITEM:
       DBUG_RETURN(spider_db_open_item_cond((Item_cond *) item, spider, str,
         alias, alias_length, dbton_id, use_fields, fields));
@@ -8731,7 +8687,6 @@ int spider_db_open_item_func(
     item_func, spider, str, alias, alias_length, use_fields, fields));
 }
 
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
 int spider_db_open_item_sum_func(
   Item_sum *item_sum,
   ha_spider *spider,
@@ -8746,7 +8701,6 @@ int spider_db_open_item_sum_func(
   DBUG_RETURN(spider_dbton[dbton_id].db_util->open_item_sum_func(
     item_sum, spider, str, alias, alias_length, use_fields, fields));
 }
-#endif
 
 int spider_db_open_item_ident(
   Item_ident *item_ident,
@@ -9536,7 +9490,6 @@ int spider_db_append_update_columns(
   DBUG_RETURN(0);
 }
 
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
 bool spider_db_check_select_colum_in_group(
   st_select_lex *select_lex,
   Field *field
@@ -9559,7 +9512,6 @@ bool spider_db_check_select_colum_in_group(
   }
   DBUG_RETURN(FALSE);
 }
-#endif
 
 uint spider_db_check_ft_idx(
   Item_func *item_func,
