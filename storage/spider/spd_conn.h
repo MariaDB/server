@@ -22,9 +22,7 @@
 #define SPIDER_SIMPLE_CONNECT             1
 #define SPIDER_SIMPLE_DISCONNECT          2
 #define SPIDER_SIMPLE_RECORDS             3
-#ifdef HA_HAS_CHECKSUM_EXTENDED
 #define SPIDER_SIMPLE_CHECKSUM_TABLE      4
-#endif
 
 /*
   The SPIDER_CONN_LOOP_CHECK has been added to the loop_check queue to

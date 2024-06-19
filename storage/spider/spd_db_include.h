@@ -874,11 +874,9 @@ public:
     int mode,
     ha_rows &records
   ) = 0;
-#ifdef HA_HAS_CHECKSUM_EXTENDED
   virtual int fetch_table_checksum(
     ha_spider *spider
   );
-#endif
   virtual int fetch_table_cardinality(
     int mode,
     TABLE *table,
@@ -1119,9 +1117,7 @@ public:
     spider_string *str
   ) = 0;
 #endif
-#ifdef HA_HAS_CHECKSUM_EXTENDED
   virtual bool checksum_support();
-#endif
 };
 
 class spider_db_handler
@@ -1463,11 +1459,9 @@ public:
   virtual int show_records(
     int link_idx
   ) = 0;
-#ifdef HA_HAS_CHECKSUM_EXTENDED
   virtual int checksum_table(
     int link_idx
   );
-#endif
   virtual int show_last_insert_id(
     int link_idx,
     ulonglong &last_insert_id
