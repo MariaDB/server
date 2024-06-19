@@ -4094,7 +4094,6 @@ int spider_db_oracle_util::open_item_func(
       }
       break;
     case Item_func::LIKE_FUNC:
-#ifdef SPIDER_LIKE_FUNC_HAS_GET_NEGATED
       if (str)
       {
          if (((Item_func_like *)item_func)->get_negated())
@@ -4109,9 +4108,6 @@ int spider_db_oracle_util::open_item_func(
          }
       }
       break;
-#else
-      DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM);
-#endif
     default:
       THD *thd = spider->wide_handler->trx->thd;
       SPIDER_SHARE *share = spider->share;
