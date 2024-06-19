@@ -402,7 +402,7 @@ typedef srw_spin_lock_low srw_spin_lock;
 class ssux_lock
 {
   PSI_rwlock *pfs_psi;
-  ssux_lock_impl<false> lock;
+  ssux_lock_impl<true> lock;
 
   ATTRIBUTE_NOINLINE void psi_rd_lock(const char *file, unsigned line);
   ATTRIBUTE_NOINLINE void psi_wr_lock(const char *file, unsigned line);
