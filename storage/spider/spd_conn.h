@@ -416,3 +416,11 @@ SPIDER_CONN* spider_get_conn_from_idle_connection
  int *error_num
  );
 void spider_free_ipport_conn(void *info);
+
+void spider_lock_before_query(SPIDER_CONN *conn, int *need_mon);
+
+int spider_unlock_after_query(SPIDER_CONN *conn, int ret);
+
+int spider_unlock_after_query_1(SPIDER_CONN *conn);
+
+int spider_unlock_after_query_2(SPIDER_CONN *conn, ha_spider *spider, int link_idx, TABLE *table);
