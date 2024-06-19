@@ -10597,7 +10597,6 @@ int ha_spider::create(
     ) {
       goto error;
     }
-#ifdef SPIDER_SUPPORT_CREATE_OR_REPLACE_TABLE
     if (
       thd->lex->create_info.or_replace() &&
       (error_num = spider_delete_tables(
@@ -10608,7 +10607,6 @@ int ha_spider::create(
     ) {
       goto error;
     }
-#endif
     if (
       (error_num = spider_insert_tables(table_tables, &tmp_share))
     ) {
