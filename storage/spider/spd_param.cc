@@ -113,7 +113,7 @@ extern handlerton *spider_hton_ptr;
 static void spider_trx_status_var(THD *thd, SHOW_VAR *var, void *buff,
                                  ulonglong SPIDER_TRX::*counter)
 {
-  DBUG_ENTER("spider_direct_update");
+  DBUG_ENTER("spider_trx_status_var");
   var->type = SHOW_LONGLONG;
   var->value= buff;
   if (thd != current_thd)
