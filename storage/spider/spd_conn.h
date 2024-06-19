@@ -50,10 +50,8 @@ typedef struct st_spider_conn_loop_check
     SPIDER_LOP_CHK_IGNORED
   */
   uint               flag;
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   /* hash value of to_name, used for the hash conn->loop_checked */
   my_hash_value_type hash_value_to;
-#endif
   /*
     The fully qualified name of the current spider table, which will
     also be used to construct the user var name to set in the data
