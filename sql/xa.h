@@ -35,6 +35,7 @@ struct XID_STATE {
   bool is_explicit_XA() const { return xid_cache_element != 0; }
   void set_error(uint error);
   void set_online_alter_cache(Online_alter_cache_list *);
+  void set_rollback_only();
   void er_xaer_rmfail() const;
   XID *get_xid() const;
   enum xa_states get_state_code() const;
