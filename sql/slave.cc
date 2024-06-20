@@ -3482,7 +3482,6 @@ void store_master_info(THD *thd, Master_info *mi, TABLE *table,
                        String *gtid_pos)
 {
   Field **field= table->field;
-  uint i=0;
   const char *msg;
   Rpl_filter *rpl_filter= mi->rpl_filter;
   StringBuffer<256> tmp;
@@ -3695,7 +3694,7 @@ void store_master_info(THD *thd, Master_info *mi, TABLE *table,
   if (mi->rli.newest_master_timestamp)
     (*field++)->store_timestamp((my_time_t) mi->rli.newest_master_timestamp, 0);
   else
-    field[i++]->set_null();
+    (*field++)->set_null();
 
   if (mi->rli.slave_timestamp)
   {
@@ -3705,7 +3704,7 @@ void store_master_info(THD *thd, Master_info *mi, TABLE *table,
                               mi->rli.slave_timestamp), true);
   }
   else
-    field[i++]->set_null();
+    (*field++)->set_null();
 
   mysql_mutex_unlock(&mi->rli.err_lock);
   mysql_mutex_unlock(&mi->err_lock);

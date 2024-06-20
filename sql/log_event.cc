@@ -1185,6 +1185,7 @@ Log_event* Log_event::read_log_event(const uchar *buf, uint event_len,
       break;
     case EXEC_LOAD_EVENT:
       ev= new Execute_load_log_event(buf, event_len, fdle);
+      set_orig_exec_time_in_thd(((Query_log_event*) ev)->exec_time);
       break;
     case START_EVENT_V3: /* this is sent only by MySQL <=4.x */
       ev= new Start_log_event_v3(buf, event_len, fdle);
