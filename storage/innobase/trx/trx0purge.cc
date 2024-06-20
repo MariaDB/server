@@ -153,7 +153,7 @@ TRANSACTIONAL_TARGET bool purge_sys_t::is_purgeable(trx_id_t trx_id) const
   else
 #endif
   {
-    latch.rd_lock(SRW_LOCK_CALL);
+    latch.rd_lock<true>(SRW_LOCK_CALL);
     purgeable= view.changes_visible(trx_id);
     latch.rd_unlock();
   }
@@ -1065,15 +1065,15 @@ static void trx_purge_close_tables(purge_node_t *node, THD *thd)
 
 void purge_sys_t::wait_FTS(bool also_sys)
 {
-  bool paused;
-  do
+  for (;;)
   {
-    latch.wr_lock(SRW_LOCK_CALL);
-    paused= m_FTS_paused || (also_sys && m_SYS_paused);
+    latch.wr_lock<false>(SRW_LOCK_CALL);
+    bool paused= m_FTS_paused || (also_sys && m_SYS_paused);
     latch.wr_unlock();
+    if (!paused)
+      return;
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
-  while (paused);
 }
 
 __attribute__((nonnull))
@@ -1368,17 +1368,29 @@ void purge_sys_t::batch_cleanup(const purge_sys_t::iterator &head)
 
   /* Limit the end_view similar to what trx_purge_truncate_history() does. */
   const trx_id_t trx_no= head.trx_no ? head.trx_no : tail.trx_no;
-#ifdef SUX_LOCK_GENERIC
-  end_latch.wr_lock();
-#else
-  transactional_lock_guard<srw_spin_lock_low> g(end_latch);
+
+#if !defined SUX_LOCK_GENERIC && !defined NO_ELISION
+  if (xbegin())
+  {
+    if (!end_latch.is_write_locked())
+    {
+      this->head= head;
+      end_view= view;
+      end_view.clamp_low_limit_id(trx_no);
+      xend();
+    }
+    else
+      xabort();
+  }
+  else
 #endif
-  this->head= head;
-  end_view= view;
-  end_view.clamp_low_limit_id(trx_no);
-#ifdef SUX_LOCK_GENERIC
-  end_latch.wr_unlock();
-#endif
+  {
+    end_latch.wr_lock<false>();
+    this->head= head;
+    end_view= view;
+    end_view.clamp_low_limit_id(trx_no);
+    end_latch.wr_unlock();
+  }
 }
 
 /**

@@ -174,7 +174,7 @@ static void btr_search_check_free_space_in_heap(const dict_index_t *index)
   buf_block_t *block= buf_block_alloc();
   auto part= btr_search_sys.get_part(*index);
 
-  part->latch.wr_lock(SRW_LOCK_CALL);
+  part->latch.wr_lock<true>(SRW_LOCK_CALL);
 
   if (!btr_search_enabled || part->heap->free_block)
     buf_block_free(block);
@@ -707,7 +707,7 @@ btr_search_update_hash_ref(
 	ut_ad(index == cursor->index());
 	ut_ad(!dict_index_is_ibuf(index));
 	auto part = btr_search_sys.get_part(*index);
-	part->latch.wr_lock(SRW_LOCK_CALL);
+	part->latch.wr_lock<true>(SRW_LOCK_CALL);
 	ut_ad(!block->index || block->index == index);
 
 	if (block->index
@@ -1086,7 +1086,7 @@ btr_search_guess_on_hash(
 	auto part = btr_search_sys.get_part(*index);
 	const rec_t* rec;
 
-	part->latch.rd_lock(SRW_LOCK_CALL);
+	part->latch.rd_lock<true>(SRW_LOCK_CALL);
 
 	if (!btr_search_enabled) {
 		goto ahi_release_and_fail;
@@ -1224,14 +1224,14 @@ retry:
 	auto part = btr_search_sys.get_part(index_id,
 					    block->page.id().space());
 
-	part->latch.rd_lock(SRW_LOCK_CALL);
+	part->latch.rd_lock<true>(SRW_LOCK_CALL);
 
 	dict_index_t* index = block->index;
 	bool is_freed = index && index->freed();
 
 	if (is_freed) {
 		part->latch.rd_unlock();
-		part->latch.wr_lock(SRW_LOCK_CALL);
+		part->latch.wr_lock<true>(SRW_LOCK_CALL);
 		if (index != block->index) {
 			part->latch.wr_unlock();
 			goto retry;
@@ -1339,7 +1339,7 @@ next_rec:
 
 all_deleted:
 	if (!is_freed) {
-		part->latch.wr_lock(SRW_LOCK_CALL);
+		part->latch.wr_lock<true>(SRW_LOCK_CALL);
 
 		if (UNIV_UNLIKELY(!block->index)) {
 			/* Someone else has meanwhile dropped the
@@ -1434,7 +1434,7 @@ void
 btr_search_build_page_hash_index(
 	dict_index_t*	index,
 	buf_block_t*	block,
-	srw_spin_lock*	ahi_latch,
+	srw_lock*	ahi_latch,
 	uint16_t	n_fields,
 	uint16_t	n_bytes,
 	bool		left_side)
@@ -1466,7 +1466,7 @@ btr_search_build_page_hash_index(
 	ut_ad(block->page.lock.have_x() || block->page.lock.have_s());
 	ut_ad(block->page.id().page_no() >= 3);
 
-	ahi_latch->rd_lock(SRW_LOCK_CALL);
+	ahi_latch->rd_lock<true>(SRW_LOCK_CALL);
 
 	const bool enabled = btr_search_enabled;
 	const bool rebuild = enabled && block->index
@@ -1579,7 +1579,7 @@ btr_search_build_page_hash_index(
 
 	btr_search_check_free_space_in_heap(index);
 
-	ahi_latch->wr_lock(SRW_LOCK_CALL);
+	ahi_latch->wr_lock<true>(SRW_LOCK_CALL);
 
 	if (!btr_search_enabled) {
 		goto exit_func;
@@ -1632,7 +1632,7 @@ exit_func:
 @param[in,out]	cursor	cursor which was just positioned */
 void btr_search_info_update_slow(btr_search_t *info, btr_cur_t *cursor)
 {
-	srw_spin_lock*	ahi_latch = &btr_search_sys.get_part(*cursor->index())
+	srw_lock*	ahi_latch = &btr_search_sys.get_part(*cursor->index())
 		->latch;
 	buf_block_t*	block = btr_cur_get_block(cursor);
 
@@ -1699,7 +1699,7 @@ btr_search_move_or_delete_hash_entries(
 	assert_block_ahi_valid(block);
 	assert_block_ahi_valid(new_block);
 
-	srw_spin_lock* ahi_latch = index
+	srw_lock* ahi_latch = index
 		? &btr_search_sys.get_part(*index)->latch
 		: nullptr;
 
@@ -1713,7 +1713,7 @@ drop_exit:
 		return;
 	}
 
-	ahi_latch->rd_lock(SRW_LOCK_CALL);
+	ahi_latch->rd_lock<true>(SRW_LOCK_CALL);
 
 	if (index->freed()) {
 		ahi_latch->rd_unlock();
@@ -1800,7 +1800,7 @@ void btr_search_update_hash_on_delete(btr_cur_t *cursor)
 
 	auto part = btr_search_sys.get_part(*index);
 
-	part->latch.wr_lock(SRW_LOCK_CALL);
+	part->latch.wr_lock<true>(SRW_LOCK_CALL);
 	assert_block_ahi_valid(block);
 
 	if (block->index && btr_search_enabled) {
@@ -1825,7 +1825,7 @@ void btr_search_update_hash_on_delete(btr_cur_t *cursor)
 			inserted next to the cursor.
 @param[in]	ahi_latch	the adaptive hash index latch */
 void btr_search_update_hash_node_on_insert(btr_cur_t *cursor,
-                                           srw_spin_lock *ahi_latch)
+                                           srw_lock *ahi_latch)
 {
 	buf_block_t*	block;
 	dict_index_t*	index;
@@ -1860,7 +1860,7 @@ void btr_search_update_hash_node_on_insert(btr_cur_t *cursor,
 
 	ut_a(cursor->index() == index);
 	ut_ad(!dict_index_is_ibuf(index));
-	ahi_latch->wr_lock(SRW_LOCK_CALL);
+	ahi_latch->wr_lock<true>(SRW_LOCK_CALL);
 
 	if (!block->index || !btr_search_enabled) {
 
@@ -1901,7 +1901,7 @@ func_exit:
 				to the cursor
 @param[in]	ahi_latch	the adaptive hash index latch */
 void btr_search_update_hash_on_insert(btr_cur_t *cursor,
-                                      srw_spin_lock *ahi_latch)
+                                      srw_lock *ahi_latch)
 {
 	buf_block_t*	block;
 	dict_index_t*	index;
@@ -1988,7 +1988,7 @@ drop:
 	} else {
 		if (left_side) {
 			locked = true;
-			ahi_latch->wr_lock(SRW_LOCK_CALL);
+			ahi_latch->wr_lock<true>(SRW_LOCK_CALL);
 
 			if (!btr_search_enabled || !block->index) {
 				goto function_exit;
@@ -2007,7 +2007,7 @@ drop:
 
 		if (!locked) {
 			locked = true;
-			ahi_latch->wr_lock(SRW_LOCK_CALL);
+			ahi_latch->wr_lock<true>(SRW_LOCK_CALL);
 
 			if (!btr_search_enabled || !block->index) {
 				goto function_exit;
@@ -2032,7 +2032,7 @@ check_next_rec:
 		if (!left_side) {
 			if (!locked) {
 				locked = true;
-				ahi_latch->wr_lock(SRW_LOCK_CALL);
+				ahi_latch->wr_lock<true>(SRW_LOCK_CALL);
 
 				if (!btr_search_enabled || !block->index) {
 					goto function_exit;
@@ -2052,7 +2052,7 @@ check_next_rec:
 	if (ins_fold != next_fold) {
 		if (!locked) {
 			locked = true;
-			ahi_latch->wr_lock(SRW_LOCK_CALL);
+			ahi_latch->wr_lock<true>(SRW_LOCK_CALL);
 
 			if (!btr_search_enabled || !block->index) {
 				goto function_exit;
@@ -2312,7 +2312,7 @@ bool btr_search_check_marked_free_index(const buf_block_t *block)
   const index_id_t index_id= btr_page_get_index_id(block->page.frame);
   auto part= btr_search_sys.get_part(index_id, block->page.id().space());
 
-  part->latch.rd_lock(SRW_LOCK_CALL);
+  part->latch.rd_lock<true>(SRW_LOCK_CALL);
 
   bool is_freed= block->index && block->index->freed();
 

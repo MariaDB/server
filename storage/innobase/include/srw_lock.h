@@ -70,13 +70,12 @@ inline void pthread_mutex_wrapper::wr_lock<true>()
 # endif
 #endif
 
-template<bool spinloop> class ssux_lock_impl;
+class ssux_lock_impl;
 
 /** Futex-based mutex */
 class srw_mutex_impl final
 {
-  friend ssux_lock_impl<false>;
-  friend ssux_lock_impl<true>;
+  friend ssux_lock_impl;
   /** The lock word, containing HOLDER + 1 if the lock is being held,
   plus the number of waiters */
   std::atomic<uint32_t> lock;
@@ -154,10 +153,9 @@ typedef pthread_mutex_wrapper srw_mutex;
 typedef srw_mutex_impl srw_mutex;
 #endif
 
-template<bool spinloop> class srw_lock_impl;
+class srw_lock_psi;
 
 /** Slim shared-update-exclusive lock with no recursion */
-template<bool spinloop>
 class ssux_lock_impl
 {
 #ifdef UNIV_PFS_RWLOCK
@@ -165,7 +163,7 @@ class ssux_lock_impl
 # ifdef SUX_LOCK_GENERIC
 # elif defined _WIN32
 # else
-  friend srw_lock_impl<spinloop>;
+  friend srw_lock_psi;
 # endif
 #endif
 #ifdef SUX_LOCK_GENERIC
@@ -186,11 +184,11 @@ class ssux_lock_impl
   inline void wait(uint32_t lk);
 
   /** Wait for readers!=lk|WRITER */
-  void wr_wait(uint32_t lk);
+  template<bool spinloop> void wr_wait(uint32_t lk);
   /** Wake up wait() on the last rd_unlock() */
   void wake();
   /** Acquire a read lock */
-  void rd_wait();
+  template<bool spinloop> void rd_wait();
 public:
   void init()
   {
@@ -248,11 +246,12 @@ public:
     return false;
   }
 
-  void rd_lock() { if (!rd_lock_try()) rd_wait(); }
-  void u_lock() { writer.wr_lock<spinloop>(); }
-  void wr_lock()
+  template<bool spinloop> void rd_lock()
+  { if (!rd_lock_try()) rd_wait<spinloop>(); }
+  template<bool spinloop> void u_lock() { writer.wr_lock<spinloop>(); }
+  template<bool spin_writer,bool spin_readers> void wr_lock()
   {
-    writer.wr_lock<spinloop>();
+    writer.wr_lock<spin_writer>();
 #if defined __i386__||defined __x86_64__||defined _M_IX86||defined _M_X64
     /* On IA-32 and AMD64, this type of fetch_or() can only be implemented
     as a loop around LOCK CMPXCHG. In this particular case, setting the
@@ -260,19 +259,20 @@ public:
     translated into a simple LOCK XADD. */
     static_assert(WRITER == 1U << 31, "compatibility");
     if (uint32_t lk= readers.fetch_add(WRITER, std::memory_order_acquire))
-      wr_wait(lk);
+      wr_wait<spin_readers>(lk);
 #else
     if (uint32_t lk= readers.fetch_or(WRITER, std::memory_order_acquire))
-      wr_wait(lk);
+      wr_wait<spin_readers>(lk);
 #endif
   }
+  template<bool spinloop> void wr_lock() { wr_lock<spinloop,spinloop>(); }
 
-  void u_wr_upgrade()
+  template<bool spinloop> void u_wr_upgrade()
   {
     DBUG_ASSERT(writer.is_locked());
     uint32_t lk= readers.fetch_add(WRITER, std::memory_order_acquire);
     if (lk)
-      wr_wait(lk);
+      wr_wait<spinloop>(lk);
   }
   void wr_u_downgrade()
   {
@@ -309,19 +309,18 @@ public:
   bool is_locked_or_waiting() const noexcept
   { return is_locked() || writer.is_locked_or_waiting(); }
 
-  void lock_shared() { rd_lock(); }
+  template<bool spinloop> void lock_shared() { rd_lock<spinloop>(); }
   void unlock_shared() { rd_unlock(); }
-  void lock() { wr_lock(); }
+  template<bool spin,bool loop> void lock() { wr_lock<spin,loop>(); }
   void unlock() { wr_unlock(); }
 };
 
 #if defined _WIN32 || defined SUX_LOCK_GENERIC
 /** Slim read-write lock */
-template<bool spinloop>
 class srw_lock_
 {
 # ifdef UNIV_PFS_RWLOCK
-  friend srw_lock_impl<spinloop>;
+  friend srw_lock_psi;
 # endif
 # ifdef _WIN32
   SRWLOCK lk;
@@ -334,8 +333,8 @@ class srw_lock_
 public:
   void init() { IF_WIN(,my_rwlock_init(&lk, nullptr)); }
   void destroy() { IF_WIN(,rwlock_destroy(&lk)); }
-  inline void rd_lock();
-  inline void wr_lock();
+  template<bool spinloop> inline void rd_lock();
+  template<bool spinloop> inline void wr_lock();
   bool rd_lock_try()
   { return IF_WIN(TryAcquireSRWLockShared(&lk), !rw_tryrdlock(&lk)); }
   void rd_unlock()
@@ -356,33 +355,28 @@ public:
     return is_locked();
   }
 
-  void lock_shared() { rd_lock(); }
+  template<bool spinloop> void lock_shared() { rd_lock<spinloop>(); }
   void unlock_shared() { rd_unlock(); }
-  void lock() { wr_lock(); }
+  template<bool spinloop> void lock() { wr_lock<spinloop>(); }
   void unlock() { wr_unlock(); }
 #endif
 };
 
-template<> void srw_lock_<true>::rd_wait();
-template<> void srw_lock_<true>::wr_wait();
-
 template<>
-inline void srw_lock_<false>::rd_lock()
+inline void srw_lock_::rd_lock<false>()
 { IF_WIN(AcquireSRWLockShared(&lk), rw_rdlock(&lk)); }
 template<>
-inline void srw_lock_<false>::wr_lock()
+inline void srw_lock_::wr_lock<false>()
 { IF_WIN(AcquireSRWLockExclusive(&lk), rw_wrlock(&lk)); }
 
 template<>
-inline void srw_lock_<true>::rd_lock() { if (!rd_lock_try()) rd_wait(); }
+inline void srw_lock_::rd_lock<true>() { if (!rd_lock_try()) rd_wait(); }
 template<>
-inline void srw_lock_<true>::wr_lock() { if (!wr_lock_try()) wr_wait(); }
+inline void srw_lock_::wr_lock<true>() { if (!wr_lock_try()) wr_wait(); }
 
-typedef srw_lock_<false> srw_lock_low;
-typedef srw_lock_<true> srw_spin_lock_low;
+typedef srw_lock_ srw_lock_low;
 #else
-typedef ssux_lock_impl<false> srw_lock_low;
-typedef ssux_lock_impl<true> srw_spin_lock_low;
+typedef ssux_lock_impl srw_lock_low;
 #endif
 
 #ifndef UNIV_PFS_RWLOCK
@@ -390,7 +384,6 @@ typedef ssux_lock_impl<true> srw_spin_lock_low;
 # define SRW_LOCK_ARGS(file, line) /* nothing */
 # define SRW_LOCK_CALL /* nothing */
 typedef srw_lock_low srw_lock;
-typedef srw_spin_lock_low srw_spin_lock;
 #else
 # define SRW_LOCK_INIT(key) init(key)
 # define SRW_LOCK_ARGS(file, line) file, line
@@ -400,11 +393,15 @@ typedef srw_spin_lock_low srw_spin_lock;
 class ssux_lock
 {
   PSI_rwlock *pfs_psi;
-  ssux_lock_impl<true> lock;
+  ssux_lock_impl lock;
 
+  template<bool spinloop>
   ATTRIBUTE_NOINLINE void psi_rd_lock(const char *file, unsigned line);
+  template<bool spin_writer,bool spin_readers>
   ATTRIBUTE_NOINLINE void psi_wr_lock(const char *file, unsigned line);
+  template<bool spinloop>
   ATTRIBUTE_NOINLINE void psi_u_lock(const char *file, unsigned line);
+  template<bool spinloop>
   ATTRIBUTE_NOINLINE void psi_u_wr_upgrade(const char *file, unsigned line);
 public:
   void init(mysql_pfs_key_t key)
@@ -421,12 +418,13 @@ public:
     }
     lock.destroy();
   }
+  template<bool spinloop>
   void rd_lock(const char *file, unsigned line)
   {
     if (psi_likely(pfs_psi != nullptr))
-      psi_rd_lock(file, line);
+      psi_rd_lock<spinloop>(file, line);
     else
-      lock.rd_lock();
+      lock.rd_lock<spinloop>();
   }
   void rd_unlock()
   {
@@ -434,12 +432,13 @@ public:
       PSI_RWLOCK_CALL(unlock_rwlock)(pfs_psi);
     lock.rd_unlock();
   }
+  template<bool spinloop>
   void u_lock(const char *file, unsigned line)
   {
     if (psi_likely(pfs_psi != nullptr))
-      psi_u_lock(file, line);
+      psi_u_lock<spinloop>(file, line);
     else
-      lock.u_lock();
+      lock.u_lock<spinloop>();
   }
   void u_unlock()
   {
@@ -447,12 +446,13 @@ public:
       PSI_RWLOCK_CALL(unlock_rwlock)(pfs_psi);
     lock.u_unlock();
   }
+  template<bool spin_writer,bool spin_readers>
   void wr_lock(const char *file, unsigned line)
   {
     if (psi_likely(pfs_psi != nullptr))
-      psi_wr_lock(file, line);
+      psi_wr_lock<spin_writer,spin_readers>(file, line);
     else
-      lock.wr_lock();
+      lock.wr_lock<spin_writer,spin_readers>();
   }
   void wr_unlock()
   {
@@ -460,12 +460,13 @@ public:
       PSI_RWLOCK_CALL(unlock_rwlock)(pfs_psi);
     lock.wr_unlock();
   }
+  template<bool spinloop>
   void u_wr_upgrade(const char *file, unsigned line)
   {
     if (psi_likely(pfs_psi != nullptr))
-      psi_u_wr_upgrade(file, line);
+      psi_u_wr_upgrade<spinloop>(file, line);
     else
-      lock.u_wr_upgrade();
+      lock.u_wr_upgrade<spinloop>();
   }
   bool rd_lock_try() { return lock.rd_lock_try(); }
   bool u_lock_try() { return lock.u_lock_try(); }
@@ -474,17 +475,18 @@ public:
 };
 
 /** Slim reader-writer lock with PERFORMANCE_SCHEMA instrumentation */
-template<bool spinloop>
-class srw_lock_impl
+class srw_lock_psi
 {
   PSI_rwlock *pfs_psi;
 # if defined _WIN32 || defined SUX_LOCK_GENERIC
-  srw_lock_<spinloop> lock;
+  srw_lock_ lock;
 # else
-  ssux_lock_impl<spinloop> lock;
+  ssux_lock_impl lock;
 # endif
 
+  template<bool spinloop>
   ATTRIBUTE_NOINLINE void psi_rd_lock(const char *file, unsigned line);
+  template<bool spinloop>
   ATTRIBUTE_NOINLINE void psi_wr_lock(const char *file, unsigned line);
 public:
   void init(mysql_pfs_key_t key)
@@ -501,12 +503,13 @@ public:
     }
     lock.destroy();
   }
+  template<bool spinloop>
   void rd_lock(const char *file, unsigned line)
   {
     if (psi_likely(pfs_psi != nullptr))
-      psi_rd_lock(file, line);
+      psi_rd_lock<spinloop>(file, line);
     else
-      lock.rd_lock();
+      lock.rd_lock<spinloop>();
   }
   void rd_unlock()
   {
@@ -514,12 +517,13 @@ public:
       PSI_RWLOCK_CALL(unlock_rwlock)(pfs_psi);
     lock.rd_unlock();
   }
+  template<bool spinloop>
   void wr_lock(const char *file, unsigned line)
   {
     if (psi_likely(pfs_psi != nullptr))
-      psi_wr_lock(file, line);
+      psi_wr_lock<spinloop>(file, line);
     else
-      lock.wr_lock();
+      lock.wr_lock<spinloop>();
   }
   void wr_unlock()
   {
@@ -529,7 +533,7 @@ public:
   }
   bool rd_lock_try() { return lock.rd_lock_try(); }
   bool wr_lock_try() { return lock.wr_lock_try(); }
-  void lock_shared() { return rd_lock(SRW_LOCK_CALL); }
+  void lock_shared() { return rd_lock<true>(SRW_LOCK_CALL); }
   void unlock_shared() { return rd_unlock(); }
 #ifndef SUX_LOCK_GENERIC
   /** @return whether any lock may be held by any thread */
@@ -542,8 +546,7 @@ public:
 #endif
 };
 
-typedef srw_lock_impl<false> srw_lock;
-typedef srw_lock_impl<true> srw_spin_lock;
+typedef srw_lock_psi srw_lock;
 
 #endif
 

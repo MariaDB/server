@@ -282,14 +282,14 @@ public:
   inline void unlock_shared();
 };
 
-typedef sux_lock<ssux_lock_impl<true>> block_lock;
+typedef sux_lock<ssux_lock_impl> block_lock;
 
 #ifndef UNIV_PFS_RWLOCK
-typedef sux_lock<ssux_lock_impl<true>> index_lock;
+typedef sux_lock<ssux_lock_impl> index_lock;
 #else
 typedef sux_lock<ssux_lock> index_lock;
 
-template<> inline void sux_lock<ssux_lock_impl<true>>::init()
+template<> inline void sux_lock<ssux_lock_impl>::init()
 {
   lock.init();
   ut_ad(!writer.load(std::memory_order_relaxed));
@@ -306,7 +306,7 @@ inline void sux_lock<ssux_lock>::s_lock(const char *file, unsigned line)
 {
   ut_ad(!have_x());
   ut_ad(!have_s());
-  lock.rd_lock(file, line);
+  lock.rd_lock<true>(file, line); // TBD: enable spinloop for index_lock?
   ut_d(s_lock_register());
 }
 
@@ -318,7 +318,7 @@ inline void sux_lock<ssux_lock>::u_lock(const char *file, unsigned line)
     writer_recurse<true>();
   else
   {
-    lock.u_lock(file, line);
+    lock.u_lock<true>(file, line); // TBD: enable spinloop for index_lock?
     ut_ad(!recursive);
     recursive= RECURSIVE_U;
     set_first_owner(id);
@@ -333,7 +333,7 @@ inline void sux_lock<ssux_lock>::x_lock(const char *file, unsigned line)
     writer_recurse<false>();
   else
   {
-    lock.wr_lock(file, line);
+    lock.wr_lock<true,true>(file, line); // TBD: spinloop for index_lock?
     ut_ad(!recursive);
     recursive= RECURSIVE_X;
     set_first_owner(id);
@@ -344,7 +344,7 @@ template<>
 inline void sux_lock<ssux_lock>::u_x_upgrade(const char *file, unsigned line)
 {
   ut_ad(have_u_not_x());
-  lock.u_wr_upgrade(file, line);
+  lock.u_wr_upgrade<true>(file, line); // TBD: enable spinloop for index_lock?
   recursive/= RECURSIVE_U;
 }
 #endif
@@ -359,7 +359,7 @@ template<typename ssux> inline void sux_lock<ssux>::s_lock()
 {
   ut_ad(!have_x());
   ut_ad(!have_s());
-  lock.rd_lock();
+  lock.template rd_lock<true>(); // FIXME: index_lock #ifndef UNIV_PFS_RWLOCK
   ut_d(s_lock_register());
 }
 
@@ -375,7 +375,7 @@ template<typename ssux> inline void sux_lock<ssux>::u_lock()
     writer_recurse<true>();
   else
   {
-    lock.u_lock();
+    lock.template u_lock<true>(); // FIXME: index_lock #ifndef UNIV_PFS_RWLOCK
     ut_ad(!recursive);
     recursive= RECURSIVE_U;
     set_first_owner(id);
@@ -392,7 +392,7 @@ template<typename ssux> inline void sux_lock<ssux>::x_lock(bool for_io)
   }
   else
   {
-    lock.wr_lock();
+    lock.template wr_lock<true,true>(); // FIXME: index_lock #ifndef UNIV_PFS_RWLOCK
     ut_ad(!recursive);
     recursive= RECURSIVE_X;
     set_first_owner(for_io ? FOR_IO : id);
@@ -402,7 +402,7 @@ template<typename ssux> inline void sux_lock<ssux>::x_lock(bool for_io)
 template<typename ssux> inline void sux_lock<ssux>::u_x_upgrade()
 {
   ut_ad(have_u_not_x());
-  lock.u_wr_upgrade();
+  lock.template u_wr_upgrade<true>(); // FIXME: index_lock #ifndef UNIV_PFS_RWLOCK
   recursive/= RECURSIVE_U;
 }
 
@@ -419,13 +419,13 @@ template<typename ssux> inline bool sux_lock<ssux>::x_lock_upgraded()
       return false;
     }
     /* Upgrade the lock. */
-    lock.u_wr_upgrade();
+    lock.template u_wr_upgrade<true>();
     recursive/= RECURSIVE_U;
     return true;
   }
   else
   {
-    lock.wr_lock();
+    lock.template wr_lock<true>();
     ut_ad(!recursive);
     recursive= RECURSIVE_X;
     set_first_owner(id);

@@ -207,11 +207,11 @@ public:
 #elif defined _WIN32 || SIZEOF_SIZE_T >= 8
 class page_hash_latch
 {
-  srw_spin_lock_low lk;
+  srw_lock_low lk;
 public:
-  void lock_shared() { lk.rd_lock(); }
+  void lock_shared() { lk.rd_lock<true>(); }
   void unlock_shared() { lk.rd_unlock(); }
-  void lock() { lk.wr_lock(); }
+  void lock() { lk.wr_lock<true>(); }
   void unlock() { lk.wr_unlock(); }
   bool is_write_locked() const { return lk.is_write_locked(); }
   bool is_locked() const { return lk.is_locked(); }

@@ -110,7 +110,7 @@ void btr_search_drop_page_hash_when_freed(const page_id_t page_id);
 			inserted next to the cursor.
 @param[in]	ahi_latch	the adaptive hash index latch */
 void btr_search_update_hash_node_on_insert(btr_cur_t *cursor,
-                                           srw_spin_lock *ahi_latch);
+                                           srw_lock *ahi_latch);
 
 /** Updates the page hash index when a single record is inserted on a page.
 @param[in,out]	cursor		cursor which was positioned to the
@@ -119,7 +119,7 @@ void btr_search_update_hash_node_on_insert(btr_cur_t *cursor,
 				to the cursor
 @param[in]	ahi_latch	the adaptive hash index latch */
 void btr_search_update_hash_on_insert(btr_cur_t *cursor,
-                                      srw_spin_lock *ahi_latch);
+                                      srw_lock *ahi_latch);
 
 /** Updates the page hash index when a single record is deleted from a page.
 @param[in]	cursor	cursor which was positioned on the record to delete
@@ -241,7 +241,7 @@ struct btr_search_sys_t
   struct partition
   {
     /** latches protecting hash_table */
-    srw_spin_lock latch;
+    srw_lock latch;
     /** mapping of dtuple_fold() to rec_t* in buf_block_t::frame */
     hash_table_t table;
     /** memory heap for table */
@@ -310,7 +310,7 @@ struct btr_search_sys_t
   }
 
   /** Get the search latch for the adaptive hash index partition */
-  srw_spin_lock *get_latch(const dict_index_t &index) const
+  srw_lock *get_latch(const dict_index_t &index) const
   { return &get_part(index)->latch; }
 
   /** Create and initialize at startup */
@@ -355,7 +355,7 @@ TRANSACTIONAL_INLINE inline ulint dict_index_t::n_ahi_pages() const
 {
   if (!btr_search_enabled)
     return 0;
-  srw_spin_lock *latch= &btr_search_sys.get_part(*this)->latch;
+  srw_lock *latch= &btr_search_sys.get_part(*this)->latch;
 #if !defined NO_ELISION && !defined SUX_LOCK_GENERIC
   if (xbegin())
   {
@@ -366,7 +366,7 @@ TRANSACTIONAL_INLINE inline ulint dict_index_t::n_ahi_pages() const
     return ref_count;
   }
 #endif
-  latch->rd_lock(SRW_LOCK_CALL);
+  latch->rd_lock<true>(SRW_LOCK_CALL);
   ulint ref_count= search_info->ref_count;
   latch->rd_unlock();
   return ref_count;
