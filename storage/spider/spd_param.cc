@@ -113,7 +113,7 @@ extern handlerton *spider_hton_ptr;
 static void spider_trx_status_var(THD *thd, SHOW_VAR *var, void *buff,
                                  ulonglong SPIDER_TRX::*counter)
 {
-  DBUG_ENTER("spider_direct_update");
+  DBUG_ENTER("spider_trx_status_var");
   var->type = SHOW_LONGLONG;
   var->value= buff;
   if (thd != current_thd)
@@ -125,8 +125,6 @@ static void spider_trx_status_var(THD *thd, SHOW_VAR *var, void *buff,
   DBUG_VOID_RETURN;
 }
 
-
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
 static int spider_direct_update(THD *thd, SHOW_VAR *var, void *buff,
                                 system_status_var *, enum_var_type)
 {
@@ -142,8 +140,6 @@ static int spider_direct_delete(THD *thd, SHOW_VAR *var, void *buff,
   spider_trx_status_var(thd, var, buff, &SPIDER_TRX::direct_delete_count);
   DBUG_RETURN(0);
 }
-#endif
-
 static int spider_direct_order_limit(THD *thd, SHOW_VAR *var, void *buff,
                                      system_status_var *, enum_var_type)
 {
@@ -174,14 +170,12 @@ struct st_mysql_show_var spider_status_variables[] =
     (char *) &spider_mon_table_cache_version, SHOW_LONGLONG},
   {"Spider_mon_table_cache_version_req",
     (char *) &spider_mon_table_cache_version_req, SHOW_LONGLONG},
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
 #ifdef SPIDER_HAS_SHOW_SIMPLE_FUNC
   {"Spider_direct_update", (char *) &spider_direct_update, SHOW_SIMPLE_FUNC},
   {"Spider_direct_delete", (char *) &spider_direct_delete, SHOW_SIMPLE_FUNC},
 #else
   {"Spider_direct_update", (char *) &spider_direct_update, SHOW_FUNC},
   {"Spider_direct_delete", (char *) &spider_direct_delete, SHOW_FUNC},
-#endif
 #endif
 #ifdef SPIDER_HAS_SHOW_SIMPLE_FUNC
   {"Spider_direct_order_limit",

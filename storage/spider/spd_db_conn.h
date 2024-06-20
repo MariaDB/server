@@ -799,7 +799,6 @@ int spider_db_update(
   const uchar *old_data
 );
 
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS_WITH_HS
 int spider_db_direct_update(
   ha_spider *spider,
@@ -816,7 +815,6 @@ int spider_db_direct_update(
   ha_rows *update_rows,
   ha_rows *found_rows
 );
-#endif
 #endif
 
 #ifdef HA_CAN_BULK_ACCESS
@@ -838,7 +836,6 @@ int spider_db_delete(
   const uchar *buf
 );
 
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS_WITH_HS
 int spider_db_direct_delete(
   ha_spider *spider,
@@ -853,7 +850,6 @@ int spider_db_direct_delete(
   TABLE *table,
   ha_rows *delete_rows
 );
-#endif
 #endif
 
 int spider_db_delete_all_rows(
@@ -1056,7 +1052,6 @@ int spider_db_append_condition(
   bool test_flg
 );
 
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
 int spider_db_append_update_columns(
   ha_spider *spider,
   spider_string *str,
@@ -1066,7 +1061,6 @@ int spider_db_append_update_columns(
   bool use_fields,
   spider_fields *fields
 );
-#endif
 
 #ifdef HANDLER_HAS_DIRECT_AGGREGATE
 bool spider_db_check_select_colum_in_group(

@@ -6357,7 +6357,6 @@ int spider_oracle_handler::append_update_set(
   DBUG_RETURN(0);
 }
 
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
 int spider_oracle_handler::append_direct_update_set_part()
 {
   int error_num;
@@ -6474,7 +6473,6 @@ int spider_oracle_handler::append_update_columns(
   DBUG_RETURN(error_num);
 */
 }
-#endif
 
 int spider_oracle_handler::append_select_part(
   ulong sql_type

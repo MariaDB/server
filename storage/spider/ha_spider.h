@@ -167,10 +167,8 @@ public:
   uchar              *m_handler_opened;
   uint               *m_handler_id;
   char               **m_handler_cid;
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
   bool               do_direct_update;
   uint               direct_update_kinds;
-#endif
   spider_index_rnd_init prev_index_rnd_init;
 #ifdef HANDLER_HAS_DIRECT_AGGREGATE
   SPIDER_ITEM_HLD    *direct_aggregate_item_first;
@@ -486,12 +484,10 @@ public:
     uchar *buf
   );
 #endif
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
   void direct_update_init(
     THD *thd,
     bool hs_request
   );
-#endif
   bool start_bulk_update();
   int exec_bulk_update(
     ha_rows *dup_key_found
@@ -518,7 +514,6 @@ public:
     uchar *new_data
   );
 #endif
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
   bool check_direct_update_sql_part(
     st_select_lex *select_lex,
     longlong select_limit,
@@ -641,13 +636,11 @@ public:
   int pre_direct_update_rows();
 #endif
 #endif
-#endif
   bool start_bulk_delete();
   int end_bulk_delete();
   int delete_row(
     const uchar *buf
   );
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
   bool check_direct_delete_sql_part(
     st_select_lex *select_lex,
     longlong select_limit,
@@ -715,7 +708,6 @@ public:
   );
 #else
   int pre_direct_delete_rows();
-#endif
 #endif
 #endif
   int delete_all_rows();
@@ -887,9 +879,7 @@ public:
   void check_pre_call(
     bool use_parallel
   );
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
   void check_insert_dup_update_pushdown();
-#endif
 #ifdef HA_CAN_BULK_ACCESS
   SPIDER_BULK_ACCESS_LINK *create_bulk_access_link();
   void delete_bulk_access_link(
@@ -918,10 +908,7 @@ public:
   int append_insert_sql_part();
   int append_update_sql_part();
   int append_update_set_sql_part();
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
   int append_direct_update_set_sql_part();
-#endif
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
   int append_dup_update_pushdown_sql_part(
     const char *alias,
     uint alias_length
@@ -931,7 +918,6 @@ public:
     uint alias_length
   );
   int check_update_columns_sql_part();
-#endif
   int append_delete_sql_part();
   int append_select_sql_part(
     ulong sql_type

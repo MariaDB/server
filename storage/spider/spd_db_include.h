@@ -1185,7 +1185,6 @@ public:
   virtual int append_update_part() = 0;
   virtual int append_delete_part() = 0;
   virtual int append_update_set_part() = 0;
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
   virtual int append_direct_update_set_part() = 0;
   virtual int append_dup_update_pushdown_part(
     const char *alias,
@@ -1196,7 +1195,6 @@ public:
     uint alias_length
   ) = 0;
   virtual int check_update_columns_part() = 0;
-#endif
   virtual int append_select_part(
     ulong sql_type
   ) = 0;
@@ -1588,7 +1586,6 @@ public:
     ulong sql_type
   ) = 0;
 #endif
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
   virtual bool check_direct_update(
     st_select_lex *select_lex,
     longlong select_limit,
@@ -1599,7 +1596,6 @@ public:
     longlong select_limit,
     longlong offset_limit
   );
-#endif
 };
 
 class spider_db_copy_table
