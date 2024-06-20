@@ -1436,13 +1436,24 @@ int ha_prepare(THD *thd)
       }
     }
 
+unlog_xa_prepare:
     DEBUG_SYNC(thd, "at_unlog_xa_prepare");
-
     if (tc_log->unlog_xa_prepare(thd, all))
     {
       ha_rollback_trans(thd, all);
       error=1;
     }
+  }
+  else if (thd->rgi_slave)
+  {
+    /*
+      Slave threads will always process and binlog XA COMMITs (see MDEV-25616
+      and MDEV-30423), so if this is a slave thread preparing a transaction
+      which proved empty during replication (e.g. because of replication
+      filters or differing storage engines of tables) then we need to binlog
+      an empty XA START-XA PREPARE for consistency.
+    */
+    goto unlog_xa_prepare;
   }
 
   DBUG_RETURN(error);

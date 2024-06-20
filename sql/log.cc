@@ -10379,7 +10379,7 @@ int TC_LOG_BINLOG::unlog_xa_prepare(THD *thd, bool all)
       transaction branch claims to be rw, and few more.
       In all such cases an empty XA-prepare group of events is bin-logged.
     */
-    if (rw_count > 0)
+    if (rw_count > 0 || thd->rgi_slave)
     {
       /* an empty XA-prepare event group is logged */
       rc= write_empty_xa_prepare(thd, cache_mngr); // normally gains need_unlog
