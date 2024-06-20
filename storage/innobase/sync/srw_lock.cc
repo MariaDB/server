@@ -165,8 +165,7 @@ template void ssux_lock_impl<true>::init();
 template void ssux_lock_impl<false>::destroy();
 template void ssux_lock_impl<true>::destroy();
 
-template<bool spinloop>
-inline void srw_mutex_impl<spinloop>::wait(uint32_t lk)
+inline void srw_mutex_impl::wait(uint32_t lk)
 {
   pthread_mutex_lock(&mutex);
   while (lock.load(std::memory_order_relaxed) == lk)
@@ -183,20 +182,20 @@ inline void ssux_lock_impl<spinloop>::wait(uint32_t lk)
   pthread_mutex_unlock(&writer.mutex);
 }
 
-template<bool spinloop>
-void srw_mutex_impl<spinloop>::wake()
+void srw_mutex_impl::wake()
 {
   pthread_mutex_lock(&mutex);
   pthread_cond_signal(&cond);
   pthread_mutex_unlock(&mutex);
 }
-template<bool spinloop>
-inline void srw_mutex_impl<spinloop>::wake_all()
+
+inline void srw_mutex_impl::wake_all()
 {
   pthread_mutex_lock(&mutex);
   pthread_cond_broadcast(&cond);
   pthread_mutex_unlock(&mutex);
 }
+
 template<bool spinloop>
 void ssux_lock_impl<spinloop>::wake()
 {
@@ -248,13 +247,9 @@ void ssux_lock_impl<spinloop>::wake() { WakeByAddressSingle(&readers); }
 #   error "no futex support"
 #  endif
 
-template<bool spinloop>
-inline void srw_mutex_impl<spinloop>::wait(uint32_t lk)
-{ SRW_FUTEX(&lock, WAIT, lk); }
-template<bool spinloop>
-void srw_mutex_impl<spinloop>::wake() { SRW_FUTEX(&lock, WAKE, 1); }
-template<bool spinloop>
-void srw_mutex_impl<spinloop>::wake_all() { SRW_FUTEX(&lock, WAKE, INT_MAX); }
+inline void srw_mutex_impl::wait(uint32_t lk) { SRW_FUTEX(&lock, WAIT, lk); }
+void srw_mutex_impl::wake() { SRW_FUTEX(&lock, WAKE, 1); }
+void srw_mutex_impl::wake_all() { SRW_FUTEX(&lock, WAKE, INT_MAX); }
 
 template<bool spinloop>
 inline void ssux_lock_impl<spinloop>::wait(uint32_t lk)
@@ -264,9 +259,7 @@ void ssux_lock_impl<spinloop>::wake() { SRW_FUTEX(&readers, WAKE, 1); }
 # endif
 #endif
 
-template void srw_mutex_impl<false>::wake();
 template void ssux_lock_impl<false>::wake();
-template void srw_mutex_impl<true>::wake();
 template void ssux_lock_impl<true>::wake();
 
 /*
@@ -304,7 +297,7 @@ assembler code or a Microsoft intrinsic function.
 #endif
 
 template<bool spinloop>
-void srw_mutex_impl<spinloop>::wait_and_lock()
+void srw_mutex_impl::wait_and_lock()
 {
   uint32_t lk= 1 + lock.fetch_add(1, std::memory_order_relaxed);
 
@@ -361,8 +354,8 @@ acquired:
   }
 }
 
-template void srw_mutex_impl<false>::wait_and_lock();
-template void srw_mutex_impl<true>::wait_and_lock();
+template void srw_mutex_impl::wait_and_lock<false>();
+template void srw_mutex_impl::wait_and_lock<true>();
 
 template<bool spinloop>
 void ssux_lock_impl<spinloop>::wr_wait(uint32_t lk)
@@ -691,7 +684,7 @@ void srw_lock_debug::wr_unlock()
 
 void srw_lock_debug::readers_register()
 {
-  readers_lock.wr_lock();
+  readers_lock.wr_lock<false>();
   auto r= readers.load(std::memory_order_relaxed);
   if (!r)
   {
@@ -722,7 +715,7 @@ void srw_lock_debug::rd_unlock()
 {
   const pthread_t self= pthread_self();
   ut_ad(writer != self);
-  readers_lock.wr_lock();
+  readers_lock.wr_lock<false>();
   auto r= readers.load(std::memory_order_relaxed);
   ut_ad(r);
   auto i= r->find(self);
@@ -737,7 +730,7 @@ bool srw_lock_debug::have_rd() const noexcept
 {
   if (auto r= readers.load(std::memory_order_relaxed))
   {
-    readers_lock.wr_lock();
+    readers_lock.wr_lock<false>();
     bool found= r->find(pthread_self()) != r->end();
     readers_lock.wr_unlock();
 # ifndef SUX_LOCK_GENERIC

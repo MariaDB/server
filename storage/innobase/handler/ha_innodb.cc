@@ -5867,7 +5867,7 @@ static void initialize_auto_increment(dict_table_t *table, const Field& field,
 {
   ut_ad(!table->is_temporary());
   const unsigned col_no= innodb_col_no(&field);
-  table->autoinc_mutex.wr_lock();
+  table->autoinc_mutex_lock();
   table->persistent_autoinc=
     uint16_t(dict_table_get_nth_col_pos(table, col_no, nullptr) + 1) &
     dict_index_t::MAX_N_FIELDS;
@@ -5900,7 +5900,7 @@ static void initialize_auto_increment(dict_table_t *table, const Field& field,
                             max_value);
   }
 
-  table->autoinc_mutex.wr_unlock();
+  table->autoinc_mutex_unlock();
 }
 
 /** Open an InnoDB table
@@ -7735,7 +7735,7 @@ ha_innobase::innobase_lock_autoinc(void)
 	switch (innobase_autoinc_lock_mode) {
 	case AUTOINC_NO_LOCKING:
 		/* Acquire only the AUTOINC mutex. */
-		m_prebuilt->table->autoinc_mutex.wr_lock();
+		m_prebuilt->table->autoinc_mutex_lock();
 		break;
 
 	case AUTOINC_NEW_STYLE_LOCKING:
@@ -7749,14 +7749,14 @@ ha_innobase::innobase_lock_autoinc(void)
 		case SQLCOM_REPLACE:
 		case SQLCOM_END: // RBR event
 			/* Acquire the AUTOINC mutex. */
-			m_prebuilt->table->autoinc_mutex.wr_lock();
+			m_prebuilt->table->autoinc_mutex_lock();
 			/* We need to check that another transaction isn't
 			already holding the AUTOINC lock on the table. */
 			if (!m_prebuilt->table->n_waiting_or_granted_auto_inc_locks) {
 				/* Do not fall back to old style locking. */
 				DBUG_RETURN(error);
 			}
-			m_prebuilt->table->autoinc_mutex.wr_unlock();
+			m_prebuilt->table->autoinc_mutex_unlock();
 		}
 		/* Use old style locking. */
 		/* fall through */
@@ -7768,7 +7768,7 @@ ha_innobase::innobase_lock_autoinc(void)
 		if (error == DB_SUCCESS) {
 
 			/* Acquire the AUTOINC mutex. */
-			m_prebuilt->table->autoinc_mutex.wr_lock();
+			m_prebuilt->table->autoinc_mutex_lock();
 		}
 		break;
 
@@ -7796,7 +7796,7 @@ ha_innobase::innobase_set_max_autoinc(
 	if (error == DB_SUCCESS) {
 
 		dict_table_autoinc_update_if_greater(m_prebuilt->table, auto_inc);
-		m_prebuilt->table->autoinc_mutex.wr_unlock();
+		m_prebuilt->table->autoinc_mutex_unlock();
 	}
 
 	return(error);
@@ -13208,7 +13208,7 @@ void create_table_info_t::create_table_update_dict(dict_table_t *table,
     if (autoinc == 0)
       autoinc= 1;
 
-    table->autoinc_mutex.wr_lock();
+    table->autoinc_mutex_lock();
     dict_table_autoinc_initialize(table, autoinc);
 
     if (!table->is_temporary())
@@ -13223,7 +13223,7 @@ void create_table_info_t::create_table_update_dict(dict_table_t *table,
         btr_write_autoinc(dict_table_get_first_index(table), autoinc);
     }
 
-    table->autoinc_mutex.wr_unlock();
+    table->autoinc_mutex_unlock();
   }
 
   innobase_parse_hint_from_comment(thd, table, t.s);
@@ -16635,7 +16635,7 @@ ha_innobase::innobase_get_autoinc(
 		/* It should have been initialized during open. */
 		if (*value == 0) {
 			m_prebuilt->autoinc_error = DB_UNSUPPORTED;
-			m_prebuilt->table->autoinc_mutex.wr_unlock();
+			m_prebuilt->table->autoinc_mutex_unlock();
 		}
 	}
 
@@ -16659,7 +16659,7 @@ ha_innobase::innobase_peek_autoinc(void)
 
 	innodb_table = m_prebuilt->table;
 
-	innodb_table->autoinc_mutex.wr_lock();
+	innodb_table->autoinc_mutex_lock();
 
 	auto_inc = dict_table_autoinc_read(innodb_table);
 
@@ -16668,7 +16668,7 @@ ha_innobase::innobase_peek_autoinc(void)
 			" '" << innodb_table->name << "'";
 	}
 
-	innodb_table->autoinc_mutex.wr_unlock();
+	innodb_table->autoinc_mutex_unlock();
 
 	return(auto_inc);
 }
@@ -16783,7 +16783,7 @@ ha_innobase::get_auto_increment(
 		/* Out of range number. Let handler::update_auto_increment()
 		take care of this */
 		m_prebuilt->autoinc_last_value = 0;
-		m_prebuilt->table->autoinc_mutex.wr_unlock();
+		m_prebuilt->table->autoinc_mutex_unlock();
 		*nb_reserved_values= 0;
 		return;
 	}
@@ -16826,7 +16826,7 @@ ha_innobase::get_auto_increment(
 	m_prebuilt->autoinc_offset = offset;
 	m_prebuilt->autoinc_increment = increment;
 
-	m_prebuilt->table->autoinc_mutex.wr_unlock();
+	m_prebuilt->table->autoinc_mutex_unlock();
 }
 
 /*******************************************************************//**

@@ -5503,7 +5503,7 @@ static my_bool lock_validate_table_locks(void *el, void*)
 {
   rw_trx_hash_element_t *element= static_cast<rw_trx_hash_element_t*>(el);
   lock_sys.assert_locked();
-  element->mutex.wr_lock();
+  element->mutex_lock();
   if (element->trx)
   {
     check_trx_state(element->trx);
@@ -5513,7 +5513,7 @@ static my_bool lock_validate_table_locks(void *el, void*)
       if (lock->is_table())
         lock_table_queue_validate(lock->un_member.tab_lock.table);
   }
-  element->mutex.wr_unlock();
+  element->mutex_unlock();
   return 0;
 }
 
@@ -5713,7 +5713,7 @@ static my_bool lock_rec_other_trx_holds_expl_callback(void *el, void *a)
 {
   auto element= static_cast<rw_trx_hash_element_t*>(el);
   auto arg= static_cast<lock_rec_other_trx_holds_expl_arg*>(a);
-  element->mutex.wr_lock();
+  element->mutex_lock();
   if (element->trx)
   {
     element->trx->mutex_lock();
@@ -5729,7 +5729,7 @@ static my_bool lock_rec_other_trx_holds_expl_callback(void *el, void *a)
     ut_ad(!expl_lock || expl_lock->trx == &arg->impl_trx);
     element->trx->mutex_unlock();
   }
-  element->mutex.wr_unlock();
+  element->mutex_unlock();
   return 0;
 }
 
@@ -6537,7 +6537,7 @@ static my_bool lock_table_locks_lookup(void *el, void *t)
   auto element= static_cast<rw_trx_hash_element_t*>(el);
   const dict_table_t *table= static_cast<const dict_table_t*>(t);
   lock_sys.assert_locked();
-  element->mutex.wr_lock();
+  element->mutex_lock();
   if (element->trx)
   {
     element->trx->mutex_lock();
@@ -6561,7 +6561,7 @@ static my_bool lock_table_locks_lookup(void *el, void *t)
     }
     element->trx->mutex_unlock();
   }
-  element->mutex.wr_unlock();
+  element->mutex_unlock();
   return 0;
 }
 #endif /* UNIV_DEBUG */

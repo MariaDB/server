@@ -1509,7 +1509,7 @@ void trx_t::commit_cleanup()
   ut_ad(!dict_operation);
   ut_ad(!was_dict_operation);
 
-  mutex.wr_lock();
+  mutex.wr_lock<true>();
   state= TRX_STATE_NOT_STARTED;
   *detailed_error= '\0';
   mod_tables.clear();
@@ -2053,7 +2053,7 @@ static my_bool trx_recover_for_mysql_callback(rw_trx_hash_element_t *element,
   trx_recover_for_mysql_callback_arg *arg)
 {
   DBUG_ASSERT(arg->len > 0);
-  element->mutex.wr_lock();
+  element->mutex_lock();
   if (trx_t *trx= element->trx)
   {
     /*
@@ -2079,7 +2079,7 @@ static my_bool trx_recover_for_mysql_callback(rw_trx_hash_element_t *element,
       }
     }
   }
-  element->mutex.wr_unlock();
+  element->mutex_unlock();
   /* Do not terminate upon reaching arg->len; count all transactions */
   return false;
 }
@@ -2088,13 +2088,13 @@ static my_bool trx_recover_for_mysql_callback(rw_trx_hash_element_t *element,
 static my_bool trx_recover_reset_callback(void *el, void*)
 {
   rw_trx_hash_element_t *element= static_cast<rw_trx_hash_element_t*>(el);
-  element->mutex.wr_lock();
+  element->mutex_lock();
   if (trx_t *trx= element->trx)
   {
     if (trx_state_eq(trx, TRX_STATE_PREPARED_RECOVERED))
       trx->state= TRX_STATE_PREPARED;
   }
-  element->mutex.wr_unlock();
+  element->mutex_unlock();
   return false;
 }
 
@@ -2144,7 +2144,7 @@ static my_bool trx_get_trx_by_xid_callback(void *el, void *a)
   auto element= static_cast<rw_trx_hash_element_t*>(el);
   auto arg= static_cast<trx_get_trx_by_xid_callback_arg*>(a);
   my_bool found= 0;
-  element->mutex.wr_lock();
+  element->mutex_lock();
   if (trx_t *trx= element->trx)
   {
     trx->mutex_lock();
@@ -2166,7 +2166,7 @@ static my_bool trx_get_trx_by_xid_callback(void *el, void *a)
     }
     trx->mutex_unlock();
   }
-  element->mutex.wr_unlock();
+  element->mutex_unlock();
   return found;
 }
 

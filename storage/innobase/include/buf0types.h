@@ -220,11 +220,11 @@ public:
 #else
 class page_hash_latch
 {
-  srw_spin_mutex lk;
+  srw_mutex lk;
 public:
   void lock_shared() { lock(); }
   void unlock_shared() { unlock(); }
-  void lock() { lk.wr_lock(); }
+  void lock() { lk.wr_lock<true>(); }
   void unlock() { lk.wr_unlock(); }
   bool is_locked() const { return lk.is_locked(); }
   bool is_write_locked() const { return is_locked(); }

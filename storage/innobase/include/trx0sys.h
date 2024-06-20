@@ -333,12 +333,14 @@ struct rw_trx_hash_element_t
   rw_trx_hash_element_t()
   {
     memset(reinterpret_cast<void*>(this), 0, sizeof *this);
-    mutex.init();
+    mutex.init<false>();
   }
 
 
   ~rw_trx_hash_element_t() { mutex.destroy(); }
 
+  void mutex_lock() { mutex.wr_lock<false>(); }
+  void mutex_unlock() { mutex.wr_unlock(); }
 
   trx_id_t id; /* lf_hash_init() relies on this to be first in the struct */
 
@@ -350,6 +352,7 @@ struct rw_trx_hash_element_t
   */
   Atomic_counter<trx_id_t> no;
   trx_t *trx;
+private:
   srw_mutex mutex;
 };
 
@@ -520,10 +523,10 @@ class rw_trx_hash_t
   {
     rw_trx_hash_element_t *element= static_cast<rw_trx_hash_element_t*>(el);
     debug_iterator_arg *arg= static_cast<debug_iterator_arg*>(a);
-    element->mutex.wr_lock();
+    element->mutex_lock();
     if (element->trx)
       validate_element(element->trx);
-    element->mutex.wr_unlock();
+    element->mutex_unlock();
     ut_ad(element->id < element->no);
     return arg->action(element, arg->argument);
   }
@@ -631,7 +634,7 @@ public:
       If the element was removed before the mutex acquisition, element->trx
       will be equal to nullptr. */
       DEBUG_SYNC_C("before_trx_hash_find_element_mutex_enter");
-      element->mutex.wr_lock();
+      element->mutex_lock();
       /* element_trx can't point to reused object now. If transaction was
       deregistered before element->mutex acquisition, element->trx is nullptr.
       It can't be deregistered while element->mutex is held. */
@@ -666,7 +669,7 @@ public:
       /* element's lifetime is equal to the hash lifetime, that's why
       element->mutex is valid here despite the element is unpinned. In the
       worst case some thread will wait for element->mutex releasing. */
-      element->mutex.wr_unlock();
+      element->mutex_unlock();
     }
     if (!caller_trx)
       lf_hash_put_pins(pins);
@@ -700,9 +703,9 @@ public:
   void erase(trx_t *trx)
   {
     ut_d(validate_element(trx));
-    trx->rw_trx_hash_element->mutex.wr_lock();
+    trx->rw_trx_hash_element->mutex_lock();
     trx->rw_trx_hash_element->trx= nullptr;
-    trx->rw_trx_hash_element->mutex.wr_unlock();
+    trx->rw_trx_hash_element->mutex_unlock();
     int res= lf_hash_delete(&hash, get_pins(trx),
                             reinterpret_cast<const void*>(&trx->id),
                             sizeof(trx_id_t));
@@ -736,12 +739,12 @@ public:
     May return element with committed transaction. If caller doesn't like to
     see committed transactions, it has to skip those under element mutex:
 
-      element->mutex.wr_lock();
+      element->mutex_lock();
       if (trx_t trx= element->trx)
       {
         // trx is protected against commit in this branch
       }
-      element->mutex.wr_unlock();
+      element->mutex_unlock();
 
     May miss concurrently inserted transactions.
 

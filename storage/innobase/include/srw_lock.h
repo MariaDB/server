@@ -36,12 +36,11 @@ this program; if not, write to the Free Software Foundation, Inc.,
 
 #ifdef SUX_LOCK_GENERIC
 /** An exclusive-only variant of srw_lock */
-template<bool spinloop>
 class pthread_mutex_wrapper final
 {
   pthread_mutex_t lock;
 public:
-  void init()
+  template<bool spinloop=false> void init()
   {
     if (spinloop)
       pthread_mutex_init(&lock, MY_MUTEX_INIT_FAST);
@@ -50,24 +49,23 @@ public:
   }
   void destroy() { pthread_mutex_destroy(&lock); }
 # ifdef PTHREAD_ADAPTIVE_MUTEX_INITIALIZER_NP
-  void wr_lock() { pthread_mutex_lock(&lock); }
+  template<bool spinloop> void wr_lock() { pthread_mutex_lock(&lock); }
 # else
 private:
   void wr_wait();
 public:
-  inline void wr_lock();
+  template<bool spinloop> inline void wr_lock();
 # endif
   void wr_unlock() { pthread_mutex_unlock(&lock); }
   bool wr_lock_try() { return !pthread_mutex_trylock(&lock); }
 };
 
 # ifndef PTHREAD_ADAPTIVE_MUTEX_INITIALIZER_NP
-template<> void pthread_mutex_wrapper<true>::wr_wait();
 template<>
-inline void pthread_mutex_wrapper<false>::wr_lock()
+inline void pthread_mutex_wrapper::wr_lock<false>()
 { pthread_mutex_lock(&lock); }
 template<>
-inline void pthread_mutex_wrapper<true>::wr_lock()
+inline void pthread_mutex_wrapper::wr_lock<true>()
 { if (!wr_lock_try()) wr_wait(); }
 # endif
 #endif
@@ -75,10 +73,10 @@ inline void pthread_mutex_wrapper<true>::wr_lock()
 template<bool spinloop> class ssux_lock_impl;
 
 /** Futex-based mutex */
-template<bool spinloop>
 class srw_mutex_impl final
 {
-  friend ssux_lock_impl<spinloop>;
+  friend ssux_lock_impl<false>;
+  friend ssux_lock_impl<true>;
   /** The lock word, containing HOLDER + 1 if the lock is being held,
   plus the number of waiters */
   std::atomic<uint32_t> lock;
@@ -95,6 +93,7 @@ private:
 #endif
 
   /** Wait until the mutex has been acquired */
+  template<bool spinloop>
   void wait_and_lock();
   /** Wait for lock!=lk */
   inline void wait(uint32_t lk);
@@ -110,7 +109,7 @@ public:
   bool is_locked() const
   { return (lock.load(std::memory_order_acquire) & HOLDER) != 0; }
 
-  void init()
+  template<bool spinloop=false> void init()
   {
     DBUG_ASSERT(!is_locked_or_waiting());
 #ifdef SUX_LOCK_GENERIC
@@ -136,7 +135,8 @@ public:
                                         std::memory_order_relaxed);
   }
 
-  void wr_lock() { if (!wr_lock_try()) wait_and_lock(); }
+  template<bool spinloop>
+  void wr_lock() { if (!wr_lock_try()) wait_and_lock<spinloop>(); }
   void wr_unlock()
   {
     const uint32_t lk= lock.fetch_sub(HOLDER + 1, std::memory_order_release);
@@ -149,11 +149,9 @@ public:
 };
 
 #ifdef SUX_LOCK_GENERIC
-typedef pthread_mutex_wrapper<true> srw_spin_mutex;
-typedef pthread_mutex_wrapper<false> srw_mutex;
+typedef pthread_mutex_wrapper srw_mutex;
 #else
-typedef srw_mutex_impl<true> srw_spin_mutex;
-typedef srw_mutex_impl<false> srw_mutex;
+typedef srw_mutex_impl srw_mutex;
 #endif
 
 template<bool spinloop> class srw_lock_impl;
@@ -170,11 +168,14 @@ class ssux_lock_impl
   friend srw_lock_impl<spinloop>;
 # endif
 #endif
-  /** mutex for synchronization; held by U or X lock holders */
-  srw_mutex_impl<spinloop> writer;
 #ifdef SUX_LOCK_GENERIC
+  /** mutex for synchronization; held by U or X lock holders */
+  srw_mutex_impl writer;
   /** Condition variable for "readers"; used with writer.mutex. */
   pthread_cond_t readers_cond;
+#else
+  /** mutex for synchronization; held by U or X lock holders */
+  srw_mutex_impl writer;
 #endif
   /** S or U holders, and WRITER flag for X holder or waiter */
   std::atomic<uint32_t> readers;
@@ -248,13 +249,10 @@ public:
   }
 
   void rd_lock() { if (!rd_lock_try()) rd_wait(); }
-  void u_lock()
-  {
-    writer.wr_lock();
-  }
+  void u_lock() { writer.wr_lock<spinloop>(); }
   void wr_lock()
   {
-    writer.wr_lock();
+    writer.wr_lock<spinloop>();
 #if defined __i386__||defined __x86_64__||defined _M_IX86||defined _M_X64
     /* On IA-32 and AMD64, this type of fetch_or() can only be implemented
     as a loop around LOCK CMPXCHG. In this particular case, setting the

@@ -182,11 +182,14 @@ class ReadView: public ReadViewBase
   */
   trx_id_t m_creator_trx_id;
 
+  void lock() const { m_mutex.wr_lock<false>(); }
+  void unlock() const { m_mutex.wr_unlock(); }
+
 public:
   ReadView()
   {
     memset(reinterpret_cast<void*>(this), 0, sizeof *this);
-    m_mutex.init();
+    m_mutex.init<false>();
   }
   ~ReadView() { m_mutex.destroy(); }
 
@@ -235,12 +238,12 @@ public:
   */
   void print_limits(FILE *file) const
   {
-    m_mutex.wr_lock();
+    lock();
     if (is_open())
       fprintf(file, "Trx read view will not see trx with"
                     " id >= " TRX_ID_FMT ", sees < " TRX_ID_FMT "\n",
                     low_limit_id(), up_limit_id());
-    m_mutex.wr_unlock();
+    unlock();
   }
 
 
@@ -257,10 +260,10 @@ public:
   */
   void append_to(ReadViewBase *to) const
   {
-    m_mutex.wr_lock();
+    lock();
     if (is_open())
       to->append(*this);
-    m_mutex.wr_unlock();
+    unlock();
   }
 
   /**
