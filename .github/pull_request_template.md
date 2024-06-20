@@ -40,8 +40,8 @@ Tick one of the following boxes [x] to help us understand if the base branch for
 see [CODING_STANDARDS.md](https://github.com/MariaDB/server/blob/-/CODING_STANDARDS.md) for the latest versions.
 -->
 ## Basing the PR against the correct MariaDB version
-- [ ] *This is a new feature and the PR is based against the latest MariaDB development branch.*
-- [ ] *This is a bug fix and the PR is based against the earliest maintained branch in which the bug can be reproduced.*
+- [ ] *This is a new feature or a refactoring, and the PR is based against the latest MariaDB development branch.*
+- [ ] *This is a bug fix, and the PR is based against the earliest maintained branch in which the bug can be reproduced.*
 
 <!--
   All code merged into the MariaDB codebase must meet a quality standard and codying style.
