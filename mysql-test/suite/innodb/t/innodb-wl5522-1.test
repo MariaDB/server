@@ -960,6 +960,25 @@ ALTER TABLE t1 IMPORT TABLESPACE;
 DROP TABLE t1;
 --remove_file $MYSQLTEST_VARDIR/tmp/t1.ibd
 
---echo #
 --echo # End of 10.3 tests
+
 --echo #
+--echo # MDEV-29972 crash after "Unsupported meta-data version number"
+--echo #
+
+call mtr.add_suppression("Index for table 't2' is corrupt");
+
+CREATE TABLE t2 (i INT PRIMARY KEY) ENGINE=InnoDB;
+ALTER TABLE t2 DISCARD TABLESPACE;
+--copy_file std_data/mysql80/t2.cfg $MYSQLD_DATADIR/test/t2.cfg
+--copy_file std_data/mysql80/t2.ibd $MYSQLD_DATADIR/test/t2.ibd
+--error ER_NOT_SUPPORTED_YET
+ALTER TABLE t2 IMPORT TABLESPACE;
+--remove_file $MYSQLD_DATADIR/test/t2.cfg
+--error ER_NOT_KEYFILE
+ALTER TABLE t2 IMPORT TABLESPACE;
+--error ER_TABLESPACE_DISCARDED
+SELECT * FROM t2;
+DROP TABLE t2;
+
+--echo # End of 10.4 tests

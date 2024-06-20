@@ -623,7 +623,7 @@ fail:
       on the page, we do not acquire an s-latch on the page, this is to
       prevent deadlocks. The hash_lock is only protecting the
       buf_pool.page_hash for page i, not the bpage contents itself. */
-      if (!bpage)
+      if (!bpage || buf_pool.watch_is_sentinel(*bpage))
       {
 hard_fail:
         hash_lock->read_unlock();
@@ -643,6 +643,12 @@ hard_fail:
 
       uint32_t prev= mach_read_from_4(my_assume_aligned<4>(f + FIL_PAGE_PREV));
       uint32_t next= mach_read_from_4(my_assume_aligned<4>(f + FIL_PAGE_NEXT));
+      /* The underlying file page of this buffer pool page could actually
+      be marked as freed, or a read of the page into the buffer pool might
+      be in progress. We may read uninitialized data here.
+      Suppress warnings of comparing uninitialized values. */
+      MEM_MAKE_DEFINED(&prev, sizeof prev);
+      MEM_MAKE_DEFINED(&next, sizeof next);
       if (prev == FIL_NULL || next == FIL_NULL)
         goto hard_fail;
       page_id_t id= page_id;

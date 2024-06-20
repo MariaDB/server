@@ -18,14 +18,9 @@
 #include <my_global.h>
 #include "mysql_version.h"
 #include "spd_environ.h"
-#if MYSQL_VERSION_ID < 50500
-#include "mysql_priv.h"
-#include <mysql/plugin.h>
-#else
 #include "sql_priv.h"
 #include "probes_mysql.h"
 #include "sql_class.h"
-#endif
 #include "sql_common.h"
 #include <mysql.h>
 #include <errmsg.h>
@@ -69,22 +64,6 @@ spider_db_conn::spider_db_conn(
   DBUG_ENTER("spider_db_conn::spider_db_conn");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_VOID_RETURN;
-}
-
-bool spider_db_conn::set_loop_check_in_bulk_sql()
-{
-  DBUG_ENTER("spider_db_conn::set_loop_check_in_bulk_sql");
-  DBUG_PRINT("info",("spider this=%p", this));
-  DBUG_RETURN(FALSE);
-}
-
-int spider_db_conn::set_loop_check(
-  int *need_mon
-) {
-  DBUG_ENTER("spider_db_conn::set_loop_check");
-  DBUG_PRINT("info",("spider this=%p", this));
-  /* nothing to do */
-  DBUG_RETURN(0);
 }
 
 int spider_db_conn::fin_loop_check()

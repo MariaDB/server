@@ -771,7 +771,15 @@ static bool pack_vcols(THD *thd, String *buf, List<Create_field> &create_fields,
                           ? VCOL_GENERATED_STORED : VCOL_GENERATED_VIRTUAL))
         return 1;
     if (field->has_default_expression() && !field->has_default_now_unireg_check())
-      if (pack_expression(buf, field->default_value, field_nr, VCOL_DEFAULT))
+      if (pack_expression(buf, field->default_value, field_nr, VCOL_DEFAULT) ||
+          /*
+            field->has_default_expression() can return error (e.g. because
+            the method Item_param::basic_const_item invokes
+              invalid_default_param()
+            in case either DEFAULT_VALUE or IGNORE_VALUE is handled).
+            Take this fact into account and return error in this case.
+          */
+          thd->is_error())
         return 1;
     if (field->check_constraint)
       if (pack_expression(buf, field->check_constraint, field_nr,

@@ -83,7 +83,7 @@ static inline ulonglong uint6korr(const void *p)
 #define HAVE_mi_uint5korr
 #define HAVE_mi_uint6korr
 #define HAVE_mi_uint7korr
-#define HAVE_mi_uint78orr
+#define HAVE_mi_uint8korr
 
 /* Read numbers stored in high-bytes-first order */
 

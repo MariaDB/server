@@ -66,9 +66,10 @@ inline bool fil_is_user_tablespace_id(ulint space_id)
 }
 
 /** Try to close a file to adhere to the innodb_open_files limit.
+@param ignore_space Ignore the tablespace which is acquired by caller
 @param print_info   whether to diagnose why a file cannot be closed
 @return whether a file was closed */
-bool fil_space_t::try_to_close(bool print_info)
+bool fil_space_t::try_to_close(fil_space_t *ignore_space, bool print_info)
 {
   ut_ad(mutex_own(&fil_system.mutex));
   for (fil_space_t *space= UT_LIST_GET_FIRST(fil_system.space_list); space;
@@ -80,7 +81,8 @@ bool fil_space_t::try_to_close(bool print_info)
     case FIL_TYPE_IMPORT:
       break;
     case FIL_TYPE_TABLESPACE:
-      if (!fil_is_user_tablespace_id(space->id))
+      if (space == ignore_space
+          || !fil_is_user_tablespace_id(space->id))
         continue;
     }
 
@@ -354,7 +356,7 @@ fil_node_t* fil_space_t::add(const char* name, pfs_os_file_t handle,
 		n_pending.fetch_and(~CLOSING, std::memory_order_relaxed);
 		if (++fil_system.n_open >= srv_max_n_open_files) {
 			reacquire();
-			try_to_close(true);
+			try_to_close(this, true);
 			release();
 		}
 	}
@@ -405,7 +407,7 @@ static bool fil_node_open_file_low(fil_node_t *node)
 
     /* The following call prints an error message */
     if (os_file_get_last_error(true) == EMFILE + 100 &&
-        fil_space_t::try_to_close(true))
+        fil_space_t::try_to_close(nullptr, true))
       continue;
 
     ib::warn() << "Cannot open '" << node->name << "'.";
@@ -449,7 +451,7 @@ static bool fil_node_open_file(fil_node_t *node)
 
   for (ulint count= 0; fil_system.n_open >= srv_max_n_open_files; count++)
   {
-    if (fil_space_t::try_to_close(count > 1))
+    if (fil_space_t::try_to_close(nullptr, count > 1))
       count= 0;
     else if (count >= 2)
     {
@@ -1959,24 +1961,20 @@ Allocates and builds a file name from a path, a table or tablespace name
 and a suffix. The string must be freed by caller with ut_free().
 @param[in] path NULL or the directory path or the full path and filename.
 @param[in] name NULL if path is full, or Table/Tablespace name
-@param[in] suffix NULL or the file extention to use.
+@param[in] extension NULL or the file extension to use.
 @param[in] trim_name true if the last name on the path should be trimmed.
 @return own: file name */
 char*
-fil_make_filepath(
+fil_make_filepath_low(
 	const char*	path,
 	const char*	name,
-	ib_extention	ext,
+	ib_extention	extension,
 	bool		trim_name)
 {
 	/* The path may contain the basename of the file, if so we do not
 	need the name.  If the path is NULL, we can use the default path,
 	but there needs to be a name. */
 	ut_ad(path != NULL || name != NULL);
-
-	/* If we are going to strip a name off the path, there better be a
-	path and a new name to put back on. */
-	ut_ad(!trim_name || (path != NULL && name != NULL));
 
 	if (path == NULL) {
 		path = fil_path_to_mysql_datadir;
@@ -1985,7 +1983,7 @@ fil_make_filepath(
 	ulint	len		= 0;	/* current length */
 	ulint	path_len	= strlen(path);
 	ulint	name_len	= (name ? strlen(name) : 0);
-	const char* suffix	= dot_ext[ext];
+	const char* suffix	= dot_ext[extension];
 	ulint	suffix_len	= strlen(suffix);
 	ulint	full_len	= path_len + 1 + name_len + suffix_len + 1;
 
@@ -2083,6 +2081,21 @@ fil_rename_tablespace_check(
 	}
 
 	exists = false;
+	auto schema_path= fil_make_dirpath(new_path, NULL, NO_EXT, true);
+	if (schema_path == NULL) {
+		return DB_ERROR;
+	}
+
+	if (os_file_status(schema_path, &exists, &ftype) && !exists) {
+		sql_print_error("InnoDB: Cannot rename '%s' to '%s'"
+				" because the target schema directory doesn't exist.",
+				old_path, new_path);
+		ut_free(schema_path);
+		return DB_ERROR;
+	}
+	ut_free(schema_path);
+	exists = false;
+
 	if (os_file_status(new_path, &exists, &ftype) && !exists) {
 		return DB_SUCCESS;
 	}

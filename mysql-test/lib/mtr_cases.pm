@@ -398,7 +398,8 @@ sub collect_suite_name($$)
     {
       my @dirs = my_find_dir(dirname($::glob_mysql_test_dir),
                              ["mysql-test/suite", @plugin_suitedirs ],
-                             $suitename);
+                             $suitename,
+                             $::opt_skip_not_found ? NOT_REQUIRED : undef);
       #
       # if $suitename contained wildcards, we'll have many suites and
       # their overlays here. Let's group them appropriately.
@@ -892,6 +893,12 @@ sub collect_one_test_case {
   }
   my @no_combs = grep { $test_combs{$_} == 1 } keys %test_combs;
   if (@no_combs) {
+    if ($::opt_skip_not_found) {
+      push @{$tinfo->{combinations}}, @no_combs;
+      $tinfo->{'skip'}= 1;
+      $tinfo->{'comment'}= "combination not found";
+      return $tinfo;
+    }
     mtr_error("Could not run $name with '".(
         join(',', sort @no_combs))."' combination(s)");
   }

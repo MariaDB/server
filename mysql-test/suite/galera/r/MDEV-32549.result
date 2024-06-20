@@ -1,0 +1,24 @@
+connection node_2;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) engine=innodb;
+CREATE TABLE t2 (f1 INTEGER PRIMARY KEY) engine=aria;
+START TRANSACTION;
+INSERT INTO t1 VALUES (1);
+SELECT * FROM t2;
+f1
+SAVEPOINT s1;
+ERROR 42000: The storage engine for the table doesn't support SAVEPOINT
+INSERT INTO t1 VALUES (2);
+COMMIT;
+connection node_1;
+SELECT * FROM t1;
+f1
+1
+2
+connection node_2;
+SELECT * FROM t1;
+f1
+1
+2
+connection node_1;
+DROP TABLE t1,t2;

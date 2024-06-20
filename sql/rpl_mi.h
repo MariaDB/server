@@ -210,6 +210,16 @@ class Master_info : public Slave_reporting_capability
   void lock_slave_threads();
   void unlock_slave_threads();
 
+  ulonglong get_slave_skip_counter()
+  {
+    return rli.slave_skip_counter;
+  }
+
+  ulonglong get_max_relay_log_size()
+  {
+    return rli.max_relay_log_size;
+  }
+
   /* the variables below are needed because we can change masters on the fly */
   char master_log_name[FN_REFLEN+6]; /* Room for multi-*/
   char host[HOSTNAME_LENGTH*SYSTEM_CHARSET_MBMAXLEN+1];

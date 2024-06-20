@@ -12,9 +12,9 @@
 # START TRANSACTION;
 # $mw_369_parent_query
 # node_2
-# $mw_369_child_query - will be blocked on node_1 in apply monitor
+# $mw_369_child_query - will be blocked on node_1 in wsrep_apply_cb
 # node_1:
-# COMMIT;             - will be blocked on node_1 in local monitor
+# COMMIT;             - will be blocked on node_1 in wsrep_after_certification
 #
 # The $mw_369_child_query is always expected to succeed. The caller is
 # responsible for checking if the final COMMIT on connection node_1
@@ -32,8 +32,7 @@ START TRANSACTION;
 # --connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
 --connection node_1a
 SET SESSION wsrep_sync_wait = 0;
---let $galera_sync_point = apply_monitor_slave_enter_sync
---source include/galera_set_sync_point.inc
+SET GLOBAL DEBUG_DBUG = "d,sync.wsrep_apply_cb";
 
 #
 # insert client row, which will make it impossible to replay the
@@ -47,28 +46,37 @@ SET SESSION wsrep_sync_wait = 0;
 # block the 'COMMIT' from node_1 before it certifies.
 #
 --connection node_1a
---source include/galera_wait_sync_point.inc
---source include/galera_clear_sync_point.inc
-
---let $galera_sync_point = local_monitor_master_enter_sync
---source include/galera_set_sync_point.inc
+SET SESSION DEBUG_SYNC = "now WAIT_FOR sync.wsrep_apply_cb_reached";
 
 --connection node_1
+SET DEBUG_SYNC = "wsrep_after_certification SIGNAL after_certification_reached WAIT_FOR continue_after_certification";
 --send COMMIT
 
 #
 # Wait until both sync points have been reached
 #
 --connection node_1a
---let $galera_sync_point = apply_monitor_slave_enter_sync local_monitor_master_enter_sync
---source include/galera_wait_sync_point.inc
+SET SESSION DEBUG_SYNC = "now WAIT_FOR after_certification_reached";
 
 #
 # both threads are now parked in sync points, signal them to continue
 #
---let $galera_sync_point = apply_monitor_slave_enter_sync
---source include/galera_signal_sync_point.inc
 
---let $galera_sync_point = local_monitor_master_enter_sync
---source include/galera_signal_sync_point.inc
---source include/galera_clear_sync_point.inc
+--let $wait_condition = SELECT COUNT(*) = 2 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE LIKE 'debug sync point:%'
+--let $wait_condition_on_error_output = SELECT STATE FROM INFORMATION_SCHEMA.PROCESSLIST
+--source include/wait_condition_with_debug.inc
+
+SET DEBUG_SYNC = 'now SIGNAL continue_after_certification';
+
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE LIKE 'debug sync point:%'
+--let $wait_condition_on_error_output = SELECT STATE FROM INFORMATION_SCHEMA.PROCESSLIST
+--source include/wait_condition_with_debug.inc
+
+SET DEBUG_SYNC = 'now SIGNAL signal.wsrep_apply_cb';
+
+--let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE LIKE 'debug sync point:%'
+--let $wait_condition_on_error_output = SELECT STATE FROM INFORMATION_SCHEMA.PROCESSLIST
+--source include/wait_condition_with_debug.inc
+
+SET GLOBAL DEBUG_DBUG = "";
+SET DEBUG_SYNC = 'RESET';

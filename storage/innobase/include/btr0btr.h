@@ -372,13 +372,16 @@ btr_read_autoinc(dict_index_t* index)
 
 /** Read the last used AUTO_INCREMENT value from PAGE_ROOT_AUTO_INC,
 or fall back to MAX(auto_increment_column).
-@param[in]	table	table containing an AUTO_INCREMENT column
-@param[in]	col_no	index of the AUTO_INCREMENT column
-@return	the AUTO_INCREMENT value
-@retval	0 on error or if no AUTO_INCREMENT value was used yet */
-ib_uint64_t
-btr_read_autoinc_with_fallback(const dict_table_t* table, unsigned col_no)
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
+@param table          table containing an AUTO_INCREMENT column
+@param col_no         index of the AUTO_INCREMENT column
+@param mysql_version  TABLE_SHARE::mysql_version
+@param max            the maximum value of the AUTO_INCREMENT column
+@return the AUTO_INCREMENT value
+@retval 0 on error or if no AUTO_INCREMENT value was used yet */
+uint64_t btr_read_autoinc_with_fallback(const dict_table_t *table,
+                                        unsigned col_no, ulong mysql_version,
+                                        uint64_t max)
+  MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /** Write the next available AUTO_INCREMENT value to PAGE_ROOT_AUTO_INC.
 @param[in,out]	index	clustered index

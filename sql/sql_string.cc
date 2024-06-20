@@ -1126,25 +1126,44 @@ bool String::append_for_single_quote(const char *st, size_t len)
   int chlen;
   for (; st < end; st++)
   {
-    switch (*st)
+    char ch2= (char) (uchar) escaped_wc_for_single_quote((uchar) *st);
+    if (ch2)
     {
-    case '\\':   APPEND(STRING_WITH_LEN("\\\\")); break;
-    case '\0':   APPEND(STRING_WITH_LEN("\\0")); break;
-    case '\'':   APPEND(STRING_WITH_LEN("\\'")); break;
-    case '\n':   APPEND(STRING_WITH_LEN("\\n")); break;
-    case '\r':   APPEND(STRING_WITH_LEN("\\r")); break;
-    case '\032': APPEND(STRING_WITH_LEN("\\Z")); break;
-    default:     if ((chlen=charset()->charlen(st, end)) > 0)
-                 {
-                   APPEND(st, chlen);
-                   st+= chlen-1;
-                 }
-                 else
-                   APPEND(*st);
+      if (append('\\') || append(ch2))
+        return true;
+      continue;
     }
+    if ((chlen= charset()->charlen(st, end)) > 0)
+    {
+     APPEND(st, chlen);
+      st+= chlen-1;
+    }
+    else
+      APPEND(*st);
   }
   return 0;
 }
+
+
+bool String::append_for_single_quote_using_mb_wc(const char *src,
+                                                 size_t length,
+                                                 CHARSET_INFO *cs)
+{
+  DBUG_ASSERT(&my_charset_bin != charset());
+  DBUG_ASSERT(&my_charset_bin != cs);
+  const uchar *str= (const uchar *) src;
+  const uchar *end= (const uchar *) src + length;
+  int chlen;
+  my_wc_t wc;
+  for ( ; (chlen= cs->cset->mb_wc(cs, &wc, str, end)) > 0; str+= chlen)
+  {
+    my_wc_t wc2= escaped_wc_for_single_quote(wc);
+    if (wc2 ? (append_wc('\\') || append_wc(wc2)) : append_wc(wc))
+      return true;
+  }
+  return false;
+}
+
 
 void String::print(String *str) const
 {

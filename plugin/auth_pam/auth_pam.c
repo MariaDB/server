@@ -21,9 +21,9 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <spawn.h>
+#include <my_global.h>
 #include <mysql/plugin_auth.h>
 #include "auth_pam_tool.h"
-#include <my_global.h>
 
 #ifndef DBUG_OFF
 static char pam_debug = 0;

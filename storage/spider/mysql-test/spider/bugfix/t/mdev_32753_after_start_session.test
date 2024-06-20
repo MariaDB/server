@@ -1,0 +1,22 @@
+--echo #
+--echo # MDEV-32753 Spider engine does not load in ORACLE mode
+--echo #
+
+# This test tests spider init after startup under session ORACLE mode
+set @old_sql_mode=@@sql_mode;
+SET @@sql_mode = CONCAT(@@sql_mode, ',ORACLE');
+install soname 'ha_spider';
+select * from mysql.plugin;
+create table t (c int) Engine=SPIDER;
+drop table t;
+set sql_mode=@old_sql_mode;
+
+--disable_query_log
+--disable_result_log
+--source ../../include/clean_up_spider.inc
+--enable_result_log
+--enable_query_log
+
+--echo #
+--echo # end of test mdev_32753_after_start
+--echo #

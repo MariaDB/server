@@ -96,9 +96,10 @@
 # Remove whitespace from $rpl_topology
 --let $rpl_topology= `SELECT REPLACE('$rpl_topology', ' ', '')`
 
+--source include/slow_environ.inc
+
 --let $include_filename= rpl_change_topology.inc [new topology=$rpl_topology]
 --source include/begin_include_file.inc
-
 
 if ($rpl_debug)
 {
@@ -233,7 +234,7 @@ if (!$rpl_skip_change_master)
           --echo "\$rpl_master_log_pos parameter not set for the master: $_rpl_master. Set log position to empty."
         }
       }
-      eval CHANGE MASTER TO MASTER_HOST = '127.0.0.1', MASTER_PORT = $_rpl_port, MASTER_USER = 'root', MASTER_LOG_FILE = '$_rpl_master_log_file'$_rpl_master_log_pos, MASTER_CONNECT_RETRY = 1;
+      eval CHANGE MASTER TO MASTER_HOST = '127.0.0.1', MASTER_PORT = $_rpl_port, MASTER_USER = 'root', MASTER_LOG_FILE = '$_rpl_master_log_file'$_rpl_master_log_pos, MASTER_CONNECT_RETRY = 1$_timeout_adjustment;
     }
     if ($_rpl_master == '')
     {

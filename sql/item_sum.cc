@@ -177,7 +177,11 @@ bool Item_sum::check_sum_func(THD *thd, Item **ref)
   }
 
   if (window_func_sum_expr_flag)
+  {
+    thd->lex->in_sum_func= in_sum_func;
     return false;
+  }
+
   /*  
     The value of max_arg_level is updated if an argument of the set function
     contains a column reference resolved  against a subquery whose level is
@@ -1205,6 +1209,21 @@ bool Item_sum_hybrid::fix_length_and_dec_numeric(const Type_handler *handler)
 }
 
 
+bool Item_sum_hybrid::fix_length_and_dec_sint_ge0()
+{
+  // We don't have Item_field's of "ge0" type handlers.
+  DBUG_ASSERT(args[0]->real_item()->type() != FIELD_ITEM);
+  Type_std_attributes::set(args[0]);
+  /*
+    We're converting from e.g. slong_ge0 to slonglong
+    and need to add one extra character for the sign.
+  */
+  max_length++;
+  set_handler(&type_handler_slonglong);
+  return false;
+}
+
+
 /**
    MAX(str_field) converts ENUM/SET to CHAR, and preserve all other types
    for Fields.
@@ -1277,9 +1296,14 @@ void Item_sum_min_max::setup_hybrid(THD *thd, Item *item, Item *value_arg)
   /* Don't cache value, as it will change */
   if (!item->const_item())
     arg_cache->set_used_tables(RAND_TABLE_BIT);
-  cmp= new Arg_comparator();
+  DBUG_ASSERT(item->type_handler_for_comparison() ==
+              value->type_handler_for_comparison());
+  DBUG_ASSERT(item->type_handler_for_comparison() ==
+              arg_cache->type_handler_for_comparison());
+  cmp= new (thd->mem_root) Arg_comparator();
   if (cmp)
-    cmp->set_cmp_func(this, (Item**)&arg_cache, (Item**)&value, FALSE);
+    cmp->set_cmp_func(thd, this, item->type_handler_for_comparison(),
+                      (Item**)&arg_cache, (Item**)&value, FALSE);
   DBUG_VOID_RETURN;
 }
 
@@ -4036,6 +4060,7 @@ void Item_func_group_concat::cleanup()
         unique_filter= NULL;
       }
     }
+    row_count= 0;
     DBUG_ASSERT(tree == 0);
   }
   /*
@@ -4266,8 +4291,14 @@ Item_func_group_concat::fix_fields(THD *thd, Item **ref)
     char *buf;
     String *new_separator;
 
-    if (!(buf= (char*) thd->stmt_arena->alloc(buflen)) ||
-        !(new_separator= new(thd->stmt_arena->mem_root)
+    DBUG_ASSERT(thd->active_stmt_arena_to_use()->
+                  is_stmt_prepare_or_first_stmt_execute() ||
+                thd->active_stmt_arena_to_use()->
+                  is_conventional() ||
+                thd->active_stmt_arena_to_use()->state ==
+                  Query_arena::STMT_SP_QUERY_ARGUMENTS);
+    if (!(buf= (char*) thd->active_stmt_arena_to_use()->alloc(buflen)) ||
+        !(new_separator= new(thd->active_stmt_arena_to_use()->mem_root)
                            String(buf, buflen, collation.collation)))
       return TRUE;
     
@@ -4560,7 +4591,7 @@ void Item_func_group_concat::print(String *str, enum_query_type query_type)
   if (sum_func() == GROUP_CONCAT_FUNC)
   {
     str->append(STRING_WITH_LEN(" separator \'"));
-    str->append_for_single_quote(separator->ptr(), separator->length());
+    str->append_for_single_quote_opt_convert(*separator);
     str->append(STRING_WITH_LEN("\'"));
   }
 

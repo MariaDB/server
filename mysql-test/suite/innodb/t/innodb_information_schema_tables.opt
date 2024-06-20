@@ -27,3 +27,4 @@
 --loose-innodb_buffer_pool_pages
 --loose-innodb_buffer_pool_pages_index
 --loose-innodb_buffer_pool_pages_blob
+--innodb-open-files=1000000

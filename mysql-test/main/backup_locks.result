@@ -23,7 +23,7 @@ BACKUP UNLOCK;
 #
 connect  con1,localhost,root,,;
 connection default;
-create table t1 (a int) engine=innodb;
+create table t1 (a int) stats_persistent=0,engine=innodb;
 insert into t1 values (1);
 backup lock t1;
 select * from t1;
@@ -32,7 +32,7 @@ a
 connection con1;
 drop table t1;
 connection default;
-SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info where table_name not like "innodb_%";
 LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
 MDL_SHARED_HIGH_PRIO	Table metadata lock	test	t1
 MDL_INTENTION_EXCLUSIVE	Schema metadata lock	test	
@@ -183,6 +183,83 @@ DROP TABLE t3;
 ERROR HY000: Can't execute the query because you have a conflicting read lock
 BACKUP UNLOCK;
 DROP TABLE t3;
+#
+#  MDEV-28367: BACKUP LOCKS on table to be accessible to those
+#              with database LOCK TABLES privileges
+#
+create database db1;
+create table db1.t1(t int);
+create user user1@localhost;
+select user,host from mysql.user where user='user1';
+User	Host
+user1	localhost
+connect(localhost,user1,,db1,MASTER_PORT,MASTER_SOCKET);
+connect  con1, localhost, user1, ,db1;
+ERROR 42000: Access denied for user 'user1'@'localhost' to database 'db1'
+grant reload on *.* to user1@localhost;
+grant select on db1.* to user1@localhost;
+show grants for user1@localhost;
+Grants for user1@localhost
+GRANT RELOAD ON *.* TO `user1`@`localhost`
+GRANT SELECT ON `db1`.* TO `user1`@`localhost`
+connect  con1, localhost, user1, ,db1;
+BACKUP UNLOCK;
+BACKUP LOCK db1.t1;
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info where table_name not like "innodb_%";
+LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
+MDL_SHARED_HIGH_PRIO	Table metadata lock	db1	t1
+BACKUP UNLOCK;
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info where table_name not like "innodb_%";
+LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
+connection default;
+disconnect con1;
+grant lock tables on db1.* to user1@localhost;
+show grants for user1@localhost;
+Grants for user1@localhost
+GRANT RELOAD ON *.* TO `user1`@`localhost`
+GRANT SELECT, LOCK TABLES ON `db1`.* TO `user1`@`localhost`
+connect  con1, localhost, user1, ,db1;
+BACKUP UNLOCK;
+BACKUP LOCK db1.t1;
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info where table_name not like "innodb_%";
+LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
+MDL_SHARED_HIGH_PRIO	Table metadata lock	db1	t1
+BACKUP UNLOCK;
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info where table_name not like "innodb_%";
+LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
+connection default;
+disconnect con1;
+revoke reload on *.* from user1@localhost;
+show grants for user1@localhost;
+Grants for user1@localhost
+GRANT USAGE ON *.* TO `user1`@`localhost`
+GRANT SELECT, LOCK TABLES ON `db1`.* TO `user1`@`localhost`
+connect  con1, localhost, user1, ,db1;
+BACKUP UNLOCK;
+ERROR 42000: Access denied; you need (at least one of) the RELOAD, LOCK TABLES privilege(s) for this operation
+BACKUP LOCK db1.t1;
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info where table_name not like "innodb_%";
+LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
+MDL_SHARED_HIGH_PRIO	Table metadata lock	db1	t1
+BACKUP UNLOCK;
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info where table_name not like "innodb_%";
+LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
+connection default;
+disconnect con1;
+revoke lock tables on db1.* from user1@localhost;
+show grants for user1@localhost;
+Grants for user1@localhost
+GRANT USAGE ON *.* TO `user1`@`localhost`
+GRANT SELECT ON `db1`.* TO `user1`@`localhost`
+connect  con1, localhost, user1, ,db1;
+BACKUP LOCK db1.t1;
+ERROR 42000: Access denied; you need (at least one of) the RELOAD, LOCK TABLES privilege(s) for this operation
+BACKUP UNLOCK;
+ERROR 42000: Access denied; you need (at least one of) the RELOAD, LOCK TABLES privilege(s) for this operation
+connection default;
+disconnect con1;
+drop database db1;
+drop user user1@localhost;
 #
 # End of MariaDB 10.4 tests
 #

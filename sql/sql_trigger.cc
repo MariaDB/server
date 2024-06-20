@@ -446,7 +446,7 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
   /*
     We don't allow creating triggers on tables in the 'mysql' schema
   */
-  if (create && lex_string_eq(&tables->db, STRING_WITH_LEN("mysql")))
+  if (create && Lex_ident_db(tables->db).streq(MYSQL_SCHEMA_NAME))
   {
     my_error(ER_NO_TRIGGERS_ON_SYSTEM_SCHEMA, MYF(0));
     DBUG_RETURN(TRUE);
@@ -2346,7 +2346,8 @@ add_tables_and_routines_for_triggers(THD *thd,
 
           MDL_key key(MDL_key::TRIGGER, trigger->m_db.str, trigger->m_name.str);
 
-          if (sp_add_used_routine(prelocking_ctx, thd->stmt_arena,
+          if (sp_add_used_routine(prelocking_ctx,
+                                  thd->active_stmt_arena_to_use(),
                                   &key, &sp_handler_trigger,
                                   table_list->belong_to_view))
           {

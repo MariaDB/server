@@ -265,6 +265,30 @@ SET GLOBAL slave_parallel_mode=@old_mode;
 --source include/start_slave.inc
 
 
+--echo *** MDEV33426: Memory allocation accounting incorrect for replicated temptable
+--connection server_1
+CREATE TEMPORARY TABLE t5 (a int) ENGINE=Aria;
+CREATE TEMPORARY TABLE t6 (a int) ENGINE=Heap;
+INSERT INTO t5 VALUES (1);
+INSERT INTO t6 VALUES (2);
+--save_master_pos
+
+--connection server_2
+--sync_with_master
+--source include/stop_slave.inc
+
+--connection server_1
+INSERT INTO t1 SELECT a+40, 5 FROM t5;
+INSERT INTO t1 SELECT a+40, 6 FROM t6;
+DROP TABLE t5, t6;
+
+--save_master_pos
+
+--connection server_2
+--source include/start_slave.inc
+--sync_with_master
+SELECT * FROM t1 WHERE a>=40 ORDER BY a;
+
 # Clean up.
 
 --connection server_2

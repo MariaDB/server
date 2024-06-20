@@ -2759,4 +2759,112 @@ deallocate prepare stmt;
 drop view v;
 drop table t1,t2,t3;
 
+--echo #
+--echo # MDEV-32829 Crash when executing PS for query with eliminated subquery
+--echo #   using view
+--echo #
+
+create view v1 as select 1 as a;
+prepare stmt from
+  'SELECT EXISTS (SELECT 1 FROM v1 GROUP BY a IN (SELECT a FROM v1))';
+execute stmt;
+drop view v1;
+
+create table t1 (a int, b int);
+insert into t1 values (1,2),(3,4),(5,6);
+create view v1 as select * from t1;
+create table t2 select * from t1;
+
+let $q=
+select t2.a from t2 where exists
+(
+  select * from t1 where t2.b = t1.b and t1.b != 6
+  group by a in (select a from v1 where v1.a = t2.a)
+);
+
+eval prepare stmt from "$q";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+eval create procedure aproc() $q;
+call aproc();
+call aproc();
+
+drop table t1, t2;
+drop view v1;
+drop procedure aproc;
+
+--echo #
+--echo # MDEV-31305: Aggregation over materialized derived table
+--echo #
+
+--source include/have_sequence.inc
+
+CREATE VIEW v AS
+  SELECT seq1.seq AS dim1, seq2.seq AS dim2, seq3.seq AS dim3,
+         FLOOR(RAND(13) * 5) AS p
+    FROM seq_100_to_105 seq1
+         JOIN seq_10_to_15 seq2
+         JOIN seq_1_to_5 seq3;
+
+SELECT v.*, SUM(p) from v;
+
+SELECT d.*, SUM(p)
+  FROM (
+  SELECT seq1.seq AS dim1, seq2.seq AS dim2, seq3.seq AS dim3,
+         FLOOR(RAND(13) * 5) AS p
+    FROM seq_100_to_105 seq1
+         JOIN seq_10_to_15 seq2
+         JOIN seq_1_to_5 seq3
+) d;
+
+WITH demo AS
+(
+  SELECT seq1.seq AS dim1, seq2.seq AS dim2, seq3.seq AS dim3,
+         FLOOR(RAND(13) * 5) AS p
+    FROM seq_100_to_105 seq1
+         JOIN seq_10_to_15 seq2
+         JOIN seq_1_to_5 seq3
+)
+SELECT d.*, SUM(p) FROM demo d;
+
+DROP VIEW v;
+
 --echo # End of 10.4 tests
+
+--echo #
+--echo # MDEV-31277: 2-nd execution of PS to select from materialized view
+--echo #             specified as left join whose inner table is mergeable
+--echo #             derived containing a constant column
+--echo #
+
+create table t1 (
+  Election int(10) unsigned NOT NULL
+) engine=MyISAM;
+
+insert into t1 (Election) values (1), (4);
+
+create table t2 (
+  VoteID int(10),
+  ElectionID int(10),
+  UserID int(10)
+);
+
+insert into t2 (ElectionID, UserID) values (2,  30), (3, 30);
+create view v1 as select * from t1
+  left join ( select 'Y' AS Voted, ElectionID from t2 ) AS T
+    on T.ElectionID = t1.Election
+limit 9;
+
+prepare stmt1 from "select * from v1";
+
+execute stmt1;
+execute stmt1;
+
+deallocate prepare stmt1;
+
+drop view v1;
+drop table t1, t2;
+
+--echo # End of 10.5 tests

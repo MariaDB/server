@@ -1,0 +1,109 @@
+--source include/have_innodb.inc
+--source include/have_binlog_format_mixed.inc
+
+--let $rpl_topology=1->2->3
+--source include/rpl_init.inc
+
+--echo *** Test GTID master switch in a topology with filtered events.
+--echo *** With --gtid-ignore-duplicate and --gtid-strict-mode, should allow
+--echo *** GTID connect at a GTID position that is filtered on the new master.
+
+--connection server_1
+
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1,1);
+CREATE TABLE t3 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t3 VALUES (1,1);
+INSERT INTO t1 VALUES (2,1);
+INSERT INTO t3 VALUES (2,1);
+--source include/save_master_gtid.inc
+
+--connection server_2
+CREATE TABLE t2 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (1,2);
+
+--let $slave_timeout= 10
+--source include/sync_with_master_gtid.inc
+--source include/save_master_gtid.inc
+
+--connection server_3
+--source include/sync_with_master_gtid.inc
+
+--echo *** Promote 3 as new master, demote 2 as slave of 3.
+--echo *** GTID position of 2 in domain 0 is filtered on 3.
+
+--connection server_2
+--source include/stop_slave.inc
+
+--connection server_3
+--source include/stop_slave.inc
+--replace_result $SERVER_MYPORT_1 SERVER_MYPORT_1
+eval CHANGE MASTER TO master_host = '127.0.0.1', master_port = $SERVER_MYPORT_1,
+     MASTER_USE_GTID=SLAVE_POS;
+
+--connection server_2
+--replace_result $SERVER_MYPORT_3 SERVER_MYPORT_3
+eval CHANGE MASTER TO master_host = '127.0.0.1', master_port = $SERVER_MYPORT_3,
+     MASTER_USE_GTID=SLAVE_POS;
+--source include/start_slave.inc
+
+--connection server_3
+--source include/start_slave.inc
+
+--connection server_1
+INSERT INTO t1 VALUES (3,1);
+INSERT INTO t3 VALUES (3,1);
+--source include/save_master_gtid.inc
+
+--connection server_3
+INSERT INTO t2 VALUES (2,2);
+
+--source include/sync_with_master_gtid.inc
+--source include/save_master_gtid.inc
+
+--connection server_2
+--source include/sync_with_master_gtid.inc
+
+SELECT * FROM t1 ORDER BY a;
+# Verify that table t3 is being filtered.
+--error 1146
+SELECT * FROM t3 ORDER BY a;
+SELECT * FROM t2 ORDER BY a;
+
+
+--echo *** Restore original topology.
+
+--connection server_3
+--source include/stop_slave.inc
+
+--connection server_2
+--source include/stop_slave.inc
+--replace_result $SERVER_MYPORT_1 SERVER_MYPORT_1
+eval CHANGE MASTER TO master_host = '127.0.0.1', master_port = $SERVER_MYPORT_1,
+     MASTER_USE_GTID=SLAVE_POS;
+--source include/start_slave.inc
+
+--connection server_3
+--replace_result $SERVER_MYPORT_2 SERVER_MYPORT_2
+eval CHANGE MASTER TO master_host = '127.0.0.1', master_port = $SERVER_MYPORT_2,
+     MASTER_USE_GTID=SLAVE_POS;
+--source include/start_slave.inc
+
+
+# Cleanup
+
+--connection server_1
+DROP TABLE t1;
+DROP TABLE t3;
+--source include/save_master_gtid.inc
+
+--connection server_2
+DROP TABLE t2;
+--source include/sync_with_master_gtid.inc
+--source include/save_master_gtid.inc
+
+--connection server_3
+--source include/sync_with_master_gtid.inc
+
+--source include/rpl_end.inc

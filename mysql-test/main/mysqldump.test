@@ -2983,9 +2983,7 @@ TRUNCATE TABLE mysql.general_log;
 DROP DATABASE test1;
 --remove_file $MYSQLTEST_VARDIR/tmp/dumptest1.sql
 
---echo #
 --echo # End of 10.3 tests
---echo #
 
 --echo #
 --echo # MDEV-31092 mysqldump --force doesn't ignore error as it should
@@ -3004,6 +3002,25 @@ drop function f2;
 drop event e1;
 drop table t1;
 
---echo #
 --echo # End of 10.4 tests
+
 --echo #
+--echo # MDEV-33727 mariadb-dump trusts the server and does not validate the data
+--echo #
+
+create table t1 (a int);
+--exec $MYSQL_DUMP --compact --add-drop-table test > $MYSQLTEST_VARDIR/tmp/mdev33727.sql
+
+# first let's verify it can be loaded not only by mariadb client
+--source $MYSQLTEST_VARDIR/tmp/mdev33727.sql
+
+# and now test the mariadb client sandbox protection
+--append_file $MYSQLTEST_VARDIR/tmp/mdev33727.sql
+\! echo foo
+EOF
+--error 1
+--exec $MYSQL test < $MYSQLTEST_VARDIR/tmp/mdev33727.sql 2>&1
+--remove_file $MYSQLTEST_VARDIR/tmp/mdev33727.sql
+drop table t1;
+
+--echo # End of 10.5 tests

@@ -758,7 +758,7 @@ END;
 END;
 $$
 CALL p1();
-ERROR HY000: Illegal mix of collations (latin1_bin,EXPLICIT) and (latin1_swedish_ci,EXPLICIT) for operation 'concat_operator_oracle'
+ERROR HY000: Illegal mix of collations (latin1_bin,EXPLICIT) and (latin1_swedish_ci,EXPLICIT) for operation 'concat'
 DROP PROCEDURE p1;
 #
 # Non-existing field

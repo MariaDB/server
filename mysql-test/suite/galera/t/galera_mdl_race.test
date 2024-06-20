@@ -3,70 +3,92 @@
 #
 
 --source include/galera_cluster.inc
+--source include/have_debug.inc
 --source include/have_debug_sync.inc
 
+--connection node_1
 CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 CHAR(1)) engine=innodb;
 CREATE TABLE t2 (f1 INTEGER PRIMARY KEY, f2 CHAR(1)) engine=innodb;
 INSERT INTO t1 VALUES (1, 'a');
 INSERT INTO t1 VALUES (2, 'a');
 
---connection node_1
 SET AUTOCOMMIT=ON;
 START TRANSACTION;
-
 UPDATE t1 SET f2 = 'b' WHERE f1 = 1;
 
 # block access to t2
 --connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
 --connection node_1a
+SET SESSION wsrep_sync_wait=0;
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't2'
+--let $wait_condition_on_error_output = SELECT * FROM INFORMATION_SCHEMA.TABLES
+--source include/wait_condition_with_debug.inc
 LOCK TABLE t2 WRITE;
 
-# Block before MLD lock wait
+# Block before MDL lock wait
 --connection node_1
-  SET @@debug_dbug = "d,sync.wsrep_before_mdl_wait";
+SET DEBUG_SYNC= 'wsrep_before_mdl_wait SIGNAL before_mdl_wait WAIT_FOR mdl_wait_continue';
 --send SELECT * FROM t2;
 
-# Wait for SELECT to be blocked
 --connection node_1a
-#--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIS  WHERE STATE = 'System lock';
-#--source include/wait_condition.inc
-#--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE = 'init' AND INFO = 'COMMIT';
-#--source include/wait_condition.inc
+--echo # Wait until select is blocked before MDL lock wait
+SET DEBUG_SYNC= 'now WAIT_FOR before_mdl_wait';
 
 # block applier to wait after BF victim is locked
+--connection node_1a
 SET @@debug_dbug = "d,sync.wsrep_after_BF_victim_lock";
 
 # Issue a conflicting update on node #2
 --connection node_2
 UPDATE t1 SET f2 = 'c' WHERE f1 = 1;
 
-# Unblock the SELECT, to enter wsrep_thd_is_BF
---connection node_1a
-SET @@debug_dbug = "";
-SET DEBUG_SYNC = "now SIGNAL signal.wsrep_before_mdl_wait";
+--connect node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connection node_1b
+SET SESSION wsrep_sync_wait=0;
+--echo # Wait for conflicting update to block
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST  WHERE STATE LIKE 'Update_rows_log_event:%';
+--source include/wait_condition.inc
 
-# unblock applier to try to BF the SELECT
+# Unblock the SELECT, to enter wsrep_thd_is_BF
 SET DEBUG_SYNC = "now SIGNAL signal.wsrep_after_BF_victim_lock";
+
+--connect node_1c, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connection node_1c
+--let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.PROCESSLIST  WHERE STATE LIKE 'Update_rows_log_event:%';
+--source include/wait_condition.inc
+
+--connection node_1a
+# unblock applier to try to BF the SELECT
+SET DEBUG_SYNC = "now SIGNAL BF_victim_continue";
 
 # table lock is not needed anymore
 UNLOCK TABLES;
 
-# SELECT succeeds
+# SELECT returns deadlock
 --connection node_1
-
 --error ER_LOCK_DEADLOCK
 --reap
 
-SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'a';
-SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'c';
+--connection node_1
+SELECT COUNT(*) AS EXPECT_1 FROM t1 WHERE f2 = 'a';
+SELECT COUNT(*) AS EXPECT_1 FROM t1 WHERE f2 = 'c';
+SELECT * FROM t1;
 
 --connection node_2
-SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'a';
-SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'c';
+SELECT COUNT(*) AS EXPECT_1 FROM t1 WHERE f2 = 'a';
+SELECT COUNT(*) AS EXPECT_1 FROM t1 WHERE f2 = 'c';
+SELECT * FROM t1;
 
 DROP TABLE t1;
 DROP TABLE t2;
 
 --connection node_1a
 SET DEBUG_SYNC = "RESET";
+--connection node_1b
+SET DEBUG_SYNC = "RESET";
+
+--connection node_1
+--disconnect node_1a
+--disconnect node_1b
+--disconnect node_1c
 

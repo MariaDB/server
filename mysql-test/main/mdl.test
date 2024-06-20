@@ -43,7 +43,7 @@ DROP TABLE t1,t3;
 --echo # Check MDL locks taken for different kind of tables by open
 --echo #
 
-CREATE TABLE t1(a INT) ENGINE=InnoDB;
+CREATE TABLE t1(a INT) stats_persistent=0, ENGINE=InnoDB;
 CREATE TABLE t3(a INT) ENGINE=myisam;
 connect(purge_control,localhost,root,,);
 START TRANSACTION WITH CONSISTENT SNAPSHOT;

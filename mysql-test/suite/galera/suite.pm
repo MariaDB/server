@@ -1,5 +1,6 @@
 package My::Suite::Galera;
 
+use warnings;
 use lib 'suite';
 use wsrep::common;
 
@@ -63,6 +64,7 @@ push @::global_suppressions,
      qr(WSREP: Failed to remove page file .*),
      qr(WSREP: wsrep_sst_method is set to 'mysqldump' yet mysqld bind_address is set to .*),
      qr|WSREP: Sending JOIN failed: -107 \(Transport endpoint is not connected\). Will retry in new primary component.|,
+     qr|WSREP: Send action \{.* STATE_REQUEST} returned -107 \(Transport endpoint is not connected\)|,
      qr|WSREP: Trying to continue unpaused monitor|,
      qr|WSREP: Wait for gtid returned error 3 while waiting for prior transactions to commit before setting position|,
      qr|WSREP: Failed to report last committed|,
@@ -71,13 +73,17 @@ push @::global_suppressions,
 sub which($) { return `sh -c "command -v $_[0]"` }
 
 sub skip_combinations {
-  my %skip = ();
+  my @combinations;
+
   $skip{'include/have_mariabackup.inc'} = 'Need socket statistics utility'
             unless which("lsof") || which("sockstat") || which("ss");
   $skip{'include/have_stunnel.inc'} = "Need 'stunnel' utility"
             unless which("stunnel");
   $skip{'include/have_qpress.inc'} = "Need 'qpress' utility"
             unless which("qpress");
+  $skip{'../encryption/include/have_file_key_management_plugin.combinations'} = [ 'ctr' ]
+    unless $::mysqld_variables{'version-ssl-library'} =~ /OpenSSL (\S+)/
+       and $1 ge "1.0.1";
   %skip;
 }
 

@@ -743,6 +743,7 @@ void do_all_tests()
 int main(int argc, char **argv)
 {
   plan(209);
+  pfs_enabled= 1;
   MY_INIT(argv[0]);
   do_all_tests();
   my_end(0);

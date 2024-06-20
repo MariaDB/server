@@ -54,9 +54,12 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include <my_bitmap.h>
 #include <mysql/service_thd_alloc.h>
 #include <mysql/service_thd_wait.h>
+#include <mysql/service_print_check_msg.h>
 #include "sql_type_geom.h"
 #include "scope.h"
 #include "srv0srv.h"
+
+extern my_bool opt_readonly;
 
 // MYSQL_PLUGIN_IMPORT extern my_bool lower_case_file_system;
 // MYSQL_PLUGIN_IMPORT extern char mysql_unpacked_real_data_home[];
@@ -117,6 +120,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "row0ext.h"
 
 #include <limits>
+#include <myisamchk.h>                          // TT_FOR_UPGRADE
 
 #define thd_get_trx_isolation(X) ((enum_tx_isolation)thd_tx_isolation(X))
 
@@ -3856,6 +3860,21 @@ static int innodb_init_params()
 		}
 	}
 
+	ulint min_open_files_limit = srv_undo_tablespaces
+				+ srv_sys_space.m_files.size()
+				+ srv_tmp_space.m_files.size() + 1;
+	if (min_open_files_limit > innobase_open_files) {
+		sql_print_warning(
+			"InnoDB: innodb_open_files=%lu is not greater "
+			"than the number of system tablespace files, "
+			"temporary tablespace files, "
+			"innodb_undo_tablespaces=%lu; adjusting "
+			"to innodb_open_files=%zu",
+			innobase_open_files, srv_undo_tablespaces,
+			min_open_files_limit);
+		innobase_open_files = (ulong) min_open_files_limit;
+	}
+
 	srv_max_n_open_files = innobase_open_files;
 	srv_innodb_status = (ibool) innobase_create_status_file;
 
@@ -3892,11 +3911,6 @@ static int innodb_init_params()
 		}
 	}
 #endif
-
-	if (srv_read_only_mode) {
-		ib::info() << "Started in read only mode";
-		srv_use_doublewrite_buf = FALSE;
-	}
 
 #ifdef LINUX_NATIVE_AIO
 #elif !defined _WIN32
@@ -5625,14 +5639,10 @@ func_exit:
 	return ret;
 }
 
-/********************************************************************//**
-Get the upper limit of the MySQL integral and floating-point type.
-@return maximum allowed value for the field */
-UNIV_INTERN
-ulonglong
-innobase_get_int_col_max_value(
-/*===========================*/
-	const Field*	field)	/*!< in: MySQL field */
+/** Get the maximum integer value of a numeric column.
+@param field   column definition
+@return maximum allowed integer value */
+ulonglong innobase_get_int_col_max_value(const Field *field)
 {
 	ulonglong	max_value = 0;
 
@@ -5696,46 +5706,45 @@ ha_innobase::open().
 
 @param[in,out]	table	persistent table
 @param[in]	field	the AUTO_INCREMENT column */
-static
-void
-initialize_auto_increment(dict_table_t* table, const Field* field)
+static void initialize_auto_increment(dict_table_t *table, const Field& field,
+                                      const TABLE_SHARE &s)
 {
-	ut_ad(!table->is_temporary());
+  ut_ad(!table->is_temporary());
+  const unsigned col_no= innodb_col_no(&field);
+  table->autoinc_mutex.lock();
+  table->persistent_autoinc=
+    uint16_t(dict_table_get_nth_col_pos(table, col_no, nullptr) + 1) &
+    dict_index_t::MAX_N_FIELDS;
+  if (table->autoinc)
+    /* Already initialized. Our caller checked
+    table->persistent_autoinc without
+    autoinc_mutex protection, and there might be multiple
+    ha_innobase::open() executing concurrently. */;
+  else if (srv_force_recovery >= SRV_FORCE_NO_UNDO_LOG_SCAN)
+    /* If innodb_force_recovery is set so high that writes
+       are disabled we force the AUTOINC counter to 0
+       value effectively disabling writes to the table.
+       Secondly, we avoid reading the table in case the read
+       results in failure due to a corrupted table/index.
 
-	const unsigned	col_no = innodb_col_no(field);
+       We will not return an error to the client, so that the
+       tables can be dumped with minimal hassle.  If an error
+       were returned in this case, the first attempt to read
+       the table would fail and subsequent SELECTs would succeed. */;
+  else if (table->persistent_autoinc)
+  {
+    uint64_t max_value= innobase_get_int_col_max_value(&field);
+    table->autoinc=
+      innobase_next_autoinc(btr_read_autoinc_with_fallback(table, col_no,
+                                                           s.mysql_version,
+                                                           max_value),
+                            1 /* need */,
+                            1 /* auto_increment_increment */,
+                            0 /* auto_increment_offset */,
+                            max_value);
+  }
 
-	table->autoinc_mutex.lock();
-
-	table->persistent_autoinc = static_cast<uint16_t>(
-		dict_table_get_nth_col_pos(table, col_no, NULL) + 1)
-		& dict_index_t::MAX_N_FIELDS;
-
-	if (table->autoinc) {
-		/* Already initialized. Our caller checked
-		table->persistent_autoinc without
-		autoinc_mutex protection, and there might be multiple
-		ha_innobase::open() executing concurrently. */
-	} else if (srv_force_recovery > SRV_FORCE_NO_IBUF_MERGE) {
-		/* If the recovery level is set so high that writes
-		are disabled we force the AUTOINC counter to 0
-		value effectively disabling writes to the table.
-		Secondly, we avoid reading the table in case the read
-		results in failure due to a corrupted table/index.
-
-		We will not return an error to the client, so that the
-		tables can be dumped with minimal hassle.  If an error
-		were returned in this case, the first attempt to read
-		the table would fail and subsequent SELECTs would succeed. */
-	} else if (table->persistent_autoinc) {
-		table->autoinc = innobase_next_autoinc(
-			btr_read_autoinc_with_fallback(table, col_no),
-			1 /* need */,
-			1 /* auto_increment_increment */,
-			0 /* auto_increment_offset */,
-			innobase_get_int_col_max_value(field));
-	}
-
-	table->autoinc_mutex.unlock();
+  table->autoinc_mutex.unlock();
 }
 
 /** Open an InnoDB table
@@ -5971,7 +5980,7 @@ ha_innobase::open(const char* name, int, uint)
 	    || m_prebuilt->table->persistent_autoinc
 	    || !m_prebuilt->table->is_readable()) {
 	} else if (const Field* ai = table->found_next_number_field) {
-		initialize_auto_increment(m_prebuilt->table, ai);
+		initialize_auto_increment(m_prebuilt->table, *ai, *table->s);
 	}
 
 	/* Set plugin parser for fulltext index */
@@ -7265,26 +7274,55 @@ ha_innobase::build_template(
 
 	ulint num_v = 0;
 
-	if (active_index != MAX_KEY
-	     && active_index == pushed_idx_cond_keyno) {
-		m_prebuilt->idx_cond = this;
-		goto icp;
-	} else if (pushed_rowid_filter && rowid_filter_is_active) {
-icp:
-		/* Push down an index condition or an end_range check. */
+	/* MDEV-31154: For pushed down index condition we don't support virtual
+	column and idx_cond_push() does check for it. For row ID filtering we
+	don't need such restrictions but we get into trouble trying to use the
+	ICP path.
+
+	1. It should be fine to follow no_icp path if primary key is generated.
+	However, with user specified primary key(PK), the row is identified by
+	the PK and those columns need to be converted to mysql format in
+	row_search_idx_cond_check before doing the comparison. Since secondary
+	indexes always have PK appended in innodb, it works with current ICP
+	handling code when fetch_primary_key_cols is set to TRUE.
+
+	2. Although ICP comparison and Row ID comparison works on different
+	columns the current ICP code can be shared by both.
+
+	3. In most cases, it works today by jumping to goto no_icp when we
+	encounter a virtual column. This is hackish and already have some
+	issues as it cannot handle PK and all states are not reset properly,
+	for example, idx_cond_n_cols is not reset.
+
+	4. We already encountered MDEV-28747 m_prebuilt->idx_cond was being set.
+
+	Neither ICP nor row ID comparison needs virtual columns and the code is
+	simplified to handle both. It should handle the issues. */
+
+	const bool pushed_down = active_index != MAX_KEY
+				 && active_index == pushed_idx_cond_keyno;
+
+	m_prebuilt->idx_cond = pushed_down ? this : nullptr;
+
+	if (m_prebuilt->idx_cond || m_prebuilt->pk_filter) {
+		/* Push down an index condition, end_range check or row ID
+		filter */
 		for (ulint i = 0; i < n_fields; i++) {
 			const Field* field = table->field[i];
 			const bool is_v = !field->stored_in_db();
-			if (is_v && skip_virtual) {
-				num_v++;
-				continue;
-			}
+
 			bool index_contains = index->contains_col_or_prefix(
 				is_v ? num_v : i - num_v, is_v);
-			if (is_v && index_contains) {
-				m_prebuilt->n_template = 0;
-				num_v = 0;
-				goto no_icp;
+
+			if (is_v) {
+				if (index_contains) {
+					/* We want to ensure that ICP is not
+					used with virtual columns. */
+					ut_ad(!pushed_down);
+					m_prebuilt->idx_cond = nullptr;
+				}
+				num_v++;
+				continue;
 			}
 
 			/* Test if an end_range or an index condition
@@ -7304,7 +7342,7 @@ icp:
 			which would be acceptable if end_range==NULL. */
 			if (build_template_needs_field_in_icp(
 				    index, m_prebuilt, index_contains,
-				    is_v ? num_v : i - num_v, is_v)) {
+				    i - num_v, false)) {
 				if (!whole_row) {
 					field = build_template_needs_field(
 						index_contains,
@@ -7313,14 +7351,9 @@ icp:
 						fetch_primary_key_cols,
 						index, table, i, num_v);
 					if (!field) {
-						if (is_v) {
-							num_v++;
-						}
 						continue;
 					}
 				}
-
-				ut_ad(!is_v);
 
 				mysql_row_templ_t* templ= build_template_field(
 					m_prebuilt, clust_index, index,
@@ -7398,15 +7431,16 @@ icp:
 				*/
 			}
 
-			if (is_v) {
-				num_v++;
-			}
 		}
 
-		ut_ad(m_prebuilt->idx_cond_n_cols > 0);
-		ut_ad(m_prebuilt->idx_cond_n_cols == m_prebuilt->n_template);
-
 		num_v = 0;
+		ut_ad(m_prebuilt->idx_cond_n_cols == m_prebuilt->n_template);
+		if (m_prebuilt->idx_cond_n_cols == 0) {
+			/* No columns to push down. It is safe to jump to np ICP
+			path. */
+			m_prebuilt->idx_cond = nullptr;
+			goto no_icp;
+		}
 
 		/* Include the fields that are not needed in index condition
 		pushdown. */
@@ -7421,7 +7455,7 @@ icp:
 			bool index_contains = index->contains_col_or_prefix(
 				is_v ? num_v : i - num_v, is_v);
 
-			if (!build_template_needs_field_in_icp(
+			if (is_v || !build_template_needs_field_in_icp(
 				    index, m_prebuilt, index_contains,
 				    is_v ? num_v : i - num_v, is_v)) {
 				/* Not needed in ICP */
@@ -7454,7 +7488,7 @@ icp:
 	} else {
 no_icp:
 		/* No index condition pushdown */
-		m_prebuilt->idx_cond = NULL;
+		ut_ad(!m_prebuilt->idx_cond);
 		ut_ad(num_v == 0);
 
 		for (ulint i = 0; i < n_fields; i++) {
@@ -7665,20 +7699,6 @@ ha_innobase::write_row(
 #endif
 
 		if ((error_result = update_auto_increment())) {
-			/* We don't want to mask autoinc overflow errors. */
-
-			/* Handle the case where the AUTOINC sub-system
-			failed during initialization. */
-			if (m_prebuilt->autoinc_error == DB_UNSUPPORTED) {
-				error_result = ER_AUTOINC_READ_FAILED;
-				/* Set the error message to report too. */
-				my_error(ER_AUTOINC_READ_FAILED, MYF(0));
-				goto func_exit;
-			} else if (m_prebuilt->autoinc_error != DB_SUCCESS) {
-				error = m_prebuilt->autoinc_error;
-				goto report_error;
-			}
-
 			/* MySQL errors are passed straight back. */
 			goto func_exit;
 		}
@@ -7816,7 +7836,6 @@ set_max_autoinc:
 		}
 	}
 
-report_error:
 	/* Cleanup and exit. */
 	if (error == DB_TABLESPACE_DELETED) {
 		ib_senderrf(
@@ -9807,7 +9826,8 @@ wsrep_append_foreign_key(
 	}
 
 	ulint rcode = DB_SUCCESS;
-	char  cache_key[513] = {'\0'};
+	char  cache_key[MAX_FULL_NAME_LEN] = {'\0'};
+	char  db_name[MAX_DATABASE_NAME_LEN+1] = {'\0'};
 	size_t cache_key_len = 0;
 
 	if ( !((referenced) ?
@@ -9892,14 +9912,38 @@ wsrep_append_foreign_key(
 		return DB_ERROR;
 	}
 
-	strncpy(cache_key,
+	char * fk_table =
 		(wsrep_protocol_version > 1) ?
 		((referenced) ?
 			foreign->referenced_table->name.m_name :
 			foreign->foreign_table->name.m_name) :
-		foreign->foreign_table->name.m_name, sizeof(cache_key) - 1);
-	cache_key_len = strlen(cache_key);
+		foreign->foreign_table->name.m_name;
 
+        /* convert db and table name parts separately to system charset */
+	ulint	db_name_len = dict_get_db_name_len(fk_table);
+	strmake(db_name, fk_table, db_name_len);
+	uint errors;
+	cache_key_len= innobase_convert_to_system_charset(cache_key,
+				db_name, sizeof(cache_key), &errors);
+	if (errors) {
+		WSREP_WARN("unexpected foreign key table %s %s",
+			   foreign->referenced_table->name.m_name,
+			   foreign->foreign_table->name.m_name);
+		return DB_ERROR;
+	}
+
+	/* after db name adding 0 and then converted table name */
+	cache_key[db_name_len]= '\0';
+        cache_key_len++;
+
+	cache_key_len+= innobase_convert_to_system_charset(cache_key+cache_key_len,
+				fk_table+db_name_len+1, sizeof(cache_key), &errors);
+	if (errors) {
+		WSREP_WARN("unexpected foreign key table %s %s",
+			   foreign->referenced_table->name.m_name,
+			   foreign->foreign_table->name.m_name);
+		return DB_ERROR;
+        }
 #ifdef WSREP_DEBUG_PRINT
 	ulint j;
 	fprintf(stderr, "FK parent key, table: %s %s len: %lu ",
@@ -9909,16 +9953,6 @@ wsrep_append_foreign_key(
 	}
 	fprintf(stderr, "\n");
 #endif
-	char *p = strchr(cache_key, '/');
-
-	if (p) {
-		*p = '\0';
-	} else {
-		WSREP_WARN("unexpected foreign key table %s %s",
-			   foreign->referenced_table->name.m_name,
-			   foreign->foreign_table->name.m_name);
-	}
-
 	wsrep_buf_t wkey_part[3];
         wsrep_key_t wkey = {wkey_part, 3};
 
@@ -11651,8 +11685,6 @@ index_bad:
 
 	/* Set the flags2 when create table or alter tables */
 	m_flags2 |= DICT_TF2_FTS_AUX_HEX_NAME;
-	DBUG_EXECUTE_IF("innodb_test_wrong_fts_aux_table_name",
-			m_flags2 &= ~DICT_TF2_FTS_AUX_HEX_NAME;);
 
 	DBUG_RETURN(true);
 }
@@ -12131,7 +12163,7 @@ create_table_info_t::create_foreign_keys()
 	dict_index_t*	      index	  = NULL;
 	fkerr_t		      index_error = FK_SUCCESS;
 	dict_index_t*	      err_index	  = NULL;
-	ulint		      err_col;
+	ulint		      err_col	= 0;
 	const bool	      tmp_table = m_flags2 & DICT_TF2_TEMPORARY;
 	const CHARSET_INFO*   cs	= thd_charset(m_thd);
 	const char*	      operation = "Create ";
@@ -13296,7 +13328,7 @@ ha_innobase::discard_or_import_tablespace(
 static bool frm_file_exists(const char *path)
 {
   char buff[FN_REFLEN];
-  strxnmov(buff, FN_REFLEN, path, reg_ext, NullS);
+  strxnmov(buff, sizeof(buff)-1, path, reg_ext, NullS);
   return !access(buff, F_OK);
 }
 
@@ -14344,7 +14376,7 @@ ha_innobase::info_low(
 	DBUG_ASSERT(ib_table->get_ref_count() > 0);
 
 	if (!ib_table->is_readable()) {
-		ib_table->stat_initialized = true;
+		dict_stats_empty_table(ib_table, true);
 	}
 
 	if (flag & HA_STATUS_TIME) {
@@ -14844,11 +14876,33 @@ ha_innobase::check(
 	ulint		n_rows_in_table	= ULINT_UNDEFINED;
 	bool		is_ok		= true;
 	dberr_t		ret;
+        uint handler_flags= check_opt->handler_flags;
 
 	DBUG_ENTER("ha_innobase::check");
 	DBUG_ASSERT(thd == ha_thd());
 	ut_a(m_prebuilt->trx->magic_n == TRX_MAGIC_N);
 	ut_a(m_prebuilt->trx == thd_to_trx(thd));
+
+	if (handler_flags || check_for_upgrade(check_opt)) {
+		/* The file was already checked and fixed as part of open */
+		print_check_msg(thd, table->s->db.str, table->s->table_name.str,
+				"check", "note",
+				(opt_readonly || high_level_read_only
+				 || !(check_opt->sql_flags & TT_FOR_UPGRADE))
+				? "Auto_increment will be"
+				" checked on each open until"
+				" CHECK TABLE FOR UPGRADE is executed"
+				: "Auto_increment checked and"
+				" .frm file version updated", 1);
+		if (handler_flags && (check_opt->sql_flags & TT_FOR_UPGRADE)) {
+			/*
+			  No other issues found (as handler_flags was only
+			  set if there as not other problems with the table
+			  than auto_increment).
+			*/
+			DBUG_RETURN(HA_ADMIN_OK);
+		}
+	}
 
 	if (m_prebuilt->mysql_template == NULL) {
 		/* Build the template; we will use a dummy template
@@ -14863,16 +14917,6 @@ ha_innobase::check(
 			thd,
 			IB_LOG_LEVEL_ERROR,
 			ER_TABLESPACE_DISCARDED,
-			table->s->table_name.str);
-
-		DBUG_RETURN(HA_ADMIN_CORRUPT);
-
-	} else if (!m_prebuilt->table->is_readable() &&
-		   !m_prebuilt->table->space) {
-
-		ib_senderrf(
-			thd, IB_LOG_LEVEL_ERROR,
-			ER_TABLESPACE_MISSING,
 			table->s->table_name.str);
 
 		DBUG_RETURN(HA_ADMIN_CORRUPT);
@@ -15075,6 +15119,35 @@ ha_innobase::check(
 	DBUG_RETURN(is_ok ? HA_ADMIN_OK : HA_ADMIN_CORRUPT);
 }
 
+/**
+Check if we there is a problem with the InnoDB table.
+@param check_opt     check options
+@retval HA_ADMIN_OK           if Table is ok
+@retval HA_ADMIN_NEEDS_ALTER  User should run ALTER TABLE FOR UPGRADE
+@retval HA_ADMIN_NEEDS_CHECK  User should run CHECK TABLE FOR UPGRADE
+@retval HA_ADMIN_FAILED       if InnoDB is in read-only mode */
+int ha_innobase::check_for_upgrade(HA_CHECK_OPT *check_opt)
+{
+  /*
+    Check if there is a possibility that the auto increment value
+    stored in PAGE_ROOT_AUTO_INC could be corrupt.
+  */
+  if (table->s->mysql_version >= 100210);
+  else if (const Field *auto_increment= table->found_next_number_field)
+  {
+    uint col_no= innodb_col_no(auto_increment);
+    const dict_col_t *autoinc_col=
+      dict_table_get_nth_col(m_prebuilt->table, col_no);
+    if (m_prebuilt->table->get_index(*autoinc_col))
+    {
+      check_opt->handler_flags= 1;
+      return (high_level_read_only && !opt_readonly)
+        ? HA_ADMIN_FAILED : HA_ADMIN_NEEDS_CHECK;
+    }
+  }
+  return HA_ADMIN_OK;
+}
+
 /*******************************************************************//**
 Gets the foreign key create info for a table stored in InnoDB.
 @return own: character string in the form which can be inserted to the
@@ -15132,7 +15205,6 @@ get_foreign_key_info(
 	char			tmp_buff[NAME_LEN+1];
 	char			name_buff[NAME_LEN+1];
 	const char*		ptr;
-	LEX_CSTRING*		referenced_key_name;
 	LEX_CSTRING*		name = NULL;
 
 	if (dict_table_t::is_temporary_name(foreign->foreign_table_name)) {
@@ -15237,17 +15309,15 @@ get_foreign_key_info(
 
 	if (foreign->referenced_index
 	    && foreign->referenced_index->name != NULL) {
-		referenced_key_name = thd_make_lex_string(
+		f_key_info.referenced_key_name = thd_make_lex_string(
 			thd,
-			f_key_info.referenced_key_name,
+			nullptr,
 			foreign->referenced_index->name,
 			strlen(foreign->referenced_index->name),
 			1);
 	} else {
-		referenced_key_name = NULL;
+		f_key_info.referenced_key_name = NULL;
 	}
-
-	f_key_info.referenced_key_name = referenced_key_name;
 
 	pf_key_info = (FOREIGN_KEY_INFO*) thd_memdup(thd, &f_key_info,
 						      sizeof(FOREIGN_KEY_INFO));
@@ -15412,29 +15482,33 @@ ha_innobase::extra(
 	enum ha_extra_function operation)
 			   /*!< in: HA_EXTRA_FLUSH or some other flag */
 {
-	check_trx_exists(ha_thd());
-
 	/* Warning: since it is not sure that MySQL calls external_lock
 	before calling this function, the trx field in m_prebuilt can be
 	obsolete! */
+	trx_t *trx;
 
 	switch (operation) {
 	case HA_EXTRA_FLUSH:
+		(void)check_trx_exists(ha_thd());
 		if (m_prebuilt->blob_heap) {
 			row_mysql_prebuilt_free_blob_heap(m_prebuilt);
 		}
 		break;
 	case HA_EXTRA_RESET_STATE:
+		trx = check_trx_exists(ha_thd());
 		reset_template();
-		thd_to_trx(ha_thd())->duplicates = 0;
+		trx->duplicates = 0;
 		break;
 	case HA_EXTRA_NO_KEYREAD:
+		(void)check_trx_exists(ha_thd());
 		m_prebuilt->read_just_key = 0;
 		break;
 	case HA_EXTRA_KEYREAD:
+		(void)check_trx_exists(ha_thd());
 		m_prebuilt->read_just_key = 1;
 		break;
 	case HA_EXTRA_KEYREAD_PRESERVE_FIELDS:
+		(void)check_trx_exists(ha_thd());
 		m_prebuilt->keep_other_fields_on_keyread = 1;
 		break;
 
@@ -15445,18 +15519,23 @@ ha_innobase::extra(
 		either, because the calling threads may change.
 		CAREFUL HERE, OR MEMORY CORRUPTION MAY OCCUR! */
 	case HA_EXTRA_INSERT_WITH_UPDATE:
-		thd_to_trx(ha_thd())->duplicates |= TRX_DUP_IGNORE;
+		trx = check_trx_exists(ha_thd());
+		trx->duplicates |= TRX_DUP_IGNORE;
 		break;
 	case HA_EXTRA_NO_IGNORE_DUP_KEY:
-		thd_to_trx(ha_thd())->duplicates &= ~TRX_DUP_IGNORE;
+		trx = check_trx_exists(ha_thd());
+		trx->duplicates &= ~TRX_DUP_IGNORE;
 		break;
 	case HA_EXTRA_WRITE_CAN_REPLACE:
-		thd_to_trx(ha_thd())->duplicates |= TRX_DUP_REPLACE;
+		trx = check_trx_exists(ha_thd());
+		trx->duplicates |= TRX_DUP_REPLACE;
 		break;
 	case HA_EXTRA_WRITE_CANNOT_REPLACE:
-		thd_to_trx(ha_thd())->duplicates &= ~TRX_DUP_REPLACE;
+		trx = check_trx_exists(ha_thd());
+		trx->duplicates &= ~TRX_DUP_REPLACE;
 		break;
 	case HA_EXTRA_BEGIN_ALTER_COPY:
+		(void)check_trx_exists(ha_thd());
 		m_prebuilt->table->skip_alter_undo = 1;
 		if (m_prebuilt->table->is_temporary()
 		    || !m_prebuilt->table->versioned_by_id()) {
@@ -15470,6 +15549,7 @@ ha_innobase::extra(
 			.first->second.set_versioned(0);
 		break;
 	case HA_EXTRA_END_ALTER_COPY:
+		(void)check_trx_exists(ha_thd());
 		m_prebuilt->table->skip_alter_undo = 0;
 		break;
 	default:/* Do nothing */
@@ -16627,6 +16707,13 @@ ha_innobase::get_auto_increment(
 
 	if (error != DB_SUCCESS) {
 		*first_value = (~(ulonglong) 0);
+		/* This is an error case. We do the error handling by calling
+		the error code conversion function. Specifically, we need to
+		call thd_mark_transaction_to_rollback() to inform sql that we
+		have rolled back innodb transaction after a deadlock error. We
+		ignore the returned mysql error code here. */
+		std::ignore = convert_error_code_to_mysql(
+			error, m_prebuilt->table->flags, m_user_thd);
 		return;
 	}
 
@@ -17565,6 +17652,7 @@ innodb_make_page_dirty(THD*, st_mysql_sys_var*, void*, const void* save)
 {
 	mtr_t		mtr;
 	uint		space_id = *static_cast<const uint*>(save);
+	srv_fil_make_page_dirty_debug= space_id;
 	mysql_mutex_unlock(&LOCK_global_system_variables);
 	fil_space_t*	space = fil_space_t::get(space_id);
 
@@ -18318,11 +18406,20 @@ static
 void
 buf_flush_list_now_set(THD*, st_mysql_sys_var*, void*, const void* save)
 {
-	if (*(my_bool*) save) {
-		mysql_mutex_unlock(&LOCK_global_system_variables);
-		buf_flush_sync();
-		mysql_mutex_lock(&LOCK_global_system_variables);
-	}
+  if (!*(my_bool*) save)
+    return;
+  const uint s= srv_fil_make_page_dirty_debug;
+  mysql_mutex_unlock(&LOCK_global_system_variables);
+  if (s == 0 || srv_is_undo_tablespace(s))
+  {
+    fil_space_t *space= fil_system.sys_space;
+    if (s) { space= fil_space_get(s); }
+    while (buf_flush_list_space(space, nullptr));
+    os_aio_wait_until_no_pending_writes();
+  }
+  else
+    buf_flush_sync();
+  mysql_mutex_lock(&LOCK_global_system_variables);
 }
 
 /** Override current MERGE_THRESHOLD setting for all indexes at dictionary
@@ -20920,6 +21017,10 @@ Compare_keys ha_innobase::compare_key_parts(
       return Compare_keys::NotEqual;
 
     if (old_part.length >= new_part.length)
+      return Compare_keys::NotEqual;
+
+    if (old_part.length == old_field.key_length() &&
+        new_part.length != new_field.length)
       return Compare_keys::NotEqual;
 
     return Compare_keys::EqualButKeyPartLength;

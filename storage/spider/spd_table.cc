@@ -18,10 +18,6 @@
 #include <my_global.h>
 #include "mysql_version.h"
 #include "spd_environ.h"
-#if MYSQL_VERSION_ID < 50500
-#include "mysql_priv.h"
-#include <mysql/plugin.h>
-#else
 #include "sql_priv.h"
 #include "probes_mysql.h"
 #include "my_getopt.h"
@@ -31,7 +27,6 @@
 #include "sql_select.h"
 #include "tztime.h"
 #include "sql_parse.h"
-#endif
 #include "spd_err.h"
 #include "spd_param.h"
 #include "spd_db_include.h"
@@ -129,17 +124,11 @@ const char **spd_mysqld_unix_port;
 uint *spd_mysqld_port;
 bool volatile *spd_abort_loop;
 Time_zone *spd_tz_system;
-static int *spd_mysqld_server_started;
-static pthread_mutex_t *spd_LOCK_server_started;
-static pthread_cond_t *spd_COND_server_started;
 extern long spider_conn_mutex_id;
 handlerton *spider_hton_ptr;
 SPIDER_DBTON spider_dbton[SPIDER_DBTON_SIZE];
 extern SPIDER_DBTON spider_dbton_mysql;
 extern SPIDER_DBTON spider_dbton_mariadb;
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-extern SPIDER_DBTON spider_dbton_handlersocket;
-#endif
 #ifdef HAVE_ORACLE_OCI
 extern SPIDER_DBTON spider_dbton_oracle;
 #endif
@@ -147,6 +136,11 @@ extern SPIDER_DBTON spider_dbton_oracle;
 SPIDER_THREAD *spider_table_sts_threads;
 SPIDER_THREAD *spider_table_crd_threads;
 #endif
+extern volatile ulonglong spider_mon_table_cache_version;
+extern volatile ulonglong spider_mon_table_cache_version_req;
+extern ulonglong spider_conn_id;
+extern Time_zone *UTC;
+extern ulonglong spider_thread_id;
 
 #ifdef HAVE_PSI_INTERFACE
 PSI_mutex_key spd_key_mutex_tbl;
@@ -156,10 +150,6 @@ PSI_mutex_key spd_key_mutex_wide_share;
 #endif
 PSI_mutex_key spd_key_mutex_lgtm_tblhnd_share;
 PSI_mutex_key spd_key_mutex_conn;
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-PSI_mutex_key spd_key_mutex_hs_r_conn;
-PSI_mutex_key spd_key_mutex_hs_w_conn;
-#endif
 PSI_mutex_key spd_key_mutex_open_conn;
 PSI_mutex_key spd_key_mutex_allocated_thds;
 PSI_mutex_key spd_key_mutex_mon_table_cache;
@@ -206,10 +196,6 @@ static PSI_mutex_info all_spider_mutexes[]=
 #endif
   { &spd_key_mutex_lgtm_tblhnd_share, "lgtm_tblhnd_share", PSI_FLAG_GLOBAL},
   { &spd_key_mutex_conn, "conn", PSI_FLAG_GLOBAL},
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-  { &spd_key_mutex_hs_r_conn, "hs_r_conn", PSI_FLAG_GLOBAL},
-  { &spd_key_mutex_hs_w_conn, "hs_w_conn", PSI_FLAG_GLOBAL},
-#endif
   { &spd_key_mutex_open_conn, "open_conn", PSI_FLAG_GLOBAL},
   { &spd_key_mutex_allocated_thds, "allocated_thds", PSI_FLAG_GLOBAL},
   { &spd_key_mutex_mon_table_cache, "mon_table_cache", PSI_FLAG_GLOBAL},
@@ -318,20 +304,6 @@ extern const char *spider_open_connections_func_name;
 extern const char *spider_open_connections_file_name;
 extern ulong spider_open_connections_line_no;
 extern pthread_mutex_t spider_conn_mutex;
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-extern HASH spider_hs_r_conn_hash;
-extern uint spider_hs_r_conn_hash_id;
-extern const char *spider_hs_r_conn_hash_func_name;
-extern const char *spider_hs_r_conn_hash_file_name;
-extern ulong spider_hs_r_conn_hash_line_no;
-extern pthread_mutex_t spider_hs_r_conn_mutex;
-extern HASH spider_hs_w_conn_hash;
-extern uint spider_hs_w_conn_hash_id;
-extern const char *spider_hs_w_conn_hash_func_name;
-extern const char *spider_hs_w_conn_hash_file_name;
-extern ulong spider_hs_w_conn_hash_line_no;
-extern pthread_mutex_t spider_hs_w_conn_mutex;
-#endif
 extern HASH *spider_udf_table_mon_list_hash;
 extern uint spider_udf_table_mon_list_hash_id;
 extern const char *spider_udf_table_mon_list_hash_func_name;
@@ -829,30 +801,6 @@ int spider_free_share_alloc(
     }
     spider_free(spider_current_trx, share->static_link_ids, MYF(0));
   }
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-  if (share->hs_read_socks)
-  {
-    for (roop_count = 0; roop_count < (int) share->hs_read_socks_length;
-      roop_count++)
-    {
-      if (share->hs_read_socks[roop_count])
-        spider_free(spider_current_trx, share->hs_read_socks[roop_count],
-          MYF(0));
-    }
-    spider_free(spider_current_trx, share->hs_read_socks, MYF(0));
-  }
-  if (share->hs_write_socks)
-  {
-    for (roop_count = 0; roop_count < (int) share->hs_write_socks_length;
-      roop_count++)
-    {
-      if (share->hs_write_socks[roop_count])
-        spider_free(spider_current_trx, share->hs_write_socks[roop_count],
-          MYF(0));
-    }
-    spider_free(spider_current_trx, share->hs_write_socks, MYF(0));
-  }
-#endif
   if (share->bka_engine)
     spider_free(spider_current_trx, share->bka_engine, MYF(0));
   if (share->conn_keys)
@@ -875,18 +823,6 @@ int spider_free_share_alloc(
     spider_free(spider_current_trx, share->monitoring_flag, MYF(0));
   if (share->monitoring_kind)
     spider_free(spider_current_trx, share->monitoring_kind, MYF(0));
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-  if (share->use_hs_reads)
-    spider_free(spider_current_trx, share->use_hs_reads, MYF(0));
-  if (share->use_hs_writes)
-    spider_free(spider_current_trx, share->use_hs_writes, MYF(0));
-  if (share->hs_read_ports)
-    spider_free(spider_current_trx, share->hs_read_ports, MYF(0));
-  if (share->hs_write_ports)
-    spider_free(spider_current_trx, share->hs_write_ports, MYF(0));
-  if (share->hs_write_to_reads)
-    spider_free(spider_current_trx, share->hs_write_to_reads, MYF(0));
-#endif
   if (share->use_handlers)
     spider_free(spider_current_trx, share->use_handlers, MYF(0));
   if (share->connect_timeouts)
@@ -1021,18 +957,6 @@ void spider_free_tmp_share_alloc(
     spider_free(spider_current_trx, share->static_link_ids[0], MYF(0));
     share->static_link_ids[0] = NULL;
   }
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-  if (share->hs_read_socks && share->hs_read_socks[0])
-  {
-    spider_free(spider_current_trx, share->hs_read_socks[0], MYF(0));
-    share->hs_read_socks[0] = NULL;
-  }
-  if (share->hs_write_socks && share->hs_write_socks[0])
-  {
-    spider_free(spider_current_trx, share->hs_write_socks[0], MYF(0));
-    share->hs_write_socks[0] = NULL;
-  }
-#endif
   if (share->bka_engine)
   {
     spider_free(spider_current_trx, share->bka_engine, MYF(0));
@@ -1119,7 +1043,7 @@ int spider_create_string_list(
   }
 
   if (!(*string_list = (char**)
-    spider_bulk_malloc(spider_current_trx, 37, MYF(MY_WME | MY_ZEROFILL),
+    spider_bulk_malloc(spider_current_trx, SPD_MID_CREATE_STRING_LIST_1, MYF(MY_WME | MY_ZEROFILL),
       string_list, (uint) (sizeof(char*) * (*list_length)),
       string_length_list, (uint) (sizeof(int) * (*list_length)),
       NullS))
@@ -1313,7 +1237,7 @@ int spider_create_long_list(
   }
 
   if (!(*long_list = (long*)
-    spider_bulk_malloc(spider_current_trx, 38, MYF(MY_WME | MY_ZEROFILL),
+    spider_bulk_malloc(spider_current_trx, SPD_MID_CREATE_LONG_LIST_1, MYF(MY_WME | MY_ZEROFILL),
       long_list, (uint) (sizeof(long) * (*list_length)),
       NullS))
   ) {
@@ -1392,7 +1316,7 @@ int spider_create_longlong_list(
   }
 
   if (!(*longlong_list = (longlong *)
-    spider_bulk_malloc(spider_current_trx, 39, MYF(MY_WME | MY_ZEROFILL),
+    spider_bulk_malloc(spider_current_trx, SPD_MID_CREATE_LONGLONG_LIST_1, MYF(MY_WME | MY_ZEROFILL),
       longlong_list, (uint) (sizeof(longlong) * (*list_length)),
       NullS))
   ) {
@@ -1460,7 +1384,7 @@ int spider_increase_string_list(
   }
 
   if (!(tmp_str_list = (char**)
-    spider_bulk_malloc(spider_current_trx, 40, MYF(MY_WME | MY_ZEROFILL),
+    spider_bulk_malloc(spider_current_trx, SPD_MID_INCREASE_STRING_LIST_1, MYF(MY_WME | MY_ZEROFILL),
       &tmp_str_list, (uint) (sizeof(char*) * link_count),
       &tmp_length_list, (uint) (sizeof(uint) * link_count),
       NullS))
@@ -1523,7 +1447,7 @@ int spider_increase_null_string_list(
     DBUG_RETURN(0);
 
   if (!(tmp_str_list = (char**)
-    spider_bulk_malloc(spider_current_trx, 247, MYF(MY_WME | MY_ZEROFILL),
+    spider_bulk_malloc(spider_current_trx, SPD_MID_INCREASE_NULL_STRING_LIST_1, MYF(MY_WME | MY_ZEROFILL),
       &tmp_str_list, (uint) (sizeof(char*) * link_count),
       &tmp_length_list, (uint) (sizeof(uint) * link_count),
       NullS))
@@ -1581,7 +1505,7 @@ int spider_increase_long_list(
     tmp_long = -1;
 
   if (!(tmp_long_list = (long*)
-    spider_bulk_malloc(spider_current_trx, 41, MYF(MY_WME | MY_ZEROFILL),
+    spider_bulk_malloc(spider_current_trx, SPD_MID_INCREASE_LONG_LIST_1, MYF(MY_WME | MY_ZEROFILL),
       &tmp_long_list, (uint) (sizeof(long) * link_count),
       NullS))
   ) {
@@ -1626,7 +1550,7 @@ int spider_increase_longlong_list(
     tmp_longlong = -1;
 
   if (!(tmp_longlong_list = (longlong*)
-    spider_bulk_malloc(spider_current_trx, 42, MYF(MY_WME | MY_ZEROFILL),
+    spider_bulk_malloc(spider_current_trx, SPD_MID_INCREASE_LONGLONG_LIST_1, MYF(MY_WME | MY_ZEROFILL),
       &tmp_longlong_list, (uint) (sizeof(longlong) * link_count),
       NullS))
   ) {
@@ -1916,9 +1840,6 @@ static void spider_minus_1(SPIDER_SHARE *share, TABLE_SHARE *table_share)
   share->error_read_mode = -1;
   share->error_write_mode = -1;
   share->active_link_count = -1;
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-  share->hs_result_free_size = -1;
-#endif
 #ifdef HA_CAN_BULK_ACCESS
   share->bulk_access_free = -1;
 #endif
@@ -2289,17 +2210,6 @@ int spider_parse_connect_info(
           SPIDER_PARAM_INT_WITH_MAX("fbu", force_bulk_update, 0, 1);
 #endif
           SPIDER_PARAM_LONGLONG("frd", first_read, 0);
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-          SPIDER_PARAM_LONGLONG("hrf", hs_result_free_size, 0);
-          SPIDER_PARAM_LONG_LIST_WITH_MAX(
-            "hrp", hs_read_ports, 0, 65535);
-          SPIDER_PARAM_STR_LIST("hrs", hs_read_socks);
-          SPIDER_PARAM_LONG_LIST_WITH_MAX(
-            "hwp", hs_write_ports, 0, 65535);
-          SPIDER_PARAM_LONG_LIST_WITH_MAX(
-            "hwr", hs_write_to_reads, 0, 1);
-          SPIDER_PARAM_STR_LIST("hws", hs_write_socks);
-#endif
           SPIDER_PARAM_INT("isa", init_sql_alloc_size, 0);
           SPIDER_PARAM_LONGLONG("ilm", internal_limit, 0);
           SPIDER_PARAM_LONGLONG("ios", internal_offset, 0);
@@ -2374,12 +2284,6 @@ int spider_parse_connect_info(
           SPIDER_PARAM_STR_LIST("tbl", tgt_table_names);
           SPIDER_PARAM_INT_WITH_MAX("tcm", table_count_mode, 0, 3);
           SPIDER_PARAM_LONG_LIST_WITH_MAX("uhd", use_handlers, 0, 3);
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-          SPIDER_PARAM_LONG_LIST_WITH_MAX(
-            "uhr", use_hs_reads, 0, 1);
-          SPIDER_PARAM_LONG_LIST_WITH_MAX(
-            "uhw", use_hs_writes, 0, 1);
-#endif
           SPIDER_PARAM_INT_WITH_MAX("upu", use_pushdown_udf, 0, 1);
           SPIDER_PARAM_INT_WITH_MAX("utc", use_table_charset, 0, 1);
           error_num = parse.fail(true);
@@ -2455,9 +2359,6 @@ int spider_parse_connect_info(
 #endif
           SPIDER_PARAM_LONG_LIST_WITH_MAX("link_status", link_statuses, 0, 3);
           SPIDER_PARAM_LONG_LIST_WITH_MAX("use_handler", use_handlers, 0, 3);
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-          SPIDER_PARAM_LONG_LIST_WITH_MAX("use_hs_read", use_hs_reads, 0, 1);
-#endif
           SPIDER_PARAM_INT_WITH_MAX("casual_read", casual_read, 0, 63);
           SPIDER_PARAM_INT("buffer_size", buffer_size, 0);
           error_num = parse.fail(true);
@@ -2467,20 +2368,10 @@ int spider_parse_connect_info(
           SPIDER_PARAM_DOUBLE("crd_interval", crd_interval, 0);
           SPIDER_PARAM_INT_WITH_MAX("low_mem_read", low_mem_read, 0, 1);
           SPIDER_PARAM_STR_LIST("default_file", tgt_default_files);
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-          SPIDER_PARAM_LONG_LIST_WITH_MAX(
-            "use_hs_write", use_hs_writes, 0, 1);
-          SPIDER_PARAM_LONG_LIST_WITH_MAX(
-            "hs_read_port", hs_read_ports, 0, 65535);
-#endif
           error_num = parse.fail(true);
           goto error;
         case 13:
           SPIDER_PARAM_STR_LIST("default_group", tgt_default_groups);
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-          SPIDER_PARAM_LONG_LIST_WITH_MAX(
-            "hs_write_port", hs_write_ports, 0, 65535);
-#endif
           SPIDER_PARAM_STR_LIST("sequence_name", tgt_sequence_names);
           error_num = parse.fail(true);
           goto error;
@@ -2488,10 +2379,6 @@ int spider_parse_connect_info(
           SPIDER_PARAM_LONGLONG("internal_limit", internal_limit, 0);
 #ifndef WITHOUT_SPIDER_BG_SEARCH
           SPIDER_PARAM_LONGLONG("bgs_first_read", bgs_first_read, 0);
-#endif
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-          SPIDER_PARAM_STR_LIST(
-            "hs_read_socket", hs_read_socks);
 #endif
           SPIDER_PARAM_INT_WITH_MAX("read_only_mode", read_only_mode, 0, 1);
           SPIDER_PARAM_LONG_LIST_WITH_MAX("access_balance", access_balances, 0,
@@ -2513,10 +2400,6 @@ int spider_parse_connect_info(
           SPIDER_PARAM_LONG_LIST_WITH_MAX("monitoring_flag", monitoring_flag, 0, 1);
           SPIDER_PARAM_LONG_LIST_WITH_MAX("monitoring_kind", monitoring_kind, 0, 3);
           SPIDER_PARAM_DOUBLE("semi_split_read", semi_split_read, 0);
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-          SPIDER_PARAM_STR_LIST(
-            "hs_write_socket", hs_write_socks);
-#endif
           SPIDER_PARAM_LONG_LIST_WITH_MAX("connect_timeout", connect_timeouts,
             0, 2147483647);
           SPIDER_PARAM_LONG_LIST_WITH_MAX("strict_group_by",
@@ -2540,10 +2423,6 @@ int spider_parse_connect_info(
           SPIDER_PARAM_INT("bulk_update_size", bulk_update_size, 0);
           SPIDER_PARAM_LONG_LIST_WITH_MAX("net_read_timeout",
             net_read_timeouts, 0, 2147483647);
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-          SPIDER_PARAM_LONG_LIST_WITH_MAX(
-            "hs_write_to_read", hs_write_to_reads, 0, 1);
-#endif
           SPIDER_PARAM_INT_WITH_MAX(
             "error_write_mode", error_write_mode, 0, 1);
 #ifdef HA_CAN_BULK_ACCESS
@@ -2591,9 +2470,6 @@ int spider_parse_connect_info(
           SPIDER_PARAM_INT("init_sql_alloc_size", init_sql_alloc_size, 0);
           SPIDER_PARAM_INT_WITH_MAX(
             "auto_increment_mode", auto_increment_mode, 0, 3);
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-          SPIDER_PARAM_LONGLONG("hs_result_free_size", hs_result_free_size, 0);
-#endif
           SPIDER_PARAM_LONG_LIST_WITH_MAX("bka_table_name_type",
             bka_table_name_types, 0, 1);
           SPIDER_PARAM_INT_WITH_MAX(
@@ -2723,22 +2599,6 @@ int spider_parse_connect_info(
     share->all_link_count = share->monitoring_bg_kind_length;
   if (share->all_link_count < share->monitoring_bg_interval_length)
     share->all_link_count = share->monitoring_bg_interval_length;
-#endif
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-  if (share->all_link_count < share->use_hs_reads_length)
-    share->all_link_count = share->use_hs_reads_length;
-  if (share->all_link_count < share->use_hs_writes_length)
-    share->all_link_count = share->use_hs_writes_length;
-  if (share->all_link_count < share->hs_read_ports_length)
-    share->all_link_count = share->hs_read_ports_length;
-  if (share->all_link_count < share->hs_write_ports_length)
-    share->all_link_count = share->hs_write_ports_length;
-  if (share->all_link_count < share->hs_read_socks_length)
-    share->all_link_count = share->hs_read_socks_length;
-  if (share->all_link_count < share->hs_write_socks_length)
-    share->all_link_count = share->hs_write_socks_length;
-  if (share->all_link_count < share->hs_write_to_reads_length)
-    share->all_link_count = share->hs_write_to_reads_length;
 #endif
   if (share->all_link_count < share->use_handlers_length)
     share->all_link_count = share->use_handlers_length;
@@ -2946,47 +2806,6 @@ int spider_parse_connect_info(
     &share->monitoring_sid_length,
     share->all_link_count)))
     goto error;
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-  if ((error_num = spider_increase_long_list(
-    &share->use_hs_reads,
-    &share->use_hs_reads_length,
-    share->all_link_count)))
-    goto error;
-  if ((error_num = spider_increase_long_list(
-    &share->use_hs_writes,
-    &share->use_hs_writes_length,
-    share->all_link_count)))
-    goto error;
-  if ((error_num = spider_increase_long_list(
-    &share->hs_read_ports,
-    &share->hs_read_ports_length,
-    share->all_link_count)))
-    goto error;
-  if ((error_num = spider_increase_long_list(
-    &share->hs_write_ports,
-    &share->hs_write_ports_length,
-    share->all_link_count)))
-    goto error;
-  if ((error_num = spider_increase_string_list(
-    &share->hs_read_socks,
-    &share->hs_read_socks_lengths,
-    &share->hs_read_socks_length,
-    &share->hs_read_socks_charlen,
-    share->all_link_count)))
-    goto error;
-  if ((error_num = spider_increase_string_list(
-    &share->hs_write_socks,
-    &share->hs_write_socks_lengths,
-    &share->hs_write_socks_length,
-    &share->hs_write_socks_charlen,
-    share->all_link_count)))
-    goto error;
-  if ((error_num = spider_increase_long_list(
-    &share->hs_write_to_reads,
-    &share->hs_write_to_reads_length,
-    share->all_link_count)))
-    goto error;
-#endif
   if ((error_num = spider_increase_long_list(
     &share->use_handlers,
     &share->use_handlers_length,
@@ -3027,7 +2846,7 @@ int spider_parse_connect_info(
   share_alter = &share->alter_table;
   share_alter->all_link_count = share->all_link_count;
   if (!(share_alter->tmp_server_names = (char **)
-    spider_bulk_malloc(spider_current_trx, 43, MYF(MY_WME | MY_ZEROFILL),
+    spider_bulk_malloc(spider_current_trx, SPD_MID_PARSE_CONNECT_INFO_1, MYF(MY_WME | MY_ZEROFILL),
       &share_alter->tmp_server_names,
       (uint) (sizeof(char *) * share->all_link_count),
       &share_alter->tmp_tgt_table_names,
@@ -3567,13 +3386,15 @@ error_alloc_conn_string:
   DBUG_RETURN(error_num);
 }
 
+/* Set default connect info of a SPIDER_SHARE if needed */
 int spider_set_connect_info_default(
-  SPIDER_SHARE *share,
+  SPIDER_SHARE *share,               /* The `SPIDER_SHARE' to set
+                                     default connect info */
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-  partition_element *part_elem,
-  partition_element *sub_elem,
+  partition_element *part_elem, /* partition info used as input */
+  partition_element *sub_elem,  /* subpartition info used as input */
 #endif
-  TABLE_SHARE *table_share
+  TABLE_SHARE *table_share      /* table share info used as input */
 ) {
   bool check_socket;
   bool check_database;
@@ -3766,22 +3587,6 @@ int spider_set_connect_info_default(
       }
     }
 
-/*
-    if (!share->static_link_ids[roop_count])
-    {
-      DBUG_PRINT("info",("spider create default static_link_ids"));
-      share->static_link_ids_lengths[roop_count] =
-        SPIDER_DB_STATIC_LINK_ID_LEN;
-      if (
-        !(share->static_link_ids[roop_count] = spider_create_string(
-          SPIDER_DB_STATIC_LINK_ID_STR,
-          share->static_link_ids_lengths[roop_count]))
-      ) {
-        DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-      }
-    }
-*/
-
     if (share->tgt_ports[roop_count] == -1)
     {
       share->tgt_ports[roop_count] = MYSQL_PORT;
@@ -3832,44 +3637,8 @@ int spider_set_connect_info_default(
     if (share->monitoring_limit[roop_count] == -1)
       share->monitoring_limit[roop_count] = 1;
     if (share->monitoring_sid[roop_count] == -1)
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100002
       share->monitoring_sid[roop_count] = global_system_variables.server_id;
-#else
-      share->monitoring_sid[roop_count] = current_thd->server_id;
-#endif
 
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-    if (share->hs_read_ports[roop_count] == -1)
-    {
-      share->hs_read_ports[roop_count] = 9998;
-    } else if (share->hs_read_ports[roop_count] < 0)
-    {
-      share->hs_read_ports[roop_count] = 0;
-    } else if (share->hs_read_ports[roop_count] > 65535)
-    {
-      share->hs_read_ports[roop_count] = 65535;
-    }
-    if (share->hs_write_ports[roop_count] == -1)
-    {
-      share->hs_write_ports[roop_count] = 9999;
-    } else if (share->hs_write_ports[roop_count] < 0)
-    {
-      share->hs_write_ports[roop_count] = 0;
-    } else if (share->hs_write_ports[roop_count] > 65535)
-    {
-      share->hs_write_ports[roop_count] = 65535;
-    }
-    if (share->hs_write_to_reads[roop_count] == -1)
-    {
-      share->hs_write_to_reads[roop_count] = 1;
-    } else if (share->hs_write_to_reads[roop_count] < 0)
-    {
-      share->hs_write_to_reads[roop_count] = 0;
-    } else if (share->hs_write_to_reads[roop_count] > 1)
-    {
-      share->hs_write_to_reads[roop_count] = 1;
-    }
-#endif
     if (share->access_balances[roop_count] == -1)
       share->access_balances[roop_count] = 100;
   }
@@ -3911,6 +3680,11 @@ int spider_set_connect_info_default(
   DBUG_RETURN(0);
 }
 
+/*
+  This function is a no-op if all share->tgt_dbs and
+  share->tgt_table_names are non-null, otherwise it may assign them
+  with db_name and table_name
+*/
 int spider_set_connect_info_default_db_table(
   SPIDER_SHARE *share,
   const char *db_name,
@@ -3996,6 +3770,11 @@ int spider_set_connect_info_default_db_table(
   DBUG_RETURN(0);
 }
 
+/*
+  Parse `dbtable_name' into db name and table name, and call
+  spider_set_connect_info_default_db_table() to set the db/table name
+  values of `share' if needed
+*/
 int spider_set_connect_info_default_dbtable(
   SPIDER_SHARE *share,
   const char *dbtable_name,
@@ -4046,23 +3825,12 @@ int spider_create_conn_keys(
 ) {
   int roop_count, roop_count2;
   char *tmp_name, port_str[6];
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-  char *tmp_hs_r_name, *tmp_hs_w_name;
-#endif
   uint length_base = sizeof(uint) * share->all_link_count;
   uint *conn_keys_lengths;
   uint *sql_dbton_ids;
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-  uint *hs_dbton_ids;
-  uint *hs_r_conn_keys_lengths;
-  uint *hs_w_conn_keys_lengths;
-#endif
   DBUG_ENTER("spider_create_conn_keys");
   char *ptr;
   uint length = length_base * 2;
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-  length += length_base * 3;
-#endif
   ptr = (char *) my_alloca(length);
   if (!ptr)
   {
@@ -4071,26 +3839,11 @@ int spider_create_conn_keys(
   conn_keys_lengths = (uint *) ptr;
   ptr += length_base;
   sql_dbton_ids = (uint *) ptr;
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-  ptr += length_base;
-  hs_dbton_ids = (uint *) ptr;
-  ptr += length_base;
-  hs_r_conn_keys_lengths = (uint *) ptr;
-  ptr += length_base;
-  hs_w_conn_keys_lengths = (uint *) ptr;
-#endif
 
   share->conn_keys_charlen = 0;
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-  share->hs_read_conn_keys_charlen = 0;
-  share->hs_write_conn_keys_charlen = 0;
-#endif
   for (roop_count = 0; roop_count < (int) share->all_link_count; roop_count++)
   {
     bool get_sql_id = FALSE;
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-    bool get_nosql_id = FALSE;
-#endif
     for (roop_count2 = 0; roop_count2 < SPIDER_DBTON_SIZE; roop_count2++)
     {
       DBUG_PRINT("info",("spider share->tgt_wrappers[%d]=%s", roop_count,
@@ -4110,35 +3863,12 @@ int spider_create_conn_keys(
         ) {
           sql_dbton_ids[roop_count] = roop_count2;
           get_sql_id = TRUE;
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-          if (get_nosql_id)
-#endif
-            break;
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-          else
-            continue;
-#endif
-        }
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-        if (
-          !get_nosql_id &&
-          spider_dbton[roop_count2].db_access_type ==
-            SPIDER_DB_ACCESS_TYPE_NOSQL
-        ) {
-          hs_dbton_ids[roop_count] = roop_count2;
-          get_nosql_id = TRUE;
-          if (get_sql_id)
             break;
         }
-#endif
       }
     }
     if (!get_sql_id)
       sql_dbton_ids[roop_count] = SPIDER_DBTON_SIZE;
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-    if (!get_nosql_id)
-      hs_dbton_ids[roop_count] = SPIDER_DBTON_SIZE;
-#endif
 
     bool tables_on_different_db_are_joinable;
     if (get_sql_id)
@@ -4169,27 +3899,9 @@ int spider_create_conn_keys(
       + share->tgt_default_groups_lengths[roop_count] + 1
       + share->tgt_dsns_lengths[roop_count];
     share->conn_keys_charlen += conn_keys_lengths[roop_count] + 2;
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-    hs_r_conn_keys_lengths[roop_count]
-      = 1
-      + share->tgt_wrappers_lengths[roop_count] + 1
-      + share->tgt_hosts_lengths[roop_count] + 1
-      + 5 + 1
-      + share->hs_read_socks_lengths[roop_count];
-    share->hs_read_conn_keys_charlen +=
-      hs_r_conn_keys_lengths[roop_count] + 2;
-    hs_w_conn_keys_lengths[roop_count]
-      = 1
-      + share->tgt_wrappers_lengths[roop_count] + 1
-      + share->tgt_hosts_lengths[roop_count] + 1
-      + 5 + 1
-      + share->hs_write_socks_lengths[roop_count];
-    share->hs_write_conn_keys_charlen +=
-      hs_w_conn_keys_lengths[roop_count] + 2;
-#endif
   }
   if (!(share->conn_keys = (char **)
-    spider_bulk_alloc_mem(spider_current_trx, 45,
+    spider_bulk_alloc_mem(spider_current_trx, SPD_MID_CREATE_CONN_KEYS_1,
       __func__, __FILE__, __LINE__, MYF(MY_WME | MY_ZEROFILL),
       &share->conn_keys, sizeof(char *) * share->all_link_count,
       &share->conn_keys_lengths, length_base,
@@ -4198,26 +3910,7 @@ int spider_create_conn_keys(
         sizeof(my_hash_value_type) * share->all_link_count,
 #endif
       &tmp_name, sizeof(char) * share->conn_keys_charlen,
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-      &share->hs_read_conn_keys, sizeof(char *) * share->all_link_count,
-      &share->hs_read_conn_keys_lengths, length_base,
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
-      &share->hs_read_conn_keys_hash_value,
-        sizeof(my_hash_value_type) * share->all_link_count,
-#endif
-      &tmp_hs_r_name, sizeof(char) * share->hs_read_conn_keys_charlen,
-      &share->hs_write_conn_keys, sizeof(char *) * share->all_link_count,
-      &share->hs_write_conn_keys_lengths, length_base,
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
-      &share->hs_write_conn_keys_hash_value,
-        sizeof(my_hash_value_type) * share->all_link_count,
-#endif
-      &tmp_hs_w_name, sizeof(char) * share->hs_write_conn_keys_charlen,
-#endif
       &share->sql_dbton_ids, length_base,
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-      &share->hs_dbton_ids, length_base,
-#endif
       NullS))
   ) {
     my_afree(conn_keys_lengths);
@@ -4227,15 +3920,6 @@ int spider_create_conn_keys(
   memcpy(share->conn_keys_lengths, conn_keys_lengths,
     length_base);
   memcpy(share->sql_dbton_ids, sql_dbton_ids, length_base);
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-  share->hs_read_conn_keys_length = share->all_link_count;
-  share->hs_write_conn_keys_length = share->all_link_count;
-  memcpy(share->hs_read_conn_keys_lengths, hs_r_conn_keys_lengths,
-    length_base);
-  memcpy(share->hs_write_conn_keys_lengths, hs_w_conn_keys_lengths,
-    length_base);
-  memcpy(share->hs_dbton_ids, hs_dbton_ids, length_base);
-#endif
 
   my_afree(conn_keys_lengths);
 
@@ -4358,82 +4042,14 @@ int spider_create_conn_keys(
       &spider_open_connections, (uchar*) share->conn_keys[roop_count],
       share->conn_keys_lengths[roop_count]);
 #endif
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-    share->hs_read_conn_keys[roop_count] = tmp_hs_r_name;
-    *tmp_hs_r_name = '0';
-    DBUG_PRINT("info",("spider tgt_wrappers[%d]=%s", roop_count,
-      share->tgt_wrappers[roop_count]));
-    tmp_hs_r_name = strmov(tmp_hs_r_name + 1, share->tgt_wrappers[roop_count]);
-    DBUG_PRINT("info",("spider tgt_hosts[%d]=%s", roop_count,
-      share->tgt_hosts[roop_count]));
-    tmp_hs_r_name = strmov(tmp_hs_r_name + 1, share->tgt_hosts[roop_count]);
-    my_sprintf(port_str, (port_str, "%05ld",
-      share->hs_read_ports[roop_count]));
-    DBUG_PRINT("info",("spider port_str=%s", port_str));
-    tmp_hs_r_name = strmov(tmp_hs_r_name + 1, port_str);
-    if (share->hs_read_socks[roop_count])
-    {
-      DBUG_PRINT("info",("spider hs_read_socks[%d]=%s", roop_count,
-        share->hs_read_socks[roop_count]));
-      tmp_hs_r_name = strmov(tmp_hs_r_name + 1,
-        share->hs_read_socks[roop_count]);
-    } else
-      tmp_hs_r_name++;
-    tmp_hs_r_name++;
-    tmp_hs_r_name++;
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
-    share->hs_read_conn_keys_hash_value[roop_count] = my_calc_hash(
-      &spider_open_connections, (uchar*) share->hs_read_conn_keys[roop_count],
-      share->hs_read_conn_keys_lengths[roop_count]);
-#endif
-    share->hs_write_conn_keys[roop_count] = tmp_hs_w_name;
-    *tmp_hs_w_name = '0';
-    DBUG_PRINT("info",("spider tgt_wrappers[%d]=%s", roop_count,
-      share->tgt_wrappers[roop_count]));
-    tmp_hs_w_name = strmov(tmp_hs_w_name + 1, share->tgt_wrappers[roop_count]);
-    DBUG_PRINT("info",("spider tgt_hosts[%d]=%s", roop_count,
-      share->tgt_hosts[roop_count]));
-    tmp_hs_w_name = strmov(tmp_hs_w_name + 1, share->tgt_hosts[roop_count]);
-    my_sprintf(port_str, (port_str, "%05ld",
-      share->hs_write_ports[roop_count]));
-    DBUG_PRINT("info",("spider port_str=%s", port_str));
-    tmp_hs_w_name = strmov(tmp_hs_w_name + 1, port_str);
-    if (share->hs_write_socks[roop_count])
-    {
-      DBUG_PRINT("info",("spider hs_write_socks[%d]=%s", roop_count,
-        share->hs_write_socks[roop_count]));
-      tmp_hs_w_name = strmov(tmp_hs_w_name + 1,
-        share->hs_write_socks[roop_count]);
-    } else
-      tmp_hs_w_name++;
-    tmp_hs_w_name++;
-    tmp_hs_w_name++;
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
-    share->hs_write_conn_keys_hash_value[roop_count] = my_calc_hash(
-      &spider_open_connections, (uchar*) share->hs_write_conn_keys[roop_count],
-      share->hs_write_conn_keys_lengths[roop_count]);
-#endif
-#endif
   }
   for (roop_count2 = 0; roop_count2 < SPIDER_DBTON_SIZE; roop_count2++)
   {
     if (spider_bit_is_set(share->dbton_bitmap, roop_count2))
     {
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-      if (spider_dbton[roop_count2].db_access_type ==
-        SPIDER_DB_ACCESS_TYPE_SQL)
-      {
-#endif
         share->use_sql_dbton_ids[share->use_dbton_count] = roop_count2;
         share->sql_dbton_id_to_seq[roop_count2] = share->use_dbton_count;
         share->use_sql_dbton_count++;
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-      } else {
-        share->use_hs_dbton_ids[share->use_hs_dbton_count] = roop_count2;
-        share->hs_dbton_id_to_seq[roop_count2] = share->use_hs_dbton_count;
-        share->use_hs_dbton_count++;
-      }
-#endif
       share->use_dbton_ids[share->use_dbton_count] = roop_count2;
       share->dbton_id_to_seq[roop_count2] = share->use_dbton_count;
       share->use_dbton_count++;
@@ -4469,7 +4085,7 @@ SPIDER_SHARE *spider_create_share(
   length = (uint) strlen(table_name);
   bitmap_size = spider_bitmap_size(table_share->fields);
   if (!(share = (SPIDER_SHARE *)
-    spider_bulk_malloc(spider_current_trx, 46, MYF(MY_WME | MY_ZEROFILL),
+    spider_bulk_malloc(spider_current_trx, SPD_MID_CREATE_SHARE_1, MYF(MY_WME | MY_ZEROFILL),
       &share, (uint) (sizeof(*share)),
       &tmp_name, (uint) (length + 1),
       &tmp_static_key_cardinality,
@@ -4490,9 +4106,6 @@ SPIDER_SHARE *spider_create_share(
   SPD_INIT_ALLOC_ROOT(&share->mem_root, 4096, 0, MYF(MY_WME));
   share->use_count = 0;
   share->use_dbton_count = 0;
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-  share->use_hs_dbton_count = 0;
-#endif
   share->table_name_length = length;
   share->table_name = tmp_name;
   strmov(share->table_name, table_name);
@@ -4516,14 +4129,14 @@ SPIDER_SHARE *spider_create_share(
   share->table.read_set = &table_share->all_set;
 #endif
 
-  if (table_share->keys > 0 &&
-    !(share->key_hint = new spider_string[table_share->keys])
-  ) {
-    *error_num = HA_ERR_OUT_OF_MEM;
-    goto error_init_hint_string;
-  }
+  if (table_share->keys > 0)
+    if (!(share->key_hint = new spider_string[table_share->keys]))
+    {
+      *error_num = HA_ERR_OUT_OF_MEM;
+      goto error_init_hint_string;
+    }
   for (roop_count = 0; roop_count < (int) table_share->keys; roop_count++)
-    share->key_hint[roop_count].init_calc_mem(95);
+    share->key_hint[roop_count].init_calc_mem(SPD_MID_CREATE_SHARE_2);
   DBUG_PRINT("info",("spider share->key_hint=%p", share->key_hint));
 
   if ((*error_num = spider_parse_connect_info(share, table_share,
@@ -4560,34 +4173,22 @@ SPIDER_SHARE *spider_create_share(
   if (share->table_count_mode & 2)
     share->additional_table_flags |= HA_HAS_RECORDS;
 
-#if MYSQL_VERSION_ID < 50500
-  if (pthread_mutex_init(&share->mutex, MY_MUTEX_INIT_FAST))
-#else
   if (mysql_mutex_init(spd_key_mutex_share,
     &share->mutex, MY_MUTEX_INIT_FAST))
-#endif
   {
     *error_num = HA_ERR_OUT_OF_MEM;
     goto error_init_mutex;
   }
 
-#if MYSQL_VERSION_ID < 50500
-  if (pthread_mutex_init(&share->sts_mutex, MY_MUTEX_INIT_FAST))
-#else
   if (mysql_mutex_init(spd_key_mutex_share_sts,
     &share->sts_mutex, MY_MUTEX_INIT_FAST))
-#endif
   {
     *error_num = HA_ERR_OUT_OF_MEM;
     goto error_init_sts_mutex;
   }
 
-#if MYSQL_VERSION_ID < 50500
-  if (pthread_mutex_init(&share->crd_mutex, MY_MUTEX_INIT_FAST))
-#else
   if (mysql_mutex_init(spd_key_mutex_share_crd,
     &share->crd_mutex, MY_MUTEX_INIT_FAST))
-#endif
   {
     *error_num = HA_ERR_OUT_OF_MEM;
     goto error_init_crd_mutex;
@@ -4685,12 +4286,6 @@ SPIDER_SHARE *spider_get_share(
   SPIDER_RESULT_LIST *result_list = &spider->result_list;
   uint length, tmp_conn_link_idx = 0, buf_sz;
   char *tmp_name, *tmp_cid;
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-  char *tmp_hs_r_name, *tmp_hs_w_name;
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
-  uint32 *tmp_hs_r_ret_fields, *tmp_hs_w_ret_fields;
-#endif
-#endif
   int roop_count;
   double sts_interval;
   int sts_mode;
@@ -4745,7 +4340,7 @@ SPIDER_SHARE *spider_get_share(
     ((char *) lex_str.str)[lex_str.length] = '\0';
     DBUG_PRINT("info",("spider loop check param name=%s", lex_str.str));
     loop_check = get_variable(&thd->user_vars, &lex_str, FALSE);
-    if (loop_check && loop_check->type == STRING_RESULT)
+    if (loop_check && loop_check->type_handler()->result_type() == STRING_RESULT)
     {
       lex_str.length = top_share->path.length + spider_unique_id.length + 1;
       lex_str.str = loop_check_buf + buf_sz - top_share->path.length -
@@ -5008,23 +4603,13 @@ SPIDER_SHARE *spider_get_share(
 #endif
 
     if (!(spider->conn_keys = (char **)
-      spider_bulk_alloc_mem(spider_current_trx, 47,
+      spider_bulk_alloc_mem(spider_current_trx, SPD_MID_GET_SHARE_1,
         __func__, __FILE__, __LINE__, MYF(MY_WME | MY_ZEROFILL),
         &spider->conn_keys, sizeof(char *) * share->link_count,
         &tmp_name, sizeof(char) * share->conn_keys_charlen,
         &spider->conns, sizeof(SPIDER_CONN *) * share->link_count,
         &spider->conn_link_idx, sizeof(uint) * share->link_count,
         &spider->conn_can_fo, sizeof(uchar) * share->link_bitmap_size,
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-        &spider->hs_r_conn_keys, sizeof(char *) * share->link_count,
-        &tmp_hs_r_name, sizeof(char) * share->hs_read_conn_keys_charlen,
-        &spider->hs_r_conns, sizeof(SPIDER_CONN *) * share->link_count,
-        &spider->hs_r_conn_ages, sizeof(ulonglong) * share->link_count,
-        &spider->hs_w_conn_keys, sizeof(char *) * share->link_count,
-        &tmp_hs_w_name, sizeof(char) * share->hs_write_conn_keys_charlen,
-        &spider->hs_w_conns, sizeof(SPIDER_CONN *) * share->link_count,
-        &spider->hs_w_conn_ages, sizeof(ulonglong) * share->link_count,
-#endif
         &spider->sql_kind, sizeof(uint) * share->link_count,
         &spider->connection_ids, sizeof(ulonglong) * share->link_count,
         &spider->conn_kind, sizeof(uint) * share->link_count,
@@ -5033,26 +4618,6 @@ SPIDER_SHARE *spider_get_share(
         &spider->m_handler_opened, sizeof(uchar) * share->link_bitmap_size,
         &spider->m_handler_id, sizeof(uint) * share->link_count,
         &spider->m_handler_cid, sizeof(char *) * share->link_count,
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-        &spider->r_handler_opened, sizeof(uchar) * share->link_bitmap_size,
-        &spider->r_handler_id, sizeof(uint) * share->link_count,
-        &spider->r_handler_index, sizeof(uint) * share->link_count,
-        &spider->w_handler_opened, sizeof(uchar) * share->link_bitmap_size,
-        &spider->w_handler_id, sizeof(uint) * share->link_count,
-        &spider->w_handler_index, sizeof(uint) * share->link_count,
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
-        &spider->do_hs_direct_update, sizeof(uchar) * share->link_bitmap_size,
-        &spider->hs_r_ret_fields, sizeof(uint32 *) * share->link_count,
-        &spider->hs_w_ret_fields, sizeof(uint32 *) * share->link_count,
-        &spider->hs_r_ret_fields_num, sizeof(size_t) * share->link_count,
-        &spider->hs_w_ret_fields_num, sizeof(size_t) * share->link_count,
-        &tmp_hs_r_ret_fields,
-          sizeof(uint32) * share->link_count * table_share->fields,
-        &tmp_hs_w_ret_fields,
-          sizeof(uint32) * share->link_count * table_share->fields,
-        &spider->tmp_column_bitmap, sizeof(uchar) * share->bitmap_size,
-#endif
-#endif
         &tmp_cid, sizeof(char) * (SPIDER_SQL_HANDLER_CID_LEN + 1) *
           share->link_count,
         &spider->need_mons, sizeof(int) * share->link_count,
@@ -5065,12 +4630,6 @@ SPIDER_SHARE *spider_get_share(
         &result_list->tmp_table_created,
           sizeof(uchar) * share->link_bitmap_size,
 #ifdef HA_CAN_BULK_ACCESS
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-        &result_list->hs_r_bulk_open_index,
-          sizeof(uchar) * share->link_bitmap_size,
-        &result_list->hs_w_bulk_open_index,
-          sizeof(uchar) * share->link_bitmap_size,
-#endif
 #endif
         &result_list->sql_kind_backup, sizeof(uint) * share->link_count,
         &result_list->casual_read, sizeof(int) * share->link_count,
@@ -5085,12 +4644,6 @@ SPIDER_SHARE *spider_get_share(
       goto error_but_no_delete;
     }
     memcpy(tmp_name, share->conn_keys[0], share->conn_keys_charlen);
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-    memcpy(tmp_hs_r_name, share->hs_read_conn_keys[0],
-      share->hs_read_conn_keys_charlen);
-    memcpy(tmp_hs_w_name, share->hs_write_conn_keys[0],
-      share->hs_write_conn_keys_charlen);
-#endif
 
     spider->conn_keys_first_ptr = tmp_name;
     for (roop_count = 0; roop_count < (int) share->link_count; roop_count++)
@@ -5098,18 +4651,6 @@ SPIDER_SHARE *spider_get_share(
       spider->conn_keys[roop_count] = tmp_name;
       *tmp_name = first_byte;
       tmp_name += share->conn_keys_lengths[roop_count] + 1;
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-      spider->hs_r_conn_keys[roop_count] = tmp_hs_r_name;
-      tmp_hs_r_name += share->hs_read_conn_keys_lengths[roop_count] + 1;
-      spider->hs_w_conn_keys[roop_count] = tmp_hs_w_name;
-      tmp_hs_w_name += share->hs_write_conn_keys_lengths[roop_count] + 1;
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
-      spider->hs_r_ret_fields[roop_count] = tmp_hs_r_ret_fields;
-      tmp_hs_r_ret_fields += table_share->fields;
-      spider->hs_w_ret_fields[roop_count] = tmp_hs_w_ret_fields;
-      tmp_hs_w_ret_fields += table_share->fields;
-#endif
-#endif
       spider->m_handler_cid[roop_count] = tmp_cid;
       tmp_cid += SPIDER_SQL_HANDLER_CID_LEN + 1;
       result_list->upd_tmp_tbl_prms[roop_count].init();
@@ -5550,23 +5091,13 @@ SPIDER_SHARE *spider_get_share(
 #endif
 
     if (!(spider->conn_keys = (char **)
-      spider_bulk_alloc_mem(spider_current_trx, 49,
+      spider_bulk_alloc_mem(spider_current_trx, SPD_MID_GET_SHARE_2,
         __func__, __FILE__, __LINE__, MYF(MY_WME | MY_ZEROFILL),
         &spider->conn_keys, sizeof(char *) * share->link_count,
         &tmp_name, sizeof(char) * share->conn_keys_charlen,
         &spider->conns, sizeof(SPIDER_CONN *) * share->link_count,
         &spider->conn_link_idx, sizeof(uint) * share->link_count,
         &spider->conn_can_fo, sizeof(uchar) * share->link_bitmap_size,
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-        &spider->hs_r_conn_keys, sizeof(char *) * share->link_count,
-        &tmp_hs_r_name, sizeof(char) * share->hs_read_conn_keys_charlen,
-        &spider->hs_r_conns, sizeof(SPIDER_CONN *) * share->link_count,
-        &spider->hs_r_conn_ages, sizeof(ulonglong) * share->link_count,
-        &spider->hs_w_conn_keys, sizeof(char *) * share->link_count,
-        &tmp_hs_w_name, sizeof(char) * share->hs_write_conn_keys_charlen,
-        &spider->hs_w_conns, sizeof(SPIDER_CONN *) * share->link_count,
-        &spider->hs_w_conn_ages, sizeof(ulonglong) * share->link_count,
-#endif
         &spider->sql_kind, sizeof(uint) * share->link_count,
         &spider->connection_ids, sizeof(ulonglong) * share->link_count,
         &spider->conn_kind, sizeof(uint) * share->link_count,
@@ -5575,26 +5106,6 @@ SPIDER_SHARE *spider_get_share(
         &spider->m_handler_opened, sizeof(uchar) * share->link_bitmap_size,
         &spider->m_handler_id, sizeof(uint) * share->link_count,
         &spider->m_handler_cid, sizeof(char *) * share->link_count,
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-        &spider->r_handler_opened, sizeof(uchar) * share->link_bitmap_size,
-        &spider->r_handler_id, sizeof(uint) * share->link_count,
-        &spider->r_handler_index, sizeof(uint) * share->link_count,
-        &spider->w_handler_opened, sizeof(uchar) * share->link_bitmap_size,
-        &spider->w_handler_id, sizeof(uint) * share->link_count,
-        &spider->w_handler_index, sizeof(uint) * share->link_count,
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
-        &spider->do_hs_direct_update, sizeof(uchar) * share->link_bitmap_size,
-        &spider->hs_r_ret_fields, sizeof(uint32 *) * share->link_count,
-        &spider->hs_w_ret_fields, sizeof(uint32 *) * share->link_count,
-        &spider->hs_r_ret_fields_num, sizeof(size_t) * share->link_count,
-        &spider->hs_w_ret_fields_num, sizeof(size_t) * share->link_count,
-        &tmp_hs_r_ret_fields,
-          sizeof(uint32) * share->link_count * table_share->fields,
-        &tmp_hs_w_ret_fields,
-          sizeof(uint32) * share->link_count * table_share->fields,
-        &spider->tmp_column_bitmap, sizeof(uchar) * share->bitmap_size,
-#endif
-#endif
         &tmp_cid, sizeof(char) * (SPIDER_SQL_HANDLER_CID_LEN + 1) *
           share->link_count,
         &spider->need_mons, sizeof(int) * share->link_count,
@@ -5607,12 +5118,6 @@ SPIDER_SHARE *spider_get_share(
         &result_list->tmp_table_created,
           sizeof(uchar) * share->link_bitmap_size,
 #ifdef HA_CAN_BULK_ACCESS
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-        &result_list->hs_r_bulk_open_index,
-          sizeof(uchar) * share->link_bitmap_size,
-        &result_list->hs_w_bulk_open_index,
-          sizeof(uchar) * share->link_bitmap_size,
-#endif
 #endif
         &result_list->sql_kind_backup, sizeof(uint) * share->link_count,
         &result_list->casual_read, sizeof(int) * share->link_count,
@@ -5624,12 +5129,6 @@ SPIDER_SHARE *spider_get_share(
       goto error_but_no_delete;
     }
     memcpy(tmp_name, share->conn_keys[0], share->conn_keys_charlen);
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-    memcpy(tmp_hs_r_name, share->hs_read_conn_keys[0],
-      share->hs_read_conn_keys_charlen);
-    memcpy(tmp_hs_w_name, share->hs_write_conn_keys[0],
-      share->hs_write_conn_keys_charlen);
-#endif
 
     spider->conn_keys_first_ptr = tmp_name;
     for (roop_count = 0; roop_count < (int) share->link_count; roop_count++)
@@ -5637,18 +5136,6 @@ SPIDER_SHARE *spider_get_share(
       spider->conn_keys[roop_count] = tmp_name;
       *tmp_name = first_byte;
       tmp_name += share->conn_keys_lengths[roop_count] + 1;
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-      spider->hs_r_conn_keys[roop_count] = tmp_hs_r_name;
-      tmp_hs_r_name += share->hs_read_conn_keys_lengths[roop_count] + 1;
-      spider->hs_w_conn_keys[roop_count] = tmp_hs_w_name;
-      tmp_hs_w_name += share->hs_write_conn_keys_lengths[roop_count] + 1;
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
-      spider->hs_r_ret_fields[roop_count] = tmp_hs_r_ret_fields;
-      tmp_hs_r_ret_fields += table_share->fields;
-      spider->hs_w_ret_fields[roop_count] = tmp_hs_w_ret_fields;
-      tmp_hs_w_ret_fields += table_share->fields;
-#endif
-#endif
       spider->m_handler_cid[roop_count] = tmp_cid;
       tmp_cid += SPIDER_SQL_HANDLER_CID_LEN + 1;
       result_list->upd_tmp_tbl_prms[roop_count].init();
@@ -5928,8 +5415,6 @@ int spider_free_share(
 ) {
   DBUG_ENTER("spider_free_share");
   pthread_mutex_lock(&spider_tbl_mutex);
-  bool do_delete_thd = false;
-  THD *thd = current_thd;
   if (!--share->use_count)
   {
 #ifndef WITHOUT_SPIDER_BG_SEARCH
@@ -5947,47 +5432,6 @@ int spider_free_share(
       spider_free_spider_object_for_share(&share->crd_spider);
     }
 #endif
-    if (
-      share->sts_init &&
-      spider_param_store_last_sts(share->store_last_sts)
-    ) {
-      if (!thd)
-      {
-        /* Create a thread for Spider system table update */
-        thd = spider_create_thd();
-        if (!thd)
-          DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-        do_delete_thd = TRUE;
-      }
-      spider_sys_insert_or_update_table_sts(
-        thd,
-        share->lgtm_tblhnd_share->table_name,
-        share->lgtm_tblhnd_share->table_name_length,
-        &share->stat,
-        FALSE
-      );
-    }
-    if (
-      share->crd_init &&
-      spider_param_store_last_crd(share->store_last_crd)
-    ) {
-      if (!thd)
-      {
-        /* Create a thread for Spider system table update */
-        thd = spider_create_thd();
-        if (!thd)
-          DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-        do_delete_thd = TRUE;
-      }
-      spider_sys_insert_or_update_table_crd(
-        thd,
-        share->lgtm_tblhnd_share->table_name,
-        share->lgtm_tblhnd_share->table_name_length,
-        share->cardinality,
-        share->table_share->fields,
-        FALSE
-      );
-    }
     spider_free_share_alloc(share);
 #ifdef HASH_UPDATE_WITH_HASH_VALUE
     my_hash_delete_with_hash_value(&spider_open_tables,
@@ -6001,8 +5445,6 @@ int spider_free_share(
     free_root(&share->mem_root, MYF(0));
     spider_free(spider_current_trx, share, MYF(0));
   }
-  if (do_delete_thd)
-    spider_destroy_thd(thd);
   pthread_mutex_unlock(&spider_tbl_mutex);
   DBUG_RETURN(0);
 }
@@ -6081,7 +5523,7 @@ SPIDER_LGTM_TBLHND_SHARE *spider_get_lgtm_tblhnd_share(
   {
     DBUG_PRINT("info",("spider create new lgtm tblhnd share"));
     if (!(lgtm_tblhnd_share = (SPIDER_LGTM_TBLHND_SHARE *)
-      spider_bulk_malloc(spider_current_trx, 244, MYF(MY_WME | MY_ZEROFILL),
+      spider_bulk_malloc(spider_current_trx, SPD_MID_GET_LGTM_TBLHND_SHARE_1, MYF(MY_WME | MY_ZEROFILL),
         &lgtm_tblhnd_share, (uint) (sizeof(*lgtm_tblhnd_share)),
         &tmp_name, (uint) (table_name_length + 1),
         NullS))
@@ -6098,13 +5540,8 @@ SPIDER_LGTM_TBLHND_SHARE *spider_get_lgtm_tblhnd_share(
     lgtm_tblhnd_share->table_path_hash_value = hash_value;
 #endif
 
-#if MYSQL_VERSION_ID < 50500
-    if (pthread_mutex_init(&lgtm_tblhnd_share->auto_increment_mutex,
-      MY_MUTEX_INIT_FAST))
-#else
     if (mysql_mutex_init(spd_key_mutex_share_auto_increment,
       &lgtm_tblhnd_share->auto_increment_mutex, MY_MUTEX_INIT_FAST))
-#endif
     {
       *error_num = HA_ERR_OUT_OF_MEM;
       goto error_init_auto_increment_mutex;
@@ -6190,7 +5627,7 @@ SPIDER_WIDE_SHARE *spider_get_wide_share(
   {
     DBUG_PRINT("info",("spider create new wide share"));
     if (!(wide_share = (SPIDER_WIDE_SHARE *)
-      spider_bulk_malloc(spider_current_trx, 51, MYF(MY_WME | MY_ZEROFILL),
+      spider_bulk_malloc(spider_current_trx,  SPD_MID_GET_PT_SHARE_1, MYF(MY_WME | MY_ZEROFILL),
         &wide_share, sizeof(SPIDER_WIDE_SHARE),
         &tmp_name, (uint) (table_share->path.length + 1),
         &tmp_cardinality,
@@ -6214,23 +5651,15 @@ SPIDER_WIDE_SHARE *spider_get_wide_share(
     wide_share->crd_get_time = wide_share->sts_get_time =
       share->crd_get_time;
 
-#if MYSQL_VERSION_ID < 50500
-    if (pthread_mutex_init(&wide_share->sts_mutex, MY_MUTEX_INIT_FAST))
-#else
     if (mysql_mutex_init(spd_key_mutex_wide_share_sts,
       &wide_share->sts_mutex, MY_MUTEX_INIT_FAST))
-#endif
     {
       *error_num = HA_ERR_OUT_OF_MEM;
       goto error_init_sts_mutex;
     }
 
-#if MYSQL_VERSION_ID < 50500
-    if (pthread_mutex_init(&wide_share->crd_mutex, MY_MUTEX_INIT_FAST))
-#else
     if (mysql_mutex_init(spd_key_mutex_wide_share_crd,
       &wide_share->crd_mutex, MY_MUTEX_INIT_FAST))
-#endif
     {
       *error_num = HA_ERR_OUT_OF_MEM;
       goto error_init_crd_mutex;
@@ -6401,7 +5830,7 @@ int spider_open_all_tables(
       (error_num = spider_get_sys_tables(
         table_tables, &db_name, &table_name, &mem_root)) ||
       (error_num = spider_get_sys_tables_connect_info(
-        table_tables, &tmp_share, 0, &mem_root)) ||
+        table_tables, &tmp_share, &mem_root)) ||
       (error_num = spider_set_connect_info_default(
         &tmp_share,
 #ifdef WITH_PARTITION_STORAGE_ENGINE
@@ -6505,7 +5934,7 @@ int spider_open_all_tables(
       spider->wide_handler->lock_type = TL_READ_NO_INSERT;
 
       if (!(share = (SPIDER_SHARE *)
-        spider_bulk_malloc(spider_current_trx, 52, MYF(MY_WME | MY_ZEROFILL),
+        spider_bulk_malloc(spider_current_trx, SPD_MID_OPEN_ALL_TABLES_1, MYF(MY_WME | MY_ZEROFILL),
           &share, (uint) (sizeof(*share)),
           &connect_info,
             (uint) (sizeof(char *) * SPIDER_TMP_SHARE_CHAR_PTR_COUNT),
@@ -6655,30 +6084,6 @@ handler* spider_create_handler(
   MEM_ROOT *mem_root
 ) {
   DBUG_ENTER("spider_create_handler");
-#ifndef WITHOUT_SPIDER_BG_SEARCH
-  SPIDER_THREAD *thread = &spider_table_sts_threads[0];
-  if (unlikely(thread->init_command))
-  {
-    THD *thd = current_thd;
-    pthread_cond_t *cond = thd->mysys_var->current_cond;
-    pthread_mutex_t *mutex = thd->mysys_var->current_mutex;
-    /* wait for finishing init_command */
-    pthread_mutex_lock(&thread->mutex);
-    if (unlikely(thread->init_command))
-    {
-      thd->mysys_var->current_cond = &thread->sync_cond;
-      thd->mysys_var->current_mutex = &thread->mutex;
-      pthread_cond_wait(&thread->sync_cond, &thread->mutex);
-    }
-    pthread_mutex_unlock(&thread->mutex);
-    thd->mysys_var->current_cond = cond;
-    thd->mysys_var->current_mutex = mutex;
-    if (thd->killed)
-    {
-      DBUG_RETURN(NULL);
-    }
-  }
-#endif
   DBUG_RETURN(new (mem_root) ha_spider(hton, table));
 }
 
@@ -6745,25 +6150,12 @@ int spider_db_done(
   void *p
 ) {
   int roop_count;
-  bool do_delete_thd;
-  THD *thd = current_thd, *tmp_thd;
+  THD *tmp_thd;
   SPIDER_CONN *conn;
   SPIDER_INIT_ERROR_TABLE *spider_init_error_table;
   SPIDER_TABLE_MON_LIST *table_mon_list;
   SPIDER_LGTM_TBLHND_SHARE *lgtm_tblhnd_share;
   DBUG_ENTER("spider_db_done");
-
-  /* Begin Spider plugin deinit */
-  if (thd)
-    do_delete_thd = FALSE;
-  else
-  {
-    /* Create a thread for Spider plugin deinit */
-    thd = spider_create_thd();
-    if (!thd)
-      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-    do_delete_thd = TRUE;
-  }
 
   for (roop_count = SPIDER_DBTON_SIZE - 1; roop_count >= 0; roop_count--)
   {
@@ -6833,32 +6225,6 @@ int spider_db_done(
   }
   pthread_mutex_unlock(&spider_allocated_thds_mutex);
 
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-  pthread_mutex_lock(&spider_hs_w_conn_mutex);
-  while ((conn = (SPIDER_CONN*) my_hash_element(&spider_hs_w_conn_hash, 0)))
-  {
-#ifdef HASH_UPDATE_WITH_HASH_VALUE
-    my_hash_delete_with_hash_value(&spider_hs_w_conn_hash,
-      conn->conn_key_hash_value, (uchar*) conn);
-#else
-    my_hash_delete(&spider_hs_w_conn_hash, (uchar*) conn);
-#endif
-    spider_free_conn(conn);
-  }
-  pthread_mutex_unlock(&spider_hs_w_conn_mutex);
-  pthread_mutex_lock(&spider_hs_r_conn_mutex);
-  while ((conn = (SPIDER_CONN*) my_hash_element(&spider_hs_r_conn_hash, 0)))
-  {
-#ifdef HASH_UPDATE_WITH_HASH_VALUE
-    my_hash_delete_with_hash_value(&spider_hs_r_conn_hash,
-      conn->conn_key_hash_value, (uchar*) conn);
-#else
-    my_hash_delete(&spider_hs_r_conn_hash, (uchar*) conn);
-#endif
-    spider_free_conn(conn);
-  }
-  pthread_mutex_unlock(&spider_hs_r_conn_mutex);
-#endif
   pthread_mutex_lock(&spider_conn_mutex);
   while ((conn = (SPIDER_CONN*) my_hash_element(&spider_open_connections, 0)))
   {
@@ -6888,18 +6254,6 @@ int spider_db_done(
     spider_allocated_thds.array.max_element *
     spider_allocated_thds.array.size_of_element);
   my_hash_free(&spider_allocated_thds);
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-  spider_free_mem_calc(spider_current_trx,
-    spider_hs_w_conn_hash_id,
-    spider_hs_w_conn_hash.array.max_element *
-    spider_hs_w_conn_hash.array.size_of_element);
-  my_hash_free(&spider_hs_w_conn_hash);
-  spider_free_mem_calc(spider_current_trx,
-    spider_hs_r_conn_hash_id,
-    spider_hs_r_conn_hash.array.max_element *
-    spider_hs_r_conn_hash.array.size_of_element);
-  my_hash_free(&spider_hs_r_conn_hash);
-#endif
   spider_free_mem_calc(spider_current_trx,
     spider_open_connections_id,
     spider_open_connections.array.max_element *
@@ -6947,10 +6301,6 @@ int spider_db_done(
   pthread_mutex_destroy(&spider_mon_table_cache_mutex);
   pthread_mutex_destroy(&spider_allocated_thds_mutex);
   pthread_mutex_destroy(&spider_open_conn_mutex);
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-  pthread_mutex_destroy(&spider_hs_w_conn_mutex);
-  pthread_mutex_destroy(&spider_hs_r_conn_mutex);
-#endif
   pthread_mutex_destroy(&spider_conn_mutex);
   pthread_mutex_destroy(&spider_lgtm_tblhnd_share_mutex);
 #ifdef WITH_PARTITION_STORAGE_ENGINE
@@ -6965,6 +6315,7 @@ int spider_db_done(
   pthread_attr_destroy(&spider_pt_attr);
 #endif
 
+  spider_hton_ptr= NULL;
   for (roop_count = 0; roop_count < SPIDER_MEM_CALC_LIST_NUM; roop_count++)
   {
     if (spider_alloc_func_name[roop_count])
@@ -6981,13 +6332,6 @@ int spider_db_done(
       ));
   }
 
-  /* End Spider plugin deinit */
-  if (do_delete_thd)
-    spider_destroy_thd(thd);
-
-/*
-DBUG_ASSERT(0);
-*/
   DBUG_RETURN(0);
 }
 
@@ -6999,6 +6343,50 @@ int spider_panic(
   DBUG_RETURN(0);
 }
 
+/*
+  Create or fix the system tables. See spd_init_query.h for the details.
+*/
+bool spider_init_system_tables()
+{
+  DBUG_ENTER("spider_init_system_tables");
+
+  MYSQL *mysql= mysql_init(NULL);
+  if (!mysql)
+  {
+    DBUG_RETURN(TRUE);
+  }
+
+  if (!mysql_real_connect_local(mysql))
+  {
+    mysql_close(mysql);
+    DBUG_RETURN(TRUE);
+  }
+
+  const int size= sizeof(spider_init_queries) / sizeof(spider_init_queries[0]);
+  for (int i= 0; i < size; i++)
+  {
+    const LEX_STRING *query= &spider_init_queries[i];
+    if (mysql_real_query(mysql, query->str, query->length))
+    {
+      fprintf(stderr,
+              "[ERROR] SPIDER plugin initialization failed at '%s' by '%s'\n",
+              query->str, mysql_error(mysql));
+
+      mysql_close(mysql);
+      DBUG_RETURN(TRUE);
+    }
+
+    if (MYSQL_RES *res= mysql_store_result(mysql))
+    {
+      mysql_free_result(res);
+    }
+  }
+
+  mysql_close(mysql);
+
+  DBUG_RETURN(FALSE);
+}
+
 int spider_db_init(
   void *p
 ) {
@@ -7007,22 +6395,23 @@ int spider_db_init(
   uchar addr[6];
   handlerton *spider_hton = (handlerton *)p;
   DBUG_ENTER("spider_db_init");
+
+  spider_mon_table_cache_version= 0;
+  spider_mon_table_cache_version_req= 1;
+  spider_conn_id= 1;
+  spider_conn_mutex_id= 0;
+  UTC = 0;
+  spider_thread_id = 1;
+  const LEX_CSTRING aria_name={STRING_WITH_LEN("Aria")};
+  if (!plugin_is_ready(&aria_name, MYSQL_STORAGE_ENGINE_PLUGIN))
+    DBUG_RETURN(HA_ERR_RETRY_INIT);
+
   spider_hton_ptr = spider_hton;
 
   spider_hton->flags = HTON_TEMPORARY_NOT_SUPPORTED;
 #ifdef HTON_CAN_READ_CONNECT_STRING_IN_PARTITION
   spider_hton->flags |= HTON_CAN_READ_CONNECT_STRING_IN_PARTITION;
 #endif
-  /* spider_hton->db_type = DB_TYPE_SPIDER; */
-  /*
-  spider_hton->savepoint_offset;
-  spider_hton->savepoint_set = spider_savepoint_set;
-  spider_hton->savepoint_rollback = spider_savepoint_rollback;
-  spider_hton->savepoint_release = spider_savepoint_release;
-  spider_hton->create_cursor_read_view = spider_create_cursor_read_view;
-  spider_hton->set_cursor_read_view = spider_set_cursor_read_view;
-  spider_hton->close_cursor_read_view = spider_close_cursor_read_view;
-  */
   spider_hton->panic = spider_panic;
   spider_hton->close_connection = spider_close_connection;
   spider_hton->start_consistent_snapshot = spider_start_consistent_snapshot;
@@ -7086,9 +6475,6 @@ int spider_db_init(
   spd_mysqld_port = &mysqld_port;
   spd_abort_loop = &abort_loop;
   spd_tz_system = my_tz_SYSTEM;
-  spd_mysqld_server_started = &mysqld_server_started;
-  spd_LOCK_server_started = &LOCK_server_started;
-  spd_COND_server_started = &COND_server_started;
 
 #ifdef HAVE_PSI_INTERFACE
   init_spider_psi_keys();
@@ -7103,124 +6489,58 @@ int spider_db_init(
 */
 #endif
 
-#if MYSQL_VERSION_ID < 50500
-  if (pthread_mutex_init(&spider_tbl_mutex, MY_MUTEX_INIT_FAST))
-#else
   if (mysql_mutex_init(spd_key_mutex_tbl,
     &spider_tbl_mutex, MY_MUTEX_INIT_FAST))
-#endif
     goto error_tbl_mutex_init;
-#if MYSQL_VERSION_ID < 50500
-  if (pthread_mutex_init(&spider_thread_id_mutex, MY_MUTEX_INIT_FAST))
-#else
   if (mysql_mutex_init(spd_key_thread_id,
     &spider_thread_id_mutex, MY_MUTEX_INIT_FAST))
-#endif
     goto error_thread_id_mutex_init;
-#if MYSQL_VERSION_ID < 50500
-  if (pthread_mutex_init(&spider_conn_id_mutex, MY_MUTEX_INIT_FAST))
-#else
   if (mysql_mutex_init(spd_key_conn_id,
     &spider_conn_id_mutex, MY_MUTEX_INIT_FAST))
-#endif
     goto error_conn_id_mutex_init;
-#if MYSQL_VERSION_ID < 50500
-  if (pthread_mutex_init(&spider_ipport_conn_mutex, MY_MUTEX_INIT_FAST))
-#else
   if (mysql_mutex_init(spd_key_mutex_ipport_count,
     &spider_ipport_conn_mutex, MY_MUTEX_INIT_FAST))
-#endif
     goto error_ipport_count_mutex_init;
 
-#if MYSQL_VERSION_ID < 50500
-  if (pthread_mutex_init(&spider_init_error_tbl_mutex, MY_MUTEX_INIT_FAST))
-#else
   if (mysql_mutex_init(spd_key_mutex_init_error_tbl,
     &spider_init_error_tbl_mutex, MY_MUTEX_INIT_FAST))
-#endif
     goto error_init_error_tbl_mutex_init;
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-#if MYSQL_VERSION_ID < 50500
-  if (pthread_mutex_init(&spider_wide_share_mutex, MY_MUTEX_INIT_FAST))
-#else
   if (mysql_mutex_init(spd_key_mutex_wide_share,
     &spider_wide_share_mutex, MY_MUTEX_INIT_FAST))
-#endif
     goto error_wide_share_mutex_init;
 
 #endif
-#if MYSQL_VERSION_ID < 50500
-  if (pthread_mutex_init(&spider_lgtm_tblhnd_share_mutex, MY_MUTEX_INIT_FAST))
-#else
   if (mysql_mutex_init(spd_key_mutex_lgtm_tblhnd_share,
     &spider_lgtm_tblhnd_share_mutex, MY_MUTEX_INIT_FAST))
-#endif
     goto error_lgtm_tblhnd_share_mutex_init;
 
-#if MYSQL_VERSION_ID < 50500
-  if (pthread_mutex_init(&spider_conn_mutex, MY_MUTEX_INIT_FAST))
-#else
   if (mysql_mutex_init(spd_key_mutex_conn,
     &spider_conn_mutex, MY_MUTEX_INIT_FAST))
-#endif
     goto error_conn_mutex_init;
 
-#if MYSQL_VERSION_ID < 50500
-  if (pthread_mutex_init(&spider_open_conn_mutex, MY_MUTEX_INIT_FAST))
-#else
   if (mysql_mutex_init(spd_key_mutex_open_conn,
     &spider_open_conn_mutex, MY_MUTEX_INIT_FAST))
-#endif
     goto error_open_conn_mutex_init;
 
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-#if MYSQL_VERSION_ID < 50500
-  if (pthread_mutex_init(&spider_hs_r_conn_mutex, MY_MUTEX_INIT_FAST))
-#else
-  if (mysql_mutex_init(spd_key_mutex_hs_r_conn,
-    &spider_hs_r_conn_mutex, MY_MUTEX_INIT_FAST))
-#endif
-    goto error_hs_r_conn_mutex_init;
-
-#if MYSQL_VERSION_ID < 50500
-  if (pthread_mutex_init(&spider_hs_w_conn_mutex, MY_MUTEX_INIT_FAST))
-#else
-  if (mysql_mutex_init(spd_key_mutex_hs_w_conn,
-    &spider_hs_w_conn_mutex, MY_MUTEX_INIT_FAST))
-#endif
-    goto error_hs_w_conn_mutex_init;
-
-#endif
-#if MYSQL_VERSION_ID < 50500
-  if (pthread_mutex_init(&spider_allocated_thds_mutex, MY_MUTEX_INIT_FAST))
-#else
   if (mysql_mutex_init(spd_key_mutex_allocated_thds,
     &spider_allocated_thds_mutex, MY_MUTEX_INIT_FAST))
-#endif
     goto error_allocated_thds_mutex_init;
 
-#if MYSQL_VERSION_ID < 50500
-  if (pthread_mutex_init(&spider_mon_table_cache_mutex, MY_MUTEX_INIT_FAST))
-#else
   if (mysql_mutex_init(spd_key_mutex_mon_table_cache,
     &spider_mon_table_cache_mutex, MY_MUTEX_INIT_FAST))
-#endif
     goto error_mon_table_cache_mutex_init;
 
-#if MYSQL_VERSION_ID < 50500
-  if (pthread_mutex_init(&spider_mem_calc_mutex, MY_MUTEX_INIT_FAST))
-#else
   if (mysql_mutex_init(spd_key_mutex_mem_calc,
     &spider_mem_calc_mutex, MY_MUTEX_INIT_FAST))
-#endif
     goto error_mem_calc_mutex_init;
 
   if (my_hash_init(PSI_INSTRUMENT_ME, &spider_open_tables, spd_charset_utf8mb3_bin, 32, 0, 0,
                    (my_hash_get_key) spider_tbl_get_key, 0, 0))
     goto error_open_tables_hash_init;
 
-  spider_alloc_calc_mem_init(spider_open_tables, 143);
+  spider_alloc_calc_mem_init(spider_open_tables, SPD_MID_DB_INIT_1);
   spider_alloc_calc_mem(NULL,
     spider_open_tables,
     spider_open_tables.array.max_element *
@@ -7229,7 +6549,7 @@ int spider_db_init(
                    (my_hash_get_key) spider_tbl_get_key, 0, 0))
     goto error_init_error_tables_hash_init;
 
-  spider_alloc_calc_mem_init(spider_init_error_tables, 144);
+  spider_alloc_calc_mem_init(spider_init_error_tables, SPD_MID_DB_INIT_2);
   spider_alloc_calc_mem(NULL,
     spider_init_error_tables,
     spider_init_error_tables.array.max_element *
@@ -7241,7 +6561,7 @@ int spider_db_init(
   )
     goto error_open_wide_share_hash_init;
 
-  spider_alloc_calc_mem_init(spider_open_wide_share, 145);
+  spider_alloc_calc_mem_init(spider_open_wide_share, SPD_MID_DB_INIT_3);
   spider_alloc_calc_mem(NULL,
     spider_open_wide_share,
     spider_open_wide_share.array.max_element *
@@ -7252,7 +6572,7 @@ int spider_db_init(
                    (my_hash_get_key) spider_lgtm_tblhnd_share_hash_get_key, 0, 0))
     goto error_lgtm_tblhnd_share_hash_init;
 
-  spider_alloc_calc_mem_init(spider_lgtm_tblhnd_share_hash, 245);
+  spider_alloc_calc_mem_init(spider_lgtm_tblhnd_share_hash, SPD_MID_DB_INIT_4);
   spider_alloc_calc_mem(NULL,
     spider_lgtm_tblhnd_share_hash,
     spider_lgtm_tblhnd_share_hash.array.max_element *
@@ -7266,36 +6586,16 @@ int spider_db_init(
                    spider_free_ipport_conn, 0))
       goto error_ipport_conn__hash_init;
 
-  spider_alloc_calc_mem_init(spider_open_connections, 146);
+  spider_alloc_calc_mem_init(spider_open_connections, SPD_MID_DB_INIT_5);
   spider_alloc_calc_mem(NULL,
     spider_open_connections,
     spider_open_connections.array.max_element *
     spider_open_connections.array.size_of_element);
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-  if (my_hash_init(PSI_INSTRUMENT_ME, &spider_hs_r_conn_hash, spd_charset_utf8mb3_bin, 32, 0, 0,
-                   (my_hash_get_key) spider_conn_get_key, 0, 0))
-    goto error_hs_r_conn_hash_init;
-
-  spider_alloc_calc_mem_init(spider_hs_r_conn_hash, 147);
-  spider_alloc_calc_mem(NULL,
-    spider_hs_r_conn_hash,
-    spider_hs_r_conn_hash.array.max_element *
-    spider_hs_r_conn_hash.array.size_of_element);
-  if (my_hash_init(PSI_INSTRUMENT_ME, &spider_hs_w_conn_hash, spd_charset_utf8mb3_bin, 32, 0, 0,
-                   (my_hash_get_key) spider_conn_get_key, 0, 0))
-    goto error_hs_w_conn_hash_init;
-
-  spider_alloc_calc_mem_init(spider_hs_w_conn_hash, 148);
-  spider_alloc_calc_mem(NULL,
-    spider_hs_w_conn_hash,
-    spider_hs_w_conn_hash.array.max_element *
-    spider_hs_w_conn_hash.array.size_of_element);
-#endif
   if (my_hash_init(PSI_INSTRUMENT_ME, &spider_allocated_thds, spd_charset_utf8mb3_bin, 32, 0, 0,
                    (my_hash_get_key) spider_allocated_thds_get_key, 0, 0))
     goto error_allocated_thds_hash_init;
 
-  spider_alloc_calc_mem_init(spider_allocated_thds, 149);
+  spider_alloc_calc_mem_init(spider_allocated_thds, SPD_MID_DB_INIT_8);
   spider_alloc_calc_mem(NULL,
     spider_allocated_thds,
     spider_allocated_thds.array.max_element *
@@ -7305,14 +6605,14 @@ int spider_db_init(
       NULL, 64, 64, MYF(MY_WME)))
     goto error_mon_table_cache_array_init;
 
-  spider_alloc_calc_mem_init(spider_mon_table_cache, 165);
+  spider_alloc_calc_mem_init(spider_mon_table_cache, SPD_MID_DB_INIT_9);
   spider_alloc_calc_mem(NULL,
     spider_mon_table_cache,
     spider_mon_table_cache.max_element *
     spider_mon_table_cache.size_of_element);
 
   if (!(spider_udf_table_mon_mutexes = (pthread_mutex_t *)
-    spider_bulk_malloc(NULL, 53, MYF(MY_WME | MY_ZEROFILL),
+    spider_bulk_malloc(NULL, SPD_MID_DB_INIT_10, MYF(MY_WME | MY_ZEROFILL),
       &spider_udf_table_mon_mutexes, (uint) (sizeof(pthread_mutex_t) *
         spider_param_udf_table_mon_mutex_count()),
       &spider_udf_table_mon_conds, (uint) (sizeof(pthread_cond_t) *
@@ -7327,25 +6627,16 @@ int spider_db_init(
     roop_count < (int) spider_param_udf_table_mon_mutex_count();
     roop_count++)
   {
-#if MYSQL_VERSION_ID < 50500
-    if (pthread_mutex_init(&spider_udf_table_mon_mutexes[roop_count],
-      MY_MUTEX_INIT_FAST))
-#else
     if (mysql_mutex_init(spd_key_mutex_udf_table_mon,
       &spider_udf_table_mon_mutexes[roop_count], MY_MUTEX_INIT_FAST))
-#endif
       goto error_init_udf_table_mon_mutex;
   }
   for (roop_count = 0;
     roop_count < (int) spider_param_udf_table_mon_mutex_count();
     roop_count++)
   {
-#if MYSQL_VERSION_ID < 50500
-    if (pthread_cond_init(&spider_udf_table_mon_conds[roop_count], NULL))
-#else
     if (mysql_cond_init(spd_key_cond_udf_table_mon,
       &spider_udf_table_mon_conds[roop_count], NULL))
-#endif
       goto error_init_udf_table_mon_cond;
   }
   for (roop_count = 0;
@@ -7357,24 +6648,28 @@ int spider_db_init(
       (my_hash_get_key) spider_udf_tbl_mon_list_key, 0, 0))
       goto error_init_udf_table_mon_list_hash;
 
-    spider_alloc_calc_mem_init(spider_udf_table_mon_list_hash, 150);
+    spider_alloc_calc_mem_init(spider_udf_table_mon_list_hash, SPD_MID_DB_INIT_11);
     spider_alloc_calc_mem(NULL,
       spider_udf_table_mon_list_hash,
       spider_udf_table_mon_list_hash[roop_count].array.max_element *
       spider_udf_table_mon_list_hash[roop_count].array.size_of_element);
   }
 
+  if (spider_init_system_tables())
+  {
+    goto error_system_table_creation;
+  }
+
 #ifndef WITHOUT_SPIDER_BG_SEARCH
   if (!(spider_table_sts_threads = (SPIDER_THREAD *)
-    spider_bulk_malloc(NULL, 256, MYF(MY_WME | MY_ZEROFILL),
+    spider_bulk_malloc(NULL, SPD_MID_DB_INIT_12, MYF(MY_WME | MY_ZEROFILL),
       &spider_table_sts_threads, (uint) (sizeof(SPIDER_THREAD) *
         spider_param_table_sts_thread_count()),
       &spider_table_crd_threads, (uint) (sizeof(SPIDER_THREAD) *
         spider_param_table_crd_thread_count()),
       NullS))
   )
-    goto error_alloc_mon_mutxes;
-  spider_table_sts_threads[0].init_command = TRUE;
+    goto error_alloc_table_sts_crd_threads;
 
   for (roop_count = 0;
     roop_count < (int) spider_param_table_sts_thread_count();
@@ -7404,12 +6699,6 @@ int spider_db_init(
   spider_dbton_mariadb.db_util->dbton_id = dbton_id;
   spider_dbton[dbton_id] = spider_dbton_mariadb;
   ++dbton_id;
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-  spider_dbton_handlersocket.dbton_id = dbton_id;
-  spider_dbton_handlersocket.db_util->dbton_id = dbton_id;
-  spider_dbton[dbton_id] = spider_dbton_handlersocket;
-  ++dbton_id;
-#endif
 #ifdef HAVE_ORACLE_OCI
   spider_dbton_oracle.dbton_id = dbton_id;
   spider_dbton_oracle.db_util->dbton_id = dbton_id;
@@ -7449,9 +6738,11 @@ error_init_table_sts_threads:
   {
     spider_free_sts_threads(&spider_table_sts_threads[roop_count]);
   }
+error_alloc_table_sts_crd_threads:
   spider_free(NULL, spider_table_sts_threads, MYF(0));
-  roop_count = spider_param_udf_table_mon_mutex_count() - 1;
 #endif
+error_system_table_creation:
+  roop_count = spider_param_udf_table_mon_mutex_count() - 1;
 error_init_udf_table_mon_list_hash:
   for (; roop_count >= 0; roop_count--)
   {
@@ -7485,20 +6776,6 @@ error_mon_table_cache_array_init:
 error_allocated_thds_hash_init:
   my_hash_free(&spider_ipport_conns);
 error_ipport_conn__hash_init:
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-  spider_free_mem_calc(NULL,
-    spider_hs_w_conn_hash_id,
-    spider_hs_w_conn_hash.array.max_element *
-    spider_hs_w_conn_hash.array.size_of_element);
-  my_hash_free(&spider_hs_w_conn_hash);
-error_hs_w_conn_hash_init:
-  spider_free_mem_calc(NULL,
-    spider_hs_r_conn_hash_id,
-    spider_hs_r_conn_hash.array.max_element *
-    spider_hs_r_conn_hash.array.size_of_element);
-  my_hash_free(&spider_hs_r_conn_hash);
-error_hs_r_conn_hash_init:
-#endif
   spider_free_mem_calc(NULL,
     spider_open_connections_id,
     spider_open_connections.array.max_element *
@@ -7537,12 +6814,6 @@ error_mem_calc_mutex_init:
 error_mon_table_cache_mutex_init:
   pthread_mutex_destroy(&spider_allocated_thds_mutex);
 error_allocated_thds_mutex_init:
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-  pthread_mutex_destroy(&spider_hs_w_conn_mutex);
-error_hs_w_conn_mutex_init:
-  pthread_mutex_destroy(&spider_hs_r_conn_mutex);
-error_hs_r_conn_mutex_init:
-#endif
   pthread_mutex_destroy(&spider_open_conn_mutex);
 error_open_conn_mutex_init:
   pthread_mutex_destroy(&spider_conn_mutex);
@@ -7579,7 +6850,7 @@ char *spider_create_string(
 ) {
   char *res;
   DBUG_ENTER("spider_create_string");
-  if (!(res = (char*) spider_malloc(spider_current_trx, 13, length + 1,
+  if (!(res = (char*) spider_malloc(spider_current_trx, SPD_MID_CREATE_STRING_1, length + 1,
     MYF(MY_WME))))
     DBUG_RETURN(NULL);
   memcpy(res, str, length);
@@ -7601,7 +6872,7 @@ char *spider_create_table_name_string(
     if (sub_name)
       length += sizeof("#SP#") - 1 + strlen(sub_name);
   }
-  if (!(res = (char*) spider_malloc(spider_current_trx, 14, length + 1,
+  if (!(res = (char*) spider_malloc(spider_current_trx, SPD_MID_CREATE_TABLE_NAME_STRING_1, length + 1,
     MYF(MY_WME))))
     DBUG_RETURN(NULL);
   tmp = strmov(res, table_name);
@@ -7721,7 +6992,6 @@ int spider_get_sts(
   int get_type;
 #endif
   int error_num = 0;
-  bool need_to_get = TRUE;
   DBUG_ENTER("spider_get_sts");
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
@@ -7759,37 +7029,16 @@ int spider_get_sts(
     get_type = 0;
   }
 #endif
-  if (
-    !share->sts_init &&
-    spider_param_load_sts_at_startup(share->load_sts_at_startup) &&
-    (!share->init || share->init_error)
-  ) {
-    error_num = spider_sys_get_table_sts(
-      current_thd,
-      share->lgtm_tblhnd_share->table_name,
-      share->lgtm_tblhnd_share->table_name_length,
-      &share->stat,
-      FALSE
-    );
-    if (
-      !error_num ||
-      (error_num != HA_ERR_KEY_NOT_FOUND && error_num != HA_ERR_END_OF_FILE)
-    )
-    need_to_get = FALSE;
-  }
 
-  if (need_to_get)
-  {
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-    if (get_type == 0)
+  if (get_type == 0)
       spider_copy_sts_to_share(share, share->wide_share);
-    else {
+  else {
 #endif
       error_num = spider_db_show_table_status(spider, link_idx, sts_mode, flag);
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-    }
-#endif
   }
+#endif
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   if (get_type >= 2)
     pthread_mutex_unlock(&share->wide_share->sts_mutex);
@@ -7871,7 +7120,6 @@ int spider_get_crd(
   int get_type;
 #endif
   int error_num = 0;
-  bool need_to_get = TRUE;
   DBUG_ENTER("spider_get_crd");
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
@@ -7909,38 +7157,16 @@ int spider_get_crd(
     get_type = 0;
   }
 #endif
-  if (
-    !share->crd_init &&
-    spider_param_load_sts_at_startup(share->load_crd_at_startup)
-  ) {
-    error_num = spider_sys_get_table_crd(
-      current_thd,
-      share->lgtm_tblhnd_share->table_name,
-      share->lgtm_tblhnd_share->table_name_length,
-      share->cardinality,
-      table->s->fields,
-      FALSE
-    );
-    if (
-      !error_num ||
-      (error_num != HA_ERR_KEY_NOT_FOUND && error_num != HA_ERR_END_OF_FILE)
-    )
-    need_to_get = FALSE;
-  }
-
-  if (need_to_get)
-  {
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-    if (get_type == 0)
+  if (get_type == 0)
       spider_copy_crd_to_share(share, share->wide_share,
-        table->s->fields);
-    else {
+                               table->s->fields);
+  else {
 #endif
       error_num = spider_db_show_index(spider, link_idx, table, crd_mode);
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-    }
-#endif
   }
+#endif
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   if (get_type >= 2)
     pthread_mutex_unlock(&share->wide_share->crd_mutex);
@@ -8069,7 +7295,7 @@ SPIDER_INIT_ERROR_TABLE *spider_get_init_error_table(
       DBUG_RETURN(NULL);
     }
     if (!(spider_init_error_table = (SPIDER_INIT_ERROR_TABLE *)
-      spider_bulk_malloc(spider_current_trx, 54, MYF(MY_WME | MY_ZEROFILL),
+      spider_bulk_malloc(spider_current_trx, SPD_MID_GET_INIT_ERROR_TABLE_1, MYF(MY_WME | MY_ZEROFILL),
         &spider_init_error_table, (uint) (sizeof(*spider_init_error_table)),
         &tmp_name, (uint) (share->table_name_length + 1),
         NullS))
@@ -8166,112 +7392,6 @@ bool spider_check_pk_update(
   DBUG_RETURN(FALSE);
 }
 
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
-bool spider_check_hs_pk_update(
-  ha_spider *spider,
-  key_range *key
-) {
-  uint roop_count, field_index, set_count = 0;
-  TABLE *table = spider->get_table();
-  TABLE_SHARE *table_share = table->s;
-  SPIDER_SHARE *share = spider->share;
-  KEY *key_info;
-  KEY_PART_INFO *key_part;
-  char buf[MAX_FIELD_WIDTH], buf2[MAX_FIELD_WIDTH];
-  spider_string tmp_str(buf, MAX_FIELD_WIDTH, &my_charset_bin),
-    tmp_str2(buf2, MAX_FIELD_WIDTH, &my_charset_bin);
-  String *str, *str2;
-  DBUG_ENTER("spider_check_hs_pk_update");
-  tmp_str.init_calc_mem(137);
-
-  if (table_share->primary_key == MAX_KEY)
-    DBUG_RETURN(FALSE);
-  memset(spider->tmp_column_bitmap, 0, sizeof(uchar) * share->bitmap_size);
-  key_info = &table->key_info[table_share->primary_key];
-  key_part = key_info->key_part;
-  for (roop_count = 0; roop_count < spider_user_defined_key_parts(key_info);
-    roop_count++)
-  {
-    field_index = key_part[roop_count].field->field_index;
-    if (bitmap_is_set(table->write_set, field_index))
-    {
-      DBUG_PRINT("info", ("spider set key_part=%u field_index=%u",
-        roop_count, field_index));
-      spider_set_bit(spider->tmp_column_bitmap, field_index);
-      set_count++;
-    }
-  }
-  DBUG_PRINT("info", ("spider set_count=%u", set_count));
-
-  Field *field;
-  uint store_length, length, var_len;
-  const uchar *ptr;
-  bool key_eq;
-  key_part_map tgt_key_part_map = key->keypart_map;
-  key_info = &table->key_info[spider->active_index];
-  for (
-    key_part = key_info->key_part,
-    length = 0;
-    tgt_key_part_map;
-    length += store_length,
-    tgt_key_part_map >>= 1,
-    key_part++
-  ) {
-    store_length = key_part->store_length;
-    field = key_part->field;
-    field_index = field->field_index;
-    if (spider_bit_is_set(spider->tmp_column_bitmap, field_index))
-    {
-      ptr = key->key + length;
-      key_eq = (tgt_key_part_map > 1);
-      if (key_part->null_bit && *ptr++)
-      {
-        if (key->flag != HA_READ_KEY_EXACT || !field->is_null())
-        {
-          DBUG_PRINT("info", ("spider flag=%u is_null=%s",
-            key->flag, field->is_null() ? "TRUE" : "FALSE"));
-          DBUG_RETURN(TRUE);
-        }
-      } else {
-        if (
-          field->type() == MYSQL_TYPE_BLOB ||
-          field->real_type() == MYSQL_TYPE_VARCHAR ||
-          field->type() == MYSQL_TYPE_GEOMETRY
-        ) {
-          var_len = uint2korr(ptr);
-          tmp_str.set_quick((char *) ptr + HA_KEY_BLOB_LENGTH, var_len,
-            &my_charset_bin);
-          str = tmp_str.get_str();
-        } else {
-          str = field->val_str(tmp_str.get_str(), ptr);
-          tmp_str.mem_calc();
-        }
-        str2 = field->val_str(tmp_str2.get_str());
-        tmp_str2.mem_calc();
-        if (
-          str->length() != str2->length() ||
-          memcmp(str->ptr(), str2->ptr(), str->length())
-        ) {
-          DBUG_PRINT("info", ("spider length=%u %u",
-            str->length(), str2->length()));
-          DBUG_PRINT("info", ("spider length=%s %s",
-            str->c_ptr_safe(), str2->c_ptr_safe()));
-          DBUG_RETURN(TRUE);
-        }
-      }
-      set_count--;
-    }
-  }
-  DBUG_PRINT("info", ("spider set_count=%u", set_count));
-  if (set_count)
-  {
-    DBUG_RETURN(TRUE);
-  }
-  DBUG_RETURN(FALSE);
-}
-#endif
-#endif
 
 void spider_set_tmp_share_pointer(
   SPIDER_SHARE *tmp_share,
@@ -8302,10 +7422,6 @@ void spider_set_tmp_share_pointer(
   tmp_share->tgt_pk_names = &tmp_connect_info[16];
   tmp_share->tgt_sequence_names = &tmp_connect_info[17];
   tmp_share->static_link_ids = &tmp_connect_info[18];
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-  tmp_share->hs_read_socks = &tmp_connect_info[19];
-  tmp_share->hs_write_socks = &tmp_connect_info[20];
-#endif
   tmp_share->tgt_ports = &tmp_long[0];
   tmp_share->tgt_ssl_vscs = &tmp_long[1];
   tmp_share->link_statuses = &tmp_long[2];
@@ -8315,13 +7431,6 @@ void spider_set_tmp_share_pointer(
 #ifndef WITHOUT_SPIDER_BG_SEARCH
   tmp_share->monitoring_bg_flag = &tmp_long[6];
   tmp_share->monitoring_bg_kind = &tmp_long[7];
-#endif
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-  tmp_share->use_hs_reads = &tmp_long[8];
-  tmp_share->use_hs_writes = &tmp_long[9];
-  tmp_share->hs_read_ports = &tmp_long[10];
-  tmp_share->hs_write_ports = &tmp_long[11];
-  tmp_share->hs_write_to_reads = &tmp_long[12];
 #endif
   tmp_share->use_handlers = &tmp_long[13];
   tmp_share->connect_timeouts = &tmp_long[14];
@@ -8357,10 +7466,6 @@ void spider_set_tmp_share_pointer(
   tmp_share->tgt_pk_names_lengths = &tmp_connect_info_length[16];
   tmp_share->tgt_sequence_names_lengths = &tmp_connect_info_length[17];
   tmp_share->static_link_ids_lengths = &tmp_connect_info_length[18];
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-  tmp_share->hs_read_socks_lengths = &tmp_connect_info_length[19];
-  tmp_share->hs_write_socks_lengths = &tmp_connect_info_length[20];
-#endif
   tmp_share->server_names_length = 1;
   tmp_share->tgt_table_names_length = 1;
   tmp_share->tgt_dbs_length = 1;
@@ -8395,15 +7500,6 @@ void spider_set_tmp_share_pointer(
 #ifndef WITHOUT_SPIDER_BG_SEARCH
   tmp_share->monitoring_bg_interval_length = 1;
 #endif
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-  tmp_share->hs_read_socks_length = 1;
-  tmp_share->hs_write_socks_length = 1;
-  tmp_share->use_hs_reads_length = 1;
-  tmp_share->use_hs_writes_length = 1;
-  tmp_share->hs_read_ports_length = 1;
-  tmp_share->hs_write_ports_length = 1;
-  tmp_share->hs_write_to_reads_length = 1;
-#endif
   tmp_share->use_handlers_length = 1;
   tmp_share->connect_timeouts_length = 1;
   tmp_share->net_read_timeouts_length = 1;
@@ -8426,9 +7522,6 @@ void spider_set_tmp_share_pointer(
   tmp_share->monitoring_sid[0] = -1;
   tmp_share->bka_engine = NULL;
   tmp_share->use_dbton_count = 0;
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-  tmp_share->use_hs_dbton_count = 0;
-#endif
   DBUG_VOID_RETURN;
 }
 
@@ -8611,26 +7704,17 @@ longlong spider_split_read_param(
 #ifdef SPIDER_HAS_GROUP_BY_HANDLER
     bool inserting =
       (
-#ifdef HS_HAS_SQLCOM
-        spider->wide_handler->sql_command == SQLCOM_HS_INSERT ||
-#endif
         spider->wide_handler->sql_command == SQLCOM_INSERT ||
         spider->wide_handler->sql_command == SQLCOM_INSERT_SELECT
       );
 #endif
     bool updating =
       (
-#ifdef HS_HAS_SQLCOM
-        spider->wide_handler->sql_command == SQLCOM_HS_UPDATE ||
-#endif
         spider->wide_handler->sql_command == SQLCOM_UPDATE ||
         spider->wide_handler->sql_command == SQLCOM_UPDATE_MULTI
       );
     bool deleting =
       (
-#ifdef HS_HAS_SQLCOM
-        spider->wide_handler->sql_command == SQLCOM_HS_DELETE ||
-#endif
         spider->wide_handler->sql_command == SQLCOM_DELETE ||
         spider->wide_handler->sql_command == SQLCOM_DELETE_MULTI
       );
@@ -8859,10 +7943,8 @@ bool spider_check_direct_order_limit(
     spider_get_select_limit(spider, &select_lex, &select_limit, &offset_limit);
     bool first_check = TRUE;
     DBUG_PRINT("info",("spider select_lex=%p", select_lex));
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000
     DBUG_PRINT("info",("spider leaf_tables.elements=%u",
       select_lex ? select_lex->leaf_tables.elements : 0));
-#endif
 
     if (select_lex && (select_lex->options & SELECT_DISTINCT))
     {
@@ -8875,22 +7957,16 @@ bool spider_check_direct_order_limit(
     DBUG_PRINT("info",("spider select_limit=%lld", select_limit));
     DBUG_PRINT("info",("spider offset_limit=%lld", offset_limit));
     if (
-#if MYSQL_VERSION_ID < 50500
-      !thd->variables.engine_condition_pushdown ||
-#else
 #ifdef SPIDER_ENGINE_CONDITION_PUSHDOWN_IS_ALWAYS_ON
 #else
       !(thd->variables.optimizer_switch &
         OPTIMIZER_SWITCH_ENGINE_CONDITION_PUSHDOWN) ||
 #endif
-#endif
 #ifdef SPIDER_NEED_CHECK_CONDITION_AT_CHECKING_DIRECT_ORDER_LIMIT
       !spider->condition ||
 #endif
       !select_lex ||
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000
       select_lex->leaf_tables.elements != 1 ||
-#endif
       select_lex->table_list.elements != 1
     ) {
       DBUG_PRINT("info",("spider first_check is FALSE"));
@@ -9157,14 +8233,10 @@ int spider_set_direct_limit_offset(
 
   // contain where
   if (
-#if MYSQL_VERSION_ID < 50500
-    !thd->variables.engine_condition_pushdown ||
-#else
 #ifdef SPIDER_ENGINE_CONDITION_PUSHDOWN_IS_ALWAYS_ON
 #else
     !(thd->variables.optimizer_switch &
       OPTIMIZER_SWITCH_ENGINE_CONDITION_PUSHDOWN) ||
-#endif
 #endif
     // conditions is null may be no where condition in rand_init
     spider->wide_handler->condition
@@ -9311,20 +8383,11 @@ ulong spider_calc_for_sort(
 double spider_rand(
   uint32 rand_source
 ) {
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000
   struct my_rnd_struct rand;
-#else
-  struct rand_struct rand;
-#endif
   DBUG_ENTER("spider_rand");
   /* generate same as rand function for applications */
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000
   my_rnd_init(&rand, (uint32) (rand_source * 65537L + 55555555L),
     (uint32) (rand_source * 268435457L));
-#else
-  randominit(&rand, (uint32) (rand_source * 65537L + 55555555L),
-    (uint32) (rand_source * 268435457L));
-#endif
   DBUG_RETURN(my_rnd(&rand));
 }
 
@@ -9373,7 +8436,7 @@ int spider_discover_table_structure(
   char buf[MAX_FIELD_WIDTH];
   spider_string str(buf, sizeof(buf), system_charset_info);
   DBUG_ENTER("spider_discover_table_structure");
-  str.init_calc_mem(229);
+  str.init_calc_mem(SPD_MID_DISCOVER_TABLE_STRUCTURE_1);
   str.length(0);
   if (str.reserve(
     SPIDER_SQL_CREATE_TABLE_LEN + share->db.length +
@@ -9719,10 +8782,6 @@ int spider_create_spider_object_for_share(
   uint *conn_link_idx;
   uchar *conn_can_fo;
   char **conn_keys;
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-  char **hs_r_conn_keys;
-  char **hs_w_conn_keys;
-#endif
   spider_db_handler **dbton_hdl;
   SPIDER_WIDE_HANDLER *wide_handler;
   DBUG_ENTER("spider_create_spider_object_for_share");
@@ -9743,23 +8802,8 @@ int spider_create_spider_object_for_share(
     goto error_spider_alloc;
   }
   DBUG_PRINT("info",("spider spider=%p", (*spider)));
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
   if (!(need_mons = (int *)
-    spider_bulk_malloc(spider_current_trx, 255, MYF(MY_WME | MY_ZEROFILL),
-      &need_mons, (uint) (sizeof(int) * share->link_count),
-      &conns, (uint) (sizeof(SPIDER_CONN *) * share->link_count),
-      &conn_link_idx, (uint) (sizeof(uint) * share->link_count),
-      &conn_can_fo, (uint) (sizeof(uchar) * share->link_bitmap_size),
-      &conn_keys, (uint) (sizeof(char *) * share->link_count),
-      &hs_r_conn_keys, (uint) (sizeof(char *) * share->link_count),
-      &hs_w_conn_keys, (uint) (sizeof(char *) * share->link_count),
-      &dbton_hdl, (uint) (sizeof(spider_db_handler *) * SPIDER_DBTON_SIZE),
-      &wide_handler, (uint) sizeof(SPIDER_WIDE_HANDLER),
-      NullS))
-  )
-#else
-  if (!(need_mons = (int *)
-    spider_bulk_malloc(spider_current_trx, 255, MYF(MY_WME | MY_ZEROFILL),
+    spider_bulk_malloc(spider_current_trx, SPD_MID_CREATE_SPIDER_OBJECT_FOR_SHARE_2, MYF(MY_WME | MY_ZEROFILL),
       &need_mons, (uint) (sizeof(int) * share->link_count),
       &conns, (uint) (sizeof(SPIDER_CONN *) * share->link_count),
       &conn_link_idx, (uint) (sizeof(uint) * share->link_count),
@@ -9769,7 +8813,6 @@ int spider_create_spider_object_for_share(
       &wide_handler, (uint) sizeof(SPIDER_WIDE_HANDLER),
       NullS))
   )
-#endif
   {
     error_num = HA_ERR_OUT_OF_MEM;
     goto error_need_mons_alloc;
@@ -9785,10 +8828,6 @@ int spider_create_spider_object_for_share(
   (*spider)->need_mons = need_mons;
   (*spider)->conn_keys_first_ptr = share->conn_keys[0];
   (*spider)->conn_keys = conn_keys;
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-  (*spider)->hs_r_conn_keys = hs_r_conn_keys;
-  (*spider)->hs_w_conn_keys = hs_w_conn_keys;
-#endif
   (*spider)->dbton_handler = dbton_hdl;
   (*spider)->search_link_idx = -1;
   for (roop_count = 0; roop_count < SPIDER_DBTON_SIZE; roop_count++)
@@ -9861,46 +8900,27 @@ int spider_create_sts_threads(
 ) {
   int error_num;
   DBUG_ENTER("spider_create_sts_threads");
-#if MYSQL_VERSION_ID < 50500
-  if (pthread_mutex_init(&spider_thread->mutex,
-    MY_MUTEX_INIT_FAST))
-#else
   if (mysql_mutex_init(spd_key_mutex_bg_stss,
     &spider_thread->mutex, MY_MUTEX_INIT_FAST))
-#endif
   {
     error_num = HA_ERR_OUT_OF_MEM;
     goto error_mutex_init;
   }
-#if MYSQL_VERSION_ID < 50500
-  if (pthread_cond_init(&spider_thread->cond, NULL))
-#else
   if (mysql_cond_init(spd_key_cond_bg_stss,
     &spider_thread->cond, NULL))
-#endif
   {
     error_num = HA_ERR_OUT_OF_MEM;
     goto error_cond_init;
   }
-#if MYSQL_VERSION_ID < 50500
-  if (pthread_cond_init(&spider_thread->sync_cond, NULL))
-#else
   if (mysql_cond_init(spd_key_cond_bg_sts_syncs,
     &spider_thread->sync_cond, NULL))
-#endif
   {
     error_num = HA_ERR_OUT_OF_MEM;
     goto error_sync_cond_init;
   }
-#if MYSQL_VERSION_ID < 50500
-  if (pthread_create(&spider_thread->thread, &spider_pt_attr,
-    spider_table_bg_sts_action, (void *) spider_thread)
-  )
-#else
   if (mysql_thread_create(spd_key_thd_bg_stss, &spider_thread->thread,
     &spider_pt_attr, spider_table_bg_sts_action, (void *) spider_thread)
   )
-#endif
   {
     error_num = HA_ERR_OUT_OF_MEM;
     goto error_thread_create;
@@ -9922,7 +8942,6 @@ void spider_free_sts_threads(
 ) {
   bool thread_killed;
   DBUG_ENTER("spider_free_sts_threads");
-  spider_thread->init_command = FALSE;
   pthread_mutex_lock(&spider_thread->mutex);
   thread_killed = spider_thread->killed;
   spider_thread->killed = TRUE;
@@ -9949,46 +8968,27 @@ int spider_create_crd_threads(
 ) {
   int error_num;
   DBUG_ENTER("spider_create_crd_threads");
-#if MYSQL_VERSION_ID < 50500
-  if (pthread_mutex_init(&spider_thread->mutex,
-    MY_MUTEX_INIT_FAST))
-#else
   if (mysql_mutex_init(spd_key_mutex_bg_crds,
     &spider_thread->mutex, MY_MUTEX_INIT_FAST))
-#endif
   {
     error_num = HA_ERR_OUT_OF_MEM;
     goto error_mutex_init;
   }
-#if MYSQL_VERSION_ID < 50500
-  if (pthread_cond_init(&spider_thread->cond, NULL))
-#else
   if (mysql_cond_init(spd_key_cond_bg_crds,
     &spider_thread->cond, NULL))
-#endif
   {
     error_num = HA_ERR_OUT_OF_MEM;
     goto error_cond_init;
   }
-#if MYSQL_VERSION_ID < 50500
-  if (pthread_cond_init(&spider_thread->sync_cond, NULL))
-#else
   if (mysql_cond_init(spd_key_cond_bg_crd_syncs,
     &spider_thread->sync_cond, NULL))
-#endif
   {
     error_num = HA_ERR_OUT_OF_MEM;
     goto error_sync_cond_init;
   }
-#if MYSQL_VERSION_ID < 50500
-  if (pthread_create(&spider_thread->thread, &spider_pt_attr,
-    spider_table_bg_crd_action, (void *) spider_thread)
-  )
-#else
   if (mysql_thread_create(spd_key_thd_bg_crds, &spider_thread->thread,
     &spider_pt_attr, spider_table_bg_crd_action, (void *) spider_thread)
   )
-#endif
   {
     error_num = HA_ERR_OUT_OF_MEM;
     goto error_thread_create;
@@ -10073,59 +9073,6 @@ void *spider_table_bg_sts_action(
   trx->thd = thd;
   /* init end */
 
-  if (thread->init_command)
-  {
-    uint i = 0;
-    tmp_disable_binlog(thd);
-    thd->security_ctx->skip_grants();
-    thd->client_capabilities |= CLIENT_MULTI_RESULTS;
-    if (!(*spd_mysqld_server_started) && !thd->killed && !thread->killed)
-    {
-      pthread_mutex_lock(spd_LOCK_server_started);
-      thd->mysys_var->current_cond = spd_COND_server_started;
-      thd->mysys_var->current_mutex = spd_LOCK_server_started;
-      if (!(*spd_mysqld_server_started) && !thd->killed && !thread->killed &&
-        thread->init_command)
-      {
-        do
-        {
-          struct timespec abstime;
-          set_timespec_nsec(abstime, 1000);
-          error_num = pthread_cond_timedwait(spd_COND_server_started,
-            spd_LOCK_server_started, &abstime);
-        } while (
-          (error_num == ETIMEDOUT || error_num == ETIME) &&
-          !(*spd_mysqld_server_started) && !thd->killed && !thread->killed &&
-          thread->init_command
-        );
-      }
-      pthread_mutex_unlock(spd_LOCK_server_started);
-      thd->mysys_var->current_cond = &thread->cond;
-      thd->mysys_var->current_mutex = &thread->mutex;
-    }
-    bool spd_wsrep_on = thd->variables.wsrep_on;
-    thd->variables.wsrep_on = false;
-    while (spider_init_queries[i].length && !thd->killed && !thread->killed &&
-      thread->init_command)
-    {
-      dispatch_command(COM_QUERY, thd, spider_init_queries[i].str,
-        (uint) spider_init_queries[i].length, FALSE, FALSE);
-      if (unlikely(thd->is_error()))
-      {
-        fprintf(stderr, "[ERROR] %s\n", spider_stmt_da_message(thd));
-        thd->clear_error();
-        break;
-      }
-      ++i;
-    }
-    thd->variables.wsrep_on = spd_wsrep_on;
-    thd->mysys_var->current_cond = &thread->cond;
-    thd->mysys_var->current_mutex = &thread->mutex;
-    thd->client_capabilities -= CLIENT_MULTI_RESULTS;
-    reenable_binlog(thd);
-    thread->init_command = FALSE;
-    pthread_cond_broadcast(&thread->sync_cond);
-  }
   if (thd->killed)
   {
     thread->killed = TRUE;

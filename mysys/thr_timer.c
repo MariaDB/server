@@ -533,7 +533,6 @@ static void run_test()
   mysql_mutex_init(0, &LOCK_thread_count, MY_MUTEX_INIT_FAST);
   mysql_cond_init(0, &COND_thread_count, NULL);
 
-  thr_setconcurrency(3);
   pthread_attr_init(&thr_attr);
   pthread_attr_setscope(&thr_attr,PTHREAD_SCOPE_PROCESS);
   printf("Main thread: %s\n",my_thread_name());

@@ -43,6 +43,7 @@ Created 6/2/1994 Heikki Tuuri
 #include "gis0geo.h"
 #include "dict0boot.h"
 #include "row0sel.h" /* row_search_max_autoinc() */
+#include "log.h"
 
 Atomic_counter<uint32_t> btr_validate_index_running;
 
@@ -1267,53 +1268,71 @@ btr_read_autoinc(dict_index_t* index)
 	return autoinc;
 }
 
+dict_index_t *dict_table_t::get_index(const dict_col_t &col) const
+{
+  dict_index_t *index= dict_table_get_first_index(this);
+
+  while (index && (index->fields[0].col != &col || index->is_corrupted()))
+    index= dict_table_get_next_index(index);
+
+  return index;
+}
+
 /** Read the last used AUTO_INCREMENT value from PAGE_ROOT_AUTO_INC,
 or fall back to MAX(auto_increment_column).
-@param[in]	table	table containing an AUTO_INCREMENT column
-@param[in]	col_no	index of the AUTO_INCREMENT column
-@return	the AUTO_INCREMENT value
-@retval	0 on error or if no AUTO_INCREMENT value was used yet */
-ib_uint64_t
-btr_read_autoinc_with_fallback(const dict_table_t* table, unsigned col_no)
+@param table          table containing an AUTO_INCREMENT column
+@param col_no         index of the AUTO_INCREMENT column
+@param mysql_version  TABLE_SHARE::mysql_version
+@param max            the maximum value of the AUTO_INCREMENT column
+@return the AUTO_INCREMENT value
+@retval 0 on error or if no AUTO_INCREMENT value was used yet */
+uint64_t btr_read_autoinc_with_fallback(const dict_table_t *table,
+                                        unsigned col_no, ulong mysql_version,
+                                        uint64_t max)
 {
-	ut_ad(table->persistent_autoinc);
-	ut_ad(!table->is_temporary());
+  ut_ad(table->persistent_autoinc);
+  ut_ad(!table->is_temporary());
 
-	dict_index_t*	index = dict_table_get_first_index(table);
+  uint64_t autoinc= 0;
+  mtr_t mtr;
+  mtr.start();
 
-	if (index == NULL) {
-		return 0;
-	}
+  if (buf_block_t *block=
+      buf_page_get(page_id_t(table->space_id,
+                             dict_table_get_first_index(table)->page),
+                   table->space->zip_size(), RW_SX_LATCH, &mtr))
+  {
+    autoinc= page_get_autoinc(block->frame);
 
-	mtr_t		mtr;
-	mtr.start();
-	buf_block_t*	block = buf_page_get(
-		page_id_t(index->table->space_id, index->page),
-		index->table->space->zip_size(),
-		RW_S_LATCH, &mtr);
+    if (autoinc > 0 && autoinc <= max && mysql_version >= 100210);
+    else if (dict_index_t *index=
+             table->get_index(*dict_table_get_nth_col(table, col_no)))
+    {
+      /* Read MAX(autoinc_col), in case this table had originally been
+      created before MariaDB 10.2.4 introduced persistent AUTO_INCREMENT
+      and MariaDB 10.2.10 fixed MDEV-12123, and there could be a garbage
+      value in the PAGE_ROOT_AUTO_INC field. */
+      const uint64_t max_autoinc= row_search_max_autoinc(index);
+      const bool need_adjust{autoinc > max || autoinc < max_autoinc};
+      ut_ad(max_autoinc <= max);
 
-	ib_uint64_t	autoinc	= block ? page_get_autoinc(block->frame) : 0;
-	const bool	retry	= block && autoinc == 0
-		&& !page_is_empty(block->frame);
-	mtr.commit();
+      if (UNIV_UNLIKELY(need_adjust) && !high_level_read_only && !opt_readonly)
+      {
+        sql_print_information("InnoDB: Resetting PAGE_ROOT_AUTO_INC from "
+                              UINT64PF " to " UINT64PF
+                              " on table %`.*s.%`s (created with version %lu)",
+                              autoinc, max_autoinc,
+                              int(table->name.dblen()), table->name.m_name,
+                              table->name.basename(), mysql_version);
+        autoinc= max_autoinc;
+        index->set_modified(mtr);
+        page_set_autoinc(block, max_autoinc, &mtr, true);
+      }
+    }
+  }
 
-	if (retry) {
-		/* This should be an old data file where
-		PAGE_ROOT_AUTO_INC was initialized to 0.
-		Fall back to reading MAX(autoinc_col).
-		There should be an index on it. */
-		const dict_col_t*	autoinc_col
-			= dict_table_get_nth_col(table, col_no);
-		while (index && index->fields[0].col != autoinc_col) {
-			index = dict_table_get_next_index(index);
-		}
-
-		if (index) {
-			autoinc = row_search_max_autoinc(index);
-		}
-	}
-
-	return autoinc;
+  mtr.commit();
+  return autoinc;
 }
 
 /** Write the next available AUTO_INCREMENT value to PAGE_ROOT_AUTO_INC.

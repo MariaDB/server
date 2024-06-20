@@ -55,10 +55,6 @@ public:
   SPIDER_SHARE       *share;
   ulonglong          spider_thread_id;
   ulonglong          trx_conn_adjustment;
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-  ulonglong          trx_hs_r_conn_adjustment;
-  ulonglong          trx_hs_w_conn_adjustment;
-#endif
   uint               mem_calc_id;
   const char         *mem_calc_func_name;
   const char         *mem_calc_file_name;
@@ -71,14 +67,6 @@ public:
   char               *conn_keys_first_ptr;
   char               **conn_keys;
   SPIDER_CONN        **conns;
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-  char               **hs_r_conn_keys;
-  SPIDER_CONN        **hs_r_conns;
-  ulonglong          *hs_r_conn_ages;
-  char               **hs_w_conn_keys;
-  SPIDER_CONN        **hs_w_conns;
-  ulonglong          *hs_w_conn_ages;
-#endif
   /* for active-standby mode */
   uint               *conn_link_idx;
   uchar              *conn_can_fo;
@@ -94,6 +82,7 @@ public:
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   SPIDER_PARTITION_HANDLER *partition_handler;
 #endif
+  /* Whether this ha_spider is the owner of its wide_handler. */
   bool                wide_handler_owner = FALSE;
   SPIDER_WIDE_HANDLER *wide_handler = NULL;
 
@@ -140,11 +129,7 @@ public:
   bool               have_second_range;
   KEY_MULTI_RANGE    mrr_second_range;
   spider_string      *mrr_key_buff;
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000
   range_id_t         *multi_range_keys;
-#else
-  char               **multi_range_keys;
-#endif
 #else
   KEY_MULTI_RANGE    *multi_range_ranges;
 #endif
@@ -182,27 +167,8 @@ public:
   uchar              *m_handler_opened;
   uint               *m_handler_id;
   char               **m_handler_cid;
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-  uchar              *r_handler_opened;
-  uint               *r_handler_id;
-  uint               *r_handler_index;
-  uchar              *w_handler_opened;
-  uint               *w_handler_id;
-  uint               *w_handler_index;
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
-  uchar              *do_hs_direct_update;
-  uint32             **hs_r_ret_fields;
-  uint32             **hs_w_ret_fields;
-  size_t             *hs_r_ret_fields_num;
-  size_t             *hs_w_ret_fields_num;
-  uchar              *tmp_column_bitmap;
-#endif
-#endif
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
   bool               do_direct_update;
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-  bool               maybe_do_hs_direct_update;
-#endif
   uint               direct_update_kinds;
 #endif
   spider_index_rnd_init prev_index_rnd_init;
@@ -332,7 +298,6 @@ public:
   void reset_no_where_cond();
   bool check_no_where_cond();
 #ifdef HA_MRR_USE_DEFAULT_IMPL
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000
   ha_rows multi_range_read_info_const(
     uint keyno,
     RANGE_SEQ_IF *seq,
@@ -351,26 +316,6 @@ public:
     uint *flags,
     Cost_estimate *cost
   );
-#else
-  ha_rows multi_range_read_info_const(
-    uint keyno,
-    RANGE_SEQ_IF *seq,
-    void *seq_init_param,
-    uint n_ranges,
-    uint *bufsz,
-    uint *flags,
-    COST_VECT *cost
-  );
-  ha_rows multi_range_read_info(
-    uint keyno,
-    uint n_ranges,
-    uint keys,
-    uint key_parts,
-    uint *bufsz,
-    uint *flags,
-    COST_VECT *cost
-  );
-#endif
   int multi_range_read_init(
     RANGE_SEQ_IF *seq,
     void *seq_init_param,
@@ -378,7 +323,6 @@ public:
     uint mode,
     HANDLER_BUFFER *buf
   );
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000
   int multi_range_read_next(
     range_id_t *range_info
   );
@@ -388,17 +332,6 @@ public:
   int multi_range_read_next_next(
     range_id_t *range_info
   );
-#else
-  int multi_range_read_next(
-    char **range_info
-  );
-  int multi_range_read_next_first(
-    char **range_info
-  );
-  int multi_range_read_next_next(
-    char **range_info
-  );
-#endif
 #else
   int read_multi_range_first(
     KEY_MULTI_RANGE **found_range_p,
@@ -828,10 +761,10 @@ public:
   bool auto_repair() const;
 #endif
   int disable_indexes(
-    uint mode
+    key_map map, bool persist
   );
   int enable_indexes(
-    uint mode
+    key_map map, bool persist
   );
   int check(
     THD* thd,
@@ -974,26 +907,6 @@ public:
   int reset_sql_sql(
     ulong sql_type
   );
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-  int reset_hs_sql(
-    ulong sql_type
-  );
-  int reset_hs_keys(
-    ulong sql_type
-  );
-  int reset_hs_upds(
-    ulong sql_type
-  );
-  int reset_hs_strs(
-    ulong sql_type
-  );
-  int reset_hs_strs_pos(
-    ulong sql_type
-  );
-  int push_back_hs_upds(
-    SPIDER_HS_STRING_REF &info
-  );
-#endif
   int append_tmp_table_and_sql_for_bka(
     const key_range *start_key
   );
@@ -1004,17 +917,9 @@ public:
   int reuse_union_table_and_sql_for_bka();
   int append_insert_sql_part();
   int append_update_sql_part();
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
-  int append_increment_update_set_sql_part();
-#endif
-#endif
   int append_update_set_sql_part();
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
   int append_direct_update_set_sql_part();
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-  int append_direct_update_set_hs_part();
-#endif
 #endif
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
   int append_dup_update_pushdown_sql_part(
@@ -1081,13 +986,6 @@ public:
     const key_range *end_key,
     ulong sql_type
   );
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-  int append_key_where_hs_part(
-    const key_range *start_key,
-    const key_range *end_key,
-    ulong sql_type
-  );
-#endif
   int append_match_where_sql_part(
     ulong sql_type
   );
@@ -1142,13 +1040,6 @@ public:
     longlong limit,
     ulong sql_type
   );
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-  int append_limit_hs_part(
-    longlong offset,
-    longlong limit,
-    ulong sql_type
-  );
-#endif
   int reappend_limit_sql_part(
     longlong offset,
     longlong limit,
@@ -1160,11 +1051,6 @@ public:
   int append_insert_values_sql_part(
     ulong sql_type
   );
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-  int append_insert_values_hs_part(
-    ulong sql_type
-  );
-#endif
   int append_into_sql_part(
     ulong sql_type
   );
@@ -1233,9 +1119,6 @@ public:
   bool support_use_handler_sql(
     int use_handler
   );
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-  bool support_bulk_access_hs() const;
-#endif
   int init_union_table_name_pos_sql();
   int set_union_table_name_pos_sql();
   int append_lock_tables_list();
@@ -1251,3 +1134,26 @@ public:
   void bulk_access_end();
 #endif
 };
+
+
+/* This is a hack for ASAN
+ * Libraries such as libxml2 and libodbc do not like being unloaded before
+ * exit and will show as a leak in ASAN with no stack trace (as the plugin
+ * has been unloaded from memory).
+ *
+ * The below is designed to trick the compiler into adding a "UNIQUE" symbol
+ * which can be seen using:
+ * readelf -s storage/spider/ha_spider.so | grep UNIQUE
+ *
+ * Having this symbol means that the plugin remains in memory after dlclose()
+ * has been called. Thereby letting the libraries clean up properly.
+ */
+#if defined(__SANITIZE_ADDRESS__)
+__attribute__((__used__))
+inline int dummy(void)
+{
+  static int d;
+  d++;
+  return d;
+}
+#endif

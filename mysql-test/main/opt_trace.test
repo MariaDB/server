@@ -791,6 +791,16 @@ drop table t1,t2,t3,t10,t11;
 set optimizer_trace=DEFAULT;
 
 --echo #
+--echo # MDEV-29179 Condition pushdown from HAVING into WHERE is not shown in optimizer trace
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(1), KEY (a), KEY(b,a)) ENGINE=MEMORY;
+INSERT INTO t1 VALUES (4,'n'),(1,'h'),(NULL,'w');
+SET optimizer_trace= 'enabled=on';
+SELECT b, a FROM t1 WHERE b <> 'p' OR a = 4 GROUP BY b, a HAVING a <= 7; SELECT json_detailed(json_extract(trace, '$**.steps[*].join_optimization.steps[*].condition_pushdown_from_having') ) exp1, JSON_VALID(trace) exp2 FROM information_schema.optimizer_trace;
+DROP TABLE t1;
+
+--echo #
 --echo # End of 10.4 tests
 --echo #
 
@@ -860,6 +870,20 @@ from information_schema.optimizer_trace;
 set in_predicate_conversion_threshold=@tmp;
 drop table t0;
 --enable_view_protocol
+
+--echo #
+--echo # MDEV-29298: INSERT ... SELECT Does not produce an optimizer trace
+--echo #
+create table t1 (a int, b int);
+create table t2 (a int, b int);
+insert into t1 values (1,1), (2,2), (3,3), (4,4), (5,5);
+set optimizer_trace=1;
+
+insert into t2 select * from t1 where a<= b and a>4;
+
+select QUERY, LENGTH(trace)>1 from information_schema.optimizer_trace;
+
+drop table t1, t2;
 
 --echo # End of 10.5 tests
 set optimizer_trace='enabled=off';

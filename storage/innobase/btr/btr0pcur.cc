@@ -458,8 +458,15 @@ btr_pcur_t::restore_position(ulint restore_latch_mode, const char *file,
 
 			return restore_status::SAME_ALL;
 		}
-		if (n_matched_fields >= index->n_uniq)
-			ret_val= restore_status::SAME_UNIQ;
+		if (n_matched_fields >= index->n_uniq
+		    /* Unique indexes can contain "NULL" keys, and if all
+		    unique fields are NULL and not all tuple
+		    fields match to record fields, then treat it as if
+		    restored cursor position points to the record with
+		    not the same unique key. */
+		    && !(index->n_nullable
+			    && dtuple_contains_null(tuple, index->n_uniq)))
+			  ret_val= restore_status::SAME_UNIQ;
 	}
 
 	mem_heap_free(heap);
@@ -650,8 +657,9 @@ user record satisfying the search condition, in the case PAGE_CUR_L or
 PAGE_CUR_LE, on the last user record. If no such user record exists, then
 in the first case sets the cursor after last in tree, and in the latter case
 before first in tree. The latching mode must be BTR_SEARCH_LEAF or
-BTR_MODIFY_LEAF. */
-void
+BTR_MODIFY_LEAF.
+@return DB_SUCCESS or error code */
+dberr_t
 btr_pcur_open_on_user_rec_func(
 /*===========================*/
 	dict_index_t*	index,		/*!< in: index */
@@ -665,8 +673,12 @@ btr_pcur_open_on_user_rec_func(
 	unsigned	line,		/*!< in: line where called */
 	mtr_t*		mtr)		/*!< in: mtr */
 {
-	btr_pcur_open_low(index, 0, tuple, mode, latch_mode, cursor,
-			  file, line, 0, mtr);
+	auto err = btr_pcur_open_low(index, 0, tuple, mode, latch_mode, cursor,
+				     file, line, 0, mtr);
+
+	if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
+		return err;
+	}
 
 	if ((mode == PAGE_CUR_GE) || (mode == PAGE_CUR_G)) {
 
@@ -681,4 +693,5 @@ btr_pcur_open_on_user_rec_func(
 
 		ut_error;
 	}
+	return DB_SUCCESS;
 }

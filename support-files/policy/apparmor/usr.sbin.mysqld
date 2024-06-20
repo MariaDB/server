@@ -14,6 +14,7 @@
 
   capability chown,
   capability dac_override,
+  capability ipc_lock,
   capability setgid,
   capability setuid,
   capability sys_rawio,

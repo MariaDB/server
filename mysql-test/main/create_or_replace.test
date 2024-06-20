@@ -8,6 +8,8 @@
 drop table if exists t1,t2,t3;
 --enable_warnings
 
+SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
+SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
 #
 # Create help table
 #
@@ -216,6 +218,7 @@ drop table if exists test.t1,mysqltest2.t2;
 create table test.t1 (i int) engine=myisam;
 create table mysqltest2.t2 like test.t1;
 lock table test.t1 write, mysqltest2.t2 write;
+--source ../suite/innodb/include/wait_all_purged.inc
 --replace_column 1 #
 --sorted_result
 select * from information_schema.metadata_lock_info;
@@ -523,6 +526,7 @@ CREATE OR REPLACE TABLE t LIKE tm;
 # Cleanup
 DROP TABLE IF EXISTS tm, t;
 
+SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;
 --echo #
 --echo # End of 10.3 tests
 --echo #

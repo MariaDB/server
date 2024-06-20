@@ -3842,7 +3842,7 @@ static void test_bind_result_ext1()
   short      i_data;
   uchar      b_data;
   int        f_data;
-  long       bData;
+  int        bData;
   char       d_data[20];
   double     szData;
   MYSQL_BIND my_bind[8];
@@ -3938,7 +3938,7 @@ static void test_bind_result_ext1()
     fprintf(stdout, "\n data (float)  : %d(%lu)", f_data, length[4]);
     fprintf(stdout, "\n data (double) : %s(%lu)", d_data, length[5]);
 
-    fprintf(stdout, "\n data (bin)    : %ld(%lu)", bData, length[6]);
+    fprintf(stdout, "\n data (bin)    : %d(%lu)", bData, length[6]);
     fprintf(stdout, "\n data (str)    : %g(%lu)", szData, length[7]);
   }
 
@@ -20561,7 +20561,6 @@ typedef struct {
 #ifndef EMBEDDED_LIBRARY
 static void test_proxy_header_tcp(const char *ipaddr, int port)
 {
- 
   int rc;
   MYSQL_RES *result;
   int family = (strchr(ipaddr,':') == NULL)?AF_INET:AF_INET6;
@@ -20636,6 +20635,11 @@ static void test_proxy_header_tcp(const char *ipaddr, int port)
     DIE_UNLESS(strncmp(row[0], normalized_addr, addrlen) == 0);
     DIE_UNLESS(atoi(row[0] + addrlen+1) == port);
     mysql_free_result(result);
+    if (i == 0 && !strcmp(ipaddr,"192.0.2.1"))
+    {
+     /* do "dirty" close, to get aborted message in error log.*/
+      mariadb_cancel(m);
+    }
     mysql_close(m);
   }
   sprintf(query,"DROP USER 'u'@'%s'",normalized_addr);
@@ -21958,6 +21962,44 @@ static void test_mdev_30159()
   myquery(rc);
 }
 
+/*
+  Check that server_status returned after connecting to server
+  is consistent with the value of autocommit variable.
+*/
+static void test_connect_autocommit()
+{
+  int rc;
+  my_bool autocommit[]= {0, 1};
+  int i;
+  rc= mysql_query(mysql, "SET @save_autocommit=@@global.autocommit");
+  myquery(rc);
+  for (i= 0; i < 2; i++)
+  {
+    MYSQL *con;
+    char query[100];
+    int autocommit_val;
+
+    con= mysql_client_init(NULL);
+    DIE_UNLESS(con);
+    autocommit_val = autocommit[i];
+    snprintf(query, sizeof(query), "SET global autocommit=%d", autocommit_val);
+    rc= mysql_query(mysql, query);
+    myquery(rc);
+
+    if (!(mysql_real_connect(con, opt_host, opt_user, opt_password, current_db,
+                             opt_port, opt_unix_socket, 0)))
+    {
+      fprintf(stderr, "Failed to connect to database: Error: %s\n",
+              mysql_error(con));
+      exit(1);
+    }
+    DIE_UNLESS(!!(con->server_status & SERVER_STATUS_AUTOCOMMIT) == autocommit_val);
+    mysql_close(con);
+  }
+  rc= mysql_query(mysql, "SET global autocommit=@save_autocommit");
+  myquery(rc);
+}
+
 static struct my_tests_st my_tests[]= {
   { "test_mdev_20516", test_mdev_20516 },
   { "test_mdev24827", test_mdev24827 },
@@ -22264,6 +22306,7 @@ static struct my_tests_st my_tests[]= {
   { "test_mdev18408", test_mdev18408 },
   { "test_mdev20261", test_mdev20261 },
   { "test_mdev_30159", test_mdev_30159 },
+  { "test_connect_autocommit", test_connect_autocommit},
   { 0, 0 }
 };
 

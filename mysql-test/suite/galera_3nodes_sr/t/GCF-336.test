@@ -1,5 +1,7 @@
 --source include/galera_cluster.inc
 
+--disable_ps2_protocol
+
 --connection node_2
 CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
 
@@ -25,6 +27,12 @@ SET SESSION wsrep_sync_wait=0;
 --connection node_2
 --error ER_LOCK_DEADLOCK
 INSERT INTO t1 VALUES (2);
+
+--connection node_2a
+--let $wait_condition = SELECT VARIABLE_VALUE = 'non-Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+--source include/wait_condition.inc
+
+--connection node_2
 --error ER_UNKNOWN_COM_ERROR
 COMMIT;
 
@@ -45,3 +53,6 @@ CALL mtr.add_suppression("WSREP: failed to send SR rollback for ");
 --connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
 --connection node_3
 --source include/galera_wait_ready.inc
+
+
+--enable_ps2_protocol

@@ -264,7 +264,7 @@ extern time_t server_start_time, flush_status_time;
 extern char *opt_mysql_tmpdir, mysql_charsets_dir[];
 extern size_t mysql_unpacked_real_data_home_len;
 extern MYSQL_PLUGIN_IMPORT MY_TMPDIR mysql_tmpdir_list;
-extern const char *first_keyword, *delayed_user;
+extern const char *first_keyword, *delayed_user, *slave_user;
 extern MYSQL_PLUGIN_IMPORT const char  *my_localhost;
 extern MYSQL_PLUGIN_IMPORT const char **errmesg;			/* Error messages */
 extern const char *myisam_recover_options_str;
@@ -309,10 +309,6 @@ enum secure_timestamp { SECTIME_NO, SECTIME_SUPER, SECTIME_REPL, SECTIME_YES };
 extern PSI_mutex_key key_PAGE_lock, key_LOCK_sync, key_LOCK_active,
        key_LOCK_pool, key_LOCK_pending_checkpoint;
 #endif /* HAVE_MMAP */
-
-#ifdef HAVE_OPENSSL
-extern PSI_mutex_key key_LOCK_des_key_file;
-#endif
 
 extern PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_xid_list,
   key_BINLOG_LOCK_binlog_background_thread,
@@ -390,7 +386,7 @@ extern PSI_thread_key key_thread_delayed_insert,
 
 extern PSI_file_key key_file_binlog, key_file_binlog_cache,
        key_file_binlog_index, key_file_binlog_index_cache, key_file_casetest,
-  key_file_dbopt, key_file_des_key_file, key_file_ERRMSG, key_select_to_file,
+  key_file_dbopt, key_file_ERRMSG, key_select_to_file,
   key_file_fileparser, key_file_frm, key_file_global_ddl_log, key_file_load,
   key_file_loadfile, key_file_log_event_data, key_file_log_event_info,
   key_file_master_info, key_file_misc, key_file_partition_ddl_log,
@@ -402,6 +398,13 @@ extern PSI_file_key key_file_relaylog, key_file_relaylog_index,
 extern PSI_socket_key key_socket_tcpip, key_socket_unix,
   key_socket_client_connection;
 extern PSI_file_key key_file_binlog_state;
+
+#ifdef HAVE_des
+extern char* des_key_file;
+extern PSI_file_key key_file_des_key_file;
+extern PSI_mutex_key key_LOCK_des_key_file;
+extern mysql_mutex_t LOCK_des_key_file;
+#endif
 
 #ifdef HAVE_PSI_INTERFACE
 void init_server_psi_keys();
@@ -746,10 +749,6 @@ extern mysql_mutex_t
 extern MYSQL_PLUGIN_IMPORT mysql_mutex_t LOCK_global_system_variables;
 extern mysql_rwlock_t LOCK_all_status_vars;
 extern mysql_mutex_t LOCK_start_thread;
-#ifdef HAVE_OPENSSL
-extern char* des_key_file;
-extern mysql_mutex_t LOCK_des_key_file;
-#endif
 extern MYSQL_PLUGIN_IMPORT mysql_mutex_t LOCK_server_started;
 extern MYSQL_PLUGIN_IMPORT mysql_cond_t COND_server_started;
 extern mysql_rwlock_t LOCK_grant, LOCK_sys_init_connect, LOCK_sys_init_slave;
@@ -861,6 +860,11 @@ enum enum_query_type
   /// good for parsing
   QT_PARSABLE= (1 << 8),
 
+  // If an expression is constant, print the expression, not the value
+  // it evaluates to. Should be used for error messages, so that they
+  // don't reveal values.
+  QT_NO_DATA_EXPANSION= (1 << 9),
+
   /// This value means focus on readability, not on ability to parse back, etc.
   QT_EXPLAIN=           QT_TO_SYSTEM_CHARSET |
                         QT_ITEM_IDENT_SKIP_DB_NAMES |
@@ -881,12 +885,12 @@ enum enum_query_type
   QT_EXPLAIN_EXTENDED=  QT_TO_SYSTEM_CHARSET|
                         QT_SHOW_SELECT_NUMBER,
 
-  // If an expression is constant, print the expression, not the value
-  // it evaluates to. Should be used for error messages, so that they
-  // don't reveal values.
-  QT_NO_DATA_EXPANSION= (1 << 9),
   // Remove wrappers added for TVC when creating or showing view
   QT_NO_WRAPPERS_FOR_TVC_IN_VIEW= (1 << 12),
+
+  /// Print for FRM file. Focus on parse-back.
+  /// e.g. VIEW expressions and virtual column expressions
+  QT_FOR_FRM= (1 << 13)
 };
 
 

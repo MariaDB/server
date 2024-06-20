@@ -48,6 +48,8 @@ Created 2012-02-08 by Sunny Bains.
 #include "snappy-c.h"
 #endif
 #include "log.h"
+#include "table.h"
+#include "ha_innodb.h"
 
 #include "scope.h"
 
@@ -120,7 +122,6 @@ struct row_import {
 	row_import() UNIV_NOTHROW
 		:
 		m_table(NULL),
-		m_version(0),
 		m_hostname(NULL),
 		m_table_name(NULL),
 		m_autoinc(0),
@@ -199,8 +200,6 @@ struct row_import {
 
 	dict_table_t*	m_table;		/*!< Table instance */
 
-	ulint		m_version;		/*!< Version of config file */
-
 	byte*		m_hostname;		/*!< Hostname where the
 						tablespace was exported */
 	byte*		m_table_name;		/*!< Exporting instance table
@@ -258,13 +257,13 @@ public:
 	}
 
 	/** Position the cursor on the first user record. */
-	void	open(buf_block_t* block) UNIV_NOTHROW
+	rec_t* open(buf_block_t* block, const dict_index_t* index) noexcept
+		MY_ATTRIBUTE((warn_unused_result))
 	{
+		m_cur.index = const_cast<dict_index_t*>(index);
 		page_cur_set_before_first(block, &m_cur);
-
-		if (!end()) {
-			next();
-		}
+		next();
+		return page_cur_get_rec(&m_cur);
 	}
 
 	/** Move to the next record. */
@@ -1872,12 +1871,39 @@ PageConverter::update_records(
 	bool	clust_index = m_index->m_srv_index == m_cluster_index;
 
 	/* This will also position the cursor on the first user record. */
+	rec_t* rec = m_rec_iter.open(block, m_index->m_srv_index);
 
-	m_rec_iter.open(block);
+	if (!rec) {
+		return DB_CORRUPTION;
+	}
+
+	ulint deleted;
+
+	if (!page_has_prev(block->frame)
+	    && m_index->m_srv_index->is_instant()) {
+		/* Expect to find the hidden metadata record */
+		if (page_rec_is_supremum(rec)) {
+			return DB_CORRUPTION;
+		}
+
+		const ulint info_bits = rec_get_info_bits(rec, comp);
+
+		if (!(info_bits & REC_INFO_MIN_REC_FLAG)) {
+			return DB_CORRUPTION;
+		}
+
+		if (!(info_bits & REC_INFO_DELETED_FLAG)
+		    != !m_index->m_srv_index->table->instant) {
+			return DB_CORRUPTION;
+		}
+
+		deleted = 0;
+		goto first;
+	}
 
 	while (!m_rec_iter.end()) {
-		rec_t*	rec = m_rec_iter.current();
-		ibool	deleted = rec_get_deleted_flag(rec, comp);
+		rec = m_rec_iter.current();
+		deleted = rec_get_deleted_flag(rec, comp);
 
 		/* For the clustered index we have to adjust the BLOB
 		reference and the system fields irrespective of the
@@ -1885,6 +1911,7 @@ PageConverter::update_records(
 		cluster records is required for purge to work later. */
 
 		if (deleted || clust_index) {
+first:
 			m_offsets = rec_get_offsets(
 				rec, m_index->m_srv_index, m_offsets,
 				m_index->m_srv_index->n_core_fields,
@@ -3079,17 +3106,13 @@ row_import_read_meta_data(
 		return(DB_IO_ERROR);
 	}
 
-	cfg.m_version = mach_read_from_4(row);
-
 	/* Check the version number. */
-	switch (cfg.m_version) {
+	switch (mach_read_from_4(row)) {
 	case IB_EXPORT_CFG_VERSION_V1:
-
 		return(row_import_read_v1(file, thd, &cfg));
 	default:
-		ib_errf(thd, IB_LOG_LEVEL_ERROR, ER_IO_READ_ERROR,
-			"Unsupported meta-data version number (" ULINTPF "), "
-			"file ignored", cfg.m_version);
+		ib_senderrf(thd, IB_LOG_LEVEL_ERROR, ER_NOT_SUPPORTED_YET,
+			    "meta-data version");
 	}
 
 	return(DB_ERROR);
@@ -3155,7 +3178,7 @@ static size_t get_buf_size()
       ;
 }
 
-/* find, parse instant metadata, performing variaous checks,
+/* find, parse instant metadata, performing various checks,
 and apply it to dict_table_t
 @return DB_SUCCESS or some error */
 static dberr_t handle_instant_metadata(dict_table_t *table,
@@ -4340,6 +4363,37 @@ fil_tablespace_iterate(
 	return(err);
 }
 
+static void row_import_autoinc(dict_table_t *table, row_prebuilt_t *prebuilt,
+                               uint64_t autoinc)
+{
+  if (!table->persistent_autoinc)
+  {
+    ut_ad(!autoinc);
+    return;
+  }
+
+  if (autoinc)
+  {
+    btr_write_autoinc(dict_table_get_first_index(table), autoinc - 1);
+  autoinc_set:
+    table->autoinc= autoinc;
+    sql_print_information("InnoDB: %`.*s.%`s autoinc value set to " UINT64PF,
+                          int(table->name.dblen()), table->name.m_name,
+                          table->name.basename(), autoinc);
+  }
+  else if (TABLE *t= prebuilt->m_mysql_table)
+  {
+    if (const Field *ai= t->found_next_number_field)
+    {
+      autoinc= 1 +
+        btr_read_autoinc_with_fallback(table, innodb_col_no(ai),
+                                       t->s->mysql_version,
+                                       innobase_get_int_col_max_value(ai));
+      goto autoinc_set;
+    }
+  }
+}
+
 /*****************************************************************//**
 Imports a tablespace. The space id in the .ibd file must match the space id
 of the table in the data dictionary.
@@ -4366,6 +4420,23 @@ row_import_for_mysql(
 	ut_ad(!table->is_readable());
 
 	ibuf_delete_for_discarded_space(table->space_id);
+
+#ifdef BTR_CUR_HASH_ADAPT
+	/* On DISCARD TABLESPACE, we did not drop any adaptive hash
+	index entries. If we replaced the discarded tablespace with a
+	smaller one here, there could still be some adaptive hash
+	index entries that point to cached garbage pages in the buffer
+	pool, because PageConverter::operator() only evicted those
+	pages that were replaced by the imported pages. We must
+	detach any remaining adaptive hash index entries, because the
+	adaptive hash index must be a subset of the table contents;
+	false positives are not tolerated. */
+	for (dict_index_t* index = UT_LIST_GET_FIRST(table->indexes); index;
+	     index = UT_LIST_GET_NEXT(indexes, index)) {
+		index = index->clone_if_needed();
+	}
+#endif /* BTR_CUR_HASH_ADAPT */
+	UT_LIST_GET_FIRST(table->indexes)->clear_instant_alter();
 
 	trx_start_if_not_started(prebuilt->trx, true);
 
@@ -4521,21 +4592,6 @@ row_import_for_mysql(
 
 	DBUG_EXECUTE_IF("ib_import_reset_space_and_lsn_failure",
 			err = DB_TOO_MANY_CONCURRENT_TRXS;);
-#ifdef BTR_CUR_HASH_ADAPT
-	/* On DISCARD TABLESPACE, we did not drop any adaptive hash
-	index entries. If we replaced the discarded tablespace with a
-	smaller one here, there could still be some adaptive hash
-	index entries that point to cached garbage pages in the buffer
-	pool, because PageConverter::operator() only evicted those
-	pages that were replaced by the imported pages. We must
-	detach any remaining adaptive hash index entries, because the
-	adaptive hash index must be a subset of the table contents;
-	false positives are not tolerated. */
-	for (dict_index_t* index = UT_LIST_GET_FIRST(table->indexes); index;
-	     index = UT_LIST_GET_NEXT(indexes, index)) {
-		index = index->clone_if_needed();
-	}
-#endif /* BTR_CUR_HASH_ADAPT */
 
 	if (err != DB_SUCCESS) {
 		char	table_name[MAX_FULL_NAME_LEN + 1];
@@ -4725,14 +4781,8 @@ row_import_for_mysql(
 	table->flags2 &= ~DICT_TF2_DISCARDED & ((1U << DICT_TF2_BITS) - 1);
 
 	/* Set autoinc value read from .cfg file, if one was specified.
-	Otherwise, keep the PAGE_ROOT_AUTO_INC as is. */
-	if (autoinc) {
-		ib::info() << table->name << " autoinc value set to "
-			<< autoinc;
-
-		table->autoinc = autoinc--;
-		btr_write_autoinc(dict_table_get_first_index(table), autoinc);
-	}
+	Otherwise, read the PAGE_ROOT_AUTO_INC and set it to table autoinc. */
+	row_import_autoinc(table, prebuilt, autoinc);
 
 	return(row_import_cleanup(prebuilt, trx, err));
 }

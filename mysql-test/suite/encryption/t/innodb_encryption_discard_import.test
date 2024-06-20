@@ -6,7 +6,6 @@
 let MYSQLD_DATADIR = `SELECT @@datadir`;
 
 --let SEARCH_RANGE = 10000000
---let $id = `SELECT RAND()`
 --let t1_IBD = $MYSQLD_DATADIR/test/t1.ibd
 --let t2_IBD = $MYSQLD_DATADIR/test/t2.ibd
 --let t3_IBD = $MYSQLD_DATADIR/test/t3.ibd
@@ -30,19 +29,18 @@ end//
 delimiter ;//
 commit;
 
-set autocommit=0;
-call innodb_insert_proc(10000);
+begin;
+set statement unique_checks=0, foreign_key_checks=0 for
+call innodb_insert_proc(100);
 commit;
-set autocommit=1;
+DROP PROCEDURE innodb_insert_proc;
 
 --echo # Wait max 10 min for key encryption threads to encrypt all spaces
 --let $wait_timeout= 600
 --let $wait_condition=SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0 AND ROTATING_OR_FLUSHING <> 0
 --source include/wait_condition.inc
 
-# shutdown so that grep is safe
---source include/shutdown_mysqld.inc
-
+FLUSH TABLES t1, t2, t3 FOR EXPORT;
 --echo # tablespaces should be now encrypted
 --let SEARCH_PATTERN=foobar
 --echo # t1 yes on expecting NOT FOUND
@@ -57,11 +55,8 @@ set autocommit=1;
 -- let SEARCH_FILE=$t3_IBD
 -- source include/search_pattern_in_file.inc
 
---source include/start_mysqld.inc
 let MYSQLD_DATADIR =`SELECT @@datadir`;
-
 --list_files $MYSQLD_DATADIR/test
-FLUSH TABLES t1, t2, t3 FOR EXPORT;
 perl;
 do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
 ib_backup_tablespaces("test", "t1","t2","t3");
@@ -80,14 +75,13 @@ ib_restore_tablespaces("test", "t1","t2","t3");
 EOF
 
 ALTER TABLE t1 IMPORT TABLESPACE;
-SELECT COUNT(1) FROM t1;
+SELECT COUNT(*) FROM t1;
 ALTER TABLE t2 IMPORT TABLESPACE;
-SELECT COUNT(1) FROM t2;
+SELECT COUNT(*) FROM t2;
 ALTER TABLE t3 IMPORT TABLESPACE;
-SELECT COUNT(1) FROM t3;
+SELECT COUNT(*) FROM t3;
 
-# shutdown so that grep is safe
---source include/shutdown_mysqld.inc
+FLUSH TABLES t1, t2, t3 FOR EXPORT;
 
 --echo # tablespaces should remain encrypted after import
 --let SEARCH_PATTERN=foobar
@@ -103,28 +97,18 @@ SELECT COUNT(1) FROM t3;
 -- let SEARCH_FILE=$t3_IBD
 -- source include/search_pattern_in_file.inc
 
---source include/start_mysqld.inc
-
-ALTER TABLE t1 ENGINE InnoDB;
+UNLOCK TABLES;
+ALTER TABLE t1 FORCE;
 SHOW CREATE TABLE t1;
-ALTER TABLE t2 ENGINE InnoDB;
+ALTER TABLE t2 FORCE;
 SHOW CREATE TABLE t2;
-ALTER TABLE t3 ENGINE InnoDB;
+ALTER TABLE t3 FORCE;
 SHOW CREATE TABLE t3;
 
---echo # Restarting server
--- source include/restart_mysqld.inc
---echo # Done restarting server
-
 --echo # Verify that tables are still usable
-SELECT COUNT(1) FROM t1;
-SELECT COUNT(1) FROM t2;
-SELECT COUNT(1) FROM t3;
+CHECK TABLE t1, t2, t3 EXTENDED;
+FLUSH TABLES t1, t2, t3 FOR EXPORT;
 
-# shutdown so that grep is safe
---source include/shutdown_mysqld.inc
-
---echo # Tablespaces should be encrypted after restart
 --let SEARCH_PATTERN=foobar
 --echo # t1 yes on expecting NOT FOUND
 -- let SEARCH_FILE=$t1_IBD
@@ -136,19 +120,7 @@ SELECT COUNT(1) FROM t3;
 --echo # t3 ... on expecting NOT FOUND
 --let SEARCH_PATTERN=barfoo
 -- let SEARCH_FILE=$t3_IBD
--- source include/search_pattern_in_file.inc
 
---source include/start_mysqld.inc
+UNLOCK TABLES;
 
---echo # Wait max 10 min for key encryption threads to encrypt all spaces
---let $wait_timeout= 600
---let $wait_condition=SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0 AND ROTATING_OR_FLUSHING <> 0
---source include/wait_condition.inc
-
---echo # Success!
---echo # Restart mysqld --innodb_encrypt_tables=0 --innodb_encryption_threads=0
--- let $restart_parameters=--innodb_encrypt_tables=0 --innodb_encryption_threads=0
--- source include/restart_mysqld.inc
-
-DROP PROCEDURE innodb_insert_proc;
 DROP TABLE t1, t2, t3;

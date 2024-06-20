@@ -41,6 +41,7 @@ Named_type_handler<Type_handler_bool> type_handler_bool("boolean");
 Named_type_handler<Type_handler_tiny> type_handler_stiny("tinyint");
 Named_type_handler<Type_handler_short> type_handler_sshort("smallint");
 Named_type_handler<Type_handler_long> type_handler_slong("int");
+Named_type_handler<Type_handler_long_ge0> type_handler_slong_ge0("int");
 Named_type_handler<Type_handler_int24> type_handler_sint24("mediumint");
 Named_type_handler<Type_handler_longlong> type_handler_slonglong("bigint");
 Named_type_handler<Type_handler_utiny> type_handler_utiny("tiny unsigned");
@@ -1451,22 +1452,6 @@ Type_handler_string_result::charset_for_protocol(const Item *item) const
 }
 
 
-const Type_handler *
-Type_handler::get_handler_by_cmp_type(Item_result type)
-{
-  switch (type) {
-  case REAL_RESULT:       return &type_handler_double;
-  case INT_RESULT:        return &type_handler_slonglong;
-  case DECIMAL_RESULT:    return &type_handler_newdecimal;
-  case STRING_RESULT:     return &type_handler_long_blob;
-  case TIME_RESULT:       return &type_handler_datetime;
-  case ROW_RESULT:        return &type_handler_row;
-  }
-  DBUG_ASSERT(0);
-  return &type_handler_string;
-}
-
-
 /*
   If we have a mixture of:
   - a MariaDB standard (built-in permanent) data type, and
@@ -2261,6 +2246,34 @@ Type_handler::get_handler_by_real_type(enum_field_types type)
   case MYSQL_TYPE_NEWDATE:     return &type_handler_newdate;
   };
   return NULL;
+}
+
+
+const Type_handler *
+Type_handler::handler_by_log_event_data_type(THD *thd,
+                                             const Log_event_data_type &type)
+{
+  if (type.data_type_name().length)
+  {
+    const Type_handler *th= handler_by_name(thd, type.data_type_name());
+    if (th)
+      return th;
+  }
+  switch (type.type()) {
+  case STRING_RESULT:
+  case ROW_RESULT:
+  case TIME_RESULT:
+    break;
+  case REAL_RESULT:
+    return &type_handler_double;
+  case INT_RESULT:
+    if (type.is_unsigned())
+      return &type_handler_ulonglong;
+    return &type_handler_slonglong;
+  case DECIMAL_RESULT:
+    return &type_handler_newdecimal;
+  }
+  return &type_handler_long_blob;
 }
 
 
@@ -4617,6 +4630,10 @@ bool Type_handler_general_purpose_int::
   bool unsigned_flag= items[0]->unsigned_flag;
   for (uint i= 1; i < nitems; i++)
   {
+    /*
+       TODO: avoid creating DECIMAL for a mix of ulong and slong_ge0.
+       It's too late for 10.5. Let's do it in a higher version.
+    */
     if (unsigned_flag != items[i]->unsigned_flag)
     {
       // Convert a mixture of signed and unsigned int to decimal
@@ -4626,6 +4643,21 @@ bool Type_handler_general_purpose_int::
     }
   }
   func->aggregate_attributes_int(items, nitems);
+  for (uint i= 0; i < nitems; i++)
+  {
+    if (items[i]->type_handler() == &type_handler_slong_ge0)
+    {
+      /*
+        A slong_ge0 argument found.
+        We need to add an extra character for the sign.
+        TODO: rewrite aggregate_attributes_int() to find
+        the maximum decimal_precision() instead of the maximum max_length.
+        This change is too late for 10.5, so let's do it in a higher version.
+      */
+      uint digits_and_sign= items[i]->decimal_precision() + 1;
+      set_if_bigger(func->max_length, digits_and_sign);
+    }
+  }
   handler->set_handler(func->unsigned_flag ?
                        handler->type_handler()->type_handler_unsigned() :
                        handler->type_handler()->type_handler_signed());
@@ -4918,6 +4950,13 @@ bool Type_handler_real_result::
 }
 
 /*************************************************************************/
+
+bool Type_handler_long_ge0::
+       Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *func)  const
+{
+  return func->fix_length_and_dec_sint_ge0();
+}
+
 
 bool Type_handler_int_result::
        Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *func) const
@@ -5675,6 +5714,14 @@ Type_handler_string_result::Item_func_hybrid_field_type_get_date(
 
 /***************************************************************************/
 
+bool Type_handler::Item_bool_rowready_func2_fix_length_and_dec(THD *thd,
+                                          Item_bool_rowready_func2 *func) const
+{
+  return func->fix_length_and_dec_generic(thd, this);
+}
+
+/***************************************************************************/
+
 bool Type_handler_numeric::
        Item_func_between_fix_length_and_dec(Item_func_between *func) const
 {
@@ -6353,6 +6400,14 @@ bool Type_handler_int_result::
 }
 
 
+bool Type_handler_long_ge0::
+       Item_func_round_fix_length_and_dec(Item_func_round *item) const
+{
+  item->fix_arg_slong_ge0();
+  return false;
+}
+
+
 bool Type_handler_year::
        Item_func_round_fix_length_and_dec(Item_func_round *item) const
 {
@@ -6574,6 +6629,14 @@ bool Type_handler_int_result::
 }
 
 
+bool Type_handler_long_ge0::
+       Item_func_abs_fix_length_and_dec(Item_func_abs *item) const
+{
+  item->fix_length_and_dec_sint_ge0();
+  return false;
+}
+
+
 bool Type_handler_real_result::
        Item_func_abs_fix_length_and_dec(Item_func_abs *item) const
 {
@@ -6680,6 +6743,22 @@ bool Type_handler::
     return false;
   }
   item->fix_length_and_dec_generic();
+  return false;
+}
+
+
+bool Type_handler_long_ge0::
+       Item_func_signed_fix_length_and_dec(Item_func_signed *item) const
+{
+  item->fix_length_and_dec_sint_ge0();
+  return false;
+}
+
+
+bool Type_handler_long_ge0::
+       Item_func_unsigned_fix_length_and_dec(Item_func_unsigned *item) const
+{
+  item->fix_length_and_dec_sint_ge0();
   return false;
 }
 
@@ -7167,6 +7246,18 @@ uint Type_handler_int_result::Item_decimal_precision(const Item *item) const
                                            item->decimals,
                                            item->unsigned_flag);
  return MY_MIN(prec, DECIMAL_MAX_PRECISION);
+}
+
+uint Type_handler_long_ge0::Item_decimal_precision(const Item *item) const
+{
+  DBUG_ASSERT(item->max_length);
+  DBUG_ASSERT(!item->decimals);
+  /*
+    Unlinke in Type_handler_long, Type_handler_long_ge does
+    not reserve one character for the sign. All max_length
+    characters are digits.
+  */
+  return MY_MIN(item->max_length, DECIMAL_MAX_PRECISION);
 }
 
 uint Type_handler_time_common::Item_decimal_precision(const Item *item) const
@@ -8164,6 +8255,26 @@ Field *Type_handler_long::
 {
   return new (mem_root)
     Field_long(rec.ptr(), (uint32) attr->length, rec.null_ptr(), rec.null_bit(),
+               attr->unireg_check, name,
+               f_is_zerofill(attr->pack_flag) != 0,
+               f_is_dec(attr->pack_flag) == 0);
+}
+
+
+Field *Type_handler_long_ge0::
+  make_table_field_from_def(TABLE_SHARE *share, MEM_ROOT *mem_root,
+                            const LEX_CSTRING *name,
+                            const Record_addr &rec, const Bit_addr &bit,
+                            const Column_definition_attributes *attr,
+                            uint32 flags) const
+{
+  /*
+    We're converting signed long_ge0 to signed long.
+    So add one character for the sign.
+  */
+  return new (mem_root)
+    Field_long(rec.ptr(), (uint32) attr->length + 1/*sign*/,
+               rec.null_ptr(), rec.null_bit(),
                attr->unireg_check, name,
                f_is_zerofill(attr->pack_flag) != 0,
                f_is_dec(attr->pack_flag) == 0);

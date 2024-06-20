@@ -1318,7 +1318,7 @@ a
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` int(3) DEFAULT NULL
+  `a` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 create table t1 (a int);
@@ -7161,23 +7161,26 @@ drop table t1;
 #
 # MDEV-7565: Server crash with Signal 6 (part 2)
 #
+create table t1 (id int not null primary key);
 Select 
-(Select Sum(`TestCase`.Revenue) From mysql.slow_log E           
-Where TestCase.TemplateID not in (Select 1 from mysql.slow_log where 2=2)
+(Select Sum(`TestCase`.Revenue) From t1 E
+Where TestCase.TemplateID not in (Select 1 from t1 where 2=2)
 ) As `ControlRev`
 From 
 (Select  3 as Revenue, 4 as TemplateID) As `TestCase` 
 Group By  TestCase.Revenue, TestCase.TemplateID;
 ControlRev
 NULL
+drop table t1;
 #
 # MDEV-7445:Server crash with Signal 6
 #
+create table t1 (id int not null primary key);
 CREATE PROCEDURE procedure2()
 BEGIN
 Select 
-(Select Sum(`TestCase`.Revenue) From mysql.slow_log E           
-Where TestCase.TemplateID not in (Select 1 from mysql.slow_log where 2=2)
+(Select Sum(`TestCase`.Revenue) From t1 E           
+Where TestCase.TemplateID not in (Select 1 from t1 where 2=2)
 ) As `ControlRev`
   From 
 (Select  3 as Revenue, 4 as TemplateID) As `TestCase` 
@@ -7190,6 +7193,7 @@ call procedure2();
 ControlRev
 NULL
 drop procedure procedure2;
+drop table t1;
 #
 # MDEV-7846:Server crashes in Item_subselect::fix
 #_fields or fails with Thread stack overrun
@@ -7494,6 +7498,45 @@ SELECT ROW(1,2) = 1 IN (SELECT 1 UNION SELECT 2);
 ERROR HY000: Illegal parameter data types row and boolean for operation '='
 SELECT ROW(1,2) = (1 = ANY (SELECT 1 UNION SELECT 2));
 ERROR HY000: Illegal parameter data types row and boolean for operation '='
+#
+# MDEV-29070 SIGSEGV in my_decimal::operator= and Assertion `0' failed
+# in Item_type_holder::val_decimal on SELECT
+#
+CREATE TABLE t1(a INT UNIQUE);
+INSERT INTO t1(a) VALUES (1);
+SELECT a FROM t1 WHERE (SELECT a, a UNION SELECT 1, a FROM t1) IN (SELECT 1, 1);
+a
+1
+SELECT a FROM t1 WHERE (SELECT a, a UNION SELECT 1, a FROM t1) IN (SELECT a, a);
+a
+1
+UPDATE t1 SET a = 0
+WHERE (SELECT a, a WHERE a < 0 INTERSECT
+SELECT +1 / +1, a FROM t1 WHERE a > -0+1) IN (SELECT a, a);
+SELECT a FROM t1 WHERE (SELECT a, a WHERE a < 0 INTERSECT
+SELECT + 1 / + 1, a FROM t1
+WHERE a > -0 + 1) IN (SELECT a, a);
+a
+CREATE TABLE x (x INT);
+INSERT INTO x (x) VALUES (1);
+UPDATE x SET x = 1 WHERE x = 1;
+INSERT INTO x (x) VALUES (1), (1);
+WITH RECURSIVE x (x) AS (
+SELECT 1 INTERSECT
+SELECT -(SELECT 1.000000 AS x
+UNION
+SELECT 1.000000 ORDER BY NOT x < 'x',
+-(SELECT 1 + x/1.000000 IN (1, 1) FROM x
+WHERE x ORDER BY 1 - x) DESC LIMIT 1 OFFSET 1
+) + 1 FROM x
+)
+SELECT DISTINCT x, 1, NULL, 1.000000
+FROM x
+WHERE (SELECT (SELECT x WHERE x IN (SELECT x FROM x))) >
+(SELECT (SELECT x ORDER BY x = x OR (x = 1 AND x = 1) DESC))
+ORDER BY x ASC, x DESC, x;
+ERROR HY000: Restrictions imposed on recursive definitions are violated for table 'x'
+DROP TABLE t1, x;
 #
 # End of 10.4 tests
 #

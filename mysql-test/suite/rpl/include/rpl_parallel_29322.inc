@@ -66,6 +66,17 @@ if ($same_version_binlogs)
 
 if (!$same_version_binlogs)
 {
+  # Make sure the dump thread is gone before moving around binlog files. Else
+  # it might see an empty file and give error (MDEV-29816).
+  --let $dump_thrid= `Select id FROM information_schema.processlist WHERE Command='Binlog Dump'`
+  if ($dump_thrid) {
+    --disable_query_log
+    --error 0,ER_NO_SUCH_THREAD
+    eval KILL CONNECTION $dump_thrid;
+    --enable_query_log
+    --let $wait_condition= SELECT COUNT(*)=0 FROM information_schema.processlist WHERE Command='Binlog Dump'
+    --source include/wait_condition.inc
+  }
   --move_file $datadir/master-bin.000002 $datadir/master-bin.000002.sav
   --copy_file $MYSQL_TEST_DIR/std_data/mdev29078-mysql-bin.000001 $datadir/master-bin.000002
   --exec $MYSQL_BINLOG --short-form $datadir/master-bin.000002

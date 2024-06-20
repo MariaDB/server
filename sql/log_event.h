@@ -57,6 +57,8 @@
 
 #include "rpl_gtid.h"
 
+#include "log_event_data_type.h"
+
 /* Forward declarations */
 #ifndef MYSQL_CLIENT
 class String;
@@ -1317,7 +1319,8 @@ public:
   static Log_event* read_log_event(IO_CACHE* file,
                                    const Format_description_log_event
                                    *description_event,
-                                   my_bool crc_check);
+                                   my_bool crc_check,
+                                   my_bool print_errors= 1);
 
   /**
     Reads an event from a binlog or relay log. Used by the dump thread
@@ -1461,7 +1464,8 @@ public:
   static Log_event* read_log_event(const char* buf, uint event_len,
 				   const char **error,
                                    const Format_description_log_event
-                                   *description_event, my_bool crc_check);
+                                   *description_event, my_bool crc_check,
+                                   my_bool print_errors= 1);
   /**
     Returns the human readable name of the given event type.
   */
@@ -3267,32 +3271,27 @@ private:
   @section User_var_log_event_binary_format Binary Format  
 */
 
-class User_var_log_event: public Log_event
+
+class User_var_log_event: public Log_event, public Log_event_data_type
 {
 public:
-  enum {
-    UNDEF_F= 0,
-    UNSIGNED_F= 1
-  };
   const char *name;
   size_t name_len;
   const char *val;
   size_t val_len;
-  Item_result type;
-  uint charset_number;
   bool is_null;
-  uchar flags;
 #ifdef MYSQL_SERVER
   bool deferred;
   query_id_t query_id;
   User_var_log_event(THD* thd_arg, const char *name_arg, size_t name_len_arg,
-                     const char *val_arg, size_t val_len_arg, Item_result type_arg,
-		     uint charset_number_arg, uchar flags_arg,
+                     const char *val_arg, size_t val_len_arg,
+                     const Log_event_data_type &data_type,
                      bool using_trans, bool direct)
     :Log_event(thd_arg, 0, using_trans),
+    Log_event_data_type(data_type),
     name(name_arg), name_len(name_len_arg), val(val_arg),
-    val_len(val_len_arg), type(type_arg), charset_number(charset_number_arg),
-    flags(flags_arg), deferred(false)
+    val_len(val_len_arg),
+    deferred(false)
     {
       is_null= !val;
       if (direct)

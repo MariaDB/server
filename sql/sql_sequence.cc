@@ -28,6 +28,9 @@
 #include "sql_acl.h"
 #ifdef WITH_WSREP
 #include "wsrep_mysqld.h"
+bool wsrep_check_sequence(THD* thd,
+                          const sequence_definition *seq,
+                          const bool used_engine);
 #endif
 
 struct Field_definition
@@ -921,6 +924,7 @@ bool Sql_cmd_alter_sequence::execute(THD *thd)
   TABLE_LIST *first_table= lex->query_tables;
   TABLE *table;
   sequence_definition *new_seq= lex->create_info.seq_create_info;
+  uint saved_used_fields= new_seq->used_fields;
   SEQUENCE *seq;
   No_such_table_error_handler no_such_table_handler;
   DBUG_ENTER("Sql_cmd_alter_sequence::execute");
@@ -941,7 +945,8 @@ bool Sql_cmd_alter_sequence::execute(THD *thd)
 #ifdef WITH_WSREP
   if (WSREP(thd) && wsrep_thd_is_local(thd))
   {
-    if (wsrep_check_sequence(thd, new_seq))
+    const bool used_engine= lex->create_info.used_fields & HA_CREATE_USED_ENGINE;
+    if (wsrep_check_sequence(thd, new_seq, used_engine))
       DBUG_RETURN(TRUE);
 
     if (wsrep_to_isolation_begin(thd, first_table->db.str,
@@ -1042,5 +1047,6 @@ bool Sql_cmd_alter_sequence::execute(THD *thd)
     my_ok(thd);
 
 end:
+  new_seq->used_fields= saved_used_fields;
   DBUG_RETURN(error);
 }

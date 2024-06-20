@@ -42,7 +42,8 @@ include/save_master_gtid.inc
 connection slave;
 #
 # Cleanup
-include/stop_slave.inc
+include/wait_for_slave_sql_to_stop.inc
+include/stop_slave_io.inc
 set @@global.slave_parallel_threads= 0;
 set @@global.slave_parallel_mode= optimistic;
 set @@global.innodb_lock_wait_timeout= 50;

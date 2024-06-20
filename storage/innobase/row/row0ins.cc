@@ -2037,7 +2037,7 @@ row_ins_dupl_error_with_rec(
 	/* In a unique secondary index we allow equal key values if they
 	contain SQL NULLs */
 
-	if (!dict_index_is_clust(index) && !index->nulls_equal) {
+	if (!dict_index_is_clust(index)) {
 
 		for (i = 0; i < n_unique; i++) {
 			if (dfield_is_null(dtuple_get_nth_field(entry, i))) {
@@ -2142,16 +2142,8 @@ row_ins_scan_sec_index_for_duplicate(
 	/* If the secondary index is unique, but one of the fields in the
 	n_unique first fields is NULL, a unique key violation cannot occur,
 	since we define NULL != NULL in this case */
-
-	if (!index->nulls_equal) {
-		for (ulint i = 0; i < n_unique; i++) {
-			if (UNIV_SQL_NULL == dfield_get_len(
-					dtuple_get_nth_field(entry, i))) {
-
-				DBUG_RETURN(DB_SUCCESS);
-			}
-		}
-	}
+	if (index->n_nullable && dtuple_contains_null(entry, n_unique))
+		DBUG_RETURN(DB_SUCCESS);
 
 	/* Store old value on n_fields_cmp */
 
@@ -2656,14 +2648,17 @@ row_ins_clust_index_entry_low(
 		ut_ad(!dict_index_is_online_ddl(index));
 		ut_ad(!index->table->persistent_autoinc);
 		ut_ad(!index->is_instant());
+		ut_ad(!entry->info_bits);
 		mtr.set_log_mode(MTR_LOG_NO_REDO);
 	} else {
 		index->set_modified(mtr);
 
-		if (UNIV_UNLIKELY(entry->is_metadata())) {
+		if (UNIV_UNLIKELY(entry->info_bits != 0)) {
+			ut_ad(entry->is_metadata());
 			ut_ad(index->is_instant());
 			ut_ad(!dict_index_is_online_ddl(index));
 			ut_ad(mode == BTR_MODIFY_TREE);
+			ut_ad(flags == BTR_NO_LOCKING_FLAG);
 		} else {
 			if (mode == BTR_MODIFY_LEAF
 			    && dict_index_is_online_ddl(index)) {
@@ -2715,11 +2710,6 @@ row_ins_clust_index_entry_low(
 #endif /* UNIV_DEBUG */
 
 	if (UNIV_UNLIKELY(entry->info_bits != 0)) {
-		ut_ad(entry->is_metadata());
-		ut_ad(flags == BTR_NO_LOCKING_FLAG);
-		ut_ad(index->is_instant());
-		ut_ad(!dict_index_is_online_ddl(index));
-
 		const rec_t* rec = btr_cur_get_rec(cursor);
 
 		if (rec_get_info_bits(rec, page_rec_is_comp(rec))
@@ -2828,7 +2818,17 @@ do_insert:
 			}
 		}
 
+		if (err == DB_SUCCESS && entry->info_bits) {
+			if (buf_block_t* root
+			    = btr_root_block_get(index, RW_X_LATCH, &mtr)) {
+				btr_set_instant(root, *index, &mtr);
+			} else {
+				ut_ad("cannot find root page" == 0);
+			}
+		}
+
 		if (big_rec != NULL) {
+			ut_ad(err == DB_SUCCESS);
 			mtr_commit(&mtr);
 
 			/* Online table rebuild could read (and

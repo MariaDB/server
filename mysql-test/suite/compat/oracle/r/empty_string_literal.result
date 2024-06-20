@@ -64,7 +64,7 @@ SET sql_mode=@mode;
 # Test litteral concat
 #
 SELECT 'a' 'b';
-a
+ab
 ab
 SELECT 'a' '';
 a
@@ -76,13 +76,13 @@ SELECT '' '';
 NULL
 NULL
 SELECT '' 'b' 'c';
-b
+bc
 bc
 SELECT '' '' 'c';
 c
 c
 SELECT 'a' '' 'c';
-a
+ac
 ac
 SELECT 'a' '' '';
 a

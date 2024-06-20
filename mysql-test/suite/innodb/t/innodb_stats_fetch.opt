@@ -1,0 +1,7 @@
+--innodb_sys_tables
+--innodb_sys_indexes
+--innodb_sys_virtual
+--innodb_sys_foreign
+--innodb_sys_foreign_cols
+--innodb_sys_tablestats
+--innodb_sys_tablespaces

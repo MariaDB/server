@@ -28,6 +28,7 @@
 #include "field.h"                              /* Derivation */
 #include "sql_type.h"
 #include "sql_time.h"
+#include "sql_schema.h"
 #include "mem_root_array.h"
 
 C_MODE_START
@@ -845,7 +846,7 @@ protected:
                                             const Tmp_field_param *param,
                                             bool is_explicit_null);
 
-  void raise_error_not_evaluable();
+  virtual void raise_error_not_evaluable();
   void push_note_converted_to_negative_complement(THD *thd);
   void push_note_converted_to_positive_complement(THD *thd);
 
@@ -915,6 +916,19 @@ public:
     expressions with subqueries in the ORDER/GROUP clauses.
   */
   String *val_str() { return val_str(&str_value); }
+  String *val_str_null_to_empty(String *to)
+  {
+    String *res= val_str(to);
+    if (res)
+      return res;
+    to->set_charset(collation.collation);
+    to->length(0);
+    return to;
+  }
+  String *val_str_null_to_empty(String *to, bool null_to_empty)
+  {
+    return null_to_empty ? val_str_null_to_empty(to) : val_str(to);
+  }
   virtual Item_func *get_item_func() { return NULL; }
 
   const MY_LOCALE *locale_from_val_str();
@@ -1749,7 +1763,8 @@ public:
                                        QT_ITEM_IDENT_SKIP_DB_NAMES |
                                        QT_ITEM_IDENT_SKIP_TABLE_NAMES |
                                        QT_NO_DATA_EXPANSION |
-                                       QT_TO_SYSTEM_CHARSET),
+                                       QT_TO_SYSTEM_CHARSET |
+                                       QT_FOR_FRM),
                      LOWEST_PRECEDENCE);
   }
   virtual void print(String *str, enum_query_type query_type);
@@ -2500,6 +2515,18 @@ public:
     Checks if this item consists in the left part of arg IN subquery predicate
   */
   bool pushable_equality_checker_for_subquery(uchar *arg);
+
+  /**
+    This method is to set relationship between a positional parameter
+    represented by the '?' and an actual argument value passed to the
+    call of PS/SP by the USING clause. The method is overridden in classes
+    Item_param and Item_default_value.
+  */
+  virtual bool associate_with_target_field(THD *, Item_field *)
+  {
+    DBUG_ASSERT(is_fixed());
+    return false;
+  }
 };
 
 MEM_ROOT *get_thd_memroot(THD *thd);
@@ -3968,6 +3995,12 @@ public:
   Item_param(THD *thd, const LEX_CSTRING *name_arg,
              uint pos_in_query_arg, uint len_in_query_arg);
 
+  void cleanup() override
+  {
+    m_default_field= NULL;
+    Item::cleanup();
+  }
+
   Type type() const override
   {
     // Don't pretend to be a constant unless value for this item is set.
@@ -4172,6 +4205,10 @@ public:
   void sync_clones();
   bool register_clone(Item_param *i) { return m_clones.push_back(i); }
 
+  void raise_error_not_evaluable() override
+  {
+    invalid_default_param();
+  }
 private:
   void invalid_default_param() const;
 
@@ -4186,6 +4223,17 @@ public:
 
   void make_send_field(THD *thd, Send_field *field) override;
 
+  /**
+    See comments on @see Item::associate_with_target_field for method
+    description
+  */
+  bool associate_with_target_field(THD *, Item_field *field) override
+  {
+    m_associated_field= field;
+    return false;
+  }
+  bool assign_default(Field *field);
+
 private:
   Send_field *m_out_param_info;
   bool m_is_settable_routine_parameter;
@@ -4195,6 +4243,8 @@ private:
     synchronize the actual value of the parameter with the values of the clones.
   */
   Mem_root_array<Item_param *, true> m_clones;
+  Item_field *m_associated_field;
+  Field *m_default_field;
 };
 
 
@@ -5237,10 +5287,17 @@ public:
                func_name());
       return true;
     }
+    /*
+      If necessary, convert both *a and *b to the collation in tmp:
+    */
+    Single_coll_err error_for_a= {(*b)->collation, true};
+    Single_coll_err error_for_b= {(*a)->collation, false};
     if (agg_item_set_converter(tmp, func_name(),
-                               a, 1, MY_COLL_CMP_CONV, 1) ||
+                               a, 1, MY_COLL_CMP_CONV, 1,
+                               /*just for error message*/ &error_for_a) ||
         agg_item_set_converter(tmp, func_name(),
-                               b, 1, MY_COLL_CMP_CONV, 1))
+                               b, 1, MY_COLL_CMP_CONV, 1,
+                               /*just for error message*/ &error_for_b))
       return true;
     *cs= tmp.collation;
     return false;
@@ -5269,6 +5326,14 @@ public:
     if (walk_args(processor, walk_subquery, arg))
       return true;
     return (this->*processor)(arg);
+  }
+  /*
+    Built-in schema, e.g. mariadb_schema, oracle_schema, maxdb_schema
+  */
+  virtual const Schema *schema() const
+  {
+    // A function does not belong to a built-in schema by default
+    return NULL;
   }
   /*
     This method is used for debug purposes to print the name of an
@@ -5817,6 +5882,8 @@ class Item_direct_view_ref :public Item_direct_ref
     if (!view->is_inner_table_of_outer_join() ||
         !(null_ref_table= view->get_real_join_table()))
       null_ref_table= NO_NULL_TABLE;
+    if (null_ref_table && null_ref_table != NO_NULL_TABLE)
+	maybe_null= true;
   }
 
   bool check_null_ref()
@@ -6455,6 +6522,8 @@ public:
 class Item_default_value : public Item_field
 {
   bool vcol_assignment_ok;
+  bool m_associated= false;
+
   void calculate();
 public:
   Item *arg= nullptr;
@@ -6525,6 +6594,15 @@ public:
     override;
   Field *create_tmp_field_ex(MEM_ROOT *root, TABLE *table, Tmp_field_src *src,
                              const Tmp_field_param *param) override;
+
+  /**
+    See comments on @see Item::associate_with_target_field for method
+    description
+  */
+  bool associate_with_target_field(THD *thd, Item_field *field) override;
+
+private:
+  bool tie_field(THD *thd);
 };
 
 

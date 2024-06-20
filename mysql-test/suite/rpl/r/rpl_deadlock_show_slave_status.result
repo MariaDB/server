@@ -1,0 +1,66 @@
+include/master-slave.inc
+[connection master]
+#
+# Initialize test data
+connection master;
+create table t1 (a int) engine=innodb;
+insert into t1 values (1);
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+call mtr.add_suppression("Connection was killed");
+call mtr.add_suppression("Commit failed due to failure of an earlier commit on which this one depends");
+set @save_parallel_threads= @@global.slave_parallel_threads;
+set @save_parallel_mode= @@global.slave_parallel_mode;
+set @save_transaction_retries= @@global.slave_transaction_retries;
+set @save_innodb_lock_wait_timeout= @@global.innodb_lock_wait_timeout;
+set @@global.slave_parallel_threads= 2;
+set @@global.slave_parallel_mode= CONSERVATIVE;
+set @@global.slave_transaction_retries= 0;
+set @@global.innodb_lock_wait_timeout= 10;
+# Grabbing lock on innodb row to force future replication transaction to wait (and eventually timeout)
+BEGIN;
+select * from t1 where a=1 for update;
+a
+1
+connection master;
+set @old_dbug= @@session.debug_dbug;
+set @@session.debug_dbug="+d,binlog_force_commit_id";
+SET @commit_id= 10000;
+update t1 set a=2 where a=1;
+SET @commit_id= 10001;
+insert into t1 values (3);
+set @@session.debug_dbug= @old_dbug;
+connection slave;
+start slave;
+# Waiting for first transaction to start (and be held at innodb row lock)..
+# Waiting for next transaction to start and hold at do_gco_wait()..
+connection slave1;
+set @@session.debug_dbug="+d,hold_sss_with_err_lock";
+show slave status;
+connection slave;
+set debug_sync="now wait_for sss_got_err_lock";
+kill <TID of worker in do_gco_wait>;
+set debug_sync="now signal sss_continue";
+connection slave1;
+# Waiting for SHOW SLAVE STATUS to complete..
+# ..done
+connection slave;
+ROLLBACK;
+include/wait_for_slave_sql_error.inc [errno=1927]
+#
+# Cleanup
+connection master;
+drop table t1;
+include/save_master_gtid.inc
+connection slave;
+set debug_sync= "RESET";
+set @@global.slave_parallel_threads= @save_parallel_threads;
+set @@global.slave_parallel_mode= @save_parallel_mode;
+set @@global.slave_transaction_retries= @save_transaction_retries;
+set @@global.innodb_lock_wait_timeout= @save_innodb_lock_wait_timeout;
+start slave sql_thread;
+include/sync_with_master_gtid.inc
+include/rpl_end.inc
+# End of rpl_deadlock_show_slave_status.test

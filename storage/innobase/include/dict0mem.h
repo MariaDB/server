@@ -1009,8 +1009,6 @@ struct dict_index_t {
 				/*!< number of columns the user defined to
 				be in the index: in the internal
 				representation we add more columns */
-	unsigned	nulls_equal:1;
-				/*!< if true, SQL NULL == SQL NULL */
 #ifdef BTR_CUR_HASH_ADAPT
 #ifdef MYSQL_INDEX_DISABLE_AHI
  	unsigned	disable_ahi:1;
@@ -2366,6 +2364,9 @@ public:
 
   /** @return number of unique columns in FTS_DOC_ID index */
   unsigned fts_n_uniq() const { return versioned() ? 2 : 1; }
+
+  /** @return the index for that starts with a specific column */
+  dict_index_t *get_index(const dict_col_t &col) const;
 };
 
 inline void dict_index_t::set_modified(mtr_t& mtr) const

@@ -1,0 +1,53 @@
+--echo #
+--echo # MDEV-29456 Spider hangs in 'Waiting for table metadata lock' state on CREATE TABLE after LOCK TABLES
+--echo #
+--source include/have_innodb.inc
+--disable_query_log
+--disable_result_log
+--source ../../t/test_init.inc
+--enable_result_log
+--enable_query_log
+
+set spider_same_server_link=1;
+evalp CREATE SERVER srv FOREIGN DATA WRAPPER mysql
+OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
+
+create table t1 (c int);
+create table t2 (c int) ENGINE=Spider
+COMMENT='WRAPPER "mysql", srv "srv",TABLE "t1"';
+CREATE TABLE t3 (c INT KEY) ENGINE=Spider;
+LOCK TABLE t2 WRITE;
+--error ER_CONNECT_TO_FOREIGN_DATA_SOURCE
+LOCK TABLE t3 WRITE;
+UNLOCK TABLES;
+drop table t1, t2, t3;
+
+CREATE TABLE t (c INT) ENGINE=InnoDB;
+CREATE TABLE t1 (c INT) ENGINE=Spider;
+CREATE TABLE t2 (c INT) ENGINE=Spider COMMENT='WRAPPER "mysql",srv "srv",TABLE "t"';
+LOCK TABLES t2 WRITE;
+--error ER_CONNECT_TO_FOREIGN_DATA_SOURCE
+LOCK TABLES t1 READ;
+--error ER_TABLE_EXISTS_ERROR
+CREATE TABLE t (c INT) ENGINE=Spider;
+drop table t, t1, t2;
+
+# MDEV-30049
+CREATE TABLE t (c INT) ENGINE=InnoDB;
+CREATE TABLE t2 (c INT) ENGINE=Spider COMMENT='WRAPPER "mysql",srv "srv",TABLE "t"';
+CREATE TABLE t3 (c INT) ENGINE=InnoDB;
+LOCK TABLES t2 WRITE;
+--error 1428
+LOCK TABLES mysql.proc WRITE,mysql.user WRITE;   # ERROR 1428 (HY000): You can't combine write-locking of system tables with other tables or lock types
+INSERT INTO t3 SELECT * FROM t;
+drop table t, t2, t3;
+
+drop server srv;
+--disable_query_log
+--disable_result_log
+--source ../../t/test_deinit.inc
+--enable_result_log
+--enable_query_log
+--echo #
+--echo # end of test mdev_29456
+--echo #

@@ -1201,8 +1201,12 @@ bool mysql_derived_fill(THD *thd, LEX *lex, TABLE_LIST *derived)
                        (derived->alias.str ? derived->alias.str : "<NULL>"),
                        derived->get_unit()));
 
-  if (unit->executed && !unit->uncacheable && !unit->describe &&
-      !derived_is_recursive)
+  /*
+    Only fill derived tables once, unless the derived table is dependent in
+    which case we will delete all of its rows and refill it below.
+  */
+  if (unit->executed && !(unit->uncacheable & UNCACHEABLE_DEPENDENT) &&
+      !unit->describe && !derived_is_recursive)
     DBUG_RETURN(FALSE);
   /*check that table creation passed without problems. */
   DBUG_ASSERT(derived->table && derived->table->is_created());
@@ -1217,7 +1221,9 @@ bool mysql_derived_fill(THD *thd, LEX *lex, TABLE_LIST *derived)
     /* Execute the query that specifies the derived table by a foreign engine */
     res= derived->pushdown_derived->execute();
     unit->executed= true;
+    if (res)
       DBUG_RETURN(res);
+    goto after_exec;
   }
 
   if (unit->executed && !derived_is_recursive &&
@@ -1227,6 +1233,9 @@ bool mysql_derived_fill(THD *thd, LEX *lex, TABLE_LIST *derived)
       goto err;
     JOIN *join= unit->first_select()->join;
     join->first_record= false;
+    if (join->zero_result_cause)
+      goto err;
+
     for (uint i= join->top_join_tab_count;
          i < join->top_join_tab_count + join->aggr_tables;
          i++)
@@ -1256,6 +1265,7 @@ bool mysql_derived_fill(THD *thd, LEX *lex, TABLE_LIST *derived)
   }
   else
   {
+    DBUG_ASSERT(!unit->executed || (unit->uncacheable & UNCACHEABLE_DEPENDENT));
     SELECT_LEX *first_select= unit->first_select();
     unit->set_limit(unit->global_parameters());
     if (unit->lim.is_unlimited())
@@ -1275,6 +1285,7 @@ bool mysql_derived_fill(THD *thd, LEX *lex, TABLE_LIST *derived)
                       derived_result, unit, first_select);
   }
 
+ after_exec:
   if (!res && !derived_is_recursive)
   {
     if (derived_result->flush())
@@ -1334,6 +1345,10 @@ bool mysql_derived_reinit(THD *thd, LEX *lex, TABLE_LIST *derived)
                        (derived->alias.str ? derived->alias.str : "<NULL>"),
                        derived->get_unit()));
   st_select_lex_unit *unit= derived->get_unit();
+
+  // reset item names to that saved after wildcard expansion in JOIN::prepare
+  for(st_select_lex *sl= unit->first_select(); sl; sl= sl->next_select())
+    sl->restore_item_list_names();
 
   derived->merged_for_insert= FALSE;
   unit->unclean();

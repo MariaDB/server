@@ -324,11 +324,14 @@ func_exit:
     os_file_flush(file);
   }
   else
-    for (ulint i= 0; i < size * 2; i++, page += srv_page_size)
-      if (mach_read_from_8(my_assume_aligned<8>(page + FIL_PAGE_LSN)))
-        /* Each valid page header must contain a nonzero FIL_PAGE_LSN field. */
+  {
+    alignas(8) char checkpoint[8];
+    mach_write_to_8(checkpoint, log_sys.next_checkpoint_lsn);
+    for (auto i= size * 2; i--; page += srv_page_size)
+      if (memcmp_aligned<8>(page + FIL_PAGE_LSN, checkpoint, 8) >= 0)
+        /* Valid pages are not older than the log checkpoint. */
         recv_sys.dblwr.add(page);
-
+  }
   err= DB_SUCCESS;
   goto func_exit;
 }

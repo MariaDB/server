@@ -202,7 +202,8 @@ void PROF_MEASUREMENT::set_label(const char *status_arg,
 
   allocated_status_memory= (char *) my_malloc(key_memory_PROFILE, sizes[0] +
                                               sizes[1] + sizes[2], MYF(0));
-  DBUG_ASSERT(allocated_status_memory != NULL);
+  if (!allocated_status_memory)
+    return;
 
   cursor= allocated_status_memory;
 
@@ -266,6 +267,8 @@ QUERY_PROFILE::QUERY_PROFILE(PROFILING *profiling_arg, const char *status_arg)
 {
   m_seq_counter= 1;
   PROF_MEASUREMENT *prof= new PROF_MEASUREMENT(this, status_arg);
+  if (!prof)
+    return;
   prof->m_seq= m_seq_counter++;
   m_start_time_usecs= prof->time_usecs;
   m_end_time_usecs= m_start_time_usecs;
@@ -307,6 +310,8 @@ void QUERY_PROFILE::new_status(const char *status_arg,
     prof= new PROF_MEASUREMENT(this, status_arg, function_arg, base_name(file_arg), line_arg);
   else
     prof= new PROF_MEASUREMENT(this, status_arg);
+  if (!prof)
+    DBUG_VOID_RETURN;
 
   prof->m_seq= m_seq_counter++;
   m_end_time_usecs= prof->time_usecs;

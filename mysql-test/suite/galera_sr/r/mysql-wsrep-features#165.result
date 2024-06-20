@@ -26,6 +26,7 @@ f1	f2
 connection node_1c;
 SET AUTOCOMMIT=ON;
 INSERT INTO t1 VALUES (3, 'c');
+connection node_1;
 connection node_2;
 SELECT * FROM t1;
 f1	f2
@@ -91,6 +92,7 @@ f1	f2
 connection node_1c;
 SET AUTOCOMMIT=ON;
 INSERT INTO t1 VALUES (3, 'c');
+connection node_1;
 connection node_2;
 SELECT * FROM t1;
 f1	f2
@@ -156,6 +158,7 @@ f1	f2
 connection node_1c;
 SET AUTOCOMMIT=ON;
 INSERT INTO t1 VALUES (3, 'c');
+connection node_1;
 connection node_2;
 SELECT * FROM t1;
 f1	f2
@@ -221,6 +224,7 @@ f1	f2
 connection node_1c;
 SET AUTOCOMMIT=ON;
 INSERT INTO t1 VALUES (3, 'c');
+connection node_1;
 connection node_2;
 SELECT * FROM t1;
 f1	f2
@@ -286,6 +290,7 @@ f1	f2
 connection node_1c;
 SET AUTOCOMMIT=ON;
 INSERT INTO t1 VALUES (3, 'c');
+connection node_1;
 connection node_2;
 SELECT * FROM t1;
 f1	f2
@@ -351,6 +356,7 @@ f1	f2
 connection node_1c;
 SET AUTOCOMMIT=ON;
 INSERT INTO t1 VALUES (3, 'c');
+connection node_1;
 connection node_2;
 SELECT * FROM t1;
 f1	f2
@@ -416,6 +422,7 @@ f1	f2
 connection node_1c;
 SET AUTOCOMMIT=ON;
 INSERT INTO t1 VALUES (3, 'c');
+connection node_1;
 connection node_2;
 SELECT * FROM t1;
 f1	f2
@@ -481,6 +488,7 @@ f1	f2
 connection node_1c;
 SET AUTOCOMMIT=ON;
 INSERT INTO t1 VALUES (3, 'c');
+connection node_1;
 connection node_2;
 SELECT * FROM t1;
 f1	f2
@@ -546,6 +554,7 @@ f1	f2
 connection node_1c;
 SET AUTOCOMMIT=ON;
 INSERT INTO t1 VALUES (3, 'c');
+connection node_1;
 connection node_2;
 SELECT * FROM t1;
 f1	f2
@@ -611,6 +620,7 @@ f1	f2
 connection node_1c;
 SET AUTOCOMMIT=ON;
 INSERT INTO t1 VALUES (3, 'c');
+connection node_1;
 connection node_2;
 SELECT * FROM t1;
 f1	f2
@@ -676,6 +686,7 @@ f1	f2
 connection node_1c;
 SET AUTOCOMMIT=ON;
 INSERT INTO t1 VALUES (3, 'c');
+connection node_1;
 connection node_2;
 SELECT * FROM t1;
 f1	f2
@@ -741,6 +752,7 @@ f1	f2
 connection node_1c;
 SET AUTOCOMMIT=ON;
 INSERT INTO t1 VALUES (3, 'c');
+connection node_1;
 connection node_2;
 SELECT * FROM t1;
 f1	f2
@@ -806,6 +818,7 @@ f1	f2
 connection node_1c;
 SET AUTOCOMMIT=ON;
 INSERT INTO t1 VALUES (3, 'c');
+connection node_1;
 connection node_2;
 SELECT * FROM t1;
 f1	f2
@@ -871,6 +884,7 @@ f1	f2
 connection node_1c;
 SET AUTOCOMMIT=ON;
 INSERT INTO t1 VALUES (3, 'c');
+connection node_1;
 connection node_2;
 SELECT * FROM t1;
 f1	f2
@@ -936,6 +950,7 @@ f1	f2
 connection node_1c;
 SET AUTOCOMMIT=ON;
 INSERT INTO t1 VALUES (3, 'c');
+connection node_1;
 connection node_2;
 SELECT * FROM t1;
 f1	f2
@@ -1001,6 +1016,7 @@ f1	f2
 connection node_1c;
 SET AUTOCOMMIT=ON;
 INSERT INTO t1 VALUES (3, 'c');
+connection node_1;
 connection node_2;
 SELECT * FROM t1;
 f1	f2

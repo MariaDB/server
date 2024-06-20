@@ -1906,7 +1906,7 @@ bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
     */
     build_table_filename(path, sizeof(path) - 1, lpt->alter_info->db.str,
                          lpt->alter_info->table_name.str, "", 0);
-    strxnmov(frm_name, sizeof(frm_name), path, reg_ext, NullS);
+    strxnmov(frm_name, sizeof(frm_name)-1, path, reg_ext, NullS);
     /*
       When we are changing to use new frm file we need to ensure that we
       don't collide with another thread in process to open the frm file.
@@ -2393,6 +2393,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
         table->table= 0;
         temporary_table_was_dropped= 1;
       }
+      thd->reset_sp_cache= true;
     }
 
     if ((drop_temporary && if_exists) || temporary_table_was_dropped)
@@ -2701,8 +2702,11 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
     }
     DBUG_PRINT("table", ("table: %p  s: %p", table->table,
                          table->table ?  table->table->s :  NULL));
+    if (is_temporary_table(table))
+      thd->reset_sp_cache= true;
   }
   DEBUG_SYNC(thd, "rm_table_no_locks_before_binlog");
+
   thd->thread_specific_used= TRUE;
   error= 0;
 
@@ -5424,6 +5428,7 @@ int create_table_impl(THD *thd, const LEX_CSTRING &orig_db,
     if (is_trans != NULL)
       *is_trans= table->file->has_transactions();
 
+    thd->reset_sp_cache= true;
     thd->thread_specific_used= TRUE;
     create_info->table= table;                  // Store pointer to table
   }
@@ -5531,18 +5536,21 @@ int mysql_create_table_no_lock(THD *thd, Table_specification_st *create_info,
 #ifdef WITH_WSREP
 /** Additional sequence checks for Galera cluster.
 
-@param thd    thread handle
-@param seq    sequence definition
+@param thd         thread handle
+@param seq         sequence definition
+@param used_engine create used ENGINE=
 @retval false success
 @retval true  failure
 */
-bool wsrep_check_sequence(THD* thd, const sequence_definition *seq)
+bool wsrep_check_sequence(THD* thd,
+                          const sequence_definition *seq,
+                          const bool used_engine)
 {
     enum legacy_db_type db_type;
 
     DBUG_ASSERT(WSREP(thd));
 
-    if (thd->lex->create_info.used_fields & HA_CREATE_USED_ENGINE)
+    if (used_engine)
     {
       db_type= thd->lex->create_info.db_type->db_type;
     }
@@ -5572,6 +5580,57 @@ bool wsrep_check_sequence(THD* thd, const sequence_definition *seq)
     }
 
     return (false);
+}
+
+/** Additional CREATE TABLE/SEQUENCE checks for Galera cluster.
+
+@param thd         thread handle
+@param wsrep_ctas  CREATE TABLE AS SELECT ?
+@param used_engine CREATE TABLE ... ENGINE = ?
+@param create_info Create information
+
+@retval false      Galera cluster does support used clause
+@retval true       Galera cluster does not support used clause
+*/
+static
+bool wsrep_check_support(THD* thd,
+                         const bool wsrep_ctas,
+                         const bool used_engine,
+                         const HA_CREATE_INFO* create_info)
+{
+  /* CREATE TABLE ... AS SELECT */
+  if (wsrep_ctas &&
+      thd->variables.wsrep_trx_fragment_size > 0)
+  {
+    my_message(ER_NOT_ALLOWED_COMMAND,
+               "CREATE TABLE AS SELECT is not supported with streaming replication",
+               MYF(0));
+    return true;
+  }
+  /* CREATE TABLE .. WITH SYSTEM VERSIONING AS SELECT
+     is not supported in Galera cluster.
+  */
+  if (wsrep_ctas &&
+      create_info->versioned())
+  {
+    my_error(ER_NOT_SUPPORTED_YET, MYF(0),
+             "SYSTEM VERSIONING AS SELECT in Galera cluster");
+    return true;
+  }
+  /*
+    CREATE TABLE ... ENGINE=SEQUENCE is not supported in
+    Galera cluster.
+    CREATE SEQUENCE ... ENGINE=xxx Galera cluster supports
+    only InnoDB-sequences.
+  */
+  if (((used_engine && create_info->db_type &&
+       (create_info->db_type->db_type == DB_TYPE_SEQUENCE ||
+        create_info->db_type->db_type >= DB_TYPE_FIRST_DYNAMIC)) ||
+       thd->lex->sql_command == SQLCOM_CREATE_SEQUENCE) &&
+      wsrep_check_sequence(thd, create_info->seq_create_info, used_engine))
+    return true;
+
+  return false;
 }
 #endif /* WITH_WSREP */
 
@@ -5638,15 +5697,6 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
 
   if (!(thd->variables.option_bits & OPTION_EXPLICIT_DEF_TIMESTAMP))
     promote_first_timestamp_column(&alter_info->create_list);
-
-#ifdef WITH_WSREP
-  if (thd->lex->sql_command == SQLCOM_CREATE_SEQUENCE &&
-      WSREP(thd) && wsrep_thd_is_local_toi(thd))
-  {
-    if (wsrep_check_sequence(thd, create_info->seq_create_info))
-      DBUG_RETURN(true);
-  }
-#endif /* WITH_WSREP */
 
   /* We can abort create table for any table type */
   thd->abort_on_warning= thd->is_strict_mode();
@@ -5816,7 +5866,8 @@ static bool make_unique_constraint_name(THD *thd, LEX_CSTRING *name,
     if (!check)                                 // Found unique name
     {
       name->length= (size_t) (real_end - buff);
-      name->str= strmake_root(thd->stmt_arena->mem_root, buff, name->length);
+      name->str= thd->strmake(buff, name->length);
+
       return (name->str == NULL);
     }
   }
@@ -7772,6 +7823,14 @@ bool mysql_compare_tables(TABLE *table, Alter_info *alter_info,
 	(uint) (field->flags & NOT_NULL_FLAG))
       DBUG_RETURN(false);
 
+    if (field->vcol_info)
+    {
+      if (!tmp_new_field->field->vcol_info)
+        DBUG_RETURN(false);
+      if (!field->vcol_info->is_equal(tmp_new_field->field->vcol_info))
+        DBUG_RETURN(false);
+    }
+
     /*
       mysql_prepare_alter_table() clears HA_OPTION_PACK_RECORD bit when
       preparing description of existing table. In ALTER TABLE it is later
@@ -7896,14 +7955,28 @@ bool alter_table_manage_keys(TABLE *table, int indexes_were_disabled,
   switch (keys_onoff) {
   case Alter_info::ENABLE:
     DEBUG_SYNC(table->in_use, "alter_table_enable_indexes");
-    error= table->file->ha_enable_indexes(HA_KEY_SWITCH_NONUNIQ_SAVE);
+    error= table->file->ha_enable_indexes(key_map(table->s->keys), true);
     break;
   case Alter_info::LEAVE_AS_IS:
     if (!indexes_were_disabled)
       break;
     /* fall through */
   case Alter_info::DISABLE:
-    error= table->file->ha_disable_indexes(HA_KEY_SWITCH_NONUNIQ_SAVE);
+  {
+    key_map map= table->s->keys_in_use;
+    bool do_clear= false;
+    for (uint i=0; i < table->s->keys; i++)
+    {
+      if (!(table->s->key_info[i].flags & HA_NOSAME) &&
+          i != table->s->next_number_index)
+      {
+        map.clear_bit(i);
+        do_clear= true;
+      }
+    }
+    if (do_clear)
+      error= table->file->ha_disable_indexes(map, true);
+  }
   }
 
   if (unlikely(error))
@@ -9382,6 +9455,30 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         goto err;
       case Alter_drop::FOREIGN_KEY:
         // Leave the DROP FOREIGN KEY names in the alter_info->drop_list.
+        /* If this is DROP FOREIGN KEY without IF EXIST,
+        we can now check does it exists and if not report a error. */
+        if (!drop->drop_if_exists)
+        {
+          List <FOREIGN_KEY_INFO> fk_child_key_list;
+          table->file->get_foreign_key_list(thd, &fk_child_key_list);
+          if (fk_child_key_list.is_empty())
+          {
+	fk_not_found:
+            my_error(ER_CANT_DROP_FIELD_OR_KEY, MYF(0), drop->type_name(),
+                     drop->name);
+            goto err;
+          }
+          List_iterator<FOREIGN_KEY_INFO> fk_key_it(fk_child_key_list);
+          while (FOREIGN_KEY_INFO *f_key= fk_key_it++)
+          {
+            if (my_strcasecmp(system_charset_info, f_key->foreign_id->str,
+                              drop->name) == 0)
+              goto fk_found;
+          }
+          goto fk_not_found;
+        fk_found:
+          break;
+        }
         break;
       }
     }
@@ -10122,6 +10219,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
     TODO: this design is obsolete and will be removed.
   */
   int table_kind= check_if_log_table(table_list, FALSE, NullS);
+  const bool used_engine= create_info->used_fields & HA_CREATE_USED_ENGINE;
 
   if (table_kind)
   {
@@ -10133,7 +10231,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
     }
 
     /* Disable alter of log tables to unsupported engine */
-    if ((create_info->used_fields & HA_CREATE_USED_ENGINE) &&
+    if ((used_engine) &&
         (!create_info->db_type || /* unknown engine */
          !(create_info->db_type->flags & HTON_SUPPORT_LOG_TABLES)))
     {
@@ -10215,14 +10313,14 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
     if we can support implementing storage engine.
   */
   if (WSREP(thd) && table && table->s->sequence &&
-      wsrep_check_sequence(thd, thd->lex->create_info.seq_create_info))
+      wsrep_check_sequence(thd, create_info->seq_create_info, used_engine))
     DBUG_RETURN(TRUE);
 
-  if (WSREP(thd) &&
+  if (WSREP(thd) && table &&
       (thd->lex->sql_command == SQLCOM_ALTER_TABLE ||
        thd->lex->sql_command == SQLCOM_CREATE_INDEX ||
        thd->lex->sql_command == SQLCOM_DROP_INDEX) &&
-      !wsrep_should_replicate_ddl(thd, table_list->table->s->db_type()->db_type))
+      !wsrep_should_replicate_ddl(thd, table->s->db_type()->db_type))
     DBUG_RETURN(true);
 #endif /* WITH_WSREP */
 
@@ -10706,12 +10804,10 @@ do_continue:;
 #endif
 
 #ifdef WITH_WSREP
+  // ALTER TABLE for sequence object, check can we support it
   if (table->s->sequence && WSREP(thd) &&
-      wsrep_thd_is_local_toi(thd))
-  {
-    if (wsrep_check_sequence(thd, create_info->seq_create_info))
+      wsrep_check_sequence(thd, create_info->seq_create_info, used_engine))
       DBUG_RETURN(TRUE);
-  }
 #endif /* WITH_WSREP */
 
   /*
@@ -12087,13 +12183,18 @@ bool check_engine(THD *thd, const char *db_name,
   if (!*new_engine)
     DBUG_RETURN(true);
 
-  /* Enforced storage engine should not be used in
-  ALTER TABLE that does not use explicit ENGINE = x to
-  avoid unwanted unrelated changes.*/
-  if (!(thd->lex->sql_command == SQLCOM_ALTER_TABLE &&
-        !(create_info->used_fields & HA_CREATE_USED_ENGINE)))
-    enf_engine= thd->variables.enforced_table_plugin ?
-       plugin_hton(thd->variables.enforced_table_plugin) : NULL;
+  /*
+    Enforced storage engine should not be used in ALTER TABLE that does not
+    use explicit ENGINE = x to avoid unwanted unrelated changes. It should not
+    be used in CREATE INDEX too.
+  */
+  if (!((thd->lex->sql_command == SQLCOM_ALTER_TABLE &&
+             !(create_info->used_fields & HA_CREATE_USED_ENGINE)) ||
+         thd->lex->sql_command == SQLCOM_CREATE_INDEX))
+  {
+    plugin_ref enf_plugin= thd->variables.enforced_table_plugin;
+    enf_engine= enf_plugin ? plugin_hton(enf_plugin) : NULL;
+  }
 
   if (enf_engine && enf_engine != *new_engine)
   {
@@ -12188,8 +12289,18 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
   Alter_info alter_info(lex->alter_info, thd->mem_root);
 
 #ifdef WITH_WSREP
+  bool wsrep_ctas= false;
   // If CREATE TABLE AS SELECT and wsrep_on
-  const bool wsrep_ctas= (select_lex->item_list.elements && WSREP(thd));
+  if (WSREP(thd) && (select_lex->item_list.elements ||
+     // Only CTAS may be applied not using TOI.
+     (wsrep_thd_is_applying(thd) && !wsrep_thd_is_toi(thd))))
+  {
+    wsrep_ctas= true;
+
+    // MDEV-22232: Disable CTAS retry by setting the retry counter to the
+    // threshold value.
+    thd->wsrep_retry_counter= thd->variables.wsrep_retry_autocommit;
+  }
 
   // This will be used in THD::decide_logging_format if CTAS
   Enable_wsrep_ctas_guard wsrep_ctas_guard(thd, wsrep_ctas);
@@ -12271,17 +12382,11 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
 #endif
 
 #ifdef WITH_WSREP
-  if (wsrep_ctas)
+  if (WSREP(thd) &&
+      wsrep_check_support(thd, wsrep_ctas, used_engine, &create_info))
   {
-    if (thd->variables.wsrep_trx_fragment_size > 0)
-    {
-      my_message(
-        ER_NOT_ALLOWED_COMMAND,
-        "CREATE TABLE AS SELECT is not supported with streaming replication",
-        MYF(0));
-      res= 1;
-      goto end_with_restore_list;
-    }
+    res= 1;
+    goto end_with_restore_list;
   }
 #endif /* WITH_WSREP */
 
@@ -12433,6 +12538,7 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
                                    create_table->table_name, create_table->db))
 	goto end_with_restore_list;
 
+#ifdef WITH_WSREP
       /*
         In STATEMENT format, we probably have to replicate also temporary
         tables, like mysql replication does. Also check if the requested
@@ -12441,33 +12547,32 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
       if (WSREP(thd))
       {
         handlerton *orig_ht= create_info.db_type;
+
         if (!check_engine(thd, create_table->db.str,
                           create_table->table_name.str,
                           &create_info) &&
             (!thd->is_current_stmt_binlog_format_row() ||
              !create_info.tmp_table()))
         {
-#ifdef WITH_WSREP
           if (thd->lex->sql_command == SQLCOM_CREATE_SEQUENCE &&
-              wsrep_check_sequence(thd, lex->create_info.seq_create_info))
+              wsrep_check_sequence(thd, lex->create_info.seq_create_info, used_engine))
             DBUG_RETURN(true);
 
-          WSREP_TO_ISOLATION_BEGIN_ALTER(create_table->db.str,
-                                         create_table->table_name.str,
-                                         first_table, &alter_info, NULL,
-                                         &create_info)
-	  {
-	    WSREP_WARN("CREATE TABLE isolation failure");
+          WSREP_TO_ISOLATION_BEGIN_ALTER(create_table->db.str, create_table->table_name.str,
+                                         first_table, &alter_info, NULL, &create_info)
+          {
+            WSREP_WARN("CREATE TABLE isolation failure");
             res= true;
             goto end_with_restore_list;
-	  }
-#endif /* WITH_WSREP */
+          }
         }
         // check_engine will set db_type to  NULL if e.g. TEMPORARY is
         // not supported by the storage engine, this case is checked
         // again in mysql_create_table
         create_info.db_type= orig_ht;
       }
+#endif /* WITH_WSREP */
+
       /* Regular CREATE TABLE */
       res= mysql_create_table(thd, create_table, &create_info, &alter_info);
     }

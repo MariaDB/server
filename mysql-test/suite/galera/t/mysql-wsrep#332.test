@@ -3,7 +3,7 @@
 --source include/have_debug_sync.inc
 --source include/galera_have_debug_sync.inc
 
-# Open connection node_1a here, MW-369.inc will use it later
+# Open connection node_1a here, will use it later
 --connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
 
 #
@@ -27,7 +27,42 @@ INSERT INTO c VALUES (2, 2);
 --let $mw_369_parent_query = UPDATE p SET f1 = f1 + 100
 --let $mw_369_child_query = ALTER TABLE c ADD FOREIGN KEY (p_id) REFERENCES p(f1)
 
---source MW-369.inc
+--connection node_1
+SET AUTOCOMMIT=ON;
+START TRANSACTION;
+--eval $mw_369_parent_query
+
+#
+# Block the $mw_369_child_query from node_2
+#
+# --connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connection node_1a
+SET SESSION wsrep_sync_wait = 0;
+--let $galera_sync_point = apply_monitor_slave_enter_sync
+--source include/galera_set_sync_point.inc
+
+#
+# insert client row, which will make it impossible to replay the
+# delete on parent
+#
+--connection node_2
+--eval $mw_369_child_query
+
+#
+# Wait until $mw_369_child_query from node_2 reaches the sync point and
+# block the 'COMMIT' from node_1 before it certifies.
+#
+--connection node_1a
+--source include/galera_wait_sync_point.inc
+--source include/galera_clear_sync_point.inc
+
+--connection node_1
+--send COMMIT
+
+--connection node_1a
+--let $galera_sync_point = apply_monitor_slave_enter_sync
+--source include/galera_signal_sync_point.inc
+--source include/galera_clear_sync_point.inc
 
 # Expect certification failure
 --connection node_1
@@ -62,7 +97,42 @@ INSERT INTO c VALUES (2, 2, 2);
 --let $mw_369_parent_query = UPDATE p1 SET f1 = f1 + 100
 --let $mw_369_child_query = ALTER TABLE c ADD FOREIGN KEY (p_id1) REFERENCES p1(f1), ADD FOREIGN KEY (p_id2) REFERENCES p2(f1)
 
---source MW-369.inc
+--connection node_1
+SET AUTOCOMMIT=ON;
+START TRANSACTION;
+--eval $mw_369_parent_query
+
+#
+# Block the $mw_369_child_query from node_2
+#
+# --connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connection node_1a
+SET SESSION wsrep_sync_wait = 0;
+--let $galera_sync_point = apply_monitor_slave_enter_sync
+--source include/galera_set_sync_point.inc
+
+#
+# insert client row, which will make it impossible to replay the
+# delete on parent
+#
+--connection node_2
+--eval $mw_369_child_query
+
+#
+# Wait until $mw_369_child_query from node_2 reaches the sync point and
+# block the 'COMMIT' from node_1 before it certifies.
+#
+--connection node_1a
+--source include/galera_wait_sync_point.inc
+--source include/galera_clear_sync_point.inc
+
+--connection node_1
+--send COMMIT
+
+--connection node_1a
+--let $galera_sync_point = apply_monitor_slave_enter_sync
+--source include/galera_signal_sync_point.inc
+--source include/galera_clear_sync_point.inc
 
 # Expect certification failure
 --connection node_1
@@ -96,7 +166,42 @@ INSERT INTO c VALUES (2, 2, 2);
 --let $mw_369_parent_query = UPDATE p2 SET f1 = f1 + 100
 --let $mw_369_child_query = ALTER TABLE c ADD FOREIGN KEY (p_id1) REFERENCES p1(f1), ADD FOREIGN KEY (p_id2) REFERENCES p2(f1)
 
---source MW-369.inc
+--connection node_1
+SET AUTOCOMMIT=ON;
+START TRANSACTION;
+--eval $mw_369_parent_query
+
+#
+# Block the $mw_369_child_query from node_2
+#
+# --connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connection node_1a
+SET SESSION wsrep_sync_wait = 0;
+--let $galera_sync_point = apply_monitor_slave_enter_sync
+--source include/galera_set_sync_point.inc
+
+#
+# insert client row, which will make it impossible to replay the
+# delete on parent
+#
+--connection node_2
+--eval $mw_369_child_query
+
+#
+# Wait until $mw_369_child_query from node_2 reaches the sync point and
+# block the 'COMMIT' from node_1 before it certifies.
+#
+--connection node_1a
+--source include/galera_wait_sync_point.inc
+--source include/galera_clear_sync_point.inc
+
+--connection node_1
+--send COMMIT
+
+--connection node_1a
+--let $galera_sync_point = apply_monitor_slave_enter_sync
+--source include/galera_signal_sync_point.inc
+--source include/galera_clear_sync_point.inc
 
 # Expect certification failure
 --connection node_1

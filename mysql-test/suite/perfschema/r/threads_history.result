@@ -24,27 +24,22 @@ events_waits_history_long	YES
 global_instrumentation	YES
 thread_instrumentation	YES
 statements_digest	YES
-# Switch to (con1, localhost, user1, , )
 connect  con1, localhost, user1, , ;
 update performance_schema.threads
 set INSTRUMENTED='YES', HISTORY='YES'
   where PROCESSLIST_ID = connection_id();
-# Switch to (con2, localhost, user2, , )
 connect  con2, localhost, user2, , ;
 update performance_schema.threads
 set INSTRUMENTED='YES', HISTORY='NO'
   where PROCESSLIST_ID = connection_id();
-# Switch to (con3, localhost, user3, , )
 connect  con3, localhost, user3, , ;
 update performance_schema.threads
 set INSTRUMENTED='NO', HISTORY='YES'
   where PROCESSLIST_ID = connection_id();
-# Switch to (con4, localhost, user4, , )
 connect  con4, localhost, user4, , ;
 update performance_schema.threads
 set INSTRUMENTED='NO', HISTORY='NO'
   where PROCESSLIST_ID = connection_id();
-# Switch to connection default
 connection default;
 truncate table performance_schema.events_transactions_current;
 truncate table performance_schema.events_transactions_history;
@@ -58,7 +53,6 @@ truncate table performance_schema.events_stages_history_long;
 truncate table performance_schema.events_waits_current;
 truncate table performance_schema.events_waits_history;
 truncate table performance_schema.events_waits_history_long;
-# Switch to connection con1
 connection con1;
 XA START 'XA_CON1', 'XA_BQUAL', 12;
 select "Hi from con1";
@@ -67,7 +61,6 @@ Hi from con1
 XA END 'XA_CON1', 'XA_BQUAL', 12;
 XA PREPARE 'XA_CON1', 'XA_BQUAL', 12;
 XA COMMIT 'XA_CON1', 'XA_BQUAL', 12;
-# Switch to connection con2
 connection con2;
 XA START 'XA_CON2', 'XA_BQUAL', 12;
 select "Hi from con2";
@@ -76,7 +69,6 @@ Hi from con2
 XA END 'XA_CON2', 'XA_BQUAL', 12;
 XA PREPARE 'XA_CON2', 'XA_BQUAL', 12;
 XA COMMIT 'XA_CON2', 'XA_BQUAL', 12;
-# Switch to connection con3
 connection con3;
 XA START 'XA_CON3', 'XA_BQUAL', 12;
 select "Hi from con3";
@@ -85,7 +77,6 @@ Hi from con3
 XA END 'XA_CON3', 'XA_BQUAL', 12;
 XA PREPARE 'XA_CON3', 'XA_BQUAL', 12;
 XA COMMIT 'XA_CON3', 'XA_BQUAL', 12;
-# Switch to connection con4
 connection con4;
 XA START 'XA_CON4', 'XA_BQUAL', 12;
 select "Hi from con4";
@@ -95,72 +86,124 @@ XA END 'XA_CON4', 'XA_BQUAL', 12;
 XA PREPARE 'XA_CON4', 'XA_BQUAL', 12;
 XA COMMIT 'XA_CON4', 'XA_BQUAL', 12;
 connection default;
-"=========================== Transactions user 1"
+########################### Transactions user 1 - 1
+select /*1-1*/ XID_FORMAT_ID, XID_GTRID, XID_BQUAL from performance_schema.events_transactions_current
+where THREAD_ID = $con1_thread_id;
 XID_FORMAT_ID	XID_GTRID	XID_BQUAL
 12	XA_CON1	XA_BQUAL
+select /*1-1*/ XID_FORMAT_ID, XID_GTRID, XID_BQUAL from performance_schema.events_transactions_history
+where THREAD_ID = $con1_thread_id;
 XID_FORMAT_ID	XID_GTRID	XID_BQUAL
 12	XA_CON1	XA_BQUAL
+select /*1-1*/ XID_FORMAT_ID, XID_GTRID, XID_BQUAL from performance_schema.events_transactions_history_long
+where THREAD_ID = $con1_thread_id;
 XID_FORMAT_ID	XID_GTRID	XID_BQUAL
 12	XA_CON1	XA_BQUAL
-"=========================== Transactions user 2"
+########################### Transactions user 2 - 1
+select /*2-1*/ XID_FORMAT_ID, XID_GTRID, XID_BQUAL from performance_schema.events_transactions_current
+where THREAD_ID = $con2_thread_id;
 XID_FORMAT_ID	XID_GTRID	XID_BQUAL
 12	XA_CON2	XA_BQUAL
+select /*2-1*/ count(*) from performance_schema.events_transactions_history
+where THREAD_ID = $con2_thread_id;
 count(*)
 0
+select /*2-1*/ count(*) from performance_schema.events_transactions_history_long
+where THREAD_ID = $con2_thread_id;
 count(*)
 0
-"=========================== Transactions user 3"
+########################### Transactions user 3 - 1
+select /*3-1*/ count(*) from performance_schema.events_transactions_current
+where THREAD_ID = $con3_thread_id;
 count(*)
 0
+select /*3-1*/ count(*) from performance_schema.events_transactions_history
+where THREAD_ID = $con3_thread_id;
 count(*)
 0
+select /*3-1*/ count(*) from performance_schema.events_transactions_history_long
+where THREAD_ID = $con3_thread_id;
 count(*)
 0
-"=========================== Transactions user 4"
+########################### Transactions user 4 - 1
+select /*4-1*/ count(*) from performance_schema.events_transactions_current
+where THREAD_ID = $con4_thread_id;
 count(*)
 0
+select /*4-1*/ count(*) from performance_schema.events_transactions_history
+where THREAD_ID = $con4_thread_id;
 count(*)
 0
+select /*4-1*/ count(*) from performance_schema.events_transactions_history_long
+where THREAD_ID = $con4_thread_id;
 count(*)
 0
-"=========================== Statements user 1"
+########################### Statements user 1 - 1
+select /*1-1*/ EVENT_NAME, SQL_TEXT from performance_schema.events_statements_current
+where THREAD_ID = $con1_thread_id order by THREAD_ID, EVENT_ID;
 EVENT_NAME	SQL_TEXT
 statement/sql/xa_commit	XA COMMIT 'XA_CON1', 'XA_BQUAL', 12
+select /*1-1*/ EVENT_NAME, SQL_TEXT from performance_schema.events_statements_history
+where THREAD_ID = $con1_thread_id order by THREAD_ID, EVENT_ID;
 EVENT_NAME	SQL_TEXT
 statement/sql/xa_start	XA START 'XA_CON1', 'XA_BQUAL', 12
 statement/sql/select	select "Hi from con1"
 statement/sql/xa_end	XA END 'XA_CON1', 'XA_BQUAL', 12
 statement/sql/xa_prepare	XA PREPARE 'XA_CON1', 'XA_BQUAL', 12
 statement/sql/xa_commit	XA COMMIT 'XA_CON1', 'XA_BQUAL', 12
+select /*1-1*/ EVENT_NAME, SQL_TEXT from performance_schema.events_statements_history_long
+where THREAD_ID = $con1_thread_id order by THREAD_ID, EVENT_ID;
 EVENT_NAME	SQL_TEXT
 statement/sql/xa_start	XA START 'XA_CON1', 'XA_BQUAL', 12
 statement/sql/select	select "Hi from con1"
 statement/sql/xa_end	XA END 'XA_CON1', 'XA_BQUAL', 12
 statement/sql/xa_prepare	XA PREPARE 'XA_CON1', 'XA_BQUAL', 12
 statement/sql/xa_commit	XA COMMIT 'XA_CON1', 'XA_BQUAL', 12
-"=========================== Statements user 2"
+########################### Statements user 2 - 1
+select /*2-1*/ EVENT_NAME, SQL_TEXT from performance_schema.events_statements_current
+where THREAD_ID = $con2_thread_id order by THREAD_ID, EVENT_ID;
 EVENT_NAME	SQL_TEXT
 statement/sql/xa_commit	XA COMMIT 'XA_CON2', 'XA_BQUAL', 12
+select /*2-1*/ count(*) from performance_schema.events_statements_history
+where THREAD_ID = $con2_thread_id;
 count(*)
 0
+select /*2-1*/ count(*) from performance_schema.events_statements_history_long
+where THREAD_ID = $con2_thread_id;
 count(*)
 0
-"=========================== Statements user 3"
+########################### Statements user 3 - 1
+select /*3-1*/ count(*) from performance_schema.events_statements_current
+where THREAD_ID = $con3_thread_id;
 count(*)
 0
+select /*3-1*/ count(*) from performance_schema.events_statements_history
+where THREAD_ID = $con3_thread_id;
 count(*)
 0
+select /*3-1*/ count(*) from performance_schema.events_statements_history_long
+where THREAD_ID = $con3_thread_id;
 count(*)
 0
-"=========================== Statements user 4"
+########################### Statements user 4 - 1
+select /*4-1*/ count(*) from performance_schema.events_statements_current
+where THREAD_ID = $con4_thread_id;
 count(*)
 0
+select /*4-1*/ count(*) from performance_schema.events_statements_history
+where THREAD_ID = $con4_thread_id;
 count(*)
 0
+select /*4-1*/ count(*) from performance_schema.events_statements_history_long
+where THREAD_ID = $con4_thread_id;
 count(*)
 0
-"=========================== Stages user 1"
+########################### Stages user 1 - 1
+select /*1-1*/ EVENT_NAME from performance_schema.events_stages_current
+where THREAD_ID = $con1_thread_id order by THREAD_ID, EVENT_ID;
 EVENT_NAME
+select /*1-1*/ EVENT_NAME from performance_schema.events_stages_history
+where THREAD_ID = $con1_thread_id order by THREAD_ID, EVENT_ID;
 EVENT_NAME
 stage/sql/Starting cleanup
 stage/sql/Freeing items
@@ -172,6 +215,8 @@ stage/sql/closing tables
 stage/sql/Starting cleanup
 stage/sql/Freeing items
 stage/sql/Reset for next command
+select /*1-1*/ EVENT_NAME from performance_schema.events_stages_history_long
+where THREAD_ID = $con1_thread_id order by THREAD_ID, EVENT_ID;
 EVENT_NAME
 stage/sql/starting
 stage/sql/Query end
@@ -215,55 +260,96 @@ stage/sql/closing tables
 stage/sql/Starting cleanup
 stage/sql/Freeing items
 stage/sql/Reset for next command
-"=========================== Stages user 2"
+########################### Stages user 2 - 1
+select /*2-1*/ EVENT_NAME from performance_schema.events_stages_current
+where THREAD_ID = $con2_thread_id order by THREAD_ID, EVENT_ID;
 EVENT_NAME
+select /*2-1*/ count(*) from performance_schema.events_stages_history
+where THREAD_ID = $con2_thread_id;
 count(*)
 0
+select /*2-1*/ count(*) from performance_schema.events_stages_history_long
+where THREAD_ID = $con2_thread_id;
 count(*)
 0
-"=========================== Stages user 3"
+########################### Stages user 3 - 1
+select /*3-1*/ count(*) from performance_schema.events_stages_current
+where THREAD_ID = $con3_thread_id;
 count(*)
 0
+select /*3-1*/ count(*) from performance_schema.events_stages_history
+where THREAD_ID = $con3_thread_id;
 count(*)
 0
+select /*3-1*/ count(*) from performance_schema.events_stages_history_long
+where THREAD_ID = $con3_thread_id;
 count(*)
 0
-"=========================== Stages user 4"
+########################### Stages user 4 - 1
+select /*4-1*/ count(*) from performance_schema.events_stages_current
+where THREAD_ID = $con4_thread_id;
 count(*)
 0
+select /*4-1*/ count(*) from performance_schema.events_stages_history
+where THREAD_ID = $con4_thread_id;
 count(*)
 0
+select /*4-1*/ count(*) from performance_schema.events_stages_history_long
+where THREAD_ID = $con4_thread_id;
 count(*)
 0
-"=========================== Waits user 1"
+########################### Waits user 1 - 1
+select /*1-1*/ EVENT_NAME from performance_schema.events_waits_current
+where THREAD_ID = $con1_thread_id order by THREAD_ID, EVENT_ID;
 EVENT_NAME
 idle
+select /*1-1*/ (count(*) > 5) as has_waits from performance_schema.events_waits_history
+where THREAD_ID = $con1_thread_id;
 has_waits
 1
+select /*1-1*/ (count(*) > 15) as has_waits from performance_schema.events_waits_history_long
+where THREAD_ID = $con1_thread_id;
 has_waits
 1
-"=========================== Waits user 2"
+########################### Waits user 2 - 1
+select /*2-1*/ EVENT_NAME from performance_schema.events_waits_current
+where THREAD_ID = $con2_thread_id order by THREAD_ID, EVENT_ID;
 EVENT_NAME
 idle
+select /*2-1*/ count(*) from performance_schema.events_waits_history
+where THREAD_ID = $con2_thread_id;
 count(*)
 0
+select /*2-1*/ count(*) from performance_schema.events_waits_history_long
+where THREAD_ID = $con2_thread_id;
 count(*)
 0
-"=========================== Waits user 3"
+########################### Waits user 3 - 1
+select /*3-1*/ count(*) from performance_schema.events_waits_current
+where THREAD_ID = $con3_thread_id;
 count(*)
 0
+select /*3-1*/ count(*) from performance_schema.events_waits_history
+where THREAD_ID = $con3_thread_id;
 count(*)
 0
+select /*3-1*/ count(*) from performance_schema.events_waits_history_long
+where THREAD_ID = $con3_thread_id;
 count(*)
 0
-"=========================== Waits user 4"
+########################### Waits user 4 - 1
+select /*4-1*/ count(*) from performance_schema.events_waits_current
+where THREAD_ID = $con4_thread_id;
 count(*)
 0
+select /*4-1*/ count(*) from performance_schema.events_waits_history
+where THREAD_ID = $con4_thread_id;
 count(*)
 0
+select /*4-1*/ count(*) from performance_schema.events_waits_history_long
+where THREAD_ID = $con4_thread_id;
 count(*)
 0
-# Switch to connection default, disable consumers
 connection default;
 update performance_schema.setup_consumers
 set enabled='NO' where name like "%history%";
@@ -296,7 +382,6 @@ truncate table performance_schema.events_stages_history_long;
 truncate table performance_schema.events_waits_current;
 truncate table performance_schema.events_waits_history;
 truncate table performance_schema.events_waits_history_long;
-# Switch to connection con1
 connection con1;
 XA START 'XA_CON1', 'XA_BQUAL', 12;
 select "Hi from con1";
@@ -305,7 +390,6 @@ Hi from con1
 XA END 'XA_CON1', 'XA_BQUAL', 12;
 XA PREPARE 'XA_CON1', 'XA_BQUAL', 12;
 XA COMMIT 'XA_CON1', 'XA_BQUAL', 12;
-# Switch to connection con2
 connection con2;
 XA START 'XA_CON2', 'XA_BQUAL', 12;
 select "Hi from con2";
@@ -314,7 +398,6 @@ Hi from con2
 XA END 'XA_CON2', 'XA_BQUAL', 12;
 XA PREPARE 'XA_CON2', 'XA_BQUAL', 12;
 XA COMMIT 'XA_CON2', 'XA_BQUAL', 12;
-# Switch to connection con3
 connection con3;
 XA START 'XA_CON3', 'XA_BQUAL', 12;
 select "Hi from con3";
@@ -323,7 +406,6 @@ Hi from con3
 XA END 'XA_CON3', 'XA_BQUAL', 12;
 XA PREPARE 'XA_CON3', 'XA_BQUAL', 12;
 XA COMMIT 'XA_CON3', 'XA_BQUAL', 12;
-# Switch to connection con4
 connection con4;
 XA START 'XA_CON4', 'XA_BQUAL', 12;
 select "Hi from con4";
@@ -333,117 +415,212 @@ XA END 'XA_CON4', 'XA_BQUAL', 12;
 XA PREPARE 'XA_CON4', 'XA_BQUAL', 12;
 XA COMMIT 'XA_CON4', 'XA_BQUAL', 12;
 connection default;
-"=========================== Transactions user 1"
+########################### Transactions user 1 - 2
+select /*1-2*/ XID_FORMAT_ID, XID_GTRID, XID_BQUAL from performance_schema.events_transactions_current
+where THREAD_ID = $con1_thread_id;
 XID_FORMAT_ID	XID_GTRID	XID_BQUAL
 12	XA_CON1	XA_BQUAL
+select /*1-2*/ count(*) from performance_schema.events_transactions_history
+where THREAD_ID = $con1_thread_id;
 count(*)
 0
+select /*1-2*/ count(*) from performance_schema.events_transactions_history_long
+where THREAD_ID = $con1_thread_id;
 count(*)
 0
-"=========================== Transactions user 2"
+########################### Transactions user 2 - 2
+select /*2-2*/ XID_FORMAT_ID, XID_GTRID, XID_BQUAL from performance_schema.events_transactions_current
+where THREAD_ID = $con2_thread_id;
 XID_FORMAT_ID	XID_GTRID	XID_BQUAL
 12	XA_CON2	XA_BQUAL
+select /*2-2*/ count(*) from performance_schema.events_transactions_history
+where THREAD_ID = $con2_thread_id;
 count(*)
 0
+select /*2-2*/ count(*) from performance_schema.events_transactions_history_long
+where THREAD_ID = $con2_thread_id;
 count(*)
 0
-"=========================== Transactions user 3"
+########################### Transactions user 3 - 2
+select /*3-2*/ count(*) from performance_schema.events_transactions_current
+where THREAD_ID = $con3_thread_id;
 count(*)
 0
+select /*3-2*/ count(*) from performance_schema.events_transactions_history
+where THREAD_ID = $con3_thread_id;
 count(*)
 0
+select /*3-2*/ count(*) from performance_schema.events_transactions_history_long
+where THREAD_ID = $con3_thread_id;
 count(*)
 0
-"=========================== Transactions user 4"
+########################### Transactions user 4 - 2
+select /*4-2*/ count(*) from performance_schema.events_transactions_current
+where THREAD_ID = $con4_thread_id;
 count(*)
 0
+select /*4-2*/ count(*) from performance_schema.events_transactions_history
+where THREAD_ID = $con4_thread_id;
 count(*)
 0
+select /*4-2*/ count(*) from performance_schema.events_transactions_history_long
+where THREAD_ID = $con4_thread_id;
 count(*)
 0
-"=========================== Statements user 1"
+########################### Statements user 1 - 2
+select /*1-2*/ EVENT_NAME, SQL_TEXT from performance_schema.events_statements_current
+where THREAD_ID = $con1_thread_id order by THREAD_ID, EVENT_ID;
 EVENT_NAME	SQL_TEXT
 statement/sql/xa_commit	XA COMMIT 'XA_CON1', 'XA_BQUAL', 12
+select /*1-2*/ count(*) from performance_schema.events_statements_history
+where THREAD_ID = $con1_thread_id;
 count(*)
 0
+select /*1-2*/ count(*) from performance_schema.events_statements_history_long
+where THREAD_ID = $con1_thread_id;
 count(*)
 0
-"=========================== Statements user 2"
+########################### Statements user 2 - 2
+select /*2-2*/ EVENT_NAME, SQL_TEXT from performance_schema.events_statements_current
+where THREAD_ID = $con2_thread_id order by THREAD_ID, EVENT_ID;
 EVENT_NAME	SQL_TEXT
 statement/sql/xa_commit	XA COMMIT 'XA_CON2', 'XA_BQUAL', 12
+select /*2-2*/ count(*) from performance_schema.events_statements_history
+where THREAD_ID = $con2_thread_id;
 count(*)
 0
+select /*2-2*/ count(*) from performance_schema.events_statements_history_long
+where THREAD_ID = $con2_thread_id;
 count(*)
 0
-"=========================== Statements user 3"
+########################### Statements user 3 - 2
+select /*3-2*/ count(*) from performance_schema.events_statements_current
+where THREAD_ID = $con3_thread_id;
 count(*)
 0
+select /*3-2*/ count(*) from performance_schema.events_statements_history
+where THREAD_ID = $con3_thread_id;
 count(*)
 0
+select /*3-2*/ count(*) from performance_schema.events_statements_history_long
+where THREAD_ID = $con3_thread_id;
 count(*)
 0
-"=========================== Statements user 4"
+########################### Statements user 4 - 2
+select /*4-2*/ count(*) from performance_schema.events_statements_current
+where THREAD_ID = $con4_thread_id;
 count(*)
 0
+select /*4-2*/ count(*) from performance_schema.events_statements_history
+where THREAD_ID = $con4_thread_id;
 count(*)
 0
+select /*4-2*/ count(*) from performance_schema.events_statements_history_long
+where THREAD_ID = $con4_thread_id;
 count(*)
 0
-"=========================== Stages user 1"
+########################### Stages user 1 - 2
+select /*1-2*/ EVENT_NAME from performance_schema.events_stages_current
+where THREAD_ID = $con1_thread_id order by THREAD_ID, EVENT_ID;
 EVENT_NAME
+select /*1-2*/ count(*) from performance_schema.events_stages_history
+where THREAD_ID = $con1_thread_id;
 count(*)
 0
+select /*1-2*/ count(*) from performance_schema.events_stages_history_long
+where THREAD_ID = $con1_thread_id;
 count(*)
 0
-"=========================== Stages user 2"
+########################### Stages user 2 - 2
+select /*2-2*/ EVENT_NAME from performance_schema.events_stages_current
+where THREAD_ID = $con2_thread_id order by THREAD_ID, EVENT_ID;
 EVENT_NAME
+select /*2-2*/ count(*) from performance_schema.events_stages_history
+where THREAD_ID = $con2_thread_id;
 count(*)
 0
+select /*2-2*/ count(*) from performance_schema.events_stages_history_long
+where THREAD_ID = $con2_thread_id;
 count(*)
 0
-"=========================== Stages user 3"
+########################### Stages user 3 - 2
+select /*3-2*/ count(*) from performance_schema.events_stages_current
+where THREAD_ID = $con3_thread_id;
 count(*)
 0
+select /*3-2*/ count(*) from performance_schema.events_stages_history
+where THREAD_ID = $con3_thread_id;
 count(*)
 0
+select /*3-2*/ count(*) from performance_schema.events_stages_history_long
+where THREAD_ID = $con3_thread_id;
 count(*)
 0
-"=========================== Stages user 4"
+########################### Stages user 4 - 2
+select /*4-2*/ count(*) from performance_schema.events_stages_current
+where THREAD_ID = $con4_thread_id;
 count(*)
 0
+select /*4-2*/ count(*) from performance_schema.events_stages_history
+where THREAD_ID = $con4_thread_id;
 count(*)
 0
+select /*4-2*/ count(*) from performance_schema.events_stages_history_long
+where THREAD_ID = $con4_thread_id;
 count(*)
 0
-"=========================== Waits user 1"
+########################### Waits user 1 - 2
+select /*1-2*/ EVENT_NAME from performance_schema.events_waits_current
+where THREAD_ID = $con1_thread_id order by THREAD_ID, EVENT_ID;
 EVENT_NAME
 idle
+select /*1-2*/ count(*) as has_waits from performance_schema.events_waits_history
+where THREAD_ID = $con1_thread_id;
 has_waits
 0
+select /*1-2*/ count(*) as has_waits from performance_schema.events_waits_history_long
+where THREAD_ID = $con1_thread_id;
 has_waits
 0
-"=========================== Waits user 2"
+########################### Waits user 2 - 2
+select /*2-2*/ EVENT_NAME from performance_schema.events_waits_current
+where THREAD_ID = $con2_thread_id order by THREAD_ID, EVENT_ID;
 EVENT_NAME
 idle
+select /*2-2*/ count(*) from performance_schema.events_waits_history
+where THREAD_ID = $con2_thread_id;
 count(*)
 0
+select /*2-2*/ count(*) from performance_schema.events_waits_history_long
+where THREAD_ID = $con2_thread_id;
 count(*)
 0
-"=========================== Waits user 3"
+########################### Waits user 3 - 2
+select /*3-2*/ count(*) from performance_schema.events_waits_current
+where THREAD_ID = $con3_thread_id;
 count(*)
 0
+select /*3-2*/ count(*) from performance_schema.events_waits_history
+where THREAD_ID = $con3_thread_id;
 count(*)
 0
+select /*3-2*/ count(*) from performance_schema.events_waits_history_long
+where THREAD_ID = $con3_thread_id;
 count(*)
 0
-"=========================== Waits user 4"
+########################### Waits user 4 - 2
+select /*4-2*/ count(*) from performance_schema.events_waits_current
+where THREAD_ID = $con4_thread_id;
 count(*)
 0
+select /*4-2*/ count(*) from performance_schema.events_waits_history
+where THREAD_ID = $con4_thread_id;
 count(*)
 0
+select /*4-2*/ count(*) from performance_schema.events_waits_history_long
+where THREAD_ID = $con4_thread_id;
 count(*)
 0
-# Switch to connection default, enable consumers
 connection default;
 update performance_schema.setup_consumers
 set enabled='YES' where name like "%history%";
@@ -476,7 +653,6 @@ truncate table performance_schema.events_stages_history_long;
 truncate table performance_schema.events_waits_current;
 truncate table performance_schema.events_waits_history;
 truncate table performance_schema.events_waits_history_long;
-# Switch to connection con1
 connection con1;
 XA START 'XA_CON1', 'XA_BQUAL', 12;
 select "Hi from con1";
@@ -485,7 +661,6 @@ Hi from con1
 XA END 'XA_CON1', 'XA_BQUAL', 12;
 XA PREPARE 'XA_CON1', 'XA_BQUAL', 12;
 XA COMMIT 'XA_CON1', 'XA_BQUAL', 12;
-# Switch to connection con2
 connection con2;
 XA START 'XA_CON2', 'XA_BQUAL', 12;
 select "Hi from con2";
@@ -494,7 +669,6 @@ Hi from con2
 XA END 'XA_CON2', 'XA_BQUAL', 12;
 XA PREPARE 'XA_CON2', 'XA_BQUAL', 12;
 XA COMMIT 'XA_CON2', 'XA_BQUAL', 12;
-# Switch to connection con3
 connection con3;
 XA START 'XA_CON3', 'XA_BQUAL', 12;
 select "Hi from con3";
@@ -503,7 +677,6 @@ Hi from con3
 XA END 'XA_CON3', 'XA_BQUAL', 12;
 XA PREPARE 'XA_CON3', 'XA_BQUAL', 12;
 XA COMMIT 'XA_CON3', 'XA_BQUAL', 12;
-# Switch to connection con4
 connection con4;
 XA START 'XA_CON4', 'XA_BQUAL', 12;
 select "Hi from con4";
@@ -513,72 +686,124 @@ XA END 'XA_CON4', 'XA_BQUAL', 12;
 XA PREPARE 'XA_CON4', 'XA_BQUAL', 12;
 XA COMMIT 'XA_CON4', 'XA_BQUAL', 12;
 connection default;
-"=========================== Transactions user 1"
+########################### Transactions user 1 - 3
+select /*1-3*/ XID_FORMAT_ID, XID_GTRID, XID_BQUAL from performance_schema.events_transactions_current
+where THREAD_ID = $con1_thread_id;
 XID_FORMAT_ID	XID_GTRID	XID_BQUAL
 12	XA_CON1	XA_BQUAL
+select /*1-3*/ XID_FORMAT_ID, XID_GTRID, XID_BQUAL from performance_schema.events_transactions_history
+where THREAD_ID = $con1_thread_id;
 XID_FORMAT_ID	XID_GTRID	XID_BQUAL
 12	XA_CON1	XA_BQUAL
+select /*1-3*/ XID_FORMAT_ID, XID_GTRID, XID_BQUAL from performance_schema.events_transactions_history_long
+where THREAD_ID = $con1_thread_id;
 XID_FORMAT_ID	XID_GTRID	XID_BQUAL
 12	XA_CON1	XA_BQUAL
-"=========================== Transactions user 2"
+########################### Transactions user 2 - 3
+select /*2-3*/ XID_FORMAT_ID, XID_GTRID, XID_BQUAL from performance_schema.events_transactions_current
+where THREAD_ID = $con2_thread_id;
 XID_FORMAT_ID	XID_GTRID	XID_BQUAL
 12	XA_CON2	XA_BQUAL
+select /*2-3*/ count(*) from performance_schema.events_transactions_history
+where THREAD_ID = $con2_thread_id;
 count(*)
 0
+select /*2-3*/ count(*) from performance_schema.events_transactions_history_long
+where THREAD_ID = $con2_thread_id;
 count(*)
 0
-"=========================== Transactions user 3"
+########################### Transactions user 3 - 3
+select /*3-3*/ count(*) from performance_schema.events_transactions_current
+where THREAD_ID = $con3_thread_id;
 count(*)
 0
+select /*3-3*/ count(*) from performance_schema.events_transactions_history
+where THREAD_ID = $con3_thread_id;
 count(*)
 0
+select /*3-3*/ count(*) from performance_schema.events_transactions_history_long
+where THREAD_ID = $con3_thread_id;
 count(*)
 0
-"=========================== Transactions user 4"
+########################### Transactions user 4 - 3
+select /*4-3*/ count(*) from performance_schema.events_transactions_current
+where THREAD_ID = $con4_thread_id;
 count(*)
 0
+select /*4-3*/ count(*) from performance_schema.events_transactions_history
+where THREAD_ID = $con4_thread_id;
 count(*)
 0
+select /*4-3*/ count(*) from performance_schema.events_transactions_history_long
+where THREAD_ID = $con4_thread_id;
 count(*)
 0
-"=========================== Statements user 1"
+########################### Statements user 1 - 3
+select /*1-3*/ EVENT_NAME, SQL_TEXT from performance_schema.events_statements_current
+where THREAD_ID = $con1_thread_id order by THREAD_ID, EVENT_ID;
 EVENT_NAME	SQL_TEXT
 statement/sql/xa_commit	XA COMMIT 'XA_CON1', 'XA_BQUAL', 12
+select /*1-3*/ EVENT_NAME, SQL_TEXT from performance_schema.events_statements_history
+where THREAD_ID = $con1_thread_id order by THREAD_ID, EVENT_ID;
 EVENT_NAME	SQL_TEXT
 statement/sql/xa_start	XA START 'XA_CON1', 'XA_BQUAL', 12
 statement/sql/select	select "Hi from con1"
 statement/sql/xa_end	XA END 'XA_CON1', 'XA_BQUAL', 12
 statement/sql/xa_prepare	XA PREPARE 'XA_CON1', 'XA_BQUAL', 12
 statement/sql/xa_commit	XA COMMIT 'XA_CON1', 'XA_BQUAL', 12
+select /*1-3*/ EVENT_NAME, SQL_TEXT from performance_schema.events_statements_history_long
+where THREAD_ID = $con1_thread_id order by THREAD_ID, EVENT_ID;
 EVENT_NAME	SQL_TEXT
 statement/sql/xa_start	XA START 'XA_CON1', 'XA_BQUAL', 12
 statement/sql/select	select "Hi from con1"
 statement/sql/xa_end	XA END 'XA_CON1', 'XA_BQUAL', 12
 statement/sql/xa_prepare	XA PREPARE 'XA_CON1', 'XA_BQUAL', 12
 statement/sql/xa_commit	XA COMMIT 'XA_CON1', 'XA_BQUAL', 12
-"=========================== Statements user 2"
+########################### Statements user 2 - 3
+select /*2-3*/ EVENT_NAME, SQL_TEXT from performance_schema.events_statements_current
+where THREAD_ID = $con2_thread_id order by THREAD_ID, EVENT_ID;
 EVENT_NAME	SQL_TEXT
 statement/sql/xa_commit	XA COMMIT 'XA_CON2', 'XA_BQUAL', 12
+select /*2-3*/ count(*) from performance_schema.events_statements_history
+where THREAD_ID = $con2_thread_id;
 count(*)
 0
+select /*2-3*/ count(*) from performance_schema.events_statements_history_long
+where THREAD_ID = $con2_thread_id;
 count(*)
 0
-"=========================== Statements user 3"
+########################### Statements user 3 - 3
+select /*3-3*/ count(*) from performance_schema.events_statements_current
+where THREAD_ID = $con3_thread_id;
 count(*)
 0
+select /*3-3*/ count(*) from performance_schema.events_statements_history
+where THREAD_ID = $con3_thread_id;
 count(*)
 0
+select /*3-3*/ count(*) from performance_schema.events_statements_history_long
+where THREAD_ID = $con3_thread_id;
 count(*)
 0
-"=========================== Statements user 4"
+########################### Statements user 4 - 3
+select /*4-3*/ count(*) from performance_schema.events_statements_current
+where THREAD_ID = $con4_thread_id;
 count(*)
 0
+select /*4-3*/ count(*) from performance_schema.events_statements_history
+where THREAD_ID = $con4_thread_id;
 count(*)
 0
+select /*4-3*/ count(*) from performance_schema.events_statements_history_long
+where THREAD_ID = $con4_thread_id;
 count(*)
 0
-"=========================== Stages user 1"
+########################### Stages user 1 - 3
+select /*1-3*/ EVENT_NAME from performance_schema.events_stages_current
+where THREAD_ID = $con1_thread_id order by THREAD_ID, EVENT_ID;
 EVENT_NAME
+select /*1-3*/ EVENT_NAME from performance_schema.events_stages_history
+where THREAD_ID = $con1_thread_id order by THREAD_ID, EVENT_ID;
 EVENT_NAME
 stage/sql/Starting cleanup
 stage/sql/Freeing items
@@ -590,6 +815,8 @@ stage/sql/closing tables
 stage/sql/Starting cleanup
 stage/sql/Freeing items
 stage/sql/Reset for next command
+select /*1-3*/ EVENT_NAME from performance_schema.events_stages_history_long
+where THREAD_ID = $con1_thread_id order by THREAD_ID, EVENT_ID;
 EVENT_NAME
 stage/sql/starting
 stage/sql/Query end
@@ -633,55 +860,96 @@ stage/sql/closing tables
 stage/sql/Starting cleanup
 stage/sql/Freeing items
 stage/sql/Reset for next command
-"=========================== Stages user 2"
+########################### Stages user 2 - 3
+select /*2-3*/ EVENT_NAME from performance_schema.events_stages_current
+where THREAD_ID = $con2_thread_id order by THREAD_ID, EVENT_ID;
 EVENT_NAME
+select /*2-3*/ count(*) from performance_schema.events_stages_history
+where THREAD_ID = $con2_thread_id;
 count(*)
 0
+select /*2-3*/ count(*) from performance_schema.events_stages_history_long
+where THREAD_ID = $con2_thread_id;
 count(*)
 0
-"=========================== Stages user 3"
+########################### Stages user 3 - 3
+select /*3-3*/ count(*) from performance_schema.events_stages_current
+where THREAD_ID = $con3_thread_id;
 count(*)
 0
+select /*3-3*/ count(*) from performance_schema.events_stages_history
+where THREAD_ID = $con3_thread_id;
 count(*)
 0
+select /*3-3*/ count(*) from performance_schema.events_stages_history_long
+where THREAD_ID = $con3_thread_id;
 count(*)
 0
-"=========================== Stages user 4"
+########################### Stages user 4 - 3
+select /*4-3*/ count(*) from performance_schema.events_stages_current
+where THREAD_ID = $con4_thread_id;
 count(*)
 0
+select /*4-3*/ count(*) from performance_schema.events_stages_history
+where THREAD_ID = $con4_thread_id;
 count(*)
 0
+select /*4-3*/ count(*) from performance_schema.events_stages_history_long
+where THREAD_ID = $con4_thread_id;
 count(*)
 0
-"=========================== Waits user 1"
+########################### Waits user 1 - 3
+select /*1-3*/ EVENT_NAME from performance_schema.events_waits_current
+where THREAD_ID = $con1_thread_id order by THREAD_ID, EVENT_ID;
 EVENT_NAME
 idle
+select /*1-3*/ (count(*) > 5) as has_waits from performance_schema.events_waits_history
+where THREAD_ID = $con1_thread_id;
 has_waits
 1
+select /*1-3*/ (count(*) > 15) as has_waits from performance_schema.events_waits_history_long
+where THREAD_ID = $con1_thread_id;
 has_waits
 1
-"=========================== Waits user 2"
+########################### Waits user 2 - 3
+select /*2-3*/ EVENT_NAME from performance_schema.events_waits_current
+where THREAD_ID = $con2_thread_id order by THREAD_ID, EVENT_ID;
 EVENT_NAME
 idle
+select /*2-3*/ count(*) from performance_schema.events_waits_history
+where THREAD_ID = $con2_thread_id;
 count(*)
 0
+select /*2-3*/ count(*) from performance_schema.events_waits_history_long
+where THREAD_ID = $con2_thread_id;
 count(*)
 0
-"=========================== Waits user 3"
+########################### Waits user 3 - 3
+select /*3-3*/ count(*) from performance_schema.events_waits_current
+where THREAD_ID = $con3_thread_id;
 count(*)
 0
+select /*3-3*/ count(*) from performance_schema.events_waits_history
+where THREAD_ID = $con3_thread_id;
 count(*)
 0
+select /*3-3*/ count(*) from performance_schema.events_waits_history_long
+where THREAD_ID = $con3_thread_id;
 count(*)
 0
-"=========================== Waits user 4"
+########################### Waits user 4 - 3
+select /*4-3*/ count(*) from performance_schema.events_waits_current
+where THREAD_ID = $con4_thread_id;
 count(*)
 0
+select /*4-3*/ count(*) from performance_schema.events_waits_history
+where THREAD_ID = $con4_thread_id;
 count(*)
 0
+select /*4-3*/ count(*) from performance_schema.events_waits_history_long
+where THREAD_ID = $con4_thread_id;
 count(*)
 0
-# Switch to connection default
 connection default;
 revoke all privileges, grant option from user1@localhost;
 revoke all privileges, grant option from user2@localhost;

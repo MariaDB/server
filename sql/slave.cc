@@ -46,7 +46,7 @@
 #include <signal.h>
 #include <mysql.h>
 #include <myisam.h>
-
+#include "debug_sync.h"                         // debug_sync_set_action
 #include "sql_base.h"                           // close_thread_tables
 #include "tztime.h"                             // struct Time_zone
 #include "log_event.h"                          // Rotate_log_event,
@@ -63,7 +63,6 @@ Master_info_index *master_info_index;
 #ifdef HAVE_REPLICATION
 
 #include "rpl_tblmap.h"
-#include "debug_sync.h"
 #include "rpl_parallel.h"
 #include "sql_show.h"
 #include "semisync_slave.h"
@@ -3162,6 +3161,14 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
     mysql_mutex_lock(&mi->err_lock);
     /* err_lock is to protect mi->rli.last_error() */
     mysql_mutex_lock(&mi->rli.err_lock);
+
+    DBUG_EXECUTE_IF("hold_sss_with_err_lock", {
+      DBUG_ASSERT(!debug_sync_set_action(
+          thd, STRING_WITH_LEN("now SIGNAL sss_got_err_lock "
+                               "WAIT_FOR sss_continue")));
+      DBUG_SET("-d,hold_sss_with_err_lock");
+    });
+
     protocol->store(mi->host, &my_charset_bin);
     protocol->store(mi->user, &my_charset_bin);
     protocol->store((uint32) mi->port);
@@ -3236,7 +3243,8 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
           while the slave is processing ignored events, such as those skipped
           due to slave_skip_counter.
         */
-        if (mi->using_parallel() && idle && !mi->rli.parallel.workers_idle())
+        if (mi->using_parallel() && idle &&
+            !rpl_parallel::workers_idle(&mi->rli))
           idle= false;
       }
       if (idle)
@@ -3316,7 +3324,7 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
     // to ensure that we use the same value throughout this function.
     const char *slave_sql_running_state=
       mi->rli.sql_driver_thd ? mi->rli.sql_driver_thd->proc_info : "";
-    if (slave_sql_running_state == Relay_log_info::state_delaying_string)
+    if (slave_sql_running_state == stage_sql_thd_waiting_until_delay.m_name)
     {
       time_t t= my_time(0), sql_delay_end= mi->rli.get_sql_delay_end();
       protocol->store((uint32)(t < sql_delay_end ? sql_delay_end - t : 0));
@@ -3503,6 +3511,7 @@ static int init_slave_thread(THD* thd, Master_info *mi,
   }
 
   thd->security_ctx->skip_grants();
+  thd->security_ctx->user=(char*) slave_user;
   thd->slave_thread= 1;
   thd->connection_name= mi->connection_name;
   thd->variables.sql_log_slow= !MY_TEST(thd->variables.log_slow_disabled_statements & LOG_SLOW_DISABLE_SLAVE);
@@ -3886,7 +3895,7 @@ apply_event_and_update_pos_apply(Log_event* ev, THD* thd, rpl_group_info *rgi,
           if (thd->system_thread == SYSTEM_THREAD_SLAVE_SQL &&
               ((rli->mi->using_parallel() &&
                 rli->mi->parallel_mode <= SLAVE_PARALLEL_CONSERVATIVE) ||
-               wsrep_ready == 0)) {
+                !wsrep_ready_get())) {
             rli->abort_slave= 1;
             rli->report(ERROR_LEVEL, ER_UNKNOWN_COM_ERROR, rgi->gtid_info(),
                         "Node has dropped from cluster");
@@ -4347,6 +4356,15 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
     {
       Gtid_log_event *gev= static_cast<Gtid_log_event *>(ev);
 
+#ifdef ENABLED_DEBUG_SYNC
+    DBUG_EXECUTE_IF(
+        "pause_sql_thread_on_relay_fde_after_trans",
+        {
+          DBUG_SET("-d,pause_sql_thread_on_relay_fde_after_trans");
+          DBUG_SET("+d,pause_sql_thread_on_next_relay_fde");
+        });
+#endif
+
       /*
         For GTID, allocate a new sub_id for the given domain_id.
         The sub_id must be allocated in increasing order of binlog order.
@@ -4497,12 +4515,14 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
 #endif /* WITH_WSREP */
 #ifdef ENABLED_DEBUG_SYNC
     DBUG_EXECUTE_IF(
-        "pause_sql_thread_on_fde",
-        if (ev && typ == FORMAT_DESCRIPTION_EVENT) {
+        "pause_sql_thread_on_next_relay_fde",
+        if (ev && typ == FORMAT_DESCRIPTION_EVENT &&
+            ((Format_description_log_event *) ev)->is_relay_log_event()) {
           DBUG_ASSERT(!debug_sync_set_action(
               thd,
               STRING_WITH_LEN(
                   "now SIGNAL paused_on_fde WAIT_FOR sql_thread_continue")));
+          DBUG_SET("-d,pause_sql_thread_on_next_relay_fde");
         });
 #endif
 
@@ -4831,7 +4851,13 @@ connected:
         goto err;
       goto connected;
     }
-    DBUG_EXECUTE_IF("fail_com_register_slave", goto err;);
+    DBUG_EXECUTE_IF("fail_com_register_slave",
+                    {
+                      mi->report(ERROR_LEVEL, ER_SLAVE_MASTER_COM_FAILURE, NULL,
+                      ER(ER_SLAVE_MASTER_COM_FAILURE), "COM_REGISTER_SLAVE",
+                      "Debug Induced Error");
+                      goto err;
+                    });
   }
 
   DBUG_PRINT("info",("Starting reading binary log from master"));
@@ -5412,19 +5438,25 @@ pthread_handler_t handle_slave_sql(void *arg)
   }
   else
     rli->gtid_skip_flag = GTID_SKIP_NOT;
+  mysql_mutex_lock(&rli->data_lock);
   if (init_relay_log_pos(rli,
                          rli->group_relay_log_name,
                          rli->group_relay_log_pos,
-                         1 /*need data lock*/, &errmsg,
+                         0 /*need data lock*/, &errmsg,
                          1 /*look for a description_event*/))
   { 
     rli->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR, NULL,
                 "Error initializing relay log position: %s", errmsg);
+    mysql_mutex_unlock(&rli->data_lock);
     goto err_before_start;
   }
   rli->reset_inuse_relaylog();
   if (rli->alloc_inuse_relaylog(rli->group_relay_log_name))
+  {
+    mysql_mutex_unlock(&rli->data_lock);
     goto err_before_start;
+  }
+  mysql_mutex_unlock(&rli->data_lock);
 
   strcpy(rli->future_event_master_log_name, rli->group_master_log_name);
   THD_CHECK_SENTRY(thd);
@@ -7380,9 +7412,6 @@ static int connect_to_master(THD* thd, MYSQL* mysql, Master_info* mi,
                   default_client_charset_info->csname);
   }
 
-  /* This one is not strictly needed but we have it here for completeness */
-  mysql_options(mysql, MYSQL_SET_CHARSET_DIR, (char *) charsets_dir);
-
   /* Set MYSQL_PLUGIN_DIR in case master asks for an external authentication plugin */
   if (opt_plugin_dir_ptr && *opt_plugin_dir_ptr)
     mysql_options(mysql, MYSQL_PLUGIN_DIR, opt_plugin_dir_ptr);
@@ -7525,8 +7554,6 @@ MYSQL *rpl_connect_master(MYSQL *mysql)
 #endif
 
   mysql_options(mysql, MYSQL_SET_CHARSET_NAME, default_charset_info->csname);
-  /* This one is not strictly needed but we have it here for completeness */
-  mysql_options(mysql, MYSQL_SET_CHARSET_DIR, (char *) charsets_dir);
 
   if (mi->user == NULL
       || mi->user[0] == 0

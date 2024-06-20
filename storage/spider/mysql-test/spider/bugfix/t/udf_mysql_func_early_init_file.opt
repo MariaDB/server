@@ -1,0 +1,1 @@
+--init-file=$MTR_SUITE_DIR/t/udf_mysql_func_early_init_file.sql

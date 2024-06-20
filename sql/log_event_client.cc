@@ -2435,7 +2435,7 @@ bool User_var_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
   }
   else
   {
-    switch (type) {
+    switch (m_type) {
     case REAL_RESULT:
       double real_val;
       char real_buf[FMT_G_BUFSIZE(14)];
@@ -2447,8 +2447,7 @@ bool User_var_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
       break;
     case INT_RESULT:
       char int_buf[22];
-      longlong10_to_str(uint8korr(val), int_buf, 
-                        ((flags & User_var_log_event::UNSIGNED_F) ? 10 : -10));
+      longlong10_to_str(uint8korr(val), int_buf,  is_unsigned() ? 10 : -10);
       if (my_b_printf(&cache, ":=%s%s\n", int_buf,
                       print_event_info->delimiter))
         goto err;
@@ -2503,7 +2502,7 @@ bool User_var_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
         people want to mysqlbinlog|mysql into another server not supporting the
         character set. But there's not much to do about this and it's unlikely.
       */
-      if (!(cs= get_charset(charset_number, MYF(0))))
+      if (!(cs= get_charset(m_charset_number, MYF(0))))
       {        /*
           Generate an unusable command (=> syntax error) is probably the best
           thing we can do here.
@@ -3034,7 +3033,7 @@ bool Annotate_rows_log_event::print(FILE *file, PRINT_EVENT_INFO *pinfo)
 {
   char *pbeg;   // beginning of the next line
   char *pend;   // end of the next line
-  uint cnt= 0;  // characters counter
+  char *qend= m_query_txt + m_query_len;
 
   if (!pinfo->short_form)
   {
@@ -3045,28 +3044,21 @@ bool Annotate_rows_log_event::print(FILE *file, PRINT_EVENT_INFO *pinfo)
   else if (my_b_printf(&pinfo->head_cache, "# Annotate_rows:\n"))
     goto err;
 
-  for (pbeg= m_query_txt; ; pbeg= pend)
+  for (pbeg= m_query_txt; pbeg < qend; pbeg= pend)
   {
     // skip all \r's and \n's at the beginning of the next line
-    for (;; pbeg++)
-    {
-      if (++cnt > m_query_len)
-        return 0;
-
-      if (*pbeg != '\r' && *pbeg != '\n')
-        break;
-    }
+    for (; pbeg < qend && (*pbeg == '\r' || *pbeg == '\n'); pbeg++)
+      ;
 
     // find end of the next line
-    for (pend= pbeg + 1;
-         ++cnt <= m_query_len && *pend != '\r' && *pend != '\n';
-         pend++)
+    for (pend= pbeg + 1; pend < qend && *pend != '\r' && *pend != '\n'; pend++)
       ;
 
     // print next line
-    if (my_b_write(&pinfo->head_cache, (const uchar*) "#Q> ", 4) ||
-        my_b_write(&pinfo->head_cache, (const uchar*) pbeg, pend - pbeg) ||
-        my_b_write(&pinfo->head_cache, (const uchar*) "\n", 1))
+    if (pbeg < qend &&
+        (my_b_write(&pinfo->head_cache, (const uchar*) "#Q> ", 4) ||
+         my_b_write(&pinfo->head_cache, (const uchar*) pbeg, pend - pbeg) ||
+         my_b_write(&pinfo->head_cache, (const uchar*) "\n", 1)))
       goto err;
   }
 

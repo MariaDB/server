@@ -1154,8 +1154,9 @@ static bool wsrep_tables_accessible_when_detached(const TABLE_LIST *tables)
 {
   for (const TABLE_LIST *table= tables; table; table= table->next_global)
   {
-    LEX_CSTRING db= table->db, tn= table->table_name;
-    if (get_table_category(&db, &tn)  < TABLE_CATEGORY_INFORMATION)
+    if (get_table_category(Lex_ident_db(table->db),
+                           Lex_ident_table(table->table_name))
+                           < TABLE_CATEGORY_INFORMATION)
       return false;
   }
   return tables != NULL;
@@ -2240,6 +2241,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
     my_eof(thd);
     kill_mysql(thd);
     error=TRUE;
+    DBUG_EXECUTE_IF("simulate_slow_client_at_shutdown", my_sleep(2000000););
     break;
   }
 #endif
@@ -2463,6 +2465,11 @@ dispatch_end:
   }
 #endif /* WITH_WSREP */
 
+  if (thd->reset_sp_cache)
+  {
+    thd->sp_caches_empty();
+    thd->reset_sp_cache= false;
+  }
 
   if (do_end_of_statement)
   {
@@ -2500,7 +2507,7 @@ dispatch_end:
   /* Performance Schema Interface instrumentation, end */
   MYSQL_END_STATEMENT(thd->m_statement_psi, thd->get_stmt_da());
   thd->set_examined_row_count(0);                   // For processlist
-  thd->set_command(COM_SLEEP);
+  thd->mark_connection_idle();
 
   thd->m_statement_psi= NULL;
   thd->m_digest= NULL;
@@ -2515,6 +2522,8 @@ dispatch_end:
   */
   thd->lex->m_sql_cmd= NULL;
   free_root(thd->mem_root,MYF(MY_KEEP_PREALLOC));
+  DBUG_EXECUTE_IF("print_allocated_thread_memory",
+                  SAFEMALLOC_REPORT_MEMORY(sf_malloc_dbug_id()););
 
 #if defined(ENABLED_PROFILING)
   thd->profiling.finish_current_query();
@@ -2530,6 +2539,7 @@ dispatch_end:
     MYSQL_COMMAND_DONE(res);
   }
   DEBUG_SYNC(thd,"dispatch_command_end");
+  DEBUG_SYNC(thd,"dispatch_command_end2");
 
   /* Check that some variables are reset properly */
   DBUG_ASSERT(thd->abort_on_warning == 0);
@@ -4690,10 +4700,15 @@ mysql_execute_command(THD *thd)
 
     if ((res= insert_precheck(thd, all_tables)))
       break;
+
 #ifdef WITH_WSREP
-    if (WSREP(thd) && thd->wsrep_consistency_check == CONSISTENCY_CHECK_DECLARED)
+    bool wsrep_toi= false;
+    const bool wsrep= WSREP(thd);
+
+    if (wsrep && thd->wsrep_consistency_check == CONSISTENCY_CHECK_DECLARED)
     {
       thd->wsrep_consistency_check = CONSISTENCY_CHECK_RUNNING;
+      wsrep_toi= true;
       WSREP_TO_ISOLATION_BEGIN(first_table->db.str, first_table->table_name.str, NULL);
     }
 #endif /* WITH_WSREP */
@@ -4728,6 +4743,27 @@ mysql_execute_command(THD *thd)
     if (!(res=open_and_lock_tables(thd, all_tables, TRUE, 0)))
     {
       MYSQL_INSERT_SELECT_START(thd->query());
+
+#ifdef WITH_WSREP
+      if (wsrep && !first_table->view)
+      {
+        bool is_innodb= first_table->table->file->partition_ht()->db_type == DB_TYPE_INNODB;
+
+        // For consistency check inserted table needs to be InnoDB
+        if (!is_innodb && thd->wsrep_consistency_check != NO_CONSISTENCY_CHECK)
+        {
+          push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                              HA_ERR_UNSUPPORTED,
+                              "Galera cluster does support consistency check only"
+                              " for InnoDB tables.");
+          thd->wsrep_consistency_check= NO_CONSISTENCY_CHECK;
+        }
+
+        // For !InnoDB we start TOI if it is not yet started and hope for the best
+        if (!is_innodb && !wsrep_toi)
+          WSREP_TO_ISOLATION_BEGIN(first_table->db.str, first_table->table_name.str, NULL);
+      }
+#endif /* WITH_WSREP */
       /*
         Only the INSERT table should be merged. Other will be handled by
         select.
@@ -5233,9 +5269,55 @@ mysql_execute_command(THD *thd)
       my_ok(thd);
     break;
   case SQLCOM_BACKUP_LOCK:
-    if (check_global_access(thd, RELOAD_ACL))
-      goto error;
-    /* first table is set for lock. For unlock the list is empty */
+    if (check_global_access(thd, RELOAD_ACL, true))
+    {
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+      /*
+        In case there is no global privilege, check DB privilege for LOCK TABLES.
+      */
+      if (first_table) // BACKUP LOCK
+      {
+        if (check_single_table_access(thd, LOCK_TABLES_ACL, first_table, true))
+        {
+          char command[30];
+          get_privilege_desc(command, sizeof(command), RELOAD_ACL|LOCK_TABLES_ACL);
+          my_error(ER_SPECIFIC_ACCESS_DENIED_ERROR, MYF(0), command);
+          goto error;
+        }
+      }
+      else // BACKUP UNLOCK
+      {
+        /*
+          We test mdl_backup_lock here because, if a user could obtain a lock
+          it would be silly to error and say `you can't BACKUP UNLOCK`
+          (because its obvious you did a `BACKUP LOCK`).
+          As `BACKUP UNLOCK` doesn't have a database reference,
+          there's no way we can check if the `BACKUP LOCK` privilege is missing.
+          Testing `thd->db` would involve faking a `TABLE_LIST` structure,
+          which because of the depth of inspection
+          in `check_single_table_access` makes the faking likely to cause crashes,
+          or unintended effects. The outcome of this is,
+          if a user does an `BACKUP UNLOCK` without a `BACKUP LOCKED` table,
+          there may be a` ER_SPECIFIC_ACCESS_DENIED` error even though
+          user has the privilege.
+          Its a bit different to what happens if the user has RELOAD_ACL,
+          where the error is silently ignored.
+        */
+        if (!thd->mdl_backup_lock)
+        {
+
+          char command[30];
+          get_privilege_desc(command, sizeof(command), RELOAD_ACL|LOCK_TABLES_ACL);
+          my_error(ER_SPECIFIC_ACCESS_DENIED_ERROR, MYF(0), command);
+          goto error;
+        }
+      }
+#endif
+    }
+    /*
+      There is reload privilege, first table is set for lock.
+      For unlock the list is empty
+    */
     if (first_table)
       res= backup_lock(thd, first_table);
     else
@@ -5851,7 +5933,7 @@ mysql_execute_command(THD *thd)
       if (sph->sp_resolve_package_routine(thd, thd->lex->sphead,
                                           lex->spname, &sph, &pkgname))
         return true;
-      if (sph->sp_cache_routine(thd, lex->spname, false, &sp))
+      if (sph->sp_cache_routine(thd, lex->spname, &sp))
         goto error;
       if (!sp || sp->show_routine_code(thd))
       {
@@ -6441,15 +6523,15 @@ static TABLE *find_temporary_table_for_rename(THD *thd,
   {
     TABLE_LIST *next= table->next_local;
 
-    if (!strcmp(table->get_db_name(),   cur_table->get_db_name()) &&
-        !strcmp(table->get_table_name(), cur_table->get_table_name()))
+    if (!strcmp(table->get_db_name().str,    cur_table->get_db_name().str) &&
+        !strcmp(table->get_table_name().str, cur_table->get_table_name().str))
     {
       /* Table was moved away, can't be same as 'table' */
       found= 1;
       res= 0;                      // Table can't be a temporary table
     }
-    if (!strcmp(next->get_db_name(),    cur_table->get_db_name()) &&
-        !strcmp(next->get_table_name(), cur_table->get_table_name()))
+    if (!strcmp(next->get_db_name().str,    cur_table->get_db_name().str) &&
+        !strcmp(next->get_table_name().str, cur_table->get_table_name().str))
     {
       /*
         Table has matching name with new name of this table. cur_table should
@@ -6554,6 +6636,23 @@ show_create_db(THD *thd, LEX *lex)
   LEX_CSTRING db_name;
   DBUG_EXECUTE_IF("4x_server_emul",
                   my_error(ER_UNKNOWN_ERROR, MYF(0)); return 1;);
+
+#if MYSQL_VERSION_ID<=110301
+  /*
+    This piece of the code was added in 10.5 to fix MDEV-32376.
+    It should not get to 11.3 or higer, as MDEV-32376 was fixed
+    in a different way in 11.3.1 (see MDEV-31948).
+  */
+  if (lex->name.length > sizeof(db_name_buff) - 1)
+  {
+    my_error(ER_WRONG_DB_NAME, MYF(0),
+             ErrConvString(lex->name.str, lex->name.length,
+                           system_charset_info).ptr());
+    return 1;
+  }
+#else
+#error Remove this preprocessor-conditional code in 11.3.1+
+#endif
 
   db_name.str= db_name_buff;
   db_name.length= lex->name.length;
@@ -7218,7 +7317,7 @@ check_table_access(THD *thd, privilege_t requirements, TABLE_LIST *tables,
                     INSERT_ACL : SELECT_ACL);
     }
 
-    if (check_access(thd, want_access, table_ref->get_db_name(),
+    if (check_access(thd, want_access, table_ref->get_db_name().str,
                      &table_ref->grant.privilege,
                      &table_ref->grant.m_internal,
                      0, no_errors))
@@ -8010,6 +8109,7 @@ static bool wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
     thd->wsrep_retry_query      = NULL;
     thd->wsrep_retry_query_len  = 0;
     thd->wsrep_retry_command    = COM_CONNECT;
+    thd->proc_info= 0;
   }
   return false;
 }
@@ -9315,17 +9415,21 @@ kill_one_thread(THD *thd, my_thread_id id, killed_state kill_signal, killed_type
 
     mysql_mutex_lock(&tmp->LOCK_thd_data); // Lock from concurrent usage
 
-#ifdef WITH_WSREP
-    if (((thd->security_ctx->master_access & PRIV_KILL_OTHER_USER_PROCESS) ||
-        thd->security_ctx->user_matches(tmp->security_ctx)) &&
-        !wsrep_thd_is_BF(tmp, false) && !tmp->wsrep_applier)
-#else
     if ((thd->security_ctx->master_access & PRIV_KILL_OTHER_USER_PROCESS) ||
         thd->security_ctx->user_matches(tmp->security_ctx))
-#endif /* WITH_WSREP */
     {
-      {
 #ifdef WITH_WSREP
+      if (wsrep_thd_is_BF(tmp, false) || tmp->wsrep_applier)
+      {
+        error= ER_KILL_DENIED_HIGH_PRIORITY;
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                            ER_KILL_DENIED_HIGH_PRIORITY,
+                            "Thread %lld is %s and cannot be killed",
+                            tmp->thread_id,
+                           (tmp->wsrep_applier ? "wsrep applier" : "high priority"));
+      }
+      else
+      {
         if (WSREP(tmp))
         {
           /* Object tmp is not guaranteed to exist after wsrep_kill_thd()
@@ -9335,7 +9439,9 @@ kill_one_thread(THD *thd, my_thread_id id, killed_state kill_signal, killed_type
 #endif /* WITH_WSREP */
         tmp->awake_no_mutex(kill_signal);
         error= 0;
+#ifdef WITH_WSREP
       }
+#endif /* WITH_WSREP */
     }
     else
       error= (type == KILL_TYPE_QUERY ? ER_KILL_QUERY_DENIED_ERROR :
@@ -9465,7 +9571,9 @@ void sql_kill(THD *thd, my_thread_id id, killed_state state, killed_type type)
       thd->send_kill_message();
   }
   else
+  {
     my_error(error, MYF(0), id);
+  }
 }
 
 
@@ -9481,7 +9589,7 @@ sql_kill_user(THD *thd, LEX_USER *user, killed_state state)
     break;
   case ER_KILL_DENIED_ERROR:
     char buf[DEFINER_LENGTH+1];
-    strxnmov(buf, sizeof(buf), user->user.str, "@", user->host.str, NULL);
+    strxnmov(buf, sizeof(buf)-1, user->user.str, "@", user->host.str, NULL);
     my_printf_error(ER_KILL_DENIED_ERROR, ER_THD(thd, ER_CANNOT_USER), MYF(0),
                     "KILL USER", buf);
     break;

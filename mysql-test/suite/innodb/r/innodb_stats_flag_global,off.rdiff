@@ -1,0 +1,34 @@
+@@ -18,7 +18,7 @@
+ test.test_ps_flag	analyze	status	OK
+ SELECT COUNT(*) AS cnt_after FROM mysql.innodb_table_stats WHERE table_name = 'test_ps_flag';
+ cnt_after
+-1
++0
+ DROP TABLE test_ps_flag;
+ CREATE TABLE test_ps_flag (a INT) ENGINE=INNODB STATS_PERSISTENT=default;
+ SHOW CREATE TABLE test_ps_flag;
+@@ -37,7 +37,7 @@
+ test.test_ps_flag	analyze	status	OK
+ SELECT COUNT(*) AS cnt_after FROM mysql.innodb_table_stats WHERE table_name = 'test_ps_flag';
+ cnt_after
+-1
++0
+ DROP TABLE test_ps_flag;
+ =====
+ === Test ANALYZE behavior after creation with explicit PS=OFF
+@@ -142,7 +142,7 @@
+ test.test_ps_flag	analyze	status	OK
+ SELECT COUNT(*) AS cnt_after FROM mysql.innodb_table_stats WHERE table_name = 'test_ps_flag';
+ cnt_after
+-1
++0
+ DROP TABLE test_ps_flag;
+ =====
+ === Test ANALYZE behavior after creation with explicit PS=ON,
+@@ -203,5 +203,5 @@
+ test.test_ps_flag	analyze	status	OK
+ SELECT COUNT(*) AS cnt_after FROM mysql.innodb_table_stats WHERE table_name = 'test_ps_flag';
+ cnt_after
+-1
++0
+ DROP TABLE test_ps_flag;

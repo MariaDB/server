@@ -25,7 +25,7 @@ require {
 	class lnk_file read;
 	class process { getattr signull };
 	class unix_stream_socket connectto;
-	class capability { sys_resource sys_nice };
+	class capability { ipc_lock sys_resource sys_nice };
 	class tcp_socket { name_bind name_connect };
 	class file { execute setattr read create getattr execute_no_trans write ioctl open append unlink };
 	class sock_file { create unlink getattr };
@@ -87,6 +87,8 @@ allow mysqld_t bin_t:file { getattr read execute open execute_no_trans ioctl };
 
 # MariaDB additions
 allow mysqld_t self:process setpgid;
+allow mysqld_t self:capability { ipc_lock };
+
 # This rule allows port tcp/4444
 allow mysqld_t kerberos_port_t:tcp_socket { name_bind name_connect };
 # This rule allows port tcp/4567 (tram_port_t may not be available on

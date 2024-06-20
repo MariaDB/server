@@ -1,7 +1,7 @@
 Source: mariadb-10.5
 Section: database
 Priority: optional
-Maintainer: MariaDB Developers <maria-developers@lists.launchpad.net>
+Maintainer: MariaDB Developers <developers@lists.mariadb.org>
 Build-Depends: bison,
                cmake,
                cracklib-runtime <!nocheck>,
@@ -26,8 +26,7 @@ Build-Depends: bison,
                libjudy-dev,
                libkrb5-dev,
                liblz4-dev,
-               libncurses5-dev (>= 5.0-6~),
-               libncurses5-dev:native (>= 5.0-6~),
+               libncurses-dev,
                libnuma-dev [linux-any],
                libpam0g-dev,
                libpcre2-dev,

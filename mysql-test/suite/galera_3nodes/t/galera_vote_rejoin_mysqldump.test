@@ -59,6 +59,7 @@ SET SESSION wsrep_on=ON;
 --let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
 --source include/wait_condition.inc
 
+SELECT VARIABLE_VALUE AS expect_3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
 SELECT VARIABLE_VALUE AS expect_Primary FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
 
 # Confirm that the table is now identical throughout
@@ -67,18 +68,7 @@ SELECT VARIABLE_VALUE AS expect_Primary FROM INFORMATION_SCHEMA.GLOBAL_STATUS WH
 SHOW CREATE TABLE t1;
 
 --connection node_2
-SET SESSION wsrep_on=OFF;
---let $wait_condition = SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
---source include/wait_condition.inc
---source include/galera_wait_ready.inc
-SET SESSION wsrep_on=ON;
-
-# restart node so we don't fail on WSREP_START_POSITION internal check
---source include/restart_mysqld.inc
---source include/wait_until_connected_again.inc
-
 SHOW CREATE TABLE t1;
-SELECT COUNT(*) AS expect_0 FROM t1;
 CALL mtr.add_suppression("is inconsistent with group");
 
 --connection node_3
@@ -88,6 +78,15 @@ CALL mtr.add_suppression("Slave SQL: Error 'Can't DROP 'PRIMARY'; check that col
 
 --connection node_1
 --source suite/galera/include/galera_sst_restore.inc
+
+--connection node_2
+# restart node so we don't fail on WSREP_START_POSITION internal check
+--source include/restart_mysqld.inc
+--source include/wait_until_connected_again.inc
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
 
 # Restore original auto_increment_offset values.
 --source ../galera/include/auto_increment_offset_restore.inc

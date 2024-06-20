@@ -79,9 +79,9 @@ static int user_variables_fill(THD *thd, TABLE_LIST *tables, COND *cond)
     else
       return 1;
 
-    const LEX_CSTRING *tmp= var->unsigned_flag ?
-                            &unsigned_result_types[var->type] :
-                            &result_types[var->type];
+    const LEX_CSTRING *tmp= var->type_handler()->is_unsigned() ?
+            &unsigned_result_types[var->type_handler()->result_type()] :
+            &result_types[var->type_handler()->result_type()];
     field[2]->store(tmp->str, tmp->length, system_charset_info);
 
     if (var->charset())

@@ -3,7 +3,8 @@ include/master-slave.inc
 connection slave;
 include/stop_slave.inc
 SET @save_dbug= @@GLOBAL.debug_dbug;
-SET @@global.debug_dbug="+d,pause_sql_thread_on_fde,negate_clock_diff_with_master";
+SET @@global.debug_dbug="+d,pause_sql_thread_on_relay_fde_after_trans";
+SET @@global.debug_dbug="+d,negate_clock_diff_with_master";
 include/start_slave.inc
 # Future events must be logged at least 2 seconds after
 # the slave starts
@@ -15,11 +16,6 @@ insert into t1 values (1);
 # event in its relay log
 flush logs;
 connection slave;
-# Ignore FDEs that happen before the CREATE/INSERT commands
-SET DEBUG_SYNC='now WAIT_FOR paused_on_fde';
-SET DEBUG_SYNC='now SIGNAL sql_thread_continue';
-SET DEBUG_SYNC='now WAIT_FOR paused_on_fde';
-SET DEBUG_SYNC='now SIGNAL sql_thread_continue';
 # On the next FDE, the slave should have the master CREATE/INSERT events
 SET DEBUG_SYNC='now WAIT_FOR paused_on_fde';
 select count(*)=1 from t1;

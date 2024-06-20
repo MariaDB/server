@@ -9,6 +9,7 @@
 /* special files */
 #define XTRABACKUP_SLAVE_INFO "xtrabackup_slave_info"
 #define XTRABACKUP_GALERA_INFO "xtrabackup_galera_info"
+#define XTRABACKUP_DONOR_GALERA_INFO "donor_galera_info"
 #define XTRABACKUP_BINLOG_INFO "xtrabackup_binlog_info"
 #define XTRABACKUP_INFO "xtrabackup_info"
 

@@ -1,0 +1,22 @@
+#
+# MDEV-28683 Spider: SIGSEGV in spider_db_direct_delete, SIGSEGV in spider_db_connect, ASAN: heap-use-after-free in spider_db_direct_delete
+#
+for master_1
+for child2
+for child3
+CREATE TABLE t (c INT) ENGINE=Spider;
+SELECT * FROM t;
+ERROR HY000: Unable to connect to foreign data source: localhost
+INSERT INTO t (SELECT 1 FROM t);
+ERROR HY000: Unable to connect to foreign data source: localhost
+LOCK TABLES t WRITE CONCURRENT;
+DELETE FROM t;
+ERROR HY000: Unable to connect to foreign data source: localhost
+UNLOCK TABLES;
+DROP TABLE t;
+for master_1
+for child2
+for child3
+#
+# end of test mdev_28683
+#

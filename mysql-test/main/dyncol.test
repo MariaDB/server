@@ -670,18 +670,16 @@ SELECT COLUMN_GET(`x`, 'y' AS DECIMAL(5,50));
 --echo #
 --echo # creation test (names)
 set names utf8;
-#enable after MDEV-32465 fix
---disable_view_protocol
+--disable_service_connection
 select hex(column_create("адын", 1212));
---enable_view_protocol
+--enable_service_connection
 select hex(column_create("1212", 1212));
 select hex(column_create(1212, 2, "www", 3));
 select hex(column_create("1212", 2, "www", 3));
 select hex(column_create("1212", 2, 3, 3));
-#enable after MDEV-32465 fix
---disable_view_protocol
+--disable_service_connection
 select hex(column_create("1212", 2, "адын", 1, 3, 3));
---enable_view_protocol
+--enable_service_connection
 set names latin1;
 
 --echo # fetching column test (names)
@@ -708,15 +706,14 @@ select column_exists(column_create("1212", 2, "адын", 1, 3, 3), "4") as ex;
 set names latin1;
 
 --echo # column changing test (names)
-#enable after MDEV-32465 fix
---disable_view_protocol
+--disable_service_connection
 select hex(column_add(column_create(1, "AAA"), "b", "BBB")) as ex;
 select hex(column_add(column_create("1", "AAA"), "b", "BBB")) as ex;
 select column_get(column_add(column_create(1, "AAA"), "b", "BBB"), 1 as char) as ex;
 select column_get(column_add(column_create(1, "AAA"), "b", "BBB"), "b" as char) as ex;
 select hex(column_add(column_create("a", "AAA"), 1, "BBB")) as ex;
 select hex(column_add(column_create("a", "AAA"), "1", "BBB")) as ex;
---enable_view_protocol
+--enable_service_connection
 select hex(column_add(column_create("a", 1212 as integer), "b", "1212" as integer)) as ex;
 select hex(column_add(column_create("a", 1212 as integer), "a", "1212" as integer)) as ex;
 select hex(column_add(column_create("a", 1212 as integer), "a", NULL as integer)) as ex;
@@ -1003,3 +1000,29 @@ SELECT HEX(COLUMN_ADD(COLUMN_CREATE(1,10),2,NULL,1,NULL)) as ex;
 --echo #
 --echo # End of 10.4 tests
 --echo #
+
+--echo #
+--echo # MDEV-33788 HEX(COLUMN_CREATE(.. AS CHAR ...)) fails with --view-protocol
+--echo #
+
+SELECT hex(column_create(1,'a' AS CHAR CHARACTER SET utf8mb3 COLLATE utf8mb3_bin)) AS ex;
+SELECT hex(column_add(column_create(
+                      1, 'a' AS CHAR CHARACTER SET utf8mb3 COLLATE utf8mb3_bin),
+                      2, 'b' AS CHAR CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci)) AS ex;
+
+--echo #
+--echo # MDEV-31566 Fix buffer overrun of column_json function
+--echo #
+
+
+create table t1 (
+  c1 varchar(32) primary key,
+  d1  blob
+);
+insert into t1 values ('var', 0x0402000A0000000300030023076A736E7375626A6563742E0005006C0027000200290002002B0002002D0002002F0002000C31000C3B000C4B000C51000F62006631663266336634663509E5A79AE8BF9CE6B48B0FE8819AE9809AE98791E6A1A5E5BA970537343530301031313634332F393634352F31313630300C080000000000EFBFBDEFBFBD192E), ('zzz', 0x0402000900000003000300740C6A736E766F6C756D652E000900EFBFBD004300020045000200470003004A0004004E00050053000500580005005D000500620005000C67000C6A000C6D000C7000052C00051B00052C000CEFBFBD0007EFBFBD006638663966313070696332626F785F63626F785F67626F785F6B626F785F7666355F696402343402343402333241687474703A2F2F6F73732E68646238382E636F6D2F302F70686F746F2F30373865653765376336343634616236386130343833373333323636613532612E67696608302E303532323732244F1E00030180C106);
+
+select c1,column_json(d1) as not_crashing from t1 order by c1;
+
+drop table t1;
+
+--echo # End of 10.5 tests

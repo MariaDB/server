@@ -232,7 +232,7 @@ START TRANSACTION
 #010909  4:46:40 server id #  end_log_pos # 	Annotate_rows:
 #Q> DELETE test1.t1, test2.t2
 #Q> FROM test1.t1 INNER JOIN test2.t2 INNER JOIN test3.t3
-#Q> WHERE test1.t1.a=test2.t2.a AND test2.t2.a=test3.t3
+#Q> WHERE test1.t1.a=test2.t2.a AND test2.t2.a=test3.t3.a
 #010909  4:46:40 server id #  end_log_pos # 	Table_map: `test1`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	Table_map: `test2`.`t2` mapped to number #
@@ -301,7 +301,7 @@ START TRANSACTION
 #010909  4:46:40 server id #  end_log_pos # 	Annotate_rows:
 #Q> DELETE xtest1.xt1, test2.t2
 #Q> FROM xtest1.xt1 INNER JOIN test2.t2 INNER JOIN test3.t3
-#Q> WHERE xtest1.xt1.a=test2.t2.a AND test2.t2.a=test3.t3
+#Q> WHERE xtest1.xt1.a=test2.t2.a AND test2.t2.a=test3.t3.a
 #010909  4:46:40 server id #  end_log_pos # 	Table_map: `test2`.`t2` mapped to number #
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	Delete_rows: table id # flags: STMT_END_F
@@ -434,7 +434,7 @@ START TRANSACTION
 #010909  4:46:40 server id #  end_log_pos # 	Annotate_rows:
 #Q> DELETE test1.t1, test2.t2
 #Q> FROM test1.t1 INNER JOIN test2.t2 INNER JOIN test3.t3
-#Q> WHERE test1.t1.a=test2.t2.a AND test2.t2.a=test3.t3
+#Q> WHERE test1.t1.a=test2.t2.a AND test2.t2.a=test3.t3.a
 #010909  4:46:40 server id #  end_log_pos # 	Table_map: `test1`.`t1` mapped to number #
 # at #
 # at #
@@ -855,7 +855,7 @@ START TRANSACTION
 #010909  4:46:40 server id #  end_log_pos # 	Annotate_rows:
 #Q> DELETE test1.t1, test2.t2
 #Q> FROM test1.t1 INNER JOIN test2.t2 INNER JOIN test3.t3
-#Q> WHERE test1.t1.a=test2.t2.a AND test2.t2.a=test3.t3
+#Q> WHERE test1.t1.a=test2.t2.a AND test2.t2.a=test3.t3.a
 #010909  4:46:40 server id #  end_log_pos # 	Table_map: `test1`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	Table_map: `test2`.`t2` mapped to number #
@@ -924,7 +924,7 @@ START TRANSACTION
 #010909  4:46:40 server id #  end_log_pos # 	Annotate_rows:
 #Q> DELETE xtest1.xt1, test2.t2
 #Q> FROM xtest1.xt1 INNER JOIN test2.t2 INNER JOIN test3.t3
-#Q> WHERE xtest1.xt1.a=test2.t2.a AND test2.t2.a=test3.t3
+#Q> WHERE xtest1.xt1.a=test2.t2.a AND test2.t2.a=test3.t3.a
 #010909  4:46:40 server id #  end_log_pos # 	Table_map: `test2`.`t2` mapped to number #
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	Delete_rows: table id # flags: STMT_END_F
@@ -1057,7 +1057,7 @@ START TRANSACTION
 #010909  4:46:40 server id #  end_log_pos # 	Annotate_rows:
 #Q> DELETE test1.t1, test2.t2
 #Q> FROM test1.t1 INNER JOIN test2.t2 INNER JOIN test3.t3
-#Q> WHERE test1.t1.a=test2.t2.a AND test2.t2.a=test3.t3
+#Q> WHERE test1.t1.a=test2.t2.a AND test2.t2.a=test3.t3.a
 #010909  4:46:40 server id #  end_log_pos # 	Table_map: `test1`.`t1` mapped to number #
 # at #
 # at #

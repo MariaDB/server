@@ -1118,7 +1118,7 @@ static ulint btr_node_ptr_max_size(const dict_index_t* index)
 		/* Determine the maximum length of the index field. */
 
 		field_max_size = dict_col_get_fixed_size(col, comp);
-		if (field_max_size) {
+		if (field_max_size && field->fixed_len) {
 			/* dict_index_add_col() should guarantee this */
 			ut_ad(!field->prefix_len
 			      || field->fixed_len == field->prefix_len);
@@ -7396,7 +7396,6 @@ btr_store_big_rec_extern_fields(
 		for (ulint blob_npages = 0;; ++blob_npages) {
 			buf_block_t*	block;
 			const ulint	commit_freq = 4;
-			uint32_t	r_extents;
 
 			ut_ad(page_align(field_ref) == page_align(rec));
 
@@ -7422,18 +7421,17 @@ btr_store_big_rec_extern_fields(
 				hint_prev = rec_block->page.id().page_no();
 			}
 
-			if (!fsp_reserve_free_extents(&r_extents,
-						      index->table->space, 1,
-						      FSP_BLOB, &mtr, 1)) {
-				mtr.commit();
-				error = DB_OUT_OF_FILE_SPACE;
-				goto func_exit;
-			}
-
 			block = btr_page_alloc(index, hint_prev + 1,
 					       FSP_NO_DIR, 0, &mtr, &mtr);
 
-			index->table->space->release_free_extents(r_extents);
+			if (!block) {
+				error = DB_OUT_OF_FILE_SPACE;
+                                mtr.commit();
+				if (op == BTR_STORE_INSERT_BULK) {
+					mtr.commit();
+				}
+				goto func_exit;
+			}
 
 			ut_a(block != NULL);
 

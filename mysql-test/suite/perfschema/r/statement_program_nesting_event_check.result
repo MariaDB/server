@@ -145,7 +145,7 @@ Bollywood
 # Event
 SET GLOBAL event_scheduler=ON;
 CREATE TABLE table_t(a INT);
-CREATE EVENT e1 ON SCHEDULE EVERY 2 SECOND DO
+CREATE EVENT e1 ON SCHEDULE EVERY 2 SECOND ON COMPLETION NOT PRESERVE DO
 BEGIN
 INSERT INTO table_t VALUES(1);
 END|
@@ -165,7 +165,7 @@ statement/sql/call_procedure	CALL SampleProc1(30,40,50)	NULL	NULL	0
 statement/sql/call_procedure	CALL SampleProc2("Jwalamukhi",34)	NULL	NULL	0
 statement/sql/call_procedure	CALL SampleProc3()	NULL	NULL	0
 statement/sql/call_procedure	CALL SampleProc4()	NULL	NULL	0
-statement/sql/create_event	CREATE EVENT e1 ON SCHEDULE EVERY 2 SECOND DO
+statement/sql/create_event	CREATE EVENT e1 ON SCHEDULE EVERY 2 SECOND ON COMPLETION NOT PRESERVE DO
 BEGIN
 INSERT INTO table_t VALUES(1);
 END	NULL	NULL	0

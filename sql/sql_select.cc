@@ -278,7 +278,6 @@ static void update_tmptable_sum_func(Item_sum **func,TABLE *tmp_table);
 static void copy_sum_funcs(Item_sum **func_ptr, Item_sum **end);
 static bool add_ref_to_table_cond(THD *thd, JOIN_TAB *join_tab);
 static bool setup_sum_funcs(THD *thd, Item_sum **func_ptr);
-static bool prepare_sum_aggregators(Item_sum **func_ptr, bool need_distinct);
 static bool init_sum_functions(Item_sum **func, Item_sum **end);
 static bool update_sum_func(Item_sum **func);
 static void select_describe(JOIN *join, bool need_tmp_table,bool need_order,
@@ -672,37 +671,57 @@ void remove_redundant_subquery_clauses(st_select_lex *subq_select_lex)
   if (subq_select_lex->group_list.elements &&
       !subq_select_lex->with_sum_func && !subq_select_lex->join->having)
   {
+    /*
+      Temporary workaround for MDEV-28621: Do not remove GROUP BY expression
+      if it has any subqueries in it.
+    */
+    bool have_subquery= false;
     for (ORDER *ord= subq_select_lex->group_list.first; ord; ord= ord->next)
     {
-      /*
-        Do not remove the item if it is used in select list and then referred
-        from GROUP BY clause by its name or number. Example:
-
-          select (select ... ) as SUBQ ...  group by SUBQ
-
-        Here SUBQ cannot be removed.
-      */
-      if (!ord->in_field_list)
+      if ((*ord->item)->with_subquery())
       {
-        (*ord->item)->walk(&Item::eliminate_subselect_processor, FALSE, NULL);
-        /*
-          Remove from the JOIN::all_fields list any reference to the elements
-          of the eliminated GROUP BY list unless it is 'in_field_list'.
-          This is needed in order not to confuse JOIN::make_aggr_tables_info()
-          when it constructs different structure for execution phase.
-	*/
-        List_iterator<Item> li(subq_select_lex->join->all_fields);
-	Item *item;
-        while ((item= li++))
-	{
-          if (item == *ord->item)
-	    li.remove();
-	}
+        have_subquery= true;
+        break;
       }
     }
-    subq_select_lex->join->group_list= NULL;
-    subq_select_lex->group_list.empty();
-    DBUG_PRINT("info", ("GROUP BY removed"));
+
+    if (!have_subquery)
+    {
+      for (ORDER *ord= subq_select_lex->group_list.first; ord; ord= ord->next)
+      {
+        /*
+          Do not remove the item if it is used in select list and then referred
+          from GROUP BY clause by its name or number. Example:
+
+            select (select ... ) as SUBQ ...  group by SUBQ
+
+          Here SUBQ cannot be removed.
+        */
+        if (!ord->in_field_list)
+        {
+          /*
+          Not necessary due to workaround for MDEV-28621:
+          (*ord->item)->walk(&Item::eliminate_subselect_processor, FALSE, NULL);
+          */
+          /*
+            Remove from the JOIN::all_fields list any reference to the elements
+            of the eliminated GROUP BY list unless it is 'in_field_list'.
+            This is needed in order not to confuse JOIN::make_aggr_tables_info()
+            when it constructs different structure for execution phase.
+          */
+          List_iterator<Item> li(subq_select_lex->join->all_fields);
+          Item *item;
+          while ((item= li++))
+          {
+            if (item == *ord->item)
+              li.remove();
+          }
+        }
+      }
+      subq_select_lex->join->group_list= NULL;
+      subq_select_lex->group_list.empty();
+      DBUG_PRINT("info", ("GROUP BY removed"));
+    }
   }
 
   /*
@@ -1317,6 +1336,26 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
   if (setup_wild(thd, tables_list, fields_list, &all_fields, select_lex, false))
     DBUG_RETURN(-1);
 
+  /*
+    If the select_lex is immediately contained within a derived table
+    AND this derived table is a CTE
+    WITH supplied column names
+    AND we have the correct number of elements in both lists
+      (mismatches found in mysql_derived_prepare/rename_columns_of_derived_unit)
+    THEN NOW is the time to take a copy of these item_names for
+      later restoration if required.
+  */
+  TABLE_LIST *derived= select_lex->master_unit()->derived;
+
+  if (derived &&
+      derived->with &&
+      derived->with->column_list.elements &&
+      (derived->with->column_list.elements == select_lex->item_list.elements))
+  {
+    if (select_lex->save_item_list_names(thd))
+      DBUG_RETURN(-1);
+  }
+
   if (thd->lex->current_select->first_cond_optimization)
   {
     if ( conds && ! thd->lex->current_select->merged_into)
@@ -1744,7 +1783,9 @@ int JOIN::optimize()
     object a pointer to which is set in the field JOIN_TAB::rowid_filter of
     the joined table.
 
-  @retval false  always
+  @retval
+    false OK
+    true  Error, query should abort
 */
 
 bool JOIN::make_range_rowid_filters()
@@ -1791,8 +1832,11 @@ bool JOIN::make_range_rowid_filters()
                                    (ha_rows) HA_POS_ERROR,
                                    true, false, true, true);
     tab->table->force_index= force_index_save;
-    if (thd->is_error())
-      goto no_filter;
+    if (thd->is_error() || thd->check_killed())
+    {
+      delete sel;
+      DBUG_RETURN(true);
+    }
     /*
       If SUBS_IN_TO_EXISTS strtrategy is chosen for the subquery then
       additional conditions are injected into WHERE/ON/HAVING and it may
@@ -1816,8 +1860,6 @@ bool JOIN::make_range_rowid_filters()
         continue;
     }
   no_filter:
-    if (sel->quick)
-      delete sel->quick;
     delete sel;
   }
 
@@ -2124,6 +2166,10 @@ JOIN::optimize_inner()
                                                   select_lex->attach_to_conds,
                                                   &cond_value);
       sel->attach_to_conds.empty();
+      Json_writer_object wrapper(thd);
+      Json_writer_object pushd(thd, "condition_pushdown_from_having");
+      pushd.add("conds", conds);
+      pushd.add("having", having);
     }
   }
 
@@ -3282,7 +3328,8 @@ bool JOIN::make_aggr_tables_info()
 {
   List<Item> *curr_all_fields= &all_fields;
   List<Item> *curr_fields_list= &fields_list;
-  JOIN_TAB *curr_tab= join_tab + const_tables;
+  // Avoid UB (applying .. offset to nullptr) when join_tab is nullptr
+  JOIN_TAB *curr_tab= join_tab ? join_tab + const_tables : nullptr;
   TABLE *exec_tmp_table= NULL;
   bool distinct= false;
   bool keep_row_order= false;
@@ -3318,7 +3365,7 @@ bool JOIN::make_aggr_tables_info()
     distinct in the engine, so we do this for all queries, not only
     GROUP BY queries.
   */
-  if (tables_list && top_join_tab_count && !procedure)
+  if (tables_list && top_join_tab_count && !only_const_tables() && !procedure)
   {
     /*
       At the moment we only support push down for queries where
@@ -3636,7 +3683,7 @@ bool JOIN::make_aggr_tables_info()
       {
         if (make_sum_func_list(*curr_all_fields, *curr_fields_list, true))
           DBUG_RETURN(true);
-        if (prepare_sum_aggregators(sum_funcs,
+        if (prepare_sum_aggregators(thd, sum_funcs,
                                     !join_tab->is_using_agg_loose_index_scan()))
           DBUG_RETURN(true);
         group_list= NULL;
@@ -3746,7 +3793,7 @@ bool JOIN::make_aggr_tables_info()
     }
     if (make_sum_func_list(*curr_all_fields, *curr_fields_list, true))
       DBUG_RETURN(true);
-    if (prepare_sum_aggregators(sum_funcs,
+    if (prepare_sum_aggregators(thd, sum_funcs,
                                 !join_tab ||
                                 !join_tab-> is_using_agg_loose_index_scan()))
       DBUG_RETURN(true);
@@ -3840,9 +3887,9 @@ bool JOIN::make_aggr_tables_info()
     - duplicate value removal
     Both of these operations are done after window function computation step.
   */
-  curr_tab= join_tab + total_join_tab_cnt();
   if (select_lex->window_funcs.elements)
   {
+    curr_tab= join_tab + total_join_tab_cnt();
     if (!(curr_tab->window_funcs_step= new Window_funcs_computation))
       DBUG_RETURN(true);
     if (curr_tab->window_funcs_step->setup(thd, &select_lex->window_funcs,
@@ -3927,8 +3974,8 @@ JOIN::create_postjoin_aggr_table(JOIN_TAB *tab, List<Item> *table_fields,
       goto err;
     if (make_sum_func_list(all_fields, fields_list, true))
       goto err;
-    if (prepare_sum_aggregators(sum_funcs,
-                                !(tables_list && 
+    if (prepare_sum_aggregators(thd, sum_funcs,
+                                !(tables_list &&
                                   join_tab->is_using_agg_loose_index_scan())))
       goto err;
     if (setup_sum_funcs(thd, sum_funcs))
@@ -3937,7 +3984,7 @@ JOIN::create_postjoin_aggr_table(JOIN_TAB *tab, List<Item> *table_fields,
   }
   else
   {
-    if (prepare_sum_aggregators(sum_funcs,
+    if (prepare_sum_aggregators(thd, sum_funcs,
                                 !join_tab->is_using_agg_loose_index_scan()))
       goto err;
     if (setup_sum_funcs(thd, sum_funcs))
@@ -12827,7 +12874,8 @@ end_sj_materialize(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
       if (item->is_null())
         DBUG_RETURN(NESTED_LOOP_OK);
     }
-    fill_record(thd, table, table->field, sjm->sjm_table_cols, TRUE, FALSE);
+    fill_record(thd, table, table->field, sjm->sjm_table_cols, true, false,
+                true);
     if (unlikely(thd->is_error()))
       DBUG_RETURN(NESTED_LOOP_ERROR); /* purecov: inspected */
     if (unlikely((error= table->file->ha_write_tmp_row(table->record[0]))))
@@ -15385,7 +15433,7 @@ static bool check_row_equality(THD *thd, const Arg_comparator *comparators,
     {
       Item_func_eq *eq_item;
       if (!(eq_item= new (thd->mem_root) Item_func_eq(thd, left_item, right_item)) ||
-          eq_item->set_cmp_func())
+          eq_item->set_cmp_func(thd))
         return FALSE;
       eq_item->quick_fix_field();
       eq_list->push_back(eq_item, thd->mem_root);
@@ -16135,7 +16183,7 @@ Item *eliminate_item_equal(THD *thd, COND *cond, COND_EQUAL *upper_levels,
           Don't produce equality if const is equal to item_const.
         */
         Item_func_eq *func= new (thd->mem_root) Item_func_eq(thd, item_const, upper_const);
-        func->set_cmp_func();
+        func->set_cmp_func(thd);
         func->quick_fix_field();
         if (func->val_int())
           item= 0;
@@ -16183,8 +16231,9 @@ Item *eliminate_item_equal(THD *thd, COND *cond, COND_EQUAL *upper_levels,
                                                 field_item->remove_item_direct_ref(),
                                                 head_item->remove_item_direct_ref());
 
-      if (!eq_item || eq_item->set_cmp_func())
+      if (!eq_item || eq_item->set_cmp_func(thd))
         return 0;
+      eq_item->eval_not_null_tables(0);
       eq_item->quick_fix_field();
     }
     current_sjm= field_sjm;
@@ -16242,6 +16291,7 @@ Item *eliminate_item_equal(THD *thd, COND *cond, COND_EQUAL *upper_levels,
   {
     res->quick_fix_field();
     res->update_used_tables();
+    res->eval_not_null_tables(0);
   }
 
   return res;
@@ -16601,7 +16651,7 @@ change_cond_ref_to_const(THD *thd, I_List<COND_CMP> *save_list,
         So make sure to use set_cmp_func() only for non-LIKE operators.
       */
       if (functype != Item_func::LIKE_FUNC)
-        ((Item_bool_rowready_func2*) func)->set_cmp_func();
+        ((Item_bool_rowready_func2*) func)->set_cmp_func(thd);
     }
   }
   else if (can_change_cond_ref_to_const(func, left_item, right_item,
@@ -16626,7 +16676,7 @@ change_cond_ref_to_const(THD *thd, I_List<COND_CMP> *save_list,
 	  save_list->push_back(tmp2);
       }
       if (functype != Item_func::LIKE_FUNC)
-        ((Item_bool_rowready_func2*) func)->set_cmp_func();
+        ((Item_bool_rowready_func2*) func)->set_cmp_func(thd);
     }
   }
 }
@@ -17765,6 +17815,12 @@ Item_cond::remove_eq_conds(THD *thd, Item::cond_result *cond_value,
   bool and_level= functype() == Item_func::COND_AND_FUNC;
   List<Item> *cond_arg_list= argument_list();
 
+  if (check_stack_overrun(thd, STACK_MIN_SIZE, NULL))
+  {
+    *cond_value= Item::COND_FALSE;
+    return (COND*) 0;                           // Fatal error flag is set!
+  }
+
   if (and_level)
   {
     /*
@@ -18537,6 +18593,25 @@ Field *Item_func_sp::create_tmp_field_ex(MEM_ROOT *root, TABLE *table,
   return result;
 }
 
+
+static bool make_json_valid_expr(TABLE *table, Field *field)
+{
+  THD *thd= table->in_use;
+  Query_arena backup_arena;
+  Item *expr, *item_field;
+
+  if (!table->expr_arena && table->init_expr_arena(thd->mem_root))
+    return 1;
+
+  thd->set_n_backup_active_arena(table->expr_arena, &backup_arena);
+  if ((item_field= new (thd->mem_root) Item_field(thd, field)) &&
+      (expr= new (thd->mem_root) Item_func_json_valid(thd, item_field)))
+    field->check_constraint= add_virtual_expression(thd, expr);
+  thd->restore_active_arena(table->expr_arena, &backup_arena);
+  return field->check_constraint == NULL;
+}
+
+
 /**
   Create field for temporary table.
 
@@ -18582,6 +18657,9 @@ Field *create_tmp_field(TABLE *table, Item *item,
                       make_copy_field);
   Field *result= item->create_tmp_field_ex(table->in_use->mem_root,
                                            table, &src, &prm);
+  if (is_json_type(item) && make_json_valid_expr(table, result))
+    result= NULL;
+
   *from_field= src.field();
   *default_field= src.default_field();
   if (src.item_result_field())
@@ -20347,7 +20425,7 @@ create_internal_tmp_table_from_heap(THD *thd, TABLE *table,
   if (open_tmp_table(&new_table))
     goto err1;
   if (table->file->indexes_are_disabled())
-    new_table.file->ha_disable_indexes(HA_KEY_SWITCH_ALL);
+    new_table.file->ha_disable_indexes(key_map(0), false);
   table->file->ha_index_or_rnd_end();
   if (table->file->ha_rnd_init_with_error(1))
     DBUG_RETURN(1);
@@ -23882,6 +23960,90 @@ void compute_part_of_sort_key_for_equals(JOIN *join, TABLE *table,
 }
 
 
+/*
+  @brief
+    This is called when switching table access to produce records
+    in reverse order.
+
+  @detail
+    - Disable "Range checked for each record" (Is this strictly necessary
+      here?)
+    - Disable Index Condition Pushdown and Rowid Filtering.
+
+  IndexConditionPushdownAndReverseScans, RowidFilteringAndReverseScans:
+  Suppose we're computing
+
+    select * from t1
+    where
+      key1 between 10 and 20 and extra_condition
+    order by key1 desc
+
+  here the range access uses a reverse-ordered scan on (1 <= key1 <= 10) and
+  extra_condition is checked by either ICP or Rowid Filtering.
+
+  Also suppose that extra_condition happens to be false for rows of t1 that
+  do not satisfy the "10 <= key1 <= 20" condition.
+
+  For forward ordered range scan, the SQL layer will make these calls:
+
+    h->read_range_first(RANGE(10 <= key1 <= 20));
+    while (h->read_range_next()) { ... }
+
+  The storage engine sees the end endpoint of "key1<=20" and can stop scanning
+  as soon as it encounters a row with key1>20.
+
+  For backward-ordered range scan, the SQL layer will make these calls:
+
+    h->index_read_map(key1=20, HA_READ_PREFIX_LAST_OR_PREV);
+    while (h->index_prev()) {
+      if (cmp_key(h->record, "key1=10" )<0)
+        break; // end of range
+      ...
+    }
+
+  Note that the check whether we've walked beyond the key=10 endpoint is
+  made at the SQL layer. The storage engine has no information about the left
+  endpoint of the interval we're scanning.  If all rows before that endpoint
+  do not satisfy ICP condition or do not pass the Rowid Filter, the storage
+  engine will enumerate the records until the table start.
+
+  In MySQL, the API is extended with set_end_range() call so that the storage
+  engine "knows" when to stop scanning.
+*/
+
+static void prepare_for_reverse_ordered_access(JOIN_TAB *tab)
+{
+  /* Cancel "Range checked for each record" */
+  if (tab->use_quick == 2)
+  {
+    tab->use_quick= 1;
+    tab->read_first_record= join_init_read_record;
+  }
+  /*
+    Cancel Pushed Index Condition, as it doesn't work for reverse scans.
+  */
+  if (tab->select && tab->select->pre_idx_push_select_cond)
+  {
+    tab->set_cond(tab->select->pre_idx_push_select_cond);
+     tab->table->file->cancel_pushed_idx_cond();
+  }
+  /*
+    The same with Rowid Filter: it doesn't work with reverse scans so cancel
+    it, too.
+  */
+  {
+    /*
+      Rowid Filter is initialized at a later stage. It is not pushed to
+      the storage engine yet:
+    */
+    DBUG_ASSERT(!tab->table->file->pushed_rowid_filter);
+    tab->range_rowid_filter_info= NULL;
+    delete tab->rowid_filter;
+    tab->rowid_filter= NULL;
+  }
+}
+
+
 /**
   Test if we can skip the ORDER BY by using an index.
 
@@ -24334,23 +24496,11 @@ check_reverse_order:
           tab->limit= 0;
           goto use_filesort;           // Reverse sort failed -> filesort
         }
-        /*
-          Cancel Pushed Index Condition, as it doesn't work for reverse scans.
-        */
-        if (tab->select && tab->select->pre_idx_push_select_cond)
-	{
-          tab->set_cond(tab->select->pre_idx_push_select_cond);
-           tab->table->file->cancel_pushed_idx_cond();
-        }
+        prepare_for_reverse_ordered_access(tab);
+
         if (select->quick == save_quick)
           save_quick= 0;                // make_reverse() consumed it
         select->set_quick(tmp);
-        /* Cancel "Range checked for each record" */
-        if (tab->use_quick == 2)
-        {
-          tab->use_quick= 1;
-          tab->read_first_record= join_init_read_record;
-        }
       }
       else if (tab->type != JT_NEXT && tab->type != JT_REF_OR_NULL &&
                tab->ref.key >= 0 && tab->ref.key_parts <= used_key_parts)
@@ -24363,20 +24513,7 @@ check_reverse_order:
         */
         tab->read_first_record= join_read_last_key;
         tab->read_record.read_record_func= join_read_prev_same;
-        /* Cancel "Range checked for each record" */
-        if (tab->use_quick == 2)
-        {
-          tab->use_quick= 1;
-          tab->read_first_record= join_init_read_record;
-        }
-        /*
-          Cancel Pushed Index Condition, as it doesn't work for reverse scans.
-        */
-        if (tab->select && tab->select->pre_idx_push_select_cond)
-	{
-          tab->set_cond(tab->select->pre_idx_push_select_cond);
-           tab->table->file->cancel_pushed_idx_cond();
-        }
+        prepare_for_reverse_ordered_access(tab);
       }
     }
     else if (select && select->quick)
@@ -26386,13 +26523,86 @@ static bool setup_sum_funcs(THD *thd, Item_sum **func_ptr)
 }
 
 
-static bool prepare_sum_aggregators(Item_sum **func_ptr, bool need_distinct)
+/*
+  @brief
+    Setup aggregate functions.
+
+  @param thd            Thread descriptor
+  @param func_ptr       Array of pointers to aggregate functions
+  @param need_distinct  FALSE means that the table access method already
+                        guarantees that arguments of all aggregate functions
+                        will be unique. (This is the case for Loose Scan)
+                        TRUE - Otherwise.
+  @return
+     false  Ok
+     true   Error
+*/
+
+bool JOIN::prepare_sum_aggregators(THD *thd, Item_sum **func_ptr,
+                                   bool need_distinct)
 {
   Item_sum *func;
   DBUG_ENTER("prepare_sum_aggregators");
   while ((func= *(func_ptr++)))
   {
-    if (func->set_aggregator(need_distinct && func->has_with_distinct() ?
+    bool need_distinct_aggregator= need_distinct && func->has_with_distinct();
+    if (need_distinct_aggregator && table_count - const_tables == 1)
+    {
+      /*
+        We are doing setup for an aggregate with DISTINCT, like
+
+          SELECT agg_func(DISTINCT col1, col2 ...) FROM ...
+
+        In general case, agg_func will need to use Aggregator_distinct to
+        remove duplicates from its arguments.
+        We won't have to remove duplicates if we know the arguments are already
+        unique. This is true when
+        1. the join operation has only one non-const table (checked above)
+        2. the argument list covers a PRIMARY or a UNIQUE index.
+
+        Example: here the values of t1.pk are unique:
+
+          SELECT agg_func(DISTINCT t1.pk, ...) FROM t1
+
+        and so the whole argument of agg_func is unique.
+      */
+      List<Item> arg_fields;
+      for (uint i= 0; i < func->argument_count(); i++)
+      {
+        if (func->arguments()[i]->real_item()->type() == Item::FIELD_ITEM)
+          arg_fields.push_back(func->arguments()[i]);
+      }
+
+      /*
+        If the query has a GROUP BY, then it's sufficient that a unique
+        key is covered by a concatenation of {argument_list, group_by_list}.
+
+        Example: Suppose t1 has PRIMARY KEY(pk1, pk2). Then:
+
+          SELECT agg_func(DISTINCT t1.pk1, ...) FROM t1 GROUP BY t1.pk2
+
+        Each GROUP BY group will have t1.pk2 fixed. Then, the values of t1.pk1
+        will be unique, and no de-duplication will be needed.
+      */
+      for (ORDER *group= group_list; group ; group= group->next)
+      {
+        if ((*group->item)->real_item()->type() == Item::FIELD_ITEM)
+          arg_fields.push_back(*group->item);
+      }
+
+      if (list_contains_unique_index(join_tab[const_tables].table,
+                                     find_field_in_item_list,
+                                     (void *) &arg_fields))
+        need_distinct_aggregator= false;
+    }
+    Json_writer_object trace_wrapper(thd);
+    Json_writer_object trace_aggr(thd, "prepare_sum_aggregators");
+    trace_aggr.add("function", func);
+    trace_aggr.add("aggregator_type",
+                   (need_distinct_aggregator ||
+                    func->uses_non_standard_aggregator_for_distinct()) ?
+                      "distinct" : "simple");
+    if (func->set_aggregator(need_distinct_aggregator ?
                              Aggregator::DISTINCT_AGGREGATOR :
                              Aggregator::SIMPLE_AGGREGATOR))
       DBUG_RETURN(TRUE);
@@ -27933,7 +28143,6 @@ static void select_describe(JOIN *join, bool need_tmp_table, bool need_order,
 			    bool distinct,const char *message)
 {
   THD *thd=join->thd;
-  select_result *result=join->result;
   DBUG_ENTER("select_describe");
 
   if (join->select_lex->pushdown_select)
@@ -27968,7 +28177,7 @@ static void select_describe(JOIN *join, bool need_tmp_table, bool need_order,
 
     if (unit->explainable())
     {
-      if (mysql_explain_union(thd, unit, result))
+      if (mysql_explain_union(thd, unit, unit->result))
         DBUG_VOID_RETURN;
     }
   }
@@ -30470,7 +30679,26 @@ void JOIN::init_join_cache_and_keyread()
       if (!(table->file->index_flags(table->file->keyread, 0, 1) & HA_CLUSTERED_INDEX))
         table->mark_index_columns(table->file->keyread, table->read_set);
     }
-    if (tab->cache && tab->cache->init(select_options & SELECT_DESCRIBE))
+    bool init_for_explain= false;
+
+    /*
+       Can we use lightweight initalization mode just for EXPLAINs? We can if
+       we're certain that the optimizer will not execute the subquery.
+       The optimzier will not execute the subquery if it's too expensive. For
+       the exact criteria, see Item_subselect::is_expensive().
+       Note that the subquery might be a UNION and we might not yet know if it
+       is expensive.
+       What we do know is that if this SELECT is too expensive, then the whole
+       subquery will be too expensive as well.
+       So, we can use lightweight initialization (init_for_explain=true) if this
+       SELECT examines more than @@expensive_subquery_limit rows.
+     */
+    if ((select_options & SELECT_DESCRIBE) &&
+        get_examined_rows() >= thd->variables.expensive_subquery_limit)
+    {
+      init_for_explain= true;
+    }
+    if (tab->cache && tab->cache->init(init_for_explain))
       revise_cache_usage(tab);
     else
       tab->remove_redundant_bnl_scan_conds();

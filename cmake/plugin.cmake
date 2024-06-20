@@ -46,7 +46,7 @@ MACRO(MYSQL_ADD_PLUGIN)
                     ${CMAKE_SOURCE_DIR}/sql
                     ${PCRE_INCLUDES}
                     ${SSL_INCLUDE_DIRS}
-                    ${ZLIB_INCLUDE_DIR})
+                    ${ZLIB_INCLUDE_DIRS})
 
   LIST(GET ARG_UNPARSED_ARGUMENTS 0 plugin)
   SET(SOURCES ${ARG_UNPARSED_ARGUMENTS})

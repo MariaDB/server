@@ -54,11 +54,13 @@ rpt_handle_event(rpl_parallel_thread::queued_event *qev,
   thd->system_thread_info.rpl_sql_info->rpl_filter = rli->mi->rpl_filter;
   ev->thd= thd;
 
-  strcpy(rgi->event_relay_log_name_buf, qev->event_relay_log_name);
+  safe_strcpy(rgi->event_relay_log_name_buf, sizeof(rgi->event_relay_log_name_buf),
+              qev->event_relay_log_name);
   rgi->event_relay_log_name= rgi->event_relay_log_name_buf;
   rgi->event_relay_log_pos= qev->event_relay_log_pos;
   rgi->future_event_relay_log_pos= qev->future_event_relay_log_pos;
-  strcpy(rgi->future_event_master_log_name, qev->future_event_master_log_name);
+  safe_strcpy(rgi->future_event_master_log_name, sizeof(rgi->future_event_master_log_name),
+              qev->future_event_master_log_name);
   if (event_can_update_last_master_timestamp(ev))
     rgi->last_master_timestamp= ev->when + (time_t)ev->exec_time;
   err= apply_event_and_update_pos_for_parallel(ev, thd, rgi);
@@ -115,7 +117,8 @@ handle_queued_pos_update(THD *thd, rpl_parallel_thread::queued_event *qev)
   cmp= compare_log_name(rli->group_master_log_name, qev->future_event_master_log_name);
   if (cmp < 0)
   {
-    strcpy(rli->group_master_log_name, qev->future_event_master_log_name);
+    safe_strcpy(rli->group_master_log_name, sizeof(rli->group_master_log_name),
+                qev->future_event_master_log_name);
     rli->group_master_log_pos= qev->future_event_master_log_pos;
   }
   else if (cmp == 0
@@ -210,6 +213,13 @@ finish_event_group(rpl_parallel_thread *rpt, uint64 sub_id,
   if (unlikely(err) && !rgi->worker_error)
     signal_error_to_sql_driver_thread(thd, rgi, err);
   thd->wait_for_commit_ptr= NULL;
+
+  /*
+    Calls to check_duplicate_gtid() must match up with
+    record_and_update_gtid() (or release_domain_owner() in error case). This
+    assertion tries to catch any missing release of the domain.
+  */
+  DBUG_ASSERT(rgi->gtid_ignore_duplicate_state != rpl_group_info::GTID_DUPLICATE_OWNER);
 
   mysql_mutex_lock(&entry->LOCK_parallel_entry);
   /*
@@ -862,8 +872,7 @@ do_retry:
     thd->wait_for_commit_ptr->unregister_wait_for_prior_commit();
   DBUG_EXECUTE_IF("inject_mdev8031", {
       /* Simulate that we get deadlock killed at this exact point. */
-      rgi->killed_for_retry= rpl_group_info::RETRY_KILL_KILLED;
-      thd->set_killed(KILL_CONNECTION);
+      slave_background_kill_request(thd);
   });
 #ifdef ENABLED_DEBUG_SYNC
   DBUG_EXECUTE_IF("rpl_parallel_simulate_wait_at_retry", {
@@ -875,7 +884,13 @@ do_retry:
     });
 #endif
 
-  rgi->cleanup_context(thd, 1);
+  /*
+    We are still applying the event group, even though we will roll it back
+    and retry it. So for --gtid-ignore-duplicates, keep ownership of the
+    domain during the retry so another master connection will not try to take
+    over and duplicate apply the same event group (MDEV-33475).
+  */
+  rgi->cleanup_context(thd, 1, 1 /* keep_domain_owner */);
   wait_for_pending_deadlock_kill(thd, rgi);
   thd->reset_killed();
   thd->clear_error();
@@ -1971,10 +1986,13 @@ rpl_parallel_thread::get_qev(Log_event *ev, ulonglong event_size,
   queued_event *qev= get_qev_common(ev, event_size);
   if (!qev)
     return NULL;
-  strcpy(qev->event_relay_log_name, rli->event_relay_log_name);
+  safe_strcpy(qev->event_relay_log_name, sizeof(qev->event_relay_log_name),
+              rli->event_relay_log_name);
   qev->event_relay_log_pos= rli->event_relay_log_pos;
   qev->future_event_relay_log_pos= rli->future_event_relay_log_pos;
-  strcpy(qev->future_event_master_log_name, rli->future_event_master_log_name);
+  safe_strcpy(qev->future_event_master_log_name,
+              sizeof(qev->future_event_master_log_name),
+              rli->future_event_master_log_name);
   return qev;
 }
 
@@ -1988,11 +2006,13 @@ rpl_parallel_thread::retry_get_qev(Log_event *ev, queued_event *orig_qev,
   if (!qev)
     return NULL;
   qev->rgi= orig_qev->rgi;
-  strcpy(qev->event_relay_log_name, relay_log_name);
+  safe_strcpy(qev->event_relay_log_name, sizeof(qev->event_relay_log_name),
+              relay_log_name);
   qev->event_relay_log_pos= event_pos;
   qev->future_event_relay_log_pos= event_pos+event_size;
-  strcpy(qev->future_event_master_log_name,
-         orig_qev->future_event_master_log_name);
+  safe_strcpy(qev->future_event_master_log_name,
+              sizeof(qev->future_event_master_log_name),
+              orig_qev->future_event_master_log_name);
   return qev;
 }
 
@@ -2565,23 +2585,12 @@ rpl_parallel::stop_during_until()
 
 
 bool
-rpl_parallel::workers_idle()
+rpl_parallel::workers_idle(Relay_log_info *rli)
 {
-  struct rpl_parallel_entry *e;
-  uint32 i, max_i;
-
-  max_i= domain_hash.records;
-  for (i= 0; i < max_i; ++i)
-  {
-    bool active;
-    e= (struct rpl_parallel_entry *)my_hash_element(&domain_hash, i);
-    mysql_mutex_lock(&e->LOCK_parallel_entry);
-    active= e->current_sub_id > e->last_committed_sub_id;
-    mysql_mutex_unlock(&e->LOCK_parallel_entry);
-    if (active)
-      break;
-  }
-  return (i == max_i);
+  mysql_mutex_assert_owner(&rli->data_lock);
+  return !rli->last_inuse_relaylog ||
+    rli->last_inuse_relaylog->queued_count ==
+    rli->last_inuse_relaylog->dequeued_count;
 }
 
 

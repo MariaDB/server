@@ -297,7 +297,8 @@ static TYPELIB tc_heuristic_recover_typelib=
 };
 
 const char *first_keyword= "first";
-const char *my_localhost= "localhost", *delayed_user= "DELAYED";
+const char *my_localhost= "localhost",
+           *delayed_user= "delayed", *slave_user= "<replication_slave>";
 
 bool opt_large_files= sizeof(my_off_t) > 4;
 static my_bool opt_autocommit; ///< for --autocommit command-line option
@@ -705,9 +706,6 @@ mysql_mutex_t LOCK_thread_id;
   server may be fairly high, we need a dedicated lock.
 */
 mysql_mutex_t LOCK_prepared_stmt_count;
-#ifdef HAVE_OPENSSL
-mysql_mutex_t LOCK_des_key_file;
-#endif
 mysql_rwlock_t LOCK_grant, LOCK_sys_init_connect, LOCK_sys_init_slave;
 mysql_rwlock_t LOCK_ssl_refresh;
 mysql_rwlock_t LOCK_all_status_vars;
@@ -848,7 +846,7 @@ static struct my_option pfs_early_options[]=
 
 PSI_file_key key_file_binlog,  key_file_binlog_cache, key_file_binlog_index,
   key_file_binlog_index_cache, key_file_casetest,
-  key_file_dbopt, key_file_des_key_file, key_file_ERRMSG, key_select_to_file,
+  key_file_dbopt, key_file_ERRMSG, key_select_to_file,
   key_file_fileparser, key_file_frm, key_file_global_ddl_log, key_file_load,
   key_file_loadfile, key_file_log_event_data, key_file_log_event_info,
   key_file_master_info, key_file_misc, key_file_partition_ddl_log,
@@ -859,15 +857,18 @@ PSI_file_key key_file_relaylog, key_file_relaylog_index,
              key_file_relaylog_cache, key_file_relaylog_index_cache;
 PSI_file_key key_file_binlog_state;
 
+#ifdef HAVE_des
+char *des_key_file;
+PSI_file_key key_file_des_key_file;
+PSI_mutex_key key_LOCK_des_key_file;
+mysql_mutex_t LOCK_des_key_file;
+#endif /* HAVE_des */
+
 #ifdef HAVE_PSI_INTERFACE
 #ifdef HAVE_MMAP
 PSI_mutex_key key_PAGE_lock, key_LOCK_sync, key_LOCK_active, key_LOCK_pool,
   key_LOCK_pending_checkpoint;
 #endif /* HAVE_MMAP */
-
-#ifdef HAVE_OPENSSL
-PSI_mutex_key key_LOCK_des_key_file;
-#endif /* HAVE_OPENSSL */
 
 PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_xid_list,
   key_BINLOG_LOCK_binlog_background_thread,
@@ -923,9 +924,9 @@ static PSI_mutex_info all_server_mutexes[]=
   { &key_LOCK_pool, "TC_LOG_MMAP::LOCK_pending_checkpoint", 0},
 #endif /* HAVE_MMAP */
 
-#ifdef HAVE_OPENSSL
+#ifdef HAVE_des
   { &key_LOCK_des_key_file, "LOCK_des_key_file", PSI_FLAG_GLOBAL},
-#endif /* HAVE_OPENSSL */
+#endif /* HAVE_des */
 
   { &key_BINLOG_LOCK_index, "MYSQL_BIN_LOG::LOCK_index", 0},
   { &key_BINLOG_LOCK_xid_list, "MYSQL_BIN_LOG::LOCK_xid_list", 0},
@@ -1453,7 +1454,6 @@ static void openssl_dynlock_destroy(openssl_lock_t *, const char *, int);
 static void openssl_lock_function(int, int, const char *, int);
 static void openssl_lock(int, openssl_lock_t *, const char *, int);
 #endif /* HAVE_OPENSSL10 */
-char *des_key_file;
 #ifndef EMBEDDED_LIBRARY
 struct st_VioSSLFd *ssl_acceptor_fd;
 #endif
@@ -1504,6 +1504,16 @@ static void end_ssl();
 
 
 #ifndef EMBEDDED_LIBRARY
+extern Atomic_counter<uint32_t> local_connection_thread_count;
+
+uint THD_count::connection_thd_count()
+{
+  return value() -
+    binlog_dump_thread_count -
+    local_connection_thread_count;
+}
+
+
 /****************************************************************************
 ** Code to end mysqld
 ****************************************************************************/
@@ -1732,7 +1742,6 @@ static void close_connections(void)
     This will give the threads some time to gracefully abort their
     statements and inform their clients that the server is about to die.
   */
-  DBUG_EXECUTE_IF("mysqld_delay_kill_threads_phase_1", my_sleep(200000););
   int n_threads_awaiting_ack= 0;
   server_threads.iterate(kill_thread_phase_1, &n_threads_awaiting_ack);
 
@@ -1756,7 +1765,8 @@ static void close_connections(void)
   DBUG_EXECUTE_IF("delay_shutdown_phase_2_after_semisync_wait",
                   my_sleep(500000););
 
-  Events::deinit();
+  if (Events::inited)
+    Events::stop();
   slave_prepare_for_shutdown();
   ack_receiver.stop();
 
@@ -1776,9 +1786,8 @@ static void close_connections(void)
   */
   DBUG_PRINT("info", ("THD_count: %u", THD_count::value()));
 
-  for (int i= 0; (THD_count::value() - binlog_dump_thread_count -
-                  n_threads_awaiting_ack) &&
-                 i < 1000 &&
+  for (int i= 0; THD_count::connection_thd_count() - n_threads_awaiting_ack
+                 && i < 1000 &&
                  DBUG_EVALUATE_IF("only_kill_system_threads_no_loop", 0, 1);
        i++)
     my_sleep(20000);
@@ -1798,8 +1807,7 @@ static void close_connections(void)
                       THD_count::value() - binlog_dump_thread_count -
                           n_threads_awaiting_ack));
 
-  while ((THD_count::value() - binlog_dump_thread_count -
-          n_threads_awaiting_ack) &&
+  while (THD_count::connection_thd_count() - n_threads_awaiting_ack &&
          DBUG_EVALUATE_IF("only_kill_system_threads_no_loop", 0, 1))
   {
     my_sleep(1000);
@@ -1807,7 +1815,7 @@ static void close_connections(void)
 
   /* Kill phase 2 */
   server_threads.iterate(kill_thread_phase_2);
-  for (uint64 i= 0; THD_count::value(); i++)
+  for (uint64 i= 0; THD_count::value() > local_connection_thread_count; i++)
   {
     /*
       This time the warnings are emitted within the loop to provide a
@@ -1818,6 +1826,12 @@ static void close_connections(void)
     my_sleep(1000);
   }
   /* End of kill phase 2 */
+
+  /*
+    The signal thread can use server resources, e.g. when processing SIGHUP,
+    and it must end gracefully before clean_up()
+  */
+  wait_for_signal_thread_to_end();
 
   DBUG_PRINT("quit",("close_connections thread"));
   DBUG_VOID_RETURN;
@@ -1913,6 +1927,7 @@ extern "C" void unireg_abort(int exit_code)
   wsrep_sst_auth_free();
 #endif // WITH_WSREP
 
+  wait_for_signal_thread_to_end();
   clean_up(!opt_abort && (exit_code || !opt_bootstrap)); /* purecov: inspected */
   DBUG_PRINT("quit",("done with cleanup in unireg_abort"));
   mysqld_exit(exit_code);
@@ -1922,14 +1937,8 @@ extern "C" void unireg_abort(int exit_code)
 static void mysqld_exit(int exit_code)
 {
   DBUG_ENTER("mysqld_exit");
-  /*
-    Important note: we wait for the signal thread to end,
-    but if a kill -15 signal was sent, the signal thread did
-    spawn the kill_server_thread thread, which is running concurrently.
-  */
   rpl_deinit_gtid_waiting();
   rpl_deinit_gtid_slave_state();
-  wait_for_signal_thread_to_end();
 #ifdef WITH_WSREP
   wsrep_deinit_server();
   wsrep_sst_auth_free();
@@ -2008,6 +2017,9 @@ static void clean_up(bool print_message)
   free_status_vars();
   end_thr_alarm(1);			/* Free allocated memory */
   end_thr_timer();
+#ifndef EMBEDDED_LIBRARY
+  Events::deinit();
+#endif
   my_free_open_file_info();
   if (defaults_argv)
     free_defaults(defaults_argv);
@@ -2075,16 +2087,31 @@ static void clean_up(bool print_message)
 */
 static void wait_for_signal_thread_to_end()
 {
-  uint i;
+  uint i, n_waits= DBUG_EVALUATE("force_sighup_processing_timeout", 5, 100);
+  int err= 0;
   /*
     Wait up to 10 seconds for signal thread to die. We use this mainly to
     avoid getting warnings that my_thread_end has not been called
   */
-  for (i= 0 ; i < 100 && signal_thread_in_use; i++)
+  for (i= 0 ; i < n_waits && signal_thread_in_use; i++)
   {
-    if (pthread_kill(signal_thread, MYSQL_KILL_SIGNAL) == ESRCH)
+    err= pthread_kill(signal_thread, MYSQL_KILL_SIGNAL);
+    if (err)
       break;
-    my_sleep(100);				// Give it time to die
+    my_sleep(100000); // Give it time to die, .1s per iteration
+  }
+
+  if (err && err != ESRCH)
+  {
+    sql_print_error("Failed to send kill signal to signal handler thread, "
+                    "pthread_kill() errno: %d", err);
+  }
+
+  if (i == n_waits && signal_thread_in_use && !opt_bootstrap)
+  {
+    sql_print_warning("Signal handler thread did not exit in a timely manner. "
+                      "Continuing to wait for it to stop..");
+    pthread_join(signal_thread, NULL);
   }
 }
 #endif /*EMBEDDED_LIBRARY*/
@@ -2109,7 +2136,9 @@ static void clean_up_mutexes()
   mysql_mutex_destroy(&LOCK_global_table_stats);
   mysql_mutex_destroy(&LOCK_global_index_stats);
 #ifdef HAVE_OPENSSL
+#ifdef HAVE_des
   mysql_mutex_destroy(&LOCK_des_key_file);
+#endif /* HAVE_des */
 #if defined(HAVE_OPENSSL10) && !defined(HAVE_WOLFSSL)
   for (int i= 0; i < CRYPTO_num_locks(); ++i)
     mysql_rwlock_destroy(&openssl_stdlocks[i].lock);
@@ -2865,10 +2894,8 @@ void init_signals(void)
   (void) sigemptyset(&set);
   my_sigset(SIGPIPE,SIG_IGN);
   sigaddset(&set,SIGPIPE);
-#ifndef IGNORE_SIGHUP_SIGQUIT
   sigaddset(&set,SIGQUIT);
   sigaddset(&set,SIGHUP);
-#endif
   sigaddset(&set,SIGTERM);
 
   /* Fix signals if blocked by parents (can happen on Mac OS X) */
@@ -2908,7 +2935,6 @@ static void start_signal_handler(void)
 
   (void) pthread_attr_init(&thr_attr);
   pthread_attr_setscope(&thr_attr,PTHREAD_SCOPE_SYSTEM);
-  (void) pthread_attr_setdetachstate(&thr_attr,PTHREAD_CREATE_DETACHED);
   (void) my_setstacksize(&thr_attr,my_thread_stack_size);
 
   mysql_mutex_lock(&LOCK_start_thread);
@@ -2927,17 +2953,14 @@ static void start_signal_handler(void)
   DBUG_VOID_RETURN;
 }
 
-
-#if defined(USE_ONE_SIGNAL_HAND)
-pthread_handler_t kill_server_thread(void *arg __attribute__((unused)))
+/** Called only from signal_hand function. */
+static void* exit_signal_handler()
 {
-  my_thread_init();				// Initialize new thread
-  break_connect_loop();
-  my_thread_end();
-  pthread_exit(0);
-  return 0;
+    my_thread_end();
+    signal_thread_in_use= 0;
+    pthread_exit(0);  // Safety
+    return nullptr;  // Avoid compiler warnings
 }
-#endif
 
 
 /** This threads handles all signals and alarms. */
@@ -2947,7 +2970,6 @@ pthread_handler_t signal_hand(void *arg __attribute__((unused)))
   sigset_t set;
   int sig;
   my_thread_init();				// Init new thread
-  DBUG_ENTER("signal_hand");
   signal_thread_in_use= 1;
 
   /*
@@ -2964,20 +2986,20 @@ pthread_handler_t signal_hand(void *arg __attribute__((unused)))
     (void) sigaddset(&set,SIGINT);
     (void) pthread_sigmask(SIG_UNBLOCK,&set,NULL);
   }
-  (void) sigemptyset(&set);			// Setup up SIGINT for debug
+  (void) sigemptyset(&set);
 #ifdef USE_ONE_SIGNAL_HAND
   (void) sigaddset(&set,THR_SERVER_ALARM);	// For alarms
 #endif
-#ifndef IGNORE_SIGHUP_SIGQUIT
   (void) sigaddset(&set,SIGQUIT);
-  (void) sigaddset(&set,SIGHUP);
-#endif
   (void) sigaddset(&set,SIGTERM);
   (void) sigaddset(&set,SIGTSTP);
 
   /* Save pid to this process (or thread on Linux) */
   if (!opt_bootstrap)
+  {
+    (void) sigaddset(&set,SIGHUP);
     create_pid_file();
+  }
 
   /*
     signal to start_signal_handler that we are ready
@@ -2997,14 +3019,10 @@ pthread_handler_t signal_hand(void *arg __attribute__((unused)))
     int origin;
 
     while ((error= my_sigwait(&set, &sig, &origin)) == EINTR) /* no-op */;
-    if (cleanup_done)
+    if (abort_loop)
     {
       DBUG_PRINT("quit",("signal_handler: calling my_thread_end()"));
-      my_thread_end();
-      DBUG_LEAVE;                               // Must match DBUG_ENTER()
-      signal_thread_in_use= 0;
-      pthread_exit(0);				// Safety
-      return 0;                                 // Avoid compiler warnings
+      return exit_signal_handler();
     }
     switch (sig) {
     case SIGTERM:
@@ -3021,18 +3039,9 @@ pthread_handler_t signal_hand(void *arg __attribute__((unused)))
       {
         /* Delete the instrumentation for the signal thread */
         PSI_CALL_delete_current_thread();
-#ifdef USE_ONE_SIGNAL_HAND
-	pthread_t tmp;
-        if (unlikely((error= mysql_thread_create(0, /* Not instrumented */
-                                                 &tmp, &connection_attrib,
-                                                 kill_server_thread,
-                                                 (void*) &sig))))
-          sql_print_error("Can't create thread to kill server (errno= %d)",
-                          error);
-#else
         my_sigset(sig, SIG_IGN);
         break_connect_loop(); // MIT THREAD has a alarm thread
-#endif
+        return exit_signal_handler();
       }
       break;
     case SIGHUP:
@@ -3521,20 +3530,35 @@ static void my_malloc_size_cb_func(long long size, my_bool is_thread_specific)
         thd->status_var.local_memory_used > (int64)thd->variables.max_mem_used &&
         likely(!thd->killed) && !thd->get_stmt_da()->is_set())
     {
-      /* Ensure we don't get called here again */
-      char buf[50], *buf2;
-      thd->set_killed(KILL_QUERY);
-      my_snprintf(buf, sizeof(buf), "--max-session-mem-used=%llu",
-                  thd->variables.max_mem_used);
-      if ((buf2= (char*) thd->alloc(256)))
-      {
-        my_snprintf(buf2, 256, ER_THD(thd, ER_OPTION_PREVENTS_STATEMENT), buf);
-        thd->set_killed(KILL_QUERY, ER_OPTION_PREVENTS_STATEMENT, buf2);
-      }
-      else
-      {
-        thd->set_killed(KILL_QUERY, ER_OPTION_PREVENTS_STATEMENT,
-                        "--max-session-mem-used");
+      /*
+        Ensure we don't get called here again.
+
+        It is not safe to wait for LOCK_thd_kill here, as we could be called
+        from almost any context. For example while LOCK_plugin is being held;
+        but THD::awake() locks LOCK_thd_kill and LOCK_plugin in the opposite
+        order (MDEV-33443).
+
+        So ignore the max_mem_used limit in the unlikely case we cannot obtain
+        LOCK_thd_kill here (the limit will be enforced on the next allocation).
+      */
+      if (!mysql_mutex_trylock(&thd->LOCK_thd_kill)) {
+        char buf[50], *buf2;
+        thd->set_killed_no_mutex(KILL_QUERY);
+        my_snprintf(buf, sizeof(buf), "--max-session-mem-used=%llu",
+                    thd->variables.max_mem_used);
+        if ((buf2= (char*) thd->alloc(256)))
+        {
+          my_snprintf(buf2, 256,
+                      ER_THD(thd, ER_OPTION_PREVENTS_STATEMENT), buf);
+          thd->set_killed_no_mutex(KILL_QUERY,
+                                   ER_OPTION_PREVENTS_STATEMENT, buf2);
+        }
+        else
+        {
+          thd->set_killed_no_mutex(KILL_QUERY, ER_OPTION_PREVENTS_STATEMENT,
+                          "--max-session-mem-used");
+        }
+        mysql_mutex_unlock(&thd->LOCK_thd_kill);
       }
     }
     DBUG_ASSERT((longlong) thd->status_var.local_memory_used >= 0 ||
@@ -3842,8 +3866,9 @@ static int init_common_variables()
                      SQLCOM_END + 11);
 #endif
 
-  if (get_options(&remaining_argc, &remaining_argv))
-    exit(1);
+  int opt_err;
+  if ((opt_err= get_options(&remaining_argc, &remaining_argv)))
+    exit(opt_err);
   if (IS_SYSVAR_AUTOSIZE(&server_version_ptr))
     set_server_version(server_version, sizeof(server_version));
 
@@ -4241,8 +4266,10 @@ static int init_thread_environment()
                    MY_MUTEX_INIT_SLOW);
 
 #ifdef HAVE_OPENSSL
+#ifdef HAVE_des
   mysql_mutex_init(key_LOCK_des_key_file,
                    &LOCK_des_key_file, MY_MUTEX_INIT_FAST);
+#endif /* HAVE_des */
 #if defined(HAVE_OPENSSL10) && !defined(HAVE_WOLFSSL)
   openssl_stdlocks= (openssl_lock_t*) OPENSSL_malloc(CRYPTO_num_locks() *
                                                      sizeof(openssl_lock_t));
@@ -4460,8 +4487,10 @@ static void init_ssl()
   {
     have_ssl= SHOW_OPTION_DISABLED;
   }
+#ifdef HAVE_des
   if (des_key_file)
     load_des_key_file(des_key_file);
+#endif /* HAVE_des */
 #endif /* HAVE_OPENSSL && ! EMBEDDED_LIBRARY */
 }
 
@@ -4702,9 +4731,9 @@ static int init_server_components()
   proc_info_hook= set_thd_stage_info;
 
   /*
-￼    Print source revision hash, as one of the first lines, if not the
-￼    first in error log, for troubleshooting and debugging purposes
-￼  */
+    Print source revision hash, as one of the first lines, if not the
+    first in error log, for troubleshooting and debugging purposes
+  */
   if (!opt_help)
     sql_print_information("Starting MariaDB %s source revision %s as process %lu",
                           server_version, SOURCE_REVISION, (ulong) getpid());
@@ -4731,6 +4760,19 @@ static int init_server_components()
 #endif
 
   xid_cache_init();
+
+  /*
+    Do not open binlong when doing bootstrap.
+    This ensures that rpl_load_gtid_slave_state() will not fail with an error
+    as the mysql schema does not yet exists.
+    This also ensures that we don't get an empty binlog file if the user has
+    log-bin in his config files.
+  */
+  if (opt_bootstrap)
+  {
+    opt_bin_log= opt_bin_log_used= binlog_format_used= 0;
+    opt_log_slave_updates= 0;
+  }
 
   /* need to configure logging before initializing storage engines */
   if (!opt_bin_log_used && !WSREP_ON)
@@ -4929,6 +4971,7 @@ static int init_server_components()
 
   init_global_table_stats();
   init_global_index_stats();
+  init_update_queries();
 
   /* Allow storage engine to give real error messages */
   if (unlikely(ha_init_errors()))
@@ -5223,7 +5266,6 @@ static int init_server_components()
   ft_init_stopwords();
 
   init_max_user_conn();
-  init_update_queries();
   init_global_user_stats();
   init_global_client_stats();
   if (!opt_bootstrap)
@@ -5481,8 +5523,6 @@ int mysqld_main(int argc, char **argv)
                         my_thread_stack_size, new_thread_stack_size);
     SYSVAR_AUTOSIZE(my_thread_stack_size, new_thread_stack_size);
   }
-
-  (void) thr_setconcurrency(concurrency);	// 10 by default
 
   select_thread=pthread_self();
   select_thread_in_use=1;
@@ -6536,12 +6576,12 @@ struct my_option my_long_options[]=
    &opt_debug_sync_timeout, 0,
    0, GET_UINT, OPT_ARG, 0, 0, UINT_MAX, 0, 0, 0},
 #endif /* defined(ENABLED_DEBUG_SYNC) */
-#ifdef HAVE_OPENSSL
+#ifdef HAVE_des
   {"des-key-file", 0,
    "Load keys for des_encrypt() and des_encrypt from given file.",
    &des_key_file, &des_key_file, 0, GET_STR, REQUIRED_ARG,
    0, 0, 0, 0, 0, 0},
-#endif /* HAVE_OPENSSL */
+#endif /* HAVE_des */
 #ifdef HAVE_STACKTRACE
   {"stack-trace", 0 , "Print a symbolic stack trace on failure",
    &opt_stack_trace, &opt_stack_trace, 0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0},
@@ -6833,8 +6873,8 @@ struct my_option my_long_options[]=
 #endif
 };
 
-static int show_queries(THD *thd, SHOW_VAR *var, char *buff,
-                        enum enum_var_type scope)
+static int show_queries(THD *thd, SHOW_VAR *var, void *,
+                        system_status_var *, enum_var_type)
 {
   var->type= SHOW_LONGLONG;
   var->value= &thd->query_id;
@@ -6842,16 +6882,16 @@ static int show_queries(THD *thd, SHOW_VAR *var, char *buff,
 }
 
 
-static int show_net_compression(THD *thd, SHOW_VAR *var, char *buff,
-                                enum enum_var_type scope)
+static int show_net_compression(THD *thd, SHOW_VAR *var, void *,
+                                system_status_var *, enum_var_type)
 {
   var->type= SHOW_MY_BOOL;
   var->value= &thd->net.compress;
   return 0;
 }
 
-static int show_starttime(THD *thd, SHOW_VAR *var, char *buff,
-                          enum enum_var_type scope)
+static int show_starttime(THD *thd, SHOW_VAR *var, void *buff,
+                          system_status_var *, enum_var_type)
 {
   var->type= SHOW_LONG;
   var->value= buff;
@@ -6860,8 +6900,8 @@ static int show_starttime(THD *thd, SHOW_VAR *var, char *buff,
 }
 
 #ifdef ENABLED_PROFILING
-static int show_flushstatustime(THD *thd, SHOW_VAR *var, char *buff,
-                                enum enum_var_type scope)
+static int show_flushstatustime(THD *thd, SHOW_VAR *var, void *buff,
+                                system_status_var *, enum_var_type)
 {
   var->type= SHOW_LONG;
   var->value= buff;
@@ -6871,32 +6911,28 @@ static int show_flushstatustime(THD *thd, SHOW_VAR *var, char *buff,
 #endif
 
 #ifdef HAVE_REPLICATION
-static int show_rpl_status(THD *thd, SHOW_VAR *var, char *buff,
-                           enum enum_var_type scope)
+static int show_rpl_status(THD *, SHOW_VAR *var, void *, system_status_var *,
+                           enum_var_type)
 {
   var->type= SHOW_CHAR;
   var->value= const_cast<char*>(rpl_status_type[(int)rpl_status]);
   return 0;
 }
 
-static int show_slave_running(THD *thd, SHOW_VAR *var, char *buff,
-                              enum enum_var_type scope)
+static int show_slave_running(THD *thd, SHOW_VAR *var, void *buff,
+                              system_status_var *, enum_var_type)
 {
-  Master_info *mi= NULL;
-  bool UNINIT_VAR(tmp);
-
-  var->type= SHOW_MY_BOOL;
-  var->value= buff;
-
-  if ((mi= get_master_info(&thd->variables.default_master_connection,
-                           Sql_condition::WARN_LEVEL_NOTE)))
+  if (Master_info *mi=
+      get_master_info(&thd->variables.default_master_connection,
+                      Sql_condition::WARN_LEVEL_NOTE))
   {
-    tmp= (my_bool) (mi->slave_running == MYSQL_SLAVE_RUN_READING &&
-                    mi->rli.slave_running != MYSQL_SLAVE_NOT_RUN);
+    *((my_bool*) buff)=
+      (mi->slave_running == MYSQL_SLAVE_RUN_READING &&
+       mi->rli.slave_running != MYSQL_SLAVE_NOT_RUN);
     mi->release();
+    var->type= SHOW_MY_BOOL;
+    var->value= buff;
   }
-  if (mi)
-    *((my_bool *)buff)= tmp;
   else
     var->type= SHOW_UNDEF;
   return 0;
@@ -6906,7 +6942,8 @@ static int show_slave_running(THD *thd, SHOW_VAR *var, char *buff,
 /* How many masters this slave is connected to */
 
 
-static int show_slaves_running(THD *thd, SHOW_VAR *var, char *buff)
+static int show_slaves_running(THD *, SHOW_VAR *var, void *buff,
+                               system_status_var *, enum_var_type)
 {
   var->type= SHOW_LONGLONG;
   var->value= buff;
@@ -6917,19 +6954,17 @@ static int show_slaves_running(THD *thd, SHOW_VAR *var, char *buff)
 }
 
 
-static int show_slave_received_heartbeats(THD *thd, SHOW_VAR *var, char *buff,
-                                          enum enum_var_type scope)
+static int show_slave_received_heartbeats(THD *thd, SHOW_VAR *var, void *buff,
+                                          system_status_var *, enum_var_type)
 {
-  Master_info *mi;
-
-  var->type= SHOW_LONGLONG;
-  var->value= buff;
-
-  if ((mi= get_master_info(&thd->variables.default_master_connection,
-                           Sql_condition::WARN_LEVEL_NOTE)))
+  if (Master_info *mi=
+      get_master_info(&thd->variables.default_master_connection,
+                           Sql_condition::WARN_LEVEL_NOTE))
   {
     *((longlong *)buff)= mi->received_heartbeats;
     mi->release();
+    var->type= SHOW_LONGLONG;
+    var->value= buff;
   }
   else
     var->type= SHOW_UNDEF;
@@ -6937,19 +6972,17 @@ static int show_slave_received_heartbeats(THD *thd, SHOW_VAR *var, char *buff,
 }
 
 
-static int show_heartbeat_period(THD *thd, SHOW_VAR *var, char *buff,
-                                 enum enum_var_type scope)
+static int show_heartbeat_period(THD *thd, SHOW_VAR *var, void *buff,
+                                 system_status_var *, enum_var_type)
 {
-  Master_info *mi;
-
-  var->type= SHOW_CHAR;
-  var->value= buff;
-
-  if ((mi= get_master_info(&thd->variables.default_master_connection,
-                           Sql_condition::WARN_LEVEL_NOTE)))
+  if (Master_info *mi=
+      get_master_info(&thd->variables.default_master_connection,
+                      Sql_condition::WARN_LEVEL_NOTE))
   {
-    sprintf(buff, "%.3f", mi->heartbeat_period);
+    sprintf(static_cast<char*>(buff), "%.3f", mi->heartbeat_period);
     mi->release();
+    var->type= SHOW_CHAR;
+    var->value= buff;
   }
   else
     var->type= SHOW_UNDEF;
@@ -6959,8 +6992,8 @@ static int show_heartbeat_period(THD *thd, SHOW_VAR *var, char *buff,
 
 #endif /* HAVE_REPLICATION */
 
-static int show_open_tables(THD *thd, SHOW_VAR *var, char *buff,
-                            enum enum_var_type scope)
+static int show_open_tables(THD *, SHOW_VAR *var, void *buff,
+                            system_status_var *, enum_var_type)
 {
   var->type= SHOW_LONG;
   var->value= buff;
@@ -6968,8 +7001,8 @@ static int show_open_tables(THD *thd, SHOW_VAR *var, char *buff,
   return 0;
 }
 
-static int show_prepared_stmt_count(THD *thd, SHOW_VAR *var, char *buff,
-                                    enum enum_var_type scope)
+static int show_prepared_stmt_count(THD *, SHOW_VAR *var, void *buff,
+                                    system_status_var *, enum_var_type)
 {
   var->type= SHOW_LONG;
   var->value= buff;
@@ -6979,8 +7012,8 @@ static int show_prepared_stmt_count(THD *thd, SHOW_VAR *var, char *buff,
   return 0;
 }
 
-static int show_table_definitions(THD *thd, SHOW_VAR *var, char *buff,
-                                  enum enum_var_type scope)
+static int show_table_definitions(THD *, SHOW_VAR *var, void *buff,
+                                  system_status_var *, enum_var_type)
 {
   var->type= SHOW_LONG;
   var->value= buff;
@@ -6999,8 +7032,8 @@ static int show_table_definitions(THD *thd, SHOW_VAR *var, char *buff,
          inside an Event.
  */
 
-static int show_ssl_get_version(THD *thd, SHOW_VAR *var, char *buff,
-                                enum enum_var_type scope)
+static int show_ssl_get_version(THD *thd, SHOW_VAR *var, void *,
+                                system_status_var *, enum_var_type)
 {
   var->type= SHOW_CHAR;
   if( thd->vio_ok() && thd->net.vio->ssl_arg )
@@ -7010,8 +7043,8 @@ static int show_ssl_get_version(THD *thd, SHOW_VAR *var, char *buff,
   return 0;
 }
 
-static int show_ssl_get_default_timeout(THD *thd, SHOW_VAR *var, char *buff,
-                                        enum enum_var_type scope)
+static int show_ssl_get_default_timeout(THD *thd, SHOW_VAR *var, void *buff,
+                                        system_status_var *, enum_var_type)
 {
   var->type= SHOW_LONG;
   var->value= buff;
@@ -7022,8 +7055,8 @@ static int show_ssl_get_default_timeout(THD *thd, SHOW_VAR *var, char *buff,
   return 0;
 }
 
-static int show_ssl_get_verify_mode(THD *thd, SHOW_VAR *var, char *buff,
-                                    enum enum_var_type scope)
+static int show_ssl_get_verify_mode(THD *thd, SHOW_VAR *var, void *buff,
+                                    system_status_var *, enum_var_type)
 {
   var->type= SHOW_LONG;
   var->value= buff;
@@ -7038,8 +7071,8 @@ static int show_ssl_get_verify_mode(THD *thd, SHOW_VAR *var, char *buff,
   return 0;
 }
 
-static int show_ssl_get_verify_depth(THD *thd, SHOW_VAR *var, char *buff,
-                                     enum enum_var_type scope)
+static int show_ssl_get_verify_depth(THD *thd, SHOW_VAR *var, void *buff,
+                                     system_status_var *, enum_var_type)
 {
   var->type= SHOW_LONG;
   var->value= buff;
@@ -7051,8 +7084,8 @@ static int show_ssl_get_verify_depth(THD *thd, SHOW_VAR *var, char *buff,
   return 0;
 }
 
-static int show_ssl_get_cipher(THD *thd, SHOW_VAR *var, char *buff,
-                               enum enum_var_type scope)
+static int show_ssl_get_cipher(THD *thd, SHOW_VAR *var, void *buff,
+                               system_status_var *, enum_var_type)
 {
   var->type= SHOW_CHAR;
   if( thd->vio_ok() && thd->net.vio->ssl_arg )
@@ -7062,9 +7095,10 @@ static int show_ssl_get_cipher(THD *thd, SHOW_VAR *var, char *buff,
   return 0;
 }
 
-static int show_ssl_get_cipher_list(THD *thd, SHOW_VAR *var, char *buff,
-                                    enum enum_var_type scope)
+static int show_ssl_get_cipher_list(THD *thd, SHOW_VAR *var, void *buf,
+                                    system_status_var *, enum_var_type)
 {
+  char *buff= static_cast<char*>(buf);
   var->type= SHOW_CHAR;
   var->value= buff;
   if (thd->vio_ok() && thd->net.vio->ssl_arg)
@@ -7149,8 +7183,8 @@ end:
 */
 
 static int
-show_ssl_get_server_not_before(THD *thd, SHOW_VAR *var, char *buff,
-                               enum enum_var_type scope)
+show_ssl_get_server_not_before(THD *thd, SHOW_VAR *var, void *buff,
+                               system_status_var *, enum_var_type)
 {
   var->type= SHOW_CHAR;
   if(thd->vio_ok() && thd->net.vio->ssl_arg)
@@ -7159,7 +7193,7 @@ show_ssl_get_server_not_before(THD *thd, SHOW_VAR *var, char *buff,
     X509 *cert= SSL_get_certificate(ssl);
     const ASN1_TIME *not_before= X509_get0_notBefore(cert);
 
-    var->value= my_asn1_time_to_string(not_before, buff,
+    var->value= my_asn1_time_to_string(not_before, static_cast<char*>(buff),
                                        SHOW_VAR_FUNC_BUFF_SIZE);
     if (!var->value)
       return 1;
@@ -7183,8 +7217,8 @@ show_ssl_get_server_not_before(THD *thd, SHOW_VAR *var, char *buff,
 */
 
 static int
-show_ssl_get_server_not_after(THD *thd, SHOW_VAR *var, char *buff,
-                              enum enum_var_type scope)
+show_ssl_get_server_not_after(THD *thd, SHOW_VAR *var, void *buff,
+                              system_status_var *, enum_var_type)
 {
   var->type= SHOW_CHAR;
   if(thd->vio_ok() && thd->net.vio->ssl_arg)
@@ -7193,7 +7227,7 @@ show_ssl_get_server_not_after(THD *thd, SHOW_VAR *var, char *buff,
     X509 *cert= SSL_get_certificate(ssl);
     const ASN1_TIME *not_after= X509_get0_notAfter(cert);
 
-    var->value= my_asn1_time_to_string(not_after, buff,
+    var->value= my_asn1_time_to_string(not_after, static_cast<char*>(buff),
                                        SHOW_VAR_FUNC_BUFF_SIZE);
     if (!var->value)
       return 1;
@@ -7247,7 +7281,7 @@ static int show_default_keycache(THD *thd, SHOW_VAR *var, void *buff,
 }
 
 
-static int show_memory_used(THD *thd, SHOW_VAR *var, char *buff,
+static int show_memory_used(THD *thd, SHOW_VAR *var, void *buff,
                             struct system_status_var *status_var,
                             enum enum_var_type scope)
 {
@@ -7303,8 +7337,8 @@ static int debug_status_func(THD *thd, SHOW_VAR *var, void *buff,
 #endif
 
 #ifdef HAVE_POOL_OF_THREADS
-static int show_threadpool_idle_threads(THD *thd, SHOW_VAR *var, char *buff,
-                                 enum enum_var_type scope)
+static int show_threadpool_idle_threads(THD *, SHOW_VAR *var, void *buff,
+                                        system_status_var *, enum_var_type)
 {
   var->type= SHOW_INT;
   var->value= buff;
@@ -7313,8 +7347,8 @@ static int show_threadpool_idle_threads(THD *thd, SHOW_VAR *var, char *buff,
 }
 
 
-static int show_threadpool_threads(THD *thd, SHOW_VAR *var, char *buff,
-                                   enum enum_var_type scope)
+static int show_threadpool_threads(THD *, SHOW_VAR *var, void *buff,
+                                   system_status_var *, enum_var_type)
 {
   var->type= SHOW_INT;
   var->value= buff;
@@ -7893,7 +7927,9 @@ static int mysql_init_variables(void)
   libwrapName= NullS;
 #endif
 #ifdef HAVE_OPENSSL
+#ifdef HAVE_des
   des_key_file = 0;
+#endif /* HAVE_des */
 #ifndef EMBEDDED_LIBRARY
   ssl_acceptor_fd= 0;
 #endif /* ! EMBEDDED_LIBRARY */
@@ -8210,7 +8246,7 @@ mysqld_get_one_option(const struct my_option *opt, const char *argument,
   case (int) OPT_SAFE:
     opt_specialflag|= SPECIAL_SAFE_MODE | SPECIAL_NO_NEW_FUNC;
     SYSVAR_AUTOSIZE(delay_key_write_options, (uint) DELAY_KEY_WRITE_NONE);
-    SYSVAR_AUTOSIZE(myisam_recover_options, HA_RECOVER_DEFAULT);
+    myisam_recover_options= HA_RECOVER_DEFAULT;
     ha_open_options&= ~(HA_OPEN_DELAY_KEY_WRITE);
 #ifdef HAVE_QUERY_CACHE
     SYSVAR_AUTOSIZE(query_cache_size, 0);
@@ -9088,7 +9124,9 @@ static PSI_file_info all_server_files[]=
   { &key_file_io_cache, "io_cache", 0},
   { &key_file_casetest, "casetest", 0},
   { &key_file_dbopt, "dbopt", 0},
+#ifdef HAVE_des
   { &key_file_des_key_file, "des_key_file", 0},
+#endif
   { &key_file_ERRMSG, "ERRMSG", 0},
   { &key_select_to_file, "select_to_file", 0},
   { &key_file_fileparser, "file_parser", 0},

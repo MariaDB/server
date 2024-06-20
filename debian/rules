@@ -21,7 +21,7 @@ ifneq (,$(filter linux,$(DEB_HOST_ARCH_OS)))
 endif
 
 BUILDDIR := builddir
-DEB_VERSION_REVISION := $(shell echo $(DEB_VERSION) | sed -e 's/^.*-//')
+DEB_VERSION_REVISION := $(shell echo $(DEB_VERSION) | sed -e 's/.*[~-]\(.*\)/\1/')
 RELEASE := $(shell lsb_release -r -s) # Use changelog based DEB_DISTRIBUTION instead?
 TMP:=$(CURDIR)/debian/tmp
 
@@ -89,7 +89,6 @@ endif
 	    -DCOMPILATION_COMMENT="mariadb.org binary distribution" \
 	    -DMYSQL_SERVER_SUFFIX="-$(DEB_VERSION_REVISION)" \
 	    -DSYSTEM_TYPE="debian-$(DEB_HOST_GNU_SYSTEM)" \
-	    -DCMAKE_SYSTEM_PROCESSOR=$(DEB_HOST_ARCH) \
 	    -DBUILD_CONFIG=mysql_release \
 	    -DPLUGIN_TOKUDB=NO \
 	    -DPLUGIN_CASSANDRA=NO \

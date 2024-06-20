@@ -1,6 +1,9 @@
-@@ -509,4 +509,4 @@
+--- instant_alter_debug.result
++++ instant_alter_debug.reject
+@@ -577,5 +577,5 @@
  FROM information_schema.global_status
  WHERE variable_name = 'innodb_instant_alter_column';
  instants
--35
-+36
+-37
++38
+ SET GLOBAL innodb_purge_rseg_truncate_frequency = @save_frequency;

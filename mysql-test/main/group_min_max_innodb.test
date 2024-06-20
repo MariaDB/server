@@ -273,6 +273,53 @@ eval $query;
 
 DROP TABLES t1, t2;
 
+--echo #
+--echo # MDEV-15656: Assertion `is_last_prefix <= 0' failed in
+--echo #             QUICK_GROUP_MIN_MAX_SELECT::get_next
+--echo #
+SET @lru_depth.save= @@innodb_lru_scan_depth;
+SET GLOBAL innodb_lru_scan_depth= 1024;
+
+CREATE TABLE t1 (
+  pk_part1 INT AUTO_INCREMENT,
+  a VARCHAR(4),
+  row_start timestamp(6) default current_timestamp,
+  PRIMARY KEY (pk_part1, row_start)
+) ENGINE=InnoDB;
+
+INSERT INTO t1 (a) VALUES
+('foo'),('bar'),('foo'),('bar'),('foo'),
+('foo'),('bar'),('foo'),('bar'),('foo'),
+('foo'),('bar'),('foo'),('bar'),('foo'),
+('foo'),('bar'),('foo'),('bar'),('foo'),
+('foo'),('bar'),('foo'),('bar'),('foo'),
+('foo'),('bar'),('foo'),('bar'),('foo'),
+('foo'),('bar'),('foo'),('bar'),('foo'),
+('foo'),('bar'),('foo'),('bar'),('foo');
+
+--connect (con1,localhost,root,,test)
+
+SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+
+--let $run= 20
+--disable_result_log
+while ($run)
+{
+  --send
+    SELECT DISTINCT pk_part1 FROM t1;
+  --connection default
+  INSERT INTO t1 (pk_part1) VALUES (NULL);
+  --connection con1
+  --reap
+  --dec $run
+}
+--enable_result_log
+
+--disconnect con1
+--connection default
+DROP TABLE t1;
+SET GLOBAL innodb_lru_scan_depth= @lru_depth.save;
+
 set global innodb_stats_persistent= @innodb_stats_persistent_save;
 set global innodb_stats_persistent_sample_pages=
              @innodb_stats_persistent_sample_pages_save;

@@ -102,9 +102,12 @@ if [ -z "$BACKUP_BIN" ]; then
 fi
 
 DATA="$WSREP_SST_OPT_DATA"
+
 INFO_FILE='xtrabackup_galera_info'
+DONOR_INFO_FILE='donor_galera_info'
 IST_FILE='xtrabackup_ist'
 MAGIC_FILE="$DATA/$INFO_FILE"
+DONOR_MAGIC_FILE="$DATA/$DONOR_INFO_FILE"
 
 INNOAPPLYLOG="$DATA/mariabackup.prepare.log"
 INNOMOVELOG="$DATA/mariabackup.move.log"
@@ -650,14 +653,14 @@ get_stream()
         if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
             strmcmd="'$STREAM_BIN' -x"
         else
-            strmcmd="'$STREAM_BIN' -c '$INFO_FILE'"
+            strmcmd="'$STREAM_BIN' -c '$INFO_FILE' '$DONOR_INFO_FILE'"
         fi
     else
         sfmt='tar'
         if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
             strmcmd='tar xfi -'
         else
-            strmcmd="tar cf - '$INFO_FILE'"
+            strmcmd="tar cf - '$INFO_FILE' '$DONOR_INFO_FILE'"
         fi
     fi
     wsrep_log_info "Streaming with $sfmt"
@@ -679,6 +682,7 @@ cleanup_at_exit()
     if [ $estatus -ne 0 ]; then
         wsrep_log_error "Removing $MAGIC_FILE file due to signal"
         [ -f "$MAGIC_FILE" ] && rm -f "$MAGIC_FILE" || :
+        [ -f "$DONOR_MAGIC_FILE" ] && rm -f "$DONOR_MAGIC_FILE" || :
     fi
 
     if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
@@ -710,7 +714,7 @@ cleanup_at_exit()
     fi
 
     # Final cleanup
-    pgid=$(ps -o pgid= $$ 2>/dev/null | grep -o -E '[0-9]+' || :)
+    pgid=$(ps -o 'pgid=' $$ 2>/dev/null | grep -o -E '[0-9]+' || :)
 
     # This means no setsid done in mysqld.
     # We don't want to kill mysqld here otherwise.
@@ -799,7 +803,8 @@ recv_joiner()
     if [ $tmt -gt 0 ]; then
         if [ -n "$(commandex timeout)" ]; then
             local koption=0
-            if [ "$OS" = 'FreeBSD' ]; then
+            if [ "$OS" = 'FreeBSD' -o "$OS" = 'NetBSD' -o "$OS" = 'OpenBSD' -o \
+                 "$OS" = 'DragonFly' ]; then
                 if timeout 2>&1 | grep -qw -F -- '-k'; then
                     koption=1
                 fi
@@ -915,6 +920,7 @@ monitor_process()
 }
 
 [ -f "$MAGIC_FILE" ] && rm -f "$MAGIC_FILE"
+[ -f "$DONOR_MAGIC_FILE" ] && rm -rf "$DONOR_MAGIC_FILE"
 
 read_cnf
 setup_ports
@@ -1042,6 +1048,23 @@ setup_commands()
     INNOBACKUP="$BACKUP_BIN$WSREP_SST_OPT_CONF --backup$disver${iopts:+ }$iopts$tmpopts$INNOEXTRA --galera-info --stream=$sfmt --target-dir='$itmpdir' --datadir='$DATA'$mysqld_args $INNOBACKUP"
 }
 
+send_magic()
+{
+    # Store donor's wsrep GTID (state ID) and wsrep_gtid_domain_id
+    # (separated by a space).
+    echo "$WSREP_SST_OPT_GTID $WSREP_SST_OPT_GTID_DOMAIN_ID" > "$MAGIC_FILE"
+    echo "$WSREP_SST_OPT_GTID $WSREP_SST_OPT_GTID_DOMAIN_ID" > "$DONOR_MAGIC_FILE"
+    if [ -n "$WSREP_SST_OPT_REMOTE_PSWD" ]; then
+        # Let joiner know that we know its secret
+        echo "$SECRET_TAG $WSREP_SST_OPT_REMOTE_PSWD" >> "$MAGIC_FILE"
+    fi
+
+    if [ $WSREP_SST_OPT_BYPASS -eq 0 -a $WSREP_SST_OPT_PROGRESS -eq 1 ]; then
+        # Tell joiner what to expect:
+        echo "$TOTAL_TAG $payload" >> "$MAGIC_FILE"
+    fi
+}
+
 get_stream
 get_transfer
 
@@ -1063,27 +1086,27 @@ if [ "$WSREP_SST_OPT_ROLE" = 'donor' ]; then
         tmpdir=$(parse_cnf "$encgroups" 'tmpdir')
         if [ -z "$tmpdir" ]; then
             xtmpdir="$(mktemp -d)"
+            itmpdir="$(mktemp -d)"
         elif [ "$OS" = 'Linux' ]; then
-            xtmpdir=$(mktemp '-d' "--tmpdir=$tmpdir")
+            xtmpdir=$(mktemp -d "--tmpdir=$tmpdir")
+            itmpdir=$(mktemp -d "--tmpdir=$tmpdir")
         else
-            xtmpdir=$(TMPDIR="$tmpdir"; mktemp '-d')
+            xtmpdir=$(TMPDIR="$tmpdir"; mktemp -d)
+            itmpdir=$(TMPDIR="$tmpdir"; mktemp -d)
         fi
 
         wsrep_log_info "Using '$xtmpdir' as mariadb-backup temporary directory"
         tmpopts=" --tmpdir='$xtmpdir'"
 
-        itmpdir="$(mktemp -d)"
-        wsrep_log_info "Using '$itmpdir' as mariadb-abackup working directory"
+        wsrep_log_info "Using '$itmpdir' as mariadb-backup working directory"
 
-        usrst=0
         if [ -n "$WSREP_SST_OPT_USER" ]; then
            INNOEXTRA="$INNOEXTRA --user='$WSREP_SST_OPT_USER'"
-           usrst=1
         fi
 
         if [ -n "$WSREP_SST_OPT_PSWD" ]; then
             export MYSQL_PWD="$WSREP_SST_OPT_PSWD"
-        elif [ $usrst -eq 1 ]; then
+        elif [ -n "$WSREP_SST_OPT_USER" ]; then
             # Empty password, used for testing, debugging etc.
             unset MYSQL_PWD
         fi
@@ -1099,20 +1122,7 @@ if [ "$WSREP_SST_OPT_ROLE" = 'donor' ]; then
         fi
 
         wsrep_log_info "Streaming GTID file before SST"
-
-        # Store donor's wsrep GTID (state ID) and wsrep_gtid_domain_id
-        # (separated by a space).
-        echo "$WSREP_SST_OPT_GTID $WSREP_SST_OPT_GTID_DOMAIN_ID" > "$MAGIC_FILE"
-
-        if [ -n "$WSREP_SST_OPT_REMOTE_PSWD" ]; then
-            # Let joiner know that we know its secret
-            echo "$SECRET_TAG $WSREP_SST_OPT_REMOTE_PSWD" >> "$MAGIC_FILE"
-        fi
-
-        if [ $WSREP_SST_OPT_PROGRESS -eq 1 ]; then
-            # Tell joiner what to expect:
-            echo "$TOTAL_TAG $payload" >> "$MAGIC_FILE"
-        fi
+        send_magic
 
         ttcmd="$tcmd"
 
@@ -1200,12 +1210,11 @@ if [ "$WSREP_SST_OPT_ROLE" = 'donor' ]; then
     else # BYPASS FOR IST
 
         wsrep_log_info "Bypassing the SST for IST"
-        echo "continue" # now server can resume updating data
+        echo 'continue' # now server can resume updating data
 
-        # Store donor's wsrep GTID (state ID) and wsrep_gtid_domain_id
-        # (separated by a space).
-        echo "$WSREP_SST_OPT_GTID $WSREP_SST_OPT_GTID_DOMAIN_ID" > "$MAGIC_FILE"
-        echo "1" > "$DATA/$IST_FILE"
+        send_magic
+
+        echo '1' > "$DATA/$IST_FILE"
 
         if [ -n "$scomp" ]; then
             tcmd="$scomp | $tcmd"
@@ -1310,13 +1319,13 @@ else # joiner
         impts="--parallel=$backup_threads${impts:+ }$impts"
     fi
 
-    SST_PID="$WSREP_SST_OPT_DATA/wsrep_sst.pid"
+    SST_PID="$DATA/wsrep_sst.pid"
 
     # give some time for previous SST to complete:
     check_round=0
     while check_pid "$SST_PID" 0; do
         wsrep_log_info "previous SST is not completed, waiting for it to exit"
-        check_round=$(( check_round + 1 ))
+        check_round=$(( check_round+1 ))
         if [ $check_round -eq 10 ]; then
             wsrep_log_error "previous SST script still running."
             exit 114 # EALREADY
@@ -1343,16 +1352,7 @@ else # joiner
         # backward-incompatible behavior:
         CN=""
         if [ -n "$tpem" ]; then
-            # find out my Common Name
-            get_openssl
-            if [ -z "$OPENSSL_BINARY" ]; then
-                wsrep_log_error \
-                    'openssl not found but it is required for authentication'
-                exit 42
-            fi
-            CN=$("$OPENSSL_BINARY" x509 -noout -subject -in "$tpem" | \
-                 tr ',' '\n' | grep -F 'CN =' | cut -d '=' -f2 | sed s/^\ // | \
-                 sed s/\ %//)
+            CN=$(openssl_getCN "$tpem")
         fi
         MY_SECRET="$(wsrep_gen_secret)"
         # Add authentication data to address
@@ -1451,8 +1451,8 @@ else # joiner
 
         TDATA="$DATA"
         DATA="$DATA/.sst"
-
         MAGIC_FILE="$DATA/$INFO_FILE"
+
         wsrep_log_info "Waiting for SST streaming to complete!"
         monitor_process $jpid
 
@@ -1590,9 +1590,16 @@ else # joiner
         exit 2
     fi
 
+    # use donor magic file, if present
+    # if IST was used, donor magic file was not created
     # Remove special tags from the magic file, and from the output:
-    coords=$(head -n1 "$MAGIC_FILE")
-    wsrep_log_info "Galera co-ords from recovery: $coords"
+    if [ -r "$DONOR_MAGIC_FILE" ]; then
+        coords=$(head -n1 "$DONOR_MAGIC_FILE")
+        wsrep_log_info "Galera co-ords from donor: $coords"
+    else
+        coords=$(head -n1 "$MAGIC_FILE")
+        wsrep_log_info "Galera co-ords from recovery: $coords"
+    fi
     echo "$coords" # Output : UUID:seqno wsrep_gtid_domain_id
 
     wsrep_log_info "Total time on joiner: $totime seconds"

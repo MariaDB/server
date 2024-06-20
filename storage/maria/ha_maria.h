@@ -122,8 +122,8 @@ public:
   int external_lock(THD * thd, int lock_type) override;
   int start_stmt(THD *thd, thr_lock_type lock_type) override final;
   int delete_all_rows(void) override final;
-  int disable_indexes(uint mode) override final;
-  int enable_indexes(uint mode) override final;
+  int disable_indexes(key_map map, bool persist) override final;
+  int enable_indexes(key_map map, bool persist) override final;
   int indexes_are_disabled(void) override final;
   void start_bulk_insert(ha_rows rows, uint flags) override final;
   int end_bulk_insert() override final;

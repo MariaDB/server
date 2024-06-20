@@ -8,7 +8,7 @@ select 'hello',"'hello'",'""hello""','''h''e''l''l''o''',"hel""lo",'hel\'lo';
 hello	'hello'	""hello""	'h'e'l'l'o'	hel"lo	hel'lo
 hello	'hello'	""hello""	'h'e'l'l'o'	hel"lo	hel'lo
 select 'hello' 'monty';
-hello
+hellomonty
 hellomonty
 select length('\n\t\r\b\0\_\%\\');
 length('\n\t\r\b\0\_\%\\')
@@ -5285,4 +5285,39 @@ SELECT DECODE(NULL, NULL, NULL);
 ERROR 42000: Incorrect parameter count in the call to native function 'DECODE'
 #
 # End of 10.4 tests
+#
+#
+# Start of 10.5 tests
+#
+#
+# MDEV-28651 quote(NULL) returns incorrect result in view ('NU' instead of 'NULL')
+#
+CREATE VIEW v1 AS SELECT quote(NULL);
+SELECT * FROM v1;
+quote(NULL)
+NULL
+DESCRIBE v1;
+Field	Type	Null	Key	Default	Extra
+quote(NULL)	varbinary(4)	YES		NULL	
+CREATE TABLE t1 AS SELECT * FROM v1;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `quote(NULL)` varbinary(4) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+SELECT * FROM t1;
+quote(NULL)
+NULL
+DROP TABLE t1;
+DROP VIEW v1;
+#
+# MDEV-28387 UBSAN: runtime error: negation of -9223372036854775808 cannot be represented in type 'long long int'; cast to an unsigned type to negate this value to itself in my_strtoll10 on SELECT
+#
+SET @a='-9223372036854775808';
+CREATE TABLE t (c1 INT,c2 CHAR);
+SELECT SUBSTR(0,@a) FROM t;
+SUBSTR(0,@a)
+DROP TABLE t;
+#
+# End of 10.5 tests
 #

@@ -1054,7 +1054,7 @@ static
 buf_block_t*
 fsp_page_create(fil_space_t *space, page_no_t offset, mtr_t *mtr)
 {
-  buf_block_t *block, *free_block;
+  buf_block_t *block;
 
   if (UNIV_UNLIKELY(space->is_being_truncated))
   {
@@ -1063,26 +1063,48 @@ fsp_page_create(fil_space_t *space, page_no_t offset, mtr_t *mtr)
     mysql_mutex_lock(&buf_pool.mutex);
     block= reinterpret_cast<buf_block_t*>
       (buf_pool.page_hash_get_low(page_id, fold));
-    if (block && block->page.oldest_modification() <= 1)
-      block= nullptr;
+    if (!block)
+    {
+      mysql_mutex_unlock(&buf_pool.mutex);
+      goto create;
+    }
+
+    buf_block_buf_fix_inc(block, __FILE__, __LINE__);
     mysql_mutex_unlock(&buf_pool.mutex);
 
-    if (block)
+    ut_ad(block->page.state() == BUF_BLOCK_FILE_PAGE);
+    ut_ad(!block->page.ibuf_exist);
+#ifdef BTR_CUR_HASH_ADAPT
+    ut_ad(!block->index);
+#endif
+
+    if (mtr->have_x_latch(*block))
     {
+      buf_block_buf_fix_dec(block);
       ut_ad(block->page.buf_fix_count() >= 1);
       ut_ad(rw_lock_get_x_lock_count(&block->lock) == 1);
-      ut_ad(mtr->have_x_latch(*block));
-      free_block= block;
-      goto got_free_block;
+    }
+    else
+    {
+      rw_lock_x_lock(&block->lock);
+      if (UNIV_UNLIKELY(block->page.id() != page_id))
+      {
+        buf_block_buf_fix_dec(block);
+        rw_lock_x_unlock(&block->lock);
+        goto create;
+      }
+      mtr->memo_push(block, MTR_MEMO_PAGE_X_FIX);
     }
   }
-
-  free_block= buf_LRU_get_free_block(false);
-got_free_block:
-  block= buf_page_create(space, static_cast<uint32_t>(offset),
-                         space->zip_size(), mtr, free_block);
-  if (UNIV_UNLIKELY(block != free_block))
-    buf_pool.free_block(free_block);
+  else
+  {
+  create:
+    buf_block_t *free_block= buf_LRU_get_free_block(false);
+    block= buf_page_create(space, static_cast<uint32_t>(offset),
+                           space->zip_size(), mtr, free_block);
+    if (UNIV_UNLIKELY(block != free_block))
+      buf_pool.free_block(free_block);
+  }
 
   fsp_init_file_page(space, block, mtr);
   return block;

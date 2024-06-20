@@ -248,4 +248,13 @@ dict_stats_report_error(dict_table_t* table, bool defragment = false)
 void test_dict_stats_all();
 #endif /* UNIV_ENABLE_UNIT_TEST_DICT_STATS */
 
+/** Write all zeros (or 1 where it makes sense) into a table
+and its indexes'statistics members. The resulting stats
+correspond to an empty table.
+@param	table			table stats to be emptied
+@param  empty_defrag_stats	empty the defrag stats */
+void
+dict_stats_empty_table(
+	dict_table_t*	table,
+	bool		empty_defrag_stats);
 #endif /* dict0stats_h */

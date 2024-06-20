@@ -413,7 +413,6 @@ static bool write_eof_packet(THD *thd, NET *net,
 
 bool Protocol::net_send_error_packet(THD *thd, uint sql_errno, const char *err,
                                      const char* sqlstate)
-
 {
   NET *net= &thd->net;
   uint length;

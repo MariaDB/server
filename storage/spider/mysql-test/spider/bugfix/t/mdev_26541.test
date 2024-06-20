@@ -2,10 +2,7 @@
 --echo # MDEV-26541 Undefined symbol: _ZTI12ha_partition when attempting to use ha_spider.so in UBSAN builds
 --echo #
 
-if (`select not(count(*)) from information_schema.system_variables where variable_name='have_sanitizer' and global_value like "%UBSAN%"`)
-{
---skip test needs to be run with UBSAN
-}
+# this test should be checked with ubsan
 
 # init spider
 
@@ -20,4 +17,5 @@ while (!$PLUGIN_EXIST)
     `SELECT COUNT(*) FROM mysql.func WHERE name = '$PLUGIN_NAME'`;
 }
 
+--disable_query_log
 --source ../../include/clean_up_spider.inc

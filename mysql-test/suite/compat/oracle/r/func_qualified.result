@@ -1,0 +1,2547 @@
+#
+# MDEV-27744 LPAD in vcol created in ORACLE mode makes table corrupted in non-ORACLE
+#
+SET sql_mode=DEFAULT;
+SELECT decode_oracle(1);
+ERROR 42000: Incorrect parameter count in the call to native function 'decode_oracle'
+SELECT DECODE_ORACLE(1);
+ERROR 42000: Incorrect parameter count in the call to native function 'DECODE_ORACLE'
+SET sql_mode=ORACLE;
+SELECT decode_oracle(1);
+ERROR 42000: Incorrect parameter count in the call to native function 'decode_oracle'
+SELECT DECODE_ORACLE(1);
+ERROR 42000: Incorrect parameter count in the call to native function 'DECODE_ORACLE'
+SET sql_mode=DEFAULT;
+SELECT decode(1);
+ERROR 42000: Incorrect parameter count in the call to native function 'decode'
+SELECT DECODE(1);
+ERROR 42000: Incorrect parameter count in the call to native function 'DECODE'
+SET sql_mode=ORACLE;
+SELECT decode(1);
+ERROR 42000: Incorrect parameter count in the call to native function 'decode'
+SELECT DECODE(1);
+ERROR 42000: Incorrect parameter count in the call to native function 'DECODE'
+SELECT mariadb_schema.decode(1);
+ERROR 42000: Incorrect parameter count in the call to native function 'decode'
+SELECT mariadb_schema.DECODE(1);
+ERROR 42000: Incorrect parameter count in the call to native function 'DECODE'
+SELECT mariadb_schema.decode_oracle(1);
+ERROR 42000: Incorrect parameter count in the call to native function 'decode_oracle'
+SELECT mariadb_schema.DECODE_ORACLE(1);
+ERROR 42000: Incorrect parameter count in the call to native function 'DECODE_ORACLE'
+SET sql_mode=DEFAULT;
+SELECT unknown.TRIM(1);
+ERROR 42000: FUNCTION unknown.TRIM does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
+SELECT unknown.trim(1);
+ERROR 42000: FUNCTION unknown.trim does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
+SELECT oracle_schema.TRIM();
+ERROR HY000: Function 'TRIM' is not defined
+SELECT oracle_schema.TRIM('a','b');
+ERROR HY000: Function 'TRIM' is not defined
+SELECT oracle_schema.TRIM('a','b','c','d');
+ERROR HY000: Function 'TRIM' is not defined
+SELECT unknown.SUBSTR('a',1,2);
+ERROR 42000: FUNCTION unknown.SUBSTR does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
+SELECT unknown.substr('a',1,2);
+ERROR 42000: FUNCTION unknown.substr does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
+SELECT unknown.SUBSTRING('a',1,2);
+ERROR 42000: FUNCTION unknown.SUBSTRING does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
+SELECT unknown.substring('a',1,2);
+ERROR 42000: FUNCTION unknown.substring does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
+SELECT unknown.REPLACE('a','b','c');
+ERROR 42000: FUNCTION unknown.REPLACE does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
+SELECT unknown.replace('a','b','c');
+ERROR 42000: FUNCTION unknown.replace does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
+SELECT oracle_schema.REPLACE();
+ERROR HY000: Function 'REPLACE' is not defined
+SELECT oracle_schema.REPLACE('a');
+ERROR HY000: Function 'REPLACE' is not defined
+SELECT oracle_schema.REPLACE('a','b');
+ERROR HY000: Function 'REPLACE' is not defined
+SELECT oracle_schema.REPLACE('a','b','c','d');
+ERROR HY000: Function 'REPLACE' is not defined
+SET sql_mode=DEFAULT;
+CREATE PROCEDURE p1(sqlmode TEXT, qualifier TEXT, expr TEXT)
+BEGIN
+DECLARE query TEXT DEFAULT 'SELECT $(QUALIFIER)$(EXPR)';
+DECLARE errmsg TEXT DEFAULT NULL;
+DECLARE CONTINUE HANDLER FOR 1064, 1128, 1305, 1582, 1630
+BEGIN
+GET DIAGNOSTICS CONDITION 1 errmsg = MESSAGE_TEXT;
+END;
+SET sql_mode=sqlmode;
+SET query=REPLACE(query, '$(QUALIFIER)', qualifier);
+SET query=REPLACE(query, '$(EXPR)', expr);
+SET query= CONCAT('EXPLAIN EXTENDED ', query);
+SELECT CONCAT('sql_mode=''',sqlmode,'''', '   ',
+'qualifier=''',qualifier,'''') AS `----------`;
+SELECT query;
+EXECUTE IMMEDIATE query;
+IF errmsg IS NOT NULL THEN
+SELECT CONCAT('ERROR: ', errmsg) AS errmsg;
+ELSE
+SHOW WARNINGS;
+END IF;
+END;
+$$
+CREATE PROCEDURE p2(sqlmode TEXT, expr TEXT)
+BEGIN
+CALL p1(sqlmode, '',                expr);
+CALL p1(sqlmode, 'unknown_schema.', expr);
+CALL p1(sqlmode, 'mariadb_schema.', expr);
+CALL p1(sqlmode, 'maxdb_schema.',   expr);
+CALL p1(sqlmode, 'oracle_schema.',  expr);
+END;
+$$
+CREATE PROCEDURE p3(expr TEXT)
+BEGIN
+CALL p2('',       expr);
+CALL p2('ORACLE', expr);
+END;
+$$
+CALL p3('CONCAT(''a'')');
+----------
+sql_mode=''   qualifier=''
+query
+EXPLAIN EXTENDED SELECT CONCAT('a')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select concat('a') AS `CONCAT('a')`
+----------
+sql_mode=''   qualifier='unknown_schema.'
+query
+EXPLAIN EXTENDED SELECT unknown_schema.CONCAT('a')
+errmsg
+ERROR: FUNCTION unknown_schema.CONCAT does not exist
+----------
+sql_mode=''   qualifier='mariadb_schema.'
+query
+EXPLAIN EXTENDED SELECT mariadb_schema.CONCAT('a')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select concat('a') AS `mariadb_schema.CONCAT('a')`
+----------
+sql_mode=''   qualifier='maxdb_schema.'
+query
+EXPLAIN EXTENDED SELECT maxdb_schema.CONCAT('a')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select concat('a') AS `maxdb_schema.CONCAT('a')`
+----------
+sql_mode=''   qualifier='oracle_schema.'
+query
+EXPLAIN EXTENDED SELECT oracle_schema.CONCAT('a')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select oracle_schema.concat('a') AS `oracle_schema.CONCAT('a')`
+----------
+sql_mode='ORACLE'   qualifier=''
+query
+EXPLAIN EXTENDED SELECT CONCAT('a')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select concat('a') AS "CONCAT('a')"
+----------
+sql_mode='ORACLE'   qualifier='unknown_schema.'
+query
+EXPLAIN EXTENDED SELECT unknown_schema.CONCAT('a')
+errmsg
+ERROR: FUNCTION unknown_schema.CONCAT does not exist
+----------
+sql_mode='ORACLE'   qualifier='mariadb_schema.'
+query
+EXPLAIN EXTENDED SELECT mariadb_schema.CONCAT('a')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select mariadb_schema.concat('a') AS "mariadb_schema.CONCAT('a')"
+----------
+sql_mode='ORACLE'   qualifier='maxdb_schema.'
+query
+EXPLAIN EXTENDED SELECT maxdb_schema.CONCAT('a')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select mariadb_schema.concat('a') AS "maxdb_schema.CONCAT('a')"
+----------
+sql_mode='ORACLE'   qualifier='oracle_schema.'
+query
+EXPLAIN EXTENDED SELECT oracle_schema.CONCAT('a')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select concat('a') AS "oracle_schema.CONCAT('a')"
+Warnings:
+Note	1003	select concat('a') AS "oracle_schema.CONCAT('a')"
+CALL p3('DECODE(''1'',''2'')');
+----------
+sql_mode=''   qualifier=''
+query
+EXPLAIN EXTENDED SELECT DECODE('1','2')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select decode('1','2') AS `DECODE('1','2')`
+----------
+sql_mode=''   qualifier='unknown_schema.'
+query
+EXPLAIN EXTENDED SELECT unknown_schema.DECODE('1','2')
+errmsg
+ERROR: FUNCTION unknown_schema.DECODE does not exist
+----------
+sql_mode=''   qualifier='mariadb_schema.'
+query
+EXPLAIN EXTENDED SELECT mariadb_schema.DECODE('1','2')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select decode('1','2') AS `mariadb_schema.DECODE('1','2')`
+----------
+sql_mode=''   qualifier='maxdb_schema.'
+query
+EXPLAIN EXTENDED SELECT maxdb_schema.DECODE('1','2')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select decode('1','2') AS `maxdb_schema.DECODE('1','2')`
+----------
+sql_mode=''   qualifier='oracle_schema.'
+query
+EXPLAIN EXTENDED SELECT oracle_schema.DECODE('1','2')
+errmsg
+ERROR: Incorrect parameter count in the call to native function 'DECODE'
+----------
+sql_mode='ORACLE'   qualifier=''
+query
+EXPLAIN EXTENDED SELECT DECODE('1','2')
+errmsg
+ERROR: Incorrect parameter count in the call to native function 'DECODE'
+----------
+sql_mode='ORACLE'   qualifier='unknown_schema.'
+query
+EXPLAIN EXTENDED SELECT unknown_schema.DECODE('1','2')
+errmsg
+ERROR: FUNCTION unknown_schema.DECODE does not exist
+----------
+sql_mode='ORACLE'   qualifier='mariadb_schema.'
+query
+EXPLAIN EXTENDED SELECT mariadb_schema.DECODE('1','2')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select mariadb_schema.decode('1','2') AS "mariadb_schema.DECODE('1','2')"
+----------
+sql_mode='ORACLE'   qualifier='maxdb_schema.'
+query
+EXPLAIN EXTENDED SELECT maxdb_schema.DECODE('1','2')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select mariadb_schema.decode('1','2') AS "maxdb_schema.DECODE('1','2')"
+----------
+sql_mode='ORACLE'   qualifier='oracle_schema.'
+query
+EXPLAIN EXTENDED SELECT oracle_schema.DECODE('1','2')
+errmsg
+ERROR: Incorrect parameter count in the call to native function 'DECODE'
+CALL p3('DECODE(1,1,10)');
+----------
+sql_mode=''   qualifier=''
+query
+EXPLAIN EXTENDED SELECT DECODE(1,1,10)
+errmsg
+ERROR: Incorrect parameter count in the call to native function 'DECODE'
+----------
+sql_mode=''   qualifier='unknown_schema.'
+query
+EXPLAIN EXTENDED SELECT unknown_schema.DECODE(1,1,10)
+errmsg
+ERROR: FUNCTION unknown_schema.DECODE does not exist
+----------
+sql_mode=''   qualifier='mariadb_schema.'
+query
+EXPLAIN EXTENDED SELECT mariadb_schema.DECODE(1,1,10)
+errmsg
+ERROR: Incorrect parameter count in the call to native function 'DECODE'
+----------
+sql_mode=''   qualifier='maxdb_schema.'
+query
+EXPLAIN EXTENDED SELECT maxdb_schema.DECODE(1,1,10)
+errmsg
+ERROR: Incorrect parameter count in the call to native function 'DECODE'
+----------
+sql_mode=''   qualifier='oracle_schema.'
+query
+EXPLAIN EXTENDED SELECT oracle_schema.DECODE(1,1,10)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select oracle_schema.decode(1,1,10) AS `oracle_schema.DECODE(1,1,10)`
+----------
+sql_mode='ORACLE'   qualifier=''
+query
+EXPLAIN EXTENDED SELECT DECODE(1,1,10)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select decode(1,1,10) AS "DECODE(1,1,10)"
+----------
+sql_mode='ORACLE'   qualifier='unknown_schema.'
+query
+EXPLAIN EXTENDED SELECT unknown_schema.DECODE(1,1,10)
+errmsg
+ERROR: FUNCTION unknown_schema.DECODE does not exist
+----------
+sql_mode='ORACLE'   qualifier='mariadb_schema.'
+query
+EXPLAIN EXTENDED SELECT mariadb_schema.DECODE(1,1,10)
+errmsg
+ERROR: Incorrect parameter count in the call to native function 'DECODE'
+----------
+sql_mode='ORACLE'   qualifier='maxdb_schema.'
+query
+EXPLAIN EXTENDED SELECT maxdb_schema.DECODE(1,1,10)
+errmsg
+ERROR: Incorrect parameter count in the call to native function 'DECODE'
+----------
+sql_mode='ORACLE'   qualifier='oracle_schema.'
+query
+EXPLAIN EXTENDED SELECT oracle_schema.DECODE(1,1,10)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select decode(1,1,10) AS "oracle_schema.DECODE(1,1,10)"
+Warnings:
+Note	1003	select decode(1,1,10) AS "oracle_schema.DECODE(1,1,10)"
+CALL p3('LTRIM(''a'')');
+----------
+sql_mode=''   qualifier=''
+query
+EXPLAIN EXTENDED SELECT LTRIM('a')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select ltrim('a') AS `LTRIM('a')`
+----------
+sql_mode=''   qualifier='unknown_schema.'
+query
+EXPLAIN EXTENDED SELECT unknown_schema.LTRIM('a')
+errmsg
+ERROR: FUNCTION unknown_schema.LTRIM does not exist
+----------
+sql_mode=''   qualifier='mariadb_schema.'
+query
+EXPLAIN EXTENDED SELECT mariadb_schema.LTRIM('a')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select ltrim('a') AS `mariadb_schema.LTRIM('a')`
+----------
+sql_mode=''   qualifier='maxdb_schema.'
+query
+EXPLAIN EXTENDED SELECT maxdb_schema.LTRIM('a')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select ltrim('a') AS `maxdb_schema.LTRIM('a')`
+----------
+sql_mode=''   qualifier='oracle_schema.'
+query
+EXPLAIN EXTENDED SELECT oracle_schema.LTRIM('a')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select oracle_schema.ltrim('a') AS `oracle_schema.LTRIM('a')`
+----------
+sql_mode='ORACLE'   qualifier=''
+query
+EXPLAIN EXTENDED SELECT LTRIM('a')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select ltrim('a') AS "LTRIM('a')"
+----------
+sql_mode='ORACLE'   qualifier='unknown_schema.'
+query
+EXPLAIN EXTENDED SELECT unknown_schema.LTRIM('a')
+errmsg
+ERROR: FUNCTION unknown_schema.LTRIM does not exist
+----------
+sql_mode='ORACLE'   qualifier='mariadb_schema.'
+query
+EXPLAIN EXTENDED SELECT mariadb_schema.LTRIM('a')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select mariadb_schema.ltrim('a') AS "mariadb_schema.LTRIM('a')"
+----------
+sql_mode='ORACLE'   qualifier='maxdb_schema.'
+query
+EXPLAIN EXTENDED SELECT maxdb_schema.LTRIM('a')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select mariadb_schema.ltrim('a') AS "maxdb_schema.LTRIM('a')"
+----------
+sql_mode='ORACLE'   qualifier='oracle_schema.'
+query
+EXPLAIN EXTENDED SELECT oracle_schema.LTRIM('a')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select ltrim('a') AS "oracle_schema.LTRIM('a')"
+Warnings:
+Note	1003	select ltrim('a') AS "oracle_schema.LTRIM('a')"
+CALL p3('RTRIM(''a'')');
+----------
+sql_mode=''   qualifier=''
+query
+EXPLAIN EXTENDED SELECT RTRIM('a')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select rtrim('a') AS `RTRIM('a')`
+----------
+sql_mode=''   qualifier='unknown_schema.'
+query
+EXPLAIN EXTENDED SELECT unknown_schema.RTRIM('a')
+errmsg
+ERROR: FUNCTION unknown_schema.RTRIM does not exist
+----------
+sql_mode=''   qualifier='mariadb_schema.'
+query
+EXPLAIN EXTENDED SELECT mariadb_schema.RTRIM('a')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select rtrim('a') AS `mariadb_schema.RTRIM('a')`
+----------
+sql_mode=''   qualifier='maxdb_schema.'
+query
+EXPLAIN EXTENDED SELECT maxdb_schema.RTRIM('a')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select rtrim('a') AS `maxdb_schema.RTRIM('a')`
+----------
+sql_mode=''   qualifier='oracle_schema.'
+query
+EXPLAIN EXTENDED SELECT oracle_schema.RTRIM('a')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select oracle_schema.rtrim('a') AS `oracle_schema.RTRIM('a')`
+----------
+sql_mode='ORACLE'   qualifier=''
+query
+EXPLAIN EXTENDED SELECT RTRIM('a')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select rtrim('a') AS "RTRIM('a')"
+----------
+sql_mode='ORACLE'   qualifier='unknown_schema.'
+query
+EXPLAIN EXTENDED SELECT unknown_schema.RTRIM('a')
+errmsg
+ERROR: FUNCTION unknown_schema.RTRIM does not exist
+----------
+sql_mode='ORACLE'   qualifier='mariadb_schema.'
+query
+EXPLAIN EXTENDED SELECT mariadb_schema.RTRIM('a')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select mariadb_schema.rtrim('a') AS "mariadb_schema.RTRIM('a')"
+----------
+sql_mode='ORACLE'   qualifier='maxdb_schema.'
+query
+EXPLAIN EXTENDED SELECT maxdb_schema.RTRIM('a')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select mariadb_schema.rtrim('a') AS "maxdb_schema.RTRIM('a')"
+----------
+sql_mode='ORACLE'   qualifier='oracle_schema.'
+query
+EXPLAIN EXTENDED SELECT oracle_schema.RTRIM('a')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select rtrim('a') AS "oracle_schema.RTRIM('a')"
+Warnings:
+Note	1003	select rtrim('a') AS "oracle_schema.RTRIM('a')"
+CALL p3('LPAD(''a'',3)');
+----------
+sql_mode=''   qualifier=''
+query
+EXPLAIN EXTENDED SELECT LPAD('a',3)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select lpad('a',3) AS `LPAD('a',3)`
+----------
+sql_mode=''   qualifier='unknown_schema.'
+query
+EXPLAIN EXTENDED SELECT unknown_schema.LPAD('a',3)
+errmsg
+ERROR: FUNCTION unknown_schema.LPAD does not exist
+----------
+sql_mode=''   qualifier='mariadb_schema.'
+query
+EXPLAIN EXTENDED SELECT mariadb_schema.LPAD('a',3)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select lpad('a',3) AS `mariadb_schema.LPAD('a',3)`
+----------
+sql_mode=''   qualifier='maxdb_schema.'
+query
+EXPLAIN EXTENDED SELECT maxdb_schema.LPAD('a',3)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select lpad('a',3) AS `maxdb_schema.LPAD('a',3)`
+----------
+sql_mode=''   qualifier='oracle_schema.'
+query
+EXPLAIN EXTENDED SELECT oracle_schema.LPAD('a',3)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select oracle_schema.lpad('a',3) AS `oracle_schema.LPAD('a',3)`
+----------
+sql_mode='ORACLE'   qualifier=''
+query
+EXPLAIN EXTENDED SELECT LPAD('a',3)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select lpad('a',3) AS "LPAD('a',3)"
+----------
+sql_mode='ORACLE'   qualifier='unknown_schema.'
+query
+EXPLAIN EXTENDED SELECT unknown_schema.LPAD('a',3)
+errmsg
+ERROR: FUNCTION unknown_schema.LPAD does not exist
+----------
+sql_mode='ORACLE'   qualifier='mariadb_schema.'
+query
+EXPLAIN EXTENDED SELECT mariadb_schema.LPAD('a',3)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select mariadb_schema.lpad('a',3) AS "mariadb_schema.LPAD('a',3)"
+----------
+sql_mode='ORACLE'   qualifier='maxdb_schema.'
+query
+EXPLAIN EXTENDED SELECT maxdb_schema.LPAD('a',3)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select mariadb_schema.lpad('a',3) AS "maxdb_schema.LPAD('a',3)"
+----------
+sql_mode='ORACLE'   qualifier='oracle_schema.'
+query
+EXPLAIN EXTENDED SELECT oracle_schema.LPAD('a',3)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select lpad('a',3) AS "oracle_schema.LPAD('a',3)"
+Warnings:
+Note	1003	select lpad('a',3) AS "oracle_schema.LPAD('a',3)"
+CALL p3('LPAD(''a'',3, '' '')');
+----------
+sql_mode=''   qualifier=''
+query
+EXPLAIN EXTENDED SELECT LPAD('a',3, ' ')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select lpad('a',3,' ') AS `LPAD('a',3, ' ')`
+----------
+sql_mode=''   qualifier='unknown_schema.'
+query
+EXPLAIN EXTENDED SELECT unknown_schema.LPAD('a',3, ' ')
+errmsg
+ERROR: FUNCTION unknown_schema.LPAD does not exist
+----------
+sql_mode=''   qualifier='mariadb_schema.'
+query
+EXPLAIN EXTENDED SELECT mariadb_schema.LPAD('a',3, ' ')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select lpad('a',3,' ') AS `mariadb_schema.LPAD('a',3, ' ')`
+----------
+sql_mode=''   qualifier='maxdb_schema.'
+query
+EXPLAIN EXTENDED SELECT maxdb_schema.LPAD('a',3, ' ')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select lpad('a',3,' ') AS `maxdb_schema.LPAD('a',3, ' ')`
+----------
+sql_mode=''   qualifier='oracle_schema.'
+query
+EXPLAIN EXTENDED SELECT oracle_schema.LPAD('a',3, ' ')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select oracle_schema.lpad('a',3,' ') AS `oracle_schema.LPAD('a',3, ' ')`
+----------
+sql_mode='ORACLE'   qualifier=''
+query
+EXPLAIN EXTENDED SELECT LPAD('a',3, ' ')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select lpad('a',3,' ') AS "LPAD('a',3, ' ')"
+----------
+sql_mode='ORACLE'   qualifier='unknown_schema.'
+query
+EXPLAIN EXTENDED SELECT unknown_schema.LPAD('a',3, ' ')
+errmsg
+ERROR: FUNCTION unknown_schema.LPAD does not exist
+----------
+sql_mode='ORACLE'   qualifier='mariadb_schema.'
+query
+EXPLAIN EXTENDED SELECT mariadb_schema.LPAD('a',3, ' ')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select mariadb_schema.lpad('a',3,' ') AS "mariadb_schema.LPAD('a',3, ' ')"
+----------
+sql_mode='ORACLE'   qualifier='maxdb_schema.'
+query
+EXPLAIN EXTENDED SELECT maxdb_schema.LPAD('a',3, ' ')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select mariadb_schema.lpad('a',3,' ') AS "maxdb_schema.LPAD('a',3, ' ')"
+----------
+sql_mode='ORACLE'   qualifier='oracle_schema.'
+query
+EXPLAIN EXTENDED SELECT oracle_schema.LPAD('a',3, ' ')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select lpad('a',3,' ') AS "oracle_schema.LPAD('a',3, ' ')"
+Warnings:
+Note	1003	select lpad('a',3,' ') AS "oracle_schema.LPAD('a',3, ' ')"
+CALL p3('RPAD(''a'',3)');
+----------
+sql_mode=''   qualifier=''
+query
+EXPLAIN EXTENDED SELECT RPAD('a',3)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select rpad('a',3) AS `RPAD('a',3)`
+----------
+sql_mode=''   qualifier='unknown_schema.'
+query
+EXPLAIN EXTENDED SELECT unknown_schema.RPAD('a',3)
+errmsg
+ERROR: FUNCTION unknown_schema.RPAD does not exist
+----------
+sql_mode=''   qualifier='mariadb_schema.'
+query
+EXPLAIN EXTENDED SELECT mariadb_schema.RPAD('a',3)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select rpad('a',3) AS `mariadb_schema.RPAD('a',3)`
+----------
+sql_mode=''   qualifier='maxdb_schema.'
+query
+EXPLAIN EXTENDED SELECT maxdb_schema.RPAD('a',3)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select rpad('a',3) AS `maxdb_schema.RPAD('a',3)`
+----------
+sql_mode=''   qualifier='oracle_schema.'
+query
+EXPLAIN EXTENDED SELECT oracle_schema.RPAD('a',3)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select oracle_schema.rpad('a',3) AS `oracle_schema.RPAD('a',3)`
+----------
+sql_mode='ORACLE'   qualifier=''
+query
+EXPLAIN EXTENDED SELECT RPAD('a',3)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select rpad('a',3) AS "RPAD('a',3)"
+----------
+sql_mode='ORACLE'   qualifier='unknown_schema.'
+query
+EXPLAIN EXTENDED SELECT unknown_schema.RPAD('a',3)
+errmsg
+ERROR: FUNCTION unknown_schema.RPAD does not exist
+----------
+sql_mode='ORACLE'   qualifier='mariadb_schema.'
+query
+EXPLAIN EXTENDED SELECT mariadb_schema.RPAD('a',3)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select mariadb_schema.rpad('a',3) AS "mariadb_schema.RPAD('a',3)"
+----------
+sql_mode='ORACLE'   qualifier='maxdb_schema.'
+query
+EXPLAIN EXTENDED SELECT maxdb_schema.RPAD('a',3)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select mariadb_schema.rpad('a',3) AS "maxdb_schema.RPAD('a',3)"
+----------
+sql_mode='ORACLE'   qualifier='oracle_schema.'
+query
+EXPLAIN EXTENDED SELECT oracle_schema.RPAD('a',3)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select rpad('a',3) AS "oracle_schema.RPAD('a',3)"
+Warnings:
+Note	1003	select rpad('a',3) AS "oracle_schema.RPAD('a',3)"
+CALL p3('RPAD(''a'',3, '' '')');
+----------
+sql_mode=''   qualifier=''
+query
+EXPLAIN EXTENDED SELECT RPAD('a',3, ' ')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select rpad('a',3,' ') AS `RPAD('a',3, ' ')`
+----------
+sql_mode=''   qualifier='unknown_schema.'
+query
+EXPLAIN EXTENDED SELECT unknown_schema.RPAD('a',3, ' ')
+errmsg
+ERROR: FUNCTION unknown_schema.RPAD does not exist
+----------
+sql_mode=''   qualifier='mariadb_schema.'
+query
+EXPLAIN EXTENDED SELECT mariadb_schema.RPAD('a',3, ' ')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select rpad('a',3,' ') AS `mariadb_schema.RPAD('a',3, ' ')`
+----------
+sql_mode=''   qualifier='maxdb_schema.'
+query
+EXPLAIN EXTENDED SELECT maxdb_schema.RPAD('a',3, ' ')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select rpad('a',3,' ') AS `maxdb_schema.RPAD('a',3, ' ')`
+----------
+sql_mode=''   qualifier='oracle_schema.'
+query
+EXPLAIN EXTENDED SELECT oracle_schema.RPAD('a',3, ' ')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select oracle_schema.rpad('a',3,' ') AS `oracle_schema.RPAD('a',3, ' ')`
+----------
+sql_mode='ORACLE'   qualifier=''
+query
+EXPLAIN EXTENDED SELECT RPAD('a',3, ' ')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select rpad('a',3,' ') AS "RPAD('a',3, ' ')"
+----------
+sql_mode='ORACLE'   qualifier='unknown_schema.'
+query
+EXPLAIN EXTENDED SELECT unknown_schema.RPAD('a',3, ' ')
+errmsg
+ERROR: FUNCTION unknown_schema.RPAD does not exist
+----------
+sql_mode='ORACLE'   qualifier='mariadb_schema.'
+query
+EXPLAIN EXTENDED SELECT mariadb_schema.RPAD('a',3, ' ')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select mariadb_schema.rpad('a',3,' ') AS "mariadb_schema.RPAD('a',3, ' ')"
+----------
+sql_mode='ORACLE'   qualifier='maxdb_schema.'
+query
+EXPLAIN EXTENDED SELECT maxdb_schema.RPAD('a',3, ' ')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select mariadb_schema.rpad('a',3,' ') AS "maxdb_schema.RPAD('a',3, ' ')"
+----------
+sql_mode='ORACLE'   qualifier='oracle_schema.'
+query
+EXPLAIN EXTENDED SELECT oracle_schema.RPAD('a',3, ' ')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select rpad('a',3,' ') AS "oracle_schema.RPAD('a',3, ' ')"
+Warnings:
+Note	1003	select rpad('a',3,' ') AS "oracle_schema.RPAD('a',3, ' ')"
+CALL p3('REPLACE()');
+----------
+sql_mode=''   qualifier=''
+query
+EXPLAIN EXTENDED SELECT REPLACE()
+errmsg
+ERROR: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ')' at line 1
+----------
+sql_mode=''   qualifier='unknown_schema.'
+query
+EXPLAIN EXTENDED SELECT unknown_schema.REPLACE()
+errmsg
+ERROR: FUNCTION unknown_schema.REPLACE does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
+----------
+sql_mode=''   qualifier='mariadb_schema.'
+query
+EXPLAIN EXTENDED SELECT mariadb_schema.REPLACE()
+errmsg
+ERROR: Function 'REPLACE' is not defined
+----------
+sql_mode=''   qualifier='maxdb_schema.'
+query
+EXPLAIN EXTENDED SELECT maxdb_schema.REPLACE()
+errmsg
+ERROR: Function 'REPLACE' is not defined
+----------
+sql_mode=''   qualifier='oracle_schema.'
+query
+EXPLAIN EXTENDED SELECT oracle_schema.REPLACE()
+errmsg
+ERROR: Function 'REPLACE' is not defined
+----------
+sql_mode='ORACLE'   qualifier=''
+query
+EXPLAIN EXTENDED SELECT REPLACE()
+errmsg
+ERROR: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ')' at line 1
+----------
+sql_mode='ORACLE'   qualifier='unknown_schema.'
+query
+EXPLAIN EXTENDED SELECT unknown_schema.REPLACE()
+errmsg
+ERROR: FUNCTION unknown_schema.REPLACE does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
+----------
+sql_mode='ORACLE'   qualifier='mariadb_schema.'
+query
+EXPLAIN EXTENDED SELECT mariadb_schema.REPLACE()
+errmsg
+ERROR: Function 'REPLACE' is not defined
+----------
+sql_mode='ORACLE'   qualifier='maxdb_schema.'
+query
+EXPLAIN EXTENDED SELECT maxdb_schema.REPLACE()
+errmsg
+ERROR: Function 'REPLACE' is not defined
+----------
+sql_mode='ORACLE'   qualifier='oracle_schema.'
+query
+EXPLAIN EXTENDED SELECT oracle_schema.REPLACE()
+errmsg
+ERROR: Function 'REPLACE' is not defined
+CALL p3('REPLACE(''a'',''b'')');
+----------
+sql_mode=''   qualifier=''
+query
+EXPLAIN EXTENDED SELECT REPLACE('a','b')
+errmsg
+ERROR: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ')' at line 1
+----------
+sql_mode=''   qualifier='unknown_schema.'
+query
+EXPLAIN EXTENDED SELECT unknown_schema.REPLACE('a','b')
+errmsg
+ERROR: FUNCTION unknown_schema.REPLACE does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
+----------
+sql_mode=''   qualifier='mariadb_schema.'
+query
+EXPLAIN EXTENDED SELECT mariadb_schema.REPLACE('a','b')
+errmsg
+ERROR: Function 'REPLACE' is not defined
+----------
+sql_mode=''   qualifier='maxdb_schema.'
+query
+EXPLAIN EXTENDED SELECT maxdb_schema.REPLACE('a','b')
+errmsg
+ERROR: Function 'REPLACE' is not defined
+----------
+sql_mode=''   qualifier='oracle_schema.'
+query
+EXPLAIN EXTENDED SELECT oracle_schema.REPLACE('a','b')
+errmsg
+ERROR: Function 'REPLACE' is not defined
+----------
+sql_mode='ORACLE'   qualifier=''
+query
+EXPLAIN EXTENDED SELECT REPLACE('a','b')
+errmsg
+ERROR: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ')' at line 1
+----------
+sql_mode='ORACLE'   qualifier='unknown_schema.'
+query
+EXPLAIN EXTENDED SELECT unknown_schema.REPLACE('a','b')
+errmsg
+ERROR: FUNCTION unknown_schema.REPLACE does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
+----------
+sql_mode='ORACLE'   qualifier='mariadb_schema.'
+query
+EXPLAIN EXTENDED SELECT mariadb_schema.REPLACE('a','b')
+errmsg
+ERROR: Function 'REPLACE' is not defined
+----------
+sql_mode='ORACLE'   qualifier='maxdb_schema.'
+query
+EXPLAIN EXTENDED SELECT maxdb_schema.REPLACE('a','b')
+errmsg
+ERROR: Function 'REPLACE' is not defined
+----------
+sql_mode='ORACLE'   qualifier='oracle_schema.'
+query
+EXPLAIN EXTENDED SELECT oracle_schema.REPLACE('a','b')
+errmsg
+ERROR: Function 'REPLACE' is not defined
+CALL p3('REPLACE(''a'',''b'',''c'',''d'')');
+----------
+sql_mode=''   qualifier=''
+query
+EXPLAIN EXTENDED SELECT REPLACE('a','b','c','d')
+errmsg
+ERROR: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ''d')' at line 1
+----------
+sql_mode=''   qualifier='unknown_schema.'
+query
+EXPLAIN EXTENDED SELECT unknown_schema.REPLACE('a','b','c','d')
+errmsg
+ERROR: FUNCTION unknown_schema.REPLACE does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
+----------
+sql_mode=''   qualifier='mariadb_schema.'
+query
+EXPLAIN EXTENDED SELECT mariadb_schema.REPLACE('a','b','c','d')
+errmsg
+ERROR: Function 'REPLACE' is not defined
+----------
+sql_mode=''   qualifier='maxdb_schema.'
+query
+EXPLAIN EXTENDED SELECT maxdb_schema.REPLACE('a','b','c','d')
+errmsg
+ERROR: Function 'REPLACE' is not defined
+----------
+sql_mode=''   qualifier='oracle_schema.'
+query
+EXPLAIN EXTENDED SELECT oracle_schema.REPLACE('a','b','c','d')
+errmsg
+ERROR: Function 'REPLACE' is not defined
+----------
+sql_mode='ORACLE'   qualifier=''
+query
+EXPLAIN EXTENDED SELECT REPLACE('a','b','c','d')
+errmsg
+ERROR: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ''d')' at line 1
+----------
+sql_mode='ORACLE'   qualifier='unknown_schema.'
+query
+EXPLAIN EXTENDED SELECT unknown_schema.REPLACE('a','b','c','d')
+errmsg
+ERROR: FUNCTION unknown_schema.REPLACE does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
+----------
+sql_mode='ORACLE'   qualifier='mariadb_schema.'
+query
+EXPLAIN EXTENDED SELECT mariadb_schema.REPLACE('a','b','c','d')
+errmsg
+ERROR: Function 'REPLACE' is not defined
+----------
+sql_mode='ORACLE'   qualifier='maxdb_schema.'
+query
+EXPLAIN EXTENDED SELECT maxdb_schema.REPLACE('a','b','c','d')
+errmsg
+ERROR: Function 'REPLACE' is not defined
+----------
+sql_mode='ORACLE'   qualifier='oracle_schema.'
+query
+EXPLAIN EXTENDED SELECT oracle_schema.REPLACE('a','b','c','d')
+errmsg
+ERROR: Function 'REPLACE' is not defined
+CALL p3('REPLACE(''a'',''b'',''c'')');
+----------
+sql_mode=''   qualifier=''
+query
+EXPLAIN EXTENDED SELECT REPLACE('a','b','c')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select replace('a','b','c') AS `REPLACE('a','b','c')`
+----------
+sql_mode=''   qualifier='unknown_schema.'
+query
+EXPLAIN EXTENDED SELECT unknown_schema.REPLACE('a','b','c')
+errmsg
+ERROR: FUNCTION unknown_schema.REPLACE does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
+----------
+sql_mode=''   qualifier='mariadb_schema.'
+query
+EXPLAIN EXTENDED SELECT mariadb_schema.REPLACE('a','b','c')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select replace('a','b','c') AS `mariadb_schema.REPLACE('a','b','c')`
+----------
+sql_mode=''   qualifier='maxdb_schema.'
+query
+EXPLAIN EXTENDED SELECT maxdb_schema.REPLACE('a','b','c')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select replace('a','b','c') AS `maxdb_schema.REPLACE('a','b','c')`
+----------
+sql_mode=''   qualifier='oracle_schema.'
+query
+EXPLAIN EXTENDED SELECT oracle_schema.REPLACE('a','b','c')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select oracle_schema.replace('a','b','c') AS `oracle_schema.REPLACE('a','b','c')`
+----------
+sql_mode='ORACLE'   qualifier=''
+query
+EXPLAIN EXTENDED SELECT REPLACE('a','b','c')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select replace('a','b','c') AS "REPLACE('a','b','c')"
+----------
+sql_mode='ORACLE'   qualifier='unknown_schema.'
+query
+EXPLAIN EXTENDED SELECT unknown_schema.REPLACE('a','b','c')
+errmsg
+ERROR: FUNCTION unknown_schema.REPLACE does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
+----------
+sql_mode='ORACLE'   qualifier='mariadb_schema.'
+query
+EXPLAIN EXTENDED SELECT mariadb_schema.REPLACE('a','b','c')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select mariadb_schema.replace('a','b','c') AS "mariadb_schema.REPLACE('a','b','c')"
+----------
+sql_mode='ORACLE'   qualifier='maxdb_schema.'
+query
+EXPLAIN EXTENDED SELECT maxdb_schema.REPLACE('a','b','c')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select mariadb_schema.replace('a','b','c') AS "maxdb_schema.REPLACE('a','b','c')"
+----------
+sql_mode='ORACLE'   qualifier='oracle_schema.'
+query
+EXPLAIN EXTENDED SELECT oracle_schema.REPLACE('a','b','c')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select replace('a','b','c') AS "oracle_schema.REPLACE('a','b','c')"
+Warnings:
+Note	1003	select replace('a','b','c') AS "oracle_schema.REPLACE('a','b','c')"
+CALL p3('SUBSTR()');
+----------
+sql_mode=''   qualifier=''
+query
+EXPLAIN EXTENDED SELECT SUBSTR()
+errmsg
+ERROR: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ')' at line 1
+----------
+sql_mode=''   qualifier='unknown_schema.'
+query
+EXPLAIN EXTENDED SELECT unknown_schema.SUBSTR()
+errmsg
+ERROR: FUNCTION unknown_schema.SUBSTR does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
+----------
+sql_mode=''   qualifier='mariadb_schema.'
+query
+EXPLAIN EXTENDED SELECT mariadb_schema.SUBSTR()
+errmsg
+ERROR: Function 'SUBSTR' is not defined
+----------
+sql_mode=''   qualifier='maxdb_schema.'
+query
+EXPLAIN EXTENDED SELECT maxdb_schema.SUBSTR()
+errmsg
+ERROR: Function 'SUBSTR' is not defined
+----------
+sql_mode=''   qualifier='oracle_schema.'
+query
+EXPLAIN EXTENDED SELECT oracle_schema.SUBSTR()
+errmsg
+ERROR: Function 'SUBSTR' is not defined
+----------
+sql_mode='ORACLE'   qualifier=''
+query
+EXPLAIN EXTENDED SELECT SUBSTR()
+errmsg
+ERROR: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ')' at line 1
+----------
+sql_mode='ORACLE'   qualifier='unknown_schema.'
+query
+EXPLAIN EXTENDED SELECT unknown_schema.SUBSTR()
+errmsg
+ERROR: FUNCTION unknown_schema.SUBSTR does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
+----------
+sql_mode='ORACLE'   qualifier='mariadb_schema.'
+query
+EXPLAIN EXTENDED SELECT mariadb_schema.SUBSTR()
+errmsg
+ERROR: Function 'SUBSTR' is not defined
+----------
+sql_mode='ORACLE'   qualifier='maxdb_schema.'
+query
+EXPLAIN EXTENDED SELECT maxdb_schema.SUBSTR()
+errmsg
+ERROR: Function 'SUBSTR' is not defined
+----------
+sql_mode='ORACLE'   qualifier='oracle_schema.'
+query
+EXPLAIN EXTENDED SELECT oracle_schema.SUBSTR()
+errmsg
+ERROR: Function 'SUBSTR' is not defined
+CALL p3('SUBSTR(''a'',1,2,3)');
+----------
+sql_mode=''   qualifier=''
+query
+EXPLAIN EXTENDED SELECT SUBSTR('a',1,2,3)
+errmsg
+ERROR: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '3)' at line 1
+----------
+sql_mode=''   qualifier='unknown_schema.'
+query
+EXPLAIN EXTENDED SELECT unknown_schema.SUBSTR('a',1,2,3)
+errmsg
+ERROR: FUNCTION unknown_schema.SUBSTR does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
+----------
+sql_mode=''   qualifier='mariadb_schema.'
+query
+EXPLAIN EXTENDED SELECT mariadb_schema.SUBSTR('a',1,2,3)
+errmsg
+ERROR: Function 'SUBSTR' is not defined
+----------
+sql_mode=''   qualifier='maxdb_schema.'
+query
+EXPLAIN EXTENDED SELECT maxdb_schema.SUBSTR('a',1,2,3)
+errmsg
+ERROR: Function 'SUBSTR' is not defined
+----------
+sql_mode=''   qualifier='oracle_schema.'
+query
+EXPLAIN EXTENDED SELECT oracle_schema.SUBSTR('a',1,2,3)
+errmsg
+ERROR: Function 'SUBSTR' is not defined
+----------
+sql_mode='ORACLE'   qualifier=''
+query
+EXPLAIN EXTENDED SELECT SUBSTR('a',1,2,3)
+errmsg
+ERROR: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '3)' at line 1
+----------
+sql_mode='ORACLE'   qualifier='unknown_schema.'
+query
+EXPLAIN EXTENDED SELECT unknown_schema.SUBSTR('a',1,2,3)
+errmsg
+ERROR: FUNCTION unknown_schema.SUBSTR does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
+----------
+sql_mode='ORACLE'   qualifier='mariadb_schema.'
+query
+EXPLAIN EXTENDED SELECT mariadb_schema.SUBSTR('a',1,2,3)
+errmsg
+ERROR: Function 'SUBSTR' is not defined
+----------
+sql_mode='ORACLE'   qualifier='maxdb_schema.'
+query
+EXPLAIN EXTENDED SELECT maxdb_schema.SUBSTR('a',1,2,3)
+errmsg
+ERROR: Function 'SUBSTR' is not defined
+----------
+sql_mode='ORACLE'   qualifier='oracle_schema.'
+query
+EXPLAIN EXTENDED SELECT oracle_schema.SUBSTR('a',1,2,3)
+errmsg
+ERROR: Function 'SUBSTR' is not defined
+CALL p3('SUBSTR(''a'',1,2)');
+----------
+sql_mode=''   qualifier=''
+query
+EXPLAIN EXTENDED SELECT SUBSTR('a',1,2)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select substr('a',1,2) AS `SUBSTR('a',1,2)`
+----------
+sql_mode=''   qualifier='unknown_schema.'
+query
+EXPLAIN EXTENDED SELECT unknown_schema.SUBSTR('a',1,2)
+errmsg
+ERROR: FUNCTION unknown_schema.SUBSTR does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
+----------
+sql_mode=''   qualifier='mariadb_schema.'
+query
+EXPLAIN EXTENDED SELECT mariadb_schema.SUBSTR('a',1,2)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select substr('a',1,2) AS `mariadb_schema.SUBSTR('a',1,2)`
+----------
+sql_mode=''   qualifier='maxdb_schema.'
+query
+EXPLAIN EXTENDED SELECT maxdb_schema.SUBSTR('a',1,2)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select substr('a',1,2) AS `maxdb_schema.SUBSTR('a',1,2)`
+----------
+sql_mode=''   qualifier='oracle_schema.'
+query
+EXPLAIN EXTENDED SELECT oracle_schema.SUBSTR('a',1,2)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select oracle_schema.substr('a',1,2) AS `oracle_schema.SUBSTR('a',1,2)`
+----------
+sql_mode='ORACLE'   qualifier=''
+query
+EXPLAIN EXTENDED SELECT SUBSTR('a',1,2)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select substr('a',1,2) AS "SUBSTR('a',1,2)"
+----------
+sql_mode='ORACLE'   qualifier='unknown_schema.'
+query
+EXPLAIN EXTENDED SELECT unknown_schema.SUBSTR('a',1,2)
+errmsg
+ERROR: FUNCTION unknown_schema.SUBSTR does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
+----------
+sql_mode='ORACLE'   qualifier='mariadb_schema.'
+query
+EXPLAIN EXTENDED SELECT mariadb_schema.SUBSTR('a',1,2)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select mariadb_schema.substr('a',1,2) AS "mariadb_schema.SUBSTR('a',1,2)"
+----------
+sql_mode='ORACLE'   qualifier='maxdb_schema.'
+query
+EXPLAIN EXTENDED SELECT maxdb_schema.SUBSTR('a',1,2)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select mariadb_schema.substr('a',1,2) AS "maxdb_schema.SUBSTR('a',1,2)"
+----------
+sql_mode='ORACLE'   qualifier='oracle_schema.'
+query
+EXPLAIN EXTENDED SELECT oracle_schema.SUBSTR('a',1,2)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select substr('a',1,2) AS "oracle_schema.SUBSTR('a',1,2)"
+Warnings:
+Note	1003	select substr('a',1,2) AS "oracle_schema.SUBSTR('a',1,2)"
+CALL p3('SUBSTR(''a'' FROM 1)');
+----------
+sql_mode=''   qualifier=''
+query
+EXPLAIN EXTENDED SELECT SUBSTR('a' FROM 1)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select substr('a',1) AS `SUBSTR('a' FROM 1)`
+----------
+sql_mode=''   qualifier='unknown_schema.'
+query
+EXPLAIN EXTENDED SELECT unknown_schema.SUBSTR('a' FROM 1)
+errmsg
+ERROR: Function 'unknown_schema.SUBSTR' is not defined
+----------
+sql_mode=''   qualifier='mariadb_schema.'
+query
+EXPLAIN EXTENDED SELECT mariadb_schema.SUBSTR('a' FROM 1)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select substr('a',1) AS `mariadb_schema.SUBSTR('a' FROM 1)`
+----------
+sql_mode=''   qualifier='maxdb_schema.'
+query
+EXPLAIN EXTENDED SELECT maxdb_schema.SUBSTR('a' FROM 1)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select substr('a',1) AS `maxdb_schema.SUBSTR('a' FROM 1)`
+----------
+sql_mode=''   qualifier='oracle_schema.'
+query
+EXPLAIN EXTENDED SELECT oracle_schema.SUBSTR('a' FROM 1)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select oracle_schema.substr('a',1) AS `oracle_schema.SUBSTR('a' FROM 1)`
+----------
+sql_mode='ORACLE'   qualifier=''
+query
+EXPLAIN EXTENDED SELECT SUBSTR('a' FROM 1)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select substr('a',1) AS "SUBSTR('a' FROM 1)"
+----------
+sql_mode='ORACLE'   qualifier='unknown_schema.'
+query
+EXPLAIN EXTENDED SELECT unknown_schema.SUBSTR('a' FROM 1)
+errmsg
+ERROR: Function 'unknown_schema.SUBSTR' is not defined
+----------
+sql_mode='ORACLE'   qualifier='mariadb_schema.'
+query
+EXPLAIN EXTENDED SELECT mariadb_schema.SUBSTR('a' FROM 1)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select mariadb_schema.substr('a',1) AS "mariadb_schema.SUBSTR('a' FROM 1)"
+----------
+sql_mode='ORACLE'   qualifier='maxdb_schema.'
+query
+EXPLAIN EXTENDED SELECT maxdb_schema.SUBSTR('a' FROM 1)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select mariadb_schema.substr('a',1) AS "maxdb_schema.SUBSTR('a' FROM 1)"
+----------
+sql_mode='ORACLE'   qualifier='oracle_schema.'
+query
+EXPLAIN EXTENDED SELECT oracle_schema.SUBSTR('a' FROM 1)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select substr('a',1) AS "oracle_schema.SUBSTR('a' FROM 1)"
+Warnings:
+Note	1003	select substr('a',1) AS "oracle_schema.SUBSTR('a' FROM 1)"
+CALL p3('SUBSTRING(''a'',1,2)');
+----------
+sql_mode=''   qualifier=''
+query
+EXPLAIN EXTENDED SELECT SUBSTRING('a',1,2)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select substr('a',1,2) AS `SUBSTRING('a',1,2)`
+----------
+sql_mode=''   qualifier='unknown_schema.'
+query
+EXPLAIN EXTENDED SELECT unknown_schema.SUBSTRING('a',1,2)
+errmsg
+ERROR: FUNCTION unknown_schema.SUBSTRING does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
+----------
+sql_mode=''   qualifier='mariadb_schema.'
+query
+EXPLAIN EXTENDED SELECT mariadb_schema.SUBSTRING('a',1,2)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select substr('a',1,2) AS `mariadb_schema.SUBSTRING('a',1,2)`
+----------
+sql_mode=''   qualifier='maxdb_schema.'
+query
+EXPLAIN EXTENDED SELECT maxdb_schema.SUBSTRING('a',1,2)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select substr('a',1,2) AS `maxdb_schema.SUBSTRING('a',1,2)`
+----------
+sql_mode=''   qualifier='oracle_schema.'
+query
+EXPLAIN EXTENDED SELECT oracle_schema.SUBSTRING('a',1,2)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select oracle_schema.substr('a',1,2) AS `oracle_schema.SUBSTRING('a',1,2)`
+----------
+sql_mode='ORACLE'   qualifier=''
+query
+EXPLAIN EXTENDED SELECT SUBSTRING('a',1,2)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select substr('a',1,2) AS "SUBSTRING('a',1,2)"
+----------
+sql_mode='ORACLE'   qualifier='unknown_schema.'
+query
+EXPLAIN EXTENDED SELECT unknown_schema.SUBSTRING('a',1,2)
+errmsg
+ERROR: FUNCTION unknown_schema.SUBSTRING does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
+----------
+sql_mode='ORACLE'   qualifier='mariadb_schema.'
+query
+EXPLAIN EXTENDED SELECT mariadb_schema.SUBSTRING('a',1,2)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select mariadb_schema.substr('a',1,2) AS "mariadb_schema.SUBSTRING('a',1,2)"
+----------
+sql_mode='ORACLE'   qualifier='maxdb_schema.'
+query
+EXPLAIN EXTENDED SELECT maxdb_schema.SUBSTRING('a',1,2)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select mariadb_schema.substr('a',1,2) AS "maxdb_schema.SUBSTRING('a',1,2)"
+----------
+sql_mode='ORACLE'   qualifier='oracle_schema.'
+query
+EXPLAIN EXTENDED SELECT oracle_schema.SUBSTRING('a',1,2)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select substr('a',1,2) AS "oracle_schema.SUBSTRING('a',1,2)"
+Warnings:
+Note	1003	select substr('a',1,2) AS "oracle_schema.SUBSTRING('a',1,2)"
+CALL p3('SUBSTRING(''a'' FROM 1)');
+----------
+sql_mode=''   qualifier=''
+query
+EXPLAIN EXTENDED SELECT SUBSTRING('a' FROM 1)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select substr('a',1) AS `SUBSTRING('a' FROM 1)`
+----------
+sql_mode=''   qualifier='unknown_schema.'
+query
+EXPLAIN EXTENDED SELECT unknown_schema.SUBSTRING('a' FROM 1)
+errmsg
+ERROR: Function 'unknown_schema.SUBSTRING' is not defined
+----------
+sql_mode=''   qualifier='mariadb_schema.'
+query
+EXPLAIN EXTENDED SELECT mariadb_schema.SUBSTRING('a' FROM 1)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select substr('a',1) AS `mariadb_schema.SUBSTRING('a' FROM 1)`
+----------
+sql_mode=''   qualifier='maxdb_schema.'
+query
+EXPLAIN EXTENDED SELECT maxdb_schema.SUBSTRING('a' FROM 1)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select substr('a',1) AS `maxdb_schema.SUBSTRING('a' FROM 1)`
+----------
+sql_mode=''   qualifier='oracle_schema.'
+query
+EXPLAIN EXTENDED SELECT oracle_schema.SUBSTRING('a' FROM 1)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select oracle_schema.substr('a',1) AS `oracle_schema.SUBSTRING('a' FROM 1)`
+----------
+sql_mode='ORACLE'   qualifier=''
+query
+EXPLAIN EXTENDED SELECT SUBSTRING('a' FROM 1)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select substr('a',1) AS "SUBSTRING('a' FROM 1)"
+----------
+sql_mode='ORACLE'   qualifier='unknown_schema.'
+query
+EXPLAIN EXTENDED SELECT unknown_schema.SUBSTRING('a' FROM 1)
+errmsg
+ERROR: Function 'unknown_schema.SUBSTRING' is not defined
+----------
+sql_mode='ORACLE'   qualifier='mariadb_schema.'
+query
+EXPLAIN EXTENDED SELECT mariadb_schema.SUBSTRING('a' FROM 1)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select mariadb_schema.substr('a',1) AS "mariadb_schema.SUBSTRING('a' FROM 1)"
+----------
+sql_mode='ORACLE'   qualifier='maxdb_schema.'
+query
+EXPLAIN EXTENDED SELECT maxdb_schema.SUBSTRING('a' FROM 1)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select mariadb_schema.substr('a',1) AS "maxdb_schema.SUBSTRING('a' FROM 1)"
+----------
+sql_mode='ORACLE'   qualifier='oracle_schema.'
+query
+EXPLAIN EXTENDED SELECT oracle_schema.SUBSTRING('a' FROM 1)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select substr('a',1) AS "oracle_schema.SUBSTRING('a' FROM 1)"
+Warnings:
+Note	1003	select substr('a',1) AS "oracle_schema.SUBSTRING('a' FROM 1)"
+CALL p3('TRIM()');
+----------
+sql_mode=''   qualifier=''
+query
+EXPLAIN EXTENDED SELECT TRIM()
+errmsg
+ERROR: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ')' at line 1
+----------
+sql_mode=''   qualifier='unknown_schema.'
+query
+EXPLAIN EXTENDED SELECT unknown_schema.TRIM()
+errmsg
+ERROR: FUNCTION unknown_schema.TRIM does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
+----------
+sql_mode=''   qualifier='mariadb_schema.'
+query
+EXPLAIN EXTENDED SELECT mariadb_schema.TRIM()
+errmsg
+ERROR: Function 'TRIM' is not defined
+----------
+sql_mode=''   qualifier='maxdb_schema.'
+query
+EXPLAIN EXTENDED SELECT maxdb_schema.TRIM()
+errmsg
+ERROR: Function 'TRIM' is not defined
+----------
+sql_mode=''   qualifier='oracle_schema.'
+query
+EXPLAIN EXTENDED SELECT oracle_schema.TRIM()
+errmsg
+ERROR: Function 'TRIM' is not defined
+----------
+sql_mode='ORACLE'   qualifier=''
+query
+EXPLAIN EXTENDED SELECT TRIM()
+errmsg
+ERROR: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ')' at line 1
+----------
+sql_mode='ORACLE'   qualifier='unknown_schema.'
+query
+EXPLAIN EXTENDED SELECT unknown_schema.TRIM()
+errmsg
+ERROR: FUNCTION unknown_schema.TRIM does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
+----------
+sql_mode='ORACLE'   qualifier='mariadb_schema.'
+query
+EXPLAIN EXTENDED SELECT mariadb_schema.TRIM()
+errmsg
+ERROR: Function 'TRIM' is not defined
+----------
+sql_mode='ORACLE'   qualifier='maxdb_schema.'
+query
+EXPLAIN EXTENDED SELECT maxdb_schema.TRIM()
+errmsg
+ERROR: Function 'TRIM' is not defined
+----------
+sql_mode='ORACLE'   qualifier='oracle_schema.'
+query
+EXPLAIN EXTENDED SELECT oracle_schema.TRIM()
+errmsg
+ERROR: Function 'TRIM' is not defined
+CALL p3('TRIM(1,2)');
+----------
+sql_mode=''   qualifier=''
+query
+EXPLAIN EXTENDED SELECT TRIM(1,2)
+errmsg
+ERROR: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '2)' at line 1
+----------
+sql_mode=''   qualifier='unknown_schema.'
+query
+EXPLAIN EXTENDED SELECT unknown_schema.TRIM(1,2)
+errmsg
+ERROR: FUNCTION unknown_schema.TRIM does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
+----------
+sql_mode=''   qualifier='mariadb_schema.'
+query
+EXPLAIN EXTENDED SELECT mariadb_schema.TRIM(1,2)
+errmsg
+ERROR: Function 'TRIM' is not defined
+----------
+sql_mode=''   qualifier='maxdb_schema.'
+query
+EXPLAIN EXTENDED SELECT maxdb_schema.TRIM(1,2)
+errmsg
+ERROR: Function 'TRIM' is not defined
+----------
+sql_mode=''   qualifier='oracle_schema.'
+query
+EXPLAIN EXTENDED SELECT oracle_schema.TRIM(1,2)
+errmsg
+ERROR: Function 'TRIM' is not defined
+----------
+sql_mode='ORACLE'   qualifier=''
+query
+EXPLAIN EXTENDED SELECT TRIM(1,2)
+errmsg
+ERROR: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '2)' at line 1
+----------
+sql_mode='ORACLE'   qualifier='unknown_schema.'
+query
+EXPLAIN EXTENDED SELECT unknown_schema.TRIM(1,2)
+errmsg
+ERROR: FUNCTION unknown_schema.TRIM does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
+----------
+sql_mode='ORACLE'   qualifier='mariadb_schema.'
+query
+EXPLAIN EXTENDED SELECT mariadb_schema.TRIM(1,2)
+errmsg
+ERROR: Function 'TRIM' is not defined
+----------
+sql_mode='ORACLE'   qualifier='maxdb_schema.'
+query
+EXPLAIN EXTENDED SELECT maxdb_schema.TRIM(1,2)
+errmsg
+ERROR: Function 'TRIM' is not defined
+----------
+sql_mode='ORACLE'   qualifier='oracle_schema.'
+query
+EXPLAIN EXTENDED SELECT oracle_schema.TRIM(1,2)
+errmsg
+ERROR: Function 'TRIM' is not defined
+CALL p3('TRIM(''a'')');
+----------
+sql_mode=''   qualifier=''
+query
+EXPLAIN EXTENDED SELECT TRIM('a')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select trim('a') AS `TRIM('a')`
+----------
+sql_mode=''   qualifier='unknown_schema.'
+query
+EXPLAIN EXTENDED SELECT unknown_schema.TRIM('a')
+errmsg
+ERROR: FUNCTION unknown_schema.TRIM does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
+----------
+sql_mode=''   qualifier='mariadb_schema.'
+query
+EXPLAIN EXTENDED SELECT mariadb_schema.TRIM('a')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select trim('a') AS `mariadb_schema.TRIM('a')`
+----------
+sql_mode=''   qualifier='maxdb_schema.'
+query
+EXPLAIN EXTENDED SELECT maxdb_schema.TRIM('a')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select trim('a') AS `maxdb_schema.TRIM('a')`
+----------
+sql_mode=''   qualifier='oracle_schema.'
+query
+EXPLAIN EXTENDED SELECT oracle_schema.TRIM('a')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select oracle_schema.trim('a') AS `oracle_schema.TRIM('a')`
+----------
+sql_mode='ORACLE'   qualifier=''
+query
+EXPLAIN EXTENDED SELECT TRIM('a')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select trim('a') AS "TRIM('a')"
+----------
+sql_mode='ORACLE'   qualifier='unknown_schema.'
+query
+EXPLAIN EXTENDED SELECT unknown_schema.TRIM('a')
+errmsg
+ERROR: FUNCTION unknown_schema.TRIM does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
+----------
+sql_mode='ORACLE'   qualifier='mariadb_schema.'
+query
+EXPLAIN EXTENDED SELECT mariadb_schema.TRIM('a')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select mariadb_schema.trim('a') AS "mariadb_schema.TRIM('a')"
+----------
+sql_mode='ORACLE'   qualifier='maxdb_schema.'
+query
+EXPLAIN EXTENDED SELECT maxdb_schema.TRIM('a')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select mariadb_schema.trim('a') AS "maxdb_schema.TRIM('a')"
+----------
+sql_mode='ORACLE'   qualifier='oracle_schema.'
+query
+EXPLAIN EXTENDED SELECT oracle_schema.TRIM('a')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select trim('a') AS "oracle_schema.TRIM('a')"
+Warnings:
+Note	1003	select trim('a') AS "oracle_schema.TRIM('a')"
+CALL p3('TRIM(BOTH '' '' FROM ''a'')');
+----------
+sql_mode=''   qualifier=''
+query
+EXPLAIN EXTENDED SELECT TRIM(BOTH ' ' FROM 'a')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select trim(both ' ' from 'a') AS `TRIM(BOTH ' ' FROM 'a')`
+----------
+sql_mode=''   qualifier='unknown_schema.'
+query
+EXPLAIN EXTENDED SELECT unknown_schema.TRIM(BOTH ' ' FROM 'a')
+errmsg
+ERROR: Function 'unknown_schema.TRIM' is not defined
+----------
+sql_mode=''   qualifier='mariadb_schema.'
+query
+EXPLAIN EXTENDED SELECT mariadb_schema.TRIM(BOTH ' ' FROM 'a')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select trim(both ' ' from 'a') AS `mariadb_schema.TRIM(BOTH ' ' FROM 'a')`
+----------
+sql_mode=''   qualifier='maxdb_schema.'
+query
+EXPLAIN EXTENDED SELECT maxdb_schema.TRIM(BOTH ' ' FROM 'a')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select trim(both ' ' from 'a') AS `maxdb_schema.TRIM(BOTH ' ' FROM 'a')`
+----------
+sql_mode=''   qualifier='oracle_schema.'
+query
+EXPLAIN EXTENDED SELECT oracle_schema.TRIM(BOTH ' ' FROM 'a')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select oracle_schema.trim(both ' ' from 'a') AS `oracle_schema.TRIM(BOTH ' ' FROM 'a')`
+----------
+sql_mode='ORACLE'   qualifier=''
+query
+EXPLAIN EXTENDED SELECT TRIM(BOTH ' ' FROM 'a')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select trim(both ' ' from 'a') AS "TRIM(BOTH ' ' FROM 'a')"
+----------
+sql_mode='ORACLE'   qualifier='unknown_schema.'
+query
+EXPLAIN EXTENDED SELECT unknown_schema.TRIM(BOTH ' ' FROM 'a')
+errmsg
+ERROR: Function 'unknown_schema.TRIM' is not defined
+----------
+sql_mode='ORACLE'   qualifier='mariadb_schema.'
+query
+EXPLAIN EXTENDED SELECT mariadb_schema.TRIM(BOTH ' ' FROM 'a')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select mariadb_schema.trim(both ' ' from 'a') AS "mariadb_schema.TRIM(BOTH ' ' FROM 'a')"
+----------
+sql_mode='ORACLE'   qualifier='maxdb_schema.'
+query
+EXPLAIN EXTENDED SELECT maxdb_schema.TRIM(BOTH ' ' FROM 'a')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select mariadb_schema.trim(both ' ' from 'a') AS "maxdb_schema.TRIM(BOTH ' ' FROM 'a')"
+----------
+sql_mode='ORACLE'   qualifier='oracle_schema.'
+query
+EXPLAIN EXTENDED SELECT oracle_schema.TRIM(BOTH ' ' FROM 'a')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select trim(both ' ' from 'a') AS "oracle_schema.TRIM(BOTH ' ' FROM 'a')"
+Warnings:
+Note	1003	select trim(both ' ' from 'a') AS "oracle_schema.TRIM(BOTH ' ' FROM 'a')"
+CALL p3('REGEXP_REPLACE(''test'',''t'','''')');
+----------
+sql_mode=''   qualifier=''
+query
+EXPLAIN EXTENDED SELECT REGEXP_REPLACE('test','t','')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select regexp_replace('test','t','') AS `REGEXP_REPLACE('test','t','')`
+----------
+sql_mode=''   qualifier='unknown_schema.'
+query
+EXPLAIN EXTENDED SELECT unknown_schema.REGEXP_REPLACE('test','t','')
+errmsg
+ERROR: FUNCTION unknown_schema.REGEXP_REPLACE does not exist
+----------
+sql_mode=''   qualifier='mariadb_schema.'
+query
+EXPLAIN EXTENDED SELECT mariadb_schema.REGEXP_REPLACE('test','t','')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select regexp_replace('test','t','') AS `mariadb_schema.REGEXP_REPLACE('test','t','')`
+----------
+sql_mode=''   qualifier='maxdb_schema.'
+query
+EXPLAIN EXTENDED SELECT maxdb_schema.REGEXP_REPLACE('test','t','')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select regexp_replace('test','t','') AS `maxdb_schema.REGEXP_REPLACE('test','t','')`
+----------
+sql_mode=''   qualifier='oracle_schema.'
+query
+EXPLAIN EXTENDED SELECT oracle_schema.REGEXP_REPLACE('test','t','')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select oracle_schema.regexp_replace('test','t','') AS `oracle_schema.REGEXP_REPLACE('test','t','')`
+----------
+sql_mode='ORACLE'   qualifier=''
+query
+EXPLAIN EXTENDED SELECT REGEXP_REPLACE('test','t','')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select regexp_replace('test','t','') AS "REGEXP_REPLACE('test','t','')"
+----------
+sql_mode='ORACLE'   qualifier='unknown_schema.'
+query
+EXPLAIN EXTENDED SELECT unknown_schema.REGEXP_REPLACE('test','t','')
+errmsg
+ERROR: FUNCTION unknown_schema.REGEXP_REPLACE does not exist
+----------
+sql_mode='ORACLE'   qualifier='mariadb_schema.'
+query
+EXPLAIN EXTENDED SELECT mariadb_schema.REGEXP_REPLACE('test','t','')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select mariadb_schema.regexp_replace('test','t','') AS "mariadb_schema.REGEXP_REPLACE('test','t','')"
+----------
+sql_mode='ORACLE'   qualifier='maxdb_schema.'
+query
+EXPLAIN EXTENDED SELECT maxdb_schema.REGEXP_REPLACE('test','t','')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select mariadb_schema.regexp_replace('test','t','') AS "maxdb_schema.REGEXP_REPLACE('test','t','')"
+----------
+sql_mode='ORACLE'   qualifier='oracle_schema.'
+query
+EXPLAIN EXTENDED SELECT oracle_schema.REGEXP_REPLACE('test','t','')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select regexp_replace('test','t','') AS "oracle_schema.REGEXP_REPLACE('test','t','')"
+Warnings:
+Note	1003	select regexp_replace('test','t','') AS "oracle_schema.REGEXP_REPLACE('test','t','')"
+CALL p3('CONCAT_OPERATOR_ORACLE(''a'')');
+----------
+sql_mode=''   qualifier=''
+query
+EXPLAIN EXTENDED SELECT CONCAT_OPERATOR_ORACLE('a')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select oracle_schema.concat('a') AS `CONCAT_OPERATOR_ORACLE('a')`
+----------
+sql_mode=''   qualifier='unknown_schema.'
+query
+EXPLAIN EXTENDED SELECT unknown_schema.CONCAT_OPERATOR_ORACLE('a')
+errmsg
+ERROR: FUNCTION unknown_schema.CONCAT_OPERATOR_ORACLE does not exist
+----------
+sql_mode=''   qualifier='mariadb_schema.'
+query
+EXPLAIN EXTENDED SELECT mariadb_schema.CONCAT_OPERATOR_ORACLE('a')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select oracle_schema.concat('a') AS `mariadb_schema.CONCAT_OPERATOR_ORACLE('a')`
+----------
+sql_mode=''   qualifier='maxdb_schema.'
+query
+EXPLAIN EXTENDED SELECT maxdb_schema.CONCAT_OPERATOR_ORACLE('a')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select oracle_schema.concat('a') AS `maxdb_schema.CONCAT_OPERATOR_ORACLE('a')`
+----------
+sql_mode=''   qualifier='oracle_schema.'
+query
+EXPLAIN EXTENDED SELECT oracle_schema.CONCAT_OPERATOR_ORACLE('a')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select oracle_schema.concat('a') AS `oracle_schema.CONCAT_OPERATOR_ORACLE('a')`
+----------
+sql_mode='ORACLE'   qualifier=''
+query
+EXPLAIN EXTENDED SELECT CONCAT_OPERATOR_ORACLE('a')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select concat('a') AS "CONCAT_OPERATOR_ORACLE('a')"
+----------
+sql_mode='ORACLE'   qualifier='unknown_schema.'
+query
+EXPLAIN EXTENDED SELECT unknown_schema.CONCAT_OPERATOR_ORACLE('a')
+errmsg
+ERROR: FUNCTION unknown_schema.CONCAT_OPERATOR_ORACLE does not exist
+----------
+sql_mode='ORACLE'   qualifier='mariadb_schema.'
+query
+EXPLAIN EXTENDED SELECT mariadb_schema.CONCAT_OPERATOR_ORACLE('a')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select concat('a') AS "mariadb_schema.CONCAT_OPERATOR_ORACLE('a')"
+----------
+sql_mode='ORACLE'   qualifier='maxdb_schema.'
+query
+EXPLAIN EXTENDED SELECT maxdb_schema.CONCAT_OPERATOR_ORACLE('a')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select concat('a') AS "maxdb_schema.CONCAT_OPERATOR_ORACLE('a')"
+----------
+sql_mode='ORACLE'   qualifier='oracle_schema.'
+query
+EXPLAIN EXTENDED SELECT oracle_schema.CONCAT_OPERATOR_ORACLE('a')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select concat('a') AS "oracle_schema.CONCAT_OPERATOR_ORACLE('a')"
+Warnings:
+Note	1003	select concat('a') AS "oracle_schema.CONCAT_OPERATOR_ORACLE('a')"
+CALL p3('DECODE_ORACLE(1,1,10)');
+----------
+sql_mode=''   qualifier=''
+query
+EXPLAIN EXTENDED SELECT DECODE_ORACLE(1,1,10)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select oracle_schema.decode(1,1,10) AS `DECODE_ORACLE(1,1,10)`
+----------
+sql_mode=''   qualifier='unknown_schema.'
+query
+EXPLAIN EXTENDED SELECT unknown_schema.DECODE_ORACLE(1,1,10)
+errmsg
+ERROR: FUNCTION unknown_schema.DECODE_ORACLE does not exist
+----------
+sql_mode=''   qualifier='mariadb_schema.'
+query
+EXPLAIN EXTENDED SELECT mariadb_schema.DECODE_ORACLE(1,1,10)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select oracle_schema.decode(1,1,10) AS `mariadb_schema.DECODE_ORACLE(1,1,10)`
+----------
+sql_mode=''   qualifier='maxdb_schema.'
+query
+EXPLAIN EXTENDED SELECT maxdb_schema.DECODE_ORACLE(1,1,10)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select oracle_schema.decode(1,1,10) AS `maxdb_schema.DECODE_ORACLE(1,1,10)`
+----------
+sql_mode=''   qualifier='oracle_schema.'
+query
+EXPLAIN EXTENDED SELECT oracle_schema.DECODE_ORACLE(1,1,10)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select oracle_schema.decode(1,1,10) AS `oracle_schema.DECODE_ORACLE(1,1,10)`
+----------
+sql_mode='ORACLE'   qualifier=''
+query
+EXPLAIN EXTENDED SELECT DECODE_ORACLE(1,1,10)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select decode(1,1,10) AS "DECODE_ORACLE(1,1,10)"
+----------
+sql_mode='ORACLE'   qualifier='unknown_schema.'
+query
+EXPLAIN EXTENDED SELECT unknown_schema.DECODE_ORACLE(1,1,10)
+errmsg
+ERROR: FUNCTION unknown_schema.DECODE_ORACLE does not exist
+----------
+sql_mode='ORACLE'   qualifier='mariadb_schema.'
+query
+EXPLAIN EXTENDED SELECT mariadb_schema.DECODE_ORACLE(1,1,10)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select decode(1,1,10) AS "mariadb_schema.DECODE_ORACLE(1,1,10)"
+----------
+sql_mode='ORACLE'   qualifier='maxdb_schema.'
+query
+EXPLAIN EXTENDED SELECT maxdb_schema.DECODE_ORACLE(1,1,10)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select decode(1,1,10) AS "maxdb_schema.DECODE_ORACLE(1,1,10)"
+----------
+sql_mode='ORACLE'   qualifier='oracle_schema.'
+query
+EXPLAIN EXTENDED SELECT oracle_schema.DECODE_ORACLE(1,1,10)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select decode(1,1,10) AS "oracle_schema.DECODE_ORACLE(1,1,10)"
+Warnings:
+Note	1003	select decode(1,1,10) AS "oracle_schema.DECODE_ORACLE(1,1,10)"
+CALL p3('LTRIM_ORACLE(''a'')');
+----------
+sql_mode=''   qualifier=''
+query
+EXPLAIN EXTENDED SELECT LTRIM_ORACLE('a')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select oracle_schema.ltrim('a') AS `LTRIM_ORACLE('a')`
+----------
+sql_mode=''   qualifier='unknown_schema.'
+query
+EXPLAIN EXTENDED SELECT unknown_schema.LTRIM_ORACLE('a')
+errmsg
+ERROR: FUNCTION unknown_schema.LTRIM_ORACLE does not exist
+----------
+sql_mode=''   qualifier='mariadb_schema.'
+query
+EXPLAIN EXTENDED SELECT mariadb_schema.LTRIM_ORACLE('a')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select oracle_schema.ltrim('a') AS `mariadb_schema.LTRIM_ORACLE('a')`
+----------
+sql_mode=''   qualifier='maxdb_schema.'
+query
+EXPLAIN EXTENDED SELECT maxdb_schema.LTRIM_ORACLE('a')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select oracle_schema.ltrim('a') AS `maxdb_schema.LTRIM_ORACLE('a')`
+----------
+sql_mode=''   qualifier='oracle_schema.'
+query
+EXPLAIN EXTENDED SELECT oracle_schema.LTRIM_ORACLE('a')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select oracle_schema.ltrim('a') AS `oracle_schema.LTRIM_ORACLE('a')`
+----------
+sql_mode='ORACLE'   qualifier=''
+query
+EXPLAIN EXTENDED SELECT LTRIM_ORACLE('a')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select ltrim('a') AS "LTRIM_ORACLE('a')"
+----------
+sql_mode='ORACLE'   qualifier='unknown_schema.'
+query
+EXPLAIN EXTENDED SELECT unknown_schema.LTRIM_ORACLE('a')
+errmsg
+ERROR: FUNCTION unknown_schema.LTRIM_ORACLE does not exist
+----------
+sql_mode='ORACLE'   qualifier='mariadb_schema.'
+query
+EXPLAIN EXTENDED SELECT mariadb_schema.LTRIM_ORACLE('a')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select ltrim('a') AS "mariadb_schema.LTRIM_ORACLE('a')"
+----------
+sql_mode='ORACLE'   qualifier='maxdb_schema.'
+query
+EXPLAIN EXTENDED SELECT maxdb_schema.LTRIM_ORACLE('a')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select ltrim('a') AS "maxdb_schema.LTRIM_ORACLE('a')"
+----------
+sql_mode='ORACLE'   qualifier='oracle_schema.'
+query
+EXPLAIN EXTENDED SELECT oracle_schema.LTRIM_ORACLE('a')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select ltrim('a') AS "oracle_schema.LTRIM_ORACLE('a')"
+Warnings:
+Note	1003	select ltrim('a') AS "oracle_schema.LTRIM_ORACLE('a')"
+CALL p3('RTRIM_ORACLE(''a'')');
+----------
+sql_mode=''   qualifier=''
+query
+EXPLAIN EXTENDED SELECT RTRIM_ORACLE('a')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select oracle_schema.rtrim('a') AS `RTRIM_ORACLE('a')`
+----------
+sql_mode=''   qualifier='unknown_schema.'
+query
+EXPLAIN EXTENDED SELECT unknown_schema.RTRIM_ORACLE('a')
+errmsg
+ERROR: FUNCTION unknown_schema.RTRIM_ORACLE does not exist
+----------
+sql_mode=''   qualifier='mariadb_schema.'
+query
+EXPLAIN EXTENDED SELECT mariadb_schema.RTRIM_ORACLE('a')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select oracle_schema.rtrim('a') AS `mariadb_schema.RTRIM_ORACLE('a')`
+----------
+sql_mode=''   qualifier='maxdb_schema.'
+query
+EXPLAIN EXTENDED SELECT maxdb_schema.RTRIM_ORACLE('a')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select oracle_schema.rtrim('a') AS `maxdb_schema.RTRIM_ORACLE('a')`
+----------
+sql_mode=''   qualifier='oracle_schema.'
+query
+EXPLAIN EXTENDED SELECT oracle_schema.RTRIM_ORACLE('a')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select oracle_schema.rtrim('a') AS `oracle_schema.RTRIM_ORACLE('a')`
+----------
+sql_mode='ORACLE'   qualifier=''
+query
+EXPLAIN EXTENDED SELECT RTRIM_ORACLE('a')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select rtrim('a') AS "RTRIM_ORACLE('a')"
+----------
+sql_mode='ORACLE'   qualifier='unknown_schema.'
+query
+EXPLAIN EXTENDED SELECT unknown_schema.RTRIM_ORACLE('a')
+errmsg
+ERROR: FUNCTION unknown_schema.RTRIM_ORACLE does not exist
+----------
+sql_mode='ORACLE'   qualifier='mariadb_schema.'
+query
+EXPLAIN EXTENDED SELECT mariadb_schema.RTRIM_ORACLE('a')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select rtrim('a') AS "mariadb_schema.RTRIM_ORACLE('a')"
+----------
+sql_mode='ORACLE'   qualifier='maxdb_schema.'
+query
+EXPLAIN EXTENDED SELECT maxdb_schema.RTRIM_ORACLE('a')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select rtrim('a') AS "maxdb_schema.RTRIM_ORACLE('a')"
+----------
+sql_mode='ORACLE'   qualifier='oracle_schema.'
+query
+EXPLAIN EXTENDED SELECT oracle_schema.RTRIM_ORACLE('a')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select rtrim('a') AS "oracle_schema.RTRIM_ORACLE('a')"
+Warnings:
+Note	1003	select rtrim('a') AS "oracle_schema.RTRIM_ORACLE('a')"
+CALL p3('LPAD_ORACLE(''a'',3)');
+----------
+sql_mode=''   qualifier=''
+query
+EXPLAIN EXTENDED SELECT LPAD_ORACLE('a',3)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select oracle_schema.lpad('a',3) AS `LPAD_ORACLE('a',3)`
+----------
+sql_mode=''   qualifier='unknown_schema.'
+query
+EXPLAIN EXTENDED SELECT unknown_schema.LPAD_ORACLE('a',3)
+errmsg
+ERROR: FUNCTION unknown_schema.LPAD_ORACLE does not exist
+----------
+sql_mode=''   qualifier='mariadb_schema.'
+query
+EXPLAIN EXTENDED SELECT mariadb_schema.LPAD_ORACLE('a',3)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select oracle_schema.lpad('a',3) AS `mariadb_schema.LPAD_ORACLE('a',3)`
+----------
+sql_mode=''   qualifier='maxdb_schema.'
+query
+EXPLAIN EXTENDED SELECT maxdb_schema.LPAD_ORACLE('a',3)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select oracle_schema.lpad('a',3) AS `maxdb_schema.LPAD_ORACLE('a',3)`
+----------
+sql_mode=''   qualifier='oracle_schema.'
+query
+EXPLAIN EXTENDED SELECT oracle_schema.LPAD_ORACLE('a',3)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select oracle_schema.lpad('a',3) AS `oracle_schema.LPAD_ORACLE('a',3)`
+----------
+sql_mode='ORACLE'   qualifier=''
+query
+EXPLAIN EXTENDED SELECT LPAD_ORACLE('a',3)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select lpad('a',3) AS "LPAD_ORACLE('a',3)"
+----------
+sql_mode='ORACLE'   qualifier='unknown_schema.'
+query
+EXPLAIN EXTENDED SELECT unknown_schema.LPAD_ORACLE('a',3)
+errmsg
+ERROR: FUNCTION unknown_schema.LPAD_ORACLE does not exist
+----------
+sql_mode='ORACLE'   qualifier='mariadb_schema.'
+query
+EXPLAIN EXTENDED SELECT mariadb_schema.LPAD_ORACLE('a',3)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select lpad('a',3) AS "mariadb_schema.LPAD_ORACLE('a',3)"
+----------
+sql_mode='ORACLE'   qualifier='maxdb_schema.'
+query
+EXPLAIN EXTENDED SELECT maxdb_schema.LPAD_ORACLE('a',3)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select lpad('a',3) AS "maxdb_schema.LPAD_ORACLE('a',3)"
+----------
+sql_mode='ORACLE'   qualifier='oracle_schema.'
+query
+EXPLAIN EXTENDED SELECT oracle_schema.LPAD_ORACLE('a',3)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select lpad('a',3) AS "oracle_schema.LPAD_ORACLE('a',3)"
+Warnings:
+Note	1003	select lpad('a',3) AS "oracle_schema.LPAD_ORACLE('a',3)"
+CALL p3('RPAD_ORACLE(''a'',3)');
+----------
+sql_mode=''   qualifier=''
+query
+EXPLAIN EXTENDED SELECT RPAD_ORACLE('a',3)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select oracle_schema.rpad('a',3) AS `RPAD_ORACLE('a',3)`
+----------
+sql_mode=''   qualifier='unknown_schema.'
+query
+EXPLAIN EXTENDED SELECT unknown_schema.RPAD_ORACLE('a',3)
+errmsg
+ERROR: FUNCTION unknown_schema.RPAD_ORACLE does not exist
+----------
+sql_mode=''   qualifier='mariadb_schema.'
+query
+EXPLAIN EXTENDED SELECT mariadb_schema.RPAD_ORACLE('a',3)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select oracle_schema.rpad('a',3) AS `mariadb_schema.RPAD_ORACLE('a',3)`
+----------
+sql_mode=''   qualifier='maxdb_schema.'
+query
+EXPLAIN EXTENDED SELECT maxdb_schema.RPAD_ORACLE('a',3)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select oracle_schema.rpad('a',3) AS `maxdb_schema.RPAD_ORACLE('a',3)`
+----------
+sql_mode=''   qualifier='oracle_schema.'
+query
+EXPLAIN EXTENDED SELECT oracle_schema.RPAD_ORACLE('a',3)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select oracle_schema.rpad('a',3) AS `oracle_schema.RPAD_ORACLE('a',3)`
+----------
+sql_mode='ORACLE'   qualifier=''
+query
+EXPLAIN EXTENDED SELECT RPAD_ORACLE('a',3)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select rpad('a',3) AS "RPAD_ORACLE('a',3)"
+----------
+sql_mode='ORACLE'   qualifier='unknown_schema.'
+query
+EXPLAIN EXTENDED SELECT unknown_schema.RPAD_ORACLE('a',3)
+errmsg
+ERROR: FUNCTION unknown_schema.RPAD_ORACLE does not exist
+----------
+sql_mode='ORACLE'   qualifier='mariadb_schema.'
+query
+EXPLAIN EXTENDED SELECT mariadb_schema.RPAD_ORACLE('a',3)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select rpad('a',3) AS "mariadb_schema.RPAD_ORACLE('a',3)"
+----------
+sql_mode='ORACLE'   qualifier='maxdb_schema.'
+query
+EXPLAIN EXTENDED SELECT maxdb_schema.RPAD_ORACLE('a',3)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select rpad('a',3) AS "maxdb_schema.RPAD_ORACLE('a',3)"
+----------
+sql_mode='ORACLE'   qualifier='oracle_schema.'
+query
+EXPLAIN EXTENDED SELECT oracle_schema.RPAD_ORACLE('a',3)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select rpad('a',3) AS "oracle_schema.RPAD_ORACLE('a',3)"
+Warnings:
+Note	1003	select rpad('a',3) AS "oracle_schema.RPAD_ORACLE('a',3)"
+CALL p3('REPLACE_ORACLE(''a'',''b'',''c'')');
+----------
+sql_mode=''   qualifier=''
+query
+EXPLAIN EXTENDED SELECT REPLACE_ORACLE('a','b','c')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select oracle_schema.replace('a','b','c') AS `REPLACE_ORACLE('a','b','c')`
+----------
+sql_mode=''   qualifier='unknown_schema.'
+query
+EXPLAIN EXTENDED SELECT unknown_schema.REPLACE_ORACLE('a','b','c')
+errmsg
+ERROR: FUNCTION unknown_schema.REPLACE_ORACLE does not exist
+----------
+sql_mode=''   qualifier='mariadb_schema.'
+query
+EXPLAIN EXTENDED SELECT mariadb_schema.REPLACE_ORACLE('a','b','c')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select oracle_schema.replace('a','b','c') AS `mariadb_schema.REPLACE_ORACLE('a','b','c')`
+----------
+sql_mode=''   qualifier='maxdb_schema.'
+query
+EXPLAIN EXTENDED SELECT maxdb_schema.REPLACE_ORACLE('a','b','c')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select oracle_schema.replace('a','b','c') AS `maxdb_schema.REPLACE_ORACLE('a','b','c')`
+----------
+sql_mode=''   qualifier='oracle_schema.'
+query
+EXPLAIN EXTENDED SELECT oracle_schema.REPLACE_ORACLE('a','b','c')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select oracle_schema.replace('a','b','c') AS `oracle_schema.REPLACE_ORACLE('a','b','c')`
+----------
+sql_mode='ORACLE'   qualifier=''
+query
+EXPLAIN EXTENDED SELECT REPLACE_ORACLE('a','b','c')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select replace('a','b','c') AS "REPLACE_ORACLE('a','b','c')"
+----------
+sql_mode='ORACLE'   qualifier='unknown_schema.'
+query
+EXPLAIN EXTENDED SELECT unknown_schema.REPLACE_ORACLE('a','b','c')
+errmsg
+ERROR: FUNCTION unknown_schema.REPLACE_ORACLE does not exist
+----------
+sql_mode='ORACLE'   qualifier='mariadb_schema.'
+query
+EXPLAIN EXTENDED SELECT mariadb_schema.REPLACE_ORACLE('a','b','c')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select replace('a','b','c') AS "mariadb_schema.REPLACE_ORACLE('a','b','c')"
+----------
+sql_mode='ORACLE'   qualifier='maxdb_schema.'
+query
+EXPLAIN EXTENDED SELECT maxdb_schema.REPLACE_ORACLE('a','b','c')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select replace('a','b','c') AS "maxdb_schema.REPLACE_ORACLE('a','b','c')"
+----------
+sql_mode='ORACLE'   qualifier='oracle_schema.'
+query
+EXPLAIN EXTENDED SELECT oracle_schema.REPLACE_ORACLE('a','b','c')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select replace('a','b','c') AS "oracle_schema.REPLACE_ORACLE('a','b','c')"
+Warnings:
+Note	1003	select replace('a','b','c') AS "oracle_schema.REPLACE_ORACLE('a','b','c')"
+CALL p3('SUBSTR_ORACLE(''a'',1,2)');
+----------
+sql_mode=''   qualifier=''
+query
+EXPLAIN EXTENDED SELECT SUBSTR_ORACLE('a',1,2)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select oracle_schema.substr('a',1,2) AS `SUBSTR_ORACLE('a',1,2)`
+----------
+sql_mode=''   qualifier='unknown_schema.'
+query
+EXPLAIN EXTENDED SELECT unknown_schema.SUBSTR_ORACLE('a',1,2)
+errmsg
+ERROR: FUNCTION unknown_schema.SUBSTR_ORACLE does not exist
+----------
+sql_mode=''   qualifier='mariadb_schema.'
+query
+EXPLAIN EXTENDED SELECT mariadb_schema.SUBSTR_ORACLE('a',1,2)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select oracle_schema.substr('a',1,2) AS `mariadb_schema.SUBSTR_ORACLE('a',1,2)`
+----------
+sql_mode=''   qualifier='maxdb_schema.'
+query
+EXPLAIN EXTENDED SELECT maxdb_schema.SUBSTR_ORACLE('a',1,2)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select oracle_schema.substr('a',1,2) AS `maxdb_schema.SUBSTR_ORACLE('a',1,2)`
+----------
+sql_mode=''   qualifier='oracle_schema.'
+query
+EXPLAIN EXTENDED SELECT oracle_schema.SUBSTR_ORACLE('a',1,2)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select oracle_schema.substr('a',1,2) AS `oracle_schema.SUBSTR_ORACLE('a',1,2)`
+----------
+sql_mode='ORACLE'   qualifier=''
+query
+EXPLAIN EXTENDED SELECT SUBSTR_ORACLE('a',1,2)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select substr('a',1,2) AS "SUBSTR_ORACLE('a',1,2)"
+----------
+sql_mode='ORACLE'   qualifier='unknown_schema.'
+query
+EXPLAIN EXTENDED SELECT unknown_schema.SUBSTR_ORACLE('a',1,2)
+errmsg
+ERROR: FUNCTION unknown_schema.SUBSTR_ORACLE does not exist
+----------
+sql_mode='ORACLE'   qualifier='mariadb_schema.'
+query
+EXPLAIN EXTENDED SELECT mariadb_schema.SUBSTR_ORACLE('a',1,2)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select substr('a',1,2) AS "mariadb_schema.SUBSTR_ORACLE('a',1,2)"
+----------
+sql_mode='ORACLE'   qualifier='maxdb_schema.'
+query
+EXPLAIN EXTENDED SELECT maxdb_schema.SUBSTR_ORACLE('a',1,2)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select substr('a',1,2) AS "maxdb_schema.SUBSTR_ORACLE('a',1,2)"
+----------
+sql_mode='ORACLE'   qualifier='oracle_schema.'
+query
+EXPLAIN EXTENDED SELECT oracle_schema.SUBSTR_ORACLE('a',1,2)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Level	Code	Message
+Note	1003	select substr('a',1,2) AS "oracle_schema.SUBSTR_ORACLE('a',1,2)"
+Warnings:
+Note	1003	select substr('a',1,2) AS "oracle_schema.SUBSTR_ORACLE('a',1,2)"
+SELECT oracle_schema.SUBSTR_ORACLE('a' FROM 1 FOR 2);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'FROM 1 FOR 2)' at line 1
+SELECT oracle_schema.SUBSTR('a' FROM 1 FOR 2);
+oracle_schema.SUBSTR('a' FROM 1 FOR 2)
+a
+SELECT oracle_schema.TRIM_ORACLE(LEADING ' ' FROM 'a');
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'LEADING ' ' FROM 'a')' at line 1
+SELECT oracle_schema.TRIM(LEADING ' ' FROM 'a');
+oracle_schema.TRIM(LEADING ' ' FROM 'a')
+a
+SELECT oracle_schema.TRIM_ORACLE('a');
+ERROR HY000: Function 'TRIM_ORACLE' is not defined
+SELECT oracle_schema.TRIM('a');
+oracle_schema.TRIM('a')
+a
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+DROP PROCEDURE p3;
+SET sql_mode='';
+CREATE VIEW v1 AS SELECT
+concat('a','b'),
+decode('1','2'),
+ltrim('1'),
+rtrim('1'),
+lpad('1','2', 3),
+rpad('1','2', 3),
+replace('1','2','3'),
+substr('a',1,2),
+trim(both 'a' FROM 'b');
+CREATE TABLE kv (v BLOB);
+LOAD DATA INFILE 'MYSQLD_DATADIR/test/v1.frm' REPLACE INTO TABLE kv;
+SELECT v FROM kv WHERE v RLIKE '^(query|view_body_utf8)=' ORDER BY v;
+v
+query=select concat('a','b') AS `concat('a','b')`,decode('1','2') AS `decode('1','2')`,ltrim('1') AS `ltrim('1')`,rtrim('1') AS `rtrim('1')`,lpad('1','2',3) AS `lpad('1','2', 3)`,rpad('1','2',3) AS `rpad('1','2', 3)`,replace('1','2','3') AS `replace('1','2','3')`,substr('a',1,2) AS `substr('a',1,2)`,trim(both 'a' from 'b') AS `trim(both 'a' FROM 'b')`
+view_body_utf8=select concat('a','b') AS `concat('a','b')`,decode('1','2') AS `decode('1','2')`,ltrim('1') AS `ltrim('1')`,rtrim('1') AS `rtrim('1')`,lpad('1','2',3) AS `lpad('1','2', 3)`,rpad('1','2',3) AS `rpad('1','2', 3)`,replace('1','2','3') AS `replace('1','2','3')`,substr('a',1,2) AS `substr('a',1,2)`,trim(both 'a' from 'b') AS `trim(both 'a' FROM 'b')`
+SELECT VIEW_DEFINITION FROM INFORMATION_SCHEMA.VIEWS WHERE TABLE_NAME='v1' AND TABLE_SCHEMA='test';
+VIEW_DEFINITION
+select concat('a','b') AS `concat('a','b')`,decode('1','2') AS `decode('1','2')`,ltrim('1') AS `ltrim('1')`,rtrim('1') AS `rtrim('1')`,lpad('1','2',3) AS `lpad('1','2', 3)`,rpad('1','2',3) AS `rpad('1','2', 3)`,replace('1','2','3') AS `replace('1','2','3')`,substr('a',1,2) AS `substr('a',1,2)`,trim(both 'a' from 'b') AS `trim(both 'a' FROM 'b')`
+DROP TABLE kv;
+DROP VIEW v1;
+SET sql_mode='ORACLE';
+CREATE VIEW v1 AS SELECT
+concat('a','b'),
+decode('1',2,3),
+ltrim('1'),
+rtrim('1'),
+lpad('1','2', 3),
+rpad('1','2', 3),
+replace('1','2','3'),
+substr('a',1,2),
+trim(both 'a' FROM 'b');
+CREATE TABLE kv (v BLOB);
+LOAD DATA INFILE 'MYSQLD_DATADIR/test/v1.frm' REPLACE INTO TABLE kv;
+SELECT v FROM kv WHERE v RLIKE '^(query|view_body_utf8)=' ORDER BY v;
+v
+query=select concat_operator_oracle('a','b') AS `concat('a','b')`,decode_oracle('1',2,3) AS `decode('1',2,3)`,ltrim_oracle('1') AS `ltrim('1')`,rtrim_oracle('1') AS `rtrim('1')`,lpad_oracle('1','2',3) AS `lpad('1','2', 3)`,rpad_oracle('1','2',3) AS `rpad('1','2', 3)`,replace_oracle('1','2','3') AS `replace('1','2','3')`,substr_oracle('a',1,2) AS `substr('a',1,2)`,trim_oracle(both 'a' from 'b') AS `trim(both 'a' FROM 'b')`
+view_body_utf8=select oracle_schema.concat('a','b') AS `concat('a','b')`,oracle_schema.decode('1',2,3) AS `decode('1',2,3)`,oracle_schema.ltrim('1') AS `ltrim('1')`,oracle_schema.rtrim('1') AS `rtrim('1')`,oracle_schema.lpad('1','2',3) AS `lpad('1','2', 3)`,oracle_schema.rpad('1','2',3) AS `rpad('1','2', 3)`,oracle_schema.replace('1','2','3') AS `replace('1','2','3')`,oracle_schema.substr('a',1,2) AS `substr('a',1,2)`,oracle_schema.trim(both 'a' from 'b') AS `trim(both 'a' FROM 'b')`
+SELECT VIEW_DEFINITION FROM INFORMATION_SCHEMA.VIEWS WHERE TABLE_NAME='v1' AND TABLE_SCHEMA='test';
+VIEW_DEFINITION
+select oracle_schema.concat('a','b') AS `concat('a','b')`,oracle_schema.decode('1',2,3) AS `decode('1',2,3)`,oracle_schema.ltrim('1') AS `ltrim('1')`,oracle_schema.rtrim('1') AS `rtrim('1')`,oracle_schema.lpad('1','2',3) AS `lpad('1','2', 3)`,oracle_schema.rpad('1','2',3) AS `rpad('1','2', 3)`,oracle_schema.replace('1','2','3') AS `replace('1','2','3')`,oracle_schema.substr('a',1,2) AS `substr('a',1,2)`,oracle_schema.trim(both 'a' from 'b') AS `trim(both 'a' FROM 'b')`
+DROP TABLE kv;
+DROP VIEW v1;

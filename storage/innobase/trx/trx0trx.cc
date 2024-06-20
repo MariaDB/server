@@ -554,6 +554,7 @@ trx_free_at_shutdown(trx_t *trx)
 	trx->state = TRX_STATE_NOT_STARTED;
 	ut_ad(!UT_LIST_GET_LEN(trx->lock.trx_locks));
 	trx->id = 0;
+	ut_d(*trx->detailed_error = '\0');
 	trx->free();
 }
 
@@ -1416,6 +1417,7 @@ inline void trx_t::commit_in_memory(const mtr_t *mtr)
 
   DBUG_LOG("trx", "Commit in memory: " << this);
   state= TRX_STATE_NOT_STARTED;
+  *detailed_error= '\0';
 
   assert_freed();
   trx_init(this);
@@ -2051,9 +2053,9 @@ static my_bool trx_recover_for_mysql_callback(rw_trx_hash_element_t *element,
 }
 
 
-static my_bool trx_recover_reset_callback(rw_trx_hash_element_t *element,
-  void*)
+static my_bool trx_recover_reset_callback(void *el, void*)
 {
+  rw_trx_hash_element_t *element= static_cast<rw_trx_hash_element_t*>(el);
   mutex_enter(&element->mutex);
   if (trx_t *trx= element->trx)
   {
@@ -2105,9 +2107,10 @@ struct trx_get_trx_by_xid_callback_arg
 };
 
 
-static my_bool trx_get_trx_by_xid_callback(rw_trx_hash_element_t *element,
-  trx_get_trx_by_xid_callback_arg *arg)
+static my_bool trx_get_trx_by_xid_callback(void *el, void *a)
 {
+  auto element= static_cast<rw_trx_hash_element_t*>(el);
+  auto arg= static_cast<trx_get_trx_by_xid_callback_arg*>(a);
   my_bool found= 0;
   mutex_enter(&element->mutex);
   if (trx_t *trx= element->trx)

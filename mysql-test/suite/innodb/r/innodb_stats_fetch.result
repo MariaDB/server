@@ -150,3 +150,27 @@ max_data_length	0
 index_length	16384
 DROP TABLE test_ps_fetch;
 set @@use_stat_tables = @save_use_stat_tables;
+#
+# MDEV-28613 LeakSanitizer caused by I_S query using LIMIT ROWS EXAMINED
+#
+CREATE TABLE t1(f1 VARCHAR(255), FULLTEXT(f1))ENGINE=InnoDB;
+SELECT * FROM INFORMATION_SCHEMA.INNODB_SYS_INDEXES LIMIT ROWS EXAMINED 5;
+Warnings:
+Level	Warning
+Code	1931
+Message	Query execution was interrupted. The query exceeded LIMIT ROWS EXAMINED 5. The query result may be incomplete
+SELECT * FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES LIMIT ROWS EXAMINED 5;
+Warnings:
+Level	Warning
+Code	1931
+Message	Query execution was interrupted. The query exceeded LIMIT ROWS EXAMINED 5. The query result may be incomplete
+SELECT * FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS LIMIT ROWS EXAMINED 5;
+Warnings:
+Level	Warning
+Code	1931
+Message	Query execution was interrupted. The query exceeded LIMIT ROWS EXAMINED 5. The query result may be incomplete
+SELECT SPACE FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESPACES LIMIT ROWS EXAMINED 5;
+SELECT * FROM INFORMATION_SCHEMA.INNODB_SYS_VIRTUAL LIMIT ROWS EXAMINED 5;
+SELECT * FROM INFORMATION_SCHEMA.INNODB_SYS_FOREIGN LIMIT ROWS EXAMINED 5;
+SELECT * FROM INFORMATION_SCHEMA.INNODB_SYS_FOREIGN_COLS LIMIT ROWS EXAMINED 5;
+DROP TABLE t1;

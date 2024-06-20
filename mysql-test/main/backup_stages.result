@@ -1,3 +1,5 @@
+SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
+SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
 #-----------------------------------------------------------------------
 # Multi-threaded tests
 #-----------------------------------------------------------------------
@@ -17,6 +19,7 @@ FROM information_schema.processlist WHERE id = @con1_id;
 ID	USER	COMMAND	STATE	INFO	STAGE	MAX_STAGE	INFO_BINARY
 <con1_id>	root	Query	Waiting for backup lock	BACKUP STAGE START	0	0	BACKUP STAGE START
 BACKUP STAGE END;
+InnoDB		0 transactions not purged
 SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
 LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
 MDL_BACKUP_START	Backup lock		
@@ -333,3 +336,4 @@ disconnect con11;
 disconnect con12;
 disconnect backup;
 connection default;
+SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;

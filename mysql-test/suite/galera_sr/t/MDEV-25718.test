@@ -43,8 +43,9 @@ SET SESSION wsrep_sync_wait = 0;
 SET debug_sync = "now SIGNAL write_row_continue";
 
 # Let's give the INSERT some time, to make sure it does rollback
---let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE INFO = "INSERT INTO t1 VALUES (1)" AND STATE = "Freeing items";
---source include/wait_condition.inc
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE INFO = "INSERT INTO t1 VALUES (1)" AND (STATE = "Freeing items" OR STATE = 'Rollback');
+--let $wait_condition_on_error_output = SELECT INFO, STATE FROM INFORMATION_SCHEMA.PROCESSLIST
+--source include/wait_condition_with_debug.inc
 
 # Resume the DDL in streaming_rollback
 SET SESSION debug_sync = "now SIGNAL wsrep_streaming_rollback_continue";

@@ -1,0 +1,27 @@
+connection node_2;
+connection node_1;
+connect con1,127.0.0.1,root,,test,$NODE_MYPORT_1;
+--- CTAS with empty result set ---
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+SET DEBUG_SYNC = 'create_table_select_before_create SIGNAL may_run WAIT_FOR bf_abort';
+CREATE TABLE t2 SELECT * FROM t1;
+connection node_1;
+SET DEBUG_SYNC = 'now WAIT_FOR may_run';
+TRUNCATE TABLE t1;
+connection con1;
+ERROR 70100: Query execution was interrupted
+SET DEBUG_SYNC = 'RESET';
+--- CTAS with non-empty result set ---
+INSERT INTO t1 VALUES (10), (20), (30);
+SET DEBUG_SYNC = 'create_table_select_before_create SIGNAL may_run WAIT_FOR bf_abort';
+CREATE TABLE t2 SELECT * FROM t1;
+connection node_1;
+SET DEBUG_SYNC = 'now WAIT_FOR may_run';
+TRUNCATE TABLE t1;
+connection con1;
+ERROR 70100: Query execution was interrupted
+SET DEBUG_SYNC = 'RESET';
+DROP TABLE t1;
+disconnect con1;
+disconnect node_2;
+disconnect node_1;

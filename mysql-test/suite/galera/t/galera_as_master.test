@@ -52,11 +52,17 @@ DROP TABLE t1, t4;
 SET SQL_LOG_BIN=OFF;
 DROP TABLE t2, t3;
 
+--let binlog_pos=`SELECT @@gtid_binlog_pos;`
+
 --connection node_3
 --let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
 --source include/wait_condition.inc
 --let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't4';
 --source include/wait_condition.inc
+
+--disable_query_log
+--eval SELECT STRCMP(@@gtid_binlog_pos, "$binlog_pos") = 0 AS BINLOG_POSITIONS_MATCH;
+--enable_query_log
 
 STOP SLAVE;
 RESET SLAVE ALL;

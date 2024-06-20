@@ -76,9 +76,6 @@ case "${LSBNAME}" in
     # need to match here to avoid the default Error however
     ;;
   # UBUNTU
-  bionic)
-    remove_rocksdb_tools
-    ;&
   focal)
     ;&
   impish|jammy|kinetic)

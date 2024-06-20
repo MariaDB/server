@@ -56,11 +56,16 @@
 #include <stddef.h>
 
 #ifdef __GNUC__
-#include <x86intrin.h>
+# include <emmintrin.h>
+# include <smmintrin.h>
+# include <tmmintrin.h>
+# include <wmmintrin.h>
+# define USE_PCLMUL __attribute__((target("sse4.2,pclmul")))
 #elif defined(_MSC_VER)
-#include <intrin.h>
+# include <intrin.h>
+# define USE_PCLMUL /* nothing */
 #else
-#error "unknown compiler"
+# error "unknown compiler"
 #endif
 
 /**
@@ -71,6 +76,7 @@
  *
  * @return \a reg << (\a num * 8)
  */
+USE_PCLMUL
 static inline __m128i xmm_shift_left(__m128i reg, const unsigned int num)
 {
   static const MY_ALIGNED(16) uint8_t crc_xmm_shift_tab[48]= {
@@ -111,6 +117,7 @@ struct crcr_pclmulqdq_ctx
  *
  * @return New 16 byte folded data
  */
+USE_PCLMUL
 static inline __m128i crcr32_folding_round(const __m128i data_block,
                                     const __m128i precomp, const __m128i fold)
 {
@@ -128,6 +135,7 @@ static inline __m128i crcr32_folding_round(const __m128i data_block,
  *
  * @return data reduced to 64 bits
  */
+USE_PCLMUL
 static inline __m128i crcr32_reduce_128_to_64(__m128i data128, const __m128i precomp)
 {
   __m128i tmp0, tmp1, tmp2;
@@ -152,6 +160,7 @@ static inline __m128i crcr32_reduce_128_to_64(__m128i data128, const __m128i pre
  *
  * @return data reduced to 32 bits
  */
+USE_PCLMUL
 static inline uint32_t crcr32_reduce_64_to_32(__m128i data64, const __m128i precomp)
 {
   static const MY_ALIGNED(16) uint32_t mask1[4]= {
@@ -188,6 +197,7 @@ static inline uint32_t crcr32_reduce_64_to_32(__m128i data64, const __m128i prec
  *
  * @return CRC for given \a data block (32 bits wide).
  */
+USE_PCLMUL
 static inline uint32_t crcr32_calc_pclmulqdq(const uint8_t *data, uint32_t data_len,
                                       uint32_t crc,
                                       const struct crcr_pclmulqdq_ctx *params)

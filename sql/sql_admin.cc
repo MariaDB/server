@@ -504,8 +504,8 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
   Item *item;
   Protocol *protocol= thd->protocol;
   LEX *lex= thd->lex;
-  int result_code;
-  int compl_result_code;
+  int result_code= 0;
+  int compl_result_code= 0;
   bool need_repair_or_alter= 0;
   wait_for_commit* suspended_wfc;
   bool is_table_modified= false;
@@ -786,7 +786,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
     if (lock_type == TL_WRITE && table->mdl_request.type > MDL_SHARED_WRITE)
     {
       if (table->table->s->tmp_table)
-        thd->close_unused_temporary_table_instances(tables);
+        thd->close_unused_temporary_table_instances(table);
       else
       {
         if (wait_while_table_is_used(thd, table->table, HA_EXTRA_NOT_USED))
@@ -863,7 +863,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
       */
       collect_eis=
         (table->table->s->table_category == TABLE_CATEGORY_USER &&
-        !(lex->alter_info.flags & ALTER_PARTITION_ADMIN) &&
+        !(lex->alter_info.partition_flags & ALTER_PARTITION_ADMIN) &&
          (check_eits_collection_allowed(thd) ||
           lex->with_persistent_for_clause));
     }

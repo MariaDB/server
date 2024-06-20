@@ -134,7 +134,7 @@ int binlog_defragment(THD *thd)
     entry[k]=
       (user_var_entry*) my_hash_search(&thd->user_vars, (uchar*) name[k].str,
                                        name[k].length);
-    if (!entry[k] || entry[k]->type != STRING_RESULT)
+    if (!entry[k] || entry[k]->type_handler()->result_type() != STRING_RESULT)
     {
       my_error(ER_WRONG_TYPE_FOR_VAR, MYF(0), name[k].str);
       return -1;
@@ -159,7 +159,8 @@ int binlog_defragment(THD *thd)
     gathered_length += entry[k]->length;
   }
   for (uint k=0; k < 2; k++)
-    update_hash(entry[k], true, NULL, 0, STRING_RESULT, &my_charset_bin, 0);
+    update_hash(entry[k], true, NULL, 0,
+                &type_handler_long_blob, &my_charset_bin);
 
   DBUG_ASSERT(gathered_length == thd->lex->comment.length);
 

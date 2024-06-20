@@ -1053,7 +1053,8 @@ public:
                   ER_THD(thd, ER_TABLEACCESS_DENIED_ERROR), "SHOW VIEW",
                   m_sctx->priv_user,
                   m_sctx->host_or_ip,
-                  m_top_view->get_db_name(), m_top_view->get_table_name());
+                  m_top_view->get_db_name().str,
+                  m_top_view->get_table_name().str);
     }
     return m_view_access_denied_message_ptr;
   }
@@ -1098,8 +1099,8 @@ public:
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, 
                           ER_VIEW_INVALID,
                           ER_THD(thd, ER_VIEW_INVALID),
-                          m_top_view->get_db_name(),
-                          m_top_view->get_table_name());
+                          m_top_view->get_db_name().str,
+                          m_top_view->get_table_name().str);
       is_handled= TRUE;
       break;
 
@@ -2748,7 +2749,7 @@ static const char *thread_state_info(THD *tmp)
     if (cond)
       return "Waiting on cond";
   }
-  return NULL;
+  return "";
 }
 
 
@@ -2776,9 +2777,10 @@ static my_bool list_callback(THD *tmp, list_callback_arg *arg)
 
     thd_info->thread_id=tmp->thread_id;
     thd_info->os_thread_id=tmp->os_thread_id;
-    thd_info->user= arg->thd->strdup(tmp_sctx->user ? tmp_sctx->user :
-                                     (tmp->system_thread ?
-                                     "system user" : "unauthenticated user"));
+    thd_info->user= arg->thd->strdup(tmp_sctx->user && tmp_sctx->user != slave_user ?
+                                       tmp_sctx->user :
+                                       (tmp->system_thread ?
+                                         "system user" : "unauthenticated user"));
     if (tmp->peer_port && (tmp_sctx->host || tmp_sctx->ip) &&
         arg->thd->security_ctx->host_or_ip[0])
     {
@@ -2994,7 +2996,7 @@ int select_result_explain_buffer::send_data(List<Item> &items)
     memory.
   */
   set_current_thd(thd);
-  fill_record(thd, dst_table, dst_table->field, items, TRUE, FALSE);
+  fill_record(thd, dst_table, dst_table->field, items, true, false, false);
   res= dst_table->file->ha_write_tmp_row(dst_table->record[0]);
   set_current_thd(cur_thd);  
   DBUG_RETURN(MY_TEST(res));
@@ -3225,7 +3227,7 @@ static my_bool processlist_callback(THD *tmp, processlist_callback_arg *arg)
   /* ID */
   arg->table->field[0]->store((longlong) tmp->thread_id, TRUE);
   /* USER */
-  val= tmp_sctx->user ? tmp_sctx->user :
+  val= tmp_sctx->user && tmp_sctx->user != slave_user ? tmp_sctx->user :
         (tmp->system_thread ? "system user" : "unauthenticated user");
   arg->table->field[1]->store(val, strlen(val), cs);
   /* HOST */
@@ -3787,7 +3789,7 @@ static bool show_status_array(THD *thd, const char *wild,
     */
     for (var=variables; var->type == SHOW_FUNC ||
            var->type == SHOW_SIMPLE_FUNC; var= &tmp)
-      ((mysql_show_var_func)(var->value))(thd, &tmp, buff,
+      ((mysql_show_var_func)(var->value))(thd, &tmp, (void *) buff,
                                           status_var, scope);
     
     SHOW_TYPE show_type=var->type;
@@ -6886,8 +6888,7 @@ static int get_schema_views_record(THD *thd, TABLE_LIST *tables,
     Security_context *sctx= thd->security_ctx;
     if (!tables->allowed_show)
     {
-      if (!my_strcasecmp(system_charset_info, tables->definer.user.str,
-                         sctx->priv_user) &&
+      if (!strcmp(tables->definer.user.str, sctx->priv_user) &&
           !my_strcasecmp(system_charset_info, tables->definer.host.str,
                          sctx->priv_host))
         tables->allowed_show= TRUE;
@@ -7980,7 +7981,7 @@ int fill_open_tables(THD *thd, TABLE_LIST *tables, COND *cond)
   TABLE *table= tables->table;
   CHARSET_INFO *cs= system_charset_info;
   OPEN_TABLE_LIST *open_list;
-  if (!(open_list= list_open_tables(thd, thd->lex->first_select_lex()->db.str,
+  if (!(open_list= list_open_tables(thd, thd->lex->first_select_lex()->db,
                                     wild))
             && thd->is_fatal_error)
     DBUG_RETURN(1);
@@ -8629,9 +8630,9 @@ int mysql_schema_table(THD *thd, LEX *lex, TABLE_LIST *table_list)
     }
     List_iterator_fast<Item> it(sel->item_list);
     if (!(transl=
-          (Field_translator*)(thd->stmt_arena->
+          (Field_translator*)(thd->active_stmt_arena_to_use()->
                               alloc(sel->item_list.elements *
-                                    sizeof(Field_translator)))))
+                                    sizeof(Field_translator))))) // ???
     {
       DBUG_RETURN(1);
     }
@@ -9399,7 +9400,7 @@ ST_FIELD_INFO stat_fields_info[]=
   Column("PACKED",        Varchar(10), NULLABLE, "Packed",      OPEN_FRM_ONLY),
   Column("NULLABLE",      Varchar(3),  NOT_NULL, "Null",        OPEN_FRM_ONLY),
   Column("INDEX_TYPE",    Varchar(16), NOT_NULL, "Index_type",  OPEN_FULL_TABLE),
-  Column("COMMENT",       Varchar(16), NULLABLE, "Comment",     OPEN_FRM_ONLY),
+  Column("COMMENT",       Varchar(16), NULLABLE, "Comment",     OPEN_FULL_TABLE),
   Column("INDEX_COMMENT", Varchar(INDEX_COMMENT_MAXLEN),
                                        NOT_NULL, "Index_comment",OPEN_FRM_ONLY),
   CEnd()
@@ -9586,7 +9587,7 @@ ST_FIELD_INFO partitions_fields_info[]=
 ST_FIELD_INFO variables_fields_info[]=
 {
   Column("VARIABLE_NAME",  Varchar(64),   NOT_NULL, "Variable_name"),
-  Column("VARIABLE_VALUE", Varchar(2048), NOT_NULL, "Value"),
+  Column("VARIABLE_VALUE", Varchar(4096), NOT_NULL, "Value"),
   CEnd()
 };
 
@@ -9941,6 +9942,7 @@ ST_SCHEMA_TABLE schema_tables[]=
 int initialize_schema_table(st_plugin_int *plugin)
 {
   ST_SCHEMA_TABLE *schema_table;
+  int err;
   DBUG_ENTER("initialize_schema_table");
 
   if (!(schema_table= (ST_SCHEMA_TABLE *)my_malloc(key_memory_ST_SCHEMA_TABLE,
@@ -9957,12 +9959,15 @@ int initialize_schema_table(st_plugin_int *plugin)
     /* Make the name available to the init() function. */
     schema_table->table_name= plugin->name.str;
 
-    if (plugin->plugin->init(schema_table))
+    if ((err= plugin->plugin->init(schema_table)))
     {
-      sql_print_error("Plugin '%s' init function returned error.",
-                      plugin->name.str);
+      if (err != HA_ERR_RETRY_INIT)
+        sql_print_error("Plugin '%s' init function returned error.",
+                        plugin->name.str);
       plugin->data= NULL;
       my_free(schema_table);
+      if (err == HA_ERR_RETRY_INIT)
+        DBUG_RETURN(err);
       DBUG_RETURN(1);
     }
 

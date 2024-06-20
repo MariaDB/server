@@ -365,8 +365,10 @@ void trx_purge_free_segment(mtr_t &mtr, trx_rseg_t* rseg, fil_addr_t hdr_addr)
   while (!fseg_free_step_not_header(TRX_UNDO_SEG_HDR + TRX_UNDO_FSEG_HEADER +
                                     block->frame, &mtr))
   {
-    block->fix();
-    const page_id_t id{block->page.id()};
+    buf_block_buf_fix_inc(rseg_hdr, __FILE__, __LINE__);
+    buf_block_buf_fix_inc(block, __FILE__, __LINE__);
+    ut_d(const page_id_t rseg_hdr_id{rseg_hdr->page.id()});
+    ut_d(const page_id_t id{block->page.id()});
     mtr.commit();
     /* NOTE: If the server is killed after the log that was produced
     up to this point was written, and before the log from the mtr.commit()
@@ -376,19 +378,12 @@ void trx_purge_free_segment(mtr_t &mtr, trx_rseg_t* rseg, fil_addr_t hdr_addr)
     This does not matter when using multiple innodb_undo_tablespaces;
     innodb_undo_log_truncate=ON will be able to reclaim the space. */
     mtr.start();
-    ut_ad(rw_lock_s_lock_nowait(block->debug_latch, __FILE__, __LINE__));
+    rw_lock_x_lock(&rseg_hdr->lock);
     rw_lock_x_lock(&block->lock);
-    if (UNIV_UNLIKELY(block->page.id() != id))
-    {
-      block->unfix();
-      rw_lock_x_unlock(&block->lock);
-      ut_d(rw_lock_s_unlock(block->debug_latch));
-      block= buf_page_get(id, 0, RW_X_LATCH, &mtr);
-      if (!block)
-        return;
-    }
-    else
-      mtr_memo_push(&mtr, block, MTR_MEMO_PAGE_X_FIX);
+    ut_ad(rseg_hdr->page.id() == rseg_hdr_id);
+    ut_ad(block->page.id() == id);
+    mtr_memo_push(&mtr, rseg_hdr, MTR_MEMO_PAGE_X_FIX);
+    mtr_memo_push(&mtr, block, MTR_MEMO_PAGE_X_FIX);
   }
 
   while (!fseg_free_step(TRX_UNDO_SEG_HDR + TRX_UNDO_FSEG_HEADER +
@@ -650,6 +645,16 @@ void trx_purge_truncate_history()
     mini-transaction commit and the server was killed, then
     discarding the to-be-trimmed pages without flushing would
     break crash recovery. */
+
+  rescan:
+    if (UNIV_UNLIKELY(srv_shutdown_state != SRV_SHUTDOWN_NONE) &&
+        srv_fast_shutdown)
+    {
+    fast_shutdown:
+      mtr.commit();
+      return;
+    }
+
     mysql_mutex_lock(&buf_pool.flush_list_mutex);
 
     for (buf_page_t *bpage= UT_LIST_GET_LAST(buf_pool.flush_list); bpage; )
@@ -659,13 +664,12 @@ void trx_purge_truncate_history()
 
       buf_page_t *prev= UT_LIST_GET_PREV(list, bpage);
 
-      if (bpage->id().space() == space.id &&
-          bpage->oldest_modification() != 1)
+      if (bpage->oldest_modification() > 2 &&
+          bpage->id().space() == space.id)
       {
         ut_ad(bpage->state() == BUF_BLOCK_FILE_PAGE);
         auto block= reinterpret_cast<buf_block_t*>(bpage);
-        block->fix();
-        ut_ad(rw_lock_s_lock_nowait(block->debug_latch, __FILE__, __LINE__));
+        buf_block_buf_fix_inc(block, __FILE__, __LINE__);
         buf_pool.flush_hp.set(prev);
         mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 
@@ -676,22 +680,24 @@ void trx_purge_truncate_history()
         mysql_mutex_lock(&buf_pool.flush_list_mutex);
         ut_ad(bpage->io_fix() == BUF_IO_NONE);
 
-        if (bpage->oldest_modification() > 1)
-        {
-          bpage->clear_oldest_modification(false);
+        if (bpage->oldest_modification() > 2 &&
+            !mtr.have_x_latch(*reinterpret_cast<buf_block_t*>(bpage)))
           mtr.memo_push(block, MTR_MEMO_PAGE_X_FIX);
-        }
         else
         {
+          buf_block_buf_fix_dec(block);
           rw_lock_x_unlock(&block->lock);
-          block->unfix();
         }
 
         if (prev != buf_pool.flush_hp.get())
         {
-          /* Rescan, because we may have lost the position. */
-          bpage= UT_LIST_GET_LAST(buf_pool.flush_list);
-          continue;
+          /* The functions buf_pool_t::release_freed_page() or
+          buf_do_flush_list_batch() may be right now holding
+          buf_pool.mutex and waiting to acquire
+          buf_pool.flush_list_mutex. Ensure that they can proceed,
+          to avoid extreme waits. */
+          mysql_mutex_unlock(&buf_pool.flush_list_mutex);
+          goto rescan;
         }
       }
 
@@ -699,6 +705,10 @@ void trx_purge_truncate_history()
     }
 
     mysql_mutex_unlock(&buf_pool.flush_list_mutex);
+
+    if (UNIV_UNLIKELY(srv_shutdown_state != SRV_SHUTDOWN_NONE) &&
+        srv_fast_shutdown)
+      goto fast_shutdown;
 
     /* Adjust the tablespace metadata. */
     if (!fil_truncate_prepare(space.id))

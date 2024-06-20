@@ -1,7 +1,6 @@
 # DEBUG_SYNC must be compiled in.
 --source include/have_debug_sync.inc
 --source include/have_debug.inc
-
 # We need to test the use case:
 #    a. Create a transaction T1 that will be promoted to RW.
 #    b. Create a transaction T2 that will be promoted to RW.
@@ -27,22 +26,16 @@ INSERT INTO t2 VALUES(2, "c");
 INSERT INTO t2 VALUES(3, "d");
 
 --connect (con1,localhost,root,,)
---connect (con2,localhost,root,,)
-
-connection con1;
---echo 'T1'
 SET AUTOCOMMIT=0;
 BEGIN;
 SELECT * FROM t2;
 
 connection default;
---echo 'T2'
 SET AUTOCOMMIT=0;
 BEGIN;
 SELECT * FROM t1;
 
-connection con2;
---echo 'T3'
+--connect (con2,localhost,root,,)
 SET AUTOCOMMIT=0;
 SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ;
 BEGIN;
@@ -50,48 +43,36 @@ SELECT * FROM t1;
 SELECT * FROM t2;
 
 connection con1;
---echo 'T1'
 UPDATE t2 SET c1 = c1 + 100;
 SELECT * FROM t2;
 COMMIT;
 
 connection default;
---echo 'T2'
 UPDATE t1 SET c1 = c1 + 100;
 SELECT * FROM t1;
 COMMIT;
 
 connection con2;
---echo 'T3'
 SET DEBUG_SYNC='row_search_for_mysql_before_return WAIT_FOR waiting1';
 --send SELECT * FROM t1;
 
 connection default;
---echo 'T2'
 SET DEBUG_SYNC='now SIGNAL waiting1';
---echo 'Signalled T3'
 
 connection con2;
---echo 'T3'
 reap;
 
 connection con2;
---echo 'T3'
 SET DEBUG_SYNC='row_search_for_mysql_before_return WAIT_FOR waiting1';
 --send SELECT * FROM t2;
 
 connection default;
---echo 'T2'
 SET DEBUG_SYNC='now SIGNAL waiting1';
---echo 'Signalled T3'
 
 connection con2;
---echo 'T3'
 reap;
 
 connection default;
-disconnect con1;
-disconnect con2;
 
 # We need to test the use case:
 #    a. Create a transaction T1 that will be promoted to RW.
@@ -105,17 +86,12 @@ disconnect con2;
 #    i. T3 Does a select - it should not see the changes made by T1 but should
 #       see the changes by T2
 
---connect (con1,localhost,root,,)
---connect (con2,localhost,root,,)
-
 connection con1;
---echo 'T1'
 SET AUTOCOMMIT=0;
 BEGIN;
 SELECT * FROM t1;
 
 connection default;
---echo 'T2'
 SET AUTOCOMMIT=0;
 BEGIN;
 SELECT * FROM t2;
@@ -124,7 +100,6 @@ SELECT * FROM t2;
 COMMIT;
 
 connection con2;
---echo 'T3'
 SET AUTOCOMMIT=0;
 SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ;
 BEGIN;
@@ -132,42 +107,30 @@ SELECT * FROM t1;
 SELECT * FROM t2;
 
 connection con1;
---echo 'T1'
 UPDATE t1 SET c1 = c1 + 100;
 SELECT * FROM t1;
 COMMIT;
 
 connection con2;
---echo 'T3'
 SET DEBUG_SYNC='row_select_wait WAIT_FOR waiting1';
 --send SELECT * FROM t1;
 
 connection con1;
---echo 'T2'
 SET DEBUG_SYNC='now SIGNAL waiting1';
---echo 'Signalled T3'
 
 connection con2;
---echo 'T3'
 reap;
-
-connection con2;
---echo 'T3'
 SET DEBUG_SYNC='row_select_wait WAIT_FOR waiting1';
 --send SELECT * FROM t2;
 
 connection default;
---echo 'T2'
 SET DEBUG_SYNC='now SIGNAL waiting1';
---echo 'Signalled T3'
 
 connection con2;
---echo 'T3'
 reap;
+disconnect con2;
 
 connection default;
-disconnect con1;
-disconnect con2;
 
 DROP TABLE t1;
 DROP TABLE t2;
@@ -176,8 +139,7 @@ DROP TABLE t2;
 --echo # Bug 21433768: NON-REPEATABLE READ WITH REPEATABLE READ ISOLATION
 --echo #
 
---connect (con1,localhost,root,,)
-
+connection con1;
 CREATE TABLE t1(col1 INT PRIMARY KEY, col2 INT) ENGINE = InnoDB;
 INSERT INTO t1 values (1, 0), (2, 0);
 SELECT * FROM t1 ORDER BY col1;
@@ -200,9 +162,7 @@ reap;
 disconnect con1;
 
 connection default;
-
+SET DEBUG_SYNC= 'RESET';
 DROP TABLE t1;
 
-# Clean up resources used in this test case.
-SET DEBUG_SYNC= 'RESET';
 --source include/wait_until_count_sessions.inc

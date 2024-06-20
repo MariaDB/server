@@ -70,7 +70,7 @@ let $orig_table_id = `SELECT table_id
 	WHERE name = 'test/t1'`;
 
 # Write file to make mysql-test-run.pl expect crash
---exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--write_line restart $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 
 --error 2013
 ALTER TABLE t1 ADD PRIMARY KEY (f2, f1);
@@ -123,7 +123,7 @@ let $orig_table_id = `SELECT table_id
 	WHERE name = 'test/t2'`;
 
 # Write file to make mysql-test-run.pl expect crash
---exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--write_line restart $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 
 --error 2013
 ALTER TABLE t2 ADD PRIMARY KEY (f2, f1);
@@ -165,7 +165,7 @@ let $orig_table_id = `select table_id from
   information_schema.innodb_sys_tables where name = 'test/t1'`;
 
 # Write file to make mysql-test-run.pl expect crash
---exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--write_line restart $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 #
 --error 2013
 ALTER TABLE t1 ADD INDEX (b), CHANGE c d int, ALGORITHM=INPLACE;

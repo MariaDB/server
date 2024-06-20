@@ -54,8 +54,11 @@ public:
   
   /* 
     TRUE means sort operation must produce table rowids. 
-    FALSE means that it halso has an option of producing {sort_key,
-    addon_fields} pairs.
+    FALSE means that it also has an option of producing {sort_key, addon_fields}
+          pairs.
+
+    Usually initialized with value of join_tab->keep_current_rowid to allow for
+    a call to table->file->position() using these table rowids.
   */
   bool sort_positions;
 

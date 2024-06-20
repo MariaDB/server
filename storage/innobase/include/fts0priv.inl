@@ -34,29 +34,6 @@ fts_write_object_id(
 	ib_id_t		id,		/* in: a table/index id */
 	char*		str)		/* in: buffer to write the id to */
 {
-
-#ifdef _WIN32
-
-	DBUG_EXECUTE_IF("innodb_test_wrong_non_windows_fts_aux_table_name",
-			return(sprintf(str, UINT64PFx, id)););
-
-	/* Use this to construct old(5.6.14 and 5.7.3) windows
-	ambiguous aux table names */
-	DBUG_EXECUTE_IF("innodb_test_wrong_fts_aux_table_name",
-			return(sprintf(str, "%016llu", (ulonglong) id)););
-
-#else /* _WIN32 */
-
-	/* Use this to construct old(5.6.14 and 5.7.3) windows
-	ambiguous aux table names */
-	DBUG_EXECUTE_IF("innodb_test_wrong_windows_fts_aux_table_name",
-			return(sprintf(str, "%016llu", (ulonglong) id)););
-
-	DBUG_EXECUTE_IF("innodb_test_wrong_fts_aux_table_name",
-			return(sprintf(str, "%016llx", (ulonglong) id)););
-
-#endif /* _WIN32 */
-
 	return(sprintf(str, "%016llx", (ulonglong) id));
 }
 
@@ -74,48 +51,4 @@ fts_read_object_id(
 	is set with HEX_NAME, the user of the id read here will check
 	if the id is HEX or DEC and do the right thing with it. */
 	return(sscanf(str, UINT64PFx, id) == 1);
-}
-
-/******************************************************************//**
-Compare two fts_trx_table_t instances.
-@return < 0 if n1 < n2, 0 if n1 == n2, > 0 if n1 > n2 */
-UNIV_INLINE
-int
-fts_trx_table_cmp(
-/*==============*/
-	const void*	p1,			/*!< in: id1 */
-	const void*	p2)			/*!< in: id2 */
-{
-	const dict_table_t*	table1
-		= (*static_cast<const fts_trx_table_t* const*>(p1))->table;
-
-	const dict_table_t*	table2
-		= (*static_cast<const fts_trx_table_t* const*>(p2))->table;
-
-	return((table1->id > table2->id)
-	       ? 1
-	       : (table1->id == table2->id)
-		  ? 0
-		  : -1);
-}
-
-/******************************************************************//**
-Compare a table id with a fts_trx_table_t table id.
-@return < 0 if n1 < n2, 0 if n1 == n2,> 0 if n1 > n2 */
-UNIV_INLINE
-int
-fts_trx_table_id_cmp(
-/*=================*/
-	const void*	p1,			/*!< in: id1 */
-	const void*	p2)			/*!< in: id2 */
-{
-	const uintmax_t*	table_id = static_cast<const uintmax_t*>(p1);
-	const dict_table_t*	table2
-		= (*static_cast<const fts_trx_table_t* const*>(p2))->table;
-
-	return((*table_id > table2->id)
-	       ? 1
-	       : (*table_id == table2->id)
-		  ? 0
-		  : -1);
 }

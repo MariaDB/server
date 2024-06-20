@@ -1688,7 +1688,8 @@ init_fts_doc_id_for_ref(
 
 		ut_ad(foreign->foreign_table != NULL);
 
-		if (foreign->foreign_table->fts != NULL) {
+		if (foreign->foreign_table->space
+		    && foreign->foreign_table->fts) {
 			fts_init_doc_id(foreign->foreign_table);
 		}
 
@@ -3040,7 +3041,6 @@ row_discard_tablespace(
 	dict_table_change_id_in_cache(table, new_id);
 
 	dict_index_t* index = UT_LIST_GET_FIRST(table->indexes);
-	if (index) index->clear_instant_alter();
 
 	/* Reset the root page numbers. */
 	for (; index; index = UT_LIST_GET_NEXT(indexes, index)) {

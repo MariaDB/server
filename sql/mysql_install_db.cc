@@ -159,7 +159,7 @@ int main(int argc, char **argv)
 
   MY_INIT(argv[0]);
   GetModuleFileName(NULL, self_name, FN_REFLEN);
-  strcpy(mysqld_path,self_name);
+  safe_strcpy(mysqld_path, sizeof(mysqld_path), self_name);
   p= strrchr(mysqld_path, FN_LIBCHAR);
   if (p)
   {
@@ -174,7 +174,7 @@ int main(int argc, char **argv)
       Figure out default data directory. It "data" directory, next to "bin" directory, where
       mysql_install_db.exe resides.
     */
-    strcpy(default_datadir, self_name);
+    safe_strcpy(default_datadir, sizeof(default_datadir), self_name);
     p = strrchr(default_datadir, FN_LIBCHAR);
     if (p)
     {

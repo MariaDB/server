@@ -1,5 +1,4 @@
 /*
-   Copyright (c) 2000, 2016, Oracle and/or its affiliates.
    Copyright (c) 2009, 2022, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
@@ -24,6 +23,7 @@
 #include "dur_prop.h"
 #include <waiting_threads.h>
 #include "sql_const.h"
+#include "lex_ident.h"
 #include <mysql/plugin_audit.h>
 #include "log.h"
 #include "rpl_tblmap.h"
@@ -275,9 +275,8 @@ typedef struct st_user_var_events
   user_var_entry *user_var_event;
   char *value;
   size_t length;
-  Item_result type;
+  const Type_handler *th;
   uint charset_number;
-  bool unsigned_flag;
 } BINLOG_USER_VAR_EVENT;
 
 /*
@@ -1123,6 +1122,7 @@ struct THD_count
 {
   static Atomic_counter<uint32_t> count;
   static uint value() { return static_cast<uint>(count); }
+  static uint connection_thd_count();
   THD_count() { count++; }
   ~THD_count() { count--; }
 };
@@ -1506,6 +1506,8 @@ public:
   */
   bool check_access(const privilege_t want_access, bool match_any = false);
   bool is_priv_user(const char *user, const char *host);
+  bool is_user_defined() const
+    { return user && user != delayed_user && user != slave_user; };
 };
 
 
@@ -2365,6 +2367,11 @@ public:
     swap_variables(sp_cache*, sp_package_body_cache, rhs.sp_package_body_cache);
   }
   void sp_caches_clear();
+  /**
+    Clear content of sp related caches.
+    Don't delete cache objects itself.
+  */
+  void sp_caches_empty();
 };
 
 
@@ -2696,6 +2703,12 @@ public:
 
   bool save_prep_leaf_list;
 
+  /**
+    The data member reset_sp_cache is to signal that content of sp_cache
+    must be reset (all items be removed from it).
+  */
+  bool reset_sp_cache;
+
   /* container for handler's private per-connection data */
   Ha_data ha_data[MAX_HA];
 
@@ -2932,6 +2945,17 @@ public:
   */
   Query_arena *stmt_arena;
 
+  /**
+    Get either call or statement arena. In case some function is called from
+    within a query the call arena has to be used for a memory allocation,
+    else use the statement arena.
+  */
+  Query_arena *active_stmt_arena_to_use()
+  {
+    return (state  == Query_arena::STMT_SP_QUERY_ARGUMENTS) ? this :
+                                                              stmt_arena;
+  }
+
   void *bulk_param;
 
   /*
@@ -3076,6 +3100,13 @@ public:
     auto_inc_intervals_forced.empty(); // in case of multiple SET INSERT_ID
     auto_inc_intervals_forced.append(next_id, ULONGLONG_MAX, 0);
   }
+  inline void set_binlog_bit()
+  {
+    if (variables.sql_log_bin)
+      variables.option_bits |= OPTION_BIN_LOG;
+    else
+      variables.option_bits &= ~OPTION_BIN_LOG;
+  }
 
   ulonglong  limit_found_rows;
 
@@ -3156,7 +3187,11 @@ public:
   { return m_sent_row_count; }
 
   ha_rows get_examined_row_count() const
-  { return m_examined_row_count; }
+  {
+    DBUG_EXECUTE_IF("debug_huge_number_of_examined_rows",
+                    return (ULONGLONG_MAX - 1000000););
+    return m_examined_row_count;
+  }
 
   ulonglong get_affected_rows() const
   { return affected_rows; }
@@ -3772,6 +3807,11 @@ public:
     user_time= t;
     set_time();
   }
+  inline void force_set_time(my_time_t t, ulong sec_part)
+  {
+    start_time= system_time.sec= t;
+    start_time_sec_part= system_time.sec_part= sec_part;
+  }
   /*
     this is only used by replication and BINLOG command.
     usecs > TIME_MAX_SECOND_PART means "was not in binlog"
@@ -3783,15 +3823,9 @@ public:
     else
     {
       if (sec_part <= TIME_MAX_SECOND_PART)
-      {
-        start_time= system_time.sec= t;
-        start_time_sec_part= system_time.sec_part= sec_part;
-      }
+        force_set_time(t, sec_part);
       else if (t != system_time.sec)
-      {
-        start_time= system_time.sec= t;
-        start_time_sec_part= system_time.sec_part= 0;
-      }
+        force_set_time(t, 0);
       else
       {
         start_time= t;
@@ -4332,7 +4366,8 @@ public:
           The worst things that can happen is that we get
           a suboptimal error message.
         */
-        killed_err= (err_info*) alloc_root(&main_mem_root, sizeof(*killed_err));
+        if (!killed_err)
+          killed_err= (err_info*) my_malloc(PSI_INSTRUMENT_ME, sizeof(*killed_err), MYF(MY_WME));
         if (likely(killed_err))
         {
           killed_err->no= killed_errno_arg;
@@ -4791,13 +4826,24 @@ public:
 public:
   /** Overloaded to guard query/query_length fields */
   virtual void set_statement(Statement *stmt);
-  void set_command(enum enum_server_command command)
+  inline void set_command(enum enum_server_command command)
   {
+    DBUG_ASSERT(command != COM_SLEEP);
     m_command= command;
 #ifdef HAVE_PSI_THREAD_INTERFACE
     PSI_STATEMENT_CALL(set_thread_command)(m_command);
 #endif
   }
+  /* As sleep needs a bit of special handling, we have a special case for it */
+  inline void mark_connection_idle()
+  {
+    proc_info= 0;
+    m_command= COM_SLEEP;
+#ifdef HAVE_PSI_THREAD_INTERFACE
+    PSI_STATEMENT_CALL(set_thread_command)(m_command);
+#endif
+  }
+
   inline enum enum_server_command get_command() const
   { return m_command; }
 
@@ -4901,11 +4947,29 @@ public:
   {
     if (global_system_variables.log_warnings > threshold)
     {
+      char real_ip_str[64];
+      real_ip_str[0]= 0;
+
+      /* For proxied connections, add the real IP to the warning message */
+      if (net.using_proxy_protocol && net.vio)
+      {
+        if(net.vio->localhost)
+          snprintf(real_ip_str, sizeof(real_ip_str), " real ip: 'localhost'");
+        else
+        {
+          char buf[INET6_ADDRSTRLEN];
+          if (!vio_getnameinfo((sockaddr *)&(net.vio->remote), buf,
+              sizeof(buf),NULL, 0, NI_NUMERICHOST))
+          {
+            snprintf(real_ip_str, sizeof(real_ip_str), " real ip: '%s'",buf);
+          }
+        }
+      }
       Security_context *sctx= &main_security_ctx;
       sql_print_warning(ER_THD(this, ER_NEW_ABORTING_CONNECTION),
                         thread_id, (db.str ? db.str : "unconnected"),
                         sctx->user ? sctx->user : "unauthenticated",
-                        sctx->host_or_ip, reason);
+                        sctx->host_or_ip, real_ip_str, reason);
     }
   }
 
@@ -6774,7 +6838,7 @@ public:
 
 
 // this is needed for user_vars hash
-class user_var_entry
+class user_var_entry: public Type_handler_hybrid_field_type
 {
   CHARSET_INFO *m_charset;
  public:
@@ -6783,8 +6847,6 @@ class user_var_entry
   char *value;
   size_t length;
   query_id_t update_query_id, used_query_id;
-  Item_result type;
-  bool unsigned_flag;
 
   double val_real(bool *null_value);
   longlong val_int(bool *null_value) const;
@@ -7466,6 +7528,66 @@ public:
 };
 
 
+class Identifier_chain2
+{
+  LEX_CSTRING m_name[2];
+public:
+  Identifier_chain2()
+   :m_name{Lex_cstring(), Lex_cstring()}
+  { }
+  Identifier_chain2(const LEX_CSTRING &a, const LEX_CSTRING &b)
+   :m_name{a, b}
+  { }
+
+  const LEX_CSTRING& operator [] (size_t i) const
+  {
+    return m_name[i];
+  }
+
+  static Identifier_chain2 split(const LEX_CSTRING &txt)
+  {
+    DBUG_ASSERT(txt.str[txt.length] == '\0'); // Expect 0-terminated input
+    const char *dot= strchr(txt.str, '.');
+    if (!dot)
+      return Identifier_chain2(Lex_cstring(), txt);
+    size_t length0= dot - txt.str;
+    Lex_cstring name0(txt.str, length0);
+    Lex_cstring name1(txt.str + length0 + 1, txt.length - length0 - 1);
+    return Identifier_chain2(name0, name1);
+  }
+
+  // Export as a qualified name string: 'db.name'
+  size_t make_qname(char *dst, size_t dstlen, bool casedn_part1) const
+  {
+    size_t res= my_snprintf(dst, dstlen, "%.*s.%.*s",
+                            (int) m_name[0].length, m_name[0].str,
+                            (int) m_name[1].length, m_name[1].str);
+    if (casedn_part1 && dstlen > m_name[0].length)
+      my_casedn_str(system_charset_info, dst + m_name[0].length + 1);
+    return res;
+  }
+
+  // Export as a qualified name string, allocate on mem_root.
+  LEX_CSTRING make_qname(MEM_ROOT *mem_root, bool casedn_part1) const
+  {
+    LEX_STRING dst;
+    /* format: [pkg + dot] + name + '\0' */
+    size_t dst_size= m_name[0].length + 1 /*dot*/ + m_name[1].length + 1/*\0*/;
+    if (unlikely(!(dst.str= (char*) alloc_root(mem_root, dst_size))))
+      return {NULL, 0};
+    if (!m_name[0].length)
+    {
+      DBUG_ASSERT(!casedn_part1); // Should not be called this way
+      dst.length= my_snprintf(dst.str, dst_size, "%.*s",
+                              (int) m_name[1].length, m_name[1].str);
+      return {dst.str, dst.length};
+    }
+    dst.length= make_qname(dst.str, dst_size, casedn_part1);
+    return {dst.str, dst.length};
+  }
+};
+
+
 /**
   This class resembles the SQL Standard schema qualified object name:
   <schema qualified name> ::= [ <schema name> <period> ] <qualified identifier>
@@ -7506,41 +7628,16 @@ public:
   void copy(MEM_ROOT *mem_root, const LEX_CSTRING &db,
                                 const LEX_CSTRING &name);
 
-  static Database_qualified_name split(const LEX_CSTRING &txt)
-  {
-    DBUG_ASSERT(txt.str[txt.length] == '\0'); // Expect 0-terminated input
-    const char *dot= strchr(txt.str, '.');
-    if (!dot)
-      return Database_qualified_name(NULL, 0, txt.str, txt.length);
-    size_t dblen= dot - txt.str;
-    Lex_cstring db(txt.str, dblen);
-    Lex_cstring name(txt.str + dblen + 1, txt.length - dblen - 1);
-    return Database_qualified_name(db, name);
-  }
-
   // Export db and name as a qualified name string: 'db.name'
-  size_t make_qname(char *dst, size_t dstlen) const
+  size_t make_qname(char *dst, size_t dstlen, bool casedn_name) const
   {
-    return my_snprintf(dst, dstlen, "%.*s.%.*s",
-                       (int) m_db.length, m_db.str,
-                       (int) m_name.length, m_name.str);
+    return Identifier_chain2(m_db, m_name).make_qname(dst, dstlen, casedn_name);
   }
   // Export db and name as a qualified name string, allocate on mem_root.
-  bool make_qname(MEM_ROOT *mem_root, LEX_CSTRING *dst) const
+  LEX_CSTRING make_qname(MEM_ROOT *mem_root, bool casedn_name) const
   {
-    const uint dot= !!m_db.length;
-    char *tmp;
-    /* format: [database + dot] + name + '\0' */
-    dst->length= m_db.length + dot + m_name.length;
-    if (unlikely(!(dst->str= tmp= (char*) alloc_root(mem_root,
-                                                     dst->length + 1))))
-      return true;
-    snprintf(tmp, dst->length + 1, "%.*s%.*s%.*s",
-            (int) m_db.length, (m_db.length ? m_db.str : ""),
-            dot, ".",
-            (int) m_name.length, m_name.str);
     DBUG_SLOW_ASSERT(ok_for_lower_case_names(m_db.str));
-    return false;
+    return Identifier_chain2(m_db, m_name).make_qname(mem_root, casedn_name);
   }
 
   bool make_package_routine_name(MEM_ROOT *mem_root,
@@ -7551,9 +7648,8 @@ public:
     size_t length= package.length + 1 + routine.length + 1;
     if (unlikely(!(tmp= (char *) alloc_root(mem_root, length))))
       return true;
-    m_name.length= my_snprintf(tmp, length, "%.*s.%.*s",
-                               (int) package.length, package.str,
-                               (int) routine.length, routine.str);
+    m_name.length= Identifier_chain2(package, routine).make_qname(tmp, length,
+                                                                  false);
     m_name.str= tmp;
     return false;
   }
@@ -7582,7 +7678,7 @@ public:
   { }
   const char *ptr() const
   {
-    m_name->make_qname(err_buffer, sizeof(err_buffer));
+    m_name->make_qname(err_buffer, sizeof(err_buffer), false);
     return err_buffer;
   }
 };

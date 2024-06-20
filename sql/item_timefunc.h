@@ -30,23 +30,23 @@ bool get_interval_value(THD *thd, Item *args,
                         interval_type int_type, INTERVAL *interval);
 
 
-class Item_long_func_date_field: public Item_long_func
+class Item_long_func_date_field: public Item_long_ge0_func
 {
   bool check_arguments() const
   { return args[0]->check_type_can_return_date(func_name()); }
 public:
   Item_long_func_date_field(THD *thd, Item *a)
-   :Item_long_func(thd, a) { }
+   :Item_long_ge0_func(thd, a) { }
 };
 
 
-class Item_long_func_time_field: public Item_long_func
+class Item_long_func_time_field: public Item_long_ge0_func
 {
   bool check_arguments() const
   { return args[0]->check_type_can_return_time(func_name()); }
 public:
   Item_long_func_time_field(THD *thd, Item *a)
-   :Item_long_func(thd, a) { }
+   :Item_long_ge0_func(thd, a) { }
 };
 
 
@@ -166,10 +166,10 @@ public:
 };
 
 
-class Item_func_month :public Item_long_func
+class Item_func_month :public Item_long_ge0_func
 {
 public:
-  Item_func_month(THD *thd, Item *a): Item_long_func(thd, a)
+  Item_func_month(THD *thd, Item *a): Item_long_ge0_func(thd, a)
   { }
   longlong val_int();
   const char *func_name() const { return "month"; }
@@ -333,7 +333,7 @@ public:
 };
 
 
-class Item_func_week :public Item_long_func
+class Item_func_week :public Item_long_ge0_func
 {
   bool check_arguments() const
   {
@@ -341,8 +341,8 @@ class Item_func_week :public Item_long_func
            (arg_count > 1 && args[1]->check_type_can_return_int(func_name()));
   }
 public:
-  Item_func_week(THD *thd, Item *a): Item_long_func(thd, a) {}
-  Item_func_week(THD *thd, Item *a, Item *b): Item_long_func(thd, a, b) {}
+  Item_func_week(THD *thd, Item *a): Item_long_ge0_func(thd, a) {}
+  Item_func_week(THD *thd, Item *a, Item *b): Item_long_ge0_func(thd, a, b) {}
   longlong val_int();
   const char *func_name() const { return "week"; }
   bool fix_length_and_dec()
@@ -969,12 +969,17 @@ class Item_extract :public Item_int_func,
   void set_date_length(uint32 length)
   {
     /*
-      Although DATE components (e.g. YEAR, YEAR_MONTH, QUARTER, MONTH, WEEK)
-      cannot have a sign, we should probably still add +1,
-      because all around the code we assume that max_length is sign inclusive.
-      Another options is to set unsigned_flag to "true".
+      DATE components (e.g. YEAR, YEAR_MONTH, QUARTER, MONTH, WEEK)
+      return non-negative values but historically EXTRACT for date
+      components always returned the signed int data type.
+      So do equivalent functions YEAR(), QUARTER(), MONTH(), WEEK().
+      Let's set the data type to "signed int, but not negative",
+      so "this" produces better data types in VARCHAR and DECIMAL context
+      by using the fact that all of the max_length characters are spent
+      for digits (non of them are spent for the sign).
     */
-    set_handler(handler_by_length(max_length= length, 10)); // QQ: see above
+    set_handler(&type_handler_slong_ge0);
+    fix_char_length(length);
     m_date_mode= date_mode_t(0);
   }
   void set_day_length(uint32 length)

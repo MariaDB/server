@@ -135,7 +135,7 @@ AND support IN ('YES', 'DEFAULT', 'ENABLED');
 # We cannot use include/restart_mysqld.inc in this particular test,
 # because SHOW STATUS would fail due to unwritable (nonexistent) tmpdir.
 --source include/shutdown_mysqld.inc
---exec echo "restart: --tmpdir=/dev/null/$MYSQL_TMP_DIR --skip-innodb-fast-shutdown" > $_expect_file_name
+--write_line "restart: --tmpdir=/dev/null/$MYSQL_TMP_DIR --skip-innodb-fast-shutdown" $_expect_file_name
 --enable_reconnect
 --disable_result_log
 --disable_query_log

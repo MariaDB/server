@@ -33,6 +33,7 @@ struct TABLE;
 class Type_handler;
 class Field;
 class Index_statistics;
+struct Lex_ident_cli_st;
 
 class THD;
 
@@ -779,12 +780,6 @@ public:
   }
   Item *make_item_func_trim_std(THD *thd) const;
   Item *make_item_func_trim_oracle(THD *thd) const;
-  /*
-    This method is still used to handle LTRIM and RTRIM,
-    while the special syntax TRIM(... BOTH|LEADING|TRAILING)
-    is now handled by Schema::make_item_func_trim().
-  */
-  Item *make_item_func_trim(THD *thd) const;
 };
 
 

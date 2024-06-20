@@ -56,9 +56,41 @@ protected:
   bool check_argument_types_can_return_date(uint start, uint end) const;
   bool check_argument_types_can_return_time(uint start, uint end) const;
   void print_cast_temporal(String *str, enum_query_type query_type);
+
+  void print_schema_qualified_name(String *to,
+                                   const LEX_CSTRING &schema_name,
+                                   const char *function_name) const
+  {
+    // e.g. oracle_schema.func()
+    to->append(schema_name);
+    to->append('.');
+    to->append(function_name);
+  }
+
+  void print_sql_mode_qualified_name(String *to,
+                                     enum_query_type query_type,
+                                     const char *function_name) const
+  {
+    const Schema *func_schema= schema();
+    if (!func_schema || func_schema == Schema::find_implied(current_thd))
+      to->append(function_name);
+    else
+      print_schema_qualified_name(to, func_schema->name(), function_name);
+  }
+
+  void print_sql_mode_qualified_name(String *to, enum_query_type query_type)
+                                                                       const
+  {
+    return print_sql_mode_qualified_name(to, query_type, func_name());
+  }
+
 public:
 
-  table_map not_null_tables_cache;
+  // Print an error message for a builtin-schema qualified function call
+  static void wrong_param_count_error(const LEX_CSTRING &schema_name,
+                                      const LEX_CSTRING &func_name);
+
+  table_map not_null_tables_cache= 0;
 
   enum Functype { UNKNOWN_FUNC,EQ_FUNC,EQUAL_FUNC,NE_FUNC,LT_FUNC,LE_FUNC,
 		  GE_FUNC,GT_FUNC,FT_FUNC,
@@ -179,7 +211,13 @@ public:
                       List<Item> &fields, uint flags);
   virtual void print(String *str, enum_query_type query_type);
   void print_op(String *str, enum_query_type query_type);
-  void print_args(String *str, uint from, enum_query_type query_type);
+  void print_args(String *str, uint from, enum_query_type query_type) const;
+  void print_args_parenthesized(String *str, enum_query_type query_type) const
+  {
+    str->append('(');
+    print_args(str, 0, query_type);
+    str->append(')');
+  }
   bool is_null() { 
     update_null_value();
     return null_value; 
@@ -395,16 +433,6 @@ public:
     }
   }
   void convert_const_compared_to_int_field(THD *thd);
-  /**
-    Prepare arguments and setup a comparator.
-    Used in Item_func_xxx with two arguments and a comparator,
-    e.g. Item_bool_func2 and Item_func_nullif.
-    args[0] or args[1] can be modified:
-    - converted to character set and collation of the operation
-    - or replaced to an Item_int_with_ref
-  */
-  bool setup_args_and_comparator(THD *thd, Arg_comparator *cmp);
-
   bool with_sum_func() const { return m_with_sum_func; }
   With_sum_func_cache* get_with_sum_func_cache() { return this; }
   Item_func *get_item_func() { return this; }
@@ -1211,6 +1239,24 @@ public:
 };
 
 
+class Item_long_ge0_func: public Item_int_func
+{
+public:
+  Item_long_ge0_func(THD *thd): Item_int_func(thd) { }
+  Item_long_ge0_func(THD *thd, Item *a): Item_int_func(thd, a) {}
+  Item_long_ge0_func(THD *thd, Item *a, Item *b): Item_int_func(thd, a, b) {}
+  Item_long_ge0_func(THD *thd, Item *a, Item *b, Item *c): Item_int_func(thd, a, b, c) {}
+  Item_long_ge0_func(THD *thd, List<Item> &list): Item_int_func(thd, list) { }
+  Item_long_ge0_func(THD *thd, Item_long_ge0_func *item) :Item_int_func(thd, item) {}
+  const Type_handler *type_handler() const
+  {
+    DBUG_ASSERT(!unsigned_flag);
+    return &type_handler_slong_ge0;
+  }
+  bool fix_length_and_dec() { max_length= 10; return FALSE; }
+};
+
+
 class Item_func_hash: public Item_int_func
 {
 public:
@@ -1333,6 +1379,13 @@ public:
   void fix_length_and_dec_double()
   {
     fix_char_length(MAX_BIGINT_WIDTH);
+  }
+  void fix_length_and_dec_sint_ge0()
+  {
+    uint32 digits= args[0]->decimal_precision();
+    DBUG_ASSERT(digits > 0);
+    DBUG_ASSERT(digits <= MY_INT64_NUM_DECIMAL_DIGITS);
+    fix_char_length(digits + (unsigned_flag ? 0 : 1/*sign*/));
   }
   void fix_length_and_dec_generic()
   {
@@ -1695,6 +1748,7 @@ public:
   my_decimal *decimal_op(my_decimal *);
   const char *func_name() const { return "abs"; }
   void fix_length_and_dec_int();
+  void fix_length_and_dec_sint_ge0();
   void fix_length_and_dec_double();
   void fix_length_and_dec_decimal();
   bool fix_length_and_dec();
@@ -1953,6 +2007,7 @@ public:
   void fix_arg_int(const Type_handler *preferred,
                    const Type_std_attributes *preferred_attributes,
                    bool use_decimal_on_length_increase);
+  void fix_arg_slong_ge0();
   void fix_arg_hex_hybrid();
   void fix_arg_double();
   void fix_arg_time();
@@ -3038,8 +3093,8 @@ public:
   String *str_result(String *str);
   my_decimal *val_decimal_result(my_decimal *);
   bool is_null_result();
-  bool update_hash(void *ptr, size_t length, enum Item_result type,
-                   CHARSET_INFO *cs, bool unsigned_arg);
+  bool update_hash(void *ptr, size_t length, const Type_handler *th,
+                   CHARSET_INFO *cs);
   bool send(Protocol *protocol, st_value *buffer);
   void make_send_field(THD *thd, Send_field *tmp_field);
   bool check(bool use_result_field);
@@ -3797,7 +3852,6 @@ double my_double_round(double value, longlong dec, bool dec_unsigned,
 extern bool volatile  mqh_used;
 
 bool update_hash(user_var_entry *entry, bool set_null, void *ptr, size_t length,
-                 Item_result type, CHARSET_INFO *cs,
-                 bool unsigned_arg);
+                 const Type_handler *th, CHARSET_INFO *cs);
 
 #endif /* ITEM_FUNC_INCLUDED */

@@ -173,6 +173,65 @@ SET default_master_connection = "a2b";
 SELECT * FROM t1 WHERE a >= 10 ORDER BY a;
 
 
+--echo *** MDEV-33475: --gtid-ignore-duplicate can double-apply event in case of parallel replication retry
+
+# Create a bunch of transactions that will cause conflicts and retries.
+# The bug was that the retry code was not handling the --gtid-ignore-duplicates
+# option, so events could be doubly-applied.
+
+--connection server_2
+STOP SLAVE "c2b";
+SET default_master_connection = "c2b";
+--source include/wait_for_slave_to_stop.inc
+STOP SLAVE "a2b";
+SET default_master_connection = "a2b";
+--source include/wait_for_slave_to_stop.inc
+
+--connection server_1
+CREATE TABLE t2 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+BEGIN;
+--let $i= 0
+while ($i < 10) {
+  eval INSERT INTO t2 VALUES ($i, 0);
+  inc $i;
+}
+COMMIT;
+
+--let $i= 0
+while ($i < 10) {
+  BEGIN;
+  eval INSERT INTO t2 VALUES ($i+10, 100);
+  eval UPDATE t2 SET b=$i WHERE a<10;
+  eval INSERT INTO t2 VALUES ($i+20, 200);
+  COMMIT;
+  inc $i;
+}
+
+SELECT COUNT(*), SUM(a), SUM(b) FROM t2;
+--source include/save_master_gtid.inc
+
+--connection server_2
+SET @old_mode= @@GLOBAL.slave_parallel_mode;
+SET GLOBAL slave_parallel_mode=aggressive;
+SET default_master_connection = "a2b";
+START SLAVE;
+--source include/wait_for_slave_to_start.inc
+SET default_master_connection = "c2b";
+START SLAVE;
+--source include/wait_for_slave_to_start.inc
+
+--source include/sync_with_master_gtid.inc
+SELECT COUNT(*), SUM(a), SUM(b) FROM t2;
+
+--connection server_3
+--source include/sync_with_master_gtid.inc
+SELECT COUNT(*), SUM(a), SUM(b) FROM t2;
+
+--connection server_4
+--source include/sync_with_master_gtid.inc
+SELECT COUNT(*), SUM(a), SUM(b) FROM t2;
+
+
 --echo *** Test also with not using parallel replication.
 
 --connection server_1
@@ -414,6 +473,7 @@ SET GLOBAL gtid_domain_id=0;
 --sorted_result
 STOP ALL SLAVES;
 SET GLOBAL slave_parallel_threads= @old_parallel;
+SET GLOBAL slave_parallel_mode= @old_mode;
 SET GLOBAL gtid_ignore_duplicates= @old_ignore_duplicates;
 
 --connection server_3
@@ -431,25 +491,25 @@ SET GLOBAL slave_parallel_threads= @old_parallel;
 SET GLOBAL gtid_ignore_duplicates= @old_ignore_duplicates;
 
 --connection server_1
-DROP TABLE t1;
+DROP TABLE t1, t2;
 ALTER TABLE mysql.gtid_slave_pos ENGINE=Aria;
 --source include/reset_master_slave.inc
 --disconnect server_1
 
 --connection server_2
-DROP TABLE t1;
+DROP TABLE t1, t2;
 ALTER TABLE mysql.gtid_slave_pos ENGINE=Aria;
 --source include/reset_master_slave.inc
 --disconnect server_2
 
 --connection server_3
-DROP TABLE t1;
+DROP TABLE t1, t2;
 ALTER TABLE mysql.gtid_slave_pos ENGINE=Aria;
 --source include/reset_master_slave.inc
 --disconnect server_3
 
 --connection server_4
-DROP TABLE t1;
+DROP TABLE t1, t2;
 ALTER TABLE mysql.gtid_slave_pos ENGINE=Aria;
 --source include/reset_master_slave.inc
 --disconnect server_4

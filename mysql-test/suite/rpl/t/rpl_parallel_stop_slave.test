@@ -53,6 +53,7 @@ COMMIT;
 INSERT INTO t3 VALUES(21, 21);
 INSERT INTO t3 VALUES(22, 22);
 --save_master_pos
+--let $master_pos= query_get_value(SHOW MASTER STATUS, Position, 1)
 
 # Start a connection that will block the replicated transaction halfway.
 --connection con_temp1
@@ -60,7 +61,27 @@ BEGIN;
 INSERT INTO t2 VALUES (21);
 
 --connection server_2
-START SLAVE;
+
+#
+# Parallel replication will complete any in-progress event group at STOP SLAVE,
+# but only if the event group is already queued up for the worker thread. If
+# the SQL driver thread is delayed in queueing up events, the parallel worker
+# thread can abort the event group, leaving the non-transactional update to the
+# MyISAM table that cannot be rolled back (MDEV-7432). If this happens the test
+# would fail with duplicate key error after slave restart.
+#
+# To avoid this, we here wait for the IO thread to read all master events, and
+# for the SQL driver thread to queue all the events for workers. This wait
+# should be removed if/when MDEV-7432 is fixed.
+#
+START SLAVE IO_THREAD;
+--let $slave_param= Read_Master_Log_Pos
+--let $slave_param_value= $master_pos
+--source include/wait_for_slave_param.inc
+START SLAVE SQL_THREAD;
+--let $wait_condition= SELECT COUNT(*)=1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE State LIKE '%Slave has read all relay log; waiting for more updates%'
+--source include/wait_condition.inc
+
 # Wait for the MyISAM change to be visible, after which replication will wait
 # for con_temp1 to roll back.
 --let $wait_condition= SELECT COUNT(*) = 1 FROM t1 WHERE a=20

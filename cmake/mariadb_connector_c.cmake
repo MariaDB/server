@@ -40,6 +40,13 @@ SET(CLIENT_PLUGIN_PVIO_SOCKET STATIC)
 MESSAGE("== Configuring MariaDB Connector/C")
 ADD_SUBDIRECTORY(libmariadb)
 
+IF(MSVC AND TARGET mariadb_obj AND TARGET mariadbclient)
+  # With MSVC, do not produce LTCG-compiled static client libraries.
+  # They are not usable by end-users, being tied to exact compiler version
+  MAYBE_DISABLE_IPO(mariadb_obj)
+  MAYBE_DISABLE_IPO(mariadbclient)
+ENDIF()
+
 IF(UNIX)
   INSTALL(CODE "EXECUTE_PROCESS(
                   COMMAND ${CMAKE_COMMAND} -E make_directory \$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/${INSTALL_BINDIR})

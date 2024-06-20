@@ -177,9 +177,22 @@ static inline ulonglong my_timer_cycles(void)
   /* gethrtime may appear as either cycle or nanosecond counter */
   return (ulonglong) gethrtime();
 #else
+# define MY_TIMER_CYCLES_IS_ZERO
   return 0;
 #endif
 }
+
+#ifdef MY_TIMER_CYCLES_IS_ZERO
+static inline size_t my_pseudo_random(void)
+{
+  /* In some platforms, pthread_self() might return a structure
+  that cannot be converted to a number like this. Possible alternatives
+  could include gettid() or sched_getcpu(). */
+  return ((size_t) pthread_self()) / 16;
+}
+#else
+# define my_pseudo_random my_timer_cycles
+#endif
 
 /**
   A nanosecond timer.

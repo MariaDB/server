@@ -214,6 +214,7 @@ int Wsrep_high_priority_service::start_transaction(
   const wsrep::ws_handle& ws_handle, const wsrep::ws_meta& ws_meta)
 {
   DBUG_ENTER(" Wsrep_high_priority_service::start_transaction");
+  m_thd->set_time();
   DBUG_RETURN(m_thd->wsrep_cs().start_transaction(ws_handle, ws_meta) ||
               trans_begin(m_thd));
 }
@@ -425,6 +426,7 @@ int Wsrep_high_priority_service::apply_toi(const wsrep::ws_meta& ws_meta,
                   };);
 #endif
 
+  thd->set_time();
   int ret= apply_events(thd, m_rli, data, err);
   wsrep_thd_set_ignored_error(thd, false);
   trans_commit(thd);
@@ -569,6 +571,7 @@ int Wsrep_applier_service::apply_write_set(const wsrep::ws_meta& ws_meta,
   THD* thd= m_thd;
 
   thd->variables.option_bits |= OPTION_BEGIN;
+  thd->variables.option_bits |= OPTION_GTID_BEGIN;
   thd->variables.option_bits |= OPTION_NOT_AUTOCOMMIT;
   DBUG_ASSERT(thd->wsrep_trx().active());
   DBUG_ASSERT(thd->wsrep_trx().state() == wsrep::transaction::s_executing);
@@ -600,6 +603,8 @@ int Wsrep_applier_service::apply_write_set(const wsrep::ws_meta& ws_meta,
     thd->wsrep_cs().fragment_applied(ws_meta.seqno());
   }
   thd_proc_info(thd, "wsrep applied write set");
+
+  thd->variables.option_bits &= ~OPTION_GTID_BEGIN;
   DBUG_RETURN(ret);
 }
 

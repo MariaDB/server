@@ -23,7 +23,8 @@ INSERT INTO t1 VALUES (2);
 SET sql_log_bin=1;
 START SLAVE;
 include/wait_for_slave_sql_error.inc [errno=1062]
-include/stop_slave.inc
+include/wait_for_slave_io_to_start.inc
+include/stop_slave_io.inc
 SET GLOBAL gtid_slave_pos= "0-1-100";
 include/start_slave.inc
 SELECT * FROM t1 ORDER BY a;
@@ -39,7 +40,7 @@ REPLACE INTO t1 VALUES (5);
 SET debug_dbug= @dbug_save;
 connection slave;
 include/wait_for_slave_sql_error.inc [errno=1590]
-include/stop_slave.inc
+include/stop_slave_io.inc
 SET sql_slave_skip_counter=1;
 include/start_slave.inc
 SELECT * FROM t1 ORDER BY a;

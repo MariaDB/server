@@ -453,10 +453,16 @@ void mtr_t::commit()
     {
       ut_ad(m_log_mode == MTR_LOG_NO_REDO);
       ut_ad(m_log.size() == 0);
-      m_commit_lsn= log_sys.get_lsn();
-      lsns= { m_commit_lsn, PAGE_FLUSH_NO };
       if (UNIV_UNLIKELY(m_made_dirty)) /* This should be IMPORT TABLESPACE */
+      {
+        mysql_mutex_lock(&log_sys.mutex);
+        m_commit_lsn= log_sys.get_lsn();
         mysql_mutex_lock(&log_sys.flush_order_mutex);
+        mysql_mutex_unlock(&log_sys.mutex);
+      }
+      else
+        m_commit_lsn= log_sys.get_lsn();
+      lsns= { m_commit_lsn, PAGE_FLUSH_NO };
     }
 
     if (m_freed_pages)
@@ -566,7 +572,6 @@ void mtr_t::commit_shrink(fil_space_t &space)
   ut_ad(!is_inside_ibuf());
   ut_ad(!high_level_read_only);
   ut_ad(m_modifications);
-  ut_ad(m_made_dirty);
   ut_ad(!recv_recovery_is_on());
   ut_ad(m_log_mode == MTR_LOG_ALL);
   ut_ad(UT_LIST_GET_LEN(space.chain) == 1);
@@ -844,6 +849,8 @@ static void log_write_low(const void *str, size_t size)
       len= trailer_offset - log_sys.buf_free % OS_FILE_LOG_BLOCK_SIZE;
     }
 
+    ut_ad(log_sys.is_physical());
+
     memcpy(log_sys.buf + log_sys.buf_free, str, len);
 
     size-= len;
@@ -918,7 +925,7 @@ static mtr_t::page_flush_ahead log_close(lsn_t lsn)
                       " last checkpoint LSN=" LSN_PF ", current LSN=" LSN_PF
                       "%s.",
                       lsn_t{log_sys.last_checkpoint_lsn}, lsn,
-                      srv_shutdown_state != SRV_SHUTDOWN_INITIATED
+                      srv_shutdown_state > SRV_SHUTDOWN_INITIATED
                       ? ". Shutdown is in progress" : "");
     }
   }

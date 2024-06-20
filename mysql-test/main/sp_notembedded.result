@@ -1,7 +1,5 @@
 set @old_concurrent_insert= @@global.concurrent_insert;
 set @@global.concurrent_insert= 0;
-drop table if exists t1,t3;
-drop procedure if exists bug4902|
 create procedure bug4902()
 begin
 show grants for 'root'@'localhost';
@@ -15,7 +13,6 @@ Grants for root@localhost
 GRANT ALL PRIVILEGES ON *.* TO `root`@`localhost` WITH GRANT OPTION
 GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
 drop procedure bug4902|
-drop procedure if exists bug4902_2|
 create procedure bug4902_2()
 begin
 show processlist;
@@ -23,13 +20,10 @@ end|
 call bug4902_2()|
 show warnings|
 Level	Code	Message
-Note	1305	PROCEDURE test.bug4902_2 does not exist
 call bug4902_2()|
 show warnings|
 Level	Code	Message
-Note	1305	PROCEDURE test.bug4902_2 does not exist
 drop procedure bug4902_2|
-drop procedure if exists bug6807|
 create procedure bug6807()
 begin
 declare a int;
@@ -42,116 +36,6 @@ ERROR 70100: Query execution was interrupted
 call bug6807()|
 ERROR 70100: Query execution was interrupted
 drop procedure bug6807|
-drop function if exists bug10100f|
-drop procedure if exists bug10100p|
-drop procedure if exists bug10100t|
-drop procedure if exists bug10100pt|
-drop procedure if exists bug10100pv|
-drop procedure if exists bug10100pd|
-drop procedure if exists bug10100pc|
-create function bug10100f(prm int) returns int
-begin
-if prm > 1 then
-return prm * bug10100f(prm - 1);
-end if;
-return 1;
-end|
-set statement sql_mode = '' for
-create procedure bug10100p(prm int, inout res int)
-begin
-set res = res * prm;
-if prm > 1 then
-call bug10100p(prm - 1, res);
-end if;
-end|
-set statement sql_mode = '' for
-create procedure bug10100t(prm int)
-begin
-declare res int;
-set res = 1;
-call bug10100p(prm, res);
-select res;
-end|
-create table t3 (a int)|
-insert into t3 values (0)|
-create view v1 as select a from t3|
-create procedure bug10100pt(level int, lim int)
-begin
-if level < lim then
-update t3 set a=level;
-FLUSH TABLES;
-call bug10100pt(level+1, lim);
-else
-select * from t3;
-end if;
-end|
-create procedure bug10100pv(level int, lim int)
-begin
-if level < lim then
-update v1 set a=level;
-FLUSH TABLES;
-call bug10100pv(level+1, lim);
-else
-select * from v1;
-end if;
-end|
-prepare stmt2 from "select * from t3;";
-create procedure bug10100pd(level int, lim int)
-begin
-if level < lim then
-select level;
-prepare stmt1 from "update t3 set a=a+2";
-execute stmt1;
-FLUSH TABLES;
-execute stmt1;
-FLUSH TABLES;
-execute stmt1;
-FLUSH TABLES;
-deallocate prepare stmt1;
-execute stmt2;
-select * from t3;
-call bug10100pd(level+1, lim);
-else
-execute stmt2;
-end if;
-end|
-create procedure bug10100pc(level int, lim int)
-begin
-declare lv int;
-declare c cursor for select a from t3;
-open c;
-if level < lim then
-select level;
-fetch c into lv;
-select lv;
-update t3 set a=level+lv;
-FLUSH TABLES;
-call bug10100pc(level+1, lim);
-else
-select * from t3;
-end if;
-close c;
-end|
-set @@max_sp_recursion_depth=255|
-set @var=1|
-call bug10100p(255, @var)|
-call bug10100pt(1,255)|
-call bug10100pv(1,255)|
-call bug10100pd(1,255)|
-call bug10100pc(1,255)|
-set @@max_sp_recursion_depth=0|
-deallocate prepare stmt2|
-drop function bug10100f|
-drop procedure bug10100p|
-drop procedure bug10100t|
-drop procedure bug10100pt|
-drop procedure bug10100pv|
-drop procedure bug10100pd|
-drop procedure bug10100pc|
-drop view v1|
-drop table t3|
-drop procedure if exists bug15298_1;
-drop procedure if exists bug15298_2;
 create user 'mysqltest_1'@'localhost';
 grant all privileges on test.* to 'mysqltest_1'@'localhost';
 create procedure 15298_1 () sql security definer show grants for current_user;
@@ -170,8 +54,6 @@ disconnect con1;
 drop user mysqltest_1@localhost;
 drop procedure 15298_1;
 drop procedure 15298_2;
-drop table if exists t1;
-drop procedure if exists p1;
 create table t1 (value varchar(15));
 create procedure p1() update t1 set value='updated' where value='old';
 call p1();
@@ -283,7 +165,6 @@ disconnect con2;
 # functions in databases which names contained dot.
 #
 connection default;
-DROP DATABASE IF EXISTS `my.db`;
 create database `my.db`;
 use `my.db`;
 CREATE FUNCTION f1(a int) RETURNS INT RETURN a;

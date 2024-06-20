@@ -1,0 +1,26 @@
+SET sql_mode=ORACLE;
+
+--echo #
+--echo # MDEV-29095 REGEXP_REPLACE treats empty strings different than REPLACE in ORACLE mode
+--echo #
+
+#SELECT REGEXP_REPLACE(null,'a','b') ;
+#SELECT REGEXP_REPLACE('ab',null,'b') ;
+#SELECT REGEXP_REPLACE('ab','a',null) ;
+#SELECT REGEXP_REPLACE('ab',null,null) ;
+
+CREATE TABLE t1 (replacement VARCHAR(10));
+INSERT INTO t1 VALUES (NULL), ('');
+SELECT replacement, REGEXP_REPLACE('abba','a',replacement) FROM t1 ORDER BY replacement;
+DROP TABLE t1;
+
+SELECT REGEXP_REPLACE('abba','a',null);
+EXPLAIN EXTENDED SELECT REPLACE('abba','a',null) ;
+
+CREATE VIEW v1 AS SELECT REPLACE('abba','a',null) ;
+SHOW CREATE VIEW v1;
+SELECT * FROM v1;
+SET sql_mode=DEFAULT;
+SHOW CREATE VIEW v1;
+SELECT * FROM v1;
+DROP VIEW v1;

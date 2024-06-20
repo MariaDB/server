@@ -21,7 +21,7 @@
   The differences for the two cases are:
 
   - Things that only works for the client:
-  - Trying to automaticly determinate user name if not supplied to
+  - Trying to automatically determinate user name if not supplied to
     mysql_real_connect()
   - Support for reading local file with LOAD DATA LOCAL
   - SHARED memory handling
@@ -30,7 +30,7 @@
   - Things that only works for the server
   - Alarm handling on connect
   
-  In all other cases, the code should be idential for the client and
+  In all other cases, the code should be identical for the client and
   server.
 */ 
 
@@ -1457,7 +1457,7 @@ mysql_init(MYSQL *mysql)
     mysql_reconnect()).
     This is a change: < 5.0.3 mysql->reconnect was set to 1 by default.
     How this change impacts existing apps:
-    - existing apps which relyed on the default will see a behaviour change;
+    - existing apps which relied on the default will see a behaviour change;
     they will have to set reconnect=1 after mysql_real_connect().
     - existing apps which explicitly asked for reconnection (the only way they
     could do it was by setting mysql.reconnect to 1 after mysql_real_connect())
@@ -1714,14 +1714,14 @@ static MYSQL_METHODS client_methods=
   cli_use_result,                              /* use_result */
   cli_fetch_lengths,                           /* fetch_lengths */
   cli_flush_use_result,                        /* flush_use_result */
-  cli_read_change_user_result                  /* read_change_user_result */
+  cli_read_change_user_result,                 /* read_change_user_result */
+  NULL                                         /* on_close_free */
 #ifndef MYSQL_SERVER
   ,cli_list_fields,                            /* list_fields */
   cli_read_prepare_result,                     /* read_prepare_result */
   cli_stmt_execute,                            /* stmt_execute */
   cli_read_binary_rows,                        /* read_binary_rows */
   cli_unbuffered_fetch,                        /* unbuffered_fetch */
-  NULL,                                        /* free_embedded_thd */
   cli_read_statistics,                         /* read_statistics */
   cli_read_query_result,                       /* next_result */
   cli_read_binary_rows                         /* read_rows_from_cursor */
@@ -1936,7 +1936,7 @@ typedef struct {
 
 
 /*
-  Write 1-8 bytes of string length header infromation to dest depending on
+  Write 1-8 bytes of string length header information to dest depending on
   value of src_len, then copy src_len bytes from src to dest.
  
  @param dest Destination buffer of size src_len+8
@@ -2217,7 +2217,7 @@ static int send_client_reply_packet(MCPVIO_EXT *mpvio,
   }
 #endif /* HAVE_OPENSSL */
 
-  DBUG_PRINT("info",("Server version = '%s'  capabilites: %lu  status: %u  client_flag: %lu",
+  DBUG_PRINT("info",("Server version = '%s'  capabilities: %lu  status: %u  client_flag: %lu",
 		     mysql->server_version, mysql->server_capabilities,
 		     mysql->server_status, mysql->client_flag));
 
@@ -2354,7 +2354,7 @@ static int client_mpvio_read_packet(struct st_plugin_vio *mpv, uchar **buf)
   to send data to the server.
 
   It transparently wraps the data into a change user or authentication
-  handshake packet, if neccessary.
+  handshake packet, if necessary.
 */
 static int client_mpvio_write_packet(struct st_plugin_vio *mpv,
                                      const uchar *pkt, int pkt_len)
@@ -3389,10 +3389,8 @@ static void mysql_close_free(MYSQL *mysql)
   my_free(mysql->user);
   my_free(mysql->passwd);
   my_free(mysql->db);
-#if defined(EMBEDDED_LIBRARY) || MYSQL_VERSION_ID >= 50100
-  my_free(mysql->info_buffer);
-  mysql->info_buffer= 0;
-#endif
+  if (mysql->methods && mysql->methods->on_close_free)
+    (*mysql->methods->on_close_free)(mysql);
   /* Clear pointers for better safety */
   mysql->host_info= mysql->user= mysql->passwd= mysql->db= 0;
 }
@@ -3511,13 +3509,6 @@ void STDCALL mysql_close(MYSQL *mysql)
     mysql_close_free_options(mysql);
     mysql_close_free(mysql);
     mysql_detach_stmt_list(&mysql->stmts, "mysql_close");
-#ifndef MYSQL_SERVER
-    if (mysql->thd)
-    {
-      (*mysql->methods->free_embedded_thd)(mysql);
-      mysql->thd= 0;
-    }
-#endif
     if (mysql->free_me)
       my_free(mysql);
   }
@@ -3839,7 +3830,7 @@ mysql_options(MYSQL *mysql,enum mysql_option option, const void *arg)
     mysql->options.compress= 1;			/* Remember for connect */
     mysql->options.client_flag|= CLIENT_COMPRESS;
     break;
-  case MYSQL_OPT_NAMED_PIPE:			/* This option is depricated */
+  case MYSQL_OPT_NAMED_PIPE:			/* This option is deprecated */
     mysql->options.protocol=MYSQL_PROTOCOL_PIPE; /* Force named pipe */
     break;
   case MYSQL_OPT_LOCAL_INFILE:			/* Allow LOAD DATA LOCAL ?*/

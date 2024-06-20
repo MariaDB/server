@@ -1334,7 +1334,7 @@ bool LOGGER::slow_log_print(THD *thd, const char *query, size_t query_length,
     query_utime= (current_utime - thd->start_utime);
     lock_utime=  (thd->utime_after_lock - thd->start_utime);
     my_hrtime_t current_time= { hrtime_from_time(thd->start_time) +
-                                thd->start_time_sec_part + query_utime };
+                                thd->start_time_sec_part };
 
     if (!query || thd->get_command() == COM_STMT_PREPARE)
     {
@@ -2430,6 +2430,23 @@ bool MYSQL_BIN_LOG::check_write_error(THD *thd)
   DBUG_RETURN(checked);
 }
 
+
+/*
+  Check if there was an error while writing the statement cache.
+  If the cache content is corrupt due to an error, we should write an incident
+  event to the binlog rather than write corrupt data to it.
+*/
+bool
+MYSQL_BIN_LOG::check_cache_error(THD *thd, binlog_cache_data *cache_data)
+{
+  if (!cache_data)
+    return false;
+  if (check_write_error(thd))
+    return true;
+  if (!cache_data->empty() && cache_data->cache_log.error)
+    return true;
+  return false;
+}
 
 /**
   @note
@@ -5237,6 +5254,15 @@ MYSQL_BIN_LOG::is_xidlist_idle_nolock()
   return true;
 }
 
+#ifdef WITH_WSREP
+static bool is_gtid_written_on_trans_start(const THD *thd)
+{
+  return wsrep_on(thd) &&
+      (thd->variables.gtid_seq_no || thd->variables.wsrep_gtid_seq_no) &&
+      (thd->wsrep_cs().mode() == wsrep::client_state::m_local);
+}
+#endif
+
 /**
   Create a new log file name.
 
@@ -5876,10 +5902,7 @@ THD::binlog_start_trans_and_stmt()
     Ha_trx_info *ha_info;
     ha_info= this->ha_data[binlog_hton->slot].ha_info + (mstmt_mode ? 1 : 0);
 
-    if (!ha_info->is_started() && 
-        (this->variables.gtid_seq_no || this->variables.wsrep_gtid_seq_no) &&
-        wsrep_on(this) && 
-        (this->wsrep_cs().mode() == wsrep::client_state::m_local))
+    if (!ha_info->is_started() && is_gtid_written_on_trans_start(this))
     {
       uchar *buf= 0;
       size_t len= 0;
@@ -6130,7 +6153,7 @@ write_err:
     engines, data is written to table but writing to binary log failed. In
     these scenarios rollback is not possible. Hence report an incident.
   */
-  if (mysql_bin_log.check_write_error(this) && cache_data &&
+  if (mysql_bin_log.check_cache_error(this, cache_data) &&
       lex->stmt_accessed_table(LEX::STMT_WRITES_NON_TRANS_TABLE) &&
       table->current_lock == F_WRLCK)
     cache_data->set_incident();
@@ -6262,20 +6285,37 @@ MYSQL_BIN_LOG::flush_and_set_pending_rows_event(THD *thd,
     /*
       Write pending event to the cache.
     */
+#ifndef DBUG_OFF
+    bool clear_dbug= false;
+#endif
     DBUG_EXECUTE_IF("simulate_disk_full_at_flush_pending",
-                    {DBUG_SET("+d,simulate_file_write_error");});
+                    {
+                      if (my_b_tell(&cache_data->cache_log) > 10000)
+                      {
+                        DBUG_SET("+d,simulate_file_write_error");
+                        clear_dbug= true;
+                      }
+                    });
     if (writer.write(pending))
     {
       set_write_error(thd, is_transactional);
-      if (check_write_error(thd) && cache_data &&
+      if (check_cache_error(thd, cache_data) &&
           stmt_has_updated_non_trans_table(thd))
         cache_data->set_incident();
       delete pending;
       cache_data->set_pending(NULL);
       DBUG_EXECUTE_IF("simulate_disk_full_at_flush_pending",
-                      {DBUG_SET("-d,simulate_file_write_error");});
+                      {
+                        if (clear_dbug)
+                          DBUG_SET("-d,simulate_file_write_error");
+                      });
       DBUG_RETURN(1);
     }
+    DBUG_EXECUTE_IF("simulate_disk_full_at_flush_pending",
+                    {
+                      if (clear_dbug)
+                        DBUG_SET("-d,simulate_file_write_error");
+                    });
 
     delete pending;
   }
@@ -6760,18 +6800,12 @@ bool MYSQL_BIN_LOG::write(Log_event *event_info, my_bool *with_annotate)
             BINLOG_USER_VAR_EVENT *user_var_event;
             get_dynamic(&thd->user_var_events,(uchar*) &user_var_event, i);
 
-            /* setting flags for user var log event */
-            uchar flags= User_var_log_event::UNDEF_F;
-            if (user_var_event->unsigned_flag)
-              flags|= User_var_log_event::UNSIGNED_F;
-
             User_var_log_event e(thd, user_var_event->user_var_event->name.str,
                                  user_var_event->user_var_event->name.length,
                                  user_var_event->value,
                                  user_var_event->length,
-                                 user_var_event->type,
-                                 user_var_event->charset_number,
-                                 flags,
+                            user_var_event->th->user_var_log_event_data_type(
+                               user_var_event->charset_number),
                                  using_trans,
                                  direct);
             if (write_event(&e, cache_data, file))
@@ -6867,7 +6901,7 @@ err:
     if (unlikely(error))
     {
       set_write_error(thd, is_trans_cache);
-      if (check_write_error(thd) && cache_data &&
+      if (check_cache_error(thd, cache_data) &&
           stmt_has_updated_non_trans_table(thd))
         cache_data->set_incident();
     }
@@ -8596,6 +8630,20 @@ MYSQL_BIN_LOG::write_transaction_or_stmt(group_commit_entry *entry,
 {
   binlog_cache_mngr *mngr= entry->cache_mngr;
   DBUG_ENTER("MYSQL_BIN_LOG::write_transaction_or_stmt");
+
+  /*
+    An error in the trx_cache will truncate the cache to the last good
+    statement, it won't leave a lingering error. Assert that this holds.
+  */
+  DBUG_ASSERT(!(entry->using_trx_cache && !mngr->trx_cache.empty() &&
+                mngr->get_binlog_cache_log(TRUE)->error));
+  /*
+    An error in the stmt_cache would be caught on the higher level and result
+    in an incident event being written over a (possibly corrupt) cache content.
+    Assert that this holds.
+  */
+  DBUG_ASSERT(!(entry->using_stmt_cache && !mngr->stmt_cache.empty() &&
+                mngr->get_binlog_cache_log(FALSE)->error));
 
   if (write_gtid_event(entry->thd, is_prepared_xa(entry->thd),
                        entry->using_trx_cache, commit_id))
@@ -11140,6 +11188,15 @@ IO_CACHE *wsrep_get_cache(THD * thd, bool is_transactional)
   return NULL;
 }
 
+bool wsrep_is_binlog_cache_empty(THD *thd)
+{
+  binlog_cache_mngr *cache_mngr=
+      (binlog_cache_mngr *) thd_get_ha_data(thd, binlog_hton);
+  if (cache_mngr)
+    return cache_mngr->trx_cache.empty() && cache_mngr->stmt_cache.empty();
+  return true;
+}
+
 void wsrep_thd_binlog_trx_reset(THD * thd)
 {
   DBUG_ENTER("wsrep_thd_binlog_trx_reset");
@@ -11200,12 +11257,9 @@ void wsrep_register_binlog_handler(THD *thd, bool trx)
     /*
       Set an implicit savepoint in order to be able to truncate a trx-cache.
     */
-    if (cache_mngr->trx_cache.get_prev_position() == MY_OFF_T_UNDEF)
-    {
-      my_off_t pos= 0;
-      binlog_trans_log_savepos(thd, &pos);
-      cache_mngr->trx_cache.set_prev_position(pos);
-    }
+    my_off_t pos= 0;
+    binlog_trans_log_savepos(thd, &pos);
+    cache_mngr->trx_cache.set_prev_position(pos);
 
     /*
       Set callbacks in order to be able to call commmit or rollback.
