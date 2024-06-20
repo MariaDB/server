@@ -84,9 +84,8 @@ expire_logs_days        = 10
 # * Character sets
 #
 
-# MariaDB default is Latin1, but in Debian we rather default to the full
-# utf8 4-byte character set. See also client.cnf
-character-set-server     = utf8mb4
+# MariaDB default is now utf8 4-byte character set.
+# No Debian specific default is required.
 
 #
 # * InnoDB
