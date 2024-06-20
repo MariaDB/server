@@ -2091,6 +2091,9 @@ os_file_create_func(
 
 		if (*success && type == OS_LOG_FILE) {
 			uint32_t s = uint32_t(get_sector_size(file));
+			if (innodb_log_write_ahead_size < s) {
+				innodb_log_write_ahead_size = s;
+			}
 			log_sys.set_block_size(s);
 			if (attributes & FILE_FLAG_NO_BUFFERING) {
 				if (os_file_get_size(file) % s) {
