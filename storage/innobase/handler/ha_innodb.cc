@@ -3693,7 +3693,7 @@ static MYSQL_SYSVAR_UINT(log_write_ahead_size, innodb_log_write_ahead_size,
   "Redo log write size to avoid read-on-write; must be a power of two,"
   " an integer fraction of innodb_log_file_size,"
   " and up to innodb_log_buffer_size",
-  nullptr, innodb_log_write_ahead_size_update, 512, 512, 16U << 20, 1);
+  nullptr, innodb_log_write_ahead_size_update, 8192, 512, 16U << 20, 1);
 
 /****************************************************************//**
 Gives the file extension of an InnoDB single-table tablespace. */

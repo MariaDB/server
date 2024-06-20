@@ -50,7 +50,7 @@ IF(UNIX)
     ENDIF()
     IF(CMAKE_SIZEOF_VOID_P EQUAL 8)
       IF(CMAKE_SYSTEM_PROCESSOR MATCHES "(aarch|AARCH|p(ower)?pc|x86_|amd)64")
-        OPTION(WITH_INNODB_PMEM "Support memory-mapped InnoDB redo log" ON)
+        OPTION(WITH_INNODB_PMEM "Support memory-mapped InnoDB redo log" OFF)
       ELSE() # Disable by default on ISA that are not covered by our CI
         OPTION(WITH_INNODB_PMEM "Support memory-mapped InnoDB redo log" OFF)
       ENDIF()

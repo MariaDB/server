@@ -1041,7 +1041,7 @@ READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	OPTIONAL
 VARIABLE_NAME	INNODB_LOG_WRITE_AHEAD_SIZE
 SESSION_VALUE	NULL
-DEFAULT_VALUE	512
+DEFAULT_VALUE	8192
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	INT UNSIGNED
 VARIABLE_COMMENT	Redo log write size to avoid read-on-write; must be a power of two, an integer fraction of innodb_log_file_size, and up to innodb_log_buffer_size
