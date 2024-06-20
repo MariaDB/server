@@ -290,7 +290,7 @@ static struct st_mysql_auth info =
 };
 
 
-maria_declare_plugin(parsec)
+maria_declare_plugin(auth_parsec)
 {
   MYSQL_AUTHENTICATION_PLUGIN,
   &info,
