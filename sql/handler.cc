@@ -1557,6 +1557,22 @@ int ha_prepare(THD *thd)
       error=1;
     }
   }
+  else if (thd->rgi_slave)
+  {
+    /*
+      Slave threads will always process XA COMMITs in the binlog handler (see
+      MDEV-25616 and MDEV-30423), so if this is a slave thread preparing a
+      transaction which proved empty during replication (e.g. because of
+      replication filters) then mark it as XA_ROLLBACK_ONLY so the follow up
+      XA COMMIT will know to roll it back, rather than try to commit and binlog
+      a standalone XA COMMIT (without its preceding XA START - XA PREPARE).
+
+      If the xid_cache is cleared before the completion event comes, before
+      issuing ER_XAER_NOTA, first check if the event targets an ignored
+      database, and ignore the error if so.
+    */
+    thd->transaction->xid_state.set_rollback_only();
+  }
 
   DBUG_RETURN(error);
 }

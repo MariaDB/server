@@ -56,6 +56,7 @@ public:
   bool db_ok_with_wild_table(const char *db);
 
   bool is_on();
+  bool is_db_empty();
 
   /* Setters - add filtering rules */
 
