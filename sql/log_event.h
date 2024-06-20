@@ -2189,7 +2189,8 @@ public:        /* !!! Public in this patch to allow old usage */
     return !strncmp(query, "BEGIN", q_len) ||
       !strncmp(query, "COMMIT", q_len) ||
       !strncasecmp(query, "SAVEPOINT", 9) ||
-      !strncasecmp(query, "ROLLBACK", 8);
+      !strncasecmp(query, "ROLLBACK", 8) ||
+      !strncasecmp(query, C_STRING_WITH_LEN("XA "));
   }
   virtual bool is_begin()    { return !strcmp(query, "BEGIN"); }
   virtual bool is_commit()   { return !strcmp(query, "COMMIT"); }
