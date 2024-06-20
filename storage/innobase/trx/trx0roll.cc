@@ -219,7 +219,7 @@ dberr_t trx_rollback_for_mysql(trx_t* trx)
 		even if trx->state is TRX_STATE_NOT_STARTED. */
 		ut_ad(!(trx->lock.was_chosen_as_deadlock_victim & 1));
 #ifdef WITH_WSREP
-		trx->wsrep= false;
+		ut_ad(!trx->is_wsrep());
 		trx->lock.was_chosen_as_deadlock_victim= false;
 #endif
 		return(DB_SUCCESS);
