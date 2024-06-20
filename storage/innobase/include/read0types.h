@@ -182,14 +182,14 @@ class ReadView: public ReadViewBase
   */
   trx_id_t m_creator_trx_id;
 
-  void lock() const { m_mutex.wr_lock<false>(); }
+  void lock() const { m_mutex.wr_lock(); }
   void unlock() const { m_mutex.wr_unlock(); }
 
 public:
   ReadView()
   {
     memset(reinterpret_cast<void*>(this), 0, sizeof *this);
-    m_mutex.init<false>();
+    m_mutex.init();
   }
   ~ReadView() { m_mutex.destroy(); }
 

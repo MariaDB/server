@@ -33,7 +33,7 @@ static void test_srw_mutex()
 {
   for (auto i= N_ROUNDS * M_ROUNDS; i--; )
   {
-    m.wr_lock<false>();
+    m.wr_lock();
     assert(!critical);
     critical= true;
     critical= false;
@@ -47,7 +47,7 @@ static void test_srw_lock()
 {
   for (auto i= N_ROUNDS; i--; )
   {
-    l.wr_lock<false>();
+    l.wr_lock();
     assert(!critical);
     critical= true;
     critical= false;
@@ -55,7 +55,7 @@ static void test_srw_lock()
 
     for (auto j= M_ROUNDS; j--; )
     {
-      l.rd_lock<false>();
+      l.rd_lock();
       assert(!critical);
       l.rd_unlock();
     }

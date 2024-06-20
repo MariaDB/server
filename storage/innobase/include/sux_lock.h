@@ -136,7 +136,7 @@ private:
   void s_lock_register()
   {
     const pthread_t id= pthread_self();
-    readers_lock.wr_lock<false>();
+    readers_lock.wr_lock();
     auto r= readers.load(std::memory_order_relaxed);
     if (!r)
     {
@@ -173,7 +173,7 @@ public:
   {
     if (auto r= readers.load(std::memory_order_relaxed))
     {
-      readers_lock.wr_lock<false>();
+      readers_lock.wr_lock();
       bool found= r->find(pthread_self()) != r->end();
       readers_lock.wr_unlock();
       return found;
@@ -235,7 +235,7 @@ public:
     const pthread_t id= pthread_self();
     auto r= readers.load(std::memory_order_relaxed);
     ut_ad(r);
-    readers_lock.wr_lock<false>();
+    readers_lock.wr_lock();
     auto i= r->find(id);
     ut_ad(i != r->end());
     r->erase(i);
@@ -294,7 +294,7 @@ template<> inline void sux_lock<ssux_lock_impl>::init()
   lock.init();
   ut_ad(!writer.load(std::memory_order_relaxed));
   ut_ad(!recursive);
-  ut_d(readers_lock.init<false>());
+  ut_d(readers_lock.init());
 #ifdef UNIV_DEBUG
   if (auto r= readers.load(std::memory_order_relaxed))
     ut_ad(r->empty());

@@ -659,7 +659,7 @@ bool srw_lock_debug::wr_lock_try()
 void srw_lock_debug::wr_lock(SRW_LOCK_ARGS(const char *file, unsigned line))
 {
   ut_ad(!have_any());
-  srw_lock::wr_lock<false>(SRW_LOCK_ARGS(file, line));
+  srw_lock::wr_lock(SRW_LOCK_ARGS(file, line));
   ut_ad(!writer);
   writer.store(pthread_self(), std::memory_order_relaxed);
 }
@@ -673,7 +673,7 @@ void srw_lock_debug::wr_unlock()
 
 void srw_lock_debug::readers_register()
 {
-  readers_lock.wr_lock<false>();
+  readers_lock.wr_lock();
   auto r= readers.load(std::memory_order_relaxed);
   if (!r)
   {
@@ -696,7 +696,7 @@ bool srw_lock_debug::rd_lock_try()
 void srw_lock_debug::rd_lock(SRW_LOCK_ARGS(const char *file, unsigned line))
 {
   ut_ad(!have_any());
-  srw_lock::rd_lock<false>(SRW_LOCK_ARGS(file, line));
+  srw_lock::rd_lock(SRW_LOCK_ARGS(file, line));
   readers_register();
 }
 
@@ -704,7 +704,7 @@ void srw_lock_debug::rd_unlock()
 {
   const pthread_t self= pthread_self();
   ut_ad(writer != self);
-  readers_lock.wr_lock<false>();
+  readers_lock.wr_lock();
   auto r= readers.load(std::memory_order_relaxed);
   ut_ad(r);
   auto i= r->find(self);
@@ -719,7 +719,7 @@ bool srw_lock_debug::have_rd() const noexcept
 {
   if (auto r= readers.load(std::memory_order_relaxed))
   {
-    readers_lock.wr_lock<false>();
+    readers_lock.wr_lock();
     bool found= r->find(pthread_self()) != r->end();
     readers_lock.wr_unlock();
 # ifndef SUX_LOCK_GENERIC

@@ -810,7 +810,7 @@ srv_printf_innodb_monitor(
 #ifdef BTR_CUR_HASH_ADAPT
 	for (ulint i = 0; i < btr_ahi_parts && btr_search_enabled; ++i) {
 		const auto part= &btr_search_sys.parts[i];
-		part->latch.rd_lock<false>(SRW_LOCK_CALL);
+		part->latch.rd_lock(SRW_LOCK_CALL);
 		ut_ad(part->heap->type == MEM_HEAP_FOR_BTR_SEARCH);
 		fprintf(file, "Hash table size " ULINTPF
 			", node heap has " ULINTPF " buffer(s)\n",
@@ -947,7 +947,7 @@ srv_export_innodb_status(void)
 	ulint mem_adaptive_hash = 0;
 	for (ulong i = 0; i < btr_ahi_parts; i++) {
 		const auto part= &btr_search_sys.parts[i];
-		part->latch.rd_lock<false>(SRW_LOCK_CALL);
+		part->latch.rd_lock(SRW_LOCK_CALL);
 		if (part->heap) {
 			ut_ad(part->heap->type == MEM_HEAP_FOR_BTR_SEARCH);
 
@@ -1265,7 +1265,7 @@ static void purge_worker_callback(void*);
 static void purge_coordinator_callback(void*);
 static void purge_truncation_callback(void*)
 {
-  purge_sys.latch.rd_lock<false>(SRW_LOCK_CALL);
+  purge_sys.latch.rd_lock(SRW_LOCK_CALL);
   const purge_sys_t::iterator head= purge_sys.head;
   purge_sys.latch.rd_unlock();
   head.free_history();
@@ -1298,7 +1298,7 @@ bool purge_sys_t::running()
 
 void purge_sys_t::stop_FTS()
 {
-  latch.rd_lock<false>(SRW_LOCK_CALL);
+  latch.rd_lock(SRW_LOCK_CALL);
   m_FTS_paused++;
   latch.rd_unlock();
   while (m_active)
@@ -1308,7 +1308,7 @@ void purge_sys_t::stop_FTS()
 /** Stop purge during FLUSH TABLES FOR EXPORT */
 void purge_sys_t::stop()
 {
-  latch.wr_lock<false>(SRW_LOCK_CALL);
+  latch.wr_lock(SRW_LOCK_CALL);
 
   if (!enabled())
   {
@@ -1351,7 +1351,7 @@ void purge_sys_t::resume()
    ut_ad(!srv_read_only_mode);
    ut_ad(srv_force_recovery < SRV_FORCE_NO_BACKGROUND);
    purge_coordinator_task.enable();
-   latch.wr_lock<false>(SRW_LOCK_CALL);
+   latch.wr_lock(SRW_LOCK_CALL);
    int32_t paused= m_paused--;
    ut_a(paused);
 

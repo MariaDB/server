@@ -1067,7 +1067,7 @@ void purge_sys_t::wait_FTS(bool also_sys)
 {
   for (;;)
   {
-    latch.wr_lock<false>(SRW_LOCK_CALL);
+    latch.wr_lock(SRW_LOCK_CALL);
     bool paused= m_FTS_paused || (also_sys && m_SYS_paused);
     latch.wr_unlock();
     if (!paused)
@@ -1385,7 +1385,7 @@ void purge_sys_t::batch_cleanup(const purge_sys_t::iterator &head)
   else
 #endif
   {
-    end_latch.wr_lock<false>();
+    end_latch.wr_lock();
     this->head= head;
     end_view= view;
     end_view.clamp_low_limit_id(trx_no);

@@ -49,23 +49,21 @@ public:
   }
   void destroy() { pthread_mutex_destroy(&lock); }
 # ifdef PTHREAD_ADAPTIVE_MUTEX_INITIALIZER_NP
-  template<bool spinloop> void wr_lock() { pthread_mutex_lock(&lock); }
+  template<bool spinloop=false> void wr_lock() { pthread_mutex_lock(&lock); }
 # else
 private:
   void wr_wait();
 public:
-  template<bool spinloop> inline void wr_lock();
+  template<bool spinloop=false> inline void wr_lock();
 # endif
   void wr_unlock() { pthread_mutex_unlock(&lock); }
   bool wr_lock_try() { return !pthread_mutex_trylock(&lock); }
 };
 
 # ifndef PTHREAD_ADAPTIVE_MUTEX_INITIALIZER_NP
-template<>
-inline void pthread_mutex_wrapper::wr_lock<false>()
+template<> inline void pthread_mutex_wrapper::wr_lock<false>()
 { pthread_mutex_lock(&lock); }
-template<>
-inline void pthread_mutex_wrapper::wr_lock<true>()
+template<> inline void pthread_mutex_wrapper::wr_lock<true>()
 { if (!wr_lock_try()) wr_wait(); }
 # endif
 #endif
@@ -134,7 +132,7 @@ public:
                                         std::memory_order_relaxed);
   }
 
-  template<bool spinloop>
+  template<bool spinloop=false>
   void wr_lock() { if (!wr_lock_try()) wait_and_lock<spinloop>(); }
   void wr_unlock()
   {
@@ -246,7 +244,7 @@ public:
     return false;
   }
 
-  template<bool spinloop> void rd_lock()
+  template<bool spinloop=false> void rd_lock()
   { if (!rd_lock_try()) rd_wait<spinloop>(); }
   template<bool spinloop> void u_lock() { writer.wr_lock<spinloop>(); }
   template<bool spin_writer,bool spin_readers> void wr_lock()
@@ -265,7 +263,8 @@ public:
       wr_wait<spin_readers>(lk);
 #endif
   }
-  template<bool spinloop> void wr_lock() { wr_lock<spinloop,spinloop>(); }
+  template<bool spinloop=false> void wr_lock()
+  { wr_lock<spinloop,spinloop>(); }
 
   template<bool spinloop> void u_wr_upgrade()
   {
@@ -309,9 +308,9 @@ public:
   bool is_locked_or_waiting() const noexcept
   { return is_locked() || writer.is_locked_or_waiting(); }
 
-  template<bool spinloop> void lock_shared() { rd_lock<spinloop>(); }
+  template<bool spinloop=false> void lock_shared() { rd_lock<spinloop>(); }
   void unlock_shared() { rd_unlock(); }
-  template<bool spin,bool loop> void lock() { wr_lock<spin,loop>(); }
+  template<bool spinloop=false> void lock() { wr_lock<spinloop>(); }
   void unlock() { wr_unlock(); }
 };
 
@@ -333,8 +332,8 @@ class srw_lock_
 public:
   void init() { IF_WIN(,my_rwlock_init(&lk, nullptr)); }
   void destroy() { IF_WIN(,rwlock_destroy(&lk)); }
-  template<bool spinloop> inline void rd_lock();
-  template<bool spinloop> inline void wr_lock();
+  template<bool spinloop=false> inline void rd_lock();
+  template<bool spinloop=false> inline void wr_lock();
   bool rd_lock_try()
   { return IF_WIN(TryAcquireSRWLockShared(&lk), !rw_tryrdlock(&lk)); }
   void rd_unlock()
@@ -355,18 +354,16 @@ public:
     return is_locked();
   }
 
-  template<bool spinloop> void lock_shared() { rd_lock<spinloop>(); }
+  template<bool spinloop=false> void lock_shared() { rd_lock<spinloop>(); }
   void unlock_shared() { rd_unlock(); }
-  template<bool spinloop> void lock() { wr_lock<spinloop>(); }
+  template<bool spinloop=false> void lock() { wr_lock<spinloop>(); }
   void unlock() { wr_unlock(); }
 #endif
 };
 
-template<>
-inline void srw_lock_::rd_lock<false>()
+template<> inline void srw_lock_::rd_lock<false>()
 { IF_WIN(AcquireSRWLockShared(&lk), rw_rdlock(&lk)); }
-template<>
-inline void srw_lock_::wr_lock<false>()
+template<> inline void srw_lock_::wr_lock<false>()
 { IF_WIN(AcquireSRWLockExclusive(&lk), rw_wrlock(&lk)); }
 
 template<>
@@ -503,7 +500,7 @@ public:
     }
     lock.destroy();
   }
-  template<bool spinloop>
+  template<bool spinloop=false>
   void rd_lock(const char *file, unsigned line)
   {
     if (psi_likely(pfs_psi != nullptr))
@@ -517,7 +514,7 @@ public:
       PSI_RWLOCK_CALL(unlock_rwlock)(pfs_psi);
     lock.rd_unlock();
   }
-  template<bool spinloop>
+  template<bool spinloop=false>
   void wr_lock(const char *file, unsigned line)
   {
     if (psi_likely(pfs_psi != nullptr))
@@ -533,7 +530,8 @@ public:
   }
   bool rd_lock_try() { return lock.rd_lock_try(); }
   bool wr_lock_try() { return lock.wr_lock_try(); }
-  void lock_shared() { return rd_lock<true>(SRW_LOCK_CALL); }
+  template<bool spinloop>
+  void lock_shared() { return rd_lock<spinloop>(SRW_LOCK_CALL); }
   void unlock_shared() { return rd_unlock(); }
 #ifndef SUX_LOCK_GENERIC
   /** @return whether any lock may be held by any thread */

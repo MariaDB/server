@@ -333,13 +333,13 @@ struct rw_trx_hash_element_t
   rw_trx_hash_element_t()
   {
     memset(reinterpret_cast<void*>(this), 0, sizeof *this);
-    mutex.init<false>();
+    mutex.init();
   }
 
 
   ~rw_trx_hash_element_t() { mutex.destroy(); }
 
-  void mutex_lock() { mutex.wr_lock<false>(); }
+  void mutex_lock() { mutex.wr_lock(); }
   void mutex_unlock() { mutex.wr_unlock(); }
 
   trx_id_t id; /* lf_hash_init() relies on this to be first in the struct */
