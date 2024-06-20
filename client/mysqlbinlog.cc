@@ -1220,7 +1220,7 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
     case QUERY_COMPRESSED_EVENT:
     {
       Query_log_event *qe= (Query_log_event*)ev;
-      if (!qe->is_trans_keyword())
+      if (!qe->is_trans_keyword(print_event_info->is_xa_trans()))
       {
         if (shall_skip_database(qe->db))
           goto end;
