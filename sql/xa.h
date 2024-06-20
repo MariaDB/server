@@ -34,6 +34,7 @@ struct XID_STATE {
   bool check_has_uncommitted_xa() const;
   bool is_explicit_XA() const { return xid_cache_element != 0; }
   void set_error(uint error);
+  void set_rollback_only();
   void er_xaer_rmfail() const;
   XID *get_xid() const;
   enum xa_states get_state_code() const;
