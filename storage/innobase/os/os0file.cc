@@ -1133,6 +1133,8 @@ static ATTRIBUTE_COLD bool os_file_log_maybe_unbuffered(const struct stat &st)
   }
   if (s > 4096 || s < 64 || !ut_is_2pow(s))
     return false;
+  if (innodb_log_write_ahead_size < s)
+    innodb_log_write_ahead_size= uint(s);
   log_sys.set_block_size(uint32_t(s));
 # else
   constexpr unsigned long s= 4096;

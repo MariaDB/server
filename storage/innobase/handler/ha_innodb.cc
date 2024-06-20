@@ -20032,6 +20032,13 @@ static void innodb_params_adjust()
   MYSQL_SYSVAR_NAME(max_undo_log_size).max_val=
     1ULL << (32U + srv_page_size_shift);
 
+#if defined __linux__ || defined _WIN32
+  uint& min_val= MYSQL_SYSVAR_NAME(log_write_ahead_size).min_val;
+  if (min_val < innodb_log_write_ahead_size)
+    min_val= innodb_log_write_ahead_size;
+#endif
+  ut_ad(MYSQL_SYSVAR_NAME(log_write_ahead_size).min_val <=
+        innodb_log_write_ahead_size);
   ut_ad(MYSQL_SYSVAR_NAME(log_write_ahead_size).max_val == log_sys.buf_size);
   log_sys.set_write_ahead_size(innodb_log_write_ahead_size);
 }

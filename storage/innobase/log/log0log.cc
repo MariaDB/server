@@ -856,7 +856,9 @@ template<bool release_latch> inline lsn_t log_t::write_buf() noexcept
     {
       const size_t mask{(length ^ (size_t(lsn) - size_t(first_lsn))) |
                         (size_t(offset) &
-                         ~size_t{old_block_size_1 ? old_block_size_1 : 511})};
+                         ~size_t{old_block_size_1
+                                 ? old_block_size_1
+                                 : log_sys.get_block_size() - 1})};
       while (write_size_1 & mask)
         write_size_1>>= 1;
     }

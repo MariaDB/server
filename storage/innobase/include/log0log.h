@@ -486,7 +486,7 @@ public:
   void set_block_size(uint32_t size) noexcept { block_size= size; }
 #else
   /** @return the physical block size of the storage */
-  static size_t get_block_size() { return 512; }
+  static constexpr size_t get_block_size() { return 512; }
 #endif
 
 private:
