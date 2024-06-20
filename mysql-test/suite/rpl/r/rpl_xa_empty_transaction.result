@@ -1164,6 +1164,39 @@ include/sync_with_master_gtid.inc
 connection server_1;
 set @@binlog_format = @sav_binlog_format;
 set @@global.binlog_format = @sav_binlog_format;
+#
+# MDEV-33921: If a slave's replication of an XA transaction results in
+# an empty transaction, e.g. due to replication filters, the slave
+# should binlog the full XA transaction.
+connection server_1;
+create database db1;
+create database db2;
+create table db1.t1 (a int) engine=innodb;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+include/stop_slave.inc
+SET @@GLOBAL.replicate_ignore_db= "";
+SET @@GLOBAL.replicate_do_db= "db1";
+include/start_slave.inc
+connection server_1;
+use db2;
+XA START "x1";
+insert into db1.t1 values (1);
+XA END "x1";
+XA PREPARE "x1";
+XA COMMIT "x1";
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+include/stop_slave.inc
+SET @@GLOBAL.replicate_do_db="";
+include/start_slave.inc
+connection server_1;
+drop database db1;
+drop database db2;
 connection server_1;
 include/rpl_end.inc
 # End of rpl_xa_empty_transaction.test

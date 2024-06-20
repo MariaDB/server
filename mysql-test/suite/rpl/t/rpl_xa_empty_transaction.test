@@ -32,6 +32,10 @@
 #   MDEV-25616: Binlog event for XA COMMIT is generated without matching
 #               XA START, replication aborts
 #
+#   MDEV-33921: Replication fails when XA transactions are used where the slave
+#               has replicate_do_db set and the client has touched a different
+#               database when running DML such as inserts.
+#
 --source include/have_log_bin.inc
 
 --let $rpl_server_count= 3
@@ -166,6 +170,53 @@ set @@global.binlog_format = row;
 --connection server_1
 set @@binlog_format = @sav_binlog_format;
 set @@global.binlog_format = @sav_binlog_format;
+
+
+--echo #
+--echo # MDEV-33921: If a slave's replication of an XA transaction results in
+--echo # an empty transaction, e.g. due to replication filters, the slave
+--echo # should binlog the full XA transaction.
+#
+#    Note that the MDEV-33921 report is actually about that XA END is filtered
+# out (not executed), and then its corresponding XA PREPARE errors because the
+# XA state of the transaction is incorrect. This test case inherently tests
+# both bugs.
+
+--connection server_1
+create database db1;
+create database db2;
+create table db1.t1 (a int) engine=innodb;
+--source include/save_master_gtid.inc
+--connection server_3
+--source include/sync_with_master_gtid.inc
+
+--connection server_2
+--source include/stop_slave.inc
+SET @@GLOBAL.replicate_ignore_db= "";
+SET @@GLOBAL.replicate_do_db= "db1";
+--source include/start_slave.inc
+
+--connection server_1
+use db2;
+XA START "x1";
+insert into db1.t1 values (1);
+XA END "x1";
+XA PREPARE "x1";
+XA COMMIT "x1";
+--source include/save_master_gtid.inc
+
+--connection server_3
+--source include/sync_with_master_gtid.inc
+
+--connection server_2
+--source include/stop_slave.inc
+SET @@GLOBAL.replicate_do_db="";
+--source include/start_slave.inc
+
+--connection server_1
+drop database db1;
+drop database db2;
+
 
 #
 # Cleanup
