@@ -40,6 +40,7 @@
 #include "table.h"
 #include "sql_class.h"                // enum enum_column_usage
 #include "select_handler.h"
+#include "opt_hints_parser.h"
 
 /* Used for flags of nesting constructs */
 #define SELECT_NESTING_MAP_SIZE 64
@@ -2824,6 +2825,11 @@ public:
   */
   bool multi_statements:1;
 
+  /**
+    TRUE if hint comments should be returned as a token.
+  */
+  bool hint_comment:1;
+
   /** Current line number. */
   uint yylineno;
 
@@ -4959,6 +4965,9 @@ public:
   {
     return nullptr;
   }
+
+  Optimizer_hint_parser::Hint_list *
+    parse_optimizer_hints(const LEX_CSTRING &hint);
 };
 
 

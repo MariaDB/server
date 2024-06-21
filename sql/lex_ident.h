@@ -18,8 +18,11 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA
 */
 
+#include "my_global.h"
+#include "m_ctype.h"
 #include "char_buffer.h"
 #include "lex_string.h"
+#include "my_sys.h"
 
 extern MYSQL_PLUGIN_IMPORT CHARSET_INFO *table_alias_charset;
 
