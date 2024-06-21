@@ -25,6 +25,7 @@ Created 11/29/1995 Heikki Tuuri
 ***********************************************************************/
 
 #include "fsp0fsp.h"
+#include "buf0flu.h"
 #include "fil0crypt.h"
 #include "mtr0log.h"
 #include "page0page.h"
@@ -6046,8 +6047,53 @@ uint32_t binlog_cur_page_offset= FIL_PAGE_DATA;
 /* ToDo: This needs to discover existing binlogs and start from the next free index. */
 uint64_t binlog_file_no= 0;
 
+
+/* '.' + '/' + "binlog" + '-' + (<=20 digits) + '.' + "ibb" + '\0'. */
+#define BINLOG_NAME_LEN 1 + 1 + 6 + 1 + 20 + 1 + 3 + 1
+static inline void
+binlog_name_make(char name_buf[BINLOG_NAME_LEN], uint64_t file_no)
+{
+  sprintf(name_buf, "./binlog-%06" PRIu64 ".ibb", file_no);
+}
+
+
+/** Write out all pages, flush, and close/detach a binlog tablespace.
+@param[in] file_no	 Index of the binlog tablespace
+@return DB_SUCCESS or error code */
+static dberr_t
+fsp_binlog_tablespace_close(uint64_t file_no)
+{
+  dberr_t res;
+
+  uint32_t space_id= SRV_SPACE_ID_BINLOG0 + (file_no & 1);
+  mysql_mutex_lock(&fil_system.mutex);
+  fil_space_t *space= fil_space_get_by_id(space_id);
+  mysql_mutex_unlock(&fil_system.mutex);
+  if (!space) {
+    res= DB_ERROR;
+    goto end;
+  }
+
+  /*
+    Write out any remaining pages in the buffer pool to the binlog tablespace.
+    Then flush the file to disk, and close the old tablespace.
+  */
+  while (buf_flush_list_space(space))
+    ;
+  os_aio_wait_until_no_pending_writes(false);
+  space->flush<false>();
+  mysql_mutex_lock(&fil_system.mutex);
+  fil_system.detach(space, false);
+  mysql_mutex_unlock(&fil_system.mutex);
+
+  res= DB_SUCCESS;
+end:
+  return res;
+}
+
+
 /** Create a binlog tablespace file
-@param[in] name	 file name
+@param[in] file_no	 Index of the binlog tablespace
 @return DB_SUCCESS or error code */
 dberr_t fsp_binlog_tablespace_create(uint64_t file_no)
 {
@@ -6058,8 +6104,8 @@ dberr_t fsp_binlog_tablespace_create(uint64_t file_no)
 	if(srv_read_only_mode)
 		return DB_ERROR;
 
-        char name[1 + 1 + 6 + 1 + 20 + 1 + 3 + 1];
-        sprintf(name, "./binlog-%06" PRIu64 ".ibb", file_no);
+        char name[BINLOG_NAME_LEN];
+        binlog_name_make(name, file_no);
 
 	os_file_create_subdirs_if_needed(name);
 
@@ -6177,6 +6223,23 @@ void fsp_binlog_write_cache(IO_CACHE *cache, size_t main_size, mtr_t *mtr)
   while (remain > 0) {
     if (page_offset == FIL_PAGE_DATA) {
       if (UNIV_UNLIKELY(!space) || page_no >= space->size) {
+        /*
+          Flush out to disk and close the old (N-2) tablespace so that we can
+          re-use its tablespace id for the new one.
+
+          ToDo: Start this operation in the background as soon as the (N-2)
+          tablespace has been filled, to avoid stalling here.
+
+          ToDo: Handle recovery. Idea: write the current LSN at the start of
+          the binlog tablespace when we create it. At recovery, we should open
+          the (at most) 2 most recent binlog tablespaces. Whenever we have a
+          redo record, skip it if its LSN is smaller than the one stored in the
+          tablespace corresponding to its space_id. This way, it should be safe
+          to re-use tablespace ids between just two, SRV_SPACE_ID_BINLOG0 and
+          SRV_SPACE_ID_BINLOG1.
+        */
+        if (binlog_file_no >= 2)
+          fsp_binlog_tablespace_close(binlog_file_no - 2);
         /*
           Create a new binlog tablespace.
           ToDo: pre-create the next tablespace in a background thread, avoiding

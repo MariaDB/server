@@ -14,11 +14,15 @@ SELECT @@GLOBAL.binlog_checksum;
 CREATE TABLE t2 (a INT PRIMARY KEY, b VARCHAR(2048)) ENGINE=InnoDB;
 
 SET SESSION binlog_format= ROW;
+--let num_trx= 1500
+--echo *** Do $num_trx transactions ...
+--disable_query_log
 --let $i= 0
-while ($i < 500) {
+while ($i < 1500) {
   eval INSERT INTO t2 VALUES ($i, REPEAT("x", 2048));
   inc $i;
 }
+--enable_query_log
 SET SESSION binlog_format= MIXED;
 
 DROP TABLE t2;
