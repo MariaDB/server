@@ -1,0 +1,31 @@
+if (!$AUTH_ED25519_SO) {
+  skip No auth_ed25519 plugin;
+}
+
+source include/master-slave.inc;
+
+sync_slave_with_master;
+install soname 'auth_ed25519';
+# create a user for replication with ed25519 auth plugin
+connection master;
+install soname 'auth_ed25519';
+create user rpluser@'%' identified via ed25519 using PASSWORD('rpl_pass');
+grant replication slave on *.* to rpluser@'%';
+connection master;
+sync_slave_with_master;
+# Set the slave to connect using the user created with the ed25519 plugin for replication
+source include/stop_slave.inc;
+--replace_result $MYSQL_TEST_DIR MYSQL_TEST_DIR
+change master to master_user='rpluser', master_password='rpl_pass';
+source include/start_slave.inc;
+
+--echo # Cleanup
+source include/stop_slave.inc;
+change master to master_user='root', master_password='';
+source include/start_slave.inc;
+source include/stop_slave.inc;
+drop user rpluser@'%';
+uninstall soname 'auth_ed25519';
+connection master;
+drop user rpluser@'%';
+uninstall soname 'auth_ed25519';
