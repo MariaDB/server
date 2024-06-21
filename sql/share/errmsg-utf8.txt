@@ -12289,3 +12289,11 @@ ER_VECTOR_BINARY_FORMAT_INVALID
         eng "Invalid binary vector format. Must use IEEE standard float representation in little-endian format. Use VEC_FromText() to generate it."
 ER_VECTOR_FORMAT_INVALID
         eng "Invalid vector format at offset: %d for '%-.100s'. Must be a valid JSON array of numbers."
+ER_WARN_OPTIMIZER_HINT_SYNTAX_ERROR
+        eng "Optimizer hint syntax error"
+ER_WARN_CONFLICTING_HINT
+        eng "Hint %s is ignored as conflicting/duplicated"
+ER_WARN_UNKNOWN_QB_NAME
+        eng "Query block name %s is not found for %s hint"
+ER_UNRESOLVED_HINT_NAME
+        eng "Unresolved name %s for %s hint"

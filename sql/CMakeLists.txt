@@ -187,6 +187,7 @@ SET (SQL_SOURCE
                json_table.cc
                proxy_protocol.cc backup.cc xa.cc
                socketpair.c socketpair.h
+               opt_hints_parser.cc opt_hints_parser.h scan_char.h
                ${CMAKE_CURRENT_BINARY_DIR}/lex_hash.h
                ${CMAKE_CURRENT_BINARY_DIR}/lex_token.h
                ${GEN_SOURCES}
