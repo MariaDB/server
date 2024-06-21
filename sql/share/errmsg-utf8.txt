@@ -12311,3 +12311,11 @@ ER_LATITUDE_OUT_OF_RANGE
         eng "Latitude %f is out of range in function %s. It must be within [-90.000000, 90.000000]."
 ER_GIS_DIFFERENT_SRIDS_AGGREGATION
         eng "Arguments to function %s contains geometries with different SRIDs: %d and %d. All geometries must have the same SRID."
+ER_WARN_OPTIMIZER_HINT_SYNTAX_ERROR
+        eng "Optimizer hint syntax error"
+ER_WARN_CONFLICTING_HINT
+        eng "Hint %s is ignored as conflicting/duplicated"
+ER_WARN_UNKNOWN_QB_NAME
+        eng "Query block name %s is not found for %s hint"
+ER_UNRESOLVED_HINT_NAME
+        eng "Unresolved name %s for %s hint"

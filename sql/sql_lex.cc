@@ -855,6 +855,7 @@ Lex_input_stream::reset(char *buffer, size_t length)
   found_semicolon= NULL;
   ignore_space= MY_TEST(m_thd->variables.sql_mode & MODE_IGNORE_SPACE);
   stmt_prepare_mode= FALSE;
+  hint_comment= FALSE;
   multi_statements= TRUE;
   in_comment=NO_COMMENT;
   m_underscore_cs= NULL;
@@ -2493,10 +2494,20 @@ int Lex_input_stream::lex_one_token(YYSTYPE *yylval, THD *thd)
       else
       {
         in_comment= PRESERVE_COMMENT;
+        yylval->lex_str.str= m_ptr;
         yySkip();                  // Accept /
         yySkip();                  // Accept *
-        comment_closed= ! consume_comment(0);
         /* regular comments can have zero comments inside. */
+        if ((comment_closed= ! consume_comment(0)) && hint_comment)
+        {
+          if (yylval->lex_str.str[2]=='+')
+          {
+            next_state= MY_LEX_START;
+            yylval->lex_str.length= m_ptr - yylval->lex_str.str;
+            restore_in_comment_state();
+            return HINT_COMMENT;
+          }
+        }
       }
       /*
         Discard:
@@ -12829,4 +12840,54 @@ bool SELECT_LEX_UNIT::is_derived_eliminated() const
   if (!derived->table)
     return true;
   return derived->table->map & outer_select()->join->eliminated_tables;
+}
+
+
+/*
+  Parse optimizer hints and return as Hint_list allocated on thd->mem_root.
+
+  The caller should check both return value and thd->is_error()
+  to know what happened, as follows:
+
+  Return value   thd->is_error()  Meaning
+  ------------   ---------------  -------
+  rc != nullptr  false            the hints were parsed without errors
+  rc != nullptr  true             not possible
+  rc == nullptr  false            no hints, empty hints, hint parse error
+  rc == nullptr  true             fatal error, such as EOM
+*/
+Optimizer_hint_parser::Hint_list *
+LEX::parse_optimizer_hints(const LEX_CSTRING &hints_str)
+{
+  DBUG_ASSERT(!hints_str.str || hints_str.length >= 5);
+  if (!hints_str.str)
+    return nullptr; // There were no a hint comment
+
+  //  Instantiate the query hint parser.
+  //  Remove the leading '/*+' and trailing '*/'
+  //  when passing hints to the parser.
+  Optimizer_hint_parser p(thd, thd->charset(),
+                          Lex_cstring(hints_str.str + 3, hints_str.length - 5));
+  // Parse hints
+  Optimizer_hint_parser::Hints hints(&p);
+  DBUG_ASSERT(!p.is_error() || !hints);
+
+  if (p.is_fatal_error())
+  {
+    /*
+      Fatal error (e.g. EOM), have the caller fail.
+      The SQL error should be in DA already.
+    */
+    DBUG_ASSERT(thd->is_error());
+    return nullptr; // Continue, the caller will test thd->is_error()
+  }
+
+  if (!hints) // Hint parsing failed with a syntax error
+  {
+    p.push_warning_syntax_error(thd);
+    return nullptr; // Continue and ignore hints.
+  }
+
+  // Hints were not empty and were parsed without errors
+  return new (thd->mem_root) Optimizer_hint_parser::Hint_list(std::move(hints));
 }
