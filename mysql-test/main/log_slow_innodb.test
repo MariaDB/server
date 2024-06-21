@@ -72,7 +72,7 @@ let log_file=$log_slow_prefix-verbosity_3
 INSERT INTO t1 VALUE(1000);
 --source include/log_slow_stop.inc
 
---let log_slow_verbosity_innodb_expected_matches= 1
+--let log_slow_verbosity_innodb_expected_matches= 0
 --source include/log_slow_grep.inc
 
 DROP TABLE t1;
