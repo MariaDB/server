@@ -2942,6 +2942,11 @@ public:
   */
   bool multi_statements:1;
 
+  /**
+    TRUE if hint comments should be returned as a token.
+  */
+  bool hint_comment:1;
+
   /** Current line number. */
   uint yylineno;
 
@@ -4987,6 +4992,8 @@ public:
   {
     return nullptr;
   }
+
+  bool parse_optimizer_hint(const LEX_CSTRING &hint);
 };
 
 

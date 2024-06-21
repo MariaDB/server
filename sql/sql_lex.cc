@@ -38,6 +38,7 @@
 #include "sql_partition.h"
 #include "sql_partition_admin.h"               // Sql_cmd_alter_table_*_part
 #include "event_parse_data.h"
+#include "opt_hints.h"
 #ifdef WITH_WSREP
 #include "mysql/service_wsrep.h"
 #endif
@@ -855,6 +856,7 @@ Lex_input_stream::reset(char *buffer, size_t length)
   found_semicolon= NULL;
   ignore_space= MY_TEST(m_thd->variables.sql_mode & MODE_IGNORE_SPACE);
   stmt_prepare_mode= FALSE;
+  hint_comment= FALSE;
   multi_statements= TRUE;
   in_comment=NO_COMMENT;
   m_underscore_cs= NULL;
@@ -2492,10 +2494,20 @@ int Lex_input_stream::lex_one_token(YYSTYPE *yylval, THD *thd)
       else
       {
         in_comment= PRESERVE_COMMENT;
+        yylval->lex_str.str= m_ptr;
         yySkip();                  // Accept /
         yySkip();                  // Accept *
-        comment_closed= ! consume_comment(0);
         /* regular comments can have zero comments inside. */
+        if ((comment_closed= ! consume_comment(0)) && hint_comment)
+        {
+          if (yylval->lex_str.str[2]=='+')
+          {
+            next_state= MY_LEX_START;
+            yylval->lex_str.length= m_ptr - yylval->lex_str.str;
+            restore_in_comment_state();
+            return HINT_COMMENT;
+          }
+        }
       }
       /*
         Discard:
@@ -12343,4 +12355,28 @@ bool SELECT_LEX_UNIT::is_derived_eliminated() const
   if (!derived->table)
     return true;
   return derived->table->map & outer_select()->join->eliminated_tables;
+}
+
+
+
+bool LEX::parse_optimizer_hint(const LEX_CSTRING &hint)
+{
+  DBUG_ASSERT(!hint.str || hint.length >= 5);
+  if (!hint.str)
+    return false;
+  Optimizer_hint_parser p(thd, thd->charset(),
+                          Lex_cstring(hint.str + 3, hint.length - 5));
+  if (p.parse())
+    return false; // Parsed hints without errors.
+  if (p.is_fatal_error())
+  {
+    /*
+      Fatal error (e.g. EOM), have the caller fail.
+      The SQL error should be in DA already.
+    */
+    DBUG_ASSERT(thd->is_error());
+    return true;
+  }
+  p.push_warning_syntax_error(thd);
+  return false; // Hint syntax error, continue and ignore hints.
 }
