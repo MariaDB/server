@@ -381,6 +381,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 
 %token <lex_str> '@'
 
+%token HINT_COMMENT
+
 /*
   Special purpose tokens
 */
@@ -1330,6 +1332,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         opt_constraint constraint opt_ident
         sp_block_label sp_control_label opt_place opt_db
         udt_name
+        HINT_COMMENT opt_hint_comment opt_optimizer_hint
 
 %type <ident_sys>
         IDENT_sys
@@ -8711,8 +8714,24 @@ table_value_constructor:
 	  }
 	;
 
+opt_hint_comment:
+          /*empty */   { $$= null_clex_str; }
+        | HINT_COMMENT { $$= $1; }
+        ;
+
+opt_optimizer_hint:
+          { YYLIP->hint_comment= true; }
+          opt_hint_comment
+          {
+            YYLIP->hint_comment= false;
+            $$= $2;
+            if (Lex->parse_optimizer_hint($2))
+              MYSQL_YYABORT;
+          }
+        ;
+
 query_specification_start:
-          SELECT_SYM
+          SELECT_SYM opt_optimizer_hint
           {
             SELECT_LEX *sel;
             LEX *lex= Lex;
@@ -13296,7 +13315,7 @@ opt_temporary:
 */
 
 insert:
-          INSERT
+          INSERT opt_optimizer_hint
           {
             Lex->sql_command= SQLCOM_INSERT;
             Lex->duplicates= DUP_ERROR;
@@ -13305,7 +13324,7 @@ insert:
           }
           insert_start insert_lock_option opt_ignore opt_into insert_table
           {
-            Select->set_lock_for_tables($4, true, false);
+            Select->set_lock_for_tables($5, true, false);
           }
           insert_field_spec opt_insert_update opt_returning
           stmt_end
@@ -13316,7 +13335,7 @@ insert:
           ;
 
 replace:
-          REPLACE
+          REPLACE opt_optimizer_hint
           {
             Lex->sql_command = SQLCOM_REPLACE;
             Lex->duplicates= DUP_REPLACE;
@@ -13325,7 +13344,7 @@ replace:
           }
           insert_start replace_lock_option opt_into insert_table
           {
-            Select->set_lock_for_tables($4, true, false);
+            Select->set_lock_for_tables($5, true, false);
           }
           insert_field_spec opt_returning
           stmt_end
@@ -13600,7 +13619,7 @@ update_table_list:
 /* Update rows in a table */
 
 update:
-          UPDATE_SYM
+          UPDATE_SYM opt_optimizer_hint
           {
             LEX *lex= Lex;
             if (Lex->main_select_push())
@@ -13635,12 +13654,12 @@ update:
               be too pessimistic. We will decrease lock level if possible
               later while processing the statement.
             */
-            slex->set_lock_for_tables($3, slex->table_list.elements == 1, false);
+            slex->set_lock_for_tables($4, slex->table_list.elements == 1, false);
           }
           opt_where_clause opt_order_clause delete_limit_clause
           {
-            if ($10)
-              Select->order_list= *($10);
+            if ($11)
+              Select->order_list= *($11);
           } stmt_end {}
         ;
 
@@ -13687,7 +13706,7 @@ opt_low_priority:
 /* Delete rows from a table */
 
 delete:
-          DELETE_SYM
+          DELETE_SYM opt_optimizer_hint
           {
             LEX *lex= Lex;
             YYPS->m_lock_type= TL_WRITE_DEFAULT;
