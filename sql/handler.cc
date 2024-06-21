@@ -318,7 +318,9 @@ Storage_engine_name::resolve_storage_engine_with_error(THD *thd,
   }
 
   *ha= NULL;
-  if (thd->variables.sql_mode & MODE_NO_ENGINE_SUBSTITUTION)
+  if ((thd_sql_command(thd) != SQLCOM_CREATE_TABLE &&
+       thd_sql_command(thd) != SQLCOM_ALTER_TABLE) ||
+      thd->variables.sql_mode & MODE_NO_ENGINE_SUBSTITUTION)
   {
     my_error(ER_UNKNOWN_STORAGE_ENGINE, MYF(0), m_storage_engine_name.str);
     return true;
