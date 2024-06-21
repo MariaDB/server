@@ -895,6 +895,18 @@ void init_update_queries(void)
   sql_command_flags[SQLCOM_DROP_TABLE]|=       CF_WSREP_MAY_IGNORE_ERRORS;
   sql_command_flags[SQLCOM_DROP_INDEX]|=       CF_WSREP_MAY_IGNORE_ERRORS;
   sql_command_flags[SQLCOM_ALTER_TABLE]|=      CF_WSREP_MAY_IGNORE_ERRORS;
+  /*
+    Basic DML-statements that create writeset.
+  */
+  sql_command_flags[SQLCOM_INSERT]|=           CF_WSREP_BASIC_DML;
+  sql_command_flags[SQLCOM_INSERT_SELECT]|=    CF_WSREP_BASIC_DML;
+  sql_command_flags[SQLCOM_REPLACE]|=          CF_WSREP_BASIC_DML;
+  sql_command_flags[SQLCOM_REPLACE_SELECT]|=   CF_WSREP_BASIC_DML;
+  sql_command_flags[SQLCOM_UPDATE]|=           CF_WSREP_BASIC_DML;
+  sql_command_flags[SQLCOM_UPDATE_MULTI]|=     CF_WSREP_BASIC_DML;
+  sql_command_flags[SQLCOM_LOAD]|=             CF_WSREP_BASIC_DML;
+  sql_command_flags[SQLCOM_DELETE]|=           CF_WSREP_BASIC_DML;
+  sql_command_flags[SQLCOM_DELETE_MULTI]|=     CF_WSREP_BASIC_DML;
 #endif /* WITH_WSREP */
 }
 
