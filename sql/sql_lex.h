@@ -3621,6 +3621,15 @@ public:
     return (context_analysis_only & CONTEXT_ANALYSIS_ONLY_VIEW);
   }
 
+  /**
+    Mark all queries in this lex structure as uncacheable for the cause given
+
+    @param cause    the reason queries are to be marked as uncacheable
+
+    Note, any cause is sufficient for st_select_lex_unit::can_be_merged() to
+    disallow query merges.
+  */
+
   inline void uncacheable(uint8 cause)
   {
     safe_to_cache_query= 0;
