@@ -1,0 +1,21 @@
+--source include/have_innodb.inc
+#SET foreign_key_checks = 1;
+
+create table t1(x int primary key) ENGINE=InnoDB;
+create table t2(x int primary key,
+            foreign key(x) references t1(x) on update CASCADE) ENGINE=InnoDB;
+
+CREATE TRIGGER tr_t2 AFTER DELETE ON t2
+    FOR EACH ROW SET @counter=@counter+1;
+
+insert into t1 VALUES (1);
+insert into t2 VALUES (1);
+SET @counter=0;
+
+update t1 set x = 2;
+
+select * from t1;
+select * from t2;
+
+select @counter;
+DROP TABLE t2, t1;

@@ -21088,12 +21088,28 @@ bool innodb_execute_triggers(upd_node_t *node, bool is_delete, bool after) {
 	ha_innobase *handler = (ha_innobase*)maria_table->file;
 	row_prebuilt_t *prebuilt = handler->get_prebuilt(table);
 	
-	ut_ad(is_delete);
+	//ut_ad(is_delete);
 	ut_ad(after);
 
 	const rec_t* rec = btr_pcur_get_rec(pcur); // FIXME: not sure that it's correct
 	const rec_offs*	offsets = rec_get_offsets(rec, clust_index, nullptr, clust_index->n_core_fields, ULINT_UNDEFINED, &node->heap);
 	
-	row_sel_store_mysql_rec(maria_table->record[0], prebuilt, rec, NULL, false, clust_index, offsets);
-	return  maria_table->triggers->process_triggers(thd, TRG_EVENT_DELETE, TRG_ACTION_AFTER, true);
+	
+	if (!is_delete) {
+		dberr_t err;
+		dtuple_t* upd_row = node->upd_row;
+		ulint n_ext = dtuple_get_n_ext(upd_row);
+		ulint size = rec_get_converted_size(clust_index, upd_row, n_ext);
+		byte *buf = static_cast<byte*>(mem_heap_alloc(node->heap, size));
+
+
+		rec_t *rec_upd = rec_convert_dtuple_to_rec(buf, clust_index, upd_row, n_ext);
+		const rec_offs* upd_offsets = rec_get_offsets(rec_upd, clust_index, nullptr, clust_index->n_core_fields, ULINT_UNDEFINED, &node->heap);
+
+		row_sel_store_mysql_rec(maria_table->record[1], prebuilt, rec_upd, NULL, false, clust_index, upd_offsets); //FIXME:Check return value
+	}
+
+	row_sel_store_mysql_rec(maria_table->record[0], prebuilt, rec, NULL, false, clust_index, offsets); //FIXME: Check return value
+
+	return  maria_table->triggers->process_triggers(thd, TRG_EVENT_DELETE, TRG_ACTION_AFTER, false);
 }
