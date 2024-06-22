@@ -2668,6 +2668,29 @@ void recv_sys_t::apply(bool last_batch)
   recv_no_ibuf_operations = !last_batch ||
     srv_operation == SRV_OPERATION_RESTORE ||
     srv_operation == SRV_OPERATION_RESTORE_EXPORT;
+  for (auto id= srv_undo_tablespaces_open; id--;)
+  {
+    const trunc& t= truncated_undo_spaces[id];
+    if (t.lsn)
+    {
+      /* The entire undo tablespace will be reinitialized by
+      innodb_undo_log_truncate=ON. Discard old log for all pages.
+      Even though we recv_sys_t::parse() already invoked trim(),
+      this will be needed in case recovery consists of multiple batches
+      (there was an invocation with !last_batch). */
+      trim({id + srv_undo_space_id_start, 0}, t.lsn);
+      if (fil_space_t *space = fil_space_get(id + srv_undo_space_id_start))
+      {
+        ut_ad(UT_LIST_GET_LEN(space->chain) == 1);
+        ut_ad(space->recv_size >= t.pages);
+        fil_node_t *file= UT_LIST_GET_FIRST(space->chain);
+        ut_ad(file->is_open());
+        os_file_truncate(file->name, file->handle,
+                         os_offset_t{space->recv_size} <<
+                         srv_page_size_shift, true);
+      }
+    }
+  }
 
   mtr_t mtr;
 
@@ -2682,30 +2705,6 @@ void recv_sys_t::apply(bool last_batch)
 
     apply_log_recs= true;
     apply_batch_on= true;
-
-    for (auto id= srv_undo_tablespaces_open; id--;)
-    {
-      const trunc& t= truncated_undo_spaces[id];
-      if (t.lsn)
-      {
-        /* The entire undo tablespace will be reinitialized by
-        innodb_undo_log_truncate=ON. Discard old log for all pages.
-        Even though we recv_sys_t::parse() already invoked trim(),
-        this will be needed in case recovery consists of multiple batches
-        (there was an invocation with !last_batch). */
-        trim({id + srv_undo_space_id_start, 0}, t.lsn);
-        if (fil_space_t *space = fil_space_get(id + srv_undo_space_id_start))
-        {
-          ut_ad(UT_LIST_GET_LEN(space->chain) == 1);
-          ut_ad(space->recv_size >= t.pages);
-          fil_node_t *file= UT_LIST_GET_FIRST(space->chain);
-          ut_ad(file->is_open());
-          os_file_truncate(file->name, file->handle,
-                           os_offset_t{space->recv_size} <<
-                           srv_page_size_shift, true);
-        }
-      }
-    }
 
     fil_system.extend_to_recv_size();
 
@@ -3739,7 +3738,9 @@ completed:
 	if (!srv_read_only_mode
             && srv_operation <= SRV_OPERATION_EXPORT_RESTORED
 	    && (~log_t::FORMAT_ENCRYPTED & log_sys.log.format)
-	    == log_t::FORMAT_10_5) {
+	    == log_t::FORMAT_10_5
+	    && recv_sys.recovered_lsn - log_sys.last_checkpoint_lsn
+	    < log_sys.log_capacity) {
 		/* Write a FILE_CHECKPOINT marker as the first thing,
 		before generating any other redo log. This ensures
 		that subsequent crash recovery will be possible even
@@ -3749,6 +3750,9 @@ completed:
 
 	log_sys.next_checkpoint_no = ++checkpoint_no;
 
+	DBUG_EXECUTE_IF("before_final_redo_apply",
+			mysql_mutex_unlock(&log_sys.mutex);
+			return DB_ERROR;);
 	mutex_enter(&recv_sys.mutex);
 
 	recv_sys.apply_log_recs = true;

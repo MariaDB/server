@@ -48,7 +48,7 @@ public:
   {
     return length == name_length && !memcmp(name, name_cmp, length);
   }
-  ~NAMED_ILINK()
+  ~NAMED_ILINK() override
   {
     my_free((void *) name);
   }

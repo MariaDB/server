@@ -378,14 +378,14 @@ public:
   file_os_io &operator=(file_os_io &&rhs);
   ~file_os_io() noexcept;
 
-  dberr_t open(const char *path, bool read_only) noexcept final;
+  dberr_t open(const char *path, bool read_only) noexcept override final;
   bool is_opened() const noexcept { return m_fd != OS_FILE_CLOSED; }
-  dberr_t rename(const char *old_path, const char *new_path) noexcept final;
-  dberr_t close() noexcept final;
-  dberr_t read(os_offset_t offset, span<byte> buf) noexcept final;
+  dberr_t rename(const char *old_path, const char *new_path) noexcept override final;
+  dberr_t close() noexcept override final;
+  dberr_t read(os_offset_t offset, span<byte> buf) noexcept override final;
   dberr_t write(const char *path, os_offset_t offset,
-                span<const byte> buf) noexcept final;
-  dberr_t flush() noexcept final;
+                span<const byte> buf) noexcept override final;
+  dberr_t flush() noexcept override final;
 
 private:
   pfs_os_file_t m_fd{OS_FILE_CLOSED};
