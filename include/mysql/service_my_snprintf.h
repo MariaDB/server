@@ -37,43 +37,51 @@
 
   @return a number of bytes written to a buffer *excluding* terminating '\0'
 
-  @post
+  @note
   The syntax of a format string is generally the same:
-  % <flag> <width> <.precision> <length modifier> <format> <format extension>
-  where everything but the format is optional.
+  %[<flag>][<length>][.<precision>][<size modifier>]<format>[<format extension>]
+  where everything but the <format> is optional.
 
-  Two one-character flags are recognized:
+  Two one-character <flags> are recognized:
     '0' has the standard zero-padding semantics;
     '-' is parsed, but silently ignored;
 
-  Both <width> and <precision> can be specified as numbers or '*'.
-  If an asterisk is used, an argument of type int is consumed.
+  Both <length> and <precision> are the same as in the standard.
+  They can be specified as integers, or as '*' to consume an int argument.
 
-  <length modifier> can be 'l', 'll', or 'z'.
+  <size modifier> can be 'l', 'll', or 'z'.
 
-  Supported formats are 's' (null pointer is accepted, printed as "(null)"),
-  'c', 'd', 'i', 'u', 'x', 'X', 'o', 'p' (works as 0x%x), 'f', and 'g'.
+  Supported <format>s are 's' (null pointer is accepted, printed as "(null)"),
+  'c', 'd', 'i', 'u', 'x', 'X', 'o', 'p' (works as "0x%x"), 'f', and 'g'.
 
-  Standard syntax for positional arguments $n is supported.
+  The '$n' syntax for positional arguments is supported.
 
   Format extensions:
 
-  Format 'sQ': quotes the string according to MySQL identifier quoting rules.
+    Format 'sQ'
+      quotes the string with '`' (backtick)s similar to "`%s`",
+      but also "escapes" existing '`'s in the string to '``' as in SQL ''''.
 
-  Format 'sB': binary buffer, prints exactly <precision> bytes from the
-  argument, without stopping at '\0'. The behavior for unspecified <precision>
-  is not yet defined.
+    Format 'sB'
+      treats the argument as a byte sequence. It reads and prints exactly
+      <precision> bytes without terminating on any '\0's in the sequence.
+      The default <precision> when it's unspecified is not defined.
 
-  Format 'uE': takes one integer, prints this integer, space, double quote,
-  error message corresponding to this integer errno, double quote. In other words:
-    printf("%uE", n) === printf("%d \"%sT\"", n, strerror(n))
+    Format 'uE'
+      treats the argument as an errno number. It prints this number, a space,
+      then its corresponding error message in double quotes. In other words:
+        printf("%uE", n) === printf("%d \"%sT\"", n, strerror(n))
 
-  Format 'sT': takes string and print it like s but if the strings should be
-  truncated puts "..." at the end.
+    Format 'sT'
+      replaces the end of the printed string with "..." if it was truncated.
 
-  Format 'sS' and 'uU': prints synonymously as s and u respectively. These two
-  escape simple s and u from consuming the following plain text as one of the
-  above extension suffixes; for example, "Data size: %uUEiB".
+    Format 'sS' and 'uU'
+      are synonyms of 's' and 'u' respectively. They are escapes that avoid
+      consuming the following plain char as one of the above extension suffixes.
+      Example: "Data size: %uUEiB"
+
+    Unrecognized and multiple suffixes are not parsed;
+      for example, both "%sTQ" and "%uQ" will print a literal 'Q'.
 */
 
 #ifdef __cplusplus
