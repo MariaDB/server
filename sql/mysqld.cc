@@ -2329,6 +2329,7 @@ static void activate_tcp_port(uint port,
   else
     real_bind_addr_str= my_bind_addr_str;
 
+  DBUG_EXECUTE_IF("sabotage_port_number", port= UINT_MAX32;);
   my_snprintf(port_buf, NI_MAXSERV, "%d", port);
 
   if (real_bind_addr_str && *real_bind_addr_str)
@@ -2372,6 +2373,13 @@ static void activate_tcp_port(uint port,
   else
   {
     error= getaddrinfo(real_bind_addr_str, port_buf, &hints, &ai);
+    if (unlikely(error != 0))
+    {
+      sql_print_error("%s: %s", ER_DEFAULT(ER_IPSOCK_ERROR),
+                      gai_strerror(error));
+      unireg_abort(1); /* purecov: tested */
+    }
+
     head= ai;
   }
 
