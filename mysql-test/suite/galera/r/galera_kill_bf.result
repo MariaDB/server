@@ -10,9 +10,9 @@ connection node_1;
 SET SESSION wsrep_sync_wait = 0;
 SET DEBUG_SYNC = 'now WAIT_FOR bf_started';
 KILL ID;
-ERROR HY000: This is a high-priority thread/query and cannot be killed without compromising the consistency of the cluster
+ERROR HY000: This is a high priority thread/query and cannot be killed without compromising the consistency of the cluster
 KILL QUERY ID;
-ERROR HY000: This is a high-priority thread/query and cannot be killed without compromising the consistency of the cluster
+ERROR HY000: This is a high priority thread/query and cannot be killed without compromising the consistency of the cluster
 connection node_1;
 SET DEBUG_SYNC = 'now SIGNAL bf_continue';
 connection con1;

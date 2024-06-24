@@ -9379,8 +9379,12 @@ THD *find_thread_by_id(longlong id, bool query_id)
   @param type                   Type of id: thread id or query id
 */
 
-uint
-kill_one_thread(THD *thd, my_thread_id id, killed_state kill_signal, killed_type type)
+static uint
+kill_one_thread(THD *thd, my_thread_id id, killed_state kill_signal, killed_type type
+#ifdef WITH_WSREP
+                , bool &wsrep_high_priority
+#endif
+)
 {
   THD *tmp;
   uint error= (type == KILL_TYPE_QUERY ? ER_NO_SUCH_QUERY : ER_NO_SUCH_THREAD);
@@ -9421,9 +9425,10 @@ kill_one_thread(THD *thd, my_thread_id id, killed_state kill_signal, killed_type
 #ifdef WITH_WSREP
       if (wsrep_thd_is_BF(tmp, false) || tmp->wsrep_applier)
       {
-        error= ER_KILL_DENIED_HIGH_PRIORITY;
+        error= ER_KILL_DENIED_ERROR;
+        wsrep_high_priority= true;
         push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-                            ER_KILL_DENIED_HIGH_PRIORITY,
+                            ER_KILL_DENIED_ERROR,
                             "Thread %lld is %s and cannot be killed",
                             tmp->thread_id,
                            (tmp->wsrep_applier ? "wsrep applier" : "high priority"));
@@ -9562,14 +9567,28 @@ static uint kill_threads_for_user(THD *thd, LEX_USER *user,
 static
 void sql_kill(THD *thd, my_thread_id id, killed_state state, killed_type type)
 {
-  uint error;
-  if (likely(!(error= kill_one_thread(thd, id, state, type))))
+#ifdef WITH_WSREP
+  bool wsrep_high_priority= false;
+#endif
+  uint error= kill_one_thread(thd, id, state, type
+#ifdef WITH_WSREP
+                              , wsrep_high_priority
+#endif
+                              );
+
+  if (likely(!error))
   {
     if (!thd->killed)
       my_ok(thd);
     else
       thd->send_kill_message();
   }
+#ifdef WITH_WSREP
+  else if (wsrep_high_priority)
+    my_printf_error(error, "This is a high priority thread/query and"
+                    " cannot be killed without compromising"
+                    " the consistency of the cluster", MYF(0));
+#endif
   else
   {
     my_error(error, MYF(0), id);
