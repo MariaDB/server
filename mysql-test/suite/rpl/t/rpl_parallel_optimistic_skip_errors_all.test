@@ -1,0 +1,71 @@
+--source include/have_innodb.inc
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
+--connection master
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1,NULL), (2,2), (3,NULL), (4,4), (5, NULL), (6, 6);
+
+--sync_slave_with_master
+
+--source include/stop_slave.inc
+CHANGE MASTER TO master_use_gtid=slave_pos;
+SET @old_timeout= @@GLOBAL.innodb_lock_wait_timeout;
+SET GLOBAL innodb_lock_wait_timeout= 5;
+SET @old_parallel= @@GLOBAL.slave_parallel_threads;
+SET @old_mode= @@GLOBAL.slave_parallel_mode;
+SET GLOBAL slave_parallel_mode= aggressive;
+SET GLOBAL slave_parallel_threads= 20;
+
+--connection master
+UPDATE t1 SET b=b+1 WHERE a=6;
+
+--disable_query_log
+let $i= 0;
+while ($i < 40) {
+  eval UPDATE t1 SET b=b+1 WHERE a=2;
+  inc $i;
+}
+--enable_query_log
+
+SELECT * FROM t1 ORDER BY a;
+--save_master_pos
+
+--connection slave1
+# Block first worker, and recursively pause all following workers that get
+# temporary errors before they can retry.
+BEGIN;
+SELECT * FROM t1 WHERE a=6 FOR UPDATE;
+
+--connection slave
+# Cause initial row not found error.
+SET STATEMENT sql_log_bin=0 FOR UPDATE t1 SET a=7 WHERE a=2;
+
+--source include/start_slave.inc
+
+--sleep 2
+# Now following workers should be waiting for prior commit before retrying.
+# Remove the row not found error.
+SET STATEMENT sql_log_bin=0 FOR UPDATE t1 SET a=2 WHERE a=7;
+
+--connection slave1
+ROLLBACK;
+
+--connection slave
+--sync_with_master
+
+SELECT * FROM t1 ORDER BY a;
+
+# Cleanup
+--connection slave
+--source include/stop_slave.inc
+SET GLOBAL innodb_lock_wait_timeout= @old_timeout;
+SET GLOBAL slave_parallel_threads= @old_parallel;
+SET GLOBAL slave_parallel_mode= @old_mode;
+--source include/start_slave.inc
+
+--connection default
+DROP TABLE t1;
+
+--source include/rpl_end.inc
