@@ -5764,8 +5764,11 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
         int actual_error= convert_handler_error(error, thd, table);
         bool idempotent_error= (idempotent_error_code(error) &&
                                (slave_exec_mode == SLAVE_EXEC_MODE_IDEMPOTENT));
-        bool ignored_error= (idempotent_error == 0 ?
-                             ignored_error_code(actual_error) : 0);
+        bool ignored_error=
+            (idempotent_error == 0
+                 ? ignored_error_code(actual_error) &&
+                       !is_parallel_retry_error(rgi, actual_error)
+                 : 0);
 
 #ifdef WITH_WSREP
         if (WSREP(thd) && thd->wsrep_applier &&
@@ -5824,21 +5827,22 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
                       if (thd->transaction->all.modified_non_trans_table)
                         const_cast<Relay_log_info*>(rli)->abort_slave= 1;);
     }
-
-    if (unlikely(error= do_after_row_operations(rli, error)) &&
-        ignored_error_code(convert_handler_error(error, thd, table)))
+    error= do_after_row_operations(rli, error);
+    if (unlikely(error))
     {
-
-      if (global_system_variables.log_warnings)
-        slave_rows_error_report(WARNING_LEVEL, error, rgi, thd, table,
-                                get_type_str(),
-                                RPL_LOG_NAME, log_pos);
-      thd->clear_error(1);
-      error= 0;
+      int actual_error= convert_handler_error(error, thd, table);
+      if (ignored_error_code(actual_error) &&
+          !is_parallel_retry_error(rgi, actual_error))
+      {
+        if (global_system_variables.log_warnings)
+          slave_rows_error_report(WARNING_LEVEL, error, rgi, thd, table,
+                                  get_type_str(), RPL_LOG_NAME, log_pos);
+        thd->clear_error(1);
+        error= 0;
+      }
     }
   } // if (table)
 
-  
   if (unlikely(error))
   {
     slave_rows_error_report(ERROR_LEVEL, error, rgi, thd, table,
