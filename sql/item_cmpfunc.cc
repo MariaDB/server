@@ -3005,6 +3005,16 @@ Item_func_nullif::is_null()
   return (null_value= (!compare() ? 1 : args[2]->is_null()));
 }
 
+
+uint Item_func_case::decimal_precision() const
+{
+  int max_int_part=0;
+  for (uint i= 0; i < arg_count; ++i)
+    set_if_bigger(max_int_part, args[i]->decimal_int_part());
+  return MY_MIN(max_int_part + decimals, DECIMAL_MAX_PRECISION);
+}
+
+
 void Item_func_case::reorder_args(uint start)
 {
   /*
