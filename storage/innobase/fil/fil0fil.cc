@@ -1376,6 +1376,7 @@ ATTRIBUTE_COLD void fil_system_t::extend_to_recv_size()
     {
       if (space->is_closing())
         continue;
+      ut_ad(0);
       space->reacquire();
       bool success;
       while (fil_space_extend_must_retry(space, UT_LIST_GET_LAST(space->chain),
