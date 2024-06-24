@@ -1743,3 +1743,16 @@ RELEASE_ALL_LOCKS()
 SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA
 FROM information_schema.metadata_lock_info WHERE thread_id>0 ORDER BY TABLE_SCHEMA;
 LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA
+#
+# MDEV-32583 UUID() should be treated as stochastic for the purposes of
+#   forcing query materialization
+#
+create table t1 as WITH cte AS (SELECT UUID() as r  FROM seq_1_to_10)
+SELECT r as r1, r FROM cte;
+select count(*) from t1 where r1!=r;
+count(*)
+0
+drop table t1;
+#
+# End of 10.5 tests
+#

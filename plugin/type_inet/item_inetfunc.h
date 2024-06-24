@@ -90,7 +90,7 @@ public:
   {
     null_value= false;
   }
-  bool need_parentheses_in_default() { return false; }
+  bool need_parentheses_in_default() override { return false; }
 };
 
 

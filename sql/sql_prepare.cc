@@ -144,11 +144,11 @@ class Select_fetch_protocol_binary: public select_send
   Protocol_binary protocol;
 public:
   Select_fetch_protocol_binary(THD *thd);
-  virtual bool send_result_set_metadata(List<Item> &list, uint flags);
-  virtual int send_data(List<Item> &items);
-  virtual bool send_eof();
+  bool send_result_set_metadata(List<Item> &list, uint flags) override;
+  int send_data(List<Item> &items) override;
+  bool send_eof() override;
 #ifdef EMBEDDED_LIBRARY
-  void begin_dataset()
+  void begin_dataset() override
   {
     protocol.begin_dataset();
   }
@@ -209,7 +209,7 @@ public:
                                         String *expanded_query);
 public:
   Prepared_statement(THD *thd_arg);
-  virtual ~Prepared_statement();
+  ~Prepared_statement() override;
   void setup_set_params();
   Query_arena::Type type() const override;
   bool cleanup_stmt(bool restore_set_statement_vars) override;
@@ -257,7 +257,7 @@ class Execute_sql_statement: public Server_runnable
 {
 public:
   Execute_sql_statement(LEX_STRING sql_text);
-  virtual bool execute_server_code(THD *thd);
+  bool execute_server_code(THD *thd) override;
 private:
   LEX_STRING m_sql_text;
 };
@@ -5691,29 +5691,33 @@ public:
     thd->set_binlog_bit();
   }
 protected:
-  bool net_store_data(const uchar *from, size_t length);
+  bool net_store_data(const uchar *from, size_t length) override;
   bool net_store_data_cs(const uchar *from, size_t length,
-                         CHARSET_INFO *fromcs, CHARSET_INFO *tocs);
-  bool net_send_eof(THD *thd, uint server_status, uint statement_warn_count);
+                         CHARSET_INFO *fromcs, CHARSET_INFO *tocs) override;
+  bool net_send_eof(THD *thd, uint server_status, uint statement_warn_count) override;
   bool net_send_ok(THD *, uint, uint, ulonglong, ulonglong, const char *,
-                   bool);
-  bool net_send_error_packet(THD *, uint, const char *, const char *);
+                   bool) override;
+  bool net_send_error_packet(THD *, uint, const char *, const char *) override;
   bool begin_dataset();
   bool begin_dataset(THD *thd, uint numfields);
 
-  bool write();
-  bool flush();
+  bool write() override;
+  bool flush() override;
 
   bool store_field_metadata(const THD *thd, const Send_field &field,
                             CHARSET_INFO *charset_for_protocol,
                             uint pos);
-  bool send_result_set_metadata(List<Item> *list, uint flags);
+  bool send_result_set_metadata(List<Item> *list, uint flags) override;
+#ifdef EMBEDDED_LIBRARY
+  void remove_last_row() override;
+#else
   void remove_last_row();
-  bool store_null();
-  void prepare_for_resend();
+#endif
+  bool store_null() override;
+  void prepare_for_resend() override;
   bool send_list_fields(List<Field> *list, const TABLE_LIST *table_list);
  
-  enum enum_protocol_type type() { return PROTOCOL_LOCAL; };
+  enum enum_protocol_type type() override { return PROTOCOL_LOCAL; };
 };
 
 static

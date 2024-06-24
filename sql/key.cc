@@ -754,13 +754,11 @@ ulong key_hashnr(KEY *key_info, uint used_key_parts, const uchar *key)
 
     if (is_string)
     {
-      if (cs->mbmaxlen > 1)
-      {
-        size_t char_length= cs->charpos(pos + pack_length,
-                                        pos + pack_length + length,
-                                        length / cs->mbmaxlen);
-        set_if_smaller(length, char_length);
-      }
+      /*
+        Prefix keys are not possible in BNLH joins.
+        Use the whole string to calculate the hash.
+      */
+      DBUG_ASSERT((key_part->key_part_flag & HA_PART_KEY_SEG) == 0);
       cs->hash_sort(pos+pack_length, length, &nr, &nr2);
       key+= pack_length;
     }
@@ -864,25 +862,13 @@ bool key_buf_cmp(KEY *key_info, uint used_key_parts,
     if (is_string)
     {
       /*
-        Compare the strings taking into account length in characters
-        and collation
+        Prefix keys are not possible in BNLH joins.
+        Compare whole strings.
       */
-      size_t byte_len1= length1, byte_len2= length2;
-      if (cs->mbmaxlen > 1)
-      {
-        size_t char_length1= cs->charpos(pos1 + pack_length,
-                                         pos1 + pack_length + length1,
-                                         length1 / cs->mbmaxlen);
-        size_t char_length2= cs->charpos(pos2 + pack_length,
-                                         pos2 + pack_length + length2,
-                                         length2 / cs->mbmaxlen);
-        set_if_smaller(length1, char_length1);
-        set_if_smaller(length2, char_length2);
-      }
-      if (length1 != length2 ||
-          cs->strnncollsp(pos1 + pack_length, byte_len1,
-                          pos2 + pack_length, byte_len2))
-        return TRUE;
+      DBUG_ASSERT((key_part->key_part_flag & HA_PART_KEY_SEG) == 0);
+      if (cs->strnncollsp(pos1 + pack_length, length1,
+                          pos2 + pack_length, length2))
+        return true;
       key1+= pack_length; key2+= pack_length;
     }
     else

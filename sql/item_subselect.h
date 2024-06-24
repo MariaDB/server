@@ -797,16 +797,16 @@ public:
                         chooser_compare_func_creator fc,
                         st_select_lex *select_lex, bool all);
 
-  void cleanup();
+  void cleanup() override;
   // only ALL subquery has upper not
-  subs_type substype() { return all?ALL_SUBS:ANY_SUBS; }
-  bool select_transformer(JOIN *join);
+  subs_type substype() override { return all?ALL_SUBS:ANY_SUBS; }
+  bool select_transformer(JOIN *join) override;
   void create_comp_func(bool invert) { func= func_creator(invert); }
-  void print(String *str, enum_query_type query_type);
-  enum precedence precedence() const { return CMP_PRECEDENCE; }
+  void print(String *str, enum_query_type query_type) override;
+  enum precedence precedence() const override { return CMP_PRECEDENCE; }
   bool is_maxmin_applicable(JOIN *join);
   bool transform_into_max_min(JOIN *join);
-  void no_rows_in_result();
+  void no_rows_in_result() override;
 };
 
 
@@ -1066,9 +1066,9 @@ public:
      check_null(chk_null),
      having(having_arg)
   { DBUG_ASSERT(subs); }
-  int exec();
-  void print (String *str, enum_query_type query_type);
-  virtual enum_engine_type engine_type() { return INDEXSUBQUERY_ENGINE; }
+  int exec() override;
+  void print (String *str, enum_query_type query_type) override;
+  enum_engine_type engine_type() override { return INDEXSUBQUERY_ENGINE; }
 };
 
 /*
@@ -1510,7 +1510,7 @@ protected:
 
   bool test_null_row(rownum_t row_num);
   bool exists_complementing_null_row(MY_BITMAP *keys_to_complement);
-  bool partial_match();
+  bool partial_match() override;
 public:
   subselect_rowid_merge_engine(THD *thd,
                                subselect_uniquesubquery_engine *engine_arg,
@@ -1530,15 +1530,15 @@ public:
   {}
   ~subselect_rowid_merge_engine();
   bool init(MY_BITMAP *non_null_key_parts, MY_BITMAP *partial_match_key_parts);
-  void cleanup();
-  virtual enum_engine_type engine_type() { return ROWID_MERGE_ENGINE; }
+  void cleanup() override;
+  enum_engine_type engine_type() override { return ROWID_MERGE_ENGINE; }
 };
 
 
 class subselect_table_scan_engine: public subselect_partial_match_engine
 {
 protected:
-  bool partial_match();
+  bool partial_match() override;
 public:
   subselect_table_scan_engine(THD *thd,
                               subselect_uniquesubquery_engine *engine_arg,
@@ -1548,7 +1548,7 @@ public:
                               bool has_covering_null_row_arg,
                               bool has_covering_null_columns_arg,
                               uint count_columns_with_nulls_arg);
-  void cleanup();
-  virtual enum_engine_type engine_type() { return TABLE_SCAN_ENGINE; }
+  void cleanup() override;
+  enum_engine_type engine_type() override { return TABLE_SCAN_ENGINE; }
 };
 #endif /* ITEM_SUBSELECT_INCLUDED */

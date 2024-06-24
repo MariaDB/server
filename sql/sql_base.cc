@@ -117,7 +117,7 @@ public:
                         const char* sqlstate,
                         Sql_condition::enum_warning_level *level,
                         const char* msg,
-                        Sql_condition ** cond_hdl);
+                        Sql_condition ** cond_hdl) override;
 
   /**
     Returns TRUE if there were ER_NO_SUCH_/WRONG_MRG_TABLE and there
@@ -518,7 +518,7 @@ public:
                         const char* sqlstate,
                         Sql_condition::enum_warning_level *level,
                         const char* msg,
-                        Sql_condition ** cond_hdl)
+                        Sql_condition ** cond_hdl) override
   {
     *cond_hdl= NULL;
     if (sql_errno == ER_OPEN_AS_READONLY || sql_errno == ER_LOCK_WAIT_TIMEOUT)
@@ -1441,14 +1441,14 @@ public:
     : m_ot_ctx(ot_ctx_arg), m_is_active(FALSE)
   {}
 
-  virtual ~MDL_deadlock_handler() = default;
+  ~MDL_deadlock_handler() override = default;
 
-  virtual bool handle_condition(THD *thd,
+  bool handle_condition(THD *thd,
                                 uint sql_errno,
                                 const char* sqlstate,
                                 Sql_condition::enum_warning_level *level,
                                 const char* msg,
-                                Sql_condition ** cond_hdl);
+                                Sql_condition ** cond_hdl) override;
 
 private:
   /** Open table context to be used for back-off request. */
@@ -3219,12 +3219,12 @@ request_backoff_action(enum_open_table_action action_arg,
 class MDL_deadlock_discovery_repair_handler : public Internal_error_handler
 {
 public:
-  virtual bool handle_condition(THD *thd,
+  bool handle_condition(THD *thd,
                                   uint sql_errno,
                                   const char* sqlstate,
                                   Sql_condition::enum_warning_level *level,
                                   const char* msg,
-                                  Sql_condition ** cond_hdl)
+                                  Sql_condition ** cond_hdl) override
   {
     if (sql_errno == ER_LOCK_DEADLOCK)
     {

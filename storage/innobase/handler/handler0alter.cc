@@ -1168,7 +1168,7 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 		trx_start_for_ddl(trx);
 	}
 
-	~ha_innobase_inplace_ctx()
+	~ha_innobase_inplace_ctx() override
 	{
 		UT_DELETE(m_stage);
 		if (instant_table) {
@@ -1277,7 +1277,7 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 
 	/** Share context between partitions.
 	@param[in] ctx	context from another partition of the table */
-	void set_shared_data(const inplace_alter_handler_ctx& ctx)
+	void set_shared_data(const inplace_alter_handler_ctx& ctx) override
 	{
 		if (add_autoinc != ULINT_UNDEFINED) {
 			const ha_innobase_inplace_ctx& ha_ctx =

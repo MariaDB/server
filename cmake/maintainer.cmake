@@ -27,6 +27,7 @@ SET(MY_WARNING_FLAGS
   -Wenum-conversion
   -Wextra
   -Wformat-security
+  -Winconsistent-missing-override
   -Wmissing-braces
   -Wno-format-truncation
   -Wno-init-self
@@ -34,8 +35,9 @@ SET(MY_WARNING_FLAGS
   -Wno-null-conversion
   -Wno-unused-parameter
   -Wno-unused-private-field
-  -Woverloaded-virtual
   -Wnon-virtual-dtor
+  -Woverloaded-virtual
+  -Wsuggest-override
   -Wvla
   -Wwrite-strings
   )

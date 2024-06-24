@@ -1366,3 +1366,18 @@ FROM information_schema.metadata_lock_info WHERE thread_id>0 ORDER BY TABLE_SCHE
 
 --enable_ps2_protocol
 --enable_view_protocol
+
+--echo #
+--echo # MDEV-32583 UUID() should be treated as stochastic for the purposes of
+--echo #   forcing query materialization
+--echo #
+
+--source include/have_sequence.inc
+create table t1 as WITH cte AS (SELECT UUID() as r  FROM seq_1_to_10)
+SELECT r as r1, r FROM cte;
+select count(*) from t1 where r1!=r;
+drop table t1;
+
+--echo #
+--echo # End of 10.5 tests
+--echo #

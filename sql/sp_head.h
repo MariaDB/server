@@ -87,7 +87,7 @@ protected:
   { }
 
 protected:
-  virtual void change_env(THD *thd) const
+  void change_env(THD *thd) const override
   {
     thd->variables.collation_database= m_db_cl;
 
@@ -1044,9 +1044,9 @@ public:
     return m_routine_implementations.check_dup_qualified(lex->sphead) ||
            m_routine_implementations.push_back(lex, &main_mem_root);
   }
-  sp_package *get_package() { return this; }
-  void init_psi_share();
-  bool is_invoked() const
+  sp_package *get_package() override { return this; }
+  void init_psi_share() override;
+  bool is_invoked() const override
   {
     /*
       Cannot flush a package out of the SP cache when:
@@ -1081,7 +1081,7 @@ public:
     Query_arena(thd->lex->sphead->get_main_mem_root(), STMT_INITIALIZED_FOR_SP)
   { }
   ~sp_lex_cursor() { free_items(); }
-  virtual bool cleanup_stmt(bool /*restore_set_statement_vars*/) override
+  bool cleanup_stmt(bool /*restore_set_statement_vars*/) override
   { return false; }
   Query_arena *query_arena() override { return this; }
   bool validate()
@@ -1359,18 +1359,18 @@ public:
 
   virtual ~sp_instr_stmt() = default;
 
-  virtual int execute(THD *thd, uint *nextp);
+  int execute(THD *thd, uint *nextp) override;
 
-  virtual int exec_core(THD *thd, uint *nextp);
+  int exec_core(THD *thd, uint *nextp) override;
 
-  virtual void print(String *str);
+  void print(String *str) override;
 
 private:
 
   sp_lex_keeper m_lex_keeper;
 
 public:
-  virtual PSI_statement_info* get_psi_info() { return & psi_info; }
+  PSI_statement_info* get_psi_info() override { return & psi_info; }
   static PSI_statement_info psi_info;
 
 }; // class sp_instr_stmt : public sp_instr
@@ -1394,11 +1394,11 @@ public:
 
   virtual ~sp_instr_set() = default;
 
-  virtual int execute(THD *thd, uint *nextp);
+  int execute(THD *thd, uint *nextp) override;
 
-  virtual int exec_core(THD *thd, uint *nextp);
+  int exec_core(THD *thd, uint *nextp) override;
 
-  virtual void print(String *str);
+  void print(String *str) override;
 
 protected:
   sp_rcontext *get_rcontext(THD *thd) const;
@@ -1408,7 +1408,7 @@ protected:
   sp_lex_keeper m_lex_keeper;
 
 public:
-  virtual PSI_statement_info* get_psi_info() { return & psi_info; }
+  PSI_statement_info* get_psi_info() override { return & psi_info; }
   static PSI_statement_info psi_info;
 }; // class sp_instr_set : public sp_instr
 
@@ -1437,9 +1437,9 @@ public:
 
   virtual ~sp_instr_set_row_field() = default;
 
-  virtual int exec_core(THD *thd, uint *nextp);
+  int exec_core(THD *thd, uint *nextp) override;
 
-  virtual void print(String *str);
+  void print(String *str) override;
 }; // class sp_instr_set_field : public sp_instr_set
 
 
@@ -1479,9 +1479,9 @@ public:
 
   virtual ~sp_instr_set_row_field_by_name() = default;
 
-  virtual int exec_core(THD *thd, uint *nextp);
+  int exec_core(THD *thd, uint *nextp) override;
 
-  virtual void print(String *str);
+  void print(String *str) override;
 }; // class sp_instr_set_field_by_name : public sp_instr_set
 
 
@@ -1505,11 +1505,11 @@ public:
 
   virtual ~sp_instr_set_trigger_field() = default;
 
-  virtual int execute(THD *thd, uint *nextp);
+  int execute(THD *thd, uint *nextp) override;
 
-  virtual int exec_core(THD *thd, uint *nextp);
+  int exec_core(THD *thd, uint *nextp) override;
 
-  virtual void print(String *str);
+  void print(String *str) override;
 
 private:
   Item_trigger_field *trigger_field;
@@ -1517,7 +1517,7 @@ private:
   sp_lex_keeper m_lex_keeper;
 
 public:
-  virtual PSI_statement_info* get_psi_info() { return & psi_info; }
+  PSI_statement_info* get_psi_info() override { return & psi_info; }
   static PSI_statement_info psi_info;
 }; // class sp_instr_trigger_field : public sp_instr
 
@@ -1551,7 +1551,7 @@ public:
   virtual void set_destination(uint old_dest, uint new_dest)
     = 0;
 
-  virtual uint get_cont_dest() const;
+  uint get_cont_dest() const override;
 
 protected:
 
@@ -1577,17 +1577,17 @@ public:
 
   virtual ~sp_instr_jump() = default;
 
-  virtual int execute(THD *thd, uint *nextp);
+  int execute(THD *thd, uint *nextp) override;
 
-  virtual void print(String *str);
+  void print(String *str) override;
 
-  virtual uint opt_mark(sp_head *sp, List<sp_instr> *leads);
+  uint opt_mark(sp_head *sp, List<sp_instr> *leads) override;
 
-  virtual uint opt_shortcut_jump(sp_head *sp, sp_instr *start);
+  uint opt_shortcut_jump(sp_head *sp, sp_instr *start) override;
 
-  virtual void opt_move(uint dst, List<sp_instr> *ibp);
+  void opt_move(uint dst, List<sp_instr> *ibp) override;
 
-  virtual void backpatch(uint dest, sp_pcontext *dst_ctx)
+  void backpatch(uint dest, sp_pcontext *dst_ctx) override
   {
     /* Calling backpatch twice is a logic flaw in jump resolution. */
     DBUG_ASSERT(m_dest == 0);
@@ -1597,14 +1597,14 @@ public:
   /**
     Update the destination; used by the optimizer.
   */
-  virtual void set_destination(uint old_dest, uint new_dest)
+  void set_destination(uint old_dest, uint new_dest) override
   {
     if (m_dest == old_dest)
       m_dest= new_dest;
   }
 
 public:
-  virtual PSI_statement_info* get_psi_info() { return & psi_info; }
+  PSI_statement_info* get_psi_info() override { return & psi_info; }
   static PSI_statement_info psi_info;
 }; // class sp_instr_jump : public sp_instr_opt_meta
 
@@ -1628,23 +1628,23 @@ public:
 
   virtual ~sp_instr_jump_if_not() = default;
 
-  virtual int execute(THD *thd, uint *nextp);
+  int execute(THD *thd, uint *nextp) override;
 
-  virtual int exec_core(THD *thd, uint *nextp);
+  int exec_core(THD *thd, uint *nextp) override;
 
-  virtual void print(String *str);
+  void print(String *str) override;
 
-  virtual uint opt_mark(sp_head *sp, List<sp_instr> *leads);
+  uint opt_mark(sp_head *sp, List<sp_instr> *leads) override;
 
   /** Override sp_instr_jump's shortcut; we stop here */
-  virtual uint opt_shortcut_jump(sp_head *sp, sp_instr *start)
+  uint opt_shortcut_jump(sp_head *sp, sp_instr *start) override
   {
     return m_ip;
   }
 
-  virtual void opt_move(uint dst, List<sp_instr> *ibp);
+  void opt_move(uint dst, List<sp_instr> *ibp) override;
 
-  virtual void set_destination(uint old_dest, uint new_dest)
+  void set_destination(uint old_dest, uint new_dest) override
   {
     sp_instr_jump::set_destination(old_dest, new_dest);
     if (m_cont_dest == old_dest)
@@ -1657,7 +1657,7 @@ private:
   sp_lex_keeper m_lex_keeper;
 
 public:
-  virtual PSI_statement_info* get_psi_info() { return & psi_info; }
+  PSI_statement_info* get_psi_info() override { return & psi_info; }
   static PSI_statement_info psi_info;
 }; // class sp_instr_jump_if_not : public sp_instr_jump
 
@@ -1675,18 +1675,18 @@ public:
 
   virtual ~sp_instr_preturn() = default;
 
-  virtual int execute(THD *thd, uint *nextp);
+  int execute(THD *thd, uint *nextp) override;
 
-  virtual void print(String *str);
+  void print(String *str) override;
 
-  virtual uint opt_mark(sp_head *sp, List<sp_instr> *leads)
+  uint opt_mark(sp_head *sp, List<sp_instr> *leads) override
   {
     marked= 1;
     return UINT_MAX;
   }
 
 public:
-  virtual PSI_statement_info* get_psi_info() { return & psi_info; }
+  PSI_statement_info* get_psi_info() override { return & psi_info; }
   static PSI_statement_info psi_info;
 }; // class sp_instr_preturn : public sp_instr
 
@@ -1706,13 +1706,13 @@ public:
 
   virtual ~sp_instr_freturn() = default;
 
-  virtual int execute(THD *thd, uint *nextp);
+  int execute(THD *thd, uint *nextp) override;
 
-  virtual int exec_core(THD *thd, uint *nextp);
+  int exec_core(THD *thd, uint *nextp) override;
 
-  virtual void print(String *str);
+  void print(String *str) override;
 
-  virtual uint opt_mark(sp_head *sp, List<sp_instr> *leads)
+  uint opt_mark(sp_head *sp, List<sp_instr> *leads) override
   {
     marked= 1;
     return UINT_MAX;
@@ -1725,7 +1725,7 @@ protected:
   sp_lex_keeper m_lex_keeper;
 
 public:
-  virtual PSI_statement_info* get_psi_info() { return & psi_info; }
+  PSI_statement_info* get_psi_info() override { return & psi_info; }
   static PSI_statement_info psi_info;
 }; // class sp_instr_freturn : public sp_instr
 
@@ -1754,19 +1754,19 @@ public:
     m_handler= NULL;
   }
 
-  virtual int execute(THD *thd, uint *nextp);
+  int execute(THD *thd, uint *nextp) override;
 
-  virtual void print(String *str);
+  void print(String *str) override;
 
-  virtual uint opt_mark(sp_head *sp, List<sp_instr> *leads);
+  uint opt_mark(sp_head *sp, List<sp_instr> *leads) override;
 
   /** Override sp_instr_jump's shortcut; we stop here. */
-  virtual uint opt_shortcut_jump(sp_head *sp, sp_instr *start)
+  uint opt_shortcut_jump(sp_head *sp, sp_instr *start) override
   {
     return m_ip;
   }
 
-  virtual void backpatch(uint dest, sp_pcontext *dst_ctx)
+  void backpatch(uint dest, sp_pcontext *dst_ctx) override
   {
     DBUG_ASSERT(!m_dest || !m_opt_hpop);
     if (!m_dest)
@@ -1793,7 +1793,7 @@ private:
   uint m_frame;
 
 public:
-  virtual PSI_statement_info* get_psi_info() { return & psi_info; }
+  PSI_statement_info* get_psi_info() override { return & psi_info; }
   static PSI_statement_info psi_info;
 }; // class sp_instr_hpush_jump : public sp_instr_jump
 
@@ -1816,16 +1816,16 @@ public:
     m_count= count;
   }
 
-  virtual int execute(THD *thd, uint *nextp);
+  int execute(THD *thd, uint *nextp) override;
 
-  virtual void print(String *str);
+  void print(String *str) override;
 
 private:
 
   uint m_count;
 
 public:
-  virtual PSI_statement_info* get_psi_info() { return & psi_info; }
+  PSI_statement_info* get_psi_info() override { return & psi_info; }
   static PSI_statement_info psi_info;
 }; // class sp_instr_hpop : public sp_instr
 
@@ -1844,24 +1844,24 @@ public:
 
   virtual ~sp_instr_hreturn() = default;
 
-  virtual int execute(THD *thd, uint *nextp);
+  int execute(THD *thd, uint *nextp) override;
 
-  virtual void print(String *str);
+  void print(String *str) override;
 
   /* This instruction will not be short cut optimized. */
-  virtual uint opt_shortcut_jump(sp_head *sp, sp_instr *start)
+  uint opt_shortcut_jump(sp_head *sp, sp_instr *start) override
   {
     return m_ip;
   }
 
-  virtual uint opt_mark(sp_head *sp, List<sp_instr> *leads);
+  uint opt_mark(sp_head *sp, List<sp_instr> *leads) override;
 
 private:
 
   uint m_frame;
 
 public:
-  virtual PSI_statement_info* get_psi_info() { return & psi_info; }
+  PSI_statement_info* get_psi_info() override { return & psi_info; }
   static PSI_statement_info psi_info;
 }; // class sp_instr_hreturn : public sp_instr_jump
 
@@ -1889,7 +1889,7 @@ public:
     cursor is closed. For now stored procedures always use materialized
     cursors and the call is not used.
   */
-  virtual bool cleanup_stmt(bool /*restore_set_statement_vars*/) override
+  bool cleanup_stmt(bool /*restore_set_statement_vars*/) override
   { return false; }
 private:
 
@@ -1920,16 +1920,16 @@ public:
     m_count= count;
   }
 
-  virtual int execute(THD *thd, uint *nextp);
+  int execute(THD *thd, uint *nextp) override;
 
-  virtual void print(String *str);
+  void print(String *str) override;
 
 private:
 
   uint m_count;
 
 public:
-  virtual PSI_statement_info* get_psi_info() { return & psi_info; }
+  PSI_statement_info* get_psi_info() override { return & psi_info; }
   static PSI_statement_info psi_info;
 }; // class sp_instr_cpop : public sp_instr
 
@@ -1947,18 +1947,18 @@ public:
 
   virtual ~sp_instr_copen() = default;
 
-  virtual int execute(THD *thd, uint *nextp);
+  int execute(THD *thd, uint *nextp) override;
 
-  virtual int exec_core(THD *thd, uint *nextp);
+  int exec_core(THD *thd, uint *nextp) override;
 
-  virtual void print(String *str);
+  void print(String *str) override;
 
 private:
 
   uint m_cursor;		///< Stack index
 
 public:
-  virtual PSI_statement_info* get_psi_info() { return & psi_info; }
+  PSI_statement_info* get_psi_info() override { return & psi_info; }
   static PSI_statement_info psi_info;
 }; // class sp_instr_copen : public sp_instr_stmt
 
@@ -1983,12 +1983,12 @@ public:
       m_var(voffs)
   {}
   virtual ~sp_instr_cursor_copy_struct() = default;
-  virtual int execute(THD *thd, uint *nextp);
-  virtual int exec_core(THD *thd, uint *nextp);
-  virtual void print(String *str);
+  int execute(THD *thd, uint *nextp) override;
+  int exec_core(THD *thd, uint *nextp) override;
+  void print(String *str) override;
 
 public:
-  virtual PSI_statement_info* get_psi_info() { return & psi_info; }
+  PSI_statement_info* get_psi_info() override { return & psi_info; }
   static PSI_statement_info psi_info;
 };
 
@@ -2006,16 +2006,16 @@ public:
 
   virtual ~sp_instr_cclose() = default;
 
-  virtual int execute(THD *thd, uint *nextp);
+  int execute(THD *thd, uint *nextp) override;
 
-  virtual void print(String *str);
+  void print(String *str) override;
 
 private:
 
   uint m_cursor;
 
 public:
-  virtual PSI_statement_info* get_psi_info() { return & psi_info; }
+  PSI_statement_info* get_psi_info() override { return & psi_info; }
   static PSI_statement_info psi_info;
 }; // class sp_instr_cclose : public sp_instr
 
@@ -2035,9 +2035,9 @@ public:
 
   virtual ~sp_instr_cfetch() = default;
 
-  virtual int execute(THD *thd, uint *nextp);
+  int execute(THD *thd, uint *nextp) override;
 
-  virtual void print(String *str);
+  void print(String *str) override;
 
   void add_to_varlist(sp_variable *var)
   {
@@ -2051,7 +2051,7 @@ private:
   bool m_error_on_no_data;
 
 public:
-  virtual PSI_statement_info* get_psi_info() { return & psi_info; }
+  PSI_statement_info* get_psi_info() override { return & psi_info; }
   static PSI_statement_info psi_info;
 }; // class sp_instr_cfetch : public sp_instr
 
@@ -2073,12 +2073,12 @@ public:
 
   virtual ~sp_instr_agg_cfetch() = default;
 
-  virtual int execute(THD *thd, uint *nextp);
+  int execute(THD *thd, uint *nextp) override;
 
-  virtual void print(String *str);
+  void print(String *str) override;
 
 public:
-  virtual PSI_statement_info* get_psi_info() { return & psi_info; }
+  PSI_statement_info* get_psi_info() override { return & psi_info; }
   static PSI_statement_info psi_info;
 }; // class sp_instr_agg_cfetch : public sp_instr
 
@@ -2098,11 +2098,11 @@ public:
 
   virtual ~sp_instr_error() = default;
 
-  virtual int execute(THD *thd, uint *nextp);
+  int execute(THD *thd, uint *nextp) override;
 
-  virtual void print(String *str);
+  void print(String *str) override;
 
-  virtual uint opt_mark(sp_head *sp, List<sp_instr> *leads)
+  uint opt_mark(sp_head *sp, List<sp_instr> *leads) override
   {
     marked= 1;
     return UINT_MAX;
@@ -2113,7 +2113,7 @@ private:
   int m_errcode;
 
 public:
-  virtual PSI_statement_info* get_psi_info() { return & psi_info; }
+  PSI_statement_info* get_psi_info() override { return & psi_info; }
   static PSI_statement_info psi_info;
 }; // class sp_instr_error : public sp_instr
 
@@ -2131,17 +2131,17 @@ public:
 
   virtual ~sp_instr_set_case_expr() = default;
 
-  virtual int execute(THD *thd, uint *nextp);
+  int execute(THD *thd, uint *nextp) override;
 
-  virtual int exec_core(THD *thd, uint *nextp);
+  int exec_core(THD *thd, uint *nextp) override;
 
-  virtual void print(String *str);
+  void print(String *str) override;
 
-  virtual uint opt_mark(sp_head *sp, List<sp_instr> *leads);
+  uint opt_mark(sp_head *sp, List<sp_instr> *leads) override;
 
-  virtual void opt_move(uint dst, List<sp_instr> *ibp);
+  void opt_move(uint dst, List<sp_instr> *ibp) override;
 
-  virtual void set_destination(uint old_dest, uint new_dest)
+  void set_destination(uint old_dest, uint new_dest) override
   {
     if (m_cont_dest == old_dest)
       m_cont_dest= new_dest;
@@ -2154,7 +2154,7 @@ private:
   sp_lex_keeper m_lex_keeper;
 
 public:
-  virtual PSI_statement_info* get_psi_info() { return & psi_info; }
+  PSI_statement_info* get_psi_info() override { return & psi_info; }
   static PSI_statement_info psi_info;
 }; // class sp_instr_set_case_expr : public sp_instr_opt_meta
 

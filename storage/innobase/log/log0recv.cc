@@ -4739,7 +4739,9 @@ completed:
 	if (!srv_read_only_mode
             && srv_operation <= SRV_OPERATION_EXPORT_RESTORED
 	    && (~log_t::FORMAT_ENCRYPTED & log_sys.log.format)
-	    == log_t::FORMAT_10_5) {
+	    == log_t::FORMAT_10_5
+	    && recv_sys.recovered_lsn - log_sys.last_checkpoint_lsn
+	    < log_sys.log_capacity) {
 		/* Write a FILE_CHECKPOINT marker as the first thing,
 		before generating any other redo log. This ensures
 		that subsequent crash recovery will be possible even
@@ -4749,6 +4751,9 @@ completed:
 
 	log_sys.next_checkpoint_no = ++checkpoint_no;
 
+	DBUG_EXECUTE_IF("before_final_redo_apply",
+			mysql_mutex_unlock(&log_sys.mutex);
+			return DB_ERROR;);
 	mysql_mutex_lock(&recv_sys.mutex);
 	recv_sys.apply_log_recs = true;
 	recv_no_ibuf_operations = false;

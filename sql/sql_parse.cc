@@ -1531,14 +1531,14 @@ class Silence_all_errors : public Internal_error_handler
   int error;
 public:
   Silence_all_errors():error(0) {}
-  virtual ~Silence_all_errors() {}
+  ~Silence_all_errors() override {}
 
-  virtual bool handle_condition(THD *thd,
+  bool handle_condition(THD *thd,
                                 uint sql_errno,
                                 const char* sql_state,
                                 Sql_condition::enum_warning_level *level,
                                 const char* msg,
-                                Sql_condition ** cond_hdl)
+                                Sql_condition ** cond_hdl) override
   {
     error= sql_errno;
     *cond_hdl= NULL;
@@ -9303,8 +9303,12 @@ THD *find_thread_by_id(longlong id, bool query_id)
   @param type                   Type of id: thread id or query id
 */
 
-uint
-kill_one_thread(THD *thd, my_thread_id id, killed_state kill_signal, killed_type type)
+static uint
+kill_one_thread(THD *thd, my_thread_id id, killed_state kill_signal, killed_type type
+#ifdef WITH_WSREP
+                , bool &wsrep_high_priority
+#endif
+)
 {
   THD *tmp;
   uint error= (type == KILL_TYPE_QUERY ? ER_NO_SUCH_QUERY : ER_NO_SUCH_THREAD);
@@ -9339,17 +9343,22 @@ kill_one_thread(THD *thd, my_thread_id id, killed_state kill_signal, killed_type
 
     mysql_mutex_lock(&tmp->LOCK_thd_data); // Lock from concurrent usage
 
-#ifdef WITH_WSREP
-    if (((thd->security_ctx->master_access & PRIV_KILL_OTHER_USER_PROCESS) ||
-        thd->security_ctx->user_matches(tmp->security_ctx)) &&
-        !wsrep_thd_is_BF(tmp, false) && !tmp->wsrep_applier)
-#else
     if ((thd->security_ctx->master_access & PRIV_KILL_OTHER_USER_PROCESS) ||
         thd->security_ctx->user_matches(tmp->security_ctx))
-#endif /* WITH_WSREP */
     {
-      {
 #ifdef WITH_WSREP
+      if (wsrep_thd_is_BF(tmp, false) || tmp->wsrep_applier)
+      {
+        error= ER_KILL_DENIED_ERROR;
+        wsrep_high_priority= true;
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                            ER_KILL_DENIED_ERROR,
+                            "Thread %lld is %s and cannot be killed",
+                            tmp->thread_id,
+                           (tmp->wsrep_applier ? "wsrep applier" : "high priority"));
+      }
+      else
+      {
         if (WSREP(tmp))
         {
           error = wsrep_kill_thd(thd, tmp, kill_signal);
@@ -9361,8 +9370,8 @@ kill_one_thread(THD *thd, my_thread_id id, killed_state kill_signal, killed_type
         error= 0;
 #ifdef WITH_WSREP
         }
-#endif /* WITH_WSREP */
       }
+#endif /* WITH_WSREP */
     }
     else
       error= (type == KILL_TYPE_QUERY ? ER_KILL_QUERY_DENIED_ERROR :
@@ -9461,16 +9470,32 @@ static uint kill_threads_for_user(THD *thd, LEX_USER *user,
 static
 void sql_kill(THD *thd, my_thread_id id, killed_state state, killed_type type)
 {
-  uint error;
-  if (likely(!(error= kill_one_thread(thd, id, state, type))))
+#ifdef WITH_WSREP
+  bool wsrep_high_priority= false;
+#endif
+  uint error= kill_one_thread(thd, id, state, type
+#ifdef WITH_WSREP
+                              , wsrep_high_priority
+#endif
+                              );
+
+  if (likely(!error))
   {
     if (!thd->killed)
       my_ok(thd);
     else
       thd->send_kill_message();
   }
+#ifdef WITH_WSREP
+  else if (wsrep_high_priority)
+    my_printf_error(error, "This is a high priority thread/query and"
+                    " cannot be killed without compromising"
+                    " the consistency of the cluster", MYF(0));
+#endif
   else
+  {
     my_error(error, MYF(0), id);
+  }
 }
 
 

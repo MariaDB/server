@@ -1829,7 +1829,7 @@ public:
 public:
   bool handle_condition(THD *thd, uint sql_errno, const char* sqlstate,
                         Sql_condition::enum_warning_level *level,
-                        const char* msg, Sql_condition ** cond_hdl)
+                        const char* msg, Sql_condition ** cond_hdl) override
   {
     return sql_errno >= ER_ABORTING_CONNECTION &&
            sql_errno <= ER_NET_WRITE_INTERRUPTED;

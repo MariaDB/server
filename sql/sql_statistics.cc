@@ -1815,7 +1815,7 @@ public:
                      tree_key_length, max_heap_table_size, 1);
   }
 
-  bool add()
+  bool add() override
   {
     longlong val= table_field->val_int();   
     return tree->unique_add(&val);
