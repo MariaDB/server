@@ -239,10 +239,10 @@ void ReadView::open(trx_t *trx)
       m_open.store(true, std::memory_order_relaxed);
     else
     {
-      m_mutex.wr_lock();
+      lock();
       snapshot(trx);
       m_open.store(true, std::memory_order_relaxed);
-      m_mutex.wr_unlock();
+      unlock();
     }
   }
 }

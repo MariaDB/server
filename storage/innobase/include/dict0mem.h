@@ -2016,6 +2016,13 @@ struct dict_table_t {
   @return error code */
   dberr_t clear(que_thr_t *thr);
 
+  void autoinc_mutex_init() { autoinc_mutex.init<true>(); }
+  void autoinc_mutex_destroy() { autoinc_mutex.destroy(); }
+  /** Acquire autoinc_mutex */
+  void autoinc_mutex_lock() { autoinc_mutex.wr_lock<true>(); }
+  /** Release autoinc_mutex */
+  void autoinc_mutex_unlock() { autoinc_mutex.wr_unlock(); }
+
 #ifdef UNIV_DEBUG
   /** @return whether the current thread holds the lock_mutex */
   bool lock_mutex_is_owner() const
@@ -2024,13 +2031,13 @@ struct dict_table_t {
   bool stats_mutex_is_owner() const
   { return lock_mutex_owner == pthread_self(); }
 #endif /* UNIV_DEBUG */
-  void lock_mutex_init() { lock_mutex.init(); }
+  void lock_mutex_init() { lock_mutex.init<true>(); }
   void lock_mutex_destroy() { lock_mutex.destroy(); }
   /** Acquire lock_mutex */
   void lock_mutex_lock()
   {
     ut_ad(!lock_mutex_is_owner());
-    lock_mutex.wr_lock();
+    lock_mutex.wr_lock<true>();
     ut_ad(!lock_mutex_owner.exchange(pthread_self()));
   }
   /** Try to acquire lock_mutex */
@@ -2339,11 +2346,11 @@ public:
 	from a select. */
 	lock_t*					autoinc_lock;
 
-  /** Mutex protecting autoinc and freed_indexes. */
-  srw_spin_mutex autoinc_mutex;
 private:
+  /** Mutex protecting autoinc and freed_indexes. */
+  srw_mutex autoinc_mutex;
   /** Mutex protecting locks on this table. */
-  srw_spin_mutex lock_mutex;
+  srw_mutex lock_mutex;
 #ifdef UNIV_DEBUG
   /** The owner of lock_mutex (0 if none) */
   Atomic_relaxed<pthread_t> lock_mutex_owner{0};

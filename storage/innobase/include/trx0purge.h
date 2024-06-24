@@ -125,7 +125,7 @@ class purge_sys_t
 
 public:
   /** latch protecting view, m_enabled */
-  alignas(CPU_LEVEL1_DCACHE_LINESIZE) mutable srw_spin_lock latch;
+  alignas(CPU_LEVEL1_DCACHE_LINESIZE) mutable srw_lock latch;
 private:
   /** Read view at the start of a purge batch. Any encountered index records
   that are older than view will be removed. */
@@ -155,7 +155,7 @@ private:
   Atomic_counter<uint32_t> m_FTS_paused;
 
   /** latch protecting end_view */
-  alignas(CPU_LEVEL1_DCACHE_LINESIZE) srw_spin_lock_low end_latch;
+  alignas(CPU_LEVEL1_DCACHE_LINESIZE) srw_lock_low end_latch;
   /** Read view at the end of a purge batch (copied from view). Any undo pages
   containing records older than end_view may be freed. */
   ReadViewBase end_view;
@@ -414,7 +414,7 @@ public:
   {
     if (!also_end_view)
       wait_FTS(true);
-    latch.wr_lock(SRW_LOCK_CALL);
+    latch.wr_lock<true>(SRW_LOCK_CALL);
     trx_sys.clone_oldest_view(&view);
     if (also_end_view)
       (end_view= view).
@@ -465,7 +465,7 @@ public:
 extern purge_sys_t	purge_sys;
 
 purge_sys_t::view_guard::view_guard()
-{ purge_sys.latch.rd_lock(SRW_LOCK_CALL); }
+{ purge_sys.latch.rd_lock<true>(SRW_LOCK_CALL); }
 
 purge_sys_t::view_guard::~view_guard()
 { purge_sys.latch.rd_unlock(); }
@@ -474,7 +474,7 @@ const ReadViewBase &purge_sys_t::view_guard::view() const
 { return purge_sys.view; }
 
 purge_sys_t::end_view_guard::end_view_guard()
-{ purge_sys.end_latch.rd_lock(); }
+{ purge_sys.end_latch.rd_lock<true>(); }
 
 purge_sys_t::end_view_guard::~end_view_guard()
 { purge_sys.end_latch.rd_unlock(); }

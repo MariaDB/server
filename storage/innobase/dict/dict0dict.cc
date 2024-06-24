@@ -1135,7 +1135,7 @@ inline void dict_sys_t::add(dict_table_t* table)
 	ulint fold = my_crc32c(0, table->name.m_name,
 			       strlen(table->name.m_name));
 
-	table->autoinc_mutex.init();
+	table->autoinc_mutex_init();
 	table->lock_mutex_init();
 
 	/* Look for a table with the same name: error if such exists */
@@ -1275,7 +1275,7 @@ dict_index_t *dict_index_t::clone_if_needed()
     return this;
   dict_index_t *prev= UT_LIST_GET_PREV(indexes, this);
 
-  table->autoinc_mutex.wr_lock();
+  table->autoinc_mutex_lock();
   UT_LIST_REMOVE(table->indexes, this);
   UT_LIST_ADD_LAST(table->freed_indexes, this);
   dict_index_t *index= clone();
@@ -1284,7 +1284,7 @@ dict_index_t *dict_index_t::clone_if_needed()
     UT_LIST_INSERT_AFTER(table->indexes, prev, index);
   else
     UT_LIST_ADD_FIRST(table->indexes, index);
-  table->autoinc_mutex.wr_unlock();
+  table->autoinc_mutex_unlock();
   return index;
 }
 #endif /* BTR_CUR_HASH_ADAPT */
@@ -1880,7 +1880,7 @@ void dict_sys_t::remove(dict_table_t* table, bool lru, bool keep)
 	table->lock_mutex_destroy();
 
 	if (keep) {
-		table->autoinc_mutex.destroy();
+		table->autoinc_mutex_destroy();
 		return;
 	}
 
@@ -1891,20 +1891,20 @@ void dict_sys_t::remove(dict_table_t* table, bool lru, bool keep)
 		table->fts = nullptr;
 	}
 
-	table->autoinc_mutex.wr_lock();
+	table->autoinc_mutex_lock();
 
 	ulint freed = UT_LIST_GET_LEN(table->freed_indexes);
 
 	table->vc_templ = NULL;
 	table->id = 0;
-	table->autoinc_mutex.wr_unlock();
+	table->autoinc_mutex_unlock();
 
 	if (UNIV_UNLIKELY(freed != 0)) {
 		return;
 	}
 #endif /* BTR_CUR_HASH_ADAPT */
 
-	table->autoinc_mutex.destroy();
+	table->autoinc_mutex_destroy();
 	dict_mem_table_free(table);
 }
 
@@ -2119,10 +2119,10 @@ dict_index_remove_from_cache_low(
 	zero. See also: dict_table_can_be_evicted() */
 
 	if (index->n_ahi_pages()) {
-		table->autoinc_mutex.wr_lock();
+		table->autoinc_mutex_lock();
 		index->set_freed();
 		UT_LIST_ADD_LAST(table->freed_indexes, index);
-		table->autoinc_mutex.wr_unlock();
+		table->autoinc_mutex_unlock();
 		return;
 	}
 #endif /* BTR_CUR_HASH_ADAPT */

@@ -611,20 +611,20 @@ public:
 private:
   /** mutex protecting state and some of lock
   (some are protected by lock_sys.latch) */
-  srw_spin_mutex mutex;
+  srw_mutex mutex;
 #ifdef UNIV_DEBUG
   /** The owner of mutex (0 if none); protected by mutex */
   std::atomic<pthread_t> mutex_owner{0};
 #endif /* UNIV_DEBUG */
 public:
-  void mutex_init() { mutex.init(); }
+  void mutex_init() { mutex.init<true>(); }
   void mutex_destroy() { mutex.destroy(); }
 
   /** Acquire the mutex */
   void mutex_lock()
   {
     ut_ad(!mutex_is_owner());
-    mutex.wr_lock();
+    mutex.wr_lock<true>();
     ut_ad(!mutex_owner.exchange(pthread_self(),
                                 std::memory_order_relaxed));
   }

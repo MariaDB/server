@@ -642,12 +642,12 @@ class lock_sys_t
 #else
   {
   private:
-    srw_spin_lock_low lock;
+    srw_lock_low lock;
   public:
     /** Try to acquire a lock */
     bool try_acquire() { return lock.wr_lock_try(); }
     /** Acquire a lock */
-    void acquire() { lock.wr_lock(); }
+    void acquire() { lock.wr_lock<true>(); }
     /** Release a lock */
     void release() { lock.wr_unlock(); }
     /** @return whether any lock may be held by any thread */

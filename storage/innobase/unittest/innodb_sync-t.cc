@@ -62,13 +62,13 @@ static void test_srw_lock()
   }
 }
 
-static ssux_lock_impl<false> ssux;
+static ssux_lock_impl ssux;
 
 static void test_ssux_lock()
 {
   for (auto i= N_ROUNDS; i--; )
   {
-    ssux.wr_lock();
+    ssux.wr_lock<false>();
     assert(!critical);
     critical= true;
     critical= false;
@@ -76,16 +76,16 @@ static void test_ssux_lock()
 
     for (auto j= M_ROUNDS; j--; )
     {
-      ssux.rd_lock();
+      ssux.rd_lock<false>();
       assert(!critical);
       ssux.rd_unlock();
     }
 
     for (auto j= M_ROUNDS; j--; )
     {
-      ssux.u_lock();
+      ssux.u_lock<false>();
       assert(!critical);
-      ssux.u_wr_upgrade();
+      ssux.u_wr_upgrade<false>();
       assert(!critical);
       critical= true;
       critical= false;
@@ -95,7 +95,7 @@ static void test_ssux_lock()
   }
 }
 
-static sux_lock<ssux_lock_impl<true>> sux;
+static sux_lock<ssux_lock_impl> sux;
 
 static void test_sux_lock()
 {
