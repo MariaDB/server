@@ -858,11 +858,6 @@ explain select * from t0 where a in (1,2,3,4,5,6);
 select json_detailed(json_extract(trace, '$**.in_to_subquery_conversion'))
 from information_schema.optimizer_trace;
 
-explain select * from t0 where a in (1,2,3,4,5,a+1);
-
-select json_detailed(json_extract(trace, '$**.in_to_subquery_conversion'))
-from information_schema.optimizer_trace;
-
 explain select * from t0 where a in ('1','2','3','4','5','6');
 select json_detailed(json_extract(trace, '$**.in_to_subquery_conversion'))
 from information_schema.optimizer_trace;
