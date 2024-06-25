@@ -133,7 +133,9 @@ static int pfs_done_func(void *p)
   DBUG_RETURN(0);
 }
 
-static int show_func_mutex_instances_lost(THD *thd, SHOW_VAR *var, char *buff)
+static int show_func_mutex_instances_lost(THD *thd, SHOW_VAR *var, void *buff,
+                                          struct system_status_var *status_var,
+                                          enum enum_var_type)
 {
   var->type= SHOW_LONG;
   var->value= buff;

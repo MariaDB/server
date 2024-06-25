@@ -54,9 +54,9 @@ static uint32_t cpuid_ecx()
 #endif
 }
 
-typedef unsigned (*my_crc32_t)(unsigned, const void *, size_t);
-extern "C" unsigned int crc32_pclmul(unsigned int, const void *, size_t);
-extern "C" unsigned int crc32c_3way(unsigned int, const void *, size_t);
+typedef uint32_t (*my_crc32_t)(uint32_t, const void *, size_t);
+extern "C" uint32_t crc32_pclmul(uint32_t, const void *, size_t);
+extern "C" uint32_t crc32c_3way(uint32_t, const void *, size_t);
 
 #ifdef USE_VPCLMULQDQ
 # include <immintrin.h>

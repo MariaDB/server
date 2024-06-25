@@ -62,7 +62,7 @@ public:
     :Stored_program_creation_ctx(client_cs, connection_cl, db_cl)
   { }
 
-  virtual Stored_program_creation_ctx *clone(MEM_ROOT *mem_root)
+  Stored_program_creation_ctx *clone(MEM_ROOT *mem_root) override
   {
     return new (mem_root) Trigger_creation_ctx(m_client_cs,
                                                m_connection_cl,
@@ -70,7 +70,7 @@ public:
   }
 
 protected:
-  virtual Object_creation_ctx *create_backup_ctx(THD *thd) const
+  Object_creation_ctx *create_backup_ctx(THD *thd) const override
   {
     return new Trigger_creation_ctx(thd);
   }
@@ -261,8 +261,8 @@ public:
   Handle_old_incorrect_sql_modes_hook(const char *file_path)
     :path(file_path)
   {};
-  virtual bool process_unknown_string(const char *&unknown_key, uchar* base,
-                                      MEM_ROOT *mem_root, const char *end);
+  bool process_unknown_string(const char *&unknown_key, uchar* base,
+                                      MEM_ROOT *mem_root, const char *end) override;
 };
 
 
@@ -273,8 +273,8 @@ public:
                                           LEX_CSTRING *trigger_table_arg)
     :path(file_path), trigger_table_value(trigger_table_arg)
   {};
-  virtual bool process_unknown_string(const char *&unknown_key, uchar* base,
-                                      MEM_ROOT *mem_root, const char *end);
+  bool process_unknown_string(const char *&unknown_key, uchar* base,
+                                      MEM_ROOT *mem_root, const char *end) override;
 private:
   const char *path;
   LEX_CSTRING *trigger_table_value;
@@ -301,12 +301,12 @@ public:
 
   Deprecated_trigger_syntax_handler() : m_trigger_name(NULL) {}
 
-  virtual bool handle_condition(THD *thd,
+  bool handle_condition(THD *thd,
                                 uint sql_errno,
                                 const char* sqlstate,
                                 Sql_condition::enum_warning_level *level,
                                 const char* message,
-                                Sql_condition ** cond_hdl)
+                                Sql_condition ** cond_hdl) override
   {
     if (sql_errno != EE_OUTOFMEMORY &&
         sql_errno != ER_OUT_OF_RESOURCES)

@@ -116,7 +116,7 @@ public:
                         const char* sqlstate,
                         Sql_condition::enum_warning_level *level,
                         const char* msg,
-                        Sql_condition ** cond_hdl);
+                        Sql_condition ** cond_hdl) override;
 
   /**
     Returns TRUE if there were ER_NO_SUCH_/WRONG_MRG_TABLE and there
@@ -252,9 +252,10 @@ public:
 };
 
 
-static my_bool list_open_tables_callback(TDC_element *element,
-                                         list_open_tables_arg *arg)
+static my_bool list_open_tables_callback(void *el, void *a)
 {
+  TDC_element *element= static_cast<TDC_element*>(el);
+  list_open_tables_arg *arg= static_cast<list_open_tables_arg*>(a);
   const Lex_ident_db
     db= Lex_ident_db(Lex_cstring_strlen((const char*) element->m_key));
   const char *table_name= db.str + db.length + 1;
@@ -302,8 +303,7 @@ OPEN_TABLE_LIST *list_open_tables(THD *thd,
   DBUG_ENTER("list_open_tables");
   list_open_tables_arg argument(thd, db, wild);
 
-  if (tdc_iterate(thd, (my_hash_walk_action) list_open_tables_callback,
-                  &argument, true))
+  if (tdc_iterate(thd, list_open_tables_callback, &argument, true))
     DBUG_RETURN(0);
 
   DBUG_RETURN(argument.open_list);
@@ -462,9 +462,10 @@ struct tc_collect_arg
   flush_tables_type flush_type;
 };
 
-static my_bool tc_collect_used_shares(TDC_element *element,
-                                      tc_collect_arg *arg)
+static my_bool tc_collect_used_shares(void *el, void *a)
 {
+  TDC_element *element= static_cast<TDC_element*>(el);
+  tc_collect_arg *arg= static_cast<tc_collect_arg*>(a);
   my_bool result= FALSE;
 
   DYNAMIC_ARRAY *shares= &arg->shares;
@@ -516,7 +517,7 @@ public:
                         const char* sqlstate,
                         Sql_condition::enum_warning_level *level,
                         const char* msg,
-                        Sql_condition ** cond_hdl)
+                        Sql_condition ** cond_hdl) override
   {
     *cond_hdl= NULL;
     if (sql_errno == ER_OPEN_AS_READONLY)
@@ -573,8 +574,7 @@ bool flush_tables(THD *thd, flush_tables_type flag)
   my_init_dynamic_array(PSI_INSTRUMENT_ME, &collect_arg.shares,
                         sizeof(TABLE_SHARE*), 100, 100, MYF(0));
   collect_arg.flush_type= flag;
-  if (tdc_iterate(thd, (my_hash_walk_action) tc_collect_used_shares,
-                  &collect_arg, true))
+  if (tdc_iterate(thd, tc_collect_used_shares, &collect_arg, true))
   {
     /* Release already collected shares */
     for (uint i= 0 ; i < collect_arg.shares.elements ; i++)
@@ -1400,14 +1400,14 @@ public:
     : m_ot_ctx(ot_ctx_arg), m_is_active(FALSE)
   {}
 
-  virtual ~MDL_deadlock_handler() = default;
+  ~MDL_deadlock_handler() override = default;
 
-  virtual bool handle_condition(THD *thd,
+  bool handle_condition(THD *thd,
                                 uint sql_errno,
                                 const char* sqlstate,
                                 Sql_condition::enum_warning_level *level,
                                 const char* msg,
-                                Sql_condition ** cond_hdl);
+                                Sql_condition ** cond_hdl) override;
 
 private:
   /** Open table context to be used for back-off request. */
@@ -3167,12 +3167,12 @@ request_backoff_action(enum_open_table_action action_arg,
 class MDL_deadlock_discovery_repair_handler : public Internal_error_handler
 {
 public:
-  virtual bool handle_condition(THD *thd,
+  bool handle_condition(THD *thd,
                                   uint sql_errno,
                                   const char* sqlstate,
                                   Sql_condition::enum_warning_level *level,
                                   const char* msg,
-                                  Sql_condition ** cond_hdl)
+                                  Sql_condition ** cond_hdl) override
   {
     if (sql_errno == ER_LOCK_DEADLOCK)
     {

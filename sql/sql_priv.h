@@ -316,7 +316,10 @@
 */
 /* This subquery has fields from outer query (put by user) */
 #define UNCACHEABLE_DEPENDENT_GENERATED   1
-/* This subquery contains functions with random result */
+/*
+  This subquery contains functions with random result.
+  Something that is uncacheable is by default unmergeable.
+*/
 #define UNCACHEABLE_RAND        2
 /* This subquery contains functions with side effect */
 #define UNCACHEABLE_SIDEEFFECT	4

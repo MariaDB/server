@@ -210,14 +210,14 @@ public:
     m_message[0]= '\0';
   }
 
-  virtual ~Silence_log_table_errors() = default;
+  ~Silence_log_table_errors() override = default;
 
-  virtual bool handle_condition(THD *thd,
+  bool handle_condition(THD *thd,
                                 uint sql_errno,
                                 const char* sql_state,
                                 Sql_condition::enum_warning_level *level,
                                 const char* msg,
-                                Sql_condition ** cond_hdl);
+                                Sql_condition ** cond_hdl) override;
   const char *message() const { return m_message; }
 };
 
