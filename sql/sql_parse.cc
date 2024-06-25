@@ -2945,7 +2945,7 @@ retry:
             Deadlock occurred during upgrade of metadata lock.
             Let us restart acquring and opening tables for LOCK TABLES.
           */
-          close_tables_for_reopen(thd, &tables, mdl_savepoint);
+          close_tables_for_reopen(thd, &tables, mdl_savepoint, true);
           if (thd->open_temporary_tables(tables))
             goto err;
           goto retry;

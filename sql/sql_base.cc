@@ -4656,7 +4656,8 @@ restart:
             have failed to open since closing tables can trigger removal of
             elements from the table list (if MERGE tables are involved),
           */
-          close_tables_for_reopen(thd, start, ot_ctx.start_of_statement_svp());
+          close_tables_for_reopen(thd, start, ot_ctx.start_of_statement_svp(),
+                                  ot_ctx.remove_implicitly_used_deps());
 
           /*
             Here we rely on the fact that 'tables' still points to the valid
@@ -4724,10 +4725,10 @@ restart:
           /* F.ex. deadlock happened */
           if (ot_ctx.can_recover_from_failed_open())
           {
-            DBUG_ASSERT(ot_ctx.get_action() !=
-                        Open_table_context::OT_ADD_HISTORY_PARTITION);
+            DBUG_ASSERT(ot_ctx.remove_implicitly_used_deps());
             close_tables_for_reopen(thd, start,
-                                    ot_ctx.start_of_statement_svp());
+                                    ot_ctx.start_of_statement_svp(),
+                                    ot_ctx.remove_implicitly_used_deps());
             if (ot_ctx.recover_from_failed_open())
               goto error;
 
@@ -6017,27 +6018,34 @@ bool restart_trans_for_tables(THD *thd, TABLE_LIST *table)
                          trying to reopen tables. NULL if no metadata locks
                          were held and thus all metadata locks should be
                          released.
+  @param[in] remove_implicit_deps  True in case routines and tables implicitly
+                                   used by a statement should be removed.
 */
 
 void close_tables_for_reopen(THD *thd, TABLE_LIST **tables,
-                             const MDL_savepoint &start_of_statement_svp)
+                             const MDL_savepoint &start_of_statement_svp,
+                             bool remove_implicit_deps)
 {
   TABLE_LIST *first_not_own_table= thd->lex->first_not_own_table();
   TABLE_LIST *tmp;
 
-  /*
-    If table list consists only from tables from prelocking set, table list
-    for new attempt should be empty, so we have to update list's root pointer.
-  */
-  if (first_not_own_table == *tables)
-    *tables= 0;
-  thd->lex->chop_off_not_own_tables();
-  /* Reset MDL tickets for procedures/functions */
-  for (Sroutine_hash_entry *rt=
-         (Sroutine_hash_entry*)thd->lex->sroutines_list.first;
-       rt; rt= rt->next)
-    rt->mdl_request.ticket= NULL;
-  sp_remove_not_own_routines(thd->lex);
+  if (remove_implicit_deps)
+  {
+    /*
+      If table list consists only from tables from prelocking set, table list
+      for new attempt should be empty, so we have to update list's root pointer.
+    */
+    if (first_not_own_table == *tables)
+      *tables= 0;
+    thd->lex->chop_off_not_own_tables();
+
+    /* Reset MDL tickets for procedures/functions */
+    for (Sroutine_hash_entry *rt=
+        (Sroutine_hash_entry*)thd->lex->sroutines_list.first;
+        rt; rt= rt->next)
+      rt->mdl_request.ticket= NULL;
+    sp_remove_not_own_routines(thd->lex);
+  }
   for (tmp= *tables; tmp; tmp= tmp->next_global)
   {
     tmp->table= 0;
