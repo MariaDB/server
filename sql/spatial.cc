@@ -140,6 +140,21 @@ int MBR::within(const MBR *mbr)
 }
 
 
+int MBR::coveredby(const MBR *mbr)
+{
+  int dim1= dimension();
+  int dim2= mbr->dimension();
+
+  if (dim1 > dim2)
+    return 0;
+  else if (dim1 == 0 && dim2 == 0)
+    return equals(mbr);
+
+  return ((xmin >= mbr->xmin) && (xmax <= mbr->xmax) &&
+          (ymin >= mbr->ymin) && (ymax <= mbr->ymax));
+}
+
+
 /***************************** Gis_class_info *******************************/
 
 Geometry::Class_info *Geometry::ci_collection[Geometry::wkb_last+1]=
