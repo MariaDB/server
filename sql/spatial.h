@@ -152,6 +152,8 @@ struct MBR
 	    (mbr->xmax <= xmax) && (mbr->ymax <= ymax));
   }
 
+  int coveredby(const MBR *mbr);
+
   bool inner_point(double x, double y) const
   {
     /* The following should be safe, even if we compare doubles */

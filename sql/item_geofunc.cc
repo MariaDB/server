@@ -1139,10 +1139,12 @@ Item_func_spatial_rel::get_mm_leaf(RANGE_OPT_PARAM *param,
 
 
 LEX_CSTRING Item_func_spatial_mbr_rel::func_name_cstring() const
-{ 
+{
   switch (spatial_rel) {
     case SP_CONTAINS_FUNC:
       return { STRING_WITH_LEN("mbrcontains") };
+    case SP_COVEREDBY_FUNC:
+      return { STRING_WITH_LEN("mbrcoveredby") };
     case SP_WITHIN_FUNC:
       return { STRING_WITH_LEN("mbrwithin") } ;
     case SP_EQUALS_FUNC:
@@ -1183,9 +1185,15 @@ bool Item_func_spatial_mbr_rel::val_bool()
 	g2->get_mbr(&mbr2, &dummy) || !mbr2.valid())))
    return 0;
 
+  uint32 srid1= uint4korr(res1->ptr()), srid2= uint4korr(res2->ptr());
+  if (srid1 != srid2)
+    my_error(ER_GIS_DIFFERENT_SRIDS, MYF(0), func_name(), srid1, srid2);
+
   switch (spatial_rel) {
     case SP_CONTAINS_FUNC:
       return mbr1.contains(&mbr2);
+    case SP_COVEREDBY_FUNC:
+      return mbr1.coveredby(&mbr2);
     case SP_WITHIN_FUNC:
       return mbr1.within(&mbr2);
     case SP_EQUALS_FUNC:
@@ -1209,11 +1217,14 @@ bool Item_func_spatial_mbr_rel::val_bool()
 }
 
 
+
 LEX_CSTRING Item_func_spatial_precise_rel::func_name_cstring() const
-{ 
+{
   switch (spatial_rel) {
     case SP_CONTAINS_FUNC:
       return { STRING_WITH_LEN("st_contains") };
+    case SP_COVEREDBY_FUNC:
+      return { STRING_WITH_LEN("st_coveredby") };
     case SP_WITHIN_FUNC:
       return { STRING_WITH_LEN("st_within") };
     case SP_EQUALS_FUNC:
@@ -3084,6 +3095,38 @@ protected:
 };
 
 
+class Create_func_mbr_coveredby : public Create_func_arg2
+{
+public:
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override
+  {
+    return new (thd->mem_root) Item_func_spatial_mbr_rel(thd, arg1, arg2,
+      Item_func::SP_COVEREDBY_FUNC);
+  }
+
+  static Create_func_mbr_coveredby s_singleton;
+
+protected:
+  Create_func_mbr_coveredby() = default;
+  ~Create_func_mbr_coveredby() override = default;
+};
+
+class Create_func_coveredby : public Create_func_arg2
+{
+public:
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override
+  {
+    return new (thd->mem_root) Item_func_spatial_precise_rel(thd, arg1, arg2,
+                                                 Item_func::SP_COVEREDBY_FUNC);
+  }
+  static Create_func_coveredby s_singleton;
+
+protected:
+  Create_func_coveredby() = default;
+  ~Create_func_coveredby() override = default;
+};
+
+
 class Create_func_crosses : public Create_func_arg2
 {
 public:
@@ -4091,6 +4134,7 @@ Create_func_boundary Create_func_boundary::s_singleton;
 Create_func_buffer Create_func_buffer::s_singleton;
 Create_func_centroid Create_func_centroid::s_singleton;
 Create_func_contains Create_func_contains::s_singleton;
+Create_func_coveredby Create_func_coveredby::s_singleton;
 Create_func_convexhull Create_func_convexhull::s_singleton;
 Create_func_crosses Create_func_crosses::s_singleton;
 Create_func_difference Create_func_difference::s_singleton;
@@ -4117,6 +4161,7 @@ Create_func_isempty Create_func_isempty::s_singleton;
 Create_func_isring Create_func_isring::s_singleton;
 Create_func_issimple Create_func_issimple::s_singleton;
 Create_func_mbr_contains Create_func_mbr_contains::s_singleton;
+Create_func_mbr_coveredby Create_func_mbr_coveredby::s_singleton;
 Create_func_mbr_disjoint Create_func_mbr_disjoint::s_singleton;
 Create_func_mbr_equals Create_func_mbr_equals::s_singleton;
 Create_func_mbr_intersects Create_func_mbr_intersects::s_singleton;
@@ -4158,6 +4203,7 @@ static Native_func_registry func_array_geom[] =
   { { STRING_WITH_LEN("BUFFER") }, GEOM_BUILDER(Create_func_buffer)},
   { { STRING_WITH_LEN("CENTROID") }, GEOM_BUILDER(Create_func_centroid)},
   { { STRING_WITH_LEN("CONTAINS") }, GEOM_BUILDER(Create_func_contains)},
+  { { STRING_WITH_LEN("COVEREDBY") }, GEOM_BUILDER(Create_func_coveredby)},
   { { STRING_WITH_LEN("CONVEXHULL") }, GEOM_BUILDER(Create_func_convexhull)},
   { { STRING_WITH_LEN("CROSSES") }, GEOM_BUILDER(Create_func_crosses)},
   { { STRING_WITH_LEN("DIMENSION") }, GEOM_BUILDER(Create_func_dimension)},
@@ -4188,6 +4234,7 @@ static Native_func_registry func_array_geom[] =
   { { STRING_WITH_LEN("LINESTRINGFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
   { { STRING_WITH_LEN("LINESTRINGFROMWKB") }, GEOM_BUILDER(Create_func_geometry_from_wkb)},
   { { STRING_WITH_LEN("MBRCONTAINS") }, GEOM_BUILDER(Create_func_mbr_contains)},
+  { { STRING_WITH_LEN("MBRCOVEREDBY") }, GEOM_BUILDER(Create_func_mbr_coveredby)},
   { { STRING_WITH_LEN("MBRDISJOINT") }, GEOM_BUILDER(Create_func_mbr_disjoint)},
   { { STRING_WITH_LEN("MBREQUAL") }, GEOM_BUILDER(Create_func_mbr_equals)},
   { { STRING_WITH_LEN("MBREQUALS") }, GEOM_BUILDER(Create_func_mbr_equals)},
@@ -4232,6 +4279,7 @@ static Native_func_registry func_array_geom[] =
   { { STRING_WITH_LEN("ST_BUFFER") }, GEOM_BUILDER(Create_func_buffer)},
   { { STRING_WITH_LEN("ST_CENTROID") }, GEOM_BUILDER(Create_func_centroid)},
   { { STRING_WITH_LEN("ST_CONTAINS") }, GEOM_BUILDER(Create_func_contains)},
+  { { STRING_WITH_LEN("ST_COVEREDBY") }, GEOM_BUILDER(Create_func_coveredby)},
   { { STRING_WITH_LEN("ST_CONVEXHULL") }, GEOM_BUILDER(Create_func_convexhull)},
   { { STRING_WITH_LEN("ST_CROSSES") }, GEOM_BUILDER(Create_func_crosses)},
   { { STRING_WITH_LEN("ST_DIFFERENCE") }, GEOM_BUILDER(Create_func_difference)},

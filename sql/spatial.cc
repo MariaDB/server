@@ -25,7 +25,7 @@
 double my_double_round(double value, longlong dec, bool dec_unsigned,
                        bool truncate);
 
-/* 
+/*
   exponential notation :
   1   sign
   1   number before the decimal point
@@ -137,6 +137,21 @@ int MBR::within(const MBR *mbr)
   // Never reached.
   DBUG_ASSERT(false);
   return 0;
+}
+
+
+int MBR::coveredby(const MBR *mbr)
+{
+  int dim1= dimension();
+  int dim2= mbr->dimension();
+
+  if (dim1 > dim2)
+    return 0;
+  else if (dim1 == 0 && dim2 == 0)
+    return equals(mbr);
+
+  return ((xmin >= mbr->xmin) && (xmax <= mbr->xmax) &&
+          (ymin >= mbr->ymin) && (ymax <= mbr->ymax));
 }
 
 
