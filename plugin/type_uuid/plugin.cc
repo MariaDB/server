@@ -107,7 +107,7 @@ public:
   {
     DBUG_ENTER("Create_func_uuid::create");
     thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
-    thd->lex->safe_to_cache_query= 0;
+    thd->lex->uncacheable(UNCACHEABLE_RAND);
     DBUG_RETURN(new (thd->mem_root) Item_func_uuid(thd));
   }
   static Create_func_uuid s_singleton;
@@ -125,7 +125,7 @@ public:
   {
     DBUG_ENTER("Create_func_sys_guid::create");
     thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
-    thd->lex->safe_to_cache_query= 0;
+    thd->lex->uncacheable(UNCACHEABLE_RAND);
     DBUG_RETURN(new (thd->mem_root) Item_func_sys_guid(thd));
   }
   static Create_func_sys_guid s_singleton;
@@ -142,7 +142,7 @@ public:
   {
     DBUG_ENTER("Create_func_uuid_v4::create");
     thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
-    thd->lex->safe_to_cache_query= 0;
+    thd->lex->uncacheable(UNCACHEABLE_RAND);
     DBUG_RETURN(new (thd->mem_root) Item_func_uuid_v4(thd));
   }
   static Create_func_uuid_v4 s_singleton;
