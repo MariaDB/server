@@ -24,18 +24,13 @@ TRUNCATE TABLE t1;
 TRUNCATE TABLE t2;
 # restart
 ALTER TABLE t1 FORCE, ALGORITHM=INPLACE;
-Warnings:
-Warning	1618	<DATA DIRECTORY> option ignored
 ALTER TABLE t2 FORCE, ALGORITHM=COPY;
-Warnings:
-Warning	1618	<DATA DIRECTORY> option ignored
 OPTIMIZE TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	optimize	note	Table does not support optimize, doing recreate + analyze instead
 test.t1	optimize	status	OK
-Warnings:
-Warning	1618	<DATA DIRECTORY> option ignored
 t1.ibd
+t2.ibd
 DROP TABLE t2;
 RENAME TABLE t1 TO t2;
 ALTER TABLE t2 ADD UNIQUE INDEX(b), RENAME TO t3;

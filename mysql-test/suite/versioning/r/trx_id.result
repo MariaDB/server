@@ -401,10 +401,10 @@ ERROR HY000: Transaction-precise system versioning for `t2` is not supported
 #
 # String literals resolve to TIMESTAMP
 #
-SELECT * FROM t1 FOR SYSTEM_TIME AS OF '2038-12-30 00:00:00';
+SELECT * FROM t1 FOR SYSTEM_TIME AS OF '2107-12-30 00:00:00';
 x
 1
-SELECT * FROM t2 FOR SYSTEM_TIME AS OF '2038-12-30 00:00:00';
+SELECT * FROM t2 FOR SYSTEM_TIME AS OF '2107-12-30 00:00:00';
 x
 DROP TABLE t1, t2;
 #

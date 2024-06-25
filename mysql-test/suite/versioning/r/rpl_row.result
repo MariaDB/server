@@ -35,14 +35,14 @@ set timestamp= 12345;
 insert t1 values (1, 1);
 select *, unix_timestamp(row_start) as row_start, unix_timestamp(row_end) as row_end from t1;
 x	y	row_start	row_end
-1	1	12345.000000	2147483647.999999
+1	1	12345.000000	TIMESTAMP_MAX.999999
 set timestamp= default;
 ### INSERT INTO `test`.`t1`
 ### SET
 ###   @1=1
 ###   @2=1
 ###   @3=12345.000000
-###   @4=2147483647.999999
+###   @4=MAX_TIMESTAMP.999999
 connection slave;
 select * from t1;
 x	y

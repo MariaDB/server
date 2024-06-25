@@ -1199,6 +1199,43 @@ public:
       print_with_conversion(to, cs);
   }
 
+  static my_wc_t escaped_wc_for_single_quote(my_wc_t ch)
+  {
+    switch (ch) {
+    case '\\':   return '\\';
+    case '\0':   return '0';
+    case '\'':   return '\'';
+    case '\b':   return 'b';
+    case '\t':   return 't';
+    case '\n':   return 'n';
+    case '\r':   return 'r';
+    case '\032': return 'Z';
+    }
+    return 0;
+  }
+
+  // Append for single quote using mb_wc/wc_mb Unicode conversion
+  bool append_for_single_quote_using_mb_wc(const char *str, size_t length,
+                                           CHARSET_INFO *cs);
+
+  // Append for single quote with optional mb_wc/wc_mb conversion
+  bool append_for_single_quote_opt_convert(const char *str,
+                                           size_t length,
+                                           CHARSET_INFO *cs)
+  {
+    return charset() == &my_charset_bin || cs == &my_charset_bin  ||
+           my_charset_same(charset(), cs) ?
+           append_for_single_quote(str, length) :
+           append_for_single_quote_using_mb_wc(str, length, cs);
+  }
+
+  bool append_for_single_quote_opt_convert(const String &str)
+  {
+    return append_for_single_quote_opt_convert(str.ptr(),
+                                               str.length(),
+                                               str.charset());
+  }
+
   bool append_for_single_quote(const char *st, size_t len);
   bool append_for_single_quote(const String *s)
   {

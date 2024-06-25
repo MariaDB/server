@@ -104,7 +104,7 @@ int main(int argc, char **argv)
     goto end;
   }
   /* we don't want to create a control file, it MUST exist */
-  if (ma_control_file_open(FALSE, TRUE, TRUE))
+  if (ma_control_file_open(FALSE, TRUE, TRUE, control_file_open_flags))
   {
     fprintf(stderr, "Can't open control file (%d)\n", errno);
     goto err;
@@ -261,7 +261,7 @@ static struct my_option my_long_options[] =
     "The size of the buffer used for index blocks for Aria tables",
     &opt_page_buffer_size, &opt_page_buffer_size, 0,
     GET_ULL, REQUIRED_ARG, PAGE_BUFFER_INIT,
-    PAGE_BUFFER_INIT, SIZE_T_MAX, MALLOC_OVERHEAD, (long) IO_SIZE, 0},
+    PAGE_BUFFER_INIT, SIZE_T_MAX, 0, (long) IO_SIZE, 0},
   { "print-log-control-file", 'l',
     "Print the content of the aria_log_control_file",
     &opt_print_aria_log_control, &opt_print_aria_log_control, 0,
@@ -290,7 +290,7 @@ static struct my_option my_long_options[] =
     "The size of the buffer used for transaction log for Aria tables",
     &opt_translog_buffer_size, &opt_translog_buffer_size, 0,
     GET_ULONG, REQUIRED_ARG, (long) TRANSLOG_PAGECACHE_SIZE,
-    1024L*1024L, (long) ~(ulong) 0, (long) MALLOC_OVERHEAD,
+    1024L*1024L, (long) ~(ulong) 0, 0,
     (long) IO_SIZE, 0},
   {"undo", 'u',
    "Apply UNDO records to tables. (disable with --disable-undo). "

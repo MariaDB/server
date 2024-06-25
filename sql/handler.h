@@ -72,10 +72,28 @@ class select_result;
 #define HA_ADMIN_TRY_ALTER       -7
 #define HA_ADMIN_WRONG_CHECKSUM  -8
 #define HA_ADMIN_NOT_BASE_TABLE  -9
+/*
+  Table needs to be rebuilt with handler::repair.
+  For example to fix a changed index sort order.
+  Rows with duplicated unique key values should be deleted.
+  For engines that do not support REPAIR, ALTER TABLE FORCE
+  is used.
+*/
 #define HA_ADMIN_NEEDS_UPGRADE  -10
+/*
+  Needs rebuild with ALTER TABLE ... FORCE.
+  Will recreate the .frm file with a new version to remove old
+  incompatibilities.
+ */
 #define HA_ADMIN_NEEDS_ALTER    -11
-#define HA_ADMIN_NEEDS_CHECK    -12
-#define HA_ADMIN_COMMIT_ERROR   -13
+/*
+  Needs rebuild with ALTER TABLE ... FORCE, ALGORITHM=COPY
+  This will take care of data conversions like MySQL JSON format
+  and updating version tables timestamps.
+ */
+#define HA_ADMIN_NEEDS_DATA_CONVERSION  -12
+#define HA_ADMIN_NEEDS_CHECK    -13
+#define HA_ADMIN_COMMIT_ERROR   -14
 
 /**
    Return values for check_if_supported_inplace_alter().
@@ -456,12 +474,6 @@ enum chf_create_flags {
 #define HA_FAST_CHANGE_PARTITION                (1UL << 13)
 #define HA_PARTITION_ONE_PHASE                  (1UL << 14)
 
-/* operations for disable/enable indexes */
-#define HA_KEY_SWITCH_NONUNIQ      0
-#define HA_KEY_SWITCH_ALL          1
-#define HA_KEY_SWITCH_NONUNIQ_SAVE 2
-#define HA_KEY_SWITCH_ALL_SAVE     3
-
 /*
   Note: the following includes binlog and closing 0.
   TODO remove the limit, use dynarrays
@@ -500,6 +512,12 @@ enum chf_create_flags {
 #define HA_LEX_CREATE_SEQUENCE  16U
 #define HA_VERSIONED_TABLE      32U
 #define HA_SKIP_KEY_SORT        64U
+/*
+  A temporary table that can be used by different threads, eg. replication
+  threads. This flag ensure that memory is not allocated with THREAD_SPECIFIC,
+  as we do for other temporary tables.
+*/
+#define HA_LEX_CREATE_GLOBAL_TMP_TABLE 128U
 
 #define HA_MAX_REC_LENGTH	65535
 
@@ -1092,6 +1110,7 @@ enum enum_schema_tables
   SCH_TABLE_NAMES,
   SCH_TABLE_PRIVILEGES,
   SCH_TRIGGERS,
+  SCH_USERS,
   SCH_USER_PRIVILEGES,
   SCH_VIEWS,
   SCH_ENUM_SIZE
@@ -2252,6 +2271,12 @@ struct Table_scope_and_contents_source_pod_st // For trivial members
   enum_stats_auto_recalc stats_auto_recalc;
   bool varchar;                         ///< 1 if table has a VARCHAR
   bool sequence;                        // If SEQUENCE=1 was used
+  /*
+    True if we are using OPTIMIZE TABLE, REPAIR TABLE or ALTER TABLE FORCE
+    in which case the 'new' table should have identical storage layout
+    as the original.
+  */
+  bool recreate_identical_table;
 
   List<Virtual_column_info> *check_constraint_list;
 
@@ -2723,6 +2748,7 @@ typedef struct st_ha_check_opt
   st_ha_check_opt() = default;                        /* Remove gcc warning */
   uint flags;       /* isam layer flags (e.g. for myisamchk) */
   uint sql_flags;   /* sql layer flags - for something myisamchk cannot do */
+  uint handler_flags; /* Reserved for handler usage */
   time_t start_time;   /* When check/repair starts */
   KEY_CACHE *key_cache; /* new key cache when changing key cache */
   void init();
@@ -3300,9 +3326,7 @@ public:
     inserter.
   */
   /* Statistics  variables */
-  ulonglong rows_read;
-  ulonglong rows_tmp_read;
-  ulonglong rows_changed;
+  struct rows_stats rows_stats;
   /* One bigger than needed to avoid to test if key == MAX_KEY */
   ulonglong index_rows_read[MAX_KEY+1];
   ha_copy_info copy_info;
@@ -3469,6 +3493,7 @@ public:
     */
     MEM_UNDEFINED(&optimizer_where_cost, sizeof(optimizer_where_cost));
     MEM_UNDEFINED(&optimizer_scan_setup_cost, sizeof(optimizer_scan_setup_cost));
+    active_handler_stats.active= 0;
   }
   virtual ~handler(void)
   {
@@ -3613,6 +3638,8 @@ protected:
 public:
   int check_collation_compatibility();
   int check_long_hash_compatibility() const;
+  int check_versioned_compatibility() const;
+  int check_versioned_compatibility(uint version) const;
   int ha_check_for_upgrade(HA_CHECK_OPT *check_opt);
   /** to be actually called to get 'check()' functionality*/
   int ha_check(THD *thd, HA_CHECK_OPT *check_opt);
@@ -3634,8 +3661,8 @@ public:
   int ha_optimize(THD* thd, HA_CHECK_OPT* check_opt);
   int ha_analyze(THD* thd, HA_CHECK_OPT* check_opt);
   bool ha_check_and_repair(THD *thd);
-  int ha_disable_indexes(uint mode);
-  int ha_enable_indexes(uint mode);
+  int ha_disable_indexes(key_map map, bool persist);
+  int ha_enable_indexes(key_map map, bool persist);
   int ha_discard_or_import_tablespace(my_bool discard);
   int ha_rename_table(const char *from, const char *to);
   void ha_drop_table(const char *name);
@@ -3659,6 +3686,7 @@ public:
   virtual void print_error(int error, myf errflag);
   virtual bool get_error_message(int error, String *buf);
   uint get_dup_key(int error);
+  bool has_dup_ref() const;
   /**
     Retrieves the names of the table and the key for which there was a
     duplicate entry in the case of HA_ERR_FOREIGN_DUPLICATE_KEY.
@@ -3684,7 +3712,7 @@ public:
   { DBUG_ASSERT(false); return(false); }
   void reset_statistics()
   {
-    rows_read= rows_changed= rows_tmp_read= 0;
+    bzero(&rows_stats, sizeof(rows_stats));
     bzero(index_rows_read, sizeof(index_rows_read));
     bzero(&copy_info, sizeof(copy_info));
   }
@@ -4234,9 +4262,9 @@ protected:
   inline void update_rows_read()
   {
     if (likely(!internal_tmp_table))
-      rows_read++;
+      rows_stats.read++;
     else
-      rows_tmp_read++;
+      rows_stats.tmp_read++;
   }
   inline void update_index_statistics()
   {
@@ -4444,7 +4472,6 @@ public:
   }
 
   virtual void update_create_info(HA_CREATE_INFO *create_info) {}
-  int check_old_types();
   virtual int assign_to_keycache(THD* thd, HA_CHECK_OPT* check_opt)
   { return HA_ADMIN_NOT_IMPLEMENTED; }
   virtual int preload_keys(THD* thd, HA_CHECK_OPT* check_opt)
@@ -5138,9 +5165,12 @@ public:
   }
   inline void ha_handler_stats_disable()
   {
-    handler_stats= 0;
-    active_handler_stats.active= 0;
-    handler_stats_updated();
+    if (handler_stats)
+    {
+      handler_stats= 0;
+      active_handler_stats.active= 0;
+      handler_stats_updated();
+    }
   }
 
 private:
@@ -5154,6 +5184,7 @@ private:
     }
   }
 
+  bool check_old_types() const;
   void mark_trx_read_write_internal();
   bool check_table_binlog_row_based_internal();
 
@@ -5310,7 +5341,7 @@ private:
   virtual void release_auto_increment() { return; };
   /** admin commands - called from mysql_admin_table */
   virtual int check_for_upgrade(HA_CHECK_OPT *check_opt)
-  { return 0; }
+  { return HA_ADMIN_OK; }
   virtual int check(THD* thd, HA_CHECK_OPT* check_opt)
   { return HA_ADMIN_NOT_IMPLEMENTED; }
 
@@ -5399,8 +5430,8 @@ public:
   virtual int analyze(THD* thd, HA_CHECK_OPT* check_opt)
   { return HA_ADMIN_NOT_IMPLEMENTED; }
   virtual bool check_and_repair(THD *thd) { return TRUE; }
-  virtual int disable_indexes(uint mode) { return HA_ERR_WRONG_COMMAND; }
-  virtual int enable_indexes(uint mode) { return HA_ERR_WRONG_COMMAND; }
+  virtual int disable_indexes(key_map map, bool persist) { return HA_ERR_WRONG_COMMAND; }
+  virtual int enable_indexes(key_map map, bool persist) { return HA_ERR_WRONG_COMMAND; }
   virtual int discard_or_import_tablespace(my_bool discard)
   { return (my_errno=HA_ERR_WRONG_COMMAND); }
   virtual void drop_table(const char *name);
@@ -5792,7 +5823,6 @@ bool non_existing_table_error(int error);
 uint ha_count_rw_2pc(THD *thd, bool all);
 uint ha_check_and_coalesce_trx_read_only(THD *thd, Ha_trx_info *ha_list,
                                          bool all);
-
 inline void Cost_estimate::reset(handler *file)
 {
   reset();

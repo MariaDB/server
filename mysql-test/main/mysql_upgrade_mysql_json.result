@@ -170,12 +170,12 @@ performance_schema
 sys
 sys.sys_config                                     OK
 test
-test.mysql_json_test                               Needs upgrade
-test.mysql_json_test_big                           Needs upgrade
+test.mysql_json_test                               Needs upgrade with ALTER TABLE FORCE
+test.mysql_json_test_big                           Needs upgrade with ALTER TABLE FORCE
 
 Repairing tables
-test.mysql_json_test                               OK
-test.mysql_json_test_big                           OK
+`test`.`mysql_json_test`                           OK
+`test`.`mysql_json_test_big`                       OK
 Phase 7/8: uninstalling plugins
 uninstalling plugin for 'type_mysql_json' data type
 Phase 8/8: Running 'FLUSH PRIVILEGES'

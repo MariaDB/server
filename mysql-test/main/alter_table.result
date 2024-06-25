@@ -878,7 +878,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` text DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci
 drop table t1;
 create table t1 (a mediumtext character set latin1);
 alter table t1 convert to character set utf8;
@@ -886,7 +886,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` longtext DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci
 drop table t1;
 End of 5.0 tests
 drop table if exists t1, t2, t3;
@@ -1353,7 +1353,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `consultant_id` int(11) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci
 DROP TABLE t1;
 CREATE TABLE t1 (
 `a` int(11) DEFAULT NULL
@@ -1365,7 +1365,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `consultant_id` int(11) NOT NULL DEFAULT 2
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci
 DROP TABLE t1;
 CREATE TABLE t1 (
 `a` int(11) DEFAULT NULL
@@ -1377,7 +1377,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `consultant_id` int(11) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci
 DROP TABLE t1;
 CREATE TABLE t1 (
 `a` int(11) DEFAULT NULL
@@ -1390,7 +1390,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `consultant_id` bigint(20) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci
 DROP TABLE t1;
 #
 # BUG#27788685: NO WARNING WHEN TRUNCATING A STRING WITH DATA LOSS
@@ -1654,13 +1654,11 @@ ALTER TABLE m1 ENABLE KEYS, ALGORITHM= INPLACE;
 affected rows: 0
 ALTER TABLE t1 DROP INDEX i1, DROP INDEX i2, DROP INDEX i3, DROP INDEX i4;
 #
-# 2: Test ALGORITHM + alter_algorithm
+# 2: Test ALGORITHM keywords
 #
-SET SESSION alter_algorithm= 1;
-affected rows: 0
 ALTER TABLE t1 ADD INDEX i1(b);
-affected rows: 2
-info: Records: 2  Duplicates: 0  Warnings: 0
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
 ALTER TABLE t1 ADD INDEX i2(b), ALGORITHM= DEFAULT;
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 1
@@ -1676,8 +1674,6 @@ affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 1
 Warnings:
 Note	1831	Duplicate index `i4`. This is deprecated and will be disallowed in a future release
-SET SESSION alter_algorithm= 0;
-affected rows: 0
 ALTER TABLE t1 DROP INDEX i1, DROP INDEX i2, DROP INDEX i3, DROP INDEX i4;
 #
 # 3: Test unsupported in-place operation
@@ -2201,7 +2197,7 @@ t1	CREATE TABLE `t1` (
   `id` int(11) NOT NULL,
   `a` int(11) NOT NULL,
   `b` int(11) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci
 DROP TABLE t1;
 #
 # MDEV-15308
@@ -3098,6 +3094,14 @@ CREATE TEMPORARY TABLE t2 LIKE t1;
 DROP TEMPORARY TABLE t2;
 DROP TABLE t1;
 #
+# MDEV-33313 Incorrect error message for "ALTER TABLE ... DROP CONSTRAINT ..., DROP col, DROP col"
+#
+create table t2(id int primary key) engine=innodb;
+create table t1(id int primary key, t2_id int, constraint t1_fk_t2_id foreign key(t2_id) references t2(id)) engine=innodb;
+alter table t1 drop constraint t1_fk_t2_id, drop t2_id, drop t2_id;
+ERROR 42000: Can't DROP COLUMN `t2_id`; check that it exists
+drop table t1, t2;
+#
 # End of 10.6 tests
 #
 #
@@ -3114,4 +3118,14 @@ ERROR HY000: Function or expression 'AUTO_INCREMENT' cannot be used in the USING
 DROP TABLE t;
 #
 # End of 10.7 tests
+#
+#
+# MDEV-33655 Remove alter_algorithm
+#
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+CREATE TABLE t2 (a INT) ENGINE=MERGE, UNION(t1);
+ALTER TABLE t2 COMMENT 'x', LOCK=SHARED;
+DROP TABLE t2,t1;
+#
+# End of 11.5 tests
 #

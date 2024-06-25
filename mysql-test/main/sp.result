@@ -2734,7 +2734,7 @@ drop table t3|
 drop procedure if exists bug6857|
 create procedure bug6857()
 begin
-declare t0, t1 int;
+declare t0, t1 bigint;
 declare plus bool default 0;
 set t0 = unix_timestamp();
 select sleep(1.1);
@@ -4913,7 +4913,7 @@ Database	Create Database
 mysqltest1	CREATE DATABASE `mysqltest1` /*!40100 DEFAULT CHARACTER SET koi8r COLLATE koi8r_general_ci */
 show create database mysqltest2|
 Database	Create Database
-mysqltest2	CREATE DATABASE `mysqltest2` /*!40100 DEFAULT CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci */
+mysqltest2	CREATE DATABASE `mysqltest2` /*!40100 DEFAULT CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci */
 alter database mysqltest1 character set utf8|
 use mysqltest2|
 call mysqltest1.p1()|
@@ -4922,7 +4922,7 @@ Database	Create Database
 mysqltest1	CREATE DATABASE `mysqltest1` /*!40100 DEFAULT CHARACTER SET koi8r COLLATE koi8r_general_ci */
 show create database mysqltest2|
 Database	Create Database
-mysqltest2	CREATE DATABASE `mysqltest2` /*!40100 DEFAULT CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci */
+mysqltest2	CREATE DATABASE `mysqltest2` /*!40100 DEFAULT CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci */
 drop database mysqltest1|
 drop database mysqltest2|
 use test|
@@ -4974,20 +4974,20 @@ CREATE FUNCTION mysqltest2.bug16211_f4() RETURNS CHAR(10) CHARSET koi8r
 RETURN ""|
 SHOW CREATE FUNCTION bug16211_f1|
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
-bug16211_f1		CREATE DEFINER=`root`@`localhost` FUNCTION `bug16211_f1`() RETURNS char(10) CHARSET utf8mb3 COLLATE utf8mb3_general_ci
-RETURN ""	latin1	latin1_swedish_ci	utf8mb3_general_ci
+bug16211_f1		CREATE DEFINER=`root`@`localhost` FUNCTION `bug16211_f1`() RETURNS char(10) CHARSET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci
+RETURN ""	latin1	latin1_swedish_ci	utf8mb3_uca1400_ai_ci
 SHOW CREATE FUNCTION bug16211_f2|
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
 bug16211_f2		CREATE DEFINER=`root`@`localhost` FUNCTION `bug16211_f2`() RETURNS char(10) CHARSET koi8r COLLATE koi8r_general_ci
-RETURN ""	latin1	latin1_swedish_ci	utf8mb3_general_ci
+RETURN ""	latin1	latin1_swedish_ci	utf8mb3_uca1400_ai_ci
 SHOW CREATE FUNCTION mysqltest2.bug16211_f3|
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
-bug16211_f3		CREATE DEFINER=`root`@`localhost` FUNCTION `bug16211_f3`() RETURNS char(10) CHARSET utf8mb3 COLLATE utf8mb3_general_ci
-RETURN ""	latin1	latin1_swedish_ci	utf8mb3_general_ci
+bug16211_f3		CREATE DEFINER=`root`@`localhost` FUNCTION `bug16211_f3`() RETURNS char(10) CHARSET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci
+RETURN ""	latin1	latin1_swedish_ci	utf8mb3_uca1400_ai_ci
 SHOW CREATE FUNCTION mysqltest2.bug16211_f4|
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
 bug16211_f4		CREATE DEFINER=`root`@`localhost` FUNCTION `bug16211_f4`() RETURNS char(10) CHARSET koi8r COLLATE koi8r_general_ci
-RETURN ""	latin1	latin1_swedish_ci	utf8mb3_general_ci
+RETURN ""	latin1	latin1_swedish_ci	utf8mb3_uca1400_ai_ci
 SELECT dtd_identifier
 FROM INFORMATION_SCHEMA.ROUTINES
 WHERE ROUTINE_SCHEMA = "mysqltest1" AND ROUTINE_NAME = "bug16211_f1"|
@@ -5024,20 +5024,20 @@ ALTER DATABASE mysqltest1 CHARACTER SET cp1251|
 ALTER DATABASE mysqltest2 CHARACTER SET cp1251|
 SHOW CREATE FUNCTION bug16211_f1|
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
-bug16211_f1		CREATE DEFINER=`root`@`localhost` FUNCTION `bug16211_f1`() RETURNS char(10) CHARSET utf8mb3 COLLATE utf8mb3_general_ci
-RETURN ""	latin1	latin1_swedish_ci	utf8mb3_general_ci
+bug16211_f1		CREATE DEFINER=`root`@`localhost` FUNCTION `bug16211_f1`() RETURNS char(10) CHARSET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci
+RETURN ""	latin1	latin1_swedish_ci	utf8mb3_uca1400_ai_ci
 SHOW CREATE FUNCTION bug16211_f2|
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
 bug16211_f2		CREATE DEFINER=`root`@`localhost` FUNCTION `bug16211_f2`() RETURNS char(10) CHARSET koi8r COLLATE koi8r_general_ci
-RETURN ""	latin1	latin1_swedish_ci	utf8mb3_general_ci
+RETURN ""	latin1	latin1_swedish_ci	utf8mb3_uca1400_ai_ci
 SHOW CREATE FUNCTION mysqltest2.bug16211_f3|
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
-bug16211_f3		CREATE DEFINER=`root`@`localhost` FUNCTION `bug16211_f3`() RETURNS char(10) CHARSET utf8mb3 COLLATE utf8mb3_general_ci
-RETURN ""	latin1	latin1_swedish_ci	utf8mb3_general_ci
+bug16211_f3		CREATE DEFINER=`root`@`localhost` FUNCTION `bug16211_f3`() RETURNS char(10) CHARSET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci
+RETURN ""	latin1	latin1_swedish_ci	utf8mb3_uca1400_ai_ci
 SHOW CREATE FUNCTION mysqltest2.bug16211_f4|
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
 bug16211_f4		CREATE DEFINER=`root`@`localhost` FUNCTION `bug16211_f4`() RETURNS char(10) CHARSET koi8r COLLATE koi8r_general_ci
-RETURN ""	latin1	latin1_swedish_ci	utf8mb3_general_ci
+RETURN ""	latin1	latin1_swedish_ci	utf8mb3_uca1400_ai_ci
 SELECT dtd_identifier
 FROM INFORMATION_SCHEMA.ROUTINES
 WHERE ROUTINE_SCHEMA = "mysqltest1" AND ROUTINE_NAME = "bug16211_f1"|
@@ -5098,11 +5098,11 @@ SET @v2 = 'b'|
 SET @v3 = 'c'|
 CALL bug16676_p1('a', @v2, @v3)|
 CHARSET(p1)	COLLATION(p1)
-utf8mb3	utf8mb3_general_ci
+utf8mb3	utf8mb3_uca1400_ai_ci
 CHARSET(p2)	COLLATION(p2)
-utf8mb3	utf8mb3_general_ci
+utf8mb3	utf8mb3_uca1400_ai_ci
 CHARSET(p3)	COLLATION(p3)
-utf8mb3	utf8mb3_general_ci
+utf8mb3	utf8mb3_uca1400_ai_ci
 CALL bug16676_p2('a', @v2, @v3)|
 CHARSET(p1)	COLLATION(p1)
 koi8r	koi8r_general_ci
@@ -6095,7 +6095,7 @@ create procedure proc_21513()`my_label`:BEGIN END|
 show create procedure proc_21513|
 Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
 proc_21513		CREATE DEFINER=`root`@`localhost` PROCEDURE `proc_21513`()
-`my_label`:BEGIN END	utf8mb3	utf8mb3_general_ci	latin1_swedish_ci
+`my_label`:BEGIN END	utf8mb3	utf8mb3_uca1400_ai_ci	latin1_swedish_ci
 drop procedure proc_21513|
 End of 5.0 tests.
 drop table t1,t2;
@@ -6130,7 +6130,7 @@ CREATE FUNCTION metered(a INT) RETURNS INT RETURN 12;
 CREATE VIEW v1 AS SELECT test.metered(a) as metered FROM t1;
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `test`.`metered`(`t1`.`a`) AS `metered` from `t1`	utf8mb3	utf8mb3_general_ci
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `test`.`metered`(`t1`.`a`) AS `metered` from `t1`	utf8mb3	utf8mb3_uca1400_ai_ci
 DROP VIEW v1;
 DROP FUNCTION metered;
 DROP TABLE t1;
@@ -7172,15 +7172,14 @@ CREATE VIEW t1 AS SELECT 10 AS f1;
 CALL p1(1);
 ERROR HY000: The target table t1 of the INSERT is not insertable-into
 CREATE TEMPORARY TABLE t1 (f1 INT);
-# t1 still refers to the view since it was inlined
 CALL p1(2);
-ERROR HY000: The target table t1 of the INSERT is not insertable-into
 DROP VIEW t1;
 # t1 now refers to the temporary table
 CALL p1(3);
 # Check which values were inserted into the temp table.
 SELECT * FROM t1;
 f1
+2
 3
 DROP TEMPORARY TABLE t1;
 DROP PROCEDURE p1;
@@ -7630,7 +7629,7 @@ SELECT 1;
 DROP PROCEDURE sp;
 CREATE PROCEDURE sp() SET STATEMENT SQL_SELECT_LIMIT=0 FOR SHOW USER_STATISTICS;
 CALL sp;
-User	Total_connections	Concurrent_connections	Connected_time	Busy_time	Cpu_time	Bytes_received	Bytes_sent	Binlog_bytes_written	Rows_read	Rows_sent	Rows_deleted	Rows_inserted	Rows_updated	Select_commands	Update_commands	Other_commands	Commit_transactions	Rollback_transactions	Denied_connections	Lost_connections	Access_denied	Empty_queries	Total_ssl_connections	Max_statement_time_exceeded
+User	Total_connections	Concurrent_connections	Connected_time	Busy_time	Cpu_time	Bytes_received	Bytes_sent	Binlog_bytes_written	Rows_read	Rows_sent	Rows_deleted	Rows_inserted	Rows_updated	Key_read_hits	Key_read_misses	Select_commands	Update_commands	Other_commands	Commit_transactions	Rollback_transactions	Denied_connections	Lost_connections	Access_denied	Empty_queries	Total_ssl_connections	Max_statement_time_exceeded
 SELECT 1;
 1
 1
@@ -8789,9 +8788,9 @@ CREATE TABLE t1 AS SELECT f1() AS c1, COALESCE(f1()) AS c2, CONCAT(f1()) AS c3;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinytext CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL,
-  `c2` text CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL,
-  `c3` varchar(255) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
+  `c1` tinytext CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL,
+  `c2` text CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL,
+  `c3` varchar(255) CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 DROP FUNCTION f1;
@@ -8800,9 +8799,9 @@ CREATE TABLE t1 AS SELECT f1() AS c1, COALESCE(f1()) AS c2, CONCAT(f1()) AS c3;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` text CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL,
-  `c2` mediumtext CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL,
-  `c3` mediumtext CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
+  `c1` text CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL,
+  `c2` mediumtext CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL,
+  `c3` mediumtext CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 DROP FUNCTION f1;
@@ -8811,9 +8810,9 @@ CREATE TABLE t1 AS SELECT f1() AS c1, COALESCE(f1()) AS c2, CONCAT(f1()) AS c3;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumtext CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL,
-  `c2` longtext CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL,
-  `c3` longtext CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
+  `c1` mediumtext CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL,
+  `c2` longtext CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL,
+  `c3` longtext CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 DROP FUNCTION f1;
@@ -8822,9 +8821,9 @@ CREATE TABLE t1 AS SELECT f1() AS c1, COALESCE(f1()) AS c2, CONCAT(f1()) AS c3;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longtext CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL,
-  `c2` longtext CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL,
-  `c3` longtext CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
+  `c1` longtext CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL,
+  `c2` longtext CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL,
+  `c3` longtext CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 DROP FUNCTION f1;

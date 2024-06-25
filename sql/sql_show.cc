@@ -345,11 +345,33 @@ int fill_plugins(THD *thd, TABLE_LIST *tables, COND *cond)
 }
 
 
+/* Ignore common errors from plugin load */
+
+class plugin_show_error_handler : public Internal_error_handler
+{
+public:
+  bool handle_condition(THD *thd,
+                        uint sql_errno,
+                        const char* sqlstate,
+                        Sql_condition::enum_warning_level *level,
+                        const char* msg,
+                        Sql_condition ** cond_hdl)
+  {
+    if (sql_errno == ER_CANT_FIND_DL_ENTRY ||
+        sql_errno == ER_CANT_OPEN_LIBRARY)
+      return true;
+    return false;
+  }
+};
+
+
 int fill_all_plugins(THD *thd, TABLE_LIST *tables, COND *cond)
 {
   DBUG_ENTER("fill_all_plugins");
   TABLE *table= tables->table;
   LOOKUP_FIELD_VALUES lookup;
+  plugin_show_error_handler err_handler;
+  const char *wstr, *wend;
 
   if (get_lookup_field_values(thd, cond, true, tables, &lookup))
     DBUG_RETURN(0);
@@ -364,10 +386,16 @@ int fill_all_plugins(THD *thd, TABLE_LIST *tables, COND *cond)
     DBUG_RETURN(1);
   }
 
-  if (!lookup.db_value.str)
-    plugin_dl_foreach(thd, 0, show_plugins, table);
+  thd->push_internal_handler(&err_handler);
 
-  const char *wstr= lookup.db_value.str, *wend= wstr + lookup.db_value.length;
+  if (!lookup.db_value.str)
+  {
+    if (plugin_dl_foreach(thd, 0, show_plugins, table) && thd->is_error())
+      goto end;
+  }
+
+  wstr= lookup.db_value.str;
+  wend= wstr + lookup.db_value.length;
   for (size_t i=0; i < dirp->number_of_files; i++)
   {
     FILEINFO *file= dirp->dir_entry+i;
@@ -394,12 +422,14 @@ int fill_all_plugins(THD *thd, TABLE_LIST *tables, COND *cond)
       }
     }
 
-    plugin_dl_foreach(thd, &dl, show_plugins, table);
-    thd->clear_error();
+    if (plugin_dl_foreach(thd, &dl, show_plugins, table) && thd->is_error())
+      break;
   }
 
+end:
+  thd->pop_internal_handler();
   my_dirend(dirp);
-  DBUG_RETURN(0);
+  DBUG_RETURN(thd->is_error());
 }
 
 
@@ -2852,9 +2882,10 @@ static my_bool list_callback(THD *tmp, list_callback_arg *arg)
 
     thd_info->thread_id=tmp->thread_id;
     thd_info->os_thread_id=tmp->os_thread_id;
-    thd_info->user= arg->thd->strdup(tmp_sctx->user ? tmp_sctx->user :
-                                     (tmp->system_thread ?
-                                     "system user" : "unauthenticated user"));
+    thd_info->user= arg->thd->strdup(tmp_sctx->user && tmp_sctx->user != slave_user ?
+                                       tmp_sctx->user :
+                                       (tmp->system_thread ?
+                                         "system user" : "unauthenticated user"));
     if (tmp->peer_port && (tmp_sctx->host || tmp_sctx->ip) &&
         arg->thd->security_ctx->host_or_ip[0])
     {
@@ -3076,7 +3107,7 @@ int select_result_explain_buffer::send_data(List<Item> &items)
     Show_explain_request::call_in_target_thread, is this necessary anymore?)
   */
   set_current_thd(thd);
-  fill_record(thd, dst_table, dst_table->field, items, TRUE, FALSE);
+  fill_record(thd, dst_table, dst_table->field, items, true, false, false);
   res= dst_table->file->ha_write_tmp_row(dst_table->record[0]);
   set_current_thd(cur_thd);  
   DBUG_RETURN(MY_TEST(res));
@@ -3357,7 +3388,7 @@ static my_bool processlist_callback(THD *tmp, processlist_callback_arg *arg)
   /* ID */
   arg->table->field[0]->store((longlong) tmp->thread_id, TRUE);
   /* USER */
-  val= tmp_sctx->user ? tmp_sctx->user :
+  val= tmp_sctx->user && tmp_sctx->user != slave_user ? tmp_sctx->user :
         (tmp->system_thread ? "system user" : "unauthenticated user");
   arg->table->field[1]->store(val, strlen(val), cs);
   /* HOST */
@@ -3458,6 +3489,8 @@ static my_bool processlist_callback(THD *tmp, processlist_callback_arg *arg)
   arg->table->field[16]->store(tmp->query_id, TRUE);
 
   arg->table->field[18]->store(tmp->os_thread_id);
+
+  arg->table->field[19]->store((longlong) tmp->status_var.tmp_space_used, TRUE);
 
   if (schema_table_store_record(arg->thd, arg->table))
     return 1;
@@ -3581,6 +3614,8 @@ void reset_status_vars()
     /* Note that SHOW_LONG_NOFLUSH variables are not reset */
     if (ptr->type == SHOW_LONG)
       *(ulong*) ptr->value= 0;
+    if (ptr->type == SHOW_LONGLONG)
+      *(ulonglong*) ptr->value= 0;
   }
 }
 
@@ -3779,6 +3814,7 @@ const char* get_one_variable(THD *thd,
   case SHOW_SLONG:
     end= int10_to_str(*value.as_long, buff, -10);
     break;
+  case SHOW_LONGLONG_NOFLUSH: // the difference lies in refresh_status()
   case SHOW_SLONGLONG:
     end= longlong10_to_str(*value.as_longlong, buff, -10);
     break;
@@ -4804,10 +4840,15 @@ fill_schema_table_by_open(THD *thd, MEM_ROOT *mem_root,
                && thd->get_stmt_da()->sql_errno() != ER_WRONG_OBJECT
                && thd->get_stmt_da()->sql_errno() != ER_NOT_SEQUENCE;
       if (!run)
+      {
         thd->clear_error();
+        result= false;
+      }
       else if (!ext_error_handling)
+      {
         convert_error_to_warning(thd);
-      result= false;
+        result= false;
+      }
     }
   }
 
@@ -5281,6 +5322,20 @@ public:
 };
 
 
+static bool wildcmpcs(const LEX_CSTRING &str, const LEX_CSTRING &pat)
+{
+  return table_alias_charset->wildcmp(str.str, str.str + str.length,
+                                      pat.str, pat.str + pat.length,
+                                      '\\', '_', '%');
+}
+
+static bool strcmpcs(const LEX_CSTRING &str, const LEX_CSTRING &pat)
+{
+  return table_alias_charset->strnncoll(str.str, str.length,
+                                        pat.str, pat.length, 0);
+}
+
+
 /**
   @brief          Fill I_S tables whose data are retrieved
                   from frm files and storage engine
@@ -5413,16 +5468,20 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
   {
     All_tmp_tables_list::Iterator it(*open_tables_state_backup.temporary_tables);
     TMP_TABLE_SHARE *share_temp;
-    const LEX_CSTRING &lookup_db= plan->lookup_field_vals.db_value;
+    bool (*cmp_db)(const LEX_CSTRING &, const LEX_CSTRING &)=
+      plan->lookup_field_vals.wild_db_value ? wildcmpcs : strcmpcs;
+    bool (*cmp_table)(const LEX_CSTRING &, const LEX_CSTRING &)=
+      plan->lookup_field_vals.wild_table_value ? wildcmpcs : strcmpcs;
     while ((share_temp= it++))
     {
-      if (lookup_db.str)
+      if (plan->lookup_field_vals.db_value.str)
       {
-        if (lookup_db.str &&
-            (plan->lookup_field_vals.wild_db_value ?
-               wild_case_compare(system_charset_info,
-                                 share_temp->db.str, lookup_db.str) :
-               !share_temp->db.streq(lookup_db)))
+        if (cmp_db(share_temp->db, plan->lookup_field_vals.db_value))
+          continue;
+      }
+      if (plan->lookup_field_vals.table_value.str)
+      {
+        if (cmp_table(share_temp->table_name, plan->lookup_field_vals.table_value))
           continue;
       }
 
@@ -9858,7 +9917,7 @@ ST_FIELD_INFO stat_fields_info[]=
   Column("PACKED",        Varchar(10), NULLABLE, "Packed",      OPEN_FRM_ONLY),
   Column("NULLABLE",      Varchar(3),  NOT_NULL, "Null",        OPEN_FRM_ONLY),
   Column("INDEX_TYPE",    Varchar(16), NOT_NULL, "Index_type",  OPEN_FULL_TABLE),
-  Column("COMMENT",       Varchar(16), NULLABLE, "Comment",     OPEN_FRM_ONLY),
+  Column("COMMENT",       Varchar(16), NULLABLE, "Comment",     OPEN_FULL_TABLE),
   Column("INDEX_COMMENT", Varchar(INDEX_COMMENT_MAXLEN),
                                        NOT_NULL, "Index_comment",OPEN_FRM_ONLY),
   Column("IGNORED",      Varchar(3),  NOT_NULL, "Ignored",        OPEN_FRM_ONLY),
@@ -10118,6 +10177,7 @@ ST_FIELD_INFO processlist_fields_info[]=
   Column("QUERY_ID",       SLonglong(10),             NOT_NULL),
   Column("INFO_BINARY",Blob(PROCESS_LIST_INFO_WIDTH),NULLABLE, "Info_binary"),
   Column("TID",            SLonglong(10),             NOT_NULL, "Tid"),
+  Column("TMP_SPACE_USED", SLonglong(10),             NOT_NULL, "Tmp_space_used"),
   CEnd()
 };
 
@@ -10183,6 +10243,7 @@ ST_FIELD_INFO files_fields_info[]=
   CEnd()
 };
 
+  extern ST_FIELD_INFO users_fields_info[];
 }; // namespace Show
 
 
@@ -10496,6 +10557,8 @@ ST_SCHEMA_TABLE schema_tables[]=
   {"TRIGGERS"_Lex_ident_i_s_table, Show::triggers_fields_info, 0,
    get_all_tables, make_old_format, get_schema_triggers_record, 5, 6, 0,
    OPEN_TRIGGER_ONLY|OPTIMIZE_I_S_TABLE},
+  {"USERS"_Lex_ident_i_s_table, Show::users_fields_info, 0, fill_users_schema_table,
+   0, 0, -1, -1, 0, 0},
   {"USER_PRIVILEGES"_Lex_ident_i_s_table,
    Show::user_privileges_fields_info, 0,
    fill_schema_user_privileges, 0, 0, -1, -1, 0, 0},
@@ -10511,6 +10574,7 @@ static_assert(array_elements(schema_tables) == SCH_ENUM_SIZE + 1,
 int initialize_schema_table(st_plugin_int *plugin)
 {
   ST_SCHEMA_TABLE *schema_table;
+  int err;
   DBUG_ENTER("initialize_schema_table");
 
   if (!(schema_table= (ST_SCHEMA_TABLE *)my_malloc(key_memory_ST_SCHEMA_TABLE,
@@ -10527,12 +10591,15 @@ int initialize_schema_table(st_plugin_int *plugin)
     /* Make the name available to the init() function. */
     schema_table->table_name= Lex_ident_i_s_table(plugin->name);
 
-    if (plugin->plugin->init(schema_table))
+    if ((err= plugin->plugin->init(schema_table)))
     {
-      sql_print_error("Plugin '%s' init function returned error.",
-                      plugin->name.str);
+      if (err != HA_ERR_RETRY_INIT)
+        sql_print_error("Plugin '%s' init function returned error.",
+                        plugin->name.str);
       plugin->data= NULL;
       my_free(schema_table);
+      if (err == HA_ERR_RETRY_INIT)
+        DBUG_RETURN(err);
       DBUG_RETURN(1);
     }
 

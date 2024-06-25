@@ -986,8 +986,6 @@ struct dict_index_t {
 				/*!< number of columns the user defined to
 				be in the index: in the internal
 				representation we add more columns */
-	unsigned	nulls_equal:1;
-				/*!< if true, SQL NULL == SQL NULL */
 	unsigned	n_uniq:10;/*!< number of fields from the beginning
 				which are enough to determine an index
 				entry uniquely */
@@ -2424,6 +2422,9 @@ public:
 
   /** @return number of unique columns in FTS_DOC_ID index */
   unsigned fts_n_uniq() const { return versioned() ? 2 : 1; }
+
+  /** @return the index for that starts with a specific column */
+  dict_index_t *get_index(const dict_col_t &col) const;
 
   /** Create metadata.
   @param name     table name

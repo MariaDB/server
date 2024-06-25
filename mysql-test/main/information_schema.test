@@ -2070,7 +2070,7 @@ DROP TABLE t1;
 --echo #
 --echo # MDEV-24868 Server crashes in optimize_schema_tables_memory_usage after select from information_schema.innodb_sys_columns
 --echo #
-create table t1 ( name varchar(64) character set utf8, len int);
+create table t1 ( name varchar(64) character set utf8 collate utf8_general_ci, len int);
 select * from t1 where (name, len) in (select  name, len from information_schema.innodb_sys_columns having len = 8);
 drop table t1;
 

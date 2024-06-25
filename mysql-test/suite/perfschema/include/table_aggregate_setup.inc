@@ -133,7 +133,7 @@ update performance_schema.setup_consumers set enabled='YES';
 
 # Start from a known clean state, to avoid noise from previous tests
 flush tables;
-flush status;
+flush global status;
 
 create table test.t1(a int, b int, c int, d int default 0,
   primary key(a),

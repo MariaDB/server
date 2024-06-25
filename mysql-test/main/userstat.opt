@@ -1,1 +1,1 @@
---disable-userstat
+--disable-userstat --use-stat-tables=never

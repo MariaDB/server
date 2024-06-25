@@ -734,7 +734,8 @@ bool Create_json_table::finalize(THD *thd, TABLE *table,
 
   table->db_stat= HA_OPEN_KEYFILE;
   if (unlikely(table->file->ha_open(table, table->s->path.str, O_RDWR,
-                                    HA_OPEN_TMP_TABLE | HA_OPEN_INTERNAL_TABLE)))
+                                    HA_OPEN_TMP_TABLE | HA_OPEN_INTERNAL_TABLE |
+                                    HA_OPEN_SIZE_TRACKING)))
     DBUG_RETURN(true);
 
   table->set_created();

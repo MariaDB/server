@@ -23,6 +23,22 @@ trap 'exit 3'  INT QUIT TERM
 # Setting the path for some utilities on CentOS
 export PATH="$PATH:/usr/sbin:/usr/bin:/sbin:/bin"
 
+commandex()
+{
+    if [ -n "$BASH_VERSION" ]; then
+        command -v "$1" || :
+    elif [ -x "$1" ]; then
+        echo "$1"
+    else
+        which "$1" || :
+    fi
+}
+
+with_printf=1
+if [ -z "$BASH_VERSION" ]; then
+    [ -z "$(commandex printf)" ] && with_printf=0
+fi
+
 trim_string()
 {
     if [ -n "$BASH_VERSION" ]; then
@@ -35,9 +51,9 @@ trim_string()
             y=${#y}
             x=$(( z-x-1 ))
             y=$(( y-x+1 ))
-            printf '%s' "${1:$x:$y}"
+            echo "${1:$x:$y}"
         else
-            printf ''
+            echo ''
         fi
     else
         local pattern="[[:space:]${2:-}]"
@@ -59,9 +75,9 @@ trim_dir()
             y=$(( y-x+1 ))
             x="${1:$x:$y}"
             [ -z "$x" ] && x='.'
-            printf '%s' "$x"
+            echo "$x"
         else
-            printf ''
+            echo ''
         fi
     else
         local pattern="[:space:]${2:-}"
@@ -85,13 +101,32 @@ trim_right()
         y=${#y}
         if [ $y -ne $z ]; then
             y=$(( y+1 ))
-            printf '%s' "${1:0:$y}"
+            echo "${1:0:$y}"
         else
-            printf ''
+            echo ''
         fi
     else
         local pattern="[[:space:]${2:-}]"
         echo "$1" | sed -E "s/$pattern+\$//g"
+    fi
+}
+
+trim_left()
+{
+    if [ -n "$BASH_VERSION" ]; then
+        local pattern="[![:space:]${2:-}]"
+        local x="${1#*$pattern}"
+        local z=${#1}
+        x=${#x}
+        if [ $x -ne $z ]; then
+            x=$(( z-x-1 ))
+            echo "${1:$x:$z}"
+        else
+            echo ''
+        fi
+    else
+        local pattern="[[:space:]${2:-}]"
+        echo "$1" | sed -E "s/^$pattern+//g"
     fi
 }
 
@@ -105,11 +140,7 @@ to_minuses()
        x="$t"
        t="${t#*_}"
     done
-    if [ -n "$BASH_VERSION" ]; then
-        printf '%s' "$r$x"
-    else
-        echo "$r$x"
-    fi
+    echo "$r$x"
 }
 
 WSREP_SST_OPT_BYPASS=0
@@ -383,9 +414,11 @@ case "$1" in
                        # option name:
                        if [ -n "$BASH_VERSION" ]; then
                            option="${options:0:1}"
+                       elif [ $with_printf -ne 0 ]; then
+                           option=$(printf '%.1s' "$options")
                        else
-                           # If it's not bash, then we need to use slow
-                           # external utilities:
+                           # If it's not bash and without printf,
+                           # then we need to use slow external utilities:
                            option=$(echo "$options" | cut -c1)
                        fi
                        # And the subsequent characters consider option value:
@@ -788,17 +821,6 @@ WSREP_SST_OPT_ADDR="$WSREP_SST_OPT_HOST:$WSREP_SST_OPT_PORT$sst_path"
 readonly WSREP_SST_OPT_ADDR
 readonly WSREP_SST_OPT_ADDR_PORT
 
-commandex()
-{
-    if [ -n "$BASH_VERSION" ]; then
-        command -v "$1" || :
-    elif [ -x "$1" ]; then
-        echo "$1"
-    else
-        which "$1" || :
-    fi
-}
-
 # try to use my_print_defaults, mysql and mysqldump that come
 # with the sources (for MTR suite):
 script_binary=$(dirname "$0")
@@ -929,11 +951,7 @@ parse_cnf()
     # Truncate spaces:
     [ -n "$reval" ] && reval=$(trim_string "$reval")
 
-    if [ -n "$BASH_VERSION" ]; then
-        printf '%s' "$reval"
-    else
-        echo "$reval"
-    fi
+    echo "$reval"
 }
 
 #
@@ -986,11 +1004,8 @@ in_config()
             break
         fi
     done
-    if [ -n "$BASH_VERSION" ]; then
-        printf '%s' $found
-    else
-        echo $found
-    fi
+
+    echo $found
 }
 
 wsrep_auth_not_set()
@@ -1128,9 +1143,7 @@ wsrep_gen_secret()
         printf '%04x%04x%04x%04x%04x%04x%04x%04x' \
                $RANDOM $RANDOM $RANDOM $RANDOM \
                $RANDOM $RANDOM $RANDOM $RANDOM
-    elif [ -n "$(commandex cksum)" -a \
-           -n "$(commandex printf)" ]
-    then
+    elif [ $with_printf -ne 0 -a -n "$(commandex cksum)" ]; then
         printf '%08x%08x%08x%08x' \
             $(head -8 /dev/urandom | cksum | cut -d ' ' -f1) \
             $(head -8 /dev/urandom | cksum | cut -d ' ' -f1) \
@@ -1567,6 +1580,139 @@ check_server_ssl_config()
             tcert=""
         fi
     fi
+}
+
+# Get Common Name (CN) from the certificate:
+openssl_getCN()
+{
+    get_openssl
+    if [ -z "$OPENSSL_BINARY" ]; then
+        wsrep_log_error \
+            'openssl not found but it is required for authentication'
+        exit 42
+    fi
+
+    local bug=0
+    local CN=$("$OPENSSL_BINARY" x509 -noout -subject -in "$1" 2>&1) || bug=1
+
+    if [ $bug -ne 0 ]; then
+        wsrep_log_info "run: \"$OPENSSL_BINARY\" x509 -noout -subject -in \"$1\""
+        wsrep_log_info "output: $CN"
+        wsrep_log_error "******** FATAL ERROR **********************************************"
+        wsrep_log_error "* Unable to parse the certificate file to obtain the common name. *"
+        wsrep_log_error "*******************************************************************"
+        exit 22
+    fi
+
+    CN=$(trim_string "$CN")
+
+    if [ -n "$CN" ]; then
+        # If the string begins with the "subject" prefix
+        # then we need to remove it:
+        local saved="$CN"
+        local remain="${CN#subject}"
+        if [ "$remain" != "$saved" ]; then
+            remain=$(trim_left "$remain")
+            # Now let's check for the presence of "=" character
+            # after the "subject":
+            saved="$remain"
+            remain="${remain#=}"
+            if [ "$remain" != "$saved" ]; then
+                remain=$(trim_left "$remain")
+            else
+                remain=""
+                bug=1
+            fi
+        fi
+        while [ -n "$remain" ]; do
+            local value=""
+            # Let's extract the option name - all characters
+            # up to the first '=' or ',' character (if present):
+            local option="${remain%%[=,]*}"
+            if [ "$option" != "$remain" ]; then
+                option=$(trim_right "$option")
+                # These variables will be needed to determine
+                # which separator comes first:
+                local x="${remain#*=}"
+                local y="${remain#*,}"
+                local z=${#remain}
+                x=${#x}; [ $x -eq $z ] && x=0
+                y=${#y}; [ $y -eq $z ] && y=0
+                # The remaining string is everything that follows
+                # the separator character:
+                remain=$(trim_left "${remain#*[=,]}")
+                # Let's check what we are dealing with - an equal
+                # sign or a comma?
+                if [ $x -gt $y ]; then
+                    # If the remainder begins with a double quote,
+                    # then there is a string containing commas and
+                    # we need to parse it:
+                    saved="$remain"
+                    remain="${remain#\"}"
+                    if [ "$remain" != "$saved" ]; then
+                        while :; do
+                            # We need to find the closing quote:
+                            local prefix="$remain"
+                            remain="${remain#*\"}"
+                            # Let's check if there is a closing quote?
+                            if [ "$remain" = "$prefix" ]; then
+                                bug=1
+                                break
+                            fi
+                            # Everything up to the closing quote is
+                            # the next part of the value:
+                            value="$value${prefix%%\"*}"
+                            # But if the last character of the value
+                            # is a backslash, then it is a quoted quotation
+                            # mark and we need to add it to the value:
+                            if [ "${value%\\}" != "$value" ]; then
+                                value="$value\""
+                            else
+                                break
+                            fi
+                        done
+                        [ $bug -ne 0 ] && break
+                        # Now we have to remove "," if it is present
+                        # in the string after the value:
+                        saved=$(trim_left "$remain")
+                        remain="${saved#,}"
+                        if [ "$remain" != "$saved" ]; then
+                            remain=$(trim_left "$remain")
+                        elif [ -n "$remain" ]; then
+                            bug=1
+                            break
+                        fi
+                    else
+                        # We are dealing with a simple unquoted string value,
+                        # therefore we need to take everything up to the end
+                        # of the string, or up to the next comma character:
+                        value="${remain%%,*}"
+                        if [ "$value" != "$remain" ]; then
+                            remain=$(trim_left "${remain#*,}")
+                        else
+                            remain=""
+                        fi
+                        value=$(trim_right "$value")
+                    fi
+                    if [ "$option" = 'CN' -a -n "$value" ]; then
+                        echo "$value"
+                        return
+                    fi
+                fi
+            else
+                remain=""
+            fi
+        done
+    fi
+
+    if [ $bug -ne 0 ]; then
+        wsrep_log_error "******** FATAL ERROR **********************************************"
+        wsrep_log_error "* Unable to parse the certificate options: '$CN'"
+        wsrep_log_error "*******************************************************************"
+        exit 22
+    fi
+
+    echo ''
 }
 
 simple_cleanup()

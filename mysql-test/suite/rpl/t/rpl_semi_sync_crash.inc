@@ -34,14 +34,16 @@ if ($case == 1)
 if ($case == 2)
 {
   SET DEBUG_SYNC= "commit_before_get_LOCK_commit_ordered SIGNAL con1_ready WAIT_FOR con1_go";
+  SET DEBUG_SYNC= "commit_after_release_LOCK_after_binlog_sync WAIT_FOR con1_go1";
   --send_eval $query_to_crash
   --connect (conn_client_2,127.0.0.1,root,,test,$SERVER_MYPORT_2,)
   # use the same signal with $query_to_crash
   SET DEBUG_SYNC= "now WAIT_FOR con1_ready";
-  SET GLOBAL debug_dbug="d,Notify_binlog_EOF";
+  SET DEBUG_SYNC= "commit_before_get_LOCK_after_binlog_sync SIGNAL con1_go";
+  SET DEBUG_SYNC= "commit_before_get_LOCK_commit_ordered SIGNAL con2_ready";
   --send_eval $query2_to_crash
   --connection server_$server_to_crash
-  SET DEBUG_SYNC= "now WAIT_FOR eof_reached";
+  SET DEBUG_SYNC= "now WAIT_FOR con2_ready";
   --source include/kill_mysqld.inc
 }
 
@@ -68,9 +70,7 @@ source include/wait_for_slave_param.inc;
 --error 2003
 --source include/stop_slave.inc
 
---let $assert_cond= COUNT(*) = $expected_rows_on_slave FROM t1
---let $assert_text= Table t1 should have $expected_rows_on_slave rows.
---source include/assert.inc
+--eval select count(*) 'on slave must be $expected_rows_on_slave' from t1
 
 SELECT @@GLOBAL.gtid_current_pos;
 
@@ -81,9 +81,21 @@ SELECT @@GLOBAL.gtid_current_pos;
 --enable_reconnect
 --source include/wait_until_connected_again.inc
 
---let $assert_cond= COUNT(*) = $expected_rows_on_master FROM t1
---let $assert_text= Table t1 should have $expected_rows_on_master rows.
---source include/assert.inc
+--let $slave_semi_sync_enabled= query_get_value(SHOW VARIABLES LIKE 'Rpl_semi_sync_slave_enabled', Value, 1)
+--echo # Ensuring variable rpl_semi_sync_slave_enabled is ON..
+if (`SELECT strcmp("ON", "$slave_semi_sync_enabled") != 0`)
+{
+  --die Slave started with rpl_semi_sync_slave_enabled=1 yet it is OFF in the variable output
+}
+
+--let $slave_semi_sync_status= query_get_value(SHOW STATUS LIKE 'Rpl_semi_sync_slave_status', Value, 1)
+--echo # Ensuring status rpl_semi_sync_slave_status is OFF..
+if (`SELECT strcmp("OFF", "$slave_semi_sync_status") != 0`)
+{
+  --die Slave started with skip-slave-start yet started with rpl_semi_sync_slave_status=ON
+}
+
+--eval select count(*) 'on master must be $expected_rows_on_master' from t1
 
 # Check error log for correct messages.
 let $log_error_ = $MYSQLTEST_VARDIR/log/mysqld.$server_to_crash.err;

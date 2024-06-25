@@ -1099,10 +1099,6 @@ static TRANSLOG_FILE *get_current_logfile()
 uchar	maria_trans_file_magic[]=
 { (uchar) 254, (uchar) 254, (uchar) 11, '\001', 'M', 'A', 'R', 'I', 'A',
  'L', 'O', 'G' };
-#define LOG_HEADER_DATA_SIZE (sizeof(maria_trans_file_magic) + \
-                              8 + 4 + 4 + 4 + 2 + 3 + \
-                              LSN_STORE_SIZE)
-
 
 /*
   Write log file page header in the just opened new log file
@@ -3458,7 +3454,7 @@ static my_bool translog_truncate_log(TRANSLOG_ADDRESS addr)
   page_rest= next_page_offset - LSN_OFFSET(addr);
   memset(page_buff, TRANSLOG_FILLER, page_rest);
   rc= ((fd= open_logfile_by_number_no_cache(LSN_FILE_NO(addr))) < 0 ||
-       ((mysql_file_chsize(fd, next_page_offset, TRANSLOG_FILLER, MYF(MY_WME)) ||
+       ((mysql_file_chsize(fd, next_page_offset, TRANSLOG_FILLER, MYF(MY_WME)) > 0 ||
          (page_rest && my_pwrite(fd, page_buff, page_rest, LSN_OFFSET(addr),
                                  log_write_flags)) ||
          mysql_file_sync(fd, MYF(MY_WME)))));
@@ -3612,6 +3608,9 @@ static my_bool translog_is_LSN_chunk(uchar type)
   @retval 0 OK
   @retval 1 Error
 */
+
+/* Stack size 26120 from clang */
+PRAGMA_DISABLE_CHECK_STACK_FRAME
 
 my_bool translog_init_with_table(const char *directory,
                                  uint32 log_file_max_size,
@@ -4265,6 +4264,7 @@ err:
   ma_message_no_user(0, "log initialization failed");
   DBUG_RETURN(1);
 }
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 
 /*

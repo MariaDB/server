@@ -19,19 +19,39 @@ connection node_2;
 connection node_1;
 connection node_1;
 # restart: --wsrep_new_cluster --wsrep_gtid_domain_id=200
+SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+VARIABLE_VALUE
+Primary
+SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_state_comment';
+VARIABLE_VALUE
+Synced
 show variables like 'wsrep_gtid_domain_id';
 Variable_name	Value
 wsrep_gtid_domain_id	200
 connection node_2;
 # restart
+SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+VARIABLE_VALUE
+Primary
+SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_state_comment';
+VARIABLE_VALUE
+Synced
 show variables like 'wsrep_gtid_domain_id';
 Variable_name	Value
 wsrep_gtid_domain_id	200
+connection node_1;
 connection node_3;
 # restart: --wsrep_sst_donor=node2
+SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+VARIABLE_VALUE
+Primary
+SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_state_comment';
+VARIABLE_VALUE
+Synced
 show variables like 'wsrep_gtid_domain_id';
 Variable_name	Value
 wsrep_gtid_domain_id	200
+connection node_1;
 connection node_1;
 set global wsrep_gtid_domain_id=100;
 connection node_2;

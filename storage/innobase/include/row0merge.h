@@ -165,14 +165,11 @@ row_merge_drop_indexes(
 prepare_inplace_alter_table_dict(). */
 void row_merge_drop_temp_indexes();
 
-/** Create temporary merge files in the given paramater path, and if
-UNIV_PFS_IO defined, register the file descriptor with Performance Schema.
-@param[in]	path	location for creating temporary merge files, or NULL
+/** Create a temporary file at the specified path.
+@param path location for creating temporary merge files, or nullptr
 @return File descriptor */
-pfs_os_file_t
-row_merge_file_create_low(
-	const char*	path)
-	MY_ATTRIBUTE((warn_unused_result));
+pfs_os_file_t row_merge_file_create_low(const char *path)
+  MY_ATTRIBUTE((warn_unused_result));
 /*********************************************************************//**
 Destroy a merge file. And de-register the file from Performance Schema
 if UNIV_PFS_IO is defined. */

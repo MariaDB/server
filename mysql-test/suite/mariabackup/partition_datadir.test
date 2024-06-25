@@ -14,7 +14,7 @@ PARTITION BY RANGE (i)
  PARTITION p3 VALUES LESS THAN (400) DATA DIRECTORY = '$MYSQLTEST_VARDIR/partitdata',
  PARTITION p4 VALUES LESS THAN MAXVALUE);
 INSERT INTO t VALUES (1), (101), (201), (301), (401);
-exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup  --target-dir=$targetdir;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --parallel=10  --target-dir=$targetdir;
 exec $XTRABACKUP --prepare --target-dir=$targetdir;
 DROP TABLE t;
 rmdir $MYSQLTEST_VARDIR/partitdata;

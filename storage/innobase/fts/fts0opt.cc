@@ -1016,7 +1016,7 @@ fts_table_fetch_doc_ids(
 	que_graph_free(graph);
 
 	if (error == DB_SUCCESS) {
-		ib_vector_sort(doc_ids->doc_ids, fts_doc_id_cmp);
+		fts_doc_ids_sort(doc_ids->doc_ids);
 	}
 
 	if (alloc_bk_trx) {

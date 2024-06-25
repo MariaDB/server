@@ -1144,7 +1144,7 @@ t1	CREATE TABLE `t1` (
 drop table t1;
 select hex(concat(coercibility('a')));
 hex(concat(coercibility('a')))
-34
+35
 create table t1 as select concat(coercibility('a')) as c1;
 show create table t1;
 Table	Create Table
@@ -1532,7 +1532,7 @@ t1	CREATE TABLE `t1` (
 drop table t1;
 select coercibility(uuid()), coercibility(cast('a' as char character set latin1));
 coercibility(uuid())	coercibility(cast('a' as char character set latin1))
-5	2
+6	4
 select charset(concat(uuid(), cast('a' as char character set latin1)));
 charset(concat(uuid(), cast('a' as char character set latin1)))
 latin1
@@ -2761,7 +2761,7 @@ hex(concat(a))	a
 drop table t1;
 create table t1 (a year(2));
 Warnings:
-Warning	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Warning	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use 'YEAR(4)' instead
 insert into t1 values (1);
 select hex(concat(a)) from t1;
 hex(concat(a))
@@ -3076,7 +3076,7 @@ drop table t1;
 drop view v1;
 create table t1 (a year(2));
 Warnings:
-Warning	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Warning	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use 'YEAR(4)' instead
 insert into t1 values (1);
 create view v1(a) as select concat(a) from t1;
 show columns from v1;

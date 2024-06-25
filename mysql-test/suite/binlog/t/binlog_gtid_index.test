@@ -87,7 +87,7 @@ INSERT INTO t1 VALUES (305);
 
 # BINLOG_GTID_POS() has a side effect: it increments binlog_gtid_index_hit
 --disable_ps2_protocol
-FLUSH NO_WRITE_TO_BINLOG STATUS;
+FLUSH NO_WRITE_TO_BINLOG GLOBAL STATUS;
 --echo +++ Initial status:
 SHOW STATUS LIKE 'binlog_gtid_index_%';
 --echo +++ GTID Lookup in good index.

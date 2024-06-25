@@ -1,4 +1,4 @@
-/* Copyright 2018-2023 Codership Oy <info@codership.com>
+/* Copyright 2018-2024 Codership Oy <info@codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -201,11 +201,11 @@ extern "C" void wsrep_handle_SR_rollback(THD *bf_thd,
 
   /* Note: do not store/reset globals before wsrep_bf_abort() call
      to avoid losing BF thd context. */
-  mysql_mutex_lock(&victim_thd->LOCK_thd_data);
   if (!(bf_thd && bf_thd != victim_thd))
   {
     DEBUG_SYNC(victim_thd, "wsrep_before_SR_rollback");
   }
+  mysql_mutex_lock(&victim_thd->LOCK_thd_data);
   if (bf_thd)
   {
     wsrep_bf_abort(bf_thd, victim_thd);
@@ -263,12 +263,28 @@ extern "C" my_bool wsrep_thd_order_before(const THD *left, const THD *right)
   return FALSE;
 }
 
+/** Check if wsrep transaction is aborting state.
+
+Calling function should make sure that wsrep transaction state
+can't change during this function.
+
+This function is called from
+wsrep_abort_thd where we hold THD::LOCK_thd_data
+wsrep_handle_mdl_conflict we hold THD::LOCK_thd_data
+wsrep_assert_no_bf_bf_wait we hold lock_sys.latch
+innobase_kill_query we hold THD::LOCK_thd_data (THD::awake_no_mutex)
+
+@param thd         thread handle
+
+@return true       if wsrep transaction is aborting
+@return false      if not
+
+*/
 extern "C" my_bool wsrep_thd_is_aborting(const MYSQL_THD thd)
 {
-  mysql_mutex_assert_owner(&thd->LOCK_thd_data);
-
   const wsrep::client_state& cs(thd->wsrep_cs());
   const enum wsrep::transaction::state tx_state(cs.transaction().state());
+
   switch (tx_state)
   {
     case wsrep::transaction::s_must_abort:
@@ -277,7 +293,7 @@ extern "C" my_bool wsrep_thd_is_aborting(const MYSQL_THD thd)
     case wsrep::transaction::s_aborting:
       return true;
     default:
-      return false;
+      break;
   }
 
   return false;

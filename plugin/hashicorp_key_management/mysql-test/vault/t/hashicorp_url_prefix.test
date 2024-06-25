@@ -16,7 +16,7 @@
 --error 0,1
 --remove_file $LOG_FILE
 
---let $vault_defaults=--plugin-load-add=hashicorp_key_management --hashicorp_key_management=force --hashicorp-key-management-check-kv-version=off --hashicorp-key-management-token="$VAULT_TOKEN"
+--let $vault_defaults=--plugin-load-add=hashicorp_key_management --hashicorp_key_management=force --hashicorp-key-management-check-kv-version=off --hashicorp-key-management-token=$VAULT_TOKEN
 --let $defaults=--defaults-group-suffix=.1 --defaults-file=$MYSQLTEST_VARDIR/my.cnf $vault_defaults --log-error=$LOG_FILE
 
 --error 1
@@ -76,7 +76,7 @@
 
 --remove_file $LOG_FILE
 
---let $restart_parameters=$vault_defaults --hashicorp-key-management-vault-url="$VAULT_ADDR/v1/bug///"
+--let $restart_parameters=$vault_defaults --hashicorp-key-management-vault-url=$VAULT_ADDR/v1/bug///
 --let $restart_noprint=1
 --source include/start_mysqld.inc
 

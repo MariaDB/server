@@ -27,6 +27,12 @@ SET SESSION wsrep_sync_wait=0;
 --connection node_2
 --error ER_LOCK_DEADLOCK
 INSERT INTO t1 VALUES (2);
+
+--connection node_2a
+--let $wait_condition = SELECT VARIABLE_VALUE = 'non-Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+--source include/wait_condition.inc
+
+--connection node_2
 --error ER_UNKNOWN_COM_ERROR
 COMMIT;
 

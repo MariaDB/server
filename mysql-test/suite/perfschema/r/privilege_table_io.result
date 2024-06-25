@@ -6,7 +6,7 @@ update performance_schema.setup_instruments set enabled='NO';
 update performance_schema.setup_instruments set enabled='YES'
   where name like "wait/io/table/%";
 truncate table performance_schema.events_waits_history_long;
-flush status;
+flush global status;
 flush tables;
 # We are forced to suppress here the server response.
 optimize table mysql.user;
@@ -39,7 +39,7 @@ performance_schema_events_waits_history_long_size	10000
 performance_schema_events_waits_history_size	10
 performance_schema_hosts_size	100
 performance_schema_max_cond_classes	90
-performance_schema_max_cond_instances	1000
+performance_schema_max_cond_instances	1500
 performance_schema_max_digest_length	1024
 performance_schema_max_file_classes	80
 performance_schema_max_file_handles	32768
@@ -63,7 +63,7 @@ performance_schema_max_table_handles	1000
 performance_schema_max_table_instances	500
 performance_schema_max_table_lock_stat	500
 performance_schema_max_thread_classes	50
-performance_schema_max_thread_instances	200
+performance_schema_max_thread_instances	400
 performance_schema_session_connect_attrs_size	2048
 performance_schema_setup_actors_size	100
 performance_schema_setup_objects_size	100
@@ -167,11 +167,11 @@ Performance_schema_thread_classes_lost	0
 Performance_schema_thread_instances_lost	0
 Performance_schema_users_lost	0
 truncate performance_schema.events_waits_history_long;
-flush status;
+flush global status;
 update performance_schema.setup_consumers set enabled='NO';
 truncate performance_schema.events_waits_history_long;
 drop table test.marker;
-flush status;
+flush global status;
 update performance_schema.setup_instruments set enabled='YES';
 update performance_schema.setup_consumers set enabled='YES';
 update performance_schema.setup_objects set enabled='NO'

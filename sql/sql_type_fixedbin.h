@@ -1135,6 +1135,11 @@ public:
     return FbtImpl::max_char_length();
   }
 
+  const Type_handler *type_handler_for_implicit_upgrade() const override
+  {
+    return TypeCollectionImpl::singleton()->
+             type_handler_for_implicit_upgrade(this);
+  }
   const Type_handler *type_handler_for_comparison() const override
   {
     return this;
@@ -1951,6 +1956,12 @@ public:
                                            const override
   {
     return NULL;
+  }
+
+  const Type_handler *type_handler_for_implicit_upgrade(
+                                               const Type_handler *from) const
+  {
+    return from;
   }
 
   static Type_collection_fbt *singleton()

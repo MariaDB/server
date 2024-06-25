@@ -44,8 +44,6 @@ rpl_slave_state *rpl_global_gtid_slave_state;
 /* Object used for MASTER_GTID_WAIT(). */
 gtid_waiting rpl_global_gtid_waiting;
 
-const char *const Relay_log_info::state_delaying_string = "Waiting until MASTER_DELAY seconds after master executed event";
-
 Relay_log_info::Relay_log_info(bool is_slave_recovery, const char* thread_name)
   :Slave_reporting_capability(thread_name),
    replicate_same_server_id(::replicate_same_server_id),
@@ -939,6 +937,11 @@ int Relay_log_info::wait_for_pos(THD* thd, String* log_name,
     DBUG_PRINT("info",("Got signal of master update or timed out"));
     if (error == ETIMEDOUT || error == ETIME)
     {
+      my_printf_error(ER_UNKNOWN_ERROR,
+                      "Timeout waiting for %s:%llu. Current pos is %s:%llu",
+                      MYF(ME_ERROR_LOG | ME_NOTE),
+                      log_name_tmp, (ulonglong) log_pos,
+                      group_master_log_name, (ulonglong) group_master_log_pos);
       error= -1;
       break;
     }
@@ -959,6 +962,17 @@ improper_arguments: %d  timed_out: %d",
   if (thd->killed || init_abort_pos_wait != abort_pos_wait ||
       !slave_running)
   {
+    const char *cause= 0;
+    if (init_abort_pos_wait != abort_pos_wait)
+      cause= "CHANGE MASTER detected";
+    else if (!slave_running)
+      cause="slave is not running";
+    else
+      cause="connection was killed";
+    my_printf_error(ER_UNKNOWN_ERROR,
+                    "master_pos_wait() was aborted because %s",
+                    MYF(ME_ERROR_LOG | ME_NOTE),
+                    cause);
     error= -2;
   }
   DBUG_RETURN( error ? error : event_count );
@@ -2248,18 +2262,19 @@ delete_or_keep_event_post_apply(rpl_group_info *rgi,
 }
 
 
-void rpl_group_info::cleanup_context(THD *thd, bool error)
+void rpl_group_info::cleanup_context(THD *thd, bool error, bool keep_domain_owner)
 {
   DBUG_ENTER("rpl_group_info::cleanup_context");
   DBUG_PRINT("enter", ("error: %d", (int) error));
   
   DBUG_ASSERT(this->thd == thd);
   /*
-    1) Instances of Table_map_log_event, if ::do_apply_event() was called on them,
-    may have opened tables, which we cannot be sure have been closed (because
-    maybe the Rows_log_event have not been found or will not be, because slave
-    SQL thread is stopping, or relay log has a missing tail etc). So we close
-    all thread's tables. And so the table mappings have to be cancelled.
+    1) Instances of Table_map_log_event, if ::do_apply_event() was
+    called on them, may have opened tables, which we cannot be sure
+    have been closed (because maybe the Rows_log_event have not been
+    found or will not be, because slave SQL thread is stopping, or
+    relay log has a missing tail etc). So we close all thread's
+    tables. And so the table mappings have to be cancelled.
     2) Rows_log_event::do_apply_event() may even have started statements or
     transactions on them, which we need to rollback in case of error.
     3) If finding a Format_description_log_event after a BEGIN, we also need
@@ -2268,6 +2283,11 @@ void rpl_group_info::cleanup_context(THD *thd, bool error)
   */
   if (unlikely(error))
   {
+    /*
+      We have to reset the error as otherwise we get an assert in
+      trans_rollback() when it checks if the rollback caused an error.
+    */
+    thd->clear_error();
     trans_rollback_stmt(thd); // if a "statement transaction"
     /* trans_rollback() also resets OPTION_GTID_BEGIN */
     trans_rollback(thd);      // if a "real transaction"
@@ -2303,7 +2323,7 @@ void rpl_group_info::cleanup_context(THD *thd, bool error)
       Ensure we always release the domain for others to process, when using
       --gtid-ignore-duplicates.
     */
-    if (gtid_ignore_duplicate_state != GTID_DUPLICATE_NULL)
+    if (gtid_ignore_duplicate_state != GTID_DUPLICATE_NULL && !keep_domain_owner)
       rpl_global_gtid_slave_state->release_domain_owner(this);
   }
 

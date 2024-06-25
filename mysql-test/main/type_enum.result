@@ -1699,7 +1699,7 @@ a ENUM('ä','ö','ü') character set utf8 default 'ü'
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` enum('ä','ö','ü') CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT 'ü'
+  `a` enum('ä','ö','ü') CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT 'ü'
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 insert into t1 values ('ä'), ('ö'), ('ü');
 select a from t1 order by a;

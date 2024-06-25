@@ -77,7 +77,6 @@ SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argum
 argument
 select `pkey`,`val` from `auto_test_remote`.`tbl_a`
 select `pkey`,`val` from `auto_test_remote`.`tbl_a` where `pkey` = 1
-select 1 from (select 1) t0
 select `pkey`,`val` from `auto_test_remote`.`tbl_a`
 select `pkey`,`val` from `auto_test_remote`.`tbl_a`
 SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %'
@@ -91,7 +90,6 @@ argument
 select `pkey`,`val` from `auto_test_remote2`.`tbl_a`
 select `pkey`,`val` from `auto_test_remote2`.`tbl_a`
 select `pkey`,`val` from `auto_test_remote2`.`tbl_a` where `pkey` = 2
-select 1 from (select 1) t0
 select `pkey`,`val` from `auto_test_remote2`.`tbl_a`
 SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %'
 SELECT pkey, val FROM tbl_a ORDER BY pkey;

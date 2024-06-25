@@ -13,7 +13,7 @@ call mtr.add_suppression("InnoDB: Trying to delete tablespace.*pending operation
 
 # Re-create the undo log tablespaces after slow shutdown
 SET GLOBAL innodb_fast_shutdown=0;
-let $restart_parameters="--innodb_undo_tablespaces=2";
+let $restart_parameters=--innodb_undo_tablespaces=2;
 --source include/restart_mysqld.inc
 
 SET GLOBAL innodb_undo_log_truncate = 0;
@@ -46,6 +46,7 @@ connection con1; reap; send delete from t1;
 connection con2; reap; delete from t2;
 connection con1; reap;
 
+SET GLOBAL innodb_max_undo_log_size = @@GLOBAL.innodb_page_size * 4294967296;
 SET GLOBAL innodb_undo_log_truncate = 1;
 commit; disconnect con1;
 connection con2; commit; disconnect con2;
@@ -56,6 +57,8 @@ connection default;
 let $trx_before= `SHOW ENGINE INNODB STATUS`;
 let $trx_before= `select substr('$trx_before',9)+2`;
 
+SET GLOBAL innodb_max_purge_lag_wait=0;
+SET GLOBAL innodb_max_undo_log_size=DEFAULT;
 SET GLOBAL innodb_max_purge_lag_wait=0;
 set global innodb_fast_shutdown=0;
 let $restart_parameters=;

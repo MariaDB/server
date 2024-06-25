@@ -1,5 +1,6 @@
 --source include/have_utf8mb4.inc
 
+SET character_set_collations='utf8mb4=utf8mb4_general_ci';
 
 CREATE TABLE t0 (a VARCHAR(64));
 INSERT INTO t0 VALUES
@@ -366,6 +367,8 @@ DROP TABLE results_alter_db;
 DROP TABLE results_create_table;
 DROP TABLE results_alter_table;
 DROP TABLE results_convert_table;
+
+SET character_set_collations=DEFAULT;
 
 --echo #
 --echo # MDEV-30003 Assertion failure upon 2nd execution of SP trying to set collation on non-existing database

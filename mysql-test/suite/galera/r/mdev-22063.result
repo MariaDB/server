@@ -1,0 +1,241 @@
+connection node_2;
+connection node_1;
+# Case 1 CREATE SEQUENCE with no NOCACHE
+CREATE SEQUENCE s ENGINE=InnoDB;
+ERROR 42000: This version of MariaDB doesn't yet support 'CACHE without INCREMENT BY 0 in Galera cluster'
+CREATE SEQUENCE s NOCACHE ENGINE=InnoDB;
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+START TRANSACTION;
+REPLACE INTO s VALUES (1,1,9223372036854775806,1,1,1000,0,0);
+OPTIMIZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	note	Table does not support optimize, doing recreate + analyze instead
+test.t1	optimize	status	OK
+SELECT * FROM t1;
+a
+SELECT * FROM s;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+1	1	9223372036854775806	1	1	1000	0	0
+connection node_2;
+SELECT * FROM t1;
+a
+SELECT * FROM s;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+1	1	9223372036854775806	1	1	1000	0	0
+connection node_1;
+DROP TABLE t1;
+DROP SEQUENCE s;
+# Case 2 REPLACE INTO ... SELECT with error
+CREATE TABLE t (id INT KEY,a YEAR,INDEX (id,a)) engine=innodb;
+REPLACE INTO t (id,a)SELECT /*!99997 */ 1;
+ERROR 21S01: Column count doesn't match value count at row 1
+REPLACE INTO t (id,a)SELECT /*!99997 */ 1,2;
+SELECT * FROM t;
+id	a
+1	2002
+CREATE TABLE t2 (id INT KEY,a YEAR,INDEX (id,a)) engine=myisam;
+REPLACE INTO t2 (id,a)SELECT /*!99997 */ 1;
+ERROR 21S01: Column count doesn't match value count at row 1
+REPLACE INTO t2 (id,a)SELECT /*!99997 */ 1,2;
+Warnings:
+Warning	138	Galera cluster does support consistency check only for InnoDB tables.
+SELECT * FROM t2;
+id	a
+1	2002
+CREATE TABLE t3 (id INT KEY,a YEAR,INDEX (id,a)) engine=aria;
+REPLACE INTO t3 (id,a)SELECT /*!99997 */ 1;
+ERROR 21S01: Column count doesn't match value count at row 1
+REPLACE INTO t3 (id,a)SELECT /*!99997 */ 1,2;
+Warnings:
+Warning	138	Galera cluster does support consistency check only for InnoDB tables.
+SELECT * FROM t3;
+id	a
+1	2002
+connection node_2;
+SELECT * FROM t;
+id	a
+1	2002
+SELECT * FROM t2;
+id	a
+1	2002
+SELECT * FROM t3;
+id	a
+1	2002
+connection node_1;
+DROP TABLE t,t2,t3;
+# Bigger REPLACE ... AS SELECT test
+CREATE TABLE t1(id int not null primary key ,b int) ENGINE=InnoDB;
+CREATE TABLE t2(id int not null primary key ,b int) ENGINE=MyISAM;
+CREATE TABLE t3(id int not null primary key ,b int) ENGINE=Aria;
+CREATE TABLE t4(id int not null primary key ,b int) ENGINE=InnoDB;
+CREATE TABLE t5(id int not null primary key ,b int) ENGINE=InnoDB;
+CREATE TABLE t6(id int not null primary key ,b int) ENGINE=InnoDB;
+CREATE TABLE t7(id int not null primary key ,b int) ENGINE=MyISAM;
+CREATE TABLE t8(id int not null primary key ,b int) ENGINE=Aria;
+INSERT INTO t1(id) SELECT seq FROM seq_1_to_1000;
+INSERT INTO t2(id) SELECT seq FROM seq_1_to_1000;
+INSERT INTO t3(id) SELECT seq FROM seq_1_to_1000;
+REPLACE INTO t4 SELECT * FROM t1;
+REPLACE INTO t5 SELECT * FROM t2;
+REPLACE INTO t6 SELECT * FROM t3;
+REPLACE INTO t7 SELECT * FROM t2;
+REPLACE INTO t8 SELECT * FROM t3;
+SELECT COUNT(*) AS EXPECT_1000 FROM t1;
+EXPECT_1000
+1000
+SELECT COUNT(*) AS EXPECT_1000 FROM t2;
+EXPECT_1000
+1000
+SELECT COUNT(*) AS EXPECT_1000 FROM t3;
+EXPECT_1000
+1000
+SELECT COUNT(*) AS EXPECT_1000 FROM t4;
+EXPECT_1000
+1000
+SELECT COUNT(*) AS EXPECT_1000 FROM t5;
+EXPECT_1000
+1000
+SELECT COUNT(*) AS EXPECT_1000 FROM t6;
+EXPECT_1000
+1000
+SELECT COUNT(*) AS EXPECT_1000 FROM t7;
+EXPECT_1000
+1000
+SELECT COUNT(*) AS EXPECT_1000 FROM t8;
+EXPECT_1000
+1000
+connection node_2;
+SELECT COUNT(*) AS EXPECT_1000 FROM t1;
+EXPECT_1000
+1000
+SELECT COUNT(*) AS EXPECT_1000 FROM t2;
+EXPECT_1000
+1000
+SELECT COUNT(*) AS EXPECT_1000 FROM t3;
+EXPECT_1000
+1000
+SELECT COUNT(*) AS EXPECT_1000 FROM t4;
+EXPECT_1000
+1000
+SELECT COUNT(*) AS EXPECT_1000 FROM t5;
+EXPECT_1000
+1000
+SELECT COUNT(*) AS EXPECT_1000 FROM t6;
+EXPECT_1000
+1000
+SELECT COUNT(*) AS EXPECT_1000 FROM t7;
+EXPECT_1000
+1000
+SELECT COUNT(*) AS EXPECT_1000 FROM t8;
+EXPECT_1000
+1000
+connection node_1;
+DROP TABLE t1,t2,t3,t4,t5,t6,t7,t8;
+# Bigger INSERT INTO ... SELECT test
+CREATE TABLE t1(id int not null primary key ,b int) ENGINE=InnoDB;
+CREATE TABLE t2(id int not null primary key ,b int) ENGINE=MyISAM;
+CREATE TABLE t3(id int not null primary key ,b int) ENGINE=Aria;
+CREATE TABLE t4(id int not null primary key ,b int) ENGINE=InnoDB;
+CREATE TABLE t5(id int not null primary key ,b int) ENGINE=InnoDB;
+CREATE TABLE t6(id int not null primary key ,b int) ENGINE=InnoDB;
+CREATE TABLE t7(id int not null primary key ,b int) ENGINE=MyISAM;
+CREATE TABLE t8(id int not null primary key ,b int) ENGINE=Aria;
+INSERT INTO t1(id) SELECT seq FROM seq_1_to_1000;
+INSERT INTO t2(id) SELECT seq FROM seq_1_to_1000;
+INSERT INTO t3(id) SELECT seq FROM seq_1_to_1000;
+INSERT INTO t4 SELECT * FROM t1;
+INSERT INTO t5 SELECT * FROM t2;
+INSERT INTO t6 SELECT * FROM t3;
+INSERT INTO t7 SELECT * FROM t2;
+INSERT INTO t8 SELECT * FROM t3;
+SELECT COUNT(*) AS EXPECT_1000 FROM t1;
+EXPECT_1000
+1000
+SELECT COUNT(*) AS EXPECT_1000 FROM t2;
+EXPECT_1000
+1000
+SELECT COUNT(*) AS EXPECT_1000 FROM t3;
+EXPECT_1000
+1000
+SELECT COUNT(*) AS EXPECT_1000 FROM t4;
+EXPECT_1000
+1000
+SELECT COUNT(*) AS EXPECT_1000 FROM t5;
+EXPECT_1000
+1000
+SELECT COUNT(*) AS EXPECT_1000 FROM t6;
+EXPECT_1000
+1000
+SELECT COUNT(*) AS EXPECT_1000 FROM t7;
+EXPECT_1000
+1000
+SELECT COUNT(*) AS EXPECT_1000 FROM t8;
+EXPECT_1000
+1000
+connection node_2;
+SELECT COUNT(*) AS EXPECT_1000 FROM t1;
+EXPECT_1000
+1000
+SELECT COUNT(*) AS EXPECT_1000 FROM t2;
+EXPECT_1000
+1000
+SELECT COUNT(*) AS EXPECT_1000 FROM t3;
+EXPECT_1000
+1000
+SELECT COUNT(*) AS EXPECT_1000 FROM t4;
+EXPECT_1000
+1000
+SELECT COUNT(*) AS EXPECT_1000 FROM t5;
+EXPECT_1000
+1000
+SELECT COUNT(*) AS EXPECT_1000 FROM t6;
+EXPECT_1000
+1000
+SELECT COUNT(*) AS EXPECT_1000 FROM t7;
+EXPECT_1000
+1000
+SELECT COUNT(*) AS EXPECT_1000 FROM t8;
+EXPECT_1000
+1000
+connection node_1;
+DROP TABLE t1,t2,t3,t4,t5,t6,t7,t8;
+CREATE TABLE t1(pk int not null primary key) engine=innodb;
+INSERT INTO t1 values (1),(2),(3),(4);
+CREATE VIEW view_t1 AS SELECT * FROM t1;
+INSERT INTO view_t1 VALUES (5);
+SELECT * FROM t1;
+pk
+1
+2
+3
+4
+5
+DROP TABLE t1;
+DROP VIEW view_t1;
+CREATE TABLE t1(pk int not null primary key) engine=myisam;
+INSERT INTO t1 values (1),(2),(3),(4);
+CREATE VIEW view_t1 AS SELECT * FROM t1;
+INSERT INTO view_t1 VALUES (5);
+SELECT * FROM t1;
+pk
+1
+2
+3
+4
+5
+DROP TABLE t1;
+DROP VIEW view_t1;
+CREATE TABLE t1(pk int not null primary key) engine=aria;
+INSERT INTO t1 values (1),(2),(3),(4);
+CREATE VIEW view_t1 AS SELECT * FROM t1;
+INSERT INTO view_t1 VALUES (5);
+SELECT * FROM t1;
+pk
+1
+2
+3
+4
+5
+DROP TABLE t1;
+DROP VIEW view_t1;
+SET GLOBAL wsrep_mode=DEFAULT;

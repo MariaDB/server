@@ -140,7 +140,7 @@ insert into t1(x, row_start, row_end) values (3, '1980-01-01 00:00:00', '1980-01
 insert into t2(y, row_start, row_end) values (4, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
 insert into t3 values (5, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
 insert into t3 values (5, '1980-01-02 00:00:00', '1980-01-01 00:00:01');
-ERROR HY000: Incorrect row_start value: '1980-01-02 00:00:00.000000'
+ERROR HY000: Incorrect system-version range 'row_start' value: '1980-01-02 00:00:00.000000' and 'row_end' value: '1980-01-01 00:00:01.000000'
 select x, row_start, row_end from t1 for system_time all;
 x	row_start	row_end
 3	1980-01-01 00:00:00.000000	1980-01-01 00:00:01.000000
@@ -166,13 +166,13 @@ ERROR HY000: The value specified for generated column 'row_end' in table 't2' ha
 insert into t1 values (4);
 insert into t1 set x= 5, row_start= '1980-01-01 00:00:00', row_end= '1980-01-01 00:00:01';
 insert into t1(x, row_start, row_end) values (6, '1980-01-01 00:00:01', '1980-01-01 00:00:00');
-ERROR HY000: Incorrect row_start value: '1980-01-01 00:00:01.000000'
+ERROR HY000: Incorrect system-version range 'row_start' value: '1980-01-01 00:00:01.000000' and 'row_end' value: '1980-01-01 00:00:00.000000'
 insert into t1(x, row_start, row_end) values (7, '1980-01-01 00:00:11', '1980-01-01 00:00:11');
-ERROR HY000: Incorrect row_start value: '1980-01-01 00:00:11.000000'
+ERROR HY000: Incorrect system-version range 'row_start' value: '1980-01-01 00:00:11.000000' and 'row_end' value: '1980-01-01 00:00:11.000000'
 insert into t1(x, row_start) values (8, '1980-01-01 00:00:22');
 insert into t1(x, row_end) values (9, '1980-01-01 00:00:33');
-ERROR HY000: Incorrect row_start value: 'now'
-insert into t1(x, row_end) values (10, TIMESTAMP'2038-01-19 03:14:07.999999');
+ERROR HY000: Incorrect system-version range 'row_start' value: 'now'
+insert into t1(x, row_end) values (10, MAX_TIMESTAMP);
 select x, check_row_ts(row_start, row_end) from t1 for system_time all order by x;
 x	check_row_ts(row_start, row_end)
 1	HISTORICAL ROW
@@ -183,7 +183,7 @@ x	check_row_ts(row_start, row_end)
 8	CURRENT ROW
 10	CURRENT ROW
 select x, row_start, row_end from t1 for system_time all
-where x > 1 and row_end < TIMESTAMP'2038-01-19 03:14:07.999999' order by x, row_start, row_end;
+where x > 1 and row_end < MAX_TIMESTAMP order by x, row_start, row_end;
 x	row_start	row_end
 3	1980-01-01 00:00:00.000000	1980-01-01 00:00:01.000000
 5	1980-01-01 00:00:00.000000	1980-01-01 00:00:01.000000
@@ -210,7 +210,7 @@ x	check_row_ts(row_start, row_end)
 8	CURRENT ROW
 10	CURRENT ROW
 select x, row_start, row_end from t2 for system_time all
-where x > 1 and row_end < TIMESTAMP'2038-01-19 03:14:07.999999' order by x, row_start, row_end;
+where x > 1 and row_end < MAX_TIMESTAMP order by x, row_start, row_end;
 x	row_start	row_end
 3	1980-01-01 00:00:00.000000	1980-01-01 00:00:01.000000
 5	1980-01-01 00:00:00.000000	1980-01-01 00:00:01.000000

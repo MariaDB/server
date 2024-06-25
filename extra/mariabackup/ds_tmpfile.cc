@@ -41,7 +41,7 @@ typedef struct {
 
 static ds_ctxt_t *tmpfile_init(const char *root);
 static ds_file_t *tmpfile_open(ds_ctxt_t *ctxt, const char *path,
-			       MY_STAT *mystat);
+			const MY_STAT *mystat, bool rewrite);
 static int tmpfile_write(ds_file_t *file, const uchar *buf, size_t len);
 static int tmpfile_close(ds_file_t *file);
 static void tmpfile_deinit(ds_ctxt_t *ctxt);
@@ -50,8 +50,11 @@ datasink_t datasink_tmpfile = {
 	&tmpfile_init,
 	&tmpfile_open,
 	&tmpfile_write,
+	nullptr,
 	&tmpfile_close,
 	&dummy_remove,
+	nullptr,
+	nullptr,
 	&tmpfile_deinit
 };
 
@@ -80,8 +83,9 @@ tmpfile_init(const char *root)
 
 static ds_file_t *
 tmpfile_open(ds_ctxt_t *ctxt, const char *path,
-			       MY_STAT *mystat)
+			const MY_STAT *mystat, bool rewrite)
 {
+  DBUG_ASSERT(rewrite == false);
 	ds_tmpfile_ctxt_t	*tmpfile_ctxt;
 	char			 tmp_path[FN_REFLEN];
 	ds_tmp_file_t		*tmp_file;

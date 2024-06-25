@@ -81,6 +81,7 @@ struct Name_resolution_context;
 class Table_function_json_table;
 class Open_table_context;
 class MYSQL_LOG;
+struct rpl_group_info;
 
 /*
   Used to identify NESTED_JOIN structures within a join (applicable only to
@@ -464,6 +465,11 @@ enum enum_table_category
   TABLE_CATEGORY_SYSTEM=3,
 
   /**
+     Persistent statistics table
+  */
+  TABLE_CATEGORY_STATISTICS= 4,
+
+  /**
     Log tables.
     These tables are an interface provided by the system
     to inspect the system logs.
@@ -483,7 +489,12 @@ enum enum_table_category
     The server implementation perform writes.
     Log tables are cached in the table cache.
   */
-  TABLE_CATEGORY_LOG=4,
+  TABLE_CATEGORY_LOG=5,
+
+  /**
+     Other tables in the mysql schema, like global_priv and db
+  */
+  TABLE_CATEGORY_MYSQL= 6,
 
   /*
     Types below are read only tables, not affected by FLUSH TABLES or
@@ -509,7 +520,7 @@ enum enum_table_category
     to I_S tables in the table cache, which should use
     this table type.
   */
-  TABLE_CATEGORY_INFORMATION=5,
+  TABLE_CATEGORY_INFORMATION=7,
 
   /**
     Performance schema tables.
@@ -531,7 +542,7 @@ enum enum_table_category
     The server implementation perform writes.
     Performance tables are cached in the table cache.
   */
-  TABLE_CATEGORY_PERFORMANCE=6
+  TABLE_CATEGORY_PERFORMANCE=8
 };
 
 typedef enum enum_table_category TABLE_CATEGORY;
@@ -1916,6 +1927,7 @@ public:
 #endif
 
   int update_generated_fields();
+  void period_prepare_autoinc();
   int period_make_insert(Item *src, Field *dst);
   int insert_portion_of_time(THD *thd, const vers_select_conds_t &period_conds,
                              ha_rows *rows_inserted);
@@ -1926,6 +1938,9 @@ public:
   bool vers_update_fields();
   /* Used in DELETE, DUP REPLACE and insert history row */
   void vers_update_end();
+#ifdef HAVE_REPLICATION
+  void vers_fix_old_timestamp(rpl_group_info *rgi);
+#endif
   void find_constraint_correlated_indexes();
 
 /** Number of additional fields used in versioned tables */
@@ -2296,8 +2311,23 @@ struct TABLE_CHAIN
   void set_end_pos(TABLE_LIST **pos) { end_pos= pos; }
 };
 
+class Table_ident;
 struct TABLE_LIST
 {
+  TABLE_LIST(THD *thd,
+             Lex_ident_db db_str,
+             bool fqtn,
+             Lex_ident_table alias_str,
+             bool has_alias_ptr,
+             Table_ident *table_ident,
+             thr_lock_type lock_t,
+             enum_mdl_type mdl_t,
+             ulong table_opts,
+             bool info_schema,
+             st_select_lex *sel,
+             List<Index_hint> *index_hints_ptr,
+             LEX_STRING *option_ptr);
+
   TABLE_LIST() = default;                          /* Remove gcc warning */
 
   enum prelocking_types
@@ -3511,7 +3541,7 @@ public:
      @param[in] field number in a TABLE
      @param[in] value to store
    */
-  void store(uint field_id, timeval ts);
+  void store(uint field_id, my_timeval ts);
   /**
     Update the transaction_registry right before commit.
     @param start_id    transaction identifier at start

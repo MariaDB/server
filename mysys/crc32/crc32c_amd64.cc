@@ -47,6 +47,11 @@
 #include <nmmintrin.h>
 #include <wmmintrin.h>
 
+#ifdef _MSC_VER
+# define USE_PCLMUL /* nothing */
+#else
+# define USE_PCLMUL __attribute__((target("sse4.2,pclmul")))
+#endif
 
 #define CRCtriplet(crc, buf, offset)                  \
   crc##0 = _mm_crc32_u64(crc##0, *(buf##0 + offset)); \
@@ -131,6 +136,7 @@ static const uint64_t clmul_constants alignas(16) [] = {
 };
 
 // Compute the crc32c value for buffer smaller than 8
+USE_PCLMUL
 static inline void align_to_8(
     size_t len,
     uint64_t& crc0, // crc so far, updated on return
@@ -155,6 +161,7 @@ static inline void align_to_8(
 // CombineCRC performs pclmulqdq multiplication of 2 partial CRC's and a well
 // chosen constant and xor's these with the remaining CRC.
 //
+USE_PCLMUL
 static inline uint64_t CombineCRC(
     size_t block_size,
     uint64_t crc0,
@@ -176,6 +183,7 @@ static inline uint64_t CombineCRC(
 
 // Compute CRC-32C using the Intel hardware instruction.
 extern "C"
+USE_PCLMUL
 uint32_t crc32c_3way(uint32_t crc, const char *buf, size_t len)
 {
   const unsigned char* next = (const unsigned char*)buf;

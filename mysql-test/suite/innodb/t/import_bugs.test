@@ -1,4 +1,5 @@
 --source include/have_innodb.inc
+--source include/have_sequence.inc
 
 call mtr.add_suppression("Index for table 'imp_t1' is corrupt; try to repair it");
 
@@ -21,6 +22,67 @@ CREATE TABLE imp_t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
 DROP TABLE imp_t1, t1;
 
 SET GLOBAL innodb_checksum_algorithm=@save_innodb_checksum_algorithm;
+
+--echo #
+--echo # MDEV-33400 Adaptive hash index corruption after DISCARD TABLESPACE
+--echo #
+
+SET @save_adaptive=@@GLOBAL.innodb_adaptive_hash_index;
+SET GLOBAL innodb_adaptive_hash_index=ON;
+
+CREATE TABLE t (a INT PRIMARY KEY) ENGINE=INNODB;
+INSERT INTO t SELECT * FROM seq_1_to_131;
+ALTER TABLE t ADD hid INT DEFAULT 2;
+INSERT INTO t VALUES (251,1);
+ALTER TABLE t DISCARD TABLESPACE;
+CHECK TABLE mysql.innodb_table_stats;
+DROP TABLE t;
+SET GLOBAL innodb_adaptive_hash_index=@save_adaptive;
+
+--echo # End of 10.4 tests
+
+--echo #
+--echo # MDEV-18288: Transportable Tablespaces leave AUTO_INCREMENT in mismatched
+--echo # state, causing INSERT errors in newly imported tables when .cfg is not used.
+--echo #
+
+CREATE TABLE t1(
+  id INT(10) UNSIGNED NOT NULL AUTO_INCREMENT,
+  PRIMARY KEY (id)
+) ENGINE=INNODB;
+
+CREATE TABLE t2 LIKE t1;
+
+ALTER TABLE t2 DISCARD TABLESPACE;
+
+INSERT INTO t1() VALUES();
+INSERT INTO t1() VALUES();
+
+FLUSH TABLES test.t1 FOR EXPORT;
+
+--echo # Copy data file
+--copy_file $datadir/test/t1.ibd $datadir/test/t2.ibd
+
+--echo # Skip CFG file copy
+#--copy_file $datadir/test/t1.cfg $datadir/test/t2.cfg
+--remove_file $datadir/test/t1.cfg
+
+UNLOCK TABLES;
+DROP TABLE t1;
+
+--replace_regex /opening '.*\/test\//opening '.\/test\//
+ALTER TABLE t2 IMPORT TABLESPACE;
+
+SELECT * FROM t2 ORDER BY id;
+
+INSERT INTO t2() VALUES();
+INSERT INTO t2() VALUES();
+INSERT INTO t2() VALUES();
+
+SELECT * FROM t2 ORDER BY id;
+DROP TABLE t2;
+
+--echo # End of 10.5 tests
 
 --echo #
 --echo # MDEV-27006 Assertion `!lock_trx_has_sys_table_locks(trx)'

@@ -11,7 +11,7 @@ diaries	CREATE TABLE `diaries` (
   `title` varchar(40) DEFAULT NULL,
   `body` varchar(140) DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=Mroonga DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
+) ENGINE=Mroonga DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci
 INSERT INTO diaries (title, body) values ("groonga (1)", "starting groonga.");
 SELECT * FROM diaries;
 id	title	body
@@ -24,7 +24,7 @@ diaries	CREATE TABLE `diaries` (
   `title` varchar(100) DEFAULT NULL,
   `body` varchar(140) DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=Mroonga AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
+) ENGINE=Mroonga AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci
 INSERT INTO diaries (title, body) values ("groonga (2)", "started groonga.");
 SELECT * FROM diaries;
 id	title	body

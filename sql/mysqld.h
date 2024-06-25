@@ -80,7 +80,9 @@ void close_connection(THD *thd, uint sql_errno= 0);
 void handle_connection_in_main_thread(CONNECT *thd);
 void create_thread_to_handle_connection(CONNECT *connect);
 void unlink_thd(THD *thd);
-void refresh_status(THD *thd);
+void refresh_status_legacy(THD *thd);
+void refresh_session_status(THD *thd);
+void refresh_global_status();
 bool is_secure_file_path(char *path);
 extern void init_net_server_extension(THD *thd);
 extern void handle_accepted_socket(MYSQL_SOCKET new_sock, MYSQL_SOCKET sock);
@@ -217,6 +219,8 @@ extern char log_error_file[FN_REFLEN], *opt_tc_log_file, *opt_ddl_recovery_file;
 extern const double log_10[309];
 extern ulonglong keybuff_size;
 extern ulonglong thd_startup_options;
+extern ulonglong global_max_tmp_space_usage;
+extern Atomic_counter<ulonglong> global_tmp_space_used;
 extern my_thread_id global_thread_id;
 extern ulong binlog_cache_use, binlog_cache_disk_use;
 extern ulong binlog_stmt_cache_use, binlog_stmt_cache_disk_use;
@@ -275,11 +279,11 @@ extern ulong executed_events;
 extern char language[FN_REFLEN];
 extern "C" MYSQL_PLUGIN_IMPORT ulong server_id;
 extern ulong concurrency;
-extern time_t server_start_time, flush_status_time;
+extern time_t server_start_time;
 extern char *opt_mysql_tmpdir, mysql_charsets_dir[];
 extern size_t mysql_unpacked_real_data_home_len;
 extern MYSQL_PLUGIN_IMPORT MY_TMPDIR mysql_tmpdir_list;
-extern const char *first_keyword, *delayed_user;
+extern const char *first_keyword, *delayed_user, *slave_user;
 extern MYSQL_PLUGIN_IMPORT const char  *my_localhost;
 extern MYSQL_PLUGIN_IMPORT const char **errmesg;			/* Error messages */
 extern const char *myisam_recover_options_str;
@@ -327,10 +331,6 @@ bool is_set_timestamp_forbidden(THD *thd);
 extern PSI_mutex_key key_PAGE_lock, key_LOCK_sync, key_LOCK_active,
        key_LOCK_pool, key_LOCK_pending_checkpoint;
 #endif /* HAVE_MMAP */
-
-#ifdef HAVE_OPENSSL
-extern PSI_mutex_key key_LOCK_des_key_file;
-#endif
 
 extern PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_xid_list,
   key_BINLOG_LOCK_binlog_background_thread,
@@ -411,7 +411,7 @@ extern PSI_thread_key key_thread_delayed_insert,
 
 extern PSI_file_key key_file_binlog, key_file_binlog_cache,
        key_file_binlog_index, key_file_binlog_index_cache, key_file_casetest,
-  key_file_dbopt, key_file_des_key_file, key_file_ERRMSG, key_select_to_file,
+  key_file_dbopt, key_file_ERRMSG, key_select_to_file,
   key_file_fileparser, key_file_frm, key_file_global_ddl_log, key_file_load,
   key_file_loadfile, key_file_log_event_data, key_file_log_event_info,
   key_file_master_info, key_file_misc, key_file_partition_ddl_log,
@@ -423,6 +423,13 @@ extern PSI_file_key key_file_relaylog, key_file_relaylog_index,
 extern PSI_socket_key key_socket_tcpip, key_socket_unix,
   key_socket_client_connection;
 extern PSI_file_key key_file_binlog_state, key_file_gtid_index;
+
+#ifdef HAVE_des
+extern char* des_key_file;
+extern PSI_file_key key_file_des_key_file;
+extern PSI_mutex_key key_LOCK_des_key_file;
+extern mysql_mutex_t LOCK_des_key_file;
+#endif
 
 #ifdef HAVE_PSI_INTERFACE
 void init_server_psi_keys();
@@ -664,6 +671,7 @@ extern PSI_stage_info stage_user_sleep;
 extern PSI_stage_info stage_verifying_table;
 extern PSI_stage_info stage_waiting_for_ddl;
 extern PSI_stage_info stage_waiting_for_delay_list;
+extern PSI_stage_info stage_waiting_for_disk_space;
 extern PSI_stage_info stage_waiting_for_flush;
 extern PSI_stage_info stage_waiting_for_gtid_to_be_written_to_binary_log;
 extern PSI_stage_info stage_waiting_for_handler_insert;
@@ -780,10 +788,6 @@ extern mysql_mutex_t
 extern MYSQL_PLUGIN_IMPORT mysql_mutex_t LOCK_global_system_variables;
 extern mysql_rwlock_t LOCK_all_status_vars;
 extern mysql_mutex_t LOCK_start_thread;
-#ifdef HAVE_OPENSSL
-extern char* des_key_file;
-extern mysql_mutex_t LOCK_des_key_file;
-#endif
 extern MYSQL_PLUGIN_IMPORT mysql_mutex_t LOCK_server_started;
 extern MYSQL_PLUGIN_IMPORT mysql_cond_t COND_server_started;
 extern mysql_rwlock_t LOCK_grant, LOCK_sys_init_connect, LOCK_sys_init_slave;

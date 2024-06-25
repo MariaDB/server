@@ -242,6 +242,7 @@ class Master_info : public Slave_reporting_capability
   THD *io_thd;
   MYSQL* mysql;
   uint32 file_id;				/* for 3.23 load data infile */
+  uint mysql_version;
   Relay_log_info rli;
   uint port;
   Rpl_filter* rpl_filter;      /* Each replication can set its filter rule*/

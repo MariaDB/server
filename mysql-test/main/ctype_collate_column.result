@@ -4,6 +4,7 @@
 #
 # MDEV-27853 Wrong data type on column `COLLATE DEFAULT` and table `COLLATE some_non_default_collation`
 #
+SET character_set_collations='utf8mb4=utf8mb4_general_ci';
 CREATE TABLE t1 (
 a CHAR(10) COLLATE DEFAULT
 ) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
@@ -11811,6 +11812,7 @@ DROP FUNCTION is_conflicting_charset_explicit_collate_explicit;
 DROP FUNCTION is_conflicting_collate_explicit2;
 DROP FUNCTION is_conflicting_collate_default_collate_explicit;
 DROP FUNCTION collate_cs_default_collation;
+SET character_set_collations=DEFAULT;
 #
 # End of 10.9 tests
 #

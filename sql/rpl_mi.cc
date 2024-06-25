@@ -1188,8 +1188,7 @@ bool Master_info_index::init_all_master_info()
       else
       {
         /* Master_info already in HASH */
-        sql_print_error(ER_THD_OR_DEFAULT(current_thd,
-                                          ER_CONNECTION_ALREADY_EXISTS),
+        sql_print_error(ER_DEFAULT(ER_CONNECTION_ALREADY_EXISTS),
                         (int) connection_name.length, connection_name.str,
                         (int) connection_name.length, connection_name.str);
         mi->unlock_slave_threads();
@@ -1207,8 +1206,7 @@ bool Master_info_index::init_all_master_info()
                                              Sql_condition::WARN_LEVEL_NOTE))
       {
         /* Master_info was already registered */
-        sql_print_error(ER_THD_OR_DEFAULT(current_thd,
-                                          ER_CONNECTION_ALREADY_EXISTS),
+        sql_print_error(ER_DEFAULT(ER_CONNECTION_ALREADY_EXISTS),
                         (int) connection_name.length, connection_name.str,
                         (int) connection_name.length, connection_name.str);
         mi->unlock_slave_threads();

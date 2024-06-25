@@ -7,5 +7,5 @@ SHOW CREATE TABLE bugs;
 Table	Create Table
 bugs	CREATE TABLE `bugs` (
   `id` int(10) unsigned DEFAULT NULL
-) ENGINE=Mroonga DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci COMMENT='Free style normal comment'
+) ENGINE=Mroonga DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci COMMENT='Free style normal comment'
 DROP TABLE bugs;

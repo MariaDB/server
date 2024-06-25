@@ -31,7 +31,7 @@ t3	CREATE TABLE `t3` (
 show create TABLE t4;
 Table	Create Table
 t4	CREATE TABLE `t4` (
-  `c` mediumtext CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL
+  `c` mediumtext CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1,t2,t3,t4;
 CREATE TABLE t1 (a char(257) default "hello");
@@ -520,7 +520,7 @@ charset(load_file('../../std_data/words.dat')),
 collation(load_file('../../std_data/words.dat')),
 coercibility(load_file('../../std_data/words.dat'));
 charset(load_file('../../std_data/words.dat'))	collation(load_file('../../std_data/words.dat'))	coercibility(load_file('../../std_data/words.dat'))
-binary	binary	4
+binary	binary	5
 explain extended select
 charset(load_file('MYSQLTEST_VARDIR/std_data/words.dat')),
 collation(load_file('MYSQLTEST_VARDIR/std_data/words.dat')),
@@ -901,7 +901,7 @@ CREATE TABLE b15776 (a char(4294967296));
 ERROR 42000: Column length too big for column 'a' (max = 255); use BLOB or TEXT instead
 CREATE TABLE b15776 (a year(?));
 Warnings:
-Warning	1287	'YEAR(?)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Warning	1287	'YEAR(?)' is deprecated and will be removed in a future release. Please use 'YEAR(4)' instead
 INSERT INTO b15776 VALUES (42);
 SELECT * FROM b15776;
 a
@@ -909,7 +909,7 @@ a
 DROP TABLE b15776;
 CREATE TABLE b15776 (a year(4294967296));
 Warnings:
-Warning	1287	'YEAR(4294967295)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Warning	1287	'YEAR(4294967295)' is deprecated and will be removed in a future release. Please use 'YEAR(4)' instead
 SHOW CREATE TABLE b15776;
 Table	Create Table
 b15776	CREATE TABLE `b15776` (
@@ -918,7 +918,7 @@ b15776	CREATE TABLE `b15776` (
 DROP TABLE b15776;
 CREATE TABLE b15776 (a year(0));
 Warnings:
-Warning	1287	'YEAR(0)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Warning	1287	'YEAR(0)' is deprecated and will be removed in a future release. Please use 'YEAR(4)' instead
 DROP TABLE b15776;
 CREATE TABLE b15776 (a year(-2));
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '-2))' at line 1
@@ -938,7 +938,7 @@ CREATE TABLE b15776 (a char(9999999999999999999999999999999999999999999999999999
 ERROR 42000: Column length too big for column 'a' (max = 255); use BLOB or TEXT instead
 CREATE TABLE b15776 (a year(999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999));
 Warnings:
-Warning	1287	'YEAR(4294967295)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Warning	1287	'YEAR(4294967295)' is deprecated and will be removed in a future release. Please use 'YEAR(4)' instead
 SHOW CREATE TABLE b15776;
 Table	Create Table
 b15776	CREATE TABLE `b15776` (
@@ -1085,7 +1085,7 @@ CREATE TABLE t1 (a TEXT(1431655798) CHARACTER SET utf8);
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` longtext CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
+  `a` longtext CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 create table t1 (a int);

@@ -276,7 +276,6 @@ select unix_timestamp('1969-12-01 19:00:01');
 select from_unixtime(-1);
 # check for from_unixtime(2^31-1) and from_unixtime(2^31)
 select from_unixtime(2147483647);
-select from_unixtime(2147483648);
 select from_unixtime(0);
 
 #
@@ -285,18 +284,14 @@ select from_unixtime(0);
 # unix_timestamp are consistent, when working with boundary dates.
 #
 select unix_timestamp(from_unixtime(2147483647));
-select unix_timestamp(from_unixtime(2147483648));
 
 # check for invalid dates
 
 # bad year
-select unix_timestamp('2039-01-20 01:00:00');
 select unix_timestamp('1968-01-20 01:00:00');
 # bad month
-select unix_timestamp('2038-02-10 01:00:00');
 select unix_timestamp('1969-11-20 01:00:00');
 # bad day
-select unix_timestamp('2038-01-20 01:00:00');
 select unix_timestamp('1969-12-30 01:00:00');
 
 #
@@ -309,9 +304,6 @@ select unix_timestamp('2038-01-17 12:00:00');
 # platfroms with unsigned time_t, such as QNX)
 #
 select unix_timestamp('1970-01-01 03:00:01');
-
-# check bad date, close to the boundary (we cut them off in the very end)
-select unix_timestamp('2038-01-19 07:14:07');
 
 #
 # Bug #28759: DAYNAME() and MONTHNAME() return binary string
@@ -3218,3 +3210,42 @@ SELECT CONCAT(MAKETIME('01', '01', LEAST( -100, NULL )));
 --echo #
 
 SELECT FROM_UNIXTIME(LEAST(3696610869, NULL));
+
+
+--echo #
+--echo # Start of 10.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-29149 Assertion `!is_valid_datetime() || fraction_remainder(((item->decimals) < (6) ? (item->decimals) : (6))) == 0' failed in Datetime_truncation_not_needed::Datetime_truncation_not_needed
+--echo #
+
+SET @@timestamp= UNIX_TIMESTAMP('2022-07-21 23:00:00');
+
+SELECT DATE_SUB('2022-07-21 00:00:00', INTERVAL 800 HOUR) AS expected_result;
+
+SELECT
+  IF(1,TIMEDIFF('38:59:59','839:00:00'),CAST('2022-12-12' AS DATE)) AS c1,
+  IF(1,TIMEDIFF('-839:00:00','-38:59:59'),CAST('2022-12-12' AS DATE)) AS c2;
+
+SELECT
+  IF(1,TIMEDIFF(385959,8390000),CAST('2022-12-12' AS DATE)) AS c1,
+  IF(1,TIMEDIFF(-8390000,-385959),CAST('2022-12-12' AS DATE)) AS c2;
+
+SELECT
+  TIMEDIFF('38:59:59','839:00:00') AS c1,
+  CAST(TIMEDIFF('38:59:59','839:00:00') AS TIME(6)) AS c2,
+  TIMEDIFF('839:00:00','38:59:59') AS c3,
+  CAST(TIMEDIFF('839:00:00','38:59:59') AS TIME(6)) AS c4;
+
+SELECT
+  TIMEDIFF(385959,8390000) AS c1,
+  CAST(TIMEDIFF(385959,8390000) AS TIME(6)) AS c2,
+  TIMEDIFF(8390000,385959) AS c3,
+  CAST(TIMEDIFF(8390000,385959) AS TIME(6)) AS c4;
+
+SET @@timestamp= DEFAULT;
+
+--echo #
+--echo # End of 10.5 tests
+--echo #

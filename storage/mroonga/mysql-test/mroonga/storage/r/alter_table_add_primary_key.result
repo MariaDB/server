@@ -10,7 +10,7 @@ Table	Create Table
 ids	CREATE TABLE `ids` (
   `id` int(11) NOT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=Mroonga DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
+) ENGINE=Mroonga DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci
 SELECT * FROM ids WHERE id = 2;
 id
 2

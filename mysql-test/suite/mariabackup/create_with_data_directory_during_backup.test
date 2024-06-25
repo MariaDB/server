@@ -8,7 +8,7 @@ mkdir $table_data_dir;
 echo # xtrabackup backup;
 let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
 --disable_result_log
-exec   $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir --dbug=+d,mariabackup_events;
+exec   $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --parallel=10 --target-dir=$targetdir --dbug=+d,mariabackup_events;
 --enable_result_log
 --source include/shutdown_mysqld.inc
 echo # xtrabackup prepare;

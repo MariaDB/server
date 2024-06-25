@@ -225,16 +225,9 @@ int mi_extra(MI_INFO *info, enum ha_extra_function function, void *extra_arg)
     }
     if (mi_is_any_key_active(share->state.key_map))
     {
-      MI_KEYDEF *key=share->keyinfo;
-      uint i;
-      for (i=0 ; i < share->base.keys ; i++,key++)
-      {
-        if (!(key->flag & HA_NOSAME) && info->s->base.auto_key != i+1)
-        {
-          mi_clear_key_active(share->state.key_map, i);
-          info->update|= HA_STATE_CHANGED;
-        }
-      }
+      if (share->state.key_map != *(ulonglong*)extra_arg)
+        info->update|= HA_STATE_CHANGED;
+      share->state.key_map= *(ulonglong*)extra_arg;
 
       if (!share->changed)
       {

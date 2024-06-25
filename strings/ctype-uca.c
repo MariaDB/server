@@ -39308,18 +39308,24 @@ my_uca1400_collation_definition_init(MY_CHARSET_LOADER *loader,
     *dst= nopad ? my_charset_utf8mb4_unicode_520_nopad_ci :
                   my_charset_utf8mb4_unicode_520_ci;
     break;
+#ifdef HAVE_CHARSET_ucs2
   case MY_CS_ENCODING_UCS2:
     *dst= nopad ? my_charset_ucs2_unicode_520_nopad_ci :
                   my_charset_ucs2_unicode_520_ci;
     break;
+#endif
+#ifdef HAVE_CHARSET_utf16
   case MY_CS_ENCODING_UTF16:
     *dst= nopad ? my_charset_utf16_unicode_520_nopad_ci :
                   my_charset_utf16_unicode_520_ci;
     break;
+#endif
+#ifdef HAVE_CHARSET_utf32
   case MY_CS_ENCODING_UTF32:
     *dst= nopad ? my_charset_utf32_unicode_520_nopad_ci :
                   my_charset_utf32_unicode_520_ci;
     break;
+#endif
   }
 
   dst->number= id;

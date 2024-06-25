@@ -83,6 +83,9 @@
 #pragma GCC diagnostic ignored "-Wunused-label" /* yyexhaustedlab: */
 #endif
 
+/* Stack size 28200 with clang for MYSQLparse() and ORAparse() */
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 int yylex(void *yylval, void *yythd);
 
 #define yyoverflow(A,B,C,D,E,F)               \
@@ -8220,6 +8223,7 @@ mi_repair_type:
           QUICK        { Lex->check_opt.flags|= T_QUICK; }
         | EXTENDED_SYM { Lex->check_opt.flags|= T_EXTEND; }
         | USE_FRM      { Lex->check_opt.sql_flags|= TT_USEFRM; }
+        | FORCE_SYM    { Lex->check_opt.sql_flags|= TT_FORCE; }
         ;
 
 opt_view_repair_type:
@@ -14669,7 +14673,16 @@ flush_option:
             Lex->relay_log_connection_name= empty_clex_str;
           }
         | STATUS_SYM
-          { Lex->type|= REFRESH_STATUS; }
+          {
+            if (thd->variables.old_behavior & OLD_MODE_OLD_FLUSH_STATUS)
+              Lex->type|= REFRESH_STATUS;
+            else
+              Lex->type|= REFRESH_SESSION_STATUS;
+          }
+        | SESSION_SYM STATUS_SYM
+          { Lex->type|= REFRESH_SESSION_STATUS; }
+        | GLOBAL_SYM STATUS_SYM
+          { Lex->type|= REFRESH_GLOBAL_STATUS; }
         | SLAVE optional_connection_name 
           { 
             LEX *lex= Lex;

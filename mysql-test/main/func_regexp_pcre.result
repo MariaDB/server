@@ -62,7 +62,7 @@ INSERT INTO t2 VALUES ('\\p{Han}'),('\\p{Hangul}');
 INSERT INTO t2 VALUES ('\\p{Sinhala}'), ('\\p{Tamil}');
 INSERT INTO t2 VALUES ('\\p{L}'),('\\p{Ll}'),('\\p{Lu}'),('\\p{L&}');
 INSERT INTO t2 VALUES ('[[:alpha:]]'),('[[:digit:]]');
-SELECT class, ch, ch RLIKE class FROM t1, t2 ORDER BY class, BINARY ch;
+SELECT class, ch, ch RLIKE class FROM t1, t2 ORDER BY BINARY class, BINARY ch;
 class	ch	ch RLIKE class
 [[:alpha:]]	1	0
 [[:alpha:]]	A	1
@@ -436,7 +436,7 @@ CREATE TABLE t1 AS SELECT REGEXP_REPLACE('abc','b','x');
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `REGEXP_REPLACE('abc','b','x')` longtext CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
+  `REGEXP_REPLACE('abc','b','x')` longtext CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 EXPLAIN EXTENDED SELECT REGEXP_REPLACE('abc','b','x');
@@ -739,7 +739,7 @@ CREATE TABLE t1 AS SELECT REGEXP_SUBSTR('abc','b');
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `REGEXP_SUBSTR('abc','b')` varchar(3) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
+  `REGEXP_SUBSTR('abc','b')` varchar(3) CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 EXPLAIN EXTENDED SELECT REGEXP_SUBSTR('abc','b');
@@ -859,11 +859,22 @@ REGEXP_REPLACE('1 foo and bar', '(\\d+) foo and (\\d+ )?bar', '\\1 this and \\2t
 # Testing a warning
 SET NAMES latin1;
 SET @regCheck= '\\xE0\\x01';
-SELECT 0xE001 REGEXP @regCheck;
-0xE001 REGEXP @regCheck
+SELECT 0xE001 REGEXP @regCheck COLLATE latin1_bin;
+0xE001 REGEXP @regCheck COLLATE latin1_bin
 0
 Warnings:
 Warning	1139	Regex error 'UTF-8 error: 1 byte missing at end'
+SELECT 0xE001 REGEXP CAST(@regCheck AS CHAR);
+0xE001 REGEXP CAST(@regCheck AS CHAR)
+0
+Warnings:
+Warning	1139	Regex error 'UTF-8 error: 1 byte missing at end'
+# Since 11.4 user variables have DERIVATION_COERCIBLE
+# so a user variable and a literal in the pattern give equal results
+SET @regCheck= '\\xE0\\x01';
+SELECT 0xE001 REGEXP '\\xE0\\x01' AS c1, 0xE001 REGEXP @regCheck AS c2;
+c1	c2
+1	1
 # Testing workaround N1: This makes the pattern to be a binary string:
 SET NAMES latin1;
 SET @regCheck= X'E001';

@@ -913,7 +913,7 @@ bool Item_func_des_encrypt::fix_length_and_dec(THD *thd)
 String *Item_func_des_encrypt::val_str(String *str)
 {
   DBUG_ASSERT(fixed());
-#if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
+#if defined(HAVE_des) && !defined(EMBEDDED_LIBRARY)
   uint code= ER_WRONG_PARAMETERS_TO_PROCEDURE;
   DES_cblock ivec;
   struct st_des_keyblock keyblock;
@@ -1002,8 +1002,8 @@ error:
   THD *thd= current_thd;
   push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                       ER_FEATURE_DISABLED, ER_THD(thd, ER_FEATURE_DISABLED),
-                      "des_encrypt", "--with-ssl");
-#endif /* defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY) */
+                      "des_encrypt", "openssl des cipher (HAVE_des)");
+#endif /* defined(HAVE_des) && !defined(EMBEDDED_LIBRARY) */
   null_value=1;
   return 0;
 }
@@ -1024,7 +1024,7 @@ bool Item_func_des_decrypt::fix_length_and_dec(THD *thd)
 String *Item_func_des_decrypt::val_str(String *str)
 {
   DBUG_ASSERT(fixed());
-#if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
+#if defined(HAVE_des) && !defined(EMBEDDED_LIBRARY)
   uint code= ER_WRONG_PARAMETERS_TO_PROCEDURE;
   DES_cblock ivec;
   struct st_des_keyblock keyblock;
@@ -1099,9 +1099,9 @@ wrong_key:
     THD *thd= current_thd;
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_FEATURE_DISABLED, ER_THD(thd, ER_FEATURE_DISABLED),
-                        "des_decrypt", "--with-ssl");
+                        "des_decrypt", "openssl des cipher (HAVE_des)");
   }
-#endif /* defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY) */
+#endif /* defined(HAVE_des) && !defined(EMBEDDED_LIBRARY) */
   null_value=1;
   return 0;
 }
@@ -1662,6 +1662,7 @@ String *Item_func_sformat::val_str(String *res)
 
 bool Item_func_random_bytes::fix_length_and_dec(THD *thd)
 {
+  set_maybe_null();
   used_tables_cache|= RAND_TABLE_BIT;
   if (args[0]->can_eval_in_optimize())
   {
@@ -1803,15 +1804,16 @@ String *Item_func_regexp_replace::val_str_internal(String *str,
   LEX_CSTRING src, rpl;
   size_t startoffset= 0;
 
-  if ((null_value=
-        (!(source= args[0]->val_str(&tmp0)) ||
-         !(replace= args[2]->val_str_null_to_empty(&tmp2, null_to_empty)) ||
-         re.recompile(args[1]))))
-    return (String *) 0;
-
+  source= args[0]->val_str(&tmp0);
+  if (!source)
+    goto err;
+  replace= args[2]->val_str_null_to_empty(&tmp2, null_to_empty);
+  if (!replace || re.recompile(args[1]))
+    goto err;
   if (!(source= re.convert_if_needed(source, &re.subject_converter)) ||
       !(replace= re.convert_if_needed(replace, &re.replace_converter)))
     goto err;
+  null_value= false;
 
   source->get_value(&src);
   replace->get_value(&rpl);
@@ -1857,7 +1859,7 @@ String *Item_func_regexp_replace::val_str_internal(String *str,
 
 err:
   null_value= true;
-  return (String *) 0;
+  return nullptr;
 }
 
 
@@ -1993,13 +1995,21 @@ bool Item_func_insert::fix_length_and_dec(THD *thd)
 String *Item_str_conv::val_str(String *str)
 {
   DBUG_ASSERT(fixed());
-  String *res;
-  size_t alloced_length, len;
+  String *res= args[0]->val_str(&tmp_value);
 
-  if ((null_value= (!(res= args[0]->val_str(&tmp_value)) ||
-                    str->alloc((alloced_length= res->length() * multiply)))))
-    return 0;
+  if (!res)
+  {
+  err:
+    null_value= true;
+    return nullptr;
+  }
 
+  size_t alloced_length= res->length() * multiply, len;
+
+  if (str->alloc((alloced_length)))
+    goto err;
+
+  null_value= false;
   len= converter(collation.collation, (char*) res->ptr(), res->length(),
                                       (char*) str->ptr(), alloced_length);
   DBUG_ASSERT(len <= alloced_length);
@@ -3642,7 +3652,7 @@ String *Item_func_binlog_gtid_pos::val_str(String *str)
   if (args[0]->null_value || args[1]->null_value)
     goto err;
 
-  if (pos < 0 || pos > (longlong) UINT_MAX32)
+  if (pos < 0 || (ulonglong) pos > UINT_MAX32)
     goto err;
 
   if (gtid_state_from_binlog_pos(name->c_ptr_safe(), (uint32)pos, str))
@@ -4007,7 +4017,9 @@ String *Item_func_conv_charset::val_str(String *str)
 
 bool Item_func_conv_charset::fix_length_and_dec(THD *thd)
 {
-  DBUG_ASSERT(collation.derivation == DERIVATION_IMPLICIT);
+  DBUG_ASSERT(collation.derivation == DERIVATION_CAST ||
+              (collation.derivation == DERIVATION_IMPLICIT &&
+               collation.collation == &my_charset_bin));
   fix_char_length(args[0]->max_char_length());
   return FALSE;
 }
@@ -4042,7 +4054,9 @@ bool Item_func_set_collation::fix_length_and_dec(THD *thd)
     return true;
   collation.set(cl.collation().charset_info(), DERIVATION_EXPLICIT,
                 args[0]->collation.repertoire);
-  max_length= args[0]->max_length;
+  ulonglong max_char_length= (ulonglong) args[0]->max_char_length();
+  fix_char_length_ulonglong(max_char_length * collation.collation->mbmaxlen);
+
   return FALSE;
 }
 
@@ -5126,6 +5140,11 @@ void Item_func_dyncol_create::print_arguments(String *str,
       {
         str->append(STRING_WITH_LEN(" charset "));
         str->append(defs[i].cs->cs_name);
+        if (Charset(defs[i].cs).can_have_collate_clause())
+        {
+          str->append(STRING_WITH_LEN(" collate "));
+          str->append(defs[i].cs->coll_name);
+        }
         str->append(' ');
       }
       break;

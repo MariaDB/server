@@ -314,7 +314,7 @@ TYPELIB xtrace_typelib =
 static MYSQL_THDVAR_SET(
 	xtrace,                    // name
 	PLUGIN_VAR_RQCMDARG,       // opt
-	"Trace values.",           // comment
+	"Trace values",            // comment
 	NULL,                      // check
 	NULL,                      // update function
 	0,                         // def (NO)
@@ -352,7 +352,7 @@ TYPELIB usetemp_typelib=
 static MYSQL_THDVAR_ENUM(
   use_tempfile,                    // name
   PLUGIN_VAR_RQCMDARG,             // opt
-  "Temporary file use.",           // comment
+  "Temporary file use",            // comment
   NULL,                            // check
   NULL,                            // update function
   1,                               // def (AUTO)
@@ -362,20 +362,20 @@ static MYSQL_THDVAR_ENUM(
 // Size used for g->Sarea_Size
 static MYSQL_THDVAR_ULONGLONG(work_size,
 	PLUGIN_VAR_RQCMDARG,
-	"Size of the CONNECT work area.",
+	"Size of the CONNECT work area",
 	NULL, NULL, SZWORK, SZWMIN, ULONGLONG_MAX, 1);
 #else
 // Size used for g->Sarea_Size
 static MYSQL_THDVAR_ULONG(work_size,
   PLUGIN_VAR_RQCMDARG, 
-  "Size of the CONNECT work area.",
+  "Size of the CONNECT work area",
   NULL, NULL, SZWORK, SZWMIN, ULONG_MAX, 1);
 #endif
 
 // Size used when converting TEXT columns to VARCHAR
 static MYSQL_THDVAR_INT(conv_size,
        PLUGIN_VAR_RQCMDARG,             // opt
-       "Size used when converting TEXT columns.",
+       "Size used when converting TEXT columns",
        NULL, NULL, SZCONV, 0, 65500, 1);
 
 /**
@@ -399,7 +399,7 @@ TYPELIB xconv_typelib=
 static MYSQL_THDVAR_ENUM(
   type_conv,                       // name
   PLUGIN_VAR_RQCMDARG,             // opt
-  "Unsupported types conversion.", // comment
+  "Unsupported types conversion",  // comment
   NULL,                            // check
   NULL,                            // update function
   1,                               // def (yes)
@@ -432,7 +432,7 @@ static MYSQL_THDVAR_INT(default_prec,
 // Estimate max number of rows for JSON aggregate functions
 static MYSQL_THDVAR_UINT(json_grp_size,
        PLUGIN_VAR_RQCMDARG,      // opt
-       "max number of rows for JSON aggregate functions.",
+       "max number of rows for JSON aggregate functions",
        NULL, NULL, JSONMAX, 1, INT_MAX, 1);
 
 #if defined(JAVA_SUPPORT)
@@ -6450,6 +6450,9 @@ char *ha_connect::GetDBfromName(const char *name)
   ha_create_table() in handle.cc
 */
 
+/* Stack size 25608 in clang */
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 int ha_connect::create(const char *name, TABLE *table_arg,
                        HA_CREATE_INFO *create_info)
 {
@@ -6994,6 +6997,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
   table= st;
   DBUG_RETURN(rc);
 } // end of create
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 /**
   Used to check whether a file based outward table can be populated by
@@ -7001,6 +7005,10 @@ int ha_connect::create(const char *name, TABLE *table_arg,
   - file does not exist or is void
   - user has file privilege
 */
+
+/* Stack size 16664 in clang */
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 bool ha_connect::FileExists(const char *fn, bool bf)
 {
   if (!fn || !*fn)
@@ -7051,6 +7059,7 @@ bool ha_connect::FileExists(const char *fn, bool bf)
 
   return true;
 } // end of FileExists
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 // Called by SameString and NoFieldOptionChange
 bool ha_connect::CheckString(PCSZ str1, PCSZ str2)

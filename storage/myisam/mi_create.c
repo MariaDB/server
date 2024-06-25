@@ -814,14 +814,14 @@ int mi_create(const char *name,uint keys,MI_KEYDEF *keydefs,
 
 	/* Enlarge files */
   DBUG_PRINT("info", ("enlarge to keystart: %lu", (ulong) share.base.keystart));
-  if (mysql_file_chsize(file, (ulong) share.base.keystart, 0, MYF(0)))
+  if (mysql_file_chsize(file, (ulong) share.base.keystart, 0, MYF(0)) > 0)
     goto err;
 
   if (! (flags & HA_DONT_TOUCH_DATA))
   {
 #ifdef USE_RELOC
     if (mysql_file_chsize(dfile, share.base.min_pack_length*ci->reloc_rows,
-                          0, MYF(0)))
+                          0, MYF(0)) > 0)
       goto err;
 #endif
     errpos=2;

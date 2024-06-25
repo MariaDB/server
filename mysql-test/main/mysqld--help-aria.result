@@ -1,9 +1,12 @@
 flush tables;
+[Warning] --table-cache is deprecated and will be removed in a future release. Please use --table-open-cache instead.
 #
 # Check that we don't write any data to wrong or not existing datadir
 #
+[Warning] --table-cache is deprecated and will be removed in a future release. Please use --table-open-cache instead.
 [Warning] Could not open mysql.plugin table: "Table 'mysql.plugin' doesn't exist". Some options may be missing from the help text
 #
 # Check with existing directory
 #
+[Warning] --table-cache is deprecated and will be removed in a future release. Please use --table-open-cache instead.
 [Warning] Could not open mysql.plugin table: "Table 'mysql.plugin' doesn't exist". Some options may be missing from the help text

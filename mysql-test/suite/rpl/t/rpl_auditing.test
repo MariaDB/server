@@ -1,0 +1,77 @@
+if (!$SERVER_AUDIT2_SO) {
+    skip No SERVER_AUDIT2 plugin;
+}
+
+source include/master-slave.inc;
+
+--disable_warnings
+drop table if exists t1;
+sync_slave_with_master;
+reset master;
+--enable_warnings
+
+--disable_warnings
+CREATE TABLE IF NOT EXISTS mysql.server_audit_filters (
+    filtername char(80) COLLATE utf8_bin NOT NULL DEFAULT '',
+    rule longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT 'true' CHECK (json_valid(rule)),
+    CONSTRAINT c_filtername UNIQUE (filtername)
+) ENGINE=Aria;
+
+CREATE TABLE IF NOT EXISTS mysql.server_audit_users (host char(60) COLLATE utf8_bin NOT NULL DEFAULT '',
+    user char(80) COLLATE utf8_bin NOT NULL DEFAULT '',
+    filtername char(80) NOT NULL DEFAULT '',
+    CONSTRAINT c_host_user UNIQUE (host, user)
+) ENGINE=Aria;
+--enable_warnings
+
+INSERT INTO mysql.server_audit_filters VALUES ('ignore_sys', '{"ignore_tables" : "mysql.*"}');
+INSERT INTO mysql.server_audit_users VALUES ('%','<replication_slave>','ignore_sys');
+INSERT INTO mysql.server_audit_users VALUES ('%','root','ignore_sys');
+
+install plugin server_audit soname 'server_audit2';
+set global server_audit_logging=on;
+
+# this is done to make test deterministic
+# so the above 'set' command is always logged before the 'create table t1'
+-- disable_query_log
+-- disable_result_log
+select * from mysql.server_audit_filters;
+select * from mysql.server_audit_users;
+-- enable_result_log
+-- enable_query_log
+
+connection master;
+create table t1 (a int);
+insert into t1 values (1);
+truncate t1;
+drop table t1;
+sync_slave_with_master;
+
+set global server_audit_logging=off;
+
+truncate mysql.server_audit_filters;
+truncate mysql.server_audit_users;
+INSERT INTO mysql.server_audit_filters VALUES ('no_logging','false');
+INSERT INTO mysql.server_audit_users VALUES ('%','<replication_slave>','no_logging');
+
+set global server_audit_logging=on;
+
+connection master;
+create table t1 (a int);
+insert into t1 values (1);
+truncate t1;
+drop table t1;
+sync_slave_with_master;
+
+set global server_audit_logging=off;
+uninstall plugin server_audit;
+truncate mysql.server_audit_filters;
+truncate mysql.server_audit_users;
+let $MYSQLD_DATADIR= `SELECT @@datadir`;
+# replace the timestamp and the hostname with constant values
+--replace_regex /[0-9]* [0-9][0-9]:[0-9][0-9]:[0-9][0-9]\,[^,]*\,/TIME,HOSTNAME,/ /\,[1-9][0-9]*\,/,1,/ /\,[1-9][0-9]*/,ID/ /000001\\', [0-9]*,/#', POS,/
+cat_file $MYSQLD_DATADIR/server_audit.log;
+remove_file $MYSQLD_DATADIR/server_audit.log;
+
+connection master;
+--source include/rpl_end.inc

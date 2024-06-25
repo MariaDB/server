@@ -9,6 +9,8 @@
 -- performance schema engine.
 --
 
+SET NAMES latin1 COLLATE latin1_swedish_ci;
+
 set @have_old_pfs= (select count(*) from information_schema.schemata where schema_name='performance_schema');
 
 SET @cmd="SET @broken_tables = (select count(*) from information_schema.tables  where engine != 'PERFORMANCE_SCHEMA' and table_schema='performance_schema')";
@@ -47,7 +49,7 @@ PREPARE stmt FROM @str;
 EXECUTE stmt;
 DROP PREPARE stmt;
 
-SET @cmd= "CREATE DATABASE performance_schema character set utf8mb3";
+SET @cmd= "CREATE DATABASE performance_schema character set utf8mb3 collate utf8mb3_general_ci";
 
 SET @str = IF(@broken_pfs = 0, @cmd, 'SET @dummy = 0');
 PREPARE stmt FROM @str;

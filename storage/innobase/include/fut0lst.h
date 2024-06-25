@@ -78,34 +78,40 @@ void flst_init(const buf_block_t &block, byte *base, mtr_t *mtr)
   MY_ATTRIBUTE((nonnull));
 
 /** Append a file list node to a list.
-@param[in,out]  base    base node block
-@param[in]      boffset byte offset of the base node
-@param[in,out]  add     block to be added
-@param[in]      aoffset byte offset of the node to be added
-@param[in,out]  mtr     mini-transaction
+@param base    base node block
+@param boffset byte offset of the base node
+@param add     block to be added
+@param aoffset byte offset of the node to be added
+@param limit   fil_space_t::free_limit
+@param mtr     mini-transaction
 @return error code */
 dberr_t flst_add_last(buf_block_t *base, uint16_t boffset,
-                      buf_block_t *add, uint16_t aoffset, mtr_t *mtr)
+                      buf_block_t *add, uint16_t aoffset,
+                      uint32_t limit, mtr_t *mtr)
   MY_ATTRIBUTE((nonnull, warn_unused_result));
 /** Prepend a file list node to a list.
-@param[in,out]  base    base node block
-@param[in]      boffset byte offset of the base node
-@param[in,out]  add     block to be added
-@param[in]      aoffset byte offset of the node to be added
-@param[in,out]  mtr     mini-transaction
+@param base    base node block
+@param boffset byte offset of the base node
+@param add     block to be added
+@param aoffset byte offset of the node to be added
+@param limit   fil_space_t::free_limit
+@param mtr     mini-transaction
 @return error code */
 dberr_t flst_add_first(buf_block_t *base, uint16_t boffset,
-                    buf_block_t *add, uint16_t aoffset, mtr_t *mtr)
+                       buf_block_t *add, uint16_t aoffset,
+                       uint32_t limit, mtr_t *mtr)
   MY_ATTRIBUTE((nonnull, warn_unused_result));
 /** Remove a file list node.
-@param[in,out]  base    base node block
-@param[in]      boffset byte offset of the base node
-@param[in,out]  cur     block to be removed
-@param[in]      coffset byte offset of the current record to be removed
-@param[in,out]  mtr     mini-transaction
+@param base    base node block
+@param boffset byte offset of the base node
+@param cur     block to be removed
+@param coffset byte offset of the current record to be removed
+@param limit   fil_space_t::free_limit
+@param mtr     mini-transaction
 @return error code */
 dberr_t flst_remove(buf_block_t *base, uint16_t boffset,
-                    buf_block_t *cur, uint16_t coffset, mtr_t *mtr)
+                    buf_block_t *cur, uint16_t coffset,
+                    uint32_t limit, mtr_t *mtr)
   MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /** @return the length of a list */
@@ -117,11 +123,9 @@ inline uint32_t flst_get_len(const flst_base_node_t *base)
 /** @return a file address */
 inline fil_addr_t flst_read_addr(const byte *faddr)
 {
-  fil_addr_t addr= { mach_read_from_4(faddr + FIL_ADDR_PAGE),
-		     mach_read_from_2(faddr + FIL_ADDR_BYTE) };
-  ut_a(addr.page == FIL_NULL || addr.boffset >= FIL_PAGE_DATA);
-  ut_a(ut_align_offset(faddr, srv_page_size) >= FIL_PAGE_DATA);
-  return addr;
+  ut_ad(ut_align_offset(faddr, srv_page_size) >= FIL_PAGE_DATA);
+  return fil_addr_t{mach_read_from_4(faddr + FIL_ADDR_PAGE),
+                    mach_read_from_2(faddr + FIL_ADDR_BYTE)};
 }
 
 /** @return list first node address */

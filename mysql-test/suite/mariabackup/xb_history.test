@@ -6,7 +6,7 @@ DROP TABLE IF EXISTS mysql.mariadb_backup_history;
 
 let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
 --disable_result_log
-exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --history=foo --backup --target-dir=$targetdir;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --history=foo --backup --parallel=10 --target-dir=$targetdir;
 --enable_result_log
 rmdir $targetdir;
 

@@ -16,17 +16,15 @@ connection node_1a;
 SET SESSION wsrep_on = 0;
 SET SESSION wsrep_on = 1;
 SET GLOBAL wsrep_provider_options = 'dbug=';
-SET GLOBAL wsrep_provider_options = 'dbug=d,local_monitor_master_enter_sync';
 connection node_1;
 COMMIT;
 connection node_1a;
-SET SESSION wsrep_on = 0;
-SET SESSION wsrep_on = 1;
 SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
-SET GLOBAL wsrep_provider_options = 'signal=local_monitor_master_enter_sync';
 SET GLOBAL wsrep_provider_options = 'dbug=';
 connection node_1;
 ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+connection node_1a;
+SET SESSION DEBUG_SYNC = "RESET";
 connection node_2;
 SELECT * FROM p;
 id	f2

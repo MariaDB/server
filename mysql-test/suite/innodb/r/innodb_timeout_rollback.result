@@ -17,10 +17,6 @@ a
 connection con1;
 begin work;
 insert into t1 values (5);
-select * from t1;
-a
-1
-5
 insert into t1 values (2);
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 select * from t1;
@@ -41,4 +37,4 @@ a
 drop table t1;
 disconnect con1;
 disconnect con2;
-End of 5.0 tests
+# End of 5.0 tests

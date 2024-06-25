@@ -63,6 +63,15 @@ enum enum_check_fields
   CHECK_FIELD_ERROR_FOR_NULL,
 };
 
+enum ignore_value_reaction
+{
+  IGNORE_MEANS_ERROR,
+  IGNORE_MEANS_DEFAULT,
+  IGNORE_MEANS_FIELD_VALUE
+};
+
+ignore_value_reaction find_ignore_reaction(THD *thd);
+
 
 enum enum_conv_type
 {
@@ -73,6 +82,8 @@ enum enum_conv_type
   CONV_TYPE_IMPOSSIBLE
 };
 
+/* Old 32 bit timestamp */
+extern const uchar timestamp_old_bytes[7];
 
 class Conv_param
 {
@@ -765,6 +776,7 @@ protected:
   static void do_field_temporal(const Copy_field *copy, date_mode_t fuzzydate);
   static void do_field_datetime(const Copy_field *copy);
   static void do_field_timestamp(const Copy_field *copy);
+  static void do_field_versioned_timestamp(const Copy_field *copy);
   static void do_field_decimal(const Copy_field *copy);
 public:
   static void *operator new(size_t size, MEM_ROOT *mem_root) throw ()
@@ -960,11 +972,13 @@ public:
   virtual int  store(longlong nr, bool unsigned_val)=0;
   virtual int  store_decimal(const my_decimal *d)=0;
   virtual int  store_time_dec(const MYSQL_TIME *ltime, uint dec);
-  virtual int  store_timestamp_dec(const timeval &ts, uint dec);
+  virtual int  store_timestamp_dec(const my_timeval &ts, uint dec);
   int store_timestamp(my_time_t timestamp, ulong sec_part)
   {
-    return store_timestamp_dec(Timeval(timestamp, sec_part),
-                               TIME_SECOND_PART_DIGITS);
+    struct my_timeval tmp;
+    tmp.tv_sec=  (longlong) timestamp;
+    tmp.tv_usec= (long) sec_part;
+    return store_timestamp_dec(tmp, TIME_SECOND_PART_DIGITS);
   }
   /**
     Store a value represented in native format
@@ -3227,10 +3241,10 @@ class Field_timestamp :public Field_temporal {
 protected:
   int store_TIME_with_warning(THD *, const Datetime *,
                               const ErrConv *, int warn);
-  virtual void store_TIMEVAL(const timeval &tv)= 0;
+  virtual void store_TIMEVAL(const my_timeval &tv)= 0;
   void store_TIMESTAMP(const Timestamp &ts)
   {
-    store_TIMEVAL(ts.tv());
+    store_TIMEVAL(ts);
   }
   int zero_time_stored_return_code_with_warning();
 public:
@@ -3251,7 +3265,7 @@ public:
   int  store(longlong nr, bool unsigned_val) override;
   int  store_time_dec(const MYSQL_TIME *ltime, uint dec) override;
   int  store_decimal(const my_decimal *) override;
-  int  store_timestamp_dec(const timeval &ts, uint dec) override;
+  int  store_timestamp_dec(const my_timeval &ts, uint dec) override;
   int  save_in_field(Field *to) override;
   longlong val_int() override;
   String *val_str(String *, String *) override;
@@ -3281,7 +3295,7 @@ public:
 
 class Field_timestamp0 :public Field_timestamp
 {
-  void store_TIMEVAL(const timeval &tv) override
+  void store_TIMEVAL(const my_timeval &tv) override
   {
     int4store(ptr, tv.tv_sec);
   }
@@ -3373,7 +3387,7 @@ class Field_timestamp_hires :public Field_timestamp_with_dec {
   {
     return Type_handler_timestamp::sec_part_bytes(dec);
   }
-  void store_TIMEVAL(const timeval &tv) override;
+  void store_TIMEVAL(const my_timeval &tv) override;
 public:
   Field_timestamp_hires(uchar *ptr_arg,
                         uchar *null_ptr_arg, uchar null_bit_arg,
@@ -3402,7 +3416,7 @@ public:
   TIMESTAMP(0..6) - MySQL56 version
 */
 class Field_timestampf :public Field_timestamp_with_dec {
-  void store_TIMEVAL(const timeval &tv) override;
+  void store_TIMEVAL(const my_timeval &tv) override;
 public:
   Field_timestampf(uchar *ptr_arg,
                    uchar *null_ptr_arg, uchar null_bit_arg,
@@ -5763,7 +5777,8 @@ public:
   {
     List_iterator<Create_field> it(list);
     while (Create_field *f= it++)
-      f->type_handler()->Column_definition_implicit_upgrade(f);
+      f->type_handler()->type_handler_for_implicit_upgrade()->
+                           Column_definition_implicit_upgrade_to_this(f);
   }
 };
 

@@ -92,3 +92,7 @@ connection node_2;
 call mtr.add_suppression("WSREP: Rejecting JOIN message from \(.*\): new State Transfer required.");
 connection node_3;
 call mtr.add_suppression("WSREP: Rejecting JOIN message from \(.*\): new State Transfer required.");
+disconnect node_1a;
+disconnect node_3;
+disconnect node_2;
+disconnect node_1;

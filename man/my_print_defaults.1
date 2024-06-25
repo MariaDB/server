@@ -1,6 +1,6 @@
 '\" t
 .\"
-.TH "\fBMY_PRINT_DEFAULTS\fR" "1" "15 May 2020" "MariaDB 10.11" "MariaDB Database System"
+.TH "\fBMY_PRINT_DEFAULTS\fR" "1" "18 December 2023" "MariaDB 10.11" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -146,6 +146,22 @@ In addition to the groups named on the command line, read groups that have the g
 .sp -1
 .IP \(bu 2.3
 .\}
+.\" my_print_defaults: --mariadbd option
+.\" mariadbd option: my_print_defaults
+\fB\-\-mariadbd\fR
+.sp
+Read the same set of groups that the mariadbd binary does.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+
 .\" my_print_defaults: --mysqld option
 .\" mysqld option: my_print_defaults
 \fB\-\-mysqld\fR

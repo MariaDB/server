@@ -110,9 +110,9 @@ CREATE DEFINER='mariadb.sys'@'localhost' PROCEDURE diagnostics (
     READS SQL DATA
 BEGIN
     DECLARE v_start, v_runtime, v_iter_start, v_sleep DECIMAL(20,2) DEFAULT 0.0;
-    DECLARE v_has_innodb, v_has_ndb, v_has_ps, v_has_replication, v_has_ps_replication VARCHAR(8) CHARSET utf8 DEFAULT 'NO';
+    DECLARE v_has_innodb, v_has_ndb, v_has_ps, v_has_replication, v_has_ps_replication VARCHAR(8) CHARSET utf8 COLLATE utf8_general_ci DEFAULT 'NO';
     DECLARE v_this_thread_enabled, v_has_ps_vars, v_has_metrics ENUM('YES', 'NO');
-    DECLARE v_table_name, v_banner VARCHAR(64) CHARSET utf8;
+    DECLARE v_table_name, v_banner VARCHAR(64) CHARSET utf8 COLLATE utf8_general_ci;
     DECLARE v_sql_status_summary_select, v_sql_status_summary_delta, v_sql_status_summary_from, v_no_delta_names TEXT;
     DECLARE v_output_time, v_output_time_prev DECIMAL(20,3) UNSIGNED;
     DECLARE v_output_count, v_count, v_old_group_concat_max_len INT UNSIGNED DEFAULT 0;
@@ -688,7 +688,7 @@ BEGIN
   Type VARCHAR(100) NOT NULL,
   Enabled ENUM(''YES'', ''NO'', ''PARTIAL'') NOT NULL,
   PRIMARY KEY (Type, Variable_name)
-) ENGINE = InnoDB DEFAULT CHARSET=utf8'));
+) ENGINE = InnoDB DEFAULT CHARSET=utf8 COLLATE utf8_general_ci'));
 
         IF (v_has_metrics) THEN
             SET @sys.diagnostics.sql = CONCAT(

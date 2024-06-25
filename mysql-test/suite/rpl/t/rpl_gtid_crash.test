@@ -12,6 +12,7 @@
 call mtr.add_suppression("Checking table:");
 call mtr.add_suppression("client is using or hasn't closed the table properly");
 call mtr.add_suppression("Table .* is marked as crashed and should be repaired");
+call mtr.add_suppression("Could not read packet:.* errno: 11");
 flush tables;
 
 ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;

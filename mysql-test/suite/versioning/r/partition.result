@@ -169,7 +169,7 @@ set @now= now(6);
 insert into t1 values (1);
 set @str= concat('select x, row_start < @now as A, row_end > @now as B from t1 partition (p0)');
 prepare select_p0 from @str;
-set @str= concat('select x, row_start > @now as C, row_end = timestamp\'2038-01-19 03:14:07.999999\' as D from t1 partition (pn)');
+set @str= concat("select x, row_start > @now as C, row_end = SYS_TIME_MAX as D from t1 partition (pn)");;
 prepare select_pn from @str;
 execute select_p0;
 x	A	B
@@ -302,7 +302,7 @@ create table t1 (i int) with system versioning
 partition by system_time interval 6 day limit 98;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'limit 98' at line 2
 create or replace table t1 (pk int) with system versioning
-partition by system_time interval 10 year partitions 3;
+partition by system_time interval 60 year partitions 3;
 ERROR 22003: TIMESTAMP value is out of range in 'INTERVAL'
 # INTERVAL and ALTER TABLE
 create or replace table t1 (i int) with system versioning
@@ -2259,7 +2259,7 @@ tp1	CREATE TABLE `tp1` (
   `x` int(11) NOT NULL AUTO_INCREMENT,
   `t` timestamp(6) NULL DEFAULT '2001-11-11 11:11:11.000000',
   `b` blob /*!100301 COMPRESSED*/ DEFAULT NULL,
-  `c` varchar(1033) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL,
+  `c` varchar(1033) CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci NOT NULL,
   `u` int(11) DEFAULT NULL,
   `m` enum('a','b','c') NOT NULL DEFAULT 'a' COMMENT 'absolute',
   `i1` tinyint(4) DEFAULT NULL,
@@ -2277,14 +2277,14 @@ tp1	CREATE TABLE `tp1` (
   KEY `three` (`i1`,`i2`,`i3`),
   PERIOD FOR SYSTEM_TIME (`s`, `e`),
   CONSTRAINT `check_constr` CHECK (`u` > -1)
-) ENGINE=X DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci WITH SYSTEM VERSIONING
+) ENGINE=X DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci WITH SYSTEM VERSIONING
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `x` int(11) NOT NULL AUTO_INCREMENT,
   `t` timestamp(6) NULL DEFAULT '2001-11-11 11:11:11.000000',
   `b` blob /*!100301 COMPRESSED*/ DEFAULT NULL,
-  `c` varchar(1033) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL,
+  `c` varchar(1033) CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci NOT NULL,
   `u` int(11) DEFAULT NULL,
   `m` enum('a','b','c') NOT NULL DEFAULT 'a' COMMENT 'absolute',
   `i1` tinyint(4) DEFAULT NULL,
@@ -2302,7 +2302,7 @@ t1	CREATE TABLE `t1` (
   KEY `three` (`i1`,`i2`,`i3`),
   PERIOD FOR SYSTEM_TIME (`s`, `e`),
   CONSTRAINT `check_constr` CHECK (`u` > -1)
-) ENGINE=X DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci WITH SYSTEM VERSIONING
+) ENGINE=X DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci WITH SYSTEM VERSIONING
  PARTITION BY RANGE (`x`)
 (PARTITION `p0` VALUES LESS THAN (10) ENGINE = X,
  PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = X)
@@ -2901,7 +2901,7 @@ t1	CREATE TABLE `t1` (
   `x` int(11) NOT NULL AUTO_INCREMENT,
   `t` timestamp(6) NULL DEFAULT '2001-11-11 11:11:11.000000',
   `b` blob /*!100301 COMPRESSED*/ DEFAULT NULL,
-  `c` varchar(1033) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL,
+  `c` varchar(1033) CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci NOT NULL,
   `u` int(11) DEFAULT NULL,
   `m` enum('a','b','c') NOT NULL DEFAULT 'a' COMMENT 'absolute',
   `i1` tinyint(4) DEFAULT NULL,
@@ -2919,7 +2919,7 @@ t1	CREATE TABLE `t1` (
   KEY `three` (`i1`,`i2`,`i3`),
   PERIOD FOR SYSTEM_TIME (`s`, `e`),
   CONSTRAINT `check_constr` CHECK (`u` > -1)
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci WITH SYSTEM VERSIONING
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci WITH SYSTEM VERSIONING
  PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
 (PARTITION `p2` HISTORY ENGINE = DEFAULT_ENGINE,
  PARTITION `pn` CURRENT ENGINE = DEFAULT_ENGINE)
@@ -2938,7 +2938,7 @@ t1	CREATE TABLE `t1` (
   `x` int(11) NOT NULL AUTO_INCREMENT,
   `t` timestamp(6) NULL DEFAULT '2001-11-11 11:11:11.000000',
   `b` blob /*!100301 COMPRESSED*/ DEFAULT NULL,
-  `c` varchar(1033) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL,
+  `c` varchar(1033) CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci NOT NULL,
   `u` int(11) DEFAULT NULL,
   `m` enum('a','b','c') NOT NULL DEFAULT 'a' COMMENT 'absolute',
   `i1` tinyint(4) DEFAULT NULL,
@@ -2956,7 +2956,7 @@ t1	CREATE TABLE `t1` (
   KEY `three` (`i1`,`i2`,`i3`),
   PERIOD FOR SYSTEM_TIME (`s`, `e`),
   CONSTRAINT `check_constr` CHECK (`u` > -1)
-) ENGINE=DEFAULT_ENGINE AUTO_INCREMENT=10 DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci WITH SYSTEM VERSIONING
+) ENGINE=DEFAULT_ENGINE AUTO_INCREMENT=10 DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci WITH SYSTEM VERSIONING
  PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
 (PARTITION `p2` HISTORY ENGINE = DEFAULT_ENGINE,
  PARTITION `p1` HISTORY ENGINE = DEFAULT_ENGINE,
@@ -2973,7 +2973,7 @@ t1	CREATE TABLE `t1` (
   `x` int(11) NOT NULL AUTO_INCREMENT,
   `t` timestamp(6) NULL DEFAULT '2001-11-11 11:11:11.000000',
   `b` blob /*!100301 COMPRESSED*/ DEFAULT NULL,
-  `c` varchar(1033) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL,
+  `c` varchar(1033) CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci NOT NULL,
   `u` int(11) DEFAULT NULL,
   `m` enum('a','b','c') NOT NULL DEFAULT 'a' COMMENT 'absolute',
   `i1` tinyint(4) DEFAULT NULL,
@@ -2991,7 +2991,7 @@ t1	CREATE TABLE `t1` (
   KEY `three` (`i1`,`i2`,`i3`),
   PERIOD FOR SYSTEM_TIME (`s`, `e`),
   CONSTRAINT `check_constr` CHECK (`u` > -1)
-) ENGINE=DEFAULT_ENGINE AUTO_INCREMENT=10 DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci WITH SYSTEM VERSIONING
+) ENGINE=DEFAULT_ENGINE AUTO_INCREMENT=10 DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci WITH SYSTEM VERSIONING
  PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
 (PARTITION `p2` HISTORY ENGINE = DEFAULT_ENGINE,
  PARTITION `p1` HISTORY ENGINE = DEFAULT_ENGINE,
@@ -3409,7 +3409,7 @@ insert into t1 (a,row_start,row_end) values
 ('p0',                   '2021-09-30', '2021-09-30 10:00:00'),
 ('p1',                   '2021-09-30', '2021-10-01 10:00:00'),
 ('overflows, so also p1','2021-09-30', '2021-10-10 10:00:00'),
-('pn, current',          '2021-09-30', '2038-01-19 03:14:07.999999');
+('pn, current',          '2021-09-30', SYS_TIME_MAX);
 select table_name,partition_name,partition_ordinal_position,partition_method,partition_description,table_rows
 from information_schema.partitions where table_schema='test';
 table_name	partition_name	partition_ordinal_position	partition_method	partition_description	table_rows
@@ -3430,5 +3430,28 @@ create table t (a int) with system versioning partition by system_time partition
 ERROR HY000: Maybe missing parameters: no rotation condition for multiple HISTORY partitions.
 #
 # End of 10.5 tests
+#
+#
+# MDEV-31903 Server crashes in _ma_reset_history upon UNLOCK table with auto-create history partitions
+#
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+create table t1 (x int) engine=aria with system versioning partition by system_time interval 1 hour auto partitions 3;
+insert into t1 values (1);
+create table t2 (x int) engine=aria;
+create trigger tr after insert on t2 for each row update t1 set x= x + 11;
+lock tables t1 write, t2 write;
+update t1 set x= x + 1;
+set timestamp= unix_timestamp('2000-01-01 13:00:00');
+insert into t2 values (5);
+unlock tables;
+drop table t1, t2;
+set timestamp= default;
+#
+# MDEV-29872 MSAN/Valgrind uninitialised value errors in TABLE::vers_switch_partition
+#
+create table t (a int) with system versioning partition by system_time limit 100 partitions 3;
+drop table t;
+#
+# End of 10.9 tests
 #
 set global innodb_stats_persistent= @save_persistent;

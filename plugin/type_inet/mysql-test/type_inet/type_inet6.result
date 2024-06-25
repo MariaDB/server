@@ -1008,9 +1008,9 @@ FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `c1` varchar(40) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL,
-  `c2` varchar(40) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL,
-  `c3` varchar(40) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
+  `c1` varchar(40) CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL,
+  `c2` varchar(40) CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL,
+  `c3` varchar(40) CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t2;
 CREATE TABLE t2 AS SELECT
@@ -2370,6 +2370,18 @@ Warning	1292	Incorrect inet6 value: ''
 Warning	1292	Incorrect inet6 value: ''
 Warning	1292	Incorrect inet6 value: ''
 DROP TABLE t1;
+#
+# MDEV-32458 ASAN unknown-crash in Inet6::ascii_to_fbt when casting character string to inet6
+#
+CREATE TABLE t1 (c CHAR(3));
+INSERT INTO t1 VALUES ('1:0'),('00:');
+SELECT * FROM t1 WHERE c>CAST('::1' AS INET6);
+c
+Warnings:
+Warning	1292	Incorrect inet6 value: '1:0'
+Warning	1292	Incorrect inet6 value: '00:'
+DROP TABLE t1;
+# End of 10.6 tests
 #
 # MDEV-22256 Assertion `length == pack_length()' failed in Field_timestamp_with_dec::sort_string
 #

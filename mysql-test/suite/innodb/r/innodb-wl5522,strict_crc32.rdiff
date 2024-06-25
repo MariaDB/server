@@ -1,5 +1,12 @@
-120,121c120
-< Warnings:
-< Warning	1810	IO Read error: (2, No such file or directory) Error opening './test/t2.cfg', will attempt to import without schema verification
----
-> ERROR HY000: Schema mismatch (Expected FSP_SPACE_FLAGS=0x*, .ibd file contains 0x*.)
+--- innodb-wl5522.result
++++ innodb-wl5522,strict_crc32.result~
+@@ -131,8 +131,7 @@
+ ALTER TABLE t2 IMPORT TABLESPACE;
+ ERROR HY000: Schema mismatch (Table flags don't match, server table has 0x21 and the meta-data file has 0x1; .cfg file uses ROW_FORMAT=COMPACT)
+ ALTER TABLE t2 IMPORT TABLESPACE;
+-Warnings:
+-Warning	1810	IO Read error: (2, No such file or directory) Error opening './test/t2.cfg', will attempt to import without schema verification
++ERROR HY000: Schema mismatch (Expected FSP_SPACE_FLAGS=0x*, .ibd file contains 0x*.)
+ DROP TABLE t2;
+ SET GLOBAL innodb_file_per_table = 1;
+ SELECT @@innodb_file_per_table;

@@ -1,6 +1,6 @@
---source include/have_log_bin.inc
---source include/master-slave.inc
 --source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
 
 --echo #
 --echo # MDEV-31404 Implement binlog_space_limit

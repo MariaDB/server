@@ -38,12 +38,12 @@ SET SESSION wsrep_sync_wait = 0;
 --source include/kill_galera.inc
 
 --remove_file $MYSQLTEST_VARDIR/mysqld.1/data/grastate.dat
---let $start_mysqld_params = "--wsrep-new-cluster"
+--let $start_mysqld_params =--wsrep-new-cluster
 --let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 --source include/start_mysqld.inc
 
 --connection node_2
---let $start_mysqld_params = ""
+--let $start_mysqld_params =
 --let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
 --source include/start_mysqld.inc
 

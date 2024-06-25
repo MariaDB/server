@@ -43,7 +43,7 @@ CREATE TABLE t1 (a INET4, b CHAR(16) CHARACTER SET latin1, c CHAR(16) CHARACTER 
 INSERT INTO t1 VALUES('0.0.0.0','','');
 # Columns(BINARY(4),
 #         CHAR(16) CHARSET latin1 COLLATE latin1_swedish_ci,
-#         CHAR(16) CHARSET utf8mb3 COLLATE utf8mb3_general_ci)
+#         CHAR(16) CHARSET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci)
 DROP TABLE t1;
 RESET MASTER;
 RESET MASTER;
@@ -52,7 +52,7 @@ CREATE TABLE t1 (a INET4, b CHAR(16) CHARACTER SET latin1, c CHAR(16) CHARACTER 
 INSERT INTO t1 VALUES('0.0.0.0','','');
 # Columns(`a` BINARY(4),
 #         `b` CHAR(16) CHARSET latin1 COLLATE latin1_swedish_ci,
-#         `c` CHAR(16) CHARSET utf8mb3 COLLATE utf8mb3_general_ci)
+#         `c` CHAR(16) CHARSET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci)
 DROP TABLE t1;
 RESET MASTER;
 SET GLOBAL binlog_row_metadata = DEFAULT;

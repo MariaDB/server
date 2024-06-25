@@ -27,6 +27,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 
 #include <my_dir.h>
 #include "read_filt.h"
+#include "mtr0types.h"
 #include "srv0start.h"
 #include "srv0srv.h"
 #include "xtrabackup.h"

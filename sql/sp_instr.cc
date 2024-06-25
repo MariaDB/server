@@ -1,3 +1,20 @@
+/*
+   Copyright (c) 2002, 2016, Oracle and/or its affiliates.
+   Copyright (c) 2011, 2024, MariaDB
+
+   This program is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; version 2 of the License.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
+
 #include "sp_instr.h"
 
 #include "opt_trace.h"    // class Opt_trace_start
@@ -754,6 +771,7 @@ LEX* sp_lex_instr::parse_expr(THD *thd, sp_head *sp, LEX *sp_instr_lex)
     cleanup_items(cursor_lex->free_list);
     cursor_free_list= &cursor_lex->free_list;
     DBUG_ASSERT(thd->lex == sp_instr_lex);
+    lex_start(thd);
   }
 
   thd->lex->sphead= sp;
@@ -863,7 +881,8 @@ sp_instr_stmt::execute(THD *thd, uint *nextp)
       bool log_slow= !res && thd->enable_slow_log;
 
       /* Finalize server status flags after executing a statement. */
-      if (log_slow || thd->get_stmt_da()->is_eof())
+      if (log_slow || thd->get_stmt_da()->is_eof() ||
+          mysql_audit_general_enabled())
         thd->update_server_status();
 
       if (thd->get_stmt_da()->is_eof())
@@ -897,6 +916,9 @@ sp_instr_stmt::execute(THD *thd, uint *nextp)
       thd->update_stats();
       thd->lex->sql_command= save_sql_command;
       *nextp= m_ip+1;
+#ifdef PROTECT_STATEMENT_MEMROOT
+      mark_as_qc_used();
+#endif
     }
     thd->set_query(query_backup);
     thd->query_name_consts= 0;

@@ -1957,6 +1957,8 @@ private:
   bool add_fields_for_current_rowid(JOIN_TAB *cur, List<Item> *fields);
   void free_pushdown_handlers(List<TABLE_LIST>& join_list);
   void init_join_cache_and_keyread();
+  bool prepare_sum_aggregators(THD *thd,Item_sum **func_ptr,
+                               bool need_distinct);
   bool transform_in_predicates_into_equalities(THD *thd);
   bool transform_date_conds_into_sargable();
   bool transform_all_conds_and_on_exprs(THD *thd,

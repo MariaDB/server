@@ -13,7 +13,7 @@ items	CREATE TABLE `items` (
   `created_at` datetime DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `score` (`score`,`created_at`)
-) ENGINE=Mroonga DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
+) ENGINE=Mroonga DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci
 INSERT INTO items (score, created_at) VALUES(1, "2014-09-10 00:00:00");
 INSERT INTO items (score, created_at) VALUES(2, "2014-09-11 00:00:00");
 INSERT INTO items (score, created_at) VALUES(2, "2014-09-11 00:00:00");

@@ -2760,5 +2760,40 @@ SELECT * FROM t2;
 
 DROP TABLE t1, t2;
 
+--echo #
+--echo # MDEV-33525: Recreate/reuse temporary table
+--echo #
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+
+--delimiter |
+CREATE FUNCTION f1()
+RETURNS INT
+BEGIN
+  DECLARE res INT;
+
+  DECLARE t1_cur CURSOR FOR SELECT 100 FROM t1, t1_tmp;
+
+  CREATE TEMPORARY TABLE t1_tmp SELECT 1 a;
+
+  OPEN t1_cur;
+  CLOSE t1_cur;
+
+  DROP TEMPORARY TABLE t1_tmp;
+
+  RETURN 0;
+END
+|
+
+--delimiter ;
+SELECT f1();
+--echo # Without the patch, the second call of f1 would result in error:
+--echo #   ER_NO_SUCH_TABLE (1146): Table 'test.t1' doesn't exist
+SELECT f1();
+
+--echo # Clean up
+DROP FUNCTION f1;
+DROP TABLE t1;
+
 SET sql_mode = default;
 --enable_ps2_protocol

@@ -781,12 +781,15 @@ void maria_versioning(MARIA_HA *info, my_bool versioning)
      Only used by block records
 */
 
-void _ma_set_share_data_file_length(MARIA_SHARE *share, ulonglong new_length)
+int _ma_set_share_data_file_length(MARIA_HA *info, ulonglong new_length)
 {
+  MARIA_SHARE *share= info->s;
+  my_bool updated= 0;
   if (!share->internal_table)
     mysql_mutex_lock(&share->intern_lock);
   if (share->state.state.data_file_length < new_length)
   {
+    updated= share->tracked;
     share->state.state.data_file_length= new_length;
     if (new_length >= share->base.max_data_file_length)
     {
@@ -795,7 +798,18 @@ void _ma_set_share_data_file_length(MARIA_SHARE *share, ulonglong new_length)
     }
   }
   if (!share->internal_table)
-  mysql_mutex_unlock(&share->intern_lock);
+    mysql_mutex_unlock(&share->intern_lock);
+  else
+  {
+    if (updated &&
+        _ma_update_tmp_file_size(&share->track_data,
+                                 share->state.state.data_file_length))
+    {
+      share->state.changed|= STATE_DATA_FILE_FULL;
+      return 1;
+    }
+  }
+  return 0;
 }
 
 

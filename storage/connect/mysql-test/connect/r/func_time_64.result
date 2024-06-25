@@ -1,0 +1,24 @@
+set @@time_zone="+00:00";
+create table t1 (c timestamp) ENGINE=Connect TABLE_TYPE=DOS FILE_NAME='func_time_64.dos';
+insert into t1 values (from_unixtime(power(2,31)-1));
+insert into t1 values (from_unixtime(power(2,32)-1));
+select c, unix_timestamp(c) from t1;
+c	unix_timestamp(c)
+2038-01-19 03:14:07	2147483647
+2106-02-07 06:28:15	4294967295
+drop table t1;
+create table t1 (d datetime, c timestamp) ENGINE=Connect TABLE_TYPE=BIN FILE_NAME='func_time_64.dos';
+insert into t1 (d,c) values (from_unixtime(power(2,31)-1), from_unixtime(power(2,31)-1));
+insert into t1 (d,c) values (from_unixtime(power(2,32)-1), from_unixtime(power(2,32)-1));
+insert ignore into t1 values ("1962-03-03","1962-03-03");
+Warnings:
+Warning	1264	Out of range value for column 'c' at row 1
+select d, c, unix_timestamp(c) from t1;
+d	c	unix_timestamp(c)
+2038-01-19 03:14:07	2038-01-19 03:14:07	2147483647
+1969-12-31 23:59:59	0000-00-00 00:00:00	0
+1962-03-03 00:00:00	NULL	NULL
+Warnings:
+Warning	1264	Out of range value for column 'c' at row 2
+Warning	1105	Out of range value -1 for column 'c' at row 2
+drop table t1;

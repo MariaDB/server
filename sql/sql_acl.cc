@@ -297,6 +297,7 @@ ulong role_global_merges= 0, role_db_merges= 0, role_table_merges= 0,
 #endif
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
+static bool ignore_max_password_errors(const ACL_USER *acl_user);
 static void update_hostname(acl_host_and_ip *host, const char *hostname);
 static bool show_proxy_grants (THD *, const char *, const char *,
                                char *, size_t);
@@ -1071,6 +1072,9 @@ class User_table_tabular: public User_table
     if (access & REPL_SLAVE_ACL)
       access|= SLAVE_MONITOR_ACL;
 
+    if ((access & ALL_KNOWN_ACL_100304) == ALL_KNOWN_ACL_100304)
+      access|= SHOW_CREATE_ROUTINE_ACL;
+
     return access & GLOBAL_ACLS;
   }
 
@@ -1584,6 +1588,11 @@ class User_table_json: public User_table
       print_warning_bad_access(version_id, mask, orig_access);
       return NO_ACL;
     }
+
+    // ALL PRIVILEGES always means ALL PRIVILEGES
+    if ((orig_access & mask) == mask)
+      access= ALL_KNOWN_ACL;
+
     return access & ALL_KNOWN_ACL;
   }
 
@@ -2807,6 +2816,9 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
 	db.access|=REFERENCES_ACL | INDEX_ACL | ALTER_ACL;
     }
 #endif
+    if (db_table.num_fields() <= 23)
+      if ((db.access | SHOW_CREATE_ROUTINE_ACL | GRANT_ACL) == DB_ACLS)
+        db.access|= SHOW_CREATE_ROUTINE_ACL;
     acl_dbs.push(db);
   }
   end_read_record(&read_record_info);
@@ -2970,6 +2982,7 @@ bool acl_reload(THD *thd)
   }
 
   acl_cache->clear(0);
+  mysql_mutex_record_order(&acl_cache->lock, &LOCK_status);
   mysql_mutex_lock(&acl_cache->lock);
 
   old_acl_hosts= acl_hosts;
@@ -5102,6 +5115,9 @@ static int replace_db_table(TABLE *table, const char *db,
   }
   rights=get_access(table,3);
   rights=fix_rights_for_db(rights);
+  if (table->s->fields <= 23)
+    if ((rights | SHOW_CREATE_ROUTINE_ACL | GRANT_ACL) == DB_ACLS)
+      rights|= SHOW_CREATE_ROUTINE_ACL;
 
   if (old_row_exists)
   {
@@ -7688,7 +7704,7 @@ static bool can_grant_role(THD *thd, ACL_ROLE *role)
 {
   Security_context *sctx= thd->security_ctx;
 
-  if (!sctx->user) // replication
+  if (!sctx->is_user_defined()) // galera
     return true;
 
   ACL_USER *grantee= find_user_exact(Lex_cstring_strlen(sctx->priv_host),
@@ -13002,6 +13018,94 @@ err:
 #endif
 }
 
+namespace Show
+{
+  ST_FIELD_INFO users_fields_info[] =
+  {
+    Column("USER", Userhost(), NOT_NULL),
+    Column("PASSWORD_ERRORS", SLonglong(), NULLABLE),
+    Column("PASSWORD_EXPIRATION_TIME", Datetime(0), NULLABLE),
+    CEnd()
+  };
+};
+
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+static int fill_users_schema_record(THD *thd, TABLE * table, ACL_USER *user)
+{
+  ulonglong lifetime= user->password_lifetime < 0
+                      ? default_password_lifetime
+                      : user->password_lifetime;
+
+  bool ignore_password_errors= ignore_max_password_errors(user);
+  bool ignore_expiration_date= lifetime == 0 && !user->password_expired;
+
+  Grantee_str grantee(user->user,
+                      Lex_cstring_strlen(safe_str(user->host.hostname)));
+  table->field[0]->store(grantee, strlen(grantee), system_charset_info);
+  if (ignore_password_errors)
+  {
+    table->field[1]->set_null();
+  }
+  else
+  {
+    table->field[1]->set_notnull();
+    table->field[1]->store(user->password_errors);
+  }
+  if (ignore_expiration_date)
+  {
+    table->field[2]->set_null();
+  }
+  else
+  {
+    table->field[2]->set_notnull();
+    if (user->password_expired)
+      table->field[2]->store(0, true);
+    else
+      table->field[2]->store_timestamp(user->password_last_changed +
+                                       lifetime * 3600 * 24, 0);
+  }
+
+  return schema_table_store_record(thd, table);
+}
+#endif
+
+int fill_users_schema_table(THD *thd, TABLE_LIST *tables, COND *cond)
+{
+  int res= 0;
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+  bool see_whole_table= check_access(thd, SELECT_ACL, "mysql", NULL, NULL,
+                                     true, true) == 0;
+  TABLE *table= tables->table;
+
+  if (!see_whole_table)
+  {
+    Security_context *sctx= thd->security_ctx;
+    mysql_mutex_lock(&acl_cache->lock);
+    ACL_USER *cur_user= find_user_exact(Lex_cstring_strlen(sctx->priv_host),
+                                        Lex_cstring_strlen(sctx->priv_user));
+    if (!cur_user)
+    {
+      mysql_mutex_unlock(&acl_cache->lock);
+      my_error(ER_INVALID_CURRENT_USER, MYF(0));
+      return 1;
+    }
+
+    res= fill_users_schema_record(thd, table, cur_user);
+    mysql_mutex_unlock(&acl_cache->lock);
+    return res;
+  }
+
+  mysql_mutex_lock(&acl_cache->lock);
+  for (size_t i= 0; res == 0 && i < acl_users.elements; i++)
+  {
+    ACL_USER *user= dynamic_element(&acl_users, i, ACL_USER*);
+    res= fill_users_schema_record(thd, table, user);
+  }
+  mysql_mutex_unlock(&acl_cache->lock);
+#endif
+  return res;
+}
+
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
 /*
@@ -13311,7 +13415,7 @@ static void login_failed_error(THD *thd)
   */
   if (global_system_variables.log_warnings > 1)
   {
-    sql_print_warning(ER_THD(thd, access_denied_error_code(thd->password)),
+    sql_print_warning(ER_DEFAULT(access_denied_error_code(thd->password)),
                       thd->main_security_ctx.user,
                       thd->main_security_ctx.host_or_ip,
                       thd->password ? ER_THD(thd, ER_YES) : ER_THD(thd, ER_NO));
@@ -13419,8 +13523,27 @@ static bool send_server_handshake_packet(MPVIO_EXT *mpvio,
   *end++= 0;
 
   int2store(end, thd->client_capabilities);
+
+  CHARSET_INFO *handshake_cs= default_charset_info;
+  if (handshake_cs->number > 0xFF)
+  {
+    /*
+      A workaround for a 2-byte collation ID: translate it into
+      the ID of the primary collation of this character set.
+    */
+    CHARSET_INFO *cs= get_charset_by_csname(handshake_cs->cs_name.str,
+                                            MY_CS_PRIMARY, MYF(MY_WME));
+    /*
+      cs should not normally be NULL, however it may be possible
+      with a dynamic character set incorrectly defined in Index.xml.
+      For safety let's fallback to latin1 in case cs is NULL.
+    */
+    handshake_cs= cs ? cs : &my_charset_latin1;
+  }
+
   /* write server characteristics: up to 16 bytes allowed */
-  end[2]= (char) default_charset_info->number;
+  end[2]= (char) handshake_cs->number;
+
   int2store(end+3, mpvio->auth_info.thd->server_status);
   int2store(end+5, thd->client_capabilities >> 16);
   end[7]= data_len;
@@ -14580,7 +14703,8 @@ static bool check_password_lifetime(THD *thd, const ACL_USER &acl_user)
 
   thd->set_time();
 
-  if ((thd->query_start() - acl_user.password_last_changed)/3600/24 >= interval)
+  if ((((longlong) thd->query_start() - (longlong) acl_user.password_last_changed))/3600/24 >=
+      interval)
     return true;
 
   return false;
@@ -14931,7 +15055,7 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
         if (global_system_variables.log_warnings > 1)
         {
           Security_context* sctx = thd->security_ctx;
-          sql_print_warning(ER_THD(thd, err),
+          sql_print_warning(ER_DEFAULT(err),
             sctx->priv_user, sctx->priv_host, mpvio.db.str);
         }
       }

@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2022, MariaDB Corporation.
+   Copyright (c) 2009, 2024, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -207,10 +207,11 @@ enum enum_binlog_row_image {
 #define OLD_MODE_COMPAT_5_1_CHECKSUM    (1 << 5)
 #define OLD_MODE_NO_NULL_COLLATION_IDS  (1 << 6)
 #define OLD_MODE_LOCK_ALTER_TABLE_COPY  (1 << 7)
+#define OLD_MODE_OLD_FLUSH_STATUS       (1 << 8)
 
 #define OLD_MODE_DEFAULT_VALUE          OLD_MODE_UTF8_IS_UTF8MB3
 
-void old_mode_deprecated_warnings(THD *thd, ulonglong v);
+void old_mode_deprecated_warnings(ulonglong v);
 
 extern char internal_table_name[2];
 extern char empty_c_string[1];
@@ -737,6 +738,7 @@ typedef struct system_variables
   */
   ulonglong slave_skip_counter;
   ulonglong max_relay_log_size;
+  ulonglong max_tmp_space_usage;
 
   double optimizer_where_cost, optimizer_scan_setup_cost;
   double long_query_time_double, max_statement_time_double;
@@ -816,7 +818,7 @@ typedef struct system_variables
   ulong query_cache_type;
   ulong tx_isolation;
   ulong updatable_views_with_limit;
-  ulong alter_algorithm;
+  ulong alter_algorithm_unused;
   ulong server_id;
   ulong session_track_transaction_info;
   ulong threadpool_priority;
@@ -948,6 +950,7 @@ typedef struct system_status_var
   ulong ha_read_first_count;
   ulong ha_read_last_count;
   ulong ha_read_key_count;
+  ulong ha_read_key_miss;
   ulong ha_read_next_count;
   ulong ha_read_prev_count;
   ulong ha_read_retry_count;
@@ -1058,12 +1061,18 @@ typedef struct system_status_var
   double last_query_cost;
   double cpu_time, busy_time;
   uint32 threads_running;
-  /* Don't initialize */
+
+  /* Following variables are not cleared by FLUSH STATUS */
+  ulonglong max_tmp_space_used;
   /* Memory used for thread local storage */
   int64 max_local_memory_used;
+  /* Don't copy variables back to THD after this in show status */
+  ulonglong tmp_space_used;
+  /* Don't reset variables after this */
   volatile int64 local_memory_used;
   /* Memory allocated for global usage */
   volatile int64 global_memory_used;
+  time_t flush_status_time;
 } STATUS_VAR;
 
 /*
@@ -1073,12 +1082,22 @@ typedef struct system_status_var
 */
 
 #define last_system_status_var questions
-#define last_cleared_system_status_var local_memory_used
+
+/* Parameters to set_status_var_init() */
+
+#define STATUS_OFFSET(A) offsetof(STATUS_VAR,A)
+/* Clear as part of flush */
+#define clear_for_flush_status      STATUS_OFFSET(tmp_space_used)
+/* Clear as part of startup */
+#define clear_for_new_connection         STATUS_OFFSET(local_memory_used)
+/* Full initialization. Note that global_memory_used is updated early! */
+#define clear_for_server_start  STATUS_OFFSET(global_memory_used)
+#define last_restored_status_var        clear_for_flush_status
+
 
 /** Number of contiguous global status variables */
-constexpr int COUNT_GLOBAL_STATUS_VARS= int(offsetof(STATUS_VAR,
-                                                     last_system_status_var) /
-                                            sizeof(ulong)) + 1;
+constexpr int COUNT_GLOBAL_STATUS_VARS=
+  int(STATUS_OFFSET(last_system_status_var) /sizeof(ulong)) + 1;
 
 /*
   Global status variables
@@ -1802,6 +1821,8 @@ public:
   */
   bool check_access(const privilege_t want_access, bool match_any = false);
   bool is_priv_user(const LEX_CSTRING &user, const LEX_CSTRING &host);
+  bool is_user_defined() const
+    { return user && user != delayed_user && user != slave_user; };
 };
 
 
@@ -2110,6 +2131,7 @@ public:
   ulonglong sent_row_count_for_statement, examined_row_count_for_statement;
   ulonglong affected_rows;
   ulonglong bytes_sent_old;
+  ulonglong max_tmp_space_used;
   ha_handler_stats handler_stats;
   ulong     tmp_tables_used;
   ulong     tmp_tables_disk_used;
@@ -2119,6 +2141,7 @@ public:
   bool enable_slow_log;
   bool last_insert_id_used;
   bool in_stored_procedure;
+  bool do_union;
   enum enum_check_fields count_cuted_fields;
 };
 
@@ -2695,6 +2718,11 @@ public:
     swap_variables(sp_cache*, sp_package_body_cache, rhs.sp_package_body_cache);
   }
   void sp_caches_clear();
+  /**
+    Clear content of sp related caches.
+    Don't delete cache objects itself.
+  */
+  void sp_caches_empty();
 };
 
 
@@ -3100,6 +3128,8 @@ public:
   Trans_binlog_info *semisync_info;
   /* If this is a semisync slave connection. */
   bool semi_sync_slave;
+  /* Several threads may share this thd. Used with parallel repair */
+  bool shared_thd;
   ulonglong client_capabilities;  /* What the client supports */
   ulong max_client_packet_length;
 
@@ -3187,6 +3217,12 @@ public:
 
   bool save_prep_leaf_list;
 
+  /**
+    The data member reset_sp_cache is to signal that content of sp_cache
+    must be reset (all items be removed from it).
+  */
+  bool reset_sp_cache;
+
   /* container for handler's private per-connection data */
   Ha_data ha_data[MAX_HA];
 
@@ -3244,12 +3280,18 @@ public:
             binlog_flush_pending_rows_event(stmt_end, TRUE));
   }
   int binlog_flush_pending_rows_event(bool stmt_end, bool is_transactional);
-
+  void binlog_remove_rows_events();
+  uint has_pending_row_events();
   bool binlog_need_stmt_format(bool is_transactional) const
   {
-    return log_current_statement() &&
-           !binlog_get_pending_rows_event(binlog_get_cache_mngr(),
-              use_trans_cache(this, is_transactional));
+    if (!log_current_statement())
+      return false;
+    auto *cache_mngr= binlog_get_cache_mngr();
+    if (!cache_mngr)
+      return true;
+    return !binlog_get_pending_rows_event(cache_mngr,
+                                          use_trans_cache(this,
+                                                          is_transactional));
   }
 
   bool binlog_for_noop_dml(bool transactional_table);
@@ -3369,7 +3411,7 @@ public:
     WT_THD wt;                          ///< for deadlock detection
     Rows_log_event *m_pending_rows_event;
 
-    struct st_trans_time : public timeval
+    struct st_trans_time : public my_timeval
     {
       void reset(THD *thd)
       {
@@ -3698,12 +3740,12 @@ public:
     sent_row_count_for_statement+= count;
     MYSQL_SET_STATEMENT_ROWS_SENT(m_statement_psi, m_sent_row_count);
   }
-  inline void inc_examined_row_count_fast()
+  inline void inc_examined_row_count_fast(ha_rows count= 1)
   {
-    m_examined_row_count++;
-    examined_row_count_for_statement++;
+    m_examined_row_count+= count;
+    examined_row_count_for_statement+= count;
   }
-  inline void inc_examined_row_count()
+  inline void inc_examined_row_count(ha_rows count= 1)
   {
     inc_examined_row_count_fast();
     MYSQL_SET_STATEMENT_ROWS_EXAMINED(m_statement_psi, m_examined_row_count);
@@ -3801,6 +3843,7 @@ public:
   ulonglong  tmp_tables_size;
   ulonglong  bytes_sent_old;
   ulonglong  affected_rows;                     /* Number of changed rows */
+  ulonglong  max_tmp_space_used;
 
   Opt_trace_context opt_trace;
   pthread_t  real_id;                           /* For debugging */
@@ -3977,7 +4020,7 @@ public:
     execution stack when the event turns out to be ignored.
   */
   int	     slave_expected_error;
-  enum_sql_command last_sql_command;  // Last sql_command exceuted in mysql_execute_command()
+  enum_sql_command last_sql_command;  // Last sql_command executed in mysql_execute_command()
 
   sp_rcontext *spcont;		// SP runtime context
 
@@ -4280,7 +4323,7 @@ private:
   }
 
 public:
-  timeval transaction_time()
+  my_timeval transaction_time()
   {
     if (!in_multi_stmt_transaction_mode())
       transaction->start_time.reset(this);
@@ -4833,7 +4876,7 @@ public:
             (!transaction->stmt.modified_non_trans_table ||
              (variables.sql_mode & MODE_STRICT_ALL_TABLES)));
   }
-  void set_status_var_init();
+  void set_status_var_init(ulong offset);
   void reset_n_backup_open_tables_state(Open_tables_backup *backup);
   void restore_backup_open_tables_state(Open_tables_backup *backup);
   void reset_sub_statement_state(Sub_statement_state *backup, uint new_state);
@@ -5018,6 +5061,7 @@ public:
     to->length= db.length;
     return to->str == NULL;                     /* True on error */
   }
+
 
   /*
     Make a normalized copy of the current database.
@@ -5378,11 +5422,29 @@ public:
   {
     if (global_system_variables.log_warnings > threshold)
     {
+      char real_ip_str[64];
+      real_ip_str[0]= 0;
+
+      /* For proxied connections, add the real IP to the warning message */
+      if (net.using_proxy_protocol && net.vio)
+      {
+        if(net.vio->localhost)
+          snprintf(real_ip_str, sizeof(real_ip_str), " real ip: 'localhost'");
+        else
+        {
+          char buf[INET6_ADDRSTRLEN];
+          if (!vio_getnameinfo((sockaddr *)&(net.vio->remote), buf,
+              sizeof(buf),NULL, 0, NI_NUMERICHOST))
+          {
+            snprintf(real_ip_str, sizeof(real_ip_str), " real ip: '%s'",buf);
+          }
+        }
+      }
       Security_context *sctx= &main_security_ctx;
-      sql_print_warning(ER_THD(this, ER_NEW_ABORTING_CONNECTION),
+      sql_print_warning(ER_DEFAULT(ER_NEW_ABORTING_CONNECTION),
                         thread_id, (db.str ? db.str : "unconnected"),
                         sctx->user ? sctx->user : "unauthenticated",
-                        sctx->host_or_ip, reason);
+                        sctx->host_or_ip, real_ip_str, reason);
     }
   }
 
@@ -5480,8 +5542,18 @@ public:
     Flag, mutex and condition for a thread to wait for a signal from another
     thread.
 
-    Currently used to wait for group commit to complete, can also be used for
-    other purposes.
+    Currently used to wait for group commit to complete, and COND_wakeup_ready
+    is used for threads to wait on semi-sync ACKs (though is protected by
+    Repl_semi_sync_master::LOCK_binlog). Note the following relationships
+    between these two use-cases when using
+    rpl_semi_sync_master_wait_point=AFTER_SYNC during group commit:
+      1) Non-leader threads use COND_wakeup_ready to wait for the leader thread
+         to complete binlog commit.
+      2) The leader thread uses COND_wakeup_ready to await ACKs from the
+         replica before signalling the non-leader threads to wake up.
+
+    With wait_point=AFTER_COMMIT, there is no overlap as binlogging has
+    finished, so COND_wakeup_ready is safe to re-use.
   */
   bool wakeup_ready;
   mysql_mutex_t LOCK_wakeup_ready;
@@ -5613,14 +5685,6 @@ public:
 #endif
 
   bool check_slave_ignored_db_with_error(const Lex_ident_db &db) const;
-
-  /*
-    Indicates if this thread is suspended due to awaiting an ACK from a
-    replica. True if suspended, false otherwise.
-
-    Note that this variable is protected by Repl_semi_sync_master::LOCK_binlog
-  */
-  bool is_awaiting_semisync_ack;
 
   inline ulong wsrep_binlog_format(ulong binlog_format) const
   {
@@ -8370,6 +8434,10 @@ extern THD_list server_threads;
 
 void setup_tmp_table_column_bitmaps(TABLE *table, uchar *bitmaps,
                                     uint field_count);
+C_MODE_START
+void mariadb_sleep_for_space(unsigned int seconds);
+C_MODE_END
+
 #ifdef WITH_WSREP
 extern void wsrep_to_isolation_end(THD*);
 #endif

@@ -683,6 +683,23 @@ connection master;
 CHANGE MASTER TO master_host='127.0.0.1', master_port=SLAVE_PORT, master_user='root', master_use_gtid=Slave_Pos, master_demote_to_slave=invalid;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'invalid' at line 1
 #
+# MDEV-31768
+# Ensure MASTER_DEMOTE_TO_REPLICA aliases MASTER_DEMOTE_TO_SLAVE
+#
+connection slave;
+RESET MASTER;
+include/reset_slave.inc
+CREATE TABLE t_mdev_31768 (a int);
+CHANGE MASTER TO master_use_gtid=Replica_Pos, master_demote_to_replica=1;
+# Validating alias MASTER_DEMOTE_TO_REPLICA provides intended behavior..
+# ..success
+DROP TABLE t_mdev_31768;
+RESET MASTER;
+include/reset_slave.inc
+# Clear primary binlog state to match replica
+connection master;
+RESET MASTER;
+#
 # Cleanup
 #
 connection master;

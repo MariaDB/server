@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2022, MariaDB Corporation.
+   Copyright (c) 2009, 2024, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -324,8 +324,6 @@ static void update_tmptable_sum_func(Item_sum **func,TABLE *tmp_table);
 static void copy_sum_funcs(Item_sum **func_ptr, Item_sum **end);
 static bool add_ref_to_table_cond(THD *thd, JOIN_TAB *join_tab);
 static bool setup_sum_funcs(THD *thd, Item_sum **func_ptr);
-static bool prepare_sum_aggregators(THD *thd, Item_sum **func_ptr,
-                                    bool need_distinct);
 static bool init_sum_functions(Item_sum **func, Item_sum **end);
 static bool update_sum_func(Item_sum **func);
 static void select_describe(JOIN *join, bool need_tmp_table,bool need_order,
@@ -852,37 +850,57 @@ void remove_redundant_subquery_clauses(st_select_lex *subq_select_lex)
   if (subq_select_lex->group_list.elements &&
       !subq_select_lex->with_sum_func && !subq_select_lex->join->having)
   {
+    /*
+      Temporary workaround for MDEV-28621: Do not remove GROUP BY expression
+      if it has any subqueries in it.
+    */
+    bool have_subquery= false;
     for (ORDER *ord= subq_select_lex->group_list.first; ord; ord= ord->next)
     {
-      /*
-        Do not remove the item if it is used in select list and then referred
-        from GROUP BY clause by its name or number. Example:
-
-          select (select ... ) as SUBQ ...  group by SUBQ
-
-        Here SUBQ cannot be removed.
-      */
-      if (!ord->in_field_list)
+      if ((*ord->item)->with_subquery())
       {
-        (*ord->item)->walk(&Item::eliminate_subselect_processor, FALSE, NULL);
-        /*
-          Remove from the JOIN::all_fields list any reference to the elements
-          of the eliminated GROUP BY list unless it is 'in_field_list'.
-          This is needed in order not to confuse JOIN::make_aggr_tables_info()
-          when it constructs different structure for execution phase.
-	*/
-        List_iterator<Item> li(subq_select_lex->join->all_fields);
-	Item *item;
-        while ((item= li++))
-	{
-          if (item == *ord->item)
-	    li.remove();
-	}
+        have_subquery= true;
+        break;
       }
     }
-    subq_select_lex->join->group_list= NULL;
-    subq_select_lex->group_list.empty();
-    DBUG_PRINT("info", ("GROUP BY removed"));
+
+    if (!have_subquery)
+    {
+      for (ORDER *ord= subq_select_lex->group_list.first; ord; ord= ord->next)
+      {
+        /*
+          Do not remove the item if it is used in select list and then referred
+          from GROUP BY clause by its name or number. Example:
+
+            select (select ... ) as SUBQ ...  group by SUBQ
+
+          Here SUBQ cannot be removed.
+        */
+        if (!ord->in_field_list)
+        {
+          /*
+          Not necessary due to workaround for MDEV-28621:
+          (*ord->item)->walk(&Item::eliminate_subselect_processor, FALSE, NULL);
+          */
+          /*
+            Remove from the JOIN::all_fields list any reference to the elements
+            of the eliminated GROUP BY list unless it is 'in_field_list'.
+            This is needed in order not to confuse JOIN::make_aggr_tables_info()
+            when it constructs different structure for execution phase.
+          */
+          List_iterator<Item> li(subq_select_lex->join->all_fields);
+          Item *item;
+          while ((item= li++))
+          {
+            if (item == *ord->item)
+              li.remove();
+          }
+        }
+      }
+      subq_select_lex->join->group_list= NULL;
+      subq_select_lex->group_list.empty();
+      DBUG_PRINT("info", ("GROUP BY removed"));
+    }
   }
 
   /*
@@ -2416,6 +2434,10 @@ JOIN::optimize_inner()
                                                   select_lex->attach_to_conds,
                                                   &cond_value);
       sel->attach_to_conds.empty();
+      Json_writer_object wrapper(thd);
+      Json_writer_object pushd(thd, "condition_pushdown_from_having");
+      pushd.add("conds", conds);
+      pushd.add("having", having);
     }
   }
 
@@ -3665,7 +3687,7 @@ bool JOIN::make_aggr_tables_info()
     distinct in the engine, so we do this for all queries, not only
     GROUP BY queries.
   */
-  if (tables_list && top_join_tab_count && !procedure)
+  if (tables_list && top_join_tab_count && !only_const_tables() && !procedure)
   {
     /*
       At the moment we only support push down for queries where
@@ -4303,7 +4325,7 @@ JOIN::create_postjoin_aggr_table(JOIN_TAB *tab, List<Item> *table_fields,
     if (make_sum_func_list(all_fields, fields_list, true))
       goto err;
     if (prepare_sum_aggregators(thd, sum_funcs,
-                                !(tables_list && 
+                                !(tables_list &&
                                   join_tab->is_using_agg_loose_index_scan())))
       goto err;
     if (setup_sum_funcs(thd, sum_funcs))
@@ -4950,7 +4972,10 @@ int JOIN::exec_inner()
 
   if ((this->select_lex->options & OPTION_SCHEMA_TABLE) &&
       get_schema_tables_result(this, PROCESSED_BY_JOIN_EXEC))
-    DBUG_RETURN(0);
+  {
+    error= thd->is_error();
+    DBUG_RETURN(error);
+  }
 
   if (select_options & SELECT_DESCRIBE)
   {
@@ -11168,7 +11193,7 @@ double table_after_join_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
   else
   {
     sel= records_out / pos->records_read;
-    DBUG_ASSERT(sel >= 0.0 and sel <= 1.00001);
+    DBUG_ASSERT(sel >= 0.0 && sel <= 1.00001);
     if (sel > 1.0)
       sel= 1.0;
   }
@@ -14927,7 +14952,8 @@ end_sj_materialize(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
       if (item->is_null())
         DBUG_RETURN(NESTED_LOOP_OK);
     }
-    fill_record(thd, table, table->field, sjm->sjm_table_cols, TRUE, FALSE);
+    fill_record(thd, table, table->field, sjm->sjm_table_cols, true, false,
+                true);
     if (unlikely(thd->is_error()))
       DBUG_RETURN(NESTED_LOOP_ERROR); /* purecov: inspected */
     if (unlikely((error= table->file->ha_write_tmp_row(table->record[0]))))
@@ -18415,6 +18441,7 @@ Item *eliminate_item_equal(THD *thd, COND *cond, COND_EQUAL *upper_levels,
 
       if (!eq_item || eq_item->set_cmp_func(thd))
         return 0;
+      eq_item->eval_not_null_tables(0);
       eq_item->quick_fix_field();
     }
     current_sjm= field_sjm;
@@ -18472,6 +18499,7 @@ Item *eliminate_item_equal(THD *thd, COND *cond, COND_EQUAL *upper_levels,
   {
     res->quick_fix_field();
     res->update_used_tables();
+    res->eval_not_null_tables(0);
   }
 
   return res;
@@ -20141,6 +20169,12 @@ Item_cond::remove_eq_conds(THD *thd, Item::cond_result *cond_value,
   bool and_level= functype() == Item_func::COND_AND_FUNC;
   List<Item> *cond_arg_list= argument_list();
 
+  if (check_stack_overrun(thd, STACK_MIN_SIZE, NULL))
+  {
+    *cond_value= Item::COND_FALSE;
+    return (COND*) 0;                           // Fatal error flag is set!
+  }
+
   if (and_level)
   {
     /*
@@ -21218,7 +21252,7 @@ TABLE *Create_tmp_table::start(THD *thd,
                         &m_key_part_info,
                         sizeof(*m_key_part_info)*(param->group_parts+1),
                         &param->start_recinfo,
-                        sizeof(*param->recinfo)*(field_count*2+4),
+                        sizeof(*param->start_recinfo)*(field_count*2+4),
                         &param->rec_per_key, sizeof(ulong)*param->group_parts,
                         &tmpname, (uint) strlen(path)+1,
                         &m_group_buff, (m_group && ! m_using_unique_constraint ?
@@ -22274,7 +22308,8 @@ bool open_tmp_table(TABLE *table)
   int error;
   if (unlikely((error= table->file->ha_open(table, table->s->path.str, O_RDWR,
                                             HA_OPEN_TMP_TABLE |
-                                            HA_OPEN_INTERNAL_TABLE))))
+                                            HA_OPEN_INTERNAL_TABLE |
+                                            HA_OPEN_SIZE_TRACKING))))
   {
     table->file->print_error(error, MYF(0)); /* purecov: inspected */
     table->db_stat= 0;
@@ -22321,7 +22356,7 @@ bool open_tmp_table(TABLE *table)
 
    RETURN
      FALSE - OK
-     TRUE  - Error
+     TRUE  - Error.  my_error() have been called
 */
 
 
@@ -22537,7 +22572,7 @@ bool create_internal_tmp_table(TABLE *table, KEY *org_keyinfo,
 
    RETURN
      FALSE - OK
-     TRUE  - Error
+     TRUE  - Error ; my_error() has been called.
 */
 
 /* Create internal MyISAM temporary table */
@@ -22677,6 +22712,9 @@ bool create_internal_tmp_table(TABLE *table, KEY *org_keyinfo,
 /*
   If a HEAP table gets full, create a internal table in MyISAM or Maria
   and copy all rows to this
+
+  In case of error, my_error() or handler::print_error() will be called.
+  Note that in case of error, table->file->ha_rnd_end() may have been called!
 */
 
 
@@ -22730,9 +22768,12 @@ create_internal_tmp_table_from_heap(THD *thd, TABLE *table,
 			        thd->variables.option_bits))
     goto err2;
   if (open_tmp_table(&new_table))
-    goto err1;
+  {
+    TMP_ENGINE_HTON->drop_table(TMP_ENGINE_HTON, new_table.s->path.str);
+    goto err2;
+  }
   if (table->file->indexes_are_disabled())
-    new_table.file->ha_disable_indexes(HA_KEY_SWITCH_ALL);
+    new_table.file->ha_disable_indexes(key_map(0), false);
   table->file->ha_index_or_rnd_end();
   if (table->file->ha_rnd_init_with_error(1))
     DBUG_RETURN(1);
@@ -22760,7 +22801,7 @@ create_internal_tmp_table_from_heap(THD *thd, TABLE *table,
     if (unlikely(thd->check_killed()))
       goto err_killed;
   }
-  if (!new_table.no_rows && new_table.file->ha_end_bulk_insert())
+  if (!new_table.no_rows && (write_err= new_table.file->ha_end_bulk_insert()))
     goto err;
   /* copy row that filled HEAP table */
   if (unlikely((write_err=new_table.file->ha_write_tmp_row(table->record[0]))))
@@ -22809,9 +22850,7 @@ create_internal_tmp_table_from_heap(THD *thd, TABLE *table,
   table->file->print_error(write_err, MYF(0));
 err_killed:
   (void) table->file->ha_rnd_end();
-  (void) new_table.file->ha_close();
- err1:
-  TMP_ENGINE_HTON->drop_table(TMP_ENGINE_HTON, new_table.s->path.str);
+  (void) new_table.file->drop_table(new_table.s->path.str);
  err2:
   delete new_table.file;
   thd_proc_info(thd, save_proc_info);
@@ -22842,7 +22881,13 @@ free_tmp_table(THD *thd, TABLE *entry)
       thd->tmp_tables_size+= (entry->file->stats.data_file_length +
                               entry->file->stats.index_file_length);
     }
-    entry->file->ha_drop_table(entry->s->path.str);
+    /*
+      This is an internal temporary table, we should not call ha_drop_table()
+      as it will mark the transaction read/write
+    */
+    DBUG_ASSERT(entry->s->tmp_table == SYSTEM_TMP_TABLE ||
+                entry->s->tmp_table == INTERNAL_TMP_TABLE);
+    entry->file->drop_table(entry->s->path.str);
     delete entry->file;
     entry->file= NULL;
     entry->reset_created();
@@ -28971,15 +29016,86 @@ static bool setup_sum_funcs(THD *thd, Item_sum **func_ptr)
 }
 
 
-static bool prepare_sum_aggregators(THD *thd,Item_sum **func_ptr,
-                                    bool need_distinct)
+/*
+  @brief
+    Setup aggregate functions.
+
+  @param thd            Thread descriptor
+  @param func_ptr       Array of pointers to aggregate functions
+  @param need_distinct  FALSE means that the table access method already
+                        guarantees that arguments of all aggregate functions
+                        will be unique. (This is the case for Loose Scan)
+                        TRUE - Otherwise.
+  @return
+     false  Ok
+     true   Error
+*/
+
+bool JOIN::prepare_sum_aggregators(THD *thd, Item_sum **func_ptr,
+                                   bool need_distinct)
 {
   Item_sum *func;
   DBUG_ENTER("prepare_sum_aggregators");
   while ((func= *(func_ptr++)))
   {
-    if (func->set_aggregator(thd,
-                             need_distinct && func->has_with_distinct() ?
+    bool need_distinct_aggregator= need_distinct && func->has_with_distinct();
+    if (need_distinct_aggregator && table_count - const_tables == 1)
+    {
+      /*
+        We are doing setup for an aggregate with DISTINCT, like
+
+          SELECT agg_func(DISTINCT col1, col2 ...) FROM ...
+
+        In general case, agg_func will need to use Aggregator_distinct to
+        remove duplicates from its arguments.
+        We won't have to remove duplicates if we know the arguments are already
+        unique. This is true when
+        1. the join operation has only one non-const table (checked above)
+        2. the argument list covers a PRIMARY or a UNIQUE index.
+
+        Example: here the values of t1.pk are unique:
+
+          SELECT agg_func(DISTINCT t1.pk, ...) FROM t1
+
+        and so the whole argument of agg_func is unique.
+      */
+      List<Item> arg_fields;
+      for (uint i= 0; i < func->argument_count(); i++)
+      {
+        if (func->arguments()[i]->real_item()->type() == Item::FIELD_ITEM)
+          arg_fields.push_back(func->arguments()[i]);
+      }
+
+      /*
+        If the query has a GROUP BY, then it's sufficient that a unique
+        key is covered by a concatenation of {argument_list, group_by_list}.
+
+        Example: Suppose t1 has PRIMARY KEY(pk1, pk2). Then:
+
+          SELECT agg_func(DISTINCT t1.pk1, ...) FROM t1 GROUP BY t1.pk2
+
+        Each GROUP BY group will have t1.pk2 fixed. Then, the values of t1.pk1
+        will be unique, and no de-duplication will be needed.
+      */
+      for (ORDER *group= group_list; group ; group= group->next)
+      {
+        if ((*group->item)->real_item()->type() == Item::FIELD_ITEM)
+          arg_fields.push_back(*group->item);
+      }
+
+      if (list_contains_unique_index(join_tab[const_tables].table,
+                                     find_field_in_item_list,
+                                     (void *) &arg_fields))
+        need_distinct_aggregator= false;
+    }
+    Json_writer_object trace_wrapper(thd);
+    Json_writer_object trace_aggr(thd, "prepare_sum_aggregators");
+    trace_aggr.add("function", func);
+    trace_aggr.add("aggregator_type",
+                   (need_distinct_aggregator ||
+                    func->uses_non_standard_aggregator_for_distinct()) ?
+                      "distinct" : "simple");
+    if (func->set_aggregator(thd, need_distinct_aggregator ?
                              Aggregator::DISTINCT_AGGREGATOR :
                              Aggregator::SIMPLE_AGGREGATOR))
       DBUG_RETURN(TRUE);
@@ -33045,7 +33161,26 @@ void JOIN::init_join_cache_and_keyread()
       */
       table->mark_index_columns(table->file->keyread, table->read_set);
     }
-    if (tab->cache && tab->cache->init(select_options & SELECT_DESCRIBE))
+    bool init_for_explain= false;
+
+    /*
+       Can we use lightweight initalization mode just for EXPLAINs? We can if
+       we're certain that the optimizer will not execute the subquery.
+       The optimzier will not execute the subquery if it's too expensive. For
+       the exact criteria, see Item_subselect::is_expensive().
+       Note that the subquery might be a UNION and we might not yet know if it
+       is expensive.
+       What we do know is that if this SELECT is too expensive, then the whole
+       subquery will be too expensive as well.
+       So, we can use lightweight initialization (init_for_explain=true) if this
+       SELECT examines more than @@expensive_subquery_limit rows.
+     */
+    if ((select_options & SELECT_DESCRIBE) &&
+        get_examined_rows() >= thd->variables.expensive_subquery_limit)
+    {
+      init_for_explain= true;
+    }
+    if (tab->cache && tab->cache->init(init_for_explain))
       revise_cache_usage(tab);
     else
       tab->remove_redundant_bnl_scan_conds();

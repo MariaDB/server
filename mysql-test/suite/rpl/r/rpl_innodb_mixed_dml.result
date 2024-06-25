@@ -574,7 +574,7 @@ test_rpl.t1	optimize	status	OK
 ******************** REPAIR TABLE ********************
 REPAIR TABLE t1;
 Table	Op	Msg_type	Msg_text
-test_rpl.t1	repair	note	The storage engine for the table doesn't support repair
+test_rpl.t1	repair	status	OK
 
 ******************** SET VARIABLE ********************
 SET @test_rpl_var = 1;

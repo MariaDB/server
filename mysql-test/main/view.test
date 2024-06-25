@@ -2040,12 +2040,12 @@ create view abc as select * from t1 as abc;
 drop table t1;
 drop view abc;
 
-
-#
-# Bug#12993 View column rename broken in subselect
-#
+--echo #
+--echo # Bug#12993 View column rename broken in subselect
+--echo #
 
 flush status;
+flush global status;
 create table t1(f1 char(1));
 create view v1 as select * from t1;
 select * from (select f1 as f2, f1 as f3 from v1) v where v.f2='a';

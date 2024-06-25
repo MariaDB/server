@@ -165,7 +165,8 @@ bool mysql_compare_tables(TABLE *table,
                           HA_CREATE_INFO *create_info,
                           bool *metadata_equal);
 bool mysql_recreate_table(THD *thd, TABLE_LIST *table_list,
-                          class Recreate_info *recreate_info, bool table_copy);
+                          class Recreate_info *recreate_info,
+                          bool table_copy);
 bool mysql_rename_table(handlerton *base, const LEX_CSTRING *old_db,
                         const LEX_CSTRING *old_name, const LEX_CSTRING *new_db,
                         const LEX_CSTRING *new_name, const LEX_CUSTRING *id,
@@ -216,9 +217,5 @@ uint explain_filename(THD* thd, const char *from, char *to, uint to_length,
 extern MYSQL_PLUGIN_IMPORT const Lex_ident_column primary_key_name;
 
 bool check_engine(THD *, const char *, const char *, HA_CREATE_INFO *);
-
-#ifdef WITH_WSREP
-bool wsrep_check_sequence(THD* thd, const class sequence_definition *seq);
-#endif
 
 #endif /* SQL_TABLE_INCLUDED */

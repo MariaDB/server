@@ -14,7 +14,7 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
-/* close a isam-database */
+/* close an Aria table */
 /*
   TODO:
    We need to have a separate mutex on the closed file to allow other threads
@@ -103,6 +103,10 @@ int maria_close(register MARIA_HA *info)
       will be kept around until the transaction has closed
     */
     DBUG_ASSERT(share->open_list == 0);
+
+    /* Ensure that we have stopped tracking of temporary files */
+    DBUG_ASSERT(share->track_data.file_size == 0);
+    DBUG_ASSERT(share->track_index.file_size == 0);
 
     /* Flush everything */
     if (share->kfile.file >= 0)

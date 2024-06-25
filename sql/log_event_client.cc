@@ -685,7 +685,7 @@ log_event_print_value(IO_CACHE *file, PRINT_EVENT_INFO *print_event_info,
         goto return_null;
 
       char buf[MAX_DATE_STRING_REP_LENGTH];
-      struct timeval tm;
+      struct my_timeval tm;
       my_timestamp_from_binary(&tm, ptr, meta);
       int buflen= my_timeval_to_str(&tm, buf, meta);
       my_b_write(file, (uchar*)buf, buflen);
@@ -1010,7 +1010,8 @@ Rows_log_event::print_verbose_one_row(IO_CACHE *file, table_def *td,
         IO_CACHE tmp_cache;
 
         // Using a tmp IO_CACHE to get the value output
-        open_cached_file(&tmp_cache, NULL, NULL, 0, MYF(MY_WME | MY_NABP));
+        open_cached_file(&tmp_cache, NULL, NULL, 0,
+                         MYF(MY_WME | MY_NABP | MY_TRACK_WITH_LIMIT));
         size= log_event_print_value(&tmp_cache, print_event_info,
                                     is_null ? NULL: value,
                                     td->type(i), td->field_metadata(i),
@@ -1831,7 +1832,8 @@ bool Log_event::print_base64(IO_CACHE* file,
         IO_CACHE tmp_cache;
 
         if (open_cached_file(&tmp_cache, NULL, NULL, 0,
-                              MYF(MY_WME | MY_NABP)))
+                              MYF(MY_WME | MY_NABP |
+                                  MY_TRACK_WITH_LIMIT)))
         {
           delete ev;
           goto err;
@@ -2996,7 +2998,7 @@ bool Annotate_rows_log_event::print(FILE *file, PRINT_EVENT_INFO *pinfo)
 {
   char *pbeg;   // beginning of the next line
   char *pend;   // end of the next line
-  uint cnt= 0;  // characters counter
+  char *qend= m_query_txt + m_query_len;
 
   if (!pinfo->short_form)
   {
@@ -3007,28 +3009,21 @@ bool Annotate_rows_log_event::print(FILE *file, PRINT_EVENT_INFO *pinfo)
   else if (my_b_printf(&pinfo->head_cache, "# Annotate_rows:\n"))
     goto err;
 
-  for (pbeg= m_query_txt; ; pbeg= pend)
+  for (pbeg= m_query_txt; pbeg < qend; pbeg= pend)
   {
     // skip all \r's and \n's at the beginning of the next line
-    for (;; pbeg++)
-    {
-      if (++cnt > m_query_len)
-        return 0;
-
-      if (*pbeg != '\r' && *pbeg != '\n')
-        break;
-    }
+    for (; pbeg < qend && (*pbeg == '\r' || *pbeg == '\n'); pbeg++)
+      ;
 
     // find end of the next line
-    for (pend= pbeg + 1;
-         ++cnt <= m_query_len && *pend != '\r' && *pend != '\n';
-         pend++)
+    for (pend= pbeg + 1; pend < qend && *pend != '\r' && *pend != '\n'; pend++)
       ;
 
     // print next line
-    if (my_b_write(&pinfo->head_cache, (const uchar*) "#Q> ", 4) ||
-        my_b_write(&pinfo->head_cache, (const uchar*) pbeg, pend - pbeg) ||
-        my_b_write(&pinfo->head_cache, (const uchar*) "\n", 1))
+    if (pbeg < qend &&
+        (my_b_write(&pinfo->head_cache, (const uchar*) "#Q> ", 4) ||
+         my_b_write(&pinfo->head_cache, (const uchar*) pbeg, pend - pbeg) ||
+         my_b_write(&pinfo->head_cache, (const uchar*) "\n", 1)))
       goto err;
   }
 
@@ -3726,7 +3721,7 @@ bool Ignorable_log_event::print(FILE *file,
 */
 st_print_event_info::st_print_event_info()
 {
-  myf const flags = MYF(MY_WME | MY_NABP);
+  myf const flags = MYF(MY_WME | MY_NABP | MY_TRACK_WITH_LIMIT);
   /*
     Currently we only use static PRINT_EVENT_INFO objects, so zeroed at
     program's startup, but these explicit bzero() is for the day someone

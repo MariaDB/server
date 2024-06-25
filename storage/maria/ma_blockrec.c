@@ -488,7 +488,7 @@ my_bool _ma_init_block_record(MARIA_HA *info)
 {
   MARIA_ROW *row= &info->cur_row, *new_row= &info->new_row;
   MARIA_SHARE *share= info->s;
-  myf flag= MY_WME | (share->temporary ? MY_THREAD_SPECIFIC : 0);
+  myf flag= MY_WME | share->malloc_flag;
   uint default_extents;
   DBUG_ENTER("_ma_init_block_record");
 
@@ -2091,7 +2091,8 @@ static my_bool write_tail(MARIA_HA *info,
         data_file_length after writing any log record (FILE_ID/REDO/UNDO) (see
         collect_tables()).
       */
-      _ma_set_share_data_file_length(share, position + block_size);
+      if (_ma_set_share_data_file_length(info, position + block_size))
+        res= 1;
     }
   }
   DBUG_RETURN(res);
@@ -2194,7 +2195,10 @@ static my_bool write_full_pages(MARIA_HA *info,
     DBUG_ASSERT(block->used & BLOCKUSED_USED);
   }
   if (share->state.state.data_file_length < max_position)
-    _ma_set_share_data_file_length(share, max_position);
+  {
+    if (_ma_set_share_data_file_length(info, max_position))
+      DBUG_RETURN(1);
+  }
   DBUG_RETURN(0);
 }
 
@@ -2654,7 +2658,6 @@ static my_bool write_block_record(MARIA_HA *info,
   LSN lsn;
   my_off_t position;
   uint save_my_errno;
-  myf myflag= MY_WME | (share->temporary ? MY_THREAD_SPECIFIC : 0);
   DBUG_ENTER("write_block_record");
 
   head_block= bitmap_blocks->block;
@@ -2721,7 +2724,7 @@ static my_bool write_block_record(MARIA_HA *info,
     for every data segment we want to store.
   */
   if (_ma_alloc_buffer(&info->rec_buff, &info->rec_buff_size,
-                       row->head_length, myflag))
+                       row->head_length, MY_WME | share->malloc_flag))
     DBUG_RETURN(1);
 
   tmp_data_used= 0;                 /* Either 0 or last used uchar in 'data' */
@@ -3216,7 +3219,10 @@ static my_bool write_block_record(MARIA_HA *info,
     /* Increase data file size, if extended */
     position= (my_off_t) head_block->page * block_size;
     if (share->state.state.data_file_length <= position)
-      _ma_set_share_data_file_length(share, position + block_size);
+    {
+      if (_ma_set_share_data_file_length(info, position + block_size))
+        goto disk_err;
+    }
   }
 
   if (share->now_transactional && (tmp_data_used || blob_full_pages_exists))
@@ -4750,7 +4756,7 @@ int _ma_read_block_record2(MARIA_HA *info, uchar *record,
   MARIA_EXTENT_CURSOR extent;
   MARIA_COLUMNDEF *column, *end_column;
   MARIA_ROW *cur_row= &info->cur_row;
-  myf myflag= MY_WME | (share->temporary ? MY_THREAD_SPECIFIC : 0);
+  myf myflag= MY_WME | share->malloc_flag;
   DBUG_ENTER("_ma_read_block_record2");
 
   start_of_data= data;
@@ -5089,7 +5095,6 @@ static my_bool read_row_extent_info(MARIA_HA *info, uchar *buff,
   uint flag, row_extents, row_extents_size;
   uint field_lengths __attribute__ ((unused));
   uchar *extents, *end;
-  myf myflag= MY_WME | (share->temporary ? MY_THREAD_SPECIFIC : 0);
   DBUG_ENTER("read_row_extent_info");
 
   if (!(data= get_record_position(share, buff,
@@ -5113,7 +5118,7 @@ static my_bool read_row_extent_info(MARIA_HA *info, uchar *buff,
     if (info->cur_row.extents_buffer_length < row_extents_size &&
         _ma_alloc_buffer(&info->cur_row.extents,
                          &info->cur_row.extents_buffer_length,
-                         row_extents_size, myflag))
+                         row_extents_size, MY_WME | share->malloc_flag))
       DBUG_RETURN(1);
     memcpy(info->cur_row.extents, data, ROW_EXTENT_SIZE);
     data+= ROW_EXTENT_SIZE;
@@ -5283,8 +5288,7 @@ my_bool _ma_cmp_block_unique(MARIA_HA *info, MARIA_UNIQUEDEF *def,
 my_bool _ma_scan_init_block_record(MARIA_HA *info)
 {
   MARIA_SHARE *share= info->s;
-  myf flag= MY_WME | (share->temporary ? MY_THREAD_SPECIFIC : 0);
-  my_bool res;
+  myf flag= MY_WME | share->malloc_flag;
   DBUG_ENTER("_ma_scan_init_block_record");
   DBUG_ASSERT(info->dfile.file == share->bitmap.file.file);
 
@@ -5311,8 +5315,7 @@ my_bool _ma_scan_init_block_record(MARIA_HA *info)
     _ma_scan_block_record()), we may miss recently inserted rows (bitmap page
     in page cache would be too old).
   */
-  res= _ma_bitmap_flush(info->s);
-  DBUG_RETURN(res);
+  DBUG_RETURN(_ma_bitmap_flush(info->s));
 }
 
 

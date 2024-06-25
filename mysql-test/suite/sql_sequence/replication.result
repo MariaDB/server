@@ -263,7 +263,7 @@ drop sequence s_db.s1;
 query cache test
 ###########################################
 connection master;
-flush status;
+flush global status;
 show global variables like 'query_cache_type';
 Variable_name	Value
 query_cache_type	ON

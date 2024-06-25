@@ -1462,16 +1462,14 @@ ALTER TABLE m1 ENABLE KEYS, ALGORITHM= INPLACE;
 ALTER TABLE t1 DROP INDEX i1, DROP INDEX i2, DROP INDEX i3, DROP INDEX i4;
 
 --echo #
---echo # 2: Test ALGORITHM + alter_algorithm
+--echo # 2: Test ALGORITHM keywords
 --echo #
 
 --enable_info
-SET SESSION alter_algorithm= 1;
 ALTER TABLE t1 ADD INDEX i1(b);
 ALTER TABLE t1 ADD INDEX i2(b), ALGORITHM= DEFAULT;
 ALTER TABLE t1 ADD INDEX i3(b), ALGORITHM= COPY;
 ALTER TABLE t1 ADD INDEX i4(b), ALGORITHM= INPLACE;
-SET SESSION alter_algorithm= 0;
 --disable_info
 
 ALTER TABLE t1 DROP INDEX i1, DROP INDEX i2, DROP INDEX i3, DROP INDEX i4;
@@ -2399,6 +2397,15 @@ DROP TEMPORARY TABLE t2;
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-33313 Incorrect error message for "ALTER TABLE ... DROP CONSTRAINT ..., DROP col, DROP col"
+--echo #
+create table t2(id int primary key) engine=innodb;
+create table t1(id int primary key, t2_id int, constraint t1_fk_t2_id foreign key(t2_id) references t2(id)) engine=innodb;
+--error ER_CANT_DROP_FIELD_OR_KEY
+alter table t1 drop constraint t1_fk_t2_id, drop t2_id, drop t2_id;
+drop table t1, t2;
+
+--echo #
 --echo # End of 10.6 tests
 --echo #
 
@@ -2418,4 +2425,17 @@ DROP TABLE t;
 
 --echo #
 --echo # End of 10.7 tests
+--echo #
+
+--echo #
+--echo # MDEV-33655 Remove alter_algorithm
+--echo #
+
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+CREATE TABLE t2 (a INT) ENGINE=MERGE, UNION(t1);
+ALTER TABLE t2 COMMENT 'x', LOCK=SHARED;
+DROP TABLE t2,t1;
+
+--echo #
+--echo # End of 11.5 tests
 --echo #

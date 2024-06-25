@@ -68,6 +68,7 @@ TABLE_CONSTRAINTS
 TABLE_PRIVILEGES
 TABLE_STATISTICS
 TRIGGERS
+USERS
 USER_PRIVILEGES
 USER_STATISTICS
 VIEWS
@@ -153,6 +154,7 @@ TABLE_CONSTRAINTS	CONSTRAINT_SCHEMA
 TABLE_PRIVILEGES	TABLE_SCHEMA
 TABLE_STATISTICS	TABLE_SCHEMA
 TRIGGERS	TRIGGER_SCHEMA
+USERS	USER
 USER_PRIVILEGES	GRANTEE
 USER_STATISTICS	USER
 VIEWS	TABLE_SCHEMA
@@ -238,6 +240,7 @@ TABLE_CONSTRAINTS	CONSTRAINT_SCHEMA
 TABLE_PRIVILEGES	TABLE_SCHEMA
 TABLE_STATISTICS	TABLE_SCHEMA
 TRIGGERS	TRIGGER_SCHEMA
+USERS	USER
 USER_PRIVILEGES	GRANTEE
 USER_STATISTICS	USER
 VIEWS	TABLE_SCHEMA
@@ -326,6 +329,7 @@ TABLE_CONSTRAINTS	information_schema.TABLE_CONSTRAINTS	1
 TABLE_PRIVILEGES	information_schema.TABLE_PRIVILEGES	1
 TABLE_STATISTICS	information_schema.TABLE_STATISTICS	1
 TRIGGERS	information_schema.TRIGGERS	1
+USERS	information_schema.USERS	1
 USER_PRIVILEGES	information_schema.USER_PRIVILEGES	1
 USER_STATISTICS	information_schema.USER_STATISTICS	1
 VIEWS	information_schema.VIEWS	1
@@ -401,6 +405,7 @@ Database: information_schema
 | TABLE_PRIVILEGES                      |
 | TABLE_STATISTICS                      |
 | TRIGGERS                              |
+| USERS                                 |
 | USER_PRIVILEGES                       |
 | USER_STATISTICS                       |
 | VIEWS                                 |
@@ -476,6 +481,7 @@ Database: INFORMATION_SCHEMA
 | TABLE_PRIVILEGES                      |
 | TABLE_STATISTICS                      |
 | TRIGGERS                              |
+| USERS                                 |
 | USER_PRIVILEGES                       |
 | USER_STATISTICS                       |
 | VIEWS                                 |
@@ -487,5 +493,5 @@ Wildcard: inf_rmation_schema
 | information_schema |
 SELECT table_schema, count(*) FROM information_schema.TABLES WHERE table_schema IN ('mysql', 'INFORMATION_SCHEMA', 'test', 'mysqltest') GROUP BY TABLE_SCHEMA;
 table_schema	count(*)
-information_schema	70
+information_schema	71
 mysql	31

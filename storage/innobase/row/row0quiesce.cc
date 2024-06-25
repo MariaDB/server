@@ -428,6 +428,10 @@ row_quiesce_write_header(
 /*********************************************************************//**
 Write the table meta data after quiesce.
 @return DB_SUCCESS or error code */
+
+/* Stack size 20904 with clang */
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 static	MY_ATTRIBUTE((nonnull, warn_unused_result))
 dberr_t
 row_quiesce_write_cfg(
@@ -485,6 +489,7 @@ row_quiesce_write_cfg(
 
 	return(err);
 }
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 /*********************************************************************//**
 Check whether a table has an FTS index defined on it.

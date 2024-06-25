@@ -6,6 +6,7 @@ static ST_FIELD_INFO index_stats_fields[]=
   Column("TABLE_NAME",   Varchar(NAME_LEN),   NOT_NULL, "Table_name"),
   Column("INDEX_NAME",   Varchar(NAME_LEN),   NOT_NULL, "Index_name"),
   Column("ROWS_READ",    SLonglong(),         NOT_NULL, "Rows_read"),
+  Column("QUERIES",      SLonglong(),         NOT_NULL, "Queries"),
   CEnd()
 };
 
@@ -44,6 +45,7 @@ static int index_stats_fill(THD *thd, TABLE_LIST *tables, COND *cond)
                            system_charset_info);
     table->field[2]->store(index_name, (uint) index_name_length, system_charset_info);
     table->field[3]->store((longlong)index_stats->rows_read, TRUE);
+    table->field[4]->store((longlong)index_stats->queries, TRUE);
 
     if (schema_table_store_record(thd, table))
     {

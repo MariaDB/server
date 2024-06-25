@@ -47,12 +47,13 @@ MACRO (MYSQL_USE_BUNDLED_SSL)
     ${CMAKE_SOURCE_DIR}/extra/wolfssl/wolfssl
     ${CMAKE_SOURCE_DIR}/extra/wolfssl/wolfssl/wolfssl
   )
-  SET(SSL_LIBRARIES  wolfssl wolfcrypt)
+  SET(SSL_LIBRARIES  wolfssl)
   SET(SSL_INCLUDE_DIRS ${INC_DIRS})
   SET(SSL_DEFINES "-DHAVE_OPENSSL -DHAVE_WOLFSSL  -DWOLFSSL_USER_SETTINGS")
   SET(HAVE_ERR_remove_thread_state ON CACHE INTERNAL "wolfssl doesn't have ERR_remove_thread_state")
   SET(HAVE_EncryptAes128Ctr ON CACHE INTERNAL "wolfssl does support AES-CTR")
   SET(HAVE_EncryptAes128Gcm OFF CACHE INTERNAL "wolfssl does not support AES-GCM")
+  SET(HAVE_des ON CACHE INTERNAL "wolfssl does support DES API")
   SET(HAVE_hkdf ON CACHE INTERNAL "wolfssl does support EVP_PKEY API")
   CHANGE_SSL_SETTINGS("bundled")
   ADD_SUBDIRECTORY(extra/wolfssl)
@@ -134,6 +135,8 @@ MACRO (MYSQL_CHECK_SSL)
                           HAVE_EncryptAes128Ctr)
       CHECK_SYMBOL_EXISTS(EVP_aes_128_gcm "openssl/evp.h"
                           HAVE_EncryptAes128Gcm)
+      CHECK_SYMBOL_EXISTS(DES_set_key_unchecked "openssl/des.h"
+                          HAVE_des)
       CHECK_SYMBOL_EXISTS(EVP_PKEY_CTX_set_hkdf_md "string.h;stdarg.h;openssl/kdf.h"
                           HAVE_hkdf)
       SET(CMAKE_REQUIRED_INCLUDES)

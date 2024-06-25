@@ -7,9 +7,6 @@
 call mtr.add_suppression("Can't find record in '.*'");
 call mtr.add_suppression("Table 't1' is marked as crashed and should be repaired");
 
-# Initialise
-SET SQL_WARNINGS=1;
-
 #
 # Test problem with CHECK TABLE;
 #

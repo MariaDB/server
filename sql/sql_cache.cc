@@ -2530,14 +2530,9 @@ void Query_cache::destroy()
 
 void Query_cache::disable_query_cache(THD *thd)
 {
+  lock(thd);
   m_cache_status= DISABLE_REQUEST;
-  /*
-    If there is no requests in progress try to free buffer.
-    try_lock(TRY) will exit immediately if there is lock.
-    unlock() should free block.
-  */
-  if (m_requests_in_progress == 0 && !try_lock(thd, TRY))
-    unlock();
+  unlock();
 }
 
 

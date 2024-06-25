@@ -4,7 +4,7 @@ connect  con1,localhost,root,,test,$MASTER_MYPORT,;
 connection default;
 set @initial_query_cache_size = @@global.query_cache_size;
 set @@global.query_cache_size=102400;
-flush status;
+flush global status;
 drop table if exists t1;
 create table t1(c1 int);
 insert into t1 values(1),(10),(100);
@@ -540,7 +540,7 @@ use test;
 drop table if exists t1;
 create table t1 (a varchar(255));
 insert into t1 (a) values ("Pack my box with five dozen liquor jugs.");
-flush status;
+flush global status;
 prepare stmt from "select a from t1";
 execute stmt;
 a

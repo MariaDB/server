@@ -145,7 +145,7 @@ hex(a)
 00410009
 0041005A
 drop table t1;
-CREATE TABLE t1 (word VARCHAR(64) CHARACTER SET ucs2, word2 CHAR(64) CHARACTER SET ucs2);
+CREATE TABLE t1 (word VARCHAR(64), word2 CHAR(64)) CHARACTER SET ucs2 COLLATE ucs2_general_ci;
 INSERT INTO t1 VALUES (_koi8r'ò',_koi8r'ò'), (X'2004',X'2004');
 SELECT hex(word) FROM t1 ORDER BY word;
 hex(word)
@@ -196,8 +196,8 @@ RPAD(_ucs2 X'0420',10,_ucs2 X'0421') r;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `l` varchar(10) CHARACTER SET ucs2 COLLATE ucs2_general_ci DEFAULT NULL,
-  `r` varchar(10) CHARACTER SET ucs2 COLLATE ucs2_general_ci DEFAULT NULL
+  `l` varchar(10) CHARACTER SET ucs2 COLLATE ucs2_uca1400_ai_ci DEFAULT NULL,
+  `r` varchar(10) CHARACTER SET ucs2 COLLATE ucs2_uca1400_ai_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 #
@@ -682,7 +682,7 @@ create table t1 (a enum('x','y','z') character set ucs2);
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` enum('x','y','z') CHARACTER SET ucs2 COLLATE ucs2_general_ci DEFAULT NULL
+  `a` enum('x','y','z') CHARACTER SET ucs2 COLLATE ucs2_uca1400_ai_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 insert into t1 values ('x');
 insert into t1 values ('y');
@@ -696,7 +696,7 @@ alter table t1 change a a enum('x','y','z','d','e','ä','ö','ü') character set uc
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` enum('x','y','z','d','e','ä','ö','ü') CHARACTER SET ucs2 COLLATE ucs2_general_ci DEFAULT NULL
+  `a` enum('x','y','z','d','e','ä','ö','ü') CHARACTER SET ucs2 COLLATE ucs2_uca1400_ai_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 insert into t1 values ('D');
 insert into t1 values ('E ');
@@ -718,7 +718,7 @@ create table t1 (a set ('x','y','z','ä','ö','ü') character set ucs2);
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` set('x','y','z','ä','ö','ü') CHARACTER SET ucs2 COLLATE ucs2_general_ci DEFAULT NULL
+  `a` set('x','y','z','ä','ö','ü') CHARACTER SET ucs2 COLLATE ucs2_uca1400_ai_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 insert into t1 values ('x');
 insert into t1 values ('y');
@@ -1364,7 +1364,7 @@ hex(group_concat(a))
 0061002C0062002C0063
 select collation(group_concat(a)) from t1;
 collation(group_concat(a))
-ucs2_general_ci
+ucs2_uca1400_ai_ci
 drop table t1;
 set names latin1;
 create table t1 (a char(1) character set latin1);
@@ -1402,17 +1402,17 @@ a	1
 select * from t1 where a=if(b>10,_ucs2 0x0061,_ucs2 0x0062);
 a	b
 select concat(a,if(b<10,_ucs2 0x00C0,_ucs2 0x0062)) from t1;
-ERROR HY000: Illegal mix of collations (ascii_general_ci,IMPLICIT) and (ucs2_general_ci,COERCIBLE) for operation 'concat'
+ERROR HY000: Illegal mix of collations (ascii_general_ci,IMPLICIT) and (ucs2_uca1400_ai_ci,COERCIBLE) for operation 'concat'
 select concat(a,if(b>10,_ucs2 0x00C0,_ucs2 0x0062)) from t1;
-ERROR HY000: Illegal mix of collations (ascii_general_ci,IMPLICIT) and (ucs2_general_ci,COERCIBLE) for operation 'concat'
+ERROR HY000: Illegal mix of collations (ascii_general_ci,IMPLICIT) and (ucs2_uca1400_ai_ci,COERCIBLE) for operation 'concat'
 select concat(a,if(b<10,_ucs2 0x0062,_ucs2 0x00C0)) from t1;
-ERROR HY000: Illegal mix of collations (ascii_general_ci,IMPLICIT) and (ucs2_general_ci,COERCIBLE) for operation 'concat'
+ERROR HY000: Illegal mix of collations (ascii_general_ci,IMPLICIT) and (ucs2_uca1400_ai_ci,COERCIBLE) for operation 'concat'
 select concat(a,if(b>10,_ucs2 0x0062,_ucs2 0x00C0)) from t1;
-ERROR HY000: Illegal mix of collations (ascii_general_ci,IMPLICIT) and (ucs2_general_ci,COERCIBLE) for operation 'concat'
+ERROR HY000: Illegal mix of collations (ascii_general_ci,IMPLICIT) and (ucs2_uca1400_ai_ci,COERCIBLE) for operation 'concat'
 select * from t1 where a=if(b<10,_ucs2 0x00C0,_ucs2 0x0062);
-ERROR HY000: Illegal mix of collations (ascii_general_ci,IMPLICIT) and (ucs2_general_ci,COERCIBLE) for operation '='
+ERROR HY000: Illegal mix of collations (ascii_general_ci,IMPLICIT) and (ucs2_uca1400_ai_ci,COERCIBLE) for operation '='
 select * from t1 where a=if(b<10,_ucs2 0x0062,_ucs2 0x00C0);
-ERROR HY000: Illegal mix of collations (ascii_general_ci,IMPLICIT) and (ucs2_general_ci,COERCIBLE) for operation '='
+ERROR HY000: Illegal mix of collations (ascii_general_ci,IMPLICIT) and (ucs2_uca1400_ai_ci,COERCIBLE) for operation '='
 drop table t1;
 CREATE TABLE t1 (s1 CHAR(5) CHARACTER SET UCS2);
 INSERT INTO t1 VALUES ('a');
@@ -1426,6 +1426,9 @@ HEX(s1)
 0061
 DROP TABLE t1;
 set collation_connection=ucs2_general_ci;
+#
+# Bug#31081 server crash in regexp function
+#
 drop table if exists t1;
 create table t1 as
 select repeat(' ', 64) as s1, repeat(' ',64) as s2
@@ -2024,7 +2027,7 @@ t1	CREATE TABLE `t1` (
 drop table t1;
 select hex(concat(coercibility('a')));
 hex(concat(coercibility('a')))
-0034
+0035
 create table t1 as select concat(coercibility('a')) as c1;
 show create table t1;
 Table	Create Table
@@ -2412,7 +2415,7 @@ t1	CREATE TABLE `t1` (
 drop table t1;
 select coercibility(uuid()), coercibility(cast('a' as char character set latin1));
 coercibility(uuid())	coercibility(cast('a' as char character set latin1))
-5	2
+6	4
 select charset(concat(uuid(), cast('a' as char character set latin1)));
 charset(concat(uuid(), cast('a' as char character set latin1)))
 latin1
@@ -3641,7 +3644,7 @@ hex(concat(a))	a
 drop table t1;
 create table t1 (a year(2));
 Warnings:
-Warning	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Warning	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use 'YEAR(4)' instead
 insert into t1 values (1);
 select hex(concat(a)) from t1;
 hex(concat(a))
@@ -3956,7 +3959,7 @@ drop table t1;
 drop view v1;
 create table t1 (a year(2));
 Warnings:
-Warning	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Warning	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use 'YEAR(4)' instead
 insert into t1 values (1);
 create view v1(a) as select concat(a) from t1;
 show columns from v1;
@@ -5191,31 +5194,31 @@ CHARSET('2013-11-15 00:41:28' - INTERVAL 7 DAY)
 ucs2
 SELECT COERCIBILITY('2013-11-15 00:41:28' - INTERVAL 7 DAY);
 COERCIBILITY('2013-11-15 00:41:28' - INTERVAL 7 DAY)
-4
+5
 SELECT CHARSET(TIMESTAMP'2013-11-15 00:41:28' - INTERVAL 7 DAY);
 CHARSET(TIMESTAMP'2013-11-15 00:41:28' - INTERVAL 7 DAY)
 binary
 SELECT COERCIBILITY(TIMESTAMP'2013-11-15 00:41:28' - INTERVAL 7 DAY);
 COERCIBILITY(TIMESTAMP'2013-11-15 00:41:28' - INTERVAL 7 DAY)
-5
+6
 SELECT CHARSET(CONCAT('2013-11-15 00:41:28' - INTERVAL 7 DAY));
 CHARSET(CONCAT('2013-11-15 00:41:28' - INTERVAL 7 DAY))
 ucs2
 SELECT COERCIBILITY(CONCAT('2013-11-15 00:41:28' - INTERVAL 7 DAY));
 COERCIBILITY(CONCAT('2013-11-15 00:41:28' - INTERVAL 7 DAY))
-4
+5
 SELECT CHARSET(CONCAT(TIMESTAMP'2013-11-15 00:41:28' - INTERVAL 7 DAY));
 CHARSET(CONCAT(TIMESTAMP'2013-11-15 00:41:28' - INTERVAL 7 DAY))
 ucs2
 SELECT COERCIBILITY(CONCAT(TIMESTAMP'2013-11-15 00:41:28' - INTERVAL 7 DAY));
 COERCIBILITY(CONCAT(TIMESTAMP'2013-11-15 00:41:28' - INTERVAL 7 DAY))
-4
+5
 SELECT CHARSET(CONCAT('','2001-01-08 00:00:00' - INTERVAL 7 DAY));
 CHARSET(CONCAT('','2001-01-08 00:00:00' - INTERVAL 7 DAY))
 ucs2
 SELECT COERCIBILITY(CONCAT('','2001-01-08 00:00:00' - INTERVAL 7 DAY));
 COERCIBILITY(CONCAT('','2001-01-08 00:00:00' - INTERVAL 7 DAY))
-4
+5
 SELECT HEX(CONCAT('','2001-01-08 00:00:00' - INTERVAL 7 DAY));
 HEX(CONCAT('','2001-01-08 00:00:00' - INTERVAL 7 DAY))
 0032003000300031002D00300031002D00300031002000300030003A00300030003A00300030
@@ -5224,7 +5227,7 @@ CHARSET(CONCAT('',TIMESTAMP'2001-01-08 00:00:00' - INTERVAL 7 DAY))
 ucs2
 SELECT COERCIBILITY(CONCAT('',TIMESTAMP'2001-01-08 00:00:00' - INTERVAL 7 DAY));
 COERCIBILITY(CONCAT('',TIMESTAMP'2001-01-08 00:00:00' - INTERVAL 7 DAY))
-4
+5
 SELECT HEX(CONCAT('',TIMESTAMP'2001-01-08 00:00:00' - INTERVAL 7 DAY));
 HEX(CONCAT('',TIMESTAMP'2001-01-08 00:00:00' - INTERVAL 7 DAY))
 0032003000300031002D00300031002D00300031002000300030003A00300030003A00300030
@@ -6755,6 +6758,26 @@ HEX(1 COLLATE ucs2_bin)
 SELECT 1 COLLATE latin1_swedish_ci;
 ERROR 42000: COLLATION 'latin1_swedish_ci' is not valid for CHARACTER SET 'ucs2'
 SET NAMES utf8;
+#
+# MDEV-33772 Bad SEPARATOR value in GROUP_CONCAT on character set conversion
+#
+SET NAMES utf8mb3, @@collation_connection=ucs2_general_ci;
+CREATE TABLE t1 (c VARCHAR(10)) CHARACTER SET ucs2;
+INSERT INTO t1 VALUES ('a'),('A');
+CREATE OR REPLACE VIEW v1 AS
+SELECT COUNT(*) AS cnt, GROUP_CONCAT(c) AS c1 FROM t1 GROUP BY c;
+SELECT * FROM v1;
+cnt	c1
+2	a,A
+SELECT HEX(c1) FROM v1;
+HEX(c1)
+0061002C0041
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select count(0) AS `cnt`,group_concat(`t1`.`c` separator ',') AS `c1` from `t1` group by `t1`.`c`	utf8mb3	ucs2_general_ci
+DROP VIEW v1;
+DROP TABLE t1;
+SET NAMES utf8mb3;
 #
 # End of 10.5 tests
 #

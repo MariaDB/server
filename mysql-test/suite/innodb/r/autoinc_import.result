@@ -1,0 +1,236 @@
+CREATE TABLE t1 (id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(42);
+CREATE TABLE t1b LIKE t1;
+INSERT INTO t1b VALUES(3);
+CREATE TABLE t1z LIKE t1;
+CREATE TABLE t1t (id TINYINT AUTO_INCREMENT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t0t LIKE t1t;
+INSERT INTO t1t VALUES(123);
+FLUSH TABLES t1,t1b,t1t FOR EXPORT;
+UNLOCK TABLES;
+CREATE TABLE t5_7 LIKE t1;
+CREATE TABLE t5_7b LIKE t1b;
+CREATE TABLE t10_1 LIKE t1;
+CREATE TABLE t10_1b LIKE t1b;
+ALTER TABLE t1 DISCARD TABLESPACE;
+ALTER TABLE t1b DISCARD TABLESPACE;
+ALTER TABLE t1z DISCARD TABLESPACE;
+ALTER TABLE t1t DISCARD TABLESPACE;
+ALTER TABLE t0t DISCARD TABLESPACE;
+ALTER TABLE t5_7 DISCARD TABLESPACE;
+ALTER TABLE t5_7b DISCARD TABLESPACE;
+ALTER TABLE t10_1 DISCARD TABLESPACE;
+ALTER TABLE t10_1b DISCARD TABLESPACE;
+FLUSH TABLES;
+ALTER TABLE t0t IMPORT TABLESPACE;
+Warnings:
+Warning	1810	IO Read error: (2, No such file or directory) Error opening './test/t0t.cfg', will attempt to import without schema verification
+INSERT INTO t0t VALUES(NULL);
+SELECT * FROM t0t;
+id
+123
+124
+DROP TABLE t0t;
+ALTER TABLE t1 IMPORT TABLESPACE;
+Warnings:
+Warning	1810	IO Read error: (2, No such file or directory) Error opening './test/t1.cfg', will attempt to import without schema verification
+ALTER TABLE t1b IMPORT TABLESPACE;
+Warnings:
+Warning	1810	IO Read error: (2, No such file or directory) Error opening './test/t1b.cfg', will attempt to import without schema verification
+ALTER TABLE t1z IMPORT TABLESPACE;
+Warnings:
+Warning	1810	IO Read error: (2, No such file or directory) Error opening './test/t1z.cfg', will attempt to import without schema verification
+ALTER TABLE t1t IMPORT TABLESPACE;
+Warnings:
+Warning	1810	IO Read error: (2, No such file or directory) Error opening './test/t1t.cfg', will attempt to import without schema verification
+ALTER TABLE t5_7 IMPORT TABLESPACE;
+Warnings:
+Warning	1810	IO Read error: (2, No such file or directory) Error opening './test/t5_7.cfg', will attempt to import without schema verification
+ALTER TABLE t5_7b IMPORT TABLESPACE;
+Warnings:
+Warning	1810	IO Read error: (2, No such file or directory) Error opening './test/t5_7b.cfg', will attempt to import without schema verification
+ALTER TABLE t10_1 IMPORT TABLESPACE;
+Warnings:
+Warning	1810	IO Read error: (2, No such file or directory) Error opening './test/t10_1.cfg', will attempt to import without schema verification
+ALTER TABLE t10_1b IMPORT TABLESPACE;
+Warnings:
+Warning	1810	IO Read error: (2, No such file or directory) Error opening './test/t10_1b.cfg', will attempt to import without schema verification
+FOUND 1 /InnoDB: Resetting PAGE_ROOT_AUTO_INC from 128 to 123 on table `test`\.`t0t`/ in mysqld.1.err
+FOUND 1 /InnoDB: Resetting PAGE_ROOT_AUTO_INC from 0 to 42 on table `test`\.`t1z`/ in mysqld.1.err
+FOUND 1 /InnoDB: Resetting PAGE_ROOT_AUTO_INC from 128 to 123 on table `test`\.`t1t`/ in mysqld.1.err
+FOUND 1 /InnoDB: Resetting PAGE_ROOT_AUTO_INC from 3 to 42 on table `test`\.`t5_7` \(created with version 50744\)/ in mysqld.1.err
+FOUND 1 /InnoDB: Resetting PAGE_ROOT_AUTO_INC from 3 to 42 on table `test`\.`t10_1` \(created with version 100149\)/ in mysqld.1.err
+FOUND 5 /InnoDB: Resetting PAGE_ROOT_AUTO_INC/ in mysqld.1.err
+# restart: --read-only
+CHECK TABLE t1, t1b, t1t, t1z, t5_7, t5_7b, t10_1, t10_1b;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+test.t1b	check	status	OK
+test.t1t	check	status	OK
+test.t1z	check	status	OK
+test.t5_7	check	note	Auto_increment will be checked on each open until CHECK TABLE FOR UPGRADE is executed
+test.t5_7	check	status	OK
+test.t5_7b	check	note	Auto_increment will be checked on each open until CHECK TABLE FOR UPGRADE is executed
+test.t5_7b	check	status	OK
+test.t10_1	check	note	Auto_increment will be checked on each open until CHECK TABLE FOR UPGRADE is executed
+test.t10_1	check	status	OK
+test.t10_1b	check	note	Auto_increment will be checked on each open until CHECK TABLE FOR UPGRADE is executed
+test.t10_1b	check	status	OK
+CHECK TABLE t1, t1b, t1t, t1z, t5_7, t5_7b, t10_1, t10_1b FOR UPGRADE;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+test.t1b	check	status	OK
+test.t1t	check	status	OK
+test.t1z	check	status	OK
+test.t5_7	check	note	Auto_increment will be checked on each open until CHECK TABLE FOR UPGRADE is executed
+test.t5_7	check	status	OK
+test.t5_7b	check	note	Auto_increment will be checked on each open until CHECK TABLE FOR UPGRADE is executed
+test.t5_7b	check	status	OK
+test.t10_1	check	note	Auto_increment will be checked on each open until CHECK TABLE FOR UPGRADE is executed
+test.t10_1	check	status	OK
+test.t10_1b	check	note	Auto_increment will be checked on each open until CHECK TABLE FOR UPGRADE is executed
+test.t10_1b	check	status	OK
+# restart: --innodb-read-only --read-only
+CHECK TABLE t1, t1b, t1t, t1z, t5_7, t5_7b, t10_1, t10_1b;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+test.t1b	check	status	OK
+test.t1t	check	status	OK
+test.t1z	check	status	OK
+test.t5_7	check	note	Auto_increment will be checked on each open until CHECK TABLE FOR UPGRADE is executed
+test.t5_7	check	status	OK
+test.t5_7b	check	note	Auto_increment will be checked on each open until CHECK TABLE FOR UPGRADE is executed
+test.t5_7b	check	status	OK
+test.t10_1	check	note	Auto_increment will be checked on each open until CHECK TABLE FOR UPGRADE is executed
+test.t10_1	check	status	OK
+test.t10_1b	check	note	Auto_increment will be checked on each open until CHECK TABLE FOR UPGRADE is executed
+test.t10_1b	check	status	OK
+CHECK TABLE t1, t1b, t1t, t1z, t5_7, t5_7b, t10_1, t10_1b FOR UPGRADE;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+test.t1b	check	status	OK
+test.t1t	check	status	OK
+test.t1z	check	status	OK
+test.t5_7	check	note	Auto_increment will be checked on each open until CHECK TABLE FOR UPGRADE is executed
+test.t5_7	check	status	OK
+test.t5_7b	check	note	Auto_increment will be checked on each open until CHECK TABLE FOR UPGRADE is executed
+test.t5_7b	check	status	OK
+test.t10_1	check	note	Auto_increment will be checked on each open until CHECK TABLE FOR UPGRADE is executed
+test.t10_1	check	status	OK
+test.t10_1b	check	note	Auto_increment will be checked on each open until CHECK TABLE FOR UPGRADE is executed
+test.t10_1b	check	status	OK
+# restart: --innodb-read-only
+CHECK TABLE t1, t1b, t1t, t1z, t5_7, t5_7b, t10_1, t10_1b;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+test.t1b	check	status	OK
+test.t1t	check	status	OK
+test.t1z	check	status	OK
+test.t5_7	check	status	Operation failed
+test.t5_7b	check	status	Operation failed
+test.t10_1	check	status	Operation failed
+test.t10_1b	check	status	Operation failed
+CHECK TABLE t1, t1b, t1t, t1z, t5_7, t5_7b, t10_1, t10_1b FOR UPGRADE;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+test.t1b	check	status	OK
+test.t1t	check	status	OK
+test.t1z	check	status	OK
+test.t5_7	check	status	Operation failed
+test.t5_7b	check	status	Operation failed
+test.t10_1	check	status	Operation failed
+test.t10_1b	check	status	Operation failed
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+1
+SELECT COUNT(*) FROM t1b;
+COUNT(*)
+1
+SELECT COUNT(*) FROM t1t;
+COUNT(*)
+1
+SELECT COUNT(*) FROM t1z;
+COUNT(*)
+1
+SELECT COUNT(*) FROM t5_7;
+COUNT(*)
+1
+SELECT COUNT(*) FROM t5_7b;
+COUNT(*)
+1
+SELECT COUNT(*) FROM t10_1;
+COUNT(*)
+1
+SELECT COUNT(*) FROM t10_1b;
+COUNT(*)
+1
+# restart
+CHECK TABLE t1, t1b, t1t, t1z, t5_7, t5_7b, t10_1, t10_1b FOR UPGRADE;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+test.t1b	check	status	OK
+test.t1t	check	status	OK
+test.t1z	check	status	OK
+test.t5_7	check	note	Auto_increment checked and .frm file version updated
+test.t5_7	check	status	OK
+test.t5_7b	check	note	Auto_increment checked and .frm file version updated
+test.t5_7b	check	status	OK
+test.t10_1	check	note	Auto_increment checked and .frm file version updated
+test.t10_1	check	status	OK
+test.t10_1b	check	note	Auto_increment checked and .frm file version updated
+test.t10_1b	check	status	OK
+INSERT INTO t1 VALUES(NULL);
+INSERT INTO t1b VALUES(NULL);
+INSERT INTO t1t VALUES(NULL);
+INSERT INTO t1z VALUES(NULL);
+INSERT INTO t5_7 VALUES(NULL);
+INSERT INTO t5_7b VALUES(NULL);
+INSERT INTO t10_1 VALUES(NULL);
+INSERT INTO t10_1b VALUES(NULL);
+CHECK TABLE t1, t1b, t1t, t1z, t5_7, t5_7b, t10_1, t10_1b FOR UPGRADE;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+test.t1b	check	status	OK
+test.t1t	check	status	OK
+test.t1z	check	status	OK
+test.t5_7	check	note	Auto_increment checked and .frm file version updated
+test.t5_7	check	status	OK
+test.t5_7b	check	note	Auto_increment checked and .frm file version updated
+test.t5_7b	check	status	OK
+test.t10_1	check	note	Auto_increment checked and .frm file version updated
+test.t10_1	check	status	OK
+test.t10_1b	check	note	Auto_increment checked and .frm file version updated
+test.t10_1b	check	status	OK
+SELECT * FROM t1;
+id
+4
+42
+SELECT * FROM t1b;
+id
+3
+347
+SELECT * FROM t1t;
+id
+123
+124
+SELECT * FROM t1z;
+id
+42
+43
+SELECT * FROM t5_7;
+id
+42
+43
+SELECT * FROM t5_7b;
+id
+3
+347
+SELECT * FROM t10_1;
+id
+42
+43
+SELECT * FROM t10_1b;
+id
+3
+347
+DROP TABLE t1, t1b, t1t, t1z, t5_7, t5_7b, t10_1, t10_1b;

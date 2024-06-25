@@ -1,4 +1,4 @@
-flush status;
+flush global status;
 show status like '%libraries%';
 Variable_name	Value
 Opened_plugin_libraries	0

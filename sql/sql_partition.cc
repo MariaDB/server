@@ -1079,7 +1079,7 @@ void check_range_capable_PF(TABLE *table)
 
 static bool set_up_partition_bitmaps(THD *thd, partition_info *part_info)
 {
-  uint32 *bitmap_buf;
+  my_bitmap_map *bitmap_buf;
   uint bitmap_bits= part_info->num_subparts? 
                      (part_info->num_subparts* part_info->num_parts):
                       part_info->num_parts;
@@ -1090,14 +1090,15 @@ static bool set_up_partition_bitmaps(THD *thd, partition_info *part_info)
 
   /* Allocate for both read and lock_partitions */
   if (unlikely(!(bitmap_buf=
-                 (uint32*) alloc_root(&part_info->table->mem_root,
-                                      bitmap_bytes * 2))))
+                 (my_bitmap_map*) alloc_root(&part_info->table->mem_root,
+                                             bitmap_bytes * 2))))
     DBUG_RETURN(TRUE);
 
   my_bitmap_init(&part_info->read_partitions, bitmap_buf, bitmap_bits);
   /* Use the second half of the allocated buffer for lock_partitions */
-  my_bitmap_init(&part_info->lock_partitions, bitmap_buf + (bitmap_bytes / 4),
-              bitmap_bits);
+  my_bitmap_init(&part_info->lock_partitions,
+                 (my_bitmap_map*) (((char*) bitmap_buf) + bitmap_bytes),
+                 bitmap_bits);
   part_info->bitmaps_are_initialized= TRUE;
   part_info->set_partition_bitmaps(NULL);
   DBUG_RETURN(FALSE);
@@ -1570,7 +1571,7 @@ static bool check_vers_constants(THD *thd, partition_info *part_info)
       my_tz_OFFSET0->TIME_to_gmt_sec(&ltime, &error);
     if (error)
       goto err;
-    if (vers_info->hist_part->range_value <= thd->query_start())
+    if (vers_info->hist_part->range_value <= (longlong) thd->query_start())
       vers_info->hist_part= el;
   }
   DBUG_ASSERT(el == vers_info->now_part);
@@ -3500,14 +3501,14 @@ int vers_get_partition_id(partition_info *part_info, uint32 *part_id,
       goto done; // fastpath
 
     ts= row_end->get_timestamp(&unused);
-    if ((loc_hist_id == 0 || range_value[loc_hist_id - 1] < ts) &&
-        (loc_hist_id == max_hist_id || range_value[loc_hist_id] >= ts))
+    if ((loc_hist_id == 0 || range_value[loc_hist_id - 1] < (longlong) ts) &&
+        (loc_hist_id == max_hist_id || range_value[loc_hist_id] >= (longlong) ts))
       goto done; // fastpath
 
     while (max_hist_id > min_hist_id)
     {
       loc_hist_id= (max_hist_id + min_hist_id) / 2;
-      if (range_value[loc_hist_id] <= ts)
+      if (range_value[loc_hist_id] <= (longlong) ts)
         min_hist_id= loc_hist_id + 1;
       else
         max_hist_id= loc_hist_id;
@@ -4937,9 +4938,6 @@ uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,
       !(thd->work_part_info= thd->work_part_info->get_clone(thd)))
     DBUG_RETURN(TRUE);
 
-  /* ALTER_PARTITION_ADMIN is handled in mysql_admin_table */
-  DBUG_ASSERT(!(alter_info->partition_flags & ALTER_PARTITION_ADMIN));
-
   partition_info *saved_part_info= NULL;
 
   if (alter_info->partition_flags &
@@ -5415,7 +5413,7 @@ that are reorganised.
               tab_part_info->vers_info->interval.is_set())
           {
             partition_element *hist_part= tab_part_info->vers_info->hist_part;
-            if (hist_part->range_value <= thd->query_start())
+            if (hist_part->range_value <= (longlong) thd->query_start())
               hist_part->part_state= PART_CHANGED;
           }
         }
@@ -7758,7 +7756,7 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
         ERROR_INJECT("add_partition_1") ||
         mysql_write_frm(lpt, WFRM_WRITE_SHADOW) ||
         ERROR_INJECT("add_partition_2") ||
-        wait_while_table_is_used(thd, table, HA_EXTRA_NOT_USED) ||
+        wait_while_table_is_used(thd, table, HA_EXTRA_PREPARE_FOR_RENAME) ||
         ERROR_INJECT("add_partition_3") ||
         write_log_add_change_partition(lpt) ||
         ERROR_INJECT("add_partition_4") ||

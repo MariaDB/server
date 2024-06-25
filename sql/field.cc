@@ -1502,6 +1502,9 @@ bool Field::sp_prepare_and_store_item(THD *thd, Item **value)
   if (!(expr_item= thd->sp_fix_func_item_for_assignment(this, value)))
     goto error;
 
+  if (expr_item->check_is_evaluable_expression_or_error())
+    goto error;
+
   /* Save the value in the field. Convert the value if needed. */
 
   expr_item->save_in_field(this, 0);
@@ -2045,7 +2048,7 @@ int Field::store_text(const char *to, size_t length, CHARSET_INFO *cs,
 }
 
 
-int Field::store_timestamp_dec(const timeval &ts, uint dec)
+int Field::store_timestamp_dec(const my_timeval &ts, uint dec)
 {
   return store_time_dec(Datetime(get_thd(), ts).get_mysql_time(), dec);
 }
@@ -5277,6 +5280,8 @@ int Field_timestamp::save_in_field(Field *to)
 {
   ulong sec_part;
   my_time_t ts= get_timestamp(&sec_part);
+  if (!ts && !sec_part)
+    return to->store_time_dec(Datetime::zero().get_mysql_time(), decimals());
   return to->store_timestamp_dec(Timeval(ts, sec_part), decimals());
 }
 
@@ -5285,14 +5290,14 @@ my_time_t Field_timestamp0::get_timestamp(const uchar *pos,
 {
   DBUG_ASSERT(marked_for_read());
   *sec_part= 0;
-  return sint4korr(pos);
+  return uint4korr(pos);
 }
 
 
 bool Field_timestamp0::val_native(Native *to)
 {
   DBUG_ASSERT(marked_for_read());
-  my_time_t sec= (my_time_t) sint4korr(ptr);
+  my_time_t sec= (my_time_t) uint4korr(ptr);
   return Timestamp_or_zero_datetime(Timestamp(sec, 0), sec == 0).
            to_native(to, 0);
 }
@@ -5398,11 +5403,33 @@ int Field_timestamp::store(longlong nr, bool unsigned_val)
 }
 
 
-int Field_timestamp::store_timestamp_dec(const timeval &ts, uint dec)
+int Field_timestamp::store_timestamp_dec(const my_timeval &tv, uint dec)
 {
   int warn= 0;
   time_round_mode_t mode= Datetime::default_round_mode(get_thd());
-  store_TIMESTAMP(Timestamp(ts).round(decimals(), mode, &warn));
+  const Timestamp ts= Timestamp(tv).round(decimals(), mode, &warn);
+  store_TIMESTAMP(ts);
+  if (ts.tv_sec == 0 && ts.tv_usec == 0)
+  {
+    /*
+      The value {tv_sec==0, tv_usec==0} here means '1970-01-01 00:00:00 +00'.
+      It does not mean zero datetime! because store_timestamp_dec() knows
+      nothing about zero dates. It inserts only real timeval values.
+      Zero ts={0,0} here is possible in two scenarios:
+      - the passed tv was already {0,0} meaning '1970-01-01 00:00:00 +00'
+      - the passed tv had some microseconds but they were rounded/truncated
+        to zero: '1970-01-01 00:00:00.1 +00' -> '1970-01-01 00:00:00 +00'.
+      It does not matter whether rounding/truncation really happened.
+      In both cases the call for store_TIMESTAMP(ts) above re-interpreted
+      '1970-01-01 00:00:00 +00:00' to zero date. Return 1 no matter what
+      sql_mode is. Even if sql_mode allows zero dates, there is still a problem
+      here: '1970-01-01 00:00:00 +00' could not be stored as-is!
+    */
+    ErrConvString str(STRING_WITH_LEN("1970-01-01 00:00:00 +00:00"),
+                      system_charset_info);
+    set_datetime_warning(ER_WARN_DATA_OUT_OF_RANGE, &str, "datetime", 1);
+    return 1; // '1970-01-01 00:00:00 +00' was converted to a zero date
+  }
   if (warn)
   {
     /*
@@ -5416,9 +5443,6 @@ int Field_timestamp::store_timestamp_dec(const timeval &ts, uint dec)
     */
     set_warning(Sql_condition::WARN_LEVEL_WARN, ER_WARN_DATA_OUT_OF_RANGE, 1);
   }
-  if (ts.tv_sec == 0 && ts.tv_usec == 0 &&
-      get_thd()->variables.sql_mode & (ulonglong) TIME_NO_ZERO_DATE)
-    return zero_time_stored_return_code_with_warning();
   return 0;
 }
 
@@ -5450,7 +5474,7 @@ int Field_timestamp::store_native(const Native &value)
     Field_timestamp*::store_timestamp_dec() do not use the "dec" parameter.
     Passing TIME_SECOND_PART_DIGITS is OK.
   */
-  return store_timestamp_dec(Timestamp(value).tv(), TIME_SECOND_PART_DIGITS);
+  return store_timestamp_dec(Timestamp(value), TIME_SECOND_PART_DIGITS);
 }
 
 
@@ -5469,7 +5493,7 @@ longlong Field_timestamp::val_int(void)
 String *Field_timestamp::val_str(String *val_buffer, String *val_ptr)
 {
   MYSQL_TIME ltime;
-  uint32 temp, temp2;
+  uint32 year, temp, temp2;
   uint dec;
   char *to;
 
@@ -5484,17 +5508,14 @@ String *Field_timestamp::val_str(String *val_buffer, String *val_ptr)
   }
   val_buffer->set_charset(&my_charset_numeric);	// Safety
    
-  temp= ltime.year % 100;
-  if (temp < YY_PART_YEAR - 1)
-  {
-    *to++= '2';
-    *to++= '0';
-  }
-  else
-  {
-    *to++= '1';
-    *to++= '9';
-  }
+  temp= ltime.year;
+  DBUG_ASSERT(temp >= 1969);
+
+  year= temp/100;
+  temp-= year*100;
+  temp2= year/10; year= year-temp2*10;
+  *to++= (char) ('0'+(char) (temp2));
+  *to++= (char) ('0'+(char) (year));
   temp2=temp/10; temp=temp-temp2*10;
   *to++= (char) ('0'+(char) (temp2));
   *to++= (char) ('0'+(char) (temp));
@@ -5567,10 +5588,10 @@ bool Field_timestamp0::send(Protocol *protocol)
 
 int Field_timestamp0::cmp(const uchar *a_ptr, const uchar *b_ptr) const
 {
-  int32 a,b;
-  a=sint4korr(a_ptr);
-  b=sint4korr(b_ptr);
-  return ((uint32) a < (uint32) b) ? -1 : ((uint32) a > (uint32) b) ? 1 : 0;
+  time_t a,b;
+  a= uint4korr(a_ptr);
+  b= uint4korr(b_ptr);
+  return (a < b ) ? -1 : (a > b) ? 1 : 0;
 }
 
 
@@ -5654,7 +5675,7 @@ static longlong read_native(const uchar *from, uint bytes)
 #endif
 
 
-void Field_timestamp_hires::store_TIMEVAL(const timeval &tv)
+void Field_timestamp_hires::store_TIMEVAL(const my_timeval &tv)
 {
   mi_int4store(ptr, tv.tv_sec);
   store_bigendian(sec_part_shift(tv.tv_usec, dec), ptr+4, sec_part_bytes(dec));
@@ -5672,7 +5693,7 @@ my_time_t Field_timestamp_hires::get_timestamp(const uchar *pos,
 bool Field_timestamp_hires::val_native(Native *to)
 {
   DBUG_ASSERT(marked_for_read());
-  struct timeval tm;
+  struct my_timeval tm;
   tm.tv_sec= mi_uint4korr(ptr);
   tm.tv_usec= (ulong) sec_part_unshift(read_bigendian(ptr+4, sec_part_bytes(dec)), dec);
   return Timestamp_or_zero_datetime(Timestamp(tm), tm.tv_sec == 0).
@@ -5749,7 +5770,7 @@ void Field_timestamp_with_dec::make_send_field(Send_field *field)
 ** MySQL-5.6 compatible TIMESTAMP(N)
 **************************************************************/
 
-void Field_timestampf::store_TIMEVAL(const timeval &tm)
+void Field_timestampf::store_TIMEVAL(const my_timeval &tm)
 {
   my_timestamp_to_binary(&tm, ptr, dec);
 }
@@ -5769,28 +5790,33 @@ void Field_timestampf::set_max()
 
 bool Field_timestampf::is_max()
 {
+  longlong timestamp= mi_uint4korr(ptr);
   DBUG_ENTER("Field_timestampf::is_max");
   DBUG_ASSERT(marked_for_read());
 
-  DBUG_RETURN(mi_sint4korr(ptr) == TIMESTAMP_MAX_VALUE &&
-              mi_sint3korr(ptr + 4) == TIME_MAX_SECOND_PART);
+  /* Allow old max value and new max value */
+  DBUG_RETURN((timestamp == TIMESTAMP_MAX_VALUE ||
+               timestamp == INT_MAX32) &&
+              mi_uint3korr(ptr + 4) == TIME_MAX_SECOND_PART);
 }
 
 my_time_t Field_timestampf::get_timestamp(const uchar *pos,
                                           ulong *sec_part) const
 {
-  struct timeval tm;
+  struct my_timeval tm;
   my_timestamp_from_binary(&tm, pos, dec);
   *sec_part= tm.tv_usec;
-  return tm.tv_sec;
+  return (my_time_t) tm.tv_sec;
 }
 
 
 bool Field_timestampf::val_native(Native *to)
 {
   DBUG_ASSERT(marked_for_read());
+  char zero[8]= "\0\0\0\0\0\0\0";
+  DBUG_ASSERT(pack_length () <= sizeof(zero));
   // Check if it's '0000-00-00 00:00:00' rather than a real timestamp
-  if (ptr[0] == 0 && ptr[1] == 0 && ptr[2] == 0 && ptr[3] == 0)
+  if (!memcmp(ptr, zero, pack_length()))
   {
     to->length(0);
     return false;
@@ -11436,6 +11462,30 @@ bool Field::validate_value_in_record_with_warn(THD *thd, const uchar *record)
   }
   dbug_tmp_restore_column_map(&table->read_set, old_map);
   return rc;
+}
+
+
+/**
+  Find which reaction should be for IGNORE value.
+*/
+
+ignore_value_reaction find_ignore_reaction(THD *thd)
+{
+  enum_sql_command com= thd->lex->sql_command;
+
+  // All insert-like commands
+  if (com == SQLCOM_INSERT || com == SQLCOM_REPLACE ||
+      com == SQLCOM_INSERT_SELECT || com == SQLCOM_REPLACE_SELECT ||
+      com == SQLCOM_LOAD)
+  {
+    return IGNORE_MEANS_DEFAULT;
+  }
+  // Update commands
+  if (com == SQLCOM_UPDATE || com == SQLCOM_UPDATE_MULTI)
+  {
+    return IGNORE_MEANS_FIELD_VALUE;
+  }
+  return IGNORE_MEANS_ERROR;
 }
 
 

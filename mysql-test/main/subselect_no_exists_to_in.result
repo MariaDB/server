@@ -7009,6 +7009,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 2	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
 3	SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	2	
 flush status;
+flush global status;
 SELECT
 (SELECT MIN(b) FROM t1, t2
 WHERE b = a AND (b = alias1.b OR EXISTS (SELECT * FROM t3))) AS m
@@ -7051,6 +7052,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 2	SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
 3	SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	2	
 flush status;
+flush global status;
 SELECT
 (SELECT MIN(b) FROM t1, t2
 WHERE b = a AND (b = alias1.b OR EXISTS (SELECT * FROM t3))) AS m
@@ -7126,12 +7128,13 @@ MIN(b)
 NULL
 # The following shows that t2 was indeed scanned with a full scan.
 show table_statistics;
-Table_schema	Table_name	Rows_read	Rows_changed	Rows_changed_x_#indexes
-test	t1	2	0	0
-test	t2	3	0	0
+Table_schema	Table_name	Rows_read	Rows_changed	Rows_changed_x_#indexes	Rows_inserted	Rows_updated	Rows_deleted	Key_read_hits	Key_read_misses
+test	t1	2	0	0	0	0	0	0	0
+test	t2	3	0	0	0	0	0	1	0
+test	t3	0	0	0	0	0	0	0	1
 show index_statistics;
-Table_schema	Table_name	Index_name	Rows_read
-test	t2	b	1
+Table_schema	Table_name	Index_name	Rows_read	Queries
+test	t2	b	1	1
 set global userstat=@tmp_mdev410;
 DROP TABLE t1,t2,t3,t4;
 #

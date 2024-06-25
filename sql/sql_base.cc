@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2022, MariaDB
+   Copyright (c) 2010, 2024, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -818,8 +818,10 @@ int close_thread_tables(THD *thd)
 {
   TABLE *table;
   int error= 0;
+  PSI_stage_info org_stage;
   DBUG_ENTER("close_thread_tables");
 
+  thd->backup_stage(&org_stage);
   THD_STAGE_INFO(thd, stage_closing_tables);
 
 #ifdef EXTRA_DEBUG
@@ -931,11 +933,14 @@ int close_thread_tables(THD *thd)
 
       Note that even if we are in LTM_LOCK_TABLES mode and statement
       requires prelocking (e.g. when we are closing tables after
-      failing ot "open" all tables required for statement execution)
+      failing at "open" all tables required for statement execution)
       we will exit this function a few lines below.
     */
     if (! thd->lex->requires_prelocking())
-      DBUG_RETURN(0);
+    {
+      error= 0;
+      goto end;
+    }
 
     /*
       We are in the top-level statement of a prelocked statement,
@@ -946,7 +951,10 @@ int close_thread_tables(THD *thd)
       thd->locked_tables_mode= LTM_LOCK_TABLES;
 
     if (thd->locked_tables_mode == LTM_LOCK_TABLES)
-      DBUG_RETURN(0);
+    {
+      error= 0;
+      goto end;
+    }
 
     thd->leave_locked_tables_mode();
 
@@ -956,16 +964,13 @@ int close_thread_tables(THD *thd)
   if (thd->lock)
   {
     /*
-      For RBR we flush the pending event just before we unlock all the
-      tables.  This means that we are at the end of a topmost
-      statement, so we ensure that the STMT_END_F flag is set on the
-      pending event.  For statements that are *inside* stored
-      functions, the pending event will not be flushed: that will be
-      handled either before writing a query log event (inside
-      binlog_query()) or when preparing a pending event.
-     */
-    (void)thd->binlog_flush_pending_rows_event(TRUE);
-    error= mysql_unlock_tables(thd, thd->lock);
+      Ensure binlog caches has been flushed in binlog_query() or
+      binlog_commit().
+    */
+    DBUG_ASSERT((thd->state_flags & Open_tables_state::BACKUPS_AVAIL) ||
+                !thd->has_pending_row_events());
+    if (mysql_unlock_tables(thd, thd->lock))
+      error= 1;
     thd->lock=0;
   }
   /*
@@ -975,6 +980,8 @@ int close_thread_tables(THD *thd)
   while (thd->open_tables)
     (void) close_thread_table(thd, &thd->open_tables);
 
+end:
+  THD_STAGE_INFO(thd, org_stage);
   DBUG_RETURN(error);
 }
 
@@ -1895,6 +1902,7 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
   TABLE_SHARE *share;
   uint gts_flags;
   bool from_share= false;
+  bool is_write_lock_request= table_list->mdl_request.is_write_lock_request();
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   int part_names_error=0;
 #endif
@@ -1924,7 +1932,7 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
     Note that we allow write locks on log tables as otherwise logging
     to general/slow log would be disabled in read only transactions.
   */
-  if (table_list->mdl_request.is_write_lock_request() &&
+  if (is_write_lock_request &&
       thd->tx_read_only &&
       !(flags & (MYSQL_LOCK_LOG_TABLE | MYSQL_OPEN_HAS_MDL_LOCK)))
   {
@@ -2301,12 +2309,13 @@ retry_share:
     */
     enum enum_mdl_type mdl_type= MDL_BACKUP_DML;
 
-    if (table->s->table_category != TABLE_CATEGORY_USER)
+    if (table->s->table_category != TABLE_CATEGORY_USER &&
+        table->s->table_category != TABLE_CATEGORY_MYSQL)
       mdl_type= MDL_BACKUP_SYS_DML;
     else if (table->s->online_backup)
       mdl_type= MDL_BACKUP_TRANS_DML;
 
-    if (table_list->mdl_request.is_write_lock_request() &&
+    if (is_write_lock_request &&
         ! (flags & (MYSQL_OPEN_IGNORE_GLOBAL_READ_LOCK |
                     MYSQL_OPEN_FORCE_SHARED_MDL |
                     MYSQL_OPEN_FORCE_SHARED_HIGH_PRIO_MDL |
@@ -3799,7 +3808,7 @@ open_and_process_routine(THD *thd, Query_tables_list *prelocking_ctx,
           DBUG_RETURN(TRUE);
 
         /* Ensures the routine is up-to-date and cached, if exists. */
-        if (rt->sp_cache_routine(thd, has_prelocking_list, &sp))
+        if (rt->sp_cache_routine(thd, &sp))
           DBUG_RETURN(TRUE);
 
         /* Remember the version of the routine in the parse tree. */
@@ -3840,7 +3849,7 @@ open_and_process_routine(THD *thd, Query_tables_list *prelocking_ctx,
           Validating routine version is unnecessary, since CALL
           does not affect the prepared statement prelocked list.
         */
-        if (rt->sp_cache_routine(thd, false, &sp))
+        if (rt->sp_cache_routine(thd, &sp))
           DBUG_RETURN(TRUE);
       }
     }
@@ -5032,6 +5041,9 @@ prepare_fk_prelocking_list(THD *thd, Query_tables_list *prelocking_ctx,
   Query_arena *arena, backup;
   TABLE *table= table_list->table;
 
+  if (!table->file->referenced_by_foreign_key())
+    DBUG_RETURN(FALSE);
+
   arena= thd->activate_stmt_arena_if_needed(&backup);
 
   table->file->get_parent_foreign_key_list(thd, &fk_list);
@@ -5117,16 +5129,12 @@ bool DML_prelocking_strategy::handle_table(THD *thd,
         return TRUE;
     }
 
-    if (table->file->referenced_by_foreign_key())
-    {
-      if (prepare_fk_prelocking_list(thd, prelocking_ctx, table_list,
-                                     need_prelocking,
-                                     table_list->trg_event_map))
-        return TRUE;
-    }
+    if (prepare_fk_prelocking_list(thd, prelocking_ctx, table_list,
+                                   need_prelocking,
+                                   table_list->trg_event_map))
+      return TRUE;
   }
-  else if (table_list->slave_fk_event_map &&
-           table->file->referenced_by_foreign_key())
+  else if (table_list->slave_fk_event_map)
   {
     if (prepare_fk_prelocking_list(thd, prelocking_ctx, table_list,
                                    need_prelocking,
@@ -5892,13 +5900,23 @@ bool lock_tables(THD *thd, TABLE_LIST *tables, uint count, uint flags)
       }
     }
 
-    DEBUG_SYNC(thd, "before_lock_tables_takes_lock");
+#ifdef ENABLED_DEBUG_SYNC
+    if (!tables ||
+        !(strcmp(tables->db.str, "mysql") == 0 &&
+          strcmp(tables->table_name.str, "proc") == 0))
+      DEBUG_SYNC(thd, "before_lock_tables_takes_lock");
+#endif
 
     if (! (thd->lock= mysql_lock_tables(thd, start, (uint) (ptr - start),
                                         flags)))
       DBUG_RETURN(TRUE);
 
-    DEBUG_SYNC(thd, "after_lock_tables_takes_lock");
+#ifdef ENABLED_DEBUG_SYNC
+    if (!tables ||
+        !(strcmp(tables->db.str, "mysql") == 0 &&
+          strcmp(tables->table_name.str, "proc") == 0))
+      DEBUG_SYNC(thd, "after_lock_tables_takes_lock");
+#endif
 
     if (thd->lex->requires_prelocking() &&
         thd->lex->sql_command != SQLCOM_LOCK_TABLES &&
@@ -8947,9 +8965,12 @@ static bool vers_update_or_validate_fields(TABLE *table)
          TIME_NO_ZERO_DATE, time_round_mode_t(time_round_mode_t::FRAC_NONE))))
     return 0;
 
-  StringBuffer<MAX_DATETIME_FULL_WIDTH+1> val;
-  row_start->val_str(&val);
-  my_error(ER_WRONG_VALUE, MYF(0), row_start->field_name.str, val.c_ptr());
+  StringBuffer<MAX_DATETIME_FULL_WIDTH+1> val_start, val_end;
+  row_start->val_str(&val_start);
+  row_end->val_str(&val_end);
+  my_error(ER_WRONG_VERSIONING_RANGE, MYF(0),
+           row_start->field_name.str, val_start.c_ptr(),
+           row_end->field_name.str, val_end.c_ptr());
   return 1;
 }
 
@@ -9252,6 +9273,9 @@ fill_record_n_invoke_before_triggers(THD *thd, TABLE *table,
   @param values        values to fill with
   @param ignore_errors TRUE if we should ignore errors
   @param use_value     forces usage of value of the items instead of result
+  @param check_for_computability whether to check for ability to invoke val_*()
+                                 methods (val_int () etc) against supplied
+                                 values
 
   @details
     fill_record() may set table->auto_increment_field_not_null and a
@@ -9265,7 +9289,7 @@ fill_record_n_invoke_before_triggers(THD *thd, TABLE *table,
 
 bool
 fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
-            bool ignore_errors, bool use_value)
+            bool ignore_errors, bool use_value, bool check_for_computability)
 {
   List_iterator_fast<Item> v(values);
   List<TABLE> tbl_list;
@@ -9304,6 +9328,10 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
     value=v++;
     /* Ensure the end of the list of values is not reached */
     DBUG_ASSERT(value);
+
+    if (check_for_computability &&
+        value->check_is_evaluable_expression_or_error())
+      goto err;
 
     const bool skip_sys_field= field->vers_sys_field() &&
                                !thd->vers_insert_history_fast(table);
@@ -9381,7 +9409,7 @@ fill_record_n_invoke_before_triggers(THD *thd, TABLE *table, Field **ptr,
   bool result;
   Table_triggers_list *triggers= table->triggers;
 
-  result= fill_record(thd, table, ptr, values, ignore_errors, FALSE);
+  result= fill_record(thd, table, ptr, values, ignore_errors, false, false);
 
   if (!result && triggers && *ptr)
     result= triggers->process_triggers(thd, event, TRG_ACTION_BEFORE, TRUE) ||
@@ -9589,9 +9617,11 @@ open_system_tables_for_read(THD *thd, TABLE_LIST *table_list)
 
   for (TABLE_LIST *tables= table_list; tables; tables= tables->next_global)
   {
-    DBUG_ASSERT(tables->table->s->table_category == TABLE_CATEGORY_SYSTEM);
-    tables->table->file->row_logging= 0;
-    tables->table->use_all_columns();
+    TABLE *table= tables->table;
+    DBUG_ASSERT(table->s->table_category == TABLE_CATEGORY_SYSTEM ||
+                table->s->table_category == TABLE_CATEGORY_STATISTICS);
+    table->file->row_logging= 0;
+    table->use_all_columns();
   }
   lex->restore_backup_query_tables_list(&query_tables_list_backup);
 

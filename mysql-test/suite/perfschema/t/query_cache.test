@@ -20,7 +20,7 @@ SET GLOBAL query_cache_size=1355776;
 
 flush query cache;
 reset query cache;
-flush status;
+flush global status;
 
 --disable_ps2_protocol
 select * from t1;
@@ -57,5 +57,5 @@ show global status like "Qcache_hits";
 SET GLOBAL query_cache_size=@save_query_cache_size;
 
 drop table t1;
-flush status;
+flush global status;
 

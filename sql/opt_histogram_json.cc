@@ -180,9 +180,8 @@ private:
     char buf[128];
     String str(buf, sizeof(buf), system_charset_info);
     THD *thd= current_thd;
-    timeval tv= {thd->query_start(), 0}; // we do not need microseconds
 
-    Timestamp(tv).to_datetime(thd).to_string(&str, 0);
+    Timestamp(thd->query_start(), 0).to_datetime(thd).to_string(&str, 0);
     writer.add_member("target_histogram_size").add_ull(hist_width);
     writer.add_member("collected_at").add_str(str.ptr());
     writer.add_member("collected_by").add_str(server_version);
@@ -830,7 +829,7 @@ err:
                       ER_THD(thd, ER_JSON_HISTOGRAM_PARSE_FAILED),
                       db_name, table_name,
                       err, (je.s.c_str - (const uchar*)hist_data));
-  sql_print_error(ER_THD(thd, ER_JSON_HISTOGRAM_PARSE_FAILED),
+  sql_print_error(ER_DEFAULT(ER_JSON_HISTOGRAM_PARSE_FAILED),
                   db_name, table_name, err,
                   (je.s.c_str - (const uchar*)hist_data));
 

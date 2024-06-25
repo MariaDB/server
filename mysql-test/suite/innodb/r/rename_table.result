@@ -21,11 +21,17 @@ path
 DROP DATABASE abc_def;
 # restart
 DROP DATABASE abc_def2;
-call mtr.add_suppression("InnoDB: (Operating system error|Error number \\d+ means|Cannot rename file)");
+call mtr.add_suppression("InnoDB: Cannot rename '.*t1.ibd' to '.*non_existing_db.*' because the target schema directory doesn't exist");
 CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(100);
 RENAME TABLE t1 TO non_existing_db.t1;
 ERROR HY000: Error on rename of './test/t1' to './non_existing_db/t1' (errno: 168 "Unknown (generic) error from engine")
-FOUND 1 /\[ERROR\] InnoDB: Cannot rename file '.*t1\.ibd' to '.*non_existing_db/ in mysqld.1.err
+FOUND 1 /\[ERROR\] InnoDB: Cannot rename '.*t1\.ibd' to '.*non_existing_db/ in mysqld.1.err
+SET GLOBAL innodb_fast_shutdown=2;
+# restart
+SELECT * FROM t1;
+a
+100
 DROP TABLE t1;
 #
 # MDEV-25509 Atomic DDL: Assertion `err != DB_DUPLICATE_KEY'

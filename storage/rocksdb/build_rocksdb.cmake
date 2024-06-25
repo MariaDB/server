@@ -79,7 +79,7 @@ check_lib(Snappy)
 check_lib(ZSTD ZDICT_trainFromBuffer)
 
 add_definitions(-DZLIB)
-list(APPEND THIRDPARTY_LIBS ${ZLIB_LIBRARY})
+list(APPEND THIRDPARTY_LIBS ${ZLIB_LIBRARIES})
 ADD_FEATURE_INFO(ROCKSDB_ZLIB "ON" "zlib Compression in the RocksDB storage engine")
 
 if(CMAKE_SYSTEM_NAME MATCHES "Cygwin")

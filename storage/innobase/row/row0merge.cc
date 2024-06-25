@@ -528,8 +528,6 @@ static ulint row_merge_bulk_buf_add(row_merge_buf_t* buf,
 @param[in,out]	row		table row
 @param[in]	ext		cache of externally stored
 				column prefixes, or NULL
-@param[in]	history_fts	row is historical in a system-versioned table
-				on which a FTS_DOC_ID_INDEX(FTS_DOC_ID) exists
 @param[in,out]	doc_id		Doc ID if we are creating
 				FTS index
 @param[in,out]	conv_heap	memory heap where to allocate data when
@@ -552,7 +550,6 @@ row_merge_buf_add(
 	fts_psort_t*		psort_info,
 	dtuple_t*		row,
 	const row_ext_t*	ext,
-	const bool		history_fts,
 	doc_id_t*		doc_id,
 	mem_heap_t*		conv_heap,
 	dberr_t*		err,
@@ -617,7 +614,7 @@ error:
 			: NULL;
 
 		/* Process the Doc ID column */
-		if (!v_col && (history_fts || *doc_id)
+		if (!v_col && *doc_id
 		    && col->ind == index->table->fts->doc_col) {
 			fts_write_doc_id((byte*) &write_doc_id, *doc_id);
 
@@ -678,7 +675,7 @@ error:
 			}
 
 			/* Tokenize and process data for FTS */
-			if (!history_fts && (index->type & DICT_FTS)) {
+			if (index->type & DICT_FTS) {
 				fts_doc_item_t*	doc_item;
 				byte*		value;
 				void*		ptr;
@@ -1897,6 +1894,7 @@ row_merge_read_clustered_index(
 	DBUG_ENTER("row_merge_read_clustered_index");
 
 	ut_ad((old_table == new_table) == !col_map);
+	ut_ad(old_table->fts || !new_table->fts || !new_table->versioned());
 	ut_ad(!defaults || col_map);
 	ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE));
 	ut_ad(trx->id);
@@ -2122,7 +2120,6 @@ corrupted_metadata:
 		dtuple_t*	row;
 		row_ext_t*	ext;
 		page_cur_t*	cur	= btr_pcur_get_page_cur(&pcur);
-		bool history_row, history_fts = false;
 
 		stage->n_pk_recs_inc();
 
@@ -2384,11 +2381,6 @@ end_of_index:
 					   row_heap);
 		ut_ad(row);
 
-		history_row = new_table->versioned()
-		       && dtuple_get_nth_field(row, new_table->vers_end)
-		       ->vers_history_row();
-		history_fts = history_row && new_table->fts;
-
 		for (ulint i = 0; i < n_nonnull; i++) {
 			dfield_t*	field	= &row->fields[nonnull[i]];
 
@@ -2417,7 +2409,7 @@ end_of_index:
 		}
 
 		/* Get the next Doc ID */
-		if (add_doc_id && !history_fts) {
+		if (add_doc_id) {
 			doc_id++;
 		} else {
 			doc_id = 0;
@@ -2457,7 +2449,9 @@ end_of_index:
 								add_autoinc);
 
 			if (new_table->versioned()) {
-				if (history_row) {
+				if (dtuple_get_nth_field(row,
+							 new_table->vers_end)
+				    ->vers_history_row()) {
 					if (dfield_get_type(dfield)->prtype & DATA_NOT_NULL) {
 						err = DB_UNSUPPORTED;
 						my_error(ER_UNSUPPORTED_EXTENSION, MYF(0),
@@ -2573,7 +2567,7 @@ write_buffers:
 			if (UNIV_LIKELY
 			    (row && (rows_added = row_merge_buf_add(
 					buf, fts_index, old_table, new_table,
-					psort_info, row, ext, history_fts,
+					psort_info, row, ext,
 					&doc_id, conv_heap, &err,
 					&v_heap, eval_table, trx,
 					col_collate)))) {
@@ -2906,7 +2900,7 @@ write_buffers:
 				    (!(rows_added = row_merge_buf_add(
 						buf, fts_index, old_table,
 						new_table, psort_info,
-						row, ext, history_fts, &doc_id,
+						row, ext, &doc_id,
 						conv_heap, &err, &v_heap,
 						eval_table, trx, col_collate)))) {
                                         /* An empty buffer should have enough
@@ -4355,9 +4349,7 @@ void row_merge_drop_temp_indexes()
 UNIV_PFS_IO defined, register the file descriptor with Performance Schema.
 @param[in]	path	location for creating temporary merge files, or NULL
 @return File descriptor */
-pfs_os_file_t
-row_merge_file_create_low(
-	const char*	path)
+static pfs_os_file_t row_merge_file_create_mode(const char *path, int mode)
 {
 	if (!path) {
 		path = mysql_tmpdir;
@@ -4398,6 +4390,13 @@ row_merge_file_create_low(
 	return(fd);
 }
 
+/** Create a temporary file at the specified path.
+@param path location for creating temporary merge files, or nullptr
+@return File descriptor */
+pfs_os_file_t row_merge_file_create_low(const char *path)
+{
+  return row_merge_file_create_mode(path, O_BINARY | O_SEQUENTIAL);
+}
 
 /** Create a merge file in the given location.
 @param[out]	merge_file	merge file structure
@@ -4408,17 +4407,16 @@ row_merge_file_create(
 	merge_file_t*	merge_file,
 	const char*	path)
 {
-	merge_file->fd = row_merge_file_create_low(path);
 	merge_file->offset = 0;
 	merge_file->n_rec = 0;
-#ifdef HAVE_FCNTL_DIRECT
-	if (merge_file->fd != OS_FILE_CLOSED) {
-		if (srv_disable_sort_file_cache) {
-			os_file_set_nocache(merge_file->fd,
-				"row0merge.cc", "sort");
-		}
-	}
+	merge_file->fd =
+		row_merge_file_create_mode(path,
+#if !defined _WIN32 && defined O_DIRECT
+					   srv_disable_sort_file_cache
+					   ? O_DIRECT | O_BINARY | O_SEQUENTIAL
+					   :
 #endif
+					   O_BINARY | O_SEQUENTIAL);
 	return(merge_file->fd);
 }
 
@@ -5353,18 +5351,8 @@ dberr_t trx_mod_table_time_t::write_bulk(dict_table_t *table, trx_t *trx)
   return err;
 }
 
-dberr_t trx_t::bulk_insert_apply_low()
+void trx_t::bulk_rollback_low()
 {
-  ut_ad(bulk_insert);
-  ut_ad(!check_unique_secondary);
-  ut_ad(!check_foreigns);
-  dberr_t err;
-  for (auto& t : mod_tables)
-    if (t.second.is_bulk_insert())
-      if ((err= t.second.write_bulk(t.first, this)) != DB_SUCCESS)
-        goto bulk_rollback;
-  return DB_SUCCESS;
-bulk_rollback:
   undo_no_t low_limit= UINT64_MAX;
   for (auto& t : mod_tables)
   {
@@ -5374,9 +5362,37 @@ bulk_rollback:
         low_limit= t.second.get_first();
       delete t.second.bulk_store;
       t.second.bulk_store= nullptr;
+      t.second.end_bulk_insert();
     }
   }
   trx_savept_t bulk_save{low_limit};
   rollback(&bulk_save);
-  return err;
+}
+
+dberr_t trx_t::bulk_insert_apply_for_table(dict_table_t *table)
+{
+  auto it= mod_tables.find(table);
+  if (it != mod_tables.end())
+  {
+    if (dberr_t err= it->second.write_bulk(table, this))
+    {
+      bulk_rollback_low();
+      return err;
+    }
+    it->second.end_bulk_insert();
+  }
+  return DB_SUCCESS;
+}
+
+dberr_t trx_t::bulk_insert_apply_low()
+{
+  ut_ad(bulk_insert);
+  for (auto& t : mod_tables)
+    if (t.second.is_bulk_insert())
+      if (dberr_t err= t.second.write_bulk(t.first, this))
+      {
+        bulk_rollback_low();
+        return err;
+      }
+  return DB_SUCCESS;
 }

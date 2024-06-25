@@ -73,6 +73,9 @@
 #   non-boolean value.
 #
 #
+#  Additionally ensure MASTER_DEMOTE_TO_REPLICA aliases MASTER_DEMOTE_TO_SLAVE
+#
+#
 # References:
 #   MDEV-19801: Change defaults for CHANGE MASTER TO so that GTID-based
 #               replication is used by default if master supports it
@@ -452,6 +455,37 @@ EOF
 --replace_result $SLAVE_MYPORT SLAVE_PORT
 --error 1064
 --eval CHANGE MASTER TO master_host='127.0.0.1', master_port=$SLAVE_MYPORT, master_user='root', master_use_gtid=Slave_Pos, master_demote_to_slave=invalid
+
+
+--echo #
+--echo # MDEV-31768
+--echo # Ensure MASTER_DEMOTE_TO_REPLICA aliases MASTER_DEMOTE_TO_SLAVE
+--echo #
+--connection slave
+RESET MASTER;
+--source include/reset_slave.inc
+CREATE TABLE t_mdev_31768 (a int);
+--let $gtid_binlog_pos= `SELECT @@GLOBAL.gtid_binlog_pos`
+CHANGE MASTER TO master_use_gtid=Replica_Pos, master_demote_to_replica=1;
+--let $gtid_slave_pos=  `SELECT @@GLOBAL.gtid_slave_pos`
+
+--echo # Validating alias MASTER_DEMOTE_TO_REPLICA provides intended behavior..
+if (`SELECT strcmp("$gtid_binlog_pos","$gtid_slave_pos") != 0`)
+{
+    --echo # ..failed
+    --echo # Binlog pos: $gtid_binlog_pos
+    --echo # Replica pos: $gtid_slave_pos
+    die MASTER_DEMOTE_TO_REPLICA does not alias MASTER_DEMOTE_TO_SLAVE correctly;
+}
+--echo # ..success
+
+DROP TABLE t_mdev_31768;
+RESET MASTER;
+--source include/reset_slave.inc
+
+--echo # Clear primary binlog state to match replica
+--connection master
+RESET MASTER;
 
 
 --echo #

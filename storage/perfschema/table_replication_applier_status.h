@@ -59,7 +59,7 @@ struct st_row_applier_status {
   enum_rpl_yes_no service_state;
   uint remaining_delay;
   bool remaining_delay_is_set;
-  ulong count_transactions_retries;
+  ulonglong count_transactions_retries;
 };
 
 /** Table PERFORMANCE_SCHEMA.replication_applier_status */

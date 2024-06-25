@@ -832,8 +832,7 @@ processed:
       inside recv_sys_t::recover_deferred(). */
       bool success;
       handle= os_file_create(innodb_data_file_key, filename,
-                             OS_FILE_CREATE | OS_FILE_ON_ERROR_NO_EXIT |
-                             OS_FILE_ON_ERROR_SILENT,
+                             OS_FILE_CREATE_SILENT,
                              OS_FILE_AIO, OS_DATA_FILE, false, &success);
     }
     space->add(filename, handle, size, false, false);
@@ -1623,7 +1622,7 @@ dberr_t recv_sys_t::find_checkpoint()
     std::string path{get_log_file_path()};
     bool success;
     os_file_t file{os_file_create_func(path.c_str(),
-                                       OS_FILE_OPEN | OS_FILE_ON_ERROR_NO_EXIT,
+                                       OS_FILE_OPEN,
                                        OS_FILE_NORMAL, OS_LOG_FILE,
                                        srv_read_only_mode, &success)};
     if (file == OS_FILE_CLOSED)
@@ -1653,8 +1652,7 @@ dberr_t recv_sys_t::find_checkpoint()
     {
       path= get_log_file_path(LOG_FILE_NAME_PREFIX).append(std::to_string(i));
       file= os_file_create_func(path.c_str(),
-                                OS_FILE_OPEN | OS_FILE_ON_ERROR_NO_EXIT |
-                                OS_FILE_ON_ERROR_SILENT,
+                                OS_FILE_OPEN_SILENT,
                                 OS_FILE_NORMAL, OS_LOG_FILE, true, &success);
       if (file == OS_FILE_CLOSED)
         break;
@@ -2429,11 +2427,9 @@ recv_sys_t::parse_mtr_result recv_sys_t::parse(source &l, bool if_exists)
   noexcept
 {
 restart:
-#ifndef SUX_LOCK_GENERIC
-  ut_ad(log_sys.latch.is_write_locked() ||
+  ut_ad(log_sys.latch_have_wr() ||
         srv_operation == SRV_OPERATION_BACKUP ||
         srv_operation == SRV_OPERATION_BACKUP_NO_DEFER);
-#endif
   mysql_mutex_assert_owner(&mutex);
   ut_ad(log_sys.next_checkpoint_lsn);
   ut_ad(log_sys.is_latest());
@@ -3682,8 +3678,8 @@ recv_sys_t::recover(const page_id_t page_id, mtr_t *mtr, dberr_t *err)
 {
   if (!recovery_on)
   must_read:
-    return buf_page_get_gen(page_id, 0, RW_S_LATCH, nullptr, BUF_GET, mtr,
-                            err);
+    return buf_page_get_gen(page_id, 0, RW_NO_LATCH, nullptr, BUF_GET_RECOVER,
+                            mtr, err);
 
   mysql_mutex_lock(&mutex);
   map::iterator p= pages.find(page_id);
@@ -3732,7 +3728,7 @@ recv_sys_t::recover(const page_id_t page_id, mtr_t *mtr, dberr_t *err)
     goto corrupted;
   }
 
-  mtr->page_lock(block, RW_S_LATCH);
+  mtr->page_lock(block, RW_NO_LATCH);
   return block;
 }
 
@@ -3999,9 +3995,7 @@ static bool recv_scan_log(bool last_phase)
   lsn_t rewound_lsn= 0;
   for (ut_d(lsn_t source_offset= 0);;)
   {
-#ifndef SUX_LOCK_GENERIC
-    ut_ad(log_sys.latch.is_write_locked());
-#endif
+    ut_ad(log_sys.latch_have_wr());
 #ifdef UNIV_DEBUG
     const bool wrap{source_offset + recv_sys.len == log_sys.file_size};
 #endif
@@ -4067,9 +4061,10 @@ static bool recv_scan_log(bool last_phase)
 
           const lsn_t end{recv_sys.file_checkpoint};
           ut_ad(!end || end == recv_sys.lsn);
+          bool corrupt_fs= recv_sys.is_corrupt_fs();
           mysql_mutex_unlock(&recv_sys.mutex);
 
-          if (!end)
+          if (!end && !corrupt_fs)
           {
             recv_sys.set_corrupt_log();
             sql_print_error("InnoDB: Missing FILE_CHECKPOINT(" LSN_PF
@@ -4395,9 +4390,7 @@ recv_init_crash_recovery_spaces(bool rescan, bool& missing_tablespace)
 static dberr_t recv_rename_files()
 {
   mysql_mutex_assert_owner(&recv_sys.mutex);
-#ifndef SUX_LOCK_GENERIC
-  ut_ad(log_sys.latch.is_write_locked());
-#endif
+  ut_ad(log_sys.latch_have_wr());
 
   dberr_t err= DB_SUCCESS;
 
@@ -4549,6 +4542,9 @@ read_only_recovery:
 					LSN_PF, recv_sys.lsn);
                         goto err_exit;
 		}
+		if (recv_sys.is_corrupt_fs()) {
+			goto err_exit;
+		}
 		ut_ad(recv_sys.file_checkpoint);
 		if (rewind) {
 			recv_sys.lsn = log_sys.next_checkpoint_lsn;
@@ -4587,9 +4583,9 @@ read_only_recovery:
 
 			do {
 				rescan = recv_scan_log(false);
-				ut_ad(!recv_sys.is_corrupt_fs());
 
-				if (recv_sys.is_corrupt_log()) {
+				if (recv_sys.is_corrupt_log() ||
+				    recv_sys.is_corrupt_fs()) {
 					goto err_exit;
 				}
 
@@ -4677,7 +4673,7 @@ err_exit:
 				 PROT_READ | PROT_WRITE);
 #endif
 		}
-		log_sys.buf_free = recv_sys.offset;
+		log_sys.set_buf_free(recv_sys.offset);
 		if (recv_needed_recovery
 	            && srv_operation <= SRV_OPERATION_EXPORT_RESTORED) {
 			/* Write a FILE_CHECKPOINT marker as the first thing,

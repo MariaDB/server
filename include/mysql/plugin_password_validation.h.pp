@@ -385,7 +385,6 @@ void thd_key_delete(MYSQL_THD_KEY_T *key);
 void* thd_getspecific(THD* thd, MYSQL_THD_KEY_T key);
 int thd_setspecific(THD* thd, MYSQL_THD_KEY_T key, void *value);
 }
-typedef long my_time_t;
 enum enum_mysql_timestamp_type
 {
   MYSQL_TIMESTAMP_NONE= -2, MYSQL_TIMESTAMP_ERROR= -1,

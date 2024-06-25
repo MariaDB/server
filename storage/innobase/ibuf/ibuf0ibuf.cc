@@ -264,6 +264,9 @@ func_exit:
     goto func_exit;
   }
 
+  if (page_no >= fil_system.sys_space->free_limit)
+    goto corrupted;
+
   /* Since pessimistic inserts were prevented, we know that the
   page is still in the free list. NOTE that also deletes may take
   pages from the free list, but they take them from the start, and
@@ -279,6 +282,7 @@ func_exit:
   if (page_no != flst_get_last(PAGE_HEADER + PAGE_BTR_IBUF_FREE_LIST +
                                root->page.frame).page)
   {
+  corrupted:
     err= DB_CORRUPTION;
     goto func_exit;
   }
@@ -288,7 +292,8 @@ func_exit:
       buf_page_get_gen(page_id_t{0, page_no}, 0, RW_X_LATCH, nullptr, BUF_GET,
                        &mtr, &err))
     err= flst_remove(root, PAGE_HEADER + PAGE_BTR_IBUF_FREE_LIST,
-                     block, PAGE_HEADER + PAGE_BTR_IBUF_FREE_LIST_NODE, &mtr);
+                     block, PAGE_HEADER + PAGE_BTR_IBUF_FREE_LIST_NODE,
+                     fil_system.sys_space->free_limit, &mtr);
 
   if (err == DB_SUCCESS)
     buf_page_free(fil_system.sys_space, page_no, &mtr);

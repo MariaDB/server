@@ -562,6 +562,11 @@ int spider_check_sys_table_for_update_all_columns(
     HA_WHOLE_KEY, HA_READ_KEY_EXACT));
 }
 
+/*
+  Creates a key (`table_key') consisting of `col_count' key parts of
+  `idx'th index of the table, then positions an index cursor to that
+  key.
+*/
 int spider_get_sys_table_by_idx(
   TABLE *table,
   char *table_key,
@@ -617,7 +622,7 @@ int spider_sys_index_next_same(
 
 int spider_sys_index_first(
   TABLE *table,
-  const int idx
+  const int idx                 /* which index to use */
 ) {
   int error_num;
   DBUG_ENTER("spider_sys_index_first");
@@ -2147,14 +2152,16 @@ int spider_get_sys_tables(
   DBUG_RETURN(0);
 }
 
+/* Read table info from mysql.spider_tables into a `SPIDER_SHARE' */
 int spider_get_sys_tables_connect_info(
-  TABLE *table,
-  SPIDER_SHARE *share,
-  int link_idx,
+  TABLE *table,                         /* The mysql.spider_tables table */
+  SPIDER_SHARE *share,                  /* The `SPIDER_SHARE' to
+                                        update info */
   MEM_ROOT *mem_root
 ) {
   char *ptr;
   int error_num = 0;
+  const int link_idx= 0;
   DBUG_ENTER("spider_get_sys_tables_connect_info");
   DBUG_PRINT("info",("spider link_idx:%d", link_idx));
   if ((ptr = get_field(mem_root, table->field[SPIDER_TABLES_PRIORITY_POS])))
@@ -2588,11 +2595,17 @@ error:
   DBUG_RETURN(error_num);
 }
 
+/* Populate `mon_key' from the current row in `table' */
 int spider_get_sys_link_mon_key(
-  TABLE *table,
-  SPIDER_MON_KEY *mon_key,
+  TABLE *table,                 /* the mysql.spider_link_mon_servers
+                                table */
+  SPIDER_MON_KEY *mon_key,      /* output, to be populated in this
+                                function */
   MEM_ROOT *mem_root,
-  int *same
+  int *same                     /* output, true if the data from the
+                                current row in the table agrees with
+                                existing data in `mon_key' and false
+                                otherwise */
 ) {
   char *db_name, *table_name, *link_id;
   uint db_name_length, table_name_length, link_id_length;
@@ -2608,6 +2621,7 @@ int spider_get_sys_link_mon_key(
     DBUG_RETURN(ER_SPIDER_SYS_TABLE_VERSION_NUM);
   }
 
+  /* get data for `mon_key' from the table record */
   if (!(db_name=
         get_field(mem_root,
                   table->field[SPIDER_LINK_MON_SERVERS_DB_NAME_POS])))
@@ -2659,9 +2673,12 @@ int spider_get_sys_link_mon_key(
   DBUG_RETURN(0);
 }
 
+/* Get the server id from the spider_link_mon_servers table field */
 int spider_get_sys_link_mon_server_id(
-  TABLE *table,
-  uint32 *server_id,
+  TABLE *table,                        /* the
+                                       mysql.spider_link_mon_servers
+                                       table */
+  uint32 *server_id,                   /* output to server_id */
   MEM_ROOT *mem_root
 ) {
   char *ptr;
@@ -2675,14 +2692,17 @@ int spider_get_sys_link_mon_server_id(
   DBUG_RETURN(error_num);
 }
 
+/* Get connect info from the spider_link_mon_servers table fields */
 int spider_get_sys_link_mon_connect_info(
-  TABLE *table,
-  SPIDER_SHARE *share,
-  int link_idx,
+  TABLE *table,                           /* The
+                                          mysql.spider_link_mon_servers
+                                          table */
+  SPIDER_SHARE *share,                    /* The output spider_share */
   MEM_ROOT *mem_root
 ) {
   char *ptr;
   int error_num = 0;
+  const int link_idx= 0;
   DBUG_ENTER("spider_get_sys_link_mon_connect_info");
   if (
     !table->field[SPIDER_LINK_MON_SERVERS_SERVER_POS]->is_null() &&

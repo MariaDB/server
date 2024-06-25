@@ -412,29 +412,29 @@ update t1 set b= 666 where a = 6;
 set debug_sync= 'now SIGNAL start_replication';
 # First signal is for log description event.
 set debug_sync= 'now WAIT_FOR applied';
-select stage, progress from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
-stage	progress
-3	53.390
+select stage, progress, examined_rows  from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
+stage	progress	examined_rows
+3	53.390	0
 set debug_sync= 'now SIGNAL proceed WAIT_FOR applied';
-select stage, progress from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
-stage	progress
-3	63.559
+select stage, progress, examined_rows from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
+stage	progress	examined_rows
+3	63.559	1
 set debug_sync= 'now SIGNAL proceed WAIT_FOR applied';
-select stage, progress from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
-stage	progress
-3	71.610
+select stage, progress, examined_rows from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
+stage	progress	examined_rows
+3	71.610	2
 set debug_sync= 'now SIGNAL proceed WAIT_FOR applied';
-select stage, progress from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
-stage	progress
-3	81.780
+select stage, progress, examined_rows from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
+stage	progress	examined_rows
+3	81.780	3
 set debug_sync= 'now SIGNAL proceed WAIT_FOR applied';
-select stage, progress from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
-stage	progress
-3	89.831
+select stage, progress, examined_rows from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
+stage	progress	examined_rows
+3	89.831	4
 set debug_sync= 'now SIGNAL proceed WAIT_FOR applied';
-select stage, progress from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
-stage	progress
-3	100.000
+select stage, progress, examined_rows from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
+stage	progress	examined_rows
+3	100.000	5
 set debug_sync= 'now SIGNAL proceed WAIT_FOR locking';
 begin;
 update t1 set b= 222 where a = 2;
@@ -442,17 +442,17 @@ update t1 set b= 333 where a = 3;
 update t1 set b= 444 where a = 4;
 commit;
 set debug_sync= 'now SIGNAL end WAIT_FOR applied';
-select stage, progress from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
-stage	progress
-4	33.333
+select stage, progress, examined_rows from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
+stage	progress	examined_rows
+4	33.333	6
 set debug_sync= 'now SIGNAL proceed WAIT_FOR applied';
-select stage, progress from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
-stage	progress
-4	66.667
+select stage, progress, examined_rows from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
+stage	progress	examined_rows
+4	66.667	7
 set debug_sync= 'now SIGNAL proceed WAIT_FOR applied';
-select stage, progress from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
-stage	progress
-4	100.000
+select stage, progress, examined_rows from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
+stage	progress	examined_rows
+4	100.000	8
 set debug_sync= 'now SIGNAL proceed';
 connection default;
 select * from t1;
@@ -1786,6 +1786,48 @@ a	d
 0	qwe
 0	qwe
 0	qwe
+drop table t;
+#
+# MDEV-32803 Assertion `total == 0' failed in Event_log::write_cache_raw
+#
+create or replace table t1 (a int) engine=aria;
+insert t1 values (5);
+set debug_sync= 'alter_table_copy_end SIGNAL ended WAIT_FOR end';
+alter table t1 add b int NULL, algorithm= copy, lock= none;
+connection con2;
+set debug_sync= 'now WAIT_FOR ended';
+begin;
+insert into t1 values (123);
+insert into t1 values (456), (789);
+commit;
+set debug_sync= 'now SIGNAL end';
+connection default;
+select * from t1;
+a	b
+5	NULL
+123	NULL
+456	NULL
+789	NULL
+drop table t1;
+# MDEV-32614 LeakSanitizer errors in copy_data_between_tables
+create table t (a int, b int) engine=aria;
+insert into t select seq, seq from seq_1_to_5;
+backup stage start;
+connect  con_lock,localhost,root,,;
+set lock_wait_timeout= 1;
+set debug_sync='copy_data_between_tables_before_reset_backup_lock signal backup wait_for continue';
+alter table t add index (b), algorithm=copy, lock=none;
+connection default;
+set debug_sync='now wait_for backup';
+backup stage block_commit;
+set debug_sync='now signal continue';
+connection con_lock;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+disconnect con_lock;
+connection default;
+backup stage end;
+alter table t add index (a), algorithm=copy, lock=none;
+connection default;
 drop table t;
 set global default_storage_engine= MyISAM;
 disconnect con1;

@@ -1,5 +1,5 @@
 call mtr.add_suppression("192.0.2.4");
-flush status;
+flush global status;
 flush hosts;
 flush user_resources;
 flush privileges;

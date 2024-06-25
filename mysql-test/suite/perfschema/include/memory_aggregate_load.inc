@@ -274,7 +274,6 @@ execute dump_users;
 execute dump_hosts;
 
 --disconnect con1
---disconnect con5
 
 --connection default
 
@@ -283,6 +282,8 @@ let $wait_condition=
   select count(*) = 0 from performance_schema.threads
   where `TYPE`='FOREGROUND' and PROCESSLIST_USER= 'user1';
 --source include/wait_condition.inc
+
+--disconnect con5
 let $wait_condition=
   select count(*) = 1 from performance_schema.threads
   where `TYPE`='FOREGROUND' and PROCESSLIST_USER= 'user4';

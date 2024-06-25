@@ -5868,6 +5868,7 @@ FROM t2 alias1, t1 alias2, t1 alias3;
 
 --disable_ps2_protocol
 flush status;
+flush global status;
 
 SELECT
   (SELECT MIN(b) FROM t1, t2
@@ -5886,6 +5887,7 @@ SELECT
 FROM t2 alias1, t1 alias2, t1 alias3;
 
 flush status;
+flush global status;
 
 SELECT
   (SELECT MIN(b) FROM t1, t2

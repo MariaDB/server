@@ -3365,7 +3365,7 @@ drop procedure if exists bug6857|
 --enable_warnings
 create procedure bug6857()
 begin
-  declare t0, t1 int;
+  declare t0, t1 bigint;
   declare plus bool default 0;
   set t0 = unix_timestamp();
   select sleep(1.1);
@@ -8632,8 +8632,6 @@ CALL p1(1);
 
 CREATE TEMPORARY TABLE t1 (f1 INT);
 
---echo # t1 still refers to the view since it was inlined
---error ER_NON_INSERTABLE_TABLE
 CALL p1(2);
 
 DROP VIEW t1;

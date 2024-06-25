@@ -20,11 +20,20 @@ INSERT INTO fts_test (title,body) VALUES
 	('MySQL Security','When configured properly, MySQL ...');
 
 # Table does rebuild when fts index builds for the first time
+# Create the FTS index
+
+if ($MTR_COMBINATION_ORIG) {
 --error ER_ALTER_OPERATION_NOT_SUPPORTED
 ALTER TABLE fts_test ADD FULLTEXT `idx` (title, body), ALGORITHM=NOCOPY;
-
-# Create the FTS index
 ALTER TABLE fts_test ADD FULLTEXT `idx` (title, body), ALGORITHM=INPLACE;
+}
+if (!$MTR_COMBINATION_ORIG) {
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+ALTER TABLE fts_test ADD FULLTEXT `idx` (title, body), ALGORITHM=NOCOPY;
+--enable_info
+ALTER TABLE fts_test ADD FULLTEXT `idx` (title, body);
+--disable_info
+}
 
 # Select word "tutorial" in the table
 SELECT * FROM fts_test WHERE MATCH (title, body)
@@ -43,7 +52,14 @@ INSERT INTO fts_test (title,body) VALUES
 	('MySQL Security','When configured properly, MySQL ...');
 
 # FTS_DOC_ID hidden column and FTS_DOC_ID index exist
+if ($MTR_COMBINATION_ORIG) {
 ALTER TABLE fts_test ADD FULLTEXT `idx` (title, body), ALGORITHM=NOCOPY;
+}
+if (!$MTR_COMBINATION_ORIG) {
+--enable_info
+ALTER TABLE fts_test ADD FULLTEXT `idx` (title, body);
+--disable_info
+}
 
 # Select word "tutorial" in the table
 SELECT * FROM fts_test WHERE MATCH (title, body)
@@ -112,7 +128,14 @@ INSERT INTO fts_test (title,body) VALUES
 # column already exists. This has not been implemented yet.
 --error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
 ALTER TABLE fts_test ADD FULLTEXT `idx` (title, body), ALGORITHM=NOCOPY, LOCK=NONE;
+if ($MTR_COMBINATION_ORIG) {
 ALTER TABLE fts_test ADD FULLTEXT `idx` (title, body), ALGORITHM=NOCOPY;
+}
+if (!$MTR_COMBINATION_ORIG) {
+--enable_info
+ALTER TABLE fts_test ADD FULLTEXT `idx` (title, body);
+--disable_info
+}
 
 --error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
 ALTER TABLE fts_test ROW_FORMAT=REDUNDANT, ALGORITHM=INPLACE, LOCK=NONE;
@@ -352,8 +375,14 @@ let $fts_aux_file= `select concat('FTS_',right(concat(repeat('0',16), lower(hex(
 write_file $MYSQLD_DATADIR/test/$fts_aux_file;
 EOF
 --replace_regex /".*" from/"Resource temporarily unavailable" from/
+if ($MTR_COMBINATION_ORIG) {
 --error ER_GET_ERRNO
 ALTER TABLE t1 ADD FULLTEXT(a), ALGORITHM=INPLACE;
+}
+if (!$MTR_COMBINATION_ORIG) {
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+ALTER TABLE t1 ADD FULLTEXT(a), ALGORITHM=INPLACE;
+}
 DROP TABLE t1;
 remove_file $MYSQLD_DATADIR/test/$fts_aux_file;
 

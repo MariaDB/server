@@ -64,12 +64,15 @@
 #define PARSED_EARLY sys_var::PARSE_EARLY+
 #define NO_SET_STMT sys_var::NO_SET_STATEMENT+
 
+extern const char *UNUSED_HELP;
+
 /*
   Sys_var_bit meaning is reversed, like in
   @@foreign_key_checks <-> OPTION_NO_FOREIGN_KEY_CHECKS
 */
 #define REVERSE(X) ~(X)
 #define DEPRECATED(V, REPL) (check_deprecated_version<V>(), REPL)
+#define DEPRECATED_NO_REPLACEMENT(V) DEPRECATED(V, "")
 
 #define session_var(THD, TYPE) (*(TYPE*)session_var_ptr(THD))
 #define global_var(TYPE) (*(TYPE*)global_var_ptr())
@@ -935,21 +938,10 @@ public:
   { option.var_type|= GET_STR; }
   bool do_check(THD *thd, set_var *var)
   {
-    char buff[STRING_BUFFER_USUAL_SIZE];
-    String str(buff, sizeof(buff), system_charset_info), *res;
-
-    if (!(res=var->value->val_str(&str)))
-    {
+    bool rc= Sys_var_charptr::do_string_check(thd, var, charset(thd));
+    if (var->save_result.string_value.str == nullptr)
       var->save_result.string_value.str= const_cast<char*>("");
-      var->save_result.string_value.length= 0;
-    }
-    else
-    {
-      size_t len= res->length();
-      var->save_result.string_value.str= thd->strmake(res->ptr(), len);
-      var->save_result.string_value.length= len;
-    }
-    return false;
+    return rc;
   }
   bool session_update(THD *thd, set_var *var)
   {

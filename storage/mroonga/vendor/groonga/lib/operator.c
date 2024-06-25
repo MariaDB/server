@@ -20,6 +20,7 @@
 #include "grn_db.h"
 #include "grn_str.h"
 #include "grn_normalizer.h"
+#include <my_attribute.h>
 
 #include <string.h>
 
@@ -30,6 +31,8 @@
 #ifdef GRN_SUPPORT_REGEXP
 # include <onigmo.h>
 #endif
+
+PRAGMA_DISABLE_CHECK_STACK_FRAME
 
 static const char *operator_names[] = {
   "push",
@@ -1360,3 +1363,5 @@ grn_operator_exec_regexp(grn_ctx *ctx, grn_obj *target, grn_obj *pattern)
   }
   GRN_API_RETURN(matched);
 }
+
+PRAGMA_REENABLE_CHECK_STACK_FRAME

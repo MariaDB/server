@@ -209,24 +209,6 @@ typedef	byte	fseg_inode_t;
 
 static constexpr byte FSEG_MAGIC_N_BYTES[4]={0x05,0xd6,0x69,0xd2};
 
-#define	FSEG_FILLFACTOR		8	/* If the number of unused but reserved
-					pages in a segment is less than
-					reserved pages / FSEG_FILLFACTOR,
-					and there are
-					at least FSEG_FRAG_LIMIT used pages,
-					then we allow a new empty extent to
-					be added to the segment in
-					fseg_alloc_free_page_general().
-					Otherwise, we
-					use unused pages of the segment. */
-
-#define FSEG_FRAG_LIMIT		FSEG_FRAG_ARR_N_SLOTS
-					/* If the segment has >= this many
-					used pages, it may be expanded by
-					allocating extents to the segment;
-					until that only individual fragment
-					pages are allocated from the space */
-
 #define	FSEG_FREE_LIST_LIMIT	40	/* If the reserved size of a segment
 					is at least this many extents, we
 					allow extents to be put to the free
@@ -294,7 +276,7 @@ Determine if a page is marked free.
 @param[in]	descr	extent descriptor
 @param[in]	offset	page offset within extent
 @return whether the page is free */
-inline bool xdes_is_free(const xdes_t *descr, ulint offset)
+inline bool xdes_is_free(const xdes_t *descr, uint32_t offset)
 {
   ut_ad(offset < FSP_EXTENT_SIZE);
   ulint index= XDES_FREE_BIT + XDES_BITS_PER_PAGE * offset;

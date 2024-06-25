@@ -97,7 +97,7 @@ armscii8_general_ci	armscii8	32	Yes	#	#
 armscii8_bin	armscii8	64		#	#
 armscii8_general_nopad_ci	armscii8	1056		#	#
 armscii8_nopad_bin	armscii8	1088		#	#
-utf8mb3_general_ci	utf8mb3	33	Yes	#	#
+utf8mb3_general_ci	utf8mb3	33		#	#
 utf8mb3_bin	utf8mb3	83		#	#
 utf8mb3_unicode_ci	utf8mb3	192		#	#
 utf8mb3_icelandic_ci	utf8mb3	193		#	#
@@ -132,7 +132,7 @@ utf8mb3_general_nopad_ci	utf8mb3	1057		#	#
 utf8mb3_nopad_bin	utf8mb3	1107		#	#
 utf8mb3_unicode_nopad_ci	utf8mb3	1216		#	#
 utf8mb3_unicode_520_nopad_ci	utf8mb3	1238		#	#
-ucs2_general_ci	ucs2	35	Yes	#	#
+ucs2_general_ci	ucs2	35		#	#
 ucs2_bin	ucs2	90		#	#
 ucs2_unicode_ci	ucs2	128		#	#
 ucs2_icelandic_ci	ucs2	129		#	#
@@ -192,7 +192,7 @@ latin7_general_cs	latin7	42		#	#
 latin7_bin	latin7	79		#	#
 latin7_general_nopad_ci	latin7	1065		#	#
 latin7_nopad_bin	latin7	1103		#	#
-utf8mb4_general_ci	utf8mb4	45	Yes	#	#
+utf8mb4_general_ci	utf8mb4	45		#	#
 utf8mb4_bin	utf8mb4	46		#	#
 utf8mb4_unicode_ci	utf8mb4	224		#	#
 utf8mb4_icelandic_ci	utf8mb4	225		#	#
@@ -417,7 +417,7 @@ cp1251_general_ci	cp1251	51	Yes	#	#
 cp1251_general_cs	cp1251	52		#	#
 cp1251_nopad_bin	cp1251	1074		#	#
 cp1251_general_nopad_ci	cp1251	1075		#	#
-utf16_general_ci	utf16	54	Yes	#	#
+utf16_general_ci	utf16	54		#	#
 utf16_bin	utf16	55		#	#
 utf16_unicode_ci	utf16	101		#	#
 utf16_icelandic_ci	utf16	102		#	#
@@ -463,7 +463,7 @@ cp1257_bin	cp1257	58		#	#
 cp1257_general_ci	cp1257	59	Yes	#	#
 cp1257_nopad_bin	cp1257	1082		#	#
 cp1257_general_nopad_ci	cp1257	1083		#	#
-utf32_general_ci	utf32	60	Yes	#	#
+utf32_general_ci	utf32	60		#	#
 utf32_bin	utf32	61		#	#
 utf32_unicode_ci	utf32	160		#	#
 utf32_icelandic_ci	utf32	161		#	#

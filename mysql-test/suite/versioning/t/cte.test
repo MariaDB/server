@@ -4,6 +4,8 @@ if (`SELECT $PS_PROTOCOL != 0`)
 }
 --source include/have_innodb.inc
 --source include/default_optimizer_switch.inc
+--source include/word_size.inc
+--source suite/versioning/sys_time.inc
 
 --let $replace_regex_tsltz6= /TIMESTAMP..WITH LOCAL TIME ZONE..'....-..-.. ..:..:..[.]......'/TIMESTAMP\/*WITH LOCAL TIME ZONE*\/'YYYY-MM-DD hh:ss:mm:.uuuuuu'/
 
@@ -109,7 +111,7 @@ as
 )
 select name from emp where emp_id in (select emp_id from ancestors for system_time as of timestamp @ts_1);
 
---replace_regex $replace_regex_tsltz6
+--replace_regex $replace_regex_tsltz6 /$sys_time_max/SYS_TIME_MAX/
 eval explain extended $q;
 eval $q;
 

@@ -1,9 +1,9 @@
 #
 #   Ensure that Seconds_Behind_Master works correctly on the parallel replica.
 #
---source include/master-slave.inc
 --source include/have_log_bin.inc
 --source include/have_debug.inc
+--source include/master-slave.inc
 
 --echo #
 --echo # MDEV-29639: Seconds_Behind_Master is incorrect for Delayed, Parallel Replicas
@@ -67,11 +67,18 @@ if (`SELECT $sbm_trx1_arrive > ($seconds_since_idling + 1)`)
 --echo # if the event is still to be delayed, SBM should resume accordingly
 
 --source include/stop_slave.inc
+
+--echo # Lock t1 on slave to ensure the event can't finish (and thereby update
+--echo # Seconds_Behind_Master) so slow running servers don't accidentally
+--echo # catch up to the master before checking SBM.
+--connection server_2
+LOCK TABLES t1 WRITE;
+
 --source include/start_slave.inc
 
 --connection slave
---echo # Waiting for replica to resume the delay for the transaction
---let $wait_condition= SELECT count(*) FROM information_schema.processlist WHERE state LIKE 'Waiting until MASTER_DELAY seconds after master executed event';
+--echo # Waiting for replica to get blocked by the table lock
+--let $wait_condition= SELECT count(*) FROM information_schema.processlist WHERE state LIKE 'Waiting for table metadata lock';
 --source include/wait_condition.inc
 
 --echo # Sleeping 1s to increment SBM
@@ -85,6 +92,9 @@ if (`SELECT $sbm_trx1_after_1s_sleep <= $sbm_trx1_arrive`)
     --die Seconds_Behind_Master did not increase after sleeping, but should have
 }
 --echo # ..done
+
+--connection server_2
+UNLOCK TABLES;
 
 --source include/sync_with_master_gtid.inc
 

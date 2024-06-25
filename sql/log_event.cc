@@ -2423,6 +2423,11 @@ Gtid_log_event::Gtid_log_event(const uchar *buf, uint event_len,
   }
   if (flags2 & (FL_PREPARED_XA | FL_COMPLETED_XA))
   {
+    if (event_len < static_cast<uint>(buf - buf_0) + 6)
+    {
+      seq_no= 0;
+      return;
+    }
     xid.formatID= uint4korr(buf);
     buf+= 4;
 
@@ -2431,6 +2436,11 @@ Gtid_log_event::Gtid_log_event(const uchar *buf, uint event_len,
     buf+= 2;
 
     long data_length= xid.bqual_length + xid.gtrid_length;
+    if (event_len < static_cast<uint>(buf - buf_0) + data_length)
+    {
+      seq_no= 0;
+      return;
+    }
     memcpy(xid.data, buf, data_length);
     buf+= data_length;
   }
@@ -2445,14 +2455,22 @@ Gtid_log_event::Gtid_log_event(const uchar *buf, uint event_len,
     */
     if (flags_extra & FL_EXTRA_MULTI_ENGINE_E1)
     {
-      DBUG_ASSERT(static_cast<uint>(buf - buf_0) < event_len);
-
+      if (event_len < static_cast<uint>(buf - buf_0) + 1)
+      {
+        seq_no= 0;
+        return;
+      }
       extra_engines= *buf++;
 
       DBUG_ASSERT(extra_engines > 0);
     }
     if (flags_extra & (FL_COMMIT_ALTER_E1 | FL_ROLLBACK_ALTER_E1))
     {
+      if (event_len < static_cast<uint>(buf - buf_0) + 8)
+      {
+        seq_no= 0;
+        return;
+      }
       sa_seq_no= uint8korr(buf);
       buf+= 8;
     }
@@ -3121,21 +3139,16 @@ Rows_log_event::Rows_log_event(const uchar *buf, uint event_len,
 
   /* if my_bitmap_init fails, caught in is_valid() */
   if (likely(!my_bitmap_init(&m_cols,
-                          m_width <= sizeof(m_bitbuf)*8 ? m_bitbuf : NULL,
-                          m_width)))
+                             m_width <= sizeof(m_bitbuf)*8 ? m_bitbuf : NULL,
+                             m_width)))
   {
     DBUG_PRINT("debug", ("Reading from %p", ptr_after_width));
-    memcpy(m_cols.bitmap, ptr_after_width, (m_width + 7) / 8);
-    create_last_word_mask(&m_cols);
+    bitmap_import(&m_cols, ptr_after_width);
+    DBUG_DUMP("m_cols", (uchar*) ptr_after_width, no_bytes_in_export_map(&m_cols));
     ptr_after_width+= (m_width + 7) / 8;
-    DBUG_DUMP("m_cols", (uchar*) m_cols.bitmap, no_bytes_in_map(&m_cols));
   }
   else
-  {
-    // Needed because my_bitmap_init() does not set it to null on failure
-    m_cols.bitmap= NULL;
     DBUG_VOID_RETURN;
-  }
 
   if (LOG_EVENT_IS_UPDATE_ROW(event_type))
   {
@@ -3143,15 +3156,14 @@ Rows_log_event::Rows_log_event(const uchar *buf, uint event_len,
 
     /* if my_bitmap_init fails, caught in is_valid() */
     if (likely(!my_bitmap_init(&m_cols_ai,
-                            m_width <= sizeof(m_bitbuf_ai)*8 ? m_bitbuf_ai : NULL,
-                            m_width)))
+                               m_width <= sizeof(m_bitbuf_ai)*8 ? m_bitbuf_ai :
+                               NULL,
+                               m_width)))
     {
       DBUG_PRINT("debug", ("Reading from %p", ptr_after_width));
-      memcpy(m_cols_ai.bitmap, ptr_after_width, (m_width + 7) / 8);
-      create_last_word_mask(&m_cols_ai);
+      bitmap_import(&m_cols_ai, ptr_after_width);
+      DBUG_DUMP("m_cols_ai", ptr_after_width, no_bytes_in_export_map(&m_cols_ai));
       ptr_after_width+= (m_width + 7) / 8;
-      DBUG_DUMP("m_cols_ai", (uchar*) m_cols_ai.bitmap,
-                no_bytes_in_map(&m_cols_ai));
     }
     else
     {
@@ -3231,8 +3243,6 @@ void Rows_log_event::uncompress_buf()
 
 Rows_log_event::~Rows_log_event()
 {
-  if (m_cols.bitmap == m_bitbuf) // no my_malloc happened
-    m_cols.bitmap= 0; // so no my_free in my_bitmap_free
   my_bitmap_free(&m_cols); // To pair with my_bitmap_init().
   my_free(m_rows_buf);
   my_free(m_extra_row_data);
@@ -3246,9 +3256,10 @@ int Rows_log_event::get_data_size()
   uchar *end= net_store_length(buf, m_width);
 
   DBUG_EXECUTE_IF("old_row_based_repl_4_byte_map_id_master",
-                  return (int)(6 + no_bytes_in_map(&m_cols) + (end - buf) +
-                  (general_type_code == UPDATE_ROWS_EVENT ? no_bytes_in_map(&m_cols_ai) : 0) +
-                  m_rows_cur - m_rows_buf););
+                  return (int) (6 + no_bytes_in_export_map(&m_cols) + (end - buf) +
+                                (general_type_code == UPDATE_ROWS_EVENT ?
+                                 no_bytes_in_export_map(&m_cols_ai) : 0) +
+                                m_rows_cur - m_rows_buf););
   int data_size= 0;
   Log_event_type type= get_type_code();
   bool is_v2_event= LOG_EVENT_IS_ROW_V2(type);
@@ -3263,11 +3274,11 @@ int Rows_log_event::get_data_size()
   {
     data_size= ROWS_HEADER_LEN_V1;
   }
-  data_size+= no_bytes_in_map(&m_cols);
+  data_size+= no_bytes_in_export_map(&m_cols);
   data_size+= (uint) (end - buf);
 
   if (general_type_code == UPDATE_ROWS_EVENT)
-    data_size+= no_bytes_in_map(&m_cols_ai);
+    data_size+= no_bytes_in_export_map(&m_cols_ai);
 
   data_size+= (uint) (m_rows_cur - m_rows_buf);
   return data_size; 
@@ -3798,12 +3809,7 @@ Delete_rows_compressed_log_event::Delete_rows_compressed_log_event(
 
 Update_rows_log_event::~Update_rows_log_event()
 {
-  if (m_cols_ai.bitmap)
-  {
-    if (m_cols_ai.bitmap == m_bitbuf_ai) // no my_malloc happened
-      m_cols_ai.bitmap= 0; // so no my_free in my_bitmap_free
-    my_bitmap_free(&m_cols_ai); // To pair with my_bitmap_init().
-  }
+  my_bitmap_free(&m_cols_ai); // To pair with my_bitmap_init().
 }
 
 

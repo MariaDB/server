@@ -44,17 +44,17 @@ static void noop_update(MYSQL_THD thd, struct st_mysql_sys_var *var,
 
 static MYSQL_SYSVAR_BOOL(run_test, do_test,
                          PLUGIN_VAR_OPCMDARG,
-                         "Perform the test now.",
+                         "Perform the test now",
                          run_test, NULL, 0);
 
 static MYSQL_SYSVAR_STR(execute_sql_local, sql_text_local,
                         PLUGIN_VAR_OPCMDARG,
-                        "Create the new local connection, execute SQL statement with it.",
+                        "Create the new local connection, execute SQL statement with it",
                         run_sql_local, noop_update, 0);
 
 static MYSQL_SYSVAR_STR(execute_sql_global, sql_text_global,
                         PLUGIN_VAR_OPCMDARG,
-                        "Execute SQL statement using the global connection.",
+                        "Execute SQL statement using the global connection",
                         run_sql_global, noop_update, 0);
 
 static struct st_mysql_sys_var* test_sql_vars[]=
@@ -129,7 +129,7 @@ void auditing(MYSQL_THD thd, unsigned int event_class, const void *ev)
 static int run_test(MYSQL_THD thd, struct st_mysql_sys_var *var, void *save,
                     struct st_mysql_value *value)
 {
-  *(my_bool*) save= 0;          /* Set value for sql_service_run_test */
+  *(my_bool*)save= 1; // must initialize the return value
   return (test_passed= (do_tests() == 0)) == 0;
 }
 
@@ -140,6 +140,7 @@ static int run_sql(MYSQL *mysql, void *save, struct st_mysql_value *value)
   int len= 0;
   MYSQL_RES *res;
 
+  *(my_bool*)save= 1; // must initialize the return value
   str= value->val_str(value, NULL, &len);
 
   if (mysql_real_query(mysql, str, len))

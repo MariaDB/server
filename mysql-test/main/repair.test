@@ -4,8 +4,10 @@
 
 --source include/have_sequence.inc
 --source include/default_charset.inc
+--source include/have_innodb.inc
 
 call mtr.add_suppression("character set is multi-byte");
+call mtr.add_suppression("exists only for compatibility");
 
 --disable_warnings
 drop table if exists t1;
@@ -136,7 +138,7 @@ let $MYSQLD_DATADIR= `select @@datadir`;
 SHOW TABLE STATUS LIKE 't1';
 SELECT * FROM t1;
 
---echo # Run CHECK TABLE, it should indicate table need a REPAIR TABLE
+--echo # Run CHECK TABLE, it should indicate table need a ALTER TABLE
 CHECK TABLE t1 FOR UPGRADE;
 
 --echo # REPAIR old table USE_FRM should fail
@@ -151,6 +153,13 @@ SELECT * FROM t1;
 REPAIR TABLE t1 USE_FRM;
 SELECT * FROM t1;
 
+DROP TABLE t1;
+
+--copy_file std_data/bug36055.frm $MYSQLD_DATADIR/test/t1.frm
+--copy_file std_data/bug36055.MYD $MYSQLD_DATADIR/test/t1.MYD
+--copy_file std_data/bug36055.MYI $MYSQLD_DATADIR/test/t1.MYI
+ALTER TABLE t1 FORCE;
+CHECK TABLE t1;
 DROP TABLE t1;
 
 --echo # End of 5.0 tests
@@ -218,6 +227,8 @@ repair table t1;
 repair table t1 use_frm;
 select count(*) from t1;
 check table t1;
+alter table t1 force;
+check table t1;
 drop table t1;
 
 set @@global.character_set_server=@save_global_character_set_server;
@@ -269,3 +280,32 @@ set myisam_repair_threads = default;
 drop table t1;
 
 --echo # End of 10.2 tests
+
+--echo #
+--echo # MDEV-33737 The way of ignoring alter-algorithm is inconsistent with
+--echo # other options and with itself
+--echo #
+
+query_vertical select * from information_schema.system_variables where variable_name = 'ALTER_ALGORITHM';
+
+set alter_algorithm=COPY;
+select @@alter_algorithm;
+set statement alter_algorithm=COPY FOR SELECT @@alter_algorithm;
+
+--let $restart_parameters= --alter-algorithm=COPY
+--source include/restart_mysqld.inc
+
+select @@alter_algorithm;
+
+--echo #
+--echo # MDEV-33826 Assertion `tl->table == __null' failed in
+--echo # THD::open_temporary_table
+--echo #
+
+CREATE TABLE t1 (i INT) ENGINE=InnoDB;
+CREATE TABLE t2 (i INT) ENGINE=InnoDB;
+CREATE TEMPORARY TABLE t3 (i INT);
+REPAIR TABLE t1,t2,t3;
+DROP TABLE t1,t2,t3;
+
+--echo # End of 11.5 tests
