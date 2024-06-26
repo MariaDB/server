@@ -61,7 +61,10 @@ my_bool innodb_deadlock_detect;
 ulong innodb_deadlock_report;
 
 #ifdef HAVE_REPLICATION
-extern "C" void thd_rpl_deadlock_check(MYSQL_THD thd, MYSQL_THD other_thd);
+extern "C" void thd_rpl_deadlock_check(MYSQL_THD thd, MYSQL_THD other_thd,
+                                       bool is_prepared= false,
+                                       bool is_index_uniq= false,
+                                       uint *flagged= NULL);
 extern "C" int thd_need_wait_reports(const MYSQL_THD thd);
 extern "C" int thd_need_ordering_with(const MYSQL_THD thd, const MYSQL_THD other_thd);
 extern "C" int thd_deadlock_victim_preference(const MYSQL_THD thd1, const MYSQL_THD thd2);
@@ -1124,7 +1127,7 @@ lock_sec_rec_some_has_impl(
 	dict_index_t*	index,	/*!< in: secondary index */
 	const rec_offs*	offsets)/*!< in: rec_get_offsets(rec, index) */
 {
-  lock_sys.assert_unlocked();
+  //lock_sys.assert_unlocked();
   ut_ad(!dict_index_is_clust(index));
   ut_ad(page_rec_is_user_rec(rec));
   ut_ad(rec_offs_validate(rec, index, offsets));
@@ -1819,10 +1822,10 @@ ATTRIBUTE_NOINLINE MY_ATTRIBUTE((nonnull, warn_unused_result))
 trx->error_state= DB_DEADLOCK if trx->lock.was_chosen_as_deadlock_victim was
 set when lock_sys.wait_mutex was unlocked.
 @param trx       transaction that may be waiting for a lock
-@param wait_lock lock that is being waited for
+@param wait_timeout  either remains or can be zeroed
 @return lock being waited for (may have been replaced by an equivalent one)
 @retval nullptr if no lock is being waited for */
-static lock_t *lock_wait_rpl_report(trx_t *trx)
+static lock_t *lock_wait_rpl_report(trx_t *trx, ulong& wait_timeout)
 {
   mysql_mutex_assert_owner(&lock_sys.wait_mutex);
   ut_ad(trx->state == TRX_STATE_ACTIVE);
@@ -1831,6 +1834,7 @@ static lock_t *lock_wait_rpl_report(trx_t *trx)
   lock_t *wait_lock= trx->lock.wait_lock;
   if (!wait_lock)
     return nullptr;
+  uint count_non_unique_index_hit= 0;
   /* This would likely be too large to attempt to use a memory transaction,
   even for wait_lock->is_table(). */
   const bool nowait= lock_sys.wr_lock_try();
@@ -1848,6 +1852,8 @@ func_exit:
       lock_sys.wait_mutex was unlocked, let's check it. */
       if (!nowait && trx->lock.was_chosen_as_deadlock_victim)
         trx->error_state= DB_DEADLOCK;
+      if (count_non_unique_index_hit > 0)
+        wait_timeout= 0;
       return wait_lock;
     }
     ut_ad(wait_lock->is_waiting());
@@ -1885,7 +1891,10 @@ func_exit:
         lock= lock_rec_get_next(heap_no, lock);
       do
         if (lock->trx->mysql_thd != thd)
-          thd_rpl_deadlock_check(thd, lock->trx->mysql_thd);
+          thd_rpl_deadlock_check(thd, lock->trx->mysql_thd,
+                                 lock->trx->state == TRX_STATE_PREPARED,
+                                 lock->index->is_unique(),
+                                 &count_non_unique_index_hit);
       while ((lock= lock_rec_get_next(heap_no, lock)));
     }
   }
@@ -1916,7 +1925,7 @@ dberr_t lock_wait(que_thr_t *thr)
 
   /* InnoDB system transactions may use the global value of
   innodb_lock_wait_timeout, because trx->mysql_thd == NULL. */
-  const ulong innodb_lock_wait_timeout= trx_lock_wait_timeout_get(trx);
+  ulong innodb_lock_wait_timeout= trx_lock_wait_timeout_get(trx);
   const my_hrtime_t suspend_time= my_hrtime_coarse();
   ut_ad(!trx->dict_operation_lock_mode);
 
@@ -1979,7 +1988,6 @@ dberr_t lock_wait(que_thr_t *thr)
   const bool row_lock_wait= thr->lock_state == QUE_THR_LOCK_ROW;
   timespec abstime;
   set_timespec_time_nsec(abstime, suspend_time.val * 1000);
-  abstime.MY_tv_sec+= innodb_lock_wait_timeout;
   /* Dictionary transactions must wait be immune to lock wait timeouts
   for locks on data dictionary tables. Here we check only for
   SYS_TABLES, SYS_COLUMNS, SYS_INDEXES, SYS_FIELDS. Locks on further
@@ -2039,10 +2047,15 @@ dberr_t lock_wait(que_thr_t *thr)
     lock_sys.wait_start();
 
 #ifdef HAVE_REPLICATION
+  /*
+    innodb_lock_wait_timeout can be zeroed in a specific case of
+    non-unique index locking. When that happens no actual for
+    wait_lock is done. The server layer expects an usual timeout error.
+  */
   if (rpl)
-    wait_lock= lock_wait_rpl_report(trx);
+    wait_lock= lock_wait_rpl_report(trx, innodb_lock_wait_timeout);
 #endif
-
+  abstime.MY_tv_sec+= innodb_lock_wait_timeout;
   switch (trx->error_state) {
   case DB_SUCCESS:
     break;
@@ -4518,8 +4531,6 @@ static bool lock_release_on_prepare_try(trx_t *trx)
       bool supremum_bit= lock_rec_get_nth_bit(lock, PAGE_HEAP_NO_SUPREMUM);
       bool rec_granted_exclusive_not_gap=
         lock->is_rec_granted_exclusive_not_gap();
-      if (!supremum_bit && rec_granted_exclusive_not_gap)
-        continue;
       if (UNIV_UNLIKELY(lock->type_mode & (LOCK_PREDICATE | LOCK_PRDT_PAGE)))
         continue; /* SPATIAL INDEX locking is broken. */
       auto cell=

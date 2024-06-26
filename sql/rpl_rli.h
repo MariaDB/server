@@ -874,6 +874,15 @@ struct rpl_group_info
   Query_log_event *start_alter_ev;
   bool direct_commit_alter;
   start_alter_info *sa_info;
+  enum enum_exec_flags {
+    HIT_BUSY_INDEX= 0
+  };
+  /*
+    Being executed replication event's context. It could contain
+    notification from engine such as attempts to lock already acquired
+    index record.
+  */
+  uint32 exec_flags;
 
   rpl_group_info(Relay_log_info *rli_);
   ~rpl_group_info();
@@ -1014,6 +1023,10 @@ struct rpl_group_info
     finish_event_group_called= value;
   }
 
+  bool is_row_event_execution()
+  {
+    return m_table_map.count() > 0;
+  }
 };
 
 

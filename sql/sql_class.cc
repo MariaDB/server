@@ -5369,20 +5369,34 @@ thd_need_wait_reports(const MYSQL_THD thd)
   transaction.
 */
 extern "C" int
-thd_rpl_deadlock_check(MYSQL_THD thd, MYSQL_THD other_thd)
+thd_rpl_deadlock_check(MYSQL_THD thd, MYSQL_THD other_thd,
+                       bool is_other_prepared, bool is_index_unique,
+                       uint *flagged)
 {
-  rpl_group_info *rgi;
-  rpl_group_info *other_rgi;
+  rpl_group_info *rgi=  thd ? thd->rgi_slave : NULL;
+  rpl_group_info *other_rgi= other_thd ? other_thd->rgi_slave : NULL;
 
   if (!thd)
     return 0;
   DEBUG_SYNC(thd, "thd_report_wait_for");
   thd->transaction->stmt.mark_trans_did_wait();
+
+  /*
+    When the wait lock on non-unique index conflicts with one of a prepared
+    state transaction the record has to skipped.
+    Canceling the actual waiting for the lock is marked for the server layer.
+  */
+  if (!is_index_unique && rgi && rgi->is_row_event_execution()) {
+    if (is_other_prepared)
+    {
+      rgi->exec_flags |= 1 << rpl_group_info::HIT_BUSY_INDEX;
+      (*flagged)++;
+    }
+  }
+
   if (!other_thd)
     return 0;
   binlog_report_wait_for(thd, other_thd);
-  rgi= thd->rgi_slave;
-  other_rgi= other_thd->rgi_slave;
   if (!rgi || !other_rgi)
     return 0;
   if (!rgi->is_parallel_exec)
