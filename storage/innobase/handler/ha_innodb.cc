@@ -18420,7 +18420,8 @@ static void innodb_data_file_write_through_update(THD *, st_mysql_sys_var*,
 static void innodb_doublewrite_update(THD *, st_mysql_sys_var*,
                                       void *, const void *save)
 {
-  fil_system.set_use_doublewrite(*static_cast<const ulong*>(save));
+  if (!srv_read_only_mode)
+    fil_system.set_use_doublewrite(*static_cast<const ulong*>(save));
 }
 
 static void innodb_log_file_size_update(THD *thd, st_mysql_sys_var*,
