@@ -1220,7 +1220,7 @@ dberr_t btr_cur_t::search_leaf(const dtuple_t *tuple, page_cur_mode_t mode,
           ut_ad(rw_lock_type_t(latch_mode & ~12) == RW_X_LATCH);
           goto relatch_x;
         }
-        if (latch_mode != BTR_MODIFY_PREV)
+        else
         {
           if (!latch_by_caller)
             /* Release the tree s-latch */
@@ -1292,8 +1292,6 @@ dberr_t btr_cur_t::search_leaf(const dtuple_t *tuple, page_cur_mode_t mode,
 
     switch (latch_mode) {
     case BTR_SEARCH_PREV:
-    case BTR_MODIFY_PREV:
-      static_assert(BTR_MODIFY_PREV & BTR_MODIFY_LEAF, "");
       static_assert(BTR_SEARCH_PREV & BTR_SEARCH_LEAF, "");
       ut_ad(!latch_by_caller);
       ut_ad(rw_latch ==
@@ -1470,7 +1468,6 @@ release_tree:
     case BTR_MODIFY_ROOT_AND_LEAF:
       rw_latch= RW_X_LATCH;
       break;
-    case BTR_MODIFY_PREV: /* btr_pcur_move_to_prev() */
     case BTR_SEARCH_PREV: /* btr_pcur_move_to_prev() */
       ut_ad(rw_latch == RW_S_LATCH || rw_latch == RW_X_LATCH);
 
@@ -1854,7 +1851,6 @@ dberr_t btr_cur_t::open_leaf(bool first, dict_index_t *index,
     ut_ad(!(latch_mode & 8));
     /* This function doesn't need to lock left page of the leaf page */
     static_assert(int{BTR_SEARCH_PREV} == (4 | BTR_SEARCH_LEAF), "");
-    static_assert(int{BTR_MODIFY_PREV} == (4 | BTR_MODIFY_LEAF), "");
     latch_mode= btr_latch_mode(latch_mode & (RW_S_LATCH | RW_X_LATCH));
     ut_ad(!latch_by_caller ||
           mtr->memo_contains_flagged(&index->lock,
