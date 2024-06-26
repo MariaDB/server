@@ -1027,10 +1027,19 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
         */
         restore_record(table,s->default_values);	// Get empty record
         table->reset_default_fields();
+        /*
+          Reset the sentinel thd->bulk_param in order not to consume the next
+          values of a bound array in case one of statement executed by
+          the trigger's body is INSERT statement.
+        */
+        void *save_bulk_param= thd->bulk_param;
+        thd->bulk_param= nullptr;
+
         if (unlikely(fill_record_n_invoke_before_triggers(thd, table, fields,
                                                           *values, 0,
                                                           TRG_EVENT_INSERT)))
         {
+          thd->bulk_param= save_bulk_param;
           if (values_list.elements != 1 && ! thd->is_error())
           {
             info.records++;
@@ -1044,6 +1053,7 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
 	  error=1;
 	  break;
         }
+        thd->bulk_param= save_bulk_param;
       }
       else
       {
@@ -1073,12 +1083,22 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
           }
         }
         table->reset_default_fields();
+
+        /*
+          Reset the sentinel thd->bulk_param in order not to consume the next
+          values of a bound array in case one of statement executed by
+          the trigger's body is INSERT statement.
+        */
+        void *save_bulk_param= thd->bulk_param;
+        thd->bulk_param= nullptr;
+
         if (unlikely(fill_record_n_invoke_before_triggers(thd, table,
                                                           table->
                                                           field_to_fill(),
                                                           *values, 0,
                                                           TRG_EVENT_INSERT)))
         {
+          thd->bulk_param= save_bulk_param;
           if (values_list.elements != 1 && ! thd->is_error())
 	  {
 	    info.records++;
@@ -1087,6 +1107,7 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
 	  error=1;
 	  break;
         }
+        thd->bulk_param= save_bulk_param;
       }
 
       /*

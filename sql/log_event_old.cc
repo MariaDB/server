@@ -27,13 +27,13 @@
 #include "lock.h"                           // mysql_unlock_tables
 #include "rpl_rli.h"
 #include "rpl_utility.h"
-#endif
-#include "log_event_old.h"
-#include "rpl_record_old.h"
-#include "transaction.h"
 #ifdef WITH_WSREP
 #include "wsrep_mysqld.h"
 #endif /* WITH_WSREP */
+#endif /* MYSQL_CLIENT */
+#include "log_event_old.h"
+#include "rpl_record_old.h"
+#include "transaction.h"
 
 PSI_memory_key key_memory_log_event_old;
 

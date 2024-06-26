@@ -4862,7 +4862,7 @@ public:
       my_message(ER_NO_DB_ERROR, ER(ER_NO_DB_ERROR), MYF(0));
     return TRUE;
   }
-  /* Get db name or "". Use for printing current db */
+  /* Get db name or "". */
   const char *get_db()
   { return safe_str(db.str); }
 
