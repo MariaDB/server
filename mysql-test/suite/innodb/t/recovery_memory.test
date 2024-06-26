@@ -33,7 +33,7 @@ DROP PROCEDURE dorepeat;
 --echo #
 if ($have_debug) {
 SET DEBUG_DBUG="+d,ib_log_checkpoint_avoid_hard";
-let $restart_parameters=--innodb_buffer_pool_size=5242880 --debug_dbug="+d,ibuf_init_corrupt";
+let $restart_parameters=--innodb_buffer_pool_size=5242880 --debug_dbug=+d,ibuf_init_corrupt;
 }
 if (!$have_debug) {
 --echo SET DEBUG_DBUG="+d,ib_log_checkpoint_avoid_hard";
@@ -44,6 +44,11 @@ INSERT INTO t1 SELECT * FROM seq_1_to_65536;
 let $restart_noprint=1;
 let $shutdown_timeout=0;
 --source include/restart_mysqld.inc
+if ($have_debug) {
+let SEARCH_FILE = $MYSQLTEST_VARDIR/log/mysqld.1.err;
+let SEARCH_PATTERN=\[ERROR\] InnoDB: The change buffer is corrupted or has been removed on upgrade to MariaDB 11.0 or later;
+--source include/search_pattern_in_file.inc
+}
 let $restart_noprint=0;
 let $restart_parameters=;
 --source include/restart_mysqld.inc

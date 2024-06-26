@@ -1982,21 +1982,24 @@ DROP TABLE t1;
 CREATE TABLE t1 (pk int) engine=myisam ;
 INSERT INTO t1 VALUES (1),(2);
 CREATE TABLE t2 (
-pk int auto_increment PRIMARY KEY,
-i1 int, i2 int, c2 varchar(1),
-KEY (i1), KEY (i2)
+pk int PRIMARY KEY,
+i1 int, i2 int,
+c2 varchar(100),
+KEY (i1),
+KEY (i2)
 ) engine=myisam;
-INSERT INTO t2 VALUES
-(1,8,6,'t'),(2,5,7,'i'),(3,4,4,'h'),(4,207,38,'d'),(5,183,206,'b'),
-(6,7,null,'o'),(7,1,2,'j'),(8,17,36,'s'),(9,4,5,'q'),(10,0,6,'l'),
-(11,1,9,'j'),(12,5,6,'y'),(13,null,0,'i'),(14,7,7,'x'),(15,5,2,'u');
+insert into t2
+select
+seq, floor(seq/100), floor(seq/100), 'abcd'
+from
+seq_1_to_10000;
 SELECT * FROM t1 HAVING (7, 9) IN (SELECT t2.i1, t2.i2 FROM t2 WHERE t2.i1 = 3);
 pk
 EXPLAIN EXTENDED
 SELECT * FROM t1 HAVING (7, 9) IN (SELECT t2.i1, t2.i2 FROM t2 WHERE t2.i1 = 3);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible HAVING
-2	SUBQUERY	t2	ref	i1,i2	i1	5	const	1	100.00	Using index condition; Using where
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t1`.`pk` AS `pk` from `test`.`t1` having 0
 DROP TABLE t1,t2;
@@ -3947,3 +3950,68 @@ count(*)
 SET optimizer_switch=@save_optimizer_switch;
 DROP TABLE t0, t1;
 # End of 10.4 tests
+#
+# MDEV-33875: ORDER BY DESC causes ROWID Filter slowdown
+#
+create table t1  (
+pk int primary key auto_increment,
+a int,
+b int,
+f1 varchar(200),
+f2 varchar(200),
+f3 varchar(200),
+f4 varchar(200),
+f5 varchar(200),
+key(a, pk),
+key(b)
+) engine=innodb;
+insert into t1 (a,b,f1, f2, f3, f4) select
+seq, seq,
+repeat('1-', 100),
+repeat('2-', 100),
+repeat('3-', 100),
+repeat('4-', 100)
+from
+seq_1_to_5000;
+insert into t1 (a,b,f1, f2, f3, f4)select
+30100, 30100,
+'abcd','abcd','abcd','abcd'
+from
+seq_1_to_250;
+insert into t1 (a,b,f1) values ( 110, 100, 12345);
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+# The following must NOT use Rowid Filter:
+analyze format=json select * from t1
+where
+a =30100 and b in (30100,30101,30102)
+order by
+pk desc;
+ANALYZE
+{
+  "query_block": {
+    "select_id": 1,
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "table": {
+      "table_name": "t1",
+      "access_type": "ref",
+      "possible_keys": ["a", "b"],
+      "key": "a",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "ref": ["const"],
+      "r_loops": 1,
+      "rows": 250,
+      "r_rows": 250,
+      "r_table_time_ms": "REPLACED",
+      "r_other_time_ms": "REPLACED",
+      "filtered": 4.799086094,
+      "r_filtered": 100,
+      "attached_condition": "t1.a <=> 30100 and t1.b in (30100,30101,30102)"
+    }
+  }
+}
+drop table t1;

@@ -101,25 +101,25 @@ class TC_LOG_DUMMY: public TC_LOG // use it to disable the logging
 {
 public:
   TC_LOG_DUMMY() = default;
-  int open(const char *opt_name)        { return 0; }
-  void close()                          { }
+  int open(const char *opt_name) override        { return 0; }
+  void close() override                          { }
   /*
     TC_LOG_DUMMY is only used when there are <= 1 XA-capable engines, and we
     only use internal XA during commit when >= 2 XA-capable engines
     participate.
   */
   int log_and_order(THD *thd, my_xid xid, bool all,
-                    bool need_prepare_ordered, bool need_commit_ordered)
+                    bool need_prepare_ordered, bool need_commit_ordered) override
   {
     DBUG_ASSERT(0);
     return 1;
   }
-  int unlog(ulong cookie, my_xid xid)  { return 0; }
-  int unlog_xa_prepare(THD *thd, bool all)
+  int unlog(ulong cookie, my_xid xid) override  { return 0; }
+  int unlog_xa_prepare(THD *thd, bool all) override
   {
     return 0;
   }
-  void commit_checkpoint_notify(void *cookie) { DBUG_ASSERT(0); };
+  void commit_checkpoint_notify(void *cookie) override { DBUG_ASSERT(0); };
 };
 
 #define TC_LOG_PAGE_SIZE   8192
@@ -197,16 +197,16 @@ class TC_LOG_MMAP: public TC_LOG
 
   public:
   TC_LOG_MMAP(): inited(0), pending_checkpoint(0) {}
-  int open(const char *opt_name);
-  void close();
+  int open(const char *opt_name) override;
+  void close() override;
   int log_and_order(THD *thd, my_xid xid, bool all,
-                    bool need_prepare_ordered, bool need_commit_ordered);
-  int unlog(ulong cookie, my_xid xid);
-  int unlog_xa_prepare(THD *thd, bool all)
+                    bool need_prepare_ordered, bool need_commit_ordered) override;
+  int unlog(ulong cookie, my_xid xid) override;
+  int unlog_xa_prepare(THD *thd, bool all) override
   {
     return 0;
   }
-  void commit_checkpoint_notify(void *cookie);
+  void commit_checkpoint_notify(void *cookie) override;
   int recover();
 
   private:
@@ -720,15 +720,15 @@ public:
   }
 #endif
 
-  int open(const char *opt_name);
-  void close();
-  virtual int generate_new_name(char *new_name, const char *log_name,
-                                ulong next_log_number);
+  int open(const char *opt_name) override;
+  void close() override;
+  int generate_new_name(char *new_name, const char *log_name,
+                        ulong next_log_number) override;
   int log_and_order(THD *thd, my_xid xid, bool all,
-                    bool need_prepare_ordered, bool need_commit_ordered);
-  int unlog(ulong cookie, my_xid xid);
-  int unlog_xa_prepare(THD *thd, bool all);
-  void commit_checkpoint_notify(void *cookie);
+                    bool need_prepare_ordered, bool need_commit_ordered) override;
+  int unlog(ulong cookie, my_xid xid) override;
+  int unlog_xa_prepare(THD *thd, bool all) override;
+  void commit_checkpoint_notify(void *cookie) override;
   int recover(LOG_INFO *linfo, const char *last_log_name, IO_CACHE *first_log,
               Format_description_log_event *fdle, bool do_xa);
   int do_binlog_recovery(const char *opt_name, bool do_xa_recovery);
@@ -1017,19 +1017,19 @@ class Log_to_csv_event_handler: public Log_event_handler
 public:
   Log_to_csv_event_handler();
   ~Log_to_csv_event_handler();
-  virtual bool init();
-  virtual void cleanup();
+  bool init() override;
+  void cleanup() override;
 
-  virtual bool log_slow(THD *thd, my_hrtime_t current_time,
+  bool log_slow(THD *thd, my_hrtime_t current_time,
                         const char *user_host, size_t user_host_len, ulonglong query_utime,
                         ulonglong lock_utime, bool is_command,
-                        const char *sql_text, size_t sql_text_len);
-  virtual bool log_error(enum loglevel level, const char *format,
-                         va_list args);
-  virtual bool log_general(THD *thd, my_hrtime_t event_time, const char *user_host, size_t user_host_len, my_thread_id thread_id,
+                        const char *sql_text, size_t sql_text_len) override;
+  bool log_error(enum loglevel level, const char *format,
+                         va_list args) override;
+  bool log_general(THD *thd, my_hrtime_t event_time, const char *user_host, size_t user_host_len, my_thread_id thread_id,
                            const char *command_type, size_t command_type_len,
                            const char *sql_text, size_t sql_text_len,
-                           CHARSET_INFO *client_cs);
+                           CHARSET_INFO *client_cs) override;
 
   int activate_log(THD *thd, uint log_type);
 };
@@ -1047,19 +1047,19 @@ class Log_to_file_event_handler: public Log_event_handler
 public:
   Log_to_file_event_handler(): is_initialized(FALSE)
   {}
-  virtual bool init();
-  virtual void cleanup();
+  bool init() override;
+  void cleanup() override;
 
-  virtual bool log_slow(THD *thd, my_hrtime_t current_time,
+  bool log_slow(THD *thd, my_hrtime_t current_time,
                         const char *user_host, size_t user_host_len, ulonglong query_utime,
                         ulonglong lock_utime, bool is_command,
-                        const char *sql_text, size_t sql_text_len);
-  virtual bool log_error(enum loglevel level, const char *format,
-                         va_list args);
-  virtual bool log_general(THD *thd, my_hrtime_t event_time, const char *user_host, size_t user_host_len, my_thread_id thread_id,
+                        const char *sql_text, size_t sql_text_len) override;
+  bool log_error(enum loglevel level, const char *format,
+                         va_list args) override;
+  bool log_general(THD *thd, my_hrtime_t event_time, const char *user_host, size_t user_host_len, my_thread_id thread_id,
                            const char *command_type, size_t command_type_len,
                            const char *sql_text, size_t sql_text_len,
-                           CHARSET_INFO *client_cs);
+                           CHARSET_INFO *client_cs) override;
   void flush();
   void init_pthread_objects();
   MYSQL_QUERY_LOG *get_mysql_slow_log() { return &mysql_slow_log; }
