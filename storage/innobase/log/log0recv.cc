@@ -4201,7 +4201,7 @@ static bool recv_scan_log(bool last_phase)
     if (recv_sys.is_corrupt_log())
       break;
 
-    if (recv_sys.offset < log_sys.get_block_size() &&
+    if (recv_sys.offset < log_sys.write_size &&
         recv_sys.lsn == recv_sys.scanned_lsn)
       goto got_eof;
 
@@ -4537,6 +4537,26 @@ dberr_t recv_recovery_read_checkpoint()
   return err;
 }
 
+inline void log_t::set_recovered() noexcept
+{
+  ut_ad(get_flushed_lsn() == get_lsn());
+  ut_ad(recv_sys.lsn == get_lsn());
+  ut_ad(!old_write_size_1);
+  size_t ro{recv_sys.offset};
+  if (!is_pmem())
+  {
+    const size_t bs{log_sys.get_block_size()}, bs_1{bs - 1};
+    memmove_aligned<512>(buf, buf + (ro & ~bs_1), bs);
+    ro&= bs_1;
+    old_write_size_1= uint32_t(bs_1);
+  }
+#ifdef HAVE_PMEM
+  else
+    mprotect(buf, size_t(file_size), PROT_READ | PROT_WRITE);
+#endif
+  set_buf_free(ro);
+}
+
 /** Start recovering from a redo log checkpoint.
 of first system tablespace page
 @return error code or DB_SUCCESS */
@@ -4710,22 +4730,7 @@ err_exit:
 	}
 
 	if (!srv_read_only_mode && log_sys.is_latest()) {
-		ut_ad(log_sys.get_flushed_lsn() == log_sys.get_lsn());
-		ut_ad(recv_sys.lsn == log_sys.get_lsn());
-		if (!log_sys.is_pmem()) {
-			const size_t bs_1{log_sys.get_block_size() - 1};
-			const size_t ro{recv_sys.offset};
-			recv_sys.offset &= bs_1;
-			memmove_aligned<64>(log_sys.buf,
-					    log_sys.buf + (ro & ~bs_1),
-					    log_sys.get_block_size());
-#ifdef HAVE_PMEM
-		} else {
-			mprotect(log_sys.buf, size_t(log_sys.file_size),
-				 PROT_READ | PROT_WRITE);
-#endif
-		}
-		log_sys.set_buf_free(recv_sys.offset);
+		log_sys.set_recovered();
 		if (recv_needed_recovery
 	            && srv_operation <= SRV_OPERATION_EXPORT_RESTORED) {
 			/* Write a FILE_CHECKPOINT marker as the first thing,

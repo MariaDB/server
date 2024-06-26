@@ -275,12 +275,16 @@ private:
   /** the log sequence number at the start of the log file */
   lsn_t first_lsn;
   /** write block size - 1 during the previous write_buf() */
-  uint32_t old_block_size_1;
+  uint32_t old_write_size_1;
 #if defined __linux__ || defined _WIN32
   /** The physical block size of the storage */
   uint32_t block_size;
 #endif
+  /** requested innodb_log_write_ahead_size */
+  uint write_size_requested;
 public:
+  /** current innodb_log_write_ahead_size */
+  uint write_size;
   /** format of the redo log: e.g., FORMAT_10_8 */
   uint32_t format;
 #if defined __linux__ || defined _WIN32
@@ -329,6 +333,8 @@ public:
     return (buf_free.load(std::memory_order_relaxed) & ~buf_free_LOCK) <
       max_buf_free;
   }
+
+  inline void set_recovered() noexcept;
 
   void set_buf_free(size_t f) noexcept
   { ut_ad(f < buf_free_LOCK); buf_free.store(f, std::memory_order_relaxed); }
@@ -413,7 +419,7 @@ public:
   /** Update innodb_log_write_ahead_size
   @param size   the requested size
   @return whether the size was assigned as is */
-  bool set_write_ahead_size(size_t size);
+  bool set_write_size(size_t size);
 
 #if defined __linux__ || defined _WIN32
   /** Try to enable or disable file system caching (update log_buffered) */
@@ -483,7 +489,12 @@ public:
   size_t get_block_size() const noexcept
   { ut_ad(block_size); return block_size; }
   /** Set the log block size for file I/O. */
-  void set_block_size(uint32_t size) noexcept { block_size= size; }
+  void set_block_size(uint32_t size) noexcept
+  {
+    if (write_size < size)
+      write_size= uint(size);
+    block_size= size;
+  }
 #else
   /** @return the physical block size of the storage */
   static constexpr size_t get_block_size() { return 512; }

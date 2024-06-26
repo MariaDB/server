@@ -321,7 +321,8 @@ void log_t::create(lsn_t lsn) noexcept
   this->flushed_to_disk_lsn.store(lsn, std::memory_order_relaxed);
   first_lsn= lsn;
   write_lsn= lsn;
-  old_block_size_1= 0;
+  old_write_size_1= uint32_t(get_block_size() - 1);
+  write_size_requested= 0;
 
   last_checkpoint_lsn= 0;
 
@@ -409,7 +410,7 @@ void log_resize_release()
   }
 }
 
-bool log_t::set_write_ahead_size(size_t size)
+bool log_t::set_write_size(size_t size)
 {
   ut_ad(size >= 512);
   ut_ad(size <= log_sys.buf_size);
@@ -418,7 +419,7 @@ bool log_t::set_write_ahead_size(size_t size)
   const bool is_valid= ut_is_2pow(size) &&
     !((size_t(file_size) | size_t(resize_target)) & (size - 1));
   if (is_valid)
-    innodb_log_write_ahead_size= uint(size);
+    write_size_requested= uint(size);
   latch.rd_unlock();
   return is_valid;
 }
@@ -483,7 +484,7 @@ log_t::resize_start_status log_t::resize_start(os_offset_t size) noexcept
     if (success)
     {
       ut_ad(!((size_t(file_size) | size_t(resize_target)) &
-              (innodb_log_write_ahead_size - 1)));
+              (write_size - 1)));
       log_resize_release();
 
       void *ptr= nullptr, *ptr2= nullptr;
@@ -527,10 +528,12 @@ log_t::resize_start_status log_t::resize_start(os_offset_t size) noexcept
       }
       else
       {
-        uint32_t bs= innodb_log_write_ahead_size;
-        while (size & (bs - 1))
-          bs>>= 1;
-        innodb_log_write_ahead_size= bs;
+        {
+          uint32_t bs= write_size_requested;
+          while (size & (bs - 1))
+            bs>>= 1;
+          write_size_requested= bs;
+        }
         resize_target= size;
         resize_buf= static_cast<byte*>(ptr);
         resize_flush_buf= static_cast<byte*>(ptr2);
@@ -543,7 +546,7 @@ log_t::resize_start_status log_t::resize_start(os_offset_t size) noexcept
         {
           memcpy_aligned<16>(resize_buf, buf, (buf_free + 15) & ~15);
           start_lsn= first_lsn +
-            (~lsn_t{old_block_size_1} & (write_lsn - first_lsn));
+            (~lsn_t{old_write_size_1} & (write_lsn - first_lsn));
         }
       }
       resize_lsn.store(start_lsn, std::memory_order_relaxed);
@@ -802,20 +805,20 @@ ATTRIBUTE_COLD ATTRIBUTE_NOINLINE
 @param length          the used length of resize_buf */
 void log_t::resize_write_buf(const byte *buf, size_t length) noexcept
 {
-  ut_ad(!(resize_target & old_block_size_1));
-  ut_ad(!(length & old_block_size_1));
-  ut_ad(length > old_block_size_1);
+  ut_ad(!(resize_target & old_write_size_1));
+  ut_ad(!(length & old_write_size_1));
+  ut_ad(length > old_write_size_1);
   ut_ad(length <= resize_target);
   const lsn_t resizing{resize_in_progress()};
   ut_ad(resizing <= write_lsn);
   lsn_t offset= START_OFFSET +
-    ((write_lsn - resizing) & ~lsn_t{old_block_size_1});
+    ((write_lsn - resizing) & ~lsn_t{old_write_size_1});
 
   if (UNIV_UNLIKELY(offset + length > resize_target))
   {
     offset= START_OFFSET;
     resize_lsn.store(first_lsn +
-                     (~lsn_t{old_block_size_1} & (write_lsn - first_lsn)),
+                     (~lsn_t{old_write_size_1} & (write_lsn - first_lsn)),
                      std::memory_order_relaxed);
   }
 
@@ -846,19 +849,16 @@ template<bool release_latch> inline lsn_t log_t::write_buf() noexcept
     ut_ad(!recv_no_log_write);
     write_lock.set_pending(lsn);
     ut_ad(write_lsn >= get_flushed_lsn());
-    const size_t block_size_1{get_block_size() - 1};
-    size_t write_size_1{innodb_log_write_ahead_size - 1};
-    ut_ad(ut_is_2pow(write_size_1 + 1));
-    ut_ad(write_size_1 >= block_size_1);
+    ut_d(const size_t block_size_1{get_block_size() - 1});
+    ut_ad(ut_is_2pow(write_size));
+    size_t write_size_1{write_size - 1};
     size_t length{buf_free.load(std::memory_order_relaxed)};
     lsn_t offset{calc_lsn_offset(write_lsn)};
     ut_ad(length >= (offset & block_size_1));
     {
+      ut_ad(old_write_size_1);
       const size_t mask{(length ^ (size_t(lsn) - size_t(first_lsn))) |
-                        (size_t(offset) &
-                         ~size_t{old_block_size_1
-                                 ? old_block_size_1
-                                 : log_sys.get_block_size() - 1})};
+                        (size_t(offset) & ~size_t{old_write_size_1})};
       while (write_size_1 & mask)
         write_size_1>>= 1;
     }
@@ -868,7 +868,7 @@ template<bool release_latch> inline lsn_t log_t::write_buf() noexcept
     const byte *const rbuf{resize_buf};
     offset&= ~lsn_t{write_size_1};
 
-    if (UNIV_UNLIKELY(write_size_1 < old_block_size_1))
+    if (UNIV_UNLIKELY(write_size_1 < old_write_size_1))
     {
       /* The write unit size is being reduced. Discard a part of the buffer
       that may already have been written out using this smaller size. */
@@ -890,6 +890,7 @@ template<bool release_latch> inline lsn_t log_t::write_buf() noexcept
     if (length <= write_size_1)
     {
     no_buffer_swap:
+      ut_ad(!((length ^ (size_t(lsn) - size_t(first_lsn))) & write_size_1));
       /* Keep filling the same buffer until we have more than one block. */
 #if 0 /* TODO: Pad the last log block with dummy records. */
       buf_free= log_pad(lsn, (write_size_1 + 1) - length,
@@ -931,13 +932,18 @@ template<bool release_latch> inline lsn_t log_t::write_buf() noexcept
           memcpy_aligned<16>(resize_flush_buf, resize_buf + length,
                              (new_buf_free + 15) & ~15);
         length+= write_size_1 + 1;
+        /* Try to use write_size on the subsequent write. */
+        const size_t target_ws_1{write_size - 1};
+        const size_t padded_length{(length + target_ws_1) & ~target_ws_1};
+        if (padded_length + offset <= file_size)
+          write_size_1= target_ws_1;
       }
 
       std::swap(buf, flush_buf);
       std::swap(resize_buf, resize_flush_buf);
     }
 
-    old_block_size_1= uint32_t(write_size_1);
+    old_write_size_1= uint32_t(write_size_1);
     write_to_log++;
     if (release_latch)
       latch.wr_unlock();

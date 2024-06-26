@@ -3688,7 +3688,7 @@ static MYSQL_SYSVAR_ULONGLONG(buffer_pool_size, innobase_buffer_pool_size,
 static void innodb_log_write_ahead_size_update(THD *thd, st_mysql_sys_var*,
                                                void *var, const void *save);
 
-static MYSQL_SYSVAR_UINT(log_write_ahead_size, innodb_log_write_ahead_size,
+static MYSQL_SYSVAR_UINT(log_write_ahead_size, log_sys.write_size,
   PLUGIN_VAR_RQCMDARG,
   "Redo log write size to avoid read-on-write; must be a power of two,"
   " an integer fraction of innodb_log_file_size,"
@@ -3817,14 +3817,14 @@ static int innodb_init_params()
 	}
 
 	MYSQL_SYSVAR_NAME(log_write_ahead_size).max_val = log_sys.buf_size;
-	if (!ut_is_2pow(innodb_log_write_ahead_size)
-	    || innodb_log_write_ahead_size > log_sys.buf_size
-	    || size_t(srv_log_file_size) & (innodb_log_write_ahead_size - 1)) {
+	if (!ut_is_2pow(log_sys.write_size)
+	    || log_sys.write_size > log_sys.buf_size
+	    || size_t(srv_log_file_size) & (log_sys.write_size - 1)) {
 		sql_print_error("InnoDB: innodb_log_write_ahead_size=%u"
 				" is not a power of two, an integer fraction"
 				" of innodb_log_file_size=%llu,"
 				" or up to innodb_log_buffer_size=%u",
-				innodb_log_write_ahead_size,
+				log_sys.write_size,
 				srv_log_file_size,
 				log_sys.buf_size);
 		DBUG_RETURN(HA_ERR_INITIALIZATION);
@@ -18547,7 +18547,7 @@ static void innodb_log_write_ahead_size_update(THD *thd, st_mysql_sys_var*,
 {
   if (high_level_read_only)
     ib_senderrf(thd, IB_LOG_LEVEL_ERROR, ER_READ_ONLY_MODE);
-  else if (!log_sys.set_write_ahead_size(*static_cast<const uint*>(save)))
+  else if (!log_sys.set_write_size(*static_cast<const uint*>(save)))
     ib_senderrf(thd, IB_LOG_LEVEL_ERROR, ER_WRONG_ARGUMENTS,
 		"innodb_log_write_ahead_size");
 }
@@ -20034,13 +20034,12 @@ static void innodb_params_adjust()
 
 #if defined __linux__ || defined _WIN32
   uint& min_val= MYSQL_SYSVAR_NAME(log_write_ahead_size).min_val;
-  if (min_val < innodb_log_write_ahead_size)
-    min_val= innodb_log_write_ahead_size;
+  if (min_val < log_sys.write_size)
+    min_val= log_sys.write_size;
 #endif
   ut_ad(MYSQL_SYSVAR_NAME(log_write_ahead_size).min_val <=
-        innodb_log_write_ahead_size);
+        log_sys.write_size);
   ut_ad(MYSQL_SYSVAR_NAME(log_write_ahead_size).max_val == log_sys.buf_size);
-  log_sys.set_write_ahead_size(innodb_log_write_ahead_size);
 }
 
 /****************************************************************************
