@@ -139,7 +139,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t4	ref	y_idx	y_idx	5	const	1	100.00	
 1	SIMPLE	t5	range	x_idx	x_idx	5	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
 Warnings:
-Warning	4199	Unresolved name `t5`@`select#2` `z_idx` for NO_ICP hint
+Warning	4200	Unresolved index name `t5`@`select#2` `z_idx` for NO_ICP hint
 Note	1003	select /*+ NO_ICP(`t5`@`select#2` `y_idx`) NO_ICP(`t5`@`select#2` `x_idx`) */ `test`.`t4`.`x` AS `x`,`test`.`t5`.`y` AS `y` from `test`.`t4` join `test`.`t4` `t5` where `test`.`t4`.`y` = 8 and `test`.`t5`.`x` between 7 and <cache>(8 + 0)
 # ICP should still be used
 EXPLAIN EXTENDED SELECT * FROM
@@ -150,6 +150,21 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t5	range	x_idx	x_idx	5	NULL	2	100.00	Using index condition; Using where; Using join buffer (flat, BNL join)
 Warnings:
 Note	1003	select /*+ NO_ICP(`t5`@`select#2` `y_idx`) */ `test`.`t4`.`x` AS `x`,`test`.`t5`.`y` AS `y` from `test`.`t4` join `test`.`t4` `t5` where `test`.`t4`.`y` = 8 and `test`.`t5`.`x` between 7 and <cache>(8 + 0)
+# Disable ICP at the table level (t5):
+EXPLAIN EXTENDED SELECT /*+ QB_NAME(q1) NO_ICP(@q1 t5) */ * FROM t4, t4 t5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	13	100.00	
+1	SIMPLE	t5	ALL	NULL	NULL	NULL	NULL	13	100.00	Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	select /*+ QB_NAME(`q1`) NO_ICP(`t5`@`q1`) */ `test`.`t4`.`x` AS `x`,`test`.`t4`.`y` AS `y`,`test`.`t5`.`x` AS `x`,`test`.`t5`.`y` AS `y` from `test`.`t4` join `test`.`t4` `t5`
+# Wrong syntax for NO_ICP hint (at least table name must be present):
+EXPLAIN EXTENDED SELECT /*+ QB_NAME(q1) NO_ICP(@q1) */ * FROM t4, t4 t5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	13	100.00	
+1	SIMPLE	t5	ALL	NULL	NULL	NULL	NULL	13	100.00	Using join buffer (flat, BNL join)
+Warnings:
+Warning	1064	Optimizer hint syntax error near ') */ * FROM t4, t4 t5' at line 1
+Note	1003	select /*+ QB_NAME(`q1`) */ `test`.`t4`.`x` AS `x`,`test`.`t4`.`y` AS `y`,`test`.`t5`.`x` AS `x`,`test`.`t5`.`y` AS `y` from `test`.`t4` join `test`.`t4` `t5`
 # BKA & NO_BKA hint testing
 set optimizer_switch=default;
 set optimizer_switch='mrr=on,mrr_cost_based=off';
@@ -255,13 +270,20 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t13	hash_ALL	a	#hash#a	5	test.t12.a	1000	0.10	Using where; Using join buffer (flat, BNLH join)
 Warnings:
 Note	1003	select /*+ BKA(`t12`@`select#1`) */ `test`.`t12`.`a` AS `a`,`test`.`t12`.`b` AS `b`,`test`.`t13`.`a` AS `a`,`test`.`t13`.`b` AS `b`,`test`.`t13`.`c` AS `c`,`test`.`t13`.`filler` AS `filler` from `test`.`t12` join `test`.`t13` where `test`.`t13`.`a` = `test`.`t12`.`a` and `test`.`t13`.`b` + 1 <= `test`.`t13`.`b` + 1
-EXPLAIN EXTENDED SELECT /*+ QB_NAME(QB1) BKA(t13@QB1) */ * FROM t12, t13 
+EXPLAIN EXTENDED SELECT /*+ QB_NAME(QB1) BKA(t13@QB1) */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t13.b+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
 1	SIMPLE	t13	ref	a	a	5	test.t12.a	1	100.00	Using index condition; Using join buffer (flat, BKA join); Rowid-ordered scan
 Warnings:
 Note	1003	select /*+ QB_NAME(`QB1`) BKA(`t13`@`QB1`) */ `test`.`t12`.`a` AS `a`,`test`.`t12`.`b` AS `b`,`test`.`t13`.`a` AS `a`,`test`.`t13`.`b` AS `b`,`test`.`t13`.`c` AS `c`,`test`.`t13`.`filler` AS `filler` from `test`.`t12` join `test`.`t13` where `test`.`t13`.`a` = `test`.`t12`.`a` and `test`.`t13`.`b` + 1 <= `test`.`t13`.`b` + 1
+EXPLAIN EXTENDED SELECT /*+ QB_NAME(QB1) BKA(@QB1) */ * FROM t12, t13
+WHERE t12.a=t13.a AND (t13.b+1 <= t13.b+1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
+1	SIMPLE	t13	ref	a	a	5	test.t12.a	1	100.00	Using index condition; Using join buffer (flat, BKA join); Rowid-ordered scan
+Warnings:
+Note	1003	select /*+ QB_NAME(`QB1`) BKA(@`QB1`) */ `test`.`t12`.`a` AS `a`,`test`.`t12`.`b` AS `b`,`test`.`t13`.`a` AS `a`,`test`.`t13`.`b` AS `b`,`test`.`t13`.`c` AS `c`,`test`.`t13`.`filler` AS `filler` from `test`.`t12` join `test`.`t13` where `test`.`t13`.`a` = `test`.`t12`.`a` and `test`.`t13`.`b` + 1 <= `test`.`t13`.`b` + 1
 # Enable BKA
 set optimizer_switch='join_cache_bka=on';
 EXPLAIN EXTENDED SELECT /*+ NO_BKA(t13) */ * FROM t12, t13
@@ -449,9 +471,9 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
 1	SIMPLE	t2	ALL	f1	NULL	NULL	NULL	28	25.00	Using where; Using join buffer (flat, BNL join)
 Warnings:
-Warning	4199	Unresolved name `t3`@`select#1` for BKA hint
-Warning	4199	Unresolved name `t3`@`select#1` for NO_RANGE_OPTIMIZATION hint
-Warning	4199	Unresolved name `t3`@`select#1` `idx1` for NO_RANGE_OPTIMIZATION hint
+Warning	4199	Unresolved table name `t3`@`select#1` for BKA hint
+Warning	4199	Unresolved table name `t3`@`select#1` for NO_RANGE_OPTIMIZATION hint
+Warning	4200	Unresolved index name `t3`@`select#1` `idx1` for NO_RANGE_OPTIMIZATION hint
 Note	1003	select /*+ BKA(`t2`@`select#1`) NO_BNL(`t1`@`select#1`) */ `test`.`t2`.`f1` AS `f1`,`test`.`t2`.`f2` AS `f2`,`test`.`t2`.`f3` AS `f3` from `test`.`t1` join `test`.`t2` where `test`.`t2`.`f1` = `test`.`t1`.`f1` and `test`.`t2`.`f2` between `test`.`t1`.`f1` and `test`.`t1`.`f2` and `test`.`t2`.`f2` + 1 >= `test`.`t1`.`f1` + 1
 # Check illegal syntax
 EXPLAIN EXTENDED SELECT /*+ BKA(qb1 t3@qb1) */ f2 FROM
@@ -488,7 +510,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	tbl12	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
 1	SIMPLE	tbl13	hash_ALL	a	#hash#a	5	test.tbl12.a	1000	0.10	Using where; Using join buffer (flat, BNLH join)
 Warnings:
-Warning	4199	Unresolved name `tbl2`@`select#1` for BKA hint
+Warning	4199	Unresolved table name `tbl2`@`select#1` for BKA hint
 Note	1003	select `test`.`tbl12`.`a` AS `a`,`test`.`tbl12`.`b` AS `b`,`test`.`tbl13`.`a` AS `a`,`test`.`tbl13`.`b` AS `b`,`test`.`tbl13`.`c` AS `c`,`test`.`tbl13`.`filler` AS `filler` from `test`.`t12` `tbl12` join `test`.`t13` `tbl13` where `test`.`tbl13`.`a` = `test`.`tbl12`.`a` and `test`.`tbl13`.`b` + 1 <= `test`.`tbl13`.`b` + 1
 # Check that PS and conventional statements give the same result.
 FLUSH STATUS;
@@ -1079,11 +1101,11 @@ Warning	1064	Optimizer hint syntax error near 'b) */   1 FROM t1 a, t1 b' at lin
 SELECT /*+ NO_ICP(i1) */ 1 FROM t1;
 1
 Warnings:
-Warning	4199	Unresolved name `i1`@`select#1` for NO_ICP hint
+Warning	4199	Unresolved table name `i1`@`select#1` for NO_ICP hint
 SELECT /*+ NO_ICP(i1 i2) */ 1 FROM t1;
 1
 Warnings:
-Warning	4199	Unresolved name `i1`@`select#1` `i2` for NO_ICP hint
+Warning	4200	Unresolved index name `i1`@`select#1` `i2` for NO_ICP hint
 SELECT /*+ NO_ICP(@qb ident) */ 1 FROM t1;
 1
 Warnings:
@@ -1142,17 +1164,17 @@ CREATE INDEX 3rd_index ON t1(i, j);
 SELECT /*+ NO_ICP(3rd_index) */ 1 FROM t1;
 1
 Warnings:
-Warning	4199	Unresolved name `3rd_index`@`select#1` for NO_ICP hint
+Warning	4199	Unresolved table name `3rd_index`@`select#1` for NO_ICP hint
 CREATE INDEX $index ON t1(j, i);
 SELECT /*+ NO_ICP($index) */ 1 FROM t1;
 1
 Warnings:
-Warning	4199	Unresolved name `$index`@`select#1` for NO_ICP hint
+Warning	4199	Unresolved table name `$index`@`select#1` for NO_ICP hint
 CREATE TABLE ` quoted name test` (i INT);
 SELECT /*+ BKA(` quoted name test`) */ 1 FROM t1;
 1
 Warnings:
-Warning	4199	Unresolved name ` quoted name test`@`select#1` for BKA hint
+Warning	4199	Unresolved table name ` quoted name test`@`select#1` for BKA hint
 SELECT /*+ BKA(` quoted name test`@`select#1`) */ 1 FROM t1;
 1
 Warnings:
@@ -1163,7 +1185,7 @@ CREATE TABLE " quoted name test" (i INT);
 SELECT /*+ BKA(" quoted name test") */ 1 FROM t1;
 1
 Warnings:
-Warning	4199	Unresolved name " quoted name test"@"select#1" for BKA hint
+Warning	4199	Unresolved table name " quoted name test"@"select#1" for BKA hint
 SELECT /*+ BKA(" quoted name test"@"select#1") */ 1 FROM t1;
 1
 Warnings:
@@ -1173,12 +1195,12 @@ SELECT /*+ BKA(`test1``test2```) */ 1;
 1
 1
 Warnings:
-Warning	4199	Unresolved name "test1`test2`"@"select#1" for BKA hint
+Warning	4199	Unresolved table name "test1`test2`"@"select#1" for BKA hint
 SELECT /*+ BKA("test1""test2""") */ 1;
 1
 1
 Warnings:
-Warning	4199	Unresolved name "test1""test2"""@"select#1" for BKA hint
+Warning	4199	Unresolved table name "test1""test2"""@"select#1" for BKA hint
 SET SQL_MODE = '';
 # should warn:
 SELECT /*+ BKA(" quoted name test") */ 1 FROM t1;
@@ -1228,7 +1250,7 @@ CREATE TABLE tableТ (i INT);
 SELECT /*+ BKA(tableТ) */ 1 FROM t1;
 1
 Warnings:
-Warning	4199	Unresolved name `tableТ`@`select#1` for BKA hint
+Warning	4199	Unresolved table name `tableТ`@`select#1` for BKA hint
 SELECT /*+ BKA(test@tableТ) */ 1 FROM t1;
 1
 Warnings:
@@ -1238,11 +1260,11 @@ CREATE TABLE таблица (i INT);
 SELECT /*+ BKA(`таблица`) */ 1 FROM t1;
 1
 Warnings:
-Warning	4199	Unresolved name `таблица`@`select#1` for BKA hint
+Warning	4199	Unresolved table name `таблица`@`select#1` for BKA hint
 SELECT /*+ BKA(таблица) */ 1 FROM t1;
 1
 Warnings:
-Warning	4199	Unresolved name `таблица`@`select#1` for BKA hint
+Warning	4199	Unresolved table name `таблица`@`select#1` for BKA hint
 SELECT /*+ BKA(test@таблица) */ 1 FROM t1;
 1
 Warnings:
@@ -1250,7 +1272,7 @@ Warning	4198	Query block name `таблица` is not found for BKA hint
 SELECT /*+ NO_ICP(`\D1`) */ 1 FROM t1;
 1
 Warnings:
-Warning	4199	Unresolved name `\D1`@`select#1` for NO_ICP hint
+Warning	4199	Unresolved table name `\D1`@`select#1` for NO_ICP hint
 DROP TABLE таблица;
 
 # derived tables and other subqueries:

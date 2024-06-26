@@ -28,6 +28,7 @@
 #include "sql_string.h"
 #include "sql_bitmap.h"
 #include "sql_show.h"
+#include "mysqld_error.h"
 
 
 struct LEX;
@@ -281,6 +282,13 @@ private:
     @param thd             Pointer to THD object
   */
   void print_warn_unresolved(THD *thd);
+
+protected:
+  /**
+    Override this function in descendants so that print_warn_unresolved()
+    prints the proper warning text for table/index level unresolved hints
+  */
+  virtual uint get_warn_unresolved_code() const { return 0; }
 };
 
 
@@ -405,6 +413,11 @@ public:
     @param table      Pointer to TABLE object
   */
   void adjust_key_hints(TABLE *table);
+
+  virtual uint get_warn_unresolved_code() const override
+  {
+    return ER_UNRESOLVED_TABLE_HINT_NAME;
+  }
 };
 
 
@@ -433,6 +446,11 @@ public:
     get_parent()->append_name(thd, str);
     str->append(' ');
     append_identifier(thd, str, get_name()->str, get_name()->length);
+  }
+
+  virtual uint get_warn_unresolved_code() const override
+  {
+    return ER_UNRESOLVED_INDEX_HINT_NAME;
   }
 };
 

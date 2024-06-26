@@ -89,6 +89,12 @@ EXPLAIN EXTENDED SELECT * FROM
   (SELECT /*+ NO_ICP(t5 y_idx) */ t4.x, t5.y FROM t4, t4 t5
    WHERE t4.y = 8 AND t5.x BETWEEN 7 AND t4.y+0) AS TD;
 
+--echo # Disable ICP at the table level (t5):
+EXPLAIN EXTENDED SELECT /*+ QB_NAME(q1) NO_ICP(@q1 t5) */ * FROM t4, t4 t5;
+
+--echo # Wrong syntax for NO_ICP hint (at least table name must be present):
+EXPLAIN EXTENDED SELECT /*+ QB_NAME(q1) NO_ICP(@q1) */ * FROM t4, t4 t5;
+
 --echo # BKA & NO_BKA hint testing
 set optimizer_switch=default;
 set optimizer_switch='mrr=on,mrr_cost_based=off';
@@ -136,7 +142,10 @@ EXPLAIN EXTENDED SELECT /*+ BKA(t12, t13) */ * FROM t12, t13
 EXPLAIN EXTENDED SELECT /*+ BKA(t12) */ * FROM t12, t13
   WHERE t12.a=t13.a AND (t13.b+1 <= t13.b+1);
 
-EXPLAIN EXTENDED SELECT /*+ QB_NAME(QB1) BKA(t13@QB1) */ * FROM t12, t13 
+EXPLAIN EXTENDED SELECT /*+ QB_NAME(QB1) BKA(t13@QB1) */ * FROM t12, t13
+  WHERE t12.a=t13.a AND (t13.b+1 <= t13.b+1);
+
+EXPLAIN EXTENDED SELECT /*+ QB_NAME(QB1) BKA(@QB1) */ * FROM t12, t13
   WHERE t12.a=t13.a AND (t13.b+1 <= t13.b+1);
 
 --echo # Enable BKA

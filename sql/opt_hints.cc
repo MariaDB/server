@@ -135,8 +135,8 @@ void Opt_hints::print_warn_unresolved(THD *thd)
       hint_type_str.length(0);
       append_hint_type(&hint_type_str, static_cast<opt_hints_enum>(i));
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                          ER_UNRESOLVED_HINT_NAME,
-                          ER_THD(thd, ER_UNRESOLVED_HINT_NAME),
+                          get_warn_unresolved_code(),
+                          ER_THD(thd, get_warn_unresolved_code()),
                           hint_name_str.c_ptr_safe(),
                           hint_type_str.c_ptr_safe());
     }
