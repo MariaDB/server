@@ -833,6 +833,15 @@ struct rpl_group_info
     RETRY_KILL_KILLED
   };
   uchar killed_for_retry;
+  enum enum_exec_flags {
+    HIT_BUSY_INDEX= 0
+  };
+  /*
+    Being executed replication event's context. It could contain
+    notification from engine such as attempts to lock already acquired
+    index record.
+  */
+  uint32 exec_flags;
 
   rpl_group_info(Relay_log_info *rli_);
   ~rpl_group_info();
@@ -959,6 +968,11 @@ struct rpl_group_info
   {
     if (!is_parallel_exec)
       rli->event_relay_log_pos= future_event_relay_log_pos;
+  }
+
+  bool is_row_event_execution()
+  {
+    return m_table_map.count() > 0;
   }
 };
 

@@ -8107,6 +8107,11 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
 
   if (m_key_info)
   {
+    bool skip_first_compare= false;
+    bool is_index_unique=
+      (table->key_info->flags & HA_NOSAME) &&
+      !(table->key_info->flags & (HA_NULL_PART_KEY));
+
     DBUG_PRINT("info",("locating record using key #%u [%s] (index_read)",
                        m_key_nr, m_key_info->name.str));
     /* We use this to test that the correct key is used in test cases. */
@@ -8151,11 +8156,20 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
                                                         HA_READ_KEY_EXACT))))
     {
       DBUG_PRINT("info",("no record matching the key found in the table"));
-      if (error == HA_ERR_KEY_NOT_FOUND)
-        error= row_not_found_error(rgi);
-      table->file->print_error(error, MYF(0));
-      table->file->ha_index_end();
-      goto end;
+      if (error == HA_ERR_LOCK_WAIT_TIMEOUT && !is_index_unique &&
+          (rgi->exec_flags & (1 << rpl_group_info::HIT_BUSY_INDEX)))
+      {
+        rgi->exec_flags &= ~(1 << rpl_group_info::HIT_BUSY_INDEX);
+        skip_first_compare= true;
+      }
+      else
+      {
+        if (error == HA_ERR_KEY_NOT_FOUND)
+          error= row_not_found_error(rgi);
+        table->file->print_error(error, MYF(0));
+        table->file->ha_index_end();
+        goto end;
+      }
     }
 
   /*
@@ -8224,17 +8238,28 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
     /* We use this to test that the correct key is used in test cases. */
     DBUG_EXECUTE_IF("slave_crash_if_index_scan", abort(););
 
-    while (record_compare(table, m_vers_from_plain))
+    while (skip_first_compare || record_compare(table, m_vers_from_plain))
     {
+      if (skip_first_compare)
+        skip_first_compare= false;
       while ((error= table->file->ha_index_next(table->record[0])))
       {
         DBUG_PRINT("info",("no record matching the given row found"));
         if (error == HA_ERR_END_OF_FILE)
           error= end_of_file_error(rgi);
+        else if (error == HA_ERR_LOCK_WAIT_TIMEOUT && !is_index_unique &&
+                 (rgi->exec_flags & (1 << rpl_group_info::HIT_BUSY_INDEX)))
+        {
+          rgi->exec_flags &= ~(1 << rpl_group_info::HIT_BUSY_INDEX);
+          continue;
+        }
+        DBUG_ASSERT(!(rgi->exec_flags & (1 << rpl_group_info::HIT_BUSY_INDEX)));
+
         table->file->print_error(error, MYF(0));
         table->file->ha_index_end();
         goto end;
       }
+      DBUG_ASSERT(!(rgi->exec_flags & (1 << rpl_group_info::HIT_BUSY_INDEX)));
     }
   }
   else

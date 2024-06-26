@@ -5644,6 +5644,43 @@ extern "C" bool thd_is_slave(const MYSQL_THD thd) {
   return thd->rgi_slave;
 }
 
+/*
+  Used by storage engines (currently InnoDB) to report the fact of a non-unique
+  index lock by an earlier ordered XA transaction is in the way of the current
+  transaction's operation.
+  Along with the reporting a found incident is remembered in associated with
+  the current THD slave execution context.
+
+  @param thd        THD of the transaction that is trying to lock
+  @param other_thd  THD of the actual lock owner
+  @param is_other_prepared
+                    The other transaction prepared status
+  @return true      when the current transaction meets the above criteria
+          false     otherwise.
+*/
+extern "C" bool thd_rpl_xa_non_uniq_index_hit(MYSQL_THD thd,
+                                              MYSQL_THD other_thd,
+                                              bool is_other_prepared)
+{
+  bool rc= false;
+  rpl_group_info *rg_i=  thd ? thd->rgi_slave : NULL;
+  rpl_group_info *rg_o=  other_thd ? other_thd->rgi_slave : NULL;
+  /*
+    Return to the caller the fact of the non-unique index wait lock
+    conflicts with one of a prepared state transaction.
+  */
+  if (rg_i && rg_i->is_row_event_execution() &&
+      ((!other_thd && is_other_prepared) ||
+       (other_thd->transaction->xid_state.get_state_code() != XA_NO_STATE &&
+        (rg_o && rg_o->gtid_sub_id < rg_i->gtid_sub_id))))
+  {
+    rg_i->exec_flags |= 1 << rpl_group_info::HIT_BUSY_INDEX;
+    rc= true;
+  }
+
+  return rc;
+}
+
 extern "C" int thd_non_transactional_update(const MYSQL_THD thd)
 {
   return(thd->transaction->all.modified_non_trans_table);

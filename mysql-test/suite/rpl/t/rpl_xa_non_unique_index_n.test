@@ -1,9 +1,9 @@
 # The test proves that
 #
-# A. an XA-prepared transaction releases locks on unmodified index records;
-# B. so that following transactions are able to find their target records
-#    even though locked records by earlier XA-prepared transaction are
-#    in the way of non-unique indexes scanning.
+# even though an XA-prepared transaction holds locks on
+# non-unique index of modified records the following transactions are able
+# to reach their target records while the XA-prepared one locks
+# are in the way of scanning.
 #
 # REFERENCES
 #
@@ -16,21 +16,23 @@
 --source include/have_debug_sync.inc
 --source include/have_binlog_format_row.inc
 --source include/master-slave.inc
-
-# The test consists of three parts
-# 1. Prepare load such that two transactions trx_1, trx_2 are clearly isolated
-#    from each other on master thanks to forcing index.
-# 2. Slave serial mode check ensures that the 1st prepared XA releases
-#    "avariciously" acquired locks (the propertry A), as well as
-#    the 2nd transaction is able to step over locked records (the B) to
-#    successfully scan out its target one, instead of ending up with
-#    the timeout error.
-# 3. Slave parallel mode check aims at
-#    the same as p.2 complicated by trx_2 having locked its target record
-#    before trx_1 has started.
+#
+# Legends:
+# XAP_i := XA PREPARE,
+# XAC_k := XA COMMIT
+# _i,_k stand for an index ("logical" gtid seq_no) in binlog.
+#
+# The test checks
+# 1.  the sequential slave executes XAP_1,XAP_2,XAP_3 followed by
+#      their XA-Commits;
+# 2a. ditto to the prallel optimistic;
+# 2b. the prallel optimistic executes XAP_1(xid),XAC_2(xid),T3
+#     so that T3 races ahead of its parent to reach wait-for-prior-commit;
+# 2c. the parallel optimistic executes XAP_1(xid), T2, XAC_3(xid)
+#     when T2 starts after XAP_1 has executed a pseudo-conflicting statement.
+--echo *** Prepare load ***
 
 --connection master
---echo *** 1. Prepare load ***
 CREATE TABLE t1 (a int, b int, c int,
   INDEX i1(a),
   INDEX i2(b))
@@ -45,6 +47,7 @@ INSERT INTO t1 VALUES
 --sync_slave_with_master
 
 --source include/stop_slave.inc
+ALTER TABLE mysql.gtid_slave_pos ENGINE=innodb;
 SET @old_timeout= @@GLOBAL.innodb_lock_wait_timeout;
 SET @old_retries= @@GLOBAL.slave_transaction_retries;
 SET GLOBAL innodb_lock_wait_timeout= 2;
@@ -85,11 +88,15 @@ XA COMMIT "trx_3";
 --connection master
 SELECT * FROM t1 ORDER BY a,b,c;
 
---echo *** 2. Serial mode check ***
+
+--echo # 1. Sequential mode check
+
 --sync_slave_with_master
 SELECT * FROM t1 ORDER BY a,b,c;
 
---echo *** 3. Parallel mode check ***
+
+--echo # 2.a Parallel mode check
+
 # Rerun the DML part with slave worker threads
 --connection slave
 --source include/stop_slave.inc
@@ -151,9 +158,134 @@ SET DEBUG_SYNC = 'now SIGNAL go_ahead_sql'; # maybe to trx_3
 --source include/sync_with_master_gtid.inc
 SELECT * FROM t1 ORDER BY a,b,c;
 
+--echo # 2.b XAP_1, XAC_2, T_3
+# Prove that in parallel optimistic execution of a sequence of
+#    XAP_1, XAC_2, T_3 where
+# T_3 having to update a common record with the XA,
+# and such that T3 races to reach wait-for-prior-commit ahead of XA starts on
+# its job, it will anyway complete its job via standard retry.
+
+--connection slave
+SET DEBUG_SYNC = RESET;
+SET @@global.debug_dbug="d,hold_worker_on_schedule";
+# the where condition to update the table by XA
+--let $t1_cond_2b = a=1 AND (b=1 OR b=2 OR b=3)
+--connection master
+# XAP_1
+SET @save_domain_id=@@gtid_domain_id;
+SET @@gtid_domain_id=34481; # for delay simulation by its XAC_2
+SET @@gtid_seq_no=99;
+XA START "trx_1";
+--eval UPDATE t1 SET c=c+1 WHERE $t1_cond_2b
+XA END "trx_1";
+XA PREPARE "trx_1";
+# XAC_2 is going to have seq_no = 100
+XA COMMIT "trx_1";
+
+--connection slave
+# wait for XAP_1 done
+--let $wait_condition= SELECT count(*) = 1 FROM mysql.gtid_slave_pos WHERE seq_no = 99
+--source include/wait_condition.inc
+--let $retry1= query_get_value(SHOW STATUS LIKE 'Slave_retried_transactions', Value, 1)
+
+--connection master
+# T_3
+UPDATE t1 SET c=c+1 WHERE a=1 AND b=1;
+--source include/save_master_gtid.inc
+SET @@gtid_domain_id=@save_domain_id;
+
+--connection slave
+# ensure T_3 is in expected wait
+--let $wait_condition= SELECT count(*) = 1 FROM information_schema.processlist WHERE state LIKE "Waiting for prior transaction to commit"
+--source include/wait_condition.inc
+# ongoing MDEV-31949 workaround, begin..
+SET @@global.debug_dbug="+d,rows_log_event_before_open_table";
+
+# ... release XAC_2
+SET DEBUG_SYNC = 'now SIGNAL continue_worker';
+
+# ..ongoing MDEV-31949 workaround, ends.
+--let $wait_condition= select count(*) = 3 from t1 where $t1_cond_2b
+--source include/wait_condition.inc
+let $t1_cond_2b =;
+SET DEBUG_SYNC = 'now SIGNAL go_ahead_sql'; # to T_3
+
+--source include/sync_with_master_gtid.inc
+--let $retry2= query_get_value(SHOW STATUS LIKE 'Slave_retried_transactions', Value, 1)
+--evalp SELECT $retry1 + 1 = $retry2 as 'true'
+SELECT * FROM t1 ORDER BY a,b,c;
+
+--echo # 2.c XAP_1, T_2, XAC_3
+# T_2 is trying to scan out its target index record when XAP_1 has processed
+# that table but not yet got PREPAREd.
+# Prove that T_2 is able to access it target index record without
+# either wait of retry. In the non-fixed server case it would hang, retry
+# and eventually error out.
+--connection slave
+SET DEBUG_SYNC = RESET;
+SET @@global.debug_dbug="d,hold_worker_on_schedule";
+--let $retry1= query_get_value(SHOW STATUS LIKE 'Slave_retried_transactions', Value, 1)
+
+--connection master
+create table t_pk (a int primary key, b int) engine=innodb;
+INSERT INTO t_pk VALUES (1, 1);
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+# prepare to block XAP_1 after the non-UK first statement
+--source include/stop_slave.inc
+SET GLOBAL innodb_lock_wait_timeout=100000;
+--source include/start_slave.inc
+--connection slave1
+BEGIN;
+  UPDATE t_pk SET b=b+2 WHERE a=1;
+
+--connection master
+# XAP_1
+XA START "trx_1";
+UPDATE t1 FORCE INDEX (i2) SET c=c+1 WHERE a=1 AND (b=1 OR b=2);
+UPDATE t_pk SET b=b+1 WHERE a=1;
+XA END "trx_1";
+XA PREPARE "trx_1";
+
+--connection slave
+# verify XAP_1 locked out at the 2nd statement
+--let $retry1= query_get_value(SHOW STATUS LIKE 'Slave_retried_transactions', Value, 1)
+--let $table=information_schema.innodb_lock_waits
+--let $count=1
+--source include/wait_until_rows_count.inc
+
+--connection master1
+# T_2
+UPDATE t1 FORCE INDEX (i2) SET c=c+1 WHERE a=1 AND b=3;
+--connection master
+# XAC_3
+XA COMMIT "trx_1";
+--source include/save_master_gtid.inc
+
+--connection slave
+--let $wait_condition= SELECT count(*) = 1 FROM information_schema.processlist WHERE state LIKE "Waiting for prior transaction to commit"
+--source include/wait_condition.inc
+
+--connection slave1
+ROLLBACK;
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a,b,c;
+--let $retry2= query_get_value(SHOW STATUS LIKE 'Slave_retried_transactions', Value, 1)
+--evalp SELECT $retry1 = $retry2 as 'true: no retry'
+
+
+--let $diff_tables=master:t1,slave:t1
+--source include/diff_tables.inc
+--let $diff_tables=master:t_pk,slave:t_pk
+--source include/diff_tables.inc
 
 # Cleanup
 --connection master
+DROP TABLE t_pk;
 DROP TABLE t1;
 
 --connection slave

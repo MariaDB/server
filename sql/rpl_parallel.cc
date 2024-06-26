@@ -1339,8 +1339,10 @@ handle_rpl_parallel_thread(void *arg)
           });
 #ifdef ENABLED_DEBUG_SYNC
         DBUG_EXECUTE_IF("hold_worker_on_schedule", {
-            if (rgi->current_gtid.domain_id == 0 &&
-                rgi->current_gtid.seq_no == 100) {
+            if ((rgi->current_gtid.domain_id == 0 &&
+                 rgi->current_gtid.seq_no == 100) ||
+                (rgi->current_gtid.domain_id == 34481 &&
+                 rgi->current_gtid.seq_no == 100)) {
                   debug_sync_set_action(thd,
                 STRING_WITH_LEN("now SIGNAL reached_pause WAIT_FOR continue_worker"));
             }
