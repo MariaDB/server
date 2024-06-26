@@ -403,7 +403,7 @@ private:
 public:
   ha_mroonga(handlerton *hton, TABLE_SHARE *share_arg);
   ~ha_mroonga();
-  const char *table_type() const;           // required
+  const char *table_type() const override;           // required
   const char *index_type(uint inx) mrn_override;
   const char **bas_ext() const;                                    // required
 
