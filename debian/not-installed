@@ -18,6 +18,7 @@ usr/lib/*/libdbbc.a #  ColumnStore static library
 usr/lib/*/libidbboot.a #  ColumnStore static library
 usr/lib/*/libprocessor.a #  ColumnStore static library
 usr/lib/*/libwe_xml.a #  ColumnStore static library
+usr/lib/*/pkgconfig/mariadb.pc
 usr/bin/test-connect-t
 usr/bin/uca-dump
 usr/bin/wsrep_sst_backup
