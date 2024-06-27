@@ -30,7 +30,7 @@ class Json_writer;
 
 
 /* Several fake objects */
-class Opt_trace 
+class Opt_trace
 {
 public:
   void enable_tracing_if_required() {}
@@ -38,7 +38,7 @@ public:
   Json_writer *get_current_json() { return nullptr; }
 };
 
-class THD 
+class THD
 {
 public:
   Opt_trace opt_trace;
@@ -60,7 +60,7 @@ int main(int args, char **argv)
   {
     Json_writer w;
     w.start_object();
-    w.add_member("foo"); 
+    w.add_member("foo");
     w.end_object();
     ok(w.invalid_json, "Started a name but didn't add a value");
   }
@@ -143,4 +143,3 @@ int main(int args, char **argv)
 
   return exit_status();
 }
-

@@ -366,7 +366,7 @@ static ulong start_timer(void)
 }
 
 
-/** 
+/**
   Write as many as 52+1 bytes to buff, in the form of a legible
   duration of time.
 
