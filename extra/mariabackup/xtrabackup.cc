@@ -1333,7 +1333,7 @@ enum options_xtrabackup
   OPT_INNODB_LOG_FILE_BUFFERING,
 #endif
   OPT_INNODB_LOG_FILE_SIZE,
-  OPT_INNODB_LOG_FILES_IN_GROUP,
+  OPT_INNODB_LOG_WRITE_AHEAD_SIZE,
   OPT_INNODB_OPEN_FILES,
   OPT_XTRA_DEBUG_SYNC,
   OPT_INNODB_CHECKSUM_ALGORITHM,
@@ -1905,6 +1905,10 @@ struct my_option xb_server_options[] =
   {"innodb_log_group_home_dir", OPT_INNODB_LOG_GROUP_HOME_DIR,
    "Path to InnoDB log files.", &srv_log_group_home_dir,
    &srv_log_group_home_dir, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"innodb_log_write_ahead_size", OPT_INNODB_LOG_WRITE_AHEAD_SIZE,
+   "ib_logfile0 write size",
+   (G_PTR*) &log_sys.write_size, (G_PTR*) &srv_log_file_size, 0,
+   GET_UINT, REQUIRED_ARG, 512, 512, 4096, 0, 1, 0},
   {"innodb_max_dirty_pages_pct", OPT_INNODB_MAX_DIRTY_PAGES_PCT,
    "Percentage of dirty pages allowed in bufferpool.",
    (G_PTR*) &srv_max_buf_pool_modified_pct,
@@ -2233,7 +2237,6 @@ xb_get_one_option(const struct my_option *opt,
     ADD_PRINT_PARAM_OPT(srv_log_group_home_dir);
     break;
 
-  case OPT_INNODB_LOG_FILES_IN_GROUP:
   case OPT_INNODB_LOG_FILE_SIZE:
     break;
 
@@ -2374,6 +2377,11 @@ xb_get_one_option(const struct my_option *opt,
 
 static bool innodb_init_param()
 {
+	if (!ut_is_2pow(log_sys.write_size)) {
+		msg("InnoDB: innodb_log_write_ahead_size=%u"
+		    " is not a power of two", log_sys.write_size);
+		return true;
+	}
 	srv_is_being_started = TRUE;
 	/* === some variables from mysqld === */
 	memset((G_PTR) &mysql_tmpdir_list, 0, sizeof(mysql_tmpdir_list));
@@ -3370,7 +3378,7 @@ static bool xtrabackup_copy_logfile()
   ut_a(dst_log_file);
   ut_ad(recv_sys.is_initialised());
   const size_t sequence_offset{log_sys.is_encrypted() ? 8U + 5U : 5U};
-  const size_t block_size_1{log_sys.get_block_size() - 1};
+  const size_t block_size_1{log_sys.write_size - 1};
 
   ut_ad(!log_sys.is_pmem());
 
@@ -3445,7 +3453,7 @@ static bool xtrabackup_copy_logfile()
         if (r == recv_sys_t::GOT_EOF)
           break;
 
-        if (recv_sys.offset < log_sys.get_block_size())
+        if (recv_sys.offset < log_sys.write_size)
           break;
 
         if (xtrabackup_throttle && io_ticket-- < 0)
