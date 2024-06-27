@@ -1,0 +1,34 @@
+--source include/have_innodb.inc
+--source include/count_sessions.inc
+
+CREATE TABLE t1 (a int, b int, c int,
+  INDEX i1(a),
+  INDEX i2(b))
+  ENGINE=InnoDB;
+
+INSERT INTO t1 VALUES
+  (1,1,0), (1,2,0),
+  (2,1,0), (2,2,0);
+
+SET @old_timeout= @@GLOBAL.innodb_lock_wait_timeout;
+SET GLOBAL innodb_lock_wait_timeout= 1;
+
+XA START "t1";
+UPDATE t1 FORCE INDEX (i2) SET c=c+1 WHERE a=1 AND b=1;
+XA END "t1";
+XA PREPARE "t1";
+
+--connect(con1,localhost,root,,)
+# (pk, 2, 1, 0) record is X-locked but not modified in clustered index with the
+# above XA transaction, if the bug is not fixed, the following SELECT will be
+# blocked by the XA transaction if XA PREPARE does not release the unmodified
+# record.
+SELECT * FROM t1 FORCE INDEX (i1) WHERE a=2 AND b=1 FOR UPDATE;
+--disconnect con1
+
+--connection default
+XA COMMIT "t1";
+DROP TABLE t1;
+
+SET GLOBAL innodb_lock_wait_timeout= @old_timeout;
+--source include/wait_until_count_sessions.inc

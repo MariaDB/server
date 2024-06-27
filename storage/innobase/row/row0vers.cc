@@ -196,11 +196,13 @@ row_vers_impl_x_locked_low(
 			version, clust_index, clust_offsets,
 			heap, &prev_version, mtr, 0, NULL,
 			dict_index_has_virtual(index) ? &vrow : NULL);
-
-		ut_d(trx->mutex_lock());
+		ut_d(bool owns_trx_mutex = trx->mutex_is_owner());
+		ut_d(if (!owns_trx_mutex)
+		    trx->mutex_lock();)
 		const bool committed = trx_state_eq(
 			trx, TRX_STATE_COMMITTED_IN_MEMORY);
-		ut_d(trx->mutex_unlock());
+		ut_d(if (!owns_trx_mutex)
+		  trx->mutex_unlock();)
 
 		/* The oldest visible clustered index version must not be
 		delete-marked, because we never start a transaction by
@@ -400,7 +402,8 @@ row_vers_impl_x_locked(
 	const rec_t*	clust_rec;
 	dict_index_t*	clust_index;
 
-	lock_sys.assert_unlocked();
+	/* The current function can be called from lock_rec_unlock_unmodified()
+	under lock_sys.wr_lock() */
 
 	mtr_start(&mtr);
 

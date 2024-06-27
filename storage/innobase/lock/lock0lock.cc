@@ -4518,7 +4518,9 @@ static void lock_rec_unlock_unmodified(hash_cell_t &cell, lock_t *lock,
   {
     if (UNIV_UNLIKELY(!page_is_leaf(block->page.frame)))
     {
-      ut_ad("corrupted lock system" == 0);
+      /* There can be locks with clean bitmap on non-leaf pages in the case of
+      page split. See lock_move_rec_list_end() call stack for details. */
+      ut_ad(lock_rec_find_set_bit(lock) == ULINT_UNDEFINED);
       goto func_exit;
     }
 
@@ -4540,8 +4542,15 @@ static void lock_rec_unlock_unmodified(hash_cell_t &cell, lock_t *lock,
         {
           offsets= rec_get_offsets(rec, index, offsets, index->n_core_fields,
                                    ULINT_UNDEFINED, &heap);
-          if (lock->trx !=
-              lock_sec_rec_some_has_impl(lock->trx, rec, index, offsets))
+          trx_t *impl_trx=
+              lock_sec_rec_some_has_impl(lock->trx, rec, index, offsets);
+          /* row_vers_impl_x_locked_low() references trx in both cases, i.e.
+          when caller trx is equal to trx, which modified the record, it
+          references the trx directly, otherwise it invokes trx_sys.find(),
+          which also references trx, so the trx must be released anyway. */
+          if (impl_trx)
+            impl_trx->release_reference();
+          if (lock->trx != impl_trx)
             goto unlock_rec;
         }
       }
@@ -4591,8 +4600,6 @@ static bool lock_release_on_prepare_try(trx_t *trx)
       bool supremum_bit= lock_rec_get_nth_bit(lock, PAGE_HEAP_NO_SUPREMUM);
       bool rec_granted_exclusive_not_gap=
         lock->is_rec_granted_exclusive_not_gap();
-      if (!supremum_bit && rec_granted_exclusive_not_gap)
-        continue;
       if (UNIV_UNLIKELY(lock->type_mode & (LOCK_PREDICATE | LOCK_PRDT_PAGE)))
         continue; /* SPATIAL INDEX locking is broken. */
       auto cell=
