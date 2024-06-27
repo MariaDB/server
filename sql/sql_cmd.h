@@ -220,9 +220,9 @@ public:
     :show_all_slaves_status(status_all)
   {}
 
-  enum_sql_command sql_command_code() const { return SQLCOM_SHOW_SLAVE_STAT; }
+  enum_sql_command sql_command_code() const override { return SQLCOM_SHOW_SLAVE_STAT; }
 
-  bool execute(THD *thd);
+  bool execute(THD *thd) override;
   bool is_show_all_slaves_stat() { return show_all_slaves_status; }
 };
 
@@ -231,20 +231,20 @@ class Sql_cmd_create_table_like: public Sql_cmd,
                                  public Storage_engine_name
 {
 public:
-  Storage_engine_name *option_storage_engine_name() { return this; }
-  bool execute(THD *thd);
+  Storage_engine_name *option_storage_engine_name() override { return this; }
+  bool execute(THD *thd) override;
 };
 
 class Sql_cmd_create_table: public Sql_cmd_create_table_like
 {
 public:
-  enum_sql_command sql_command_code() const { return SQLCOM_CREATE_TABLE; }
+  enum_sql_command sql_command_code() const override { return SQLCOM_CREATE_TABLE; }
 };
 
 class Sql_cmd_create_sequence: public Sql_cmd_create_table_like
 {
 public:
-  enum_sql_command sql_command_code() const { return SQLCOM_CREATE_SEQUENCE; }
+  enum_sql_command sql_command_code() const override { return SQLCOM_CREATE_SEQUENCE; }
 };
 
 
@@ -268,9 +268,9 @@ public:
     @param thd the current thread.
     @return false on success.
   */
-  bool execute(THD *thd);
+  bool execute(THD *thd) override;
 
-  virtual enum_sql_command sql_command_code() const
+  enum_sql_command sql_command_code() const override
   {
     return SQLCOM_CALL;
   }

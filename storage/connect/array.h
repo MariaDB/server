@@ -38,11 +38,11 @@ class DllExport ARRAY : public XOBJECT, public CSORT { // Array descblock
 //ARRAY(PGLOBAL g, PARRAY par, int k);
 
   // Implementation
-  virtual int   GetType(void) {return TYPE_ARRAY;}
-  virtual int   GetResultType(void) {return Type;}
-  virtual int   GetLength(void) {return Len;}
-  virtual int   GetLengthEx(void) {return Len;}
-  virtual int   GetScale() {return 0;}
+  int   GetType(void) override {return TYPE_ARRAY;}
+  int   GetResultType(void) override {return Type;}
+  int   GetLength(void) override {return Len;}
+  int   GetLengthEx(void) override {return Len;}
+  int   GetScale() override {return 0;}
           int   GetNval(void) {return Nval;}
           int   GetSize(void) {return Size;}
 //        PVAL  GetValp(void) {return Valp;}
@@ -51,13 +51,13 @@ class DllExport ARRAY : public XOBJECT, public CSORT { // Array descblock
 
   // Methods
   using XOBJECT::GetIntValue;
-  virtual void  Reset(void) {Bot = -1;}
-  virtual int   Qcompare(int *, int *);
-  virtual bool  Compare(PXOB) {assert(false); return false;}
-  virtual bool  SetFormat(PGLOBAL, FORMAT&) {assert(false); return false;}
+  void  Reset(void) override {Bot = -1;}
+  int   Qcompare(int *, int *) override;
+  bool  Compare(PXOB) override {assert(false); return false;}
+  bool  SetFormat(PGLOBAL, FORMAT&) override {assert(false); return false;}
 //virtual int   CheckSpcCol(PTDB, int) {return 0;}
-  virtual void  Printf(PGLOBAL g, FILE *f, uint n);
-  virtual void  Prints(PGLOBAL g, char *ps, uint z);
+  void  Printf(PGLOBAL g, FILE *f, uint n) override;
+  void  Prints(PGLOBAL g, char *ps, uint z) override;
 //        void  Empty(void);
           void  SetPrecision(PGLOBAL g, int p);
           bool  AddValue(PGLOBAL g, PSZ sp);
@@ -119,7 +119,7 @@ class MULAR : public CSORT, public BLOCK {   // No need to be an XOBJECT
   void SetPars(PARRAY par, int i) {Pars[i] = par;}
 
   // Methods
-  virtual int Qcompare(int *i1, int *i2);   // Sort compare routine
+  int Qcompare(int *i1, int *i2) override;   // Sort compare routine
           bool Sort(PGLOBAL g);
 
  protected:

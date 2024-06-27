@@ -472,7 +472,7 @@ class Field_fixer: public Field_enumerator
 public:
   table_map used_tables; /* Collect used_tables here */
   st_select_lex *new_parent; /* Select we're in */
-  virtual void visit_field(Item_field *item)
+  void visit_field(Item_field *item) override
   {
     //for (TABLE_LIST *tbl= new_parent->leaf_tables; tbl; tbl= tbl->next_local)
     //{

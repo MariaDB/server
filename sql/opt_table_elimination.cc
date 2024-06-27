@@ -257,9 +257,9 @@ public:
   Field *field; /* Field this object is representing */
   
   /* Iteration over unbound modules that are our dependencies */
-  Iterator init_unbound_modules_iter(char *buf);
+  Iterator init_unbound_modules_iter(char *buf) override;
   Dep_module* get_next_unbound_module(Dep_analysis_context *dac, 
-                                      Iterator iter);
+                                      Iterator iter) override;
   
   void make_unbound_modules_iter_skip_keys(Iterator iter);
   
@@ -326,9 +326,9 @@ public:
   Dep_module_pseudo_key *pseudo_key;
 
   /* Iteration over unbound modules that are our dependencies */
-  Iterator init_unbound_modules_iter(char *buf);
+  Iterator init_unbound_modules_iter(char *buf) override;
   Dep_module* get_next_unbound_module(Dep_analysis_context *dac, 
-                                      Iterator iter);
+                                      Iterator iter) override;
   static const size_t iterator_size;
 private:
   class Module_iter
@@ -410,8 +410,8 @@ public:
   /* Used during condition analysis only, similar to KEYUSE::level */
   uint level;
 
-  Iterator init_unbound_values_iter(char *buf);
-  Dep_value* get_next_unbound_value(Dep_analysis_context *dac, Iterator iter);
+  Iterator init_unbound_values_iter(char *buf) override;
+  Dep_value* get_next_unbound_value(Dep_analysis_context *dac, Iterator iter) override;
   static const size_t iterator_size;
 private:
   class Value_iter
@@ -445,8 +445,8 @@ public:
   /* Unique keys form a linked list, ordered by keyno */
   Dep_module_key *next_table_key;
   
-  Iterator init_unbound_values_iter(char *buf);
-  Dep_value* get_next_unbound_value(Dep_analysis_context *dac, Iterator iter);
+  Iterator init_unbound_values_iter(char *buf) override;
+  Dep_value* get_next_unbound_value(Dep_analysis_context *dac, Iterator iter) override;
   static const size_t iterator_size;
 private:
   class Value_iter
@@ -529,18 +529,18 @@ public:
   {
     unbound_args= n_children;
   }
-  bool is_final() { return TRUE; }
+  bool is_final() override { return TRUE; }
   /* 
     This is the goal module, so the running wave algorithm should terminate
     once it sees that this module is applicable and should never try to apply
     it, hence no use for unbound value iterator implementation.
   */
-  Iterator init_unbound_values_iter(char *buf)
+  Iterator init_unbound_values_iter(char *buf) override
   { 
     DBUG_ASSERT(0); 
     return NULL;
   }
-  Dep_value* get_next_unbound_value(Dep_analysis_context *dac, Iterator iter)
+  Dep_value* get_next_unbound_value(Dep_analysis_context *dac, Iterator iter) override
   {
     DBUG_ASSERT(0); 
     return NULL;
@@ -1057,7 +1057,7 @@ public:
   Field_dependency_recorder(Dep_analysis_context *ctx_arg): ctx(ctx_arg)
   {}
   
-  void visit_field(Item_field *item)
+  void visit_field(Item_field *item) override
   {
     Field *field= item->field;
     Dep_value_table *tbl_dep;

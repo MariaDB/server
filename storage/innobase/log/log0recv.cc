@@ -4727,7 +4727,9 @@ err_exit:
 		}
 		log_sys.set_buf_free(recv_sys.offset);
 		if (recv_needed_recovery
-	            && srv_operation <= SRV_OPERATION_EXPORT_RESTORED) {
+		    && srv_operation <= SRV_OPERATION_EXPORT_RESTORED
+		    && recv_sys.lsn - log_sys.next_checkpoint_lsn
+		    < log_sys.log_capacity) {
 			/* Write a FILE_CHECKPOINT marker as the first thing,
 			before generating any other redo log. This ensures
 			that subsequent crash recovery will be possible even
@@ -4736,6 +4738,7 @@ err_exit:
 		}
 	}
 
+	DBUG_EXECUTE_IF("before_final_redo_apply", goto err_exit;);
 	mysql_mutex_lock(&recv_sys.mutex);
 	if (UNIV_UNLIKELY(recv_sys.scanned_lsn != recv_sys.lsn)
 	    && log_sys.is_latest()) {

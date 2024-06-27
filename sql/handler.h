@@ -5256,8 +5256,8 @@ public:
     : thd(thd_arg), wild(NULL), with_temps(true), tables(tables_arg) {}
   ~Discovered_table_list() = default;
 
-  bool add_table(const char *tname, size_t tlen);
-  bool add_file(const char *fname);
+  bool add_table(const char *tname, size_t tlen) override;
+  bool add_file(const char *fname) override;
 
   void sort();
   void remove_duplicates(); // assumes that the list is sorted

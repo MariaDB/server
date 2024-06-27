@@ -14794,11 +14794,13 @@ ha_innobase::info_low(
 			stats.index_file_length
 				= ulonglong(stat_sum_of_other_index_sizes)
 				* size;
-			space->s_lock();
-			stats.delete_length = 1024
-				* fsp_get_available_space_in_free_extents(
+			if (flag & HA_STATUS_VARIABLE_EXTRA) {
+				space->s_lock();
+				stats.delete_length = 1024
+					* fsp_get_available_space_in_free_extents(
 					*space);
-			space->s_unlock();
+				space->s_unlock();
+			}
 		}
 		stats.check_time = 0;
 		stats.mrr_length_per_rec= (uint)ref_length +  8; // 8 = max(sizeof(void *));
@@ -18698,6 +18700,25 @@ void lock_wait_wsrep_kill(trx_t *bf_trx, ulong thd_id, trx_id_t trx_id)
     wsrep_thd_UNLOCK(vthd);
     wsrep_thd_kill_UNLOCK(vthd);
   }
+
+#ifdef ENABLED_DEBUG_SYNC
+    DBUG_EXECUTE_IF(
+        "wsrep_after_kill",
+        {const char act[]=
+             "now "
+             "SIGNAL wsrep_after_kill_reached "
+             "WAIT_FOR wsrep_after_kill_continue";
+          DBUG_ASSERT(!debug_sync_set_action(bf_thd, STRING_WITH_LEN(act)));
+        };);
+    DBUG_EXECUTE_IF(
+        "wsrep_after_kill_2",
+        {const char act2[]=
+             "now "
+             "SIGNAL wsrep_after_kill_reached_2 "
+             "WAIT_FOR wsrep_after_kill_continue_2";
+          DBUG_ASSERT(!debug_sync_set_action(bf_thd, STRING_WITH_LEN(act2)));
+        };);
+#endif /* ENABLED_DEBUG_SYNC*/
 }
 
 /** This function forces the victim transaction to abort. Aborting the

@@ -5849,7 +5849,7 @@ public:
   select_value_catcher(THD *thd_arg, Item_subselect *item_arg):
     select_subselect(thd_arg, item_arg)
   {}
-  int send_data(List<Item> &items);
+  int send_data(List<Item> &items) override;
   int setup(List<Item> *items);
   bool assigned;  /* TRUE <=> we've caught a value */
   uint n_elements; /* How many elements we get */
