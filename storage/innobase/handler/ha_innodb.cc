@@ -1214,11 +1214,8 @@ struct
 }
 log_requests;
 
-/** @brief Adjust some InnoDB startup parameters based on file contents
-or innodb_page_size. */
-static
-void
-innodb_params_adjust();
+/** Adjust some InnoDB startup parameters based on the data directory */
+static void innodb_params_adjust();
 
 /*******************************************************************//**
 This function is used to prepare an X/Open XA distributed transaction.
@@ -3688,6 +3685,16 @@ static MYSQL_SYSVAR_ULONGLONG(buffer_pool_size, innobase_buffer_pool_size,
   2ULL << 20,
   LLONG_MAX, 1024*1024L);
 
+static void innodb_log_write_ahead_size_update(THD *thd, st_mysql_sys_var*,
+                                               void *var, const void *save);
+
+static MYSQL_SYSVAR_UINT(log_write_ahead_size, log_sys.write_size,
+  PLUGIN_VAR_RQCMDARG,
+  "Redo log write size to avoid read-on-write; must be a power of two,"
+  " an integer fraction of innodb_log_file_size,"
+  " and up to innodb_log_buffer_size",
+  nullptr, innodb_log_write_ahead_size_update, 8192, 512, 16U << 20, 1);
+
 /****************************************************************//**
 Gives the file extension of an InnoDB single-table tablespace. */
 static const char* ha_innobase_exts[] = {
@@ -3806,6 +3813,20 @@ static int innodb_init_params()
 			<< (MYSQL_SYSVAR_NAME(buffer_pool_size).min_val >> 20)
 			<< "MiB current " << (innobase_buffer_pool_size >> 20)
 			<< "MiB";
+		DBUG_RETURN(HA_ERR_INITIALIZATION);
+	}
+
+	MYSQL_SYSVAR_NAME(log_write_ahead_size).max_val = log_sys.buf_size;
+	if (!ut_is_2pow(log_sys.write_size)
+	    || log_sys.write_size > log_sys.buf_size
+	    || size_t(srv_log_file_size) & (log_sys.write_size - 1)) {
+		sql_print_error("InnoDB: innodb_log_write_ahead_size=%u"
+				" is not a power of two, an integer fraction"
+				" of innodb_log_file_size=%llu,"
+				" or up to innodb_log_buffer_size=%u",
+				log_sys.write_size,
+				srv_log_file_size,
+				log_sys.buf_size);
 		DBUG_RETURN(HA_ERR_INITIALIZATION);
 	}
 
@@ -18523,6 +18544,16 @@ static void innodb_log_file_size_update(THD *thd, st_mysql_sys_var*,
   mysql_mutex_lock(&LOCK_global_system_variables);
 }
 
+static void innodb_log_write_ahead_size_update(THD *thd, st_mysql_sys_var*,
+                                               void *, const void *save)
+{
+  if (high_level_read_only)
+    ib_senderrf(thd, IB_LOG_LEVEL_ERROR, ER_READ_ONLY_MODE);
+  else if (!log_sys.set_write_size(*static_cast<const uint*>(save)))
+    ib_senderrf(thd, IB_LOG_LEVEL_ERROR, ER_WRONG_ARGUMENTS,
+		"innodb_log_write_ahead_size");
+}
+
 static void innodb_log_spin_wait_delay_update(THD *, st_mysql_sys_var*,
                                               void *, const void *save)
 {
@@ -19850,6 +19881,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(log_file_buffering),
 #endif
   MYSQL_SYSVAR(log_file_size),
+  MYSQL_SYSVAR(log_write_ahead_size),
   MYSQL_SYSVAR(log_spin_wait_delay),
   MYSQL_SYSVAR(log_group_home_dir),
   MYSQL_SYSVAR(max_dirty_pages_pct),
@@ -20010,20 +20042,25 @@ i_s_innodb_sys_virtual,
 i_s_innodb_tablespaces_encryption
 maria_declare_plugin_end;
 
-/** @brief Adjust some InnoDB startup parameters based on file contents
-or innodb_page_size. */
-static
-void
-innodb_params_adjust()
+/** Adjust some InnoDB startup parameters based on the data directory */
+static void innodb_params_adjust()
 {
-	MYSQL_SYSVAR_NAME(max_undo_log_size).max_val
-		= 1ULL << (32U + srv_page_size_shift);
-	MYSQL_SYSVAR_NAME(max_undo_log_size).min_val
-		= MYSQL_SYSVAR_NAME(max_undo_log_size).def_val
-		= ulonglong(SRV_UNDO_TABLESPACE_SIZE_IN_PAGES)
-		<< srv_page_size_shift;
-	MYSQL_SYSVAR_NAME(max_undo_log_size).max_val
-		= 1ULL << (32U + srv_page_size_shift);
+  MYSQL_SYSVAR_NAME(max_undo_log_size).max_val=
+    1ULL << (32U + srv_page_size_shift);
+  MYSQL_SYSVAR_NAME(max_undo_log_size).min_val=
+    MYSQL_SYSVAR_NAME(max_undo_log_size).def_val=
+    ulonglong{SRV_UNDO_TABLESPACE_SIZE_IN_PAGES} << srv_page_size_shift;
+  MYSQL_SYSVAR_NAME(max_undo_log_size).max_val=
+    1ULL << (32U + srv_page_size_shift);
+
+#if defined __linux__ || defined _WIN32
+  uint& min_val= MYSQL_SYSVAR_NAME(log_write_ahead_size).min_val;
+  if (min_val < log_sys.write_size)
+    min_val= log_sys.write_size;
+#endif
+  ut_ad(MYSQL_SYSVAR_NAME(log_write_ahead_size).min_val <=
+        log_sys.write_size);
+  ut_ad(MYSQL_SYSVAR_NAME(log_write_ahead_size).max_val == log_sys.buf_size);
 }
 
 /****************************************************************************

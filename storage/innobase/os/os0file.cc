@@ -1094,7 +1094,6 @@ static ATTRIBUTE_COLD void os_file_log_buffered()
 {
   log_sys.log_maybe_unbuffered= false;
   log_sys.log_buffered= true;
-  log_sys.set_block_size(512);
 }
 # endif
 
@@ -1107,7 +1106,11 @@ static ATTRIBUTE_COLD bool os_file_log_maybe_unbuffered(const struct stat &st)
   if (snprintf(b, sizeof b, "/sys/dev/block/%u:%u/queue/physical_block_size",
                major(st.st_dev), minor(st.st_dev)) >=
       static_cast<int>(sizeof b))
+  {
+  fallback:
+    log_sys.set_block_size(512);
     return false;
+  }
   int f= open(b, O_RDONLY);
   if (f == -1)
   {
@@ -1115,7 +1118,7 @@ static ATTRIBUTE_COLD bool os_file_log_maybe_unbuffered(const struct stat &st)
                  "physical_block_size",
                  major(st.st_dev), minor(st.st_dev)) >=
         static_cast<int>(sizeof b))
-      return false;
+      goto fallback;
     f= open(b, O_RDONLY);
   }
   unsigned long s= 0;
@@ -1132,7 +1135,7 @@ static ATTRIBUTE_COLD bool os_file_log_maybe_unbuffered(const struct stat &st)
     close(f);
   }
   if (s > 4096 || s < 64 || !ut_is_2pow(s))
-    return false;
+    goto fallback;
   log_sys.set_block_size(uint32_t(s));
 # else
   constexpr unsigned long s= 4096;
@@ -1209,11 +1212,7 @@ os_file_create_func(
 			break;
 		}
 # ifdef __linux__
-	} else if (type != OS_LOG_FILE) {
-	} else if (log_sys.log_buffered) {
-	skip_o_direct:
-		os_file_log_buffered();
-	} else if (create_mode != OS_FILE_CREATE
+	} else if (type == OS_LOG_FILE && create_mode != OS_FILE_CREATE
 		   && create_mode != OS_FILE_CREATE_SILENT
 		   && !log_sys.is_opened()) {
 		if (stat(name, &st)) {
@@ -1225,15 +1224,16 @@ os_file_create_func(
 					"InnoDB: File %s was not found", name);
 				goto not_found;
 			}
+			log_sys.set_block_size(512);
 			goto skip_o_direct;
+		} else if (!os_file_log_maybe_unbuffered(st)
+                           || log_sys.log_buffered) {
+skip_o_direct:
+			os_file_log_buffered();
+		} else {
+			direct_flag = O_DIRECT;
+			log_sys.log_maybe_unbuffered = true;
 		}
-
-		if (!os_file_log_maybe_unbuffered(st)) {
-			goto skip_o_direct;
-		}
-
-		direct_flag = O_DIRECT;
-		log_sys.log_maybe_unbuffered= true;
 # endif
 	}
 #else

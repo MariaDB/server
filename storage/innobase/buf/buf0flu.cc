@@ -1897,6 +1897,28 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
     resize_lsn.store(0, std::memory_order_relaxed);
   }
 
+
+  if (UNIV_UNLIKELY(write_size < write_size_requested))
+  {
+    /* The write unit size is being reduced. Discard a part of the buffer
+    that may already have been written out using this smaller size. */
+#if 0 // TODO
+    ssize_t old_buf_free= length - size_t(lsn - write_lsn);
+    if (old_buf_free > ssize_t(write_size_1))
+    {
+      const size_t written{size_t(old_buf_free) & ~write_size_1};
+      length-= written;
+      memmove_aligned<512>(buf, buf + written, length);
+      if (resize_buf)
+        memmove_aligned<512>(resize_buf, resize_buf + written, length);
+      if (length > write_size_1)
+        goto buffer_swap;
+      buf_free.store(length, std::memory_order_relaxed);
+      goto no_buffer_swap;
+    }
+#endif
+  }
+
   log_resize_release();
 
   if (UNIV_LIKELY(resizing <= 1));
