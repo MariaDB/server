@@ -163,6 +163,7 @@ FVectorNode::FVectorNode(MHNSW_Context *ctx_, const void *tref_, size_t layer,
                          const void *vec_)
   : FVector(ctx_, vec_), gref(gref_max)
 {
+  DBUG_ASSERT(tref_);
   tref= (uchar*)memdup_root(&ctx->root, tref_, get_tref_len());
   alloc_neighborhood(layer);
   for (size_t i= 0; i <= layer; i++)
@@ -209,7 +210,7 @@ int FVectorNode::alloc_neighborhood(size_t layer)
 int FVectorNode::load()
 {
   DBUG_ASSERT(gref);
-  if (tref)
+  if (vec)
     return 0;
 
   TABLE *graph= ctx->table->hlindex;
@@ -221,10 +222,15 @@ int FVectorNode::load()
 int FVectorNode::load_from_record()
 {
   TABLE *graph= ctx->table->hlindex;
-  String buf, *v= graph->field[FIELD_TREF]->val_str(&buf);
-  if (unlikely(!v || v->length() != get_tref_len()))
-    return ctx->err= HA_ERR_CRASHED;
-  tref= (uchar*)memdup_root(&ctx->root, v->ptr(), v->length());
+  String buf, *v;
+
+  if (!graph->field[FIELD_TREF]->is_null())
+  {
+    v= graph->field[FIELD_TREF]->val_str(&buf);
+    if (unlikely(!v || v->length() != get_tref_len()))
+      return ctx->err= HA_ERR_CRASHED;
+    tref= (uchar*)memdup_root(&ctx->root, v->ptr(), v->length());
+  }
 
   v= graph->field[FIELD_VEC]->val_str(&buf);
   if (unlikely(!v))
@@ -391,13 +397,20 @@ int FVectorNode::save()
 {
   TABLE *graph= ctx->table->hlindex;
 
-  DBUG_ASSERT(tref);
+  // DBUG_ASSERT(tref);
   DBUG_ASSERT(vec);
   DBUG_ASSERT(neighbors);
 
   graph->field[FIELD_LAYER]->store(max_layer, false);
-  graph->field[FIELD_TREF]->set_notnull();
-  graph->field[FIELD_TREF]->store_binary(tref, get_tref_len());
+  if (tref)
+  {
+    graph->field[FIELD_TREF]->set_notnull();
+    graph->field[FIELD_TREF]->store_binary(tref, get_tref_len());
+  }
+  else
+  {
+    graph->field[FIELD_TREF]->set_null();
+  }
   graph->field[FIELD_VEC]->store_binary((uchar*)vec, ctx->byte_len);
 
   size_t total_size= 0;
@@ -465,7 +478,7 @@ static int update_second_degree_neighbors(MHNSW_Context *ctx, size_t layer,
 static int search_layer(MHNSW_Context *ctx, const FVector &target,
                         const List<FVectorNode> &start_nodes,
                         uint max_candidates_return, size_t layer,
-                        List<FVectorNode> *result)
+                        List<FVectorNode> *result, bool skip_deleted_node)
 {
   DBUG_ASSERT(start_nodes.elements > 0);
   DBUG_ASSERT(result->elements == 0);
@@ -478,17 +491,26 @@ static int search_layer(MHNSW_Context *ctx, const FVector &target,
 
   ctx->visited++;
 
-  for (const FVectorNode &node : start_nodes)
+  for (FVectorNode &node : start_nodes)
   {
     candidates.push(&node);
+    node.is_visited();
+    node.load();
+
+    // use deleted nodes for search but do not return
+    if (skip_deleted_node && !node.get_tref())
+      continue;
+
     if (best.elements() < max_candidates_return)
       best.push(&node);
     else if (node.distance_to(target) > best.top()->distance_to(target))
       best.replace_top(&node);
-    node.is_visited();
   }
 
-  float furthest_best= best.top()->distance_to(target);
+  // edge case: all start_nodes are deleted, so best is empty
+  float furthest_best= best.elements() > 0 ?
+                       best.top()->distance_to(target) : FLT_MAX;
+
   while (candidates.elements())
   {
     const FVectorNode &cur_vec= *candidates.pop();
@@ -499,21 +521,29 @@ static int search_layer(MHNSW_Context *ctx, const FVector &target,
              // Can't get better.
     }
 
-    for (const FVectorNode &neigh: cur_vec.neighbors[layer])
+    for (FVectorNode &neigh: cur_vec.neighbors[layer])
     {
       if (neigh.is_visited())
         continue;
+      neigh.load();
+
       if (best.elements() < max_candidates_return)
       {
         candidates.push(&neigh);
-        best.push(&neigh);
-        furthest_best= best.top()->distance_to(target);
+        if (!skip_deleted_node || neigh.get_tref())
+        {
+          best.push(&neigh);
+          furthest_best= best.top()->distance_to(target);
+        }
       }
       else if (neigh.distance_to(target) < furthest_best)
       {
-        best.replace_top(&neigh);
         candidates.push(&neigh);
-        furthest_best= best.top()->distance_to(target);
+        if (!skip_deleted_node || neigh.get_tref())
+        {
+          best.replace_top(&neigh);
+          furthest_best= best.top()->distance_to(target);
+        }
       }
     }
   }
@@ -551,7 +581,6 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
   DBUG_ASSERT(vec_field->binary());
   DBUG_ASSERT(vec_field->cmp_type() == STRING_RESULT);
   DBUG_ASSERT(res); // ER_INDEX_CANNOT_HAVE_NULL
-  DBUG_ASSERT(h->ref_length <= graph->field[FIELD_TREF]->field_length);
 
   // XXX returning an error here will rollback the insert in InnoDB
   // but in MyISAM the row will stay inserted, making the index out of sync:
@@ -619,7 +648,8 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
 
   for (cur_layer= max_layer; cur_layer > new_node_layer; cur_layer--)
   {
-    if (search_layer(&ctx, target, start_nodes, 1, cur_layer, &candidates))
+    if (search_layer(&ctx, target, start_nodes, 1, cur_layer,
+                     &candidates, false))
       return ctx.err;
     start_nodes= candidates;
     candidates.empty();
@@ -632,7 +662,7 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
      : thd->variables.mhnsw_max_edges_per_node;
     if (search_layer(&ctx, target, start_nodes,
                   static_cast<uint>(ef_construction_multiplier * max_neighbors),
-                  cur_layer, &candidates))
+                  cur_layer, &candidates, false))
       return ctx.err;
 
     if (select_neighbors(&ctx, cur_layer, target, candidates, max_neighbors))
@@ -719,13 +749,14 @@ int mhnsw_first(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit)
 
   for (size_t cur_layer= max_layer; cur_layer > 0; cur_layer--)
   {
-    if (search_layer(&ctx, target, start_nodes, 1, cur_layer, &candidates))
+    if (search_layer(&ctx, target, start_nodes, 1, cur_layer,
+                     &candidates, false))
       return ctx.err;
     start_nodes= candidates;
     candidates.empty();
   }
 
-  if (search_layer(&ctx, target, start_nodes, ef_search, 0, &candidates))
+  if (search_layer(&ctx, target, start_nodes, ef_search, 0, &candidates, true))
     return ctx.err;
 
   size_t context_size=limit * h->ref_length + sizeof(ulonglong);
@@ -735,7 +766,7 @@ int mhnsw_first(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit)
   *(ulonglong*)context= limit;
   context+= context_size;
 
-  while (limit--)
+  while (candidates.elements && limit--)
   {
     context-= h->ref_length;
     memcpy(context, candidates.pop()->get_tref(), h->ref_length);
@@ -756,6 +787,60 @@ int mhnsw_next(TABLE *table)
   return HA_ERR_END_OF_FILE;
 }
 
+int mhnsw_invalidate(TABLE *table, uchar *rec, KEY *keyinfo)
+{
+  TABLE *graph= table->hlindex;
+  Field *vec_field= keyinfo->key_part->field;
+  String buf, *res= vec_field->val_str(&buf);
+  handler *h= table->file;
+  int err= 0;
+
+  /* metadata are checked on open */
+  DBUG_ASSERT(graph);
+  DBUG_ASSERT(keyinfo->algorithm == HA_KEY_ALG_MHNSW);
+  DBUG_ASSERT(keyinfo->usable_key_parts == 1);
+  DBUG_ASSERT(vec_field->binary());
+  DBUG_ASSERT(vec_field->cmp_type() == STRING_RESULT);
+  DBUG_ASSERT(res); // ER_INDEX_CANNOT_HAVE_NULL
+  DBUG_ASSERT(h->ref_length <= graph->field[1]->field_length);
+  DBUG_ASSERT(h->ref_length <= graph->field[2]->field_length);
+
+  if (res->length() == 0 || res->length() % 4)
+    return 1;
+
+  // use index on tref
+  if ((err= graph->file->ha_index_init(1, 0)))
+    return err;
+
+  // target record:
+  h->position(rec);
+  graph->field[FIELD_TREF]->set_notnull();
+  graph->field[FIELD_TREF]->store_binary(
+    reinterpret_cast<const char *>(h->ref), h->ref_length);
+
+  uchar *key= (uchar*)alloca(graph->key_info[1].key_length);
+  key_copy(key, graph->record[0], graph->key_info + 1,
+           graph->key_info[1].key_length);
+
+  err= graph->file->ha_index_read_map(graph->record[1], key,
+                                      HA_WHOLE_KEY,
+                                      HA_READ_KEY_EXACT);
+
+  // Deleted tref not found in index, should not happen
+  if (err == HA_ERR_KEY_NOT_FOUND)
+  {
+      DBUG_ASSERT(0);
+      return err;
+  }
+
+  restore_record(graph, record[1]);
+  graph->field[FIELD_TREF]->set_null();
+
+  graph->file->ha_update_row(graph->record[1], graph->record[0]);
+
+  return 0;
+}
+
 const LEX_CSTRING mhnsw_hlindex_table_def(THD *thd, uint ref_length)
 {
   const char templ[]="CREATE TABLE i (                   "
@@ -763,7 +848,8 @@ const LEX_CSTRING mhnsw_hlindex_table_def(THD *thd, uint ref_length)
                      "  ref varbinary(%u),               "
                      "  vec blob not null,               "
                      "  neighbors blob not null,         "
-                     "  key (layer))                     ";
+                     "  key (layer),                     "
+                     "  key (ref))                       ";
   size_t len= sizeof(templ) + 32;
   char *s= thd->alloc(len);
   len= my_snprintf(s, len, templ, ref_length);
