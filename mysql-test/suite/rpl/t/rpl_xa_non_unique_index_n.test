@@ -1,0 +1,169 @@
+# The test proves that
+#
+# A. an XA-prepared transaction releases locks on unmodified index records;
+# B. so that following transactions are able to find their target records
+#    even though locked records by earlier XA-prepared transaction are
+#    in the way of non-unique indexes scanning.
+#
+# REFERENCES
+#
+#    MDEV-33455 skip modified rows in parallel XA replication, don't wait
+#    MDEV-34481 optimize away waiting for owned by prepared xa non-unique index
+#    MDEV-34466 XA prepare don't release unmodified records for some cases
+#
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
+# The test consists of three parts
+# 1. Prepare load such that two transactions trx_1, trx_2 are clearly isolated
+#    from each other on master thanks to forcing index.
+# 2. Slave serial mode check ensures that the 1st prepared XA releases
+#    "avariciously" acquired locks (the propertry A), as well as
+#    the 2nd transaction is able to step over locked records (the B) to
+#    successfully scan out its target one, instead of ending up with
+#    the timeout error.
+# 3. Slave parallel mode check aims at
+#    the same as p.2 complicated by trx_2 having locked its target record
+#    before trx_1 has started.
+
+--connection master
+--echo *** 1. Prepare load ***
+CREATE TABLE t1 (a int, b int, c int,
+  INDEX i1(a),
+  INDEX i2(b))
+  ENGINE=InnoDB;
+--source include/save_master_gtid.inc
+--let $gtid_binlog_pos_0=$master_pos
+
+INSERT INTO t1 VALUES
+  (1,1,0), (1,2,0), (1,3,0), (1,4,0), (1,5,0),
+  (2,1,0), (2,2,0),
+  (3,1,0), (4,1,0), (5,1,0), (6,1,0), (7,1,0), (8,1,0), (9,1,0);
+--sync_slave_with_master
+
+--source include/stop_slave.inc
+SET @old_timeout= @@GLOBAL.innodb_lock_wait_timeout;
+SET @old_retries= @@GLOBAL.slave_transaction_retries;
+SET GLOBAL innodb_lock_wait_timeout= 2;
+SET GLOBAL slave_transaction_retries= 3;
+--source include/start_slave.inc
+
+--connection master
+SET @@gtid_seq_no=100;
+XA START "trx_1";
+UPDATE t1 FORCE INDEX (i2) SET c=c+1 WHERE a=1 AND (b=1 OR b=2 OR b=5);
+XA END "trx_1";
+XA PREPARE "trx_1";
+
+--connection master1
+XA START "trx_2";
+UPDATE t1 FORCE INDEX (i2) SET c=c+1 WHERE a=1 AND b=3;
+XA END "trx_2";
+XA PREPARE "trx_2";
+
+--connect(master2,localhost,root,,)
+--connection master2
+XA START "trx_3";
+UPDATE t1 FORCE INDEX (i2) SET c=c+1 WHERE a=1 AND b=4;
+XA END "trx_3";
+XA PREPARE "trx_3";
+
+--connection master
+XA COMMIT "trx_1";
+
+--connection master1
+XA COMMIT "trx_2";
+
+--connection master2
+XA COMMIT "trx_3";
+--source include/save_master_gtid.inc
+--let $gtid_binlog_pos_final = $master_pos
+
+--connection master
+SELECT * FROM t1 ORDER BY a,b,c;
+
+--echo *** 2. Serial mode check ***
+--sync_slave_with_master
+SELECT * FROM t1 ORDER BY a,b,c;
+
+--echo *** 3. Parallel mode check ***
+# Rerun the DML part with slave worker threads
+--connection slave
+--source include/stop_slave.inc
+delete from t1;
+reset master;
+--evalp set @@global.gtid_slave_pos='$gtid_binlog_pos_0'
+
+set @old_slave_parallel_threads=@@global.slave_parallel_threads;
+set @old_slave_parallel_mode=@@global.slave_parallel_mode;
+set @@global.slave_parallel_threads=3;
+set @@global.slave_parallel_mode=optimistic;
+CHANGE MASTER TO master_use_gtid=slave_pos;
+SET @@global.debug_dbug="+d,hold_worker_on_schedule";
+--source include/start_slave.inc
+
+# for deterministic run make sure the table filled up for next trx1..2 to act
+--let $master_pos=$gtid_binlog_pos_0
+--source include/sync_with_master_gtid.inc
+
+--echo # trx:s wait for the parent one to complete its XA-prepare
+--let $wait_condition= SELECT count(*) = 2 FROM information_schema.processlist WHERE state LIKE "Waiting for prior transaction to commit"
+--source include/wait_condition.inc
+
+# trx_1's wait for trx_2,3 to dock themselves in wait-for-prior-commit.
+# Next prepare trx_2(seq_no=101) and trx_3 to hold on at before open tables
+# until the predesessors trx_1,trx_2 respectively have released their extra
+# locks at the end of xa-prepare.
+# The subsequent two waits are necessary in order to avoid MDEV-34466.
+# Specfically to not let concurrent lock acquision by latter trx while
+# an earlier one though has released the former from w-f-p-c could still be
+# in a phase of shaking off extra locks.
+SET @@global.debug_dbug="+d,rows_log_event_before_open_table";
+SET DEBUG_SYNC = 'now SIGNAL continue_worker';
+--let $wait_condition= select count(*)=1 from information_schema.processlist where state like "%debug%"
+--source include/wait_condition.inc
+SELECT count(*) = 2 as 'assert: true' FROM information_schema.processlist WHERE state LIKE "Waiting for prior transaction to commit";
+SET DEBUG_SYNC = 'now SIGNAL go_ahead_sql'; # to trx_1
+
+# Possible trx_2's wait for trx_1 complete exit.
+# As the selection of running indexes bases on engine statistics which the test
+# is unable to control the actual index may be "sporadically" chosen to
+# be the same non-conflicting one as on master. That's why the following wait
+# condtions are defined with an '>=' ineqalities and two possible processlist
+# states.
+--let $wait_fail_do= SELECT * from mysql.gtid_slave_pos
+--let $wait_condition= SELECT count(*) >= 1 FROM mysql.gtid_slave_pos WHERE seq_no >= 100
+--source include/wait_condition.inc
+--let $wait_condition= SELECT (select count(*) as cnt from  information_schema.processlist WHERE state LIKE "Waiting for work from SQL thread") = 3 or (select count(*) as cnt from  information_schema.processlist WHERE state LIKE "Waiting for prior transaction to commit") = 2
+--source include/wait_condition.inc
+SET DEBUG_SYNC = 'now SIGNAL go_ahead_sql'; # maybe to trx_2
+
+# Possible trx_3's wait for trx_2 complete exit.
+--let $wait_fail_do= SELECT * from mysql.gtid_slave_pos
+--let $wait_condition= SELECT count(*) >= 1 FROM mysql.gtid_slave_pos WHERE seq_no >= 101
+--source include/wait_condition.inc
+SET DEBUG_SYNC = 'now SIGNAL go_ahead_sql'; # maybe to trx_3
+
+--let $master_pos= $gtid_binlog_pos_final
+--source include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a,b,c;
+
+
+# Cleanup
+--connection master
+DROP TABLE t1;
+
+--connection slave
+SET GLOBAL innodb_lock_wait_timeout= @old_timeout;
+SET GLOBAL slave_transaction_retries= @old_retries;
+--source include/stop_slave.inc
+SET debug_sync = RESET;
+SET @@global.debug_dbug = "";
+set @@global.slave_parallel_threads= @old_slave_parallel_threads;
+set @@global.slave_parallel_mode= @old_slave_parallel_mode;
+--source include/start_slave.inc
+
+--source include/rpl_end.inc

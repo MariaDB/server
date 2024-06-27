@@ -16,6 +16,8 @@
 #    let $wait_timeout= 60; # Override default 30 seconds with 60.
 #    let $wait_condition=
 #      SELECT c = 3 FROM t;
+#    let $wait_fail_do= SELECT * from t;
+#
 #    --source include/wait_condition.inc
 #    --echo Executed the test condition $wait_condition_reps times
 #
@@ -56,6 +58,10 @@ if (!$success)
 {
   echo Timeout in wait_condition.inc for $wait_condition;
   show full processlist;
+  if ($wait_fail_do)
+  {
+     --eval $wait_fail_do
+  }
 }
 
 --enable_query_log
