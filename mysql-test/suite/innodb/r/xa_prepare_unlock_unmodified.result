@@ -1,0 +1,22 @@
+CREATE TABLE t1 (a int, b int, c int,
+INDEX i1(a),
+INDEX i2(b))
+ENGINE=InnoDB;
+INSERT INTO t1 VALUES
+(1,1,0), (1,2,0),
+(2,1,0), (2,2,0);
+SET @old_timeout= @@GLOBAL.innodb_lock_wait_timeout;
+SET GLOBAL innodb_lock_wait_timeout= 1;
+XA START "t1";
+UPDATE t1 FORCE INDEX (i2) SET c=c+1 WHERE a=1 AND b=1;
+XA END "t1";
+XA PREPARE "t1";
+connect con1,localhost,root,,;
+SELECT * FROM t1 FORCE INDEX (i1) WHERE a=2 AND b=1 FOR UPDATE;
+a	b	c
+2	1	0
+disconnect con1;
+connection default;
+XA COMMIT "t1";
+DROP TABLE t1;
+SET GLOBAL innodb_lock_wait_timeout= @old_timeout;
