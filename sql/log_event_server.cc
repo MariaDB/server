@@ -2044,6 +2044,16 @@ compare_errors:
           actual_error == ER_CONNECTION_KILLED)
         thd->reset_killed();
     }
+    else if (actual_error == ER_XAER_NOTA && !rpl_filter->db_ok(get_db()))
+    {
+      /*
+        If there is an XA query whos XID cannot be found, if the replication
+        filter is active and filters the target database, assume that the XID
+        cache has been cleared (e.g. by server restart) since it was prepared,
+        so we can just ignore this event.
+      */
+      thd->clear_error(1);
+    }
     /*
       Other cases: mostly we expected no error and get one.
     */
