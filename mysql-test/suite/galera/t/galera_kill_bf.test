@@ -21,11 +21,11 @@ SET DEBUG_SYNC = 'now WAIT_FOR bf_started';
 --let $applier_thread = `SELECT ID FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE LIKE 'debug sync point:%' LIMIT 1`
 
 --replace_result $applier_thread ID
---error ER_KILL_DENIED_HIGH_PRIORITY
+--error ER_KILL_DENIED_ERROR
 --eval KILL $applier_thread
 
 --replace_result $applier_thread ID
---error ER_KILL_DENIED_HIGH_PRIORITY
+--error ER_KILL_DENIED_ERROR
 --eval KILL QUERY $applier_thread
 
 --connection node_1

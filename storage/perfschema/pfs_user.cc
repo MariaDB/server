@@ -314,7 +314,7 @@ public:
     : m_thread(thread)
   {}
 
-  virtual void operator()(PFS_user *pfs)
+  void operator()(PFS_user *pfs) override
   {
     pfs->aggregate(true);
     if (pfs->get_refcount() == 0)

@@ -7992,7 +7992,7 @@ class Dependency_marker: public Field_enumerator
 public:
   THD *thd;
   st_select_lex *current_select;
-  virtual void visit_field(Item_field *item)
+  void visit_field(Item_field *item) override
   {
     // Find which select the field is in. This is achieved by walking up 
     // the select tree and looking for the table of interest.

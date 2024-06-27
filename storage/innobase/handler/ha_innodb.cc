@@ -14493,11 +14493,13 @@ ha_innobase::info_low(
 			stats.index_file_length
 				= ulonglong(stat_sum_of_other_index_sizes)
 				* size;
-			rw_lock_s_lock(&space->latch);
-			stats.delete_length = 1024
-				* fsp_get_available_space_in_free_extents(
+			if (flag & HA_STATUS_VARIABLE_EXTRA) {
+				rw_lock_s_lock(&space->latch);
+				stats.delete_length = 1024
+					* fsp_get_available_space_in_free_extents(
 					*space);
-			rw_lock_s_unlock(&space->latch);
+				rw_lock_s_unlock(&space->latch);
+			}
 		}
 		stats.check_time = 0;
 		stats.mrr_length_per_rec= (uint)ref_length +  8; // 8 = max(sizeof(void *));

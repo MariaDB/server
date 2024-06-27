@@ -33,12 +33,12 @@ public:
     DBUG_ASSERT(a->type() == Item::FIELD_ITEM);
   }
 
-  virtual bool val_bool();
-  virtual longlong val_int()
+  bool val_bool() override;
+  longlong val_int() override
   {
     return (val_bool() ? 1 : 0);
   }
-  bool fix_length_and_dec()
+  bool fix_length_and_dec() override
   {
     maybe_null= 0;
     null_value= 0;
@@ -46,9 +46,9 @@ public:
     max_length= 1;
     return FALSE;
   }
-  virtual const char* func_name() const { return "is_history"; }
-  virtual void print(String *str, enum_query_type query_type);
-  Item *get_copy(THD *thd)
+  const char* func_name() const override { return "is_history"; }
+  void print(String *str, enum_query_type query_type) override;
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_history>(thd, this); }
 };
 
@@ -57,7 +57,7 @@ class Item_func_trt_ts: public Item_datetimefunc
   TR_table::field_id_t trt_field;
 public:
   Item_func_trt_ts(THD *thd, Item* a, TR_table::field_id_t _trt_field);
-  const char *func_name() const
+  const char *func_name() const override
   {
     if (trt_field == TR_table::FLD_BEGIN_TS)
     {
@@ -65,10 +65,10 @@ public:
     }
     return "trt_commit_ts";
   }
-  bool get_date(THD *thd, MYSQL_TIME *res, date_mode_t fuzzydate);
-  Item *get_copy(THD *thd)
+  bool get_date(THD *thd, MYSQL_TIME *res, date_mode_t fuzzydate) override;
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_trt_ts>(thd, this); }
-  bool fix_length_and_dec()
+  bool fix_length_and_dec() override
   { fix_attributes_datetime(decimals); return FALSE; }
 };
 
@@ -84,7 +84,7 @@ public:
   Item_func_trt_id(THD *thd, Item* a, TR_table::field_id_t _trt_field, bool _backwards= false);
   Item_func_trt_id(THD *thd, Item* a, Item* b, TR_table::field_id_t _trt_field);
 
-  const char *func_name() const
+  const char *func_name() const override
   {
     switch (trt_field)
     {
@@ -100,15 +100,15 @@ public:
     return NULL;
   }
 
-  bool fix_length_and_dec()
+  bool fix_length_and_dec() override
   {
     bool res= Item_int_func::fix_length_and_dec();
     max_length= 20;
     return res;
   }
 
-  longlong val_int();
-  Item *get_copy(THD *thd)
+  longlong val_int() override;
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_trt_id>(thd, this); }
 };
 
@@ -119,12 +119,12 @@ protected:
 
 public:
   Item_func_trt_trx_sees(THD *thd, Item* a, Item* b);
-  const char *func_name() const
+  const char *func_name() const override
   {
     return "trt_trx_sees";
   }
-  longlong val_int();
-  Item *get_copy(THD *thd)
+  longlong val_int() override;
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_trt_trx_sees>(thd, this); }
 };
 
@@ -137,7 +137,7 @@ public:
   {
     accept_eq= true;
   }
-  const char *func_name() const
+  const char *func_name() const override
   {
     return "trt_trx_sees_eq";
   }
