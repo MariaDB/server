@@ -3196,9 +3196,9 @@ static bool innobase_query_caching_table_check_low(
 	}
 #endif
 
-	table->lock_mutex_lock();
+	table->lock_shared_lock();
 	auto len= UT_LIST_GET_LEN(table->locks);
-	table->lock_mutex_unlock();
+	table->lock_shared_unlock();
 	return len == 0;
 }
 
@@ -5542,15 +5542,13 @@ is done when the table first opened.
 @param[in]	ib_table	InnoDB dict_table_t
 @param[in,out]	s_templ		InnoDB template structure
 @param[in]	add_v		new virtual columns added along with
-				add index call
-@param[in]	locked		true if dict_sys.latch is held */
+				add index call */
 void
 innobase_build_v_templ(
 	const TABLE*		table,
 	const dict_table_t*	ib_table,
 	dict_vcol_templ_t*	s_templ,
-	const dict_add_v_col_t*	add_v,
-	bool			locked)
+	const dict_add_v_col_t*	add_v)
 {
 	ulint	ncol = unsigned(ib_table->n_cols) - DATA_N_SYS_COLS;
 	ulint	n_v_col = ib_table->n_v_cols;
@@ -5558,6 +5556,7 @@ innobase_build_v_templ(
 
 	DBUG_ENTER("innobase_build_v_templ");
 	ut_ad(ncol < REC_MAX_N_FIELDS);
+	ut_ad(ib_table->lock_mutex_is_owner());
 
 	if (add_v != NULL) {
 		n_v_col += add_v->n_v_col;
@@ -5565,20 +5564,7 @@ innobase_build_v_templ(
 
 	ut_ad(n_v_col > 0);
 
-	if (!locked) {
-		dict_sys.lock(SRW_LOCK_CALL);
-	}
-
-#if 0
-	/* This does not (need to) hold for ctx->new_table in
-	alter_rebuild_apply_log() */
-	ut_ad(dict_sys.locked());
-#endif
-
 	if (s_templ->vtempl) {
-		if (!locked) {
-			dict_sys.unlock();
-		}
 		DBUG_VOID_RETURN;
 	}
 
@@ -5682,12 +5668,9 @@ innobase_build_v_templ(
 		j++;
 	}
 
-	if (!locked) {
-		dict_sys.unlock();
-	}
-
 	s_templ->db_name = table->s->db.str;
 	s_templ->tb_name = table->s->table_name.str;
+
 	DBUG_VOID_RETURN;
 }
 
@@ -5965,15 +5948,15 @@ ha_innobase::open(const char* name, int, uint)
 	key_used_on_scan = m_primary_key;
 
 	if (ib_table->n_v_cols) {
-		dict_sys.lock(SRW_LOCK_CALL);
+		ib_table->lock_mutex_lock();
+
 		if (ib_table->vc_templ == NULL) {
 			ib_table->vc_templ = UT_NEW_NOKEY(dict_vcol_templ_t());
 			innobase_build_v_templ(
-				table, ib_table, ib_table->vc_templ, NULL,
-				true);
+				table, ib_table, ib_table->vc_templ);
 		}
 
-		dict_sys.unlock();
+		ib_table->lock_mutex_unlock();
 	}
 
 	if (!check_index_consistency(table, ib_table)) {
@@ -14667,7 +14650,7 @@ fsp_get_available_space_in_free_extents(const fil_space_t& space)
 Returns statistics information of the table to the MySQL interpreter,
 in various fields of the handle object.
 @return HA_ERR_* error code or 0 */
-
+TRANSACTIONAL_TARGET
 int
 ha_innobase::info_low(
 /*==================*/
@@ -14748,19 +14731,37 @@ ha_innobase::info_low(
 		ulint	stat_clustered_index_size;
 		ulint	stat_sum_of_other_index_sizes;
 
-		ib_table->stats_mutex_lock();
-
 		ut_a(ib_table->stat_initialized);
 
-		n_rows = ib_table->stat_n_rows;
+#if !defined NO_ELISION && !defined SUX_LOCK_GENERIC
+		if (xbegin()) {
+			if (ib_table->stats_mutex_is_locked())
+				xabort();
 
-		stat_clustered_index_size
-			= ib_table->stat_clustered_index_size;
+			n_rows = ib_table->stat_n_rows;
 
-		stat_sum_of_other_index_sizes
-			= ib_table->stat_sum_of_other_index_sizes;
+			stat_clustered_index_size
+				= ib_table->stat_clustered_index_size;
 
-		ib_table->stats_mutex_unlock();
+			stat_sum_of_other_index_sizes
+				= ib_table->stat_sum_of_other_index_sizes;
+
+			xend();
+		} else
+#endif
+		{
+			ib_table->stats_shared_lock();
+
+			n_rows = ib_table->stat_n_rows;
+
+			stat_clustered_index_size
+				= ib_table->stat_clustered_index_size;
+
+			stat_sum_of_other_index_sizes
+				= ib_table->stat_sum_of_other_index_sizes;
+
+			ib_table->stats_shared_unlock();
+		}
 
 		/*
 		The MySQL optimizer seems to assume in a left join that n_rows
@@ -14880,9 +14881,9 @@ ha_innobase::info_low(
 			stats.create_time = (ulong) stat_info.ctime;
 		}
 
-		ib_table->stats_mutex_lock();
+		ib_table->stats_shared_lock();
 		auto _ = make_scope_exit([ib_table]() {
-			ib_table->stats_mutex_unlock(); });
+			ib_table->stats_shared_unlock(); });
 
 		ut_a(ib_table->stat_initialized);
 

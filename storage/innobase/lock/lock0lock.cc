@@ -6388,7 +6388,7 @@ resolve_table_lock:
       if (!table->lock_mutex_trylock())
       {
         /* The correct latching order is:
-        lock_sys.latch, table->lock_mutex_lock(), lock_sys.wait_mutex.
+        lock_sys.latch, table->lock_latch, lock_sys.wait_mutex.
         Thus, we must release lock_sys.wait_mutex for a blocking wait. */
         mysql_mutex_unlock(&lock_sys.wait_mutex);
         table->lock_mutex_lock();
@@ -6585,9 +6585,9 @@ bool lock_table_has_locks(dict_table_t *table)
   else
 #endif
   {
-    table->lock_mutex_lock();
+    table->lock_shared_lock();
     len= UT_LIST_GET_LEN(table->locks);
-    table->lock_mutex_unlock();
+    table->lock_shared_unlock();
   }
   if (len)
     return true;
