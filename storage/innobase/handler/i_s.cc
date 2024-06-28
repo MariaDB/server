@@ -4986,9 +4986,9 @@ i_s_dict_fill_sys_tablestats(THD* thd, dict_table_t *table,
   Field **fields= table_to_fill->field;
 
   {
-    table->stats_mutex_lock();
+    table->stats_shared_lock();
     auto _ = make_scope_exit([table]() {
-      table->stats_mutex_unlock(); dict_sys.unlock(); });
+      table->stats_shared_unlock(); dict_sys.unlock(); });
 
     OK(fields[SYS_TABLESTATS_ID]->store(longlong(table->id), TRUE));
 
