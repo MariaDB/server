@@ -12,29 +12,29 @@ ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 disconnect con1;
 connection default;
 COMMIT;
-SELECT variable_value > 100 FROM information_schema.global_status
+SELECT CAST(variable_value AS INT) > 100 FROM information_schema.global_status
 WHERE LOWER(variable_name) = 'innodb_row_lock_time';
-variable_value > 100
+CAST(variable_value AS INT) > 100
 1
-SELECT variable_value > 100 FROM information_schema.global_status
+SELECT CAST(variable_value AS INT) > 100 FROM information_schema.global_status
 WHERE LOWER(variable_name) = 'innodb_row_lock_time_max';
-variable_value > 100
+CAST(variable_value AS INT) > 100
 1
-SELECT variable_value > 100 FROM information_schema.global_status
+SELECT CAST(variable_value AS INT) > 100 FROM information_schema.global_status
 WHERE LOWER(variable_name) = 'innodb_row_lock_time_avg';
-variable_value > 100
+CAST(variable_value AS INT) > 100
 1
-SELECT count_reset > 100 FROM INFORMATION_SCHEMA.INNODB_METRICS
+SELECT CAST(count_reset AS INT) > 100 FROM INFORMATION_SCHEMA.INNODB_METRICS
 WHERE NAME="lock_row_lock_time";
-count_reset > 100
+CAST(count_reset AS INT) > 100
 1
-SELECT count_reset > 100 FROM INFORMATION_SCHEMA.INNODB_METRICS
+SELECT CAST(count_reset AS INT) > 100 FROM INFORMATION_SCHEMA.INNODB_METRICS
 WHERE NAME="lock_row_lock_time_max";
-count_reset > 100
+CAST(count_reset AS INT) > 100
 1
-SELECT count_reset > 100 FROM INFORMATION_SCHEMA.INNODB_METRICS
+SELECT CAST(count_reset AS INT) > 100 FROM INFORMATION_SCHEMA.INNODB_METRICS
 WHERE NAME="lock_row_lock_time_avg";
-count_reset > 100
+CAST(count_reset AS INT) > 100
 1
 DROP TABLE t;
 SET GLOBAL innodb_monitor_reset=default;
