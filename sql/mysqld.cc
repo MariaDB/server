@@ -8294,6 +8294,14 @@ mysqld_get_one_option(const struct my_option *opt, const char *argument,
     if (argument == NULL) /* no argument */
       log_error_file_ptr= const_cast<char*>("");
     break;
+  case OPT_LOG_SLOW_FILTER:
+    if (argument == NULL || *argument == 0)
+    {
+      /* By default log_slow_filter_has all values except QPLAN_NOT_USING_INDEX */
+      global_system_variables.log_slow_filter= opt->def_value | QPLAN_NOT_USING_INDEX;
+      sql_print_warning("log_slow_filter=\"\" changed to log_slow_filter=ALL");
+    }
+    break;
   case OPT_IGNORE_DB_DIRECTORY:
     opt_ignore_db_dirs= NULL; // will be set in ignore_db_dirs_process_additions
     if (*argument == 0)

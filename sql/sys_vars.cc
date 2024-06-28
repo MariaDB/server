@@ -6280,8 +6280,9 @@ static const char *log_slow_filter_names[]=
 
 static Sys_var_set Sys_log_slow_filter(
        "log_slow_filter",
-       "Log only certain types of queries to the slow log. If variable empty alll kind of queries are logged.  All types are bound by slow_query_time, except 'not_using_index' which is always logged if enabled",
-       SESSION_VAR(log_slow_filter), CMD_LINE(REQUIRED_ARG),
+       "Log only certain types of queries to the slow log. If variable empty all kind of queries are logged.  All types are bound by slow_query_time, except 'not_using_index' which is always logged if enabled",
+       SESSION_VAR(log_slow_filter), CMD_LINE(REQUIRED_ARG,
+                                              OPT_LOG_SLOW_FILTER),
        log_slow_filter_names,
        /* by default we log all queries except 'not_using_index' */
        DEFAULT(my_set_bits(array_elements(log_slow_filter_names)-1) &
