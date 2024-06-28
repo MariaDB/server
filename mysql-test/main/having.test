@@ -1000,5 +1000,16 @@ UPDATE t SET a = ''
 DROP TABLE t;
 
 --echo #
+--echo # MDEV-23983: Assertion failure on multiple equalities present
+--echo #             in HAVING during execution phase
+--echo #
+CREATE TABLE t1 (id INT PRIMARY KEY, a INT, descr TEXT, tp INT);
+INSERT INTO t1 VALUES (3,7,'b',1), (4,7,'b',1);
+ANALYZE TABLE t1;
+SELECT * FROM t1 WHERE id = 3 GROUP BY t1.a HAVING descr = 'b' AND tp = 1;
+
+DROP TABLE t1;
+
+--echo #
 --echo # End of 10.4 tests
 --echo #

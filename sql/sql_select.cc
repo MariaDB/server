@@ -2956,31 +2956,8 @@ int JOIN::optimize_stage2()
     if (init_ftfuncs(thd, select_lex, MY_TEST(order)))
       DBUG_RETURN(1);
 
-  /*
-    It's necessary to check const part of HAVING cond as
-    there is a chance that some cond parts may become
-    const items after make_join_statistics(for example
-    when Item is a reference to cost table field from
-    outer join).
-    This check is performed only for those conditions
-    which do not use aggregate functions. In such case
-    temporary table may not be used and const condition
-    elements may be lost during further having
-    condition transformation in JOIN::exec.
-  */
-  if (having && const_table_map && !having->with_sum_func())
-  {
-    having->update_used_tables();
-    having= having->remove_eq_conds(thd, &select_lex->having_value, true);
-    if (select_lex->having_value == Item::COND_FALSE)
-    {
-      having= new (thd->mem_root) Item_bool(thd, false);
-      zero_result_cause= "Impossible HAVING noticed after reading const tables";
-      error= 0;
-      select_lex->mark_const_derived(zero_result_cause);
-      goto setup_subq_exit;
-    }
-  }
+  if (is_impossible_having_noticed())
+    goto setup_subq_exit;
 
   if (optimize_unflattened_subqueries())
     DBUG_RETURN(1);
@@ -4414,6 +4391,61 @@ bool JOIN::save_explain_data(Explain_query *output, bool can_overwrite,
     }
   }
   DBUG_RETURN(0);
+}
+
+
+/*
+  The function checks whether the HAVING is an impossible condition
+  (i.e., always FALSE), and if it is, replaces HAVING with Item_bool(thd, false)
+
+  @details
+  There is a chance that some condition parts may become
+  const items after make_join_statistics(for example,
+  when Item is a reference to const table field from
+  outer join), so HAVING becomes an impossible condition.
+
+  This check is performed only for those conditions
+  which do not use aggregate functions. In such case
+  temporary table may not be used and const condition
+  elements may be lost during further having
+  condition transformation in JOIN::exec.
+
+  @return The result of the check
+  @retval FALSE     HAVING is NOT an impossible condition.
+  @retval TRUE      HAVING is an impossible condition.
+*/
+bool JOIN::is_impossible_having_noticed()
+{
+  if (unlikely(having && const_table_map && !having->with_sum_func()))
+  {
+    /*
+      remove_eq_conds() converts some predicates to multiple equalities
+      which are not allowed at the execution stage. But we are only interested
+      in checking the cond_result of HAVING after remove_eq_conds().
+      So we build a clone of HAVING here to preserve the original HAVING
+      from modification
+    */
+    Item *having_clone= having->build_clone(thd);
+    if (likely(having_clone))
+    {
+      /*
+        Some item classes don't support cloning, just skip this step
+        for those as the optimization optional
+      */
+      having_clone->update_used_tables();
+      Item::cond_result having_result;
+      having_clone->remove_eq_conds(thd, &having_result, true);
+      if (unlikely(having_result == Item::COND_FALSE))
+      {
+        having= new (thd->mem_root) Item_bool(thd, false);
+        zero_result_cause= "Impossible HAVING noticed after reading const tables";
+        error= 0;
+        select_lex->mark_const_derived(zero_result_cause);
+        return true;
+      }
+    }
+  }
+  return false;
 }
 
 

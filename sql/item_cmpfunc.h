@@ -2684,6 +2684,19 @@ public:
   table_map used_tables() const override
     { return used_tables_cache | RAND_TABLE_BIT; }
   bool const_item() const override { return FALSE; }
+
+  /*
+    Since there is an uncopyable member Item_in_subselect *owner, do not allow
+    copying/cloning of instances of this class
+  */
+  Item *build_clone(THD *thd) override
+  {
+    return nullptr;
+  }
+  Item *get_copy(THD *thd) override
+  {
+    return nullptr;
+  }
 };
 
 

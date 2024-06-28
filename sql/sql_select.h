@@ -1907,6 +1907,7 @@ private:
   void init_join_cache_and_keyread();
   bool prepare_sum_aggregators(THD *thd,Item_sum **func_ptr,
                                bool need_distinct);
+  bool is_impossible_having_noticed();
 };
 
 enum enum_with_bush_roots { WITH_BUSH_ROOTS, WITHOUT_BUSH_ROOTS};
