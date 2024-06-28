@@ -2161,17 +2161,22 @@ int binlog_commit(THD *thd, bool all, bool ro_1pc)
 
   thd->backup_stage(&org_stage);
   THD_STAGE_INFO(thd, stage_binlog_write);
-#ifdef WITH_WSREP
-  // DON'T clear stmt cache in case we are in transaction
-  if (!cache_mngr->stmt_cache.empty() &&
-      (!wsrep_on(thd) || ending_trans(thd, all)))
-#else
   if (!cache_mngr->stmt_cache.empty())
-#endif
   {
-    error= binlog_commit_flush_stmt_cache(thd, all, cache_mngr);
+#ifdef WITH_WSREP
+    if (wsrep_on(thd) && !ending_trans(thd, all))
+    {
+      /*
+        We should not clear stmt cache in case we are in transaction.
+        However we should write all pending row events to disk to
+        ensure we did not run out of disk quota.
+      */
+      error= thd->binlog_flush_pending_rows_event(TRUE, FALSE);
+    }
+    else
+#endif /* WITH_WSREP */
+      error= binlog_commit_flush_stmt_cache(thd, all, cache_mngr);
   }
-
   if (cache_mngr->trx_cache.empty() &&
       (thd->transaction->xid_state.get_state_code() != XA_PREPARED ||
        !(thd->ha_data[binlog_hton->slot].ha_info[1].is_started() &&
