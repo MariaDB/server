@@ -1237,7 +1237,7 @@ update_binlog:
       if (ha_table_exists(thd, &tbl->db, &tbl->table_name))
         continue;
 
-      tbl_name_len= my_snprintf(quoted_name, sizeof(quoted_name), "%`s",
+      tbl_name_len= my_snprintf(quoted_name, sizeof(quoted_name), "%sQ",
                                 tbl->table_name.str);
       tbl_name_len++;                           /* +1 for the comma */
       if (query_pos + tbl_name_len + 1 >= query_end)
