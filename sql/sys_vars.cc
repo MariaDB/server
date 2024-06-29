@@ -3273,6 +3273,14 @@ Sys_server_id(
        VALID_RANGE(1, UINT_MAX32), DEFAULT(1), BLOCK_SIZE(1), NO_MUTEX_GUARD,
        NOT_IN_BINLOG, ON_CHECK(check_server_id), ON_UPDATE(fix_server_id));
 
+char *server_uid_ptr= &server_uid[0];
+
+static Sys_var_charptr Sys_server_uid(
+      "server_uid", "Automatically calculated server unique id hash",
+       READ_ONLY GLOBAL_VAR(server_uid_ptr),
+       CMD_LINE_HELP_ONLY,
+       DEFAULT(server_uid));
+
 static Sys_var_on_access_global<Sys_var_mybool,
                           PRIV_SET_SYSTEM_GLOBAL_VAR_SLAVE_COMPRESSED_PROTOCOL>
 Sys_slave_compressed_protocol(
