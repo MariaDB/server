@@ -4082,7 +4082,7 @@ static void print_long_unique_table(TABLE *table)
           " fields->offset,field->null_bit, field->null_pos and key_info ... \n"
           "\nPrinting  Table  keyinfo\n");
   str.append(buff, strlen(buff));
-  my_snprintf(buff, sizeof(buff), "\ntable->s->reclength %d\n"
+  my_snprintf(buff, sizeof(buff), "\ntable->s->reclength %lu\n"
           "table->s->fields %d\n",
           table->s->reclength, table->s->fields);
   str.append(buff, strlen(buff));
@@ -4090,19 +4090,21 @@ static void print_long_unique_table(TABLE *table)
   {
     key_info_table= table->key_info + i;
     key_info_share= table->s->key_info + i;
-    my_snprintf(buff, sizeof(buff), "\ntable->key_info[%d] user_defined_key_parts = %d\n"
-                                    "table->key_info[%d] algorithm == HA_KEY_ALG_LONG_HASH = %d\n"
-                                    "table->key_info[%d] flags & HA_NOSAME = %d\n",
-                                   i, key_info_table->user_defined_key_parts,
-                                   i, key_info_table->algorithm == HA_KEY_ALG_LONG_HASH,
-                                   i, key_info_table->flags & HA_NOSAME);
+    my_snprintf(buff, sizeof(buff),
+                "\ntable->key_info[%d] user_defined_key_parts = %d\n"
+                "table->key_info[%d] algorithm == HA_KEY_ALG_LONG_HASH = %d\n"
+                "table->key_info[%d] flags & HA_NOSAME = %lu\n",
+                i, key_info_table->user_defined_key_parts,
+                i, key_info_table->algorithm == HA_KEY_ALG_LONG_HASH,
+                i, key_info_table->flags & HA_NOSAME);
     str.append(buff, strlen(buff));
-    my_snprintf(buff, sizeof(buff), "\ntable->s->key_info[%d] user_defined_key_parts = %d\n"
-                                    "table->s->key_info[%d] algorithm == HA_KEY_ALG_LONG_HASH = %d\n"
-                                    "table->s->key_info[%d] flags & HA_NOSAME = %d\n",
-                                   i, key_info_share->user_defined_key_parts,
-                                   i, key_info_share->algorithm == HA_KEY_ALG_LONG_HASH,
-                                   i, key_info_share->flags & HA_NOSAME);
+    my_snprintf(buff, sizeof(buff),
+                "\ntable->s->key_info[%d] user_defined_key_parts = %d\n"
+                "table->s->key_info[%d] algorithm == HA_KEY_ALG_LONG_HASH = %d\n"
+                "table->s->key_info[%d] flags & HA_NOSAME = %lu\n",
+                i, key_info_share->user_defined_key_parts,
+                i, key_info_share->algorithm == HA_KEY_ALG_LONG_HASH,
+                i, key_info_share->flags & HA_NOSAME);
     str.append(buff, strlen(buff));
     key_part = key_info_table->key_part;
     my_snprintf(buff, sizeof(buff), "\nPrinting table->key_info[%d].key_part[0] info\n"
@@ -4135,9 +4137,9 @@ static void print_long_unique_table(TABLE *table)
   {
     field= table->field[i];
     my_snprintf(buff, sizeof(buff), "\ntable->field[%d]->field_name %s\n"
-            "table->field[%d]->offset = %d\n"
+            "table->field[%d]->offset = %" PRIdPTR "\n" // `%td` not available
             "table->field[%d]->field_length = %d\n"
-            "table->field[%d]->null_pos wrt to record 0 = %d\n"
+            "table->field[%d]->null_pos wrt to record 0 = %" PRIdPTR "\n"
             "table->field[%d]->null_bit_pos = %d\n",
             i, field->field_name.str,
             i, field->ptr- table->record[0],

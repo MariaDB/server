@@ -1415,7 +1415,7 @@ static size_t log_header(char *message, size_t message_len,
   if (output_type == OUTPUT_SYSLOG)
     return my_snprintf(message, message_len,
         "%.*s,%.*s,%.*s,%d,%lld,%s",
-        (unsigned int) serverhost_len, serverhost,
+        (int) serverhost_len, serverhost,
         username_len, username,
         host_len, host,
         connection_id, query_id, operation);
@@ -1425,7 +1425,7 @@ static size_t log_header(char *message, size_t message_len,
       "%04d%02d%02d %02d:%02d:%02d,%.*s,%.*s,%.*s,%d,%lld,%s",
       tm_time.tm_year+1900, tm_time.tm_mon+1, tm_time.tm_mday,
       tm_time.tm_hour, tm_time.tm_min, tm_time.tm_sec,
-      serverhost_len, serverhost,
+      (int) serverhost_len, serverhost,
       username_len, username,
       host_len, host,
       connection_id, query_id, operation);
@@ -1494,7 +1494,7 @@ static int log_connection_event(const struct mysql_event_connection *event,
                     event->ip, event->ip_length,
                     event->thread_id, 0, type);
   csize+= my_snprintf(message+csize, sizeof(message) - 1 - csize,
-    ",%.*s,,%d", event->database.length, event->database.str, event->status);
+    ",%.*s,,%d", (int) event->database.length, event->database.str, event->status);
   message[csize]= '\n';
   return write_log(message, csize + 1, 1);
 }
@@ -1926,9 +1926,9 @@ static int log_table(const struct connection_info *cn,
                     event->host, SAFE_STRLEN_UI(event->host),
                     event->ip, SAFE_STRLEN_UI(event->ip),
                     event->thread_id, cn->query_id, type);
-  csize+= my_snprintf(message+csize, sizeof(message) - 1 - csize,
-            ",%.*s,%.*s,",event->database.length, event->database.str,
-                          event->table.length, event->table.str);
+  csize+= my_snprintf(message+csize, sizeof(message) - 1 - csize, ",%.*s,%.*s,",
+                     (int) event->database.length, event->database.str,
+                     (int) event->table.length, event->table.str);
   message[csize]= '\n';
   return write_log(message, csize + 1, 1);
 }
@@ -1949,10 +1949,11 @@ static int log_rename(const struct connection_info *cn,
                     event->ip, SAFE_STRLEN_UI(event->ip),
                     event->thread_id, cn->query_id, "RENAME");
   csize+= my_snprintf(message+csize, sizeof(message) - 1 - csize,
-            ",%.*s,%.*s|%.*s.%.*s,",event->database.length, event->database.str,
-                         event->table.length, event->table.str,
-                         event->new_database.length, event->new_database.str,
-                         event->new_table.length, event->new_table.str);
+                      ",%.*s,%.*s|%.*s.%.*s,",
+                      (int) event->database.length, event->database.str,
+                      (int) event->table.length, event->table.str,
+                      (int) event->new_database.length, event->new_database.str,
+                      (int) event->new_table.length, event->new_table.str);
   message[csize]= '\n';
   return write_log(message, csize + 1, 1);
 }
@@ -3127,4 +3128,3 @@ exit:
   return;
 #endif
 }
-

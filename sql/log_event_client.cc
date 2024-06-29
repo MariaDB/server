@@ -3284,7 +3284,7 @@ static void get_type_name(uint type, unsigned char** meta_ptr,
 {
   switch (type) {
   case MYSQL_TYPE_LONG:
-    my_snprintf(typestr, typestr_length, "%s", "INT");
+    my_snprintf(typestr, typestr_length, "INT");
     break;
   case MYSQL_TYPE_TINY:
     my_snprintf(typestr, typestr_length, "TINYINT");
@@ -3354,20 +3354,21 @@ static void get_type_name(uint type, unsigned char** meta_ptr,
     break;
   case MYSQL_TYPE_BLOB:
     {
-      bool is_text= (cs && cs->number != my_charset_bin.number);
-      const char *names[5][2] = {
-        {"INVALID_BLOB(%d)", "INVALID_TEXT(%d)"},
-        {"TINYBLOB", "TINYTEXT"},
-        {"BLOB", "TEXT"},
-        {"MEDIUMBLOB", "MEDIUMTEXT"},
-        {"LONGBLOB", "LONGTEXT"}
+      const char *type_name=
+        (cs && cs->number != my_charset_bin.number) ? "TEXT" : "BLOB";
+      const char *names[5]= {
+        NullS,
+        "TINY",
+        "",
+        "MEDIUM",
+        "LONG"
       };
       unsigned char size= **meta_ptr;
 
       if (size == 0 || size > 4)
-        my_snprintf(typestr, typestr_length, names[0][is_text], size);
+        my_snprintf(typestr, typestr_length, "INVALID_%s(%d)", type_name, size);
       else
-        my_snprintf(typestr, typestr_length, names[**meta_ptr][is_text]);
+        my_snprintf(typestr, typestr_length, "%s%s", names[size], type_name);
 
       (*meta_ptr)++;
     }
@@ -3404,7 +3405,7 @@ static void get_type_name(uint type, unsigned char** meta_ptr,
         "MULTILINESTRING", "MULTIPOLYGON", "GEOMETRYCOLLECTION"
       };
       if (geometry_type < 8)
-        my_snprintf(typestr, typestr_length, names[geometry_type]);
+        my_snprintf(typestr, typestr_length, "%s", names[geometry_type]);
       else
         my_snprintf(typestr, typestr_length, "INVALID_GEOMETRY_TYPE(%u)",
                     geometry_type);

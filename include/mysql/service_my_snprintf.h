@@ -95,8 +95,10 @@ extern "C" {
 #endif
 
 extern struct my_snprintf_service_st {
-  size_t (*my_snprintf_type)(char*, size_t, const char*, ...);
-  size_t (*my_vsnprintf_type)(char *, size_t, const char*, va_list);
+  size_t (*my_snprintf_type)(char*, size_t, const char*, ...)
+    __attribute__((format(printf, 3, 4)));
+  size_t (*my_vsnprintf_type)(char *, size_t, const char*, va_list)
+    __attribute__((format(printf, 3, 0)));
 } *my_snprintf_service;
 
 #ifdef MYSQL_DYNAMIC_PLUGIN
@@ -106,8 +108,10 @@ extern struct my_snprintf_service_st {
 
 #else
 
-size_t my_snprintf(char* to, size_t n, const char* fmt, ...);
-size_t my_vsnprintf(char *to, size_t n, const char* fmt, va_list ap);
+size_t my_snprintf(char* to, size_t n, const char* fmt, ...)
+  __attribute__((format(printf, 3, 4)));
+size_t my_vsnprintf(char *to, size_t n, const char* fmt, va_list ap)
+  __attribute__((format(printf, 3, 0)));
 
 #endif
 
