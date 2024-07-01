@@ -6,13 +6,13 @@ SELECT @@wsrep_slave_threads;
 1
 SET GLOBAL wsrep_slave_threads=2;
 KILL ID;
-ERROR HY000: This is a high-priority thread/query and cannot be killed without compromising the consistency of the cluster
+ERROR HY000: This is a high priority thread/query and cannot be killed without compromising the consistency of the cluster
 KILL QUERY ID;
-ERROR HY000: This is a high-priority thread/query and cannot be killed without compromising the consistency of the cluster
+ERROR HY000: This is a high priority thread/query and cannot be killed without compromising the consistency of the cluster
 KILL ID;
-ERROR HY000: This is a high-priority thread/query and cannot be killed without compromising the consistency of the cluster
+ERROR HY000: This is a high priority thread/query and cannot be killed without compromising the consistency of the cluster
 KILL QUERY ID;
-ERROR HY000: This is a high-priority thread/query and cannot be killed without compromising the consistency of the cluster
+ERROR HY000: This is a high priority thread/query and cannot be killed without compromising the consistency of the cluster
 SET GLOBAL wsrep_slave_threads=DEFAULT;
 connection node_1;
 create table t1(a int not null primary key) engine=innodb;
