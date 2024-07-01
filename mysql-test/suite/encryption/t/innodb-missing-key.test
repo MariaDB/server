@@ -46,7 +46,7 @@ CREATE TABLE t4(a int not null primary key auto_increment, b varchar(128)) engin
 SELECT SLEEP(5);
 SELECT COUNT(1) FROM t3;
 SELECT COUNT(1) FROM t2;
---error ER_NO_SUCH_TABLE_IN_ENGINE
+--error ER_TABLE_CORRUPT
 SELECT COUNT(1) FROM t2,t1 where t2.a = t1.a;
 --error ER_TABLE_CORRUPT
 SELECT COUNT(1) FROM t1 where b = 'ab';

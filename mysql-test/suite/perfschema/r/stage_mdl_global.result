@@ -10,10 +10,10 @@ username	event_name	nesting_event_type
 username	event_name	nesting_event_type
 user1	stage/sql/starting	STATEMENT
 user1	stage/sql/starting	STATEMENT
+user1	stage/sql/starting	STATEMENT
 user1	stage/sql/Query end	STATEMENT
-user1	stage/sql/Commit	STATEMENT
 user1	stage/sql/closing tables	STATEMENT
-user1	stage/sql/Commit implicit	STATEMENT
+user1	stage/sql/Query end	STATEMENT
 user1	stage/sql/Starting cleanup	STATEMENT
 user1	stage/sql/Freeing items	STATEMENT
 user1	stage/sql/Reset for next command	STATEMENT

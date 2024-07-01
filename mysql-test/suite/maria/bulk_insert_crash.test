@@ -12,7 +12,7 @@
 #
 
 # Write file to make mysql-test-run.pl expect crash and restart
---exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--write_line restart $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 
 create table t1 (a int primary key, b int, c int, unique key(b), key(c)) engine=aria transactional=1;
 insert into t1 values (1000,1000,1000);

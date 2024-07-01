@@ -84,13 +84,13 @@
 #define ER_SPIDER_XA_PREPARED_NUM 12604
 #define ER_SPIDER_XA_PREPARED_STR "This xid is prepared"
 #define ER_SPIDER_XA_EXISTS_NUM 12605
-#define ER_SPIDER_XA_EXISTS_STR "This xid is already exist"
+#define ER_SPIDER_XA_EXISTS_STR "This xid already exists"
 #define ER_SPIDER_XA_MEMBER_EXISTS_NUM 12606
-#define ER_SPIDER_XA_MEMBER_EXISTS_STR "This xid member is already exist"
+#define ER_SPIDER_XA_MEMBER_EXISTS_STR "This xid member already exists"
 #define ER_SPIDER_XA_NOT_EXISTS_NUM 12607
-#define ER_SPIDER_XA_NOT_EXISTS_STR "This xid is not exist"
+#define ER_SPIDER_XA_NOT_EXISTS_STR "This xid does not exist"
 #define ER_SPIDER_XA_MEMBER_NOT_EXISTS_NUM 12608
-#define ER_SPIDER_XA_MEMBER_NOT_EXISTS_STR "This xid member is not exist"
+#define ER_SPIDER_XA_MEMBER_NOT_EXISTS_STR "This xid member does not exist"
 #define ER_SPIDER_SYS_TABLE_VERSION_NUM 12609
 #define ER_SPIDER_SYS_TABLE_VERSION_STR "System table %s is different version"
 #define ER_SPIDER_WRONG_CHARACTER_IN_NAME_NUM 12611

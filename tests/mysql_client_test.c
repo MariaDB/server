@@ -3842,7 +3842,7 @@ static void test_bind_result_ext1()
   short      i_data;
   uchar      b_data;
   int        f_data;
-  long       bData;
+  int        bData;
   char       d_data[20];
   double     szData;
   MYSQL_BIND my_bind[8];
@@ -3938,7 +3938,7 @@ static void test_bind_result_ext1()
     fprintf(stdout, "\n data (float)  : %d(%lu)", f_data, length[4]);
     fprintf(stdout, "\n data (double) : %s(%lu)", d_data, length[5]);
 
-    fprintf(stdout, "\n data (bin)    : %ld(%lu)", bData, length[6]);
+    fprintf(stdout, "\n data (bin)    : %d(%lu)", bData, length[6]);
     fprintf(stdout, "\n data (str)    : %g(%lu)", szData, length[7]);
   }
 
@@ -20564,7 +20564,6 @@ typedef struct {
 #ifndef EMBEDDED_LIBRARY
 static void test_proxy_header_tcp(const char *ipaddr, int port)
 {
- 
   int rc;
   MYSQL_RES *result;
   int family = (strchr(ipaddr,':') == NULL)?AF_INET:AF_INET6;
@@ -20639,6 +20638,11 @@ static void test_proxy_header_tcp(const char *ipaddr, int port)
     DIE_UNLESS(strncmp(row[0], normalized_addr, addrlen) == 0);
     DIE_UNLESS(atoi(row[0] + addrlen+1) == port);
     mysql_free_result(result);
+    if (i == 0 && !strcmp(ipaddr,"192.0.2.1"))
+    {
+     /* do "dirty" close, to get aborted message in error log.*/
+      mariadb_cancel(m);
+    }
     mysql_close(m);
   }
   sprintf(query,"DROP USER 'u'@'%s'",normalized_addr);

@@ -213,9 +213,15 @@ SET debug_dbug=@old_debug;
 
 --echo # Try to do SHOW ANALYZE for a query that runs a  SET command:
 --echo #
-set @show_explain_probe_select_id=2; # <---
+create table t2 (a int);
+insert into t2 values (1),(2);
+set @show_explain_probe_select_id=3; # Stop in the subquery.
 SET debug_dbug='+d,show_explain_probe_join_exec_start';
-send set @foo= (select max(a) from t0 where sin(a) >0);
+# t2 has 2 rows so we will stop in the subquery twice: 
+#  - first one to serve the SHOW ANALYZE request
+#  - second one when waiting to be KILLed.
+send set @foo= (select max(a) from t2
+                 where a + (select max(a) from t0 where t0.a>t2.a) < 10000);
 connection default;
 --source include/wait_condition.inc
 --error ER_TARGET_NOT_EXPLAINABLE
@@ -225,7 +231,7 @@ connection con1;
 --error ER_QUERY_INTERRUPTED
 reap;
 SET debug_dbug=@old_debug;
-
+drop table t2;
 
 --echo #
 --echo # Attempt SHOW ANALYZE for an UPDATE

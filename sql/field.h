@@ -63,6 +63,15 @@ enum enum_check_fields
   CHECK_FIELD_ERROR_FOR_NULL,
 };
 
+enum ignore_value_reaction
+{
+  IGNORE_MEANS_ERROR,
+  IGNORE_MEANS_DEFAULT,
+  IGNORE_MEANS_FIELD_VALUE
+};
+
+ignore_value_reaction find_ignore_reaction(THD *thd);
+
 
 enum enum_conv_type
 {
@@ -4059,6 +4068,7 @@ class Field_string final :public Field_longstr {
            field_length >= 4 &&
            orig_table->s->frm_version < FRM_VER_TRUE_VARCHAR;
   }
+  LEX_CSTRING to_lex_cstring() const;
 public:
   bool can_alter_field_type;
   Field_string(uchar *ptr_arg, uint32 len_arg,uchar *null_ptr_arg,
@@ -5753,7 +5763,8 @@ public:
   {
     List_iterator<Create_field> it(list);
     while (Create_field *f= it++)
-      f->type_handler()->Column_definition_implicit_upgrade(f);
+      f->type_handler()->type_handler_for_implicit_upgrade()->
+                           Column_definition_implicit_upgrade_to_this(f);
   }
 };
 

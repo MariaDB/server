@@ -78,7 +78,7 @@ mysql_real_connect(MYSQL *mysql,const char *host, const char *user,
 		   uint port, const char *unix_socket,ulong client_flag)
 {
   char name_buff[USERNAME_LENGTH];
-
+  THD *org_current_thd= embedded_get_current_thd();
   DBUG_ENTER("mysql_real_connect");
   DBUG_PRINT("enter",("host: %s  db: %s  user: %s (libmysqld)",
 		      host ? host : "(Null)",
@@ -200,6 +200,7 @@ mysql_real_connect(MYSQL *mysql,const char *host, const char *user,
       }
     }
   }
+  embedded_set_current_thd(org_current_thd);
 
   DBUG_PRINT("exit",("Mysql handler: %p", mysql));
   DBUG_RETURN(mysql);
@@ -216,6 +217,7 @@ error:
     mysql_close(mysql);
     mysql->free_me=free_me;
   }
+  embedded_set_current_thd(org_current_thd);
   DBUG_RETURN(0);
 }
 

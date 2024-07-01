@@ -5,9 +5,6 @@
 # "create table tab1 (a bigint primary key, b varchar(2048)) engine=InnoDB;"
 #
 
---source include/have_innodb.inc
---source include/have_innodb_16k.inc
-
 # turn on flags
 --disable_query_log
 SET GLOBAL innodb_monitor_enable=index_page_merge_attempts;

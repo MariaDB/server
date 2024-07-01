@@ -54,6 +54,7 @@
 #include "wsrep_schema.h"
 #endif
 #include "log_event.h"           // MAX_TABLE_MAP_ID
+#include "sql_class.h"
 
 /* For MySQL 5.7 virtual fields */
 #define MYSQL57_GENERATED_FIELD 128
@@ -96,7 +97,7 @@ LEX_CSTRING INFORMATION_SCHEMA_NAME= {STRING_WITH_LEN("information_schema")};
 LEX_CSTRING PERFORMANCE_SCHEMA_DB_NAME= {STRING_WITH_LEN("performance_schema")};
 
 /* MYSQL_SCHEMA name */
-LEX_CSTRING MYSQL_SCHEMA_NAME= {STRING_WITH_LEN("mysql")};
+Lex_ident_db MYSQL_SCHEMA_NAME= {STRING_WITH_LEN("mysql")};
 
 /* GENERAL_LOG name */
 LEX_CSTRING GENERAL_LOG_NAME= {STRING_WITH_LEN("general_log")};
@@ -281,42 +282,38 @@ const char *fn_frm_ext(const char *name)
 }
 
 
-TABLE_CATEGORY get_table_category(const LEX_CSTRING *db,
-                                  const LEX_CSTRING *name)
+TABLE_CATEGORY get_table_category(const Lex_ident_db &db,
+                                  const Lex_ident_table &name)
 {
-  DBUG_ASSERT(db != NULL);
-  DBUG_ASSERT(name != NULL);
-
 #ifdef WITH_WSREP
-  if (db->str &&
-      my_strcasecmp(system_charset_info, db->str, WSREP_SCHEMA) == 0)
+  if (db.str && db.streq(MYSQL_SCHEMA_NAME))
   {
-    if ((my_strcasecmp(system_charset_info, name->str, WSREP_STREAMING_TABLE) == 0 ||
-         my_strcasecmp(system_charset_info, name->str, WSREP_CLUSTER_TABLE) == 0 ||
-         my_strcasecmp(system_charset_info, name->str, WSREP_MEMBERS_TABLE) == 0))
+    if (name.streq(Lex_ident_table{STRING_WITH_LEN(WSREP_STREAMING_TABLE)}) ||
+        name.streq(Lex_ident_table{STRING_WITH_LEN(WSREP_CLUSTER_TABLE)}) ||
+        name.streq(Lex_ident_table{STRING_WITH_LEN(WSREP_MEMBERS_TABLE)}))
     {
       return TABLE_CATEGORY_INFORMATION;
     }
   }
 #endif /* WITH_WSREP */
-  if (is_infoschema_db(db))
+  if (is_infoschema_db(&db))
     return TABLE_CATEGORY_INFORMATION;
 
-  if (is_perfschema_db(db))
+  if (is_perfschema_db(&db))
     return TABLE_CATEGORY_PERFORMANCE;
 
-  if (lex_string_eq(&MYSQL_SCHEMA_NAME, db))
+  if (db.streq(MYSQL_SCHEMA_NAME))
   {
-    if (is_system_table_name(name->str, name->length))
+    if (is_system_table_name(name.str, name.length))
       return TABLE_CATEGORY_SYSTEM;
 
-    if (lex_string_eq(&GENERAL_LOG_NAME, name))
+    if (name.streq(GENERAL_LOG_NAME))
       return TABLE_CATEGORY_LOG;
 
-    if (lex_string_eq(&SLOW_LOG_NAME, name))
+    if (name.streq(SLOW_LOG_NAME))
       return TABLE_CATEGORY_LOG;
 
-    if (lex_string_eq(&TRANSACTION_REG_NAME, name))
+    if (name.streq(TRANSACTION_REG_NAME))
       return TABLE_CATEGORY_LOG;
   }
 
@@ -369,7 +366,8 @@ TABLE_SHARE *alloc_table_share(const char *db, const char *table_name,
     strmov(path_buff, path);
     share->normalized_path.str=    share->path.str;
     share->normalized_path.length= path_length;
-    share->table_category= get_table_category(&share->db, &share->table_name);
+    share->table_category= get_table_category(Lex_ident_db(share->db),
+                                           Lex_ident_table(share->table_name));
     share->open_errno= ENOENT;
     /* The following will be updated in open_table_from_share */
     share->can_do_row_logging= 1;
@@ -3398,6 +3396,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       goto err; // Wrong field definition
     reg_field->flags |= AUTO_INCREMENT_FLAG;
   }
+  else
+    share->next_number_index= MAX_KEY;
 
   if (share->blob_fields)
   {
@@ -5941,6 +5941,57 @@ void TABLE::reset_item_list(List<Item> *item_list, uint skip) const
     DBUG_ASSERT(item_field != 0);
     item_field->reset_field(*ptr);
   }
+}
+
+TABLE_LIST::TABLE_LIST(THD *thd,
+                       LEX_CSTRING db_str,
+                       bool fqtn,
+                       LEX_CSTRING alias_str,
+                       bool has_alias_ptr,
+                       Table_ident *table_ident,
+                       thr_lock_type lock_t,
+                       enum_mdl_type mdl_t,
+                       ulong table_opts,
+                       bool info_schema,
+                       st_select_lex *sel,
+                       List<Index_hint> *index_hints_ptr,
+                       LEX_STRING *option_ptr)
+{
+  db= db_str;
+  is_fqtn= fqtn;
+  alias= alias_str;
+  is_alias= has_alias_ptr;
+  if (lower_case_table_names)
+  {
+    if (table_ident->table.length)
+      table_ident->table.length= my_casedn_str(files_charset_info,
+                                         (char*) table_ident->table.str);
+    if (db.length && db.str != any_db.str)
+      db.length= my_casedn_str(files_charset_info, (char*) db.str);
+  }
+
+  table_name= table_ident->table;
+  lock_type= lock_t;
+  mdl_type= mdl_t;
+  table_options= table_opts;
+  updating= table_options & TL_OPTION_UPDATING;
+  ignore_leaves= table_options & TL_OPTION_IGNORE_LEAVES;
+  sequence= table_options & TL_OPTION_SEQUENCE;
+  derived= table_ident->sel;
+
+  if (!table_ident->sel && info_schema)
+  {
+    schema_table= find_schema_table(thd, &table_name);
+    schema_table_name= table_name;
+  }
+  select_lex= sel;
+  /*
+    We can't cache internal temporary tables between prepares as the
+    table may be deleted before next exection.
+  */
+  cacheable_table= !table_ident->is_derived_table();
+  index_hints= index_hints_ptr;
+  option= option_ptr ? option_ptr->str : 0;
 }
 
 /*
@@ -9305,10 +9356,9 @@ int TABLE::update_default_fields(bool ignore_errors)
 int TABLE::update_generated_fields()
 {
   int res= 0;
-  if (found_next_number_field)
+  if (next_number_field)
   {
-    next_number_field= found_next_number_field;
-    res= found_next_number_field->set_default();
+    res= next_number_field->set_default();
     if (likely(!res))
       res= file->update_auto_increment();
     next_number_field= NULL;
@@ -9323,6 +9373,18 @@ int TABLE::update_generated_fields()
   return res;
 }
 
+void TABLE::period_prepare_autoinc()
+{
+  if (!found_next_number_field)
+    return;
+  /* Don't generate a new value if the autoinc index is WITHOUT OVERLAPS */
+  DBUG_ASSERT(s->next_number_index < MAX_KEY);
+  if (key_info[s->next_number_index].without_overlaps)
+    return;
+
+  next_number_field= found_next_number_field;
+}
+
 int TABLE::period_make_insert(Item *src, Field *dst)
 {
   THD *thd= in_use;
@@ -9332,7 +9394,10 @@ int TABLE::period_make_insert(Item *src, Field *dst)
   int res= src->save_in_field(dst, true);
 
   if (likely(!res))
+  {
+    period_prepare_autoinc();
     res= update_generated_fields();
+  }
 
   if (likely(!res) && triggers)
     res= triggers->process_triggers(thd, TRG_EVENT_INSERT,
@@ -9657,7 +9722,8 @@ bool TABLE::insert_all_rows_into_tmp_table(THD *thd,
   }
    
   if (file->indexes_are_disabled())
-    tmp_table->file->ha_disable_indexes(HA_KEY_SWITCH_ALL);
+    tmp_table->file->ha_disable_indexes(key_map(0), false);
+
   file->ha_index_or_rnd_end();
 
   if (unlikely(file->ha_rnd_init_with_error(1)))

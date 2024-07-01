@@ -28,7 +28,7 @@ START TRANSACTION
 /*!*/;
 #Q> INSERT INTO t1 VALUES(1, "insert_to_t1", 1, repeat('a', 20)),
 #Q> (2, "insert_to_t1", 2, repeat('a', 20)),
-#Q> (3, "insert_to_t1", 3, repeat('a', 20
+#Q> (3, "insert_to_t1", 3, repeat('a', 20))
 ### INSERT INTO `test`.`t1`
 ### SET
 ###   @1=1 /* INT meta=0 nullable=0 is_null=0 */
@@ -182,7 +182,7 @@ START TRANSACTION
 /*!*/;
 #Q> INSERT INTO t2 VALUES(1, "insert_to_t2", 1, repeat('a', 20)),
 #Q> (2, "insert_to_t2", 2, repeat('a', 20)),
-#Q> (3, "insert_to_t2", 3, repeat('a', 20
+#Q> (3, "insert_to_t2", 3, repeat('a', 20))
 ### INSERT INTO `test`.`t2`
 ### SET
 ###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
@@ -370,7 +370,7 @@ START TRANSACTION
 /*!*/;
 #Q> INSERT INTO t1 VALUES(1, "insert_to_t1", 1, repeat('a', 20)),
 #Q> (2, "insert_to_t1", 2, repeat('a', 20)),
-#Q> (3, "insert_to_t1", 3, repeat('a', 20
+#Q> (3, "insert_to_t1", 3, repeat('a', 20))
 ### INSERT INTO `test`.`t1`
 ### SET
 ###   @1=1 /* INT meta=0 nullable=0 is_null=0 */
@@ -494,7 +494,7 @@ START TRANSACTION
 /*!*/;
 #Q> INSERT INTO t2 VALUES(1, "insert_to_t2", 1, repeat('a', 20)),
 #Q> (2, "insert_to_t2", 2, repeat('a', 20)),
-#Q> (3, "insert_to_t2", 3, repeat('a', 20
+#Q> (3, "insert_to_t2", 3, repeat('a', 20))
 ### INSERT INTO `test`.`t2`
 ### SET
 ###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
@@ -682,7 +682,7 @@ START TRANSACTION
 /*!*/;
 #Q> INSERT INTO t1 VALUES(1, "insert_to_t1", 1, repeat('a', 20)),
 #Q> (2, "insert_to_t1", 2, repeat('a', 20)),
-#Q> (3, "insert_to_t1", 3, repeat('a', 20
+#Q> (3, "insert_to_t1", 3, repeat('a', 20))
 ### INSERT INTO `test`.`t1`
 ### SET
 ###   @1=1 /* INT meta=0 nullable=0 is_null=0 */
@@ -842,7 +842,7 @@ START TRANSACTION
 /*!*/;
 #Q> INSERT INTO t2 VALUES(1, "insert_to_t2", 1, repeat('a', 20)),
 #Q> (2, "insert_to_t2", 2, repeat('a', 20)),
-#Q> (3, "insert_to_t2", 3, repeat('a', 20
+#Q> (3, "insert_to_t2", 3, repeat('a', 20))
 ### INSERT INTO `test`.`t2`
 ### SET
 ###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
@@ -1030,7 +1030,7 @@ START TRANSACTION
 /*!*/;
 #Q> INSERT INTO t1 VALUES(1, "insert_to_t1", 1, repeat('a', 20)),
 #Q> (2, "insert_to_t1", 2, repeat('a', 20)),
-#Q> (3, "insert_to_t1", 3, repeat('a', 20
+#Q> (3, "insert_to_t1", 3, repeat('a', 20))
 ### INSERT INTO `test`.`t1`
 ### SET
 ###   @1=1 /* INT meta=0 nullable=0 is_null=0 */
@@ -1204,7 +1204,7 @@ START TRANSACTION
 /*!*/;
 #Q> INSERT INTO t2 VALUES(1, "insert_to_t2", 1, repeat('a', 20)),
 #Q> (2, "insert_to_t2", 2, repeat('a', 20)),
-#Q> (3, "insert_to_t2", 3, repeat('a', 20
+#Q> (3, "insert_to_t2", 3, repeat('a', 20))
 ### INSERT INTO `test`.`t2`
 ### SET
 ###   @1=1 /* INT meta=0 nullable=1 is_null=0 */

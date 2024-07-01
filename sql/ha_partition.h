@@ -399,6 +399,7 @@ private:
   */
   bool m_innodb;                        // Are all underlying handlers
                                         // InnoDB
+  bool m_myisammrg;                     // Are any of the handlers of type MERGE
   /*
     When calling extra(HA_EXTRA_CACHE) we do not pass this to the underlying
     handlers immediately. Instead we cache it and call the underlying
@@ -577,8 +578,7 @@ private:
   void cleanup_new_partition(uint part_count);
   int prepare_new_partition(TABLE *table, HA_CREATE_INFO *create_info,
                             handler *file, const char *part_name,
-                            partition_element *p_elem,
-                            uint disable_non_uniq_indexes);
+                            partition_element *p_elem);
   /*
     delete_table and rename_table uses very similar logic which
     is packed into this routine.
@@ -988,6 +988,10 @@ private:
                                           handler *file, uint *n);
   static const uint NO_CURRENT_PART_ID= NOT_A_PARTITION_ID;
   int loop_partitions(handler_callback callback, void *param);
+  int loop_partitions_over_map(const MY_BITMAP *map,
+                               handler_callback callback,
+                               void *param);
+  int loop_read_partitions(handler_callback callback, void *param);
   int loop_extra_alter(enum ha_extra_function operations);
   void late_extra_cache(uint partition_id);
   void late_extra_no_cache(uint partition_id);
@@ -1578,8 +1582,8 @@ public:
     Enable/Disable Indexes are only supported by HEAP and MyISAM.
     -------------------------------------------------------------------------
   */
-    int disable_indexes(uint mode) override;
-    int enable_indexes(uint mode) override;
+    int disable_indexes(key_map map, bool persist) override;
+    int enable_indexes(key_map map, bool persist) override;
     int indexes_are_disabled() override;
 
   /*

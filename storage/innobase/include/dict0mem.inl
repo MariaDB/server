@@ -63,6 +63,5 @@ dict_mem_fill_index_struct(
 		& index->MAX_N_FIELDS;
 	/* The '1 +' above prevents allocation
 	of an empty mem block */
-	index->nulls_equal = false;
 	ut_d(index->magic_n = DICT_INDEX_MAGIC_N);
 }

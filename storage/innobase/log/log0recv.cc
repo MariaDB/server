@@ -832,8 +832,7 @@ processed:
       inside recv_sys_t::recover_deferred(). */
       bool success;
       handle= os_file_create(innodb_data_file_key, filename,
-                             OS_FILE_CREATE | OS_FILE_ON_ERROR_NO_EXIT |
-                             OS_FILE_ON_ERROR_SILENT,
+                             OS_FILE_CREATE_SILENT,
                              OS_FILE_AIO, OS_DATA_FILE, false, &success);
     }
     space->add(filename, handle, size, false, false);
@@ -1623,7 +1622,7 @@ dberr_t recv_sys_t::find_checkpoint()
     std::string path{get_log_file_path()};
     bool success;
     os_file_t file{os_file_create_func(path.c_str(),
-                                       OS_FILE_OPEN | OS_FILE_ON_ERROR_NO_EXIT,
+                                       OS_FILE_OPEN,
                                        OS_FILE_NORMAL, OS_LOG_FILE,
                                        srv_read_only_mode, &success)};
     if (file == OS_FILE_CLOSED)
@@ -1653,8 +1652,7 @@ dberr_t recv_sys_t::find_checkpoint()
     {
       path= get_log_file_path(LOG_FILE_NAME_PREFIX).append(std::to_string(i));
       file= os_file_create_func(path.c_str(),
-                                OS_FILE_OPEN | OS_FILE_ON_ERROR_NO_EXIT |
-                                OS_FILE_ON_ERROR_SILENT,
+                                OS_FILE_OPEN_SILENT,
                                 OS_FILE_NORMAL, OS_LOG_FILE, true, &success);
       if (file == OS_FILE_CLOSED)
         break;
@@ -2429,11 +2427,9 @@ recv_sys_t::parse_mtr_result recv_sys_t::parse(source &l, bool if_exists)
   noexcept
 {
 restart:
-#ifndef SUX_LOCK_GENERIC
-  ut_ad(log_sys.latch.is_write_locked() ||
+  ut_ad(log_sys.latch_have_wr() ||
         srv_operation == SRV_OPERATION_BACKUP ||
         srv_operation == SRV_OPERATION_BACKUP_NO_DEFER);
-#endif
   mysql_mutex_assert_owner(&mutex);
   ut_ad(log_sys.next_checkpoint_lsn);
   ut_ad(log_sys.is_latest());
@@ -2681,8 +2677,7 @@ restart:
       case INIT_PAGE:
         last_offset= FIL_PAGE_TYPE;
       free_or_init_page:
-        if (store)
-          store_freed_or_init_rec(id, (b & 0x70) == FREE_PAGE);
+        store_freed_or_init_rec(id, (b & 0x70) == FREE_PAGE);
         if (UNIV_UNLIKELY(rlen != 0))
           goto record_corrupted;
       copy_if_needed:
@@ -2751,7 +2746,7 @@ restart:
         {
           if (UNIV_UNLIKELY(rlen + last_offset > srv_page_size))
             goto record_corrupted;
-          if (store && UNIV_UNLIKELY(!page_no) && file_checkpoint)
+          if (UNIV_UNLIKELY(!page_no) && file_checkpoint)
           {
             const bool has_size= last_offset <= FSP_HEADER_OFFSET + FSP_SIZE &&
               last_offset + rlen >= FSP_HEADER_OFFSET + FSP_SIZE + 4;
@@ -3682,8 +3677,8 @@ recv_sys_t::recover(const page_id_t page_id, mtr_t *mtr, dberr_t *err)
 {
   if (!recovery_on)
   must_read:
-    return buf_page_get_gen(page_id, 0, RW_S_LATCH, nullptr, BUF_GET, mtr,
-                            err);
+    return buf_page_get_gen(page_id, 0, RW_NO_LATCH, nullptr, BUF_GET_RECOVER,
+                            mtr, err);
 
   mysql_mutex_lock(&mutex);
   map::iterator p= pages.find(page_id);
@@ -3732,7 +3727,7 @@ recv_sys_t::recover(const page_id_t page_id, mtr_t *mtr, dberr_t *err)
     goto corrupted;
   }
 
-  mtr->page_lock(block, RW_S_LATCH);
+  mtr->page_lock(block, RW_NO_LATCH);
   return block;
 }
 
@@ -3817,6 +3812,54 @@ void recv_sys_t::apply(bool last_batch)
 
   garbage_collect();
 
+  if (truncated_sys_space.lsn)
+  {
+    trim({0, truncated_sys_space.pages}, truncated_sys_space.lsn);
+    fil_node_t *file= UT_LIST_GET_LAST(fil_system.sys_space->chain);
+    ut_ad(file->is_open());
+
+    /* Last file new size after truncation */
+    uint32_t new_last_file_size=
+      truncated_sys_space.pages -
+        (srv_sys_space.get_min_size()
+         - srv_sys_space.m_files.at(
+             srv_sys_space.m_files.size() - 1). param_size());
+
+    os_file_truncate(
+      file->name, file->handle,
+      os_offset_t{new_last_file_size} << srv_page_size_shift, true);
+    mysql_mutex_lock(&fil_system.mutex);
+    fil_system.sys_space->size= truncated_sys_space.pages;
+    fil_system.sys_space->chain.end->size= new_last_file_size;
+    srv_sys_space.set_last_file_size(new_last_file_size);
+    truncated_sys_space={0, 0};
+    mysql_mutex_unlock(&fil_system.mutex);
+  }
+
+  for (auto id= srv_undo_tablespaces_open; id--;)
+  {
+    const trunc& t= truncated_undo_spaces[id];
+    if (t.lsn)
+    {
+      /* The entire undo tablespace will be reinitialized by
+      innodb_undo_log_truncate=ON. Discard old log for all pages.
+      Even though we recv_sys_t::parse() already invoked trim(),
+      this will be needed in case recovery consists of multiple batches
+      (there was an invocation with !last_batch). */
+      trim({id + srv_undo_space_id_start, 0}, t.lsn);
+      if (fil_space_t *space = fil_space_get(id + srv_undo_space_id_start))
+      {
+        ut_ad(UT_LIST_GET_LEN(space->chain) == 1);
+        ut_ad(space->recv_size >= t.pages);
+        fil_node_t *file= UT_LIST_GET_FIRST(space->chain);
+        ut_ad(file->is_open());
+        os_file_truncate(file->name, file->handle,
+                         os_offset_t{space->recv_size} <<
+                         srv_page_size_shift, true);
+      }
+    }
+  }
+
   if (!pages.empty())
   {
     ut_ad(!last_batch || lsn == scanned_lsn);
@@ -3824,54 +3867,6 @@ void recv_sys_t::apply(bool last_batch)
     report_progress();
 
     apply_log_recs= true;
-
-    if (truncated_sys_space.lsn)
-    {
-      trim({0, truncated_sys_space.pages}, truncated_sys_space.lsn);
-      fil_node_t *file= UT_LIST_GET_LAST(fil_system.sys_space->chain);
-      ut_ad(file->is_open());
-
-      /* Last file new size after truncation */
-      uint32_t new_last_file_size=
-        truncated_sys_space.pages -
-          (srv_sys_space.get_min_size()
-           - srv_sys_space.m_files.at(
-               srv_sys_space.m_files.size() - 1). param_size());
-
-      os_file_truncate(
-        file->name, file->handle,
-        os_offset_t{new_last_file_size} << srv_page_size_shift, true);
-      mysql_mutex_lock(&fil_system.mutex);
-      fil_system.sys_space->size= truncated_sys_space.pages;
-      fil_system.sys_space->chain.end->size= new_last_file_size;
-      srv_sys_space.set_last_file_size(new_last_file_size);
-      truncated_sys_space={0, 0};
-      mysql_mutex_unlock(&fil_system.mutex);
-    }
-
-    for (auto id= srv_undo_tablespaces_open; id--;)
-    {
-      const trunc& t= truncated_undo_spaces[id];
-      if (t.lsn)
-      {
-        /* The entire undo tablespace will be reinitialized by
-        innodb_undo_log_truncate=ON. Discard old log for all pages.
-        Even though we recv_sys_t::parse() already invoked trim(),
-        this will be needed in case recovery consists of multiple batches
-        (there was an invocation with !last_batch). */
-        trim({id + srv_undo_space_id_start, 0}, t.lsn);
-        if (fil_space_t *space = fil_space_get(id + srv_undo_space_id_start))
-        {
-          ut_ad(UT_LIST_GET_LEN(space->chain) == 1);
-          ut_ad(space->recv_size >= t.pages);
-          fil_node_t *file= UT_LIST_GET_FIRST(space->chain);
-          ut_ad(file->is_open());
-          os_file_truncate(file->name, file->handle,
-                           os_offset_t{space->recv_size} <<
-                           srv_page_size_shift, true);
-        }
-      }
-    }
 
     fil_system.extend_to_recv_size();
 
@@ -3999,9 +3994,7 @@ static bool recv_scan_log(bool last_phase)
   lsn_t rewound_lsn= 0;
   for (ut_d(lsn_t source_offset= 0);;)
   {
-#ifndef SUX_LOCK_GENERIC
-    ut_ad(log_sys.latch.is_write_locked());
-#endif
+    ut_ad(log_sys.latch_have_wr());
 #ifdef UNIV_DEBUG
     const bool wrap{source_offset + recv_sys.len == log_sys.file_size};
 #endif
@@ -4067,9 +4060,10 @@ static bool recv_scan_log(bool last_phase)
 
           const lsn_t end{recv_sys.file_checkpoint};
           ut_ad(!end || end == recv_sys.lsn);
+          bool corrupt_fs= recv_sys.is_corrupt_fs();
           mysql_mutex_unlock(&recv_sys.mutex);
 
-          if (!end)
+          if (!end && !corrupt_fs)
           {
             recv_sys.set_corrupt_log();
             sql_print_error("InnoDB: Missing FILE_CHECKPOINT(" LSN_PF
@@ -4395,9 +4389,7 @@ recv_init_crash_recovery_spaces(bool rescan, bool& missing_tablespace)
 static dberr_t recv_rename_files()
 {
   mysql_mutex_assert_owner(&recv_sys.mutex);
-#ifndef SUX_LOCK_GENERIC
-  ut_ad(log_sys.latch.is_write_locked());
-#endif
+  ut_ad(log_sys.latch_have_wr());
 
   dberr_t err= DB_SUCCESS;
 
@@ -4549,6 +4541,9 @@ read_only_recovery:
 					LSN_PF, recv_sys.lsn);
                         goto err_exit;
 		}
+		if (recv_sys.is_corrupt_fs()) {
+			goto err_exit;
+		}
 		ut_ad(recv_sys.file_checkpoint);
 		if (rewind) {
 			recv_sys.lsn = log_sys.next_checkpoint_lsn;
@@ -4587,9 +4582,9 @@ read_only_recovery:
 
 			do {
 				rescan = recv_scan_log(false);
-				ut_ad(!recv_sys.is_corrupt_fs());
 
-				if (recv_sys.is_corrupt_log()) {
+				if (recv_sys.is_corrupt_log() ||
+				    recv_sys.is_corrupt_fs()) {
 					goto err_exit;
 				}
 
@@ -4677,7 +4672,7 @@ err_exit:
 				 PROT_READ | PROT_WRITE);
 #endif
 		}
-		log_sys.buf_free = recv_sys.offset;
+		log_sys.set_buf_free(recv_sys.offset);
 		if (recv_needed_recovery
 	            && srv_operation <= SRV_OPERATION_EXPORT_RESTORED) {
 			/* Write a FILE_CHECKPOINT marker as the first thing,

@@ -51,12 +51,6 @@ replace_uring_with_aio()
       -e '/-DWITH_URING=ON/d' -i debian/rules
 }
 
-disable_pmem()
-{
-  sed '/libpmem-dev/d' -i debian/control
-  sed '/-DWITH_PMEM=ON/d' -i debian/rules
-}
-
 disable_libfmt()
 {
   # 7.0+ required
@@ -64,6 +58,7 @@ disable_libfmt()
 }
 
 architecture=$(dpkg-architecture -q DEB_BUILD_ARCH)
+uname_machine=$(uname -m)
 
 # Parse release name and number from Linux standard base release
 # Example:
@@ -96,10 +91,6 @@ in
   "buster")
     disable_libfmt
     replace_uring_with_aio
-    if [ ! "$architecture" = amd64 ]
-    then
-      disable_pmem
-    fi
     ;&
   "bullseye")
     add_lsb_base_depends
@@ -107,10 +98,6 @@ in
   "bookworm")
     # mariadb-plugin-rocksdb in control is 4 arches covered by the distro rocksdb-tools
     # so no removal is necessary.
-    if [[ ! "$architecture" =~ amd64|arm64|ppc64el ]]
-    then
-      disable_pmem
-    fi
     if [[ ! "$architecture" =~ amd64|arm64|armel|armhf|i386|mips64el|mipsel|ppc64el|s390x ]]
     then
       replace_uring_with_aio
@@ -129,10 +116,6 @@ in
     add_lsb_base_depends
     ;&
   "lunar"|"mantic")
-    if [[ ! "$architecture" =~ amd64|arm64|ppc64el ]]
-    then
-      disable_pmem
-    fi
     if [[ ! "$architecture" =~ amd64|arm64|armhf|ppc64el|s390x ]]
     then
       replace_uring_with_aio
@@ -204,6 +187,14 @@ fi
 if which eatmydata > /dev/null
 then
   BUILDPACKAGE_DPKGCMD+=("eatmydata")
+fi
+
+# If running autobake-debs.sh inside docker/podman host machine which
+# has 64 bits cpu but container image is 32 bit make sure that we set
+# correct arch with linux32 for 32 bit enviroment
+if [ "$architecture" = "i386" ] && [ "$uname_machine" = "x86_64" ]
+then
+  BUILDPACKAGE_DPKGCMD+=("linux32")
 fi
 
 BUILDPACKAGE_DPKGCMD+=("dpkg-buildpackage")

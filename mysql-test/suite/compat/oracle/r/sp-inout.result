@@ -684,7 +684,7 @@ END;
 END;
 $$
 set @a = 4;
-INSERT INTO Persons SELECT 4, 'DDD', PKG2.func(@a);
+INSERT INTO Persons SELECT 4, 'DDD', pkg2.func(@a);
 SELECT * FROM Persons;
 ID	Name	Age
 1	AAA	10
@@ -726,8 +726,8 @@ ID	Name	Age
 2	BBB	20
 3	CCC	30
 set @a = 0;
-INSERT INTO Persons SELECT 5, 'EEE', PKG2.func(@a);
-ERROR HY000: OUT or INOUT argument 1 for function PKG2.func is not allowed here
+INSERT INTO Persons SELECT 5, 'EEE', pkg2.func(@a);
+ERROR HY000: OUT or INOUT argument 1 for function pkg2.func is not allowed here
 DROP TABLE Persons;
 DROP PACKAGE pkg2;
 # 
@@ -764,7 +764,7 @@ ID	Name	Age
 3	CCC	30
 4	DDD	40
 set @a = 4;
-DELETE FROM Persons WHERE ID = PKG2.func(@a);
+DELETE FROM Persons WHERE ID = pkg2.func(@a);
 SELECT * FROM Persons;
 ID	Name	Age
 1	AAA	10
@@ -807,8 +807,8 @@ ID	Name	Age
 3	CCC	30
 4	DDD	40
 set @a = 0;
-DELETE FROM Persons WHERE ID = PKG2.func(@a);
-ERROR HY000: OUT or INOUT argument 1 for function PKG2.func is not allowed here
+DELETE FROM Persons WHERE ID = pkg2.func(@a);
+ERROR HY000: OUT or INOUT argument 1 for function pkg2.func is not allowed here
 DROP TABLE Persons;
 DROP PACKAGE pkg2;
 # 

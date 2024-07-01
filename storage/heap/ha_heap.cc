@@ -499,31 +499,22 @@ int ha_heap::external_lock(THD *thd, int lock_type)
 
   SYNOPSIS
     disable_indexes()
-    mode        mode of operation:
-                HA_KEY_SWITCH_NONUNIQ      disable all non-unique keys
-                HA_KEY_SWITCH_ALL          disable all keys
-                HA_KEY_SWITCH_NONUNIQ_SAVE dis. non-uni. and make persistent
-                HA_KEY_SWITCH_ALL_SAVE     dis. all keys and make persistent
 
   DESCRIPTION
-    Disable indexes and clear keys to use for scanning.
-
-  IMPLEMENTATION
-    HA_KEY_SWITCH_NONUNIQ       is not implemented.
-    HA_KEY_SWITCH_NONUNIQ_SAVE  is not implemented with HEAP.
-    HA_KEY_SWITCH_ALL_SAVE      is not implemented with HEAP.
+    See handler::ha_disable_indexes()
 
   RETURN
     0  ok
     HA_ERR_WRONG_COMMAND  mode not implemented.
 */
 
-int ha_heap::disable_indexes(uint mode)
+int ha_heap::disable_indexes(key_map map, bool persist)
 {
   int error;
 
-  if (mode == HA_KEY_SWITCH_ALL)
+  if (!persist)
   {
+    DBUG_ASSERT(map.is_clear_all());
     if (!(error= heap_disable_indexes(file)))
       set_keys_for_scanning();
   }
@@ -541,11 +532,6 @@ int ha_heap::disable_indexes(uint mode)
 
   SYNOPSIS
     enable_indexes()
-    mode        mode of operation:
-                HA_KEY_SWITCH_NONUNIQ      enable all non-unique keys
-                HA_KEY_SWITCH_ALL          enable all keys
-                HA_KEY_SWITCH_NONUNIQ_SAVE en. non-uni. and make persistent
-                HA_KEY_SWITCH_ALL_SAVE     en. all keys and make persistent
 
   DESCRIPTION
     Enable indexes and set keys to use for scanning.
@@ -554,10 +540,7 @@ int ha_heap::disable_indexes(uint mode)
     since the heap storage engine cannot repair the indexes.
     To be sure, call handler::delete_all_rows() before.
 
-  IMPLEMENTATION
-    HA_KEY_SWITCH_NONUNIQ       is not implemented.
-    HA_KEY_SWITCH_NONUNIQ_SAVE  is not implemented with HEAP.
-    HA_KEY_SWITCH_ALL_SAVE      is not implemented with HEAP.
+    See also handler::ha_enable_indexes()
 
   RETURN
     0  ok
@@ -565,12 +548,13 @@ int ha_heap::disable_indexes(uint mode)
     HA_ERR_WRONG_COMMAND  mode not implemented.
 */
 
-int ha_heap::enable_indexes(uint mode)
+int ha_heap::enable_indexes(key_map map, bool persist)
 {
   int error;
 
-  if (mode == HA_KEY_SWITCH_ALL)
+  if (!persist)
   {
+    DBUG_ASSERT(map.is_prefix(table->s->keys));
     if (!(error= heap_enable_indexes(file)))
       set_keys_for_scanning();
   }

@@ -272,7 +272,8 @@ my_bool Expression_cache_tmptable::put_value(Item *value)
   }
 
   *(items.head_ref())= value;
-  fill_record(table_thd, cache_table, cache_table->field, items, TRUE, TRUE);
+  fill_record(table_thd, cache_table, cache_table->field, items, true, true,
+              true);
   if (unlikely(table_thd->is_error()))
     goto err;;
 

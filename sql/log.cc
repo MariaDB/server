@@ -5561,6 +5561,15 @@ MYSQL_BIN_LOG::is_xidlist_idle_nolock()
   return true;
 }
 
+#ifdef WITH_WSREP
+static bool is_gtid_written_on_trans_start(const THD *thd)
+{
+  return wsrep_on(thd) &&
+      (thd->variables.gtid_seq_no || thd->variables.wsrep_gtid_seq_no) &&
+      (thd->wsrep_cs().mode() == wsrep::client_state::m_local);
+}
+#endif
+
 /**
   Create a new log file name.
 
@@ -6264,10 +6273,7 @@ THD::binlog_start_trans_and_stmt()
     Ha_trx_info *ha_info;
     ha_info= this->ha_data[binlog_hton->slot].ha_info + (mstmt_mode ? 1 : 0);
 
-    if (!ha_info->is_started() && 
-        (this->variables.gtid_seq_no || this->variables.wsrep_gtid_seq_no) &&
-        wsrep_on(this) && 
-        (this->wsrep_cs().mode() == wsrep::client_state::m_local))
+    if (!ha_info->is_started() && is_gtid_written_on_trans_start(this))
     {
       uchar *buf= 0;
       size_t len= 0;
@@ -7279,8 +7285,8 @@ err:
           mysql_mutex_assert_not_owner(&LOCK_after_binlog_sync);
           mysql_mutex_assert_not_owner(&LOCK_commit_ordered);
 #ifdef HAVE_REPLICATION
-          if (repl_semisync_master.report_binlog_update(thd, log_file_name,
-                                                        file->pos_in_file))
+          if (repl_semisync_master.report_binlog_update(
+                  thd, thd, log_file_name, file->pos_in_file))
           {
             sql_print_error("Failed to run 'after_flush' hooks");
             error= 1;
@@ -8443,9 +8449,9 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *orig_entry)
 
     if (entry->cache_mngr->using_xa)
     {
-      DEBUG_SYNC(entry->thd, "commit_before_prepare_ordered");
+      DEBUG_SYNC(orig_entry->thd, "commit_before_prepare_ordered");
       run_prepare_ordered(entry->thd, entry->all);
-      DEBUG_SYNC(entry->thd, "commit_after_prepare_ordered");
+      DEBUG_SYNC(orig_entry->thd, "commit_after_prepare_ordered");
     }
 
     if (cur)
@@ -8881,9 +8887,19 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
       for (current= queue; current != NULL; current= current->next)
       {
 #ifdef HAVE_REPLICATION
+        /*
+          The thread which will await the ACK from the replica can change
+          depending on the wait-point. If AFTER_COMMIT, then the user thread
+          will perform the wait. If AFTER_SYNC, the binlog group commit leader
+          will perform the wait on behalf of the user thread.
+        */
+        THD *waiter_thd= (repl_semisync_master.wait_point() ==
+                          SEMI_SYNC_MASTER_WAIT_POINT_AFTER_STORAGE_COMMIT)
+                             ? current->thd
+                             : leader->thd;
         if (likely(!current->error) &&
             unlikely(repl_semisync_master.
-                     report_binlog_update(current->thd,
+                     report_binlog_update(current->thd, waiter_thd,
                                           current->cache_mngr->
                                           last_commit_pos_file,
                                           current->cache_mngr->
@@ -11636,7 +11652,7 @@ Recovery_context::Recovery_context() :
   prev_event_pos(0),
   last_gtid_standalone(false), last_gtid_valid(false), last_gtid_no2pc(false),
   last_gtid_engines(0),
-  do_truncate(repl_semisync_slave.get_slave_enabled()),
+  do_truncate(global_rpl_semi_sync_slave_enabled),
   truncate_validated(false), truncate_reset_done(false),
   truncate_set_in_1st(false), id_binlog(MAX_binlog_id),
   checksum_alg(BINLOG_CHECKSUM_ALG_UNDEF), gtid_maybe_to_truncate(NULL)

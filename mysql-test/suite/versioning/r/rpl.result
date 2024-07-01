@@ -528,4 +528,17 @@ a	check_row_ts(rs,re)
 set sql_mode=default;
 connection master;
 drop tables t1, t2, t3;
+#
+# MDEV-33330 Server crash or assertion failure in
+# binlog_get_pending_rows_event
+#
+create or replace table t (x int) with system versioning
+partition by system_time interval 1 minute auto partitions 3;
+insert into t values (1);
+connect  con1,localhost,root,,;
+set timestamp= @@timestamp+120;
+update t set x= x + 1;
+connection default;
+disconnect con1;
+drop table t;
 include/rpl_end.inc

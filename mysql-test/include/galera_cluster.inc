@@ -13,9 +13,7 @@ if (!$galera_cluster_size)
 }
 
 --source include/galera_init.inc
---source include/have_innodb.inc
 --source include/galera_wait_ready.inc
-
 
 --let $_galera_node= $galera_cluster_size
 

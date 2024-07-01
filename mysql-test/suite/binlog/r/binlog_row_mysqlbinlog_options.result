@@ -204,7 +204,7 @@ START TRANSACTION
 # at #
 #010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Annotate_rows:
 #Q> LOAD DATA INFILE '../../std_data/loaddata7.dat' INTO TABLE t1
-#Q> FIELDS TERMINATED BY ',' LINES TERMINATED BY '\r\n
+#Q> FIELDS TERMINATED BY ',' LINES TERMINATED BY '\r\n'
 #010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Table_map: `new_test1`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -445,7 +445,7 @@ START TRANSACTION
 # at #
 #010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Annotate_rows:
 #Q> LOAD DATA INFILE '../../std_data/loaddata7.dat' INTO TABLE t1
-#Q> FIELDS TERMINATED BY ',' LINES TERMINATED BY '\r\n
+#Q> FIELDS TERMINATED BY ',' LINES TERMINATED BY '\r\n'
 #010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Table_map: `new_test1`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F

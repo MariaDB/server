@@ -1331,6 +1331,15 @@ my_decimal *Item_func_time_to_sec::decimal_op(my_decimal* buf)
 }
 
 
+static inline
+uint32 adjust_interval_field_uint32(ulonglong value, int32 multiplier)
+{
+  return value > ((ulonglong) (uint32) (UINT_MAX32)) / multiplier ?
+         (uint32) UINT_MAX32 :
+         (uint32) (value * multiplier);
+}
+
+
 /**
   Convert a string to a interval value.
 
@@ -1341,7 +1350,7 @@ bool get_interval_value(THD *thd, Item *args,
                         interval_type int_type, INTERVAL *interval)
 {
   ulonglong array[5];
-  longlong UNINIT_VAR(value);
+  ulonglong UNINIT_VAR(value);
   const char *UNINIT_VAR(str);
   size_t UNINIT_VAR(length);
   CHARSET_INFO *UNINIT_VAR(cs);
@@ -1368,14 +1377,17 @@ bool get_interval_value(THD *thd, Item *args,
   }
   else if ((int) int_type <= INTERVAL_MICROSECOND)
   {
-    value= args->val_int();
-    if (args->null_value)
-      return 1;
-    if (value < 0)
-    {
-      interval->neg=1;
-      value= -value;
-    }
+    /*
+      Let's use Longlong_hybrid_null to handle correctly:
+      - signed and unsigned values
+      - the corner case with LONGLONG_MIN
+        (avoid undefined behavior with its negation)
+    */
+    const Longlong_hybrid_null nr= args->to_longlong_hybrid_null();
+    if (nr.is_null())
+      return true;
+    value= nr.abs();
+    interval->neg= nr.neg() ? 1 : 0;
   }
   else
   {
@@ -1402,13 +1414,13 @@ bool get_interval_value(THD *thd, Item *args,
     interval->year= (ulong) value;
     break;
   case INTERVAL_QUARTER:
-    interval->month= (ulong)(value*3);
+    interval->month= adjust_interval_field_uint32(value, 3);
     break;
   case INTERVAL_MONTH:
     interval->month= (ulong) value;
     break;
   case INTERVAL_WEEK:
-    interval->day= (ulong)(value*7);
+    interval->day= adjust_interval_field_uint32(value, 7);
     break;
   case INTERVAL_DAY:
     interval->day= (ulong) value;
@@ -2974,7 +2986,7 @@ bool Item_extract::fix_length_and_dec(THD *thd)
   switch (int_type) {
   case INTERVAL_YEAR:             set_date_length(4); break; // YYYY
   case INTERVAL_YEAR_MONTH:       set_date_length(6); break; // YYYYMM
-  case INTERVAL_QUARTER:          set_date_length(2); break; // 1..4
+  case INTERVAL_QUARTER:          set_date_length(1); break; // 1..4
   case INTERVAL_MONTH:            set_date_length(2); break; // MM
   case INTERVAL_WEEK:             set_date_length(2); break; // 0..52
   case INTERVAL_DAY:              set_day_length(daylen); break; // DD
@@ -3538,6 +3550,24 @@ bool Item_func_timediff::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzy
 
   if (l_time1.neg != l_time2.neg)
     l_sign= -l_sign;
+
+  if (l_time1.time_type == MYSQL_TIMESTAMP_TIME)
+  {
+    /*
+      In case of TIME-alike arguments:
+        TIMEDIFF('38:59:59', '839:00:00')
+      let's truncate extra fractional seconds that might appear if the argument
+      values were out of the supported TIME range. For example, args[n]->get_time()
+      for the string literal '839:00:00' returns TIME'838:59:59.999999'.
+      The fractional part must be truncated according to this->decimals,
+      to avoid returning more fractional seconds than it was detected
+      during this->fix_length_and_dec().
+      Note, the thd rounding mode should not be important here, as we're removing
+      redundant digits from the maximum possible value: '838:59:59.999999'.
+    */
+    my_time_trunc(&l_time1, decimals);
+    my_time_trunc(&l_time2, decimals);
+  }
 
   if (calc_time_diff(&l_time1, &l_time2, l_sign, &l_time3, fuzzydate))
     return (null_value= 1);

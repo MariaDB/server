@@ -1805,7 +1805,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `color` char(32) GENERATED ALWAYS AS (column_get(`dynamic_cols`,1 as char charset latin1)) STORED,
-  `cl` char(32) GENERATED ALWAYS AS (column_get(column_add(column_create(1,'blue' AS char charset latin1 ),2,'ttt'),`i` as char charset latin1)) STORED,
+  `cl` char(32) GENERATED ALWAYS AS (column_get(column_add(column_create(1,'blue' AS char charset latin1 collate latin1_swedish_ci ),2,'ttt'),`i` as char charset latin1)) STORED,
   `item_name` varchar(32) NOT NULL,
   `i` int(11) DEFAULT NULL,
   `dynamic_cols` blob DEFAULT NULL,
@@ -2060,4 +2060,11 @@ DROP TABLE t1;
 #
 CREATE TABLE t1 (id1 INT, id2 INT, primary key (id1), unique index (id2) visible);
 drop table t1;
+#
+# MDEV-32376 SHOW CREATE DATABASE statement crashes the server when db name contains some unicode characters, ASAN stack-buffer-overflow
+#
+SET NAMES utf8mb3;
+SHOW CREATE DATABASE `#testone#￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭`;
+ERROR 42000: Incorrect database name '#testone#￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭...'
+SET NAMES DEFAULT;
 # End of 10.5 Test

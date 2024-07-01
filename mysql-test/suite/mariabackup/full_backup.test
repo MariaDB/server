@@ -7,7 +7,7 @@ let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
 --let $backup_log=$MYSQLTEST_VARDIR/tmp/backup.log
 
 --disable_result_log
-exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir > $backup_log 2>&1;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir --parallel=10 > $backup_log 2>&1;
 --enable_result_log
 
 # The following warning must not appear after MDEV-27343 fix

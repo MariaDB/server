@@ -10,6 +10,7 @@
 #
 # Check actual behavior for table, partitioned table and temporary table
 # #############################################################
+--source include/have_innodb.inc
 --source include/have_innodb_16k.inc
 --source include/have_partition.inc
 

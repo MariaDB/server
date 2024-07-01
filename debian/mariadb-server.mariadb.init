@@ -88,7 +88,7 @@ sanity_checks() {
   # If datadir location is not changed int configuration
   # then it's not printed with /usr/sbin/mariadbd --print-defaults
   # then we use 'sane' default.
-  if [ -z "$datadir"]
+  if [ -z "$datadir" ]
   then
     datadir="/var/lib/mysql"
   fi

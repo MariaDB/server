@@ -510,22 +510,22 @@ eval set @con= $con;
 
 --echo # First signal is for log description event.
 set debug_sync= 'now WAIT_FOR applied';
-select stage, progress from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
+select stage, progress, examined_rows  from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
 set debug_sync= 'now SIGNAL proceed WAIT_FOR applied';
 
-select stage, progress from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
+select stage, progress, examined_rows from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
 set debug_sync= 'now SIGNAL proceed WAIT_FOR applied';
 
-select stage, progress from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
+select stage, progress, examined_rows from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
 set debug_sync= 'now SIGNAL proceed WAIT_FOR applied';
 
-select stage, progress from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
+select stage, progress, examined_rows from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
 set debug_sync= 'now SIGNAL proceed WAIT_FOR applied';
 
-select stage, progress from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
+select stage, progress, examined_rows from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
 set debug_sync= 'now SIGNAL proceed WAIT_FOR applied';
 
-select stage, progress from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
+select stage, progress, examined_rows from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
 set debug_sync= 'now SIGNAL proceed WAIT_FOR locking';
 
 begin;
@@ -537,13 +537,13 @@ update t1 set b= 444 where a = 4;
 commit;
 set debug_sync= 'now SIGNAL end WAIT_FOR applied';
 
-select stage, progress from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
+select stage, progress, examined_rows from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
 set debug_sync= 'now SIGNAL proceed WAIT_FOR applied';
 
-select stage, progress from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
+select stage, progress, examined_rows from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
 set debug_sync= 'now SIGNAL proceed WAIT_FOR applied';
 
-select stage, progress from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
+select stage, progress, examined_rows from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
 set debug_sync= 'now SIGNAL proceed';
 
 --connection default
@@ -2038,6 +2038,63 @@ set debug_sync= 'now signal go';
 --reap
 select * from t;
 
+drop table t;
+
+
+--echo #
+--echo # MDEV-32803 Assertion `total == 0' failed in Event_log::write_cache_raw
+--echo #
+
+create or replace table t1 (a int) engine=aria;
+insert t1 values (5);
+set debug_sync= 'alter_table_copy_end SIGNAL ended WAIT_FOR end';
+
+send alter table t1 add b int NULL, algorithm= copy, lock= none;
+
+--connection con2
+set debug_sync= 'now WAIT_FOR ended';
+begin;
+insert into t1 values (123);
+insert into t1 values (456), (789);
+commit;
+set debug_sync= 'now SIGNAL end';
+
+--connection default
+--reap
+select * from t1;
+
+drop table t1;
+
+
+--echo # MDEV-32614 LeakSanitizer errors in copy_data_between_tables
+create table t (a int, b int) engine=aria;
+insert into t select seq, seq from seq_1_to_5;
+backup stage start;
+
+--connect (con_lock,localhost,root,,)
+set lock_wait_timeout= 1;
+
+set debug_sync='copy_data_between_tables_before_reset_backup_lock signal backup wait_for continue';
+send alter table t add index (b), algorithm=copy, lock=none;
+
+--connection default
+
+set debug_sync='now wait_for backup';
+
+backup stage block_commit;
+
+set debug_sync='now signal continue';
+
+--connection con_lock
+--error ER_LOCK_WAIT_TIMEOUT
+--reap
+--disconnect con_lock
+
+--connection default
+backup stage end;
+alter table t add index (a), algorithm=copy, lock=none;
+
+--connection default
 drop table t;
 
 

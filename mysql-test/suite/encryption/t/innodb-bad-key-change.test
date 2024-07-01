@@ -42,7 +42,7 @@ SELECT * FROM t1;
 -- source include/restart_mysqld.inc
 
 --disable_warnings
---error ER_NO_SUCH_TABLE_IN_ENGINE
+--error ER_TABLE_CORRUPT
 SELECT * FROM t1;
 --enable_warnings
 
@@ -71,7 +71,7 @@ INSERT INTO t2 VALUES ('foobar',1,2);
 -- source include/restart_mysqld.inc
 
 --disable_warnings
---error ER_NO_SUCH_TABLE_IN_ENGINE
+--error ER_TABLE_CORRUPT
 SELECT * FROM t2;
 
 --error ER_TABLE_CORRUPT

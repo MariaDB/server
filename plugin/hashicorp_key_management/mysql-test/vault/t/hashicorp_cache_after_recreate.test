@@ -11,7 +11,7 @@
 --exec vault kv put /bug/1 data=01234567890123456789012345678901 > /dev/null
 --exec vault kv put /bug/4 data=01234567890123456789012345678904 > /dev/null
 
---let $restart_parameters=--plugin-load-add=hashicorp_key_management --hashicorp-key-management-vault-url="$VAULT_ADDR/v1/bug/" --hashicorp-key-management-token="$VAULT_TOKEN"
+--let $restart_parameters=--plugin-load-add=hashicorp_key_management --hashicorp-key-management-vault-url=$VAULT_ADDR/v1/bug/ --hashicorp-key-management-token=$VAULT_TOKEN
 --let $restart_noprint=1
 --source include/restart_mysqld.inc
 

@@ -304,8 +304,6 @@ unsigned long long srv_stats_modified_counter;
 based on number of configured pages */
 my_bool	srv_stats_sample_traditional;
 
-my_bool	srv_use_doublewrite_buf;
-
 /** innodb_sync_spin_loops */
 ulong	srv_n_spin_wait_rounds;
 /** innodb_spin_wait_delay */

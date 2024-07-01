@@ -7,7 +7,7 @@ if (!$restart_parameters)
 --let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.$_server_id.expect
 
 --echo # Kill and $restart_parameters
---exec echo "$restart_parameters" > $_expect_file_name
+--write_line "$restart_parameters" $_expect_file_name
 --shutdown_server 0
 --source include/wait_until_disconnected.inc
 --enable_reconnect

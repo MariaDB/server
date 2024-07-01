@@ -22,6 +22,7 @@
 #include "datadict.h"
 #include "sql_string.h"                         /* String */
 #include "lex_string.h"
+#include "lex_ident.h"
 
 #ifndef MYSQL_CLIENT
 
@@ -536,8 +537,8 @@ enum enum_table_category
 
 typedef enum enum_table_category TABLE_CATEGORY;
 
-TABLE_CATEGORY get_table_category(const LEX_CSTRING *db,
-                                  const LEX_CSTRING *name);
+TABLE_CATEGORY get_table_category(const Lex_ident_db &db,
+                                  const Lex_ident_table &name);
 
 
 typedef struct st_table_field_type
@@ -1916,6 +1917,7 @@ public:
 #endif
 
   int update_generated_fields();
+  void period_prepare_autoinc();
   int period_make_insert(Item *src, Field *dst);
   int insert_portion_of_time(THD *thd, const vers_select_conds_t &period_conds,
                              ha_rows *rows_inserted);
@@ -2296,8 +2298,23 @@ struct TABLE_CHAIN
   void set_end_pos(TABLE_LIST **pos) { end_pos= pos; }
 };
 
+class Table_ident;
 struct TABLE_LIST
 {
+  TABLE_LIST(THD *thd,
+             LEX_CSTRING db_str,
+             bool fqtn,
+             LEX_CSTRING alias_str,
+             bool has_alias_ptr,
+             Table_ident *table_ident,
+             thr_lock_type lock_t,
+             enum_mdl_type mdl_t,
+             ulong table_opts,
+             bool info_schema,
+             st_select_lex *sel,
+             List<Index_hint> *index_hints_ptr,
+             LEX_STRING *option_ptr);
+
   TABLE_LIST() = default;                          /* Remove gcc warning */
 
   enum prelocking_types
@@ -3000,7 +3017,10 @@ struct TABLE_LIST
      @brief Returns the name of the database that the referenced table belongs
      to.
   */
-  const char *get_db_name() const { return view != NULL ? view_db.str : db.str; }
+  const LEX_CSTRING get_db_name() const
+  {
+    return view != NULL ? view_db : db;
+  }
 
   /**
      @brief Returns the name of the table that this TABLE_LIST represents.
@@ -3008,7 +3028,10 @@ struct TABLE_LIST
      @details The unqualified table name or view name for a table or view,
      respectively.
    */
-  const char *get_table_name() const { return view != NULL ? view_name.str : table_name.str; }
+  const LEX_CSTRING get_table_name() const
+  {
+    return view != NULL ? view_name : table_name;
+  }
   bool is_active_sjm();
   bool is_sjm_scan_table();
   bool is_jtbm() { return MY_TEST(jtbm_subselect != NULL); }
@@ -3412,7 +3435,7 @@ extern LEX_CSTRING TRANSACTION_REG_NAME;
 
 /* information schema */
 extern LEX_CSTRING INFORMATION_SCHEMA_NAME;
-extern LEX_CSTRING MYSQL_SCHEMA_NAME;
+extern Lex_ident_db MYSQL_SCHEMA_NAME;
 
 /* table names */
 extern LEX_CSTRING MYSQL_PROC_NAME;

@@ -28,6 +28,7 @@
 #include "spd_table.h"
 
 extern pthread_mutex_t spider_mem_calc_mutex;
+extern handlerton *spider_hton_ptr;
 
 extern const char *spider_alloc_func_name[SPIDER_MEM_CALC_LIST_NUM];
 extern const char *spider_alloc_file_name[SPIDER_MEM_CALC_LIST_NUM];
@@ -63,6 +64,8 @@ static int spider_i_s_alloc_mem_fill_table(
   uint roop_count;
   TABLE *table = tables->table;
   DBUG_ENTER("spider_i_s_alloc_mem_fill_table");
+  if (!spider_hton_ptr)
+    DBUG_RETURN(0);
   for (roop_count = 0; roop_count < SPIDER_MEM_CALC_LIST_NUM; roop_count++)
   {
     table->field[0]->store(roop_count, TRUE);
@@ -177,6 +180,8 @@ static int spider_i_s_wrapper_protocols_fill_table(
   SPIDER_DBTON *dbton;
   TABLE *table = tables->table;
   DBUG_ENTER("spider_i_s_wrapper_protocols_fill_table");
+  if (!spider_hton_ptr)
+    DBUG_RETURN(0);
   for (roop_count = 0; roop_count < SPIDER_DBTON_SIZE; roop_count++)
   {
     dbton = &spider_dbton[roop_count];

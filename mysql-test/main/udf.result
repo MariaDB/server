@@ -607,4 +607,68 @@ drop table t1;
 DROP FUNCTION avgcost;
 DROP FUNCTION avg2;
 DROP FUNCTION myfunc_double;
+#
+# MDEV-24507: Server Crash using UDF in WHERE clause of VIEW
+#
+CREATE FUNCTION myfunc_int RETURNS INTEGER SONAME "UDF_EXAMPLE_LIB";
+create table t1(pk int primary key, a varchar(20));
+create table t2(pk int primary key, a varchar(20));
+create view v1 as select pk, a from t1 union select pk, a from t2;
+insert into t1 values (1, "One"), (3, "Three"), (5, "Five");
+insert into t2 values (2, "Dos"), (4, "Quatro"), (6, "Seis");
+select pk, myfunc_int(a) from t1;
+pk	myfunc_int(a)
+1	3
+3	5
+5	4
+select pk, myfunc_int(a) from t2;
+pk	myfunc_int(a)
+2	3
+4	6
+6	4
+select pk, myfunc_int(a) from v1;
+pk	myfunc_int(a)
+1	3
+3	5
+5	4
+2	3
+4	6
+6	4
+select pk from t1 where myfunc_int(a) > 4;
+pk
+3
+select pk from (select pk, a from t1) A where myfunc_int(A.a) > 4;
+pk
+3
+set @save_optimizer_switch = @@optimizer_switch;
+set optimizer_switch = 'derived_merge=OFF';
+select pk, myfunc_int(a) from t1;
+pk	myfunc_int(a)
+1	3
+3	5
+5	4
+select pk, myfunc_int(a) from t2;
+pk	myfunc_int(a)
+2	3
+4	6
+6	4
+select pk, myfunc_int(a) from v1;
+pk	myfunc_int(a)
+1	3
+3	5
+5	4
+2	3
+4	6
+6	4
+select pk from t1 where myfunc_int(a) > 4;
+pk
+3
+select pk from (select pk, a from t1) A where myfunc_int(A.a) > 4;
+pk
+3
+set optimizer_switch = @save_optimizer_switch;
+drop view v1;
+drop table t2;
+drop table t1;
+drop function myfunc_int;
 # End of 10.4 tests

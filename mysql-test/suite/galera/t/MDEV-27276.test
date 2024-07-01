@@ -17,7 +17,7 @@
 # We use concurrency facility of test MW-369 to setup the conflict between DDL and DML
 #
 
-# Open connection node_1a here, MW-369.inc will use it later
+# Open connection node_1a here, we will use it later
 --connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
 
 # create FK parent table
@@ -28,13 +28,50 @@ CREATE TABLE p (id INTEGER PRIMARY KEY, f2 INTEGER) ENGINE=INNODB;
 --let $mw_369_parent_query = INSERT INTO p VALUES(1,0)
 --let $mw_369_child_query = CREATE TABLE c(id INT NOT NULL PRIMARY KEY, p_id INT,  FOREIGN KEY (p_id)  REFERENCES p(id)  ON DELETE CASCADE) ENGINE=InnoDB
 
-# execute above queries through separate nodes
---source MW-369.inc
+--connection node_1
+SET AUTOCOMMIT=ON;
+START TRANSACTION;
+--eval $mw_369_parent_query
+
+#
+# Block the $mw_369_child_query from node_2
+#
+# --connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connection node_1a
+SET SESSION wsrep_sync_wait = 0;
+--let $galera_sync_point = apply_monitor_slave_enter_sync
+--source include/galera_set_sync_point.inc
+
+#
+# insert client row, which will make it impossible to replay the
+# delete on parent
+#
+--connection node_2
+--eval $mw_369_child_query
+
+#
+# Wait until $mw_369_child_query from node_2 reaches the sync point and
+# block the 'COMMIT' from node_1 before it certifies.
+#
+--connection node_1a
+--source include/galera_wait_sync_point.inc
+--source include/galera_clear_sync_point.inc
+
+--connection node_1
+--send COMMIT
+
+--connection node_1a
+--let $galera_sync_point = apply_monitor_slave_enter_sync
+--source include/galera_signal_sync_point.inc
+--source include/galera_clear_sync_point.inc
 
 # Expect certification failure
 --connection node_1
 --error ER_LOCK_DEADLOCK
 --reap
+
+--connection node_1a
+SET SESSION DEBUG_SYNC = "RESET";
 
 --connection node_2
 SELECT * FROM p;

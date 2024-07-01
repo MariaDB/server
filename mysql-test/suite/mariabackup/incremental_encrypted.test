@@ -7,6 +7,12 @@ if (!$EXAMPLE_KEY_MANAGEMENT_SO)
 }
 call mtr.add_suppression("InnoDB: New log files created");
 
+if (`select @@innodb_page_size=65536`)
+{
+  # this needs too much memory for 32bit
+  source include/have_64bit.inc;
+}
+
 
 let $basedir=$MYSQLTEST_VARDIR/tmp/backup;
 let $incremental_dir=$MYSQLTEST_VARDIR/tmp/backup_inc1;
@@ -18,7 +24,7 @@ INSERT INTO t VALUES(1);
 
 echo # Create full backup , modify table, then create incremental/differential backup;
 --disable_result_log
-exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --target-dir=$basedir;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --parallel=10 --target-dir=$basedir;
 --enable_result_log
 
 SET GLOBAL innodb_flush_log_at_trx_commit = 1;
@@ -26,7 +32,7 @@ INSERT INTO t VALUES(2);
 SELECT * FROM t;
 
 --disable_result_log
-exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf   --backup --target-dir=$incremental_dir --incremental-basedir=$basedir;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf   --backup --parallel=10 --target-dir=$incremental_dir --incremental-basedir=$basedir;
 echo # Prepare full backup, apply incremental one;
 exec $XTRABACKUP --prepare --target-dir=$basedir;
 exec $XTRABACKUP --prepare --target-dir=$basedir --incremental-dir=$incremental_dir;

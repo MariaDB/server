@@ -15,6 +15,58 @@ CREATE TABLE imp_t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
 DROP TABLE imp_t1, t1;
 SET GLOBAL innodb_checksum_algorithm=@save_innodb_checksum_algorithm;
 #
+# MDEV-33400 Adaptive hash index corruption after DISCARD TABLESPACE
+#
+SET @save_adaptive=@@GLOBAL.innodb_adaptive_hash_index;
+SET GLOBAL innodb_adaptive_hash_index=ON;
+CREATE TABLE t (a INT PRIMARY KEY) ENGINE=INNODB;
+INSERT INTO t SELECT * FROM seq_1_to_131;
+ALTER TABLE t ADD hid INT DEFAULT 2;
+INSERT INTO t VALUES (251,1);
+ALTER TABLE t DISCARD TABLESPACE;
+CHECK TABLE mysql.innodb_table_stats;
+Table	Op	Msg_type	Msg_text
+mysql.innodb_table_stats	check	status	OK
+DROP TABLE t;
+SET GLOBAL innodb_adaptive_hash_index=@save_adaptive;
+# End of 10.4 tests
+#
+# MDEV-18288: Transportable Tablespaces leave AUTO_INCREMENT in mismatched
+# state, causing INSERT errors in newly imported tables when .cfg is not used.
+#
+CREATE TABLE t1(
+id INT(10) UNSIGNED NOT NULL AUTO_INCREMENT,
+PRIMARY KEY (id)
+) ENGINE=INNODB;
+CREATE TABLE t2 LIKE t1;
+ALTER TABLE t2 DISCARD TABLESPACE;
+INSERT INTO t1() VALUES();
+INSERT INTO t1() VALUES();
+FLUSH TABLES test.t1 FOR EXPORT;
+# Copy data file
+# Skip CFG file copy
+UNLOCK TABLES;
+DROP TABLE t1;
+ALTER TABLE t2 IMPORT TABLESPACE;
+Warnings:
+Warning	1810	IO Read error: (2, No such file or directory) Error opening './test/t2.cfg', will attempt to import without schema verification
+SELECT * FROM t2 ORDER BY id;
+id
+1
+2
+INSERT INTO t2() VALUES();
+INSERT INTO t2() VALUES();
+INSERT INTO t2() VALUES();
+SELECT * FROM t2 ORDER BY id;
+id
+1
+2
+3
+4
+5
+DROP TABLE t2;
+# End of 10.5 tests
+#
 # MDEV-27006 Assertion `!lock_trx_has_sys_table_locks(trx)'
 #	failed in dberr_t row_discard_tablespace_for_mysql
 #		(dict_table_t*, trx_t*)

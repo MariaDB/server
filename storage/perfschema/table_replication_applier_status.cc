@@ -166,7 +166,7 @@ void table_replication_applier_status::make_row(Master_info *mi)
     m_row.service_state= PS_RPL_NO;
 
   m_row.remaining_delay= 0;
-  if (slave_sql_running_state == Relay_log_info::state_delaying_string)
+  if (slave_sql_running_state == stage_sql_thd_waiting_until_delay.m_name)
   {
     time_t t= my_time(0), sql_delay_end= mi->rli.get_sql_delay_end();
     m_row.remaining_delay= (uint)(t < sql_delay_end ?

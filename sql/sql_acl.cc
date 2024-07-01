@@ -1071,6 +1071,9 @@ class User_table_tabular: public User_table
     if (access & REPL_SLAVE_ACL)
       access|= SLAVE_MONITOR_ACL;
 
+    if ((access & ALL_KNOWN_ACL_100304) == ALL_KNOWN_ACL_100304)
+      access|= SHOW_CREATE_ROUTINE_ACL;
+
     return access & GLOBAL_ACLS;
   }
 
@@ -1584,6 +1587,11 @@ class User_table_json: public User_table
       print_warning_bad_access(version_id, mask, orig_access);
       return NO_ACL;
     }
+
+    // ALL PRIVILEGES always means ALL PRIVILEGES
+    if ((orig_access & mask) == mask)
+      access= ALL_KNOWN_ACL;
+
     return access & ALL_KNOWN_ACL;
   }
 
@@ -2785,6 +2793,9 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
 	db.access|=REFERENCES_ACL | INDEX_ACL | ALTER_ACL;
     }
 #endif
+    if (db_table.num_fields() <= 23)
+      if ((db.access | SHOW_CREATE_ROUTINE_ACL | GRANT_ACL) == DB_ACLS)
+        db.access|= SHOW_CREATE_ROUTINE_ACL;
     acl_dbs.push(db);
   }
   end_read_record(&read_record_info);
@@ -2938,6 +2949,7 @@ bool acl_reload(THD *thd)
   }
 
   acl_cache->clear(0);
+  mysql_mutex_record_order(&acl_cache->lock, &LOCK_status);
   mysql_mutex_lock(&acl_cache->lock);
 
   old_acl_hosts= acl_hosts;
@@ -5039,6 +5051,9 @@ static int replace_db_table(TABLE *table, const char *db,
   }
   rights=get_access(table,3);
   rights=fix_rights_for_db(rights);
+  if (table->s->fields <= 23)
+    if ((rights | SHOW_CREATE_ROUTINE_ACL | GRANT_ACL) == DB_ACLS)
+      rights|= SHOW_CREATE_ROUTINE_ACL;
 
   if (old_row_exists)
   {
@@ -7311,8 +7326,8 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
       continue;					// Add next user
     }
 
-    db_name= table_list->get_db_name();
-    table_name= table_list->get_table_name();
+    db_name= table_list->get_db_name().str;
+    table_name= table_list->get_table_name().str;
 
     /* Find/create cached table grant */
     grant_table= table_hash_search(Str->host.str, NullS, db_name,
@@ -7618,7 +7633,7 @@ static bool can_grant_role(THD *thd, ACL_ROLE *role)
 {
   Security_context *sctx= thd->security_ctx;
 
-  if (!sctx->user) // replication
+  if (!sctx->is_user_defined()) // galera
     return true;
 
   ACL_USER *grantee= find_user_exact(sctx->priv_host, sctx->priv_user);
@@ -8387,8 +8402,8 @@ bool check_grant(THD *thd, privilege_t want_access, TABLE_LIST *tables,
 
     const ACL_internal_table_access *access=
       get_cached_table_access(&t_ref->grant.m_internal,
-                              t_ref->get_db_name(),
-                              t_ref->get_table_name());
+                              t_ref->get_db_name().str,
+                              t_ref->get_table_name().str);
 
     if (access)
     {
@@ -8453,7 +8468,8 @@ bool check_grant(THD *thd, privilege_t want_access, TABLE_LIST *tables,
       mysql_rwlock_rdlock(&LOCK_grant);
     }
 
-    t_ref->grant.read(sctx, t_ref->get_db_name(), t_ref->get_table_name());
+    t_ref->grant.read(sctx,
+                      t_ref->get_db_name().str, t_ref->get_table_name().str);
 
     if (!t_ref->grant.grant_table_user &&
         !t_ref->grant.grant_table_role &&
@@ -8498,7 +8514,7 @@ err:
              command,
              sctx->priv_user,
              sctx->host_or_ip, tl ? tl->db.str : "unknown",
-             tl ? tl->get_table_name() : "unknown");
+             tl ? tl->get_table_name().str : "unknown");
   }
   DBUG_RETURN(TRUE);
 }
@@ -13344,8 +13360,27 @@ static bool send_server_handshake_packet(MPVIO_EXT *mpvio,
   *end++= 0;
 
   int2store(end, thd->client_capabilities);
+
+  CHARSET_INFO *handshake_cs= default_charset_info;
+  if (handshake_cs->number > 0xFF)
+  {
+    /*
+      A workaround for a 2-byte collation ID: translate it into
+      the ID of the primary collation of this character set.
+    */
+    CHARSET_INFO *cs= get_charset_by_csname(handshake_cs->cs_name.str,
+                                            MY_CS_PRIMARY, MYF(MY_WME));
+    /*
+      cs should not normally be NULL, however it may be possible
+      with a dynamic character set incorrectly defined in Index.xml.
+      For safety let's fallback to latin1 in case cs is NULL.
+    */
+    handshake_cs= cs ? cs : &my_charset_latin1;
+  }
+
   /* write server characteristics: up to 16 bytes allowed */
-  end[2]= (char) default_charset_info->number;
+  end[2]= (char) handshake_cs->number;
+
   int2store(end+3, mpvio->auth_info.thd->server_status);
   int2store(end+5, thd->client_capabilities >> 16);
   end[7]= data_len;
@@ -13986,9 +14021,11 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
     Since 4.1 all database names are stored in utf8
     The cast is ok as copy_with_error will create a new area for db
   */
+  DBUG_ASSERT(db || !db_len);
+  // Don't pass db==nullptr to avoid UB nullptr+0 inside copy_with_error()
   if (unlikely(thd->copy_with_error(system_charset_info,
                                     (LEX_STRING*) &mpvio->db,
-                                    thd->charset(), db, db_len)))
+                                    thd->charset(), db ? db : "", db_len)))
     return packet_error;
 
   user_len= copy_and_convert(user_buff, sizeof(user_buff) - 1,

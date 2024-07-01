@@ -20,7 +20,7 @@
 --error 0,1
 --remove_file $LOG_FILE
 
---let $vault_defaults=--plugin-load-add=hashicorp_key_management --hashicorp_key_management=force --hashicorp-key-management-check-kv-version=on --hashicorp-key-management-token="$VAULT_TOKEN"
+--let $vault_defaults=--plugin-load-add=hashicorp_key_management --hashicorp_key_management=force --hashicorp-key-management-check-kv-version=on --hashicorp-key-management-token=$VAULT_TOKEN
 --let $defaults=--defaults-group-suffix=.1 --defaults-file=$MYSQLTEST_VARDIR/my.cnf $vault_defaults --log-error=$LOG_FILE
 
 --error 1
@@ -30,14 +30,14 @@
 
 --remove_file $LOG_FILE
 
---let $restart_parameters=$vault_defaults --hashicorp-key-management-vault-url="$VAULT_ADDR/v1/good"
+--let $restart_parameters=$vault_defaults --hashicorp-key-management-vault-url=$VAULT_ADDR/v1/good
 --let $restart_noprint=1
 --source include/start_mysqld.inc
 
 CREATE TABLE t1 (a VARCHAR(8)) ENGINE=InnoDB ENCRYPTED=YES ENCRYPTION_KEY_ID=1;
 INSERT INTO t1 VALUES ('foo'),('bar');
 
---let $restart_parameters=$vault_defaults --hashicorp-key-management-vault-url="$VAULT_ADDR/v1/good//"
+--let $restart_parameters=$vault_defaults --hashicorp-key-management-vault-url=$VAULT_ADDR/v1/good//
 --source include/restart_mysqld.inc
 
 CREATE TABLE t2 (a VARCHAR(8)) ENGINE=InnoDB ENCRYPTED=YES ENCRYPTION_KEY_ID=2;

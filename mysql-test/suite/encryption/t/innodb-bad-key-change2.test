@@ -30,7 +30,7 @@ INSERT INTO t1 VALUES (1,'foo'),(2,'bar');
 --let $restart_parameters=--plugin-load-add=file_key_management --file-key-management --file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys3.txt
 --source include/restart_mysqld.inc
 
---error ER_NO_SUCH_TABLE_IN_ENGINE
+--error ER_TABLE_CORRUPT
 SELECT * FROM t1;
 --replace_regex /key_id [1-9][0-9]*/\1 /
 SHOW WARNINGS;
@@ -61,7 +61,7 @@ UNLOCK TABLES;
 --let $restart_parameters=--plugin-load-add=file_key_management --file-key-management --file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys3.txt
 --source include/restart_mysqld.inc
 
---error ER_NO_SUCH_TABLE_IN_ENGINE
+--error ER_TABLE_CORRUPT
 ALTER TABLE t1 DISCARD TABLESPACE;
 # Drop table will succeed.
 DROP TABLE t1;
@@ -93,7 +93,7 @@ SHOW CREATE TABLE t1;
 --let $restart_parameters= --innodb-encrypt-tables --plugin-load-add=file_key_management --file-key-management --file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys3.txt
 --source include/restart_mysqld.inc
 
---error ER_ERROR_ON_RENAME
+--error ER_TABLE_CORRUPT
 RENAME TABLE t1 TO t1new;
 --error ER_TABLE_CORRUPT
 ALTER TABLE t1 RENAME TO t1new;

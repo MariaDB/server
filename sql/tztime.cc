@@ -2783,6 +2783,8 @@ static const char *lock_tables=
   "  time_zone_transition WRITE,\n"
   "  time_zone_transition_type WRITE";
 static const char *trunc_tables_const=
+  "SET @old_alter_alg=@@SESSION.alter_algorithm;\n"
+  "SET session alter_algorithm='COPY';\n"
   "TRUNCATE TABLE time_zone;\n"
   "TRUNCATE TABLE time_zone_name;\n"
   "TRUNCATE TABLE time_zone_transition;\n"
@@ -2931,6 +2933,9 @@ main(int argc, char **argv)
         "concat('ALTER TABLE time_zone_transition_type ENGINE=', "
 	  "@time_zone_transition_type_engine, ', ORDER BY Time_zone_id, Transition_type_id'), 'do 0');\n");
 
+  if (argc == 1 && !opt_leap)
+    printf("SET session alter_algorithm=@old_alter_alg;\n");
+  
   free_allocated_data();
   my_end(0);
   return 0;

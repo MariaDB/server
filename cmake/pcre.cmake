@@ -4,6 +4,9 @@ SET(WITH_PCRE "auto" CACHE STRING
    "Which pcre to use (possible values are 'bundled', 'system', or 'auto')")
 
 MACRO(BUNDLE_PCRE2)
+  SET(WITH_PCRE "bundled" CACHE STRING
+   "Which pcre to use (possible values are 'bundled', 'system', or 'auto')")
+
   SET(dir "${CMAKE_BINARY_DIR}/extra/pcre2")
   SET(PCRE_INCLUDE_DIRS ${dir}/src/pcre2-build ${dir}/src/pcre2/src)
   MESSAGE(STATUS "Will download and bundle pcre2")
@@ -41,21 +44,21 @@ MACRO(BUNDLE_PCRE2)
     SET(byproducts ${byproducts} BUILD_BYPRODUCTS ${file} ${file_d})
     SET_TARGET_PROPERTIES(${lib} PROPERTIES IMPORTED_LOCATION ${file})
   ENDFOREACH()
+
   FOREACH(v "" "_DEBUG" "_RELWITHDEBINFO" "_RELEASE" "_MINSIZEREL")
-    STRING(REPLACE "/WX" "" pcre2_flags${v} "${CMAKE_C_FLAGS${v}}")
-    SET(pcre2_flags${v} "${pcre2_flags${v}} -std=c99 ")
+    SET(pcre2_flags${v} "${CMAKE_C_FLAGS${v}}")
     IF(MSVC)
+      STRING(REPLACE "/WX" "" pcre2_flags${v} "${pcre2_flags${v}}")
       # Suppress a warning
-      STRING(APPEND pcre2_flags${v} " /wd4244 " )
-      # Disable asan support
-      STRING(REPLACE "-fsanitize=address" "" pcre2_flags${v} "${CMAKE_C_FLAGS${v}}")
+      STRING(APPEND pcre2_flags${v} " /wd4244 /wd4267 " )
     ENDIF()
   ENDFOREACH()
+
   ExternalProject_Add(
     pcre2
     PREFIX   "${dir}"
-    URL "https://github.com/PCRE2Project/pcre2/releases/download/pcre2-10.42/pcre2-10.42.zip"
-    URL_MD5 fe90992fbfb03f854bd9f344074f49eb
+    URL "https://github.com/PCRE2Project/pcre2/releases/download/pcre2-10.43/pcre2-10.43.zip"
+    URL_MD5 b58f050f2fdd6f2ca5774a2975377a85
     INSTALL_COMMAND ""
     CMAKE_ARGS
       "-DCMAKE_WARN_DEPRECATED=FALSE"

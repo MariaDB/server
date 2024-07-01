@@ -2431,6 +2431,9 @@ create table t1 (a int) engine=myisam;
 create table t2 (a int) stats_persistent=0, engine=innodb;
 insert into t1 values (1);
 insert into t2 values (1);
+connect  con1, localhost, root;
+start transaction with consistent snapshot;
+connection default;
 SET DEBUG_SYNC= 'after_open_table_mdl_shared SIGNAL table_opened WAIT_FOR grlwait execute 2';
 update t1,t2 set t1.a=2,t2.a=3;
 connection con2;
@@ -2462,6 +2465,7 @@ connection default;
 SET DEBUG_SYNC= 'RESET';
 drop table t1,t2;
 disconnect con2;
+disconnect con1;
 #
 # Bug#50786 Assertion `thd->mdl_context.trans_sentinel() == __null' 
 #           failed in open_ltable()

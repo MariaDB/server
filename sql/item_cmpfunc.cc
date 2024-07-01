@@ -1444,7 +1444,13 @@ bool Item_in_optimizer::fix_left(THD *thd)
   eval_not_null_tables(NULL);
   with_flags|= (args[0]->with_flags |
                (args[1]->with_flags & item_with_t::SP_VAR));
-  if ((const_item_cache= args[0]->const_item()))
+
+  /*
+    If left expression is a constant, cache its value.
+    But don't do that if that involves computing a subquery, as we are in a
+    prepare-phase rewrite.
+  */
+  if ((const_item_cache= args[0]->const_item()) && !args[0]->with_subquery())
   {
     cache->store(args[0]);
     cache->cache_value();
@@ -6179,8 +6185,8 @@ bool Regexp_processor_pcre::compile(String *pattern, bool send_error)
     if (!stringcmp(pattern, &m_prev_pattern))
       return false;
     cleanup();
-    m_prev_pattern.copy(*pattern);
   }
+  m_prev_pattern.copy(*pattern);
 
   if (!(pattern= convert_if_needed(pattern, &pattern_converter)))
     return true;
@@ -6326,7 +6332,17 @@ bool Regexp_processor_pcre::exec(Item *item, int offset,
 }
 
 
-void Regexp_processor_pcre::fix_owner(Item_func *owner,
+/*
+  This method determines the owner's maybe_null flag.
+  Generally, the result is NULL-able. However, in case
+  of a constant pattern and a NOT NULL subject, the
+  result can also be NOT NULL.
+  @return  true - in case if the constant regex compilation failed
+           (e.g. due to a wrong regex syntax in the pattern).
+           The compilation error message is put to the DA in this case.
+           false - otherwise.
+*/
+bool Regexp_processor_pcre::fix_owner(Item_func *owner,
                                       Item *subject_arg,
                                       Item *pattern_arg)
 {
@@ -6334,16 +6350,30 @@ void Regexp_processor_pcre::fix_owner(Item_func *owner,
       pattern_arg->const_item() &&
       !pattern_arg->is_expensive())
   {
-    if (compile(pattern_arg, true))
+    if (compile(pattern_arg, true/* raise errors to DA, e.g. on bad syntax */))
     {
       owner->set_maybe_null(); // Will always return NULL
-      return;
+      if (pattern_arg->null_value)
+      {
+        /*
+          The pattern evaluated to NULL. Regex compilation did not happen.
+          No errors were put to DA. Continue with maybe_null==true.
+          The function will return NULL per row.
+        */
+        return false;
+      }
+      /*
+        A syntax error in the pattern, an error was raised to the DA.
+        Let's abort the query. The caller will send the error to the client.
+      */
+      return true;
     }
     set_const(true);
     owner->base_flags|= subject_arg->base_flags & item_base_t::MAYBE_NULL;
   }
   else
     owner->set_maybe_null();
+  return false;
 }
 
 
@@ -6355,8 +6385,7 @@ Item_func_regex::fix_length_and_dec(THD *thd)
     return TRUE;
 
   re.init(cmp_collation.collation, 0);
-  re.fix_owner(this, args[0], args[1]);
-  return FALSE;
+  return re.fix_owner(this, args[0], args[1]);
 }
 
 
@@ -6380,9 +6409,8 @@ Item_func_regexp_instr::fix_length_and_dec(THD *thd)
     return TRUE;
 
   re.init(cmp_collation.collation, 0);
-  re.fix_owner(this, args[0], args[1]);
   max_length= MY_INT32_NUM_DECIMAL_DIGITS; // See also Item_func_locate
-  return FALSE;
+  return re.fix_owner(this, args[0], args[1]);
 }
 
 

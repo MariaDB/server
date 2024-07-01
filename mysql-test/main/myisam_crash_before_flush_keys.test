@@ -26,14 +26,14 @@ INSERT INTO t1 VALUES (1,2),(2,3),(3,4),(4,5),(5,6);
 SET SESSION debug_dbug="d,crash_before_flush_keys";
 
 --echo # Write file to make mysql-test-run.pl expect crash
---exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--write_line wait $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 
 --echo # Run the crashing query
 --error 2013
 FLUSH TABLE t1;
 
 --echo # Write file to make mysql-test-run.pl start the server 
---exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--write_line restart $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 
 --echo # Turn on reconnect
 --enable_reconnect

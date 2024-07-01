@@ -427,7 +427,7 @@ start:
 		}
 
 		if (!field->fixed_len
-		    || (format == REC_LEAF_TEMP
+		    || (format <= REC_LEAF_TEMP_INSTANT
 			&& !dict_col_get_fixed_size(col, true))) {
 			/* Variable-length field: read the length */
 			len = *lens--;

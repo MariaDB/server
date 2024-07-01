@@ -11,7 +11,7 @@ INSERT INTO t1 VALUES(1);
 
 --echo # xtrabackup backup
 --disable_result_log
-exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --target-dir=$basedir;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --parallel=10 --target-dir=$basedir;
 --enable_result_log
 --echo # Display undo log files from target directory
 list_files $basedir undo*;
@@ -23,3 +23,22 @@ list_files $basedir undo*;
 
 DROP TABLE t1;
 rmdir $basedir;
+
+--echo #
+--echo #  MDEV-33980  mariadb-backup --backup is missing
+--echo #       retry logic for undo tablespaces
+--echo #
+let $backuplog= $MYSQLTEST_VARDIR/tmp/backup.log;
+--echo # xtrabackup backup
+--disable_result_log
+--error 1
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --target-dir=$basedir --dbug=+d,undo_space_read_fail > $backuplog;
+--enable_result_log
+--echo # Display undo log files from target directory
+list_files $basedir undo*;
+
+--let SEARCH_PATTERN=Retrying to read undo tablespace*
+--let SEARCH_FILE=$backuplog
+--source include/search_pattern_in_file.inc
+rmdir $basedir;
+remove_file $backuplog;

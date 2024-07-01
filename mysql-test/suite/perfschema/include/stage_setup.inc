@@ -121,12 +121,23 @@ begin
       where thread_id = my_thread_id
       and nesting_event_id = my_statement_id
       order by event_id asc;
-    # Ignore query cache as it may not be enabled
-    select username, event_name, nesting_event_type
-      from performance_schema.events_stages_history
-      where thread_id = my_thread_id
-      and nesting_event_id = my_statement_id and
-      event_name not like "%query cache%"
+    # 1. Ignore query cache as it may not be enabled
+    # 2. MDL wait consists of short 1 second waits (this is not configurable)
+    #    repeated until lock_wait_timeout is reached. The stage is changed
+    #    to Waiting and back every second. To have predictable result here
+    #    the query filters all sequences of X, "Waiting for MDL", X,
+    #    leaving just X.
+    with h as (
+      select event_id, username, event_name, nesting_event_type,
+        lag(event_name) over (order by event_id) = lead(event_name) over (order by event_id)
+        and event_name = "stage/sql/Waiting for stored function metadata lock" as v1,
+        lag(event_name, 2) over (order by event_id) = event_name
+        and lag(event_name, 1) over (order by event_id) = "stage/sql/Waiting for stored function metadata lock" as v2
+        from performance_schema.events_stages_history
+        where thread_id = my_thread_id
+        and nesting_event_id = my_statement_id and
+        event_name not like "%query cache%"
+      ) select username, event_name, nesting_event_type from h where v1 is not true and v2 is not true
       order by event_id asc;
   end;
   else

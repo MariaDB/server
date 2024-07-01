@@ -249,7 +249,7 @@ static void prepare_record_for_error_message(int error, TABLE *table)
   Field *field;
   uint keynr;
   MY_BITMAP unique_map; /* Fields in offended unique. */
-  my_bitmap_map unique_map_buf[bitmap_buffer_size(MAX_FIELDS)];
+  my_bitmap_map unique_map_buf[bitmap_buffer_size(MAX_FIELDS)/sizeof(my_bitmap_map)];
   DBUG_ENTER("prepare_record_for_error_message");
 
   /*
@@ -1875,6 +1875,10 @@ int multi_update::prepare(List<Item> &not_used_values,
   {
     Item *value= value_it++;
     uint offset= item->field->table->pos_in_table_list->shared;
+
+    if (value->associate_with_target_field(thd, item))
+      DBUG_RETURN(1);
+
     fields_for_table[offset]->push_back(item, thd->mem_root);
     values_for_table[offset]->push_back(value, thd->mem_root);
   }
@@ -2374,7 +2378,7 @@ int multi_update::send_data(List<Item> &not_used_values)
                   tmp_table_param[offset].func_count);
       fill_record(thd, tmp_table,
                   tmp_table->field + 1 + unupdated_check_opt_tables.elements,
-                  *values_for_table[offset], TRUE, FALSE);
+                  *values_for_table[offset], true, false, false);
 
       /* Write row, ignoring duplicated updates to a row */
       error= tmp_table->file->ha_write_tmp_row(tmp_table->record[0]);
@@ -2503,8 +2507,6 @@ int multi_update::do_updates()
     table = cur_table->table;
     if (table == table_to_update)
       continue;					// Already updated
-    if (table->file->pushed_rowid_filter)
-      table->file->disable_pushed_rowid_filter();
     org_updated= updated;
     tmp_table= tmp_tables[cur_table->shared];
     tmp_table->file->extra(HA_EXTRA_CACHE);	// Change to read cache
@@ -2698,9 +2700,7 @@ int multi_update::do_updates()
     (void) tmp_table->file->ha_rnd_end();
     check_opt_it.rewind();
     while (TABLE *tbl= check_opt_it++)
-        tbl->file->ha_rnd_end();
-    if (table->file->save_pushed_rowid_filter)
-      table->file->enable_pushed_rowid_filter();
+      tbl->file->ha_rnd_end();
   }
   DBUG_RETURN(0);
 
@@ -2711,8 +2711,6 @@ err:
   }
 
 err2:
-  if (table->file->save_pushed_rowid_filter)
-    table->file->enable_pushed_rowid_filter();
   if (table->file->inited)
     (void) table->file->ha_rnd_end();
   if (tmp_table->file->inited)

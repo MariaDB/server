@@ -787,6 +787,9 @@ public:
 					string */
   /** TRX_ISO_REPEATABLE_READ, ... */
   unsigned isolation_level:2;
+  /** when set, REPEATABLE READ will actually be Snapshot Isolation, due to
+  detecting write/write conflicts and disabling "semi-consistent read" */
+  unsigned snapshot_isolation:1;
   /** normally set; "SET foreign_key_checks=0" can be issued to suppress
   foreign key checks, in table imports, for example */
   unsigned check_foreigns:1;
@@ -1186,10 +1189,16 @@ public:
     return UNIV_UNLIKELY(bulk_insert) ? bulk_insert_apply_low(): DB_SUCCESS;
   }
 
+  /** Do the bulk insert for the buffered insert operation of a table.
+  @param table bulk insert operation
+  @return DB_SUCCESS or error code. */
+  dberr_t bulk_insert_apply_for_table(dict_table_t *table);
 private:
   /** Apply the buffered bulk inserts. */
   dberr_t bulk_insert_apply_low();
 
+  /** Rollback the bulk insert operation for the transaction */
+  void bulk_rollback_low();
   /** Assign a rollback segment for modifying temporary tables.
   @return the assigned rollback segment */
   trx_rseg_t *assign_temp_rseg();

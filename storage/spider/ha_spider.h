@@ -78,6 +78,7 @@ public:
   SPIDER_POSITION    *pushed_pos;
   SPIDER_POSITION    pushed_pos_buf;
   SPIDER_PARTITION_HANDLER *partition_handler;
+  /* Whether this ha_spider is the owner of its wide_handler. */
   bool                wide_handler_owner = FALSE;
   SPIDER_WIDE_HANDLER *wide_handler = NULL;
 
@@ -482,10 +483,10 @@ public:
   bool auto_repair() const;
 #endif
   int disable_indexes(
-    uint mode
+    key_map map, bool persist
   );
   int enable_indexes(
-    uint mode
+    key_map map, bool persist
   );
   int check(
     THD* thd,
@@ -791,3 +792,26 @@ public:
   int lock_tables();
   int dml_init();
 };
+
+
+/* This is a hack for ASAN
+ * Libraries such as libxml2 and libodbc do not like being unloaded before
+ * exit and will show as a leak in ASAN with no stack trace (as the plugin
+ * has been unloaded from memory).
+ *
+ * The below is designed to trick the compiler into adding a "UNIQUE" symbol
+ * which can be seen using:
+ * readelf -s storage/spider/ha_spider.so | grep UNIQUE
+ *
+ * Having this symbol means that the plugin remains in memory after dlclose()
+ * has been called. Thereby letting the libraries clean up properly.
+ */
+#if defined(__SANITIZE_ADDRESS__)
+__attribute__((__used__))
+inline int dummy(void)
+{
+  static int d;
+  d++;
+  return d;
+}
+#endif

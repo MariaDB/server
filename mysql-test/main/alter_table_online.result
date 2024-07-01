@@ -238,3 +238,26 @@ ERROR 0A000: LOCK=NONE is not supported. Reason: Function or expression 'NEXTVAL
 drop table t2;
 drop table t1;
 drop sequence s;
+#
+# MDEV-33348 ALTER TABLE lock waiting stages are indistinguishable
+#
+connect con2, localhost, root;
+create table t1 (a int);
+insert t1 values (5);
+start transaction;
+select * from t1;
+a
+5
+connection default;
+alter table t1 add b int NULL, algorithm= copy, lock= none;
+connection con2;
+set @con= $con;
+select stage, state, info from information_schema.processlist where id = @con;
+stage	4
+state	Waiting for table metadata lock
+info	alter table t1 add b int NULL, algorithm= copy, lock= none
+rollback;
+connection default;
+drop table t1;
+disconnect con2;
+# End of 11.2 tests

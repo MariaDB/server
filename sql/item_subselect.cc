@@ -569,6 +569,9 @@ void Item_subselect::recalc_used_tables(st_select_lex *new_parent,
   This measure is used instead of JOIN::read_time, because it is considered
   to be much more reliable than the cost estimate.
 
+  Note: the logic in this function must agree with
+  JOIN::init_join_cache_and_keyread().
+
   @return true if the subquery is expensive
   @return false otherwise
 */
@@ -6771,9 +6774,10 @@ exists_complementing_null_row(MY_BITMAP *keys_to_complement)
     return FALSE;
   }
 
-  return bitmap_exists_intersection((const MY_BITMAP**) null_bitmaps,
+  return bitmap_exists_intersection(null_bitmaps,
                                     count_null_keys,
-                                    (uint)highest_min_row, (uint)lowest_max_row);
+                                    (uint)highest_min_row,
+                                    (uint)lowest_max_row);
 }
 
 

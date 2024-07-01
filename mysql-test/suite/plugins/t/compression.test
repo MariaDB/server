@@ -40,7 +40,7 @@ let $restart_parameters = --disable-provider-$alg;
 source include/restart_mysqld.inc;
 
 if ($engine == "innodb") {
-  error ER_NO_SUCH_TABLE_IN_ENGINE;
+  error ER_TABLE_CORRUPT;
   select a, left(b, 9), length(b) from t1;
   show warnings;
 }

@@ -361,3 +361,9 @@ drop table mysqltest.does_not_exists;
 drop database mysqltest;
 drop database mysqltest;
 set @@session.sql_if_exists=0;
+
+--echo #
+--echo # MDEV-34205 ASAN stack-buffer-overflow in strxnmov | frm_file_exists
+--echo #
+--error ER_BAD_TABLE_ERROR
+DROP TABLE `##################################################_long`.`#################################################_long`;

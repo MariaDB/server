@@ -5,6 +5,7 @@ child2_2
 child2_3
 for child3
 for slave1_1
+include/start_slave.inc
 connection slave1_1;
 set @old_spider_slave_trx_isolation= @@spider_slave_trx_isolation;
 set global spider_slave_trx_isolation= 1;

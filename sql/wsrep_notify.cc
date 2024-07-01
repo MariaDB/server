@@ -28,7 +28,7 @@ void wsrep_notify_status(enum wsrep::server_state::state status,
   if (!view)
   {
     WSREP_DEBUG("wsrep_notify_status server not yet ready : wsrep_ready=%d status %d",
-		wsrep_ready, (int)status);
+		(int) wsrep_ready_get(), (int)status);
     return;
   }
 

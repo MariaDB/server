@@ -5,6 +5,7 @@ child2_2
 child2_3
 for child3
 for slave1_1
+include/start_slave.inc
 connection slave1_1;
 connection master_1;
 set @old_binlog_format= @@binlog_format;

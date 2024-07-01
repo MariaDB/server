@@ -62,7 +62,7 @@ SELECT * FROM t1;
 --let $start_mysqld_params=--galera-unknown-option
 
 --echo Starting server ...
---exec echo "try:$start_mysqld_params" > $_expect_file_name
+--write_line "try:$start_mysqld_params" $_expect_file_name
 
 # Sleep to ensure that server exited...
 
@@ -107,7 +107,7 @@ SELECT * FROM t1;
 --let $start_mysqld_params=--galera-unknown-option
 
 --echo Starting server ...
---exec echo "try:$start_mysqld_params" > $_expect_file_name
+--write_line "try:$start_mysqld_params" $_expect_file_name
 
 # Sleep to ensure that server exited...
 

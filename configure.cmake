@@ -60,15 +60,6 @@ IF(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang" AND (NOT MSVC))
   ENDIF()
 ENDIF()
 
-# workaround for old gcc on x86, gcc atomic ops only work under -march=i686
-IF(CMAKE_SYSTEM_PROCESSOR STREQUAL "i686" AND CMAKE_COMPILER_IS_GNUCC AND
-   CMAKE_C_COMPILER_VERSION VERSION_LESS "4.4.0")
-  SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=i686")
-  SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=i686")
-  # query_response_time.cc causes "error: unable to find a register to spill"
-  SET(PLUGIN_QUERY_RESPONSE_TIME NO CACHE BOOL "Disabled, gcc is too old")
-ENDIF()
-
 # use runtime atomic-support detection in aarch64
 IF(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64")
   MY_CHECK_AND_SET_COMPILER_FLAG("-moutline-atomics")
@@ -705,7 +696,6 @@ CHECK_SYMBOL_EXISTS(O_NONBLOCK "unistd.h;fcntl.h" HAVE_FCNTL_NONBLOCK)
 IF(NOT HAVE_FCNTL_NONBLOCK)
  SET(NO_FCNTL_NONBLOCK 1)
 ENDIF()
-CHECK_SYMBOL_EXISTS(O_DIRECT "fcntl.h" HAVE_FCNTL_DIRECT)
 
 #
 # Test for how the C compiler does inline, if at all
@@ -984,4 +974,9 @@ IF(have_C__Werror)
     HAVE_VFORK
   )
   SET(CMAKE_REQUIRED_FLAGS ${SAVE_CMAKE_REQUIRED_FLAGS})
+ENDIF()
+
+IF(CMAKE_C_COMPILER_ID MATCHES "Intel")
+  MY_CHECK_AND_SET_COMPILER_FLAG("-no-ansi-alias")
+  MY_CHECK_AND_SET_COMPILER_FLAG("-fp-model precise")
 ENDIF()

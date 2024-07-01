@@ -754,6 +754,7 @@ LEX* sp_lex_instr::parse_expr(THD *thd, sp_head *sp, LEX *sp_instr_lex)
     cleanup_items(cursor_lex->free_list);
     cursor_free_list= &cursor_lex->free_list;
     DBUG_ASSERT(thd->lex == sp_instr_lex);
+    lex_start(thd);
   }
 
   thd->lex->sphead= sp;
@@ -897,6 +898,9 @@ sp_instr_stmt::execute(THD *thd, uint *nextp)
       thd->update_stats();
       thd->lex->sql_command= save_sql_command;
       *nextp= m_ip+1;
+#ifdef PROTECT_STATEMENT_MEMROOT
+      mark_as_qc_used();
+#endif
     }
     thd->set_query(query_backup);
     thd->query_name_consts= 0;

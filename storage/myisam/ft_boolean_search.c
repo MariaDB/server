@@ -287,6 +287,8 @@ static int ftb_parse_query_internal(MYSQL_FTPARSER_PARAM *param,
   uchar *end= (uchar*) query + len;
   FT_WORD w;
 
+  w.pos= NULL;
+  w.len= 0;
   info.prev= ' ';
   info.quot= 0;
   while (ft_get_word(cs, start, end, &w, &info))

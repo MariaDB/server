@@ -411,6 +411,44 @@ DROP function foo;
 --sync_slave_with_master server_2
 
 #
+# MDEV-33303: slave_parallel_mode=optimistic should not report the mode's
+# specific temporary errors.
+#
+
+--connection server_2
+--source include/stop_slave.inc
+SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
+SET GLOBAL slave_parallel_threads=4;
+
+--connection server_1
+# The problem occurred in the code path for row-based updates in tables
+# with no primary/unique key, where a scan is needed.
+CREATE TABLE t1 (a INT, b VARCHAR(123)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1, 'asdf');
+UPDATE t1 SET b='zxf1' WHERE a=1;
+UPDATE t1 SET b='\n' WHERE a=1;
+
+--connection server_2
+# Inject a small sleep in the code that makes the race easier to hit.
+SET @old_dbug=@@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug="+d,write_row_inject_sleep_before_ha_write_row";
+--source include/start_slave.inc
+
+--connection server_1
+# Here, we would get errors in the slave's error log:
+# [ERROR] mariadbd: Can't find record in 't1'
+--sync_slave_with_master server_2
+
+--connection server_1
+DROP TABLE t1;
+--sync_slave_with_master server_2
+--source include/stop_slave.inc
+SET GLOBAL debug_dbug=@old_dbug;
+SET GLOBAL slave_parallel_threads=@old_parallel_threads;
+--source include/start_slave.inc
+
+
+#
 # MDEV-12746 rpl.rpl_parallel_optimistic_nobinlog fails committing out of order at retry
 #
 

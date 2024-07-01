@@ -1,0 +1,4 @@
+set @old_sql_mode=@@global.sql_mode;
+set global sql_mode=(SELECT CONCAT (@@sql_mode,',no_zero_date'));
+install soname 'ha_spider';
+set global sql_mode=@old_sql_mode;

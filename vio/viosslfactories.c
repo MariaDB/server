@@ -20,9 +20,14 @@
 #ifdef HAVE_OPENSSL
 #include <openssl/dh.h>
 #include <openssl/bn.h>
+#include <openssl/x509.h>
 
 static my_bool     ssl_algorithms_added    = FALSE;
 static my_bool     ssl_error_strings_loaded= FALSE;
+
+#ifndef X509_VERSION_3
+#define X509_VERSION_3 2
+#endif
 
 /* the function below was generated with "openssl dhparam -2 -C 2048" */
 #ifndef HAVE_WOLFSSL
@@ -125,6 +130,8 @@ static X509 *vio_gencert(EVP_PKEY *pkey)
   if (!(x= X509_new()))
     goto err;
 
+  if (!X509_set_version(x, X509_VERSION_3))
+    goto err;
   if (!(name= X509_get_subject_name(x)))
     goto err;
   if (!X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC,

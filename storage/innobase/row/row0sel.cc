@@ -864,6 +864,11 @@ row_sel_build_committed_vers_for_mysql(
 					column version if any */
 	mtr_t*		mtr)		/*!< in: mtr */
 {
+	if (prebuilt->trx->snapshot_isolation) {
+		*old_vers = rec;
+		return;
+	}
+
 	if (prebuilt->old_vers_heap) {
 		mem_heap_empty(prebuilt->old_vers_heap);
 	} else {
@@ -1184,11 +1189,11 @@ sel_set_rtr_rec_lock(
 	ut_ad(page_align(first_rec) == cur_block->page.frame);
 	ut_ad(match->valid);
 
-	match->block.page.lock.x_lock();
+	match->block->page.lock.x_lock();
 retry:
 	cur_block = btr_pcur_get_block(pcur);
-	ut_ad(match->block.page.lock.have_x()
-	      || match->block.page.lock.have_s());
+	ut_ad(match->block->page.lock.have_x()
+	      || match->block->page.lock.have_s());
 	ut_ad(page_is_leaf(cur_block->page.frame));
 
 	err = lock_sec_rec_read_check_and_lock(
@@ -1288,7 +1293,7 @@ re_scan:
 			ULINT_UNDEFINED, &heap);
 
 		err = lock_sec_rec_read_check_and_lock(
-			0, &match->block, rtr_rec->r_rec, index,
+			0, match->block, rtr_rec->r_rec, index,
 			my_offsets, static_cast<lock_mode>(mode),
 			type, thr);
 
@@ -1304,7 +1309,7 @@ re_scan:
 	match->locked = true;
 
 func_end:
-	match->block.page.lock.x_unlock();
+	match->block->page.lock.x_unlock();
 	if (heap != NULL) {
 		mem_heap_free(heap);
 	}
@@ -3401,7 +3406,7 @@ Row_sel_get_clust_rec_for_mysql::operator()(
 		if  (dict_index_is_spatial(sec_index)
 		     && btr_cur->rtr_info->matches
 		     && (page_align(rec)
-			== btr_cur->rtr_info->matches->block.page.frame
+			== btr_cur->rtr_info->matches->block->page.frame
 			|| rec != btr_pcur_get_rec(prebuilt->pcur))) {
 #ifdef UNIV_DEBUG
 			rtr_info_t*	rtr_info = btr_cur->rtr_info;
@@ -4458,12 +4463,10 @@ early_not_found:
 			DBUG_RETURN(DB_RECORD_NOT_FOUND);
 		}
 
+#if SIZEOF_SIZE_T < 8
+		if (UNIV_LIKELY(~prebuilt->n_rows_fetched))
+#endif
 		prebuilt->n_rows_fetched++;
-
-		if (prebuilt->n_rows_fetched > 1000000000) {
-			/* Prevent wrap-over */
-			prebuilt->n_rows_fetched = 500000000;
-		}
 
 		mode = pcur->search_mode;
 	}

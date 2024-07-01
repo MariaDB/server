@@ -195,7 +195,8 @@ void unfix_fields(List<Item> &items);
 bool fill_record(THD * thd, TABLE *table_arg, List<Item> &fields,
                  List<Item> &values, bool ignore_errors, bool update);
 bool fill_record(THD *thd, TABLE *table, Field **field, List<Item> &values,
-                 bool ignore_errors, bool use_value);
+                 bool ignore_errors, bool use_value,
+                 bool check_for_evaluability);
 
 Field *
 find_field_in_tables(THD *thd, Item_ident *item,
@@ -318,7 +319,8 @@ bool flush_tables(THD *thd, flush_tables_type flag);
 void close_all_tables_for_name(THD *thd, TABLE_SHARE *share,
                                ha_extra_function extra,
                                TABLE *skip_table);
-OPEN_TABLE_LIST *list_open_tables(THD *thd, const char *db, const char *wild);
+OPEN_TABLE_LIST *list_open_tables(THD *thd, const LEX_CSTRING &db,
+                                  const char *wild);
 bool tdc_open_view(THD *thd, TABLE_LIST *table_list, uint flags);
 
 TABLE *find_table_for_mdl_upgrade(THD *thd, const char *db,

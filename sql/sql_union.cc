@@ -119,12 +119,12 @@ int select_unit::send_data(List<Item> &values)
   if (table->no_rows_with_nulls)
     table->null_catch_flags= CHECK_ROW_FOR_NULLS_TO_REJECT;
 
-  fill_record(thd, table, table->field + addon_cnt, values, true, false);
+  fill_record(thd, table, table->field + addon_cnt, values, true, false, true);
   /* set up initial values for records to be written */
   if (addon_cnt && step == UNION_TYPE)
   {
     DBUG_ASSERT(addon_cnt == 1);
-    table->field[0]->store((longlong) curr_step, 1);
+    table->field[0]->store((ulonglong) curr_step, 1);
   }
 
   if (unlikely(thd->is_error()))
@@ -483,7 +483,7 @@ bool select_unit_ext::disable_index_if_needed(SELECT_LEX *curr_sl)
         !curr_sl->next_select()) )
   {
     is_index_enabled= false;
-    if (table->file->ha_disable_indexes(HA_KEY_SWITCH_ALL))
+    if (table->file->ha_disable_indexes(key_map(0), false))
       return false;
     table->no_keyread=1;
     return true;
@@ -617,7 +617,7 @@ int select_unit_ext::send_data(List<Item> &values)
   if (table->no_rows_with_nulls)
     table->null_catch_flags= CHECK_ROW_FOR_NULLS_TO_REJECT;
 
-  fill_record(thd, table, table->field + addon_cnt, values, true, false);
+  fill_record(thd, table, table->field + addon_cnt, values, true, false, true);
   /* set up initial values for records to be written */
   if ( step == UNION_TYPE )
   {
@@ -1001,7 +1001,7 @@ int select_union_direct::send_data(List<Item> &items)
   }
 
   send_records++;
-  fill_record(thd, table, table->field, items, true, false);
+  fill_record(thd, table, table->field, items, true, false, true);
   if (unlikely(thd->is_error()))
     return true; /* purecov: inspected */
 
@@ -1263,26 +1263,21 @@ bool st_select_lex_unit::join_union_item_types(THD *thd_arg,
 }
 
 
-bool init_item_int(THD* thd, Item_int* &item)
+static bool init_item_int(THD* thd, Item_int* &item)
 {
   if (!item)
   {
-    Query_arena *arena, backup_arena;
-    arena= thd->activate_stmt_arena_if_needed(&backup_arena);
-
     item= new (thd->mem_root) Item_int(thd, 0);
 
-    if (arena)
-      thd->restore_active_arena(arena, &backup_arena);
-
     if (!item)
-    return false;
+      return true;
   }
   else
   {
     item->value= 0;
   }
-  return true;
+
+  return false;
 }
 
 /**
@@ -1846,8 +1841,12 @@ cont:
 
       for(uint i= 0; i< hidden; i++)
       {
-        init_item_int(thd, addon_fields[i]);
-        types.push_front(addon_fields[i]);
+        if (init_item_int(thd, addon_fields[i]) ||
+            types.push_front(addon_fields[i]))
+        {
+          types.empty();
+          goto err;
+        }
         addon_fields[i]->name.str= i ? "__CNT_1" : "__CNT_2";
         addon_fields[i]->name.length= 7;
       }
@@ -2201,7 +2200,7 @@ bool st_select_lex_unit::optimize()
       /* re-enabling indexes for next subselect iteration */
       if ((union_result->force_enable_index_if_needed() || union_distinct))
       {
-        if(table->file->ha_enable_indexes(HA_KEY_SWITCH_ALL))
+        if(table->file->ha_enable_indexes(key_map(table->s->keys), false))
           DBUG_ASSERT(0);
         else
           table->no_keyread= 0;
@@ -2323,7 +2322,7 @@ bool st_select_lex_unit::exec_inner()
         union_result->table && union_result->table->is_created())
     {
       union_result->table->file->ha_delete_all_rows();
-      union_result->table->file->ha_enable_indexes(HA_KEY_SWITCH_ALL);
+      union_result->table->file->ha_enable_indexes(key_map(table->s->keys), false);
     }
   }
 
@@ -2391,7 +2390,7 @@ bool st_select_lex_unit::exec_inner()
 	{
           // This is UNION DISTINCT, so there should be a fake_select_lex
           DBUG_ASSERT(fake_select_lex != NULL);
-          if (unlikely(table->file->ha_disable_indexes(HA_KEY_SWITCH_ALL)))
+	  if (table->file->ha_disable_indexes(key_map(0), false))
             return true;
 	  table->no_keyread=1;
 	}

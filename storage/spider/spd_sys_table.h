@@ -56,6 +56,7 @@
 #define SPIDER_SYS_LINK_MON_TABLE_TABLE_NAME_SIZE 64
 #define SPIDER_SYS_LINK_MON_TABLE_LINK_ID_SIZE 64
 
+/* For insertion into `spider_mon_table_cache'. */
 class SPIDER_MON_KEY: public SPIDER_SORT
 {
 public:
@@ -393,7 +394,6 @@ int spider_get_sys_tables(
 int spider_get_sys_tables_connect_info(
   TABLE *table,
   SPIDER_SHARE *share,
-  int link_idx,
   MEM_ROOT *mem_root
 );
 
@@ -460,7 +460,6 @@ int spider_get_sys_link_mon_server_id(
 int spider_get_sys_link_mon_connect_info(
   TABLE *table,
   SPIDER_SHARE *share,
-  int link_idx,
   MEM_ROOT *mem_root
 );
 

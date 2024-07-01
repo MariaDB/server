@@ -3181,8 +3181,12 @@ Item*
 Create_func_aes_encrypt::create_native(THD *thd, const LEX_CSTRING *name,
                                        List<Item> *item_list)
 {
-  uint arg_count= item_list->elements;
   Item *a[4];
+  uint arg_count= 0;
+
+  if (item_list != NULL)
+    arg_count= item_list->elements;
+
   for (uint i=0; i < MY_MIN(array_elements(a), arg_count); i++)
     a[i]= item_list->pop();
   switch (arg_count)
@@ -3205,8 +3209,12 @@ Item*
 Create_func_aes_decrypt::create_native(THD *thd, const LEX_CSTRING *name,
                                        List<Item> *item_list)
 {
-  uint arg_count= item_list->elements;
   Item *a[4];
+  uint arg_count= 0;
+
+  if (item_list != NULL)
+    arg_count= item_list->elements;
+
   for (uint i=0; i < MY_MIN(array_elements(a), arg_count); i++)
     a[i]= item_list->pop();
   switch (arg_count)
@@ -3229,8 +3237,12 @@ Item*
 Create_func_kdf::create_native(THD *thd, const LEX_CSTRING *name,
                                List<Item> *item_list)
 {
-  uint arg_count= item_list->elements;
   Item *a[5];
+  uint arg_count= 0;
+
+  if (item_list != NULL)
+    arg_count= item_list->elements;
+
   for (uint i=0; i < MY_MIN(array_elements(a), arg_count); i++)
     a[i]= item_list->pop();
   switch (arg_count)
@@ -6473,8 +6485,7 @@ const Native_func_registry func_array_oracle_overrides[] =
   { { STRING_WITH_LEN("REGEXP_REPLACE") },
                                     BUILDER(Create_func_regexp_replace_oracle)},
   { { STRING_WITH_LEN("RPAD") },    BUILDER(Create_func_rpad_oracle)},
-  { { STRING_WITH_LEN("RTRIM") },   BUILDER(Create_func_rtrim_oracle)},
-  { {0, 0}, NULL}
+  { { STRING_WITH_LEN("RTRIM") },   BUILDER(Create_func_rtrim_oracle)}
 };
 
 Native_func_registry_array
