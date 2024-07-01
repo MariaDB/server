@@ -3767,6 +3767,13 @@ void spider_free_tmp_thd(
   DBUG_VOID_RETURN;
 }
 
+/*
+  Check the info of a given SPIDER_TRX_HA with spider->share. If it
+  does not match or if the given SPIDER_TRX_HA is NULL, then create a
+  new one from spider and spider->share, and add the new SPIDER_TRX_HA
+  to trx->trx_ha_hash. On mismatch and non-NULL trx_ha, then it will
+  be removed from the hash and freed before the creation of a new one.
+*/
 int spider_create_trx_ha(
   SPIDER_TRX *trx,
   ha_spider *spider,
@@ -3817,7 +3824,6 @@ int spider_create_trx_ha(
     memcpy(trx_ha->table_name, share->table_name, share->table_name_length);
     trx_ha->table_name[share->table_name_length] = '\0';
     trx_ha->table_name_length = share->table_name_length;
-    trx_ha->trx = trx;
     trx_ha->share = share;
     trx_ha->link_count = share->link_count;
     trx_ha->link_bitmap_size = share->link_bitmap_size;
