@@ -1079,6 +1079,7 @@ int spider_free_trx_alloc(
   DBUG_RETURN(0);
 }
 
+/* Get or create a trx associated with the given THD. */
 SPIDER_TRX *spider_get_trx(
   THD *thd,
   bool regist_allocated_thds,
@@ -3784,15 +3785,25 @@ SPIDER_TRX_HA *spider_check_trx_ha(
   SPIDER_TRX_HA *trx_ha;
   SPIDER_SHARE *share = spider->share;
   DBUG_ENTER("spider_check_trx_ha");
+  /* TODO: or we could check that trx_ha->share == share here. And if
+  not, then delete the trx_ha and return NULL */
   if ((trx_ha = (SPIDER_TRX_HA *) my_hash_search_using_hash_value(
     &trx->trx_ha_hash, share->table_name_hash_value,
     (uchar*) share->table_name, share->table_name_length)))
   {
-    memcpy(spider->conn_link_idx, trx_ha->conn_link_idx,
-      sizeof(uint) * share->link_count);
-    memcpy(spider->conn_can_fo, trx_ha->conn_can_fo,
-      sizeof(uint) * share->link_bitmap_size);
-    DBUG_RETURN(trx_ha);
+    if (trx_ha->share == share)
+    {
+      memcpy(spider->conn_link_idx, trx_ha->conn_link_idx,
+             sizeof(uint) * share->link_count);
+      memcpy(spider->conn_can_fo, trx_ha->conn_can_fo,
+             sizeof(uint) * share->link_bitmap_size);
+      DBUG_RETURN(trx_ha);
+    }
+    else
+    {
+      my_hash_delete(&trx->trx_ha_hash, (uchar*) trx_ha);
+      spider_free(trx, trx_ha, MYF(0));
+    }
   }
   DBUG_RETURN(NULL);
 }

@@ -8460,6 +8460,7 @@ int ha_spider::delete_table(
       &open_tables_backup, need_lock);
     table_tables = NULL;
 
+    /* TODO: remove trx_ha from trx and free it here. */
     /* release table mon list */
     for (roop_count = 0; roop_count < old_link_count; roop_count++)
     {
