@@ -111,6 +111,7 @@ enum ha_key_alg {
   HA_KEY_ALG_LONG_HASH=   5,            /* long BLOB keys               */
   HA_KEY_ALG_UNIQUE_HASH= 6,            /* Internal UNIQUE hash (Aria)  */
   HA_KEY_ALG_MHNSW=       7             /* HNSW for k-ANN vector search */
+  // HA_KEY_ALG_IVFFLAT=     8             /* IVFFLAT for k-ANN vector search */
 };
 
         /* Storage media types */ 

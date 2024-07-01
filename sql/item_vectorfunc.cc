@@ -64,3 +64,12 @@ double euclidean_vec_distance(float *v1, float *v2, size_t v_len)
   }
   return d;
 }
+double manhattan_vec_distance(float *v1, float *v2, size_t v_len)
+{
+  float *p1= v1;
+  float *p2= v2;
+  double d= 0;
+  for (size_t i= 0; i < v_len; p1++, p2++, i++)
+    d+= fabs(*p1 - *p2);
+  return d;
+}
