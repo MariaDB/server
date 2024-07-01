@@ -3650,6 +3650,24 @@ void *spider_bg_mon_action(
 }
 #endif
 
+/**
+  Returns a random (active) server with a maximum required link status
+
+  Calculate the sum of balances of all servers whose link status is at
+  most the specified status ("eligible"), generate a random number
+  less than this balance, then find the first server cumulatively
+  exceeding this balance
+
+  @param thd              Connection used for generating a random number
+  @param link_statuses    The link statuses of servers
+  @param access_balances  The access balances of servers
+  @param conn_link_idx    Array of indexes to servers
+  @param link_count       Number of servers
+  @param link_status      The maximum required link status
+  @retval Index to the found server
+  @retval -1              if no eligible servers
+  @retval -2              if out of memory
+*/
 int spider_conn_first_link_idx(
   THD *thd,
   long *link_statuses,
@@ -3745,6 +3763,17 @@ int spider_conn_next_link_idx(
   DBUG_RETURN(tmp_link_idx);
 }
 
+/**
+  Finds the next active server with a maximum required link status
+
+  @param link_statuses  The statuses of servers
+  @param conn_link_idx  The array of active servers
+  @param link_idx       The index of the current active server
+  @param link_count     The number of active servers
+  @param link_status    The required maximum link status
+  @return               The next active server whose link status is
+                        at most the required one.
+*/
 int spider_conn_link_idx_next(
   long *link_statuses,
   uint *conn_link_idx,
@@ -3757,6 +3786,8 @@ int spider_conn_link_idx_next(
     link_idx++;
     if (link_idx >= link_count)
       break;
+    /* Asserts that the `link_idx`th active server is in the correct
+    "group" */
     DBUG_ASSERT((conn_link_idx[link_idx] - link_idx) % link_count == 0);
   } while (link_statuses[conn_link_idx[link_idx]] > link_status);
   DBUG_PRINT("info",("spider link_idx=%d", link_idx));
