@@ -2082,6 +2082,29 @@ mem_error:
   DBUG_RETURN(str_result);
 }
 
+longlong Item_func_isvalid::val_int()
+{
+  String *wkb= args[0]->val_str(&tmp);
+  Geometry_buffer buffer;
+  Geometry *geometry;
+
+  int valid;
+  if ((args[0]->null_value ||
+      !(geometry= Geometry::construct(&buffer, wkb->ptr(), wkb->length()))))
+  {
+    my_error(ER_GIS_INVALID_DATA, MYF(0), func_name());
+    null_value= 1;
+    return 1;
+  }
+
+  if (geometry->is_valid(&valid))
+  {
+    null_value= 1;
+    return 1;
+  }
+
+  return (longlong) valid;
+}
 
 bool Item_func_isempty::val_bool()
 {
@@ -2089,7 +2112,7 @@ bool Item_func_isempty::val_bool()
   String tmp;
   String *swkb= args[0]->val_str(&tmp);
   Geometry_buffer buffer;
-  
+
   null_value= args[0]->null_value ||
               !(Geometry::construct(&buffer, swkb->ptr(), swkb->length()));
   return null_value ? 1 : 0;
@@ -2100,71 +2123,29 @@ longlong Item_func_issimple::val_int()
 {
   String *swkb= args[0]->val_str(&tmp);
   Geometry_buffer buffer;
-  Gcalc_operation_transporter trn(&func, &collector);
-  Geometry *g;
-  int result= 1;
-  MBR mbr;
-  const char *c_end;
+  Geometry *geometry;
 
   DBUG_ENTER("Item_func_issimple::val_int");
   DBUG_ASSERT(fixed());
-  
+
   null_value= 0;
   if ((args[0]->null_value ||
-       !(g= Geometry::construct(&buffer, swkb->ptr(), swkb->length())) ||
-       g->get_mbr(&mbr, &c_end)))
+       !(geometry= Geometry::construct(&buffer, swkb->ptr(), swkb->length()))))
   {
     /* We got NULL as an argument. Have to return -1 */
     DBUG_RETURN(-1);
   }
 
-  collector.set_extent(mbr.xmin, mbr.xmax, mbr.ymin, mbr.ymax);
-
-  if (g->get_class_info()->m_type_id == Geometry::wkb_point)
+  if (geometry->get_class_info()->m_type_id == Geometry::wkb_point)
     DBUG_RETURN(1);
 
-  if (g->store_shapes(&trn))
-    goto mem_error;
-
-  collector.prepare_operation();
-  scan_it.init(&collector);
-
-  while (scan_it.more_points())
-  {
-    const Gcalc_scan_iterator::event_point *ev, *next_ev;
-
-    if (scan_it.step())
-      goto mem_error;
-
-    ev= scan_it.get_events();
-    if (ev->simple_event())
-      continue;
-
-    next_ev= ev->get_next();
-    if ((ev->event & (scev_thread | scev_single_point)) && !next_ev)
-      continue;
-
-    if ((ev->event == scev_two_threads) && !next_ev->get_next())
-      continue;
-
-    /* If the first and last points of a curve coincide - that is     */
-    /* an exception to the rule and the line is considered as simple. */
-    if ((next_ev && !next_ev->get_next()) &&
-        (ev->event & (scev_thread | scev_end)) &&
-        (next_ev->event & (scev_thread | scev_end)))
-      continue;
-
-    result= 0;
-    break;
+  int simple;
+  if (geometry->is_simple(&simple)) {
+    null_value= 1;
+    DBUG_RETURN(0);
   }
 
-  collector.reset();
-  func.reset();
-  scan_it.reset();
-  DBUG_RETURN(result);
-mem_error:
-  null_value= 1;
-  DBUG_RETURN(0);
+  DBUG_RETURN(simple);
 }
 
 
@@ -4239,6 +4220,22 @@ protected:
 };
 
 
+class Create_func_isvalid : public Create_func_arg1
+{
+public:
+  Item *create_1_arg(THD *thd, Item *arg1) override
+  {
+    return new (thd->mem_root) Item_func_isvalid(thd, arg1);
+  }
+
+  static Create_func_isvalid s_singleton;
+
+protected:
+  Create_func_isvalid() = default;
+  virtual ~Create_func_isvalid() = default;
+};
+
+
 class Create_func_issimple : public Create_func_arg1
 {
 public:
@@ -4253,7 +4250,6 @@ protected:
   Create_func_issimple() = default;
   ~Create_func_issimple() override = default;
 };
-
 
 
 class Create_func_numgeometries : public Create_func_arg1
@@ -4525,6 +4521,7 @@ Create_func_intersection Create_func_intersection::s_singleton;
 Create_func_intersects Create_func_intersects::s_singleton;
 Create_func_isclosed Create_func_isclosed::s_singleton;
 Create_func_isempty Create_func_isempty::s_singleton;
+Create_func_isvalid Create_func_isvalid::s_singleton;
 Create_func_isring Create_func_isring::s_singleton;
 Create_func_issimple Create_func_issimple::s_singleton;
 Create_func_mbr_contains Create_func_mbr_contains::s_singleton;
@@ -4594,6 +4591,7 @@ static Native_func_registry func_array_geom[] =
   { { STRING_WITH_LEN("INTERSECTS") }, GEOM_BUILDER(Create_func_mbr_intersects)},
   { { STRING_WITH_LEN("ISCLOSED") }, GEOM_BUILDER(Create_func_isclosed)},
   { { STRING_WITH_LEN("ISEMPTY") }, GEOM_BUILDER(Create_func_isempty)},
+  { { STRING_WITH_LEN("ISVALID") }, GEOM_BUILDER(Create_func_isvalid)},
   { { STRING_WITH_LEN("ISRING") }, GEOM_BUILDER(Create_func_isring)},
   { { STRING_WITH_LEN("ISSIMPLE") }, GEOM_BUILDER(Create_func_issimple)},
   { { STRING_WITH_LEN("LINEFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
@@ -4676,6 +4674,7 @@ static Native_func_registry func_array_geom[] =
   { { STRING_WITH_LEN("ST_INTERSECTS") }, GEOM_BUILDER(Create_func_intersects)},
   { { STRING_WITH_LEN("ST_ISCLOSED") }, GEOM_BUILDER(Create_func_isclosed)},
   { { STRING_WITH_LEN("ST_ISEMPTY") }, GEOM_BUILDER(Create_func_isempty)},
+  { { STRING_WITH_LEN("ST_ISVALID") }, GEOM_BUILDER(Create_func_isvalid)},
   { { STRING_WITH_LEN("ST_ISRING") }, GEOM_BUILDER(Create_func_isring)},
   { { STRING_WITH_LEN("ST_ISSIMPLE") }, GEOM_BUILDER(Create_func_issimple)},
   { { STRING_WITH_LEN("ST_LENGTH") }, GEOM_BUILDER(Create_func_glength)},
