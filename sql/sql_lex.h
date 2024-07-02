@@ -1286,6 +1286,10 @@ public:
     from the method JOIN::optimize_inner.
   */
   bool first_rownum_optimization:1;
+  /**
+    Flag to guard against double initialization of leaf tables list
+  */
+  bool leaf_tables_saved:1;
   /* do not wrap view fields with Item_ref */
   bool no_wrap_view_item:1;
   /* exclude this select from check of unique_table() */
