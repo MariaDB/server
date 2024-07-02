@@ -4234,7 +4234,32 @@ public:
 
   void set_default();
   void set_ignore();
-  void set_null();
+  void set_null(const DTCollation &c);
+  void set_null_string(const DTCollation &c)
+  {
+    /*
+      We need to distinguish explicit NULL (marked by DERIVATION_IGNORABLE)
+      from other item types:
+
+      - These statements should give an error, because
+        the character set of the bound parameter is not known:
+          EXECUTE IMMEDIATE "SELECT ? COLLATE utf8mb4_bin" USING NULL;
+          EXECUTE IMMEDIATE "SELECT ? COLLATE utf8mb4_bin" USING CONCAT(NULL);
+
+      - These statements should return a good result, because
+        the character set of the bound parameter is known:
+          EXECUTE IMMEDIATE "SELECT ? COLLATE utf8mb4_bin"
+                      USING CONVERT(NULL USING utf8mb4);
+          EXECUTE IMMEDIATE "SELECT ? COLLATE utf8mb4_bin"
+                      USING CAST(NULL AS CHAR CHARACTER SET utf8mb4);
+    */
+    set_null(DTCollation(c.collation, MY_MAX(c.derivation,
+                                             DERIVATION_COERCIBLE)));
+  }
+  void set_null()
+  {
+    set_null(DTCollation(&my_charset_bin, DERIVATION_IGNORABLE));
+  }
   void set_int(longlong i, uint32 max_length_arg);
   void set_double(double i);
   void set_decimal(const char *str, ulong length);

@@ -3076,6 +3076,12 @@ public:
   bool aggregate(const DTCollation &dt, uint flags= 0);
   bool set(DTCollation &dt1, DTCollation &dt2, uint flags= 0)
   { set(dt1); return aggregate(dt2, flags); }
+  bool merge_charset_and_collation(CHARSET_INFO *cs,
+                                   const Lex_extended_collation_st &cl,
+                                   my_repertoire_t repertoire);
+  bool merge_collation(const Lex_extended_collation_st &cl,
+                       my_repertoire_t repertoire,
+                       bool allow_ignorable_with_context_collation);
   const char *derivation_name() const
   {
     switch(derivation)
