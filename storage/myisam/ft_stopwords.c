@@ -31,11 +31,13 @@ typedef struct st_ft_stopwords
 static TREE *stopwords3=NULL;
 
 static int FT_STOPWORD_cmp(void* cmp_arg __attribute__((unused)),
-			   FT_STOPWORD *w1, FT_STOPWORD *w2)
+			   const void *sw1, const void *sw2)
 {
+  const FT_STOPWORD *w1= (const FT_STOPWORD *) sw1;
+  const FT_STOPWORD *w2= (const FT_STOPWORD *) sw2;
   return ha_compare_word(ft_stopword_cs,
-                         (uchar *) w1->pos, w1->len,
-                         (uchar *) w2->pos, w2->len);
+                         (const uchar *) w1->pos, w1->len,
+                         (const uchar *) w2->pos, w2->len);
 }
 
 static int FT_STOPWORD_free(FT_STOPWORD *w, TREE_FREE action,
