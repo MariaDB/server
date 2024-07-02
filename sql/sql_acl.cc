@@ -675,8 +675,8 @@ static DYNAMIC_ARRAY acl_wild_hosts;
 static Hash_filo<acl_entry> *acl_cache;
 static uint grant_version=0; /* Version of priv tables. incremented by acl_load */
 static privilege_t get_access(TABLE *form, uint fieldnr, uint *next_field=0);
-static int acl_compare(const ACL_ACCESS *a, const ACL_ACCESS *b);
-static int acl_user_compare(const ACL_USER *a, const ACL_USER *b);
+static int acl_compare(const void *a, const void *b);
+static int acl_user_compare(const void *a, const void *b);
 static void rebuild_acl_users();
 static int acl_db_compare(const ACL_DB *a, const ACL_DB *b);
 static void rebuild_acl_dbs();
@@ -2991,8 +2991,10 @@ static privilege_t get_access(TABLE *form, uint fieldnr, uint *next_field)
 }
 
 
-static int acl_compare(const ACL_ACCESS *a, const ACL_ACCESS *b)
+static int acl_compare(const void *pa, const void *pb)
 {
+  const ACL_ACCESS *a= (const ACL_ACCESS *) pa;
+  const ACL_ACCESS *b= (const ACL_ACCESS *) pa;
   if (a->sort > b->sort)
     return -1;
   if (a->sort < b->sort)
@@ -3000,8 +3002,10 @@ static int acl_compare(const ACL_ACCESS *a, const ACL_ACCESS *b)
   return 0;
 }
 
-static int acl_user_compare(const ACL_USER *a, const ACL_USER *b)
+static int acl_user_compare(const void *pa, const void *pb)
 {
+  const ACL_USER *a= (const ACL_USER *) pa;
+  const ACL_USER *b= (const ACL_USER *) pb;
   int res= strcmp(a->user.str, b->user.str);
   if (res)
     return res;
