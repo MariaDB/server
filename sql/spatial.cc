@@ -750,6 +750,56 @@ bool Geometry::envelope(String *result) const
   return 0;
 }
 
+int Geometry::is_simple(int *simple) const {
+  Gcalc_scan_iterator scan_it;
+  Gcalc_heap collector;
+  Gcalc_function func;
+  Gcalc_operation_transporter trn(&func, &collector);
+  const char *c_end;
+  MBR mbr;
+  *simple= 0;
+
+ if(this->get_mbr(&mbr, &c_end))
+    return 1;
+
+  collector.set_extent(mbr.xmin, mbr.xmax, mbr.ymin, mbr.ymax);
+  if (this->store_shapes(&trn))
+    return 1;
+
+  collector.prepare_operation();
+  scan_it.init(&collector);
+
+  while (scan_it.more_points())
+  {
+    const Gcalc_scan_iterator::event_point *ev, *next_ev;
+
+    if (scan_it.step())
+      return 1;
+
+    ev= scan_it.get_events();
+    if (ev->simple_event())
+      continue;
+
+    next_ev= ev->get_next();
+    if ((ev->event & (scev_thread | scev_single_point)) && !next_ev)
+      continue;
+
+    if ((ev->event == scev_two_threads) && !next_ev->get_next())
+      continue;
+
+    /* If the first and last points of a curve coincide - that is     */
+    /* an exception to the rule and the line is considered as simple. */
+    if ((next_ev && !next_ev->get_next()) &&
+        (ev->event & (scev_thread | scev_end)) &&
+        (next_ev->event & (scev_thread | scev_end)))
+      continue;
+
+    return 0;
+  }
+
+  *simple= 1;
+  return 0;
+}
 
 /*
   Create a point from data.
@@ -763,7 +813,6 @@ bool Geometry::envelope(String *result) const
     0	ok
     1	Can't reallocate 'result'
 */
-
 bool Geometry::create_point(String *result, const char *data) const
 {
   if (no_data(data, POINT_DATA_SIZE) ||
@@ -1041,6 +1090,17 @@ bool Gis_point::get_mbr(MBR *mbr, const char **end) const
     return 1;
   mbr->add_xy(x, y);
   *end= m_data+ POINT_DATA_SIZE;
+  return 0;
+}
+
+
+int Gis_point::is_valid(int *valid) const
+{
+  double x, y;
+  if (get_xy(&x, &y))
+    return 1;
+
+  *valid= 1;
   return 0;
 }
 
@@ -1444,6 +1504,47 @@ int Gis_line_string::is_closed(int *closed) const
 }
 
 
+int Gis_line_string::is_valid(int *valid) const
+{
+  Geometry_buffer buffer;
+  Geometry *geometry;
+  uint32 num_points;
+  *valid= 0;
+
+  if (no_data(m_data, 4))
+    return 1;
+
+  num_points= uint4korr(m_data);
+  if (not_enough_points(m_data, num_points))
+    return 1;
+
+  double x, y, previous_x, previous_y;
+  for (uint32 i = 1; i <= num_points; i++)
+  {
+    String wkb= 0;
+
+    if (wkb.reserve(SRID_SIZE + BYTE_ORDER_SIZE + WKB_HEADER_SIZE))
+      return 1;
+
+    wkb.q_append(SRID_PLACEHOLDER);
+    this->point_n(i, &wkb);
+    if (!(geometry= Geometry::construct(&buffer, wkb.ptr(), wkb.length()))||
+        ((Gis_point *) geometry)->get_xy(&x, &y))
+      return 1;
+
+    if ((i != 1) && (x != previous_x || y != previous_y))
+    {
+      *valid= 1;
+      return 0;
+    }
+
+    previous_x = x;
+    previous_y = y;
+  }
+  return 0;
+}
+
+
 int Gis_line_string::num_points(uint32 *n_points) const
 {
   *n_points= uint4korr(m_data);
@@ -1797,6 +1898,75 @@ bool Gis_polygon::get_mbr(MBR *mbr, const char **end) const
       return 1;
   }
   *end= data;
+  return 0;
+}
+
+
+int Gis_polygon::is_valid(int *valid) const
+{
+  Geometry *exterior_ring, *interior_ring;
+  MBR exterior_mbr, interior_mbr;
+  uint32 num_interior_ring;
+  Geometry_buffer buffer;
+  const char *c_end;
+  String wkb= 0;
+  *valid= 0;
+
+  if (wkb.reserve(SRID_SIZE + BYTE_ORDER_SIZE + WKB_HEADER_SIZE))
+    return 1;
+
+  wkb.q_append(SRID_PLACEHOLDER);
+  if (this->exterior_ring(&wkb) ||
+      !(exterior_ring= Geometry::construct(&buffer, wkb.ptr(), wkb.length())))
+    return 1;
+
+  int valid_ring, simple;
+  if (exterior_ring->is_valid(&valid_ring) ||
+      exterior_ring->is_simple(&simple))
+    return 1;
+
+  if (!valid_ring || !simple)
+    return 0;
+
+  if (exterior_ring->get_mbr(&exterior_mbr, &c_end) ||
+      this->num_interior_ring(&num_interior_ring))
+    return 1;
+
+  std::vector<MBR> interior_mbrs;
+  for(uint32 i= 1; i <= num_interior_ring; i++)
+  {
+    String interior_wkb= 0;
+    if (interior_wkb.reserve(SRID_SIZE + BYTE_ORDER_SIZE + WKB_HEADER_SIZE))
+      return 1;
+
+    interior_wkb.q_append(SRID_PLACEHOLDER);
+    if (this->interior_ring_n(i, &interior_wkb))
+      break;
+
+    if (!(interior_ring= Geometry::construct(&buffer, interior_wkb.ptr(),
+                                             interior_wkb.length())) ||
+        interior_ring->get_mbr(&interior_mbr, &c_end))
+      return 1;
+
+    if (!exterior_mbr.contains(&interior_mbr) ||
+        exterior_mbr.equals(&interior_mbr))
+      return 0;
+
+    if (interior_ring->is_simple(&simple))
+      return 1;
+
+    if (!simple)
+      return 0;
+
+    for (const auto &mbr : interior_mbrs)
+    {
+      if (interior_mbr.equals(&mbr) || interior_mbr.within(&mbr))
+        return 0;
+    }
+    interior_mbrs.push_back(interior_mbr);
+  }
+
+  *valid= 1;
   return 0;
 }
 
@@ -2265,6 +2435,21 @@ bool Gis_multi_point::get_data_as_json(String *txt, uint max_dec_digits,
 }
 
 
+int Gis_multi_point::is_valid(int *valid) const
+{
+  uint32 num_points;
+  if (no_data(m_data, 4))
+    return 1;
+
+  num_points= uint4korr(m_data);
+  if (not_enough_points(m_data, num_points))
+    return 1;
+
+  *valid= 1;
+  return 0;
+}
+
+
 bool Gis_multi_point::get_mbr(MBR *mbr, const char **end) const
 {
   return (*end= get_mbr_for_points(mbr, m_data, WKB_HEADER_SIZE)) == 0;
@@ -2652,6 +2837,39 @@ bool Gis_multi_line_string::get_data_as_json(String *txt, uint max_dec_digits,
   txt->length(txt->length() - 2);
   txt->qs_append(']');
   *end= data;
+  return 0;
+}
+
+
+int Gis_multi_line_string::is_valid(int *valid) const
+{
+  uint32 num_linestring;
+  Geometry_buffer buffer;
+  Geometry *geometry= NULL;
+  *valid= 0;
+
+  if (no_data(m_data, 4))
+    return 1;
+  num_linestring= uint4korr(m_data);
+
+  for (uint32 i = 1; i <= num_linestring; i++)
+  {
+    String wkb = 0;
+
+    wkb.q_append(SRID_PLACEHOLDER);
+    if (this->geometry_n(i, &wkb) ||
+        !(geometry= Geometry::construct(&buffer, wkb.ptr(), wkb.length())))
+      return 1;
+
+    int line_valid;
+    if(geometry->is_valid(&line_valid))
+      return 1;
+
+    if (!line_valid)
+      return 0;
+  }
+
+  *valid= 1;
   return 0;
 }
 
@@ -3079,6 +3297,51 @@ bool Gis_multi_polygon::get_data_as_json(String *txt, uint max_dec_digits,
 }
 
 
+int Gis_multi_polygon::is_valid(int *valid) const
+{
+  Geometry_buffer buffer;
+  uint32 num_geometries;
+  std::vector<MBR> mbrs;
+  Geometry *geometry;
+  *valid= 0;
+
+  if (this->num_geometries(&num_geometries))
+    return 1;
+
+  for (uint32 i= 1; i <= num_geometries; i++)
+  {
+    String wkb= 0;
+    if (wkb.reserve(SRID_SIZE + BYTE_ORDER_SIZE + WKB_HEADER_SIZE))
+      return 0;
+
+    wkb.q_append(SRID_PLACEHOLDER);
+    if (this->geometry_n(i, &wkb) ||
+        !(geometry= Geometry::construct(&buffer, wkb.ptr(), wkb.length())))
+      return 1;
+
+    int internal_valid;
+    const char *c_end;
+    MBR interior_mbr;
+    if (geometry->is_valid(&internal_valid) ||
+        geometry->get_mbr(&interior_mbr, &c_end))
+      return 1;
+
+    if (!internal_valid)
+      return 0;
+
+    for (const auto &mbr : mbrs)
+    {
+      if (interior_mbr.intersects(&mbr) && !interior_mbr.touches(&mbr))
+        return 0;
+    }
+    mbrs.push_back(interior_mbr);
+  }
+
+  *valid= 1;
+  return 0;
+}
+
+
 bool Gis_multi_polygon::get_mbr(MBR *mbr, const char **end) const
 {
   uint32 n_polygons;
@@ -3307,7 +3570,7 @@ bool Gis_geometry_collection::init_from_wkt(Gis_read_stream *trs, String *wkb)
       return 1;
 
     if (next_word.length != 5 ||
-	(my_charset_latin1.strnncoll("empty", 5, next_word.str, 5) != 0))
+	     (my_charset_latin1.strnncoll("empty", 5, next_word.str, 5) != 0))
     {
       for (;;)
       {
@@ -3547,6 +3810,41 @@ bool Gis_geometry_collection::get_data_as_json(String *txt, uint max_dec_digits,
     return 1;
 
   *end= data;
+  return 0;
+}
+
+
+int Gis_geometry_collection::is_valid(int *valid) const
+{
+  Geometry_buffer buffer;
+  uint32 num_geometries;
+  Geometry *geometry;
+  *valid= 0;
+
+  if (this->num_geometries(&num_geometries))
+    return 1;
+
+  for (uint32 i= 1; i <= num_geometries; i++)
+  {
+    String wkb= 0;
+
+    if (wkb.reserve(SRID_SIZE + BYTE_ORDER_SIZE + WKB_HEADER_SIZE))
+      return 1;
+
+    wkb.q_append(SRID_PLACEHOLDER);
+    if(this->geometry_n(i, &wkb) ||
+       !(geometry= Geometry::construct(&buffer, wkb.ptr(), wkb.length())))
+      return 1;
+
+    int internal_valid;
+    if (geometry->is_valid(&internal_valid))
+      return 1;
+
+    if (!internal_valid)
+      return 0;
+  }
+
+  *valid= 1;
   return 0;
 }
 
