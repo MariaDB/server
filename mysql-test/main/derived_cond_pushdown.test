@@ -4102,3 +4102,90 @@ eval $q;
 DROP TABLE t1,t2;
 
 --echo # End of 10.4 tests
+
+--echo # MDEV-34506 2nd execution name resolution problem with pushdown into
+--echo #   unions
+--echo #
+--echo #  Statements affected by this bug need all the following to be true
+--echo #  1) a derived table table or view whose specification contains a set
+--echo #       operation at the top level.
+--echo #  2) a grouping operator (group by/having) operating on a column alias
+--echo #       other than in the first select of the union/intersect
+--echo #  3) an outer condition that will be pushed into all selects in this
+--echo #      union/intersect, either into the where or having clause
+--echo #
+--echo #  When pushing a condition into all selects of a unit with more than one
+--echo #  select, pushdown_cond_for_derived() renames items so we can re-use the
+--echo #  condition being pushed.
+--echo #  These names need to be saved and reset for correct name resolution on
+--echo #  second execution of prepared statements.
+
+create table t1 (c1 int, c2 int, c3 int);
+insert into t1 values (1,2,3),(1,2,2),(4,5,6);
+insert into t1 values (17,8,9),(11,11,12);
+create table t2 (c4 int, c5 int, c6 int);
+insert into t2 values (7,8,9),(10,11,12);
+let $q=select * from
+  (
+    select c1,  sum(c3) as s from t1 group by c1
+    union
+    select c4 as c, sum(c6) as u from t2 group by c
+  ) dt
+  where c1 > 6;
+eval prepare stmt from '$q';
+execute stmt;
+execute stmt;
+
+eval prepare stmt from 'explain format=json $q';
+--source include/analyze-format.inc
+execute stmt;
+--source include/analyze-format.inc
+execute stmt;
+
+let $q=select * from
+  (
+    select c1, c2, sum(c3) as s from t1 group by c1, c2 having s > 2
+    union
+    select c4, c5, sum(c6) as u from t2 group by c4, c5 having u > 3
+  ) dt
+  where c2 > 5;
+
+eval prepare stmt from '$q';
+execute stmt;
+execute stmt;
+
+eval prepare stmt from 'explain format=json $q';
+--source include/analyze-format.inc
+execute stmt;
+--source include/analyze-format.inc
+execute stmt;
+
+let $q=select *
+  from
+  (
+    select c1, c2, max(c3) as max_c, avg(c3) as avg_c
+      from t1
+      group by c1,c2
+      having max_c < 7
+    union
+    select c4, c5, max(c6) as u, avg(c6) as w
+      from t2
+      group by c4, c5
+      having u < 10
+  ) dt,
+  t2
+  where dt.max_c > 6 and t2.c6 > dt.c1;
+
+eval prepare stmt from '$q';
+execute stmt;
+execute stmt;
+
+eval prepare stmt from 'explain format=json $q';
+--source include/analyze-format.inc
+execute stmt;
+--source include/analyze-format.inc
+execute stmt;
+
+drop table t1, t2;
+
+--echo # End of 10.5 tests
