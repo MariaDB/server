@@ -4892,11 +4892,13 @@ static int cache_empty(SIMPLE_KEY_CACHE_CB *keycache)
 */
 
 static
-void get_simple_key_cache_statistics(SIMPLE_KEY_CACHE_CB *keycache, 
+void get_simple_key_cache_statistics(void *keycache_ptr,
                                      uint partition_no __attribute__((unused)), 
                                      KEY_CACHE_STATISTICS *keycache_stats)
 {
+  SIMPLE_KEY_CACHE_CB *keycache;
   DBUG_ENTER("simple_get_key_cache_statistics");
+  keycache= (SIMPLE_KEY_CACHE_CB *) keycache_ptr;
 
   keycache_stats->mem_size= (longlong) keycache->key_cache_mem_size;
   keycache_stats->block_size= (longlong) keycache->key_cache_block_size;
