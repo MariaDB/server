@@ -63,7 +63,7 @@ void cleanup_program(void)
 }
 
 C_MODE_START
-static uchar *program_hash_get_key(const uchar *entry, size_t *length,
+static uchar *program_hash_get_key(const void *entry, size_t *length,
                                    my_bool)
 {
   const PFS_program * const *typed_entry;

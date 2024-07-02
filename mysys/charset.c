@@ -669,7 +669,7 @@ const char *my_collation_get_tailoring(uint id)
 
 HASH charset_name_hash;
 
-static uchar *get_charset_key(const uchar *object,
+static uchar *get_charset_key(const void *object,
                               size_t *size,
                               my_bool not_used __attribute__((unused)))
 {

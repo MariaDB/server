@@ -63,7 +63,7 @@ void cleanup_setup_actor(void)
 }
 
 C_MODE_START
-static uchar *setup_actor_hash_get_key(const uchar *entry, size_t *length,
+static uchar *setup_actor_hash_get_key(const void *entry, size_t *length,
                                        my_bool)
 {
   const PFS_setup_actor * const *typed_entry;

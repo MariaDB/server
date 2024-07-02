@@ -648,7 +648,7 @@ void sp_update_stmt_used_routines(THD *thd, Query_tables_list *prelocking_ctx,
                                   SQL_I_List<Sroutine_hash_entry> *src,
                                   TABLE_LIST *belong_to_view);
 
-extern "C" uchar* sp_sroutine_key(const uchar *ptr, size_t *plen,
+extern "C" uchar* sp_sroutine_key(const void *ptr, size_t *plen,
                                   my_bool first);
 
 /*

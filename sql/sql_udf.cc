@@ -104,7 +104,7 @@ static const char *init_syms(udf_func *tmp, char *nm)
 }
 
 
-extern "C" uchar* get_hash_key(const uchar *buff, size_t *length,
+extern "C" uchar* get_hash_key(const void *buff, size_t *length,
 			      my_bool not_used __attribute__((unused)))
 {
   udf_func *udf=(udf_func*) buff;

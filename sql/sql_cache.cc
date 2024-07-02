@@ -893,7 +893,7 @@ Query_cache_block_table * Query_cache_block::table(TABLE_COUNTER_TYPE n)
 
 extern "C"
 {
-uchar *query_cache_table_get_key(const uchar *record, size_t *length,
+uchar *query_cache_table_get_key(const void *record, size_t *length,
 				my_bool not_used __attribute__((unused)))
 {
   Query_cache_block* table_block = (Query_cache_block*) record;
@@ -991,7 +991,7 @@ void Query_cache_query::unlock_n_destroy()
 
 extern "C"
 {
-uchar *query_cache_query_get_key(const uchar *record, size_t *length,
+uchar *query_cache_query_get_key(const void *record, size_t *length,
 				my_bool not_used)
 {
   Query_cache_block *query_block = (Query_cache_block*) record;

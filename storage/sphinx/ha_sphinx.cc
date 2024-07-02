@@ -720,7 +720,7 @@ typedef size_t GetKeyLength_t;
 typedef uint GetKeyLength_t;
 #endif
 
-static byte * sphinx_get_key ( const byte * pSharePtr, GetKeyLength_t * pLength, my_bool )
+static byte * sphinx_get_key ( const void * pSharePtr, GetKeyLength_t * pLength, my_bool )
 {
 	CSphSEShare * pShare = (CSphSEShare *) pSharePtr;
 	*pLength = (size_t) pShare->m_iTableNameLen;

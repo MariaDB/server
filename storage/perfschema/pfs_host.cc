@@ -64,7 +64,7 @@ void cleanup_host(void)
 }
 
 C_MODE_START
-static uchar *host_hash_get_key(const uchar *entry, size_t *length,
+static uchar *host_hash_get_key(const void *entry, size_t *length,
                                 my_bool)
 {
   const PFS_host * const *typed_entry;

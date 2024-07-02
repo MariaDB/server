@@ -2383,7 +2383,7 @@ static void strip_parentheses(struct st_command *command)
 
 C_MODE_START
 
-static uchar *get_var_key(const uchar* var, size_t *len,
+static uchar *get_var_key(const void* var, size_t *len,
                           my_bool __attribute__((unused)) t)
 {
   char* key;

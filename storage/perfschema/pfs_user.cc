@@ -64,7 +64,7 @@ void cleanup_user(void)
 }
 
 C_MODE_START
-static uchar *user_hash_get_key(const uchar *entry, size_t *length,
+static uchar *user_hash_get_key(const void *entry, size_t *length,
                                 my_bool)
 {
   const PFS_user * const *typed_entry;

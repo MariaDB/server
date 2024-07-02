@@ -145,7 +145,7 @@ void cleanup_digest(void)
 }
 
 C_MODE_START
-static uchar *digest_hash_get_key(const uchar *entry, size_t *length,
+static uchar *digest_hash_get_key(const void *entry, size_t *length,
                                   my_bool)
 {
   const PFS_statements_digest_stat * const *typed_entry;

@@ -403,7 +403,7 @@ void cleanup_table_share(void)
 
 C_MODE_START
 /** get_key function for @c table_share_hash. */
-static uchar *table_share_hash_get_key(const uchar *entry, size_t *length,
+static uchar *table_share_hash_get_key(const void *entry, size_t *length,
                                        my_bool)
 {
   const PFS_table_share * const *typed_entry;

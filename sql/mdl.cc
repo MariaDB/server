@@ -704,7 +704,7 @@ static MDL_map mdl_locks;
 extern "C"
 {
 static uchar *
-mdl_locks_key(const uchar *record, size_t *length,
+mdl_locks_key(const void *record, size_t *length,
               my_bool not_used __attribute__((unused)))
 {
   MDL_lock *lock=(MDL_lock*) record;

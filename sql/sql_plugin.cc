@@ -1513,11 +1513,11 @@ static int plugin_initialize(MEM_ROOT *tmp_root, struct st_plugin_int *plugin,
 }
 
 
-extern "C" uchar *get_plugin_hash_key(const uchar *, size_t *, my_bool);
-extern "C" uchar *get_bookmark_hash_key(const uchar *, size_t *, my_bool);
+extern "C" uchar *get_plugin_hash_key(const void *, size_t *, my_bool);
+extern "C" uchar *get_bookmark_hash_key(const void *, size_t *, my_bool);
 
 
-uchar *get_plugin_hash_key(const uchar *buff, size_t *length,
+uchar *get_plugin_hash_key(const void *buff, size_t *length,
                            my_bool not_used __attribute__((unused)))
 {
   struct st_plugin_int *plugin= (st_plugin_int *)buff;
@@ -1526,7 +1526,7 @@ uchar *get_plugin_hash_key(const uchar *buff, size_t *length,
 }
 
 
-uchar *get_bookmark_hash_key(const uchar *buff, size_t *length,
+uchar *get_bookmark_hash_key(const void *buff, size_t *length,
                              my_bool not_used __attribute__((unused)))
 {
   struct st_bookmark *var= (st_bookmark *)buff;

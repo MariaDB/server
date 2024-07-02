@@ -2281,7 +2281,7 @@ Sp_handler::sp_exist_routines(THD *thd, TABLE_LIST *routines) const
 }
 
 
-extern "C" uchar* sp_sroutine_key(const uchar *ptr, size_t *plen,
+extern "C" uchar* sp_sroutine_key(const void *ptr, size_t *plen,
                                   my_bool first)
 {
   Sroutine_hash_entry *rn= (Sroutine_hash_entry *)ptr;

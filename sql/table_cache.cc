@@ -578,7 +578,7 @@ static void tdc_hash_initializer(LF_HASH *,
 }
 
 
-static uchar *tdc_hash_key(const unsigned char *_element, size_t *length,
+static uchar *tdc_hash_key(const void *_element, size_t *length,
                            my_bool)
 {
   const TDC_element *element= (const TDC_element *) _element;
@@ -1125,7 +1125,7 @@ struct eliminate_duplicates_arg
 };
 
 
-static uchar *eliminate_duplicates_get_key(const uchar *element, size_t *length,
+static uchar *eliminate_duplicates_get_key(const void *element, size_t *length,
                                            my_bool)
 {
   LEX_STRING *key= (LEX_STRING *) element;

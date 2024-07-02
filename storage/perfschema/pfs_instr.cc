@@ -252,7 +252,7 @@ void cleanup_instruments(void)
 
 C_MODE_START
 /** Get hash table key for instrumented files. */
-static uchar *filename_hash_get_key(const uchar *entry, size_t *length,
+static uchar *filename_hash_get_key(const void *entry, size_t *length,
                                     my_bool)
 {
   const PFS_file * const *typed_entry;

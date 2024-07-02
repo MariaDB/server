@@ -67,7 +67,7 @@ void cleanup_account(void)
 }
 
 C_MODE_START
-static uchar *account_hash_get_key(const uchar *entry, size_t *length,
+static uchar *account_hash_get_key(const void *entry, size_t *length,
                                 my_bool)
 {
   const PFS_account * const *typed_entry;

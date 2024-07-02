@@ -4097,12 +4097,12 @@ Statement::~Statement() = default;
 C_MODE_START
 
 static uchar *
-get_statement_id_as_hash_key(const uchar *record, size_t *key_length,
+get_statement_id_as_hash_key(const void *record, size_t *key_length,
                              my_bool not_used __attribute__((unused)))
 {
   const Statement *statement= (const Statement *) record; 
   *key_length= sizeof(statement->id);
-  return (uchar *) &((const Statement *) statement)->id;
+  return (uchar *) &(statement)->id;
 }
 
 static void delete_statement_as_hash_key(void *key)
@@ -4110,9 +4110,10 @@ static void delete_statement_as_hash_key(void *key)
   delete (Statement *) key;
 }
 
-static uchar *get_stmt_name_hash_key(Statement *entry, size_t *length,
+static uchar *get_stmt_name_hash_key(const void *data, size_t *length,
                                     my_bool not_used __attribute__((unused)))
 {
+  const Statement *entry= (const Statement *) data;
   *length= entry->name.length;
   return (uchar*) entry->name.str;
 }
