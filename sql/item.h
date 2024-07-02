@@ -2148,6 +2148,7 @@ public:
   virtual bool check_partition_func_processor(void *arg) { return 1;}
   virtual bool post_fix_fields_part_expr_processor(void *arg) { return 0; }
   virtual bool rename_fields_processor(void *arg) { return 0; }
+  virtual bool rename_table_processor(void *arg) { return 0; }
   /*
     TRUE if the function is knowingly TRUE or FALSE.
     Not to be used for AND/OR formulas.
@@ -2175,6 +2176,13 @@ public:
     LEX_CSTRING db_name;
     LEX_CSTRING table_name;
     List<Create_field> fields;
+  };
+  struct func_processor_rename_table
+  {
+    Lex_ident_db old_db;
+    Lex_ident_table old_table;
+    Lex_ident_db new_db;
+    Lex_ident_table new_table;
   };
   virtual bool check_vcol_func_processor(void *arg)
   {
@@ -3665,6 +3673,7 @@ public:
   bool switch_to_nullable_fields_processor(void *arg) override;
   bool update_vcol_processor(void *arg) override;
   bool rename_fields_processor(void *arg) override;
+  bool rename_table_processor(void *arg) override;
   bool check_vcol_func_processor(void *arg) override;
   bool set_fields_as_dependent_processor(void *arg) override
   {
@@ -7803,6 +7812,27 @@ inline bool Virtual_column_info::is_equal(const Virtual_column_info* vcol) const
   return type_handler()  == vcol->type_handler()
       && stored_in_db == vcol->is_stored()
       && expr->eq(vcol->expr, true);
+}
+
+inline bool
+Virtual_column_info::is_identical(THD *thd, TABLE_SHARE *share, TABLE_SHARE *vcol_share,
+                                  const Virtual_column_info* vcol, bool &error) const
+{
+  error= true;
+  Item *cmp_expr= vcol->expr->build_clone(thd);
+  if (!cmp_expr)
+    return false;
+  Item::func_processor_rename_table param;
+  param.old_db=    Lex_ident_db(vcol_share->db);
+  param.old_table= Lex_ident_table(vcol_share->table_name);
+  param.new_db=    Lex_ident_db(share->db);
+  param.new_table= Lex_ident_table(share->table_name);
+  cmp_expr->walk(&Item::rename_table_processor, 1, &param);
+
+  error= false;
+  return type_handler()  == vcol->type_handler()
+      && is_stored() == vcol->is_stored()
+      && expr->eq(cmp_expr, true);
 }
 
 inline void Virtual_column_info::print(String* str)
