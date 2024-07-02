@@ -155,7 +155,7 @@ void udf_init()
   READ_RECORD read_record_info;
   TABLE *table;
   int error;
-  DBUG_ENTER("ufd_init");
+  DBUG_ENTER("udf_init");
 
   if (initialized || opt_noacl)
     DBUG_VOID_RETURN;
