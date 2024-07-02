@@ -321,7 +321,7 @@ KEY_CACHE *dflt_key_cache= &dflt_key_cache_var;
 #define FLUSH_CACHE         2000            /* sort this many blocks at once */
 
 static int flush_all_key_blocks(SIMPLE_KEY_CACHE_CB *keycache);
-static void end_simple_key_cache(SIMPLE_KEY_CACHE_CB *keycache, my_bool cleanup);
+static void end_simple_key_cache(void *keycache, my_bool cleanup);
 static void wait_on_queue(KEYCACHE_WQUEUE *wqueue,
                           mysql_mutex_t *mutex);
 static void release_whole_queue(KEYCACHE_WQUEUE *wqueue);
@@ -473,7 +473,7 @@ static inline uint next_power(uint value)
 */
 
 static
-int init_simple_key_cache(SIMPLE_KEY_CACHE_CB *keycache,
+int init_simple_key_cache(void *ptr,
                           uint key_cache_block_size,
 		          size_t use_mem, uint division_limit,
 		          uint age_threshold, uint changed_blocks_hash_size)
@@ -481,8 +481,10 @@ int init_simple_key_cache(SIMPLE_KEY_CACHE_CB *keycache,
   size_t blocks, hash_links;
   size_t length;
   int error;
+  SIMPLE_KEY_CACHE_CB *keycache;
   DBUG_ENTER("init_simple_key_cache");
   DBUG_ASSERT(key_cache_block_size >= 512);
+  keycache= (SIMPLE_KEY_CACHE_CB *) ptr;
 
   KEYCACHE_DEBUG_OPEN;
   if (keycache->key_cache_inited && keycache->disk_blocks > 0)
@@ -953,9 +955,12 @@ void change_simple_key_cache_param(SIMPLE_KEY_CACHE_CB *keycache, uint division_
 */
 
 static
-void end_simple_key_cache(SIMPLE_KEY_CACHE_CB *keycache, my_bool cleanup)
+void end_simple_key_cache(void *ptr, my_bool cleanup)
 {
+  SIMPLE_KEY_CACHE_CB *keycache;
   DBUG_ENTER("end_simple_key_cache");
+
+  keycache= (SIMPLE_KEY_CACHE_CB *) ptr;
   DBUG_PRINT("enter", ("key_cache: %p",  keycache));
 
   if (!keycache->key_cache_inited)
