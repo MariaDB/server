@@ -2801,8 +2801,8 @@ qsort2_cmp get_packed_keys_compare_ptr()
   suffix_bytes are used only for binary columns.
 */
 
-int SORT_FIELD_ATTR::compare_packed_varstrings(uchar *a, size_t *a_len,
-                                               uchar *b, size_t *b_len)
+int SORT_FIELD_ATTR::compare_packed_varstrings(const uchar *a, size_t *a_len,
+                                               const uchar *b, size_t *b_len)
 {
   int retval;
   size_t a_length, b_length;
@@ -2861,8 +2861,8 @@ int SORT_FIELD_ATTR::compare_packed_varstrings(uchar *a, size_t *a_len,
   packed-value format.
 */
 
-int SORT_FIELD_ATTR::compare_packed_fixed_size_vals(uchar *a, size_t *a_len,
-                                                    uchar *b, size_t *b_len)
+int SORT_FIELD_ATTR::compare_packed_fixed_size_vals(const uchar *a, size_t *a_len,
+                                                    const uchar *b, size_t *b_len)
 {
   if (maybe_null)
   {
@@ -2907,15 +2907,15 @@ int SORT_FIELD_ATTR::compare_packed_fixed_size_vals(uchar *a, size_t *a_len,
 
 */
 
-int compare_packed_sort_keys(void *sort_param,
-                             unsigned char **a_ptr, unsigned char **b_ptr)
+int compare_packed_sort_keys(const void *sort_param,
+                             const void *a_ptr, const void *b_ptr)
 {
   int retval= 0;
   size_t a_len, b_len;
   Sort_param *param= (Sort_param*)sort_param;
   Sort_keys *sort_keys= param->sort_keys;
-  uchar *a= *a_ptr;
-  uchar *b= *b_ptr;
+  const uchar *a= *((const uchar **) a_ptr);
+  const uchar *b= *((const uchar **) b_ptr);
 
   a+= Sort_keys::size_of_length_field;
   b+= Sort_keys::size_of_length_field;
