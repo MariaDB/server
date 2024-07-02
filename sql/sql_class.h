@@ -50,6 +50,7 @@
 #include "session_tracker.h"
 #include "backup.h"
 #include "xa.h"
+#include "scope.h"
 
 extern "C"
 void set_thd_stage_info(void *thd,
