@@ -8,9 +8,9 @@ replace_result $VAULT_ADDR VAULT_ADDR;
 SHOW GLOBAL variables LIKE "hashicorp%";
 
 --echo # Restart the server with encryption
-let $default_parameters=--innodb-tablespaces-encryption --innodb_encrypt_tables=ON;
-let $restart_noprint=1;
-let $restart_parameters=$default_parameters;
+--let $default_parameters=--innodb-tablespaces-encryption --innodb_encrypt_tables=ON
+--let $restart_noprint=1
+--let $restart_parameters=$default_parameters
 --source include/restart_mysqld.inc
 
 CREATE TABLE t1 (f1 INT, f2 VARCHAR(256))engine=innodb;
@@ -28,7 +28,7 @@ INSERT INTO t33 VALUES (12345, '1234567890');
 
 --echo # Restart the server with encryption and rotate key age
 
-let $restart_parameters=$default_parameters --innodb_encryption_threads=5 --innodb_encryption_rotate_key_age=16384;
+--let $restart_parameters=$default_parameters --innodb_encryption_threads=5 --innodb_encryption_rotate_key_age=16384
 --source include/restart_mysqld.inc
 
 --echo # Wait until encryption threads have encrypted all tablespaces
@@ -44,7 +44,7 @@ SELECT NAME, CURRENT_KEY_VERSION FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCR
 
 --echo # Restart the server with innodb_encryption_rotate_key_age= 0
 
-let $restart_parameters=$default_parameters --innodb_encryption_threads=1 --innodb_encryption_rotate_key_age=0;
+--let $restart_parameters=$default_parameters --innodb_encryption_threads=1 --innodb_encryption_rotate_key_age=0
 --source include/restart_mysqld.inc
 
 create table t4 (f1 int not null)engine=innodb encrypted=NO;

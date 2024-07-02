@@ -13,7 +13,7 @@
 --source include/shutdown_mysqld.inc
 
 --let $LOG_FILE=$MYSQLTEST_VARDIR/log/vault.err
---error 0,1
+--error 0,1,2
 --remove_file $LOG_FILE
 
 --let $vault_defaults=--plugin-load-add=hashicorp_key_management --hashicorp_key_management=force --hashicorp-key-management-check-kv-version=off --hashicorp-key-management-token=$VAULT_TOKEN
