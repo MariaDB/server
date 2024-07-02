@@ -4298,6 +4298,36 @@ protected:
   virtual ~Create_func_isvalid() = default;
 };
 
+class Create_func_isvalid : public Create_func_arg1
+{
+public:
+  Item *create_1_arg(THD *thd, Item *arg1) override
+  {
+    return new (thd->mem_root) Item_func_isvalid(thd, arg1);
+  }
+
+  static Create_func_isvalid s_singleton;
+
+protected:
+  Create_func_isvalid() = default;
+  virtual ~Create_func_isvalid() = default;
+};
+
+class Create_func_isvalid : public Create_func_arg1
+{
+public:
+  Item *create_1_arg(THD *thd, Item *arg1) override
+  {
+    return new (thd->mem_root) Item_func_isvalid(thd, arg1);
+  }
+
+  static Create_func_isvalid s_singleton;
+
+protected:
+  Create_func_isvalid() = default;
+  virtual ~Create_func_isvalid() = default;
+};
+
 
 class Create_func_issimple : public Create_func_arg1
 {
