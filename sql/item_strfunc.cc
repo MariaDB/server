@@ -3583,6 +3583,29 @@ String *Item_func_set_collation::val_str(String *str)
   str=args[0]->val_str(str);
   if ((null_value=args[0]->null_value))
     return 0;
+  /*
+    Let SCS be the character set of the source - args[0].
+    Let TCS be the character set of the target - i.e. the character set
+    of the collation specified in the COLLATE clause.
+
+    It's OK to return SQL NULL if SCS does not TCS.
+    This is possible on the explicit NULL or expressions derived from
+    the explicit NULL:
+      SELECT NULL COLLATE utf8mb4_general_ci;
+      SELECT COALESCE(NULL) COLLATE utf8mb4_general_ci;
+
+    But for a non-NULL result SCS and TCS must be compatible:
+    1. Either SCS==TCS
+    2. Or SCS can be can be reinterpeted to TCS.
+       This scenario is possible when args[0] is numeric and TCS->mbmaxlen==1.
+
+    If SCS and TCS are not compatible here, then something went wrong during
+    fix_fields(), e.g. an Item_func_conv_charset was not added two wrap args[0].
+  */
+  DBUG_ASSERT(my_charset_same(args[0]->collation.collation,
+                              collation.collation) ||
+              (args[0]->collation.repertoire == MY_REPERTOIRE_ASCII &&
+               !(collation.collation->state & MY_CS_NONASCII)));
   str->set_charset(collation.collation);
   return str;
 }
@@ -3591,7 +3614,20 @@ bool Item_func_set_collation::fix_length_and_dec()
 {
   if (agg_arg_charsets_for_string_result(collation, args, 1))
     return true;
-  if (!my_charset_same(collation.collation, m_set_collation))
+  /*
+    DERIVATION_IGNORABLE can be in
+    - Explicit NULL or an expression derived from NULL:
+      SELECT NULL COLLATE utf8_general_ci
+      SELECT CONCAT(NULL) COLLATE utf8_general_ci
+      Its value does not need any conversion at val_str() time.
+    - Item_param at PREPARE time, when the real character set
+      of the parameter is not known yet.
+      Its val_str() is never called at PREPARE time.
+    For other DERIVATION_* values, the collation in the COLLATE
+    clause must be applicable to the character set of "this".
+  */
+  if (collation.derivation != DERIVATION_IGNORABLE &&
+      !my_charset_same(collation.collation, m_set_collation))
   {
     my_error(ER_COLLATION_CHARSET_MISMATCH, MYF(0),
              m_set_collation->name, collation.collation->csname);
@@ -3600,7 +3636,7 @@ bool Item_func_set_collation::fix_length_and_dec()
   collation.set(m_set_collation, DERIVATION_EXPLICIT,
                 args[0]->collation.repertoire);
   ulonglong max_char_length= (ulonglong) args[0]->max_char_length();
-  fix_char_length_ulonglong(max_char_length * collation.collation->mbmaxlen);
+  fix_char_length_ulonglong(max_char_length);
 
   return FALSE;
 }

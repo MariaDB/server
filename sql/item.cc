@@ -4074,6 +4074,7 @@ Item_param::Item_param(THD *thd, const LEX_CSTRING *name_arg,
     value is set.
   */
   maybe_null= 1;
+  collation= DTCollation(&my_charset_bin, DERIVATION_IGNORABLE);
 }
 
 
