@@ -4582,6 +4582,12 @@ SELECT ST_ISSIMPLE(1);
 ERROR HY000: Illegal parameter data type int for operation 'st_issimple'
 SELECT ST_ISSIMPLE('test');
 ERROR HY000: Illegal parameter data type varchar for operation 'st_issimple'
+SELECT ST_ISVALID(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'st_isvalid'
+SELECT ST_ISVALID(1);
+ERROR HY000: Illegal parameter data type int for operation 'st_isvalid'
+SELECT ST_ISVALID('test');
+ERROR HY000: Illegal parameter data type varchar for operation 'st_isvalid'
 SELECT ST_ISRING(ROW(1,1));
 ERROR HY000: Illegal parameter data type row for operation 'st_isring'
 SELECT ST_ISRING(1);
@@ -5563,4 +5569,51 @@ CREATE TABLE t1 (a INT, b POINT GENERATED ALWAYS AS (a));
 ERROR HY000: Cannot cast 'int' as 'point' in assignment of `test`.`t1`.`b`
 CREATE TABLE t1 (a POINT, b INT GENERATED ALWAYS AS (a));
 ERROR HY000: Cannot cast 'point' as 'int' in assignment of `test`.`t1`.`b`
+#
 # End of 11.5 tests
+#
+#
+# Start of 11.6 tests
+#
+#
+# MDEV-34276 Tests for ST_isValid
+#
+# Some tests for Point, multipoint, linestring
+SET @g = ST_GEOMFROMTEXT('POINT(0 0)');
+SELECT ST_ISVALID(@g);
+ST_ISVALID(@g)
+1
+SELECT ISVALID(@g);
+ISVALID(@g)
+1
+SET @g = ST_GEOMFROMTEXT('POINT(15 0)');
+SELECT ST_ISVALID(@g);
+ST_ISVALID(@g)
+1
+SET @g = ST_GEOMFROMTEXT('MULTIPOINT(15 0, 10 0, 0 0, 11 11)');
+SELECT ST_ISVALID(@g);
+ST_ISVALID(@g)
+1
+SET @g = ST_GEOMFROMTEXT('LINESTRING(0 0, 1 1, 2 2, 2 3)');
+SELECT ST_ISVALID(@g);
+ST_ISVALID(@g)
+1
+# Some tests for Polygons
+SELECT ST_ISVALID(ST_GEOMFROMTEXT('POLYGON((40 40, 20 45, 45 30, 40 40)), ((20 35, 10 30, 10 10, 30 5, 45 20, 20 35), (30 20, 20 15, 20 25, 30 20))'));
+ST_ISVALID(ST_GEOMFROMTEXT('POLYGON((40 40, 20 45, 45 30, 40 40)), ((20 35, 10 30, 10 10, 30 5, 45 20, 20 35), (30 20, 20 15, 20 25, 30 20))'))
+1
+SELECT ST_ISVALID(ST_GEOMFROMTEXT('POLYGON((30 10, 40 40, 20 40, 10 20, 30 10))'));
+ST_ISVALID(ST_GEOMFROMTEXT('POLYGON((30 10, 40 40, 20 40, 10 20, 30 10))'))
+1
+SELECT ST_ISVALID(ST_GEOMFROMTEXT('POLYGON((0 0, 0 2, 2 2, 1 1, 2 0, 0 0))'));
+ST_ISVALID(ST_GEOMFROMTEXT('POLYGON((0 0, 0 2, 2 2, 1 1, 2 0, 0 0))'))
+1
+SELECT ST_ISVALID(ST_GEOMFROMTEXT('MULTIPOLYGON(((0 0, 0 2, 2 2, 2 0, 0 0)),((4 4, 4 5, 5 5, 5 4, 4 4)))')) AS a;
+a
+1
+SELECT ST_ISVALID(ST_GEOMFROMTEXT('POLYGON((0 0, 10 0, 10 10, 0 10, 0 0), (15 15, 15 20, 20 20, 20 15, 15 15))')) as t;
+t
+0
+#
+# End of 11.6 tests
+#
