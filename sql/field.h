@@ -659,6 +659,9 @@ public:
   bool cleanup_session_expr();
   bool fix_and_check_expr(THD *thd, TABLE *table);
   inline bool is_equal(const Virtual_column_info* vcol) const;
+  /* Same as is_equal() but for comparing with different table */
+  inline bool is_identical(THD *thd, TABLE_SHARE *share, TABLE_SHARE *vcol_share,
+                           const Virtual_column_info* vcol, bool &error) const;
   inline void print(String*);
 };
 
