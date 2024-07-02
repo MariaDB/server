@@ -3546,6 +3546,13 @@ bool
 Virtual_column_info::is_equivalent(THD *thd, TABLE_SHARE *share, TABLE_SHARE *vcol_share,
                                   const Virtual_column_info* vcol, bool &error) const
 {
+  MEM_ROOT memroot;
+  init_alloc_root(PSI_INSTRUMENT_ME, &memroot, ALLOC_ROOT_MIN_BLOCK_SIZE, 4096,
+                  MYF(MY_THREAD_SPECIFIC));
+  SCOPE_VALUE(thd->mem_root, &memroot);
+  SCOPE_VALUE(thd->free_list, (Item *) NULL);
+  /* SCOPE_EXIT must go after SCOPE_VALUE as destructors are called in reverse order */
+  SCOPE_EXIT([thd, memroot]() mutable { thd->free_items(); free_root(&memroot, MYF(0)); });
   error= true;
   Item *cmp_expr= vcol->expr->build_clone(thd);
   if (!cmp_expr)
