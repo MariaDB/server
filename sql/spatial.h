@@ -19,6 +19,7 @@
 #define _spatial_h
 
 #include "sql_string.h"                         /* String, LEX_STRING */
+#include <vector>
 #include <my_compiler.h>
 #include <json_lib.h>
 
@@ -29,8 +30,10 @@ class Gis_read_stream;
 #include "gcalc_tools.h"
 
 const uint SRID_SIZE= 4;
+const uint32 SRID_PLACEHOLDER= 0;
 const uint SIZEOF_STORED_DOUBLE= 8;
-const uint POINT_DATA_SIZE= (SIZEOF_STORED_DOUBLE * 2); 
+const uint BYTE_ORDER_SIZE= 1;
+const uint POINT_DATA_SIZE= (SIZEOF_STORED_DOUBLE * 2);
 const uint WKB_HEADER_SIZE= 1+4;
 const uint32 GET_SIZE_ERROR= ((uint32) -1);
 
@@ -291,6 +294,7 @@ public:
   virtual int geom_length(double *len, const char **end) const  { return -1; }
   virtual int area(double *ar, const char **end) const { return -1;}
   virtual int is_closed(int *closed) const { return -1; }
+  virtual int is_valid(int *valid) const { return -1; }
   virtual int num_interior_ring(uint32 *n_int_rings) const { return -1; }
   virtual int num_points(uint32 *n_points) const { return -1; }
   virtual int num_geometries(uint32 *num) const { return -1; }
@@ -339,6 +343,7 @@ public:
   }
 
   bool envelope(String *result) const;
+  int is_simple(int *simple) const;
   static Class_info *ci_collection[wkb_last+1];
 
   static bool create_point(String *result, double x, double y);
@@ -407,7 +412,7 @@ public:
   bool get_data_as_json(String *txt, uint max_dec_digits,
                         const char **end) const override;
   bool get_mbr(MBR *mbr, const char **end) const override;
-  
+  int is_valid(int *valid) const override;
   int get_xy(double *x, double *y) const
   {
     const char *data= m_data;
@@ -481,6 +486,7 @@ public:
   int area(double *ar, const char **end) const override;
   int is_closed(int *closed) const override;
   int num_points(uint32 *n_points) const override;
+  int is_valid(int *valid) const override;
   int start_point(String *point) const override;
   int end_point(String *point) const override;
   int point_n(uint32 n, String *result) const override;
@@ -511,6 +517,7 @@ public:
   bool get_data_as_json(String *txt, uint max_dec_digits,
                         const char **end) const override;
   bool get_mbr(MBR *mbr, const char **end) const override;
+  int is_valid(int *valid) const override;
   int area(double *ar, const char **end) const override;
   int exterior_ring(String *result) const override;
   int num_interior_ring(uint32 *n_int_rings) const override;
@@ -547,6 +554,7 @@ public:
   bool get_data_as_wkt(String *txt, const char **end) const override;
   bool get_data_as_json(String *txt, uint max_dec_digits,
                         const char **end) const override;
+  int is_valid(int *valid) const override;
   bool get_mbr(MBR *mbr, const char **end) const override;
   int num_geometries(uint32 *num) const override;
   int geometry_n(uint32 num, String *result) const override;
@@ -578,6 +586,7 @@ public:
   bool get_data_as_wkt(String *txt, const char **end) const override;
   bool get_data_as_json(String *txt, uint max_dec_digits,
                         const char **end) const override;
+  int is_valid(int *valid) const override;
   bool get_mbr(MBR *mbr, const char **end) const override;
   int num_geometries(uint32 *num) const override;
   int geometry_n(uint32 num, String *result) const override;
@@ -608,6 +617,7 @@ public:
   bool get_data_as_wkt(String *txt, const char **end) const override;
   bool get_data_as_json(String *txt, uint max_dec_digits,
                         const char **end) const override;
+  int is_valid(int *valid) const override;
   bool get_mbr(MBR *mbr, const char **end) const override;
   int num_geometries(uint32 *num) const override;
   int geometry_n(uint32 num, String *result) const override;
@@ -640,6 +650,7 @@ public:
   bool get_data_as_wkt(String *txt, const char **end) const override;
   bool get_data_as_json(String *txt, uint max_dec_digits,
                         const char **end) const override;
+  int is_valid(int *valid) const override;
   bool get_mbr(MBR *mbr, const char **end) const override;
   int area(double *ar, const char **end) const override;
   int geom_length(double *len, const char **end) const override;
