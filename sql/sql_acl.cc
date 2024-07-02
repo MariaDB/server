@@ -3414,9 +3414,10 @@ int acl_setrole(THD *thd, const char *rolename, privilege_t access)
   return 0;
 }
 
-static uchar* check_get_key(ACL_USER *buff, size_t *length,
+static uchar* check_get_key(const void *ptr, size_t *length,
                             my_bool not_used __attribute__((unused)))
 {
+  const ACL_USER *buff= (const ACL_USER *) ptr;
   *length=buff->hostname_length;
   return (uchar*) buff->host.hostname;
 }
