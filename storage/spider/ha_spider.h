@@ -132,7 +132,7 @@ public:
   bool               bulk_insert;
   bool               info_auto_called;
   bool               auto_inc_temporary;
-  int                bulk_size;
+  int                bulk_size= 0;
   int                direct_dup_insert;
   int                store_error_num;
   uint               dup_key_idx;
