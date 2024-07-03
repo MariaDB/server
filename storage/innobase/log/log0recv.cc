@@ -1681,7 +1681,7 @@ dberr_t recv_sys_t::find_checkpoint()
   lsn= 0;
   buf= my_assume_aligned<4096>(log_sys.buf);
   if (!log_sys.is_pmem())
-    if (dberr_t err= log_sys.log.read(0, {buf, 4096}))
+    if (dberr_t err= log_sys.log.read(0, {buf, log_sys.START_OFFSET}))
       return err;
   /* Check the header page checksum. There was no
   checksum in the first redo log format (version 0). */
@@ -1750,12 +1750,7 @@ dberr_t recv_sys_t::find_checkpoint()
     for (size_t field= log_t::CHECKPOINT_1; field <= log_t::CHECKPOINT_2;
          field+= log_t::CHECKPOINT_2 - log_t::CHECKPOINT_1)
     {
-      if (log_sys.is_pmem())
-        buf= log_sys.buf + field;
-      else
-        if (dberr_t err= log_sys.log.read(field,
-                                          {buf, log_sys.get_block_size()}))
-          return err;
+      buf= log_sys.buf + field;
       const lsn_t checkpoint_lsn{mach_read_from_8(buf)};
       const lsn_t end_lsn{mach_read_from_8(buf + 8)};
       if (checkpoint_lsn < first_lsn || end_lsn < checkpoint_lsn ||
@@ -3936,7 +3931,7 @@ static bool recv_scan_log(bool last_phase)
   DBUG_ENTER("recv_scan_log");
 
   ut_ad(log_sys.is_latest());
-  const size_t block_size_1{log_sys.get_block_size() - 1};
+  const size_t block_size_1{log_sys.write_size - 1};
 
   mysql_mutex_lock(&recv_sys.mutex);
   if (!last_phase)
@@ -4118,7 +4113,7 @@ static bool recv_scan_log(bool last_phase)
     if (recv_sys.is_corrupt_log())
       break;
 
-    if (recv_sys.offset < log_sys.get_block_size() &&
+    if (recv_sys.offset < log_sys.write_size &&
         recv_sys.lsn == recv_sys.scanned_lsn)
       goto got_eof;
 
@@ -4454,6 +4449,24 @@ dberr_t recv_recovery_read_checkpoint()
   return err;
 }
 
+inline void log_t::set_recovered() noexcept
+{
+  ut_ad(get_flushed_lsn() == get_lsn());
+  ut_ad(recv_sys.lsn == get_lsn());
+  size_t offset{recv_sys.offset};
+  if (!is_pmem())
+  {
+    const size_t bs{log_sys.write_size}, bs_1{bs - 1};
+    memmove_aligned<512>(buf, buf + (offset & ~bs_1), bs);
+    offset&= bs_1;
+  }
+#ifdef HAVE_PMEM
+  else
+    mprotect(buf, size_t(file_size), PROT_READ | PROT_WRITE);
+#endif
+  set_buf_free(offset);
+}
+
 /** Start recovering from a redo log checkpoint.
 of first system tablespace page
 @return error code or DB_SUCCESS */
@@ -4627,24 +4640,11 @@ err_exit:
 	}
 
 	if (!srv_read_only_mode && log_sys.is_latest()) {
-		ut_ad(log_sys.get_flushed_lsn() == log_sys.get_lsn());
-		ut_ad(recv_sys.lsn == log_sys.get_lsn());
-		if (!log_sys.is_pmem()) {
-			const size_t bs_1{log_sys.get_block_size() - 1};
-			const size_t ro{recv_sys.offset};
-			recv_sys.offset &= bs_1;
-			memmove_aligned<64>(log_sys.buf,
-					    log_sys.buf + (ro & ~bs_1),
-					    log_sys.get_block_size());
-#ifdef HAVE_PMEM
-		} else {
-			mprotect(log_sys.buf, size_t(log_sys.file_size),
-				 PROT_READ | PROT_WRITE);
-#endif
-		}
-		log_sys.set_buf_free(recv_sys.offset);
+		log_sys.set_recovered();
 		if (recv_needed_recovery
-	            && srv_operation <= SRV_OPERATION_EXPORT_RESTORED) {
+		    && srv_operation <= SRV_OPERATION_EXPORT_RESTORED
+		    && recv_sys.lsn - log_sys.next_checkpoint_lsn
+		    < log_sys.log_capacity) {
 			/* Write a FILE_CHECKPOINT marker as the first thing,
 			before generating any other redo log. This ensures
 			that subsequent crash recovery will be possible even
@@ -4653,6 +4653,7 @@ err_exit:
 		}
 	}
 
+	DBUG_EXECUTE_IF("before_final_redo_apply", goto err_exit;);
 	mysql_mutex_lock(&recv_sys.mutex);
 	if (UNIV_UNLIKELY(recv_sys.scanned_lsn != recv_sys.lsn)
 	    && log_sys.is_latest()) {

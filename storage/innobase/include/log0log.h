@@ -274,11 +274,9 @@ private:
   std::atomic<lsn_t> resize_lsn;
   /** the log sequence number at the start of the log file */
   lsn_t first_lsn;
-#if defined __linux__ || defined _WIN32
-  /** The physical block size of the storage */
-  uint32_t block_size;
-#endif
 public:
+  /** current innodb_log_write_ahead_size */
+  uint write_size;
   /** format of the redo log: e.g., FORMAT_10_8 */
   uint32_t format;
 #if defined __linux__ || defined _WIN32
@@ -330,6 +328,8 @@ public:
       max_buf_free;
   }
 
+  inline void set_recovered() noexcept;
+
   void set_buf_free(size_t f) noexcept
   { ut_ad(f < buf_free_LOCK); buf_free.store(f, std::memory_order_relaxed); }
 
@@ -370,9 +370,12 @@ public:
   inline void resize_write(lsn_t lsn, const byte *end,
                            size_t len, size_t seq) noexcept;
 
+private:
   /** Write resize_buf to resize_log.
   @param length  the used length of resize_buf */
-  ATTRIBUTE_COLD void resize_write_buf(size_t length) noexcept;
+  ATTRIBUTE_COLD ATTRIBUTE_NOINLINE
+  void resize_write_buf(size_t length) noexcept;
+public:
 
   /** Rename a log file after resizing.
   @return whether an error occurred */
@@ -471,14 +474,12 @@ public:
   void close();
 
 #if defined __linux__ || defined _WIN32
-  /** @return the physical block size of the storage */
-  size_t get_block_size() const noexcept
-  { ut_ad(block_size); return block_size; }
   /** Set the log block size for file I/O. */
-  void set_block_size(uint32_t size) noexcept { block_size= size; }
-#else
-  /** @return the physical block size of the storage */
-  static size_t get_block_size() { return 512; }
+  void set_block_size(uint32 size) noexcept
+  {
+    if (write_size < size)
+      write_size= size;
+  }
 #endif
 
 private:

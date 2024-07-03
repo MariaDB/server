@@ -17,9 +17,9 @@ public:
 	CMGDISC(PGLOBAL g, int *lg) : MGODISC(g, lg) { drv = "C"; }
 
 	// Methods
-	virtual void GetDoc(void);
-//virtual bool Find(PGLOBAL g, int i, int k, bool b);
-	virtual bool Find(PGLOBAL g);
+	void GetDoc(void) override;
+//bool Find(PGLOBAL g, int i, int k, bool b) override;
+	bool Find(PGLOBAL g) override;
 
 	// BSON Function
 //bool FindInDoc(PGLOBAL g, bson_iter_t *iter, const bson_t *doc,
@@ -49,24 +49,24 @@ public:
 	TDBCMG(TDBCMG *tdbp);
 
 	// Implementation
-	virtual AMT  GetAmType(void) {return TYPE_AM_MGO;}
-	virtual PTDB Duplicate(PGLOBAL g) {return (PTDB)new(g) TDBCMG(this);}
+	AMT  GetAmType(void) override {return TYPE_AM_MGO;}
+	PTDB Duplicate(PGLOBAL g) {return (PTDB)new(g) TDBCMG(this);}
 
 	// Methods
-	virtual PTDB Clone(PTABS t);
-	virtual PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
-	virtual PCOL InsertSpecialColumn(PCOL colp);
-	virtual int  RowNumber(PGLOBAL g, bool b = FALSE) {return N;}
+	PTDB Clone(PTABS t) override;
+	PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n) override;
+	PCOL InsertSpecialColumn(PCOL colp) override;
+	int  RowNumber(PGLOBAL g, bool b = FALSE) override {return N;}
 
 	// Database routines
-	virtual int  Cardinality(PGLOBAL g);
-	virtual int  GetMaxSize(PGLOBAL g);
-	virtual bool OpenDB(PGLOBAL g);
-	virtual int  ReadDB(PGLOBAL g);
-	virtual int  WriteDB(PGLOBAL g);
-	virtual int  DeleteDB(PGLOBAL g, int irc);
-	virtual void CloseDB(PGLOBAL g);
-	virtual bool ReadKey(PGLOBAL g, OPVAL op, const key_range *kr);
+	int  Cardinality(PGLOBAL g) override;
+	int  GetMaxSize(PGLOBAL g) override;
+	bool OpenDB(PGLOBAL g) override;
+	int  ReadDB(PGLOBAL g) override;
+	int  WriteDB(PGLOBAL g) override;
+	int  DeleteDB(PGLOBAL g, int irc) override;
+	void CloseDB(PGLOBAL g) override;
+	bool ReadKey(PGLOBAL g, OPVAL op, const key_range *kr) override;
 
 protected:
 	bool Init(PGLOBAL g);
@@ -96,13 +96,13 @@ public:
 	MGOCOL(MGOCOL *colp, PTDB tdbp); // Constructor used in copy process
 
 	// Implementation
-	virtual int   GetAmType(void) { return Tmgp->GetAmType(); }
-	virtual bool  Stringify(void) { return Sgfy; }
+	int   GetAmType(void) override { return Tmgp->GetAmType(); }
+	bool  Stringify(void) override { return Sgfy; }
 
 	// Methods
-	virtual PSZ   GetJpath(PGLOBAL g, bool proj);
-	virtual void  ReadColumn(PGLOBAL g);
-	virtual void  WriteColumn(PGLOBAL g);
+	PSZ   GetJpath(PGLOBAL g, bool proj) override;
+	void  ReadColumn(PGLOBAL g) override;
+	void  WriteColumn(PGLOBAL g) override;
 
 protected:
 	// Default constructor not to be used
@@ -124,7 +124,7 @@ public:
 
 protected:
 	// Specific routines
-	virtual PQRYRES GetResult(PGLOBAL g);
+	virtual PQRYRES GetResult(PGLOBAL g) override;
 
 	// Members
 	PTOS Topt;
