@@ -971,12 +971,21 @@ static int btr_latch_prev(buf_block_t *block, page_id_t page_id,
   buffer-fixes on both blocks will prevent eviction. */
 
  retry:
-  buf_block_t *prev= buf_page_get_gen(page_id, zip_size, RW_NO_LATCH, nullptr,
-                                      BUF_GET, mtr, err, false);
-  if (UNIV_UNLIKELY(!prev))
-    return 0;
-
+  /* Pass no_wait pointer to ensure that we don't wait on the current page
+  latch while holding the next page latch to avoid latch ordering violation. */
+  bool no_wait= false;
   int ret= 1;
+
+  buf_block_t *prev= buf_page_get_gen(page_id, zip_size, RW_NO_LATCH, nullptr,
+                                      BUF_GET, mtr, err, false, &no_wait);
+  if (UNIV_UNLIKELY(!prev))
+  {
+    /* Check if we had to return because we couldn't wait on latch. */
+    if (no_wait)
+      goto ordered_latch;
+    return 0;
+  }
+
   static_assert(MTR_MEMO_PAGE_S_FIX == mtr_memo_type_t(BTR_SEARCH_LEAF), "");
   static_assert(MTR_MEMO_PAGE_X_FIX == mtr_memo_type_t(BTR_MODIFY_LEAF), "");
 
@@ -996,6 +1005,7 @@ static int btr_latch_prev(buf_block_t *block, page_id_t page_id,
   {
     ut_ad(mtr->at_savepoint(mtr->get_savepoint() - 1)->page.id() == page_id);
     mtr->release_last_page();
+ordered_latch:
     if (rw_latch == RW_S_LATCH)
       block->page.lock.s_unlock();
     else

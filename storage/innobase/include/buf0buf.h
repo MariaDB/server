@@ -209,6 +209,9 @@ BUF_PEEK_IF_IN_POOL, or BUF_GET_IF_IN_POOL_OR_WATCH
 @param[out]	err			DB_SUCCESS or error code
 @param[in]	allow_ibuf_merge	Allow change buffer merge while
 reading the pages from file.
+@param[in,out]	no_wait			If not NULL on input, then we must not
+wait for current page latch. On output, the value is set to true if we had to
+return because we could not wait on page latch.
 @return pointer to the block or NULL */
 buf_block_t*
 buf_page_get_gen(
@@ -219,7 +222,8 @@ buf_page_get_gen(
 	ulint			mode,
 	mtr_t*			mtr,
 	dberr_t*		err = NULL,
-	bool			allow_ibuf_merge = false)
+	bool			allow_ibuf_merge = false,
+	bool*			no_wait = nullptr)
 	MY_ATTRIBUTE((nonnull(6), warn_unused_result));
 
 /** This is the low level function used to get access to a database page.
@@ -236,6 +240,11 @@ BUF_PEEK_IF_IN_POOL, or BUF_GET_IF_IN_POOL_OR_WATCH
 while reading the page from file
 then it makes sure that it does merging of change buffer changes while
 reading the page from file.
+@param[in]	holds_next_page_latch	True if caller holds next page latch.
+We must not wait for current page latch.
+@param[in,out]	no_wait			If not NULL on input, then we must not
+wait for current page latch. On output, the value is set to true if we had to
+return because we could not wait on page latch.
 @return pointer to the block or NULL */
 buf_block_t*
 buf_page_get_low(
@@ -246,7 +255,8 @@ buf_page_get_low(
 	ulint			mode,
 	mtr_t*			mtr,
 	dberr_t*		err,
-	bool			allow_ibuf_merge);
+	bool			allow_ibuf_merge,
+	bool*			no_wait);
 
 /** Initialize a page in the buffer pool. The page is usually not read
 from a file even if it cannot be found in the buffer buf_pool. This is one

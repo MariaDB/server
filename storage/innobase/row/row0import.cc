@@ -2165,7 +2165,7 @@ dberr_t PageConverter::operator()(buf_block_t* block) UNIV_NOTHROW
 	we no longer evict the pages on DISCARD TABLESPACE. */
 	buf_page_get_low(block->page.id(), get_zip_size(), RW_NO_LATCH,
 			 nullptr, BUF_PEEK_IF_IN_POOL,
-			 nullptr, nullptr, false);
+			 nullptr, nullptr, false, nullptr);
 
 	uint16_t page_type;
 
