@@ -3243,6 +3243,11 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
       key_number--;                             // Skip this key
       continue;
     case Key::VECTOR:
+        if (IF_PARTITIONING(thd->work_part_info, false))
+        {
+          my_error(ER_FEATURE_NOT_SUPPORTED_WITH_PARTITIONING, MYF(0), "VECTOR");
+          DBUG_RETURN(TRUE);
+        }
         if (key->key_create_info.algorithm == HA_KEY_ALG_UNDEF)
           key->key_create_info.algorithm= HA_KEY_ALG_VECTOR;
         break;
