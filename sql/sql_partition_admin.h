@@ -32,12 +32,12 @@ public:
   {}
 
   /* Override SQLCOM_*, since it is an ALTER command */
-  virtual enum_sql_command sql_command_code() const
+  virtual enum_sql_command sql_command_code() const override
   {
     return SQLCOM_ALTER_TABLE;
   }
 
-  bool execute(THD *thd);
+  bool execute(THD *thd) override;
 };
 
 
