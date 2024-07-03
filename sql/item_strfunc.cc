@@ -3798,9 +3798,11 @@ String *Item_func_hex::val_str_ascii_from_val_real(String *str)
     return 0;
   if ((val <= (double) LONGLONG_MIN) ||
       (val >= (double) (ulonglong) ULONGLONG_MAX))
-    dec= ~(longlong) 0;
+    dec= ULONGLONG_MAX;
+  else if (val < 0)
+    dec= (ulonglong) (longlong) (val - 0.5);
   else
-    dec= (ulonglong) (val + (val > 0 ? 0.5 : -0.5));
+    dec= (ulonglong) (val + 0.5);
   return str->set_hex(dec) ? make_empty_result(str) : str;
 }
 

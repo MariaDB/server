@@ -1585,10 +1585,20 @@ public:
   }
   bool fix_length_and_dec() override
   {
+    m_arg0_type_handler= args[0]->type_handler();
     collation.set(default_charset(), DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
     decimals=0;
-    fix_char_length(args[0]->max_length * 2);
-    m_arg0_type_handler= args[0]->type_handler();
+    /*
+      Reserve space for 16 characters for signed numeric data types:
+        hex(-1) -> 'FFFFFFFFFFFFFFFF'.
+      For unsigned numeric types, HEX() can create too large columns.
+      This should be eventually fixed to create minimum possible columns.
+    */
+    const Type_handler_numeric *tn=
+      dynamic_cast<const Type_handler_numeric*>(m_arg0_type_handler);
+    size_t char_length= (tn && !(tn->flags() & UNSIGNED_FLAG)) ?
+                        (size_t) 16 : (size_t) args[0]->max_length * 2;
+    fix_char_length(char_length);
     return FALSE;
   }
   Item *get_copy(THD *thd) override

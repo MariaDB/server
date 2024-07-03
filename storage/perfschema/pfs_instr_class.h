@@ -23,11 +23,12 @@
 #ifndef PFS_INSTR_CLASS_H
 #define PFS_INSTR_CLASS_H
 
+#include <atomic>
+
 #include "my_global.h"
 #include "mysql_com.h"                          /* NAME_LEN */
 #include "lf.h"
 #include "pfs_global.h"
-#include "pfs_atomic.h"
 #include "sql_array.h"
 
 /**
@@ -329,22 +330,22 @@ public:
 
   inline void init_refcount(void)
   {
-    PFS_atomic::store_32(& m_refcount, 1);
+    m_refcount.store(1);
   }
 
   inline int get_refcount(void)
   {
-    return PFS_atomic::load_32(& m_refcount);
+    return m_refcount.load();
   }
 
   inline void inc_refcount(void)
   {
-    PFS_atomic::add_32(& m_refcount, 1);
+    m_refcount.fetch_add(1);
   }
 
   inline void dec_refcount(void)
   {
-    PFS_atomic::add_32(& m_refcount, -1);
+    m_refcount.fetch_sub(1);
   }
 
   void refresh_setup_object_flags(PFS_thread *thread);
@@ -387,7 +388,7 @@ public:
 
 private:
   /** Number of opened table handles. */
-  int m_refcount;
+  std::atomic<int> m_refcount;
   /** Table locks statistics. */
   PFS_table_share_lock *m_race_lock_stat;
   /** Table indexes' stats. */
