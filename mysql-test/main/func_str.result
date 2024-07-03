@@ -748,7 +748,7 @@ t1	CREATE TABLE `t1` (
   `bin(130)` varchar(64) DEFAULT NULL,
   `oct(130)` varchar(64) DEFAULT NULL,
   `conv(130,16,10)` varchar(64) DEFAULT NULL,
-  `hex(130)` varchar(6) DEFAULT NULL,
+  `hex(130)` varchar(16) DEFAULT NULL,
   `char(130)` varbinary(4) DEFAULT NULL,
   `format(130,10)` varchar(25) DEFAULT NULL,
   `left(_latin2'a',1)` varchar(1) CHARACTER SET latin2 COLLATE latin2_general_ci DEFAULT NULL,

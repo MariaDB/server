@@ -2798,7 +2798,7 @@ static Sys_var_uint Sys_port(
 #endif
        "built-in default (" STRINGIFY_ARG(MYSQL_PORT) "), whatever comes first",
        READ_ONLY GLOBAL_VAR(mysqld_port), CMD_LINE(REQUIRED_ARG, 'P'),
-       VALID_RANGE(0, UINT_MAX32), DEFAULT(0), BLOCK_SIZE(1));
+       VALID_RANGE(0, UINT_MAX16), DEFAULT(0), BLOCK_SIZE(1));
 
 static Sys_var_ulong Sys_preload_buff_size(
        "preload_buffer_size",
@@ -3272,6 +3272,14 @@ Sys_server_id(
        SESSION_VAR(server_id), CMD_LINE(REQUIRED_ARG, OPT_SERVER_ID),
        VALID_RANGE(1, UINT_MAX32), DEFAULT(1), BLOCK_SIZE(1), NO_MUTEX_GUARD,
        NOT_IN_BINLOG, ON_CHECK(check_server_id), ON_UPDATE(fix_server_id));
+
+char *server_uid_ptr= &server_uid[0];
+
+static Sys_var_charptr Sys_server_uid(
+      "server_uid", "Automatically calculated server unique id hash",
+       READ_ONLY GLOBAL_VAR(server_uid_ptr),
+       CMD_LINE_HELP_ONLY,
+       DEFAULT(server_uid));
 
 static Sys_var_on_access_global<Sys_var_mybool,
                           PRIV_SET_SYSTEM_GLOBAL_VAR_SLAVE_COMPRESSED_PROTOCOL>
@@ -6244,7 +6252,7 @@ static Sys_var_uint Sys_extra_port(
        "Extra port number to use for tcp connections in a "
        "one-thread-per-connection manner. 0 means don't use another port",
        READ_ONLY GLOBAL_VAR(mysqld_extra_port), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(0, UINT_MAX32), DEFAULT(0), BLOCK_SIZE(1));
+       VALID_RANGE(0, UINT_MAX16), DEFAULT(0), BLOCK_SIZE(1));
 
 static Sys_var_on_access_global<Sys_var_ulong,
                               PRIV_SET_SYSTEM_GLOBAL_VAR_EXTRA_MAX_CONNECTIONS>
@@ -6280,8 +6288,9 @@ static const char *log_slow_filter_names[]=
 
 static Sys_var_set Sys_log_slow_filter(
        "log_slow_filter",
-       "Log only certain types of queries to the slow log. If variable empty alll kind of queries are logged.  All types are bound by slow_query_time, except 'not_using_index' which is always logged if enabled",
-       SESSION_VAR(log_slow_filter), CMD_LINE(REQUIRED_ARG),
+       "Log only certain types of queries to the slow log. If variable empty all kind of queries are logged.  All types are bound by slow_query_time, except 'not_using_index' which is always logged if enabled",
+       SESSION_VAR(log_slow_filter), CMD_LINE(REQUIRED_ARG,
+                                              OPT_LOG_SLOW_FILTER),
        log_slow_filter_names,
        /* by default we log all queries except 'not_using_index' */
        DEFAULT(my_set_bits(array_elements(log_slow_filter_names)-1) &
