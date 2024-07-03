@@ -3843,7 +3843,7 @@ public:
   ulonglong  tmp_tables_size;
   ulonglong  bytes_sent_old;
   ulonglong  affected_rows;                     /* Number of changed rows */
-  ulonglong  max_tmp_space_used;
+  ulonglong  max_tmp_space_used= 0;
 
   Opt_trace_context opt_trace;
   pthread_t  real_id;                           /* For debugging */
