@@ -214,7 +214,7 @@ public:
     Item_geometry_func(thd, a, srid) {}
   const char *func_name() const override { return "st_geometryfromtext"; }
   String *val_str(String *) override;
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_geometry_from_text>(thd, this); }
 };
 
@@ -232,7 +232,7 @@ public:
     Item_geometry_func(thd, a, srid) {}
   const char *func_name() const override { return "st_geometryfromwkb"; }
   String *val_str(String *) override;
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_geometry_from_wkb>(thd, this); }
 };
 
@@ -254,7 +254,7 @@ public:
     Item_geometry_func(thd, js, opt, srid) {}
   const char *func_name() const override { return "st_geomfromgeojson"; }
   String *val_str(String *) override;
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_geometry_from_json>(thd, this); }
 };
 
@@ -267,7 +267,7 @@ public:
   const char *func_name() const override { return "st_astext"; }
   String *val_str_ascii(String *) override;
   bool fix_length_and_dec() override;
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_as_wkt>(thd, this); }
 };
 
@@ -287,7 +287,7 @@ public:
     maybe_null= 1;
     return FALSE;
   }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_as_wkb>(thd, this); }
 };
 
@@ -310,7 +310,7 @@ public:
   const char *func_name() const override { return "st_asgeojson"; }
   bool fix_length_and_dec() override;
   String *val_str_ascii(String *) override;
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_as_geojson>(thd, this); }
 };
 
@@ -329,7 +329,7 @@ public:
     maybe_null= 1;
     return FALSE;
   };
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_geometry_type>(thd, this); }
 };
 
@@ -364,7 +364,7 @@ public:
     {}
   const char *func_name() const override { return "st_convexhull"; }
   String *val_str(String *) override;
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_convexhull>(thd, this); }
 };
 
@@ -380,7 +380,7 @@ public:
   {
     return &type_handler_point;
   }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_centroid>(thd, this); }
 };
 
@@ -395,7 +395,7 @@ public:
   {
     return &type_handler_polygon;
   }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_envelope>(thd, this); }
 };
 
@@ -429,7 +429,7 @@ public:
    :Item_geometry_func_args_geometry(thd, a) {}
   const char *func_name() const override { return "st_boundary"; }
   String *val_str(String *) override;
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_boundary>(thd, this); }
 };
 
@@ -448,7 +448,7 @@ public:
   {
     return &type_handler_point;
   }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_point>(thd, this); }
 };
 
@@ -474,7 +474,7 @@ public:
     }
   }
   String *val_str(String *) override;
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_spatial_decomp>(thd, this); }
 };
 
@@ -507,7 +507,7 @@ public:
     }
   }
   String *val_str(String *) override;
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_spatial_decomp_n>(thd, this); }
 };
 
@@ -563,7 +563,7 @@ public:
     return &type_handler_geometrycollection;
   }
   const char *func_name() const override { return "geometrycollection"; }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_geometrycollection>(thd, this); }
 };
 
@@ -578,7 +578,7 @@ public:
   { }
   const Type_handler *type_handler() const override { return &type_handler_linestring; }
   const char *func_name() const override { return "linestring"; }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_linestring>(thd, this); }
 };
 
@@ -593,7 +593,7 @@ public:
   { }
   const Type_handler *type_handler() const override { return &type_handler_polygon; }
   const char *func_name() const override { return "polygon"; }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_polygon>(thd, this); }
 };
 
@@ -611,7 +611,7 @@ public:
     return &type_handler_multilinestring;
   }
   const char *func_name() const override { return "multilinestring"; }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_multilinestring>(thd, this); }
 };
 
@@ -629,7 +629,7 @@ public:
     return &type_handler_multipoint;
   }
   const char *func_name() const override { return "multipoint"; }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_multipoint>(thd, this); }
 };
 
@@ -647,7 +647,7 @@ public:
     return &type_handler_multipolygon;
   }
   const char *func_name() const override { return "multipolygon"; }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_multipolygon>(thd, this); }
 };
 
@@ -699,7 +699,7 @@ public:
                                       usable_tables, sargables, false);
   }
   bool need_parentheses_in_default() override { return false; }
-  Item *build_clone(THD *thd) override { return 0; }
+  Item *do_build_clone(THD *thd) const override { return nullptr; }
 };
 
 
@@ -711,7 +711,7 @@ public:
   { }
   longlong val_int() override;
   const char *func_name() const override;
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_spatial_mbr_rel>(thd, this); }
 };
 
@@ -727,7 +727,7 @@ public:
   { }
   longlong val_int() override;
   const char *func_name() const override;
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_spatial_precise_rel>(thd, this); }
 };
 
@@ -750,7 +750,7 @@ public:
   longlong val_int() override;
   const char *func_name() const override { return "st_relate"; }
   bool need_parentheses_in_default() override { return false; }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_spatial_relate>(thd, this); }
 };
 
@@ -787,7 +787,7 @@ public:
   {
     Item_func::print(str, query_type);
   }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_spatial_operation>(thd, this); }
 };
 
@@ -844,7 +844,7 @@ public:
    :Item_geometry_func_args_geometry(thd, obj, distance) {}
   const char *func_name() const override { return "st_buffer"; }
   String *val_str(String *) override;
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_buffer>(thd, this); }
 };
 
@@ -858,7 +858,7 @@ public:
   const char *func_name() const override { return "st_isempty"; }
   bool fix_length_and_dec() override { maybe_null= 1; return FALSE; }
   bool need_parentheses_in_default() override { return false; }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_isempty>(thd, this); }
 };
 
@@ -875,7 +875,7 @@ public:
   const char *func_name() const override { return "st_issimple"; }
   bool fix_length_and_dec() override { decimals=0; max_length=2; return FALSE; }
   uint decimal_precision() const override { return 1; }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_issimple>(thd, this); }
 };
 
@@ -888,7 +888,7 @@ public:
   const char *func_name() const override { return "st_isclosed"; }
   bool fix_length_and_dec() override { decimals=0; max_length=2; return FALSE; }
   uint decimal_precision() const override { return 1; }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_isclosed>(thd, this); }
 };
 
@@ -898,7 +898,7 @@ public:
   Item_func_isring(THD *thd, Item *a): Item_func_issimple(thd, a) {}
   longlong val_int() override;
   const char *func_name() const override { return "st_isring"; }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_isring>(thd, this); }
 };
 
@@ -910,7 +910,7 @@ public:
   longlong val_int() override;
   const char *func_name() const override { return "st_dimension"; }
   bool fix_length_and_dec() override { max_length= 10; maybe_null= 1; return FALSE; }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_dimension>(thd, this); }
 };
 
@@ -928,7 +928,7 @@ public:
     maybe_null= 1;
     return FALSE;
   }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_x>(thd, this); }
 };
 
@@ -946,7 +946,7 @@ public:
     maybe_null= 1;
     return FALSE;
   }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_y>(thd, this); }
 };
 
@@ -959,7 +959,7 @@ public:
   longlong val_int() override;
   const char *func_name() const override { return "st_numgeometries"; }
   bool fix_length_and_dec() override { max_length= 10; maybe_null= 1; return FALSE; }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_numgeometries>(thd, this); }
 };
 
@@ -972,7 +972,7 @@ public:
   longlong val_int() override;
   const char *func_name() const override { return "st_numinteriorrings"; }
   bool fix_length_and_dec() override { max_length= 10; maybe_null= 1; return FALSE; }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_numinteriorring>(thd, this); }
 };
 
@@ -985,7 +985,7 @@ public:
   longlong val_int() override;
   const char *func_name() const override { return "st_numpoints"; }
   bool fix_length_and_dec() override { max_length= 10; maybe_null= 1; return FALSE; }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_numpoints>(thd, this); }
 };
 
@@ -1003,7 +1003,7 @@ public:
     maybe_null= 1;
     return FALSE;
   }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_area>(thd, this); }
 };
 
@@ -1023,7 +1023,7 @@ public:
     maybe_null= 1;
     return FALSE;
   }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_glength>(thd, this); }
 };
 
@@ -1036,7 +1036,7 @@ public:
   longlong val_int() override;
   const char *func_name() const override { return "srid"; }
   bool fix_length_and_dec() override { max_length= 10; maybe_null= 1; return FALSE; }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_srid>(thd, this); }
 };
 
@@ -1053,7 +1053,7 @@ public:
    :Item_real_func_args_geometry_geometry(thd, a, b) {}
   double val_real() override;
   const char *func_name() const override { return "st_distance"; }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_distance>(thd, this); }
 };
 
@@ -1067,7 +1067,7 @@ public:
     Item_real_func(thd, list) {}
   double val_real() override;
   const char *func_name() const override { return "st_distance_sphere"; }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_sphere_distance>(thd, this); }
 };
 
@@ -1087,7 +1087,7 @@ public:
   {
     return &type_handler_point;
   }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_pointonsurface>(thd, this); }
 };
 
@@ -1105,7 +1105,7 @@ class Item_func_gis_debug: public Item_long_func
     {
       return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
     }
-    Item *get_copy(THD *thd) override
+    Item *do_get_copy(THD *thd) const override
     { return get_item_copy<Item_func_gis_debug>(thd, this); }
 };
 #endif

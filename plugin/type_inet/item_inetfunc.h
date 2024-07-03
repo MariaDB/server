@@ -41,7 +41,7 @@ public:
     unsigned_flag= 1;
     return FALSE;
   }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_inet_aton>(thd, this); }
 };
 
@@ -64,7 +64,7 @@ public:
     maybe_null= 1;
     return FALSE;
   }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_inet_ntoa>(thd, this); }
 };
 
@@ -108,7 +108,7 @@ public:
     maybe_null= 1;
     return FALSE;
   }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_inet6_aton>(thd, this); }
 
   String *val_str(String *to) override;
@@ -143,7 +143,7 @@ public:
     return FALSE;
   }
   String *val_str_ascii(String *to) override;
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_inet6_ntoa>(thd, this); }
 };
 
@@ -162,7 +162,7 @@ public:
 public:
   const char *func_name() const override
   { return "is_ipv4"; }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_is_ipv4>(thd, this); }
 
   longlong val_int() override;
@@ -182,7 +182,7 @@ public:
 
   const char *func_name() const override
   { return "is_ipv6"; }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_is_ipv6>(thd, this); }
 
   longlong val_int() override;
@@ -201,7 +201,7 @@ public:
   { }
   const char *func_name() const override
   { return "is_ipv4_compat"; }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_is_ipv4_compat>(thd, this); }
   longlong val_int() override;
 };
@@ -219,7 +219,7 @@ public:
   { }
   const char *func_name() const override
   { return "is_ipv4_mapped"; }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_is_ipv4_mapped>(thd, this); }
   longlong val_int() override;
 };

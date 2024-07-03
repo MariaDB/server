@@ -281,8 +281,8 @@ public:
   void register_as_with_rec_ref(With_element *with_elem);
   void init_expr_cache_tracker(THD *thd);
 
-  Item* build_clone(THD *thd) override { return 0; }
-  Item* get_copy(THD *thd) override { return 0; }
+  Item* do_build_clone(THD *thd) const override { return nullptr; }
+  Item *do_get_copy(THD *thd) const override { return 0; }
 
   st_select_lex *wrap_tvc_into_select(THD *thd, st_select_lex *tvc_sl);
 

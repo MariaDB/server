@@ -1090,7 +1090,7 @@ public:
     Inet6_null tmp(args[0]);
     return null_value= tmp.is_null() || tmp.to_native(to);
   }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_typecast_inet6>(thd, this); }
 };
 
@@ -1102,8 +1102,9 @@ public:
   Item_cache_inet6(THD *thd)
    :Item_cache(thd, &type_handler_inet6)
   { }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_cache_inet6>(thd, this); }
+  Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
   bool cache_value() override
   {
     if (!example)
@@ -1225,8 +1226,9 @@ public:
     str->append(tmp);
     str->append('\'');
   }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_literal_inet6>(thd, this); }
+  Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
 
   // Non-overriding methods
   void set_value(const Inet6 &value)
@@ -1282,8 +1284,9 @@ public:
   {
     return Item::save_in_field(field, no_conversions);
   }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_copy_inet6>(thd, this); }
+  Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
 };
 
 

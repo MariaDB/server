@@ -148,7 +148,7 @@ public:
     return "row_number";
   }
 
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_sum_row_number>(thd, this); }
 };
 
@@ -221,7 +221,7 @@ public:
     }
     Item_sum_int::cleanup();
   }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_sum_rank>(thd, this); }
 };
 
@@ -292,7 +292,7 @@ class Item_sum_dense_rank: public Item_sum_int
     }
     Item_sum_int::cleanup();
   }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_sum_dense_rank>(thd, this); }
 };
 
@@ -355,7 +355,7 @@ class Item_sum_first_value : public Item_sum_hybrid_simple
     return "first_value";
   }
 
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_sum_first_value>(thd, this); }
 };
 
@@ -381,7 +381,7 @@ class Item_sum_last_value : public Item_sum_hybrid_simple
     return "last_value";
   }
 
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_sum_last_value>(thd, this); }
 };
 
@@ -401,7 +401,7 @@ class Item_sum_nth_value : public Item_sum_hybrid_simple
     return "nth_value";
   }
 
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_sum_nth_value>(thd, this); }
 };
 
@@ -421,7 +421,7 @@ class Item_sum_lead : public Item_sum_hybrid_simple
     return "lead";
   }
 
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_sum_lead>(thd, this); }
 };
 
@@ -441,7 +441,7 @@ class Item_sum_lag : public Item_sum_hybrid_simple
     return "lag";
   }
 
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_sum_lag>(thd, this); }
 };
 
@@ -554,7 +554,7 @@ class Item_sum_percent_rank: public Item_sum_double,
     Partition_row_count::set_partition_row_count(count);
   }
 
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_sum_percent_rank>(thd, this); }
 
  private:
@@ -640,7 +640,7 @@ class Item_sum_cume_dist: public Item_sum_double,
     Partition_row_count::set_partition_row_count(count);
   }
 
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_sum_cume_dist>(thd, this); }
 
 };
@@ -715,7 +715,7 @@ class Item_sum_ntile : public Item_sum_int,
     Partition_row_count::set_partition_row_count(count);
   }
 
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_sum_ntile>(thd, this); }
 
  private:
@@ -878,7 +878,7 @@ public:
     Partition_row_count::set_partition_row_count(count);
   }
 
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_sum_percentile_disc>(thd, this); }
   void setup_window_func(THD *thd, Window_spec *window_spec) override;
   void setup_hybrid(THD *thd, Item *item);
@@ -1014,7 +1014,7 @@ public:
     Partition_row_count::set_partition_row_count(count);
   }
 
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_sum_percentile_cont>(thd, this); }
   void setup_window_func(THD *thd, Window_spec *window_spec) override;
   void setup_hybrid(THD *thd, Item *item);
@@ -1365,7 +1365,7 @@ public:
   
   void print(String *str, enum_query_type query_type) override;
 
- Item *get_copy(THD *thd) override { return 0; }
+ Item *do_get_copy(THD *thd) const override { return 0; }
 
 };
 
