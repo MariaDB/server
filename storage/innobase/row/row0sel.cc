@@ -4738,12 +4738,8 @@ wait_table_again:
 
 		if (UNIV_UNLIKELY(need_to_process)) {
 			if (UNIV_UNLIKELY(!btr_pcur_get_rec(pcur))) {
-				mtr.commit();
-				trx->op_info = "";
-				if (UNIV_LIKELY_NULL(heap)) {
-					mem_heap_free(heap);
-				}
-				return DB_CORRUPTION;
+				err = DB_CORRUPTION;
+				goto page_corrupted;
 			}
 
 			if (UNIV_UNLIKELY(prebuilt->row_read_type
@@ -4844,8 +4840,7 @@ page_corrupted:
 			if (err == DB_DECRYPTION_FAILED) {
 				btr_decryption_failed(*index);
 			}
-			rec = NULL;
-			goto page_read_error;
+			goto page_corrupted;
 		}
 	}
 
@@ -5012,8 +5007,7 @@ wrong_offs:
 				" reimport the table.";
 			ut_ad(0);
 			err = DB_CORRUPTION;
-
-			goto page_read_error;
+			goto page_corrupted;
 		} else {
 			/* The user may be dumping a corrupt table. Jump
 			over the corruption to recover as much as possible. */
