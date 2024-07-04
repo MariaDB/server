@@ -269,6 +269,18 @@ private:
     using TOKEN::TOKEN;
   };
 
+  class LParen: public TOKEN<PARSER, TokenID::tLPAREN>
+  {
+  public:
+    using TOKEN::TOKEN;
+  };
+
+  class RParen: public TOKEN<PARSER, TokenID::tRPAREN>
+  {
+  public:
+    using TOKEN::TOKEN;
+  };
+
 
   // Rules consisting of multiple choices of tokens
 
@@ -340,18 +352,6 @@ private:
   // More complex rules
 
   /*
-    parenthesized_query_block_name ::= ( query_block_name )
-  */
-  class Parenthesized_query_block_name: public PARENTHESIZED<PARSER,
-                                                             Query_block_name,
-                                                             TokenID::tLPAREN,
-                                                             TokenID::tRPAREN>
-  {
-  public:
-    using PARENTHESIZED::PARENTHESIZED;
-  };
-
-  /*
     at_query_block_name ::= @ query_block_name
   */
   class At_query_block_name: public AND2<PARSER, TokenAT, Query_block_name>
@@ -389,7 +389,7 @@ private:
   public:
     Hint_param_table_list_container()
     { }
-    bool add(Optimizer_hint_parser *p, const Hint_param_table &table);
+    bool add(Optimizer_hint_parser *p, Hint_param_table &&table);
     size_t count() const { return elements; }
   };
 
@@ -410,7 +410,7 @@ private:
   public:
     Table_name_list_container()
     { }
-    bool add(Optimizer_hint_parser *p, const Table_name &table);
+    bool add(Optimizer_hint_parser *p, Table_name &&table);
     size_t count() const { return elements; }
   };
 
@@ -432,7 +432,7 @@ private:
   public:
     Hint_param_index_list_container()
     { }
-    bool add(Optimizer_hint_parser *p, const Hint_param_index &table);
+    bool add(Optimizer_hint_parser *p, Hint_param_index &&table);
     size_t count() const { return elements; }
   };
 
@@ -515,22 +515,14 @@ private:
 
 
   // table_level_hint ::= table_level_hint_type ( table_level_hint_body )
-  class Parenthesized_table_level_hint_body: public PARENTHESIZED<
-                                                      PARSER,
-                                                      Table_level_hint_body,
-                                                      TokenID::tLPAREN,
-                                                      TokenID::tRPAREN>
-  {
-  public:
-    using PARENTHESIZED::PARENTHESIZED;
-  };
-
-  class Table_level_hint: public AND2<PARSER,
+  class Table_level_hint: public AND4<PARSER,
                                       Table_level_hint_type,
-                                      Parenthesized_table_level_hint_body>
+                                      LParen,
+                                      Table_level_hint_body,
+                                      RParen>
   {
   public:
-    using AND2::AND2;
+    using AND4::AND4;
   };
 
 
@@ -543,33 +535,28 @@ private:
     using AND2::AND2;
   };
 
-  class Parenthesized_index_level_hint_body: public PARENTHESIZED<
-                                                      PARSER,
-                                                      Index_level_hint_body,
-                                                      TokenID::tLPAREN,
-                                                      TokenID::tRPAREN>
-  {
-  public:
-    using PARENTHESIZED::PARENTHESIZED;
-  };
 
-  // index_level_hint ::= key_level_hint_type ( index_level_hint_body )
-  class Index_level_hint: public AND2<PARSER,
+  // index_level_hint ::= index_level_hint_type ( index_level_hint_body )
+  class Index_level_hint: public AND4<PARSER,
                                       Index_level_hint_type,
-                                      Parenthesized_index_level_hint_body>
+                                      LParen,
+                                      Index_level_hint_body,
+                                      RParen>
   {
   public:
-    using AND2::AND2;
+    using AND4::AND4;
   };
 
 
   // qb_name_hint ::= QB_NAME ( query_block_name )
-  class Qb_name_hint: public AND2<PARSER,
+  class Qb_name_hint: public AND4<PARSER,
                                   Keyword_QB_NAME,
-                                  Parenthesized_query_block_name>
+                                  LParen,
+                                  Query_block_name,
+                                  RParen>
   {
   public:
-    using AND2::AND2;
+    using AND4::AND4;
   };
 
 
@@ -594,7 +581,7 @@ private:
   public:
     Hint_list_container()
     { }
-    bool add(Optimizer_hint_parser *p, const Hint &hint);
+    bool add(Optimizer_hint_parser *p, Hint &&hint);
     size_t count() const { return elements; }
   };
 

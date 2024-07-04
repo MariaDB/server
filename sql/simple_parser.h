@@ -20,7 +20,6 @@
 
 
 #include "simple_tokenizer.h"
-#include "sql_list.h"
 
 class Parser_templates
 {
@@ -42,6 +41,9 @@ protected:
     TOKEN(const class PARSER::Token &tok)
      :PARSER::Token(tok)
     { }
+    TOKEN(class PARSER::Token &&tok)
+     :PARSER::Token(std::move(tok))
+    { }
     TOKEN(PARSER *p)
      :PARSER::Token(p->token(tid))
     { }
@@ -50,6 +52,7 @@ protected:
       return TOKEN(p.empty_token());
     }
   };
+
 
   /*
     A rule consisting of a choice of multiple tokens
@@ -69,6 +72,7 @@ protected:
       DBUG_ASSERT(!p->is_error() || !PARSER::Token::operator bool());
     }
   };
+
 
   /*
     An optional rule:
@@ -91,33 +95,6 @@ protected:
     }
   };
 
-  /*
-    A parenthesized rule:
-      parenthesized_rule ::= ( rule )
-  */
-  template<class PARSER, class RULE,
-           typename PARSER::TokenID tLPAREN,
-           typename PARSER::TokenID tRPAREN>
-  class PARENTHESIZED: public RULE
-  {
-  public:
-    PARENTHESIZED()
-     :RULE()
-    {
-      DBUG_ASSERT(!RULE::operator bool());
-    }
-    PARENTHESIZED(PARSER *p)
-     :RULE(p->token(tLPAREN) ? RULE(p) : RULE())
-    {
-      if (!RULE::operator bool() || !p->token(tRPAREN))
-      {
-        p->set_syntax_error(); // TODO: handle fatal error differently?
-        // Reset RULE so "this" is reported as "false".
-        RULE::operator=(RULE());
-        DBUG_ASSERT(!RULE::operator bool());
-      }
-    }
-  };
 
   /*
     A rule consisting of two other rules in a row:
@@ -130,19 +107,30 @@ protected:
     AND2()
      :A(), B()
     { }
-    AND2(const A &a, const B &b)
-     :A(a), B(b)
+    AND2(AND2 && rhs)
+     :A(std::move(static_cast<A&&>(rhs))),
+      B(std::move(static_cast<B&&>(rhs)))
     { }
+    AND2(A &&a, B &&b)
+     :A(std::move(a)), B(std::move(b))
+    { }
+    AND2 & operator=(AND2 &&rhs)
+    {
+      A::operator=(std::move(rhs));
+      B::operator=(std::move(rhs));
+      return *this;
+    }
     AND2(PARSER *p)
      :A(p),
       B(A::operator bool() ? B(p) : B())
     {
-      if ((A::operator bool() && !B::operator bool()))
+      if (A::operator bool() && !B::operator bool())
       {
         p->set_syntax_error();
-        // Reset A to make both A and B reported as "false".
-        A::operator=(A());
+        // Reset A to have A, B reported as "false" by their operator bool()
+        A::operator=(std::move(A()));
       }
+      DBUG_ASSERT(!operator bool() || !p->is_error());
     }
     operator bool() const
     {
@@ -151,6 +139,117 @@ protected:
     static AND2 empty(const PARSER &p)
     {
       return AND2(A::empty(p), B::empty(p));
+    }
+  };
+
+
+  /*
+    A rule consisting of three other rules in a row:
+      rule ::= rule1 rule2 rule3
+  */
+  template<class PARSER, class A, class B, class C>
+  class AND3: public A, public B, public C
+  {
+  public:
+    AND3()
+     :A(), B(), C()
+    { }
+    AND3(AND3 && rhs)
+     :A(std::move(static_cast<A&&>(rhs))),
+      B(std::move(static_cast<B&&>(rhs))),
+      C(std::move(static_cast<C&&>(rhs)))
+    { }
+    AND3(A &&a, B &&b, C &&c)
+     :A(std::move(a)), B(std::move(b)), C(std::move(c))
+    { }
+    AND3 & operator=(AND3 &&rhs)
+    {
+      A::operator=(std::move(rhs));
+      B::operator=(std::move(rhs));
+      C::operator=(std::move(rhs));
+      return *this;
+    }
+    AND3(PARSER *p)
+     :A(p),
+      B(A::operator bool() ? B(p) : B()),
+      C(A::operator bool() && B::operator bool() ? C(p) : C())
+    {
+      if (A::operator bool() && (!B::operator bool() || !C::operator bool()))
+      {
+        p->set_syntax_error();
+        // Reset A to have A, B, C reported as "false" by their operator bool()
+        A::operator=(A());
+        B::operator=(B());
+        C::operator=(C());
+      }
+      DBUG_ASSERT(!operator bool() || !p->is_error());
+    }
+    operator bool() const
+    {
+      return A::operator bool() && B::operator bool() && C::operator bool();
+    }
+    static AND3 empty(const PARSER &p)
+    {
+      return AND3(A::empty(p), B::empty(p), C::empty());
+    }
+  };
+
+
+  /*
+    A rule consisting of three other rules in a row:
+      rule ::= rule1 rule2 rule3 rule4
+  */
+  template<class PARSER, class A, class B, class C, class D>
+  class AND4: public A, public B, public C, public D
+  {
+  public:
+    AND4()
+     :A(), B(), C(), D()
+    { }
+    AND4(AND4 && rhs)
+     :A(std::move(static_cast<A&&>(rhs))),
+      B(std::move(static_cast<B&&>(rhs))),
+      C(std::move(static_cast<C&&>(rhs))),
+      D(std::move(static_cast<D&&>(rhs)))
+    { }
+    AND4(A &&a, B &&b, C &&c, D &&d)
+     :A(std::move(a)), B(std::move(b)), C(std::move(c)), D(std::move(d))
+    { }
+    AND4 & operator=(AND4 &&rhs)
+    {
+      A::operator=(std::move(rhs));
+      B::operator=(std::move(rhs));
+      C::operator=(std::move(rhs));
+      D::operator=(std::move(rhs));
+      return *this;
+    }
+    AND4(PARSER *p)
+     :A(p),
+      B(A::operator bool() ? B(p) : B()),
+      C(A::operator bool() && B::operator bool() ? C(p) : C()),
+      D(A::operator bool() && B::operator bool() && C::operator bool() ?
+        D(p) : D())
+    {
+      if (A::operator bool() &&
+          (!B::operator bool() || !C::operator bool() || !D::operator bool()))
+      {
+        p->set_syntax_error();
+        // Reset A to have A, B, C reported as "false" by their operator bool()
+        A::operator=(A());
+        B::operator=(B());
+        C::operator=(C());
+        D::operator=(D());
+      }
+      DBUG_ASSERT(!operator bool() || !p->is_error());
+    }
+    operator bool() const
+    {
+      return A::operator bool() && B::operator bool() &&
+             C::operator bool() && D::operator bool();
+    }
+    static AND4 empty(const PARSER &p)
+    {
+      return AND4(A::empty(p), B::empty(p), C::empty(), D::empty());
     }
   };
 
@@ -167,15 +266,26 @@ protected:
   public:
     OR2()
     { }
-    OR2(PARSER *p)
+    OR2(OR2 &&rhs)
+     :A(std::move(static_cast<A&&>(rhs))),
+      B(std::move(static_cast<B&&>(rhs)))
+    { }
+    OR2(A && rhs)
+     :A(std::move(rhs)), B()
+    { }
+    OR2(B && rhs)
+     :A(), B(std::move(rhs))
+    { }
+    OR2 & operator=(OR2 &&rhs)
     {
-      if (A::operator=(A(p)) || B::operator=(B(p)))
-      {
-        DBUG_ASSERT(!p->is_error());
-        DBUG_ASSERT(operator bool());
-        return;
-      }
-      DBUG_ASSERT(!operator bool());
+      A::operator=(std::move(rhs));
+      B::operator=(std::move(rhs));
+      return *this;
+    }
+    OR2(PARSER *p)
+     :A(p), B(A::operator bool() ? B() :B(p))
+    {
+      DBUG_ASSERT(!operator bool() || !p->is_error());
     }
     operator bool() const
     {
@@ -199,26 +309,36 @@ protected:
   public:
     OR2C()
     { }
-    OR2C(const A &a)
-     :CONTAINER(a)
+    OR2C(A &&a)
+     :CONTAINER(std::move(a))
     { }
-    OR2C(const B &b)
-     :CONTAINER(b)
+    OR2C(B &&b)
+     :CONTAINER(std::move(b))
     { }
-    OR2C(PARSER *p)
+    OR2C(OR2C &&rhs)
+     :CONTAINER(std::move(rhs))
+    { }
+    OR2C & operator=(OR2C &&rhs)
     {
-      if (const A a= A(p))
-      {
-        *this= a;
-        DBUG_ASSERT(CONTAINER::operator bool());
+      CONTAINER(std::move(rhs));
+      return *this;
+    }
+    OR2C & operator=(A &&rhs)
+    {
+      CONTAINER(std::move(rhs));
+      return *this;
+    }
+    OR2C & operator=(B &&rhs)
+    {
+      CONTAINER(std::move(rhs));
+      return *this;
+    }
+    OR2C(PARSER *p)
+     :CONTAINER(A(p))
+    {
+      if (CONTAINER::operator bool() ||
+          CONTAINER::operator=(B(p)))
         return;
-      }
-      if (const B b= B(p))
-      {
-        *this= b;
-        DBUG_ASSERT(CONTAINER::operator bool());
-        return;
-      }
       DBUG_ASSERT(!CONTAINER::operator bool());
     }
   };
@@ -236,21 +356,57 @@ protected:
   public:
     OR3()
     { }
+    // TODO: move operators
     OR3(PARSER *p)
+     :A(p),
+      B(A::operator bool() ? B() : B(p)),
+      C(A::operator bool() || B::operator bool() ? C() : C(p))
     {
-      if (A::operator=(A(p)) || B::operator=(B(p)) || C::operator=(C(p)))
-      {
-        DBUG_ASSERT(!p->is_error());
-        DBUG_ASSERT(operator bool());
-        return;
-      }
-      DBUG_ASSERT(!operator bool());
+      DBUG_ASSERT(!operator bool() || !p->is_error());
     }
     operator bool() const
     {
       return A::operator bool() || B::operator bool() || C::operator bool();
     }
   };
+
+  /*
+    A rule consisting of a choice of three rules, e.g.
+      rule ::= rule1 | rule2 | rule3
+
+    For the cases when the three branches have a compatible storage,
+    passed as a CONTAINER, which must have constructors:
+      CONTAINER(const A &a)
+      CONTAINER(const B &b)
+      CONTAINER(const C &c)
+  */
+  template<class PARSER, class CONTAINER, class A, class B, class C>
+  class OR3C: public CONTAINER
+  {
+  public:
+    // TODO: for OPT
+    OR3C()
+    { }
+    OR3C(A &&a)
+     :CONTAINER(std::move(a))
+    { }
+    OR3C(B &&b)
+     :CONTAINER(std::move(b))
+    { }
+    OR3C(C &&c)
+     :CONTAINER(std::move(c))
+    { }
+    OR3C(PARSER *p)
+     :CONTAINER(A(p))
+    {
+      if (CONTAINER::operator bool() ||
+          CONTAINER::operator=(B(p)) ||
+          CONTAINER::operator=(C(p)))
+        return;
+      DBUG_ASSERT(!CONTAINER::operator bool());
+    }
+  };
+
 
   /*
     A list with at least MIN_COUNT elements (typlically 0 or 1),
@@ -279,6 +435,16 @@ protected:
     LIST()
      :m_error(true)
     { }
+    LIST(LIST &&rhs)
+     :LIST_CONTAINER(std::move(rhs)),
+      m_error(rhs.m_error)
+    { }
+    LIST & operator=(LIST &&rhs)
+    {
+      LIST_CONTAINER::operator=(std::move(rhs));
+      m_error= rhs.m_error;
+      return *this;
+    }
     LIST(PARSER *p)
      :m_error(true)
     {
@@ -286,7 +452,7 @@ protected:
       const bool separated= SEP != PARSER::null_token().id();
       for ( ; ; )
       {
-        const ELEMENT elem(p);
+        ELEMENT elem(p);
         if (!elem)
         {
           if (LIST_CONTAINER::count() == 0 || !separated)
@@ -305,7 +471,7 @@ protected:
           DBUG_ASSERT(!operator bool());
           return;
         }
-        if (LIST_CONTAINER::add(p, elem))
+        if (LIST_CONTAINER::add(p, std::move(elem)))
         {
           p->set_fatal_error();
           m_error= true;

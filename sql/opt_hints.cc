@@ -56,12 +56,12 @@ void Optimizer_hint_parser::push_warning_syntax_error(THD *thd)
 bool
 Optimizer_hint_parser::
   Table_name_list_container::add(Optimizer_hint_parser *p,
-                                 const Table_name &elem)
+                                 Table_name &&elem)
 {
   Table_name *pe= (Table_name*) p->m_thd->alloc(sizeof(*pe));
   if (!pe)
     return true;
-  *pe= elem;
+  *pe= std::move(elem);
   return push_back(pe, p->m_thd->mem_root);
 }
 
@@ -69,12 +69,12 @@ Optimizer_hint_parser::
 bool
 Optimizer_hint_parser::
   Hint_param_table_list_container::add(Optimizer_hint_parser *p,
-                                       const Hint_param_table &elem)
+                                       Hint_param_table &&elem)
 {
   Hint_param_table *pe= (Hint_param_table*) p->m_thd->alloc(sizeof(*pe));
   if (!pe)
     return true;
-  *pe= elem;
+  *pe= std::move(elem);
   return push_back(pe, p->m_thd->mem_root);
 }
 
@@ -82,12 +82,12 @@ Optimizer_hint_parser::
 bool
 Optimizer_hint_parser::
   Hint_param_index_list_container::add(Optimizer_hint_parser *p,
-                                       const Hint_param_index &elem)
+                                       Hint_param_index &&elem)
 {
   Hint_param_index *pe= (Hint_param_index*) p->m_thd->alloc(sizeof(*pe));
   if (!pe)
     return true;
-  *pe= elem;
+  *pe= std::move(elem);
   return push_back(pe, p->m_thd->mem_root);
 }
 
@@ -95,11 +95,11 @@ Optimizer_hint_parser::
 bool
 Optimizer_hint_parser::
   Hint_list_container::add(Optimizer_hint_parser *p,
-                           const Hint &elem)
+                           Hint &&elem)
 {
   Hint *pe= (Hint*) p->m_thd->alloc(sizeof(*pe));
   if (!pe)
     return true;
-  *pe= elem;
+  *pe= std::move(elem);
   return push_back(pe, p->m_thd->mem_root);
 }
