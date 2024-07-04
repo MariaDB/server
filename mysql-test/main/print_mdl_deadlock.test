@@ -1,0 +1,38 @@
+--disable_ps2_protocol
+--disable_ps_protocol
+--source include/not_embedded.inc
+call mtr.add_suppression("MDL deadlock occurs.");
+
+connect (con1,localhost,root,,);
+connect (con2,localhost,root,,);
+
+SET @old_print_mdl_deadlock_loop_info = @@global.print_mdl_deadlock_loop_info;
+set global print_mdl_deadlock_loop_info=true;
+
+connection con1;
+select get_lock("l1", 30);
+
+connection con2;
+select get_lock("l2", 30);
+
+#Here con1 will be locked by con2
+connection con1;
+send select get_lock("l2", 30);
+--sleep 10
+
+connection con2;
+#Here con1 and con2 will form a deadlock cycle and report error
+--error ER_LOCK_DEADLOCK
+select get_lock("l1", 30);
+--echo ###Now the deadlock loop is construct successfully.
+--echo ###con2 release the user lock its hold
+select release_lock("l2");
+
+--echo ###Release lock required by con1
+connection con1;
+--reap
+select release_lock("l1");
+select release_lock("l2");
+
+set global print_mdl_deadlock_loop_info = default;
+
