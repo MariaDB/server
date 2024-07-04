@@ -36,6 +36,7 @@ Warning	1231	'wsrep_desync' is already OFF.
 show status like 'wsrep_desync_count';
 Variable_name	Value
 wsrep_desync_count	0
+call mtr.add_suppression("Trying to make wsrep_desync = OFF on the node that is already synchronized\\.");
 show status like 'wsrep_desync_count';
 Variable_name	Value
 wsrep_desync_count	0

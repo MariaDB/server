@@ -46,9 +46,7 @@ show status like 'wsrep_desync_count';
 SET GLOBAL wsrep_desync = 0;
 show status like 'wsrep_desync_count';
 
---disable_query_log
-call mtr.add_suppression("Trying to make wsrep_desync = OFF on the node that is already synchronized.");
---enable_query_log
+call mtr.add_suppression("Trying to make wsrep_desync = OFF on the node that is already synchronized\\.");
 show status like 'wsrep_desync_count';
 SET GLOBAL wsrep_desync = 0;
 
