@@ -2821,10 +2821,6 @@ innobase_trx_init(
 		thd, OPTION_RELAXED_UNIQUE_CHECKS);
 	trx->snapshot_isolation = THDVAR(thd, snapshot_isolation) & 1;
 
-#ifdef WITH_WSREP
-	trx->wsrep = wsrep_on(thd);
-#endif
-
 	DBUG_VOID_RETURN;
 }
 
@@ -4338,9 +4334,6 @@ innobase_commit_low(
 		trx_commit_for_mysql(trx);
 	} else {
 		trx->will_lock = false;
-#ifdef WITH_WSREP
-		trx->wsrep = false;
-#endif /* WITH_WSREP */
 	}
 
 #ifdef WITH_WSREP
@@ -8664,7 +8657,10 @@ func_exit:
 	}
 
 #ifdef WITH_WSREP
-	if (error == DB_SUCCESS && trx->is_wsrep()
+	if (error == DB_SUCCESS &&
+	    /* For sequences, InnoDB transaction may not have been started yet.
+	    Check THD-level wsrep state in that case. */
+	    (trx->is_wsrep() || (!trx_is_started(trx) && wsrep_on(m_user_thd)))
 	    && wsrep_thd_is_local(m_user_thd)
 	    && !wsrep_thd_ignore_table(m_user_thd)) {
 		DBUG_PRINT("wsrep", ("update row key"));

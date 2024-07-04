@@ -6,6 +6,8 @@
 --echo # MDEV-30660 COUNT DISTINCT seems unnecessarily slow when run on a PK
 --echo #
 
+#Enable after fix MDEV-32034
+--disable_view_protocol
 set @save_optimizer_trace = @@optimizer_trace;
 SET optimizer_trace='enabled=on';
 let $trace=
@@ -104,6 +106,8 @@ eval $trace;
 DROP TABLE t1, t2, t3;
 DROP VIEW v1;
 SET optimizer_trace = @save_optimizer_trace;
+--enable_view_protocol
+
 --echo #
 --echo # end of 10.5 tests
 --echo #
