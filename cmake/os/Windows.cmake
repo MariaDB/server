@@ -273,6 +273,7 @@ IF(MSVC)
     STRING(APPEND CMAKE_CXX_FLAGS_RELEASE " /d2OptimizeHugeFunctions")
     STRING(APPEND CMAKE_CXX_FLAGS_RELWITHDEBINFO " /d2OptimizeHugeFunctions")
   ENDIF()
+  ADD_COMPILE_OPTIONS($<$<COMPILE_LANGUAGE:C,CXX>:/utf-8>)
 ENDIF()
 
 # Always link with socket/synchronization libraries
