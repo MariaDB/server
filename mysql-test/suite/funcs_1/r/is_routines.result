@@ -283,6 +283,10 @@ DEFINER	root@localhost
 CHARACTER_SET_CLIENT	latin1
 COLLATION_CONNECTION	latin1_swedish_ci
 DATABASE_COLLATION	latin1_swedish_ci
+Warnings:
+Level	Note
+Code	1585
+Message	This function 'format_bytes' has the same name as a native function
 ALTER PROCEDURE sp_for_routines SQL SECURITY INVOKER;
 ALTER FUNCTION function_for_routines COMMENT 'updated comments';
 SELECT * FROM information_schema.routines WHERE routine_schema = 'db_datadict'
@@ -349,6 +353,10 @@ DEFINER	root@localhost
 CHARACTER_SET_CLIENT	latin1
 COLLATION_CONNECTION	latin1_swedish_ci
 DATABASE_COLLATION	latin1_swedish_ci
+Warnings:
+Level	Note
+Code	1585
+Message	This function 'format_bytes' has the same name as a native function
 DROP PROCEDURE sp_for_routines;
 DROP FUNCTION function_for_routines;
 SELECT * FROM information_schema.routines WHERE routine_schema = 'db_datadict';
@@ -419,6 +427,10 @@ DEFINER	root@localhost
 CHARACTER_SET_CLIENT	latin1
 COLLATION_CONNECTION	latin1_swedish_ci
 DATABASE_COLLATION	latin1_swedish_ci
+Warnings:
+Level	Note
+Code	1585
+Message	This function 'format_bytes' has the same name as a native function
 use test;
 DROP DATABASE db_datadict;
 SELECT * FROM information_schema.routines WHERE routine_schema = 'db_datadict';

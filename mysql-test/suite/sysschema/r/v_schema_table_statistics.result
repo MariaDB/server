@@ -12,10 +12,10 @@ update_latency	varchar(12)	YES		NULL
 rows_deleted	bigint(20) unsigned	NO		NULL	
 delete_latency	varchar(12)	YES		NULL	
 io_read_requests	decimal(42,0)	YES		NULL	
-io_read	text	YES		NULL	
+io_read	varchar(14)	YES		NULL	
 io_read_latency	varchar(12)	YES		NULL	
 io_write_requests	decimal(42,0)	YES		NULL	
-io_write	text	YES		NULL	
+io_write	varchar(14)	YES		NULL	
 io_write_latency	varchar(12)	YES		NULL	
 io_misc_requests	decimal(42,0)	YES		NULL	
 io_misc_latency	varchar(12)	YES		NULL	

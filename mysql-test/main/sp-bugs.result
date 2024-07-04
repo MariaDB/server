@@ -205,15 +205,23 @@ END	latin1	latin1_swedish_ci	latin1_swedish_ci
 SELECT specific_name FROM INFORMATION_SCHEMA.ROUTINES WHERE specific_name LIKE 'testf_bug11763507';
 specific_name
 testf_bug11763507
+Warnings:
+Note	1585	This function 'format_bytes' has the same name as a native function
 SELECT specific_name FROM INFORMATION_SCHEMA.ROUTINES WHERE specific_name LIKE 'TESTF_bug11763507';
 specific_name
 testf_bug11763507
+Warnings:
+Note	1585	This function 'format_bytes' has the same name as a native function
 SELECT specific_name FROM INFORMATION_SCHEMA.ROUTINES WHERE specific_name='testf_bug11763507';
 specific_name
 testf_bug11763507
+Warnings:
+Note	1585	This function 'format_bytes' has the same name as a native function
 SELECT specific_name FROM INFORMATION_SCHEMA.ROUTINES WHERE specific_name='TESTF_bug11763507';
 specific_name
 testf_bug11763507
+Warnings:
+Note	1585	This function 'format_bytes' has the same name as a native function
 DROP PROCEDURE testp_bug11763507;
 DROP FUNCTION testf_bug11763507;
 #END OF BUG#11763507 test.

@@ -25,7 +25,6 @@ SOURCE ./triggers/sys_config_update_set_user.sql
 
 SOURCE ./functions/extract_schema_from_file_name.sql
 SOURCE ./functions/extract_table_from_file_name.sql
-SOURCE ./functions/format_bytes.sql
 SOURCE ./functions/format_path.sql
 SOURCE ./functions/format_statement.sql
 SOURCE ./functions/format_time.sql
