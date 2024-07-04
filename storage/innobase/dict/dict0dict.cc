@@ -1757,6 +1757,7 @@ dict_table_rename_in_cache(
 
 		if (foreign->referenced_table) {
 			foreign->referenced_table->referenced_set.insert(foreign);
+			dict_sys.prevent_eviction(foreign->referenced_table);
 		}
 	}
 
