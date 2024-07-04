@@ -155,6 +155,7 @@ SET (SQL_SOURCE
 
                # added in MariaDB:
                grant.cc
+               bufcursor.c
                sql_explain.cc
                sql_analyze_stmt.cc
                sql_join_cache.cc

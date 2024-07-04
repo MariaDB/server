@@ -63,6 +63,7 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/handler.cc ../sql/hash_filo.cc ../sql/hostname.cc 
            ../sql/init.cc ../sql/item_buff.cc ../sql/item_cmpfunc.cc 
            ../sql/item.cc ../sql/item_create.cc ../sql/item_func.cc 
+           ../sql/bufcurs.c
            ../sql/item_geofunc.cc ../sql/item_row.cc ../sql/item_strfunc.cc 
            ../sql/item_subselect.cc ../sql/item_sum.cc ../sql/item_timefunc.cc 
            ../sql/item_xmlfunc.cc ../sql/item_jsonfunc.cc
