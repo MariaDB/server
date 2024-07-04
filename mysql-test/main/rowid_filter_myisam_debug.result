@@ -47,9 +47,9 @@ set debug_sync='RESET';
 # Reusing table t2 and t3 from previous test
 set debug_sync='in_forced_range_optimize SIGNAL ready1 WAIT_FOR go1';
 explain
-select * from t2, t3
+select straight_join * from t2, t3
 where
-t3.key1=t2.a and t3.key2 in (2,3);
+t3.key1=t2.a and t3.key2 between 2 and 10;
 connect  con1, localhost, root,,;
 set debug_sync='now WAIT_FOR ready1';
 kill query $target_id;

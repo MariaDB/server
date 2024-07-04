@@ -62,9 +62,9 @@ let $target_id= `select connection_id()`;
 set debug_sync='in_forced_range_optimize SIGNAL ready1 WAIT_FOR go1';
 send
 explain
-select * from t2, t3
+select straight_join * from t2, t3
 where
-  t3.key1=t2.a and t3.key2 in (2,3);
+  t3.key1=t2.a and t3.key2 between 2 and 10;
 
 connect (con1, localhost, root,,);
 set debug_sync='now WAIT_FOR ready1';
