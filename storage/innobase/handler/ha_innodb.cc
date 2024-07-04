@@ -12426,6 +12426,7 @@ create_table_info_t::create_foreign_keys()
 	}
 
 	table->foreign_set.insert(local_fk_set.begin(), local_fk_set.end());
+	dict_sys.prevent_eviction(table);
 
 	for (dict_foreign_t *foreign: local_fk_set) {
 		if (!foreign->referenced_table) {
@@ -12437,6 +12438,7 @@ create_table_info_t::create_foreign_keys()
 			ut_ad(0);
 			return DB_CANNOT_ADD_CONSTRAINT;
 		}
+		dict_sys.prevent_eviction(foreign->referenced_table);
 	}
 
 	local_fk_set.clear();
