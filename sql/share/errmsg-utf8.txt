@@ -12317,5 +12317,7 @@ ER_WARN_CONFLICTING_HINT
         eng "Hint %s is ignored as conflicting/duplicated"
 ER_WARN_UNKNOWN_QB_NAME
         eng "Query block name %s is not found for %s hint"
-ER_UNRESOLVED_HINT_NAME
-        eng "Unresolved name %s for %s hint"
+ER_UNRESOLVED_TABLE_HINT_NAME
+        eng "Unresolved table name %s for %s hint"
+ER_UNRESOLVED_INDEX_HINT_NAME
+        eng "Unresolved index name %s for %s hint"

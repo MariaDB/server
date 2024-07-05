@@ -194,6 +194,7 @@ SET (SQL_SOURCE
                opt_vcol_substitution.h
                opt_vcol_substitution.cc
                opt_hints_parser.cc opt_hints_parser.h scan_char.h
+               opt_hints.cc opt_hints.h
                ${CMAKE_CURRENT_BINARY_DIR}/lex_hash.h
                ${CMAKE_CURRENT_BINARY_DIR}/lex_token.h
                ${GEN_SOURCES}

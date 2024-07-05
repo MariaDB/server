@@ -68,6 +68,7 @@
 #include "create_tmp_table.h"
 #include "optimizer_defaults.h"
 #include "derived_handler.h"
+#include "opt_hints.h"
 
 /*
   A key part number that means we're using a fulltext scan.
@@ -15677,12 +15678,14 @@ uint check_join_cache_usage(JOIN_TAB *tab,
          !(join->allowed_join_cache_types & JOIN_CACHE_INCREMENTAL_BIT);
   bool no_hashed_cache=
          !(join->allowed_join_cache_types & JOIN_CACHE_HASHED_BIT);
-  bool no_bka_cache= 
-         !(join->allowed_join_cache_types & JOIN_CACHE_BKA_BIT);
-
+  bool no_bnl_cache= !hint_table_state_or_fallback(join->thd,
+                          tab->tab_list->table, BNL_HINT_ENUM, true);
+  bool no_bka_cache= !hint_table_state_or_fallback(join->thd,
+                          tab->tab_list->table, BKA_HINT_ENUM,
+                          join->allowed_join_cache_types & JOIN_CACHE_BKA_BIT);
   join->return_tab= 0;
 
-  if (tab->no_forced_join_cache)
+  if (tab->no_forced_join_cache || (no_bnl_cache && no_bka_cache))
     goto no_join_cache;
 
   /*
@@ -15806,6 +15809,8 @@ uint check_join_cache_usage(JOIN_TAB *tab,
   case JT_NEXT:
   case JT_ALL:
   case JT_RANGE:
+    if (no_bnl_cache)
+      goto no_join_cache;
     if (cache_level == 1)
       prev_cache= 0;
     if ((tab->cache= new (root) JOIN_CACHE_BNL(join, tab, prev_cache)))
@@ -32102,6 +32107,36 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
     return;
   }
 
+  char buff[NAME_LEN];
+  String hint_str(buff, sizeof(buff), system_charset_info);
+  hint_str.length(0);
+  if (thd->lex->opt_hints_global)
+  {
+    char tmp_buff[NAME_LEN];
+    String hints_tmp(tmp_buff, sizeof(tmp_buff), system_charset_info);
+    hints_tmp.length(0);
+    if (select_number == 1)
+    {
+      if (opt_hints_qb)
+        opt_hints_qb->append_qb_hint(thd, &hints_tmp);
+      thd->lex->opt_hints_global->print(thd, &hints_tmp);
+    }
+    else if (opt_hints_qb)
+      opt_hints_qb->append_qb_hint(thd, &hints_tmp);
+
+    if (hints_tmp.length() > 0)
+    {
+      hint_str.append(STRING_WITH_LEN("/*+ "));
+      hint_str.append(hints_tmp);
+      hint_str.append(STRING_WITH_LEN("*/ "));
+    }
+  }
+
+  if (hint_str.length() > 0 && (sel_type == SELECT_CMD ||
+                                sel_type == INSERT_CMD ||
+                                sel_type == REPLACE_CMD))
+    str->append(hint_str);
+
   /* First add options */
   if (options & SELECT_STRAIGHT_JOIN)
     str->append(STRING_WITH_LEN("straight_join "));
@@ -32155,7 +32190,11 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
                  query_type);
     }
     if (sel_type == UPDATE_CMD || sel_type == DELETE_CMD)
+    {
       str->append(get_explainable_cmd_name(sel_type));
+      if (hint_str.length() > 0)
+        str->append(hint_str);
+    }
     if (sel_type == DELETE_CMD)
     {
       str->append(STRING_WITH_LEN(" from "));

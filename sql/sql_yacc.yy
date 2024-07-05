@@ -8994,6 +8994,7 @@ query_specification_start:
             if (!(sel= lex->alloc_select(TRUE)) || lex->push_select(sel))
               MYSQL_YYABORT;
             sel->init_select();
+            sel->set_optimizer_hints($2);
             sel->braces= FALSE;
           }
           select_options
@@ -9166,6 +9167,7 @@ query_expression_body:
           query_simple
           {
             Lex->push_select($1);
+            Lex->resolve_optimizer_hints();
             if (!($$= Lex->create_unit($1)))
               MYSQL_YYABORT;
           }
@@ -13606,11 +13608,13 @@ insert:
           }
           insert_start insert_lock_option opt_ignore opt_into insert_table
           {
+            Lex->first_select_lex()->set_optimizer_hints($2);
             Select->set_lock_for_tables($5, true, false);
           }
           insert_field_spec opt_insert_update opt_returning
-          stmt_end
+          insert_stmt_end
           {
+            Lex->resolve_optimizer_hints();
             Lex->mark_first_table_as_inserting();
             thd->get_stmt_da()->reset_current_row_for_warning(0);
           }
@@ -13626,6 +13630,7 @@ replace:
           }
           insert_start replace_lock_option opt_into insert_table
           {
+            Lex->first_select_lex()->set_optimizer_hints($2);
             Select->set_lock_for_tables($5, true, false);
           }
           insert_field_spec opt_returning
@@ -13646,6 +13651,14 @@ insert_start: {
               ;
 
 stmt_end: {
+              Lex->resolve_optimizer_hints();
+              Lex->pop_select(); //main select
+              if (Lex->check_main_unit_semantics())
+                MYSQL_YYABORT;
+            }
+            ;
+
+insert_stmt_end: {
               Lex->pop_select(); //main select
               if (Lex->check_main_unit_semantics())
                 MYSQL_YYABORT;
@@ -13907,6 +13920,7 @@ update:
             if (Lex->main_select_push())
               MYSQL_YYABORT;
             lex->init_select();
+            Lex->first_select_lex()->set_optimizer_hints($2);
             lex->sql_command= SQLCOM_UPDATE;
             lex->duplicates= DUP_ERROR; 
           }
@@ -13998,11 +14012,13 @@ delete:
             mysql_init_delete(lex);
             lex->ignore= 0;
             lex->first_select_lex()->order_list.empty();
+            lex->first_select_lex()->set_optimizer_hints($2);
           }
           delete_part2
           {
             if (Lex->check_cte_dependencies_and_resolve_references())
               MYSQL_YYABORT;
+            Lex->resolve_optimizer_hints();
           }
           ;
 
