@@ -8704,7 +8704,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     Collect all keys which isn't in drop list. Add only those
     for which some fields exists.
   */
-  for (uint i=0 ; i < table->s->keys ; i++,key_info++)
+  for (uint i= 0; i < table->s->total_keys; i++, key_info++)
   {
     bool long_hash_key= false;
     if (key_info->flags & HA_INVISIBLE_KEY)
