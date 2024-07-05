@@ -299,7 +299,7 @@ public:
   inline list_node* first_node() { return first;}
   inline void *head() { return first->info; }
   inline void **head_ref() { return first != &end_of_list ? &first->info : 0; }
-  inline bool is_empty() { return first == &end_of_list ; }
+  inline bool is_empty() const { return first == &end_of_list ; }
   inline list_node *last_ref() { return &end_of_list; }
   inline bool add_unique(void *info, List_eq *eq)
   {
@@ -535,12 +535,16 @@ public:
   }
 
   class Iterator;
+  class Const_Iterator;
   using value_type= T;
   using iterator= Iterator;
-  using const_iterator= const Iterator;
+  using const_iterator= Const_Iterator;
 
-  Iterator begin() const { return Iterator(first); }
-  Iterator end() const { return Iterator(); }
+  Iterator begin() const { return iterator(first); }
+  Iterator end() const { return iterator(); }
+
+  const_iterator cbegin() const { return const_iterator(first); }
+  const_iterator cend() const { return const_iterator(); }
 
   class Iterator
   {
@@ -561,7 +565,7 @@ public:
       return *this;
     }
 
-    T operator++(int)
+    Iterator operator++(int)
     {
       Iterator tmp(*this);
       operator++();
@@ -583,6 +587,49 @@ public:
 
   private:
     list_node *node{&end_of_list};
+  };
+
+  class Const_Iterator
+  {
+  public:
+    using iterator_category= std::forward_iterator_tag;
+    using value_type= const T;
+    using difference_type= std::ptrdiff_t;
+    using pointer= const T *;
+    using reference= const T &;
+
+    Const_Iterator(const list_node *p= &end_of_list) : node{p} {}
+
+    Const_Iterator &operator++()
+    {
+      DBUG_ASSERT(node != &end_of_list);
+
+      node= node->next;
+      return *this;
+    }
+
+    Const_Iterator operator++(int)
+    {
+      Const_Iterator tmp(*this);
+      operator++();
+      return tmp;
+    }
+
+    const T &operator*() { return *static_cast<const T *>(node->info); }
+    const T *operator->() { return static_cast<const T *>(node->info); }
+
+    bool operator==(const typename List<T>::const_iterator &rhs)
+    {
+      return node == rhs.node;
+    }
+
+    bool operator!=(const typename List<T>::const_iterator &rhs)
+    {
+      return node != rhs.node;
+    }
+
+  private:
+    const list_node* node{&end_of_list};
   };
 };
 
@@ -740,7 +787,7 @@ class base_ilist
 public:
   inline void empty() { first= &last; last.prev= &first; }
   base_ilist() { empty(); }
-  inline bool is_empty() {  return first == &last; }
+  inline bool is_empty() const {  return first == &last; }
   // Returns true if p is the last "real" object in the list,
   // i.e. p->next points to the sentinel.
   inline bool is_last(ilink *p) { return p->next == NULL || p->next == &last; }
