@@ -22,6 +22,17 @@
 #include "mysqld_error.h"
 #include "sql_class.h"
 
+
+extern struct st_opt_hint_info opt_hint_info[];
+
+
+Parse_context::Parse_context(THD *thd, st_select_lex *select)
+: thd(thd),
+  mem_root(thd->mem_root),
+  select(select)
+{}
+
+
 // This method is for debug purposes
 bool Optimizer_hint_parser::parse_token_list(THD *thd)
 {
