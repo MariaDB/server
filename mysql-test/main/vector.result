@@ -302,3 +302,19 @@ id	hex(v)
 20	6CA1D43E9DF91B3FE580DA3E1C247D3F147CF33E
 drop table t1, t2;
 db.opt
+create table t1 (id int auto_increment primary key, v blob not null, vector index (v));
+truncate table t1;
+insert t1 (v) values (x'e360d63ebe554f3fcdbc523f4522193f5236083d');
+truncate table t1;
+select * from t1;
+id	v
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `v` blob NOT NULL,
+  PRIMARY KEY (`id`),
+  VECTOR KEY `v` (`v`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+drop table t1;
+db.opt
