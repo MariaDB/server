@@ -6421,6 +6421,7 @@ int ha_create_table(THD *thd, const char *path, const char *db,
     HA_CREATE_INFO index_cinfo;
     char *path_end= strmov(file_name, path);
 
+    bzero((char*) &index_cinfo, sizeof(index_cinfo));
     index_cinfo.alter_info= &index_ainfo;
 
     if ((error= share.path.length > sizeof(file_name) - HLINDEX_BUF_LEN))
