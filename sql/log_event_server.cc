@@ -8004,6 +8004,7 @@ uint8 Update_rows_log_event::get_trg_event_map()
 #endif
 
 
+#if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
 void Incident_log_event::pack_info(Protocol *protocol)
 {
   char buf[256];
@@ -8016,7 +8017,7 @@ void Incident_log_event::pack_info(Protocol *protocol)
                        m_incident, description(), m_message.str);
   protocol->store(buf, bytes, &my_charset_bin);
 }
-
+#endif
 
 #if defined(WITH_WSREP)
 /*
@@ -8102,6 +8103,7 @@ Incident_log_event::write_data_body()
 }
 
 
+#if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
 /* Pack info for its unrecognized ignorable event */
 void Ignorable_log_event::pack_info(Protocol *protocol)
 {
@@ -8111,7 +8113,7 @@ void Ignorable_log_event::pack_info(Protocol *protocol)
                      number, description);
   protocol->store(buf, bytes, &my_charset_bin);
 }
-
+#endif
 
 #if defined(HAVE_REPLICATION)
 Heartbeat_log_event::Heartbeat_log_event(const uchar *buf, uint event_len,

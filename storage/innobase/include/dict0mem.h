@@ -1995,38 +1995,36 @@ struct dict_table_t {
 
 #ifdef UNIV_DEBUG
   /** @return whether the current thread holds the lock_mutex */
-  bool lock_mutex_is_owner() const
-  { return lock_mutex_owner == pthread_self(); }
+  bool lock_mutex_is_owner() const { return lock_latch.have_wr(); }
   /** @return whether the current thread holds the stats_mutex (lock_mutex) */
-  bool stats_mutex_is_owner() const
-  { return lock_mutex_owner == pthread_self(); }
+  bool stats_mutex_is_owner() const { return lock_latch.have_wr(); }
 #endif /* UNIV_DEBUG */
-  void lock_mutex_init() { lock_mutex.init(); }
-  void lock_mutex_destroy() { lock_mutex.destroy(); }
-  /** Acquire lock_mutex */
-  void lock_mutex_lock()
+  void lock_mutex_init()
   {
-    ut_ad(!lock_mutex_is_owner());
-    lock_mutex.wr_lock();
-    ut_ad(!lock_mutex_owner.exchange(pthread_self()));
+#ifdef UNIV_DEBUG
+    lock_latch.SRW_LOCK_INIT(0);
+#else
+    lock_latch.init();
+#endif
   }
-  /** Try to acquire lock_mutex */
-  bool lock_mutex_trylock()
-  {
-    ut_ad(!lock_mutex_is_owner());
-    bool acquired= lock_mutex.wr_lock_try();
-    ut_ad(!acquired || !lock_mutex_owner.exchange(pthread_self()));
-    return acquired;
-  }
-  /** Release lock_mutex */
-  void lock_mutex_unlock()
-  {
-    ut_ad(lock_mutex_owner.exchange(0) == pthread_self());
-    lock_mutex.wr_unlock();
-  }
+  void lock_mutex_destroy() { lock_latch.destroy(); }
+  /** Acquire exclusive lock_latch */
+  void lock_mutex_lock() { lock_latch.wr_lock(ut_d(SRW_LOCK_CALL)); }
+  /** Try to acquire exclusive lock_latch */
+  bool lock_mutex_trylock() { return lock_latch.wr_lock_try(); }
+  /** Release exclusive lock_latch */
+  void lock_mutex_unlock() { lock_latch.wr_unlock(); }
+  /** Acquire shared lock_latch */
+  void lock_shared_lock() { lock_latch.rd_lock(ut_d(SRW_LOCK_CALL)); }
+  /** Release shared lock_latch */
+  void lock_shared_unlock() { lock_latch.rd_unlock(); }
+
 #ifndef SUX_LOCK_GENERIC
-  /** @return whether the lock mutex is held by some thread */
-  bool lock_mutex_is_locked() const noexcept { return lock_mutex.is_locked(); }
+  /** @return whether an exclusive lock_latch is held by some thread */
+  bool lock_mutex_is_locked() const noexcept
+  { return lock_latch.is_write_locked(); }
+  bool stats_mutex_is_locked() const noexcept
+  { return lock_latch.is_write_locked(); }
 #endif
 
   /* stats mutex lock currently defaults to lock_mutex but in the future,
@@ -2037,6 +2035,8 @@ struct dict_table_t {
   void stats_mutex_destroy() { lock_mutex_destroy(); }
   void stats_mutex_lock() { lock_mutex_lock(); }
   void stats_mutex_unlock() { lock_mutex_unlock(); }
+  void stats_shared_lock() { lock_shared_lock(); }
+  void stats_shared_unlock() { lock_shared_unlock(); }
 
   /** Rename the data file.
   @param new_name     name of the table
@@ -2319,12 +2319,13 @@ public:
   /** Mutex protecting autoinc and freed_indexes. */
   srw_spin_mutex autoinc_mutex;
 private:
-  /** Mutex protecting locks on this table. */
-  srw_spin_mutex lock_mutex;
 #ifdef UNIV_DEBUG
-  /** The owner of lock_mutex (0 if none) */
-  Atomic_relaxed<pthread_t> lock_mutex_owner{0};
+  typedef srw_lock_debug lock_latch_type;
+#else
+  typedef srw_spin_lock_low lock_latch_type;
 #endif
+  /** RW-lock protecting locks and statistics on this table */
+  lock_latch_type lock_latch;
 public:
   /** The next DB_ROW_ID value */
   Atomic_counter<uint64_t> row_id{0};
@@ -2332,7 +2333,7 @@ public:
   uint64_t autoinc;
 
   /** The transaction that currently holds the the AUTOINC lock on this table.
-  Protected by lock_mutex.
+  Protected by lock_latch.
   The thread that is executing autoinc_trx may read this field without
   holding a latch, in row_lock_table_autoinc_for_mysql().
   Only the autoinc_trx thread may clear this field; it cannot be
@@ -2391,9 +2392,9 @@ public:
 	/** Magic number. */
 	ulint					magic_n;
 #endif /* UNIV_DEBUG */
-	/** mysql_row_templ_t for base columns used for compute the virtual
-	columns */
-	dict_vcol_templ_t*			vc_templ;
+  /** mysql_row_templ_t for base columns used for compute the virtual
+  columns; protected by lock_latch */
+  dict_vcol_templ_t *vc_templ;
 
   /* @return whether the table has any other transcation lock
   other than the given transaction */

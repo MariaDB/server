@@ -24,11 +24,11 @@ class DllExport TBLDEF : public PRXDEF {  /* Logical table description */
   TBLDEF(void);
 
   // Implementation
-  virtual const char *GetType(void) {return "TBL";}
+  const char *GetType(void) override {return "TBL";}
 
   // Methods
-  virtual bool DefineAM(PGLOBAL g, LPCSTR am, int poff);
-  virtual PTDB GetTable(PGLOBAL g, MODE m);
+  bool DefineAM(PGLOBAL g, LPCSTR am, int poff) override;
+  PTDB GetTable(PGLOBAL g, MODE m) override;
 
  protected:
   // Members
@@ -48,21 +48,21 @@ class DllExport TDBTBL : public TDBPRX {
   TDBTBL(PTBLDEF tdp = NULL);
 
   // Implementation
-  virtual AMT  GetAmType(void) {return TYPE_AM_TBL;}
+  AMT  GetAmType(void) override {return TYPE_AM_TBL;}
 
   // Methods
-  virtual void ResetDB(void);
-  virtual int  GetRecpos(void) {return Rows;}
-  virtual int  GetBadLines(void) {return (int)Nbc;}
+  void ResetDB(void) override;
+  int  GetRecpos(void) override {return Rows;}
+  int  GetBadLines(void) override {return (int)Nbc;}
 
   // Database routines
-  virtual PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
-  virtual int  Cardinality(PGLOBAL g);
-  virtual int  GetMaxSize(PGLOBAL g);
-  virtual int  RowNumber(PGLOBAL g, bool b = FALSE);
-  virtual PCOL InsertSpecialColumn(PCOL scp);
-  virtual bool OpenDB(PGLOBAL g);
-  virtual int  ReadDB(PGLOBAL g);
+  PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n) override;
+  int  Cardinality(PGLOBAL g) override;
+  int  GetMaxSize(PGLOBAL g) override;
+  int  RowNumber(PGLOBAL g, bool b = FALSE) override;
+  PCOL InsertSpecialColumn(PCOL scp) override;
+  bool OpenDB(PGLOBAL g) override;
+  int  ReadDB(PGLOBAL g) override;
 
  protected:
   // Internal functions
@@ -89,7 +89,7 @@ class TBTBLK : public TIDBLK {
   TBTBLK(PVAL valp) {Value = valp;}
 
   // Methods
-  virtual void ReadColumn(PGLOBAL g);
+  void ReadColumn(PGLOBAL g) override;
 
   // Fake operator new used to change TIDBLK into SDTBLK
   void * operator new(size_t size, TIDBLK *sp) {return sp;}
@@ -143,11 +143,11 @@ class DllExport TDBTBM : public TDBTBL {
   virtual void ResetDB(void);
 
   // Database routines
-	virtual int  Cardinality(PGLOBAL g) { return 10; }
-	virtual int  GetMaxSize(PGLOBAL g) { return 10; } // Temporary
-  virtual int  RowNumber(PGLOBAL g, bool b = FALSE);
-  virtual bool OpenDB(PGLOBAL g);
-  virtual int  ReadDB(PGLOBAL g);
+	int  Cardinality(PGLOBAL g) override { return 10; }
+	int  GetMaxSize(PGLOBAL g) override { return 10; } // Temporary
+  int  RowNumber(PGLOBAL g, bool b = FALSE) override;
+  bool OpenDB(PGLOBAL g) override;
+  int  ReadDB(PGLOBAL g) override;
 
  protected:
   // Internal functions

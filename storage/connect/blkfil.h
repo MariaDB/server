@@ -27,8 +27,8 @@ class DllExport BLOCKFILTER : public BLOCK {           /* Block Filter */
   // Methods
   virtual void Reset(PGLOBAL) = 0;
   virtual int  BlockEval(PGLOBAL) = 0;
-  virtual void Printf(PGLOBAL g, FILE *f, uint n);
-  virtual void Prints(PGLOBAL g, char *ps, uint z);
+  void Printf(PGLOBAL g, FILE *f, uint n) override;
+  void Prints(PGLOBAL g, char *ps, uint z) override;
 
  protected:
   BLOCKFILTER(void) = default;       // Standard constructor not to be used
@@ -50,8 +50,8 @@ class DllExport BLKFILLOG : public BLOCKFILTER { /* Logical Op Block Filter */
   BLKFILLOG(PTDBDOS tdbp, int op, PBF *bfp, int n);
 
   // Methods
-  virtual void Reset(PGLOBAL g);
-  virtual int  BlockEval(PGLOBAL g);
+  void Reset(PGLOBAL g) override;
+  int  BlockEval(PGLOBAL g) override;
 
  protected:
   BLKFILLOG(void) = default;       // Standard constructor not to be used
@@ -70,8 +70,8 @@ class DllExport BLKFILARI : public BLOCKFILTER { /* Arithm. Op Block Filter */
   BLKFILARI(PGLOBAL g, PTDBDOS tdbp, int op, PXOB *xp);
 
   // Methods
-  virtual void Reset(PGLOBAL g);
-  virtual int  BlockEval(PGLOBAL g);
+  void Reset(PGLOBAL g) override;
+  int  BlockEval(PGLOBAL g) override;
   virtual void MakeValueBitmap(void) {}
 
  protected:
@@ -93,8 +93,8 @@ class DllExport BLKFILAR2 : public BLKFILARI { /* Arithm. Op Block Filter */
   BLKFILAR2(PGLOBAL g, PTDBDOS tdbp, int op, PXOB *xp);
 
   // Methods
-  virtual int  BlockEval(PGLOBAL g);
-  virtual void MakeValueBitmap(void);
+  int  BlockEval(PGLOBAL g) override;
+  void MakeValueBitmap(void) override;
 
  protected:
   BLKFILAR2(void) = default;       // Standard constructor not to be used
@@ -114,8 +114,8 @@ class DllExport BLKFILMR2 : public BLKFILARI { /* Arithm. Op Block Filter */
   BLKFILMR2(PGLOBAL g, PTDBDOS tdbp, int op, PXOB *xp);
 
   // Methods
-  virtual int  BlockEval(PGLOBAL g);
-  virtual void MakeValueBitmap(void);
+  int  BlockEval(PGLOBAL g) override;
+  void MakeValueBitmap(void) override;
 
  protected:
   BLKFILMR2(void) = default;       // Standard constructor not to be used
@@ -137,8 +137,8 @@ class DllExport BLKSPCARI : public BLOCKFILTER { /* Arithm. Op Block Filter */
   BLKSPCARI(PTDBDOS tdbp, int op, PXOB *xp, int bsize);
 
   // Methods
-  virtual void Reset(PGLOBAL g);
-  virtual int  BlockEval(PGLOBAL g);
+  void Reset(PGLOBAL g) override;
+  int  BlockEval(PGLOBAL g) override;
 
  protected:
   BLKSPCARI(void) = default;       // Standard constructor not to be used
@@ -159,8 +159,8 @@ class DllExport BLKFILIN : public BLOCKFILTER {  // With array arguments.
   BLKFILIN(PGLOBAL g, PTDBDOS tdbp, int op, int opm, PXOB *xp);
 
   // Methods
-  virtual void Reset(PGLOBAL g);
-  virtual int  BlockEval(PGLOBAL g);
+  void Reset(PGLOBAL g) override;
+  int  BlockEval(PGLOBAL g) override;
   virtual void MakeValueBitmap(void) {}
 
  protected:
@@ -181,8 +181,8 @@ class DllExport BLKFILIN2 : public BLKFILIN {  // With array arguments.
 
   // Methods
 //virtual void Reset(PGLOBAL g);
-  virtual int  BlockEval(PGLOBAL g);
-  virtual void MakeValueBitmap(void);
+  int  BlockEval(PGLOBAL g) override;
+  void MakeValueBitmap(void) override;
 
  protected:
   // Member
@@ -205,8 +205,8 @@ class DllExport BLKSPCIN : public BLOCKFILTER {  // With array arguments.
   BLKSPCIN(PGLOBAL g, PTDBDOS tdbp, int op, int opm, PXOB *xp, int bsize);
 
   // Methods
-  virtual void Reset(PGLOBAL g);
-  virtual int  BlockEval(PGLOBAL g);
+  void Reset(PGLOBAL g) override;
+  int  BlockEval(PGLOBAL g) override;
 
  protected:
   // Member

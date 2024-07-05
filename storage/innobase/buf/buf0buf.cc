@@ -2579,6 +2579,9 @@ err_exit:
 or BUF_PEEK_IF_IN_POOL
 @param[in]	mtr			mini-transaction
 @param[out]	err			DB_SUCCESS or error code
+@param[in,out]	no_wait			If not NULL on input, then we must not
+wait for current page latch. On output, the value is set to true if we had to
+return because we could not wait on page latch.
 @return pointer to the block or NULL */
 TRANSACTIONAL_TARGET
 buf_block_t*
@@ -2589,7 +2592,8 @@ buf_page_get_gen(
 	buf_block_t*		guess,
 	ulint			mode,
 	mtr_t*			mtr,
-	dberr_t*		err)
+	dberr_t*		err,
+        bool*			no_wait)
 {
 	ulint		retries = 0;
 
@@ -2740,7 +2744,18 @@ ignore_unfixed:
 		in buf_page_t::read_complete() or
 		buf_pool_t::corrupted_evict(), or
 		after buf_zip_decompress() in this function. */
-		block->page.lock.s_lock();
+		if (!no_wait) {
+			block->page.lock.s_lock();
+		} else if (!block->page.lock.s_lock_try()) {
+			ut_ad(rw_latch == RW_NO_LATCH);
+			/* We should not wait trying to acquire S latch for
+			current page while holding latch for the next page.
+			It would violate the latching order resulting in
+			possible deadlock. Caller must handle the failure. */
+			block->page.unfix();
+			*no_wait= true;
+			return nullptr;
+		}
 		state = block->page.state();
 		ut_ad(state < buf_page_t::READ_FIX
 		      || state >= buf_page_t::WRITE_FIX);

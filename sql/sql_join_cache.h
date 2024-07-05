@@ -943,7 +943,7 @@ protected:
   }
   
   /* Get the total length of all prefixes of a record in hashed join buffer */ 
-  uint get_prefix_length() 
+  uint get_prefix_length() override 
   { 
     return base_prefix_length + get_size_of_rec_offset();
   }
@@ -952,13 +952,13 @@ protected:
     Get maximum size of the additional space per record used for
     the hash table with record keys
   */
-  uint get_max_key_addon_space_per_record();
+  uint get_max_key_addon_space_per_record() override;
 
   /* 
     Calculate how much space in the buffer would not be occupied by
     records, key entries and additional memory for the MMR buffer.
   */ 
-  size_t rem_space() 
+  size_t rem_space() override 
   { 
     return MY_MAX(last_key_entry-end_pos-aux_buff_size,0);
   }
@@ -967,25 +967,25 @@ protected:
     Calculate how much space is taken by allocation of the key
     entry for a record in the join buffer
   */
-  uint extra_key_length() { return key_entry_length; }
+  uint extra_key_length() override { return key_entry_length; }
 
   /* 
     Skip record from a hashed join buffer if its match flag
     is set to MATCH_FOUND
   */
-  bool skip_if_matched();
+  bool skip_if_matched() override;
 
   /*
     Skip record from a hashed join buffer if its match flag setting 
     commands to do so
   */
-  bool skip_if_not_needed_match();
+  bool skip_if_not_needed_match() override;
 
   /* Search for a key in the hash table of the join buffer */
   bool key_search(uchar *key, uint key_len, uchar **key_ref_ptr);
 
   /* Reallocate the join buffer of a hashed join cache */
-  int realloc_buffer();
+  int realloc_buffer() override;
 
   /* 
     This constructor creates an unlinked hashed join cache. The cache is to be
@@ -1006,16 +1006,16 @@ protected:
 public:
 
   /* Initialize a hashed join cache */       
-  int init(bool for_explain);
+  int init(bool for_explain) override;
 
   /* Reset the buffer of a hashed join cache for reading/writing */
-  void reset(bool for_writing);
+  void reset(bool for_writing) override;
 
   /* Add a record into the buffer of a hashed join cache */
-  bool put_record();
+  bool put_record() override;
 
   /* Read the next record from the buffer of a hashed join cache */
-  bool get_record();
+  bool get_record() override;
 
   /*
     Shall check whether all records in a key chain have 
@@ -1115,13 +1115,13 @@ private:
 
 protected:
 
-  bool prepare_look_for_matches(bool skip_last);
+  bool prepare_look_for_matches(bool skip_last) override;
 
-  uchar *get_next_candidate_for_match();
+  uchar *get_next_candidate_for_match() override;
 
-  bool skip_next_candidate_for_match(uchar *rec_ptr);
+  bool skip_next_candidate_for_match(uchar *rec_ptr) override;
 
-  void read_next_candidate_for_match(uchar *rec_ptr);
+  void read_next_candidate_for_match(uchar *rec_ptr) override;
 
 public:
 
@@ -1142,11 +1142,11 @@ public:
     :JOIN_CACHE(j, tab, prev) {}
 
   /* Initialize the BNL cache */       
-  int init(bool for_explain);
+  int init(bool for_explain) override;
 
-  enum Join_algorithm get_join_alg() { return BNL_JOIN_ALG; }
+  enum Join_algorithm get_join_alg() override { return BNL_JOIN_ALG; }
 
-  bool is_key_access() { return FALSE; }
+  bool is_key_access() override { return FALSE; }
 
 };
 
@@ -1182,13 +1182,13 @@ protected:
   */
   uchar *get_matching_chain_by_join_key();
 
-  bool prepare_look_for_matches(bool skip_last);
+  bool prepare_look_for_matches(bool skip_last) override;
 
-  uchar *get_next_candidate_for_match();
+  uchar *get_next_candidate_for_match() override;
 
-  bool skip_next_candidate_for_match(uchar *rec_ptr);
+  bool skip_next_candidate_for_match(uchar *rec_ptr) override;
 
-  void read_next_candidate_for_match(uchar *rec_ptr);
+  void read_next_candidate_for_match(uchar *rec_ptr) override;
 
 public:
 
@@ -1209,11 +1209,11 @@ public:
     : JOIN_CACHE_HASHED(j, tab, prev) {}
 
   /* Initialize the BNLH cache */       
-  int init(bool for_explain);
+  int init(bool for_explain) override;
 
-  enum Join_algorithm get_join_alg() { return BNLH_JOIN_ALG; }
+  enum Join_algorithm get_join_alg() override { return BNLH_JOIN_ALG; }
 
-  bool is_key_access() { return TRUE; }
+  bool is_key_access() override { return TRUE; }
 
 };
 
@@ -1256,11 +1256,11 @@ public:
   JOIN_TAB_SCAN_MRR(JOIN *j, JOIN_TAB *tab, uint flags, RANGE_SEQ_IF rs_funcs)
     :JOIN_TAB_SCAN(j, tab), range_seq_funcs(rs_funcs), mrr_mode(flags) {}
 
-  uint aux_buffer_incr(size_t recno);
+  uint aux_buffer_incr(size_t recno) override;
 
-  int open();
+  int open() override;
  
-  int next();
+  int next() override;
 
   friend class JOIN_CACHE_BKA; /* it needs to add an mrr_mode flag after JOIN_CACHE::init() call */
 };
@@ -1296,26 +1296,26 @@ protected:
     Get the number of ranges in the cache buffer passed to the MRR
     interface. For each record its own range is passed.
   */
-  uint get_number_of_ranges_for_mrr() { return (uint)records; }
+  uint get_number_of_ranges_for_mrr() override { return (uint)records; }
 
  /*
    Setup the MRR buffer as the space between the last record put
    into the join buffer and the very end of the join buffer 
  */
-  int setup_aux_buffer(HANDLER_BUFFER &aux_buff)
+  int setup_aux_buffer(HANDLER_BUFFER &aux_buff) override
   {
     aux_buff.buffer= end_pos;
     aux_buff.buffer_end= buff+buff_size;
     return 0;
   }
 
-  bool prepare_look_for_matches(bool skip_last);
+  bool prepare_look_for_matches(bool skip_last) override;
 
-  uchar *get_next_candidate_for_match();
+  uchar *get_next_candidate_for_match() override;
 
-  bool skip_next_candidate_for_match(uchar *rec_ptr);
+  bool skip_next_candidate_for_match(uchar *rec_ptr) override;
 
-  void read_next_candidate_for_match(uchar *rec_ptr);
+  void read_next_candidate_for_match(uchar *rec_ptr) override;
 
 public:
 
@@ -1341,14 +1341,14 @@ public:
     :JOIN_CACHE(bka->join, bka->join_tab, bka->prev_cache),
       mrr_mode(bka->mrr_mode)  {}
 
-  uchar **get_curr_association_ptr() { return &curr_association; }
+  uchar **get_curr_association_ptr() override { return &curr_association; }
 
   /* Initialize the BKA cache */       
-  int init(bool for_explain);
+  int init(bool for_explain) override;
 
-  enum Join_algorithm get_join_alg() { return BKA_JOIN_ALG; }
+  enum Join_algorithm get_join_alg() override { return BKA_JOIN_ALG; }
 
-  bool is_key_access() { return TRUE; }
+  bool is_key_access() override { return TRUE; }
 
   /* Get the key built over the next record from the join buffer */
   uint get_next_key(uchar **key);
@@ -1356,7 +1356,7 @@ public:
   /* Check index condition of the joined table for a record from BKA cache */
   bool skip_index_tuple(range_id_t range_info);
 
-  bool save_explain_data(EXPLAIN_BKA_TYPE *explain);
+  bool save_explain_data(EXPLAIN_BKA_TYPE *explain) override;
 };
 
 
@@ -1392,21 +1392,21 @@ private:
 
 protected:
 
-  uint get_number_of_ranges_for_mrr() { return key_entries; }
+  uint get_number_of_ranges_for_mrr() override { return key_entries; }
 
   /* 
     Initialize the MRR buffer allocating some space within the join buffer.
     The entire space between the last record put into the join buffer and the
     last key entry added to the hash table is used for the MRR buffer.
   */
-  int setup_aux_buffer(HANDLER_BUFFER &aux_buff)
+  int setup_aux_buffer(HANDLER_BUFFER &aux_buff) override
   {
     aux_buff.buffer= end_pos;
     aux_buff.buffer_end= last_key_entry;
     return 0;
   }
 
-  bool prepare_look_for_matches(bool skip_last);
+  bool prepare_look_for_matches(bool skip_last) override;
 
   /*
     The implementations of the methods
@@ -1441,15 +1441,15 @@ public:
     :JOIN_CACHE_BNLH(bkah->join, bkah->join_tab, bkah->prev_cache),
       mrr_mode(bkah->mrr_mode)  {}
 
-  uchar **get_curr_association_ptr() { return &curr_matching_chain; }
+  uchar **get_curr_association_ptr() override { return &curr_matching_chain; }
 
   /* Initialize the BKAH cache */       
-  int init(bool for_explain);
+  int init(bool for_explain) override;
 
-  enum Join_algorithm get_join_alg() { return BKAH_JOIN_ALG; }
+  enum Join_algorithm get_join_alg() override { return BKAH_JOIN_ALG; }
 
   /* Check index condition of the joined table for a record from BKAH cache */
   bool skip_index_tuple(range_id_t range_info);
 
-  bool save_explain_data(EXPLAIN_BKA_TYPE *explain);
+  bool save_explain_data(EXPLAIN_BKA_TYPE *explain) override;
 };

@@ -143,6 +143,7 @@ extern my_bool opt_old_style_user_limits, trust_function_creators;
 extern uint opt_crash_binlog_innodb;
 extern const char *shared_memory_base_name;
 extern MYSQL_PLUGIN_IMPORT char *mysqld_unix_port;
+extern MYSQL_PLUGIN_IMPORT bool metadata_lock_info_plugin_loaded;
 extern my_bool opt_enable_shared_memory;
 extern ulong opt_replicate_events_marked_for_skip;
 extern char *default_tz_name;
@@ -824,6 +825,7 @@ enum options_mysqld
   OPT_KEY_CACHE_CHANGED_BLOCKS_HASH_SIZE,
   OPT_LOG_BASENAME,
   OPT_LOG_ERROR,
+  OPT_LOG_SLOW_FILTER,
   OPT_LOWER_CASE_TABLE_NAMES,
   OPT_PLUGIN_LOAD,
   OPT_PLUGIN_LOAD_ADD,
@@ -995,6 +997,8 @@ extern my_bool opt_mysql56_temporal_format, strict_password_validation;
 extern ulong binlog_checksum_options;
 extern bool max_user_connections_checking;
 extern ulong opt_binlog_dbug_fsync_sleep;
+static const int SERVER_UID_SIZE= 29;
+extern char server_uid[SERVER_UID_SIZE+1];
 
 extern uint volatile global_disable_checkpoint;
 extern my_bool opt_help;

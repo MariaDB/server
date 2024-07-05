@@ -152,7 +152,6 @@ WSREP_SST_OPT_DATA=""
 WSREP_SST_OPT_AUTH="${WSREP_SST_OPT_AUTH:-}"
 WSREP_SST_OPT_USER="${WSREP_SST_OPT_USER:-}"
 WSREP_SST_OPT_PSWD="${WSREP_SST_OPT_PSWD:-}"
-WSREP_SST_OPT_REMOTE_AUTH="${WSREP_SST_OPT_REMOTE_AUTH:-}"
 WSREP_SST_OPT_DEFAULT=""
 WSREP_SST_OPT_DEFAULTS=""
 WSREP_SST_OPT_EXTRA_DEFAULT=""
@@ -1008,11 +1007,6 @@ in_config()
     echo $found
 }
 
-wsrep_auth_not_set()
-{
-    [ -z "$WSREP_SST_OPT_AUTH" ]
-}
-
 # Get rid of incorrect values resulting from substitution
 # in programs external to the script:
 if [ "$WSREP_SST_OPT_USER" = '(null)' ]; then
@@ -1028,12 +1022,12 @@ fi
 # Let's read the value of the authentication string from the
 # configuration file so that it does not go to the command line
 # and does not appear in the ps output:
-if wsrep_auth_not_set; then
+if [ -z "$WSREP_SST_OPT_AUTH" ]; then
     WSREP_SST_OPT_AUTH=$(parse_cnf 'sst' 'wsrep-sst-auth')
 fi
 
 # Splitting WSREP_SST_OPT_AUTH as "user:password" pair:
-if ! wsrep_auth_not_set; then
+if [ -n "$WSREP_SST_OPT_AUTH" ]; then
     # Extract username as shortest prefix up to first ':' character:
     WSREP_SST_OPT_AUTH_USER="${WSREP_SST_OPT_AUTH%%:*}"
     if [ -z "$WSREP_SST_OPT_USER" ]; then
@@ -1057,19 +1051,20 @@ if ! wsrep_auth_not_set; then
     fi
 fi
 
+WSREP_SST_OPT_REMOTE_AUTH="${WSREP_SST_OPT_REMOTE_AUTH:-}"
+WSREP_SST_OPT_REMOTE_USER=
+WSREP_SST_OPT_REMOTE_PSWD=
+if [ -n "$WSREP_SST_OPT_REMOTE_AUTH" ]; then
+    # Split auth string at the last ':'
+    WSREP_SST_OPT_REMOTE_USER="${WSREP_SST_OPT_REMOTE_AUTH%%:*}"
+    WSREP_SST_OPT_REMOTE_PSWD="${WSREP_SST_OPT_REMOTE_AUTH#*:}"
+fi
+
 readonly WSREP_SST_OPT_USER
 readonly WSREP_SST_OPT_PSWD
 readonly WSREP_SST_OPT_AUTH
-
-if [ -n "$WSREP_SST_OPT_REMOTE_AUTH" ]; then
-    # Split auth string at the last ':'
-    readonly WSREP_SST_OPT_REMOTE_USER="${WSREP_SST_OPT_REMOTE_AUTH%%:*}"
-    readonly WSREP_SST_OPT_REMOTE_PSWD="${WSREP_SST_OPT_REMOTE_AUTH#*:}"
-else
-    readonly WSREP_SST_OPT_REMOTE_USER=
-    readonly WSREP_SST_OPT_REMOTE_PSWD=
-fi
-
+readonly WSREP_SST_OPT_REMOTE_USER
+readonly WSREP_SST_OPT_REMOTE_PSWD
 readonly WSREP_SST_OPT_REMOTE_AUTH
 
 if [ -n "$WSREP_SST_OPT_DATA" ]; then

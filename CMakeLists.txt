@@ -193,13 +193,20 @@ ELSE()
   SET (SKIP_COMPONENTS "N-O-N-E")
 ENDIF()
 
-OPTION(NOT_FOR_DISTRIBUTION "Allow linking with GPLv2-incompatible system libraries. Only set it you never plan to distribute the resulting binaries" OFF)
+
+IF("${MYSQL_NO_DASH_VERSION}" VERSION_LESS 11.2)
+  SET(MEMPROTECT_DEFAULT ON)
+ELSE()
+  SET(MEMPROTECT_DEFAULT OFF)
+ENDIF()
+
+OPTION(WITH_PROTECT_STATEMENT_MEMROOT "Enable protection of statement's memory root after first SP/PS execution. Turned into account only for debug build"
+${MEMPROTECT_DEFAULT})
 
 #
 #  Enable protection of statement's memory root after first SP/PS execution.
 #  Can be switched on only for debug build.
 #
-OPTION(WITH_PROTECT_STATEMENT_MEMROOT "Enable protection of statement's memory root after first SP/PS execution. Turned into account only for debug build" OFF)
 IF (WITH_PROTECT_STATEMENT_MEMROOT)
   SET(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -DPROTECT_STATEMENT_MEMROOT")
   SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DPROTECT_STATEMENT_MEMROOT")

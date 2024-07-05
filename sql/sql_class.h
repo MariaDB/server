@@ -520,7 +520,7 @@ public:
     Used to make a clone of this object for ALTER/CREATE TABLE
     @sa comment for Key_part_spec::clone
   */
-  virtual Key *clone(MEM_ROOT *mem_root) const
+  Key *clone(MEM_ROOT *mem_root) const override
   { return new (mem_root) Foreign_key(*this, mem_root); }
   /* Used to validate foreign key options */
   bool validate(List<Create_field> &table_fields);
@@ -1439,7 +1439,7 @@ public:
   void set_n_backup_statement(Statement *stmt, Statement *backup);
   void restore_backup_statement(Statement *stmt, Statement *backup);
   /* return class type */
-  virtual Type type() const;
+  Type type() const override;
 };
 
 
@@ -2002,7 +2002,7 @@ public:
                         const char* sqlstate,
                         Sql_condition::enum_warning_level *level,
                         const char* msg,
-                        Sql_condition ** cond_hdl)
+                        Sql_condition ** cond_hdl) override
   {
     m_unhandled_errors++;
     if (!first_error)
@@ -2026,7 +2026,7 @@ public:
                         const char* sqlstate,
                         Sql_condition::enum_warning_level *level,
                         const char* msg,
-                        Sql_condition ** cond_hdl)
+                        Sql_condition ** cond_hdl) override
   {
     if (*level == Sql_condition::WARN_LEVEL_ERROR)
       errors++;
@@ -2054,7 +2054,7 @@ public:
                         const char* sqlstate,
                         Sql_condition::enum_warning_level *level,
                         const char* msg,
-                        Sql_condition ** cond_hdl);
+                        Sql_condition ** cond_hdl) override;
 
 private:
 };
@@ -2075,7 +2075,7 @@ public:
                         const char *sqlstate,
                         Sql_condition::enum_warning_level *level,
                         const char* msg,
-                        Sql_condition **cond_hdl);
+                        Sql_condition **cond_hdl) override;
 
   bool need_reopen() const { return m_need_reopen; };
   void init() { m_need_reopen= FALSE; };
@@ -2088,12 +2088,12 @@ class Turn_errors_to_warnings_handler : public Internal_error_handler
 {
 public:
   Turn_errors_to_warnings_handler() = default;
-  bool handle_condition(THD *thd,
-                        uint sql_errno,
-                        const char* sqlstate,
+  bool handle_condition(THD *,
+                        uint,
+                        const char*,
                         Sql_condition::enum_warning_level *level,
-                        const char* msg,
-                        Sql_condition ** cond_hdl)
+                        const char*,
+                        Sql_condition ** cond_hdl) override
   {
     *cond_hdl= NULL;
     if (*level == Sql_condition::WARN_LEVEL_ERROR)
@@ -2105,12 +2105,12 @@ public:
 
 struct Suppress_warnings_error_handler : public Internal_error_handler
 {
-  bool handle_condition(THD *thd,
-                        uint sql_errno,
-                        const char *sqlstate,
+  bool handle_condition(THD *,
+                        uint,
+                        const char *,
                         Sql_condition::enum_warning_level *level,
-                        const char *msg,
-                        Sql_condition **cond_hdl)
+                        const char *,
+                        Sql_condition **) override
   {
     return *level == Sql_condition::WARN_LEVEL_WARN;
   }
@@ -3940,7 +3940,7 @@ public:
   enter_cond(mysql_cond_t *cond, mysql_mutex_t* mutex,
              const PSI_stage_info *stage, PSI_stage_info *old_stage,
              const char *src_function, const char *src_file,
-             int src_line)
+             int src_line) override
   {
     mysql_mutex_assert_owner(mutex);
     mysys_var->current_mutex = mutex;
@@ -3952,7 +3952,7 @@ public:
   }
   inline void exit_cond(const PSI_stage_info *stage,
                         const char *src_function, const char *src_file,
-                        int src_line)
+                        int src_line) override
   {
     /*
       Putting the mutex unlock in thd->exit_cond() ensures that
@@ -3969,8 +3969,8 @@ public:
     mysql_mutex_unlock(&mysys_var->mutex);
     return;
   }
-  virtual int is_killed() { return killed; }
-  virtual THD* get_thd() { return this; }
+  int is_killed() override { return killed; }
+  THD* get_thd() override { return this; }
 
   /**
     A callback to the server internals that is used to address
@@ -3995,8 +3995,8 @@ public:
     @retval  TRUE  if the thread was woken up
     @retval  FALSE otherwise.
    */
-  virtual bool notify_shared_lock(MDL_context_owner *ctx_in_use,
-                                  bool needs_thr_lock_abort);
+  bool notify_shared_lock(MDL_context_owner *ctx_in_use,
+                          bool needs_thr_lock_abort) override;
 
   // End implementation of MDL_context_owner interface.
 
@@ -4861,7 +4861,7 @@ public:
       my_message(ER_NO_DB_ERROR, ER(ER_NO_DB_ERROR), MYF(0));
     return TRUE;
   }
-  /* Get db name or "". Use for printing current db */
+  /* Get db name or "". */
   const char *get_db()
   { return safe_str(db.str); }
 
@@ -5078,7 +5078,7 @@ public:
 
 public:
   /** Overloaded to guard query/query_length fields */
-  virtual void set_statement(Statement *stmt);
+  void set_statement(Statement *stmt) override;
   inline void set_command(enum enum_server_command command)
   {
     DBUG_ASSERT(command != COM_SLEEP);
@@ -6052,7 +6052,7 @@ public:
   TABLE *dst_table; /* table to write into */
 
   /* The following is called in the child thread: */
-  int send_data(List<Item> &items);
+  int send_data(List<Item> &items) override;
 };
 
 
@@ -6066,7 +6066,7 @@ class select_result_text_buffer : public select_result_sink
 {
 public:
   select_result_text_buffer(THD *thd_arg): select_result_sink(thd_arg) {}
-  int send_data(List<Item> &items);
+  int send_data(List<Item> &items) override;
   bool send_result_set_metadata(List<Item> &fields, uint flag);
 
   void save_to(String *res);
@@ -6094,9 +6094,9 @@ public:
     DBUG_PRINT("enter", ("this %p", this));
     DBUG_VOID_RETURN;
   }              /* Remove gcc warning */
-  uint field_count(List<Item> &fields) const { return 0; }
-  bool send_result_set_metadata(List<Item> &fields, uint flag) { return FALSE; }
-  select_result_interceptor *result_interceptor() { return this; }
+  uint field_count(List<Item> &fields) const override { return 0; }
+  bool send_result_set_metadata(List<Item> &fields, uint flag) override { return FALSE; }
+  select_result_interceptor *result_interceptor() override { return this; }
 
   /*
     Instruct the object to not call my_ok(). Client output will be handled
@@ -6164,10 +6164,10 @@ private:
     uint get_field_count() { return field_count; }
     void set_spvar_list(List<sp_variable> *vars) { spvar_list= vars; }
 
-    virtual bool send_eof() { return FALSE; }
-    virtual int send_data(List<Item> &items);
-    virtual int prepare(List<Item> &list, SELECT_LEX_UNIT *u);
-    virtual bool view_structure_only() const { return m_view_structure_only; }
+    bool send_eof() override { return FALSE; }
+    int send_data(List<Item> &items) override;
+    int prepare(List<Item> &list, SELECT_LEX_UNIT *u) override;
+    bool view_structure_only() const override { return m_view_structure_only; }
 };
 
 public:
@@ -6224,13 +6224,13 @@ class select_send :public select_result {
 public:
   select_send(THD *thd_arg):
     select_result(thd_arg), is_result_set_started(FALSE) {}
-  bool send_result_set_metadata(List<Item> &list, uint flags);
-  int send_data(List<Item> &items);
-  bool send_eof();
-  virtual bool check_simple_select() const { return FALSE; }
-  void abort_result_set();
-  virtual void cleanup();
-  select_result_interceptor *result_interceptor() { return NULL; }
+  bool send_result_set_metadata(List<Item> &list, uint flags) override;
+  int send_data(List<Item> &items) override;
+  bool send_eof() override;
+  bool check_simple_select() const override { return FALSE; }
+  void abort_result_set() override;
+  void cleanup() override;
+  select_result_interceptor *result_interceptor() override { return NULL; }
 };
 
 
@@ -6242,9 +6242,9 @@ public:
 
 class select_send_analyze : public select_send
 {
-  bool send_result_set_metadata(List<Item> &list, uint flags) { return 0; }
-  bool send_eof() { return 0; }
-  void abort_result_set() {}
+  bool send_result_set_metadata(List<Item> &list, uint flags) override { return 0; }
+  bool send_eof() override { return 0; }
+  void abort_result_set() override {}
 public:
   select_send_analyze(THD *thd_arg): select_send(thd_arg) {}
 };
@@ -6263,8 +6263,8 @@ public:
     select_result_interceptor(thd_arg), exchange(ex), file(-1),row_count(0L)
   { path[0]=0; }
   ~select_to_file();
-  bool send_eof();
-  void cleanup();
+  bool send_eof() override;
+  void cleanup() override;
 };
 
 
@@ -6304,16 +6304,16 @@ class select_export :public select_to_file {
 public:
   select_export(THD *thd_arg, sql_exchange *ex): select_to_file(thd_arg, ex) {}
   ~select_export();
-  int prepare(List<Item> &list, SELECT_LEX_UNIT *u);
-  int send_data(List<Item> &items);
+  int prepare(List<Item> &list, SELECT_LEX_UNIT *u) override;
+  int send_data(List<Item> &items) override;
 };
 
 
 class select_dump :public select_to_file {
 public:
   select_dump(THD *thd_arg, sql_exchange *ex): select_to_file(thd_arg, ex) {}
-  int prepare(List<Item> &list, SELECT_LEX_UNIT *u);
-  int send_data(List<Item> &items);
+  int prepare(List<Item> &list, SELECT_LEX_UNIT *u) override;
+  int send_data(List<Item> &items) override;
 };
 
 
@@ -6331,17 +6331,17 @@ class select_insert :public select_result_interceptor {
                 List<Item> *update_values, enum_duplicates duplic,
                 bool ignore, select_result *sel_ret_list);
   ~select_insert();
-  int prepare(List<Item> &list, SELECT_LEX_UNIT *u);
-  virtual int prepare2(JOIN *join);
-  virtual int send_data(List<Item> &items);
+  int prepare(List<Item> &list, SELECT_LEX_UNIT *u) override;
+  int prepare2(JOIN *join) override;
+  int send_data(List<Item> &items) override;
   virtual bool store_values(List<Item> &values);
   virtual bool can_rollback_data() { return 0; }
   bool prepare_eof();
   bool send_ok_packet();
-  bool send_eof();
-  virtual void abort_result_set();
+  bool send_eof() override;
+  void abort_result_set() override;
   /* not implemented: select_insert is never re-used in prepared statements */
-  void cleanup();
+  void cleanup() override;
 };
 
 
@@ -6376,18 +6376,18 @@ public:
       bzero(&ddl_log_state_create, sizeof(ddl_log_state_create));
       bzero(&ddl_log_state_rm, sizeof(ddl_log_state_rm));
     }
-  int prepare(List<Item> &list, SELECT_LEX_UNIT *u);
+  int prepare(List<Item> &list, SELECT_LEX_UNIT *u) override;
 
   int binlog_show_create_table(TABLE **tables, uint count);
-  bool store_values(List<Item> &values);
-  bool send_eof();
-  virtual void abort_result_set();
-  virtual bool can_rollback_data() { return 1; }
+  bool store_values(List<Item> &values) override;
+  bool send_eof() override;
+  void abort_result_set() override;
+  bool can_rollback_data() override { return 1; }
 
   // Needed for access from local class MY_HOOKS in prepare(), since thd is proteted.
   const THD *get_thd(void) { return thd; }
   const HA_CREATE_INFO *get_create_info() { return create_info; };
-  int prepare2(JOIN *join) { return 0; }
+  int prepare2(JOIN *join) override { return 0; }
 
 private:
   TABLE *create_table_from_items(THD *thd,
@@ -6550,7 +6550,7 @@ public:
     init();
     tmp_table_param.init();
   }
-  int prepare(List<Item> &list, SELECT_LEX_UNIT *u);
+  int prepare(List<Item> &list, SELECT_LEX_UNIT *u) override;
   /**
     Do prepare() and prepare2() if they have been postponed until
     column type information is computed (used by select_union_direct).
@@ -6561,13 +6561,13 @@ public:
   */
   virtual bool postponed_prepare(List<Item> &types)
   { return false; }
-  int send_data(List<Item> &items);
+  int send_data(List<Item> &items) override;
   int write_record();
   int update_counter(Field *counter, longlong value);
   int delete_record();
-  bool send_eof();
+  bool send_eof() override;
   virtual bool flush();
-  void cleanup();
+  void cleanup() override;
   virtual bool create_result_table(THD *thd, List<Item> *column_types,
                                    bool is_distinct, ulonglong options,
                                    const LEX_CSTRING *alias,
@@ -6694,11 +6694,11 @@ public:
     curr_op_type(UNSPECIFIED)
   {
   };
-  int send_data(List<Item> &items);
-  void change_select();
+  int send_data(List<Item> &items) override;
+  void change_select() override;
   int unfold_record(ha_rows cnt);
-  bool send_eof();
-  bool force_enable_index_if_needed()
+  bool send_eof() override;
+  bool force_enable_index_if_needed() override
   {
     is_index_enabled= true;
     return true;
@@ -6755,15 +6755,15 @@ class select_union_recursive :public select_unit
       row_counter(0)
   { incr_table_param.init(); };
 
-  int send_data(List<Item> &items);
+  int send_data(List<Item> &items) override;
   bool create_result_table(THD *thd, List<Item> *column_types,
                            bool is_distinct, ulonglong options,
                            const LEX_CSTRING *alias,
                            bool bit_fields_as_long,
                            bool create_table,
                            bool keep_row_order,
-                           uint hidden);
-  void cleanup();
+                           uint hidden) override;
+  void cleanup() override;
 };
 
 /**
@@ -6810,30 +6810,30 @@ public:
     done_send_result_set_metadata(false), done_initialize_tables(false),
     limit_found_rows(0)
     { send_records= 0; }
-  bool change_result(select_result *new_result);
-  uint field_count(List<Item> &fields) const
+  bool change_result(select_result *new_result) override;
+  uint field_count(List<Item> &fields) const override
   {
     // Only called for top-level select_results, usually select_send
     DBUG_ASSERT(false); /* purecov: inspected */
     return 0; /* purecov: inspected */
   }
-  bool postponed_prepare(List<Item> &types);
-  bool send_result_set_metadata(List<Item> &list, uint flags);
-  int send_data(List<Item> &items);
-  bool initialize_tables (JOIN *join);
-  bool send_eof();
-  bool flush() { return false; }
-  bool check_simple_select() const
+  bool postponed_prepare(List<Item> &types) override;
+  bool send_result_set_metadata(List<Item> &list, uint flags) override;
+  int send_data(List<Item> &items) override;
+  bool initialize_tables (JOIN *join) override;
+  bool send_eof() override;
+  bool flush() override { return false; }
+  bool check_simple_select() const override
   {
     /* Only called for top-level select_results, usually select_send */
     DBUG_ASSERT(false); /* purecov: inspected */
     return false; /* purecov: inspected */
   }
-  void abort_result_set()
+  void abort_result_set() override
   {
     result->abort_result_set(); /* purecov: inspected */
   }
-  void cleanup()
+  void cleanup() override
   {
     send_records= 0;
   }
@@ -6851,7 +6851,11 @@ public:
     // EXPLAIN should never output to a select_union_direct
     DBUG_ASSERT(false); /* purecov: inspected */
   }
+#ifdef EMBEDDED_LIBRARY
+  void begin_dataset() override
+#else
   void begin_dataset()
+#endif
   {
     // Only called for sp_cursor::Select_fetch_into_spvars
     DBUG_ASSERT(false); /* purecov: inspected */
@@ -6867,8 +6871,8 @@ protected:
 public:
   select_subselect(THD *thd_arg, Item_subselect *item_arg):
     select_result_interceptor(thd_arg), item(item_arg) {}
-  int send_data(List<Item> &items)=0;
-  bool send_eof() { return 0; };
+  int send_data(List<Item> &items) override=0;
+  bool send_eof() override { return 0; };
 };
 
 /* Single value subselect interface class */
@@ -6878,7 +6882,7 @@ public:
   select_singlerow_subselect(THD *thd_arg, Item_subselect *item_arg):
     select_subselect(thd_arg, item_arg)
   {}
-  int send_data(List<Item> &items);
+  int send_data(List<Item> &items) override;
 };
 
 
@@ -6929,10 +6933,10 @@ public:
                            bool bit_fields_as_long,
                            bool create_table,
                            bool keep_row_order,
-                           uint hidden);
+                           uint hidden) override;
   bool init_result_table(ulonglong select_options);
-  int send_data(List<Item> &items);
-  void cleanup();
+  int send_data(List<Item> &items) override;
+  void cleanup() override;
   ha_rows get_null_count_of_col(uint idx)
   {
     DBUG_ASSERT(idx < table->s->fields);
@@ -6965,8 +6969,8 @@ public:
                                   bool mx, bool all):
     select_subselect(thd_arg, item_arg), cache(0), fmax(mx), is_all(all)
   {}
-  void cleanup();
-  int send_data(List<Item> &items);
+  void cleanup() override;
+  int send_data(List<Item> &items) override;
   bool cmp_real();
   bool cmp_int();
   bool cmp_decimal();
@@ -6981,7 +6985,7 @@ class select_exists_subselect :public select_subselect
 public:
   select_exists_subselect(THD *thd_arg, Item_subselect *item_arg):
     select_subselect(thd_arg, item_arg) {}
-  int send_data(List<Item> &items);
+  int send_data(List<Item> &items) override;
 };
 
 
@@ -7238,15 +7242,15 @@ public:
 public:
   multi_delete(THD *thd_arg, TABLE_LIST *dt, uint num_of_tables);
   ~multi_delete();
-  int prepare(List<Item> &list, SELECT_LEX_UNIT *u);
-  int send_data(List<Item> &items);
-  bool initialize_tables (JOIN *join);
+  int prepare(List<Item> &list, SELECT_LEX_UNIT *u) override;
+  int send_data(List<Item> &items) override;
+  bool initialize_tables (JOIN *join) override;
   int do_deletes();
   int do_table_deletes(TABLE *table, SORT_INFO *sort_info, bool ignore);
-  bool send_eof();
+  bool send_eof() override;
   inline ha_rows num_deleted() const { return deleted; }
-  virtual void abort_result_set();
-  void prepare_to_read_rows();
+  void abort_result_set() override;
+  void prepare_to_read_rows() override;
 };
 
 
@@ -7294,19 +7298,19 @@ public:
   ~multi_update();
   bool init(THD *thd);
   bool init_for_single_table(THD *thd);
-  int prepare(List<Item> &list, SELECT_LEX_UNIT *u);
-  int send_data(List<Item> &items);
-  bool initialize_tables (JOIN *join);
-  int prepare2(JOIN *join);
+  int prepare(List<Item> &list, SELECT_LEX_UNIT *u) override;
+  int send_data(List<Item> &items) override;
+  bool initialize_tables (JOIN *join) override;
+  int prepare2(JOIN *join) override;
   int  do_updates();
-  bool send_eof();
+  bool send_eof() override;
   inline ha_rows num_found() const { return found; }
   inline ha_rows num_updated() const { return updated; }
   inline void set_found (ha_rows n) { found= n; }
   inline void set_updated (ha_rows n) { updated= n; }
-  virtual void abort_result_set();
-  void update_used_tables();
-  void prepare_to_read_rows();
+  virtual void abort_result_set() override;
+  void update_used_tables() override;
+  void prepare_to_read_rows() override;
 };
 
 class my_var_sp;
@@ -7338,8 +7342,8 @@ public:
       m_rcontext_handler(rcontext_handler),
       m_type_handler(type_handler), offset(o), sp(s) { }
   ~my_var_sp() = default;
-  bool set(THD *thd, Item *val);
-  my_var_sp *get_my_var_sp() { return this; }
+  bool set(THD *thd, Item *val) override;
+  my_var_sp *get_my_var_sp() override { return this; }
   const Type_handler *type_handler() const
   { return m_type_handler; }
   sp_rcontext *get_rcontext(sp_rcontext *local_ctx) const;
@@ -7360,7 +7364,7 @@ public:
               &type_handler_double/*Not really used*/, s),
     m_field_offset(field_idx)
   { }
-  bool set(THD *thd, Item *val);
+  bool set(THD *thd, Item *val) override;
 };
 
 class my_var_user: public my_var {
@@ -7368,7 +7372,7 @@ public:
   my_var_user(const LEX_CSTRING *j)
     : my_var(j, SESSION_VAR) { }
   ~my_var_user() = default;
-  bool set(THD *thd, Item *val);
+  bool set(THD *thd, Item *val) override;
 };
 
 class select_dumpvar :public select_result_interceptor {
@@ -7381,11 +7385,11 @@ public:
    :select_result_interceptor(thd_arg), row_count(0), m_var_sp_row(NULL)
   { var_list.empty(); }
   ~select_dumpvar() = default;
-  int prepare(List<Item> &list, SELECT_LEX_UNIT *u);
-  int send_data(List<Item> &items);
-  bool send_eof();
-  virtual bool check_simple_select() const;
-  void cleanup();
+  int prepare(List<Item> &list, SELECT_LEX_UNIT *u) override;
+  int send_data(List<Item> &items) override;
+  bool send_eof() override;
+  bool check_simple_select() const override;
+  void cleanup() override;
 };
 
 /* Bits in sql_command_flags */
@@ -8077,10 +8081,11 @@ public:
     m_maybe_null(false)
   { }
 
-  void set_type_maybe_null(bool maybe_null_arg) { m_maybe_null= maybe_null_arg; }
+  void set_type_maybe_null(bool maybe_null_arg) override
+  { m_maybe_null= maybe_null_arg; }
   bool get_maybe_null() const { return m_maybe_null; }
 
-  decimal_digits_t decimal_precision() const
+  decimal_digits_t decimal_precision() const override
   {
     /*
       Type_holder is not used directly to create fields, so
@@ -8092,11 +8097,11 @@ public:
     DBUG_ASSERT(0);
     return 0;
   }
-  void set_typelib(const TYPELIB *typelib)
+  void set_typelib(const TYPELIB *typelib) override
   {
     m_typelib= typelib;
   }
-  const TYPELIB *get_typelib() const
+  const TYPELIB *get_typelib() const override
   {
     return m_typelib;
   }

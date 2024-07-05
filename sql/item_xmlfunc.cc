@@ -584,13 +584,13 @@ public:
                             CHARSET_INFO *cs):
     Item_string(thd, str, length, cs)
   { }
-  bool const_item() const { return false ; }
-  bool basic_const_item() const { return false; }
+  bool const_item() const override { return false ; }
+  bool basic_const_item() const override { return false; }
   void set_value(const char *str, uint length, CHARSET_INFO *cs)
   {
     str_value.set(str, length, cs);
   }
-  Item *safe_charset_converter(THD *thd, CHARSET_INFO *tocs)
+  Item *safe_charset_converter(THD *thd, CHARSET_INFO *tocs) override
   {
     /*
       Item_string::safe_charset_converter() does not accept non-constants.

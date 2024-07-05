@@ -103,6 +103,27 @@ SELECT * FROM t;
 a	b
 10	1
 10	20
+TRUNCATE TABLE t;
+#
+# MDEV-34108 Inappropriate semi-consistent read in snapshot isolation
+#
+INSERT INTO t VALUES(NULL, 1), (1, 1);
+BEGIN;
+UPDATE t SET b = 3;
+connection consistent;
+SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
+BEGIN;
+UPDATE t SET b = 2 WHERE a;
+connection default;
+UPDATE t SET a = 1;
+COMMIT;
+connection consistent;
+COMMIT;
+connection default;
+SELECT * FROM t;
+a	b
+1	2
+1	2
 DROP TABLE t;
 #
 # MDEV-33802 Weird read view after ROLLBACK of other transactions
