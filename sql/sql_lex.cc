@@ -38,6 +38,7 @@
 #include "sql_partition.h"
 #include "sql_partition_admin.h"               // Sql_cmd_alter_table_*_part
 #include "event_parse_data.h"
+#include "opt_hints_parser.h"
 #ifdef WITH_WSREP
 #include "mysql/service_wsrep.h"
 #endif
@@ -1337,6 +1338,7 @@ void LEX::start(THD *thd_arg)
   exchange= 0;
 
   table_count_update= 0;
+  opt_hints_global= 0;
 
   memset(&trg_chistics, 0, sizeof(trg_chistics));
   DBUG_VOID_RETURN;
@@ -3107,6 +3109,8 @@ void st_select_lex::init_query()
   versioned_tables= 0;
   pushdown_select= 0;
   orig_names_of_item_list_elems= 0;
+  opt_hints_qb= 0;
+  parsed_optimizer_hints= 0; // OLEGS: remove if not used
 }
 
 void st_select_lex::init_select()
@@ -3160,6 +3164,8 @@ void st_select_lex::init_select()
   nest_flags= 0;
   orig_names_of_item_list_elems= 0;
   item_list_usage= MARK_COLUMNS_READ;
+  opt_hints_qb= 0;
+  parsed_optimizer_hints= 0; // OLEGS: remove if not used
 }
 
 /*
@@ -4083,9 +4089,9 @@ void Query_tables_list::destroy_query_tables_list()
 */
 
 LEX::LEX()
-  : explain(NULL), result(0), part_info(NULL), arena_for_set_stmt(0),
-    mem_root_for_set_stmt(0), json_table(NULL), analyze_stmt(0),
-    default_used(0),
+  : explain(NULL), result(0), opt_hints_global(NULL), part_info(NULL),
+    arena_for_set_stmt(0), mem_root_for_set_stmt(0), json_table(NULL),
+    analyze_stmt(0), default_used(0),
     with_rownum(0), is_lex_started(0), without_validation(0), option_type(OPT_DEFAULT),
     context_analysis_only(0), sphead(0), sp_mem_root_ptr(nullptr),
     limit_rows_examined_cnt(ULONGLONG_MAX)
