@@ -84,6 +84,8 @@ class Table_function_json_table;
 class Open_table_context;
 class MYSQL_LOG;
 struct rpl_group_info;
+class Opt_hints_qb;
+class Opt_hints_table;
 
 /*
   Used to identify NESTED_JOIN structures within a join (applicable only to
@@ -2966,6 +2968,11 @@ struct TABLE_LIST
   /* List to carry partition names from PARTITION (...) clause in statement */
   List<String> *partition_names;
 #endif /* WITH_PARTITION_STORAGE_ENGINE */
+
+  /** Table level optimizer hints for this table.  */
+  Opt_hints_table *opt_hints_table;
+  /* Hints for query block of this table. */
+  Opt_hints_qb *opt_hints_qb;
 
   void calc_md5(char *buffer);
   int view_check_option(THD *thd, bool ignore_failure);
