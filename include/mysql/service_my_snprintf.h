@@ -93,12 +93,13 @@ extern "C" {
 #include <stdarg.h>
 #include <stdlib.h>
 #endif
+#include <my_attribute.h>
 
 extern struct my_snprintf_service_st {
   size_t (*my_snprintf_type)(char*, size_t, const char*, ...)
-    __attribute__((format(printf, 3, 4)));
+    ATTRIBUTE_FORMAT_FPTR(printf, 3, 4);
   size_t (*my_vsnprintf_type)(char *, size_t, const char*, va_list)
-    __attribute__((format(printf, 3, 0)));
+    ATTRIBUTE_FORMAT_FPTR(printf, 3, 0);
 } *my_snprintf_service;
 
 #ifdef MYSQL_DYNAMIC_PLUGIN
@@ -109,9 +110,9 @@ extern struct my_snprintf_service_st {
 #else
 
 size_t my_snprintf(char* to, size_t n, const char* fmt, ...)
-  __attribute__((format(printf, 3, 4)));
+  ATTRIBUTE_FORMAT(printf, 3, 4);
 size_t my_vsnprintf(char *to, size_t n, const char* fmt, va_list ap)
-  __attribute__((format(printf, 3, 0)));
+  ATTRIBUTE_FORMAT(printf, 3, 0);
 
 #endif
 

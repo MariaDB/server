@@ -126,7 +126,7 @@ void plan(int count);
 */
 
 void ok(int pass, char const *fmt, ...)
-  __attribute__((format(printf,2,3)));
+  ATTRIBUTE_FORMAT(printf, 2, 3);
 
 
 /**
@@ -169,7 +169,7 @@ void ok1(int const pass);
  */
 
 void skip(int how_many, char const *const reason, ...)
-    __attribute__((format(printf,2,3)));
+  ATTRIBUTE_FORMAT(printf, 2, 3);
 
 
 /**
@@ -218,7 +218,7 @@ void skip(int how_many, char const *const reason, ...)
  */
 
 void diag(char const *fmt, ...)
-  __attribute__((format(printf,1,2)));
+  ATTRIBUTE_FORMAT(printf, 1, 2);
 
 
 /**
@@ -240,7 +240,7 @@ void diag(char const *fmt, ...)
 */
 
 void BAIL_OUT(char const *fmt, ...)
-  __attribute__((noreturn, format(printf,1,2)));
+  ATTRIBUTE_FORMAT(printf, 1, 2);
 
 
 /**
@@ -296,7 +296,7 @@ void skip_all(char const *reason, ...)
 */
 
 void todo_start(char const *message, ...)
-  __attribute__((format(printf, 1, 2)));
+  ATTRIBUTE_FORMAT(printf, 1, 2);
 
 
 /**
