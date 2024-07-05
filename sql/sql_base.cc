@@ -65,6 +65,7 @@
 #include "wsrep_thd.h"
 #include "wsrep_trans_observer.h"
 #endif /* WITH_WSREP */
+#include "opt_hints.h"
 
 bool
 No_such_table_error_handler::handle_condition(THD *,
@@ -8264,6 +8265,7 @@ bool setup_tables(THD *thd, Name_resolution_context *context,
                                    0);
   SELECT_LEX *select_lex= select_insert ? thd->lex->first_select_lex() :
                                           thd->lex->current_select;
+  Opt_hints_qb *qb_hints= select_lex->opt_hints_qb;
   if (select_lex->first_cond_optimization)
   {
     leaves.empty();
@@ -8314,6 +8316,12 @@ bool setup_tables(THD *thd, Name_resolution_context *context,
       {
         my_error(ER_TOO_MANY_TABLES, MYF(0), static_cast<int>(MAX_TABLES));
         DBUG_RETURN(1);
+      }
+      if (qb_hints &&                          // QB hints initialized
+          !table_list->opt_hints_table)        // Table hints are not adjusted yet
+      {
+        table_list->opt_hints_table=
+            qb_hints->adjust_table_hints(table_list->table, &table_list->alias);
       }
     }
     if (select_insert && !is_insert_tables_num_set)
@@ -8383,6 +8391,8 @@ bool setup_tables(THD *thd, Name_resolution_context *context,
   if (setup_natural_join_row_types(thd, from_clause, context))
     DBUG_RETURN(1);
 
+  if (qb_hints)
+    qb_hints->check_unresolved(thd);
   DBUG_RETURN(0);
 }
 
