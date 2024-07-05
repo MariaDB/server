@@ -74,3 +74,11 @@ insert t1 (v) values (x'12345678');
 drop table t1;
 let $datadir=`select @@datadir`;
 list_files $datadir/test;
+
+--echo # Check if CREATE TABLE ... LIKE inherits VECTOR index
+create table t1 (id int auto_increment primary key, v blob not null, vector index (v));
+create table t2 like t1;
+replace_result InnoDB MyISAM;
+show create table t2;
+drop table t1, t2;
+list_files $datadir/test;
