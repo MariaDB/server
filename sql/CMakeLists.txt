@@ -188,10 +188,12 @@ SET (SQL_SOURCE
                proxy_protocol.cc backup.cc xa.cc
                socketpair.c socketpair.h
                opt_hints_parser.cc opt_hints_parser.h scan_char.h
+               opt_hints.cc opt_hints.h
                ${CMAKE_CURRENT_BINARY_DIR}/lex_hash.h
                ${CMAKE_CURRENT_BINARY_DIR}/lex_token.h
                ${GEN_SOURCES}
                ${MYSYS_LIBWRAP_SOURCE}
+               parse_tree_hints.cc parse_tree_hints.h
 )
 
 MY_CHECK_CXX_COMPILER_FLAG(-Wno-unused-but-set-variable)

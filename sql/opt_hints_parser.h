@@ -23,6 +23,36 @@
 #include "sql_list.h"
 #include "simple_parser.h"
 
+struct st_select_lex;
+
+/**
+  Environment data for the name resolution phase
+*/
+struct Parse_context {
+  THD * const thd;              ///< Current thread handler
+  MEM_ROOT *mem_root;           ///< Current MEM_ROOT
+  st_select_lex * select;       ///< Current SELECT_LEX object
+
+  Parse_context(THD *thd, st_select_lex *select);
+};
+
+
+/**
+  Hint types, MAX_HINT_ENUM should be always last.
+  This enum should be synchronized with opt_hint_info
+  array(see opt_hints.cc).
+*/
+enum opt_hints_enum
+{
+  BKA_HINT_ENUM= 0,
+  BNL_HINT_ENUM,
+  ICP_HINT_ENUM,
+  MRR_HINT_ENUM,
+  NO_RANGE_HINT_ENUM,
+  QB_NAME_HINT_ENUM,
+  MAX_HINT_ENUM
+};
+
 
 class Optimizer_hint_tokenizer: public Extended_string_tokenizer
 {
@@ -523,6 +553,8 @@ private:
   {
   public:
     using AND4::AND4;
+
+    bool resolve(Parse_context *pc) const;
   };
 
 
@@ -545,6 +577,8 @@ private:
   {
   public:
     using AND4::AND4;
+    
+    bool resolve(Parse_context *pc) const;
   };
 
 
@@ -557,6 +591,8 @@ private:
   {
   public:
     using AND4::AND4;
+
+    bool resolve(Parse_context *pc) const;
   };
 
 
@@ -572,6 +608,7 @@ private:
   {
   public:
     using OR3::OR3;
+
   };
 
 
@@ -592,6 +629,8 @@ public:
   {
   public:
     using LIST::LIST;
+    
+    bool resolve(Parse_context *pc);
   };
 
   /*
