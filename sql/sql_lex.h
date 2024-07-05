@@ -168,6 +168,8 @@ class With_clause;
 class my_var;
 class select_handler;
 class Pushdown_select;
+class Opt_hints_global;
+class Opt_hints_qb;
 
 #define ALLOC_ROOT_SET 1024
 
@@ -1247,6 +1249,8 @@ public:
   */
   table_map select_list_tables;
 
+  Opt_hints_qb *opt_hints_qb;
+
   /* Set to 1 if any field in field list has ROWNUM() */
   bool rownum_in_field_list;
 
@@ -1256,8 +1260,10 @@ public:
   index_clause_map current_index_hint_clause;
 
   /* it is for correct printing SELECT options */
-  thr_lock_type lock_type;
-  
+  thr_lock_type lock_type;  
+
+  Optimizer_hint_parser::Hint_list *parsed_optimizer_hints;
+
   /** System Versioning */
   int vers_setup_conds(THD *thd, TABLE_LIST *tables);
   /* push new Item_field into item_list */
@@ -1554,6 +1560,10 @@ public:
   bool is_unit_nest() { return (nest_flags & UNIT_NEST_FL); }
   void mark_as_unit_nest() { nest_flags= UNIT_NEST_FL; }
   bool is_sj_conversion_prohibited(THD *thd);
+  void set_optimizer_hints(Optimizer_hint_parser::Hint_list *hl)
+  { 
+    parsed_optimizer_hints= hl;
+  }
 };
 typedef class st_select_lex SELECT_LEX;
 
@@ -3188,6 +3198,9 @@ public:
   LEX_USER *grant_user;
   XID *xid;
   THD *thd;
+  
+  /* Optimizer hints */
+  Opt_hints_global *opt_hints_global;
 
   /* maintain a list of used plugins for this LEX */
   DYNAMIC_ARRAY plugins;
@@ -3721,6 +3734,20 @@ public:
       current_select= select_stack[select_stack_top - 1];
 
     DBUG_RETURN(select_lex);
+  }
+
+  void resolve_optimizer_hints()
+  {
+    SELECT_LEX *select_lex;
+    if (likely(select_stack_top))
+      select_lex= select_stack[select_stack_top - 1];
+    else
+      select_lex= nullptr;
+    if (select_lex && select_lex->parsed_optimizer_hints)
+    {
+      Parse_context pc(thd, select_lex);
+      select_lex->parsed_optimizer_hints->resolve(&pc);
+    }
   }
 
   SELECT_LEX *current_select_or_default()
