@@ -7352,7 +7352,7 @@ mark_common_columns(THD *thd, TABLE_LIST *table_ref_1, TABLE_LIST *table_ref_2,
     is_using_column_1= using_fields && 
       test_if_string_in_list(field_name_1, using_fields);
     DBUG_PRINT ("info", ("field_name_1=%s.%s", 
-                         nj_col_1->safe_table_name(),
+                         nj_col_1->safe_table_name().str,
                          field_name_1.str));
 
     if (field_1_invisible && !is_using_column_1)
@@ -7381,7 +7381,7 @@ mark_common_columns(THD *thd, TABLE_LIST *table_ref_1, TABLE_LIST *table_ref_2,
 
       cur_field_name_2= cur_nj_col_2->name();
       DBUG_PRINT ("info", ("cur_field_name_2=%s.%s", 
-                           cur_nj_col_2->safe_table_name(),
+                           cur_nj_col_2->safe_table_name().str,
                            cur_field_name_2.str));
 
       /*
@@ -7486,9 +7486,9 @@ mark_common_columns(THD *thd, TABLE_LIST *table_ref_1, TABLE_LIST *table_ref_2,
 
       nj_col_1->is_common= nj_col_2->is_common= TRUE;
       DBUG_PRINT ("info", ("%s.%s and %s.%s are common", 
-                           nj_col_1->safe_table_name(),
+                           nj_col_1->safe_table_name().str,
                            nj_col_1->name().str,
-                           nj_col_2->safe_table_name(),
+                           nj_col_2->safe_table_name().str,
                            nj_col_2->name().str));
 
       if (field_1)
