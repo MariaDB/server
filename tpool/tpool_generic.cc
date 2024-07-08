@@ -244,7 +244,7 @@ class thread_pool_generic : public thread_pool
   unsigned int m_concurrency;
 
   /** True, if threadpool is being shutdown, false otherwise */
-  bool m_in_shutdown;
+  bool m_in_shutdown= false;
 
   /** Maintenance timer state : true = active(ON),false = inactive(OFF)*/
   enum class timer_state_t
@@ -813,7 +813,6 @@ thread_pool_generic::thread_pool_generic(int min_threads, int max_threads) :
   m_wakeups(),
   m_spurious_wakeups(),
   m_timer_state(timer_state_t::ON),
-  m_in_shutdown(),
   m_timestamp(),
   m_long_tasks_count(),
   m_waiting_task_count(),

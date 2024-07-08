@@ -320,7 +320,7 @@ SPIDER_DBTON spider_dbton_mysql = {
   spider_mysql_create_conn,
   spider_mysql_support_direct_join,
   &spider_db_mysql_utility,
-  "For communicating to MySQL using native protocol",
+  "For communication with MySQL using the native protocol",
   "3.4.0",
   SPIDER_MATURITY_STABLE
 };
@@ -337,7 +337,7 @@ SPIDER_DBTON spider_dbton_mariadb = {
   spider_mariadb_create_conn,
   spider_mariadb_support_direct_join,
   &spider_db_mariadb_utility,
-  "For communicating to MariaDB using native protocol",
+  "For communication with MariaDB using the native protocol",
   "3.4.0",
   SPIDER_MATURITY_STABLE
 };

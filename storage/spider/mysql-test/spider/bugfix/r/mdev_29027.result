@@ -1,0 +1,24 @@
+#
+# MDEV-29027 ASAN errors in spider_db_free_result after partition DDL
+#
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+CREATE TABLE tbl_a (
+c INT
+) ENGINE=Spider DEFAULT CHARSET=utf8 PARTITION BY HASH(c) (
+PARTITION pt1
+);
+ALTER TABLE tbl_a ADD PARTITION (PARTITION pt2);
+DROP DATABASE auto_test_local;
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3

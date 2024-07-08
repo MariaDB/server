@@ -12,8 +12,6 @@ fi
 
 ${DEBIAN_SCRIPT_TRACE:+ echo "#42#DEBUG# RUNNING $0 $*" 1>&2 }
 
-#DEBHELPER#
-
 #
 # - Purge logs and data only if they are ours (#307473)
 # - Remove the mysql user only after all his owned files are purged.

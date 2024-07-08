@@ -22,6 +22,7 @@
 #include "datadict.h"
 #include "sql_string.h"                         /* String */
 #include "lex_string.h"
+#include "lex_ident.h"
 
 #ifndef MYSQL_CLIENT
 

@@ -26,9 +26,15 @@ public:
   ulonglong pages_accessed;              /* Pages accessed from page cache */
   ulonglong pages_updated;               /* Pages changed in page cache */
   ulonglong pages_read_count;            /* Pages read from disk */
-  ulonglong pages_read_time;             /* Time reading pages, in microsec. */
+
+  /* Time spent reading pages, in timer_tracker_frequency() units */
+  ulonglong pages_read_time;
+
   ulonglong undo_records_read;
-  ulonglong engine_time;                 /* Time spent in engine in microsec */
+
+  /* Time spent in engine, in timer_tracker_frequency() units */
+  ulonglong engine_time;
+
   /*
     Index Condition Pushdown: number of times condition was checked for index
     tuple

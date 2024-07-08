@@ -20,9 +20,17 @@ DROP TEMPORARY TABLE t;
 SET @save_ahi = @@global.innodb_adaptive_hash_index;
 SET GLOBAL innodb_adaptive_hash_index = 1;
 CREATE TABLE t1(f1 INT NOT NULL)ENGINE=InnoDB;
+SET @old_bulk_op=
+(SELECT variable_value FROM information_schema.global_status
+WHERE variable_name = 'innodb_bulk_operations');
 BEGIN;
 INSERT INTO t1 SELECT * FROM seq_1_to_65536;
 ROLLBACK;
+SELECT variable_value-@old_bulk_op bulk_operations
+FROM information_schema.global_status
+WHERE variable_name = 'innodb_bulk_operations';
+bulk_operations
+1
 CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
@@ -259,6 +267,19 @@ CREATE TABLE t1(a INT KEY)ENGINE=InnoDB
 PARTITION BY KEY(a) PARTITIONS 16;
 INSERT INTO t1 VALUES(1);
 UPDATE t1 SET a = 2 WHERE a = 1;
+DROP TABLE t1;
+#
+#  MDEV-34265 Possible hang during IO burst with innodb_flush_sync enabled
+#
+CREATE TABLE t1(f1 MEDIUMTEXT)ENGINE=InnoDB;
+SET @save_dbug=@@GLOBAL.debug_dbug;
+SET @@GLOBAL.debug_dbug='+d,ib_page_cleaner_sleep';
+SET STATEMENT debug_dbug='+d,ib_free_page_sleep' FOR
+INSERT INTO t1 VALUES(REPEAT(1, 8459264));
+SET @@GLOBAL.debug_dbug=@save_dbug;
+SELECT length(f1) FROM t1;
+length(f1)
+8459264
 DROP TABLE t1;
 # End of 10.6 tests
 #

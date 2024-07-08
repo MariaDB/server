@@ -1,0 +1,9 @@
+!include ../galera_2nodes_as_slave.cnf
+
+[mysqld]
+wsrep-debug=1
+server_id=15
+wsrep_gtid_mode=OFF
+wsrep_gtid_domain_id=16
+gtid_domain_id=11
+gtid_strict_mode=OFF
