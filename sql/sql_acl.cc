@@ -538,16 +538,18 @@ public:
 };
 
 
-static uchar* acl_entry_get_key(acl_entry *entry, size_t *length,
+static uchar* acl_entry_get_key(const void *pentry, unsigned long *length,
                                 my_bool not_used __attribute__((unused)))
 {
-  *length=(uint) entry->length;
+  const acl_entry *entry= (const acl_entry *) pentry;
+  *length= entry->length;
   return (uchar*) entry->key;
 }
 
-static uchar* acl_role_get_key(ACL_ROLE *entry, size_t *length,
+static uchar* acl_role_get_key(const void *pentry, size_t *length,
                                my_bool not_used __attribute__((unused)))
 {
+  const ACL_ROLE *entry= (const ACL_ROLE *) pentry;
   *length=(uint) entry->user.length;
   return (uchar*) entry->user.str;
 }
