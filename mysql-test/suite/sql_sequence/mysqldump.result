@@ -5,9 +5,9 @@ CREATE SEQUENCE x1 engine=innodb;
 # dump whole database
 /*!999999\- enable the sandbox mode */ 
 CREATE SEQUENCE `a1` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=Aria;
-SELECT SETVAL(`a1`, 1, 0);
+DO SETVAL(`a1`, 1, 0);
 CREATE SEQUENCE `x1` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=InnoDB;
-SELECT SETVAL(`x1`, 1, 0);
+DO SETVAL(`x1`, 1, 0);
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `t1` (
@@ -21,9 +21,9 @@ INSERT INTO `t1` VALUES
 # dump by tables order 1
 /*!999999\- enable the sandbox mode */ 
 CREATE SEQUENCE `a1` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=Aria;
-SELECT SETVAL(`a1`, 1, 0);
+DO SETVAL(`a1`, 1, 0);
 CREATE SEQUENCE `x1` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=InnoDB;
-SELECT SETVAL(`x1`, 1, 0);
+DO SETVAL(`x1`, 1, 0);
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `t1` (
@@ -37,9 +37,9 @@ INSERT INTO `t1` VALUES
 # dump by tables order 2
 /*!999999\- enable the sandbox mode */ 
 CREATE SEQUENCE `a1` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=Aria;
-SELECT SETVAL(`a1`, 1, 0);
+DO SETVAL(`a1`, 1, 0);
 CREATE SEQUENCE `x1` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=InnoDB;
-SELECT SETVAL(`x1`, 1, 0);
+DO SETVAL(`x1`, 1, 0);
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `t1` (
@@ -65,9 +65,9 @@ INSERT INTO `t1` VALUES
 # dump by tables only sequences
 /*!999999\- enable the sandbox mode */ 
 CREATE SEQUENCE `a1` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=Aria;
-SELECT SETVAL(`a1`, 1, 0);
+DO SETVAL(`a1`, 1, 0);
 CREATE SEQUENCE `x1` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=InnoDB;
-SELECT SETVAL(`x1`, 1, 0);
+DO SETVAL(`x1`, 1, 0);
 # end of dumps
 DROP TABLE a1,t1,x1;
 set default_storage_engine=InnoDB;
@@ -96,26 +96,6 @@ CREATE SEQUENCE s9 as int unsigned;
 CREATE SEQUENCE s10 as bigint unsigned;
 # Dump database 1
 # Restore from database 1 to database 2
-SETVAL(`s1`, 1, 0)
-1
-SETVAL(`s10`, 1, 0)
-1
-SETVAL(`s2`, 1, 0)
-1
-SETVAL(`s3`, 1, 0)
-1
-SETVAL(`s4`, 1, 0)
-1
-SETVAL(`s5`, 1, 0)
-1
-SETVAL(`s6`, 1, 0)
-1
-SETVAL(`s7`, 1, 0)
-1
-SETVAL(`s8`, 1, 0)
-1
-SETVAL(`s9`, 1, 0)
-1
 USE test2;
 SHOW CREATE SEQUENCE s1;
 Table	Create Table
@@ -166,26 +146,6 @@ CREATE SEQUENCE s9 as int unsigned;
 CREATE SEQUENCE s10 as bigint unsigned;
 # Dump database 1
 # Restore from database 1 to database 2
-SETVAL(`s1`, 1, 0)
-1
-SETVAL(`s10`, 1, 0)
-1
-SETVAL(`s2`, 1, 0)
-1
-SETVAL(`s3`, 1, 0)
-1
-SETVAL(`s4`, 1, 0)
-1
-SETVAL(`s5`, 1, 0)
-1
-SETVAL(`s6`, 1, 0)
-1
-SETVAL(`s7`, 1, 0)
-1
-SETVAL(`s8`, 1, 0)
-1
-SETVAL(`s9`, 1, 0)
-1
 USE test2;
 SHOW CREATE SEQUENCE s1;
 Table	Create Table

@@ -297,13 +297,20 @@ redo:
 }
 
 
+/*
+  Resolve the storage engine by name.
+
+  Succeed if the storage engine is found and initialised. Otherwise
+  fail if the sql mode contains NO_ENGINE_SUBSTITUTION.
+*/
 bool
 Storage_engine_name::resolve_storage_engine_with_error(THD *thd,
                                                        handlerton **ha,
                                                        bool tmp_table)
 {
-  if (plugin_ref plugin= ha_resolve_by_name(thd, &m_storage_engine_name,
-                                            tmp_table))
+  plugin_ref plugin;
+  if ((plugin= ha_resolve_by_name(thd, &m_storage_engine_name, tmp_table)) &&
+      (plugin_ref_to_int(plugin)->state == PLUGIN_IS_READY))
   {
     *ha= plugin_hton(plugin);
     return false;
@@ -2159,13 +2166,24 @@ commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans, bool is_real_trans)
   {
     int err;
 
-    if (has_binlog_hton(ha_info) &&
-        (err= binlog_commit(thd, all,
-                            is_ro_1pc_trans(thd, ha_info, all, is_real_trans))))
+    if (has_binlog_hton(ha_info))
     {
-      my_error(ER_ERROR_DURING_COMMIT, MYF(0), err);
-      error= 1;
+      if ((err= binlog_commit(thd, all,
+                             is_ro_1pc_trans(thd, ha_info, all,
+                                             is_real_trans))))
+      {
+        my_error(ER_ERROR_DURING_COMMIT, MYF(0), err);
+        error= 1;
+      }
     }
+#ifdef WITH_WSREP
+    else
+    {
+      if (wsrep_on(thd))
+        error= thd->binlog_flush_pending_rows_event(TRUE);
+    }
+#endif
+
     for (; ha_info; ha_info= ha_info_next)
     {
       handlerton *ht= ha_info->ht();
@@ -4911,7 +4929,7 @@ void handler::print_error(int error, myf errflag)
   if (error < HA_ERR_FIRST && bas_ext()[0])
   {
     char buff[FN_REFLEN];
-    strxnmov(buff, sizeof(buff),
+    strxnmov(buff, sizeof(buff)-1,
              table_share->normalized_path.str, bas_ext()[0], NULL);
     my_error(textno, errflag, buff, error);
   }

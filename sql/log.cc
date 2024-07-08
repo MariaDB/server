@@ -2161,17 +2161,22 @@ int binlog_commit(THD *thd, bool all, bool ro_1pc)
 
   thd->backup_stage(&org_stage);
   THD_STAGE_INFO(thd, stage_binlog_write);
-#ifdef WITH_WSREP
-  // DON'T clear stmt cache in case we are in transaction
-  if (!cache_mngr->stmt_cache.empty() &&
-      (!wsrep_on(thd) || ending_trans(thd, all)))
-#else
   if (!cache_mngr->stmt_cache.empty())
-#endif
   {
-    error= binlog_commit_flush_stmt_cache(thd, all, cache_mngr);
+#ifdef WITH_WSREP
+    if (wsrep_on(thd) && !ending_trans(thd, all))
+    {
+      /*
+        We should not clear stmt cache in case we are in transaction.
+        However we should write all pending row events to disk to
+        ensure we did not run out of disk quota.
+      */
+      error= thd->binlog_flush_pending_rows_event(TRUE, FALSE);
+    }
+    else
+#endif /* WITH_WSREP */
+      error= binlog_commit_flush_stmt_cache(thd, all, cache_mngr);
   }
-
   if (cache_mngr->trx_cache.empty() &&
       (thd->transaction->xid_state.get_state_code() != XA_PREPARED ||
        !(thd->ha_data[binlog_hton->slot].ha_info[1].is_started() &&
@@ -5585,6 +5590,15 @@ MYSQL_BIN_LOG::is_xidlist_idle_nolock()
   return true;
 }
 
+#ifdef WITH_WSREP
+static bool is_gtid_written_on_trans_start(const THD *thd)
+{
+  return wsrep_on(thd) &&
+      (thd->variables.gtid_seq_no || thd->variables.wsrep_gtid_seq_no) &&
+      (thd->wsrep_cs().mode() == wsrep::client_state::m_local);
+}
+#endif
+
 /**
   Create a new log file name.
 
@@ -6290,10 +6304,7 @@ THD::binlog_start_trans_and_stmt()
     Ha_trx_info *ha_info;
     ha_info= this->ha_data[binlog_hton->slot].ha_info + (mstmt_mode ? 1 : 0);
 
-    if (!ha_info->is_started() && 
-        (this->variables.gtid_seq_no || this->variables.wsrep_gtid_seq_no) &&
-        wsrep_on(this) && 
-        (this->wsrep_cs().mode() == wsrep::client_state::m_local))
+    if (!ha_info->is_started() && is_gtid_written_on_trans_start(this))
     {
       uchar *buf= 0;
       size_t len= 0;

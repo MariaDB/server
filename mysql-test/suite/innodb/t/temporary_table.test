@@ -635,4 +635,23 @@ CHECK TABLE t;
 CHECK TABLE t EXTENDED;
 DROP TEMPORARY TABLE t;
 
+--echo #
+--echo # MDEV-34118 fsp_alloc_free_extent() fails to flag DB_OUT_OF_FILE_SPACE
+--echo #
+SET @save_increment = @@GLOBAL.innodb_autoextend_increment;
+SET GLOBAL innodb_autoextend_increment=1;
+CREATE TEMPORARY TABLE t (c LONGTEXT) ENGINE=INNODB;
+if ($MTR_COMBINATION_4K)
+{
+--error ER_RECORD_FILE_FULL
+INSERT INTO t VALUES (REPEAT ('1',16777216));
+}
+if (!$MTR_COMBINATION_4K)
+{
+INSERT INTO t VALUES (REPEAT ('1',16777216));
+--echo ERROR HY000: The table 't' is full
+}
+DROP TEMPORARY TABLE t;
+SET GLOBAL innodb_autoextend_increment=@save_increment;
+
 --echo # End of 10.6 tests

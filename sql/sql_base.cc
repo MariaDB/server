@@ -254,9 +254,10 @@ public:
 };
 
 
-static my_bool list_open_tables_callback(TDC_element *element,
-                                         list_open_tables_arg *arg)
+static my_bool list_open_tables_callback(void *el, void *a)
 {
+  TDC_element *element= static_cast<TDC_element*>(el);
+  list_open_tables_arg *arg= static_cast<list_open_tables_arg*>(a);
   const Lex_ident_db
     db= Lex_ident_db(Lex_cstring_strlen((const char*) element->m_key));
   const char *table_name= db.str + db.length + 1;
@@ -304,8 +305,7 @@ OPEN_TABLE_LIST *list_open_tables(THD *thd,
   DBUG_ENTER("list_open_tables");
   list_open_tables_arg argument(thd, db, wild);
 
-  if (tdc_iterate(thd, (my_hash_walk_action) list_open_tables_callback,
-                  &argument, true))
+  if (tdc_iterate(thd, list_open_tables_callback, &argument, true))
     DBUG_RETURN(0);
 
   DBUG_RETURN(argument.open_list);
@@ -464,9 +464,10 @@ struct tc_collect_arg
   flush_tables_type flush_type;
 };
 
-static my_bool tc_collect_used_shares(TDC_element *element,
-                                      tc_collect_arg *arg)
+static my_bool tc_collect_used_shares(void *el, void *a)
 {
+  TDC_element *element= static_cast<TDC_element*>(el);
+  tc_collect_arg *arg= static_cast<tc_collect_arg*>(a);
   my_bool result= FALSE;
 
   DYNAMIC_ARRAY *shares= &arg->shares;
@@ -576,8 +577,7 @@ bool flush_tables(THD *thd, flush_tables_type flag)
   my_init_dynamic_array(PSI_INSTRUMENT_ME, &collect_arg.shares,
                         sizeof(TABLE_SHARE*), 100, 100, MYF(0));
   collect_arg.flush_type= flag;
-  if (tdc_iterate(thd, (my_hash_walk_action) tc_collect_used_shares,
-                  &collect_arg, true))
+  if (tdc_iterate(thd, tc_collect_used_shares, &collect_arg, true))
   {
     /* Release already collected shares */
     for (uint i= 0 ; i < collect_arg.shares.elements ; i++)
@@ -1965,7 +1965,7 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
       if (table->s->table_cache_key.length == key_length &&
 	  !memcmp(table->s->table_cache_key.str, key, key_length))
       {
-        if (table_alias_charset->streq(table->alias.to_lex_cstring(), alias) &&
+        if (Lex_ident_table(table->alias.to_lex_cstring()).streq(alias) &&
             table->query_id != thd->query_id && /* skip tables already used */
             (thd->locked_tables_mode == LTM_LOCK_TABLES ||
              table->query_id == 0))
@@ -7352,7 +7352,7 @@ mark_common_columns(THD *thd, TABLE_LIST *table_ref_1, TABLE_LIST *table_ref_2,
     is_using_column_1= using_fields && 
       test_if_string_in_list(field_name_1, using_fields);
     DBUG_PRINT ("info", ("field_name_1=%s.%s", 
-                         nj_col_1->safe_table_name(),
+                         nj_col_1->safe_table_name().str,
                          field_name_1.str));
 
     if (field_1_invisible && !is_using_column_1)
@@ -7381,7 +7381,7 @@ mark_common_columns(THD *thd, TABLE_LIST *table_ref_1, TABLE_LIST *table_ref_2,
 
       cur_field_name_2= cur_nj_col_2->name();
       DBUG_PRINT ("info", ("cur_field_name_2=%s.%s", 
-                           cur_nj_col_2->safe_table_name(),
+                           cur_nj_col_2->safe_table_name().str,
                            cur_field_name_2.str));
 
       /*
@@ -7486,9 +7486,9 @@ mark_common_columns(THD *thd, TABLE_LIST *table_ref_1, TABLE_LIST *table_ref_2,
 
       nj_col_1->is_common= nj_col_2->is_common= TRUE;
       DBUG_PRINT ("info", ("%s.%s and %s.%s are common", 
-                           nj_col_1->safe_table_name(),
+                           nj_col_1->safe_table_name().str,
                            nj_col_1->name().str,
-                           nj_col_2->safe_table_name(),
+                           nj_col_2->safe_table_name().str,
                            nj_col_2->name().str));
 
       if (field_1)

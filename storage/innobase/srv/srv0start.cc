@@ -680,13 +680,9 @@ err_exit:
     space_id= id;
     fsp_flags= mach_read_from_4(FSP_HEADER_OFFSET + FSP_SPACE_FLAGS + page);
 
-    if (buf_page_is_corrupted(false, page, fsp_flags))
-    {
-      sql_print_error("InnoDB: Checksum mismatch in the first page of file %s",
-                      name);
-      if (recv_sys.dblwr.restore_first_page(space_id, name, fh))
-        goto err_exit;
-    }
+    if (buf_page_is_corrupted(false, page, fsp_flags) &&
+        recv_sys.dblwr.restore_first_page(space_id, name, fh))
+      goto err_exit;
 
     aligned_free(page);
   }

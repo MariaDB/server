@@ -313,6 +313,78 @@ drop user 'mysqltest_1'@'localhost';
 drop tables a, B;
 drop database db1;
 
+--echo #
+--echo # MDEV-32025 Crashes in MDL_key::mdl_key_init with lower-case-table-names=2
+--echo #
+
+CREATE DATABASE `#mysql50#D+b1`;
+ALTER DATABASE `#mysql50#D+b1` UPGRADE DATA DIRECTORY NAME;
+SHOW CREATE DATABASE `D+b1`;
+SHOW CREATE DATABASE `d+b1`;
+DROP DATABASE `D+b1`;
+
+CREATE DATABASE Db1;
+ALTER DATABASE Db1 DEFAULT CHARACTER SET utf8;
+SHOW CREATE DATABASE Db1;
+SHOW CREATE DATABASE db1;
+DROP DATABASE Db1;
+USE test;
+
+--echo #
+--echo # End of 10.4 tests
+--echo #
+
+--echo #
+--echo # Start of 10.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-33110 HANDLER commands are case insensitive with lower-case-table-names=0
+--echo #
+
+SET sql_mode=ORACLE;
+DELIMITER $$;
+CREATE OR REPLACE PACKAGE test.pkg AS
+END TEST.PKG;
+$$
+DELIMITER ;$$
+DROP PACKAGE test.pkg;
+SET sql_mode=DEFAULT;
+
+--echo #
+--echo # End of 10.5 tests
+--echo #
+
+
+--echo #
+--echo # Start of 11.2 tests
+--echo #
+
+--echo #
+--echo # MDEV-32973 SHOW TABLES LIKE shows temporary tables with non-matching names
+--echo #
+# temp tables don't preserve the letter case despite lower-case-table-names=2
+create temporary table t2 (a int);
+create temporary table T1 (a int);
+show tables;
+show tables like 't1';
+show tables like 'T1';
+select table_name from information_schema.tables where table_schema='test'
+  and table_name='t1';
+select table_name from information_schema.tables where table_schema='test'
+  and table_name='T1';
+show tables like '_1';
+show tables like 't%';
+drop temporary table t2, T1;
+
+--echo #
+--echo # End of 11.2 tests
+--echo #
+
+
+--echo #
+--echo # Start of 11.3 tests
+--echo #
 
 --echo #
 --echo # MDEV-32026 lowercase_table2.test failures in 11.3
@@ -332,53 +404,6 @@ SELECT Db1.f1();
 SELECT db1.f2();
 DROP DATABASE Db1;
 
-
 --echo #
---echo # MDEV-32025 Crashes in MDL_key::mdl_key_init with lower-case-table-names=2
+--echo # Start of 11.3 tests
 --echo #
-
-CREATE DATABASE `#mysql50#D+b1`;
-ALTER DATABASE `#mysql50#D+b1` UPGRADE DATA DIRECTORY NAME;
-SHOW CREATE DATABASE `D+b1`;
-SHOW CREATE DATABASE `d+b1`;
-DROP DATABASE `D+b1`;
-
-CREATE DATABASE Db1;
-ALTER DATABASE Db1 DEFAULT CHARACTER SET utf8;
-SHOW CREATE DATABASE Db1;
-SHOW CREATE DATABASE db1;
-DROP DATABASE Db1;
-USE test;
-
---echo # End of 10.4 tests
-
---echo #
---echo # MDEV-32973 SHOW TABLES LIKE shows temporary tables with non-matching names
---echo #
-# temp tables don't preserve the letter case despite lower-case-table-names=2
-create temporary table t2 (a int);
-create temporary table T1 (a int);
-show tables;
-show tables like 't1';
-show tables like 'T1';
-select table_name from information_schema.tables where table_schema='test'
-  and table_name='t1';
-select table_name from information_schema.tables where table_schema='test'
-  and table_name='T1';
-show tables like '_1';
-show tables like 't%';
-
---echo # End of 11.2 tests
-
-
---echo #
---echo # MDEV-33110 HANDLER commands are case insensitive with lower-case-table-names=0
---echo #
-
-SET sql_mode=ORACLE;
-DELIMITER $$;
-CREATE OR REPLACE PACKAGE test.pkg AS
-END TEST.PKG;
-$$
-DELIMITER ;$$
-DROP PACKAGE test.pkg;

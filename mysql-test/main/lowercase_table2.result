@@ -357,30 +357,6 @@ drop user 'mysqltest_1'@'localhost';
 drop tables a, B;
 drop database db1;
 #
-# MDEV-32026 lowercase_table2.test failures in 11.3
-#
-CREATE DATABASE Db1;
-SHOW CREATE DATABASE Db1;
-Database	Create Database
-Db1	CREATE DATABASE `Db1` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */
-USE Db1;
-SELECT DATABASE();
-DATABASE()
-Db1
-DROP DATABASE Db1;
-CREATE DATABASE Db1;
-CREATE FUNCTION Db1.f1() RETURNS INT RETURN 10;
-CREATE FUNCTION db1.f2() RETURNS INT RETURN 10;
-SELECT db, name FROM mysql.proc WHERE name LIKE '^f[12]';
-db	name
-SELECT Db1.f1();
-Db1.f1()
-10
-SELECT db1.f2();
-db1.f2()
-10
-DROP DATABASE Db1;
-#
 # MDEV-32025 Crashes in MDL_key::mdl_key_init with lower-case-table-names=2
 #
 CREATE DATABASE `#mysql50#D+b1`;
@@ -402,7 +378,27 @@ Database	Create Database
 db1	CREATE DATABASE `db1` /*!40100 DEFAULT CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci */
 DROP DATABASE Db1;
 USE test;
+#
 # End of 10.4 tests
+#
+#
+# Start of 10.5 tests
+#
+#
+# MDEV-33110 HANDLER commands are case insensitive with lower-case-table-names=0
+#
+SET sql_mode=ORACLE;
+CREATE OR REPLACE PACKAGE test.pkg AS
+END TEST.PKG;
+$$
+DROP PACKAGE test.pkg;
+SET sql_mode=DEFAULT;
+#
+# End of 10.5 tests
+#
+#
+# Start of 11.2 tests
+#
 #
 # MDEV-32973 SHOW TABLES LIKE shows temporary tables with non-matching names
 #
@@ -433,12 +429,37 @@ show tables like 't%';
 Tables_in_test (t%)
 t1
 t2
+drop temporary table t2, T1;
+#
 # End of 11.2 tests
 #
-# MDEV-33110 HANDLER commands are case insensitive with lower-case-table-names=0
 #
-SET sql_mode=ORACLE;
-CREATE OR REPLACE PACKAGE test.pkg AS
-END TEST.PKG;
-$$
-DROP PACKAGE test.pkg;
+# Start of 11.3 tests
+#
+#
+# MDEV-32026 lowercase_table2.test failures in 11.3
+#
+CREATE DATABASE Db1;
+SHOW CREATE DATABASE Db1;
+Database	Create Database
+Db1	CREATE DATABASE `Db1` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */
+USE Db1;
+SELECT DATABASE();
+DATABASE()
+Db1
+DROP DATABASE Db1;
+CREATE DATABASE Db1;
+CREATE FUNCTION Db1.f1() RETURNS INT RETURN 10;
+CREATE FUNCTION db1.f2() RETURNS INT RETURN 10;
+SELECT db, name FROM mysql.proc WHERE name LIKE '^f[12]';
+db	name
+SELECT Db1.f1();
+Db1.f1()
+10
+SELECT db1.f2();
+db1.f2()
+10
+DROP DATABASE Db1;
+#
+# Start of 11.3 tests
+#

@@ -3202,6 +3202,15 @@ static void start_signal_handler(void)
   DBUG_VOID_RETURN;
 }
 
+/** Called only from signal_hand function. */
+static void* exit_signal_handler()
+{
+  my_thread_end();
+  signal_thread_in_use= 0;
+  pthread_exit(0);  // Safety
+  return nullptr;  // Avoid compiler warnings
+}
+
 
 /** This threads handles all signals and alarms. */
 /* ARGSUSED */
@@ -3305,7 +3314,7 @@ pthread_handler_t signal_hand(void *)
   my_thread_end();
   signal_thread_in_use= 0;
   pthread_exit(0); // Safety
-  return(0);					/* purecov: deadcode */
+  return exit_signal_handler();
 }
 
 static void check_data_home(const char *path)
@@ -3804,6 +3813,7 @@ static int temp_file_size_cb_func(struct tmp_file_tracking *track,
       {
         global_tmp_space_used-= size_change;
         error= EE_GLOBAL_TMP_SPACE_FULL;
+        my_errno= ENOSPC;
         goto exit;
       }
       if (thd->status_var.tmp_space_used + size_change >
@@ -3812,6 +3822,7 @@ static int temp_file_size_cb_func(struct tmp_file_tracking *track,
       {
         global_tmp_space_used-= size_change;
         error= EE_LOCAL_TMP_SPACE_FULL;
+        my_errno= ENOSPC;
         goto exit;
       }
       set_if_bigger(global_status_var.max_tmp_space_used, cached_space);
@@ -4326,8 +4337,10 @@ static int init_common_variables()
   if (is_supported_parser_charset(default_charset_info))
   {
     global_system_variables.collation_connection= default_charset_info;
-    global_system_variables.character_set_results= default_charset_info;
-    global_system_variables.character_set_client= default_charset_info;
+    global_system_variables.character_set_results=
+    global_system_variables.character_set_client=
+      Lex_exact_charset_opt_extended_collate(default_charset_info, true).
+        find_compiled_default_collation();
   }
   else
   {

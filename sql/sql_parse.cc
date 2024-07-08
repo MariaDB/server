@@ -4555,7 +4555,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
 #ifdef WITH_WSREP
       if (wsrep && !first_table->view)
       {
-        bool is_innodb= (first_table->table->file->ht->db_type == DB_TYPE_INNODB);
+        bool is_innodb= first_table->table->file->partition_ht()->db_type == DB_TYPE_INNODB;
 
         // For consistency check inserted table needs to be InnoDB
         if (!is_innodb && thd->wsrep_consistency_check != NO_CONSISTENCY_CHECK)
@@ -6244,7 +6244,7 @@ static TABLE *find_temporary_table_for_rename(THD *thd,
   {
     TABLE_LIST *next= table->next_local;
 
-    if (!strcmp(table->get_db_name().str,   cur_table->get_db_name().str) &&
+    if (!strcmp(table->get_db_name().str,    cur_table->get_db_name().str) &&
         !strcmp(table->get_table_name().str, cur_table->get_table_name().str))
     {
       /* Table was moved away, can't be same as 'table' */
@@ -7005,8 +7005,7 @@ check_table_access(THD *thd, privilege_t requirements, TABLE_LIST *tables,
                     INSERT_ACL : SELECT_ACL);
     }
 
-    if (check_access(thd, want_access,
-                     table_ref->get_db_name().str,
+    if (check_access(thd, want_access, table_ref->get_db_name().str,
                      &table_ref->grant.privilege,
                      &table_ref->grant.m_internal,
                      0, no_errors))
@@ -9209,7 +9208,7 @@ sql_kill_user(THD *thd, LEX_USER *user, killed_state state)
     break;
   case ER_KILL_DENIED_ERROR:
     char buf[DEFINER_LENGTH+1];
-    strxnmov(buf, sizeof(buf), user->user.str, "@", user->host.str, NULL);
+    strxnmov(buf, sizeof(buf)-1, user->user.str, "@", user->host.str, NULL);
     my_printf_error(ER_KILL_DENIED_ERROR, ER_THD(thd, ER_CANNOT_USER), MYF(0),
                     "KILL USER", buf);
     break;

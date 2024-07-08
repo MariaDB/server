@@ -2677,8 +2677,7 @@ restart:
       case INIT_PAGE:
         last_offset= FIL_PAGE_TYPE;
       free_or_init_page:
-        if (store)
-          store_freed_or_init_rec(id, (b & 0x70) == FREE_PAGE);
+        store_freed_or_init_rec(id, (b & 0x70) == FREE_PAGE);
         if (UNIV_UNLIKELY(rlen != 0))
           goto record_corrupted;
       copy_if_needed:
@@ -2747,7 +2746,7 @@ restart:
         {
           if (UNIV_UNLIKELY(rlen + last_offset > srv_page_size))
             goto record_corrupted;
-          if (store && UNIV_UNLIKELY(!page_no) && file_checkpoint)
+          if (UNIV_UNLIKELY(!page_no) && file_checkpoint)
           {
             const bool has_size= last_offset <= FSP_HEADER_OFFSET + FSP_SIZE &&
               last_offset + rlen >= FSP_HEADER_OFFSET + FSP_SIZE + 4;
@@ -3813,6 +3812,54 @@ void recv_sys_t::apply(bool last_batch)
 
   garbage_collect();
 
+  if (truncated_sys_space.lsn)
+  {
+    trim({0, truncated_sys_space.pages}, truncated_sys_space.lsn);
+    fil_node_t *file= UT_LIST_GET_LAST(fil_system.sys_space->chain);
+    ut_ad(file->is_open());
+
+    /* Last file new size after truncation */
+    uint32_t new_last_file_size=
+      truncated_sys_space.pages -
+        (srv_sys_space.get_min_size()
+         - srv_sys_space.m_files.at(
+             srv_sys_space.m_files.size() - 1). param_size());
+
+    os_file_truncate(
+      file->name, file->handle,
+      os_offset_t{new_last_file_size} << srv_page_size_shift, true);
+    mysql_mutex_lock(&fil_system.mutex);
+    fil_system.sys_space->size= truncated_sys_space.pages;
+    fil_system.sys_space->chain.end->size= new_last_file_size;
+    srv_sys_space.set_last_file_size(new_last_file_size);
+    truncated_sys_space={0, 0};
+    mysql_mutex_unlock(&fil_system.mutex);
+  }
+
+  for (auto id= srv_undo_tablespaces_open; id--;)
+  {
+    const trunc& t= truncated_undo_spaces[id];
+    if (t.lsn)
+    {
+      /* The entire undo tablespace will be reinitialized by
+      innodb_undo_log_truncate=ON. Discard old log for all pages.
+      Even though we recv_sys_t::parse() already invoked trim(),
+      this will be needed in case recovery consists of multiple batches
+      (there was an invocation with !last_batch). */
+      trim({id + srv_undo_space_id_start, 0}, t.lsn);
+      if (fil_space_t *space = fil_space_get(id + srv_undo_space_id_start))
+      {
+        ut_ad(UT_LIST_GET_LEN(space->chain) == 1);
+        ut_ad(space->recv_size >= t.pages);
+        fil_node_t *file= UT_LIST_GET_FIRST(space->chain);
+        ut_ad(file->is_open());
+        os_file_truncate(file->name, file->handle,
+                         os_offset_t{space->recv_size} <<
+                         srv_page_size_shift, true);
+      }
+    }
+  }
+
   if (!pages.empty())
   {
     ut_ad(!last_batch || lsn == scanned_lsn);
@@ -3820,54 +3867,6 @@ void recv_sys_t::apply(bool last_batch)
     report_progress();
 
     apply_log_recs= true;
-
-    if (truncated_sys_space.lsn)
-    {
-      trim({0, truncated_sys_space.pages}, truncated_sys_space.lsn);
-      fil_node_t *file= UT_LIST_GET_LAST(fil_system.sys_space->chain);
-      ut_ad(file->is_open());
-
-      /* Last file new size after truncation */
-      uint32_t new_last_file_size=
-        truncated_sys_space.pages -
-          (srv_sys_space.get_min_size()
-           - srv_sys_space.m_files.at(
-               srv_sys_space.m_files.size() - 1). param_size());
-
-      os_file_truncate(
-        file->name, file->handle,
-        os_offset_t{new_last_file_size} << srv_page_size_shift, true);
-      mysql_mutex_lock(&fil_system.mutex);
-      fil_system.sys_space->size= truncated_sys_space.pages;
-      fil_system.sys_space->chain.end->size= new_last_file_size;
-      srv_sys_space.set_last_file_size(new_last_file_size);
-      truncated_sys_space={0, 0};
-      mysql_mutex_unlock(&fil_system.mutex);
-    }
-
-    for (auto id= srv_undo_tablespaces_open; id--;)
-    {
-      const trunc& t= truncated_undo_spaces[id];
-      if (t.lsn)
-      {
-        /* The entire undo tablespace will be reinitialized by
-        innodb_undo_log_truncate=ON. Discard old log for all pages.
-        Even though we recv_sys_t::parse() already invoked trim(),
-        this will be needed in case recovery consists of multiple batches
-        (there was an invocation with !last_batch). */
-        trim({id + srv_undo_space_id_start, 0}, t.lsn);
-        if (fil_space_t *space = fil_space_get(id + srv_undo_space_id_start))
-        {
-          ut_ad(UT_LIST_GET_LEN(space->chain) == 1);
-          ut_ad(space->recv_size >= t.pages);
-          fil_node_t *file= UT_LIST_GET_FIRST(space->chain);
-          ut_ad(file->is_open());
-          os_file_truncate(file->name, file->handle,
-                           os_offset_t{space->recv_size} <<
-                           srv_page_size_shift, true);
-        }
-      }
-    }
 
     fil_system.extend_to_recv_size();
 

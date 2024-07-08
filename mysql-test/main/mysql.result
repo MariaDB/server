@@ -137,6 +137,10 @@ c	int(11)	YES		NULL
 drop table t1;
 1
 1
+--------------
+ use
+--------------
+
 ERROR 1064 (42000) at line 3: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '' at line 1
 ERROR at line 1: USE must be followed by a database name
 1  +1
@@ -166,6 +170,10 @@ count(*)
 drop table t17583;
 Test connect without db- or host-name => reconnect
 Test connect with dbname only => new dbname, old hostname
+--------------
+connecttest
+--------------
+
 ERROR 1064 (42000) at line 1: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'connecttest' at line 1
 Test connect with _invalid_ dbname only => new invalid dbname, old hostname
 ERROR 1049 (42000) at line 1: Unknown database 'invalid'
@@ -662,6 +670,17 @@ tee
 source
 ^^^
 3
+#
+# MDEV-34203: Sandbox mode \- is not compatible with --binary-mode
+#
+create table t1 (a int);
+drop table t1;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+drop table t1;
 # End of 10.5 tests
 #
 # MDEV-30327 Client crashes in print_last_query_cost

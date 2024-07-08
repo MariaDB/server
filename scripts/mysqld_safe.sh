@@ -595,7 +595,7 @@ fi
 # If arguments come from [mysqld_safe] section of my.cnf
 # we complain about unrecognized options
 unrecognized_handling=complain
-parse_arguments `$print_defaults $defaults --loose-verbose mysqld_safe safe_mysqld mariadb_safe mariadbd-safe`
+parse_arguments `$print_defaults $defaults --loose-verbose mysqld_safe safe_mysqld mariadb_safe mariadbd_safe mariadbd-safe`
 
 # We only need to pass arguments through to the server if we don't
 # handle them here.  So, we collect unrecognized options (passed on
