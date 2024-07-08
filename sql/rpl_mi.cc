@@ -850,9 +850,10 @@ void end_master_info(Master_info* mi)
 }
 
 /* Multi-Master By P.Linux */
-uchar *get_key_master_info(Master_info *mi, size_t *length,
+static uchar *get_key_master_info(const void *pmi, unsigned long *length,
                            my_bool not_used __attribute__((unused)))
 {
+  const Master_info *mi= (const Master_info *) pmi;
   /* Return lower case name */
   *length= mi->cmp_connection_name.length;
   return (uchar*) mi->cmp_connection_name.str;
