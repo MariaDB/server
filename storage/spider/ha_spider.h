@@ -148,7 +148,13 @@ public:
   ulonglong          *db_request_id;
   uchar              *db_request_phase;
   uchar              *m_handler_opened;
+  /* ids for use in HANDLER command */
   uint               *m_handler_id;
+  /*
+    aliases for use in HANDLER command, in the format of t%5u on
+    m_handler_id. So for example, if m_handler_id is 3, then the
+    corresponding m_handler_cid is t00003
+  */
   char               **m_handler_cid;
   bool               do_direct_update;
   uint               direct_update_kinds;
