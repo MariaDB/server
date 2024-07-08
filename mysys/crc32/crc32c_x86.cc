@@ -318,7 +318,7 @@ static unsigned crc32_avx512(unsigned crc, const char *buf, size_t size,
     size += 16;
     if (size) {
     get_last_two_xmms:
-      const __m128i crc2 = crc_out, d = load128(buf + (size - 16));
+      const __m128i crc2 = crc_out, d = load128(buf + ssize_t(size - 16));
       __m128i S = load128(reinterpret_cast<const char*>(shuffle128) + size);
       crc_out = _mm_shuffle_epi8(crc_out, S);
       S = xor128(S, _mm_set1_epi32(0x80808080));
