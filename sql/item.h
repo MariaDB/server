@@ -2207,6 +2207,7 @@ public:
   virtual bool change_context_processor(void *arg) { return 0; }
   virtual bool reset_query_id_processor(void *arg) { return 0; }
   virtual bool is_expensive_processor(void *arg) { return 0; }
+  bool remove_immutable_flag_processor (void *arg);
 
   // FIXME reduce the number of "add field to bitmap" processors
   virtual bool add_field_to_set_processor(void *arg) { return 0; }
