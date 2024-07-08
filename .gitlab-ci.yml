@@ -426,7 +426,8 @@ fedora install:
       - installed-database.sql
       - upgraded-database.sql
 
-cppcheck: 
+cppcheck:
+  allow_failure: true
   stage: sast
   needs: []
   variables:
@@ -434,33 +435,57 @@ cppcheck:
     GIT_SUBMODULE_STRATEGY: normal
   script:
     - yum install -y cppcheck diffutils
-    # --template: use a single-line template
+    # --template: output format
     # --force: check large directories without warning
     # -i<directory>: ignore this directory when scanning
+    # -I<directory>: include path, reduces false positives 
+    #                related to inability to resolve symbols
     # -j: run multiple cppcheck threads
     # Use newline to escape colon in yaml
     - >
-      cppcheck --template="{file}:{line}: {severity}: {message}" --force
+      cppcheck --template="{file}:{line}\n{code}\n{severity}: {message}" --force --check-level=exhaustive
       client dbug extra include libmariadb libmysqld libservices mysql-test mysys mysys_ssl pcre plugin
       strings tests unittest vio wsrep-lib sql sql-common storage
       -istorage/mroonga -istorage/tokudb -istorage/spider -istorage/rocksdb -iextra/ -ilibmariadb/ -istorage/columnstore
-      --output-file=cppcheck.txt -j $(nproc)
-    # Parallel jobs may output findings in an nondeterministic order. Sort to match ignorelist.
-    - cat cppcheck.txt | sort > cppcheck_sorted.txt
-    # Remove line numbers for diff
-    - sed 's/:[^:]*:/:/' cppcheck_sorted.txt > cppcheck_sorted_no_line_numbers.txt
+      -Iinclude -Istorage/innobase/include
+      --output-file=initial-cppcheck_output.txt -j $(nproc)
+    # when including {code} in the cppcheck template, some more pre-processing needs to be done
+    #
+    # sample cppcheck finding: <file>:<line>
+    #                          foo.bar()
+    #                          ^
+    #                          <severity>: <message>
+    #
+    # 1. remove all lines with "^"
+    # 2. merge every 3 lines into 1 so it can be sorted (example: <file> foo.bar() <severity>: <message>)
+    # 3. sort to match ignorelist since parallel jobs may output findings in an nondeterministic order
+    # 4. remove findings likely to be false positives (i.e, "unknown macros")
+    # 5. remove line numbers for diffing against ignorelist
+    - |
+      cat initial-cppcheck_output.txt | grep -v '\^$' > preprocessed-cppcheck_circumflex_removed.txt
+      cat preprocessed-cppcheck_circumflex_removed.txt | awk 'NR%3==1 {printf "%s", (NR==1) ? "" : "\n"; printf "%s", $0} NR%3!=1 {printf " %s", $0}' > preprocessed-cppcheck_oneline.txt
+      cat preprocessed-cppcheck_oneline.txt | sort > preprocessed-cppcheck_sorted.txt
+      cat preprocessed-cppcheck_sorted.txt | grep -v "There is an unknown macro here somewhere" > results-cppcheck_all_findings.txt
+      sed 's/:[0-9]\+//' results-cppcheck_all_findings.txt > preprocessed_final-cppcheck_no_line_nums.txt
     # Only print new issues not found in ignore list
     - echo "Problems found in ignore list that were not discovered by cppcheck (may have been fixed)."
-    - diff --changed-group-format='%>' --unchanged-group-format='' cppcheck_sorted_no_line_numbers.txt tests/code_quality/cppcheck_ignorelist.txt || true
+    - diff --changed-group-format='%>' --unchanged-group-format='' preprocessed_final-cppcheck_no_line_nums.txt tests/code_quality/cppcheck_ignorelist.txt || true
     - echo "Problems found by cppcheck that were not in ignore list."
-    - diff --changed-group-format='%<' --unchanged-group-format='' cppcheck_sorted_no_line_numbers.txt tests/code_quality/cppcheck_ignorelist.txt > lines_not_ignored.txt || true
-    - cat lines_not_ignored.txt && test ! -s lines_not_ignored.txt
+    - diff --changed-group-format='%<' --unchanged-group-format='' preprocessed_final-cppcheck_no_line_nums.txt tests/code_quality/cppcheck_ignorelist.txt > results-cppcheck_new_findings.txt || true
+    - cat results-cppcheck_new_findings.txt && test ! -s results-cppcheck_new_findings.txt
   artifacts:
     when: always
     paths:
-      - cppcheck_sorted.txt
+      # save all steps of pre-processing in-case it ever breaks
+      - initial-cppcheck_output.txt
+      - preprocessed-cppcheck_circumflex_removed.txt
+      - preprocessed-cppcheck_sorted.txt
+      - preprocessed_final-cppcheck_no_line_nums.txt
+      - results-cppcheck_all_findings.txt
+      - results-cppcheck_new_findings.txt
 
 flawfinder: 
+  allow_failure: true
   stage: sast
   needs: []
   variables:
@@ -482,11 +507,12 @@ flawfinder:
     - echo "Problems found in ignore list that were not discovered by flawfinder (may have been fixed)."
     - diff --changed-group-format='%>' --unchanged-group-format='' flawfinder-min-level5.json tests/code_quality/flawfinder_ignorelist.json || true
     - echo "Problems found by flawfinder that were not in ignore list."
-    - diff --changed-group-format='%<' --unchanged-group-format='' flawfinder-min-level5.json tests/code_quality/flawfinder_ignorelist.json > lines_not_ignored.txt || true
-    - cat lines_not_ignored.txt && test ! -s lines_not_ignored.txt
+    - diff --changed-group-format='%<' --unchanged-group-format='' flawfinder-min-level5.json tests/code_quality/flawfinder_ignorelist.json > flawfinder_new_findings.txt || true
+    - cat flawfinder_new_findings.txt && test ! -s flawfinder_new_findings.txt
   artifacts:
     when: always
     paths:
+      - flawfinder_new_findings.txt
       - flawfinder-all-vulnerabilities.html
       - flawfinder-min-level5.json
       

@@ -14,4 +14,18 @@ let $shutdown_timeout=0;
 let $restart_parameters=--innodb_log_file_size=10M;
 let $shutdown_timeout=;
 --source include/restart_mysqld.inc
+
+--echo #
+--echo # MDEV-34519 innodb_log_checkpoint_now crashes when
+--echo #              innodb_read_only is enabled
+--echo #
+--let $restart_parameters=--innodb-force-recovery=6
+--source include/restart_mysqld.inc
+SET GLOBAL innodb_log_checkpoint_now=1;
+--let $restart_parameters=--innodb-read-only=1
+--source include/restart_mysqld.inc
+SET GLOBAL innodb_log_checkpoint_now=1;
+let $restart_parameters=;
+--source include/restart_mysqld.inc
+
 DROP TABLE t1;

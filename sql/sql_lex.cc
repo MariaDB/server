@@ -11440,6 +11440,19 @@ Item *st_select_lex::pushdown_from_having_into_where(THD *thd, Item *having)
       goto exit;
     }
   }
+
+  /*
+    Remove IMMUTABLE_FL only after all of the elements of the condition are processed.
+  */
+  it.rewind();
+  while ((item=it++))
+  {
+    if (item->walk(&Item::remove_immutable_flag_processor, 0, STOP_PTR))
+    {
+      attach_to_conds.empty();
+      goto exit;
+    }
+  }
 exit:
   thd->lex->current_select= save_curr_select;
   return having;
