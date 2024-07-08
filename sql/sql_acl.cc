@@ -5559,9 +5559,10 @@ GRANT_TABLE::~GRANT_TABLE()
 }
 
 
-static uchar* get_grant_table(GRANT_NAME *buff, size_t *length,
+static uchar* get_grant_table(const void *pbuff, size_t *length,
 			     my_bool not_used __attribute__((unused)))
 {
+  const GRANT_NAME *buff= (const GRANT_NAME *) pbuff;
   *length=buff->key_length;
   return (uchar*) buff->hash_key;
 }
