@@ -7182,6 +7182,8 @@ int ha_spider::rnd_next(
       DBUG_RETURN(error_num);
     use_pre_call = FALSE;
   }
+  if ((error_num= spider_check_trx_and_get_conn(ha_thd(), this, FALSE)))
+    DBUG_RETURN(error_num);
   DBUG_RETURN(rnd_next_internal(buf));
 }
 
@@ -12553,6 +12555,9 @@ int ha_spider::rnd_handler_init()
           DBUG_RETURN(error_num);
         }
         set_handler_opened(roop_count);
+        spider_db_handler *dbton_hdl=
+          dbton_handler[share->sql_dbton_ids[conn_link_idx[roop_count]]];
+        dbton_hdl->first_link_idx= roop_count;
       }
     }
     if (sql_kinds & SPIDER_SQL_KIND_HANDLER)
