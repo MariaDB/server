@@ -10032,6 +10032,15 @@ void ha_spider::sync_from_clone_source_base(
   DBUG_VOID_RETURN;
 }
 
+/*
+  Set the initial values for each dbton_handler's first_link_idx and
+  strict_group_by.
+
+  First, reset first_link_idx to -1.
+  Then, for each active remote server, if the corresponding
+  dbton_handler has not been set yet (first_link_idx == -1), set its
+  first_link_idx to be the index of the connection.
+*/
 void ha_spider::set_first_link_idx()
 {
   int roop_count, all_link_idx;
@@ -10071,6 +10080,16 @@ void ha_spider::set_first_link_idx()
   DBUG_VOID_RETURN;
 }
 
+/*
+  Reset the initial values for each dbton_handler's first_link_idx to
+  -1.
+
+  Also, set the search_link_idx'th active server's first_link_idx to
+  search_link_idx.
+
+  search_link_idx is commonly randomly set using
+  spider_conn_first_link_idx - see the commentary of that function.
+*/
 void ha_spider::reset_first_link_idx()
 {
   int all_link_idx;
