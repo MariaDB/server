@@ -889,15 +889,13 @@ innodb_rec_per_key(
 @param[in]	ib_table	InnoDB dict_table_t
 @param[in,out]	s_templ		InnoDB template structure
 @param[in]	add_v		new virtual columns added along with
-				add index call
-@param[in]	locked		true if innobase_share_mutex is held */
+				add index call */
 void
 innobase_build_v_templ(
 	const TABLE*		table,
 	const dict_table_t*	ib_table,
 	dict_vcol_templ_t*	s_templ,
-	const dict_add_v_col_t*	add_v,
-	bool			locked);
+	const dict_add_v_col_t*	add_v = nullptr);
 
 /** callback used by MySQL server layer to initialized
 the table virtual columns' template

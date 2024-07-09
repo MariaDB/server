@@ -11820,6 +11820,7 @@ end_temporary:
 
   thd->variables.option_bits&= ~OPTION_BIN_COMMIT_OFF;
 
+  thd_progress_end(thd);
   *recreate_info= Recreate_info(copied, deleted);
   thd->my_ok_with_recreate_info(*recreate_info,
                                 (ulong) thd->get_stmt_da()->
@@ -11947,7 +11948,7 @@ class Has_default_error_handler : public Internal_error_handler
 public:
   bool handle_condition(THD *, uint sql_errno, const char *,
                         Sql_condition::enum_warning_level *,
-                        const char *, Sql_condition **)
+                        const char *, Sql_condition **) override
   {
     return sql_errno == ER_NO_DEFAULT_FOR_FIELD;
   }

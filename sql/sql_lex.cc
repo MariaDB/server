@@ -3055,6 +3055,7 @@ void st_select_lex::init_query()
   first_natural_join_processing= 1;
   first_cond_optimization= 1;
   first_rownum_optimization= true;
+  leaf_tables_saved= false;
   no_wrap_view_item= 0;
   exclude_from_table_unique_test= 0;
   in_tvc= 0;
@@ -11542,6 +11543,19 @@ Item *st_select_lex::pushdown_from_having_into_where(THD *thd, Item *having)
 
     if (item->walk(&Item::cleanup_excluding_immutables_processor, 0, STOP_PTR)
         || item->fix_fields(thd, NULL))
+    {
+      attach_to_conds.empty();
+      goto exit;
+    }
+  }
+
+  /*
+    Remove IMMUTABLE_FL only after all of the elements of the condition are processed.
+  */
+  it.rewind();
+  while ((item=it++))
+  {
+    if (item->walk(&Item::remove_immutable_flag_processor, 0, STOP_PTR))
     {
       attach_to_conds.empty();
       goto exit;

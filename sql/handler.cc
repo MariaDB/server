@@ -171,7 +171,7 @@ public:
                         const char* sqlstate,
                         Sql_condition::enum_warning_level *level,
                         const char* msg,
-                        Sql_condition ** cond_hdl)
+                        Sql_condition ** cond_hdl) override
   {
     *cond_hdl= NULL;
     if (non_existing_table_error(sql_errno))
@@ -8080,7 +8080,9 @@ int handler::ha_delete_row(const uchar *buf)
 
 #ifdef WITH_WSREP
     THD *thd= ha_thd();
-    if (WSREP_NNULL(thd))
+    /* For streaming replication, when removing fragments, don't call
+    wsrep_after_row() as that would initiate new streaming transaction */
+    if (WSREP_NNULL(thd) && !thd->wsrep_ignore_table)
     {
       /* for streaming replication, the following wsrep_after_row()
       may replicate a fragment, so we have to declare potential PA

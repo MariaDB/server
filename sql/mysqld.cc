@@ -359,6 +359,8 @@ LEX_STRING opt_init_connect, opt_init_slave;
 static DYNAMIC_ARRAY all_options;
 static longlong start_memory_used;
 
+char server_uid[SERVER_UID_SIZE+1];   // server uid will be written here
+
 /* Global variables */
 
 bool opt_bin_log, opt_bin_log_used=0, opt_ignore_builtin_innodb= 0;
@@ -777,6 +779,12 @@ char *opt_logname, *opt_slow_logname, *opt_bin_logname;
 char *opt_binlog_index_name=0;
 my_bool opt_binlog_legacy_event_pos= FALSE;
 
+/*
+  Flag if the METADATA_LOCK_INFO is used. In this case we store the time
+  when we take a MDL lock.
+*/
+bool metadata_lock_info_plugin_loaded= 0;
+
 /* Static variables */
 
 my_bool opt_stack_trace;
@@ -1190,6 +1198,8 @@ PSI_file_key key_file_map;
 #ifdef HAVE_PSI_STATEMENT_INTERFACE
 PSI_statement_info stmt_info_new_packet;
 #endif
+
+static int calculate_server_uid(char *dest);
 
 #ifndef EMBEDDED_LIBRARY
 void net_before_header_psi(struct st_net *net, void *thd, size_t /* unused: count */)
@@ -2322,6 +2332,7 @@ static void activate_tcp_port(uint port,
   else
     real_bind_addr_str= my_bind_addr_str;
 
+  DBUG_EXECUTE_IF("sabotage_port_number", port= UINT_MAX32;);
   my_snprintf(port_buf, NI_MAXSERV, "%d", port);
 
   if (real_bind_addr_str && *real_bind_addr_str)
@@ -2365,6 +2376,13 @@ static void activate_tcp_port(uint port,
   else
   {
     error= getaddrinfo(real_bind_addr_str, port_buf, &hints, &ai);
+    if (unlikely(error != 0))
+    {
+      sql_print_error("%s: %s", ER_DEFAULT(ER_IPSOCK_ERROR),
+                      gai_strerror(error));
+      unireg_abort(1); /* purecov: tested */
+    }
+
     head= ai;
   }
 
@@ -4021,6 +4039,9 @@ static int init_common_variables()
   if (IS_SYSVAR_AUTOSIZE(&server_version_ptr))
     set_server_version(server_version, sizeof(server_version));
 
+  if (calculate_server_uid(server_uid))
+    strmov(server_uid, "unknown");
+
   mysql_real_data_home_len= uint(strlen(mysql_real_data_home));
 
   sf_leaking_memory= 0; // no memory leaks from now on
@@ -4947,8 +4968,10 @@ static int init_server_components()
     first in error log, for troubleshooting and debugging purposes
   */
   if (!opt_help)
-    sql_print_information("Starting MariaDB %s source revision %s as process %lu",
-                          server_version, SOURCE_REVISION, (ulong) getpid());
+    sql_print_information("Starting MariaDB %s source revision %s "
+                          "server_uid %s as process %lu",
+                          server_version, SOURCE_REVISION, server_uid,
+                          (ulong) getpid());
 
 #ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
   /*
@@ -5317,7 +5340,6 @@ static int init_server_components()
       MARIADB_REMOVED_OPTION("innodb-log-compressed-pages"),
       MARIADB_REMOVED_OPTION("innodb-log-files-in-group"),
       MARIADB_REMOVED_OPTION("innodb-log-optimize-ddl"),
-      MARIADB_REMOVED_OPTION("innodb-log-write-ahead-size"),
       MARIADB_REMOVED_OPTION("innodb-page-cleaners"),
       MARIADB_REMOVED_OPTION("innodb-replication-delay"),
       MARIADB_REMOVED_OPTION("innodb-scrub-log"),
@@ -6690,7 +6712,7 @@ struct my_option my_long_options[]=
 #ifdef HAVE_REPLICATION
   {"init-rpl-role", 0, "Set the replication role",
    &rpl_status, &rpl_status, &rpl_role_typelib,
-   GET_ENUM, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+   GET_ENUM, REQUIRED_ARG, RPL_AUTH_MASTER, 0, 0, 0, 0, 0},
 #endif /* HAVE_REPLICATION */
   {"memlock", 0, "Lock mysqld in memory.", &locked_in_memory,
    &locked_in_memory, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
@@ -8343,6 +8365,14 @@ mysqld_get_one_option(const struct my_option *opt, const char *argument,
     if (argument == NULL) /* no argument */
       log_error_file_ptr= const_cast<char*>("");
     break;
+  case OPT_LOG_SLOW_FILTER:
+    if (argument == NULL || *argument == 0)
+    {
+      /* By default log_slow_filter_has all values except QPLAN_NOT_USING_INDEX */
+      global_system_variables.log_slow_filter= opt->def_value | QPLAN_NOT_USING_INDEX;
+      sql_print_warning("log_slow_filter=\"\" changed to log_slow_filter=ALL");
+    }
+    break;
   case OPT_IGNORE_DB_DIRECTORY:
     opt_ignore_db_dirs= NULL; // will be set in ignore_db_dirs_process_additions
     if (*argument == 0)
@@ -9958,4 +9988,32 @@ my_thread_id next_thread_id(void)
 
   mysql_mutex_unlock(&LOCK_thread_id);
   return retval;
+}
+
+
+/**
+  calculates the server unique identifier
+
+  UID is a base64 encoded SHA1 hash of the MAC address of one of
+  the interfaces, and the tcp port that the server is listening on
+*/
+
+static int calculate_server_uid(char *dest)
+{
+  uchar rawbuf[2 + 6];
+  uchar shabuf[MY_SHA1_HASH_SIZE];
+
+  int2store(rawbuf, mysqld_port);
+  if (my_gethwaddr(rawbuf + 2))
+  {
+    sql_print_error("feedback plugin: failed to retrieve the MAC address");
+    return 1;
+  }
+
+  my_sha1((uint8*) shabuf, (char*) rawbuf, sizeof(rawbuf));
+
+  assert(my_base64_needed_encoded_length(sizeof(shabuf)) <= SERVER_UID_SIZE);
+  my_base64_encode(shabuf, sizeof(shabuf), dest);
+
+  return 0;
 }

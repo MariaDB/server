@@ -1275,6 +1275,10 @@ public:
     from the method JOIN::optimize_inner.
   */
   bool first_rownum_optimization:1;
+  /**
+    Flag to guard against double initialization of leaf tables list
+  */
+  bool leaf_tables_saved:1;
   /* do not wrap view fields with Item_ref */
   bool no_wrap_view_item:1;
   /* exclude this select from check of unique_table() */
@@ -3691,6 +3695,15 @@ public:
   {
     return (context_analysis_only & CONTEXT_ANALYSIS_ONLY_VIEW);
   }
+
+  /**
+    Mark all queries in this lex structure as uncacheable for the cause given
+
+    @param cause    the reason queries are to be marked as uncacheable
+
+    Note, any cause is sufficient for st_select_lex_unit::can_be_merged() to
+    disallow query merges.
+  */
 
   inline void uncacheable(uint8 cause)
   {

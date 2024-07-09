@@ -571,6 +571,7 @@ void Repl_semi_sync_master::add_slave()
 void Repl_semi_sync_master::remove_slave()
 {
   lock();
+  DBUG_ASSERT(rpl_semi_sync_master_clients > 0);
   if (!(--rpl_semi_sync_master_clients) && !rpl_semi_sync_master_wait_no_slave)
   {
     /*

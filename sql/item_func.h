@@ -247,7 +247,7 @@ public:
   bool is_null() override
   {
     update_null_value();
-    return null_value; 
+    return null_value;
   }
   String *val_str_from_val_str_ascii(String *str, String *str2);
 
@@ -462,7 +462,7 @@ public:
   }
   void convert_const_compared_to_int_field(THD *thd);
   Item_func *get_item_func() override { return this; }
-  bool is_simplified_cond_processor(void *arg) override
+  bool is_simplified_cond_processor(void *) override
   { return const_item() && !val_int(); }
 };
 
@@ -570,30 +570,30 @@ public:
   class Handler_str: public Handler
   {
   public:
-    String *val_str_ascii(Item_handled_func *item, String *str) const
+    String *val_str_ascii(Item_handled_func *item, String *str) const override
     {
       return item->Item::val_str_ascii(str);
     }
-    double val_real(Item_handled_func *item) const
+    double val_real(Item_handled_func *item) const override
     {
       DBUG_ASSERT(item->fixed());
       StringBuffer<64> tmp;
       String *res= item->val_str(&tmp);
       return res ? item->double_from_string_with_check(res) : 0.0;
     }
-    longlong val_int(Item_handled_func *item) const
+    longlong val_int(Item_handled_func *item) const override
     {
       DBUG_ASSERT(item->fixed());
       StringBuffer<22> tmp;
       String *res= item->val_str(&tmp);
       return res ? item->longlong_from_string_with_check(res) : 0;
     }
-    my_decimal *val_decimal(Item_handled_func *item, my_decimal *to) const
+    my_decimal *val_decimal(Item_handled_func *item, my_decimal *to) const override
     {
       return item->val_decimal_from_string(to);
     }
     bool get_date(THD *thd, Item_handled_func *item, MYSQL_TIME *to,
-                  date_mode_t fuzzydate) const
+                  date_mode_t fuzzydate) const override
     {
       return item->get_date_from_string(thd, to, fuzzydate);
     }
@@ -606,7 +606,7 @@ public:
   class Handler_temporal: public Handler
   {
   public:
-    String *val_str(Item_handled_func *item, String *to) const
+    String *val_str(Item_handled_func *item, String *to) const override
     {
       StringBuffer<MAX_FIELD_WIDTH> ascii_buf;
       return item->val_str_from_val_str_ascii(to, &ascii_buf);
@@ -621,28 +621,28 @@ public:
   class Handler_temporal_string: public Handler_temporal
   {
   public:
-    const Type_handler *return_type_handler(const Item_handled_func *) const
+    const Type_handler *return_type_handler(const Item_handled_func *) const override
     {
       return &type_handler_string;
     }
     const Type_handler *
-      type_handler_for_create_select(const Item_handled_func *item) const
+      type_handler_for_create_select(const Item_handled_func *item) const override
     {
       return return_type_handler(item)->type_handler_for_tmp_table(item);
     }
-    double val_real(Item_handled_func *item) const
+    double val_real(Item_handled_func *item) const override
     {
       return Temporal_hybrid(item).to_double();
     }
-    longlong val_int(Item_handled_func *item) const
+    longlong val_int(Item_handled_func *item) const override
     {
       return Temporal_hybrid(item).to_longlong();
     }
-    my_decimal *val_decimal(Item_handled_func *item, my_decimal *to) const
+    my_decimal *val_decimal(Item_handled_func *item, my_decimal *to) const override
     {
       return Temporal_hybrid(item).to_decimal(to);
     }
-    String *val_str_ascii(Item_handled_func *item, String *to) const
+    String *val_str_ascii(Item_handled_func *item, String *to) const override
     {
       return Temporal_hybrid(item).to_string(to, item->decimals);
     }
@@ -652,28 +652,28 @@ public:
   class Handler_date: public Handler_temporal
   {
   public:
-    const Type_handler *return_type_handler(const Item_handled_func *) const
+    const Type_handler *return_type_handler(const Item_handled_func *) const override
     {
       return &type_handler_newdate;
     }
-    bool fix_length_and_dec(Item_handled_func *item) const
+    bool fix_length_and_dec(Item_handled_func *item) const override
     {
       item->fix_attributes_date();
       return false;
     }
-    double val_real(Item_handled_func *item) const
+    double val_real(Item_handled_func *item) const override
     {
       return Date(item).to_double();
     }
-    longlong val_int(Item_handled_func *item) const
+    longlong val_int(Item_handled_func *item) const override
     {
       return Date(item).to_longlong();
     }
-    my_decimal *val_decimal(Item_handled_func *item, my_decimal *to) const
+    my_decimal *val_decimal(Item_handled_func *item, my_decimal *to) const override
     {
       return Date(item).to_decimal(to);
     }
-    String *val_str_ascii(Item_handled_func *item, String *to) const
+    String *val_str_ascii(Item_handled_func *item, String *to) const override
     {
       return Date(item).to_string(to);
     }
@@ -683,27 +683,27 @@ public:
   class Handler_time: public Handler_temporal
   {
   public:
-    const Type_handler *return_type_handler(const Item_handled_func *) const
+    const Type_handler *return_type_handler(const Item_handled_func *) const override
     {
       return &type_handler_time2;
     }
-    double val_real(Item_handled_func *item) const
+    double val_real(Item_handled_func *item) const override
     {
       return Time(item).to_double();
     }
-    longlong val_int(Item_handled_func *item) const
+    longlong val_int(Item_handled_func *item) const override
     {
       return Time(item).to_longlong();
     }
-    my_decimal *val_decimal(Item_handled_func *item, my_decimal *to) const
+    my_decimal *val_decimal(Item_handled_func *item, my_decimal *to) const override
     {
       return Time(item).to_decimal(to);
     }
-    String *val_str_ascii(Item_handled_func *item, String *to) const
+    String *val_str_ascii(Item_handled_func *item, String *to) const override
     {
       return Time(item).to_string(to, item->decimals);
     }
-    bool val_native(THD *thd, Item_handled_func *item, Native *to) const
+    bool val_native(THD *thd, Item_handled_func *item, Native *to) const override
     {
       return Time(thd, item).to_native(to, item->decimals);
     }
@@ -713,23 +713,23 @@ public:
   class Handler_datetime: public Handler_temporal
   {
   public:
-    const Type_handler *return_type_handler(const Item_handled_func *) const
+    const Type_handler *return_type_handler(const Item_handled_func *) const override
     {
       return &type_handler_datetime2;
     }
-    double val_real(Item_handled_func *item) const
+    double val_real(Item_handled_func *item) const override
     {
       return Datetime(item).to_double();
     }
-    longlong val_int(Item_handled_func *item) const
+    longlong val_int(Item_handled_func *item) const override
     {
       return Datetime(item).to_longlong();
     }
-    my_decimal *val_decimal(Item_handled_func *item, my_decimal *to) const
+    my_decimal *val_decimal(Item_handled_func *item, my_decimal *to) const override
     {
       return Datetime(item).to_decimal(to);
     }
-    String *val_str_ascii(Item_handled_func *item, String *to) const
+    String *val_str_ascii(Item_handled_func *item, String *to) const override
     {
       return Datetime(item).to_string(to, item->decimals);
     }
@@ -739,7 +739,7 @@ public:
   class Handler_int: public Handler
   {
   public:
-    String *val_str(Item_handled_func *item, String *to) const
+    String *val_str(Item_handled_func *item, String *to) const override
     {
       longlong nr= val_int(item);
       if (item->null_value)
@@ -747,25 +747,25 @@ public:
       to->set_int(nr, item->unsigned_flag, item->collation.collation);
       return to;
     }
-    String *val_str_ascii(Item_handled_func *item, String *to) const
+    String *val_str_ascii(Item_handled_func *item, String *to) const override
     {
       return item->Item::val_str_ascii(to);
     }
-    double val_real(Item_handled_func *item) const
+    double val_real(Item_handled_func *item) const override
     {
       return item->unsigned_flag ? (double) ((ulonglong) val_int(item)) :
                                    (double) val_int(item);
     }
-    my_decimal *val_decimal(Item_handled_func *item, my_decimal *to) const
+    my_decimal *val_decimal(Item_handled_func *item, my_decimal *to) const override
     {
       return item->val_decimal_from_int(to);
     }
     bool get_date(THD *thd, Item_handled_func *item,
-                  MYSQL_TIME *to, date_mode_t fuzzydate) const
+                  MYSQL_TIME *to, date_mode_t fuzzydate) const override
     {
       return item->get_date_from_int(thd, to, fuzzydate);
     }
-    longlong val_int(Item_handled_func *item) const
+    longlong val_int(Item_handled_func *item) const override
     {
       Longlong_null tmp= to_longlong_null(item);
       item->null_value= tmp.is_null();
@@ -777,11 +777,11 @@ public:
   class Handler_slong: public Handler_int
   {
   public:
-    const Type_handler *return_type_handler(const Item_handled_func *item) const
+    const Type_handler *return_type_handler(const Item_handled_func *item) const override
     {
       return &type_handler_slong;
     }
-    bool fix_length_and_dec(Item_handled_func *item) const
+    bool fix_length_and_dec(Item_handled_func *item) const override
     {
       item->unsigned_flag= false;
       item->collation= DTCollation_numeric();
@@ -793,7 +793,7 @@ public:
   class Handler_slong2: public Handler_slong
   {
   public:
-    bool fix_length_and_dec(Item_handled_func *func) const
+    bool fix_length_and_dec(Item_handled_func *func) const override
     {
       bool rc= Handler_slong::fix_length_and_dec(func);
       func->max_length= 2;
@@ -804,11 +804,11 @@ public:
   class Handler_ulonglong: public Handler_int
   {
   public:
-    const Type_handler *return_type_handler(const Item_handled_func *item) const
+    const Type_handler *return_type_handler(const Item_handled_func *item) const override
     {
       return &type_handler_ulonglong;
     }
-    bool fix_length_and_dec(Item_handled_func *item) const
+    bool fix_length_and_dec(Item_handled_func *item) const override
     {
       item->unsigned_flag= true;
       item->collation= DTCollation_numeric();
@@ -1105,7 +1105,7 @@ public:
   Item_func_case_expression(THD *thd, List<Item> &list):
     Item_func_hybrid_field_type(thd, list)
   { }
-  bool find_not_null_fields(table_map allowed) { return false; }
+  bool find_not_null_fields(table_map allowed) override { return false; }
 };
 
 
@@ -1134,18 +1134,18 @@ public:
   Item_func_numhybrid(THD *thd, List<Item> &list):
     Item_func_hybrid_field_type(thd, list)
   { }
-  String *str_op(String *str) { DBUG_ASSERT(0); return 0; }
-  bool date_op(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
+  String *str_op(String *str) override { DBUG_ASSERT(0); return 0; }
+  bool date_op(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override
   {
     DBUG_ASSERT(0);
     return true;
   }
-  bool time_op(THD *thd, MYSQL_TIME *ltime)
+  bool time_op(THD *thd, MYSQL_TIME *ltime) override
   {
     DBUG_ASSERT(0);
     return true;
   }
-  bool native_op(THD *thd, Native *to)
+  bool native_op(THD *thd, Native *to) override
   {
     DBUG_ASSERT(0);
     return true;
@@ -1159,8 +1159,8 @@ class Item_func_num1: public Item_func_numhybrid
 public:
   Item_func_num1(THD *thd, Item *a): Item_func_numhybrid(thd, a) {}
   Item_func_num1(THD *thd, Item *a, Item *b): Item_func_numhybrid(thd, a, b) {}
-  bool check_partition_func_processor(void *int_arg) { return FALSE; }
-  bool check_vcol_func_processor(void *arg) { return FALSE; }
+  bool check_partition_func_processor(void *int_arg) override { return FALSE; }
+  bool check_vcol_func_processor(void *arg) override { return FALSE; }
 };
 
 
@@ -1308,10 +1308,14 @@ public:
   Item_func_hash_mariadb_100403(THD *thd, List<Item> &item)
    :Item_func_hash(thd, item)
   {}
-  longlong val_int();
-  Item *get_copy(THD *thd)
+  longlong val_int() override;
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_hash_mariadb_100403>(thd, this); }
-  const char *func_name() const { return "<hash_mariadb_100403>"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("<hash_mariadb_100403>") };
+    return name;
+  }
 };
 
 class Item_longlong_func: public Item_int_func
@@ -1560,8 +1564,8 @@ public:
     decimals=   (uint8)  dec;
     max_length= (uint32) len;
   }
-  bool need_parentheses_in_default() { return true; }
-  void print(String *str, enum_query_type query_type);
+  bool need_parentheses_in_default() override { return true; }
+  void print(String *str, enum_query_type query_type) override;
   void fix_length_and_dec_generic()
   {
     set_maybe_null();
@@ -1630,9 +1634,9 @@ class Item_func_additive_op :public Item_num_op
 {
 public:
   Item_func_additive_op(THD *thd, Item *a, Item *b): Item_num_op(thd, a, b) {}
-  void result_precision();
-  bool check_partition_func_processor(void *int_arg) {return FALSE;}
-  bool check_vcol_func_processor(void *arg) { return FALSE;}
+  void result_precision() override;
+  bool check_partition_func_processor(void *int_arg) override {return FALSE;}
+  bool check_vcol_func_processor(void *arg) override { return FALSE;}
 };
 
 
@@ -3265,7 +3269,7 @@ class Item_func_get_lock final :public Item_func_lock
   String value;
  public:
   Item_func_get_lock(THD *thd, Item *a, Item *b) :Item_func_lock(thd, a, b) {}
-  longlong val_int() final;
+  longlong val_int() override final;
   LEX_CSTRING func_name_cstring() const override final
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("get_lock") };
@@ -3277,7 +3281,7 @@ class Item_func_get_lock final :public Item_func_lock
     set_maybe_null();
     return FALSE;
   }
-  Item *get_copy(THD *thd) final
+  Item *get_copy(THD *thd) override final
   { return get_item_copy<Item_func_get_lock>(thd, this); }
 };
 
@@ -3287,13 +3291,13 @@ class Item_func_release_all_locks final :public Item_func_lock
 public:
   Item_func_release_all_locks(THD *thd): Item_func_lock(thd)
   { unsigned_flag= 1; }
-  longlong val_int() final;
+  longlong val_int() override final;
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("release_all_locks") };
     return name;
   }
-  Item *get_copy(THD *thd) final
+  Item *get_copy(THD *thd) override final
   { return get_item_copy<Item_func_release_all_locks>(thd, this); }
 };
 
@@ -3305,7 +3309,7 @@ class Item_func_release_lock final :public Item_func_lock
   String value;
 public:
   Item_func_release_lock(THD *thd, Item *a): Item_func_lock(thd, a) {}
-  longlong val_int() final;
+  longlong val_int() override final;
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("release_lock") };
@@ -3317,7 +3321,7 @@ public:
     set_maybe_null();
     return FALSE;
   }
-  Item *get_copy(THD *thd) final
+  Item *get_copy(THD *thd) override final
   { return get_item_copy<Item_func_release_lock>(thd, this); }
 };
 
@@ -3414,16 +3418,16 @@ public:
     :Item_hybrid_func(thd, item),
     m_var_entry(item->m_var_entry), name(item->name) { }
   Field *create_tmp_field_ex(MEM_ROOT *root, TABLE *table, Tmp_field_src *src,
-                             const Tmp_field_param *param)
+                             const Tmp_field_param *param) override
   {
     DBUG_ASSERT(fixed());
     return create_tmp_field_ex_from_handler(root, table, src, param,
                                             type_handler());
   }
-  Field *create_field_for_create_select(MEM_ROOT *root, TABLE *table)
+  Field *create_field_for_create_select(MEM_ROOT *root, TABLE *table) override
   { return create_table_field_from_handler(root, table); }
-  bool check_vcol_func_processor(void *arg);
-  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
+  bool check_vcol_func_processor(void *arg) override;
+  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override
   {
     return type_handler()->Item_get_date_with_warn(thd, this, ltime, fuzzydate);
   }

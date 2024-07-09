@@ -3107,6 +3107,16 @@ public:
   bool aggregate(const DTCollation &dt, uint flags= 0);
   bool set(DTCollation &dt1, DTCollation &dt2, uint flags= 0)
   { set(dt1); return aggregate(dt2, flags); }
+  bool merge_charset_and_collation(Sql_used *used,
+                                   const Charset_collation_map_st &map,
+                                   CHARSET_INFO *cs,
+                                   const Lex_extended_collation_st &cl,
+                                   my_repertoire_t repertoire);
+  bool merge_collation(Sql_used *used,
+                       const Charset_collation_map_st &map,
+                       const Lex_extended_collation_st &cl,
+                       my_repertoire_t repertoire,
+                       bool allow_ignorable_with_context_collation);
   const char *derivation_name() const
   {
     switch(derivation)
@@ -3635,13 +3645,13 @@ public:
 class Vers_type_timestamp: public Vers_type_handler
 {
 public:
-  virtual vers_kind_t kind() const
+  vers_kind_t kind() const override
   {
     return VERS_TIMESTAMP;
   }
   bool check_sys_fields(const LEX_CSTRING &table_name,
                         const Column_definition *row_start,
-                        const Column_definition *row_end) const;
+                        const Column_definition *row_end) const override;
 };
 extern Vers_type_timestamp vers_type_timestamp;
 
@@ -3649,13 +3659,13 @@ extern Vers_type_timestamp vers_type_timestamp;
 class Vers_type_trx: public Vers_type_handler
 {
 public:
-  virtual vers_kind_t kind() const
+  vers_kind_t kind() const override
   {
     return VERS_TRX_ID;
   }
   bool check_sys_fields(const LEX_CSTRING &table_name,
                         const Column_definition *row_start,
-                        const Column_definition *row_end) const;
+                        const Column_definition *row_end) const override;
 };
 extern MYSQL_PLUGIN_IMPORT Vers_type_trx vers_type_trx;
 

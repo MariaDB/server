@@ -109,8 +109,8 @@ class DllExport TDB: public BLOCK {     // Table Descriptor Block.
   virtual PTDB   Copy(PTABS t);
   virtual void   PrintAM(FILE *f, char *m)
                   {fprintf(f, "%s AM(%d)\n",  m, GetAmType());}
-  virtual void   Printf(PGLOBAL g, FILE *f, uint n);
-  virtual void   Prints(PGLOBAL g, char *ps, uint z);
+  void   Printf(PGLOBAL g, FILE *f, uint n) override;
+  void   Prints(PGLOBAL g, char *ps, uint z) override;
   virtual PCSZ   GetServer(void) = 0;
   virtual int    GetBadLines(void) {return 0;}
 	virtual CHARSET_INFO *data_charset(void);
@@ -173,7 +173,7 @@ class DllExport TDBASE : public TDB {
   inline  void    SetKindex(PKXBASE kxp) {To_Kindex = kxp;}
 
   // Properties
-	PKXBASE GetKindex(void) {return To_Kindex;}
+	PKXBASE GetKindex(void) override {return To_Kindex;}
 	PXOB   *GetLink(void) {return To_Link;}
 	PIXDEF  GetXdp(void) {return To_Xdp;}
 	void    ResetKindex(PGLOBAL g, PKXBASE kxp);
@@ -182,17 +182,17 @@ class DllExport TDBASE : public TDB {
 
   // Methods
   virtual bool   IsUsingTemp(PGLOBAL) {return false;}
-  virtual PCATLG GetCat(void);
-  virtual void   PrintAM(FILE *f, char *m);
-  virtual int    GetProgMax(PGLOBAL g) {return GetMaxSize(g);}
+  PCATLG GetCat(void) override;
+  void   PrintAM(FILE *f, char *m) override;
+  int    GetProgMax(PGLOBAL g) override {return GetMaxSize(g);}
   virtual void   RestoreNrec(void) {}
   virtual int    ResetTableOpt(PGLOBAL g, bool dop, bool dox);
-  virtual PCSZ   GetServer(void) {return "Current";}
+  PCSZ   GetServer(void) override {return "Current";}
 
   // Database routines
   virtual int  MakeIndex(PGLOBAL g, PIXDEF, bool)
                 {strcpy(g->Message, "Remote index"); return RC_INFO;}
-  virtual bool ReadKey(PGLOBAL, OPVAL, const key_range *)
+  bool ReadKey(PGLOBAL, OPVAL, const key_range *) override
                       {assert(false); return true;}
 
  protected:
@@ -218,23 +218,23 @@ class DllExport TDBCAT : public TDBASE {
   TDBCAT(PTABDEF tdp);
 
   // Implementation
-  virtual AMT  GetAmType(void) {return TYPE_AM_CAT;}
+  AMT  GetAmType(void) override {return TYPE_AM_CAT;}
 
   // Methods
-  virtual int  GetRecpos(void) {return N;}
-  virtual int  GetProgCur(void) {return N;}
-  virtual int  RowNumber(PGLOBAL, bool = false) {return N + 1;}
-  virtual bool SetRecpos(PGLOBAL g, int recpos);
+  int  GetRecpos(void) override {return N;}
+  int  GetProgCur(void) override {return N;}
+  int  RowNumber(PGLOBAL, bool = false) override {return N + 1;}
+  bool SetRecpos(PGLOBAL g, int recpos) override;
 
   // Database routines
-  virtual PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
-	virtual int  Cardinality(PGLOBAL) {return 10;}	 // To avoid assert
-	virtual int  GetMaxSize(PGLOBAL g);
-  virtual bool OpenDB(PGLOBAL g);
-  virtual int  ReadDB(PGLOBAL g);
-  virtual int  WriteDB(PGLOBAL g);
-  virtual int  DeleteDB(PGLOBAL g, int irc);
-  virtual void CloseDB(PGLOBAL g);
+  PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n) override;
+	int  Cardinality(PGLOBAL) override {return 10;}	 // To avoid assert
+	int  GetMaxSize(PGLOBAL g) override;
+  bool OpenDB(PGLOBAL g) override;
+  int  ReadDB(PGLOBAL g) override;
+  int  WriteDB(PGLOBAL g) override;
+  int  DeleteDB(PGLOBAL g, int irc) override;
+  void CloseDB(PGLOBAL g) override;
 
  protected:
   // Specific routines
@@ -258,10 +258,10 @@ class DllExport CATCOL : public COLBLK {
   CATCOL(PCOLDEF cdp, PTDB tdbp, int n);
 
   // Implementation
-  virtual int  GetAmType(void) {return TYPE_AM_ODBC;}
+  int  GetAmType(void) override {return TYPE_AM_ODBC;}
 
   // Methods
-	virtual void ReadColumn(PGLOBAL g);
+	void ReadColumn(PGLOBAL g) override;
 
  protected:
   CATCOL(void) = default;              // Default constructor not to be used

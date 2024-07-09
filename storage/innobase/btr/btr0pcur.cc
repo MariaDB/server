@@ -215,24 +215,18 @@ static bool btr_pcur_optimistic_latch_leaves(btr_pcur_t *pcur,
                                              btr_latch_mode *latch_mode,
                                              mtr_t *mtr)
 {
-  static_assert(BTR_SEARCH_PREV & BTR_SEARCH_LEAF, "");
-  static_assert(BTR_MODIFY_PREV & BTR_MODIFY_LEAF, "");
-  static_assert((BTR_SEARCH_PREV ^ BTR_MODIFY_PREV) ==
-                (RW_S_LATCH ^ RW_X_LATCH), "");
-
   buf_block_t *const block=
     buf_page_optimistic_fix(pcur->btr_cur.page_cur.block, pcur->old_page_id);
 
   if (!block)
     return false;
 
-  if (*latch_mode == BTR_SEARCH_LEAF || *latch_mode == BTR_MODIFY_LEAF)
+  if (*latch_mode != BTR_SEARCH_PREV)
+  {
+    ut_ad(*latch_mode == BTR_SEARCH_LEAF || *latch_mode == BTR_MODIFY_LEAF);
     return buf_page_optimistic_get(block, rw_lock_type_t(*latch_mode),
                                    pcur->modify_clock, mtr);
-
-  ut_ad(*latch_mode == BTR_SEARCH_PREV || *latch_mode == BTR_MODIFY_PREV);
-  const rw_lock_type_t mode=
-    rw_lock_type_t(*latch_mode & (RW_X_LATCH | RW_S_LATCH));
+  }
 
   uint64_t modify_clock;
   uint32_t left_page_no;
@@ -258,7 +252,7 @@ static bool btr_pcur_optimistic_latch_leaves(btr_pcur_t *pcur,
   {
     prev= buf_page_get_gen(page_id_t(pcur->old_page_id.space(),
                                      left_page_no), block->zip_size(),
-                           mode, nullptr, BUF_GET_POSSIBLY_FREED, mtr);
+                           RW_S_LATCH, nullptr, BUF_GET_POSSIBLY_FREED, mtr);
     if (!prev ||
         page_is_comp(prev->page.frame) != page_is_comp(block->page.frame) ||
         memcmp_aligned<2>(block->page.frame, prev->page.frame, 2) ||
@@ -269,7 +263,7 @@ static bool btr_pcur_optimistic_latch_leaves(btr_pcur_t *pcur,
   else
     prev= nullptr;
 
-  mtr->upgrade_buffer_fix(savepoint, mode);
+  mtr->upgrade_buffer_fix(savepoint, RW_S_LATCH);
 
   if (UNIV_UNLIKELY(block->modify_clock != modify_clock) ||
       UNIV_UNLIKELY(block->page.is_freed()) ||
@@ -343,11 +337,9 @@ btr_pcur_t::restore_position(btr_latch_mode restore_latch_mode, mtr_t *mtr)
 	ut_a(old_n_fields);
 
 	static_assert(BTR_SEARCH_PREV == (4 | BTR_SEARCH_LEAF), "");
-	static_assert(BTR_MODIFY_PREV == (4 | BTR_MODIFY_LEAF), "");
 
 	switch (restore_latch_mode | 4) {
 	case BTR_SEARCH_PREV:
-	case BTR_MODIFY_PREV:
 		/* Try optimistic restoration. */
 		if (btr_pcur_optimistic_latch_leaves(this, &restore_latch_mode,
 						     mtr)) {
@@ -579,7 +571,6 @@ btr_pcur_move_backward_from_page(
 	mtr_start(mtr);
 
 	static_assert(BTR_SEARCH_PREV == (4 | BTR_SEARCH_LEAF), "");
-	static_assert(BTR_MODIFY_PREV == (4 | BTR_MODIFY_LEAF), "");
 
 	if (UNIV_UNLIKELY(cursor->restore_position(
 				  btr_latch_mode(4 | latch_mode), mtr)

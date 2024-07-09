@@ -613,6 +613,7 @@ deallocate prepare stmt;
 #
 # Bug#22638 SOUNDEX broken for international characters
 #
+--disable_service_connection
 set names latin1;
 set character_set_connection=ucs2;
 select soundex(''),soundex('he'),soundex('hello all folks'),soundex('#3556 in bugdb');
@@ -623,6 +624,7 @@ select hex(soundex(_ucs2 0x041004110412));
 # Make sure that "U+00BF INVERTED QUESTION MARK" is not considered as letter
 select hex(soundex(_ucs2 0x00BF00C0));
 set names latin1;
+--enable_service_connection
 
 #
 # Bug #14290: character_maximum_length for text fields
@@ -794,10 +796,12 @@ DROP TABLE t1;
 --echo # Start of 5.5 tests
 --echo #
 
+--disable_service_connection
 SET NAMES latin1;
 SET collation_connection=ucs2_general_ci;
 --source include/ctype_numconv.inc
 SET NAMES latin1;
+--enable_service_connection
 
 --echo #
 --echo # Bug #13832953 	MY_STRNXFRM_UNICODE: ASSERTION `SRC' FAILED
@@ -1035,8 +1039,10 @@ DROP TABLE t1;
 --echo #
 --echo # MDEV-9178 Wrong result for CAST(CONVERT('1Ĳ3' USING ucs2) AS SIGNED)
 --echo #
+--disable_service_connection
 SET NAMES utf8;
 SELECT CAST(CONVERT('1Ĳ3' USING ucs2) AS SIGNED);
+--enable_service_connection
 
 --echo #
 --echo # End of 10.1 tests
@@ -1070,6 +1076,7 @@ EXECUTE IMMEDIATE @stmt;
 --echo #
 --echo # MDEV-10866 Extend PREPARE and EXECUTE IMMEDIATE to understand expressions
 --echo #
+--disable_service_connection
 SET NAMES utf8, collation_connection=ucs2_bin;
 SET @stmt='SELECT COLLATION(''a'')';
 EXECUTE IMMEDIATE @stmt;
@@ -1097,6 +1104,7 @@ EXECUTE IMMEDIATE @stmt;
 PREPARE stmt FROM @stmt;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
+--enable_service_connection
 
 --echo #
 --echo # End of 10.2 tests

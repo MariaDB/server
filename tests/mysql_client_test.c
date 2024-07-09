@@ -21873,6 +21873,103 @@ static void test_mdev19838()
   rc = mysql_query(mysql, "drop table mdev19838");
   myquery(rc);
 }
+
+static void test_mdev_24411()
+{
+  int        rc;
+  MYSQL_STMT *stmt;
+  MYSQL_BIND bind;
+  MYSQL_RES *result;
+  MYSQL_ROW row;
+  my_ulonglong row_count;
+  unsigned int vals[] = { 1, 2, 3};
+  unsigned int vals_array_len = 3;
+  const char *insert_stmt= "INSERT INTO t1 VALUES (?)";
+
+  myheader("test_mdev_24411");
+
+  rc= mysql_query(mysql, "DROP TABLE IF EXISTS t1");
+  myquery(rc);
+
+  rc= mysql_query(mysql, "DROP TABLE IF EXISTS t2");
+  myquery(rc);
+
+  rc= mysql_query(mysql, "CREATE TABLE t1 (a INT)");
+  myquery(rc);
+
+  rc= mysql_query(mysql, "CREATE TABLE t2 (a INT)");
+  myquery(rc);
+
+  rc= mysql_query(mysql,
+  "CREATE TRIGGER t1_bi BEFORE INSERT ON t1 FOR EACH ROW "
+  "BEGIN INSERT INTO t2 (a) VALUES (NEW.a); END;");
+  myquery(rc);
+
+  stmt= mysql_stmt_init(mysql);
+  check_stmt(stmt);
+
+  rc= mysql_stmt_prepare(stmt, insert_stmt, strlen(insert_stmt));
+  check_execute(stmt, rc);
+
+  memset(&bind, 0, sizeof(bind));
+  bind.buffer_type= MYSQL_TYPE_LONG;
+  bind.buffer= vals;
+
+  rc= mysql_stmt_attr_set(stmt, STMT_ATTR_ARRAY_SIZE, &vals_array_len);
+  check_execute(stmt, rc);
+
+  rc= mysql_stmt_bind_param(stmt, &bind);
+  check_execute(stmt, rc);
+
+  rc= mysql_stmt_execute(stmt);
+  check_execute(stmt, rc);
+
+  /*
+    It's expected that the INSERT statement adds three rows into
+    the table t1
+  */
+  row_count = mysql_stmt_affected_rows(stmt);
+  DIE_UNLESS(row_count == 3);
+
+  /*
+   * Check that the BEFORE INSERT trigger of the table t1 does work correct
+   * and inserted the rows (1), (2), (3) into the table t2.
+  */
+  rc= mysql_query(mysql, "SELECT 't1' tname, a FROM t1 "
+                  "UNION SELECT 't2' tname, a FROM t2 ORDER BY tname,a");
+  myquery(rc);
+
+  result= mysql_store_result(mysql);
+
+  row = mysql_fetch_row(result);
+  DIE_UNLESS(strcmp(row[0], "t1") == 0 && atoi(row[1]) == 1);
+
+  row = mysql_fetch_row(result);
+  DIE_UNLESS(strcmp(row[0], "t1") == 0 && atoi(row[1]) == 2);
+
+  row = mysql_fetch_row(result);
+  DIE_UNLESS(strcmp(row[0], "t1") == 0 && atoi(row[1]) == 3);
+
+  row = mysql_fetch_row(result);
+  DIE_UNLESS(strcmp(row[0], "t2") == 0 && atoi(row[1]) == 1);
+
+  row = mysql_fetch_row(result);
+  DIE_UNLESS(strcmp(row[0], "t2") == 0 && atoi(row[1]) == 2);
+
+  row = mysql_fetch_row(result);
+  DIE_UNLESS(strcmp(row[0], "t2") == 0 && atoi(row[1]) == 3);
+
+  row= mysql_fetch_row(result);
+  DIE_UNLESS(row == NULL);
+
+  mysql_free_result(result);
+
+  mysql_stmt_close(stmt);
+
+  rc= mysql_query(mysql, "DROP TABLE t1, t2");
+  myquery(rc);
+}
+
 #endif // EMBEDDED_LIBRARY
 
 
@@ -22531,6 +22628,9 @@ static struct my_tests_st my_tests[]= {
   { "test_connect_autocommit", test_connect_autocommit},
   { "test_execute_direct", test_execute_direct },
   { "test_cache_metadata", test_cache_metadata},
+#ifndef EMBEDDED_LIBRARY
+  { "test_mdev_24411", test_mdev_24411},
+#endif
   { "test_mdev_10075", test_mdev_10075},
   { 0, 0 }
 };

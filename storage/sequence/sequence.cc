@@ -47,7 +47,7 @@ public:
   {
     thr_lock_init(&lock);
   }
-  ~Sequence_share()
+  ~Sequence_share() override
   {
     thr_lock_delete(&lock);
   }
@@ -390,10 +390,10 @@ public:
       // Reset limit because we are handling it now
       orig_lim->set_unlimited();
     }
-  ~ha_seq_group_by_handler() = default;
-  int init_scan() { first_row= 1 ; return 0; }
-  int next_row();
-  int end_scan()  { return 0; }
+  ~ha_seq_group_by_handler() override = default;
+  int init_scan() override { first_row= 1 ; return 0; }
+  int next_row() override;
+  int end_scan() override  { return 0; }
 };
 
 static group_by_handler *
