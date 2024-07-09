@@ -4005,7 +4005,7 @@ COMMAND_LINE_ARGUMENT	OPTIONAL
 VARIABLE_NAME	SLAVE_CONNECTIONS_NEEDED_FOR_PURGE
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	INT UNSIGNED
-VARIABLE_COMMENT	Minimum number of connected slaves required for automatic binary log purge with max_binlog_total_size, binlog_expire_logs_seconds or binlog_expire_logs_days.
+VARIABLE_COMMENT	Minimum number of connected slaves required for automatic binary log purge with max_binlog_total_size, binlog_expire_logs_seconds or binlog_expire_logs_days. Default is 0 when Galera is enabled and 1 otherwise.
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	4294967295
 NUMERIC_BLOCK_SIZE	1

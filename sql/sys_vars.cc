@@ -704,6 +704,7 @@ Sys_binlog_format(
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(binlog_format_check),
        ON_UPDATE(fix_binlog_format_after_update));
 
+
 static bool binlog_direct_check(sys_var *self, THD *thd, set_var *var)
 {
   if (var->type == OPT_GLOBAL)
@@ -1265,7 +1266,7 @@ static bool update_binlog_space_limit(sys_var *, THD *,
       mysql_bin_log.count_binlog_space();
     /* Inform can_purge_log() that it should do a recheck of log_in_use() */
     sending_new_binlog_file++;
-     mysql_bin_log.unlock_index();
+    mysql_bin_log.unlock_index();
     mysql_bin_log.purge(1);
     return 0;
   }
@@ -1273,6 +1274,7 @@ static bool update_binlog_space_limit(sys_var *, THD *,
 #endif
   return 0;
 }
+
 
 static Sys_var_on_access_global<Sys_var_ulonglong,
                                 PRIV_SET_SYSTEM_GLOBAL_VAR_MAX_BINLOG_CACHE_SIZE>
@@ -1303,12 +1305,14 @@ Sys_slave_connections_needed_for_purge(
       "slave_connections_needed_for_purge",
       "Minimum number of connected slaves required for automatic binary "
       "log purge with max_binlog_total_size, binlog_expire_logs_seconds "
-      "or binlog_expire_logs_days.",
+      "or binlog_expire_logs_days. Default is 0 when Galera is enabled and 1 "
+      "otherwise.",
        GLOBAL_VAR(internal_slave_connections_needed_for_purge),
        CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, UINT_MAX), DEFAULT(1), BLOCK_SIZE(1),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
        ON_UPDATE(update_binlog_space_limit));
+
 
 static Sys_var_mybool Sys_flush(
        "flush", "Flush MyISAM tables to disk between SQL commands",

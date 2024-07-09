@@ -49,6 +49,9 @@ ERROR HY000: Could not delete gtid domain. Reason: binlog files may contain gtid
 MDEV-31140: Missing error from DELETE_DOMAIN_ID when gtid_binlog_state partially matches GTID_LIST.
 FLUSH BINARY LOGS;
 PURGE BINARY LOGS TO 'master-bin.000005';
+show binary logs;
+Log_name	File_size
+master-bin.000005	#
 SET @@SESSION.gtid_domain_id=8;
 SET @@SESSION.server_id=10*8 + 1;
 INSERT INTO t SELECT 1+MAX(a) FROM t;

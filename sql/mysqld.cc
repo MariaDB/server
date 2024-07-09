@@ -521,6 +521,7 @@ uint default_password_lifetime;
 my_bool disconnect_on_expired_password;
 
 bool max_user_connections_checking=0;
+
 /**
   Limit of the total number of prepared statements in the server.
   Is necessary to protect the server against out-of-memory attacks.
@@ -5869,7 +5870,28 @@ int mysqld_main(int argc, char **argv)
 #ifdef WITH_WSREP
   wsrep_set_wsrep_on(nullptr);
   if (WSREP_ON && wsrep_check_opts()) unireg_abort(1);
-#endif
+
+  if (!opt_bootstrap && WSREP_PROVIDER_EXISTS && WSREP_ON)
+  {
+    if (global_system_variables.binlog_format != BINLOG_FORMAT_ROW)
+    {
+      sql_print_information("Binlog_format changed to \"ROW\" because of "
+                            "Galera");
+      SYSVAR_AUTOSIZE(global_system_variables.binlog_format, BINLOG_FORMAT_ROW);
+    }
+    binlog_format_used= 1;
+    if (IS_SYSVAR_AUTOSIZE(&internal_slave_connections_needed_for_purge))
+    {
+      slave_connections_needed_for_purge=
+        internal_slave_connections_needed_for_purge= 0;
+      SYSVAR_AUTOSIZE(internal_slave_connections_needed_for_purge, 0);
+      sql_print_information(
+      "slave_connections_needed_for_purge changed to 0 because "
+      "of Galera. Change it to 1 or higher if this Galera node "
+      "is also Master in a normal replication setup");
+    }
+  }
+#endif /* WITH_WSREP */
 
 #ifdef _WIN32
   /* 
@@ -8241,7 +8263,6 @@ mysqld_get_one_option(const struct my_option *opt, const char *argument,
       ((enum_slave_parallel_mode)opt_slave_parallel_mode);
     break;
   }
-
   case (int)OPT_BINLOG_IGNORE_DB:
   {
     binlog_filter->add_ignore_db(argument);
@@ -8744,18 +8765,14 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
     opt_bin_log= opt_bin_log_used= 1;
 
     /* Force format to row */
+    if (global_system_variables.binlog_format != BINLOG_FORMAT_ROW)
+    {
+      sql_print_information("Binlog_format changed to \"ROW\" because of "
+                            "flashback");
+      SYSVAR_AUTOSIZE(global_system_variables.binlog_format,
+                      BINLOG_FORMAT_ROW);
+    }
     binlog_format_used= 1;
-    global_system_variables.binlog_format= BINLOG_FORMAT_ROW;
-  }
-
-  if (!opt_bootstrap && WSREP_PROVIDER_EXISTS && WSREP_ON &&
-      global_system_variables.binlog_format != BINLOG_FORMAT_ROW)
-  {
-
-    WSREP_ERROR ("Only binlog_format = 'ROW' is currently supported. "
-                 "Configured value: '%s'. Please adjust your configuration.",
-                 binlog_format_names[global_system_variables.binlog_format]);
-    return 1;
   }
 
   // Synchronize @@global.autocommit on --autocommit
