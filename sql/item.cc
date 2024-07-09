@@ -1272,6 +1272,25 @@ bool Item::eq(const Item *item, bool binary_cmp) const
 }
 
 
+Item *Item::multiple_equality_transformer(THD *thd, uchar *arg)
+{
+  if (const_item())
+  {
+    /*
+      Mark constant item in the condition with the IMMUTABLE_FL flag.
+      It is needed to prevent cleanup of the sub-items of this item and following
+      fix_fields() call that can cause a crash on this step of the optimization.
+      This flag will be removed at the end of the pushdown optimization by
+      remove_immutable_flag_processor processor.
+    */
+    int new_flag= IMMUTABLE_FL;
+    this->walk(&Item::set_extraction_flag_processor, false,
+               (void*)&new_flag);
+  }
+  return this;
+}
+
+
 Item *Item::safe_charset_converter(THD *thd, CHARSET_INFO *tocs)
 {
   if (!needs_charset_converter(tocs))
