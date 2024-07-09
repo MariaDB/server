@@ -9005,7 +9005,7 @@ static bool vers_update_or_validate_fields(TABLE *table)
 
 bool
 fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
-            bool ignore_errors, bool update)
+            bool ignore_errors, bool update, MY_BITMAP *bitmap)
 {
   List_iterator_fast<Item> f(fields),v(values);
   Item *value, *fld;
@@ -9035,6 +9035,9 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
     value=v++;
     DBUG_ASSERT(value);
     rfield= field->field;
+    /* If bitmap over wanted fields are set, skip non marked fields. */
+    if (bitmap && !bitmap_is_set(bitmap, rfield->field_index))
+        continue;
     table= rfield->table;
     if (table->next_number_field &&
         rfield->field_index ==  table->next_number_field->field_index)
@@ -9289,7 +9292,8 @@ fill_record_n_invoke_before_triggers(THD *thd, TABLE *table,
 
 bool
 fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
-            bool ignore_errors, bool use_value, bool check_for_computability)
+            bool ignore_errors, bool use_value, bool check_for_computability,
+            MY_BITMAP *bitmap)
 {
   List_iterator_fast<Item> v(values);
   List<TABLE> tbl_list;
@@ -9328,6 +9332,10 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
     value=v++;
     /* Ensure the end of the list of values is not reached */
     DBUG_ASSERT(value);
+
+    /* If bitmap over wanted fields are set, skip non marked fields. */
+    if (bitmap && !bitmap_is_set(bitmap, field->field_index))
+        continue;
 
     if (check_for_computability &&
         value->check_is_evaluable_expression_or_error())

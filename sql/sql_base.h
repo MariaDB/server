@@ -194,10 +194,11 @@ bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
                   bool allow_sum_func);
 void unfix_fields(List<Item> &items);
 bool fill_record(THD * thd, TABLE *table_arg, List<Item> &fields,
-                 List<Item> &values, bool ignore_errors, bool update);
+                 List<Item> &values, bool ignore_errors, bool update,
+                 MY_BITMAP *bitmap= NULL);
 bool fill_record(THD *thd, TABLE *table, Field **field, List<Item> &values,
                  bool ignore_errors, bool use_value,
-                 bool check_for_evaluability);
+                 bool check_for_evaluability, MY_BITMAP *bitmap= NULL);
 
 Field *
 find_field_in_tables(THD *thd, Item_ident *item,
