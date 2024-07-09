@@ -7278,10 +7278,8 @@ void Item_hex_constant::hex_string_init(THD *thd, const char *str, size_t str_le
 
 void Item_hex_hybrid::print(String *str, enum_query_type query_type)
 {
-  uint32 len= MY_MIN(str_value.length(), sizeof(longlong));
-  const char *ptr= str_value.ptr() + str_value.length() - len;
   str->append("0x");
-  str->append_hex(ptr, len);
+  str->append_hex(str_value.ptr(), str_value.length());
 }
 
 

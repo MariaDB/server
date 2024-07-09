@@ -623,17 +623,20 @@ SELECT fid, ST_AsText(ST_GeometryN(g, 1)) from gis_geometrycollection;
 --replace_column 10 #
 explain extended SELECT fid, ST_AsText(ST_GeometryN(g, 2)) from gis_multi_point;
 
+--disable_view_protocol
 SELECT g1.fid as first, g2.fid as second,
 MBRWithin(g1.g, g2.g) as w, MBRContains(g1.g, g2.g) as c, MBROverlaps(g1.g, g2.g) as o,
 MBREquals(g1.g, g2.g) as e, MBRDisjoint(g1.g, g2.g) as d, ST_Touches(g1.g, g2.g) as t,
 MBRIntersects(g1.g, g2.g) as i, ST_Crosses(g1.g, g2.g) as r
 FROM gis_geometrycollection g1, gis_geometrycollection g2 ORDER BY first, second;
+
 --replace_column 10 #
 explain extended SELECT g1.fid as first, g2.fid as second,
 MBRWithin(g1.g, g2.g) as w, MBRContains(g1.g, g2.g) as c, MBROverlaps(g1.g, g2.g) as o,
 MBREquals(g1.g, g2.g) as e, MBRDisjoint(g1.g, g2.g) as d, ST_Touches(g1.g, g2.g) as t,
 MBRIntersects(g1.g, g2.g) as i, ST_Crosses(g1.g, g2.g) as r
 FROM gis_geometrycollection g1, gis_geometrycollection g2 ORDER BY first, second;
+--enable_view_protocol
 
 --echo # check support of Foreign Key constraint
 CREATE TABLE parent (id GEOMETRY NOT NULL,PRIMARY KEY (id(10))) ENGINE=INNODB;
