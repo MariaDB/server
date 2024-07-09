@@ -44,7 +44,7 @@ SET(MY_WARNING_FLAGS
 # Warning flags that are in testing before moving
 # to MY_WARNING_FLAGS if stable.
 SET(MY_WARNING_FLAGS_NON_FATAL
-  effc++
+  cast-function-type-strict
   )
 
 FOREACH(F ${MY_WARNING_FLAGS})
@@ -55,6 +55,7 @@ ENDFOREACH()
 SET(MY_ERROR_FLAGS -Werror -fno-operator-names -Wsuggest-override)
 =======
 FOREACH(F ${MY_WARNING_FLAGS_NON_FATAL})
+  MY_CHECK_AND_SET_COMPILER_FLAG(-W${F} DEBUG RELWITHDEBINFO)
   MY_CHECK_AND_SET_COMPILER_FLAG(-Wno-error=${F} DEBUG RELWITHDEBINFO)
 ENDFOREACH()
 
