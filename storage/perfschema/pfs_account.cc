@@ -666,7 +666,7 @@ public:
     : m_thread(thread)
   {}
 
-  virtual void operator()(PFS_account *pfs)
+  void operator()(PFS_account *pfs) override
   {
     PFS_user *user= sanitize_user(pfs->m_user);
     PFS_host *host= sanitize_host(pfs->m_host);
@@ -699,7 +699,7 @@ public:
     : m_thread(thread)
   {}
 
-  virtual void operator()(PFS_account *pfs)
+  void operator()(PFS_account *pfs) override
   {
     if (pfs->m_username_length > 0 && pfs->m_hostname_length > 0)
     {

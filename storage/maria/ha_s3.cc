@@ -576,6 +576,7 @@ int ha_s3::create(const char *name, TABLE *table_arg,
     s3_deinit(s3_client);
     if (error)
       maria_delete_table_files(name, 1, 0);
+  }
   else
 #endif /* MOVE_TABLE_TO_S3 */
   {

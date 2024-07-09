@@ -29,7 +29,7 @@ CREATE TABLE t2 (a INT PRIMARY KEY, b MEDIUMTEXT) ENGINE=rocksdb;
 # The transaction is killed along with the server after that.
 --let $shutdown_timeout=0
 --let $debug_sync_action = "commit_after_release_LOCK_log SIGNAL con1_ready WAIT_FOR signal_no_signal"
---let $restart_parameters = --rpl-semi-sync-slave-enabled=1 --sync-binlog=1
+--let $restart_parameters = --init-rpl-role=SLAVE --sync-binlog=1
 --let $test_outcome= 1 row should be present in both tables; binlog is truncated; number of binlogs at reconnect - 3
 --source binlog_truncate_multi_engine.inc
 --echo Proof of the truncated binlog file is readable (two transactions must be seen):
@@ -42,7 +42,7 @@ CREATE TABLE t2 (a INT PRIMARY KEY, b MEDIUMTEXT) ENGINE=rocksdb;
 --let $debug_sync_action = ""
 # Both debug_sync and debug-dbug are required to make sure Engines remember the commit state
 # debug_sync alone will not help.
---let $restart_parameters = --rpl-semi-sync-slave-enabled=1 --sync-binlog=1
+--let $restart_parameters = --init-rpl-role=SLAVE --sync-binlog=1
 --let $test_outcome= 2 rows should be present in both tables; no binlog truncation; one extra binlog file compare with A; number of binlogs at reconnect - 4
 --source binlog_truncate_multi_engine.inc
 
@@ -51,7 +51,7 @@ CREATE TABLE t2 (a INT PRIMARY KEY, b MEDIUMTEXT) ENGINE=rocksdb;
 --let $debug_sync_action = "commit_after_run_commit_ordered SIGNAL con1_ready"
 # Hold off after both engines have committed. The server is shut down.
 --let $shutdown_timeout=
---let $restart_parameters = --rpl-semi-sync-slave-enabled=1 --sync-binlog=1
+--let $restart_parameters = --init-rpl-role=SLAVE --sync-binlog=1
 --let $test_outcome= 2 rows should be present in both tables; no binlog truncation; the same # of binlog files as in B; number of binlogs at reconnect - 4
 --source binlog_truncate_multi_engine.inc
 

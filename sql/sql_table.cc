@@ -11963,7 +11963,7 @@ class Has_default_error_handler : public Internal_error_handler
 public:
   bool handle_condition(THD *, uint sql_errno, const char *,
                         Sql_condition::enum_warning_level *,
-                        const char *, Sql_condition **)
+                        const char *, Sql_condition **) override
   {
     return sql_errno == ER_NO_DEFAULT_FOR_FIELD;
   }

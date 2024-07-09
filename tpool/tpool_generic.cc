@@ -304,11 +304,11 @@ class thread_pool_generic : public thread_pool
   }
 public:
   thread_pool_generic(int min_threads, int max_threads);
-  ~thread_pool_generic();
+  ~thread_pool_generic() override;
   void wait_begin() override;
   void wait_end() override;
   void submit_task(task *task) override;
-  virtual aio *create_native_aio(int max_io) override
+  aio *create_native_aio(int max_io) override
   {
 #ifdef _WIN32
     return create_win_aio(this, max_io);
@@ -436,13 +436,13 @@ public:
       m_task.wait();
     }
 
-    virtual ~timer_generic()
+    ~timer_generic() override
     {
       disarm();
     }
   };
   timer_generic m_maintenance_timer;
-  virtual timer* create_timer(callback_func func, void *data) override
+  timer* create_timer(callback_func func, void *data) override
   {
     return new timer_generic(func, data, this);
   }

@@ -84,7 +84,7 @@ select id, generate_random_string(a), generate_random_string(b) from t2;
 set sort_buffer_size=262144*10;
 analyze format=json select id DIV 100 as x,
 MD5(group_concat(substring(names,1,3), substring(address,1,3)
-order by id))
+order by id)) as md5
 FROM t3
 GROUP BY x;
 ANALYZE
@@ -132,11 +132,10 @@ ANALYZE
 flush status;
 select id DIV 100 as x,
 MD5(group_concat(substring(names,1,3), substring(address,1,3)
-order by id))
+order by id)) as md5
 FROM t3
 GROUP BY x;
-x	MD5(group_concat(substring(names,1,3), substring(address,1,3)
-order by id))
+x	md5
 0	3d24cb0237caf81aa74a2dddf367ac23
 1	618f9b8b6cefaa268dcb5477eece5e90
 2	fbfe93cc7713f852852f66e578d999aa
@@ -252,7 +251,7 @@ set sort_buffer_size=default;
 set sort_buffer_size=32768;
 analyze format=json select id DIV 100 as x,
 MD5(group_concat(substring(names,1,3), substring(address,1,3)
-order by id))
+order by id)) as md5
 FROM t3
 GROUP BY x;
 ANALYZE
@@ -301,11 +300,10 @@ ANALYZE
 flush status;
 select id DIV 100 as x,
 MD5(group_concat(substring(names,1,3), substring(address,1,3)
-order by id))
+order by id)) as md5
 FROM t3
 GROUP BY x;
-x	MD5(group_concat(substring(names,1,3), substring(address,1,3)
-order by id))
+x	md5
 0	3d24cb0237caf81aa74a2dddf367ac23
 1	618f9b8b6cefaa268dcb5477eece5e90
 2	fbfe93cc7713f852852f66e578d999aa

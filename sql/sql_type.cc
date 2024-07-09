@@ -33,6 +33,93 @@ const DTCollation &DTCollation_numeric::singleton()
   return tmp;
 }
 
+
+bool
+DTCollation::merge_charset_and_collation(Sql_used *used,
+                                         const Charset_collation_map_st &map,
+                                         CHARSET_INFO *cs,
+                                         const Lex_extended_collation_st &cl,
+                                         my_repertoire_t repertoire)
+{
+  Lex_exact_charset_opt_extended_collate cscl(cs, true);
+  if (cscl.merge_collation_override(used, map, cl))
+    return true;
+  set(cscl.collation().charset_info(), DERIVATION_EXPLICIT, repertoire);
+  return false;
+}
+
+
+bool DTCollation::merge_collation(Sql_used *used,
+                                  const Charset_collation_map_st &map,
+                                  const Lex_extended_collation_st &cl,
+                                  my_repertoire_t repertoire,
+                                  bool allow_ignorable_with_context_collation)
+{
+  if (derivation != DERIVATION_IGNORABLE)
+  {
+    // A known character set + an extended collation
+    return merge_charset_and_collation(used, map, collation, cl, repertoire);
+  }
+
+  if (cl.type() == Lex_extended_collation::TYPE_EXACT)
+  {
+    /*
+      An unknown character set + an exact collation.
+      Just use this exact collation.
+      Examples:
+      - Expressions derived from an explicit NULL:
+          SELECT NULL         COLLATE utf8mb4_general_ci;
+          SELECT CONCAT(NULL) COLLATE utf8mb4_general_ci;
+        Any collation is applicable to an explicit NULL.
+
+      - Expressions with PS parameters (at PREPARE time, not bound yet)
+          SELECT ?         COLLATE utf8mb4_general_ci;
+          SELECT CONCAT(?) COLLATE utf8mb4_general_ci;
+        The collation will be checked for applicability to the
+        character set of the actual bound parameter at the EXECUTE time.
+        We're now in PREPARE: let's assume it will be applicable.
+    */
+    set(cl.charset_info(), DERIVATION_EXPLICIT, repertoire);
+    return false;
+  }
+
+  // An unknown character set + a contextually typed collation
+  if (allow_ignorable_with_context_collation)
+  {
+    /*
+      Expressions with non-bound PS parameters, PREPARE time.
+        SELECT ?         COLLATE uca1400_ai_ci;
+        SELECT CONCAT(?) COLLATE uca1400_ai_ci;
+      There is a chance the character set of the actual bound parameter
+      will be known at the EXECUTE time (unless an explicit NULL is bound).
+
+      For now let's use utf8mb4 to resolve collations like uca1400_ai_ci.
+      The real character set of the actual bound parameter expression will be
+      later used to resolve the collation again, during the EXECUTE time.
+    */
+    return merge_charset_and_collation(used, map,
+                                       &my_charset_utf8mb4_general_ci,
+                                       cl, repertoire);
+  }
+
+  /*
+    Expressions with an unknown character set:
+    - Either without PS parameters at all:
+        SELECT NULL         COLLATE uca1400_ai_ci;
+        SELECT CONCAT(NULL) COLLATE uca1400_ai_ci;
+    - Or with PS parameters bound to NULL at EXECUTE time:
+        EXECUTE IMMEDIATE
+          'SELECT ? COLLATE uca1400_ai_ci' USING NULL;
+        EXECUTE IMMEDIATE
+          'SELECT CONCAT(?) COLLATE uca1400_ai_ci' USING NULL;
+        EXECUTE IMMEDIATE
+          'SELECT ? COLLATE uca1400_ai_ci' USING CONCAT(NULL);
+  */
+  my_error(ER_NOT_ALLOWED_IN_THIS_CONTEXT, MYF(0), "NULL");
+  return true;
+}
+
+
 Named_type_handler<Type_handler_row> type_handler_row("row");
 
 Named_type_handler<Type_handler_null> type_handler_null("null");

@@ -1642,13 +1642,13 @@ NULL
 Warnings:
 Warning	1411	Incorrect datetime value: '2007-20-00' for function str_to_date
 Warning	1411	Incorrect datetime value: '2007-20-00' for function str_to_date
-SELECT str_to_date('2007-10-00', '%Y-%m-%d') BETWEEN '' AND '2007/10/20';
-str_to_date('2007-10-00', '%Y-%m-%d') BETWEEN '' AND '2007/10/20'
+SELECT str_to_date('2007-10-00', '%Y-%m-%d') BETWEEN '' AND '2007/10/20' as exp;
+exp
 1
 Warnings:
 Warning	1292	Truncated incorrect datetime value: ''
-SELECT str_to_date('2007-20-00', '%Y-%m-%d') BETWEEN '2007/10/20' AND '';
-str_to_date('2007-20-00', '%Y-%m-%d') BETWEEN '2007/10/20' AND ''
+SELECT str_to_date('2007-20-00', '%Y-%m-%d') BETWEEN '2007/10/20' AND '' as exp;
+exp
 NULL
 Warnings:
 Warning	1411	Incorrect datetime value: '2007-20-00' for function str_to_date

@@ -1,0 +1,34 @@
+# mysqld refuses to run as root normally.
+--source include/not_as_root.inc
+--source include/have_debug.inc
+--source include/not_embedded.inc
+--source include/linux.inc
+
+--source include/shutdown_mysqld.inc
+
+# Try to start the server, with bad values for some options.
+# Make sure, the starts fails, and expected message is in the error log
+
+--let errorlog=$MYSQL_TMP_DIR/errorlog.err
+--let SEARCH_FILE=$errorlog
+
+--echo #
+--echo # MDEV-34437 SIGSEGV in vio_get_normalized_ip when using extra-port
+--echo #
+
+# getaddrinfo failure by fixing port to invalid value
+--error 1
+--exec $MYSQLD --defaults-group-suffix=.1 --defaults-file=$MYSQLTEST_VARDIR/my.cnf --debug='d,sabotage_port_number' --log-error=$errorlog
+--let SEARCH_PATTERN=\[ERROR\] Can't create IP socket: Servname not supported
+--source include/search_pattern_in_file.inc
+--remove_file $SEARCH_FILE
+
+--error 1
+--exec $MYSQLD --defaults-group-suffix=.1 --defaults-file=$MYSQLTEST_VARDIR/my.cnf --debug='d,sabotage_port_number' --bind-address=0.0.0.0 --log-error=$errorlog
+--let SEARCH_PATTERN=\[ERROR\] Can't create IP socket: Servname not supported
+--source include/search_pattern_in_file.inc
+--remove_file $SEARCH_FILE
+
+--source include/start_mysqld.inc
+
+--echo # End of 10.11 tests

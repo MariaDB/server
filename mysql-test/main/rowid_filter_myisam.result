@@ -74,21 +74,24 @@ DROP TABLE t1;
 CREATE TABLE t1 (pk int) engine=myisam ;
 INSERT INTO t1 VALUES (1),(2);
 CREATE TABLE t2 (
-pk int auto_increment PRIMARY KEY,
-i1 int, i2 int, c2 varchar(1),
-KEY (i1), KEY (i2)
+pk int PRIMARY KEY,
+i1 int, i2 int,
+c2 varchar(100),
+KEY (i1),
+KEY (i2)
 ) engine=myisam;
-INSERT INTO t2 VALUES
-(1,8,6,'t'),(2,5,7,'i'),(3,4,4,'h'),(4,207,38,'d'),(5,183,206,'b'),
-(6,7,null,'o'),(7,1,2,'j'),(8,17,36,'s'),(9,4,5,'q'),(10,0,6,'l'),
-(11,1,9,'j'),(12,5,6,'y'),(13,null,0,'i'),(14,7,7,'x'),(15,5,2,'u');
+insert into t2
+select
+seq, floor(seq/100), floor(seq/100), 'abcd'
+from
+seq_1_to_10000;
 SELECT * FROM t1 HAVING (7, 9) IN (SELECT t2.i1, t2.i2 FROM t2 WHERE t2.i1 = 3);
 pk
 EXPLAIN EXTENDED
 SELECT * FROM t1 HAVING (7, 9) IN (SELECT t2.i1, t2.i2 FROM t2 WHERE t2.i1 = 3);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible HAVING
-2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+2	SUBQUERY	t2	index_subquery	i1,i2	i2	5	const	10	0.92	Using where
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t1`.`pk` AS `pk` from `test`.`t1` having 0
 DROP TABLE t1,t2;

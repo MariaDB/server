@@ -1,0 +1,25 @@
+connection node_2;
+connection node_1;
+connect con1,127.0.0.1,root,,test,$NODE_MYPORT_1;
+call mtr.add_suppression("WSREP: ALTER TABLE isolation failure");
+CREATE TABLE t1(c1 INT PRIMARY KEY, c2 INT) ENGINE=InnoDB;
+INSERT into t1 values (1,1);
+SET DEBUG_SYNC = 'alter_table_after_open_tables SIGNAL bf_started WAIT_FOR bf_continue';
+ALTER TABLE t1 DROP COLUMN c2;;
+connection node_1;
+SET SESSION wsrep_sync_wait = 0;
+SET DEBUG_SYNC = 'now WAIT_FOR bf_started';
+KILL ID;
+ERROR HY000: This is a high priority thread/query and cannot be killed without compromising the consistency of the cluster
+KILL QUERY ID;
+ERROR HY000: This is a high priority thread/query and cannot be killed without compromising the consistency of the cluster
+connection node_1;
+SET DEBUG_SYNC = 'now SIGNAL bf_continue';
+connection con1;
+SET DEBUG_SYNC = 'RESET';
+SELECT * FROM t1;
+c1
+1
+connection node_1;
+DROP TABLE t1;
+disconnect con1;

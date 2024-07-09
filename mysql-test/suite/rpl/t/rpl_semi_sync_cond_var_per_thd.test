@@ -26,6 +26,9 @@
 
 --connection master
 call mtr.add_suppression("Got an error reading communication packets");
+call mtr.add_suppression("Got an error writing communication packets");
+call mtr.add_suppression("Could not read packet");
+call mtr.add_suppression("Could not write packet");
 set @save_bgc_count= @@global.binlog_commit_wait_count;
 set @save_bgc_usec= @@global.binlog_commit_wait_usec;
 set @save_debug_dbug= @@global.debug_dbug;

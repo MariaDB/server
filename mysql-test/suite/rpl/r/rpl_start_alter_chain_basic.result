@@ -64,7 +64,10 @@ connection server_2;
 select domain_id, seq_no from mysql.gtid_slave_pos order by seq_no desc limit 1;
 domain_id	seq_no
 0	12
+connection server_1;
+include/save_master_gtid.inc
 connection server_3;
+include/sync_with_master_gtid.inc
 select domain_id, seq_no from mysql.gtid_slave_pos order by seq_no desc limit 1;
 domain_id	seq_no
 0	12
@@ -77,6 +80,7 @@ select @@slave_parallel_threads;
 @@slave_parallel_threads
 0
 connection server_4;
+include/sync_with_master_gtid.inc
 select domain_id, seq_no from mysql.gtid_slave_pos order by seq_no desc limit 1;
 domain_id	seq_no
 0	12

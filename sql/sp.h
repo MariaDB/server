@@ -250,33 +250,33 @@ public:
 class Sp_handler_procedure: public Sp_handler
 {
 public:
-  enum_sp_type type() const { return SP_TYPE_PROCEDURE; }
-  LEX_CSTRING type_lex_cstring() const
+  enum_sp_type type() const override { return SP_TYPE_PROCEDURE; }
+  LEX_CSTRING type_lex_cstring() const override
   {
     static LEX_CSTRING m_type_str= { STRING_WITH_LEN("PROCEDURE")};
     return m_type_str;
   }
-  LEX_CSTRING empty_body_lex_cstring(sql_mode_t mode) const;
-  const char *show_create_routine_col1_caption() const
+  LEX_CSTRING empty_body_lex_cstring(sql_mode_t mode) const override;
+  const char *show_create_routine_col1_caption() const override
   {
     return "Procedure";
   }
-  const char *show_create_routine_col3_caption() const
+  const char *show_create_routine_col3_caption() const override
   {
     return "Create Procedure";
   }
-  MDL_key::enum_mdl_namespace get_mdl_type() const
+  MDL_key::enum_mdl_namespace get_mdl_type() const override
   {
     return MDL_key::PROCEDURE;
   }
-  const Sp_handler *package_routine_handler() const;
-  sp_cache **get_cache(THD *) const;
+  const Sp_handler *package_routine_handler() const override;
+  sp_cache **get_cache(THD *) const override;
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-  HASH *get_priv_hash() const;
+  HASH *get_priv_hash() const override;
 #endif
-  ulong recursion_depth(THD *thd) const;
-  void recursion_level_error(THD *thd, const sp_head *sp) const;
-  bool add_instr_preturn(THD *thd, sp_head *sp, sp_pcontext *spcont) const;
+  ulong recursion_depth(THD *thd) const override;
+  void recursion_level_error(THD *thd, const sp_head *sp) const override;
+  bool add_instr_preturn(THD *thd, sp_head *sp, sp_pcontext *spcont) const override;
 };
 
 
@@ -284,13 +284,13 @@ class Sp_handler_package_procedure: public Sp_handler_procedure
 {
 public:
   int sp_cache_routine(THD *thd, const Database_qualified_name *name,
-                       sp_head **sp) const
+                       sp_head **sp) const override
   {
     return sp_cache_package_routine(thd, name, sp);
   }
   sp_head *sp_find_routine(THD *thd,
                            const Database_qualified_name *name,
-                           bool cache_only) const
+                           bool cache_only) const override
   {
     return sp_find_package_routine(thd, name, cache_only);
   }
@@ -300,32 +300,32 @@ public:
 class Sp_handler_function: public Sp_handler
 {
 public:
-  enum_sp_type type() const { return SP_TYPE_FUNCTION; }
-  LEX_CSTRING type_lex_cstring() const
+  enum_sp_type type() const override { return SP_TYPE_FUNCTION; }
+  LEX_CSTRING type_lex_cstring() const override
   {
     static LEX_CSTRING m_type_str= { STRING_WITH_LEN("FUNCTION")};
     return m_type_str;
   }
-  LEX_CSTRING empty_body_lex_cstring(sql_mode_t mode) const;
-  const char *show_create_routine_col1_caption() const
+  LEX_CSTRING empty_body_lex_cstring(sql_mode_t mode) const override;
+  const char *show_create_routine_col1_caption() const override
   {
     return "Function";
   }
-  const char *show_create_routine_col3_caption() const
+  const char *show_create_routine_col3_caption() const override
   {
     return "Create Function";
   }
-  MDL_key::enum_mdl_namespace get_mdl_type() const
+  MDL_key::enum_mdl_namespace get_mdl_type() const override
   {
     return MDL_key::FUNCTION;
   }
-  const Sp_handler *package_routine_handler() const;
-  sp_cache **get_cache(THD *) const;
+  const Sp_handler *package_routine_handler() const override;
+  sp_cache **get_cache(THD *) const override;
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-  HASH *get_priv_hash() const;
+  HASH *get_priv_hash() const override;
 #endif
   bool add_instr_freturn(THD *thd, sp_head *sp, sp_pcontext *spcont,
-                         Item *item, sp_expr_lex *lex) const;
+                         Item *item, sp_expr_lex *lex) const override;
 };
 
 
@@ -333,13 +333,13 @@ class Sp_handler_package_function: public Sp_handler_function
 {
 public:
   int sp_cache_routine(THD *thd, const Database_qualified_name *name,
-                       sp_head **sp) const
+                       sp_head **sp) const override
   {
     return sp_cache_package_routine(thd, name, sp);
   }
   sp_head *sp_find_routine(THD *thd,
                            const Database_qualified_name *name,
-                           bool cache_only) const
+                           bool cache_only) const override
   {
     return sp_find_package_routine(thd, name, cache_only);
   }
@@ -358,7 +358,7 @@ public:
                       const st_sp_chistics &chistics,
                       const AUTHID &definer,
                       const DDL_options_st ddl_options,
-                      sql_mode_t sql_mode) const;
+                      sql_mode_t sql_mode) const override;
 };
 
 
@@ -367,34 +367,34 @@ class Sp_handler_package_spec: public Sp_handler_package
 public: // TODO: make it private or protected
   int sp_find_and_drop_routine(THD *thd, TABLE *table,
                                const Database_qualified_name *name)
-                               const;
+                               const override;
 public:
-  enum_sp_type type() const { return SP_TYPE_PACKAGE; }
-  LEX_CSTRING type_lex_cstring() const
+  enum_sp_type type() const override { return SP_TYPE_PACKAGE; }
+  LEX_CSTRING type_lex_cstring() const override
   {
     static LEX_CSTRING m_type_str= {STRING_WITH_LEN("PACKAGE")};
     return m_type_str;
   }
-  LEX_CSTRING empty_body_lex_cstring(sql_mode_t mode) const
+  LEX_CSTRING empty_body_lex_cstring(sql_mode_t mode) const override
   {
     static LEX_CSTRING m_empty_body= {STRING_WITH_LEN("BEGIN END")};
     return m_empty_body;
   }
-  const char *show_create_routine_col1_caption() const
+  const char *show_create_routine_col1_caption() const override
   {
     return "Package";
   }
-  const char *show_create_routine_col3_caption() const
+  const char *show_create_routine_col3_caption() const override
   {
     return "Create Package";
   }
-  MDL_key::enum_mdl_namespace get_mdl_type() const
+  MDL_key::enum_mdl_namespace get_mdl_type() const override
   {
     return MDL_key::PACKAGE_BODY;
   }
-  sp_cache **get_cache(THD *) const;
+  sp_cache **get_cache(THD *) const override;
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-  HASH *get_priv_hash() const;
+  HASH *get_priv_hash() const override;
 #endif
 };
 
@@ -402,32 +402,32 @@ public:
 class Sp_handler_package_body: public Sp_handler_package
 {
 public:
-  enum_sp_type type() const { return SP_TYPE_PACKAGE_BODY; }
-  LEX_CSTRING type_lex_cstring() const
+  enum_sp_type type() const override { return SP_TYPE_PACKAGE_BODY; }
+  LEX_CSTRING type_lex_cstring() const override
   {
     static LEX_CSTRING m_type_str= {STRING_WITH_LEN("PACKAGE BODY")};
     return m_type_str;
   }
-  LEX_CSTRING empty_body_lex_cstring(sql_mode_t mode) const
+  LEX_CSTRING empty_body_lex_cstring(sql_mode_t mode) const override
   {
     static LEX_CSTRING m_empty_body= {STRING_WITH_LEN("BEGIN END")};
     return m_empty_body;
   }
-  const char *show_create_routine_col1_caption() const
+  const char *show_create_routine_col1_caption() const override
   {
     return "Package body";
   }
-  const char *show_create_routine_col3_caption() const
+  const char *show_create_routine_col3_caption() const override
   {
     return "Create Package Body";
   }
-  MDL_key::enum_mdl_namespace get_mdl_type() const
+  MDL_key::enum_mdl_namespace get_mdl_type() const override
   {
     return MDL_key::PACKAGE_BODY;
   }
-  sp_cache **get_cache(THD *) const;
+  sp_cache **get_cache(THD *) const override;
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-  HASH *get_priv_hash() const;
+  HASH *get_priv_hash() const override;
 #endif
 };
 
@@ -435,18 +435,18 @@ public:
 class Sp_handler_trigger: public Sp_handler
 {
 public:
-  enum_sp_type type() const { return SP_TYPE_TRIGGER; }
-  LEX_CSTRING type_lex_cstring() const
+  enum_sp_type type() const override { return SP_TYPE_TRIGGER; }
+  LEX_CSTRING type_lex_cstring() const override
   {
     static LEX_CSTRING m_type_str= { STRING_WITH_LEN("TRIGGER")};
     return m_type_str;
   }
-  MDL_key::enum_mdl_namespace get_mdl_type() const
+  MDL_key::enum_mdl_namespace get_mdl_type() const override
   {
     DBUG_ASSERT(0);
     return MDL_key::TRIGGER;
   }
-  const Sp_handler *sp_handler_mysql_proc() const { return NULL; }
+  const Sp_handler *sp_handler_mysql_proc() const override { return NULL; }
 };
 
 

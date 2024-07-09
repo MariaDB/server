@@ -1211,6 +1211,85 @@ DROP VIEW v1;
 # End of 10.4 tests
 #
 #
+# Start of 10.5 tests
+#
+#
+# MDEV-20548 Unexpected error on CREATE..SELECT HEX(num)
+#
+SET sql_mode=STRICT_ALL_TABLES;
+CREATE TABLE t1 AS SELECT HEX(-2e0) AS h;
+SELECT * FROM t1;
+h
+FFFFFFFFFFFFFFFE
+SHOW COLUMNS IN t1;
+Field	Type	Null	Key	Default	Extra
+h	varchar(16)	YES		NULL	
+DROP TABLE t1;
+CREATE TABLE t1 AS SELECT HEX(-1e0) AS h;
+SELECT * FROM t1;
+h
+FFFFFFFFFFFFFFFF
+SHOW COLUMNS IN t1;
+Field	Type	Null	Key	Default	Extra
+h	varchar(16)	YES		NULL	
+DROP TABLE t1;
+CREATE TABLE t1 AS SELECT HEX(1e0) AS h;
+SELECT * FROM t1;
+h
+1
+SHOW COLUMNS IN t1;
+Field	Type	Null	Key	Default	Extra
+h	varchar(16)	YES		NULL	
+DROP TABLE t1;
+CREATE TABLE t1 AS SELECT HEX(2e0) AS h;
+SELECT * FROM t1;
+h
+2
+SHOW COLUMNS IN t1;
+Field	Type	Null	Key	Default	Extra
+h	varchar(16)	YES		NULL	
+DROP TABLE t1;
+CREATE TABLE t1 (a FLOAT);
+INSERT INTO t1 VALUES (-1e38),(-255),(-2),(-1),(+1),(+2),(255),(1e38);
+CREATE TABLE t2 AS SELECT a, HEX(a) AS h FROM t1;
+SELECT * FROM t2 ORDER BY a;
+a	h
+-1e38	FFFFFFFFFFFFFFFF
+-255	FFFFFFFFFFFFFF01
+-2	FFFFFFFFFFFFFFFE
+-1	FFFFFFFFFFFFFFFF
+1	1
+2	2
+255	FF
+1e38	FFFFFFFFFFFFFFFF
+SHOW COLUMNS IN t2;
+Field	Type	Null	Key	Default	Extra
+a	float	YES		NULL	
+h	varchar(16)	YES		NULL	
+DROP TABLE t1, t2;
+CREATE TABLE t1 (a DOUBLE);
+INSERT INTO t1 VALUES (-1e308),(-255),(-2),(-1),(+1),(+2),(255),(1e308);
+CREATE TABLE t2 AS SELECT a, HEX(a) AS h FROM t1;
+SELECT * FROM t2 ORDER BY a;
+a	h
+-1e308	FFFFFFFFFFFFFFFF
+-255	FFFFFFFFFFFFFF01
+-2	FFFFFFFFFFFFFFFE
+-1	FFFFFFFFFFFFFFFF
+1	1
+2	2
+255	FF
+1e308	FFFFFFFFFFFFFFFF
+SHOW COLUMNS IN t2;
+Field	Type	Null	Key	Default	Extra
+a	double	YES		NULL	
+h	varchar(16)	YES		NULL	
+DROP TABLE t1, t2;
+SET sql_mode=DEFAULT;
+#
+# End of 10.5 tests
+#
+#
 # MDEV-32203 Raise notes when an index cannot be used on data type mismatch
 #
 SET note_verbosity=unusable_keys;

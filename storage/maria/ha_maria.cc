@@ -1821,6 +1821,11 @@ int ha_maria::repair(THD *thd, HA_CHECK *param, bool do_optimize)
       _ma_check_print_warning(param, "Number of rows changed from %s to %s",
                               llstr(rows, llbuff),
                               llstr(file->state->records, llbuff2));
+      /*
+        ma_check_print_warning() may generate an error in case of creating keys
+        for ALTER TABLE. In this case we should signal an error.
+      */
+      error= thd->is_error();
     }
   }
   else
