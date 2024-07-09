@@ -911,6 +911,20 @@ bool Item_field::register_field_in_bitmap(void *arg)
 
 
 /*
+  @brief
+  Remove field from bitmap supplied as *arg
+*/
+
+bool Item_field::remove_field_from_bitmap(void *arg)
+{
+  MY_BITMAP *bitmap= (MY_BITMAP *) arg;
+  DBUG_ASSERT(bitmap);
+  bitmap_clear_bit(bitmap, field->field_index);
+  return 0;
+}
+
+
+/*
   Mark field in write_map
 
   NOTES

@@ -700,6 +700,656 @@ Field **TABLE::field_to_fill()
 }
 
 
+class Insert_prelocking_strategy : public DML_prelocking_strategy
+{
+  bool m_done;
+  bool m_retval;
+  TABLE_LIST *m_table_list;
+  enum_duplicates m_duplic;
+  bool m_ignore;
+  List<Item> *m_fields;
+  List<List_item> *m_values_list;
+  List<Item> *m_update_fields;
+  List<Item> *m_update_values;
+
+//  bool has_prelocking_list;
+public:
+  Insert_prelocking_strategy(TABLE_LIST *table_list,
+                             List<Item> *fields, List<List_item> *values_list,
+                             List<Item> *update_fields,
+                             List<Item> *update_values,
+                             enum_duplicates duplic, bool ignore) :
+    DML_prelocking_strategy(), m_retval(TRUE), m_table_list(table_list),
+    m_duplic(duplic), m_ignore(ignore), m_fields(fields),
+    m_values_list(values_list), m_update_fields(update_fields),
+    m_update_values(update_values)
+  {}
+  void reset(THD *thd);
+  bool handle_end(THD *thd);
+  bool retval() const { return m_retval; }
+};
+
+
+void Insert_prelocking_strategy::reset(THD *thd)
+{
+  m_done= false;
+}
+
+
+
+
+
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+#include "partition_info.h"
+
+/**
+   Allocates and initializes a MY_BITMAP bitmap, containing one bit per column
+   in the table. The table THD's MEM_ROOT is used to allocate memory.
+
+   @param      table   The table whose columns should be used as a template
+                       for the bitmap.
+   @param[out] bitmap  A pointer to the allocated bitmap.
+
+   @retval false Success.
+   @retval true Memory allocation error.
+*/
+static bool allocate_column_bitmap(TABLE *table, MY_BITMAP **bitmap)
+{
+  DBUG_ENTER("allocate_column_bitmap");
+  const uint number_bits= table->s->fields;
+  MY_BITMAP *the_struct;
+  my_bitmap_map *the_bits;
+
+  DBUG_ASSERT(current_thd == table->in_use);
+  if (multi_alloc_root(table->in_use->mem_root,
+                       &the_struct, sizeof(MY_BITMAP),
+                       &the_bits, bitmap_buffer_size(number_bits),
+                       NULL) == NULL)
+    DBUG_RETURN(true);
+
+  if (my_bitmap_init(the_struct, the_bits, number_bits) != 0)
+    DBUG_RETURN(true);
+
+  *bitmap= the_struct;
+
+  DBUG_RETURN(false);
+}
+
+
+enum operation_type { INSERT_OPERATION, UPDATE_OPERATION };
+
+
+static void clear_bitmap_fields(List<Item> *columns,
+                                MY_BITMAP *col_bitmap)
+{
+  /*
+    Remove explicitly assigned columns from the bitmap. The assignment
+    target (lvalue) may not always be a column (Item_field), e.g. we could
+    be inserting into a view, whose column is actually a base table's column
+    converted with COLLATE: the lvalue would then be an
+    Item_func_set_collation.
+    If the lvalue is an expression tree, we clear all columns in it from the
+    bitmap.
+  */
+  List_iterator<Item> lvalue_it(*columns);
+  Item *lvalue_item;
+
+  while ((lvalue_item= lvalue_it++))
+    lvalue_item->walk( &Item::remove_field_from_bitmap, 1, col_bitmap);
+}
+
+
+static MY_BITMAP *get_function_default_columns(TABLE *table,
+  operation_type optype,
+  List<Item> *changed_columns, List<Item> *changed_columns2)
+{
+  MY_BITMAP *function_default_columns;
+  DBUG_ENTER("get_function_default_columns");
+
+  if (allocate_column_bitmap(table, &function_default_columns))
+    DBUG_RETURN(NULL);
+
+  /*
+    Find columns with function default on insert or update, mark them in
+    bitmap.
+  */
+  for (uint i= 0; i < table->s->fields; ++i)
+  {
+    Field *f= table->field[i];
+    if ((optype == INSERT_OPERATION && f->has_default_now_unireg_check()) ||
+        (optype == UPDATE_OPERATION && f->has_default_update_unireg_check()))
+      bitmap_set_bit(function_default_columns, f->field_index);
+  }
+
+  if (bitmap_is_clear_all(function_default_columns))
+    goto end; // no bit set, next step unneeded
+
+  clear_bitmap_fields(changed_columns, function_default_columns);
+  if (changed_columns2)
+    clear_bitmap_fields(changed_columns2, function_default_columns);
+
+end:
+  DBUG_RETURN(function_default_columns);
+}
+static MY_BITMAP *add_function_default_columns(TABLE *table, MY_BITMAP *columns,
+    List<Item> *changed_columns, List<Item> *changed_columns2)
+{
+  MY_BITMAP *function_default_columns;
+  if ((function_default_columns=
+        get_function_default_columns(table, INSERT_OPERATION,
+                                 changed_columns, changed_columns2)) == NULL)
+    return NULL;
+  bitmap_union(columns, function_default_columns);
+  return function_default_columns;
+}
+
+/**
+  Check if fields are in the partitioning expression.
+
+  @param fields  List of Items (fields)
+
+  @return True if any field in the fields list is used by a partitioning expr.
+  @retval true  At least one field in the field list is found.
+  @retval false No field is within any partitioning expression.
+*/
+
+static bool is_fields_in_part_expr(const partition_info *part_info,
+                                   List<Item> &fields)
+{
+  List_iterator<Item> it(fields);
+  Item *item;
+  Item_field *field;
+  DBUG_ENTER("is_fields_in_part_expr");
+  while ((item = it++))
+  {
+    field = item->field_for_view_update();
+    DBUG_ASSERT(field->field->table == part_info->table);
+    if (bitmap_is_set(&part_info->full_part_field_set,
+                      field->field->field_index))
+      DBUG_RETURN(true);
+  }
+  DBUG_RETURN(false);
+}
+
+
+/*
+  Check if all partitioning fields are included.
+*/
+
+static bool is_full_part_expr_in_fields(partition_info *part_info,
+                                        List<Item> &fields)
+{
+  Field **part_field= part_info->full_part_field_array;
+
+  DBUG_ENTER("is_full_part_expr_in_fields");
+  DBUG_ASSERT(*part_field);
+  /*
+    We could use part_info->full_part_field_set, but since the number of
+    partitioning fields is (usually) small, it seems better to loop through
+    them.
+  */
+  do
+  {
+    List_iterator<Item> it(fields);
+    Item *item;
+
+    while ((item= it++))
+    {
+      Field *field;
+      field= item->field_for_view_update()->field;
+      if (*part_field == field)
+        break;
+    }
+
+    if (!item)
+      DBUG_RETURN(false);
+
+  } while (*(++part_field));
+
+  DBUG_RETURN(true);
+}
+
+
+static void set_function_defaults(MY_BITMAP *default_columns, TABLE *table)
+{
+  DBUG_ENTER("set_function_defaults");
+
+  /* Quick reject test for checking the case when no defaults are invoked. */
+  if (bitmap_is_clear_all(default_columns))
+    DBUG_VOID_RETURN;
+
+  //for (uint i= 0; i < table->s->fields; ++i)
+  //  if (bitmap_is_set(m_function_default_columns, i))
+  //  {
+  //    DBUG_ASSERT(bitmap_is_set(table->write_set, i));
+  //    switch (m_optype)
+  //    {
+  //    case INSERT_OPERATION:
+  //      table->field[i]->evaluate_insert_default_function();
+  //      break;
+  //    case UPDATE_OPERATION:
+  //      table->field[i]->evaluate_update_default_function();
+  //      break;
+  //    }
+  //  }
+  DBUG_VOID_RETURN;
+}
+
+
+
+enum enum_can_prune { PRUNE_NO= 0, PRUNE_DEFAULTS, PRUNE_YES };
+
+
+/**
+Checks if possible to do prune partitions on insert.
+
+@param thd           Thread context
+@param duplic        How to handle duplicates
+@param update        In case of ON DUPLICATE UPDATE, default function fields
+@param update_fields In case of ON DUPLICATE UPDATE, which fields to update
+@param fields        Listed fields
+@param empty_values  True if values is empty (only defaults)
+@param[out] prune_needs_default_values  Set on return if copying of default
+values is needed
+@param[out] can_prune_partitions        Enum showing if possible to prune
+@param[inout] used_partitions           If possible to prune the bitmap
+is initialized and cleared
+
+@return Operation status
+@retval false  Success
+@retval true   Failure
+*/
+
+static bool can_prune_insert(partition_info *part_info,
+    THD* thd, enum_duplicates duplic,
+    const MY_BITMAP *update_function_default_columns,
+    List<Item> &update_fields,
+    List<Item> &fields,
+    bool empty_values,
+    enum_can_prune *can_prune_partitions,
+    bool *prune_needs_default_values,
+    MY_BITMAP *used_partitions)
+{
+  my_bitmap_map *bitmap_buf;
+  uint bitmap_bytes;
+  uint num_partitions= 0;
+  TABLE *table= part_info->table;
+
+  DBUG_ENTER("can_prune_insert");
+
+  *can_prune_partitions= PRUNE_NO;
+  if (table->s->db_type()->partition_flags() & HA_USE_AUTO_PARTITION)
+    DBUG_RETURN(false);
+
+  /*
+    Cannot prune if there are BEFORE INSERT triggers that change any
+    partitioning column, since they may change the row to be in another
+    partition.
+  */
+  if (table->triggers &&
+      table->triggers->has_triggers(TRG_EVENT_INSERT, TRG_ACTION_BEFORE) &&
+      table->triggers->is_fields_updated_in_trigger(
+        &part_info->full_part_field_set, TRG_EVENT_INSERT, TRG_ACTION_BEFORE))
+    DBUG_RETURN(false);
+
+
+  /*
+    Can't prune partitions over generated columns, as their values are
+    calculated much later.
+  */
+  if (table->vfield)
+  {
+    Field **fld;
+    for (fld= table->vfield; *fld; fld++)
+    {
+      if (bitmap_is_set(&part_info->full_part_field_set, (*fld)->field_index))
+        DBUG_RETURN(false);
+    }
+  }
+
+
+  /*
+    Do not prune if the auto_increment field is used in partioning expression.
+    TODO: If all rows have not null values and
+      is not 0 (with NO_AUTO_VALUE_ON_ZERO sql_mode), then pruning is possible!
+  */
+  if (table->found_next_number_field &&
+      bitmap_is_set(&part_info->full_part_field_set,
+                    table->found_next_number_field->field_index))
+    DBUG_RETURN(false);
+
+  /*
+    If updating a field in the partitioning expression, we cannot prune.
+    Note: TIMESTAMP_AUTO_SET_ON_INSERT is handled by converting Item_null
+    to the start time of the statement. Which will be the same as in
+    write_row(). So pruning of TIMESTAMP DEFAULT CURRENT_TIME will work.
+    But TIMESTAMP_AUTO_SET_ON_UPDATE cannot be pruned if the timestamp
+    column is a part of any part/subpart expression.
+  */
+  if (duplic == DUP_UPDATE)
+  {
+    /*
+       Cannot prune if any field in the partitioning expression can
+       be updated by ON DUPLICATE UPDATE.
+    */
+    if (bitmap_is_overlapping(update_function_default_columns,
+                              &part_info->full_part_field_set))
+      DBUG_RETURN(false);
+
+    /*
+      TODO: add check for static update values, which can be pruned.
+    */
+    if (is_fields_in_part_expr(part_info, update_fields))
+      DBUG_RETURN(false);
+
+    /*
+      Cannot prune if there are BEFORE UPDATE triggers that changes any
+      partitioning column, since they may change the row to be in another
+      partition.
+    */
+    if (table->triggers &&
+        table->triggers->has_triggers(TRG_EVENT_UPDATE,
+          TRG_ACTION_BEFORE) &&
+        table->triggers->is_fields_updated_in_trigger(
+          &part_info->full_part_field_set,
+          TRG_EVENT_UPDATE,
+          TRG_ACTION_BEFORE))
+    {
+      DBUG_RETURN(false);
+    }
+  }
+
+  /*
+    If not all partitioning fields are given,
+    we also must set all non given partitioning fields
+    to get correct defaults.
+    TODO: If any gain, we could enhance this by only copy the needed default
+      fields by
+    1) check which fields need to be set.
+    2) only copy those fields from the default record.
+  */
+  if (fields.elements)
+  {
+    /*
+      INSERT INTO t (a, b) VALUES ... or
+      INSERT INTO t SET a=1, b=2;
+    */
+    *prune_needs_default_values= 
+      !is_full_part_expr_in_fields(part_info, fields);
+  }
+  else if (empty_values)
+    /* INSERT INTO t () VALUES () */
+    *prune_needs_default_values= true;
+  else
+  {
+    /*
+      INSERT INTO t VALUES (...) we must get values for
+      all fields in table from VALUES (...) part, so no defaults
+      are needed.
+    */
+    *prune_needs_default_values= false;
+  }
+
+  /* Pruning possible, have to initialize the used_partitions bitmap. */
+  num_partitions= part_info->lock_partitions.n_bits;
+  bitmap_bytes= bitmap_buffer_size(num_partitions);
+  if (!(bitmap_buf= (my_bitmap_map *) thd->alloc(bitmap_bytes)))
+  {
+    my_error(ER_OUTOFMEMORY, MYF(ME_FATAL), bitmap_bytes);
+    DBUG_RETURN(true);
+  }
+
+  /* Can't fails - buffer prealloced. */
+  (void) my_bitmap_init(used_partitions, bitmap_buf, num_partitions);
+
+  /* If no partitioning field in set (e.g. defaults) check pruning only once. */
+  if (fields.elements && !is_fields_in_part_expr(part_info, fields))
+    *can_prune_partitions= PRUNE_DEFAULTS;
+  else
+    *can_prune_partitions= PRUNE_YES;
+
+  DBUG_RETURN(false);
+}
+
+
+static bool set_used_partition(partition_info *part_info,
+    List<Item> &fields, List<Item> &values,
+    MY_BITMAP *default_columns,
+    bool copy_default_values, MY_BITMAP *used_partitions)
+{
+  TABLE *table= part_info->table;
+  THD *thd= table->in_use;
+  uint32 part_id;
+  Dummy_error_handler error_handler;
+  bool ret= true;
+  DBUG_ENTER("set_used_partition");
+  DBUG_ASSERT(thd);
+
+  /* Only allow checking of constant values */
+  List_iterator_fast<Item> v(values);
+  Item *item;
+  while ((item= v++))
+  {
+    if (!item->const_item())
+      goto err;
+  }
+
+
+  if (copy_default_values)
+    restore_record(table, s->default_values);
+
+  thd->push_internal_handler(&error_handler);
+
+  if (fields.elements || !values.elements)
+  {
+    /*
+      INSERT INTO t1 (fields) VALUES ...
+      INSERT INTO t1 VALUES ()
+    */
+    if (fill_record_with_mask(thd, table, fields, values,
+                              false, false, &part_info->full_part_field_set))
+      goto err;
+  }
+  else
+  {
+    /*
+      INSERT INTO t1 VALUES (values)
+    */
+    if (fill_record_with_mask(thd, table, table->field, values,
+          false, false, false, &part_info->full_part_field_set))
+      goto err;
+  }
+  DBUG_ASSERT(!table->auto_increment_field_not_null);
+
+  /*
+    Evaluate DEFAULT functions like CURRENT_TIMESTAMP.
+    TODO: avoid setting non partitioning fields default value, to avoid
+    overhead. Not yet done, since mostly only one DEFAULT function per
+    table, or at least very few such columns.
+  */
+  if (bitmap_is_overlapping(default_columns, &part_info->full_part_field_set))
+    set_function_defaults(default_columns, table);
+
+  {
+    /*
+      This function is used in INSERT; 'values' are supplied by user,
+      or are default values, not values read from a table, so read_set is
+      irrelevant.
+    */
+    MY_BITMAP *old_map= dbug_tmp_use_all_columns(table, &table->read_set);
+    longlong func_value;
+    const int rc= part_info->get_partition_id(part_info, &part_id, &func_value);
+    dbug_tmp_restore_column_map(&table->read_set, old_map);
+    if (rc)
+      goto err;
+  }
+
+  DBUG_PRINT("info", ("Insert into partition %u", part_id));
+  bitmap_set_bit(used_partitions, part_id);
+  ret = false;
+
+err:
+  thd->pop_internal_handler();
+  DBUG_RETURN(ret);
+}
+
+
+#ifdef VER0
+bool Insert_prelocking_strategy::handle_end(THD *thd)
+{
+  Item *unused_conds= 0;
+  int res;
+  List_iterator_fast<List_item> its(*m_values_list);
+  List_item *values;
+
+  thd->lex->used_tables=0;
+  values= its++;
+  if (bulk_parameters_set(thd))
+    return 1;
+
+  if ((res= mysql_prepare_insert(thd, m_table_list, *m_fields, values,
+                                 *m_update_fields, *m_update_values, m_duplic,
+                                 m_ignore, &unused_conds, FALSE)))
+  {
+    m_retval= thd->is_error();
+    if (res < 0)
+    {
+      /*
+        Insert should be ignored but we have to log the query in statement
+        format in the binary log
+      */
+      if (thd->binlog_current_query_unfiltered())
+        m_retval= 1;
+    }
+    return 1;
+  }
+
+  return 0;
+}
+#endif /*VER0*/
+
+
+bool Insert_prelocking_strategy::handle_end(THD *thd)
+{
+  Item *unused_conds= 0;
+  int res;
+  List_iterator_fast<List_item> its(*m_values_list);
+  List_item *values;
+
+  MY_BITMAP *function_default_columns;
+  MY_BITMAP *upd_function_default_columns;
+  bool prune_needs_default_values;
+  enum_can_prune can_prune_partitions;
+  MY_BITMAP used_partitions;
+  /*uint num_partitions= 0;*/
+
+  DBUG_ENTER("Insert_prelocking_strategy::handle_end");
+
+  thd->lex->used_tables=0;
+  values= its++;
+  if (bulk_parameters_set(thd))
+    DBUG_RETURN(true);
+
+  if ((res= mysql_prepare_insert(thd, m_table_list, *m_fields, values,
+                                 *m_update_fields, *m_update_values, m_duplic,
+                                 m_ignore, &unused_conds, FALSE)))
+  {
+    m_retval= thd->is_error();
+    if (res < 0)
+    {
+      /*
+        Insert should be ignored but we have to log the query in statement
+        format in the binary log
+      */
+      if (thd->binlog_current_query_unfiltered())
+        m_retval= 1;
+    }
+    DBUG_RETURN(true);
+  }
+
+  if (m_done)
+    DBUG_RETURN(false);
+
+  m_done= true;
+
+  TABLE *table= m_table_list->table;
+
+  if (table->part_info == NULL ||
+      m_table_list->lock_type == TL_WRITE_DELAYED)
+    DBUG_RETURN(false);
+
+  /* Must be done before can_prune_insert, due to internal initialization. */
+  if ((function_default_columns=
+         add_function_default_columns(table, table->write_set,
+                                      m_fields, NULL)) == NULL)
+      goto abort;
+  if (m_duplic == DUP_UPDATE &&
+      (upd_function_default_columns= 
+         add_function_default_columns(table, table->write_set,
+                                      m_update_fields, NULL)) == NULL)
+      goto abort;
+
+
+  /* if (!is_locked) check insert_delayed */
+  {
+    if (can_prune_insert(table->part_info, thd,
+          m_duplic, upd_function_default_columns, *m_update_fields,
+          *m_fields, !MY_TEST(values->elements), &can_prune_partitions,
+          &prune_needs_default_values, &used_partitions))
+      goto abort;
+
+    if (can_prune_partitions != PRUNE_NO)
+    {
+      /*
+        Pruning probably possible, all partitions is unmarked for read/lock,
+        and we must now add them on row by row basis.
+
+        Check the first INSERT value.
+        Do not fail here, since that would break MyISAM behavior of inserting
+        all rows before the failing row.
+
+        PRUNE_DEFAULTS means the partitioning fields are only set to DEFAULT
+        values, so we only need to check the first INSERT value, since all the
+        rest will be in the same partition.
+      */
+      do
+      {
+        if (set_used_partition(table->part_info, *m_fields, *values,
+              function_default_columns, prune_needs_default_values,
+              &used_partitions))
+        {
+          can_prune_partitions= PRUNE_NO;
+          break;
+        }
+      } while ((values= its++));
+    }
+  }
+
+  if (can_prune_partitions != PRUNE_NO)
+  {
+    /*
+      Only lock the partitions we will insert into.
+      And also only read from those partitions (duplicates etc.).
+      If explicit partition selection 'INSERT INTO t PARTITION (p1)' is used,
+      the new set of read/lock partitions is the intersection of read/lock
+      partitions and used partitions, i.e only the partitions that exists in
+      both sets will be marked for read/lock.
+      It is also safe for REPLACE, since all potentially conflicting records
+      always belong to the same partition as the one which we try to
+      insert a row. This is because ALL unique/primary keys must
+      include ALL partitioning columns.
+    */
+    bitmap_intersect(&table->part_info->read_partitions, &used_partitions);
+    bitmap_intersect(&table->part_info->lock_partitions, &used_partitions);
+  }
+
+  DBUG_RETURN(0);
+abort:
+  DBUG_RETURN(1);
+}
+
+#endif /*WITH_PARTITION_STORAGE_ENGINE*/
+
 /**
   INSERT statement implementation
 
@@ -747,7 +1397,6 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
   bool log_on= (thd->variables.option_bits & OPTION_BIN_LOG);
 #endif
   thr_lock_type lock_type;
-  Item *unused_conds= 0;
   DBUG_ENTER("mysql_insert");
 
   bzero((char*) &info,sizeof(info));
@@ -779,18 +1428,22 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
   }
   else
   {
-    if (open_and_lock_tables(thd, table_list, TRUE, 0))
-      DBUG_RETURN(TRUE);
+    Insert_prelocking_strategy
+      prelocking_strategy(table_list, &fields, &values_list,
+                          &update_fields, &update_values, duplic, ignore);
+
+    if (open_and_lock_tables(thd, thd->lex->create_info, table_list,
+                             TRUE, 0, &prelocking_strategy))
+      DBUG_RETURN(prelocking_strategy.retval());
   }
 
   THD_STAGE_INFO(thd, stage_init_update);
   lock_type= table_list->lock_type;
-  thd->lex->used_tables=0;
+
   values= its++;
-  if (bulk_parameters_set(thd))
-    DBUG_RETURN(TRUE);
   value_count= values->elements;
 
+#ifdef VER0
   if ((res= mysql_prepare_insert(thd, table_list, fields, values,
                                  update_fields, update_values, duplic, ignore,
                                  &unused_conds, FALSE)))
@@ -807,6 +1460,7 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
     }
     goto abort;
   }
+#endif /*VER0*/
   /* mysql_prepare_insert sets table_list->table if it was not set */
   table= table_list->table;
 

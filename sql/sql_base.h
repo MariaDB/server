@@ -193,11 +193,27 @@ bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
                   List<Item> *sum_func_list, List<Item> *pre_fix,
                   bool allow_sum_func);
 void unfix_fields(List<Item> &items);
-bool fill_record(THD * thd, TABLE *table_arg, List<Item> &fields,
-                 List<Item> &values, bool ignore_errors, bool update);
-bool fill_record(THD *thd, TABLE *table, Field **field, List<Item> &values,
-                 bool ignore_errors, bool use_value,
-                 bool check_for_evaluability);
+
+bool fill_record_with_mask(THD * thd, TABLE *table_arg, List<Item> &fields,
+       List<Item> &values, bool ignore_errors, bool update, MY_BITMAP *bitmap);
+bool fill_record_with_mask(THD *thd, TABLE *table, Field **field,
+       List<Item> &values, bool ignore_errors, bool use_value,
+       bool check_for_evaluability, MY_BITMAP *bitmap);
+
+inline bool fill_record(THD * thd, TABLE *table_arg, List<Item> &fields,
+                        List<Item> &values, bool ignore_errors, bool update)
+{
+  return fill_record_with_mask(thd, table_arg,
+                               fields, values, ignore_errors, update, NULL);
+}
+
+inline bool fill_record(THD *thd, TABLE *table, Field **field, List<Item> &values,
+                        bool ignore_errors, bool use_value,
+                        bool check_for_evaluability)
+{
+  return fill_record_with_mask(thd, table, field, values, ignore_errors,
+                               use_value, check_for_evaluability, NULL);
+}
 
 Field *
 find_field_in_tables(THD *thd, Item_ident *item,

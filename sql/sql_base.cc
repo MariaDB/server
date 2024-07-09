@@ -9004,8 +9004,9 @@ static bool vers_update_or_validate_fields(TABLE *table)
 */
 
 bool
-fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
-            bool ignore_errors, bool update)
+fill_record_with_mask(THD *thd, TABLE *table_arg, List<Item> &fields,
+            List<Item> &values, bool ignore_errors, bool update,
+            MY_BITMAP *bitmap)
 {
   List_iterator_fast<Item> f(fields),v(values);
   Item *value, *fld;
@@ -9015,7 +9016,7 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
   bool only_unvers_fields= update && table_arg->versioned();
   bool save_abort_on_warning= thd->abort_on_warning;
   bool save_no_errors= thd->no_errors;
-  DBUG_ENTER("fill_record");
+  DBUG_ENTER("fill_record_with_mask");
 
   thd->no_errors= ignore_errors;
   /*
@@ -9035,6 +9036,9 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
     value=v++;
     DBUG_ASSERT(value);
     rfield= field->field;
+    /* If bitmap over wanted fields are set, skip non marked fields. */
+    if (bitmap && !bitmap_is_set(bitmap, rfield->field_index))
+        continue;
     table= rfield->table;
     if (table->next_number_field &&
         rfield->field_index ==  table->next_number_field->field_index)
@@ -9288,8 +9292,9 @@ fill_record_n_invoke_before_triggers(THD *thd, TABLE *table,
 */
 
 bool
-fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
-            bool ignore_errors, bool use_value, bool check_for_computability)
+fill_record_with_mask(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
+            bool ignore_errors, bool use_value, bool check_for_computability,
+            MY_BITMAP *bitmap)
 {
   List_iterator_fast<Item> v(values);
   List<TABLE> tbl_list;
@@ -9299,7 +9304,7 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
   uint autoinc_index= table->next_number_field
                         ? table->next_number_field->field_index
                         : ~0U;
-  DBUG_ENTER("fill_record");
+  DBUG_ENTER("fill_record_with_mask");
   if (!*ptr)
   {
     /* No fields to update, quite strange!*/
@@ -9328,6 +9333,10 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
     value=v++;
     /* Ensure the end of the list of values is not reached */
     DBUG_ASSERT(value);
+
+    /* If bitmap over wanted fields are set, skip non marked fields. */
+    if (bitmap && !bitmap_is_set(bitmap, field->field_index))
+        continue;
 
     if (check_for_computability &&
         value->check_is_evaluable_expression_or_error())
