@@ -2061,10 +2061,12 @@ calc_buf_pool_size:
 	}
 
 	if (srv_buf_pool_old_size != srv_buf_pool_size) {
-
-	        buf_resize_status("Completed resizing buffer pool from %zu to %zu bytes."
-			    ,srv_buf_pool_old_size, srv_buf_pool_size);
+		std::ostringstream sout;
+		sout << "Completed resizing buffer pool from "
+		     << srv_buf_pool_old_size << " to "
+		     << srv_buf_pool_size <<" bytes.";
 		srv_buf_pool_old_size = srv_buf_pool_size;
+		buf_resize_status(sout.str().c_str());
 	}
 
 #ifdef BTR_CUR_HASH_ADAPT
