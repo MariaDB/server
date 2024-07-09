@@ -11222,10 +11222,15 @@ bool Item::cleanup_excluding_immutables_processor (void *arg)
   if (!(get_extraction_flag() == MARKER_IMMUTABLE))
     return cleanup_processor(arg);
   else
-  {
-    clear_extraction_flag();
     return false;
-  }
+}
+
+
+bool Item::remove_immutable_flag_processor (void *arg)
+{
+  if (get_extraction_flag() == MARKER_IMMUTABLE)
+    clear_extraction_flag();
+  return false;
 }
 
 

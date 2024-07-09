@@ -79,6 +79,12 @@ inline void mariadb_increment_undo_records_read()
     stats->undo_records_read++;
 }
 
+inline void mariadb_increment_pages_prefetched(ulint n_pages)
+{
+  if (ha_handler_stats *stats= mariadb_stats)
+    stats->pages_prefetched += n_pages;
+}
+
 /*
   The following has to be identical code as measure() in sql_analyze_stmt.h
 

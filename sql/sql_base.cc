@@ -3240,7 +3240,7 @@ static bool open_table_entry_fini(THD *thd, TABLE_SHARE *share, TABLE *entry)
       String query(query_buf, sizeof(query_buf), system_charset_info);
 
       query.length(0);
-      query.append(STRING_WITH_LEN("DELETE FROM "));
+      query.append(STRING_WITH_LEN("TRUNCATE TABLE "));
       append_identifier(thd, &query, &share->db);
       query.append('.');
       append_identifier(thd, &query, &share->table_name);

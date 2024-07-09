@@ -18221,12 +18221,27 @@ static uint	innodb_merge_threshold_set_all_debug
 	= DICT_INDEX_MERGE_THRESHOLD_DEFAULT;
 
 /** Force an InnoDB log checkpoint. */
+/** Force an InnoDB log checkpoint. */
 static
 void
-checkpoint_now_set(THD*, st_mysql_sys_var*, void*, const void *save)
+checkpoint_now_set(THD* thd, st_mysql_sys_var*, void*, const void *save)
 {
   if (!*static_cast<const my_bool*>(save))
     return;
+
+  if (srv_read_only_mode)
+  {
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                        HA_ERR_UNSUPPORTED,
+                        "InnoDB doesn't force checkpoint "
+                        "when %s",
+                        (srv_force_recovery
+                         == SRV_FORCE_NO_LOG_REDO)
+                        ? "innodb-force-recovery=6."
+                        : "innodb-read-only=1.");
+    return;
+  }
+
   const auto size= log_sys.is_encrypted()
     ? SIZE_OF_FILE_CHECKPOINT + 8 : SIZE_OF_FILE_CHECKPOINT;
   mysql_mutex_unlock(&LOCK_global_system_variables);
