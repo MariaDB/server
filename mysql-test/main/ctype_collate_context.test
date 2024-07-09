@@ -401,3 +401,103 @@ DROP PROCEDURE p;
 --echo #
 --echo # End of 10.9 tests
 --echo #
+
+--echo #
+--echo # Start of 10.11 tests
+--echo #
+
+--echo #
+--echo # MDEV-10865 COLLATE keyword doesn't work in PREPARE query
+--echo #
+
+SET NAMES utf8mb4;
+
+--echo #
+--echo # A context collation and an explicit NULL
+--echo #
+
+--error ER_NOT_ALLOWED_IN_THIS_CONTEXT
+SELECT NULL COLLATE uca1400_ai_ci;
+--error ER_NOT_ALLOWED_IN_THIS_CONTEXT
+SELECT CONCAT(NULL) COLLATE uca1400_ai_ci;
+--error ER_NOT_ALLOWED_IN_THIS_CONTEXT
+PREPARE stmt FROM 'CREATE TABLE t1 AS SELECT NULL COLLATE uca1400_ai_ci AS c1';
+--error ER_NOT_ALLOWED_IN_THIS_CONTEXT
+PREPARE stmt FROM 'CREATE TABLE t1 AS SELECT CONCAT(NULL) COLLATE uca1400_ai_ci AS c1';
+
+
+--echo #
+--echo # A context collation and a parameter bound to NULL
+--echo #
+
+PREPARE stmt FROM 'CREATE TABLE t1 AS SELECT ? COLLATE uca1400_ai_ci AS c1';
+--error ER_NOT_ALLOWED_IN_THIS_CONTEXT
+EXECUTE stmt USING NULL;
+--error ER_NOT_ALLOWED_IN_THIS_CONTEXT
+EXECUTE stmt USING CONCAT(NULL);
+--error ER_NOT_ALLOWED_IN_THIS_CONTEXT
+EXECUTE stmt USING NULL COLLATE uca1400_ai_ci;
+--error ER_NOT_ALLOWED_IN_THIS_CONTEXT
+EXECUTE stmt USING CONCAT(NULL) COLLATE uca1400_ai_ci;
+
+--echo #
+--echo # A context collation and CONVERT(NULL USING ...)
+--echo #
+
+EXECUTE stmt USING CONVERT(NULL USING utf8mb4);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+EXECUTE stmt USING CONVERT(NULL USING utf8mb4) COLLATE uca1400_ai_ci;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--error ER_COLLATION_CHARSET_MISMATCH
+EXECUTE stmt USING CONVERT(NULL USING binary);
+
+--error ER_COLLATION_CHARSET_MISMATCH
+EXECUTE stmt USING CONVERT(NULL USING latin1);
+
+--echo #
+--echo # A context collation and an expression with a parameter
+--echo # whose character does not get resolved when bound to a not-NULL value
+--echo #
+
+PREPARE stmt FROM 'CREATE TABLE t1 AS SELECT LEFT(NULL,?) COLLATE uca1400_ai_ci AS c1';
+--error ER_NOT_ALLOWED_IN_THIS_CONTEXT
+EXECUTE stmt USING NULL;
+
+
+--echo #
+--echo # A context collation and an expression with a parameter
+--echo # whose character set gets resolved when bound to a not-NULL value
+--echo #
+
+PREPARE stmt FROM 'CREATE TABLE t1 AS SELECT ? COLLATE uca1400_ai_ci AS c1';
+EXECUTE stmt USING 1;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+PREPARE stmt FROM 'CREATE TABLE t1 AS SELECT ? COLLATE uca1400_ai_ci AS c1';
+--error ER_COLLATION_CHARSET_MISMATCH
+EXECUTE stmt USING _binary'test';
+
+PREPARE stmt FROM 'CREATE TABLE t1 AS SELECT ? COLLATE uca1400_ai_ci AS c1';
+EXECUTE stmt USING 'test';
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+PREPARE stmt FROM 'CREATE TABLE t1 AS SELECT ? COLLATE uca1400_ai_ci AS c1';
+EXECUTE stmt USING 'test' COLLATE utf8mb4_bin;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+PREPARE stmt FROM 'CREATE TABLE t1 AS SELECT ? COLLATE uca1400_ai_ci AS c1';
+EXECUTE stmt USING _latin1'test' COLLATE latin1_bin;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # End of 10.11 tests
+--echo #

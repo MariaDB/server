@@ -239,29 +239,9 @@ void Wsrep_server_service::log_view(
                     view.state_id().seqno().get() >= prev_view.state_id().seqno().get());
       }
 
-      if (trans_begin(applier->m_thd, MYSQL_START_TRANS_OPT_READ_WRITE))
+      if (wsrep_schema->store_view(applier->m_thd, view))
       {
-        WSREP_WARN("Failed to start transaction for store view");
-      }
-      else
-      {
-        if (wsrep_schema->store_view(applier->m_thd, view))
-        {
-          WSREP_WARN("Failed to store view");
-          trans_rollback_stmt(applier->m_thd);
-          if (!trans_rollback(applier->m_thd))
-          {
-            close_thread_tables(applier->m_thd);
-          }
-        }
-        else
-        {
-          if (trans_commit(applier->m_thd))
-          {
-            WSREP_WARN("Failed to commit transaction for store view");
-          }
-        }
-        applier->m_thd->release_transactional_locks();
+        WSREP_WARN("Failed to store view");
       }
 
       /*
