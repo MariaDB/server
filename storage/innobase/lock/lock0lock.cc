@@ -3910,6 +3910,9 @@ dberr_t lock_table(dict_table_t *table, dict_table_t *const*fktable,
   }
   lock_sys.rd_unlock();
 
+#ifdef WITH_WSREP
+  DEBUG_SYNC_C("after_lock_table_for_trx");
+#endif
   return err;
 }
 

@@ -35,7 +35,7 @@ SHOW CREATE TABLE t3;
 --error ER_NO_SUCH_TABLE
 SHOW CREATE TABLE t4;
 
-CALL mtr.add_suppression("Slave SQL: Error 'Unknown table 'test.t2,test.t4'' on query\. Default database: 'test'\. Query: 'DROP TABLE t1, t2, t3, t4', Error_code: 1051");
+CALL mtr.add_suppression("Slave SQL: Error 'Unknown table 'test\\.t2,test\\.t4'' on query\\. Default database: 'test'\\. Query: 'DROP TABLE t1, t2, t3, t4', Error_code: 1051");
 
 --connection node_1
 DROP TABLE t5;

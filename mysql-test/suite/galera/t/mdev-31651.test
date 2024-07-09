@@ -1,8 +1,7 @@
 --source include/galera_cluster.inc
 
-
-call mtr.add_suppression("BINLOG_BASE64_EVENT: Could not read field.*");
-call mtr.add_suppression("BINLOG_BASE64_EVENT: Could not execute Write_rows_v1 event on table.*");
+call mtr.add_suppression("BINLOG_BASE64_EVENT: Could not read field");
+call mtr.add_suppression("BINLOG_BASE64_EVENT: Could not execute Write_rows_v1 event on table");
 CREATE TABLE t1 (a INT NOT NULL AUTO_INCREMENT PRIMARY KEY, b INT, KEY(b)) engine=innodb;
 BINLOG 'AMqaOw8BAAAAdAAAAHgAAAAAAAQANS42LjM0LTc5LjEtZGVidWctbG9nAAAAAAAAAAAAAAAAAAAA AAAAAAAAAAAAAAAAAAAAAAAAEzgNAAgAEgAEBAQEEgAAXAAEGggAAAAICAgCAAAACgoKGRkAAYVx w2w=';
 --error ER_GET_ERRNO

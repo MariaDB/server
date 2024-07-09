@@ -87,7 +87,7 @@ SELECT COUNT(*) AS EXPECT_10000 FROM t1;
 --source include/wait_condition.inc
 
 --connection node_2
-call mtr.add_suppression("Slave: Operation CREATE USER failed for .*");
+call mtr.add_suppression("Slave: Operation CREATE USER failed for ");
 SELECT COUNT(*) AS EXPECT_0 FROM mysql.gtid_slave_pos;
 SELECT COUNT(*) AS EXPECT_10000 FROM t1;
 
