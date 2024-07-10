@@ -32,9 +32,9 @@ insert into t1 values
 (125 , 6, 1, NULL),
 (126 , 6, 1, NULL),
 (127 , 6, 1, NULL);
-select pk, a, b, avg(b) over (partition by a order by pk ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING)
+select pk, a, b, avg(b) over (partition by a order by pk ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING) as avg
 from t1;
-pk	a	b	avg(b) over (partition by a order by pk ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING)
+pk	a	b	avg
 101	0	10	10.0000
 102	0	10	10.0000
 103	1	10	10.0000
@@ -62,9 +62,9 @@ pk	a	b	avg(b) over (partition by a order by pk ROWS BETWEEN 1 PRECEDING AND 1 FO
 125	6	1	1.0000
 126	6	1	1.0000
 127	6	1	1.0000
-select pk, a, c, avg(c) over (partition by a order by pk ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING)
+select pk, a, c, avg(c) over (partition by a order by pk ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING) as avg
 from t1;
-pk	a	c	avg(c) over (partition by a order by pk ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING)
+pk	a	c	avg
 101	0	1.1	1.6
 102	0	2.1	1.6
 103	1	3.1	3.5999999999999996

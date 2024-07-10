@@ -5418,7 +5418,7 @@ static bool filter_keys(json_engine_t *je1, String *str, HASH items)
         str.append('"');
         str.append('\0');
 
-        char *curr_key= (char*)malloc((size_t)(key_end-key_start+3));
+        char *curr_key= (char*)malloc((size_t)(str.length()+3));
         strncpy(curr_key, str.ptr(), str.length());
 
         if (my_hash_search(&items, (const uchar*)curr_key, strlen(curr_key)))

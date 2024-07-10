@@ -343,13 +343,13 @@ static PFS_engine_table_share *all_shares[]=
 class PFS_silent_check_intact : public Table_check_intact
 {
 protected:
-  virtual void report_error(uint code, const char *fmt, ...) {}
+  void report_error(uint code, const char *fmt, ...) override {}
 
 public:
   PFS_silent_check_intact()
   {}
 
-  ~PFS_silent_check_intact()
+  ~PFS_silent_check_intact() override
   {}
 };
 
@@ -652,12 +652,12 @@ class PFS_internal_schema_access : public ACL_internal_schema_access
 public:
   PFS_internal_schema_access() = default;
 
-  ~PFS_internal_schema_access() = default;
+  ~PFS_internal_schema_access() override = default;
 
   ACL_internal_access_result check(privilege_t want_access,
-                                   privilege_t *save_priv) const;
+                                   privilege_t *save_priv) const override;
 
-  const ACL_internal_table_access *lookup(const char *name) const;
+  const ACL_internal_table_access *lookup(const char *name) const override;
 };
 
 ACL_internal_access_result

@@ -10600,7 +10600,7 @@ public:
       m_tot_parts(tot_parts)
   {}
 
-  ~ha_partition_inplace_ctx()
+  ~ha_partition_inplace_ctx() override
   {
     if (handler_ctx_array)
     {

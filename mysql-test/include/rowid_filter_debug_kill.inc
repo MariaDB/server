@@ -51,5 +51,33 @@ disconnect con1;
 reap;
 set debug_sync='RESET';
 
+--echo #
+--echo # MDEV-30651: SIGSEGV in st_join_table::save_explain_data and
+--echo #             Assertion `sel->quick' failed in make_range_rowid_filters
+--echo #
+
+--echo # Reusing table t2 and t3 from previous test
+let $target_id= `select connection_id()`;
+
+set debug_sync='in_forced_range_optimize SIGNAL ready1 WAIT_FOR go1';
+send
+explain
+select straight_join * from t2, t3
+where
+  t3.key1=t2.a and t3.key2 between 2 and 10;
+
+connect (con1, localhost, root,,);
+set debug_sync='now WAIT_FOR ready1';
+evalp kill query $target_id;
+set debug_sync='now SIGNAL go1';
+
+connection default;
+disconnect con1;
+
+--error ER_QUERY_INTERRUPTED
+reap;
+set debug_sync='RESET';
+
+
 drop table t2,t3;
 --source include/wait_until_count_sessions.inc

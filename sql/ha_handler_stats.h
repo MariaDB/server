@@ -30,6 +30,15 @@ public:
   /* Time spent reading pages, in timer_tracker_frequency() units */
   ulonglong pages_read_time;
 
+  /* 
+    Number of pages that we've requested to prefetch while running the query.
+    Note that we don't know:
+    - how much time was spent reading these pages (and how to count the time
+      if reading was done in parallel)
+    - whether the pages were read by "us" or somebody else...
+  */
+  ulonglong pages_prefetched;
+
   ulonglong undo_records_read;
 
   /* Time spent in engine, in timer_tracker_frequency() units */

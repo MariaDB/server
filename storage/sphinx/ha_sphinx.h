@@ -55,24 +55,24 @@ public:
 #endif
 					~ha_sphinx ();
 
-	const char *	table_type () const		{ return "SPHINX"; }	///< SE name for display purposes
-	const char *	index_type ( uint )		{ return "HASH"; }		///< index type name for display purposes
+	const char *	table_type () const override		{ return "SPHINX"; }	///< SE name for display purposes
+	const char *	index_type ( uint ) override		{ return "HASH"; }		///< index type name for display purposes
 
 	#if MYSQL_VERSION_ID>50100
-	ulonglong		table_flags () const	{ return HA_CAN_INDEX_BLOBS | 
+	ulonglong		table_flags () const override	{ return HA_CAN_INDEX_BLOBS | 
                                                                  HA_CAN_TABLE_CONDITION_PUSHDOWN; } ///< bitmap of implemented flags (see handler.h for more info)
 	#else
 	ulong			table_flags () const	{ return HA_CAN_INDEX_BLOBS; }			///< bitmap of implemented flags (see handler.h for more info)
 	#endif
 
-	ulong			index_flags ( uint, uint, bool ) const	{ return 0; }	///< bitmap of flags that says how SE implements indexes
-	uint			max_supported_record_length () const	{ return HA_MAX_REC_LENGTH; }
-	uint			max_supported_keys () const				{ return 1; }
-	uint			max_supported_key_parts () const		{ return 1; }
-	uint			max_supported_key_length () const		{ return MAX_KEY_LENGTH; }
-	uint			max_supported_key_part_length () const	{ return MAX_KEY_LENGTH; }
+	ulong			index_flags ( uint, uint, bool ) const override	{ return 0; }	///< bitmap of flags that says how SE implements indexes
+	uint			max_supported_record_length () const override	{ return HA_MAX_REC_LENGTH; }
+	uint			max_supported_keys () const override				{ return 1; }
+	uint			max_supported_key_parts () const override		{ return 1; }
+	uint			max_supported_key_length () const override		{ return MAX_KEY_LENGTH; }
+	uint			max_supported_key_part_length () const override	{ return MAX_KEY_LENGTH; }
 
-	IO_AND_CPU_COST	scan_time ()
+	IO_AND_CPU_COST	scan_time () override
 	{
           IO_AND_CPU_COST cost;
           cost.io= 0;
@@ -80,14 +80,14 @@ public:
           return cost;
         }
         IO_AND_CPU_COST keyread_time(uint index, ulong ranges, ha_rows rows,
-                                    ulonglong blocks)
+                                    ulonglong blocks) override
 	{
           IO_AND_CPU_COST cost;
           cost.io= ranges;
           cost.cpu= 0;
           return cost;
         }
-        IO_AND_CPU_COST rnd_pos_time(ha_rows rows)
+        IO_AND_CPU_COST rnd_pos_time(ha_rows rows) override
 	{
           IO_AND_CPU_COST cost;
           cost.io= 0;
@@ -96,58 +96,58 @@ public:
         }
 
 public:
-	int				open ( const char * name, int mode, uint test_if_locked );
-	int				close ();
+	int				open ( const char * name, int mode, uint test_if_locked ) override;
+	int				close () override;
 
-	int				write_row ( const byte * buf );
-	int				update_row ( const byte * old_data, const byte * new_data );
-	int				delete_row ( const byte * buf );
-	int				extra ( enum ha_extra_function op );
+	int				write_row ( const byte * buf ) override;
+	int				update_row ( const byte * old_data, const byte * new_data ) override;
+	int				delete_row ( const byte * buf ) override;
+	int				extra ( enum ha_extra_function op ) override;
 
-	int				index_init ( uint keynr, bool sorted ); // 5.1.x
+	int				index_init ( uint keynr, bool sorted ) override; // 5.1.x
 	int				index_init ( uint keynr ) { return index_init ( keynr, false ); } // 5.0.x
 
-	int				index_end ();
-	int				index_read ( byte * buf, const byte * key, uint key_len, enum ha_rkey_function find_flag );
+	int				index_end () override;
+	int				index_read ( byte * buf, const byte * key, uint key_len, enum ha_rkey_function find_flag ) override;
 	int				index_read_idx ( byte * buf, uint idx, const byte * key, uint key_len, enum ha_rkey_function find_flag );
-	int				index_next ( byte * buf );
-	int				index_next_same ( byte * buf, const byte * key, uint keylen );
-	int				index_prev ( byte * buf );
-	int				index_first ( byte * buf );
-	int				index_last ( byte * buf );
+	int				index_next ( byte * buf ) override;
+	int				index_next_same ( byte * buf, const byte * key, uint keylen ) override;
+	int				index_prev ( byte * buf ) override;
+	int				index_first ( byte * buf ) override;
+	int				index_last ( byte * buf ) override;
 
 	int				get_rec ( byte * buf, const byte * key, uint keylen );
 
-	int				rnd_init ( bool scan );
-	int				rnd_end ();
-	int				rnd_next ( byte * buf );
-	int				rnd_pos ( byte * buf, byte * pos );
-	void			position ( const byte * record );
+	int				rnd_init ( bool scan ) override;
+	int				rnd_end () override;
+	int				rnd_next ( byte * buf ) override;
+	int				rnd_pos ( byte * buf, byte * pos ) override;
+	void			position ( const byte * record ) override;
 
 #if MYSQL_VERSION_ID>=50030
-	int				info ( uint );
+	int				info ( uint ) override;
 #else
 	void			info ( uint );
 #endif
 
-	int				reset();
-	int				external_lock ( THD * thd, int lock_type );
-	int				delete_all_rows ();
-	ha_rows			        records_in_range ( uint inx, const key_range * min_key, const key_range * max_key,  page_range *pages);
+	int				reset() override;
+	int				external_lock ( THD * thd, int lock_type ) override;
+	int				delete_all_rows () override;
+	ha_rows			        records_in_range ( uint inx, const key_range * min_key, const key_range * max_key,  page_range *pages) override;
 
-	int				delete_table ( const char * from );
-	int				rename_table ( const char * from, const char * to );
-	int				create ( const char * name, TABLE * form, HA_CREATE_INFO * create_info );
+	int				delete_table ( const char * from ) override;
+	int				rename_table ( const char * from, const char * to ) override;
+	int				create ( const char * name, TABLE * form, HA_CREATE_INFO * create_info ) override;
 
-	THR_LOCK_DATA **		store_lock ( THD * thd, THR_LOCK_DATA ** to, enum thr_lock_type lock_type );
+	THR_LOCK_DATA **		store_lock ( THD * thd, THR_LOCK_DATA ** to, enum thr_lock_type lock_type ) override;
 
 public:
 #if MYSQL_VERSION_ID<50610
 	virtual const COND *	cond_push ( const COND *cond );
 #else
-	virtual const Item *		cond_push ( const Item *cond );
+	const Item *		cond_push ( const Item *cond ) override;
 #endif	
-	virtual void			cond_pop ();
+	void			cond_pop () override;
 
 private:
 	uint32			m_iFields;

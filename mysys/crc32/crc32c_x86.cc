@@ -264,7 +264,8 @@ static unsigned crc32_avx512(unsigned crc, const char *buf, size_t size,
     c4 = xor3_512(c4, _mm512_clmulepi64_epi128(l1, b384, 0x10),
                   extract512_128<3>(l1));
 
-    __m256i c2 = _mm512_castsi512_si256(_mm512_shuffle_i64x2(c4, c4, 0b01001110));
+    __m256i c2 =
+      _mm512_castsi512_si256(_mm512_shuffle_i64x2(c4, c4, 0b01001110));
     c2 = xor256(c2, _mm512_castsi512_si256(c4));
     crc_out = xor128(_mm256_extracti64x2_epi64(c2, 1),
                      _mm256_castsi256_si128(c2));
@@ -289,7 +290,8 @@ static unsigned crc32_avx512(unsigned crc, const char *buf, size_t size,
         xor3_512(_mm512_clmulepi64_epi128(lo, b384, 1),
                  _mm512_clmulepi64_epi128(lo, b384, 0x10),
                  extract512_128<3>(lo));
-      crc512 = xor512(crc512, _mm512_shuffle_i64x2(crc512, crc512, 0b01001110));
+      crc512 =
+	xor512(crc512, _mm512_shuffle_i64x2(crc512, crc512, 0b01001110));
       const __m256i crc256 = _mm512_castsi512_si256(crc512);
       crc_out = xor128(_mm256_extracti64x2_epi64(crc256, 1),
                       _mm256_castsi256_si128(crc256));
@@ -318,7 +320,7 @@ static unsigned crc32_avx512(unsigned crc, const char *buf, size_t size,
     size += 16;
     if (size) {
     get_last_two_xmms:
-      const __m128i crc2 = crc_out, d = load128(buf + (size - 16));
+      const __m128i crc2 = crc_out, d = load128(buf + ssize_t(size) - 16);
       __m128i S = load128(reinterpret_cast<const char*>(shuffle128) + size);
       crc_out = _mm_shuffle_epi8(crc_out, S);
       S = xor128(S, _mm_set1_epi32(0x80808080));

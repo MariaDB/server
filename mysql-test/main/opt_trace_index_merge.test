@@ -15,7 +15,9 @@ from t0 A, t0 B, t0 C;
 
 --echo This should use union:
 explain select * from t1 where a=1 or b=1;
+--disable_view_protocol
 select * from information_schema.OPTIMIZER_TRACE;
+--enable_view_protocol
 drop table t0,t1;
 set optimizer_trace="enabled=off";
 set @@optimizer_switch= @tmp_opt_switch;
