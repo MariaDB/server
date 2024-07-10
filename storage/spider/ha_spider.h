@@ -446,7 +446,7 @@ public:
   int update_row(
     const uchar *old_data,
     const uchar *new_data
-  );
+  ) override;
   bool check_direct_update_sql_part(
     st_select_lex *select_lex,
     longlong select_limit,
