@@ -21,5 +21,10 @@
 --source include/log_grep.inc
 
 # InnoDB/Engines
---let log_expected_matches = $log_slow_innodb_expected_matches
---let grep_pattern = ^# Pages_accessed: \d+  Pages_read: \d+  Pages_updated: \d+  Old_rows_read: \d+\n# Pages_read_time: \d+\.\d+  Engine_time: \d+\.\d+\$
+--let log_expected_matches = $log_slow_verbosity_innodb_expected_matches
+--let grep_pattern = ^# Pages_accessed: \d+  Pages_read: \d+  Pages_prefetched: \d+  Pages_updated: \d+  Old_rows_read: \d+\$
+--source include/log_grep.inc
+
+--let grep_pattern = ^# Pages_read_time: \d+\.\d+  Engine_time: \d+\.\d+\$
+--source include/log_grep.inc
+

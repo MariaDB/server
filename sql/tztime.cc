@@ -1013,10 +1013,12 @@ class Time_zone_system : public Time_zone
 {
 public:
   Time_zone_system() = default;                       /* Remove gcc warning */
-  virtual my_time_t TIME_to_gmt_sec(const MYSQL_TIME *t, uint *error_code) const;
-  virtual void gmt_sec_to_TIME(MYSQL_TIME *tmp, my_time_t t) const;
-  virtual const String * get_name() const;
-  virtual void get_timezone_information(struct my_tz* curr_tz, const MYSQL_TIME *local_TIME) const;
+  my_time_t TIME_to_gmt_sec(const MYSQL_TIME *t,
+                            uint *error_code) const override;
+  void gmt_sec_to_TIME(MYSQL_TIME *tmp, my_time_t t) const override;
+  const String * get_name() const override;
+  void get_timezone_information(struct my_tz* curr_tz,
+                                const MYSQL_TIME *local_TIME) const override;
 };
 
 
@@ -1119,11 +1121,12 @@ class Time_zone_utc : public Time_zone
 {
 public:
   Time_zone_utc() = default;                          /* Remove gcc warning */
-  virtual my_time_t TIME_to_gmt_sec(const MYSQL_TIME *t,
-                                    uint *error_code) const;
-  virtual void gmt_sec_to_TIME(MYSQL_TIME *tmp, my_time_t t) const;
-  virtual const String * get_name() const;
-  virtual void get_timezone_information(struct my_tz* curr_tz, const MYSQL_TIME *local_TIME) const;
+  my_time_t TIME_to_gmt_sec(const MYSQL_TIME *t,
+                            uint *error_code) const override;
+  void gmt_sec_to_TIME(MYSQL_TIME *tmp, my_time_t t) const override;
+  const String * get_name() const override;
+  void get_timezone_information(struct my_tz* curr_tz,
+                                const MYSQL_TIME *local_TIME) const override;
 };
 
 
@@ -1210,10 +1213,12 @@ class Time_zone_db : public Time_zone
 {
 public:
   Time_zone_db(TIME_ZONE_INFO *tz_info_arg, const String * tz_name_arg);
-  virtual my_time_t TIME_to_gmt_sec(const MYSQL_TIME *t, uint *error_code) const;
-  virtual void gmt_sec_to_TIME(MYSQL_TIME *tmp, my_time_t t) const;
-  virtual const String * get_name() const;
-  virtual void get_timezone_information(struct my_tz* curr_tz, const MYSQL_TIME *local_TIME) const;
+  my_time_t TIME_to_gmt_sec(const MYSQL_TIME *t,
+                            uint *error_code) const override;
+  void gmt_sec_to_TIME(MYSQL_TIME *tmp, my_time_t t) const override;
+  const String * get_name() const override;
+  void get_timezone_information(struct my_tz* curr_tz,
+                                const MYSQL_TIME *local_TIME) const override;
 private:
   TIME_ZONE_INFO *tz_info;
   const String *tz_name;
@@ -1325,11 +1330,12 @@ class Time_zone_offset : public Time_zone
 {
 public:
   Time_zone_offset(long tz_offset_arg);
-  virtual my_time_t TIME_to_gmt_sec(const MYSQL_TIME *t,
-                                    uint *error_code) const;
-  virtual void   gmt_sec_to_TIME(MYSQL_TIME *tmp, my_time_t t) const;
-  virtual const String * get_name() const;
-  virtual void get_timezone_information(struct my_tz* curr_tz, const MYSQL_TIME *local_TIME) const;
+  my_time_t TIME_to_gmt_sec(const MYSQL_TIME *t,
+                            uint *error_code) const override;
+  void gmt_sec_to_TIME(MYSQL_TIME *tmp, my_time_t t) const override;
+  const String * get_name() const override;
+  void get_timezone_information(struct my_tz* curr_tz,
+                                const MYSQL_TIME *local_TIME) const override;
   /*
     This have to be public because we want to be able to access it from
     my_offset_tzs_get_key() function

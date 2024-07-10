@@ -4045,23 +4045,44 @@ String *Item_func_set_collation::val_str(String *str)
   str=args[0]->val_str(str);
   if ((null_value=args[0]->null_value))
     return 0;
+  /*
+    Let SCS be the character set of the source - args[0].
+    Let TCS be the character set of the target - i.e. the character set
+    of the collation specified in the COLLATE clause.
+
+    It's OK to return SQL NULL if SCS is not equal to TCS.
+    This is possible on the explicit NULL or expressions derived from
+    the explicit NULL:
+      SELECT NULL COLLATE utf8mb4_general_ci;
+      SELECT COALESCE(NULL) COLLATE utf8mb4_general_ci;
+
+    But for a non-NULL result SCS and TCS must be compatible:
+    1. Either SCS==TCS
+    2. Or SCS can be can be reinterpeted to TCS.
+       This scenario is possible when args[0] is numeric and TCS->mbmaxlen==1.
+
+    If SCS and TCS are not compatible here, then something went wrong during
+    fix_fields(), e.g. an Item_func_conv_charset was not added two wrap args[0].
+  */
+  DBUG_ASSERT(my_charset_same(args[0]->collation.collation,
+                              collation.collation) ||
+              (args[0]->collation.repertoire == MY_REPERTOIRE_ASCII &&
+               !(collation.collation->state & MY_CS_NONASCII)));
   str->set_charset(collation.collation);
   return str;
 }
 
 bool Item_func_set_collation::fix_length_and_dec(THD *thd)
 {
-  if (agg_arg_charsets_for_string_result(collation, args, 1))
+  if (agg_arg_charsets_for_string_result(collation, args, 1) ||
+      collation.merge_collation(thd, thd->variables.character_set_collations,
+                                m_set_collation,
+                                args[0]->collation.repertoire,
+                                with_param() &&
+                                thd->lex->is_ps_or_view_context_analysis()))
     return true;
-  Lex_exact_charset_opt_extended_collate cl(collation.collation, true);
-  if (cl.merge_collation_override(thd,
-                                  thd->variables.character_set_collations,
-                                  m_set_collation))
-    return true;
-  collation.set(cl.collation().charset_info(), DERIVATION_EXPLICIT,
-                args[0]->collation.repertoire);
   ulonglong max_char_length= (ulonglong) args[0]->max_char_length();
-  fix_char_length_ulonglong(max_char_length * collation.collation->mbmaxlen);
+  fix_char_length_ulonglong(max_char_length);
 
   return FALSE;
 }
@@ -4232,9 +4253,11 @@ String *Item_func_hex::val_str_ascii_from_val_real(String *str)
     return 0;
   if ((val <= (double) LONGLONG_MIN) ||
       (val >= (double) (ulonglong) ULONGLONG_MAX))
-    dec= ~(longlong) 0;
+    dec= ULONGLONG_MAX;
+  else if (val < 0)
+    dec= (ulonglong) (longlong) (val - 0.5);
   else
-    dec= (ulonglong) (val + (val > 0 ? 0.5 : -0.5));
+    dec= (ulonglong) (val + 0.5);
   return str->set_hex(dec) ? make_empty_result(str) : str;
 }
 

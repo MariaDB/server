@@ -3233,7 +3233,7 @@ public:
     :Field_temporal(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
                     unireg_check_arg, field_name_arg)
     {}
-  bool validate_value_in_record(THD *thd, const uchar *record) const;
+  bool validate_value_in_record(THD *thd, const uchar *record) const override;
 };
 
 
@@ -5201,20 +5201,20 @@ public:
      m_table(NULL)
     {}
   ~Field_row();
-  en_fieldtype tmp_engine_column_type(bool use_packed_rows) const
+  en_fieldtype tmp_engine_column_type(bool use_packed_rows) const override
   {
     DBUG_ASSERT(0);
     return Field::tmp_engine_column_type(use_packed_rows);
   }
   enum_conv_type rpl_conv_type_from(const Conv_source &source,
                                     const Relay_log_info *rli,
-                                    const Conv_param &param) const
+                                    const Conv_param &param) const override
   {
     DBUG_ASSERT(0);
     return CONV_TYPE_IMPOSSIBLE;
   }
-  Virtual_tmp_table **virtual_tmp_table_addr() { return &m_table; }
-  bool sp_prepare_and_store_item(THD *thd, Item **value);
+  Virtual_tmp_table **virtual_tmp_table_addr() override { return &m_table; }
+  bool sp_prepare_and_store_item(THD *thd, Item **value) override;
 };
 
 

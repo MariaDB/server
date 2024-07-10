@@ -1794,15 +1794,18 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
     log_write_and_flush_prepare();
     resizing= resize_lsn.load(std::memory_order_relaxed);
     /* FIXME: issue an asynchronous write */
-    log.write(offset, {c, get_block_size()});
+    ut_ad(ut_is_2pow(write_size));
+    ut_ad(write_size >= 512);
+    ut_ad(write_size <= 4096);
+    log.write(offset, {c, write_size});
     if (resizing > 1 && resizing <= next_checkpoint_lsn)
     {
+      resize_log.write(CHECKPOINT_1, {c, write_size});
       byte *buf= static_cast<byte*>(aligned_malloc(4096, 4096));
       memset_aligned<4096>(buf, 0, 4096);
       header_write(buf, resizing, is_encrypted());
       resize_log.write(0, {buf, 4096});
       aligned_free(buf);
-      resize_log.write(CHECKPOINT_1, {c, get_block_size()});
     }
 
     if (!log_write_through)

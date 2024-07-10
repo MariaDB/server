@@ -382,6 +382,7 @@ read_ahead:
 
   if (count)
   {
+    mariadb_increment_pages_prefetched(count);
     DBUG_PRINT("ib_buf", ("random read-ahead %zu pages from %s: %u",
 			  count, space->chain.start->name,
 			  low.page_no()));
@@ -677,6 +678,7 @@ failed:
 
   if (count)
   {
+    mariadb_increment_pages_prefetched(count);
     DBUG_PRINT("ib_buf", ("random read-ahead %zu pages from %s: %u",
                           count, space->chain.start->name,
                           new_low.page_no()));

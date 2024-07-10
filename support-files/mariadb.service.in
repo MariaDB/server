@@ -83,7 +83,7 @@ EnvironmentFile=-@mysqlunixdir@/wsrep-start-position
 # environment file.
 # Do not panic if galera_recovery script is not available. (MDEV-10538)
 ExecStartPre=/bin/sh -c "[ ! -e @bindir@/galera_recovery ] && VAR= || \
- VAR=`cd @bindir@/..; @bindir@/galera_recovery`; [ $? -eq 0 ] \
+ VAR=`@bindir@/galera_recovery`; [ $? -eq 0 ] \
  && echo _WSREP_START_POSITION=$VAR > @mysqlunixdir@/wsrep-start-position || exit 1"
 
 # Needed to create system tables etc.

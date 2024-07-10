@@ -101,10 +101,10 @@ public:
   uchar source_tail[MY_AES_BLOCK_SIZE];
 
   MyCTX_nopad() : MyCTX() { }
-  ~MyCTX_nopad() = default;
+  ~MyCTX_nopad() override = default;
 
   int init(const EVP_CIPHER *cipher, int encrypt, const uchar *key, uint klen,
-           const uchar *iv, uint ivlen)
+           const uchar *iv, uint ivlen) override
   {
     compile_time_assert(MY_AES_CTX_SIZE >= sizeof(MyCTX_nopad));
     this->key= key;
@@ -141,13 +141,13 @@ public:
     source_tail_len= new_tail_len;
   }
 
-  int update(const uchar *src, uint slen, uchar *dst, uint *dlen)
+  int update(const uchar *src, uint slen, uchar *dst, uint *dlen) override
   {
     update_source_tail(src, slen);
     return MyCTX::update(src, slen, dst, dlen);
   }
 
-  int finish(uchar *dst, uint *dlen)
+  int finish(uchar *dst, uint *dlen) override
   {
     if (source_tail_len)
     {
@@ -206,10 +206,10 @@ public:
   const uchar *aad;
   int aadlen;
   MyCTX_gcm() : MyCTX() { }
-  ~MyCTX_gcm() { }
+  ~MyCTX_gcm() override { }
 
   int init(const EVP_CIPHER *cipher, int encrypt, const uchar *key, uint klen,
-           const uchar *iv, uint ivlen)
+           const uchar *iv, uint ivlen) override
   {
     compile_time_assert(MY_AES_CTX_SIZE >= sizeof(MyCTX_gcm));
     int res= MyCTX::init(cipher, encrypt, key, klen, iv, ivlen);
@@ -219,7 +219,7 @@ public:
     return res;
   }
 
-  int update(const uchar *src, uint slen, uchar *dst, uint *dlen)
+  int update(const uchar *src, uint slen, uchar *dst, uint *dlen) override
   {
     /*
       note that this GCM class cannot do streaming decryption, because
@@ -244,7 +244,7 @@ public:
     return MyCTX::update(src, slen, dst, dlen);
   }
 
-  int finish(uchar *dst, uint *dlen)
+  int finish(uchar *dst, uint *dlen) override
   {
     int fin;
     if (!EVP_CipherFinal_ex(ctx, dst, &fin))

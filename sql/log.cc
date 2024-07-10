@@ -42,6 +42,7 @@
 #include "ddl_log.h"
 #include "gtid_index.h"
 #include "mysys_err.h"          // EE_LOCAL_TMP_SPACE_FULL
+#include "repl_failsafe.h"
 
 #include <my_dir.h>
 #include <m_ctype.h>				// For test_if_number
@@ -258,14 +259,14 @@ public:
     m_message[0]= '\0';
   }
 
-  virtual ~Silence_log_table_errors() = default;
+  ~Silence_log_table_errors() override = default;
 
-  virtual bool handle_condition(THD *thd,
+  bool handle_condition(THD *thd,
                                 uint sql_errno,
                                 const char* sql_state,
                                 Sql_condition::enum_warning_level *level,
                                 const char* msg,
-                                Sql_condition ** cond_hdl);
+                                Sql_condition ** cond_hdl) override;
   const char *message() const { return m_message; }
 };
 
@@ -3278,10 +3279,12 @@ bool MYSQL_QUERY_LOG::write(THD *thd, time_t current_time,
 
       if (my_b_printf(&log_file,
                       "# Pages_accessed: %lu  Pages_read: %lu  "
+                      "Pages_prefetched: %lu  "
                       "Pages_updated: %lu  Old_rows_read: %lu\n"
                       "# Pages_read_time: %s  Engine_time: %s\n",
                       (ulong) stats->pages_accessed,
                       (ulong) stats->pages_read_count,
+                      (ulong) stats->pages_prefetched,
                       (ulong) stats->pages_updated,
                       (ulong) stats->undo_records_read,
                       query_time_buff, lock_time_buff))
@@ -11715,7 +11718,7 @@ Recovery_context::Recovery_context() :
   prev_event_pos(0),
   last_gtid_standalone(false), last_gtid_valid(false), last_gtid_no2pc(false),
   last_gtid_engines(0),
-  do_truncate(global_rpl_semi_sync_slave_enabled),
+  do_truncate(rpl_status == RPL_IDLE_SLAVE),
   truncate_validated(false), truncate_reset_done(false),
   truncate_set_in_1st(false), id_binlog(MAX_binlog_id),
   checksum_alg(BINLOG_CHECKSUM_ALG_UNDEF), gtid_maybe_to_truncate(NULL)

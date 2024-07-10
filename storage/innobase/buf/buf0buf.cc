@@ -2579,6 +2579,9 @@ err_exit:
 or BUF_PEEK_IF_IN_POOL
 @param[in]	mtr			mini-transaction
 @param[out]	err			DB_SUCCESS or error code
+@param[in,out]	no_wait			If not NULL on input, then we must not
+wait for current page latch. On output, the value is set to true if we had to
+return because we could not wait on page latch.
 @return pointer to the block or NULL */
 TRANSACTIONAL_TARGET
 buf_block_t*
@@ -2589,7 +2592,8 @@ buf_page_get_gen(
 	buf_block_t*		guess,
 	ulint			mode,
 	mtr_t*			mtr,
-	dberr_t*		err)
+	dberr_t*		err,
+        bool*			no_wait)
 {
 	ulint		retries = 0;
 
@@ -2598,9 +2602,12 @@ buf_page_get_gen(
 	recovery may be in progress. The only case when it may be
 	invoked outside recovery is when dict_create() has initialized
 	a new database and is invoking dict_boot(). In this case, the
-	LSN will be small. */
+	LSN will be small. At the end of a bootstrap, the shutdown LSN
+	would typically be around 60000 with the default
+	innodb_undo_tablespaces=3, and less than 110000 with the maximum
+	innodb_undo_tablespaces=127. */
 	ut_ad(mode == BUF_GET_RECOVER
-	      ? recv_recovery_is_on() || log_sys.get_lsn() < 50000
+	      ? recv_recovery_is_on() || log_sys.get_lsn() < 120000
 	      : !recv_recovery_is_on() || recv_sys.after_apply);
 	ut_ad(!mtr || mtr->is_active());
 	ut_ad(mtr || mode == BUF_PEEK_IF_IN_POOL);
@@ -2737,14 +2744,17 @@ ignore_unfixed:
 		in buf_page_t::read_complete() or
 		buf_pool_t::corrupted_evict(), or
 		after buf_zip_decompress() in this function. */
-		if (rw_latch != RW_NO_LATCH) {
+		if (!no_wait) {
 			block->page.lock.s_lock();
 		} else if (!block->page.lock.s_lock_try()) {
-			/* For RW_NO_LATCH, we should not try to acquire S or X
-			latch directly as we could be violating the latching
-			order resulting in deadlock. Instead we try latching the
-			page and retry in case of a failure. */
-			goto wait_for_read;
+			ut_ad(rw_latch == RW_NO_LATCH);
+			/* We should not wait trying to acquire S latch for
+			current page while holding latch for the next page.
+			It would violate the latching order resulting in
+			possible deadlock. Caller must handle the failure. */
+			block->page.unfix();
+			*no_wait= true;
+			return nullptr;
 		}
 		state = block->page.state();
 		ut_ad(state < buf_page_t::READ_FIX
@@ -2753,15 +2763,15 @@ ignore_unfixed:
 		block->page.lock.s_unlock();
 
 		if (UNIV_UNLIKELY(state < buf_page_t::UNFIXED)) {
+			block->page.unfix();
 			if (UNIV_UNLIKELY(id == page_id)) {
 				/* The page read was completed, and
 				another thread marked the page as free
 				while we were waiting. */
-				goto ignore_block;
+				goto ignore_unfixed;
 			}
 
 			ut_ad(id == page_id_t{~0ULL});
-			block->page.unfix();
 
 			if (++retries < BUF_PAGE_READ_MAX_RETRIES) {
 				goto loop;
@@ -2800,7 +2810,6 @@ free_unfixed_block:
 	if (UNIV_UNLIKELY(!block->page.frame)) {
 		if (!block->page.lock.x_lock_try()) {
 wait_for_unzip:
-wait_for_read:
 			/* The page is being read or written, or
 			another thread is executing buf_zip_decompress()
 			in buf_page_get_gen() on it. */

@@ -26,7 +26,7 @@ public:
    :Schema(name)
   { }
   const Type_handler *map_data_type(THD *thd, const Type_handler *src)
-                                    const
+                                    const override
   {
     if (src == &type_handler_newdate)
       return thd->type_handler_for_datetime();
@@ -34,7 +34,7 @@ public:
   }
 
   Create_func *find_native_function_builder(THD *thd, const LEX_CSTRING &name)
-                                                                         const
+                                                                         const override
   {
     return native_functions_hash_oracle.find(thd, name);
   }
@@ -42,10 +42,10 @@ public:
   Item *make_item_func_replace(THD *thd,
                                Item *subj,
                                Item *find,
-                               Item *replace) const;
+                               Item *replace) const override;
   Item *make_item_func_substr(THD *thd,
-                              const Lex_substring_spec_st &spec) const;
-  Item *make_item_func_trim(THD *thd, const Lex_trim_st &spec) const;
+                              const Lex_substring_spec_st &spec) const override;
+  Item *make_item_func_trim(THD *thd, const Lex_trim_st &spec) const override;
 };
 
 
@@ -56,7 +56,7 @@ public:
    :Schema(name)
   { }
   const Type_handler *map_data_type(THD *thd, const Type_handler *src)
-                                    const
+                                    const override
   {
     if (src == &type_handler_timestamp ||
         src == &type_handler_timestamp2)

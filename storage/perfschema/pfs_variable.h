@@ -205,7 +205,7 @@ public:
   Find_THD_variable() : m_unsafe_thd(NULL) {}
   Find_THD_variable(THD *unsafe_thd) : m_unsafe_thd(unsafe_thd) {}
 
-  virtual bool operator()(THD *thd)
+  bool operator()(THD *thd) override
   {
     //TODO: filter bg threads?
     if (thd != m_unsafe_thd)
@@ -612,18 +612,18 @@ public:
 private:
   /* Build SHOW_var array. */
   bool init_show_var_array(enum_var_type scope, bool strict);
-  bool do_initialize_session(void);
+  bool do_initialize_session(void) override;
 
   /* Global */
-  int do_materialize_global(void);
+  int do_materialize_global(void) override;
   /* Global and Session - THD */
-  int do_materialize_all(THD* thd);
+  int do_materialize_all(THD* thd) override;
   /* Session - THD */
-  int do_materialize_session(THD* thd);
+  int do_materialize_session(THD* thd) override;
   /* Session -  PFS_thread */
-  int do_materialize_session(PFS_thread *thread);
+  int do_materialize_session(PFS_thread *thread) override;
   /* Single variable -  PFS_thread */
-  int do_materialize_session(PFS_thread *pfs_thread, uint index);
+  int do_materialize_session(PFS_thread *pfs_thread, uint index) override;
 
   /* Temporary mem_root to use for materialization. */
   MEM_ROOT m_mem_sysvar;
@@ -664,14 +664,14 @@ protected:
   bool m_show_command;
 
 private:
-  bool do_initialize_session(void);
+  bool do_initialize_session(void) override;
 
-  int do_materialize_global(void);
+  int do_materialize_global(void) override;
   /* Global and Session - THD */
-  int do_materialize_all(THD* thd);
-  int do_materialize_session(THD *thd);
-  int do_materialize_session(PFS_thread *thread);
-  int do_materialize_session(PFS_thread *thread, uint index) { return 0; }
+  int do_materialize_all(THD* thd) override;
+  int do_materialize_session(THD *thd) override;
+  int do_materialize_session(PFS_thread *thread) override;
+  int do_materialize_session(PFS_thread *thread, uint index) override { return 0; }
   int do_materialize_client(PFS_client *pfs_client);
 
   /* Callback to sum user, host or account status variables. */
