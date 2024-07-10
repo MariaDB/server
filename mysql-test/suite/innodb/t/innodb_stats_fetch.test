@@ -96,3 +96,15 @@ SELECT * FROM INFORMATION_SCHEMA.INNODB_SYS_VIRTUAL LIMIT ROWS EXAMINED 5;
 SELECT * FROM INFORMATION_SCHEMA.INNODB_SYS_FOREIGN LIMIT ROWS EXAMINED 5;
 SELECT * FROM INFORMATION_SCHEMA.INNODB_SYS_FOREIGN_COLS LIMIT ROWS EXAMINED 5;
 DROP TABLE t1;
+
+--echo #
+--echo #  MDEV-34474 InnoDB: Failing assertion: stat_n_leaf_pages > 0
+--echo #           in ha_innobase::estimate_rows_upper_bound
+--echo #
+
+CREATE TABLE t (c1 INT,c2 INT,
+		INDEX(c1))STATS_PERSISTENT=1 ENGINE=INNODB;
+UPDATE mysql.innodb_index_stats SET stat_value=0 WHERE database_name like "test" and table_name like 't';
+UPDATE mysql.innodb_table_stats SET clustered_index_size= 0, sum_of_other_index_sizes=0 WHERE database_name like "test" and table_name like 't';
+UPDATE t SET c1=+1 ORDER BY c2;
+DROP TABLE t;
