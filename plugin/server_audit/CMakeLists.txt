@@ -13,6 +13,8 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
-SET(SOURCES server_audit.c test_audit_v4.c plugin_audit_v4.h)
+SET(SOURCES server_audit.cc test_audit_v4.c plugin_audit_v4.h)
+
+include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
 MYSQL_ADD_PLUGIN(server_audit ${SOURCES} MODULE_ONLY RECOMPILE_FOR_EMBEDDED)
