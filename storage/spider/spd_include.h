@@ -762,19 +762,24 @@ typedef struct st_spider_conn
   SPIDER_IP_PORT_CONN *ip_port_conn;
 
   pthread_mutex_t    loop_check_mutex;
+  /*
+    A hash of SPIDER_CONN_LOOP_CHECK, indexed by
+    SPIDER_CONN_LOOP_CHECK::full_name
+  */
   HASH               loop_checked;
   uint               loop_checked_id;
   const char         *loop_checked_func_name;
   const char         *loop_checked_file_name;
   ulong              loop_checked_line_no;
+  /*
+    A hash of SPIDER_CONN_LOOP_CHECK, indexed by
+    SPIDER_CONN_LOOP_CHECK::to_name
+  */
   HASH               loop_check_queue;
   uint               loop_check_queue_id;
   const char         *loop_check_queue_func_name;
   const char         *loop_check_queue_file_name;
   ulong              loop_check_queue_line_no;
-  SPIDER_CONN_LOOP_CHECK *loop_check_ignored_first;
-  SPIDER_CONN_LOOP_CHECK *loop_check_ignored_last;
-  SPIDER_CONN_LOOP_CHECK *loop_check_meraged_first;
 } SPIDER_CONN;
 
 typedef struct st_spider_lgtm_tblhnd_share
