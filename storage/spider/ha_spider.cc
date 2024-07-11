@@ -584,6 +584,25 @@ error_wide_handler_alloc:
   DBUG_RETURN(error_num);
 }
 
+/*
+  Given a SPIDER_SHARE that will be freed, update all SPIDER_TRX_HAs
+  of spider_current_trx to point to a NULL share, which will cause the
+  removal of the SPIDER_TRX_HA in spider_check_trx_ha().
+*/
+static void spider_update_current_trx_ha_with_freed_share(SPIDER_SHARE *share)
+{
+  SPIDER_TRX *trx= spider_current_trx;
+  if (trx)
+  {
+    for (uint i = 0; i < trx->trx_ha_hash.records; i++)
+    {
+      SPIDER_TRX_HA *trx_ha = (SPIDER_TRX_HA *) my_hash_element(&trx->trx_ha_hash, i);
+      if (trx_ha->share == share)
+        trx_ha->share= NULL;
+    }
+  }
+}
+
 int ha_spider::close()
 {
   int error_num = 0, roop_count, error_num2;
@@ -711,6 +730,7 @@ int ha_spider::close()
     result_list.tmp_sqls = NULL;
   }
 
+  spider_update_current_trx_ha_with_freed_share(share);
   spider_free_share(share);
   is_clone = FALSE;
   pt_clone_source_handler = NULL;

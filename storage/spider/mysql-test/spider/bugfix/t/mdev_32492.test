@@ -1,0 +1,62 @@
+--echo #
+--echo # MDEV-32492 SIGSEGV in spider_conn_first_link_idx on DELETE
+--echo #
+--disable_query_log
+--disable_result_log
+--source ../../t/test_init.inc
+--enable_result_log
+--enable_query_log
+
+set spider_same_server_link= 1;
+evalp CREATE SERVER srv FOREIGN DATA WRAPPER mysql
+OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
+
+CREATE TABLE t (c INT, PRIMARY KEY(c)) ENGINE=Spider;
+--disable_ps_protocol
+SHOW CREATE TABLE t;
+--enable_ps_protocol
+DROP TABLE t;
+CREATE TABLE t (c INT) ENGINE=Spider COMMENT='port "1 1"';
+--error ER_CONNECT_TO_FOREIGN_DATA_SOURCE
+DELETE FROM t;
+drop table t;
+
+CREATE TABLE t1 (a INT,b VARCHAR(255),PRIMARY KEY(a)) ENGINE=Spider comment="srv 'srv', table 't1', read_only_mode '1'";
+--error 12518
+INSERT INTO t1 VALUES (1,'aaa'),(2,'bbb'),(3,'ccc'),(4,'ddd');
+--disable_ps_protocol
+SHOW CREATE TABLE t1;
+--enable_ps_protocol
+DROP TABLE t1;
+CREATE TABLE t1 (a INT) ENGINE=Spider comment="port '123 456'";
+# bug crash site
+--error ER_CONNECT_TO_FOREIGN_DATA_SOURCE
+INSERT IGNORE INTO t1 VALUES (42),(42);
+drop table t1;
+
+CREATE TABLE t1 (c INT, KEY(c)) ENGINE=Spider COMMENT='WRAPPER "mysql", SRV "srv",TABLE "t2", PK_NAME "f"';
+SET GLOBAL general_log=1;
+--error ER_WRONG_VALUE_COUNT_ON_ROW
+INSERT INTO t1 VALUES (1, "aaa"),(2, "bbb"),(3, "ccc"),(4, "ddd");
+--disable_ps_protocol
+SHOW CREATE TABLE t1;
+--enable_ps_protocol
+DROP TABLE t1;
+CREATE TABLE t1 (a INT) ENGINE=Spider comment='port "123 456"';
+# bug crash site
+--error ER_CONNECT_TO_FOREIGN_DATA_SOURCE
+SELECT * FROM t1;
+--error ER_CONNECT_TO_FOREIGN_DATA_SOURCE
+INSERT IGNORE INTO t1 VALUES (42),(42);
+drop table t1;
+
+drop server srv;
+
+--disable_query_log
+--disable_result_log
+--source ../../t/test_deinit.inc
+--enable_result_log
+--enable_query_log
+--echo #
+--echo # end of test mdev_32492
+--echo #
