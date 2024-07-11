@@ -12658,12 +12658,13 @@ static SHOW_VAR binlog_status_vars_top[]= {
 static MYSQL_SYSVAR_BOOL(
   optimize_thread_scheduling,
   opt_optimize_thread_scheduling,
-  PLUGIN_VAR_READONLY,
+  PLUGIN_VAR_READONLY | PLUGIN_VAR_DEPRECATED,
   "Run fast part of group commit in a single thread, to optimize kernel "
   "thread scheduling. On by default. Disable to run each transaction in group "
   "commit in its own thread, which can be slower at very high concurrency. "
   "This option is mostly for testing one algorithm versus the other, and it "
-  "should not normally be necessary to change it",
+  "should not normally be necessary to change it. This variable is deprecated "
+  "and will be removed in a future release",
   NULL,
   NULL,
   1);

@@ -122,7 +122,9 @@ The following specify which files/extra groups are read (specified before remain
  thread, which can be slower at very high concurrency.
  This option is mostly for testing one algorithm versus
  the other, and it should not normally be necessary to
- change it
+ change it. This variable is deprecated and will be
+ removed in a future release. Deprecated, will be removed
+ in a future release.
  (Defaults to on; use --skip-binlog-optimize-thread-scheduling to disable.)
  --binlog-row-event-max-size=# 
  The maximum size of a row-based binary log event in
