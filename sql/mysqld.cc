@@ -4717,6 +4717,10 @@ static int init_server_components()
     else
     {
       my_bool res;
+#ifdef _WIN32
+      if (!opt_console)
+        FreeConsole(); // Remove window
+#endif
 #ifndef EMBEDDED_LIBRARY
       res= reopen_fstreams(log_error_file, stdout, stderr);
 #else
@@ -5584,13 +5588,6 @@ int mysqld_main(int argc, char **argv)
 
   init_ssl();
   network_init();
-
-#ifdef _WIN32
-  if (!opt_console)
-  {
-    FreeConsole();				// Remove window
-  }
-#endif
 
 #ifdef WITH_WSREP
   // Recover and exit.
