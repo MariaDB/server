@@ -6,9 +6,6 @@ if (!$SERVER_AUDIT_SO) {
 }
 
 --disable_ps2_protocol
-# An unfortunate wait for check-testcase.test to complete disconnect.
-let count_sessions= 1;
-source include/wait_until_count_sessions.inc;
 
 let $MYSQLD_DATADIR= `SELECT @@datadir`;
 let SEARCH_FILE= $MYSQLD_DATADIR/server_audit.log;
@@ -20,6 +17,8 @@ set global server_audit_file_path=null;
 set global server_audit_incl_users=null;
 set global server_audit_file_path='server_audit.log';
 set global server_audit_output_type=file;
+set global server_audit_log_buffer_size=100;
+set global server_audit_log_buffer_time=10000;
 set global server_audit_logging=on;
 
 --error ER_WRONG_VALUE_FOR_VAR
@@ -28,19 +27,16 @@ show variables like 'server_audit_incl_users';
 --error ER_WRONG_VALUE_FOR_VAR
 set global server_audit_excl_users= repeat("'root',", 10000);
 show variables like 'server_audit_excl_users';
-let SEARCH_COUNT= 5;
-source include/wait_for_line_count_in_file.inc;
+
 
 connect (con1,localhost,root,,mysql);
 disconnect con1;
-let SEARCH_COUNT= 7;
-source include/wait_for_line_count_in_file.inc;
+
 
 --replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
 --error ER_ACCESS_DENIED_ERROR
 connect (con1,localhost,no_such_user,,mysql);
-let SEARCH_COUNT= 9;
-source include/wait_for_line_count_in_file.inc;
+
 
 connection default;
 set global server_audit_incl_users='odin, dva, tri';
@@ -71,9 +67,9 @@ drop table renamed_t1, t2;
 show variables like 'server_audit%';
 set global server_audit_mode=1;
 set global server_audit_events='';
+set global server_audit_log_buffer_size=50;
 create database sa_db;
 let SEARCH_COUNT= 47;
-source include/wait_for_line_count_in_file.inc;
 
 connect (con1,localhost,root,,test);
 create table t1 (id2 int);
@@ -87,7 +83,6 @@ drop table sa_t1;
 drop database sa_db;
 disconnect con1;
 let SEARCH_COUNT= 80;
-source include/wait_for_line_count_in_file.inc;
 
 connection default;
 create database sa_db;
@@ -115,6 +110,7 @@ drop procedure pr1;
 drop function fn1;
 
 set global server_audit_events='query_ddl,query_dml';
+set global server_audit_log_buffer_size=1;
 create table t1(id int);
 insert into t1 values (1), (2);
 select * from t1;
@@ -185,7 +181,6 @@ set global server_audit_incl_users='root';
 set global server_audit_logging= on;
 disconnect cn1;
 let $count_sessions=1;
-source include/wait_until_count_sessions.inc;
 
 drop user user1@localhost;
 
@@ -236,6 +231,7 @@ set global server_audit_file_path='nonexisting_dir/';
 show status like 'server_audit_current_log';
 show variables like 'server_audit%';
 uninstall plugin server_audit;
+
 
 # replace the timestamp and the hostname with constant values
 --replace_regex /[0-9]* [0-9][0-9]:[0-9][0-9]:[0-9][0-9]\,[^,]*\,/TIME,HOSTNAME,/ /\,[1-9][0-9]*\,/,1,/ /\,[1-9][0-9]*/,ID/
