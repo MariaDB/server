@@ -12,6 +12,8 @@ static ST_FIELD_INFO table_stats_fields[]=
   Column("ROWS_DELETED",          SLonglong(),   NOT_NULL, "Rows_deleted"),
   Column("KEY_READ_HITS",         SLonglong(),   NOT_NULL, "Key_read_hits"),
   Column("KEY_READ_MISSES",       SLonglong(),   NOT_NULL, "Key_read_misses"),
+  Column("PAGES_ACCESSED",        SLonglong(),   NOT_NULL, "Pages_accessed"),
+  Column("PAGES_READ_FROM_DISK",  SLonglong(),   NOT_NULL, "Pages_read_from_disk"),
   CEnd()
 };
 
@@ -62,6 +64,8 @@ static int table_stats_fill(THD *thd, TABLE_LIST *tables, COND *cond)
     table->field[7]->store((longlong) rows_stats->deleted, TRUE);
     table->field[8]->store((longlong) rows_stats->key_read_hit, TRUE);
     table->field[9]->store((longlong) rows_stats->key_read_miss, TRUE);
+    table->field[10]->store((longlong) rows_stats->pages_accessed, TRUE);
+    table->field[11]->store((longlong) rows_stats->pages_read_count, TRUE);
 
     if (schema_table_store_record(thd, table))
     {

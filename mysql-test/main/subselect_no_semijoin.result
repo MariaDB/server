@@ -7120,8 +7120,8 @@ WHERE SLEEP(0.1) OR c < 'p' OR b = ( SELECT MIN(b) FROM t2 );
 MIN(b)
 NULL
 # The following shows that t2 was indeed scanned with a full scan.
-show table_statistics;
-Table_schema	Table_name	Rows_read	Rows_changed	Rows_changed_x_#indexes	Rows_inserted	Rows_updated	Rows_deleted	Key_read_hits	Key_read_misses
+select TABLE_SCHEMA, TABLE_NAME, ROWS_READ, ROWS_CHANGED, ROWS_CHANGED_X_INDEXES, ROWS_INSERTED, ROWS_UPDATED, ROWS_DELETED, KEY_READ_HITS, KEY_READ_MISSES from information_schema.table_statistics;
+TABLE_SCHEMA	TABLE_NAME	ROWS_READ	ROWS_CHANGED	ROWS_CHANGED_X_INDEXES	ROWS_INSERTED	ROWS_UPDATED	ROWS_DELETED	KEY_READ_HITS	KEY_READ_MISSES
 test	t1	2	0	0	0	0	0	0	0
 test	t2	3	0	0	0	0	0	1	0
 test	t3	0	0	0	0	0	0	0	1

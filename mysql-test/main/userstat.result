@@ -76,6 +76,8 @@ ROWS_UPDATED	bigint(21)	NO		NULL
 ROWS_DELETED	bigint(21)	NO		NULL	
 KEY_READ_HITS	bigint(21)	NO		NULL	
 KEY_READ_MISSES	bigint(21)	NO		NULL	
+PAGES_ACCESSED	bigint(21)	NO		NULL	
+PAGES_READ_FROM_DISK	bigint(21)	NO		NULL	
 set @save_general_log=@@global.general_log;
 set @@global.general_log=0;
 set @@global.userstat=1;
@@ -150,9 +152,9 @@ set @@global.userstat=0;
 select * from information_schema.index_statistics;
 TABLE_SCHEMA	TABLE_NAME	INDEX_NAME	ROWS_READ	QUERIES
 select * from information_schema.table_statistics;
-TABLE_SCHEMA	TABLE_NAME	ROWS_READ	ROWS_CHANGED	ROWS_CHANGED_X_INDEXES	ROWS_INSERTED	ROWS_UPDATED	ROWS_DELETED	KEY_READ_HITS	KEY_READ_MISSES
+TABLE_SCHEMA	TABLE_NAME	ROWS_READ	ROWS_CHANGED	ROWS_CHANGED_X_INDEXES	ROWS_INSERTED	ROWS_UPDATED	ROWS_DELETED	KEY_READ_HITS	KEY_READ_MISSES	PAGES_ACCESSED	PAGES_READ_FROM_DISK
 show table_statistics;
-Table_schema	Table_name	Rows_read	Rows_changed	Rows_changed_x_#indexes	Rows_inserted	Rows_updated	Rows_deleted	Key_read_hits	Key_read_misses
+Table_schema	Table_name	Rows_read	Rows_changed	Rows_changed_x_#indexes	Rows_inserted	Rows_updated	Rows_deleted	Key_read_hits	Key_read_misses	Pages_accessed	Pages_read_from_disk
 show index_statistics;
 Table_schema	Table_name	Index_name	Rows_read	Queries
 select TOTAL_CONNECTIONS, TOTAL_SSL_CONNECTIONS, CONCURRENT_CONNECTIONS, ROWS_READ, ROWS_SENT, ROWS_DELETED, ROWS_INSERTED, ROWS_UPDATED, SELECT_COMMANDS, UPDATE_COMMANDS, COMMIT_TRANSACTIONS, ROLLBACK_TRANSACTIONS, DENIED_CONNECTIONS, LOST_CONNECTIONS, ACCESS_DENIED, EMPTY_QUERIES from information_schema.client_statistics;;
@@ -200,7 +202,7 @@ flush index_statistics;
 select * from information_schema.index_statistics;
 TABLE_SCHEMA	TABLE_NAME	INDEX_NAME	ROWS_READ	QUERIES
 select * from information_schema.table_statistics;
-TABLE_SCHEMA	TABLE_NAME	ROWS_READ	ROWS_CHANGED	ROWS_CHANGED_X_INDEXES	ROWS_INSERTED	ROWS_UPDATED	ROWS_DELETED	KEY_READ_HITS	KEY_READ_MISSES
+TABLE_SCHEMA	TABLE_NAME	ROWS_READ	ROWS_CHANGED	ROWS_CHANGED_X_INDEXES	ROWS_INSERTED	ROWS_UPDATED	ROWS_DELETED	KEY_READ_HITS	KEY_READ_MISSES	PAGES_ACCESSED	PAGES_READ_FROM_DISK
 show status like "%generic%";
 Variable_name	Value
 Com_show_generic	2
