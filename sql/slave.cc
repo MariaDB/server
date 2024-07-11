@@ -5195,6 +5195,7 @@ log space");
 
   // error = 0;
 err:
+  THD_STAGE_INFO(thd, stage_ending_io_thread);
   // print the current replication position
   if (mi->using_gtid == Master_info::USE_GTID_NO)
     sql_print_information("Slave I/O thread exiting, read up to log '%s', "

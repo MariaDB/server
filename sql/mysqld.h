@@ -594,6 +594,7 @@ extern PSI_stage_info stage_deleting_from_main_table;
 extern PSI_stage_info stage_deleting_from_reference_tables;
 extern PSI_stage_info stage_discard_or_import_tablespace;
 extern PSI_stage_info stage_end;
+extern PSI_stage_info stage_ending_io_thread;
 extern PSI_stage_info stage_enabling_keys;
 extern PSI_stage_info stage_executing;
 extern PSI_stage_info stage_execution_of_init_command;

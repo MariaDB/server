@@ -9324,6 +9324,7 @@ PSI_stage_info stage_deleting_from_reference_tables= { 0, "Deleting from referen
 PSI_stage_info stage_discard_or_import_tablespace= { 0, "Discard_or_import_tablespace", 0};
 PSI_stage_info stage_enabling_keys= { 0, "Enabling keys", 0};
 PSI_stage_info stage_end= { 0, "End of update loop", 0};
+PSI_stage_info stage_ending_io_thread= { 0, "Ending IO thread", 0};
 PSI_stage_info stage_executing= { 0, "Executing", 0};
 PSI_stage_info stage_execution_of_init_command= { 0, "Execution of init_command", 0};
 PSI_stage_info stage_explaining= { 0, "Explaining", 0};
