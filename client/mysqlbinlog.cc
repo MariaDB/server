@@ -142,6 +142,7 @@ static char *charset= 0;
 static uint verbose= 0;
 
 static ulonglong start_position, stop_position;
+static const longlong stop_position_default= (longlong)(~(my_off_t)0);
 #define start_position_mot ((my_off_t)start_position)
 #define stop_position_mot  ((my_off_t)stop_position)
 
@@ -1684,8 +1685,8 @@ static struct my_option my_options[] =
    "Stop reading the binlog at position N. Applies to the last binlog "
    "passed on the command line.",
    &stop_position, &stop_position, 0, GET_ULL,
-   REQUIRED_ARG, (longlong)(~(my_off_t)0), BIN_LOG_HEADER_SIZE,
-   (ulonglong)(~(my_off_t)0), 0, 0, 0},
+   REQUIRED_ARG, stop_position_default, BIN_LOG_HEADER_SIZE,
+   (ulonglong)stop_position_default, 0, 0, 0},
   {"table", 'T', "List entries for just this table (affects only row events).",
    &table, &table, 0, GET_STR_ALLOC, REQUIRED_ARG,
    0, 0, 0, 0, 0, 0},
@@ -2937,7 +2938,20 @@ static Exit_status dump_local_log_entries(PRINT_EVENT_INFO *print_event_info,
               llstr(old_off,llbuff));
         goto err;
       }
-      // file->error == 0 means EOF, that's OK, we break in this case
+      // else file->error == 0 means EOF, that's OK, we break in this case
+
+      /*
+        Emit a warning in the event that we finished processing input
+        before reaching the boundary indicated by --stop-position.
+      */
+      if (((longlong)stop_position != stop_position_default) &&
+          stop_position > my_b_tell(file))
+      {
+          retval = OK_STOP;
+          warning("Did not reach stop position %llu before "
+                  "end of input", stop_position);
+      }
+
       goto end;
     }
     if ((retval= process_event(print_event_info, ev, old_off, logname)) !=
