@@ -3183,6 +3183,7 @@ bool Item_exists_subselect::exists2in_processor(void *opt_arg)
   set_exists_transformed();
 
   first_select->select_limit= NULL;
+  first_select->explicit_limit= 0;
   if (!(in_subs= new (thd->mem_root) Item_in_subselect(thd, left_exp,
                                                          first_select)))
   {
