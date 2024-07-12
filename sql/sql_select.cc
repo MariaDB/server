@@ -25576,10 +25576,10 @@ test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,ha_rows select_limit,
     changed_key= true;
   }
 
-check_reverse_order:                  
+check_reverse_order:
   DBUG_ASSERT(order_direction != 0);
 
-  if (order_direction == -1)		// If ORDER BY ... DESC
+  if (order_direction == -1)		// If ORDER BY ... DESC for ASC key or ORDER BY ... ASC for DESC key
   {
     int quick_type;
     if (select && select->quick)
@@ -25694,7 +25694,7 @@ check_reverse_order:
       }
     } // best_key >= 0
 
-    if (order_direction == -1)		// If ORDER BY ... DESC
+    if (order_direction == -1)		// If ORDER BY ... DESC for ASC key or ORDER BY ... ASC for DESC key
     {
       if (select && select->quick)
       {
@@ -31119,6 +31119,7 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
               (select_limit <= MY_MIN(quick_records,best_records) ?
                keyinfo->user_defined_key_parts < best_key_parts :
                quick_records < best_records) ||
+               direction > best_key_direction ||
               (!is_best_covering && is_covering))
           {
             possible_key.add("chosen", true);
@@ -31128,7 +31129,7 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
               *saved_best_key_parts= used_key_parts;
             best_records= quick_records;
             is_best_covering= is_covering;
-            best_key_direction= direction; 
+            best_key_direction= direction;
             best_select_limit= select_limit;
             if ((thd->variables.optimizer_adjust_secondary_key_costs &
                  OPTIMIZER_ADJ_DISABLE_FORCE_INDEX_GROUP_BY) && group)
