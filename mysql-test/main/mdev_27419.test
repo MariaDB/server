@@ -1,0 +1,13 @@
+# Remove the include if you run the test on MySQL 8.0
+--source include/have_innodb.inc
+
+create table t (a int, key aa(a), key ad(a desc)) engine=InnoDB;
+insert into t values (1),(5),(2),(8),(4),(6),(7),(9),(3);
+
+explain select * from t order by a desc;
+flush status;
+select * from t order by a desc;
+show status like 'Handler_read%';
+
+# Cleanup
+drop table t;

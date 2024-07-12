@@ -32369,11 +32369,10 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
 
         /*
           We will try use the key if:
-          - If there is no ref key and no usable keys has yet been found and
-            there is either a group by or a FORCE_INDEX
           - If the new cost is better than read_time
         */
-        if (range_cost < read_time)
+        if (range_cost < read_time ||
+            (range_cost == read_time && direction > best_key_direction))
         {
           read_time= range_cost;
           possible_key.add("chosen", true);
