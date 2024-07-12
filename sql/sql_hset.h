@@ -85,26 +85,53 @@ public:
     return reinterpret_cast<T*>(my_hash_element(const_cast<HASH*>(&m_hash), i));
   }
   /** An iterator over hash elements. Is not insert-stable. */
+  class Iterator;
+  using value_type= T;
+  using iterator= Iterator;
+  using const_iterator= const Iterator;
+
+  Iterator begin() const { return Iterator(*this, 0); }
+  Iterator end() const { return Iterator(*this, m_hash.records); }
+
   class Iterator
   {
   public:
-    Iterator(Hash_set &hash_set)
-      : m_hash(&hash_set.m_hash),
-        m_idx(0)
-    {}
-    /**
-      Return the current element and reposition the iterator to the next
-      element.
-    */
-    inline T *operator++(int)
+    using iterator_category= std::forward_iterator_tag;
+    using value_type= T;
+    using difference_type= std::ptrdiff_t;
+    using pointer= T *;
+    using reference= T &;
+
+    Iterator(const Hash_set &hash_set, uint idx=0) :
+      m_hash(&hash_set.m_hash), m_idx(idx) {}
+
+    Iterator &operator++()
     {
-      if (m_idx < m_hash->records)
-        return reinterpret_cast<T*>(my_hash_element(m_hash, m_idx++));
-      return NULL;
+      DBUG_ASSERT(m_idx < m_hash->records);
+      m_idx++;
+      return *this;
     }
-    void rewind() { m_idx= 0; }
+
+    T &operator*()
+    {
+      return *reinterpret_cast<T *>(my_hash_element(m_hash, m_idx));
+    }
+
+    T *operator->()
+    {
+      return reinterpret_cast<T *>(my_hash_element(m_hash, m_idx));
+    }
+
+    bool operator==(const typename Hash_set<T>::iterator &rhs)
+    {
+      return m_idx == rhs.m_idx && m_hash == rhs.m_hash;
+    }
+    bool operator!=(const typename Hash_set<T>::iterator &rhs)
+    {
+      return m_idx != rhs.m_idx || m_hash != rhs.m_hash;
+    }
   private:
-    HASH *m_hash;
+    const HASH *m_hash;
     uint m_idx;
   };
 private:
