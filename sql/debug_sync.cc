@@ -97,10 +97,8 @@ struct st_debug_sync_globals
 
   void clear_set()
   {
-    Hash_set<LEX_CSTRING>::Iterator it{ds_signal_set};
-    LEX_CSTRING *s;
-    while ((s= it++))
-      my_free(s);
+    for (LEX_CSTRING &s : ds_signal_set)
+      my_free(&s);
     ds_signal_set.clear();
   }
 
