@@ -71,7 +71,7 @@ my_bool my_hash_init2(PSI_memory_key psi_key, HASH *hash, size_t growth_size,
                       void (*free_element)(void*), uint flags);
 void my_hash_free(HASH *tree);
 void my_hash_reset(HASH *hash);
-uchar *my_hash_element(HASH *hash, size_t idx);
+uchar *my_hash_element(const HASH *hash, size_t idx);
 uchar *my_hash_search(const HASH *info, const uchar *key, size_t length);
 uchar *my_hash_search_using_hash_value(const HASH *info,
                                        my_hash_value_type hash_value,
