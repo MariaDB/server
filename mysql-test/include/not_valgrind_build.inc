@@ -1,4 +1,4 @@
-if (`select version() like '%valgrind%' || version() like '%asan%'`)
+if (`select version() like '%valgrind%'`)
 {
-  skip Does not run with binaries built with valgrind or asan;
+  skip Does not run with binaries built with valgrind;
 }
