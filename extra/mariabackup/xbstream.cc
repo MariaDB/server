@@ -359,17 +359,19 @@ err:
 
 static
 uchar *
-get_file_entry_key(file_entry_t *entry, size_t *length,
+get_file_entry_key(const uchar *_entry, size_t *length,
 		   my_bool not_used __attribute__((unused)))
 {
+	const file_entry_t *entry= reinterpret_cast<const file_entry_t*>(_entry);
 	*length = entry->pathlen;
 	return (uchar *) entry->path;
 }
 
 static
 void
-file_entry_free(file_entry_t *entry)
+file_entry_free(void *_entry)
 {
+	file_entry_t *entry= (file_entry_t*) _entry;
 	pthread_mutex_destroy(&entry->mutex);
 	ds_close(entry->file);
 	my_free(entry->path);
