@@ -85,6 +85,30 @@ struct Neighborhood: public Sql_alloc
 };
 
 
+#ifdef AVX2_IMPLEMENTATION
+AVX2_IMPLEMENTATION
+float vec_distance(float *v1, float *v2, size_t len)
+{
+  typedef float v8f __attribute__((vector_size(SIMD_word)));
+  v8f *p1= (v8f*)v1;
+  v8f *p2= (v8f*)v2;
+  v8f d= {0};
+  for (size_t i= 0; i < len/SIMD_floats; p1++, p2++, i++)
+  {
+    v8f dist= *p1 - *p2;
+    d+= dist * dist;
+  }
+  return d[0] + d[1] + d[2] + d[3] + d[4] + d[5] + d[6] + d[7];
+}
+#endif
+
+DEFAULT_IMPLEMENTATION
+float vec_distance(float *v1, float *v2, size_t len)
+{
+  return euclidean_vec_distance(v1, v2, len);
+}
+
+
 /*
   One node in a graph = one row in the graph table
 
@@ -526,20 +550,7 @@ FVectorNode::FVectorNode(MHNSW_Context *ctx_, const void *tref_, uint8_t layer,
 
 float FVectorNode::distance_to(const FVector &other) const
 {
-#if __GNUC__ > 7
-  typedef float v8f __attribute__((vector_size(SIMD_word)));
-  v8f *p1= (v8f*)vec;
-  v8f *p2= (v8f*)other.vec;
-  v8f d= {0,0,0,0,0,0,0,0};
-  for (size_t i= 0; i < ctx->vec_len/SIMD_floats; p1++, p2++, i++)
-  {
-    v8f dist= *p1 - *p2;
-    d+= dist * dist;
-  }
-  return d[0] + d[1] + d[2] + d[3] + d[4] + d[5] + d[6] + d[7];
-#else
-  return euclidean_vec_distance(vec, other.vec, ctx->vec_len);
-#endif
+  return vec_distance(vec, other.vec, ctx->vec_len);
 }
 
 int FVectorNode::alloc_neighborhood(uint8_t layer)
