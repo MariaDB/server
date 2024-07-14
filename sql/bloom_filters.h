@@ -160,6 +160,69 @@ struct PatternedSimdBloomFilter
     return res_bits;
   }
 
+  /********************************************************
+  ********* non-SIMD fallback version ********************/
+
+  uint64_t CalcHash_1(const T* data)
+  {
+    static constexpr uint64_t prime_mx2= 0x9FB21C651E98DF25ULL;
+    static constexpr uint64_t bitflip= 0xC73AB174C5ECD5A2ULL;
+    uint64_t step1= ((intptr)data) ^ bitflip;
+    uint64_t step2= (step1 >> 48) ^ (step1 << 16);
+    uint64_t step3= (step1 >> 24) ^ (step1 << 40);
+    uint64_t step4= step1 ^ step2 ^ step3;
+    uint64_t step5= step4 * prime_mx2;
+    uint64_t step6= step5 >> 35;
+    uint64_t step7= step6 + 8;
+    uint64_t step8= step5 ^ step7;
+    uint64_t step9= step8 * prime_mx2;
+    return step9 ^ (step9 >> 28);
+  }
+
+  uint GetBlockIdx_1(uint64_t hash)
+  {
+    uint64 blockIdx = hash >> (mask_idx_bits + rotate_bits);
+    return blockIdx & (num_blocks - 1);
+  }
+
+  uint64_t ConstructMask_1(uint64_t hash)
+  {
+    uint64_t maskIdxMask = (1 << mask_idx_bits) - 1;
+    uint64_t maskMask = (1ULL << bits_per_mask) - 1;
+    uint64_t maskIdx = hash & maskIdxMask;
+    uint64_t maskByteIdx = maskIdx >> 3;
+    uint64_t maskBitIdx = maskIdx & 7;
+    uint64_t rawMask = *(uint64_t *)(masks + maskByteIdx);
+    uint64_t unrotated = (rawMask >> maskBitIdx) & maskMask;
+    uint64_t rotation = (hash >> mask_idx_bits) & ((1 << rotate_bits) - 1);
+    return (unrotated << rotation) | (unrotated >> (64 - rotation));
+  }
+
+  __attribute__ ((target ("default")))
+  void Insert(const T **data)
+  {
+    for (size_t i = 0; i < 8; i++)
+    {
+      uint64_t hash = CalcHash_1(data[i]);
+      uint64_t mask = ConstructMask_1(hash);
+      bv[GetBlockIdx_1(hash)] |= mask;
+    }
+  }
+
+  __attribute__ ((target ("default")))
+  uint8_t Query(T **data)
+  {
+    uint8_t res_bits = 0;
+    for (size_t i = 0; i < 8; i++)
+    {
+      uint64_t hash = CalcHash_1(data[i]);
+      uint64_t mask = ConstructMask_1(hash);
+      if ((bv[GetBlockIdx_1(hash)] & mask) == mask)
+        res_bits |= 1 << i;
+    }
+    return res_bits;
+  }
+
   int n;
   float epsilon;
 
