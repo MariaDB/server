@@ -57,7 +57,7 @@
 #define NAMES_START_SIZE   32768
 
 
-static int	comp_names(struct fileinfo *a,struct fileinfo *b);
+static int	comp_names(const void *a, const void *b);
 
 typedef struct {
   MY_DIR        dir;
@@ -83,8 +83,10 @@ void my_dirend(MY_DIR *dir)
 
         /* Compare in sort of filenames */
 
-static int comp_names(struct fileinfo *a, struct fileinfo *b)
+static int comp_names(const void *_a, const void *_b)
 {
+  struct fileinfo *a= (struct fileinfo *) _a;
+  struct fileinfo *b= (struct fileinfo *) _b;
   return (strcmp(a->name,b->name));
 } /* comp_names */
 
