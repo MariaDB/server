@@ -39,31 +39,42 @@
 #define MAX_TREE_ELEMENTS 256
 
 int sortcmp2(void* cmp_arg __attribute__((unused)),
-	     const String *a,const String *b)
+	     const void *_a, const void *_b)
 {
+  const String *a= static_cast<const String*>(_a);
+  const String *b= static_cast<const String*>(_b);
   return sortcmp(a,b,a->charset());
 }
 
 int compare_double2(void* cmp_arg __attribute__((unused)),
-		    const double *s, const double *t)
+		    const void *_s, const void *_t)
 {
+  const double *s= static_cast<const double*>(_s);
+  const double *t= static_cast<const double*>(_t);
   return compare_double(s,t);
 }
 
 int compare_longlong2(void* cmp_arg __attribute__((unused)),
-		      const longlong *s, const longlong *t)
+		      const void *_s, const void *_t)
 {
+  const longlong *s= static_cast<const longlong*>(_s);
+  const longlong *t= static_cast<const longlong*>(_t);
   return compare_longlong(s,t);
 }
 
 int compare_ulonglong2(void* cmp_arg __attribute__((unused)),
-		       const ulonglong *s, const ulonglong *t)
+		       const void *_s, const void *_t)
 {
+  const ulonglong *s= static_cast<const ulonglong*>(_s);
+  const ulonglong *t= static_cast<const ulonglong*>(_t);
   return compare_ulonglong(s,t);
 }
 
-int compare_decimal2(int* len, const char *s, const char *t)
+int compare_decimal2(void* _len, const void *_s, const void *_t)
 {
+  int* len     = static_cast<int*>(_len);
+  const char *s= static_cast<const char *>(_s);
+  const char *t= static_cast<const char *>(_t);
   return memcmp(s, t, *len);
 }
 
@@ -1065,10 +1076,12 @@ String *field_decimal::std(String *s, ha_rows rows)
 }
 
 
-int collect_string(String *element,
+int collect_string(void *_element,
 		   element_count count __attribute__((unused)),
-		   TREE_INFO *info)
+		   void *_info)
 {
+  String *element= static_cast<String*>(_element);
+  TREE_INFO *info= static_cast<TREE_INFO*>(_info);
   if (info->found)
     info->str->append(',');
   else
@@ -1081,9 +1094,11 @@ int collect_string(String *element,
 } // collect_string
 
 
-int collect_real(double *element, element_count count __attribute__((unused)),
-		 TREE_INFO *info)
+int collect_real(void *_element, element_count count __attribute__((unused)),
+		 void *_info)
 {
+  double *element= static_cast<double*>(_element);
+  TREE_INFO *info= static_cast<TREE_INFO*>(_info);
   char buff[MAX_FIELD_WIDTH];
   String s(buff, sizeof(buff),current_thd->charset());
 
@@ -1099,9 +1114,11 @@ int collect_real(double *element, element_count count __attribute__((unused)),
 } // collect_real
 
 
-int collect_decimal(uchar *element, element_count count,
-                    TREE_INFO *info)
+int collect_decimal(void *_element, element_count count,
+                    void *_info)
 {
+  uchar *element= static_cast<uchar*>(_element);
+  TREE_INFO *info= static_cast<TREE_INFO*>(_info);
   char buff[DECIMAL_MAX_STR_LENGTH];
   String s(buff, sizeof(buff),&my_charset_bin);
 
@@ -1118,10 +1135,12 @@ int collect_decimal(uchar *element, element_count count,
 }
 
 
-int collect_longlong(longlong *element,
+int collect_longlong(void *_element,
 		     element_count count __attribute__((unused)),
-		     TREE_INFO *info)
+		     void *_info)
 {
+  longlong *element= static_cast<longlong*>(_element);
+  TREE_INFO *info= static_cast<TREE_INFO*>(_info);
   char buff[MAX_FIELD_WIDTH];
   String s(buff, sizeof(buff),&my_charset_bin);
 
@@ -1137,10 +1156,12 @@ int collect_longlong(longlong *element,
 } // collect_longlong
 
 
-int collect_ulonglong(ulonglong *element,
+int collect_ulonglong(void *_element,
 		      element_count count __attribute__((unused)),
-		      TREE_INFO *info)
+		      void *_info)
 {
+  ulonglong *element= static_cast<longlong*>(_element);
+  TREE_INFO *info= static_cast<TREE_INFO*>(_info);
   char buff[MAX_FIELD_WIDTH];
   String s(buff, sizeof(buff),&my_charset_bin);
 
