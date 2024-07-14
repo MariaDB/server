@@ -56,16 +56,16 @@ typedef struct st_tree_info
 uint check_ulonglong(const char *str, uint length);
 bool get_ev_num_info(EV_NUM_INFO *ev_info, NUM_INFO *info, const char *num);
 bool test_if_number(NUM_INFO *info, const char *str, uint str_len);
-int compare_double(const double *s, const double *t);
+int compare_double(const void *s, const void *t);
 int compare_double2(void* cmp_arg __attribute__((unused)),
-		    const double *s, const double *t);
-int compare_longlong(const longlong *s, const longlong *t);
+		    const void *s, const void *t);
+int compare_longlong(const void *s, const void *t);
 int compare_longlong2(void* cmp_arg __attribute__((unused)),
-		      const longlong *s, const longlong *t);
-int compare_ulonglong(const ulonglong *s, const ulonglong *t);
+		      const void *s, const void *t);
+int compare_ulonglong(const void *s, const void *t);
 int compare_ulonglong2(void* cmp_arg __attribute__((unused)),
-		       const ulonglong *s, const ulonglong *t);
-int compare_decimal2(int* len, const char *s, const char *t);
+		       const void *s, const void *t);
+int compare_decimal2(void* len, const void *s, const void *t);
 Procedure *proc_analyse_init(THD *thd, ORDER *param, select_result *result,
 			     List<Item> &field_list);
 int free_string(void* str, TREE_FREE, void*);
@@ -99,11 +99,11 @@ public:
 };
 
 
-int collect_string(String *element, element_count count,
-		   TREE_INFO *info);
+int collect_string(void *element, element_count count,
+		   void *info);
 
 int sortcmp2(void* cmp_arg __attribute__((unused)),
-	     const String *a,const String *b);
+	     const void *a,const void *b);
 
 class field_str :public field_info
 {
@@ -148,8 +148,8 @@ public:
 };
 
 
-int collect_decimal(uchar *element, element_count count,
-                    TREE_INFO *info);
+int collect_decimal(void *element, element_count count,
+                    void *info);
 
 class field_decimal :public field_info
 {
@@ -178,7 +178,7 @@ public:
 };
 
 
-int collect_real(double *element, element_count count, TREE_INFO *info);
+int collect_real(void *element, element_count count, void *info);
 
 class field_real: public field_info
 {
@@ -233,8 +233,8 @@ public:
   { return (tree_walk_action) collect_real;}
 };
 
-int collect_longlong(longlong *element, element_count count,
-		     TREE_INFO *info);
+int collect_longlong(void *element, element_count count,
+		     void *info);
 
 class field_longlong: public field_info
 {
@@ -279,8 +279,8 @@ public:
   { return (tree_walk_action) collect_longlong;}
 };
 
-int collect_ulonglong(ulonglong *element, element_count count,
-		      TREE_INFO *info);
+int collect_ulonglong(void *element, element_count count,
+		      void *info);
 
 class field_ulonglong: public field_info
 {
