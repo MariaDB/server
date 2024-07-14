@@ -1044,7 +1044,7 @@ merge_buffers(MARIA_SORT_PARAM *info, ha_keys keys, IO_CACHE *from_file,
   sort_length=info->key_length;
 
   if (init_queue(&queue,(uint) (Tb-Fb)+1,offsetof(BUFFPEK,key),0,
-                 (int (*)(void*, uchar *,uchar*)) info->key_cmp,
+                 info->queue_cmp,
                  (void*) info, 0, 0))
     DBUG_RETURN(1); /* purecov: inspected */
 

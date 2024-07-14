@@ -53,8 +53,10 @@ typedef struct st_ft_superdoc
 
 
 static int FT_SUPERDOC_cmp(void* cmp_arg __attribute__((unused)),
-			   FT_SUPERDOC *p1, FT_SUPERDOC *p2)
+			   const void *_p1, const void *_p2)
 {
+  const FT_SUPERDOC *p1= (const FT_SUPERDOC*) _p1;
+  const FT_SUPERDOC *p2= (const FT_SUPERDOC*) _p2;
   if (p1->doc.dpos < p2->doc.dpos)
     return -1;
   if (p1->doc.dpos == p2->doc.dpos)
@@ -62,8 +64,10 @@ static int FT_SUPERDOC_cmp(void* cmp_arg __attribute__((unused)),
   return 1;
 }
 
-static int walk_and_match(FT_WORD *word, uint32 count, ALL_IN_ONE *aio)
+static int walk_and_match(void *_word, element_count count, void *_aio)
 {
+  FT_WORD *word= (FT_WORD*) _word;
+  ALL_IN_ONE *aio= (ALL_IN_ONE*) _aio;
   FT_WEIGTH    subkeys;
   int          r;
   uint	       doc_cnt;
@@ -186,9 +190,11 @@ do_skip:
 }
 
 
-static int walk_and_copy(FT_SUPERDOC *from,
-			 uint32 count __attribute__((unused)), FT_DOC **to)
+static int walk_and_copy(void *_from,
+			 uint32 count __attribute__((unused)), void *_to)
 {
+  FT_SUPERDOC *from= (FT_SUPERDOC*) _from;
+  FT_DOC **to= (FT_DOC**) _to;
   DBUG_ENTER("walk_and_copy");
   from->doc.weight+=from->tmp_weight*from->word_ptr->weight;
   (*to)->dpos=from->doc.dpos;
@@ -197,9 +203,11 @@ static int walk_and_copy(FT_SUPERDOC *from,
   DBUG_RETURN(0);
 }
 
-static int walk_and_push(FT_SUPERDOC *from,
-			 uint32 count __attribute__((unused)), QUEUE *best)
+static int walk_and_push(void *_from,
+			 element_count count __attribute__((unused)), void *_best)
 {
+  FT_SUPERDOC *from= (FT_SUPERDOC*) _from;
+  QUEUE *best= (QUEUE*) _best;
   DBUG_ENTER("walk_and_copy");
   from->doc.weight+=from->tmp_weight*from->word_ptr->weight;
   set_if_smaller(best->elements, ft_query_expansion_limit-1);
@@ -208,9 +216,19 @@ static int walk_and_push(FT_SUPERDOC *from,
 }
 
 
-static int FT_DOC_cmp(void *unused __attribute__((unused)),
-                      FT_DOC *a, FT_DOC *b)
+static int FT_DOC_cmp_queue_compare(void *unused __attribute__((unused)),
+                      uchar *_a, uchar *_b)
 {
+  FT_DOC *a= (FT_DOC*) _a;
+  FT_DOC *b= (FT_DOC*) _b;
+  return CMP_NUM(b->weight, a->weight);
+}
+
+static int FT_DOC_cmp_qsort(const void *unused __attribute__((unused)),
+                      const void *_a, const void *_b)
+{
+  FT_DOC *a= (FT_DOC*) _a;
+  FT_DOC *b= (FT_DOC*) _b;
   return CMP_NUM(b->weight, a->weight);
 }
 
@@ -260,8 +278,8 @@ FT_INFO *maria_ft_init_nlq_search(MARIA_HA *info, uint keynr, uchar *query,
   if (flags & FT_EXPAND && ft_query_expansion_limit)
   {
     QUEUE best;
-    init_queue(&best,ft_query_expansion_limit,0,0, (queue_compare) &FT_DOC_cmp,
-	       0, 0, 0);
+    init_queue(&best, ft_query_expansion_limit, 0, 0,
+               (queue_compare) &FT_DOC_cmp_queue_compare, 0, 0, 0);
     tree_walk(&aio.dtree, (tree_walk_action) &walk_and_push,
               &best, left_root_right);
     while (best.elements)
@@ -309,7 +327,7 @@ FT_INFO *maria_ft_init_nlq_search(MARIA_HA *info, uint keynr, uchar *query,
 
   if (flags & FT_SORTED)
     my_qsort2(dlist->doc, dlist->ndocs, sizeof(FT_DOC),
-              (qsort2_cmp)&FT_DOC_cmp, 0);
+              (qsort2_cmp) &FT_DOC_cmp_qsort, 0);
 
 err:
   delete_tree(&aio.dtree, 0);

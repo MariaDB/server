@@ -32,14 +32,19 @@ typedef struct st_my_maria_ft_parser_param
 } MY_FT_PARSER_PARAM;
 
 
-static int FT_WORD_cmp(CHARSET_INFO* cs, FT_WORD *w1, FT_WORD *w2)
+static int FT_WORD_cmp(void* _cs, const void *_w1, const void *_w2)
 {
+  CHARSET_INFO* cs= (CHARSET_INFO*) _cs;
+  const FT_WORD *w1= (const FT_WORD*) _w1;
+  const FT_WORD *w2= (const FT_WORD*) _w2;
   return ha_compare_word(cs, (uchar*) w1->pos, w1->len,
                              (uchar*) w2->pos, w2->len);
 }
 
-static int walk_and_copy(FT_WORD *word,uint32 count,FT_DOCSTAT *docstat)
+static int walk_and_copy(void *_word, element_count count, void *_docstat)
 {
+    FT_WORD *word= (FT_WORD*) _word;
+    FT_DOCSTAT *docstat= (FT_DOCSTAT*) _docstat;
     word->weight=LWS_IN_USE;
     docstat->sum+=word->weight;
     memcpy((docstat->list)++, word, sizeof(FT_WORD));

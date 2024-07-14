@@ -144,8 +144,11 @@ typedef struct st_ft_info
   enum { UNINITIALIZED, READY, INDEX_SEARCH, INDEX_DONE } state;
 } FTB;
 
-static int FTB_WORD_cmp(my_off_t *v, FTB_WORD *a, FTB_WORD *b)
+static int FTB_WORD_cmp(void *_v, uchar *_a, uchar *_b)
 {
+  my_off_t *v= (my_off_t*) _v;
+  FTB_WORD *a= (FTB_WORD*) _a;
+  FTB_WORD *b= (FTB_WORD*) _b;
   int i;
 
   /* if a==curdoc, take it as  a < b */
@@ -159,8 +162,11 @@ static int FTB_WORD_cmp(my_off_t *v, FTB_WORD *a, FTB_WORD *b)
   return i;
 }
 
-static int FTB_WORD_cmp_list(CHARSET_INFO *cs, FTB_WORD **a, FTB_WORD **b)
+static int FTB_WORD_cmp_list(const void *_cs, const void *_a, const void *_b)
 {
+  const CHARSET_INFO *cs= (const CHARSET_INFO*) _cs;
+  const FTB_WORD **a= (const FTB_WORD**) _a;
+  const FTB_WORD **b= (const FTB_WORD**) _b;
   /* ORDER BY word, ndepth */
   int i= ha_compare_word(cs, (uchar*) (*a)->word + 1, (*a)->len - 1,
                              (uchar*) (*b)->word + 1, (*b)->len - 1);

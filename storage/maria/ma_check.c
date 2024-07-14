@@ -67,8 +67,9 @@ static int sort_one_index(HA_CHECK *param, MARIA_HA *info,
 static int sort_key_read(MARIA_SORT_PARAM *sort_param, uchar *key);
 static int sort_maria_ft_key_read(MARIA_SORT_PARAM *sort_param, uchar *key);
 static int sort_get_next_record(MARIA_SORT_PARAM *sort_param);
-static int sort_key_cmp(MARIA_SORT_PARAM *sort_param, const void *a,
+static int sort_key_cmp(const void *sort_param, const void *a,
                         const void *b);
+static int sort_queue_cmp(void *sort_param, uchar *a, uchar *b);
 static int sort_maria_ft_key_write(MARIA_SORT_PARAM *sort_param,
                                    const uchar *a);
 static int sort_key_write(MARIA_SORT_PARAM *sort_param, const uchar *a);
@@ -3890,6 +3891,7 @@ int maria_repair_by_sort(HA_CHECK *param, register MARIA_HA *info,
                   MYF(param->malloc_flags));
 
   sort_param.key_cmp=sort_key_cmp;
+  sort_param.queue_cmp=sort_queue_cmp;
   sort_param.lock_in_memory=maria_lock_memory;
   sort_param.tmpdir=param->tmpdir;
   sort_param.master =1;
@@ -4504,6 +4506,7 @@ int maria_repair_parallel(HA_CHECK *param, register MARIA_HA *info,
       sort_param[i].key_write=sort_key_write;
     }
     sort_param[i].key_cmp=sort_key_cmp;
+    sort_param[i].queue_cmp=sort_queue_cmp;
     sort_param[i].lock_in_memory=maria_lock_memory;
     sort_param[i].tmpdir=param->tmpdir;
     sort_param[i].sort_info=&sort_info;
@@ -5608,14 +5611,31 @@ int _ma_sort_write_record(MARIA_SORT_PARAM *sort_param)
 
 /* Compare two keys from _ma_create_index_by_sort */
 
-static int sort_key_cmp(MARIA_SORT_PARAM *sort_param, const void *a,
+static int sort_key_cmp(const void *_sort_param, const void *a,
 			const void *b)
 {
+  MARIA_SORT_PARAM *sort_param= (MARIA_SORT_PARAM*) _sort_param;
   uint not_used[2];
   return (ha_key_cmp(sort_param->seg, *((uchar* const *) a),
                      *((uchar* const *) b),
 		     USE_WHOLE_KEY, SEARCH_SAME, not_used));
 } /* sort_key_cmp */
+
+
+/*
+  Same as sort_key_cmp, but with parameters that conform to queue_compare type
+  for init_queue usage.
+*/
+
+static int sort_queue_cmp(void *_sort_param, uchar *a,
+			uchar *b)
+{
+  MARIA_SORT_PARAM *sort_param= (MARIA_SORT_PARAM*) _sort_param;
+  uint not_used[2];
+  return (ha_key_cmp(sort_param->seg, *((uchar* const *) a),
+                     *((uchar* const *) b), USE_WHOLE_KEY, SEARCH_SAME,
+                     not_used));
+} /* sort_queue_cmp */
 
 
 static int sort_key_write(MARIA_SORT_PARAM *sort_param, const uchar *a)
