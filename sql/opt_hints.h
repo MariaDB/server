@@ -145,7 +145,7 @@ class Opt_hints : public Sql_alloc
     table name for table level and key name
     for key level.
   */
-  const LEX_CSTRING *name;
+  Lex_ident_sys name;
   /*
     Parent object. There is no parent for global level,
     for query block level parent is Opt_hints_global object,
@@ -165,7 +165,7 @@ class Opt_hints : public Sql_alloc
 
 public:
 
-  Opt_hints(const LEX_CSTRING *name_arg,
+  Opt_hints(const Lex_ident_sys &name_arg,
             Opt_hints *parent_arg,
             MEM_ROOT *mem_root_arg)
     : name(name_arg), parent(parent_arg), child_array(mem_root_arg),
@@ -209,8 +209,11 @@ public:
   */
   bool get_switch(opt_hints_enum type_arg) const;
 
-  virtual const LEX_CSTRING *get_name() const { return name; }
-  void set_name(const LEX_CSTRING *name_arg) { name= name_arg; }
+  virtual const LEX_CSTRING *get_name() const
+  {
+    return name.str ? &name : nullptr;
+  }
+  void set_name(const Lex_ident_sys &name_arg) { name= name_arg; }
   Opt_hints *get_parent() const { return parent; }
   void set_resolved() { resolved= true; }
   bool is_resolved() const { return resolved; }
@@ -249,7 +252,7 @@ public:
     @return  hint if found,
              NULL otherwise
   */
-  Opt_hints *find_by_name(const LEX_CSTRING *name_arg) const;
+  Opt_hints *find_by_name(const LEX_CSTRING &name_arg) const;
   /**
     Print all hints except of QB_NAME hint.
 
@@ -303,7 +306,7 @@ public:
   PT_hint_max_execution_time *max_exec_time;
  
   Opt_hints_global(MEM_ROOT *mem_root_arg)
-    : Opt_hints(NULL, NULL, mem_root_arg)
+    : Opt_hints(Lex_ident_sys(), NULL, mem_root_arg)
   {
     max_exec_time= NULL;
   }
@@ -375,7 +378,8 @@ public:
     @return  pointer Opt_hints_table object if this object is found,
              NULL otherwise.
   */
-  Opt_hints_table *adjust_table_hints(TABLE *table, const LEX_CSTRING *alias);
+  Opt_hints_table *adjust_table_hints(TABLE *table,
+                                      const Lex_ident_table &alias);
 };
 
 
@@ -388,7 +392,7 @@ class Opt_hints_table : public Opt_hints
 public:
   Mem_root_array<Opt_hints_key*, true> keyinfo_array;
 
-  Opt_hints_table(const LEX_CSTRING *table_name_arg,
+  Opt_hints_table(const Lex_ident_sys &table_name_arg,
                   Opt_hints_qb *qb_hints_arg,
                   MEM_ROOT *mem_root_arg)
     : Opt_hints(table_name_arg, qb_hints_arg, mem_root_arg),
@@ -429,7 +433,7 @@ class Opt_hints_key : public Opt_hints
 {
 public:
 
-  Opt_hints_key(const LEX_CSTRING *key_name_arg,
+  Opt_hints_key(const Lex_ident_sys &key_name_arg,
                 Opt_hints_table *table_hints_arg,
                 MEM_ROOT *mem_root_arg)
     : Opt_hints(key_name_arg, table_hints_arg, mem_root_arg)
