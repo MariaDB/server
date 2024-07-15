@@ -5362,6 +5362,43 @@ mysql_rename_table(handlerton *base, const LEX_CSTRING *old_db,
     }
     else
       log_query= true;
+
+    /* Rename high-level indexes */
+    if (file && !error)
+    {
+      char idx_from[FN_REFLEN + 1], idx_to[FN_REFLEN + 1];
+      char *idx_from_end= strmov(idx_from, from_base);
+      char *idx_to_end= strmov(idx_to, to_base);
+      TABLE_SHARE share;
+
+      init_tmp_table_share(thd, &share, new_db->str, 0, new_name->str, to, 1);
+      if (!open_table_def(thd, &share, GTS_TABLE | GTS_USE_DISCOVERY))
+      {
+        for (uint i= share.keys; i < share.total_keys; i++)
+        {
+          my_snprintf(idx_from_end, HLINDEX_BUF_LEN, HLINDEX_TEMPLATE, i);
+          my_snprintf(idx_to_end, HLINDEX_BUF_LEN, HLINDEX_TEMPLATE, i);
+          if ((error= file->ha_rename_table(idx_from, idx_to)))
+          {
+            for (; i >= share.keys; i--)
+            {
+              my_snprintf(idx_from_end, HLINDEX_BUF_LEN, HLINDEX_TEMPLATE, i);
+              my_snprintf(idx_to_end, HLINDEX_BUF_LEN, HLINDEX_TEMPLATE, i);
+              file->ha_rename_table(idx_to, idx_from);
+            }
+            file->ha_rename_table(to_base, from_base);
+            rename_file_ext(to, from, reg_ext);
+          }
+        }
+      }
+      else
+      {
+        file->ha_rename_table(to_base, from_base);
+        rename_file_ext(to, from, reg_ext);
+        error= 1;
+      }
+      free_table_share(&share);
+    }
   }
   if (!error && log_query && !(flags & (FN_TO_IS_TMP | FN_FROM_IS_TMP)))
   {
