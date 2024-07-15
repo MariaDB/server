@@ -437,8 +437,9 @@ static struct my_option my_long_options[] =
   {"hex-blob", 0, "Dump binary strings (BINARY, "
     "VARBINARY, BLOB) in hexadecimal format.",
    &opt_hex_blob, &opt_hex_blob, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"host", 'h', "Connect to host.", &current_host,
-   &current_host, 0, GET_STR_ALLOC, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"host", 'h', "Connect to host. Defaults in the following order: "
+  "$MARIADB_HOST, and then localhost",
+   &current_host, &current_host, 0, GET_STR_ALLOC, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"ignore-database", OPT_IGNORE_DATABASE,
    "Do not dump the specified database. To specify more than one database to ignore, "
    "use the directive multiple times, once for each database. Only takes effect "
@@ -1107,8 +1108,13 @@ get_one_option(const struct my_option *opt,
 
 static int get_options(int *argc, char ***argv)
 {
+  char *tmp;
   int ho_error;
   MYSQL_PARAMETERS *mysql_params= mysql_get_parameters();
+
+  tmp= getenv("MARIADB_HOST");
+  if (tmp && current_host == NULL)
+    current_host= my_strdup(PSI_NOT_INSTRUMENTED, tmp, MYF(MY_WME));
 
   opt_max_allowed_packet= *mysql_params->p_max_allowed_packet;
   opt_net_buffer_length= *mysql_params->p_net_buffer_length;

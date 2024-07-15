@@ -145,8 +145,9 @@ static struct my_option my_long_options[] =
    0, 0 },
   {"help", '?', "Display this help message and exit.", 0, 0, 0, GET_NO_ARG,
    NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"host",'h', "Connect to host.", &current_host,
-   &current_host, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"host",'h', "Connect to host. Defaults in the following order: "
+  "$MARIADB_HOST, and then localhost",
+   &current_host, &current_host, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"medium-check", 'm',
    "Faster than extended-check, but only finds 99.99 percent of all errors. Should be good enough for most cases.",
    0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
@@ -412,6 +413,9 @@ static int get_options(int *argc, char ***argv)
 {
   int ho_error;
   DBUG_ENTER("get_options");
+
+  if (current_host == NULL)
+    current_host= getenv("MARIADB_HOST");
 
   if (*argc == 1)
   {
