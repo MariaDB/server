@@ -34,22 +34,21 @@
 struct LEX;
 struct TABLE;
 
-
 /**
   Hint types, MAX_HINT_ENUM should be always last.
   This enum should be synchronized with opt_hint_info
   array(see opt_hints.cc).
 */
-// enum opt_hints_enum
-// {
-//   BKA_HINT_ENUM= 0,
-//   BNL_HINT_ENUM,
-//   ICP_HINT_ENUM,
-//   MRR_HINT_ENUM,
-//   NO_RANGE_HINT_ENUM,
-//   QB_NAME_HINT_ENUM,
-//   MAX_HINT_ENUM
-// };
+enum opt_hints_enum
+{
+  BKA_HINT_ENUM= 0,
+  BNL_HINT_ENUM,
+  ICP_HINT_ENUM,
+  MRR_HINT_ENUM,
+  NO_RANGE_HINT_ENUM,
+  QB_NAME_HINT_ENUM,
+  MAX_HINT_ENUM
+};
 
 
 struct st_opt_hint_info
@@ -228,6 +227,7 @@ public:
     child_array.push_back(hint_arg);
   }
 
+  // OLEGS: remove it if not used
   /**
     Returns pointer to complex hint for a given type
 
@@ -235,11 +235,11 @@ public:
 
     @return  pointer to complex hint for a given type.
   */
-  virtual PT_hint *get_complex_hints(uint type)
-  {
-    DBUG_ASSERT(0);
-    return NULL; /* error C4716: must return a value*/
-  };
+  // virtual PT_hint *get_complex_hints(uint type)
+  // {
+  //   DBUG_ASSERT(0);
+  //   return NULL; /* error C4716: must return a value*/
+  // };
 
   /**
     Find hint among lower-level hint objects.

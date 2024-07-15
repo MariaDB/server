@@ -23,7 +23,7 @@
 #include "sql_list.h"
 #include "simple_parser.h"
 
-struct st_select_lex;
+class st_select_lex;
 
 /**
   Environment data for the name resolution phase
@@ -34,23 +34,6 @@ struct Parse_context {
   st_select_lex * select;       ///< Current SELECT_LEX object
 
   Parse_context(THD *thd, st_select_lex *select);
-};
-
-
-/**
-  Hint types, MAX_HINT_ENUM should be always last.
-  This enum should be synchronized with opt_hint_info
-  array(see opt_hints.cc).
-*/
-enum opt_hints_enum
-{
-  BKA_HINT_ENUM= 0,
-  BNL_HINT_ENUM,
-  ICP_HINT_ENUM,
-  MRR_HINT_ENUM,
-  NO_RANGE_HINT_ENUM,
-  QB_NAME_HINT_ENUM,
-  MAX_HINT_ENUM
 };
 
 
@@ -542,7 +525,6 @@ private:
   public:
     using OR2::OR2;
   };
-
 
   // table_level_hint ::= table_level_hint_type ( table_level_hint_body )
   class Table_level_hint: public AND4<PARSER,

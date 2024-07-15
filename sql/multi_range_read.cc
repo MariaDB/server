@@ -21,6 +21,7 @@
 #include "sql_statistics.h"
 #include "rowid_filter.h"
 #include "optimizer_defaults.h"
+#include "opt_hints.h"
 
 static void get_sweep_read_cost(TABLE *table, ha_rows nrows, bool interrupted,
                                 Cost_estimate *cost);

@@ -41,7 +41,6 @@
 #include "sql_class.h"                // enum enum_column_usage
 #include "select_handler.h"
 #include "opt_hints_parser.h"
-#include "parse_tree_hints.h"
 
 /* Used for flags of nesting constructs */
 #define SELECT_NESTING_MAP_SIZE 64
@@ -167,6 +166,8 @@ class With_clause;
 class my_var;
 class select_handler;
 class Pushdown_select;
+class Opt_hints_global;
+class Opt_hints_qb;
 
 #define ALLOC_ROOT_SET 1024
 

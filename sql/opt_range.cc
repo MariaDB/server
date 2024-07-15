@@ -120,6 +120,7 @@
 #include "sql_statistics.h"
 #include "uniques.h"
 #include "my_json_writer.h"
+#include "opt_hints.h"
 
 #ifndef EXTRA_DEBUG
 #define test_rb_tree(A,B) {}

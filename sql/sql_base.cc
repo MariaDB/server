@@ -64,6 +64,7 @@
 #include "wsrep_thd.h"
 #include "wsrep_trans_observer.h"
 #endif /* WITH_WSREP */
+#include "opt_hints.h"
 
 bool
 No_such_table_error_handler::handle_condition(THD *,

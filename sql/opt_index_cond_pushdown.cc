@@ -18,6 +18,7 @@
 #include "sql_select.h"
 #include "sql_test.h"
 #include "opt_trace.h"
+#include "opt_hints.h"
 
 /****************************************************************************
  * Index Condition Pushdown code starts

@@ -193,7 +193,6 @@ SET (SQL_SOURCE
                ${CMAKE_CURRENT_BINARY_DIR}/lex_token.h
                ${GEN_SOURCES}
                ${MYSYS_LIBWRAP_SOURCE}
-               parse_tree_hints.cc parse_tree_hints.h
 )
 
 MY_CHECK_CXX_COMPILER_FLAG(-Wno-unused-but-set-variable)
