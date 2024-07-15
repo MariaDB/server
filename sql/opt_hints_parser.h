@@ -18,7 +18,7 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA
 */
 
-
+#include "lex_ident_sys.h"
 #include "simple_tokenizer.h"
 #include "sql_list.h"
 #include "simple_parser.h"
@@ -76,40 +76,6 @@ public:
     tIDENT
   };
 
-protected:
-
-  TokenID find_keyword(const LEX_CSTRING &str)
-  {
-    switch (str.length)
-    {
-    case 3:
-      if ("BKA"_Lex_ident_column.streq(str)) return TokenID::keyword_BKA;
-      if ("BNL"_Lex_ident_column.streq(str)) return TokenID::keyword_BNL;
-      if ("MRR"_Lex_ident_column.streq(str)) return TokenID::keyword_MRR;
-      break;
-
-    case 6:
-      if ("NO_BKA"_Lex_ident_column.streq(str)) return TokenID::keyword_NO_BKA;
-      if ("NO_BNL"_Lex_ident_column.streq(str)) return TokenID::keyword_NO_BNL;
-      if ("NO_ICP"_Lex_ident_column.streq(str)) return TokenID::keyword_NO_ICP;
-      if ("NO_MRR"_Lex_ident_column.streq(str)) return TokenID::keyword_NO_MRR;
-      break;
-
-    case 7:
-      if ("QB_NAME"_Lex_ident_column.streq(str))
-        return TokenID::keyword_QB_NAME;
-      break;
-
-    case 21:
-      if ("NO_RANGE_OPTIMIZATION"_Lex_ident_column.streq(str))
-        return TokenID::keyword_NO_RANGE_OPTIMIZATION;
-      break;
-    }
-    return TokenID::tIDENT;
-  }
-
-public:
-
   class Token: public Lex_cstring
   {
   protected:
@@ -132,32 +98,9 @@ public:
     }
   };
 
-  Token get_token(CHARSET_INFO *cs)
-  {
-    get_spaces();
-    if (eof())
-      return Token(Lex_cstring(m_ptr, m_ptr), TokenID::tEOF);
-    const char head= m_ptr[0];
-    if (head == '`' || head=='"')
-    {
-      const Token_with_metadata delimited_ident= get_quoted_string();
-      if (delimited_ident.length)
-        return Token(delimited_ident, TokenID::tIDENT);
-    }
-    const Token_with_metadata ident= get_ident();
-    if (ident.length)
-      return Token(ident, ident.m_extended_chars ?
-                   TokenID::tIDENT : find_keyword(ident));
-    if (!get_char(','))
-      return Token(Lex_cstring(m_ptr - 1, 1), TokenID::tCOMMA);
-    if (!get_char('@'))
-      return Token(Lex_cstring(m_ptr - 1, 1), TokenID::tAT);
-    if (!get_char('('))
-      return Token(Lex_cstring(m_ptr - 1, 1), TokenID::tLPAREN);
-    if (!get_char(')'))
-      return Token(Lex_cstring(m_ptr - 1, 1), TokenID::tRPAREN);
-    return Token(Lex_cstring(m_ptr, m_ptr), TokenID::tNULL);
-  }
+protected:
+  Token get_token(CHARSET_INFO *cs);
+  static TokenID find_keyword(const LEX_CSTRING &str);
 };
 
 
@@ -167,6 +110,7 @@ class Optimizer_hint_parser: public Optimizer_hint_tokenizer,
 private:
   Token m_look_ahead_token;
   THD *m_thd;
+  const char *m_start;
   bool m_syntax_error;
   bool m_fatal_error;
 public:
@@ -174,6 +118,7 @@ public:
    :Optimizer_hint_tokenizer(cs, hint),
     m_look_ahead_token(get_token(cs)),
     m_thd(thd),
+    m_start(hint.str),
     m_syntax_error(false),
     m_fatal_error(false)
   { }
@@ -187,6 +132,24 @@ public:
     m_fatal_error= true;
     return false;
   }
+  // Calculate the line number inside the whole hint
+  uint lineno(const char *ptr) const
+  {
+    DBUG_ASSERT(m_start <= ptr);
+    DBUG_ASSERT(ptr <= m_end);
+    uint lineno= 0;
+    for ( ; ptr >= m_start; ptr--)
+    {
+      if (*ptr == '\n')
+        lineno++;
+    }
+    return lineno;
+  }
+  uint lineno() const
+  {
+    return lineno(m_ptr);
+  }
+
   TokenID look_ahead_token_id() const
   {
     return is_error() ? TokenID::tNULL : m_look_ahead_token.id();
@@ -249,7 +212,7 @@ public:
 
   bool parse_token_list(THD *thd); // For debug purposes
 
-  void push_warning_syntax_error(THD *thd);
+  void push_warning_syntax_error(THD *thd, uint lineno);
 
 
 private:
@@ -280,6 +243,18 @@ private:
   {
   public:
     using TOKEN::TOKEN;
+    Lex_ident_cli_st to_ident_cli() const
+    {
+      Lex_ident_cli_st cli;
+      if (length >= 2 && (str[0] == '`' || str[0] == '"'))
+        return cli.set_ident_quoted(str + 1, length - 2, true, str[0]);
+      return cli.set_ident(str, length, true);
+    }
+    Lex_ident_sys to_ident_sys(THD *thd) const
+    {
+      const Lex_ident_cli_st cli= to_ident_cli();
+      return Lex_ident_sys(thd, &cli);
+    }
   };
 
   class LParen: public TOKEN<PARSER, TokenID::tLPAREN>
@@ -626,5 +601,18 @@ public:
   };
 
 };
+
+
+/*
+  This wrapper class is needed to use a forward declaration in sql_lex.h
+  instead of including the entire opt_hints_parser.h.
+  (forward declarations of qualified nested classes are not possible in C++)
+*/
+class Optimizer_hint_parser_output: public Optimizer_hint_parser::Hint_list
+{
+public:
+  using Hint_list::Hint_list;
+};
+
 
 #endif // OPT_HINTS_PARSER

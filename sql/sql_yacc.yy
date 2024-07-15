@@ -206,6 +206,7 @@ void _CONCAT_UNDERSCORED(turn_parser_debug_on,yyparse)()
 
   /* structs */
   LEX_CSTRING lex_str;
+  Lex_comment_st lex_comment;
   Lex_ident_cli_st kwd;
   Lex_ident_cli_st ident_cli;
   Lex_ident_sys_st ident_sys;
@@ -278,7 +279,7 @@ void _CONCAT_UNDERSCORED(turn_parser_debug_on,yyparse)()
   TABLE_LIST *table_list;
   Table_ident *table;
   Qualified_column_ident *qualified_column_ident;
-  Optimizer_hint_parser::Hint_list *opt_hints;
+  Optimizer_hint_parser_output *opt_hints;
   char *simple_string;
   const char *const_simple_string;
   chooser_compare_func_creator boolfunc2creator;
@@ -1337,6 +1338,9 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %left EMPTY_FROM_CLAUSE
 %right INTO
 
+%type <lex_comment>
+        HINT_COMMENT opt_hint_comment
+
 %type <lex_str>
         DECIMAL_NUM FLOAT_NUM NUM LONG_NUM
         HEX_NUM HEX_STRING
@@ -1347,7 +1351,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         opt_constraint constraint opt_ident
         sp_block_label sp_control_label opt_place opt_db
         udt_name
-        HINT_COMMENT opt_hint_comment
 
 %type <ident_sys>
         IDENT_sys
@@ -8972,7 +8975,7 @@ table_value_constructor:
 	;
 
 opt_hint_comment:
-          /*empty */   { $$= null_clex_str; }
+          /*empty */   { $$.init(); }
         | HINT_COMMENT { $$= $1; }
         ;
 
