@@ -18,7 +18,7 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA
 */
 
-
+#include "lex_ident_sys.h"
 #include "simple_tokenizer.h"
 #include "sql_list.h"
 #include "simple_parser.h"
@@ -280,6 +280,24 @@ private:
   {
   public:
     using TOKEN::TOKEN;
+    Lex_ident_cli_st to_ident_cli() const
+    {
+      Lex_ident_cli_st cli;
+      if (length >= 2 && (str[0] == '`' || str[0] == '"'))
+      {
+        cli.set_ident_quoted(str + 1, length - 2, true, str[0]);
+      }
+      else
+      {
+        cli.set_ident(str, length, true);
+      }
+      return cli;
+    }
+    Lex_ident_sys to_ident_sys(THD *thd) const
+    {
+      const Lex_ident_cli_st cli= to_ident_cli();
+      return Lex_ident_sys(thd, &cli);
+    }
   };
 
   class LParen: public TOKEN<PARSER, TokenID::tLPAREN>
