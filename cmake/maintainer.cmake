@@ -40,12 +40,12 @@ SET(MY_WARNING_FLAGS
   -Wsuggest-override
   -Wvla
   -Wwrite-strings
+  -Wcast-function-type-strict
   )
 
 # Warning flags that are in testing before moving
 # to MY_WARNING_FLAGS if stable.
 SET(MY_WARNING_FLAGS_NON_FATAL
-  cast-function-type-strict
   )
 
 FOREACH(F ${MY_WARNING_FLAGS})
