@@ -33,6 +33,85 @@ Parse_context::Parse_context(THD *thd, st_select_lex *select)
 {}
 
 
+Optimizer_hint_tokenizer::TokenID
+Optimizer_hint_tokenizer::find_keyword(const LEX_CSTRING &str)
+{
+  switch (str.length)
+  {
+  case 3:
+    if ("BKA"_Lex_ident_column.streq(str)) return TokenID::keyword_BKA;
+    if ("BNL"_Lex_ident_column.streq(str)) return TokenID::keyword_BNL;
+    if ("MRR"_Lex_ident_column.streq(str)) return TokenID::keyword_MRR;
+    break;
+
+  case 6:
+    if ("NO_BKA"_Lex_ident_column.streq(str)) return TokenID::keyword_NO_BKA;
+    if ("NO_BNL"_Lex_ident_column.streq(str)) return TokenID::keyword_NO_BNL;
+    if ("NO_ICP"_Lex_ident_column.streq(str)) return TokenID::keyword_NO_ICP;
+    if ("NO_MRR"_Lex_ident_column.streq(str)) return TokenID::keyword_NO_MRR;
+    break;
+
+  case 7:
+    if ("QB_NAME"_Lex_ident_column.streq(str))
+      return TokenID::keyword_QB_NAME;
+    break;
+
+  case 21:
+    if ("NO_RANGE_OPTIMIZATION"_Lex_ident_column.streq(str))
+      return TokenID::keyword_NO_RANGE_OPTIMIZATION;
+    break;
+  }
+  return TokenID::tIDENT;
+}
+
+
+Optimizer_hint_tokenizer::Token
+Optimizer_hint_tokenizer::get_token(CHARSET_INFO *cs)
+{
+  get_spaces();
+  if (eof())
+    return Token(Lex_cstring(m_ptr, m_ptr), TokenID::tEOF);
+  const char head= m_ptr[0];
+  if (head == '`' || head=='"')
+  {
+    const Token_with_metadata delimited_ident= get_quoted_string();
+    /*
+      Consider only non-empty quoted strings as identifiers.
+      Table and index names cannot be empty in MariaDB.
+      Let's also disallow empty query block names.
+      Note, table aliases can actually be empty:
+        SELECT ``.a FROM t1 ``;
+      But let's disallow them in hints for simplicity, to handle
+      all identifiers in the same way in the hint parser.
+    */
+    if (delimited_ident.length > 2)
+      return Token(delimited_ident, TokenID::tIDENT);
+    /*
+      If the string is empty, "unget" it to have a good
+      syntax error position in the message text.
+      The point is to include the empty string in the error message:
+        EXPLAIN EXTENDED SELECT ... QB_NAME(``) ...;  -->
+        Optimizer hint syntax error near '``) ...' at line 1
+    */
+    m_ptr-= delimited_ident.length;
+    return Token(Lex_cstring(m_ptr, m_ptr), TokenID::tNULL);
+  }
+  const Token_with_metadata ident= get_ident();
+  if (ident.length)
+    return Token(ident, ident.m_extended_chars ?
+                 TokenID::tIDENT : find_keyword(ident));
+  if (!get_char(','))
+    return Token(Lex_cstring(m_ptr - 1, 1), TokenID::tCOMMA);
+  if (!get_char('@'))
+    return Token(Lex_cstring(m_ptr - 1, 1), TokenID::tAT);
+  if (!get_char('('))
+    return Token(Lex_cstring(m_ptr - 1, 1), TokenID::tLPAREN);
+  if (!get_char(')'))
+    return Token(Lex_cstring(m_ptr - 1, 1), TokenID::tRPAREN);
+  return Token(Lex_cstring(m_ptr, m_ptr), TokenID::tNULL);
+}
+
+
 // This method is for debug purposes
 bool Optimizer_hint_parser::parse_token_list(THD *thd)
 {
@@ -52,15 +131,22 @@ bool Optimizer_hint_parser::parse_token_list(THD *thd)
   return true; // Success
 }
 
-
-void Optimizer_hint_parser::push_warning_syntax_error(THD *thd)
+void Optimizer_hint_parser::push_warning_syntax_error(THD *thd,
+                                                      uint start_lineno)
 {
+  DBUG_ASSERT(m_start <= m_ptr);
+  DBUG_ASSERT(m_ptr <= m_end);
   const char *msg= ER_THD(thd, ER_WARN_OPTIMIZER_HINT_SYNTAX_ERROR);
   ErrConvString txt(m_look_ahead_token.str, strlen(m_look_ahead_token.str),
                     thd->variables.character_set_client);
+  /*
+    start_lineno is the line number on which the whole hint started.
+    Add the line number of the current tokenizer position inside the hint
+    (in case hints are written in multiple lines).
+  */
   push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                       ER_PARSE_ERROR, ER_THD(thd, ER_PARSE_ERROR),
-                      msg, txt.ptr(), 1);
+                      msg, txt.ptr(), start_lineno + lineno());
 }
 
 
