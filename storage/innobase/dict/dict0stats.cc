@@ -2670,7 +2670,8 @@ dict_stats_fetch_table_stats_step(
 			ut_a(len == 8);
 
 			table->stat_clustered_index_size
-				= std::max<ulint>(mach_read_from_8(data), 1);
+				= std::max<ulint>(
+				      (ulint) mach_read_from_8(data), 1);
 			break;
 		}
 
@@ -2688,7 +2689,7 @@ dict_stats_fetch_table_stats_step(
 			}
 			table->stat_sum_of_other_index_sizes
 				= std::max<ulint>(
-				    mach_read_from_8(data),
+				    (ulint) mach_read_from_8(data),
 				    UT_LIST_GET_LEN(table->indexes) - 1);
 
 			break;
@@ -2876,13 +2877,13 @@ dict_stats_fetch_index_stats_step(
 	if (stat_name_len == 4 /* strlen("size") */
 	    && strncasecmp("size", stat_name, stat_name_len) == 0) {
 		index->stat_index_size
-			= std::max<ulint>(stat_value, 1);
+			= std::max<ulint>((ulint) stat_value, 1);
 		arg->stats_were_modified = true;
 	} else if (stat_name_len == 12 /* strlen("n_leaf_pages") */
 		   && strncasecmp("n_leaf_pages", stat_name, stat_name_len)
 		   == 0) {
 		index->stat_n_leaf_pages
-			= std::max<ulint>(stat_value, 1);
+			= std::max<ulint>((ulint) stat_value, 1);
 		arg->stats_were_modified = true;
 	} else if (stat_name_len == 12 /* strlen("n_page_split") */
 		   && strncasecmp("n_page_split", stat_name, stat_name_len)
