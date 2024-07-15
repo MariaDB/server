@@ -40,13 +40,23 @@
 #include "table.h"
 #include "sql_class.h"                // enum enum_column_usage
 #include "select_handler.h"
-#include "opt_hints_parser.h"
 
 /* Used for flags of nesting constructs */
 #define SELECT_NESTING_MAP_SIZE 64
 typedef Bitmap<SELECT_NESTING_MAP_SIZE> nesting_map;
 
 /* YACC and LEX Definitions */
+
+
+struct Lex_comment_st: public LEX_CSTRING
+{
+  uint lineno;
+  void init()
+  {
+    LEX_CSTRING::operator=({nullptr, 0});
+    lineno= 0;
+  }
+};
 
 
 struct Lex_column_list_privilege_st
@@ -170,6 +180,7 @@ class select_handler;
 class Pushdown_select;
 class Opt_hints_global;
 class Opt_hints_qb;
+class Optimizer_hint_parser_output;
 
 #define ALLOC_ROOT_SET 1024
 
@@ -1262,7 +1273,7 @@ public:
   /* it is for correct printing SELECT options */
   thr_lock_type lock_type;  
 
-  Optimizer_hint_parser::Hint_list *parsed_optimizer_hints;
+  Optimizer_hint_parser_output *parsed_optimizer_hints;
 
   /** System Versioning */
   int vers_setup_conds(THD *thd, TABLE_LIST *tables);
@@ -1560,7 +1571,7 @@ public:
   bool is_unit_nest() { return (nest_flags & UNIT_NEST_FL); }
   void mark_as_unit_nest() { nest_flags= UNIT_NEST_FL; }
   bool is_sj_conversion_prohibited(THD *thd);
-  void set_optimizer_hints(Optimizer_hint_parser::Hint_list *hl)
+  void set_optimizer_hints(Optimizer_hint_parser_output *hl)
   { 
     parsed_optimizer_hints= hl;
   }
@@ -3736,19 +3747,7 @@ public:
     DBUG_RETURN(select_lex);
   }
 
-  void resolve_optimizer_hints()
-  {
-    SELECT_LEX *select_lex;
-    if (likely(select_stack_top))
-      select_lex= select_stack[select_stack_top - 1];
-    else
-      select_lex= nullptr;
-    if (select_lex && select_lex->parsed_optimizer_hints)
-    {
-      Parse_context pc(thd, select_lex);
-      select_lex->parsed_optimizer_hints->resolve(&pc);
-    }
-  }
+  void resolve_optimizer_hints();
 
   SELECT_LEX *current_select_or_default()
   {
@@ -4993,8 +4992,8 @@ public:
     return nullptr;
   }
 
-  Optimizer_hint_parser::Hint_list *
-    parse_optimizer_hints(const LEX_CSTRING &hint);
+  Optimizer_hint_parser_output *
+    parse_optimizer_hints(const Lex_comment_st &hint);
 };
 
 

@@ -2496,16 +2496,17 @@ int Lex_input_stream::lex_one_token(YYSTYPE *yylval, THD *thd)
       else
       {
         in_comment= PRESERVE_COMMENT;
-        yylval->lex_str.str= m_ptr;
+        yylval->lex_comment.lineno= yylineno;
+        yylval->lex_comment.str= m_ptr;
         yySkip();                  // Accept /
         yySkip();                  // Accept *
         /* regular comments can have zero comments inside. */
         if ((comment_closed= ! consume_comment(0)) && hint_comment)
         {
-          if (yylval->lex_str.str[2]=='+')
+          if (yylval->lex_comment.str[2] == '+')
           {
             next_state= MY_LEX_START;
-            yylval->lex_str.length= m_ptr - yylval->lex_str.str;
+            yylval->lex_comment.length= m_ptr - yylval->lex_comment.str;
             restore_in_comment_state();
             return HINT_COMMENT;
           }
@@ -12862,8 +12863,8 @@ bool SELECT_LEX_UNIT::is_derived_eliminated() const
   rc == nullptr  false            no hints, empty hints, hint parse error
   rc == nullptr  true             fatal error, such as EOM
 */
-Optimizer_hint_parser::Hint_list *
-LEX::parse_optimizer_hints(const LEX_CSTRING &hints_str)
+Optimizer_hint_parser_output *
+LEX::parse_optimizer_hints(const Lex_comment_st &hints_str)
 {
   DBUG_ASSERT(!hints_str.str || hints_str.length >= 5);
   if (!hints_str.str)
@@ -12875,7 +12876,7 @@ LEX::parse_optimizer_hints(const LEX_CSTRING &hints_str)
   Optimizer_hint_parser p(thd, thd->charset(),
                           Lex_cstring(hints_str.str + 3, hints_str.length - 5));
   // Parse hints
-  Optimizer_hint_parser::Hints hints(&p);
+  Optimizer_hint_parser_output hints(&p);
   DBUG_ASSERT(!p.is_error() || !hints);
 
   if (p.is_fatal_error())
@@ -12890,10 +12891,25 @@ LEX::parse_optimizer_hints(const LEX_CSTRING &hints_str)
 
   if (!hints) // Hint parsing failed with a syntax error
   {
-    p.push_warning_syntax_error(thd);
+    p.push_warning_syntax_error(thd, hints_str.lineno);
     return nullptr; // Continue and ignore hints.
   }
 
   // Hints were not empty and were parsed without errors
-  return new (thd->mem_root) Optimizer_hint_parser::Hint_list(std::move(hints));
+  return new (thd->mem_root) Optimizer_hint_parser_output(std::move(hints));
+}
+
+
+void LEX::resolve_optimizer_hints()
+{
+  SELECT_LEX *select_lex;
+  if (likely(select_stack_top))
+    select_lex= select_stack[select_stack_top - 1];
+  else
+    select_lex= nullptr;
+  if (select_lex && select_lex->parsed_optimizer_hints)
+  {
+    Parse_context pc(thd, select_lex);
+    select_lex->parsed_optimizer_hints->resolve(&pc);
+  }
 }
