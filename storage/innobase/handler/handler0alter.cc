@@ -864,6 +864,9 @@ my_error_innodb(
 	case DB_DEADLOCK:
 		my_error(ER_LOCK_DEADLOCK, MYF(0));
 		break;
+	case DB_RECORD_CHANGED:
+		my_error(ER_CHECKREAD, MYF(0), table);
+		break;
 	case DB_LOCK_WAIT_TIMEOUT:
 		my_error(ER_LOCK_WAIT_TIMEOUT, MYF(0));
 		break;
@@ -1165,7 +1168,7 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 		trx_start_for_ddl(trx);
 	}
 
-	~ha_innobase_inplace_ctx()
+	~ha_innobase_inplace_ctx() override
 	{
 		UT_DELETE(m_stage);
 		if (instant_table) {
@@ -1274,7 +1277,7 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 
 	/** Share context between partitions.
 	@param[in] ctx	context from another partition of the table */
-	void set_shared_data(const inplace_alter_handler_ctx& ctx)
+	void set_shared_data(const inplace_alter_handler_ctx& ctx) override
 	{
 		if (add_autoinc != ULINT_UNDEFINED) {
 			const ha_innobase_inplace_ctx& ha_ctx =
@@ -1457,11 +1460,6 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
     }
   }
 };
-
-/********************************************************************//**
-Get the upper limit of the MySQL integral and floating-point type.
-@return maximum allowed value for the field */
-ulonglong innobase_get_int_col_max_value(const Field *field);
 
 /** Determine if fulltext indexes exist in a given table.
 @param table MySQL table
@@ -1730,11 +1728,9 @@ instant_alter_column_possible(
 			ut_ad(!is_null || nullable);
 			n_nullable += nullable;
 			n_add++;
-			uint l;
+			uint l = (*af)->pack_length();
 			switch ((*af)->type()) {
 			case MYSQL_TYPE_VARCHAR:
-				l = reinterpret_cast<const Field_varstring*>
-					(*af)->get_length();
 			variable_length:
 				if (l >= min_local_len) {
 					max_size += blob_prefix
@@ -1748,7 +1744,6 @@ instant_alter_column_possible(
 					if (!is_null) {
 						min_size += l;
 					}
-					l = (*af)->pack_length();
 					max_size += l;
 					lenlen += l > 255 ? 2 : 1;
 				}
@@ -1762,7 +1757,6 @@ instant_alter_column_possible(
 					((*af))->get_length();
 				goto variable_length;
 			default:
-				l = (*af)->pack_length();
 				if (l > 255 && ib_table.not_redundant()) {
 					goto variable_length;
 				}
@@ -2748,6 +2742,9 @@ cannot_create_many_fulltext_index:
 		online = false;
 	}
 
+	static constexpr const char *not_implemented
+		= "Not implemented for system-versioned operations";
+
 	if (ha_alter_info->handler_flags
 		& ALTER_ADD_NON_UNIQUE_NON_PRIM_INDEX) {
 		/* ADD FULLTEXT|SPATIAL INDEX requires a lock.
@@ -2773,6 +2770,12 @@ cannot_create_many_fulltext_index:
 						  | HA_BINARY_PACK_KEY)));
 				if (add_fulltext) {
 					goto cannot_create_many_fulltext_index;
+				}
+
+				if (altered_table->versioned()) {
+					ha_alter_info->unsupported_reason
+						= not_implemented;
+					DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 				}
 
 				add_fulltext = true;
@@ -2811,12 +2814,18 @@ cannot_create_many_fulltext_index:
 		}
 	}
 
-	// FIXME: implement Online DDL for system-versioned operations
-	if (ha_alter_info->handler_flags & INNOBASE_ALTER_VERSIONED_REBUILD) {
-
+	if (m_prebuilt->table->is_stats_table()) {
 		if (ha_alter_info->online) {
 			ha_alter_info->unsupported_reason =
-				"Not implemented for system-versioned operations";
+				table_share->table_name.str;
+		}
+		online= false;
+	}
+
+	// FIXME: implement Online DDL for system-versioned operations
+	if (ha_alter_info->handler_flags & INNOBASE_ALTER_VERSIONED_REBUILD) {
+		if (ha_alter_info->online) {
+			ha_alter_info->unsupported_reason = not_implemented;
 		}
 
 		online = false;
@@ -6529,16 +6538,16 @@ acquire_lock:
 		acquiring an InnoDB table lock even for online operation,
 		to ensure that the rollback of recovered transactions will
 		not run concurrently with online ADD INDEX. */
-		user_table->lock_mutex_lock();
+		user_table->lock_shared_lock();
 		for (lock_t *lock = UT_LIST_GET_FIRST(user_table->locks);
 		     lock;
 		     lock = UT_LIST_GET_NEXT(un_member.tab_lock.locks, lock)) {
 			if (lock->trx->is_recovered) {
-				user_table->lock_mutex_unlock();
+				user_table->lock_shared_unlock();
 				goto acquire_lock;
 			}
 		}
-		user_table->lock_mutex_unlock();
+		user_table->lock_shared_unlock();
 	}
 
 	if (fts_exist) {
@@ -7363,6 +7372,7 @@ error_handling_drop_uncached:
 		ut_d(dict_table_check_for_dup_indexes(user_table,
 						      CHECK_PARTIAL_OK));
 		if (ctx->need_rebuild()) {
+			export_vars.innodb_bulk_operations++;
 			ctx->new_table->acquire();
 		}
 
@@ -7444,6 +7454,7 @@ error_handled:
 		row_mysql_lock_data_dictionary(ctx->trx);
 	} else {
 		row_merge_drop_indexes(ctx->trx, user_table, true);
+		user_table->indexes.start->online_log = nullptr;
 		ctx->trx->commit();
 	}
 
@@ -8510,6 +8521,15 @@ field_changed:
 			DBUG_RETURN(true);
 		}
 
+		if ((ha_alter_info->handler_flags & ALTER_OPTIONS)
+		    && ctx->page_compression_level
+		    && !ctx->old_table->not_redundant()) {
+			my_error(ER_ILLEGAL_HA_CREATE_OPTION, MYF(0),
+				 table_type(),
+				 "PAGE_COMPRESSED=1 ROW_FORMAT=REDUNDANT");
+			DBUG_RETURN(true);
+		}
+
 		if (!(ha_alter_info->handler_flags & INNOBASE_ALTER_DATA)
 		    && alter_templ_needs_rebuild(altered_table, ha_alter_info,
 						 ctx->new_table)
@@ -8778,10 +8798,11 @@ ok_exit:
 		}
 		s_templ = UT_NEW_NOKEY(dict_vcol_templ_t());
 
+		ctx->new_table->lock_mutex_lock();
 		innobase_build_v_templ(
-			altered_table, ctx->new_table, s_templ, NULL, false);
-
+			altered_table, ctx->new_table, s_templ);
 		ctx->new_table->vc_templ = s_templ;
+                ctx->new_table->lock_mutex_unlock();
 	} else if (ctx->num_to_add_vcol > 0 && ctx->num_to_drop_vcol == 0) {
 		/* if there is ongoing drop virtual column, then we disallow
 		inplace add index on newly added virtual column, so it does
@@ -8796,10 +8817,12 @@ ok_exit:
 		add_v->v_col = ctx->add_vcol;
 		add_v->v_col_name = ctx->add_vcol_name;
 
+		ctx->new_table->lock_mutex_lock();
 		innobase_build_v_templ(
-			altered_table, ctx->new_table, s_templ, add_v, false);
+			altered_table, ctx->new_table, s_templ, add_v);
 		old_templ = ctx->new_table->vc_templ;
 		ctx->new_table->vc_templ = s_templ;
+		ctx->new_table->lock_mutex_unlock();
 	}
 
 	/* Drop virtual column without rebuild will keep dict table
@@ -9865,13 +9888,7 @@ commit_set_autoinc(
 			const dict_col_t*	autoinc_col
 				= dict_table_get_nth_col(ctx->old_table,
 							 innodb_col_no(ai));
-			dict_index_t*		index
-				= dict_table_get_first_index(ctx->old_table);
-			while (index != NULL
-			       && index->fields[0].col != autoinc_col) {
-				index = dict_table_get_next_index(index);
-			}
-
+			auto index = ctx->old_table->get_index(*autoinc_col);
 			ut_ad(index);
 
 			ib_uint64_t	max_in_table = index
@@ -10246,6 +10263,7 @@ when rebuilding the table.
 @param ctx In-place ALTER TABLE context
 @param altered_table MySQL table that is being altered
 @param old_table MySQL table as it is before the ALTER operation
+@param statistics_exist whether to update InnoDB persistent statistics
 @param trx Data dictionary transaction
 @param table_name Table name in MySQL
 @retval true Failure
@@ -10529,6 +10547,7 @@ when not rebuilding the table.
 @param ha_alter_info Data used during in-place alter
 @param ctx In-place ALTER TABLE context
 @param old_table MySQL table as it is before the ALTER operation
+@param statistics_exist whether to update InnoDB persistent statistics
 @param trx Data dictionary transaction
 @param table_name Table name in MySQL
 @retval true Failure
@@ -10542,6 +10561,7 @@ commit_try_norebuild(
 	ha_innobase_inplace_ctx*ctx,
 	TABLE*			altered_table,
 	const TABLE*		old_table,
+	bool			statistics_exist,
 	trx_t*			trx,
 	const char*		table_name)
 {
@@ -10656,6 +10676,10 @@ commit_try_norebuild(
 			goto handle_error;
 		}
 
+		if (!statistics_exist) {
+			continue;
+		}
+
 		error = dict_stats_delete_from_index_stats(db, table,
 							   index->name, trx);
 		switch (error) {
@@ -10667,7 +10691,8 @@ commit_try_norebuild(
 		}
 	}
 
-	if (const size_t size = ha_alter_info->rename_keys.size()) {
+	if (!statistics_exist) {
+	} else if (const size_t size = ha_alter_info->rename_keys.size()) {
 		char tmp_name[5];
 		char db[MAX_DB_UTF8_LEN], table[MAX_TABLE_UTF8_LEN];
 
@@ -11084,11 +11109,10 @@ static bool alter_rebuild_apply_log(
 	if (ctx->new_table->n_v_cols > 0) {
 		s_templ = UT_NEW_NOKEY(
 				dict_vcol_templ_t());
-		s_templ->vtempl = NULL;
-
-		innobase_build_v_templ(altered_table, ctx->new_table, s_templ,
-				       NULL, true);
+		ctx->new_table->lock_mutex_lock();
+		innobase_build_v_templ(altered_table, ctx->new_table, s_templ);
 		ctx->new_table->vc_templ = s_templ;
+		ctx->new_table->lock_mutex_unlock();
 	}
 
 	dberr_t error = row_log_table_apply(
@@ -11234,16 +11258,7 @@ ha_innobase::commit_inplace_alter_table(
 			fts_optimize_remove_table(ctx->old_table);
 		}
 
-		dict_sys.freeze(SRW_LOCK_CALL);
-		for (auto f : ctx->old_table->referenced_set) {
-			if (dict_table_t* child = f->foreign_table) {
-				error = lock_table_for_trx(child, trx, LOCK_X);
-				if (error != DB_SUCCESS) {
-					break;
-				}
-			}
-		}
-		dict_sys.unfreeze();
+		error = lock_table_children(ctx->old_table, trx);
 
 		if (ctx->new_table->fts) {
 			ut_ad(!ctx->new_table->fts->add_wq);
@@ -11423,6 +11438,8 @@ err_index:
 		}
 	}
 
+	DEBUG_SYNC(m_user_thd, "innodb_commit_inplace_before_lock");
+
 	DBUG_EXECUTE_IF("stats_lock_fail",
 			error = DB_LOCK_WAIT_TIMEOUT;
 			trx_rollback_for_mysql(trx););
@@ -11506,7 +11523,9 @@ fail:
 				goto fail;
 			}
 		} else if (commit_try_norebuild(ha_alter_info, ctx,
-						altered_table, table, trx,
+						altered_table, table,
+						table_stats && index_stats,
+						trx,
 						table_share->table_name.str)) {
 			goto fail;
 		}

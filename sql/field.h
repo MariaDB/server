@@ -63,6 +63,15 @@ enum enum_check_fields
   CHECK_FIELD_ERROR_FOR_NULL,
 };
 
+enum ignore_value_reaction
+{
+  IGNORE_MEANS_ERROR,
+  IGNORE_MEANS_DEFAULT,
+  IGNORE_MEANS_FIELD_VALUE
+};
+
+ignore_value_reaction find_ignore_reaction(THD *thd);
+
 
 enum enum_conv_type
 {
@@ -3200,7 +3209,7 @@ public:
     :Field_temporal(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
                     unireg_check_arg, field_name_arg)
     {}
-  bool validate_value_in_record(THD *thd, const uchar *record) const;
+  bool validate_value_in_record(THD *thd, const uchar *record) const override;
 };
 
 
@@ -4059,6 +4068,7 @@ class Field_string final :public Field_longstr {
            field_length >= 4 &&
            orig_table->s->frm_version < FRM_VER_TRUE_VARCHAR;
   }
+  LEX_CSTRING to_lex_cstring() const;
 public:
   bool can_alter_field_type;
   Field_string(uchar *ptr_arg, uint32 len_arg,uchar *null_ptr_arg,
@@ -5163,20 +5173,20 @@ public:
      m_table(NULL)
     {}
   ~Field_row();
-  en_fieldtype tmp_engine_column_type(bool use_packed_rows) const
+  en_fieldtype tmp_engine_column_type(bool use_packed_rows) const override
   {
     DBUG_ASSERT(0);
     return Field::tmp_engine_column_type(use_packed_rows);
   }
   enum_conv_type rpl_conv_type_from(const Conv_source &source,
                                     const Relay_log_info *rli,
-                                    const Conv_param &param) const
+                                    const Conv_param &param) const override
   {
     DBUG_ASSERT(0);
     return CONV_TYPE_IMPOSSIBLE;
   }
-  Virtual_tmp_table **virtual_tmp_table_addr() { return &m_table; }
-  bool sp_prepare_and_store_item(THD *thd, Item **value);
+  Virtual_tmp_table **virtual_tmp_table_addr() override { return &m_table; }
+  bool sp_prepare_and_store_item(THD *thd, Item **value) override;
 };
 
 
@@ -5753,7 +5763,8 @@ public:
   {
     List_iterator<Create_field> it(list);
     while (Create_field *f= it++)
-      f->type_handler()->Column_definition_implicit_upgrade(f);
+      f->type_handler()->type_handler_for_implicit_upgrade()->
+                           Column_definition_implicit_upgrade_to_this(f);
   }
 };
 

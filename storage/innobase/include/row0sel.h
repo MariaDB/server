@@ -115,8 +115,8 @@ row_sel_convert_mysql_key_to_innobase(
 	ulint		buf_len,	/*!< in: buffer length */
 	dict_index_t*	index,		/*!< in: index of the key value */
 	const byte*	key_ptr,	/*!< in: MySQL key value */
-	ulint		key_len);	/*!< in: MySQL key value length */
-
+	ulint		key_len)	/*!< in: MySQL key value length */
+	MY_ATTRIBUTE((nonnull(1,4,5)));
 
 /** Search for rows in the database using cursor.
 Function is mainly used for tables that are shared across connections and

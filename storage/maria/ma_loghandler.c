@@ -1099,10 +1099,6 @@ static TRANSLOG_FILE *get_current_logfile()
 uchar	maria_trans_file_magic[]=
 { (uchar) 254, (uchar) 254, (uchar) 11, '\001', 'M', 'A', 'R', 'I', 'A',
  'L', 'O', 'G' };
-#define LOG_HEADER_DATA_SIZE (sizeof(maria_trans_file_magic) + \
-                              8 + 4 + 4 + 4 + 2 + 3 + \
-                              LSN_STORE_SIZE)
-
 
 /*
   Write log file page header in the just opened new log file
@@ -3613,6 +3609,9 @@ static my_bool translog_is_LSN_chunk(uchar type)
   @retval 1 Error
 */
 
+/* Stack size 26120 from clang */
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 my_bool translog_init_with_table(const char *directory,
                                  uint32 log_file_max_size,
                                  uint32 server_version,
@@ -4265,6 +4264,7 @@ err:
   ma_message_no_user(0, "log initialization failed");
   DBUG_RETURN(1);
 }
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 
 /*

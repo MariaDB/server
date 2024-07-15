@@ -223,7 +223,7 @@ static int fake_rotate_event(binlog_send_info *info, ulonglong position,
   char* p = info->log_file_name+dirname_length(info->log_file_name);
   uint ident_len = (uint) strlen(p);
   String *packet= info->packet;
-  ha_checksum crc;
+  ha_checksum crc= 0;
 
   /* reset transmit packet for the fake rotate event below */
   if (reset_transmit_packet(info, info->flags, &ev_offset, &info->errmsg))
@@ -264,7 +264,7 @@ static int fake_gtid_list_event(binlog_send_info *info,
 {
   my_bool do_checksum;
   int err;
-  ha_checksum crc;
+  ha_checksum crc= 0;
   char buf[128];
   String str(buf, sizeof(buf), system_charset_info);
   String* packet= info->packet;
@@ -612,14 +612,26 @@ static my_bool log_in_use_callback(THD *thd, st_log_in_use *arg)
 }
 
 
-bool log_in_use(const char* log_name, uint min_connected)
+/*
+  Check if a log is in use.
+
+  @return 0  Not used
+  @return 1  A slave is reading from the log
+  @return 2  There are less than 'min_connected' slaves that
+             has recived the log.
+*/
+
+int log_in_use(const char* log_name, uint min_connected)
 {
   st_log_in_use arg;
   arg.log_name= log_name;
   arg.connected_slaves= 0;
 
-  return ((server_threads.iterate(log_in_use_callback, &arg) ||
-           arg.connected_slaves < min_connected));
+  if (server_threads.iterate(log_in_use_callback, &arg))
+    return 1;
+  if (arg.connected_slaves < min_connected)
+    return 2;
+  return 0;
 }
 
 
@@ -659,8 +671,8 @@ bool purge_master_logs(THD* thd, const char* to_log)
 
   mysql_bin_log.make_log_name(search_file_name, to_log);
   return purge_error_message(thd,
-			     mysql_bin_log.purge_logs(search_file_name, 0, 1,
-						      1, NULL));
+			     mysql_bin_log.purge_logs(thd, search_file_name,
+                                                      0, 1, 1, 1, NULL));
 }
 
 
@@ -683,7 +695,9 @@ bool purge_master_logs_before_date(THD* thd, time_t purge_time)
     return 0;
   }
   return purge_error_message(thd,
-                             mysql_bin_log.purge_logs_before_date(purge_time));
+                             mysql_bin_log.purge_logs_before_date(thd,
+                                                                  purge_time,
+                                                                  1));
 }
 
 void set_read_error(binlog_send_info *info, int error)
@@ -3052,12 +3066,6 @@ static int send_one_binlog_file(binlog_send_info *info,
      */
     if (send_events(info, log, linfo, end_pos))
       return 1;
-    DBUG_EXECUTE_IF("Notify_binlog_EOF",
-                    {
-                      const char act[]= "now signal eof_reached";
-                      DBUG_ASSERT(!debug_sync_set_action(current_thd,
-                                                         STRING_WITH_LEN(act)));
-                    };);
   }
 
   return 1;
@@ -3353,7 +3361,7 @@ err:
     info->error= ER_MASTER_FATAL_ERROR_READING_BINLOG;
   }
   else if (info->errmsg != NULL)
-    strcpy(info->error_text, info->errmsg);
+    safe_strcpy(info->error_text, sizeof(info->error_text), info->errmsg);
 
   my_message(info->error, info->error_text, MYF(0));
 
@@ -4130,11 +4138,7 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
   if (lex_mi->use_gtid_opt == LEX_MASTER_INFO::LEX_GTID_SLAVE_POS)
     mi->using_gtid= Master_info::USE_GTID_SLAVE_POS;
   else if (lex_mi->use_gtid_opt == LEX_MASTER_INFO::LEX_GTID_CURRENT_POS)
-  {
     mi->using_gtid= Master_info::USE_GTID_CURRENT_POS;
-    warn_deprecated<1010>(thd, "master_use_gtid=current_pos",
-                          "master_demote_to_slave=1");
-  }
   else if (lex_mi->use_gtid_opt == LEX_MASTER_INFO::LEX_GTID_NO ||
            lex_mi->log_file_name || lex_mi->pos ||
            lex_mi->relay_log_name || lex_mi->relay_log_pos)

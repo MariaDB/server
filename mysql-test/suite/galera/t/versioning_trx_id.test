@@ -13,29 +13,29 @@ set session wsrep_sync_wait=15;
 insert into t1 (a) values (3),(4);
 select a from t1;
 select count(*) from mysql.transaction_registry where begin_timestamp='0-0-0';
-if (`SELECT count(*) from mysql.transaction_registry where begin_timestamp>=commit_timestamp`) {
+if (`SELECT count(*) from mysql.transaction_registry where begin_timestamp>commit_timestamp`) {
   select * from mysql.transaction_registry;
 }
-select count(*) from mysql.transaction_registry where begin_timestamp>=commit_timestamp;
+select count(*) from mysql.transaction_registry where begin_timestamp>commit_timestamp;
 
 --connection node_3
 set session wsrep_sync_wait=15;
 insert into t1 (a) values (5),(6);
 select a from t1;
 select count(*) from mysql.transaction_registry where begin_timestamp='0-0-0';
-if (`SELECT count(*) from mysql.transaction_registry where begin_timestamp>=commit_timestamp`) {
+if (`SELECT count(*) from mysql.transaction_registry where begin_timestamp>commit_timestamp`) {
   select * from mysql.transaction_registry;
 }
-select count(*) from mysql.transaction_registry where begin_timestamp>=commit_timestamp;
+select count(*) from mysql.transaction_registry where begin_timestamp>commit_timestamp;
 
 --connection node_1
 set session wsrep_sync_wait=15;
 select a from t1;
 select count(*) from mysql.transaction_registry where begin_timestamp='0-0-0';
-if (`SELECT count(*) from mysql.transaction_registry where begin_timestamp>=commit_timestamp`) {
+if (`SELECT count(*) from mysql.transaction_registry where begin_timestamp>commit_timestamp`) {
   select * from mysql.transaction_registry;
 }
-select count(*) from mysql.transaction_registry where begin_timestamp>=commit_timestamp;
+select count(*) from mysql.transaction_registry where begin_timestamp>commit_timestamp;
 
 drop table t1;
 

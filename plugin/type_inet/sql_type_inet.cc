@@ -229,7 +229,7 @@ bool Inet6::ascii_to_fbt(const char *str, size_t str_length)
         continue;
       }
 
-      if (!*p || p >= str_end)
+      if (p >= str_end || !*p)
       {
         DBUG_PRINT("error", ("ascii_to_ipv6(%.*s): invalid IPv6 address: "
                              "ending at ':'.", (int) str_length, str));

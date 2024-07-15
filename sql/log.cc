@@ -41,6 +41,7 @@
 #include "mysqld.h"
 #include "ddl_log.h"
 #include "gtid_index.h"
+#include "repl_failsafe.h"
 
 #include <my_dir.h>
 #include <m_ctype.h>				// For test_if_number
@@ -257,14 +258,14 @@ public:
     m_message[0]= '\0';
   }
 
-  virtual ~Silence_log_table_errors() = default;
+  ~Silence_log_table_errors() override = default;
 
-  virtual bool handle_condition(THD *thd,
+  bool handle_condition(THD *thd,
                                 uint sql_errno,
                                 const char* sql_state,
                                 Sql_condition::enum_warning_level *level,
                                 const char* msg,
-                                Sql_condition ** cond_hdl);
+                                Sql_condition ** cond_hdl) override;
   const char *message() const { return m_message; }
 };
 
@@ -3256,10 +3257,12 @@ bool MYSQL_QUERY_LOG::write(THD *thd, time_t current_time,
 
       if (my_b_printf(&log_file,
                       "# Pages_accessed: %lu  Pages_read: %lu  "
+                      "Pages_prefetched: %lu  "
                       "Pages_updated: %lu  Old_rows_read: %lu\n"
                       "# Pages_read_time: %s  Engine_time: %s\n",
                       (ulong) stats->pages_accessed,
                       (ulong) stats->pages_read_count,
+                      (ulong) stats->pages_prefetched,
                       (ulong) stats->pages_updated,
                       (ulong) stats->undo_records_read,
                       query_time_buff, lock_time_buff))
@@ -4791,8 +4794,8 @@ int MYSQL_BIN_LOG::purge_first_log(Relay_log_info* rli, bool included)
 
   DBUG_EXECUTE_IF("crash_before_purge_logs", DBUG_SUICIDE(););
 
-  rli->relay_log.purge_logs(to_purge_if_included, included,
-                            0, 0, &log_space_reclaimed);
+  rli->relay_log.purge_logs(current_thd, to_purge_if_included, included,
+                            0, 0, 0, &log_space_reclaimed);
 
   mysql_mutex_lock(&rli->log_space_lock);
   rli->log_space_total-= log_space_reclaimed;
@@ -4859,16 +4862,17 @@ int MYSQL_BIN_LOG::update_log_index(LOG_INFO* log_info, bool need_update_threads
                                 mysql_file_stat() or mysql_file_delete()
 */
 
-int MYSQL_BIN_LOG::purge_logs(const char *to_log, 
+int MYSQL_BIN_LOG::purge_logs(THD *thd,
+                              const char *to_log,
                               bool included,
                               bool need_mutex, 
-                              bool need_update_threads, 
+                              bool need_update_threads,
+                              bool interactive,
                               ulonglong *reclaimed_space)
 {
   int error= 0;
   bool exit_loop= 0;
   LOG_INFO log_info;
-  THD *thd= current_thd;
   DBUG_ENTER("purge_logs");
   DBUG_PRINT("info",("to_log= %s",to_log));
 
@@ -4894,7 +4898,7 @@ int MYSQL_BIN_LOG::purge_logs(const char *to_log,
   if (unlikely((error=find_log_pos(&log_info, NullS, 0 /*no mutex*/))))
     goto err;
   while ((strcmp(to_log,log_info.log_file_name) || (exit_loop=included)) &&
-         can_purge_log(log_info.log_file_name))
+         can_purge_log(log_info.log_file_name, interactive))
   {
     if (unlikely((error= register_purge_index_entry(log_info.log_file_name))))
     {
@@ -5243,13 +5247,13 @@ err:
                                 mysql_file_stat() or mysql_file_delete()
 */
 
-int MYSQL_BIN_LOG::purge_logs_before_date(time_t purge_time)
+int MYSQL_BIN_LOG::purge_logs_before_date(THD *thd, time_t purge_time,
+                                          bool interactive)
 {
   int error;
   char to_log[FN_REFLEN];
   LOG_INFO log_info;
   MY_STAT stat_area;
-  THD *thd= current_thd;
   DBUG_ENTER("purge_logs_before_date");
 
   mysql_mutex_lock(&LOCK_index);
@@ -5258,7 +5262,7 @@ int MYSQL_BIN_LOG::purge_logs_before_date(time_t purge_time)
   if (unlikely((error=find_log_pos(&log_info, NullS, 0 /*no mutex*/))))
     goto err;
 
-  while (can_purge_log(log_info.log_file_name))
+  for (;;)
   {
     if (!mysql_file_stat(m_key_file_log,
                          log_info.log_file_name, &stat_area, MYF(0)))
@@ -5296,7 +5300,8 @@ int MYSQL_BIN_LOG::purge_logs_before_date(time_t purge_time)
     }
     else
     {
-      if (stat_area.st_mtime >= purge_time)
+      if (stat_area.st_mtime >= purge_time ||
+          !can_purge_log(log_info.log_file_name, interactive))
         break;
       strmake_buf(to_log, log_info.log_file_name);
     }
@@ -5307,7 +5312,7 @@ int MYSQL_BIN_LOG::purge_logs_before_date(time_t purge_time)
   if (to_log[0])
   {
     ulonglong reclaimed_space= 0;
-    error= purge_logs(to_log, 1, 0, 1, &reclaimed_space);
+    error= purge_logs(thd, to_log, 1, 0, 1, interactive, &reclaimed_space);
     binlog_space_total-= reclaimed_space;
   }
 
@@ -5338,6 +5343,7 @@ int MYSQL_BIN_LOG::real_purge_logs_by_size(ulonglong binlog_pos)
   MY_STAT stat_area;
   char to_log[FN_REFLEN];
   ulonglong found_space= 0;
+  THD *thd= current_thd;
   DBUG_ENTER("real_purge_logs_by_size");
 
   mysql_mutex_lock(&LOCK_index);
@@ -5351,7 +5357,7 @@ int MYSQL_BIN_LOG::real_purge_logs_by_size(ulonglong binlog_pos)
     goto err;
 
   to_log[0] = 0;
-  while (can_purge_log(log_info.log_file_name))
+  while (can_purge_log(log_info.log_file_name, 0))
   {
     if (!mysql_file_stat(m_key_file_log, log_info.log_file_name, &stat_area,
                          MYF(0)))
@@ -5361,7 +5367,6 @@ int MYSQL_BIN_LOG::real_purge_logs_by_size(ulonglong binlog_pos)
         /*
           Other than ENOENT are fatal
         */
-        THD *thd = current_thd;
         if (thd)
         {
           push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
@@ -5394,8 +5399,9 @@ int MYSQL_BIN_LOG::real_purge_logs_by_size(ulonglong binlog_pos)
   if (found_space)
   {
     ulonglong reclaimed_space= 0;
-    purge_logs(to_log, true, false /*need_lock_index=false*/,
+    purge_logs(thd, to_log, true, false /*need_lock_index=false*/,
                true /*need_update_threads=true*/,
+               false /* not interactive */,
                &reclaimed_space);
     DBUG_ASSERT(reclaimed_space == found_space);
     binlog_space_total-= reclaimed_space;
@@ -5414,6 +5420,12 @@ err:
 }
 
 /*
+  @param  log_file_name_arg  Name of log file to check
+  @param  interactive        True if called by a PURGE BINLOG command.
+
+  @return 0 Log cannot be removed
+  @return 1 Log can be removed
+
   The following variables are here to allows us to quickly check if
   the can_purge_log(log_file_name_arg) name will fail in the
   'log_in_use' call.
@@ -5428,18 +5440,23 @@ err:
 static bool waiting_for_slave_to_change_binlog= 0;
 static ulonglong purge_sending_new_binlog_file= 0;
 static char purge_binlog_name[FN_REFLEN];
+static bool purge_warning_given= 0;
 
 bool
-MYSQL_BIN_LOG::can_purge_log(const char *log_file_name_arg)
+MYSQL_BIN_LOG::can_purge_log(const char *log_file_name_arg,
+                             bool interactive)
 {
-  THD *thd= current_thd;                        // May be NULL at startup
-  bool res;
+  int res;
+  const char *reason;
 
   if (is_active(log_file_name_arg) ||
       (!is_relay_log && waiting_for_slave_to_change_binlog &&
        purge_sending_new_binlog_file == sending_new_binlog_file &&
        !strcmp(log_file_name_arg, purge_binlog_name)))
-      return false;
+  {
+    reason= "it is the current active binlog";
+    goto error;
+  }
 
   DBUG_ASSERT(!is_relay_log || binlog_xid_count_list.is_empty());
   if (!is_relay_log)
@@ -5455,7 +5472,10 @@ MYSQL_BIN_LOG::can_purge_log(const char *log_file_name_arg)
     }
     mysql_mutex_unlock(&LOCK_xid_list);
     if (b)
-      return false;
+    {
+      reason= "it may be needed for crash recovery (XID)";
+      goto error;
+    }
   }
 
   if (!is_relay_log)
@@ -5464,8 +5484,7 @@ MYSQL_BIN_LOG::can_purge_log(const char *log_file_name_arg)
     purge_sending_new_binlog_file= sending_new_binlog_file;
   }
   if ((res= log_in_use(log_file_name_arg,
-                       (is_relay_log ||
-                        (thd && thd->lex->sql_command == SQLCOM_PURGE)) ?
+                       (is_relay_log || interactive) ?
                        0 : slave_connections_needed_for_purge)))
   {
     if (!is_relay_log)
@@ -5473,9 +5492,39 @@ MYSQL_BIN_LOG::can_purge_log(const char *log_file_name_arg)
       waiting_for_slave_to_change_binlog= 1;
       strmake(purge_binlog_name, log_file_name_arg,
               sizeof(purge_binlog_name)-1);
+      if (res == 1)
+        reason= "it is in use by a slave thread";
+      else
+        reason= "less than 'slave_connections_needed_for_purge' slaves have "
+          "processed it";
+      goto error;
     }
   }
-  return !res;
+  /* We can purge this file, reset for next failure */
+  purge_warning_given= 0;
+  return 1;
+
+error:
+  if (!is_relay_log && (interactive || !purge_warning_given))
+  {
+    /* Remove directory (to keep things shorter and compatible */
+    log_file_name_arg+= dirname_length(log_file_name_arg);
+
+    /* purge_warning_given is reset after next sucessful purge */
+    purge_warning_given= 1;
+    if (interactive)
+    {
+      my_printf_error(ER_BINLOG_PURGE_PROHIBITED,
+                      "Binary log '%s' is not purged because %s",
+                      MYF(ME_NOTE), log_file_name_arg, reason);
+    }
+    else
+    {
+      sql_print_information("Binary log '%s' is not purged because %s",
+                            log_file_name_arg, reason);
+    }
+  }
+  return 0;
 }
 #endif /* HAVE_REPLICATION */
 
@@ -5560,6 +5609,15 @@ MYSQL_BIN_LOG::is_xidlist_idle_nolock()
   }
   return true;
 }
+
+#ifdef WITH_WSREP
+static bool is_gtid_written_on_trans_start(const THD *thd)
+{
+  return wsrep_on(thd) &&
+      (thd->variables.gtid_seq_no || thd->variables.wsrep_gtid_seq_no) &&
+      (thd->wsrep_cs().mode() == wsrep::client_state::m_local);
+}
+#endif
 
 /**
   Create a new log file name.
@@ -6264,10 +6322,7 @@ THD::binlog_start_trans_and_stmt()
     Ha_trx_info *ha_info;
     ha_info= this->ha_data[binlog_hton->slot].ha_info + (mstmt_mode ? 1 : 0);
 
-    if (!ha_info->is_started() && 
-        (this->variables.gtid_seq_no || this->variables.wsrep_gtid_seq_no) &&
-        wsrep_on(this) && 
-        (this->wsrep_cs().mode() == wsrep::client_state::m_local))
+    if (!ha_info->is_started() && is_gtid_written_on_trans_start(this))
     {
       uchar *buf= 0;
       size_t len= 0;
@@ -7279,8 +7334,8 @@ err:
           mysql_mutex_assert_not_owner(&LOCK_after_binlog_sync);
           mysql_mutex_assert_not_owner(&LOCK_commit_ordered);
 #ifdef HAVE_REPLICATION
-          if (repl_semisync_master.report_binlog_update(thd, log_file_name,
-                                                        file->pos_in_file))
+          if (repl_semisync_master.report_binlog_update(
+                  thd, thd, log_file_name, file->pos_in_file))
           {
             sql_print_error("Failed to run 'after_flush' hooks");
             error= 1;
@@ -7605,16 +7660,17 @@ void MYSQL_BIN_LOG::purge(bool all)
 {
   mysql_mutex_assert_not_owner(&LOCK_log);
 #ifdef HAVE_REPLICATION
+  THD *thd= current_thd;
   if (binlog_expire_logs_seconds)
   {
-    DEBUG_SYNC(current_thd, "at_purge_logs_before_date");
+    DEBUG_SYNC(thd, "at_purge_logs_before_date");
     time_t purge_time= my_time(0) - binlog_expire_logs_seconds;
     DBUG_EXECUTE_IF("expire_logs_always", { purge_time = my_time(0); });
     if (purge_time >= 0)
     {
-      purge_logs_before_date(purge_time);
+      purge_logs_before_date(thd, purge_time, 0);
     }
-    DEBUG_SYNC(current_thd, "after_purge_logs_before_date");
+    DEBUG_SYNC(thd, "after_purge_logs_before_date");
   }
   if (all && binlog_space_limit)
   {
@@ -8443,9 +8499,9 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *orig_entry)
 
     if (entry->cache_mngr->using_xa)
     {
-      DEBUG_SYNC(entry->thd, "commit_before_prepare_ordered");
+      DEBUG_SYNC(orig_entry->thd, "commit_before_prepare_ordered");
       run_prepare_ordered(entry->thd, entry->all);
-      DEBUG_SYNC(entry->thd, "commit_after_prepare_ordered");
+      DEBUG_SYNC(orig_entry->thd, "commit_after_prepare_ordered");
     }
 
     if (cur)
@@ -8881,9 +8937,19 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
       for (current= queue; current != NULL; current= current->next)
       {
 #ifdef HAVE_REPLICATION
+        /*
+          The thread which will await the ACK from the replica can change
+          depending on the wait-point. If AFTER_COMMIT, then the user thread
+          will perform the wait. If AFTER_SYNC, the binlog group commit leader
+          will perform the wait on behalf of the user thread.
+        */
+        THD *waiter_thd= (repl_semisync_master.wait_point() ==
+                          SEMI_SYNC_MASTER_WAIT_POINT_AFTER_STORAGE_COMMIT)
+                             ? current->thd
+                             : leader->thd;
         if (likely(!current->error) &&
             unlikely(repl_semisync_master.
-                     report_binlog_update(current->thd,
+                     report_binlog_update(current->thd, waiter_thd,
                                           current->cache_mngr->
                                           last_commit_pos_file,
                                           current->cache_mngr->
@@ -11636,7 +11702,7 @@ Recovery_context::Recovery_context() :
   prev_event_pos(0),
   last_gtid_standalone(false), last_gtid_valid(false), last_gtid_no2pc(false),
   last_gtid_engines(0),
-  do_truncate(repl_semisync_slave.get_slave_enabled()),
+  do_truncate(rpl_status == RPL_IDLE_SLAVE),
   truncate_validated(false), truncate_reset_done(false),
   truncate_set_in_1st(false), id_binlog(MAX_binlog_id),
   checksum_alg(BINLOG_CHECKSUM_ALG_UNDEF), gtid_maybe_to_truncate(NULL)

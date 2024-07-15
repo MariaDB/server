@@ -132,7 +132,7 @@ columns_priv	CREATE TABLE `columns_priv` (
 show create table procs_priv;
 Table	Create Table
 procs_priv	CREATE TABLE `procs_priv` (
-  `Host` char(60) NOT NULL DEFAULT '',
+  `Host` char(255) NOT NULL DEFAULT '',
   `Db` char(64) NOT NULL DEFAULT '',
   `User` char(128) NOT NULL DEFAULT '',
   `Routine_name` char(64) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL DEFAULT '',

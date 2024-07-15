@@ -1,0 +1,67 @@
+CREATE TABLE t1 (a INT NOT NULL) ENGINE=CSV;
+CREATE TABLE t2 (a INT NOT NULL) ENGINE=CSV;
+CREATE TABLE t3 (a INT NOT NULL) ENGINE=CSV;
+### Backup to dir
+# xtrabackup prepare
+# shutdown server
+# remove datadir
+# xtrabackup move back
+# restart
+SELECT * FROM t4;
+a
+SELECT * FROM t2;
+ERROR 42S02: Table 'test.t2' doesn't exist
+SELECT * FROM t3;
+ERROR 42S02: Table 'test.t3' doesn't exist
+SELECT * FROM t5;
+a
+SELECT * FROM t1;
+a
+DROP TABLE t4, t5, t1;
+CREATE TABLE t1_m1 (a INT NOT NULL) ENGINE=MyISAM;
+CREATE TABLE t1_m2 (a INT NOT NULL) ENGINE=MyISAM;
+CREATE TABLE t1 (a INT NOT NULL) ENGINE=MERGE UNION=(t1_m1, t1_m2) INSERT_METHOD=LAST;
+CREATE TABLE t2_m1 (a INT NOT NULL) ENGINE=MyISAM;
+CREATE TABLE t2_m2 (a INT NOT NULL) ENGINE=MyISAM;
+CREATE TABLE t2 (a INT NOT NULL) ENGINE=MERGE UNION=(t2_m1, t2_m2) INSERT_METHOD=LAST;
+CREATE TABLE t3_m1 (a INT NOT NULL) ENGINE=MyISAM;
+CREATE TABLE t3_m2 (a INT NOT NULL) ENGINE=MyISAM;
+CREATE TABLE t3 (a INT NOT NULL) ENGINE=MERGE UNION=(t3_m1, t3_m2) INSERT_METHOD=LAST;
+### Backup to dir
+# xtrabackup prepare
+# shutdown server
+# remove datadir
+# xtrabackup move back
+# restart
+SELECT * FROM t4;
+a
+SELECT * FROM t2;
+ERROR 42S02: Table 'test.t2' doesn't exist
+SELECT * FROM t3;
+ERROR 42S02: Table 'test.t3' doesn't exist
+SELECT * FROM t5;
+a
+SELECT * FROM t1;
+a
+DROP TABLE t4, t5, t1;
+DROP TABLE t1_m1, t1_m2, t2_m1, t2_m2, t3_m1, t3_m2;
+CREATE TABLE t1 (a INT NOT NULL) ENGINE=MyISAM;
+CREATE TABLE t2 (a INT NOT NULL) ENGINE=MyISAM;
+CREATE TABLE t3 (a INT NOT NULL) ENGINE=MyISAM;
+### Backup to dir
+# xtrabackup prepare
+# shutdown server
+# remove datadir
+# xtrabackup move back
+# restart
+SELECT * FROM t4;
+a
+SELECT * FROM t2;
+ERROR 42S02: Table 'test.t2' doesn't exist
+SELECT * FROM t3;
+ERROR 42S02: Table 'test.t3' doesn't exist
+SELECT * FROM t5;
+a
+SELECT * FROM t1;
+a
+DROP TABLE t4, t5, t1;

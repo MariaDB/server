@@ -23,6 +23,10 @@ UPDATE t1 set b=b+1 where a=1 or a=999;
 [log_grep.inc] lines:   0
 [log_grep.inc] file: log_slow_innodb-verbosity_1 pattern: ^# Tmp_tables: \d+  Tmp_disk_tables: \d+$
 [log_grep.inc] lines:   0
+[log_grep.inc] file: log_slow_innodb-verbosity_1 pattern: ^# Pages_accessed: \d+  Pages_read: \d+  Pages_prefetched: \d+  Pages_updated: \d+  Old_rows_read: \d+$ expected_matches: 2
+[log_grep.inc] found expected match count: 2
+[log_grep.inc] file: log_slow_innodb-verbosity_1 pattern: ^# Pages_read_time: \d+\.\d+  Engine_time: \d+\.\d+$ expected_matches: 2
+[log_grep.inc] found expected match count: 2
 SET SESSION log_slow_verbosity='innodb,query_plan';
 [slow_log_start.inc] log_slow_innodb-verbosity_2
 SELECT 1;
@@ -42,6 +46,10 @@ SELECT 1;
 [log_grep.inc] file: log_slow_innodb-verbosity_2 pattern: ^# Filesort: (Yes|No)  Filesort_on_disk: (Yes|No)  Merge_passes: \d+\ Priority_queue: (Yes|No)$
 [log_grep.inc] lines:   0
 [log_grep.inc] file: log_slow_innodb-verbosity_2 pattern: ^# Tmp_tables: \d+  Tmp_disk_tables: \d+$
+[log_grep.inc] lines:   0
+[log_grep.inc] file: log_slow_innodb-verbosity_2 pattern: ^# Pages_accessed: \d+  Pages_read: \d+  Pages_prefetched: \d+  Pages_updated: \d+  Old_rows_read: \d+$
+[log_grep.inc] lines:   0
+[log_grep.inc] file: log_slow_innodb-verbosity_2 pattern: ^# Pages_read_time: \d+\.\d+  Engine_time: \d+\.\d+$
 [log_grep.inc] lines:   0
 SET SESSION log_slow_verbosity='query_plan';
 [log_slow_stop.inc] log_slow_innodb-verbosity_3
@@ -74,5 +82,13 @@ INSERT INTO t1 VALUE(1000) pattern: ^# Filesort: (Yes|No)  Filesort_on_disk: (Ye
 [log_grep.inc] file: log_slow_innodb-verbosity_3
 --source include/log_slow_start.inc
 INSERT INTO t1 VALUE(1000) pattern: ^# Tmp_tables: \d+  Tmp_disk_tables: \d+$
+[log_grep.inc] lines:   0
+[log_grep.inc] file: log_slow_innodb-verbosity_3
+--source include/log_slow_start.inc
+INSERT INTO t1 VALUE(1000) pattern: ^# Pages_accessed: \d+  Pages_read: \d+  Pages_prefetched: \d+  Pages_updated: \d+  Old_rows_read: \d+$
+[log_grep.inc] lines:   0
+[log_grep.inc] file: log_slow_innodb-verbosity_3
+--source include/log_slow_start.inc
+INSERT INTO t1 VALUE(1000) pattern: ^# Pages_read_time: \d+\.\d+  Engine_time: \d+\.\d+$
 [log_grep.inc] lines:   0
 DROP TABLE t1;

@@ -413,7 +413,7 @@ void trx_t::free()
   read_view.mem_noaccess();
   MEM_NOACCESS(&lock, sizeof lock);
   MEM_NOACCESS(&op_info, sizeof op_info +
-               sizeof(unsigned) /* isolation_level,
+               sizeof(unsigned) /* isolation_level, snapshot_isolation,
                                    check_foreigns, check_unique_secondary,
                                    bulk_insert */);
   MEM_NOACCESS(&is_registered, sizeof is_registered);
@@ -538,6 +538,7 @@ TRANSACTIONAL_TARGET void trx_free_at_shutdown(trx_t *trx)
 	DBUG_LOG("trx", "Free prepared: " << trx);
 	trx->state = TRX_STATE_NOT_STARTED;
 	ut_ad(!UT_LIST_GET_LEN(trx->lock.trx_locks));
+	ut_d(*trx->detailed_error = '\0');
 	trx->free();
 }
 
@@ -922,6 +923,7 @@ trx_start_low(
 
 #ifdef WITH_WSREP
 	trx->xid.null();
+	trx->wsrep = wsrep_on(trx->mysql_thd);
 #endif /* WITH_WSREP */
 
 	ut_a(ib_vector_is_empty(trx->autoinc_locks));
@@ -1142,15 +1144,23 @@ inline void trx_t::write_serialisation_history(mtr_t *mtr)
     }
     else if (rseg->last_page_no == FIL_NULL)
     {
-      mysql_mutex_lock(&purge_sys.pq_mutex);
+      /* trx_sys.assign_new_trx_no() and
+      purge_sys.enqueue() must be invoked in the same
+      critical section protected with purge queue mutex to avoid rseg with
+      greater last commit number to be pushed to purge queue prior to rseg with
+      lesser last commit number. In other words pushing to purge queue must be
+      serialized along with assigning trx_no. Otherwise purge coordinator
+      thread can also fetch redo log records from rseg with greater last commit
+      number before rseg with lesser one. */
+      purge_sys.queue_lock();
       trx_sys.assign_new_trx_no(this);
       const trx_id_t end{rw_trx_hash_element->no};
+      rseg->last_page_no= undo->hdr_page_no;
       /* end cannot be less than anything in rseg. User threads only
       produce events when a rollback segment is empty. */
-      purge_sys.purge_queue.push(TrxUndoRsegs{end, *rseg});
-      mysql_mutex_unlock(&purge_sys.pq_mutex);
-      rseg->last_page_no= undo->hdr_page_no;
       rseg->set_last_commit(undo->hdr_offset, end);
+      purge_sys.enqueue(end, *rseg);
+      purge_sys.queue_unlock();
     }
     else
       trx_sys.assign_new_trx_no(this);
@@ -1488,6 +1498,8 @@ TRANSACTIONAL_INLINE inline void trx_t::commit_in_memory(const mtr_t *mtr)
     trx_finalize_for_fts(this, undo_no != 0);
 
 #ifdef WITH_WSREP
+  ut_ad(is_wsrep() == wsrep_on(mysql_thd));
+
   /* Serialization history has been written and the transaction is
   committed in memory, which makes this commit ordered. Release commit
   order critical section. */
@@ -2088,9 +2100,9 @@ static my_bool trx_recover_for_mysql_callback(rw_trx_hash_element_t *element,
 }
 
 
-static my_bool trx_recover_reset_callback(rw_trx_hash_element_t *element,
-  void*)
+static my_bool trx_recover_reset_callback(void *el, void*)
 {
+  rw_trx_hash_element_t *element= static_cast<rw_trx_hash_element_t*>(el);
   element->mutex.wr_lock();
   if (trx_t *trx= element->trx)
   {
@@ -2142,9 +2154,10 @@ struct trx_get_trx_by_xid_callback_arg
 };
 
 
-static my_bool trx_get_trx_by_xid_callback(rw_trx_hash_element_t *element,
-  trx_get_trx_by_xid_callback_arg *arg)
+static my_bool trx_get_trx_by_xid_callback(void *el, void *a)
 {
+  auto element= static_cast<rw_trx_hash_element_t*>(el);
+  auto arg= static_cast<trx_get_trx_by_xid_callback_arg*>(a);
   my_bool found= 0;
   element->mutex.wr_lock();
   if (trx_t *trx= element->trx)

@@ -33,3 +33,6 @@ log_slave_updates=ON
 log_bin=mariadb-bin-log
 binlog-format=row
 wsrep-gtid-mode=ON
+
+[sst]
+transferfmt=@ENV.MTR_GALERA_TFMT

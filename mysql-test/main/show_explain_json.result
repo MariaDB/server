@@ -563,9 +563,12 @@ SET debug_dbug=@old_debug;
 # Try to do SHOW EXPLAIN for a query that runs a  SET command:
 #   I've found experimentally that select_id==2 here...
 #
-set @show_explain_probe_select_id=2;
+create table t2 (a int);
+insert into t2 values (1),(2);
+set @show_explain_probe_select_id=3;
 SET debug_dbug='+d,show_explain_probe_join_exec_start';
-set @foo= (select max(a) from t0 where sin(a) >0);
+set @foo= (select max(a) from t2
+where a + (select max(a) from t0 where t0.a>t2.a) < 10000);
 connection default;
 show explain format=JSON for $thr2;
 ERROR HY000: Target is not executing an operation with a query plan
@@ -573,6 +576,7 @@ kill query $thr2;
 connection con1;
 ERROR 70100: Query execution was interrupted
 SET debug_dbug=@old_debug;
+drop table t2;
 #
 # Attempt SHOW EXPLAIN for an UPDATE
 #

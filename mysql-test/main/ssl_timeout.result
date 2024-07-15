@@ -1,5 +1,5 @@
 # connect with read timeout so SLEEP() should timeout
-connect  ssl_con,localhost,root,,,,,SSL read_timeout=5;
+connect  ssl_con,localhost,root,,,,,SSL read_timeout=5$_timeout_adjustment;
 # Check ssl turned on
 SELECT (VARIABLE_VALUE <> '') AS have_ssl FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='Ssl_cipher';
 have_ssl

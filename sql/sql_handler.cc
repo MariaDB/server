@@ -1081,10 +1081,9 @@ static SQL_HANDLER *mysql_ha_find_match(THD *thd, TABLE_LIST *tables)
       if (tables->is_anonymous_derived_table())
         continue;
       if ((! tables->db.str[0] ||
-          ! my_strcasecmp(&my_charset_latin1, hash_tables->db.str,
-                          tables->get_db_name())) &&
-          ! my_strcasecmp(&my_charset_latin1, hash_tables->table_name.str,
-                          tables->get_table_name()))
+          Lex_ident_db(tables->get_db_name()).streq(hash_tables->db)) &&
+          Lex_ident_table(tables->get_table_name()).
+            streq(hash_tables->table_name))
       {
         /* Link into hash_tables list */
         hash_tables->next= head;

@@ -1,6 +1,7 @@
 source include/have_profiling.inc;
 source include/not_embedded.inc;
 source include/no_valgrind_without_big.inc;
+source include/have_debug.inc;
 
 set global max_allowed_packet=1073741824;
 connect u,localhost,root;
@@ -16,6 +17,8 @@ select length(@obj), length(@arr);
 
 set max_statement_time=0.0001;
 disable_abort_on_error;
+SET @old_debug= @@debug_dbug;
+SET debug_dbug='+d,debug_max_statement_time exceeded';
 select json_array_append(@arr, '$[0]', 1);
 select json_array_insert(@arr, '$[0]', 1);
 select json_insert(@obj, '$.meta', 1);
@@ -29,6 +32,7 @@ select json_remove(@obj,'$.foo');
 select json_replace(@obj,'$.foo',1);
 select json_set(@arr,'$[1000]',1);
 enable_abort_on_error;
+SET debug_dbug= @old_debug;
 disconnect u;
 connection default;
 set global max_allowed_packet=default;

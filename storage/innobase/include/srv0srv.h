@@ -121,10 +121,6 @@ struct srv_stats_t
 	ulint_ctr_n_t		n_temp_blocks_decrypted;
 };
 
-/** We are prepared for a situation that we have this many threads waiting for
-a transactional lock inside InnoDB. srv_start() sets the value. */
-extern ulint srv_max_n_threads;
-
 extern const char*	srv_main_thread_op_info;
 
 /** Prefix used by MySQL to indicate pre-5.1 table name encoding */
@@ -297,7 +293,6 @@ extern my_bool			srv_stats_include_delete_marked;
 extern unsigned long long	srv_stats_modified_counter;
 extern my_bool			srv_stats_sample_traditional;
 
-extern my_bool	srv_use_doublewrite_buf;
 extern ulong	srv_checksum_algorithm;
 
 extern my_bool	srv_force_primary_key;
@@ -595,7 +590,6 @@ struct export_var_t{
 	ulint innodb_data_reads;		/*!< I/O read requests */
 	ulint innodb_dblwr_pages_written;	/*!< srv_dblwr_pages_written */
 	ulint innodb_dblwr_writes;		/*!< srv_dblwr_writes */
-	ulint innodb_deadlocks;
 	ulint innodb_history_list_length;
 	lsn_t innodb_lsn_current;
 	lsn_t innodb_lsn_flushed;
@@ -619,7 +613,10 @@ struct export_var_t{
 	ulong innodb_undo_truncations;
 
 	/** Number of instant ALTER TABLE operations that affect columns */
-	ulong innodb_instant_alter_column;
+	Atomic_counter<ulint> innodb_instant_alter_column;
+
+	/* Number of InnoDB bulk operations */
+	Atomic_counter<ulint> innodb_bulk_operations;
 
 	ulint innodb_onlineddl_rowlog_rows;	/*!< Online alter rows */
 	ulint innodb_onlineddl_rowlog_pct_used; /*!< Online alter percentage

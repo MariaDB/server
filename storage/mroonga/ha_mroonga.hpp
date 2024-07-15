@@ -35,11 +35,8 @@ extern "C" {
 #include <mrn_operations.hpp>
 #include <mrn_database.hpp>
 
-#if __cplusplus >= 201402
-#  define mrn_override override
-#else
-#  define mrn_override
-#endif
+#define mrn_override override
+
 
 #if (MYSQL_VERSION_ID >= 50514 && MYSQL_VERSION_ID < 50600)
 #  define MRN_HANDLER_HAVE_FINAL_ADD_INDEX 1
@@ -406,7 +403,7 @@ private:
 public:
   ha_mroonga(handlerton *hton, TABLE_SHARE *share_arg);
   ~ha_mroonga();
-  const char *table_type() const;           // required
+  const char *table_type() const override;           // required
   const char *index_type(uint inx) mrn_override;
   const char **bas_ext() const;                                    // required
 
@@ -455,10 +452,10 @@ public:
   int update_row(const uchar *old_data, const uchar *new_data) mrn_override;
   int delete_row(const uchar *buf) mrn_override;
 
-  uint max_supported_record_length()   const mrn_override;
-  uint max_supported_keys()            const mrn_override;
-  uint max_supported_key_parts()       const mrn_override;
-  uint max_supported_key_length()      const mrn_override;
+  uint max_supported_record_length() const   mrn_override;
+  uint max_supported_keys() const            mrn_override;
+  uint max_supported_key_parts() const       mrn_override;
+  uint max_supported_key_length() const      mrn_override;
   uint max_supported_key_part_length() const mrn_override;
 
   ha_rows records_in_range(uint inx, const key_range *min_key,
@@ -544,8 +541,8 @@ public:
   bool is_crashed() const mrn_override;
   bool auto_repair(int error) const mrn_override;
   bool auto_repair() const;
-  int disable_indexes(uint mode) mrn_override;
-  int enable_indexes(uint mode) mrn_override;
+  int disable_indexes(key_map map, bool persist) mrn_override;
+  int enable_indexes(key_map map, bool persist) mrn_override;
   int check(THD* thd, HA_CHECK_OPT* check_opt) mrn_override;
   int repair(THD* thd, HA_CHECK_OPT* check_opt) mrn_override;
   bool check_and_repair(THD *thd) mrn_override;
@@ -1146,12 +1143,12 @@ private:
   bool wrapper_auto_repair(int error) const;
   bool storage_auto_repair(int error) const;
   int generic_disable_index(int i, KEY *key_info);
-  int wrapper_disable_indexes_mroonga(uint mode);
-  int wrapper_disable_indexes(uint mode);
-  int storage_disable_indexes(uint mode);
-  int wrapper_enable_indexes_mroonga(uint mode);
-  int wrapper_enable_indexes(uint mode);
-  int storage_enable_indexes(uint mode);
+  int wrapper_disable_indexes_mroonga(key_map map, bool persist);
+  int wrapper_disable_indexes(key_map map, bool persist);
+  int storage_disable_indexes(key_map map, bool persist);
+  int wrapper_enable_indexes_mroonga(key_map map, bool persist);
+  int wrapper_enable_indexes(key_map map, bool persist);
+  int storage_enable_indexes(key_map map, bool persist);
   int wrapper_check(THD* thd, HA_CHECK_OPT* check_opt);
   int storage_check(THD* thd, HA_CHECK_OPT* check_opt);
   int wrapper_fill_indexes(THD *thd, KEY *key_info,

@@ -132,7 +132,7 @@ install_mariadb_from_archive() {
 [mariadb]
 name=MariaDB
 baseurl=$rpm_repository
-gpgkey=https://ftp.osuosl.org/pub/mariadb/yum/RPM-GPG-KEY-MariaDB
+gpgkey=https://archive.mariadb.org/PublicKey
 gpgcheck=1
 EOF
 
@@ -153,7 +153,7 @@ EOF
     [[ $latest_distro == 33 ]] && dnf install -y http://springdale.princeton.edu/data/springdale/7/x86_64/os/Computational/boost173-program-options-1.73.0-7.sdl7.x86_64.rpm
     [[ $latest_distro == 34 ]] && dnf install -y https://repo.almalinux.org/almalinux/9/AppStream/x86_64/os/Packages/boost-program-options-1.75.0-8.el9.x86_64.rpm \
         https://vault.centos.org/centos/8/AppStream/x86_64/os/Packages/liburing-1.0.7-3.el8.x86_64.rpm
-    [[ $latest_distro == 35 ]] && dnf install -y https://download-ib01.fedoraproject.org/pub/fedora/linux/updates/36/Everything/x86_64/Packages/b/boost-program-options-1.76.0-12.fc36.x86_64.rpm
+    [[ $latest_distro == 35 ]] && dnf install -y https://archives.fedoraproject.org/pub/archive/fedora/linux/updates/36/Everything/x86_64/Packages/b/boost-program-options-1.76.0-12.fc36.x86_64.rpm
     if [[ $major_version == "10.4" ]] && [[ $minor_version -ge 24 ]]; then
         log RPMs not available for version 10.4.24+ from this repository. You may try testing by installing from the .tar.gz binaries.
         exit 1

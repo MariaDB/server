@@ -53,10 +53,10 @@ public:
 
   ~ha_perfschema();
 
-  const char *index_type(uint) { return ""; }
+  const char *index_type(uint) override { return ""; }
 
   /** Capabilities of the performance schema tables. */
-  ulonglong table_flags(void) const
+  ulonglong table_flags(void) const override
   {
     /*
       About HA_FAST_KEY_READ:
@@ -86,25 +86,25 @@ public:
     Operations supported by indexes.
     None, there are no indexes.
   */
-  ulong index_flags(uint , uint , bool ) const
+  ulong index_flags(uint , uint , bool ) const override
   { return 0; }
 
-  uint max_supported_record_length(void) const
+  uint max_supported_record_length(void) const override
   { return HA_MAX_REC_LENGTH; }
 
-  uint max_supported_keys(void) const
+  uint max_supported_keys(void) const override
   { return 0; }
 
-  uint max_supported_key_parts(void) const
+  uint max_supported_key_parts(void) const override
   { return 0; }
 
-  uint max_supported_key_length(void) const
+  uint max_supported_key_length(void) const override
   { return 0; }
 
-  ha_rows estimate_rows_upper_bound(void)
+  ha_rows estimate_rows_upper_bound(void) override
   { return HA_POS_ERROR; }
 
-  IO_AND_CPU_COST scan_time(void)
+  IO_AND_CPU_COST scan_time(void)  override
   {
     return {0.0, 1.0};
   }
@@ -116,22 +116,22 @@ public:
     @param test_if_locked unused
     @return 0 on success
   */
-  int open(const char *name, int mode, uint test_if_locked);
+  int open(const char *name, int mode, uint test_if_locked) override;
 
   /**
     Close a table handle.
     @sa open.
   */
-  int close(void);
+  int close(void) override;
 
   /**
     Write a row.
     @param buf the row to write
     @return 0 on success
   */
-  int write_row(const uchar *buf);
+  int write_row(const uchar *buf) override;
 
-  void use_hidden_primary_key();
+  void use_hidden_primary_key() override;
 
   /**
     Update a row.
@@ -139,29 +139,29 @@ public:
     @param new_data the row new values
     @return 0 on success
   */
-  int update_row(const uchar *old_data, const uchar *new_data);
+  int update_row(const uchar *old_data, const uchar *new_data) override;
 
   /**
     Delete a row.
     @param buf the row to delete
     @return 0 on success
   */
-  int delete_row(const uchar *buf);
+  int delete_row(const uchar *buf) override;
 
-  int rnd_init(bool scan);
+  int rnd_init(bool scan) override;
 
   /**
     Scan end.
     @sa rnd_init.
   */
-  int rnd_end(void);
+  int rnd_end(void) override;
 
   /**
     Iterator, fetch the next row.
     @param[out] buf the row fetched.
     @return 0 on success
   */
-  int rnd_next(uchar *buf);
+  int rnd_next(uchar *buf) override;
 
   /**
     Iterator, fetch the row at a given position.
@@ -169,42 +169,42 @@ public:
     @param pos the row position
     @return 0 on success
   */
-  int rnd_pos(uchar *buf, uchar *pos);
+  int rnd_pos(uchar *buf, uchar *pos) override;
 
   /**
     Read the row current position.
     @param record the current row
   */
-  void position(const uchar *record);
+  void position(const uchar *record) override;
 
-  int info(uint);
+  int info(uint) override;
 
-  int delete_all_rows(void);
+  int delete_all_rows(void) override;
 
-  int truncate();
+  int truncate() override;
 
-  int delete_table(const char *from);
+  int delete_table(const char *from) override;
 
-  int rename_table(const char * from, const char * to);
+  int rename_table(const char * from, const char * to) override;
 
   int create(const char *name, TABLE *form,
-             HA_CREATE_INFO *create_info);
+             HA_CREATE_INFO *create_info) override;
 
   THR_LOCK_DATA **store_lock(THD *thd, THR_LOCK_DATA **to,
-                             enum thr_lock_type lock_type);
+                             enum thr_lock_type lock_type) override;
 
-  virtual uint8 table_cache_type(void)
+  uint8 table_cache_type(void) override
   { return HA_CACHE_TBL_NOCACHE; }
 
-  virtual my_bool register_query_cache_table
+  my_bool register_query_cache_table
     (THD *, const char *, uint , qc_engine_callback *engine_callback,
-     ulonglong *)
+     ulonglong *) override
   {
     *engine_callback= 0;
     return FALSE;
   }
 
-  virtual void print_error(int error, myf errflags);
+  void print_error(int error, myf errflags) override;
 
 private:
   /**

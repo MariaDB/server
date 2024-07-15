@@ -3,6 +3,8 @@
 --echo #
 source include/not_embedded.inc;
 source include/not_windows.inc;
+# this would need an instrumented ncurses library
+source include/not_msan.inc;
 
 error 0,1;
 exec $MYSQL -V|grep -q readline;

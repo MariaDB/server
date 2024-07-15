@@ -821,13 +821,13 @@ class Duplicate_weedout_picker : public Semi_join_strategy_picker
   
   bool is_used;
 public:
-  void set_empty()
+  void set_empty() override
   {
     dupsweedout_tables= 0;
     first_dupsweedout_table= MAX_TABLES;
     is_used= FALSE;
   }
-  void set_from_prev(POSITION *prev);
+  void set_from_prev(POSITION *prev) override;
   
   bool check_qep(JOIN *join,
                  uint idx,
@@ -837,9 +837,9 @@ public:
                  double *read_time,
                  table_map *handled_fanout,
                  sj_strategy_enum *stratey,
-                 POSITION *loose_scan_pos);
+                 POSITION *loose_scan_pos) override;
 
-  void mark_used() { is_used= TRUE; }
+  void mark_used() override { is_used= TRUE; }
   friend void fix_semijoin_strategies_for_picked_join_order(JOIN *join);
 };
 
@@ -867,13 +867,13 @@ class Firstmatch_picker : public Semi_join_strategy_picker
   bool in_firstmatch_prefix() { return (first_firstmatch_table != MAX_TABLES); }
   void invalidate_firstmatch_prefix() { first_firstmatch_table= MAX_TABLES; }
 public:
-  void set_empty()
+  void set_empty() override
   {
     invalidate_firstmatch_prefix();
     is_used= FALSE;
   }
 
-  void set_from_prev(POSITION *prev);
+  void set_from_prev(POSITION *prev) override;
   bool check_qep(JOIN *join,
                  uint idx,
                  table_map remaining_tables, 
@@ -882,9 +882,9 @@ public:
                  double *read_time,
                  table_map *handled_fanout,
                  sj_strategy_enum *strategy,
-                 POSITION *loose_scan_pos);
+                 POSITION *loose_scan_pos) override;
 
-  void mark_used() { is_used= TRUE; }
+  void mark_used() override { is_used= TRUE; }
   friend void fix_semijoin_strategies_for_picked_join_order(JOIN *join);
 };
 
@@ -910,13 +910,13 @@ public:
   uint loosescan_parts; /* Number of keyparts to be kept distinct */
   
   bool is_used;
-  void set_empty()
+  void set_empty() override
   {
     first_loosescan_table= MAX_TABLES; 
     is_used= FALSE;
   }
 
-  void set_from_prev(POSITION *prev);
+  void set_from_prev(POSITION *prev) override;
   bool check_qep(JOIN *join,
                  uint idx,
                  table_map remaining_tables, 
@@ -925,8 +925,8 @@ public:
                  double *read_time,
                  table_map *handled_fanout,
                  sj_strategy_enum *strategy,
-                 POSITION *loose_scan_pos);
-  void mark_used() { is_used= TRUE; }
+                 POSITION *loose_scan_pos) override;
+  void mark_used() override { is_used= TRUE; }
 
   friend class Loose_scan_opt;
   friend void best_access_path(JOIN      *join,
@@ -958,13 +958,13 @@ class Sj_materialization_picker : public Semi_join_strategy_picker
   table_map sjm_scan_need_tables;
 
 public:
-  void set_empty()
+  void set_empty() override
   {
     sjm_scan_need_tables= 0;
     sjm_scan_last_inner= 0;
     is_used= FALSE;
   }
-  void set_from_prev(POSITION *prev);
+  void set_from_prev(POSITION *prev) override;
   bool check_qep(JOIN *join,
                  uint idx,
                  table_map remaining_tables, 
@@ -973,8 +973,8 @@ public:
                  double *read_time,
                  table_map *handled_fanout,
                  sj_strategy_enum *strategy,
-                 POSITION *loose_scan_pos);
-  void mark_used() { is_used= TRUE; }
+                 POSITION *loose_scan_pos) override;
+  void mark_used() override { is_used= TRUE; }
 
   friend void fix_semijoin_strategies_for_picked_join_order(JOIN *join);
 };
@@ -1957,6 +1957,8 @@ private:
   bool add_fields_for_current_rowid(JOIN_TAB *cur, List<Item> *fields);
   void free_pushdown_handlers(List<TABLE_LIST>& join_list);
   void init_join_cache_and_keyread();
+  bool prepare_sum_aggregators(THD *thd,Item_sum **func_ptr,
+                               bool need_distinct);
   bool transform_in_predicates_into_equalities(THD *thd);
   bool transform_date_conds_into_sargable();
   bool transform_all_conds_and_on_exprs(THD *thd,
@@ -2152,7 +2154,7 @@ public:
 
 
   enum Type type() const override { return ITEM_STORE_KEY; }
-  const char *name() const  override { return "func"; }
+  const char *name() const override { return "func"; }
 
  protected:  
   enum store_key_result copy_inner() override
@@ -2205,7 +2207,7 @@ public:
   {}
 
   enum Type type() const override { return CONST_ITEM_STORE_KEY; }
-  const char *name() const  override { return "const"; }
+  const char *name() const override { return "const"; }
   bool store_key_is_const() override { return true; }
 
 protected:  

@@ -1360,6 +1360,7 @@ bool JOIN::fix_all_splittings_in_plan()
 {
   table_map prev_tables= 0;
   table_map all_tables= (table_map(1) << table_count) - 1;
+  table_map prev_sjm_lookup_tables= 0;
   for (uint tablenr= 0; tablenr < table_count; tablenr++)
   {
     POSITION *cur_pos= &best_positions[tablenr];
@@ -1368,7 +1369,7 @@ bool JOIN::fix_all_splittings_in_plan()
     {
       SplM_plan_info *spl_plan= cur_pos->spl_plan;
       table_map excluded_tables= (all_tables & ~prev_tables) |
-                                 sjm_lookup_tables;
+                                 prev_sjm_lookup_tables;
                                    ;
       if (spl_plan)
       {
@@ -1386,6 +1387,8 @@ bool JOIN::fix_all_splittings_in_plan()
           return true;
     }
     prev_tables|= tab->table->map;
+    if (cur_pos->sj_strategy == SJ_OPT_MATERIALIZE)
+        prev_sjm_lookup_tables|= tab->table->map;
   }
   return false;
 }

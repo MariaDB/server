@@ -154,7 +154,8 @@ TABLE *THD::find_temporary_table(const TABLE_LIST *tl,
                                  Temporary_table_state state)
 {
   DBUG_ENTER("THD::find_temporary_table");
-  TABLE *table= find_temporary_table(tl->get_db_name(), tl->get_table_name(),
+  TABLE *table= find_temporary_table(tl->get_db_name().str,
+                                     tl->get_table_name().str,
                                      state);
   DBUG_RETURN(table);
 }
@@ -243,8 +244,8 @@ TMP_TABLE_SHARE *THD::find_tmp_table_share(const char *db,
 TMP_TABLE_SHARE *THD::find_tmp_table_share(const TABLE_LIST *tl)
 {
   DBUG_ENTER("THD::find_tmp_table_share");
-  TMP_TABLE_SHARE *share= find_tmp_table_share(tl->get_db_name(),
-                                               tl->get_table_name());
+  TMP_TABLE_SHARE *share= find_tmp_table_share(tl->get_db_name().str,
+                                               tl->get_table_name().str);
   DBUG_RETURN(share);
 }
 
@@ -386,7 +387,7 @@ bool THD::open_temporary_table(TABLE_LIST *tl)
   */
   if (!table && (share= find_tmp_table_share(tl)))
   {
-    table= open_temporary_table(share, tl->get_table_name());
+    table= open_temporary_table(share, tl->get_table_name().str);
     /*
        Temporary tables are not safe for parallel replication. They were
        designed to be visible to one thread only, so have no table locking.
@@ -1132,11 +1133,16 @@ TABLE *THD::open_temporary_table(TMP_TABLE_SHARE *share,
     DBUG_RETURN(NULL);                          /* Out of memory */
   }
 
+  uint flags= ha_open_options | (open_options & HA_OPEN_FOR_CREATE);
+  /*
+    In replication, temporary tables are not confined to a single
+    thread/THD.
+  */
+  if (slave_thread)
+    flags|= HA_OPEN_GLOBAL_TMP_TABLE;
   if (open_table_from_share(this, share, &alias,
                             (uint) HA_OPEN_KEYFILE,
-                            EXTRA_RECORD,
-                            (ha_open_options |
-                             (open_options & HA_OPEN_FOR_CREATE)),
+                            EXTRA_RECORD, flags,
                             table, false))
   {
     my_free(table);
@@ -1180,8 +1186,8 @@ bool THD::find_and_use_tmp_table(const TABLE_LIST *tl, TABLE **out_table)
   bool result;
   DBUG_ENTER("THD::find_and_use_tmp_table");
 
-  key_length= create_tmp_table_def_key(key, tl->get_db_name(),
-                                        tl->get_table_name());
+  key_length= create_tmp_table_def_key(key, tl->get_db_name().str,
+                                        tl->get_table_name().str);
   result= use_temporary_table(find_temporary_table(key, key_length,
                                                    TMP_TABLE_NOT_IN_USE),
                               out_table);

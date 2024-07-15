@@ -1002,19 +1002,27 @@ DOUBLE
 error ER_INVALID_JSON_TEXT_IN_PARAM
 select json_type(CAST(CAST('2015-01-15' AS DATE) as CHAR CHARACTER SET 'utf8'));
 json_type(CAST(CAST('2015-01-15' AS DATE) as CHAR CHARACTER SET 'utf8'))
-INTEGER
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_type' at position 5
 # ----------------------------------------------------------------------
 # Test of json_compact(literal)
 # ----------------------------------------------------------------------
 select json_type(json_compact(cast('2014-11-25 18:00' as datetime)));
 json_type(json_compact(cast('2014-11-25 18:00' as datetime)))
-INTEGER
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_type' at position 5
 select json_type(json_compact(cast('2014-11-25' as date)));
 json_type(json_compact(cast('2014-11-25' as date)))
-INTEGER
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_type' at position 5
 select json_type(json_compact(cast('18:00:59' as time)));
 json_type(json_compact(cast('18:00:59' as time)))
-INTEGER
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_type' at position 3
 select json_type(json_compact(127));
 json_type(json_compact(127))
 INTEGER
@@ -1064,7 +1072,9 @@ json_type(json_compact(3.14E30))
 DOUBLE
 select json_type(json_compact(cast('10101abcde' as binary)));
 json_type(json_compact(cast('10101abcde' as binary)))
-INTEGER
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_type' at position 6
 select json_type(json_compact(ST_GeomFromText('POINT(1 1)')));
 json_type(json_compact(ST_GeomFromText('POINT(1 1)')))
 NULL

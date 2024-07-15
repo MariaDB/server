@@ -196,7 +196,11 @@ bool Item_sum::check_sum_func(THD *thd, Item **ref)
   }
 
   if (window_func_sum_expr_flag)
+  {
+    thd->lex->in_sum_func= in_sum_func;
     return false;
+  }
+
   /*  
     The value of max_arg_level is updated if an argument of the set function
     contains a column reference resolved  against a subquery whose level is
@@ -1219,6 +1223,21 @@ bool Item_sum_hybrid::fix_length_and_dec_numeric(const Type_handler *handler)
     set_handler(item2->type_handler());
   else
     set_handler(handler);
+  return false;
+}
+
+
+bool Item_sum_hybrid::fix_length_and_dec_sint_ge0()
+{
+  // We don't have Item_field's of "ge0" type handlers.
+  DBUG_ASSERT(args[0]->real_item()->type() != FIELD_ITEM);
+  Type_std_attributes::set(args[0]);
+  /*
+    We're converting from e.g. slong_ge0 to slonglong
+    and need to add one extra character for the sign.
+  */
+  max_length++;
+  set_handler(&type_handler_slonglong);
   return false;
 }
 
@@ -4061,6 +4080,7 @@ void Item_func_group_concat::cleanup()
         unique_filter= NULL;
       }
     }
+    row_count= 0;
     DBUG_ASSERT(tree == 0);
   }
   /*
@@ -4586,7 +4606,7 @@ void Item_func_group_concat::print(String *str, enum_query_type query_type)
   if (sum_func() == GROUP_CONCAT_FUNC)
   {
     str->append(STRING_WITH_LEN(" separator \'"));
-    str->append_for_single_quote(separator->ptr(), separator->length());
+    str->append_for_single_quote_opt_convert(*separator);
     str->append(STRING_WITH_LEN("\'"));
   }
 

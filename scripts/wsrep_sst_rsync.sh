@@ -354,7 +354,7 @@ SST_PID="$DATA/wsrep_sst.pid"
 check_round=0
 while check_pid "$SST_PID" 0; do
     wsrep_log_info "Previous SST is not completed, waiting for it to exit"
-    check_round=$(( check_round + 1 ))
+    check_round=$(( check_round+1 ))
     if [ $check_round -eq 20 ]; then
         wsrep_log_error "previous SST script still running."
         exit 114 # EALREADY
@@ -370,7 +370,7 @@ check_round=0
 while check_pid "$STUNNEL_PID" 1 "$STUNNEL_CONF"; do
     wsrep_log_info "Lingering stunnel daemon found at startup," \
                    "waiting for it to exit"
-    check_round=$(( check_round + 1 ))
+    check_round=$(( check_round+1 ))
     if [ $check_round -eq 10 ]; then
         wsrep_log_error "stunnel daemon still running."
         exit 114 # EALREADY
@@ -388,7 +388,7 @@ check_round=0
 while check_pid "$RSYNC_PID" 1 "$RSYNC_CONF"; do
     wsrep_log_info "Lingering rsync daemon found at startup," \
                    "waiting for it to exit"
-    check_round=$(( check_round + 1 ))
+    check_round=$(( check_round+1 ))
     if [ $check_round -eq 10 ]; then
         wsrep_log_error "rsync daemon still running."
         exit 114 # EALREADY
@@ -481,11 +481,7 @@ EOF
                         tar_type=2
                     fi
                     if [ $tar_type -eq 2 ]; then
-                        if [ -n "$BASH_VERSION" ]; then
-                            printf '%s' "$binlog_files" >&2
-                        else
-                            echo "$binlog_files" >&2
-                        fi
+                        echo "$binlog_files" >&2
                     fi
                     if [ $tar_type -ne 0 ]; then
                         # Preparing list of the binlog file names:
@@ -854,16 +850,7 @@ EOF
         # backward-incompatible behavior:
         CN=""
         if [ -n "$SSTCERT" ]; then
-            # find out my Common Name
-            get_openssl
-            if [ -z "$OPENSSL_BINARY" ]; then
-                wsrep_log_error \
-                    'openssl not found but it is required for authentication'
-                exit 42
-            fi
-            CN=$("$OPENSSL_BINARY" x509 -noout -subject -in "$SSTCERT" | \
-                 tr ',' '\n' | grep -F 'CN =' | cut -d '=' -f2 | sed s/^\ // | \
-                 sed s/\ %//)
+            CN=$(openssl_getCN "$SSTCERT")
         fi
         MY_SECRET="$(wsrep_gen_secret)"
         # Add authentication data to address

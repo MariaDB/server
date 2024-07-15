@@ -24,7 +24,7 @@ call mtr.add_suppression('InnoDB: Ignoring tablespace for test/t1 because it cou
 echo # xtrabackup backup;
 let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
 --disable_result_log
-exec  $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir;
+exec  $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --parallel=10 --target-dir=$targetdir;
 --enable_result_log
 
 rmdir $targetdir;

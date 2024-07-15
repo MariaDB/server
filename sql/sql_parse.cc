@@ -1131,8 +1131,9 @@ static bool wsrep_tables_accessible_when_detached(const TABLE_LIST *tables)
 {
   for (const TABLE_LIST *table= tables; table; table= table->next_global)
   {
-    LEX_CSTRING db= table->db, tn= table->table_name;
-    if (get_table_category(&db, &tn)  < TABLE_CATEGORY_INFORMATION)
+    if (get_table_category(Lex_ident_db(table->db),
+                           Lex_ident_table(table->table_name))
+                           < TABLE_CATEGORY_INFORMATION)
       return false;
   }
   return tables != NULL;
@@ -1527,14 +1528,14 @@ class Silence_all_errors : public Internal_error_handler
   int error;
 public:
   Silence_all_errors():error(0) {}
-  virtual ~Silence_all_errors() {}
+  ~Silence_all_errors() override {}
 
-  virtual bool handle_condition(THD *thd,
+  bool handle_condition(THD *thd,
                                 uint sql_errno,
                                 const char* sql_state,
                                 Sql_condition::enum_warning_level *level,
                                 const char* msg,
-                                Sql_condition ** cond_hdl)
+                                Sql_condition ** cond_hdl) override
   {
     error= sql_errno;
     *cond_hdl= NULL;
@@ -2249,6 +2250,7 @@ dispatch_command_return dispatch_command(enum enum_server_command command, THD *
     my_eof(thd);
     kill_mysql(thd);
     error=TRUE;
+    DBUG_EXECUTE_IF("simulate_slow_client_at_shutdown", my_sleep(2000000););
     break;
   }
 #endif
@@ -2406,6 +2408,11 @@ resume:
   }
 #endif /* WITH_WSREP */
 
+  if (thd->reset_sp_cache)
+  {
+    thd->sp_caches_empty();
+    thd->reset_sp_cache= false;
+  }
 
   if (do_end_of_statement)
   {
@@ -2483,6 +2490,7 @@ resume:
     MYSQL_COMMAND_DONE(res);
   }
   DEBUG_SYNC(thd,"dispatch_command_end");
+  DEBUG_SYNC(thd,"dispatch_command_end2");
 
   /* Check that some variables are reset properly */
   DBUG_ASSERT(thd->abort_on_warning == 0);
@@ -2673,8 +2681,8 @@ int prepare_schema_table(THD *thd, LEX *lex, Table_ident *table_ident,
       DBUG_RETURN(1);
     lex->query_tables_last= query_tables_last;
     break;
-#endif
   }
+#endif
   case SCH_PROFILES:
     /* 
       Mark this current profiling record to be discarded.  We don't
@@ -2930,7 +2938,7 @@ retry:
             Deadlock occurred during upgrade of metadata lock.
             Let us restart acquring and opening tables for LOCK TABLES.
           */
-          close_tables_for_reopen(thd, &tables, mdl_savepoint);
+          close_tables_for_reopen(thd, &tables, mdl_savepoint, true);
           if (thd->open_temporary_tables(tables))
             goto err;
           goto retry;
@@ -4498,10 +4506,15 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
 
     if ((res= insert_precheck(thd, all_tables)))
       break;
+
 #ifdef WITH_WSREP
-    if (WSREP(thd) && thd->wsrep_consistency_check == CONSISTENCY_CHECK_DECLARED)
+    bool wsrep_toi= false;
+    const bool wsrep= WSREP(thd);
+
+    if (wsrep && thd->wsrep_consistency_check == CONSISTENCY_CHECK_DECLARED)
     {
       thd->wsrep_consistency_check = CONSISTENCY_CHECK_RUNNING;
+      wsrep_toi= true;
       WSREP_TO_ISOLATION_BEGIN(first_table->db.str, first_table->table_name.str, NULL);
     }
 #endif /* WITH_WSREP */
@@ -4536,6 +4549,27 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     if (!(res=open_and_lock_tables(thd, all_tables, TRUE, 0)))
     {
       MYSQL_INSERT_SELECT_START(thd->query());
+
+#ifdef WITH_WSREP
+      if (wsrep && !first_table->view)
+      {
+        bool is_innodb= first_table->table->file->partition_ht()->db_type == DB_TYPE_INNODB;
+
+        // For consistency check inserted table needs to be InnoDB
+        if (!is_innodb && thd->wsrep_consistency_check != NO_CONSISTENCY_CHECK)
+        {
+          push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                              HA_ERR_UNSUPPORTED,
+                              "Galera cluster does support consistency check only"
+                              " for InnoDB tables.");
+          thd->wsrep_consistency_check= NO_CONSISTENCY_CHECK;
+        }
+
+        // For !InnoDB we start TOI if it is not yet started and hope for the best
+        if (!is_innodb && !wsrep_toi)
+          WSREP_TO_ISOLATION_BEGIN(first_table->db.str, first_table->table_name.str, NULL);
+      }
+#endif /* WITH_WSREP */
       /*
         Only the INSERT table should be merged. Other will be handled by
         select.
@@ -5575,7 +5609,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
       if (sph->sp_resolve_package_routine(thd, thd->lex->sphead,
                                           lex->spname, &sph, &pkgname))
         return true;
-      if (sph->sp_cache_routine(thd, lex->spname, false, &sp))
+      if (sph->sp_cache_routine(thd, lex->spname, &sp))
         goto error;
       if (!sp || sp->show_routine_code(thd))
       {
@@ -5878,13 +5912,11 @@ finish:
     if (unlikely(thd->is_error()) ||
         (thd->variables.option_bits & OPTION_MASTER_SQL_ERROR))
     {
-      THD_STAGE_INFO(thd, stage_rollback);
       trans_rollback_stmt(thd);
     }
     else
     {
       /* If commit fails, we should be able to reset the OK status. */
-      THD_STAGE_INFO(thd, stage_commit);
       thd->get_stmt_da()->set_overwrite_status(true);
       trans_commit_stmt(thd);
       thd->get_stmt_da()->set_overwrite_status(false);
@@ -5911,7 +5943,6 @@ finish:
       one of storage engines (e.g. due to deadlock). Rollback transaction in
       all storage engines including binary log.
     */
-    THD_STAGE_INFO(thd, stage_rollback_implicit);
     trans_rollback_implicit(thd);
     thd->release_transactional_locks();
   }
@@ -5921,7 +5952,6 @@ finish:
     DBUG_ASSERT(! thd->in_sub_stmt);
     if (!(thd->variables.option_bits & OPTION_GTID_BEGIN))
     {
-      THD_STAGE_INFO(thd, stage_commit_implicit);
       /* If commit fails, we should be able to reset the OK status. */
       thd->get_stmt_da()->set_overwrite_status(true);
       /* Commit the normal transaction if one is active. */
@@ -5992,6 +6022,24 @@ finish:
   /* assume PA safety for next transaction */
   thd->wsrep_PA_safe= true;
 #endif /* WITH_WSREP */
+
+  /*
+    Reset the connection_name to contain a null string, if the
+    pointer points to the same space as that of the system variable
+    default_master_connection.
+
+    We do this because the system variable may be updated which could
+    free the pointer and create a new one, causing use-after-free for
+    re-execution of prepared statements and stored procedures where
+    the LEX may be reused.
+
+    This allows connection_name to be set again be to the system
+    variable pointer in the next call of this function (see earlier in
+    this function), after any possible updates to the system variable.
+  */
+  if (thd->lex->mi.connection_name.str ==
+      thd->variables.default_master_connection.str)
+    thd->lex->mi.connection_name= null_clex_str;
 
   if (lex->sql_command != SQLCOM_SET_OPTION)
     DEBUG_SYNC(thd, "end_of_statement");
@@ -6192,15 +6240,15 @@ static TABLE *find_temporary_table_for_rename(THD *thd,
   {
     TABLE_LIST *next= table->next_local;
 
-    if (!strcmp(table->get_db_name(),   cur_table->get_db_name()) &&
-        !strcmp(table->get_table_name(), cur_table->get_table_name()))
+    if (!strcmp(table->get_db_name().str,    cur_table->get_db_name().str) &&
+        !strcmp(table->get_table_name().str, cur_table->get_table_name().str))
     {
       /* Table was moved away, can't be same as 'table' */
       found= 1;
       res= 0;                      // Table can't be a temporary table
     }
-    if (!strcmp(next->get_db_name(),    cur_table->get_db_name()) &&
-        !strcmp(next->get_table_name(), cur_table->get_table_name()))
+    if (!strcmp(next->get_db_name().str,    cur_table->get_db_name().str) &&
+        !strcmp(next->get_table_name().str, cur_table->get_table_name().str))
     {
       /*
         Table has matching name with new name of this table. cur_table should
@@ -6952,8 +7000,7 @@ check_table_access(THD *thd, privilege_t requirements, TABLE_LIST *tables,
                     INSERT_ACL : SELECT_ACL);
     }
 
-    if (check_access(thd, want_access,
-                     table_ref->get_db_name(),
+    if (check_access(thd, want_access, table_ref->get_db_name().str,
                      &table_ref->grant.privilege,
                      &table_ref->grant.m_internal,
                      0, no_errors))
@@ -7969,7 +8016,7 @@ bool add_to_list(THD *thd, SQL_I_List<ORDER> &list, Item *item,bool asc)
 */
 
 TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
-					     const Table_ident *table,
+					     Table_ident *table,
 					     const LEX_CSTRING *alias,
 					     ulong table_options,
 					     thr_lock_type lock_type,
@@ -7978,10 +8025,6 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
                                              List<String> *partition_names,
                                              LEX_STRING *option)
 {
-  TABLE_LIST *ptr;
-  TABLE_LIST *UNINIT_VAR(previous_table_ref); /* The table preceding the current one. */
-  LEX_CSTRING alias_str;
-  LEX *lex= thd->lex;
   DBUG_ENTER("add_table_to_list");
   DBUG_PRINT("enter", ("Table '%s' (%p)  Select %p (%u)",
                         (alias ? alias->str : table->table.str),
@@ -7991,9 +8034,7 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
 
   if (unlikely(!table))
     DBUG_RETURN(0);				// End of memory
-  alias_str= alias ? *alias : table->table;
-  DBUG_ASSERT(alias_str.str);
-  if (!MY_TEST(table_options & TL_OPTION_ALIAS) &&
+  if (!(table_options & TL_OPTION_ALIAS) &&
       unlikely(check_table_name(table->table.str, table->table.length, FALSE)))
   {
     my_error(ER_WRONG_TABLE_NAME, MYF(0), table->table.str);
@@ -8005,6 +8046,34 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
                Lex_ident_fs(table->db).check_db_name_with_error()))
     DBUG_RETURN(0);
 
+  LEX_CSTRING db{0, 0};
+  bool fqtn= false;
+  LEX *lex= thd->lex;
+  if (table->db.str)
+  {
+    fqtn= TRUE;
+    db= table->db;
+  }
+  else if (!lex->with_cte_resolution && lex->copy_db_to(&db))
+    DBUG_RETURN(0);
+  else
+    fqtn= FALSE;
+  bool info_schema= is_infoschema_db(&db);
+  if (!table->sel && info_schema &&
+      (table_options & TL_OPTION_UPDATING) &&
+      /* Special cases which are processed by commands itself */
+      lex->sql_command != SQLCOM_CHECK &&
+      lex->sql_command != SQLCOM_CHECKSUM)
+  {
+    my_error(ER_DBACCESS_DENIED_ERROR, MYF(0),
+             thd->security_ctx->priv_user,
+             thd->security_ctx->priv_host,
+             INFORMATION_SCHEMA_NAME.str);
+    DBUG_RETURN(0);
+  }
+
+  LEX_CSTRING alias_str= alias ? *alias : table->table;
+  DBUG_ASSERT(alias_str.str);
   if (!alias)                            /* Alias is case sensitive */
   {
     if (unlikely(table->sel))
@@ -8017,64 +8086,15 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
     if (unlikely(!(alias_str.str= (char*) thd->memdup(alias_str.str, alias_str.length+1))))
       DBUG_RETURN(0);
   }
-  if (unlikely(!(ptr = (TABLE_LIST *) thd->calloc(sizeof(TABLE_LIST)))))
-    DBUG_RETURN(0);				/* purecov: inspected */
-  if (table->db.str)
-  {
-    ptr->is_fqtn= TRUE;
-    ptr->db= table->db;
-  }
-  else if (!lex->with_cte_resolution && lex->copy_db_to(&ptr->db))
-    DBUG_RETURN(0);
-  else
-    ptr->is_fqtn= FALSE;
 
-  ptr->alias= alias_str;
-  ptr->is_alias= alias ? TRUE : FALSE;
-  ptr->table_name= table->table;
+  bool has_alias_ptr= alias != nullptr;
+  void *memregion= thd->calloc(sizeof(TABLE_LIST));
+  TABLE_LIST *ptr= new (memregion) TABLE_LIST(thd, db, fqtn, alias_str,
+                                              has_alias_ptr, table, lock_type,
+                                              mdl_type, table_options,
+                                              info_schema, this,
+                                              index_hints_arg, option);
 
-  if (lower_case_table_names)
-  {
-    if (!(ptr->table_name= thd->make_ident_casedn(ptr->table_name)).str)
-      DBUG_RETURN(0);
-    if (ptr->db.length && ptr->db.str != any_db.str &&
-        !(ptr->db= thd->make_ident_casedn(ptr->db)).str)
-      DBUG_RETURN(0);
-  }
-
-  ptr->lock_type= lock_type;
-  ptr->mdl_type= mdl_type;
-  ptr->table_options= table_options;
-  ptr->updating=    MY_TEST(table_options & TL_OPTION_UPDATING);
-  ptr->ignore_leaves= MY_TEST(table_options & TL_OPTION_IGNORE_LEAVES);
-  ptr->sequence=      MY_TEST(table_options & TL_OPTION_SEQUENCE);
-  ptr->derived=	    table->sel;
-  if (!ptr->derived && is_infoschema_db(&ptr->db))
-  {
-    if (ptr->updating &&
-        /* Special cases which are processed by commands itself */
-        lex->sql_command != SQLCOM_CHECK &&
-        lex->sql_command != SQLCOM_CHECKSUM)
-    {
-      my_error(ER_DBACCESS_DENIED_ERROR, MYF(0),
-               thd->security_ctx->priv_user,
-               thd->security_ctx->priv_host,
-               INFORMATION_SCHEMA_NAME.str);
-      DBUG_RETURN(0);
-    }
-    ST_SCHEMA_TABLE *schema_table;
-    schema_table= find_schema_table(thd, &ptr->table_name);
-    ptr->schema_table_name= ptr->table_name;
-    ptr->schema_table= schema_table;
-  }
-  ptr->select_lex= this;
-  /*
-    We can't cache internal temporary tables between prepares as the
-    table may be deleted before next execution.
- */
-  ptr->cacheable_table= !table->is_derived_table();
-  ptr->index_hints= index_hints_arg;
-  ptr->option= option ? option->str : 0;
   /* check that used name is unique. Sequences are ignored */
   if (lock_type != TL_IGNORE && !ptr->sequence)
   {
@@ -8097,6 +8117,7 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
     }
   }
   /* Store the table reference preceding the current one. */
+  TABLE_LIST *UNINIT_VAR(previous_table_ref); /* The table preceding the current one. */
   if (table_list.elements > 0 && likely(!ptr->sequence))
   {
     /*
@@ -8852,6 +8873,7 @@ push_new_name_resolution_context(THD *thd,
 
 /**
   Fix condition which contains only field (f turns to  f <> 0 )
+    or only contains the function NOT field (not f turns to  f == 0)
 
   @param cond            The condition to fix
 
@@ -8866,6 +8888,21 @@ Item *normalize_cond(THD *thd, Item *cond)
     if (type == Item::FIELD_ITEM || type == Item::REF_ITEM)
     {
       cond= new (thd->mem_root) Item_func_ne(thd, cond, new (thd->mem_root) Item_int(thd, 0));
+    }
+    else
+    {
+      if (type == Item::FUNC_ITEM)
+      {
+        Item_func *func_item= (Item_func *)cond;
+        if (func_item->functype() == Item_func::NOT_FUNC)
+        {
+          Item *arg= func_item->arguments()[0];
+          if (arg->type() == Item::FIELD_ITEM ||
+              arg->type() == Item::REF_ITEM)
+            cond= new (thd->mem_root) Item_func_eq(thd, arg,
+                                          new (thd->mem_root) Item_int(thd, 0));
+        }
+      }
     }
   }
   return cond;
@@ -8997,8 +9034,12 @@ THD *find_thread_by_id(longlong id, bool query_id)
   @param type                   Type of id: thread id or query id
 */
 
-uint
-kill_one_thread(THD *thd, my_thread_id id, killed_state kill_signal, killed_type type)
+static uint
+kill_one_thread(THD *thd, my_thread_id id, killed_state kill_signal, killed_type type
+#ifdef WITH_WSREP
+                , bool &wsrep_high_priority
+#endif
+)
 {
   THD *tmp;
   uint error= (type == KILL_TYPE_QUERY ? ER_NO_SUCH_QUERY : ER_NO_SUCH_THREAD);
@@ -9033,17 +9074,22 @@ kill_one_thread(THD *thd, my_thread_id id, killed_state kill_signal, killed_type
 
     mysql_mutex_lock(&tmp->LOCK_thd_data); // Lock from concurrent usage
 
-#ifdef WITH_WSREP
-    if (((thd->security_ctx->master_access & PRIV_KILL_OTHER_USER_PROCESS) ||
-        thd->security_ctx->user_matches(tmp->security_ctx)) &&
-        !wsrep_thd_is_BF(tmp, false) && !tmp->wsrep_applier)
-#else
     if ((thd->security_ctx->master_access & PRIV_KILL_OTHER_USER_PROCESS) ||
         thd->security_ctx->user_matches(tmp->security_ctx))
-#endif /* WITH_WSREP */
     {
-      {
 #ifdef WITH_WSREP
+      if (wsrep_thd_is_BF(tmp, false) || tmp->wsrep_applier)
+      {
+        error= ER_KILL_DENIED_ERROR;
+        wsrep_high_priority= true;
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                            ER_KILL_DENIED_ERROR,
+                            "Thread %lld is %s and cannot be killed",
+                            tmp->thread_id,
+                           (tmp->wsrep_applier ? "wsrep applier" : "high priority"));
+      }
+      else
+      {
         if (WSREP(tmp))
         {
           error = wsrep_kill_thd(thd, tmp, kill_signal);
@@ -9055,8 +9101,8 @@ kill_one_thread(THD *thd, my_thread_id id, killed_state kill_signal, killed_type
         error= 0;
 #ifdef WITH_WSREP
         }
-#endif /* WITH_WSREP */
       }
+#endif /* WITH_WSREP */
     }
     else
       error= (type == KILL_TYPE_QUERY ? ER_KILL_QUERY_DENIED_ERROR :
@@ -9155,16 +9201,32 @@ static uint kill_threads_for_user(THD *thd, LEX_USER *user,
 static
 void sql_kill(THD *thd, my_thread_id id, killed_state state, killed_type type)
 {
-  uint error;
-  if (likely(!(error= kill_one_thread(thd, id, state, type))))
+#ifdef WITH_WSREP
+  bool wsrep_high_priority= false;
+#endif
+  uint error= kill_one_thread(thd, id, state, type
+#ifdef WITH_WSREP
+                              , wsrep_high_priority
+#endif
+                              );
+
+  if (likely(!error))
   {
     if (!thd->killed)
       my_ok(thd);
     else
       thd->send_kill_message();
   }
+#ifdef WITH_WSREP
+  else if (wsrep_high_priority)
+    my_printf_error(error, "This is a high priority thread/query and"
+                    " cannot be killed without compromising"
+                    " the consistency of the cluster", MYF(0));
+#endif
   else
+  {
     my_error(error, MYF(0), id);
+  }
 }
 
 
@@ -9180,7 +9242,7 @@ sql_kill_user(THD *thd, LEX_USER *user, killed_state state)
     break;
   case ER_KILL_DENIED_ERROR:
     char buf[DEFINER_LENGTH+1];
-    strxnmov(buf, sizeof(buf), user->user.str, "@", user->host.str, NULL);
+    strxnmov(buf, sizeof(buf)-1, user->user.str, "@", user->host.str, NULL);
     my_printf_error(ER_KILL_DENIED_ERROR, ER_THD(thd, ER_CANNOT_USER), MYF(0),
                     "KILL USER", buf);
     break;

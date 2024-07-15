@@ -68,9 +68,6 @@ enum btr_latch_mode {
 	/** Search the previous record.
 	Used in btr_pcur_move_backward_from_page(). */
 	BTR_SEARCH_PREV = 4 | BTR_SEARCH_LEAF,
-	/** Modify the previous record.
-	Used in btr_pcur_move_backward_from_page(). */
-	BTR_MODIFY_PREV = 4 | BTR_MODIFY_LEAF,
 	/** Start modifying the entire B-tree. */
 	BTR_MODIFY_TREE = 8 | BTR_MODIFY_LEAF,
 	/** Continue modifying the entire R-tree.

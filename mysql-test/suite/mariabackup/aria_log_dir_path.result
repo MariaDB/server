@@ -35,7 +35,6 @@ DROP TABLE t1;
 SET @@global.aria_checkpoint_interval=DEFAULT /*Force checkpoint*/;
 SHOW ENGINE aria logs;
 Type	Name	Status
-Aria	aria_log.00000001	free
 Aria	aria_log.00000002	in use
 # Restarting mariadbd with default parameters
 # restart

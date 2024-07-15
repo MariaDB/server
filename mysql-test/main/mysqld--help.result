@@ -1308,6 +1308,7 @@ The following specify which files/extra groups are read (specified before remain
  Minimum number of connected slaves required for automatic
  binary log purge with max_binlog_total_size,
  binlog_expire_logs_seconds or binlog_expire_logs_days.
+ Default is 0 when Galera is enabled and 1 otherwise.
  --slave-ddl-exec-mode=name 
  How replication events should be executed. Legal values
  are STRICT and IDEMPOTENT (default). In IDEMPOTENT mode,
@@ -1962,7 +1963,7 @@ slave-run-triggers-for-rbr NO
 slave-skip-errors OFF
 slave-sql-verify-checksum TRUE
 slave-transaction-retries 10
-slave-transaction-retry-errors 1158,1159,1160,1161,1205,1213,1429,2013,12701
+slave-transaction-retry-errors 1158,1159,1160,1161,1205,1213,1020,1429,2013,12701
 slave-transaction-retry-interval 0
 slave-type-conversions 
 slow-launch-time 2

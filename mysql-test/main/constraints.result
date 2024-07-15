@@ -235,3 +235,16 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop procedure sp;
 drop table t1;
+#
+# MDEV-33768: Memory leak found in the test main.constraints run with --ps-protocol against a server built with the option -DWITH_PROTECT_STATEMENT_MEMROOT
+# This test case was added by reviewer's request.
+#
+PREPARE stmt FROM 'CREATE TABLE t1 (a INT)';
+EXECUTE stmt;
+DROP TABLE t1;
+EXECUTE stmt;
+EXECUTE stmt;
+ERROR 42S01: Table 't1' already exists
+# Clean up
+DROP TABLE t1;
+DEALLOCATE PREPARE stmt;

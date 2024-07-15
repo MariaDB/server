@@ -3842,7 +3842,7 @@ static void test_bind_result_ext1()
   short      i_data;
   uchar      b_data;
   int        f_data;
-  long       bData;
+  int        bData;
   char       d_data[20];
   double     szData;
   MYSQL_BIND my_bind[8];
@@ -3938,7 +3938,7 @@ static void test_bind_result_ext1()
     fprintf(stdout, "\n data (float)  : %d(%lu)", f_data, length[4]);
     fprintf(stdout, "\n data (double) : %s(%lu)", d_data, length[5]);
 
-    fprintf(stdout, "\n data (bin)    : %ld(%lu)", bData, length[6]);
+    fprintf(stdout, "\n data (bin)    : %d(%lu)", bData, length[6]);
     fprintf(stdout, "\n data (str)    : %g(%lu)", szData, length[7]);
   }
 
@@ -20564,7 +20564,6 @@ typedef struct {
 #ifndef EMBEDDED_LIBRARY
 static void test_proxy_header_tcp(const char *ipaddr, int port)
 {
- 
   int rc;
   MYSQL_RES *result;
   int family = (strchr(ipaddr,':') == NULL)?AF_INET:AF_INET6;
@@ -20639,6 +20638,11 @@ static void test_proxy_header_tcp(const char *ipaddr, int port)
     DIE_UNLESS(strncmp(row[0], normalized_addr, addrlen) == 0);
     DIE_UNLESS(atoi(row[0] + addrlen+1) == port);
     mysql_free_result(result);
+    if (i == 0 && !strcmp(ipaddr,"192.0.2.1"))
+    {
+     /* do "dirty" close, to get aborted message in error log.*/
+      mariadb_cancel(m);
+    }
     mysql_close(m);
   }
   sprintf(query,"DROP USER 'u'@'%s'",normalized_addr);
@@ -21869,6 +21873,103 @@ static void test_mdev19838()
   rc = mysql_query(mysql, "drop table mdev19838");
   myquery(rc);
 }
+
+static void test_mdev_24411()
+{
+  int        rc;
+  MYSQL_STMT *stmt;
+  MYSQL_BIND bind;
+  MYSQL_RES *result;
+  MYSQL_ROW row;
+  my_ulonglong row_count;
+  unsigned int vals[] = { 1, 2, 3};
+  unsigned int vals_array_len = 3;
+  const char *insert_stmt= "INSERT INTO t1 VALUES (?)";
+
+  myheader("test_mdev_24411");
+
+  rc= mysql_query(mysql, "DROP TABLE IF EXISTS t1");
+  myquery(rc);
+
+  rc= mysql_query(mysql, "DROP TABLE IF EXISTS t2");
+  myquery(rc);
+
+  rc= mysql_query(mysql, "CREATE TABLE t1 (a INT)");
+  myquery(rc);
+
+  rc= mysql_query(mysql, "CREATE TABLE t2 (a INT)");
+  myquery(rc);
+
+  rc= mysql_query(mysql,
+  "CREATE TRIGGER t1_bi BEFORE INSERT ON t1 FOR EACH ROW "
+  "BEGIN INSERT INTO t2 (a) VALUES (NEW.a); END;");
+  myquery(rc);
+
+  stmt= mysql_stmt_init(mysql);
+  check_stmt(stmt);
+
+  rc= mysql_stmt_prepare(stmt, insert_stmt, strlen(insert_stmt));
+  check_execute(stmt, rc);
+
+  memset(&bind, 0, sizeof(bind));
+  bind.buffer_type= MYSQL_TYPE_LONG;
+  bind.buffer= vals;
+
+  rc= mysql_stmt_attr_set(stmt, STMT_ATTR_ARRAY_SIZE, &vals_array_len);
+  check_execute(stmt, rc);
+
+  rc= mysql_stmt_bind_param(stmt, &bind);
+  check_execute(stmt, rc);
+
+  rc= mysql_stmt_execute(stmt);
+  check_execute(stmt, rc);
+
+  /*
+    It's expected that the INSERT statement adds three rows into
+    the table t1
+  */
+  row_count = mysql_stmt_affected_rows(stmt);
+  DIE_UNLESS(row_count == 3);
+
+  /*
+   * Check that the BEFORE INSERT trigger of the table t1 does work correct
+   * and inserted the rows (1), (2), (3) into the table t2.
+  */
+  rc= mysql_query(mysql, "SELECT 't1' tname, a FROM t1 "
+                  "UNION SELECT 't2' tname, a FROM t2 ORDER BY tname,a");
+  myquery(rc);
+
+  result= mysql_store_result(mysql);
+
+  row = mysql_fetch_row(result);
+  DIE_UNLESS(strcmp(row[0], "t1") == 0 && atoi(row[1]) == 1);
+
+  row = mysql_fetch_row(result);
+  DIE_UNLESS(strcmp(row[0], "t1") == 0 && atoi(row[1]) == 2);
+
+  row = mysql_fetch_row(result);
+  DIE_UNLESS(strcmp(row[0], "t1") == 0 && atoi(row[1]) == 3);
+
+  row = mysql_fetch_row(result);
+  DIE_UNLESS(strcmp(row[0], "t2") == 0 && atoi(row[1]) == 1);
+
+  row = mysql_fetch_row(result);
+  DIE_UNLESS(strcmp(row[0], "t2") == 0 && atoi(row[1]) == 2);
+
+  row = mysql_fetch_row(result);
+  DIE_UNLESS(strcmp(row[0], "t2") == 0 && atoi(row[1]) == 3);
+
+  row= mysql_fetch_row(result);
+  DIE_UNLESS(row == NULL);
+
+  mysql_free_result(result);
+
+  mysql_stmt_close(stmt);
+
+  rc= mysql_query(mysql, "DROP TABLE t1, t2");
+  myquery(rc);
+}
+
 #endif // EMBEDDED_LIBRARY
 
 
@@ -22527,6 +22628,9 @@ static struct my_tests_st my_tests[]= {
   { "test_connect_autocommit", test_connect_autocommit},
   { "test_execute_direct", test_execute_direct },
   { "test_cache_metadata", test_cache_metadata},
+#ifndef EMBEDDED_LIBRARY
+  { "test_mdev_24411", test_mdev_24411},
+#endif
   { "test_mdev_10075", test_mdev_10075},
   { 0, 0 }
 };

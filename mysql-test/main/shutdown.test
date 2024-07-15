@@ -20,13 +20,13 @@ drop procedure try_shutdown;
 
 --let $_expect_file_name= `select regexp_replace(@@tmpdir, '^.*/','')`
 --let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/$_expect_file_name.expect
---exec echo "wait" > $_expect_file_name
+--write_line wait $_expect_file_name
 
 --send shutdown
 --connection default
 --source include/wait_until_disconnected.inc
 
---exec echo "restart" > $_expect_file_name
+--write_line restart $_expect_file_name
 --enable_reconnect
 --source include/wait_until_connected_again.inc
 

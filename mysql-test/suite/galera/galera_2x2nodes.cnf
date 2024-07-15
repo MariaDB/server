@@ -11,7 +11,6 @@ default-storage-engine=innodb
 wsrep_gtid_mode=1
 gtid_ignore_duplicates
 auto_increment_increment=3
-
 wsrep-provider=@ENV.WSREP_PROVIDER
 # enforce read-committed characteristics across the cluster
 # wsrep-causal-reads=ON
@@ -61,6 +60,9 @@ wsrep_node_address='127.0.0.1:@mysqld.4.#galera_port'
 wsrep_node_incoming_address=127.0.0.1:@mysqld.4.port
 wsrep_sst_receive_address='127.0.0.1:@mysqld.4.#sst_port'
 
+[sst]
+sst-log-archive-dir=@ENV.MYSQLTEST_VARDIR/log
+
 [ENV]
 NODE_MYPORT_1= @mysqld.1.port
 NODE_MYSOCK_1= @mysqld.1.socket
@@ -73,5 +75,3 @@ NODE_MYSOCK_3= @mysqld.3.socket
 
 NODE_MYPORT_4= @mysqld.4.port
 NODE_MYSOCK_4= @mysqld.4.socket
-
-

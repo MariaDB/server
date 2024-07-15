@@ -19,13 +19,12 @@
 
 #if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
 
-  {"ssl", OPT_SSL_SSL,
+  {"ssl", 0,
    "Enable SSL for connection (automatically enabled with other flags).",
    &opt_use_ssl, &opt_use_ssl, 0, GET_BOOL, OPT_ARG, 1, 0, 0, 0, 0, 0},
   {"ssl-ca", OPT_SSL_CA,
    "CA file in PEM format (check OpenSSL docs, implies --ssl).",
-   &opt_ssl_ca, &opt_ssl_ca, 0, GET_STR, REQUIRED_ARG,
-   0, 0, 0, 0, 0, 0},
+   &opt_ssl_ca, &opt_ssl_ca, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"ssl-capath", OPT_SSL_CAPATH,
    "CA directory (check OpenSSL docs, implies --ssl).",
    &opt_ssl_capath, &opt_ssl_capath, 0, GET_STR, REQUIRED_ARG,
@@ -57,7 +56,7 @@
   {"ssl-fplist", OPT_SSL_FPLIST, "File with accepted server certificate "
    "fingerprints, one per line (implies --ssl).",
    &opt_ssl_fplist, &opt_ssl_fplist, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"ssl-verify-server-cert", OPT_SSL_VERIFY_SERVER_CERT,
+  {"ssl-verify-server-cert", 0,
    "Verify server's certificate to prevent man-in-the-middle attacks",
    &opt_ssl_verify_server_cert, &opt_ssl_verify_server_cert,
    0, GET_BOOL, OPT_ARG, 2, 0, 0, 0, 0, 0},

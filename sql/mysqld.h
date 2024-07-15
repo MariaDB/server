@@ -143,6 +143,7 @@ extern my_bool opt_old_style_user_limits, trust_function_creators;
 extern uint opt_crash_binlog_innodb;
 extern const char *shared_memory_base_name;
 extern MYSQL_PLUGIN_IMPORT char *mysqld_unix_port;
+extern MYSQL_PLUGIN_IMPORT bool metadata_lock_info_plugin_loaded;
 extern my_bool opt_enable_shared_memory;
 extern ulong opt_replicate_events_marked_for_skip;
 extern char *default_tz_name;
@@ -277,7 +278,7 @@ extern time_t server_start_time, flush_status_time;
 extern char *opt_mysql_tmpdir, mysql_charsets_dir[];
 extern size_t mysql_unpacked_real_data_home_len;
 extern MYSQL_PLUGIN_IMPORT MY_TMPDIR mysql_tmpdir_list;
-extern const char *first_keyword, *delayed_user;
+extern const char *first_keyword, *delayed_user, *slave_user;
 extern MYSQL_PLUGIN_IMPORT const char  *my_localhost;
 extern MYSQL_PLUGIN_IMPORT const char **errmesg;			/* Error messages */
 extern const char *myisam_recover_options_str;
@@ -325,10 +326,6 @@ bool is_set_timestamp_forbidden(THD *thd);
 extern PSI_mutex_key key_PAGE_lock, key_LOCK_sync, key_LOCK_active,
        key_LOCK_pool, key_LOCK_pending_checkpoint;
 #endif /* HAVE_MMAP */
-
-#ifdef HAVE_OPENSSL
-extern PSI_mutex_key key_LOCK_des_key_file;
-#endif
 
 extern PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_xid_list,
   key_BINLOG_LOCK_binlog_background_thread,
@@ -409,7 +406,7 @@ extern PSI_thread_key key_thread_delayed_insert,
 
 extern PSI_file_key key_file_binlog, key_file_binlog_cache,
        key_file_binlog_index, key_file_binlog_index_cache, key_file_casetest,
-  key_file_dbopt, key_file_des_key_file, key_file_ERRMSG, key_select_to_file,
+  key_file_dbopt, key_file_ERRMSG, key_select_to_file,
   key_file_fileparser, key_file_frm, key_file_global_ddl_log, key_file_load,
   key_file_loadfile, key_file_log_event_data, key_file_log_event_info,
   key_file_master_info, key_file_misc, key_file_partition_ddl_log,
@@ -421,6 +418,13 @@ extern PSI_file_key key_file_relaylog, key_file_relaylog_index,
 extern PSI_socket_key key_socket_tcpip, key_socket_unix,
   key_socket_client_connection;
 extern PSI_file_key key_file_binlog_state, key_file_gtid_index;
+
+#ifdef HAVE_des
+extern char* des_key_file;
+extern PSI_file_key key_file_des_key_file;
+extern PSI_mutex_key key_LOCK_des_key_file;
+extern mysql_mutex_t LOCK_des_key_file;
+#endif
 
 #ifdef HAVE_PSI_INTERFACE
 void init_server_psi_keys();
@@ -590,6 +594,7 @@ extern PSI_stage_info stage_deleting_from_main_table;
 extern PSI_stage_info stage_deleting_from_reference_tables;
 extern PSI_stage_info stage_discard_or_import_tablespace;
 extern PSI_stage_info stage_end;
+extern PSI_stage_info stage_ending_io_thread;
 extern PSI_stage_info stage_enabling_keys;
 extern PSI_stage_info stage_executing;
 extern PSI_stage_info stage_execution_of_init_command;
@@ -662,6 +667,7 @@ extern PSI_stage_info stage_user_sleep;
 extern PSI_stage_info stage_verifying_table;
 extern PSI_stage_info stage_waiting_for_ddl;
 extern PSI_stage_info stage_waiting_for_delay_list;
+extern PSI_stage_info stage_waiting_for_disk_space;
 extern PSI_stage_info stage_waiting_for_flush;
 extern PSI_stage_info stage_waiting_for_gtid_to_be_written_to_binary_log;
 extern PSI_stage_info stage_waiting_for_handler_insert;
@@ -778,10 +784,6 @@ extern mysql_mutex_t
 extern MYSQL_PLUGIN_IMPORT mysql_mutex_t LOCK_global_system_variables;
 extern mysql_rwlock_t LOCK_all_status_vars;
 extern mysql_mutex_t LOCK_start_thread;
-#ifdef HAVE_OPENSSL
-extern char* des_key_file;
-extern mysql_mutex_t LOCK_des_key_file;
-#endif
 extern MYSQL_PLUGIN_IMPORT mysql_mutex_t LOCK_server_started;
 extern MYSQL_PLUGIN_IMPORT mysql_cond_t COND_server_started;
 extern mysql_rwlock_t LOCK_grant, LOCK_sys_init_connect, LOCK_sys_init_slave;
@@ -836,6 +838,7 @@ enum options_mysqld
   OPT_KEY_CACHE_CHANGED_BLOCKS_HASH_SIZE,
   OPT_LOG_BASENAME,
   OPT_LOG_ERROR,
+  OPT_LOG_SLOW_FILTER,
   OPT_LOWER_CASE_TABLE_NAMES,
   OPT_PLUGIN_LOAD,
   OPT_PLUGIN_LOAD_ADD,
@@ -1002,6 +1005,8 @@ extern my_bool opt_mysql56_temporal_format, strict_password_validation;
 extern ulong binlog_checksum_options;
 extern bool max_user_connections_checking;
 extern ulong opt_binlog_dbug_fsync_sleep;
+static const int SERVER_UID_SIZE= 29;
+extern char server_uid[SERVER_UID_SIZE+1];
 
 extern uint volatile global_disable_checkpoint;
 extern my_bool opt_help;

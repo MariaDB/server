@@ -33,26 +33,35 @@ extern "C" int read_bootstrap_query(char *query, int *query_length,
                          fgets_input_t input, fgets_fn_t fgets_fn,
                          int preserve_delimiter, int *error)
 {
-  char line_buffer[MAX_BOOTSTRAP_LINE_SIZE];
+  char *line_buffer;
   const char *line;
   size_t len;
   size_t query_len= 0;
   int fgets_error= 0;
+  int exit_code= 0;
   *error= 0;
+
+  line_buffer= (char*) malloc(MAX_BOOTSTRAP_LINE_SIZE);
 
   *query_length= 0;
   for ( ; ; )
   {
-    line= (*fgets_fn)(line_buffer, sizeof(line_buffer), input, &fgets_error);
+    line= (*fgets_fn)(line_buffer, MAX_BOOTSTRAP_LINE_SIZE, input, &fgets_error);
     
     if (error)
       *error= fgets_error;
 
     if (fgets_error != 0)
-      return READ_BOOTSTRAP_ERROR;
+    {
+      exit_code= READ_BOOTSTRAP_ERROR;
+      break;
+    }
       
     if (line == NULL)
-      return (query_len == 0) ? READ_BOOTSTRAP_EOF : READ_BOOTSTRAP_ERROR;
+    {
+      exit_code= (query_len == 0) ? READ_BOOTSTRAP_EOF : READ_BOOTSTRAP_ERROR;
+      break;
+    }
 
     len= strlen(line);
 
@@ -98,7 +107,8 @@ extern "C" int read_bootstrap_query(char *query, int *query_length,
       if (!p || !p[1])
       {
         /* Invalid DELIMITER specifier */
-        return READ_BOOTSTRAP_ERROR;
+        exit_code= READ_BOOTSTRAP_ERROR;
+        break;
       }
       delimiter.assign(p+1);
       if (preserve_delimiter)
@@ -106,7 +116,8 @@ extern "C" int read_bootstrap_query(char *query, int *query_length,
         memcpy(query,line,len);
         query[len]=0;
         *query_length = (int)len;
-        return READ_BOOTSTRAP_SUCCESS;
+        exit_code= READ_BOOTSTRAP_SUCCESS;
+        break;
       }
       continue;
     }
@@ -125,7 +136,8 @@ extern "C" int read_bootstrap_query(char *query, int *query_length,
       }
       query[query_len]= '\0';
       *query_length= (int)query_len;
-      return READ_BOOTSTRAP_QUERY_SIZE;
+      exit_code= READ_BOOTSTRAP_QUERY_SIZE;
+      break;
     }
 
     if (query_len != 0)
@@ -152,8 +164,11 @@ extern "C" int read_bootstrap_query(char *query, int *query_length,
       }
       query[query_len]= 0;
       *query_length= (int)query_len;
-      return READ_BOOTSTRAP_SUCCESS;
+      exit_code= READ_BOOTSTRAP_SUCCESS;
+      break;
     }
   }
+  free(line_buffer);
+  return exit_code;
 }
 

@@ -2296,10 +2296,10 @@ public:
   TRP_RANGE(SEL_ARG *key_arg, uint idx_arg, uint mrr_flags_arg)
    : key(key_arg), key_idx(idx_arg), mrr_flags(mrr_flags_arg)
   {}
-  virtual ~TRP_RANGE() = default;                     /* Remove gcc warning */
+  ~TRP_RANGE() override = default;                     /* Remove gcc warning */
 
   QUICK_SELECT_I *make_quick(PARAM *param, bool retrieve_full_rows,
-                             MEM_ROOT *parent_alloc)
+                             MEM_ROOT *parent_alloc) override
   {
     DBUG_ENTER("TRP_RANGE::make_quick");
     QUICK_RANGE_SELECT *quick;
@@ -2312,7 +2312,7 @@ public:
     DBUG_RETURN(quick);
   }
   void trace_basic_info(PARAM *param,
-                        Json_writer_object *trace_object) const;
+                        Json_writer_object *trace_object) const override;
 };
 
 void TRP_RANGE::trace_basic_info(PARAM *param,
@@ -2346,9 +2346,9 @@ class TRP_ROR_INTERSECT : public TABLE_READ_PLAN
 {
 public:
   TRP_ROR_INTERSECT() = default;                      /* Remove gcc warning */
-  virtual ~TRP_ROR_INTERSECT() = default;             /* Remove gcc warning */
+  ~TRP_ROR_INTERSECT() override = default;             /* Remove gcc warning */
   QUICK_SELECT_I *make_quick(PARAM *param, bool retrieve_full_rows,
-                             MEM_ROOT *parent_alloc);
+                             MEM_ROOT *parent_alloc) override;
 
   /* Array of pointers to ROR range scans used in this intersection */
   struct st_ror_scan_info **first_scan;
@@ -2358,7 +2358,7 @@ public:
   double index_scan_costs; /* SUM(cost(index_scan)) */
   double cmp_cost;         // Cost of out rows with WHERE clause
   void trace_basic_info(PARAM *param,
-                        Json_writer_object *trace_object) const;
+                        Json_writer_object *trace_object) const override;
 };
 
 
@@ -2373,13 +2373,13 @@ class TRP_ROR_UNION : public TABLE_READ_PLAN
 {
 public:
   TRP_ROR_UNION() = default;                          /* Remove gcc warning */
-  virtual ~TRP_ROR_UNION() = default;                 /* Remove gcc warning */
+  ~TRP_ROR_UNION() override = default;                 /* Remove gcc warning */
   QUICK_SELECT_I *make_quick(PARAM *param, bool retrieve_full_rows,
-                             MEM_ROOT *parent_alloc);
+                             MEM_ROOT *parent_alloc) override;
   TABLE_READ_PLAN **first_ror; /* array of ptrs to plans for merged scans */
   TABLE_READ_PLAN **last_ror;  /* end of the above array */
   void trace_basic_info(PARAM *param,
-                        Json_writer_object *trace_object) const;
+                        Json_writer_object *trace_object) const override;
 };
 
 void TRP_ROR_UNION::trace_basic_info(PARAM *param,
@@ -2406,15 +2406,15 @@ class TRP_INDEX_INTERSECT : public TABLE_READ_PLAN
 {
 public:
   TRP_INDEX_INTERSECT() = default;                     /* Remove gcc warning */
-  virtual ~TRP_INDEX_INTERSECT() = default;            /* Remove gcc warning */
+  ~TRP_INDEX_INTERSECT() override = default;            /* Remove gcc warning */
   QUICK_SELECT_I *make_quick(PARAM *param, bool retrieve_full_rows,
-                             MEM_ROOT *parent_alloc);
+                             MEM_ROOT *parent_alloc) override;
   TRP_RANGE **range_scans; /* array of ptrs to plans of intersected scans */
   TRP_RANGE **range_scans_end; /* end of the array */
   /* keys whose scans are to be filtered by cpk conditions */
   key_map filtered_scans;
   void trace_basic_info(PARAM *param,
-                        Json_writer_object *trace_object) const;
+                        Json_writer_object *trace_object) const override;
 
 };
 
@@ -2443,13 +2443,13 @@ class TRP_INDEX_MERGE : public TABLE_READ_PLAN
 {
 public:
   TRP_INDEX_MERGE() = default;                        /* Remove gcc warning */
-  virtual ~TRP_INDEX_MERGE() = default;               /* Remove gcc warning */
+  ~TRP_INDEX_MERGE() override = default;               /* Remove gcc warning */
   QUICK_SELECT_I *make_quick(PARAM *param, bool retrieve_full_rows,
-                             MEM_ROOT *parent_alloc);
+                             MEM_ROOT *parent_alloc) override;
   TRP_RANGE **range_scans; /* array of ptrs to plans of merged scans */
   TRP_RANGE **range_scans_end; /* end of the array */
   void trace_basic_info(PARAM *param,
-                        Json_writer_object *trace_object) const;
+                        Json_writer_object *trace_object) const override;
 };
 
 void TRP_INDEX_MERGE::trace_basic_info(PARAM *param,
@@ -2513,13 +2513,13 @@ public:
       if (key_infix_len)
         memcpy(this->key_infix, key_infix_arg, key_infix_len);
     }
-  virtual ~TRP_GROUP_MIN_MAX() = default;             /* Remove gcc warning */
+  ~TRP_GROUP_MIN_MAX() override = default;             /* Remove gcc warning */
 
   QUICK_SELECT_I *make_quick(PARAM *param, bool retrieve_full_rows,
-                             MEM_ROOT *parent_alloc);
+                             MEM_ROOT *parent_alloc) override;
   void use_index_scan() { is_index_scan= TRUE; }
   void trace_basic_info(PARAM *param,
-                        Json_writer_object *trace_object) const;
+                        Json_writer_object *trace_object) const override;
 };
 
 
@@ -2755,7 +2755,10 @@ SQL_SELECT::test_quick_select(THD *thd,
     only_single_index_range_scan= 1;
 
   if (head->force_index || force_quick_range)
+  {
+    DEBUG_SYNC(thd, "in_forced_range_optimize");
     read_time= DBL_MAX;
+  }
   else
   {
     read_time= file->cost(file->ha_scan_and_compare_time(records));
@@ -3183,6 +3186,12 @@ SQL_SELECT::test_quick_select(THD *thd,
     free_root(&alloc,MYF(0));			// Return memory & allocator
     thd->mem_root= param.old_root;
     thd->no_errors=0;
+    if (thd->killed || thd->is_error())
+    {
+      delete quick;
+      quick= NULL;
+      returnval= ERROR;
+    }
   }
 
   DBUG_EXECUTE("info", print_quick(quick, &needed_reg););
@@ -3198,6 +3207,53 @@ SQL_SELECT::test_quick_select(THD *thd,
 /****************************************************************************
  * Condition selectivity module
  ****************************************************************************/
+
+
+/*
+  @brief
+    Create a bitmap of columns for which to perform Range Analysis for EITS
+    condition selectivity estimates.
+
+  @detail
+    Walk through the bitmap of fields used in the query, and
+     - pick columns for which EITS data is usable (see is_eits_usable() call)
+     - do not produce more than MAX_KEY columns. Range Analyzer cannot handle
+       more than that. If there are more than MAX_KEY eligible columns,
+       this function should be called multiple times to produce multiple
+       bitmaps.
+
+  @param  used_fields  Columns used by the query
+  @param  col_no       Start from this column
+  @param  out          OUT Filled column bitmap
+
+  @return
+     (uint)-1   If there are no more columns for range analysis.
+     Other      Index of the last considered column. Pass this to next call to
+                this function
+*/
+
+uint get_columns_for_pseudo_indexes(const TABLE *table,
+                                    const MY_BITMAP *used_fields, int col_no,
+                                    MY_BITMAP *out)
+{
+  bitmap_clear_all(out);
+  int n_bits= 0;
+
+  for (; table->field[col_no]; col_no++)
+  {
+    if (bitmap_is_set(used_fields, col_no) &&
+        is_eits_usable(table->field[col_no]))
+    {
+      bitmap_set_bit(out, col_no);
+      if (++n_bits == MAX_KEY)
+      {
+        col_no++;
+        break;
+      }
+    }
+  }
+  return n_bits? col_no: (uint)-1;
+}
 
 
 /*
@@ -3225,21 +3281,10 @@ bool create_key_parts_for_pseudo_indexes(RANGE_OPT_PARAM *param,
 {
   Field **field_ptr;
   TABLE *table= param->table;
-  uint parts= 0;
-
-  for (field_ptr= table->field; *field_ptr; field_ptr++)
-  {
-    Field *field= *field_ptr;
-    if (bitmap_is_set(used_fields, field->field_index) &&
-        is_eits_usable(field))
-      parts++;
-  }
+  uint parts= bitmap_bits_set(used_fields);
 
   KEY_PART *key_part;
   uint keys= 0;
-
-  if (!parts)
-    return TRUE;
 
   if (!(key_part= (KEY_PART *)  alloc_root(param->mem_root,
                                            sizeof(KEY_PART) * parts)))
@@ -3252,9 +3297,6 @@ bool create_key_parts_for_pseudo_indexes(RANGE_OPT_PARAM *param,
     Field *field= *field_ptr;
     if (bitmap_is_set(used_fields, field->field_index))
     {
-      if (!is_eits_usable(field))
-        continue;
-
       uint16 store_length;
       uint16 max_key_part_length= (uint16) table->file->max_key_part_length();
       key_part->key= keys;
@@ -3656,8 +3698,6 @@ end_of_range_loop:
     PARAM param;
     MEM_ROOT alloc;
     SEL_TREE *tree;
-    double rows;
-  
     init_sql_alloc(key_memory_quick_range_select_root, &alloc,
                    thd->variables.range_alloc_block_size, 0,
                    MYF(MY_THREAD_SPECIFIC));
@@ -3668,68 +3708,93 @@ end_of_range_loop:
     param.table= table;
     param.remove_false_where_parts= true;
 
-    if (create_key_parts_for_pseudo_indexes(&param, used_fields))
-      goto free_alloc;
-
     param.prev_tables= param.read_tables= 0;
     param.current_table= table->map;
     param.using_real_indexes= FALSE;
-    param.real_keynr[0]= 0;
+    MEM_UNDEFINED(&param.real_keynr, sizeof(param.real_keynr));
+
     param.alloced_sel_args= 0;
     param.max_key_parts= 0;
 
-    thd->no_errors=1;		    
-
-    if (!(tree= cond[0]->get_mm_tree(&param, cond)))
-      goto free_alloc;
-    
+    thd->no_errors=1;
     table->reginfo.impossible_range= 0;
-    if (tree->type == SEL_TREE::IMPOSSIBLE)
-    {
-      rows= 0;
-      table->reginfo.impossible_range= 1;
-      goto free_alloc;
-    }  
-    else if (tree->type == SEL_TREE::ALWAYS)
-    {
-      rows= table_records;
-      goto free_alloc;
-    }        
-    else if (tree->type == SEL_TREE::MAYBE)
-    {
-      rows= table_records;
-      goto free_alloc;
-    }        
 
-    for (uint idx= 0; idx < param.keys; idx++)
+    uint used_fields_buff_size= bitmap_buffer_size(table->s->fields);
+    my_bitmap_map *used_fields_buff= (my_bitmap_map*)thd->alloc(used_fields_buff_size);
+    MY_BITMAP cols_for_indexes;
+    (void) my_bitmap_init(&cols_for_indexes, used_fields_buff, table->s->fields);
+    bitmap_clear_all(&cols_for_indexes);
+
+    uint column_no= 0; // Start looping from the first column.
+    /*
+      Try getting selectivity estimates for every field that is used in the
+      query and has EITS statistics. We do this:
+
+        for every usable field col
+           create a pseudo INDEX(col);
+        Run the range analyzer (get_mm_tree) for these pseudo-indexes;
+        Look at produced ranges and get their selectivity estimates;
+
+      Note that the range analyzer can process at most MAX_KEY indexes. If
+      the table has >MAX_KEY eligible columns, we will do several range
+      analyzer runs.
+    */
+
+    while (1)
     {
-      SEL_ARG *key= tree->keys[idx];
-      if (key)                                  // Quick range found for key
+      column_no= get_columns_for_pseudo_indexes(table, used_fields, column_no,
+                                                &cols_for_indexes);
+      if (column_no == (uint)-1)
+        break;  /* Couldn't create any pseudo-indexes. This means we're done */
+
+      if (create_key_parts_for_pseudo_indexes(&param, &cols_for_indexes))
+        goto free_alloc;
+
+      tree= cond[0]->get_mm_tree(&param, cond);
+
+      if (!tree ||
+          tree->type == SEL_TREE::ALWAYS ||
+          tree->type == SEL_TREE::MAYBE)
       {
-        Json_writer_object selectivity_for_column(thd);
-        selectivity_for_column.add("column_name", key->field->field_name);
-        if (key->type == SEL_ARG::IMPOSSIBLE)
+        /* Couldn't infer anything. But there could be more fields, so continue */
+        continue;
+      }
+
+      if (tree->type == SEL_TREE::IMPOSSIBLE)
+      {
+        table->reginfo.impossible_range= 1;
+        goto free_alloc;
+      }
+
+      for (uint idx= 0; idx < param.keys; idx++)
+      {
+        SEL_ARG *key= tree->keys[idx];
+        if (key)
         {
-          rows= 0;
-          table->reginfo.impossible_range= 1;
-          if (unlikely(selectivity_for_column.trace_started()))
-            selectivity_for_column.
-              add("selectivity_from_histogram", rows).
-              add("cause", "impossible range");
-          goto free_alloc;
-        }          
-        else
-        {
-          enum_check_fields save_count_cuted_fields= thd->count_cuted_fields;
-          thd->count_cuted_fields= CHECK_FIELD_IGNORE;
-          rows= records_in_column_ranges(&param, idx, key);
-          thd->count_cuted_fields= save_count_cuted_fields;
-          if (rows != DBL_MAX)
+          Json_writer_object selectivity_for_column(thd);
+          selectivity_for_column.add("column_name", key->field->field_name);
+          if (key->type == SEL_ARG::IMPOSSIBLE)
           {
-            key->field->cond_selectivity= rows/table_records;
             DBUG_ASSERT(key->field->cond_selectivity <= 1.0);
-            selectivity_for_column.add("selectivity_from_histogram",
-                                       key->field->cond_selectivity);
+            table->reginfo.impossible_range= 1;
+            if (unlikely(selectivity_for_column.trace_started()))
+              selectivity_for_column.
+                add("selectivity_from_histogram", 0).
+                add("cause", "impossible range");
+            goto free_alloc;
+          }
+          else
+          {
+            enum_check_fields save_count_cuted_fields= thd->count_cuted_fields;
+            thd->count_cuted_fields= CHECK_FIELD_IGNORE;
+            double rows= records_in_column_ranges(&param, idx, key);
+            thd->count_cuted_fields= save_count_cuted_fields;
+            if (rows != DBL_MAX)
+            {
+              key->field->cond_selectivity= rows/table_records;
+              selectivity_for_column.add("selectivity_from_histogram",
+                                         key->field->cond_selectivity);
+            }
           }
         }
       }
@@ -6964,8 +7029,7 @@ ROR_INTERSECT_INFO* ror_intersect_init(const PARAM *param)
 void ror_intersect_cpy(ROR_INTERSECT_INFO *dst, const ROR_INTERSECT_INFO *src)
 {
   dst->param= src->param;
-  memcpy(dst->covered_fields.bitmap, src->covered_fields.bitmap, 
-         no_bytes_in_map(&src->covered_fields));
+  bitmap_copy(&dst->covered_fields, &src->covered_fields);
   dst->out_rows= src->out_rows;
   dst->is_covering= src->is_covering;
   dst->index_records= src->index_records;
@@ -7650,7 +7714,7 @@ TRP_ROR_INTERSECT *get_best_covering_ror_intersect(PARAM *param,
       (*scan)->used_fields_covered=
         bitmap_bits_set(&(*scan)->covered_fields);
       (*scan)->first_uncovered_field=
-        bitmap_get_first(&(*scan)->covered_fields);
+        bitmap_get_first_clear(&(*scan)->covered_fields);
     }
 
     my_qsort(ror_scan_mark, ror_scans_end-ror_scan_mark, sizeof(ROR_SCAN_INFO*),
@@ -17025,6 +17089,7 @@ static
 void print_range(String *out, const KEY_PART_INFO *key_part,
                  KEY_MULTI_RANGE *range, uint n_key_parts)
 {
+  Check_level_instant_set check_field(current_thd, CHECK_FIELD_IGNORE);
   uint flag= range->range_flag;
   String key_name;
   key_name.set_charset(system_charset_info);

@@ -3107,6 +3107,16 @@ public:
   bool aggregate(const DTCollation &dt, uint flags= 0);
   bool set(DTCollation &dt1, DTCollation &dt2, uint flags= 0)
   { set(dt1); return aggregate(dt2, flags); }
+  bool merge_charset_and_collation(Sql_used *used,
+                                   const Charset_collation_map_st &map,
+                                   CHARSET_INFO *cs,
+                                   const Lex_extended_collation_st &cl,
+                                   my_repertoire_t repertoire);
+  bool merge_collation(Sql_used *used,
+                       const Charset_collation_map_st &map,
+                       const Lex_extended_collation_st &cl,
+                       my_repertoire_t repertoire,
+                       bool allow_ignorable_with_context_collation);
   const char *derivation_name() const
   {
     switch(derivation)
@@ -3635,13 +3645,13 @@ public:
 class Vers_type_timestamp: public Vers_type_handler
 {
 public:
-  virtual vers_kind_t kind() const
+  vers_kind_t kind() const override
   {
     return VERS_TIMESTAMP;
   }
   bool check_sys_fields(const LEX_CSTRING &table_name,
                         const Column_definition *row_start,
-                        const Column_definition *row_end) const;
+                        const Column_definition *row_end) const override;
 };
 extern Vers_type_timestamp vers_type_timestamp;
 
@@ -3649,13 +3659,13 @@ extern Vers_type_timestamp vers_type_timestamp;
 class Vers_type_trx: public Vers_type_handler
 {
 public:
-  virtual vers_kind_t kind() const
+  vers_kind_t kind() const override
   {
     return VERS_TRX_ID;
   }
   bool check_sys_fields(const LEX_CSTRING &table_name,
                         const Column_definition *row_start,
-                        const Column_definition *row_end) const;
+                        const Column_definition *row_end) const override;
 };
 extern MYSQL_PLUGIN_IMPORT Vers_type_trx vers_type_trx;
 
@@ -3867,6 +3877,16 @@ public:
     const Type_handler *res= type_handler_base();
     return res ? res : this;
   }
+  /*
+    In 10.11.8 the semantics of this method has changed to the opposite.
+    It used to be called with the old data type handler as "this".
+    Now it's called with the new data type hander as "this".
+    To avoid problems during merges, the method name was renamed.
+  */
+  virtual const Type_handler *type_handler_for_implicit_upgrade() const
+  {
+    return this;
+  }
   virtual const Type_handler *type_handler_for_comparison() const= 0;
   virtual const Type_handler *type_handler_for_native_format() const
   {
@@ -4012,9 +4032,13 @@ public:
   virtual bool validate_implicit_default_value(THD *thd,
                                                const Column_definition &def)
                                                const;
-  // Automatic upgrade, e.g. for ALTER TABLE t1 FORCE
-  virtual void Column_definition_implicit_upgrade(Column_definition *c) const
-  { }
+  /*
+    Automatic upgrade, e.g. for REPAIR or ALTER TABLE t1 FORCE
+    - from the data type specified in old->type_handler()
+    - to the data type specified in "this"
+  */
+  virtual void Column_definition_implicit_upgrade_to_this(
+                                                  Column_definition *old) const;
   // Validate CHECK constraint after the parser
   virtual bool Column_definition_validate_check_constraint(THD *thd,
                                                            Column_definition *c)
@@ -5831,6 +5855,38 @@ public:
 };
 
 
+/*
+  The expression of this type reports itself as signed,
+  however it's known not to return negative values.
+  Items of this data type count only digits in Item::max_length,
+  without adding +1 for the sign. This allows expressions
+  of this type convert nicely to VARCHAR and DECIMAL.
+  For example, YEAR(now()) is:
+  - VARCHAR(4) in a string context
+  - DECIMAL(4,0) in a decimal context
+  - but INT(5) in an integer context
+*/
+class Type_handler_long_ge0: public Type_handler_long
+{
+public:
+  decimal_digits_t Item_decimal_precision(const Item *item) const override;
+  bool Item_func_signed_fix_length_and_dec(Item_func_signed *item)
+                                           const override;
+  bool Item_func_unsigned_fix_length_and_dec(Item_func_unsigned *item)
+                                             const override;
+  bool Item_func_abs_fix_length_and_dec(Item_func_abs *) const override;
+  bool Item_func_round_fix_length_and_dec(Item_func_round *) const override;
+  bool Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *func) const override;
+  Field *make_table_field_from_def(TABLE_SHARE *share,
+                                   MEM_ROOT *mem_root,
+                                   const LEX_CSTRING *name,
+                                   const Record_addr &addr,
+                                   const Bit_addr &bit,
+                                   const Column_definition_attributes *attr,
+                                   uint32 flags) const override;
+};
+
+
 class Type_handler_ulong: public Type_handler_long
 {
 public:
@@ -6246,7 +6302,8 @@ public:
   const Type_handler *type_handler_for_comparison() const override;
   int stored_field_cmp_to_item(THD *thd, Field *field, Item *item)
                                const override;
-  void Column_definition_implicit_upgrade(Column_definition *c) const override;
+  void Column_definition_implicit_upgrade_to_this(
+                                         Column_definition *old) const override;
   bool Column_definition_fix_attributes(Column_definition *c) const override;
   bool
   Column_definition_attributes_frm_unpack(Column_definition_attributes *attr,
@@ -6570,7 +6627,8 @@ public:
                              const Type_cast_attributes &attr) const override;
   bool validate_implicit_default_value(THD *thd, const Column_definition &def)
                                        const override;
-  void Column_definition_implicit_upgrade(Column_definition *c) const override;
+  void Column_definition_implicit_upgrade_to_this(
+                                         Column_definition *old) const override;
   bool Column_definition_fix_attributes(Column_definition *c) const override;
   bool
   Column_definition_attributes_frm_unpack(Column_definition_attributes *attr,
@@ -6711,7 +6769,8 @@ public:
   {
     return true;
   }
-  void Column_definition_implicit_upgrade(Column_definition *c) const override;
+  void Column_definition_implicit_upgrade_to_this(
+                                         Column_definition *old) const override;
   bool
   Column_definition_attributes_frm_unpack(Column_definition_attributes *attr,
                                           TABLE_SHARE *share,
@@ -7063,6 +7122,7 @@ public:
   {
     return MYSQL_TYPE_VARCHAR;
   }
+  const Type_handler *type_handler_for_implicit_upgrade() const override;
   const Type_handler *type_handler_for_tmp_table(const Item *item) const override
   {
     return varstring_type_handler(item);
@@ -7070,7 +7130,6 @@ public:
   uint32 max_display_length_for_field(const Conv_source &src) const override;
   void show_binlog_type(const Conv_source &src, const Field &dst, String *str)
     const override;
-  void Column_definition_implicit_upgrade(Column_definition *c) const override;
   bool Column_definition_fix_attributes(Column_definition *c) const override;
   bool Column_definition_prepare_stage2(Column_definition *c,
                                         handler *file,
@@ -7670,6 +7729,7 @@ extern MYSQL_PLUGIN_IMPORT Named_type_handler<Type_handler_tiny>        type_han
 extern MYSQL_PLUGIN_IMPORT Named_type_handler<Type_handler_short>       type_handler_sshort;
 extern MYSQL_PLUGIN_IMPORT Named_type_handler<Type_handler_int24>       type_handler_sint24;
 extern MYSQL_PLUGIN_IMPORT Named_type_handler<Type_handler_long>        type_handler_slong;
+extern MYSQL_PLUGIN_IMPORT Named_type_handler<Type_handler_long_ge0>    type_handler_slong_ge0;
 extern MYSQL_PLUGIN_IMPORT Named_type_handler<Type_handler_longlong>    type_handler_slonglong;
 
 extern Named_type_handler<Type_handler_utiny>       type_handler_utiny;

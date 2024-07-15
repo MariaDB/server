@@ -246,3 +246,61 @@ alter table t2 modify b int not null default (nextval(s)), lock=none;
 drop table t2;
 drop table t1;
 drop sequence s;
+
+--echo #
+--echo # MDEV-33348 ALTER TABLE lock waiting stages are indistinguishable
+--echo #
+--disable_view_protocol
+--connect con2, localhost, root
+
+create table t1 (a int);
+insert t1 values (5);
+
+start transaction;
+select * from t1;
+
+--connection default
+--let $con= `select connection_id()`
+send alter table t1 add b int NULL, algorithm= copy, lock= none;
+
+--connection con2
+evalp set @con= $con;
+
+let $wait_condition= select stage = 4 and progress = 100
+                              and state= "Waiting for table metadata lock"
+                       from information_schema.processlist where id = @con;
+--source include/wait_condition.inc
+
+query_vertical select stage, state, info from information_schema.processlist where id = @con;
+
+rollback;
+
+--connection default
+reap;
+
+drop table t1;
+--disconnect con2
+--enable_view_protocol
+
+
+--echo # MDEV-34164 Server crashes when executing OPTIMIZE or REPAIR TABLE for InnoDB temporary tables
+create temporary table t1 (i int) engine=innodb;
+create table t2 (i int) engine=aria ;
+optimize table t1,t2;
+drop table t1,t2;
+
+create temporary table t1 (f int) engine=innodb;
+create temporary table t2 (f int) engine=innodb;
+optimize local table t1,t2;
+drop table t1,t2;
+
+set @save_sql_mode = @@sql_mode;
+set sql_mode= '';
+create temporary table t (c decimal zerofill,c2 int zerofill,c3 char binary,key(c)) engine=innodb;
+insert into t values (1,1,1);
+set session enforce_storage_engine=aria;
+optimize no_write_to_binlog table t;
+drop table t;
+set sql_mode= @save_sql_mode;
+
+--echo # End of 11.2 tests

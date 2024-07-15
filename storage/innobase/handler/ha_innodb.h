@@ -208,6 +208,7 @@ public:
 
 	int rename_table(const char* from, const char* to) override;
 	int check(THD* thd, HA_CHECK_OPT* check_opt) override;
+	int check_for_upgrade(HA_CHECK_OPT* check_opt) override;
 
 	inline void reload_statistics();
 
@@ -521,6 +522,10 @@ protected:
 
         /** If mysql has locked with external_lock() */
         bool                    m_mysql_has_locked;
+
+	/** If true, disable the Rowid Filter. It is disabled when
+	the enigne is intialized for making rnd_pos() calls */
+	bool                    m_disable_rowid_filter;
 };
 
 
@@ -884,15 +889,13 @@ innodb_rec_per_key(
 @param[in]	ib_table	InnoDB dict_table_t
 @param[in,out]	s_templ		InnoDB template structure
 @param[in]	add_v		new virtual columns added along with
-				add index call
-@param[in]	locked		true if innobase_share_mutex is held */
+				add index call */
 void
 innobase_build_v_templ(
 	const TABLE*		table,
 	const dict_table_t*	ib_table,
 	dict_vcol_templ_t*	s_templ,
-	const dict_add_v_col_t*	add_v,
-	bool			locked);
+	const dict_add_v_col_t*	add_v = nullptr);
 
 /** callback used by MySQL server layer to initialized
 the table virtual columns' template
@@ -912,6 +915,12 @@ typedef void (*my_gcolumn_templatecallback_t)(const TABLE*, void*);
 @return	column number relative to dict_table_t::cols[] */
 unsigned
 innodb_col_no(const Field* field)
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
+
+/** Get the maximum integer value of a numeric column.
+@param field   column definition
+@return maximum allowed integer value */
+ulonglong innobase_get_int_col_max_value(const Field *field)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /********************************************************************//**

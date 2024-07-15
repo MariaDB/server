@@ -1,0 +1,12 @@
+#
+# MDEV-33434 MDEV-33434 UBSAN null pointer passed as argument 2, which is declared to never be null in spider_udf_direct_sql_create_conn
+#
+INSTALL SONAME 'ha_spider';
+SET character_set_connection=ucs2;
+SELECT SPIDER_DIRECT_SQL('SELECT SLEEP(1)', '', 'srv "dummy", port "3307"');
+ERROR HY000: Unable to connect to foreign data source: localhost
+Warnings:
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
+#
+# end of test mdev_33434
+#

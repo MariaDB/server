@@ -1053,10 +1053,19 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
         */
         restore_record(table,s->default_values);	// Get empty record
         table->reset_default_fields();
+        /*
+          Reset the sentinel thd->bulk_param in order not to consume the next
+          values of a bound array in case one of statement executed by
+          the trigger's body is INSERT statement.
+        */
+        void *save_bulk_param= thd->bulk_param;
+        thd->bulk_param= nullptr;
+
         if (unlikely(fill_record_n_invoke_before_triggers(thd, table, fields,
                                                           *values, 0,
                                                           TRG_EVENT_INSERT)))
         {
+          thd->bulk_param= save_bulk_param;
           if (values_list.elements != 1 && ! thd->is_error())
           {
             info.records++;
@@ -1070,6 +1079,7 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
 	  error=1;
 	  break;
         }
+        thd->bulk_param= save_bulk_param;
       }
       else
       {
@@ -1099,12 +1109,22 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
           }
         }
         table->reset_default_fields();
+
+        /*
+          Reset the sentinel thd->bulk_param in order not to consume the next
+          values of a bound array in case one of statement executed by
+          the trigger's body is INSERT statement.
+        */
+        void *save_bulk_param= thd->bulk_param;
+        thd->bulk_param= nullptr;
+
         if (unlikely(fill_record_n_invoke_before_triggers(thd, table,
                                                           table->
                                                           field_to_fill(),
                                                           *values, 0,
                                                           TRG_EVENT_INSERT)))
         {
+          thd->bulk_param= save_bulk_param;
           if (values_list.elements != 1 && ! thd->is_error())
 	  {
 	    info.records++;
@@ -1113,6 +1133,7 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
 	  error=1;
 	  break;
         }
+        thd->bulk_param= save_bulk_param;
       }
 
       /*
@@ -1373,10 +1394,10 @@ values_loop_end:
       ::my_ok(thd, info.copied + info.deleted + updated, id, buff);
   }
   thd->abort_on_warning= 0;
-  if (thd->lex->current_select->first_cond_optimization)
+  if (!thd->lex->current_select->leaf_tables_saved)
   {
     thd->lex->current_select->save_leaf_tables(thd);
-    thd->lex->current_select->first_cond_optimization= 0;
+    thd->lex->current_select->leaf_tables_saved= true;
   }
 
   my_free(readbuff);
@@ -1449,7 +1470,7 @@ static bool check_view_insertability(THD *thd, TABLE_LIST *view,
 		   *trans_end= trans_start + num;
   Field_translator *trans;
   uint used_fields_buff_size= bitmap_buffer_size(table->s->fields);
-  uint32 *used_fields_buff= (uint32*)thd->alloc(used_fields_buff_size);
+  my_bitmap_map *used_fields_buff= (my_bitmap_map*)thd->alloc(used_fields_buff_size);
   MY_BITMAP used_fields;
   enum_column_usage saved_column_usage= thd->column_usage;
   List_iterator_fast<Item> it(fields);
@@ -1948,14 +1969,31 @@ int write_record(THD *thd, TABLE *table, COPY_INFO *info, select_result *sink)
 	was used.  This ensures that we don't get a problem when the
 	whole range of the key has been used.
       */
-      if (info->handle_duplicates == DUP_REPLACE && table->next_number_field &&
+      if (info->handle_duplicates == DUP_REPLACE &&
           key_nr == table->s->next_number_index && insert_id_for_cur_row > 0)
 	goto err;
-      if (table->file->ha_table_flags() & HA_DUPLICATE_POS)
+      if (table->file->has_dup_ref())
       {
+        /*
+          If engine doesn't support HA_DUPLICATE_POS, the handler may init to
+          INDEX, but dup_ref could also be set by lookup_handled (and then,
+          lookup_errkey is set, f.ex. long unique duplicate).
+
+          In such case, handler would stay uninitialized, so do it here.
+         */
+        bool init_lookup_handler= table->file->lookup_errkey != (uint)-1 &&
+                                  table->file->inited == handler::NONE;
+        if (init_lookup_handler && table->file->ha_rnd_init_with_error(false))
+          goto err;
+
         DBUG_ASSERT(table->file->inited == handler::RND);
-	if (table->file->ha_rnd_pos(table->record[1],table->file->dup_ref))
-	  goto err;
+	int rnd_pos_err= table->file->ha_rnd_pos(table->record[1],
+                                                 table->file->dup_ref);
+
+        if (init_lookup_handler)
+          table->file->ha_rnd_end();
+        if (rnd_pos_err)
+          goto err;
       }
       else
       {
@@ -2352,7 +2390,7 @@ public:
       forced_insert_id(0), query(query_arg), time_zone(0),
       user(0), host(0), ip(0)
     {}
-  ~delayed_row()
+  ~delayed_row() override
   {
     my_free(query.str);
     my_free(record);
@@ -2398,7 +2436,7 @@ public:
     passed from connection thread to the handler thread.
   */
   MDL_request grl_protection;
-  Delayed_insert(SELECT_LEX *current_select)
+  Delayed_insert(LEX *lex)
     :locks_in_memory(0), thd(next_thread_id()),
      table(0),tables_in_use(0), stacked_inserts(0),
      status(0), retry(0), handler_thread_initialized(FALSE), group_count(0)
@@ -2411,8 +2449,9 @@ public:
     strmake_buf(thd.security_ctx->priv_user, thd.security_ctx->user);
     thd.current_tablenr=0;
     thd.set_command(COM_DELAYED_INSERT);
-    thd.lex->current_select= current_select;
-    thd.lex->sql_command= SQLCOM_INSERT;        // For innodb::store_lock()
+    thd.lex->current_select= lex->current_select;
+    thd.lex->sql_command= lex->sql_command;        // For innodb::store_lock()
+    thd.lex->duplicates= lex->duplicates;
     /*
       Prevent changes to global.lock_wait_timeout from affecting
       delayed insert threads as any timeouts in delayed inserts
@@ -2435,7 +2474,7 @@ public:
                                           TL_WRITE_LOW_PRIORITY : TL_WRITE;
     DBUG_VOID_RETURN;
   }
-  ~Delayed_insert()
+  ~Delayed_insert() override
   {
     /* The following is not really needed, but just for safety */
     delayed_row *row;
@@ -2588,7 +2627,7 @@ bool delayed_get_table(THD *thd, MDL_request *grl_protection_request,
     */
     if (! (di= find_handler(thd, table_list)))
     {
-      if (!(di= new Delayed_insert(thd->lex->current_select)))
+      if (!(di= new Delayed_insert(thd->lex)))
         goto end_create;
 
       /*
@@ -2889,6 +2928,8 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
   copy->def_read_set.bitmap= (my_bitmap_map*) bitmap;
   copy->def_write_set.bitmap= ((my_bitmap_map*)
                                (bitmap + share->column_bitmap_size));
+  create_last_bit_mask(&copy->def_read_set);
+  create_last_bit_mask(&copy->def_write_set);
   bitmaps_used= 2;
   if (share->default_fields || share->default_expressions)
   {
@@ -3114,13 +3155,13 @@ void kill_delayed_threads(void)
 class Delayed_prelocking_strategy : public Prelocking_strategy
 {
 public:
-  virtual bool handle_routine(THD *thd, Query_tables_list *prelocking_ctx,
+  bool handle_routine(THD *thd, Query_tables_list *prelocking_ctx,
                               Sroutine_hash_entry *rt, sp_head *sp,
-                              bool *need_prelocking);
-  virtual bool handle_table(THD *thd, Query_tables_list *prelocking_ctx,
-                            TABLE_LIST *table_list, bool *need_prelocking);
-  virtual bool handle_view(THD *thd, Query_tables_list *prelocking_ctx,
-                           TABLE_LIST *table_list, bool *need_prelocking);
+                              bool *need_prelocking) override;
+  bool handle_table(THD *thd, Query_tables_list *prelocking_ctx,
+                            TABLE_LIST *table_list, bool *need_prelocking) override;
+  bool handle_view(THD *thd, Query_tables_list *prelocking_ctx,
+                           TABLE_LIST *table_list, bool *need_prelocking) override;
 };
 
 

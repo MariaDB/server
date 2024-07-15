@@ -1268,6 +1268,17 @@ public:
   bool is_correlated:1;
   bool first_natural_join_processing:1;
   bool first_cond_optimization:1;
+  /**
+    The purpose of this flag is to run initialization phase for rownum
+    only once. This flag is set on at st_select_lex::init_query and reset to
+    the value false after the method optimize_rownum() has been called
+    from the method JOIN::optimize_inner.
+  */
+  bool first_rownum_optimization:1;
+  /**
+    Flag to guard against double initialization of leaf tables list
+  */
+  bool leaf_tables_saved:1;
   /* do not wrap view fields with Item_ref */
   bool no_wrap_view_item:1;
   /* exclude this select from check of unique_table() */
@@ -1437,7 +1448,7 @@ public:
   bool add_ftfunc_to_list(THD *thd, Item_func_match *func);
   bool add_order_to_list(THD *thd, Item *item, bool asc);
   bool add_gorder_to_list(THD *thd, Item *item, bool asc);
-  TABLE_LIST* add_table_to_list(THD *thd, const Table_ident *table,
+  TABLE_LIST* add_table_to_list(THD *thd, Table_ident *table,
                                 const LEX_CSTRING *alias,
                                 ulong table_options,
                                 thr_lock_type flags= TL_UNLOCK,
@@ -3323,7 +3334,7 @@ public:
   Table_type table_type;                        /* Used for SHOW CREATE */
   List<Key_part_spec> ref_list;
   List<LEX_USER>      users_list;
-  List<Item>          *insert_list,field_list,value_list,update_list;
+  List<Item>          *insert_list= nullptr,field_list,value_list,update_list;
   List<List_item>     many_values;
   List<set_var_base>  var_list;
   List<set_var_base>  stmt_var_list; //SET_STATEMENT values
@@ -3685,6 +3696,15 @@ public:
     return (context_analysis_only & CONTEXT_ANALYSIS_ONLY_VIEW);
   }
 
+  /**
+    Mark all queries in this lex structure as uncacheable for the cause given
+
+    @param cause    the reason queries are to be marked as uncacheable
+
+    Note, any cause is sufficient for st_select_lex_unit::can_be_merged() to
+    disallow query merges.
+  */
+
   inline void uncacheable(uint8 cause)
   {
     safe_to_cache_query= 0;
@@ -3907,7 +3927,8 @@ public:
   int case_stmt_action_then();
   bool setup_select_in_parentheses();
   bool set_names(const char *pos,
-                 const Lex_exact_charset_opt_extended_collate &cs,
+                 CHARSET_INFO *cs,
+                 const Lex_extended_collation_st &coll,
                  bool no_lookahead);
   bool set_trigger_new_row(const LEX_CSTRING *name, Item *val,
                            const LEX_CSTRING &expr_str);

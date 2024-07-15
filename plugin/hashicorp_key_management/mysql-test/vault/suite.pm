@@ -1,8 +1,12 @@
 package My::Suite::Vault;
+use My::Platform;
 
 @ISA = qw(My::Suite);
 
 use strict;
+
+return "Hashicorp Key Management plugin tests are currently not available on Windows"
+  if IS_WINDOWS;
 
 return "You need to set the value of the VAULT_ADDR variable"
   unless $ENV{VAULT_ADDR};

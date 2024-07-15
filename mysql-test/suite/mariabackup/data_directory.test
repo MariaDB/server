@@ -7,7 +7,7 @@ INSERT INTO t VALUES(1);
 echo # xtrabackup backup;
 let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
 --disable_result_log
-exec  $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir;
+exec  $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --parallel=10 --target-dir=$targetdir;
 --enable_result_log
 --source include/shutdown_mysqld.inc
 echo # xtrabackup prepare;
@@ -21,6 +21,7 @@ rmdir $table_data_dir;
 SELECT * FROM t;
 DROP TABLE t;
 rmdir $targetdir;
+rmdir $table_data_dir;
 
 --echo #
 --echo # MDEV-18200 MariaBackup full backup failed with InnoDB: Failing assertion: success
@@ -32,8 +33,8 @@ chmod 0000 $DATADIR/ibdata1;
 exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir;
 --enable_result_log
 chmod 0755 $DATADIR/ibdata1;
-rmdir $table_data_dir;
 rmdir $targetdir;
+
 --echo #
 --echo # End of 10.4 tests
 --echo #

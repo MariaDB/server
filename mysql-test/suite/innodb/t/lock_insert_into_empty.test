@@ -51,6 +51,7 @@ CREATE TABLE t1 (k INT PRIMARY KEY) ENGINE=InnoDB;
 INSERT INTO t1 SET k=1;
 START TRANSACTION;
 INSERT INTO t1 SET k=2;
+SELECT count(*) > 0 FROM mysql.innodb_index_stats lock in share mode;
 
 --connect (con1,localhost,root,,test)
 SET innodb_lock_wait_timeout=0;
@@ -59,5 +60,6 @@ CREATE TABLE t2 (pk INT AUTO_INCREMENT PRIMARY KEY) ENGINE=InnoDB
 AS SELECT k FROM t1;
 --disconnect con1
 --connection default
-
+SET innodb_lock_wait_timeout=default;
 DROP TABLE t1;
+DROP TABLE IF EXISTS t2;

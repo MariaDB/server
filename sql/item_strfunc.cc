@@ -913,7 +913,7 @@ bool Item_func_des_encrypt::fix_length_and_dec(THD *thd)
 String *Item_func_des_encrypt::val_str(String *str)
 {
   DBUG_ASSERT(fixed());
-#if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
+#if defined(HAVE_des) && !defined(EMBEDDED_LIBRARY)
   uint code= ER_WRONG_PARAMETERS_TO_PROCEDURE;
   DES_cblock ivec;
   struct st_des_keyblock keyblock;
@@ -1002,8 +1002,8 @@ error:
   THD *thd= current_thd;
   push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                       ER_FEATURE_DISABLED, ER_THD(thd, ER_FEATURE_DISABLED),
-                      "des_encrypt", "--with-ssl");
-#endif /* defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY) */
+                      "des_encrypt", "openssl des cipher (HAVE_des)");
+#endif /* defined(HAVE_des) && !defined(EMBEDDED_LIBRARY) */
   null_value=1;
   return 0;
 }
@@ -1024,7 +1024,7 @@ bool Item_func_des_decrypt::fix_length_and_dec(THD *thd)
 String *Item_func_des_decrypt::val_str(String *str)
 {
   DBUG_ASSERT(fixed());
-#if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
+#if defined(HAVE_des) && !defined(EMBEDDED_LIBRARY)
   uint code= ER_WRONG_PARAMETERS_TO_PROCEDURE;
   DES_cblock ivec;
   struct st_des_keyblock keyblock;
@@ -1099,9 +1099,9 @@ wrong_key:
     THD *thd= current_thd;
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_FEATURE_DISABLED, ER_THD(thd, ER_FEATURE_DISABLED),
-                        "des_decrypt", "--with-ssl");
+                        "des_decrypt", "openssl des cipher (HAVE_des)");
   }
-#endif /* defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY) */
+#endif /* defined(HAVE_des) && !defined(EMBEDDED_LIBRARY) */
   null_value=1;
   return 0;
 }
@@ -1545,6 +1545,12 @@ bool Item_func_sformat::fix_length_and_dec(THD *thd)
 namespace fmt {
   template <> struct formatter<String>: formatter<string_view> {
     template <typename FormatContext>
+    auto format(String c, FormatContext& ctx) const -> decltype(ctx.out()) {
+      string_view name = { c.ptr(), c.length() };
+      return formatter<string_view>::format(name, ctx);
+    };
+    /* needed below function for libfmt-7.1.3 compatibility, (not 9.1.0+) */
+    template <typename FormatContext>
     auto format(String c, FormatContext& ctx) -> decltype(ctx.out()) {
       string_view name = { c.ptr(), c.length() };
       return formatter<string_view>::format(name, ctx);
@@ -1662,6 +1668,7 @@ String *Item_func_sformat::val_str(String *res)
 
 bool Item_func_random_bytes::fix_length_and_dec(THD *thd)
 {
+  set_maybe_null();
   used_tables_cache|= RAND_TABLE_BIT;
   if (args[0]->can_eval_in_optimize())
   {
@@ -1803,15 +1810,16 @@ String *Item_func_regexp_replace::val_str_internal(String *str,
   LEX_CSTRING src, rpl;
   size_t startoffset= 0;
 
-  if ((null_value=
-        (!(source= args[0]->val_str(&tmp0)) ||
-         !(replace= args[2]->val_str_null_to_empty(&tmp2, null_to_empty)) ||
-         re.recompile(args[1]))))
-    return (String *) 0;
-
+  source= args[0]->val_str(&tmp0);
+  if (!source)
+    goto err;
+  replace= args[2]->val_str_null_to_empty(&tmp2, null_to_empty);
+  if (!replace || re.recompile(args[1]))
+    goto err;
   if (!(source= re.convert_if_needed(source, &re.subject_converter)) ||
       !(replace= re.convert_if_needed(replace, &re.replace_converter)))
     goto err;
+  null_value= false;
 
   source->get_value(&src);
   replace->get_value(&rpl);
@@ -1857,7 +1865,7 @@ String *Item_func_regexp_replace::val_str_internal(String *str,
 
 err:
   null_value= true;
-  return (String *) 0;
+  return nullptr;
 }
 
 
@@ -1993,13 +2001,21 @@ bool Item_func_insert::fix_length_and_dec(THD *thd)
 String *Item_str_conv::val_str(String *str)
 {
   DBUG_ASSERT(fixed());
-  String *res;
-  size_t alloced_length, len;
+  String *res= args[0]->val_str(&tmp_value);
 
-  if ((null_value= (!(res= args[0]->val_str(&tmp_value)) ||
-                    str->alloc((alloced_length= res->length() * multiply)))))
-    return 0;
+  if (!res)
+  {
+  err:
+    null_value= true;
+    return nullptr;
+  }
 
+  size_t alloced_length= res->length() * multiply, len;
+
+  if (str->alloc((alloced_length)))
+    goto err;
+
+  null_value= false;
   len= converter(collation.collation, (char*) res->ptr(), res->length(),
                                       (char*) str->ptr(), alloced_length);
   DBUG_ASSERT(len <= alloced_length);
@@ -4027,22 +4043,45 @@ String *Item_func_set_collation::val_str(String *str)
   str=args[0]->val_str(str);
   if ((null_value=args[0]->null_value))
     return 0;
+  /*
+    Let SCS be the character set of the source - args[0].
+    Let TCS be the character set of the target - i.e. the character set
+    of the collation specified in the COLLATE clause.
+
+    It's OK to return SQL NULL if SCS is not equal to TCS.
+    This is possible on the explicit NULL or expressions derived from
+    the explicit NULL:
+      SELECT NULL COLLATE utf8mb4_general_ci;
+      SELECT COALESCE(NULL) COLLATE utf8mb4_general_ci;
+
+    But for a non-NULL result SCS and TCS must be compatible:
+    1. Either SCS==TCS
+    2. Or SCS can be can be reinterpeted to TCS.
+       This scenario is possible when args[0] is numeric and TCS->mbmaxlen==1.
+
+    If SCS and TCS are not compatible here, then something went wrong during
+    fix_fields(), e.g. an Item_func_conv_charset was not added two wrap args[0].
+  */
+  DBUG_ASSERT(my_charset_same(args[0]->collation.collation,
+                              collation.collation) ||
+              (args[0]->collation.repertoire == MY_REPERTOIRE_ASCII &&
+               !(collation.collation->state & MY_CS_NONASCII)));
   str->set_charset(collation.collation);
   return str;
 }
 
 bool Item_func_set_collation::fix_length_and_dec(THD *thd)
 {
-  if (agg_arg_charsets_for_string_result(collation, args, 1))
+  if (agg_arg_charsets_for_string_result(collation, args, 1) ||
+      collation.merge_collation(thd, thd->variables.character_set_collations,
+                                m_set_collation,
+                                args[0]->collation.repertoire,
+                                with_param() &&
+                                thd->lex->is_ps_or_view_context_analysis()))
     return true;
-  Lex_exact_charset_opt_extended_collate cl(collation.collation, true);
-  if (cl.merge_collation_override(thd,
-                                  thd->variables.character_set_collations,
-                                  m_set_collation))
-    return true;
-  collation.set(cl.collation().charset_info(), DERIVATION_EXPLICIT,
-                args[0]->collation.repertoire);
-  max_length= args[0]->max_length;
+  ulonglong max_char_length= (ulonglong) args[0]->max_char_length();
+  fix_char_length_ulonglong(max_char_length);
+
   return FALSE;
 }
 
@@ -4212,9 +4251,11 @@ String *Item_func_hex::val_str_ascii_from_val_real(String *str)
     return 0;
   if ((val <= (double) LONGLONG_MIN) ||
       (val >= (double) (ulonglong) ULONGLONG_MAX))
-    dec= ~(longlong) 0;
+    dec= ULONGLONG_MAX;
+  else if (val < 0)
+    dec= (ulonglong) (longlong) (val - 0.5);
   else
-    dec= (ulonglong) (val + (val > 0 ? 0.5 : -0.5));
+    dec= (ulonglong) (val + 0.5);
   return str->set_hex(dec) ? make_empty_result(str) : str;
 }
 
@@ -5126,6 +5167,11 @@ void Item_func_dyncol_create::print_arguments(String *str,
       {
         str->append(STRING_WITH_LEN(" charset "));
         str->append(defs[i].cs->cs_name);
+        if (Charset(defs[i].cs).can_have_collate_clause())
+        {
+          str->append(STRING_WITH_LEN(" collate "));
+          str->append(defs[i].cs->coll_name);
+        }
         str->append(' ');
       }
       break;
@@ -5903,7 +5949,7 @@ static NATSORT_ERR to_natsort_key(const String *in, String *out,
 {
   size_t n_digits= 0;
   size_t n_lead_zeros= 0;
-  size_t num_start;
+  size_t num_start= 0;
   size_t reserve_length= std::min(
       natsort_max_key_size(in->length()) + MAX_BIGINT_WIDTH + 2, max_key_size);
 

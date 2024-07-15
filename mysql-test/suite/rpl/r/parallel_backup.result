@@ -125,7 +125,7 @@ include/save_master_gtid.inc
 connection slave;
 SET @sav_innodb_lock_wait_timeout  = @@global.innodb_lock_wait_timeout;
 SET @sav_slave_transaction_retries = @@global.slave_transaction_retries;
-SET @@global.innodb_lock_wait_timeout =1;
+SET @@global.innodb_lock_wait_timeout =5;
 SET @@global.slave_transaction_retries=0;
 include/start_slave.inc
 connection aux_slave;
@@ -168,7 +168,7 @@ include/save_master_gtid.inc
 connection slave;
 SET @sav_innodb_lock_wait_timeout  = @@global.innodb_lock_wait_timeout;
 SET @sav_slave_transaction_retries = @@global.slave_transaction_retries;
-SET @@global.innodb_lock_wait_timeout =1;
+SET @@global.innodb_lock_wait_timeout =5;
 SET @@global.slave_transaction_retries=0;
 include/start_slave.inc
 connection aux_slave;

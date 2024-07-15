@@ -1,6 +1,6 @@
 include/master-slave.inc
 [connection master]
-CALL mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
+SET GLOBAL LOG_WARNINGS=4;
 create table t1(n int);
 insert into t1 values(get_lock("lock",2));
 disconnect master;
@@ -35,4 +35,5 @@ NULL
 connection master1;
 drop table t1;
 connection slave;
+connection default;
 include/rpl_end.inc

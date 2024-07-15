@@ -1,6 +1,7 @@
 #set(PLUGIN_COLUMNSTORE "NO" CACHE STRING "Enable ColumnStore engine")
 
-if("NO" STREQUAL "${PLUGIN_COLUMNSTORE}")
+if("NO" STREQUAL "${PLUGIN_COLUMNSTORE}" OR
+   (NOT EXISTS ${CMAKE_CURRENT_LIST_DIR}/columnstore/CMakeLists.txt))
   return()
 endif()
 
@@ -8,6 +9,11 @@ add_definitions(-DBOOST_BIND_GLOBAL_PLACEHOLDERS)
 IF(NOT PLUGIN_PERFSCHEMA STREQUAL NO)
   add_definitions(-DHAVE_PSI_INTERFACE=)
 ENDIF()
+
+# let's temporarily disable the warning, until ColumnStore is fixed
+MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-error=suggest-override")
+MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-suggest-override")
+SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -U_GLIBCXX_DEBUG -U_GLIBCXX_ASSERTIONS")
 
 # new gcc is quite buggy re. spurious warnings. let's shut it up
 IF(CMAKE_COMPILER_IS_GNUCC AND CMAKE_C_COMPILER_VERSION VERSION_GREATER "12.0.0")
@@ -20,6 +26,10 @@ IF(CMAKE_COMPILER_IS_GNUCC AND CMAKE_C_COMPILER_VERSION VERSION_GREATER "12.0.0"
   MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-error=dangling-pointer")
 ENDIF()
 MY_CHECK_AND_SET_COMPILER_FLAG("-fno-strict-aliasing")
+
+# let's temporarily disable the warning, until ColumnStore is fixed
+MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-error=calloc-transposed-args")
+
 SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--as-needed")
 
 # this does everything, gets the var from the correct scope, appends new

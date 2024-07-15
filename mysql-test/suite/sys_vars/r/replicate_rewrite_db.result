@@ -85,15 +85,13 @@ SELECT * FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES WHERE VARIABLE_NAME='replicate
 VARIABLE_NAME	VARIABLE_VALUE
 REPLICATE_REWRITE_DB	db1->db2,db3->db4
 # Check restart with appending the value
-# restart: --replicate_rewrite_db=X->Y
+# restart: --replicate_rewrite_db='X->Y'
 SELECT @@GLOBAL.replicate_rewrite_db;
 @@GLOBAL.replicate_rewrite_db
-test->rewrite,mysqltest1->test,a->b,X->Y
+test->rewrite,mysqltest1->test,a->b,'X->Y'
 # Check restart with wrong value on CLI
 [ERROR] Bad syntax in replicate-rewrite-db.Expected syntax is FROM->TO.
-# restart: 
+# restart
 SELECT @@GLOBAL.replicate_rewrite_db;
 @@GLOBAL.replicate_rewrite_db
 test->rewrite,mysqltest1->test,a->b
-# Cleanup.
-SET @@GLOBAL.replicate_rewrite_db = @save_replicate_rewrite_db;

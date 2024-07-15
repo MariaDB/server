@@ -271,27 +271,6 @@ fts_index_fetch_nodes(
 			word,		/*!< in: the word to fetch */
 	fts_fetch_t*	fetch)		/*!< in: fetch callback.*/
 	MY_ATTRIBUTE((nonnull));
-/******************************************************************//**
-Compare two fts_trx_table_t instances, we actually compare the
-table id's here.
-@return < 0 if n1 < n2, 0 if n1 == n2, > 0 if n1 > n2 */
-UNIV_INLINE
-int
-fts_trx_table_cmp(
-/*==============*/
-	const void*	v1,		/*!< in: id1 */
-	const void*	v2)		/*!< in: id2 */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
-/******************************************************************//**
-Compare a table id with a trx_table_t table id.
-@return < 0 if n1 < n2, 0 if n1 == n2, > 0 if n1 > n2 */
-UNIV_INLINE
-int
-fts_trx_table_id_cmp(
-/*=================*/
-	const void*	p1,		/*!< in: id1 */
-	const void*	p2)		/*!< in: id2 */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
 #define fts_sql_commit(trx) trx_commit_for_mysql(trx)
 #define fts_sql_rollback(trx) (trx)->rollback()
 /******************************************************************//**

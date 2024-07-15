@@ -57,11 +57,7 @@ public:
 		/**
 		Gets the number of used bytes in a block.
 		@return	number of bytes used */
-		ulint used() const
-			MY_ATTRIBUTE((warn_unused_result))
-		{
-			return(static_cast<ulint>(m_used & ~DYN_BLOCK_FULL_FLAG));
-		}
+		uint32_t used() const { return m_used; }
 
 		/**
 		Gets pointer to the start of data.
@@ -153,8 +149,7 @@ public:
 		/** Storage */
 		byte		m_data[MAX_DATA_SIZE];
 
-		/** number of data bytes used in this block;
-		DYN_BLOCK_FULL_FLAG is set when the block becomes full */
+		/** number of data bytes used in this block */
 		uint32_t	m_used;
 
 		friend class mtr_buf_t;

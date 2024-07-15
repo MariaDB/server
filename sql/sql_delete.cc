@@ -266,7 +266,10 @@ int update_portion_of_time(THD *thd, TABLE *table,
     res= src->save_in_field(table->field[dst_fieldno], true);
 
   if (likely(!res))
+  {
+    table->period_prepare_autoinc();
     res= table->update_generated_fields();
+  }
 
   if(likely(!res))
     res= table->file->ha_update_row(table->record[1], table->record[0]);
@@ -532,6 +535,12 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
 
     if (thd->binlog_for_noop_dml(transactional_table))
       DBUG_RETURN(1);
+
+    if (!thd->lex->current_select->leaf_tables_saved)
+    {
+      thd->lex->current_select->save_leaf_tables(thd);
+      thd->lex->current_select->leaf_tables_saved= true;
+    }
 
     my_ok(thd, 0);
     DBUG_RETURN(0);				// Nothing to delete
@@ -905,10 +914,10 @@ cleanup:
     query_cache_invalidate3(thd, table_list, 1);
   }
 
-  if (thd->lex->current_select->first_cond_optimization)
+  if (!thd->lex->current_select->leaf_tables_saved)
   {
     thd->lex->current_select->save_leaf_tables(thd);
-    thd->lex->current_select->first_cond_optimization= 0;
+    thd->lex->current_select->leaf_tables_saved= true;
   }
 
   delete deltempfile;

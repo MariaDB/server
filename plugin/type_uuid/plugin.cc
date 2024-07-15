@@ -99,6 +99,14 @@ const Type_handler *Type_collection_uuid::find_in_array(const Type_handler *a,
   return NULL;
 }
 
+
+const Type_handler *Type_collection_uuid::type_handler_for_implicit_upgrade(
+                                              const Type_handler *from) const
+{
+  return Type_handler_uuid_new::singleton();
+}
+
+
 /*************************************************************************/
 
 class Create_func_uuid : public Create_func_arg0
@@ -108,7 +116,7 @@ public:
   {
     DBUG_ENTER("Create_func_uuid::create");
     thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
-    thd->lex->safe_to_cache_query= 0;
+    thd->lex->uncacheable(UNCACHEABLE_RAND);
     DBUG_RETURN(new (thd->mem_root) Item_func_uuid(thd));
   }
   static Create_func_uuid s_singleton;
@@ -126,7 +134,7 @@ public:
   {
     DBUG_ENTER("Create_func_sys_guid::create");
     thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
-    thd->lex->safe_to_cache_query= 0;
+    thd->lex->uncacheable(UNCACHEABLE_RAND);
     DBUG_RETURN(new (thd->mem_root) Item_func_sys_guid(thd));
   }
   static Create_func_sys_guid s_singleton;

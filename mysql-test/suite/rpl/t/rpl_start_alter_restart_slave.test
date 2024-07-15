@@ -73,6 +73,10 @@ create table t3( a int primary key, b int) engine=innodb;
 
 --connection slave
 --source include/sync_with_master_gtid.inc
+--echo # wait for CA_1 waiting itself
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE = 'debug sync point: now';
+--source include/wait_condition.inc
+
 # set debug_sync="now wait_for CA_1_processing";
 connect(extra_slave,127.0.0.1,root,,test,$SLAVE_MYPORT);
 --send stop slave;

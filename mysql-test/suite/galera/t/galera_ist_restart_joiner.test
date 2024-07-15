@@ -37,7 +37,7 @@ UPDATE t1 SET f2 = 'c' WHERE f1 > 2;
 # Write file to make mysql-test-run.pl expect the crash, but don't start it
 --let $_expect_file_name= `select regexp_replace(@@tmpdir, '^.*/','')`
 --let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/$_expect_file_name.expect
---exec echo "wait" > $_expect_file_name
+--write_line wait $_expect_file_name
 
 --let KILL_NODE_PIDFILE = `SELECT @@pid_file`
 

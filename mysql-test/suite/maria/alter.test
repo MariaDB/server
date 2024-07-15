@@ -203,3 +203,31 @@ ALTER TABLE t1 DISABLE KEYS;
 INSERT INTO t1 VALUES (1, 'Nine chars or more');
 ALTER TABLE t1 ENABLE KEYS;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-25923 Memory not freed or Assertion `old_flags == ((my_flags &
+--echo # 0x10000U) ? 1 : 0)' failed in my_realloc upon ALTER on Aria table
+--echo # with GIS column
+--echo #
+
+CREATE TABLE t1 (pk INT PRIMARY KEY, a POINT DEFAULT ST_GEOMFROMTEXT('Point(1 1)')) ENGINE=Aria;
+INSERT INTO t1 (pk) SELECT seq FROM seq_1_to_100;
+SET @old_threads= @@SESSION.aria_repair_threads;
+SET SESSION aria_repair_threads= 2;
+ALTER TABLE t1 ROW_FORMAT=DYNAMIC;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-33562: Assertion `(old_flags & 1) == ((my_flags & 0x10000U) ?
+--echo # 1 : 0)' failed in my_realloc from sort_get_next_record on INSERT
+--echo #
+
+SET @old_mode= @@SESSION.sql_mode;
+SET sql_mode='';
+CREATE TEMPORARY TABLE t (b TEXT, INDEX s(b(300))) ROW_FORMAT=DYNAMIC ENGINE=Aria;
+INSERT INTO t VALUES (REPEAT ('a',10000000));
+CREATE TABLE ti LIKE t;
+INSERT INTO ti SELECT * FROM t;
+DROP TABLE t, ti;
+SET SESSION aria_repair_threads= @old_threads;
+SET SESSION sql_mode= @old_mode;

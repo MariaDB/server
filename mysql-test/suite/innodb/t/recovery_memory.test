@@ -33,7 +33,7 @@ DROP PROCEDURE dorepeat;
 --echo #
 if ($have_debug) {
 SET DEBUG_DBUG="+d,ib_log_checkpoint_avoid_hard";
-let $restart_parameters=--innodb_buffer_pool_size=5242880 --debug_dbug="+d,ibuf_init_corrupt";
+let $restart_parameters=--innodb_buffer_pool_size=5242880 --debug_dbug=+d,hdr_page_corrupt;
 }
 if (!$have_debug) {
 --echo SET DEBUG_DBUG="+d,ib_log_checkpoint_avoid_hard";

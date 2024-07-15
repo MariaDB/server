@@ -17,6 +17,36 @@ include/sync_with_master_gtid.inc
 include/rpl_restart_server.inc [server_number=2 parameters: --debug_dbug="+d,delay_start_handle_manager"]
 include/start_slave.inc
 #
+# MDEV-33799
+# Ensure that when the binary log is used for recovery (as tc log), that
+# the recovery process cannot start the binlog background thread before
+# the mysql handle manager has started.
+connection slave;
+# Add test suppresssions so crash recovery messages don't fail the test
+set session sql_log_bin=0;
+call mtr.add_suppression("mariadbd: Got error '145.*");
+call mtr.add_suppression("Checking table:.*");
+call mtr.add_suppression("mysql.gtid_slave_pos:.*hasn't closed the table properly");
+call mtr.add_suppression("Can't init tc log");
+call mtr.add_suppression("Aborting");
+set session sql_log_bin=1;
+# Create slave-side only table
+create table t2 (a int) engine=innodb;
+# Crash mariadbd when binlogging transaction to corrupt database state
+connection slave1;
+set @@session.debug_dbug="+d,crash_before_writing_xid";
+insert into t2 values (1);
+connection slave;
+connection slave1;
+Got one of the listed errors
+# Restart mariadbd in recovery mode. Note --tc-heuristic-recover
+# forces mysqld to exit with error, so we run mariadbd via CLI
+# MYSQLD_LAST_CMD --debug_dbug="+d,delay_start_handle_manager" --tc-heuristic-recover=COMMIT
+connection server_2;
+connection slave1;
+connection slave;
+include/start_slave.inc
+#
 # Cleanup
 #
 connection master;
@@ -24,4 +54,5 @@ drop table t1;
 include/save_master_gtid.inc
 connection slave;
 include/sync_with_master_gtid.inc
+drop table t2;
 include/rpl_end.inc
