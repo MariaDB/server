@@ -39,6 +39,32 @@
 class JOIN;
 class Item_sum;
 
+/*
+  When processing an OR clause with more than MAX_OR_ELEMENTS_FOR_INDEX_MERGE
+  disjuncts (i.e. OR-parts), do not construct index_merge plans from it.
+
+  Some users have OR clauses with extremely large number of disjuncts, like:
+
+      (key1=1 AND key2=10) OR
+      (key1=2 AND key2=20) OR
+      (key1=3 AND key2=30) OR
+      ...
+
+  When processing this, the optimizer would try to build a lot of potential
+  index_merge plans. Hypothetically this could be useful as the cheapest plan
+  could be to pick a specific index for each disjunct and build:
+
+     index_merge(key1 IN (1,3,8,15...), key2 IN (20, 40, 50 ...))
+
+  In practice this causes combinatorial amount of time to be spent in the range
+  analyzer, and most variants will be discarded when the range optimizer tries
+  to avoid this combinatorial explosion (which may or may not work depending on
+  the form of the WHERE clause).
+  In practice, very long ORs are served well enough by just considering range
+  accesses on individual indexes.
+*/
+const int MAX_OR_ELEMENTS_FOR_INDEX_MERGE=100;
+
 struct KEY_PART {
   uint16           key,part;
   /* See KEY_PART_INFO for meaning of the next two: */
@@ -888,6 +914,9 @@ public:
     to be always FALSE.
   */
   bool remove_false_where_parts;
+
+  /* If TRUE, do not construct index_merge plans */
+  bool disable_index_merge_plans;
 
   /*
     Which functions should give SQL notes for unusable keys.
