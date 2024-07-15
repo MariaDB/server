@@ -1150,15 +1150,22 @@ SPIDER_TRX *spider_get_trx(
   int *error_num
 ) {
   int roop_count = 0, roop_count2;
-  SPIDER_TRX *trx;
+  SPIDER_TRX *trx= NULL;
   SPIDER_SHARE *tmp_share;
   SPIDER_WIDE_HANDLER *tmp_wide_handler;
   pthread_mutex_t *udf_table_mutexes;
   DBUG_ENTER("spider_get_trx");
 
+  if (thd)
+  {
+    if (thd != current_thd)
+      mysql_mutex_lock(&thd->LOCK_thd_data);
+    trx = (SPIDER_TRX*) thd_get_ha_data(thd, spider_hton_ptr);
+    if (thd != current_thd)
+      mysql_mutex_unlock(&thd->LOCK_thd_data);
+  }
   if (
-    !thd ||
-    !(trx = (SPIDER_TRX*) thd_get_ha_data(thd, spider_hton_ptr))
+    !trx
   ) {
     DBUG_PRINT("info",("spider create new trx"));
     if (!(trx = (SPIDER_TRX *)
