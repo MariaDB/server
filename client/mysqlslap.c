@@ -611,8 +611,9 @@ static struct my_option my_long_options[] =
    "engine after a `:', like memory:max_row=2300",
    &default_engine, &default_engine, 0,
     GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"host", 'h', "Connect to host.", &host, &host, 0, GET_STR,
-    REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"host", 'h', "Connect to host. Defaults in the following order: "
+  "$MARIADB_HOST, and then localhost",
+   &host, &host, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"init-command", 0,
    "SQL Command to execute when connecting to MariaDB server. Will "
    "automatically be re-executed when reconnecting.",
@@ -1185,6 +1186,9 @@ get_options(int *argc,char ***argv)
     my_end_arg= MY_CHECK_ERROR | MY_GIVE_INFO;
   if (debug_check_flag)
     my_end_arg= MY_CHECK_ERROR;
+
+  if (host == NULL)
+    host= getenv("MARIADB_HOST");
 
   /*
     If something is created and --no-drop is not specified, we drop the
