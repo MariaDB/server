@@ -713,6 +713,9 @@ public:
   */
   bool remove_false_where_parts;
 
+  /* If TRUE, do not construct index_merge plans */
+  bool disable_index_merge_plans;
+
   /*
     Which functions should give SQL notes for unusable keys.
   */
