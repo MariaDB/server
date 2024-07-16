@@ -1708,9 +1708,14 @@ int Old_rows_log_event::do_apply_event(rpl_group_info *rgi)
       already. So there should be no need to rollback the transaction.
     */
     DBUG_ASSERT(! thd->transaction_rollback_request);
-    if (unlikely((error= (binlog_error ?
-                          trans_rollback_stmt(thd) :
-                          trans_commit_stmt(thd)))))
+    if (binlog_error)
+    {
+      trans_rollback_stmt(thd);
+      error= 0;
+    }
+    else
+      error= trans_commit_stmt(thd);
+    if (unlikely(error))
       rli->report(ERROR_LEVEL, error, NULL,
                   "Error in %s event: commit of row events failed, "
                   "table `%s`.`%s`",

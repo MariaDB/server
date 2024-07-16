@@ -6926,7 +6926,10 @@ static int wsrep_after_row(THD *thd)
       call for more information.
     */
     if (!thd->in_sub_stmt)
-      trans_rollback_stmt(thd) || trans_rollback(thd);
+    {
+      trans_rollback_stmt(thd);
+      trans_rollback(thd);
+    }
     my_message(ER_ERROR_DURING_COMMIT, "wsrep_max_ws_rows exceeded", MYF(0));
     DBUG_RETURN(ER_ERROR_DURING_COMMIT);
   }

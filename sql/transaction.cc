@@ -512,11 +512,8 @@ bool trans_commit_stmt(THD *thd)
   Rollback the single statement transaction.
 
   @param thd     Current thread
-
-  @retval FALSE  Success
-  @retval TRUE   Failure
 */
-bool trans_rollback_stmt(THD *thd)
+void trans_rollback_stmt(THD *thd)
 {
   DBUG_ENTER("trans_rollback_stmt");
 
@@ -547,7 +544,7 @@ bool trans_rollback_stmt(THD *thd)
 
   thd->transaction->stmt.reset();
 
-  DBUG_RETURN(FALSE);
+  DBUG_VOID_RETURN;
 }
 
 /* Find a named savepoint in the current transaction. */

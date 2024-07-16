@@ -381,7 +381,8 @@ int Wsrep_high_priority_service::rollback(const wsrep::ws_handle& ws_handle,
      assert(ws_meta == wsrep::ws_meta());
      assert(ws_handle == wsrep::ws_handle());
   }
-  int ret= (trans_rollback_stmt(m_thd) || trans_rollback(m_thd));
+  trans_rollback_stmt(m_thd);
+  int ret= trans_rollback(m_thd);
 
   WSREP_DEBUG("::rollback() thread: %lu, client_state %s "
               "client_mode %s trans_state %s killed %d",

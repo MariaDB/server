@@ -1308,7 +1308,8 @@ send_result_message:
         Unlikely, but transaction rollback was requested by one of storage
         engines (e.g. due to deadlock). Perform it.
       */
-      if (trans_rollback_stmt(thd) || trans_rollback_implicit(thd))
+      trans_rollback_stmt(thd);
+      if (trans_rollback_implicit(thd))
         goto err;
     }
     else

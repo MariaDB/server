@@ -33,7 +33,7 @@ bool trans_rollback(THD *thd);
 bool trans_rollback_implicit(THD *thd);
 
 bool trans_commit_stmt(THD *thd);
-bool trans_rollback_stmt(THD *thd);
+void trans_rollback_stmt(THD *thd);
 
 bool trans_savepoint(THD *thd, LEX_CSTRING name);
 bool trans_rollback_to_savepoint(THD *thd, LEX_CSTRING name);

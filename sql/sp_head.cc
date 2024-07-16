@@ -2412,7 +2412,10 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
     if (!thd->in_sub_stmt)
     {
       thd->get_stmt_da()->set_overwrite_status(true);
-      thd->is_error() ? trans_rollback_stmt(thd) : trans_commit_stmt(thd);
+      if (thd->is_error())
+        trans_rollback_stmt(thd);
+      else
+        trans_commit_stmt(thd);
       thd->get_stmt_da()->set_overwrite_status(false);
     }
 
@@ -3576,7 +3579,10 @@ sp_lex_keeper::reset_lex_and_exec_core(THD *thd, uint *nextp,
     if (! thd->in_sub_stmt)
     {
       thd->get_stmt_da()->set_overwrite_status(true);
-      thd->is_error() ? trans_rollback_stmt(thd) : trans_commit_stmt(thd);
+      if (thd->is_error())
+        trans_rollback_stmt(thd);
+      else
+        trans_commit_stmt(thd);
       thd->get_stmt_da()->set_overwrite_status(false);
     }
     close_thread_tables(thd);

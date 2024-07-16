@@ -1076,7 +1076,10 @@ long long spider_copy_tables_body(
 
   if (table_list->table)
   {
-    (thd->is_error() ? trans_rollback_stmt(thd) : trans_commit_stmt(thd));
+    if (thd->is_error())
+      trans_rollback_stmt(thd);
+    else
+      trans_commit_stmt(thd);
     close_thread_tables(thd);
   }
   if (spider)
@@ -1122,7 +1125,10 @@ error:
   }
   if (table_list && table_list->table)
   {
-    (thd->is_error() ? trans_rollback_stmt(thd) : trans_commit_stmt(thd));
+    if (thd->is_error())
+      trans_rollback_stmt(thd);
+    else
+      trans_commit_stmt(thd);
     close_thread_tables(thd);
   }
   if (spider)

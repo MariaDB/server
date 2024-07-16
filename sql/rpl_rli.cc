@@ -2391,10 +2391,20 @@ void rpl_group_info::slave_close_thread_tables(THD *thd)
   // apply_write_set we rollback transaction and that can't be done
   // after wsrep transaction state is s_committed.
   if (WSREP(thd))
-    (thd->is_error() || thd->is_slave_error) ? trans_rollback_stmt(thd) : trans_commit_stmt(thd);
+  {
+    if (thd->is_error() || thd->is_slave_error)
+      trans_rollback_stmt(thd);
+    else
+      trans_commit_stmt(thd);
+  }
   else
 #endif
-    thd->is_error() ? trans_rollback_stmt(thd) : trans_commit_stmt(thd);
+  {
+    if (thd->is_error())
+      trans_rollback_stmt(thd);
+    else
+      trans_commit_stmt(thd);
+  }
   thd->get_stmt_da()->set_overwrite_status(false);
 
   close_thread_tables(thd);

@@ -359,7 +359,8 @@ int Wsrep_client_service::bf_rollback()
   DBUG_ASSERT(m_thd == current_thd);
   DBUG_ENTER("Wsrep_client_service::bf_rollback");
 
-  int ret= (trans_rollback_stmt(m_thd) || trans_rollback(m_thd));
+  trans_rollback_stmt(m_thd);
+  int ret= trans_rollback(m_thd);
 
   WSREP_DEBUG("::bf_rollback() thread: %lu, client_state %s "
               "client_mode %s trans_state %s killed %d",

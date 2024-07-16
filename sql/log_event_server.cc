@@ -3002,7 +3002,10 @@ error:
   thd->set_db(&null_clex_str);     /* will free the current database */
   thd->reset_query();
   thd->get_stmt_da()->set_overwrite_status(true);
-  thd->is_error() ? trans_rollback_stmt(thd) : trans_commit_stmt(thd);
+  if (thd->is_error())
+    trans_rollback_stmt(thd);
+  else
+    trans_commit_stmt(thd);
   thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_GTID_BEGIN);
   thd->get_stmt_da()->set_overwrite_status(false);
   close_thread_tables(thd);
@@ -5943,9 +5946,10 @@ static int rows_event_stmt_cleanup(rpl_group_info *rgi, THD * thd)
       there was a deadlock that was ignored by slave-skip-errors. Normally, the
       deadlock would have been rolled back already.
     */
-    error|= (int) ((error || thd->transaction_rollback_request)
-                       ? trans_rollback_stmt(thd)
-                       : trans_commit_stmt(thd));
+    if (error || thd->transaction_rollback_request)
+      trans_rollback_stmt(thd);
+    else
+      error|= trans_commit_stmt(thd);
 
     /*
       Now what if this is not a transactional engine? we still need to
