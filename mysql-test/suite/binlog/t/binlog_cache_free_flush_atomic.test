@@ -1,0 +1,60 @@
+################################################################################
+# MDEV-32014 Rename binlog cache to binlog file
+#
+# It verifies that the rename logic is handled correct if error happens.
+################################################################################
+--source include/have_binlog_format_row.inc
+--source include/have_innodb.inc
+--source include/have_debug.inc
+RESET MASTER;
+
+CREATE TABLE t1 (c1 LONGTEXT) ENGINE = InnoDB;
+INSERT INTO t1 values(repeat("1", 5242880));
+INSERT INTO t1 values(repeat("1", 5242880));
+FLUSH BINARY LOGS;
+
+SET GLOBAL binlog_cache_free_flush_threshold = 10 * 1024 * 1024;
+
+--echo #
+--echo # Reserved space is not big enough, rename will not happen. But rotate
+--echo # will succeed.
+--echo #
+SET debug = 'd,simulate_required_size_too_big';
+UPDATE t1 SET c1 = repeat('2', 5242880);
+
+--echo # Binlog file is ro
+--let $binlog_file= LAST
+--let $skip_checkpoint_events=1
+--source include/show_binlog_events.inc
+
+--echo #
+--echo # Error happens when writing data into binlog cache, rename will not
+--echo # happen. But rotate will succeed.
+--echo #
+SET debug = 'd,simulate_write_binlog_cache_head_error';
+UPDATE t1 SET c1 = repeat('3', 5242880);
+
+--let $binlog_file= LAST
+--source include/show_binlog_events.inc
+
+--echo #
+--echo # Error happens when renaming binlog cache to binlog file, rename will
+--echo # not happen. Since the original binlog is delete, the rotate will failed
+--echo # too. binlog will be closed.
+--echo #
+SET debug = 'd,simulate_rename_binlog_cache_to_binlog_error';
+--error ER_CANT_OPEN_FILE
+UPDATE t1 SET c1 = repeat('4', 5242880);
+SELECT count(*) FROM t1 WHERE c1 like "4%";
+
+--echo # Binlog is closed
+--source include/show_master_status.inc
+
+--source include/restart_mysqld.inc
+--source include/show_master_status.inc
+
+call mtr.add_suppression(".*Turning logging off for the whole duration.*");
+call mtr.add_suppression(".*Turning logging off for the whole duration.*");
+
+DROP TABLE t1;
+

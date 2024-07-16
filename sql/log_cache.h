@@ -17,6 +17,7 @@
 */
 
 #include "log_event.h"
+#include "mysql/service_wsrep.h"
 
 static constexpr my_off_t MY_OFF_T_UNDEF= ~0ULL;
 /** Truncate cache log files bigger than this */
@@ -35,7 +36,7 @@ public:
                     before_stmt_pos(MY_OFF_T_UNDEF), m_pending(0), status(0),
                     incident(FALSE), precompute_checksums(precompute_checksums),
                     saved_max_binlog_cache_size(0), ptr_binlog_cache_use(0),
-                    ptr_binlog_cache_disk_use(0)
+                    ptr_binlog_cache_disk_use(0), m_file_reserved_bytes(0)
   {
     /*
       Read the current checksum setting. We will use this setting to decide
@@ -47,9 +48,13 @@ public:
       (enum_binlog_checksum_alg)binlog_checksum_options;
   }
 
-  ~binlog_cache_data()
+  virtual ~binlog_cache_data()
   {
     DBUG_ASSERT(empty());
+
+    if (m_file_reserved_bytes > 0 && cache_log.file != -1)
+      unlink(my_filename(cache_log.file));
+
     close_cached_file(&cache_log);
   }
 
@@ -67,7 +72,7 @@ public:
   bool empty() const
   {
     return (pending() == NULL &&
-            (my_b_write_tell(&cache_log) == 0 ||
+            (my_b_write_tell(&cache_log) - m_file_reserved_bytes == 0 ||
              ((status & (LOGGED_ROW_EVENT | LOGGED_CRITICAL)) == 0)));
   }
 
@@ -97,7 +102,7 @@ public:
     bool truncate_file= (cache_log.file != -1 &&
                          my_b_write_tell(&cache_log) >
                          MY_MIN(CACHE_FILE_TRUNC_SIZE, binlog_stmt_cache_size));
-    truncate(0,1);                              // Forget what's in cache
+    truncate(0, 1); // Forget what's in cache
     checksum_opt= !precompute_checksums ? BINLOG_CHECKSUM_ALG_OFF :
       (enum_binlog_checksum_alg)binlog_checksum_options;
     if (!cache_was_empty)
@@ -112,7 +117,8 @@ public:
 
   my_off_t get_byte_position() const
   {
-    return my_b_tell(&cache_log);
+    DBUG_ASSERT(cache_log.type == WRITE_CACHE);
+    return my_b_tell(&cache_log) - m_file_reserved_bytes;
   }
 
   my_off_t get_prev_position() const
@@ -171,6 +177,50 @@ public:
   {
     status|= status_arg;
   }
+
+  bool write_check(size_t write_length)
+  {
+    if (unlikely(get_byte_position() == 0 && support_reserve() &&
+                 !encrypt_tmp_files))
+      init_file_reserved_bytes();
+    if (unlikely(m_file_reserved_bytes > 0 &&
+                 cache_log.write_pos + write_length > cache_log.write_end &&
+                 cache_log.file == -1))
+      return init_tmp_file();
+    return false;
+  }
+
+  bool init_for_read()
+  {
+    return reinit_io_cache(&cache_log, READ_CACHE, m_file_reserved_bytes, 0, 0);
+  }
+
+  my_off_t length_for_read() const
+  {
+    DBUG_ASSERT(cache_log.type == READ_CACHE);
+    return cache_log.end_of_file - m_file_reserved_bytes;
+  }
+
+  my_off_t temp_file_length()
+  {
+    return my_b_tell(&cache_log);
+  }
+
+  uint32 file_reserved_bytes() { return m_file_reserved_bytes; }
+
+  bool sync_tmp_file()
+  {
+    DBUG_ASSERT(cache_log.file != -1);
+
+    if (my_b_flush_io_cache(&cache_log, 1) ||
+        mysql_file_sync(cache_log.file, MYF(MY_WME)))
+      return true;
+    return false;
+  }
+
+  void tmp_file_name(char name[FN_REFLEN]);
+
+  void detach_temp_file();
 
   /*
     Cache to store data before copying it to the binary log.
@@ -253,6 +303,8 @@ private:
   */
   ulong *ptr_binlog_cache_disk_use;
 
+  uint32 m_file_reserved_bytes;
+
   /*
     It truncates the cache to a certain position. This includes deleting the
     pending event.
@@ -266,12 +318,58 @@ private:
       delete pending();
       set_pending(0);
     }
-    my_bool res __attribute__((unused))=
-      reinit_io_cache(&cache_log, WRITE_CACHE, pos, 0, reset_cache);
+    my_bool res __attribute__((unused))= reinit_io_cache(
+        &cache_log, WRITE_CACHE, pos + m_file_reserved_bytes, 0, reset_cache);
     DBUG_ASSERT(res == 0);
     cache_log.end_of_file= saved_max_binlog_cache_size;
   }
 
+  void init_file_reserved_bytes();
+  bool init_tmp_file();
+
+  virtual bool support_reserve() { return false; }
+
   binlog_cache_data& operator=(const binlog_cache_data& info);
   binlog_cache_data(const binlog_cache_data& info);
 };
+
+class Reserve_space_binlog_cache_data : public binlog_cache_data
+{
+public:
+  Reserve_space_binlog_cache_data(bool precompute_checksums)
+      : binlog_cache_data(precompute_checksums)
+  {
+  }
+
+private:
+  bool support_reserve() override { return true; }
+};
+
+/**
+  This class provide functions of Binlog cache free flush, the main process is
+  in ::commit().
+*/
+class Binlog_cache_manager {
+public:
+  Binlog_cache_manager() {}
+
+  /**
+    Create or clear the binlog cache dir to store the binlog cache temp file, at
+    the same dir with binlog file.
+
+    Binlog cache free flush change the temp file type from UNLINK_FILE to
+    KEEP_FILE, because UNLINK_FILE cannot be persisted to file system before
+    Linux 3.11.
+
+    Use the dir created by this function to contain binlog cache temp file.
+    Binlog cache will clear its temp file during destruction. If server not
+    shutdown normally, this dir will be cleared during next time startup.
+  */
+  void init_binlog_cache_dir();
+
+  bool dir_created() { return m_dir_created; }
+private:
+  /** Whether binlog cache dir created successfully. */
+  bool m_dir_created { false };
+};
+extern Binlog_cache_manager binlog_cache_manager;

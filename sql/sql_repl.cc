@@ -15,6 +15,7 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "mariadb.h"
+#include "my_sys.h"
 #include "sql_priv.h"
 #include "unireg.h"
 #include "sql_base.h"
@@ -3031,6 +3032,8 @@ static int send_one_binlog_file(binlog_send_info *info,
     my_b_seek(log, start_pos);
     linfo->pos= start_pos;
   }
+
+  reinit_io_cache(log, READ_CACHE, my_b_tell(log), false, true);
 
   /* Counter used by can_purge_log() */
   sending_new_binlog_file++;

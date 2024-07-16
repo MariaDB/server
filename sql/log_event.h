@@ -54,6 +54,7 @@
 #include "rpl_record.h"
 #include "rpl_reporting.h"
 #include "sql_class.h"                          /* THD */
+#include "handler.h"
 #else
 typedef ulong enum_slave_exec_mode;
 #endif
@@ -3400,6 +3401,11 @@ public:
   static const uchar FL_EXTRA_THREAD_ID= 16; // thread_id like in BEGIN Query
 
 #ifdef MYSQL_SERVER
+  static const uint max_data_length= GTID_HEADER_LEN + 2 + sizeof(XID)
+                                     + 1 /* flags_extra: */
+                                     + 4 /* Extra Engines */
+                                     + 4 /* FL_EXTRA_THREAD_ID */;
+
   Gtid_log_event(THD *thd_arg, uint64 seq_no, uint32 domain_id, bool standalone,
                  uint16 flags, bool is_transactional, uint64 commit_id,
                  bool has_xid= false, bool is_ro_1pc= false);
@@ -5427,6 +5433,29 @@ public:
   bool is_valid() const override { return 1; }
 
   int get_data_size() override { return IGNORABLE_HEADER_LEN; }
+};
+
+/**
+  @class Empty_log_event
+
+  It is the subclass of Ignorable_log_event. It used to fill the
+  reserve space in binary log.
+  This event is composed of Event header and empty buffer.
+*/
+class Empty_log_event : public Ignorable_log_event {
+public:
+#ifdef MYSQL_SERVER
+  Empty_log_event(THD *thd_arg, int size)
+      : Ignorable_log_event(thd_arg), m_size(size)
+  {
+    set_direct_logging();
+  }
+  bool write_data_body(Log_event_writer *writer) override;
+#endif
+  int get_data_size() override { return m_size; }
+
+private:
+  int m_size;
 };
 
 #ifdef MYSQL_CLIENT

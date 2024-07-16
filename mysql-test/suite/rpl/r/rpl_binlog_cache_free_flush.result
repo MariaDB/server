@@ -1,0 +1,177 @@
+include/master-slave.inc
+[connection master]
+# Prepare
+SET @saved_threshold= @@GLOBAL.binlog_cache_free_flush_threshold;
+SET @saved_checksum= @@GLOBAL.binlog_checksum;
+SET GLOBAL binlog_checksum = "NONE";
+CREATE TABLE t1 (c1 LONGTEXT) ENGINE = InnoDB;
+CREATE TABLE t2 (c1 LONGTEXT) ENGINE = MyISAM;
+INSERT INTO t1 values(repeat("1", 5242880));
+INSERT INTO t1 values(repeat("1", 5242880));
+INSERT INTO t2 values(repeat("1", 5242880));
+INSERT INTO t2 values(repeat("1", 5242880));
+FLUSH BINARY LOGS;
+# Not renamed to binlog, since the binlog cache is not larger than the threshold
+UPDATE t1 SET c1 = repeat('2', 5242880);
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000003	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000003	#	Annotate_rows	#	#	UPDATE t1 SET c1 = repeat('2', 5242880)
+master-bin.000003	#	Table_map	#	#	table_id: # (test.t1)
+master-bin.000003	#	Update_rows_v1	#	#	table_id: #
+master-bin.000003	#	Update_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000003	#	Xid	#	#	COMMIT /* XID */
+#
+# Test binlog cache rename to binlog file with checksum off
+#
+SET GLOBAL binlog_cache_free_flush_threshold = 10 * 1024 * 1024;
+# Transaction cache can be renamed
+UPDATE t1 SET c1 = repeat('3', 5242880);
+INSERT INTO t1 VALUES("after_update");
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000004	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000004	#	Ignorable log event	#	#	# Ignorable event type 28 (Ignorable log event)
+master-bin.000004	#	Annotate_rows	#	#	UPDATE t1 SET c1 = repeat('3', 5242880)
+master-bin.000004	#	Table_map	#	#	table_id: # (test.t1)
+master-bin.000004	#	Update_rows_v1	#	#	table_id: #
+master-bin.000004	#	Update_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000004	#	Xid	#	#	COMMIT /* XID */
+master-bin.000004	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000004	#	Annotate_rows	#	#	INSERT INTO t1 VALUES("after_update")
+master-bin.000004	#	Table_map	#	#	table_id: # (test.t1)
+master-bin.000004	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000004	#	Xid	#	#	COMMIT /* XID */
+# statement cache can be renamed
+BEGIN;
+UPDATE t2 SET c1 = repeat('4', 5242880);
+INSERT INTO t1 VALUES("after_update");
+COMMIT;
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000005	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000005	#	Ignorable log event	#	#	# Ignorable event type 28 (Ignorable log event)
+master-bin.000005	#	Annotate_rows	#	#	UPDATE t2 SET c1 = repeat('4', 5242880)
+master-bin.000005	#	Table_map	#	#	table_id: # (test.t2)
+master-bin.000005	#	Update_rows_v1	#	#	table_id: #
+master-bin.000005	#	Update_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000005	#	Query	#	#	COMMIT
+master-bin.000005	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000005	#	Annotate_rows	#	#	INSERT INTO t1 VALUES("after_update")
+master-bin.000005	#	Table_map	#	#	table_id: # (test.t1)
+master-bin.000005	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000005	#	Xid	#	#	COMMIT /* XID */
+# CREATE SELECT works well
+CREATE TABLE t3 SELECT * FROM t1;
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000006	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000006	#	Ignorable log event	#	#	# Ignorable event type 28 (Ignorable log event)
+master-bin.000006	#	Query	#	#	use `test`; CREATE TABLE `t3` (
+  `c1` longtext DEFAULT NULL
+)
+master-bin.000006	#	Annotate_rows	#	#	CREATE TABLE t3 SELECT * FROM t1
+master-bin.000006	#	Table_map	#	#	table_id: # (test.t3)
+master-bin.000006	#	Write_rows_v1	#	#	table_id: #
+master-bin.000006	#	Write_rows_v1	#	#	table_id: #
+master-bin.000006	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000006	#	Query	#	#	COMMIT
+CREATE TABLE t4 SELECT * FROM t2;
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000007	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000007	#	Ignorable log event	#	#	# Ignorable event type 28 (Ignorable log event)
+master-bin.000007	#	Query	#	#	use `test`; CREATE TABLE `t4` (
+  `c1` longtext DEFAULT NULL
+)
+master-bin.000007	#	Annotate_rows	#	#	CREATE TABLE t4 SELECT * FROM t2
+master-bin.000007	#	Table_map	#	#	table_id: # (test.t4)
+master-bin.000007	#	Write_rows_v1	#	#	table_id: #
+master-bin.000007	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000007	#	Query	#	#	COMMIT
+#
+# RESET MASTER should work well. It also verifies binlog checksum mechanism.
+#
+include/rpl_reset.inc
+#
+# Test binlog cache rename to binlog file with checksum on
+#
+SET GLOBAL binlog_checksum = "CRC32";
+# It will not rename the cache to file, since the cache's checksum was
+# initialized when reset the cache at the end of previous transaction.
+UPDATE t1 SET c1 = repeat('5', 5242880);
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000002	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000002	#	Annotate_rows	#	#	UPDATE t1 SET c1 = repeat('5', 5242880)
+master-bin.000002	#	Table_map	#	#	table_id: # (test.t1)
+master-bin.000002	#	Update_rows_v1	#	#	table_id: #
+master-bin.000002	#	Update_rows_v1	#	#	table_id: #
+master-bin.000002	#	Update_rows_v1	#	#	table_id: #
+master-bin.000002	#	Update_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000002	#	Xid	#	#	COMMIT /* XID */
+UPDATE t2 SET c1 = repeat('5', 5242880);
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000003	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000003	#	Ignorable log event	#	#	# Ignorable event type 28 (Ignorable log event)
+master-bin.000003	#	Annotate_rows	#	#	UPDATE t2 SET c1 = repeat('5', 5242880)
+master-bin.000003	#	Table_map	#	#	table_id: # (test.t2)
+master-bin.000003	#	Update_rows_v1	#	#	table_id: #
+master-bin.000003	#	Update_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000003	#	Query	#	#	COMMIT
+#
+# Not rename to binlog file If the cache's checksum is not same
+# to binlog_checksum
+#
+BEGIN;
+UPDATE t1 SET c1 = repeat('6', 5242880);
+SET GLOBAL binlog_checksum = "NONE";
+COMMIT;
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000004	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000004	#	Annotate_rows	#	#	UPDATE t1 SET c1 = repeat('6', 5242880)
+master-bin.000004	#	Table_map	#	#	table_id: # (test.t1)
+master-bin.000004	#	Update_rows_v1	#	#	table_id: #
+master-bin.000004	#	Update_rows_v1	#	#	table_id: #
+master-bin.000004	#	Update_rows_v1	#	#	table_id: #
+master-bin.000004	#	Update_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000004	#	Xid	#	#	COMMIT /* XID */
+BEGIN;
+UPDATE t1 SET c1 = repeat('7', 5242880);
+SET GLOBAL binlog_checksum = "CRC32";
+COMMIT;
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000005	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000005	#	Annotate_rows	#	#	UPDATE t1 SET c1 = repeat('7', 5242880)
+master-bin.000005	#	Table_map	#	#	table_id: # (test.t1)
+master-bin.000005	#	Update_rows_v1	#	#	table_id: #
+master-bin.000005	#	Update_rows_v1	#	#	table_id: #
+master-bin.000005	#	Update_rows_v1	#	#	table_id: #
+master-bin.000005	#	Update_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000005	#	Xid	#	#	COMMIT /* XID */
+show master status;
+File	Position	Binlog_Do_DB	Binlog_Ignore_DB
+master-bin.000005	#	<Binlog_Do_DB>	<Binlog_Ignore_DB>
+#
+# Not rename to binlog file If both stmt and trx cache are not empty
+#
+UPDATE t1, t2 SET t1.c1 = repeat('8', 5242880), t2.c1 = repeat('7', 5242880);
+show master status;
+File	Position	Binlog_Do_DB	Binlog_Ignore_DB
+master-bin.000005	#	<Binlog_Do_DB>	<Binlog_Ignore_DB>
+#
+# Not rename to binlog file If binlog_legacy_event_pos is on
+#
+SET GLOBAL binlog_legacy_event_pos = ON;
+UPDATE t1 SET c1 = repeat('9', 5242880);
+SET GLOBAL binlog_legacy_event_pos = OFF;
+show master status;
+File	Position	Binlog_Do_DB	Binlog_Ignore_DB
+master-bin.000005	#	<Binlog_Do_DB>	<Binlog_Ignore_DB>
+DROP TABLE t1, t2, t3, t4;
+SET GLOBAL binlog_cache_free_flush_threshold = @saved_threshold;
+SET GLOBAL binlog_checksum = @saved_checksum;
+include/rpl_end.inc

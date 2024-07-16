@@ -1,0 +1,122 @@
+################################################################################
+# MDEV-32014 Rename binlog cache to binlog file
+#
+# It verifies that the binlog caches which are larger
+# than binlog_cache_free_flush_threshold can be move to a binlog file
+# successfully. With a successful rename,
+# - it rotates the binlog and the cache is renamed to the new binlog file
+# - an ignorable event is generated just after the Gtid_log_event of the
+#   transaction to take the reserved spaces which is unused.
+#
+# It also verifies that rename is not supported in below cases
+# though the cache is larger than the threshold
+# - both statement and transaction cache should be flushed.
+# - the cache's checksum option is not same to binlog_checksum
+# - binlog_legacy_event_pos is enabled.
+################################################################################
+--source include/master-slave.inc
+--source include/have_binlog_format_row.inc
+--source include/have_innodb.inc
+
+--echo # Prepare
+SET @saved_threshold= @@GLOBAL.binlog_cache_free_flush_threshold;
+SET @saved_checksum= @@GLOBAL.binlog_checksum;
+
+SET GLOBAL binlog_checksum = "NONE";
+
+CREATE TABLE t1 (c1 LONGTEXT) ENGINE = InnoDB;
+CREATE TABLE t2 (c1 LONGTEXT) ENGINE = MyISAM;
+
+INSERT INTO t1 values(repeat("1", 5242880));
+INSERT INTO t1 values(repeat("1", 5242880));
+INSERT INTO t2 values(repeat("1", 5242880));
+INSERT INTO t2 values(repeat("1", 5242880));
+
+FLUSH BINARY LOGS;
+
+--echo # Not renamed to binlog, since the binlog cache is not larger than the threshold
+UPDATE t1 SET c1 = repeat('2', 5242880);
+--let $binlog_file= LAST
+--let $skip_checkpoint_events=1
+--source include/show_binlog_events.inc
+
+--echo #
+--echo # Test binlog cache rename to binlog file with checksum off
+--echo #
+SET GLOBAL binlog_cache_free_flush_threshold = 10 * 1024 * 1024;
+--echo # Transaction cache can be renamed
+UPDATE t1 SET c1 = repeat('3', 5242880);
+INSERT INTO t1 VALUES("after_update");
+--source include/show_binlog_events.inc
+
+--echo # statement cache can be renamed
+BEGIN;
+UPDATE t2 SET c1 = repeat('4', 5242880);
+INSERT INTO t1 VALUES("after_update");
+COMMIT;
+--source include/show_binlog_events.inc
+
+--echo # CREATE SELECT works well
+CREATE TABLE t3 SELECT * FROM t1;
+--source include/show_binlog_events.inc
+
+CREATE TABLE t4 SELECT * FROM t2;
+--source include/show_binlog_events.inc
+
+--echo #
+--echo # RESET MASTER should work well. It also verifies binlog checksum mechanism.
+--echo #
+--source include/rpl_reset.inc
+
+--echo #
+--echo # Test binlog cache rename to binlog file with checksum on
+--echo #
+SET GLOBAL binlog_checksum = "CRC32";
+
+--echo # It will not rename the cache to file, since the cache's checksum was
+--echo # initialized when reset the cache at the end of previous transaction.
+UPDATE t1 SET c1 = repeat('5', 5242880);
+--source include/show_binlog_events.inc
+
+UPDATE t2 SET c1 = repeat('5', 5242880);
+--source include/show_binlog_events.inc
+
+--echo #
+--echo # Not rename to binlog file If the cache's checksum is not same
+--echo # to binlog_checksum
+--echo #
+
+BEGIN;
+UPDATE t1 SET c1 = repeat('6', 5242880);
+SET GLOBAL binlog_checksum = "NONE";
+COMMIT;
+--source include/show_binlog_events.inc
+
+BEGIN;
+UPDATE t1 SET c1 = repeat('7', 5242880);
+SET GLOBAL binlog_checksum = "CRC32";
+COMMIT;
+--source include/show_binlog_events.inc
+--source include/show_master_status.inc
+
+--echo #
+--echo # Not rename to binlog file If both stmt and trx cache are not empty
+--echo #
+UPDATE t1, t2 SET t1.c1 = repeat('8', 5242880), t2.c1 = repeat('7', 5242880);
+--source include/show_master_status.inc
+
+--echo #
+--echo # Not rename to binlog file If binlog_legacy_event_pos is on
+--echo #
+SET GLOBAL binlog_legacy_event_pos = ON;
+UPDATE t1 SET c1 = repeat('9', 5242880);
+SET GLOBAL binlog_legacy_event_pos = OFF;
+--source include/show_master_status.inc
+
+# cleanup
+DROP TABLE t1, t2, t3, t4;
+SET GLOBAL binlog_cache_free_flush_threshold = @saved_threshold;
+SET GLOBAL binlog_checksum = @saved_checksum;
+--let $binlog_file=
+--let $skip_checkpoint_events=0
+--source include/rpl_end.inc

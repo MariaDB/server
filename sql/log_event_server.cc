@@ -29,6 +29,7 @@
 
 #include "unireg.h"
 #include "log_event.h"
+#include "log_cache.h"
 #include "sql_base.h"                           // close_thread_tables
 #include "sql_cache.h"                       // QUERY_CACHE_FLAGS_SIZE
 #include "sql_locale.h" // MY_LOCALE, my_locale_by_number, my_locale_en_US
@@ -690,6 +691,9 @@ void Log_event::init_show_field_list(THD *thd, List<Item>* field_list)
 int Log_event_writer::write_internal(const uchar *pos, size_t len)
 {
   DBUG_ASSERT(!ctx || encrypt_or_write == &Log_event_writer::encrypt_and_write);
+  if (cache_data && cache_data->write_check(len))
+    return 1;
+
   if (my_b_safe_write(file, pos, len))
   {
     DBUG_PRINT("error", ("write to log failed: %d", my_errno));
@@ -2945,10 +2949,7 @@ Gtid_log_event::peek(const uchar *event_start, size_t event_len,
 bool
 Gtid_log_event::write(Log_event_writer *writer)
 {
-  uchar buf[GTID_HEADER_LEN + 2 + sizeof(XID)
-            + 1 /* flags_extra: */
-            + 4 /* Extra Engines */
-            + 4 /* FL_EXTRA_THREAD_ID */];
+  uchar buf[max_data_length];
   size_t write_len= 13;
 
   int8store(buf, seq_no);
@@ -8255,6 +8256,30 @@ void Ignorable_log_event::pack_info(Protocol *protocol)
   bytes= my_snprintf(buf, sizeof(buf), "# Ignorable event type %d (%s)",
                      number, description);
   protocol->store(buf, bytes, &my_charset_bin);
+}
+#endif
+
+#if defined(MYSQL_SERVER)
+bool Empty_log_event::write_data_body(Log_event_writer *writer)
+{
+  const int EMPTY_BUFFER_SIZE= 1024;
+  uchar empty_buffer[EMPTY_BUFFER_SIZE];
+  memset(empty_buffer, 0, EMPTY_BUFFER_SIZE);
+
+  int data_len= m_size;
+  while (data_len > EMPTY_BUFFER_SIZE)
+  {
+    if (write_data(writer, empty_buffer, EMPTY_BUFFER_SIZE))
+      return true;
+
+    data_len-= EMPTY_BUFFER_SIZE;
+  }
+
+  assert(data_len <= EMPTY_BUFFER_SIZE);
+
+  if (data_len > 0 && write_data(writer, empty_buffer, data_len))
+    return true;
+  return false;
 }
 #endif
 

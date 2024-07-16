@@ -600,9 +600,12 @@ class binlog_cache_mngr;
 class binlog_cache_data;
 struct rpl_gtid;
 struct wait_for_commit;
+class Binlog_cache_free_flush;
 
 class MYSQL_BIN_LOG: public TC_LOG, private Event_log
 {
+  friend Binlog_cache_free_flush;
+
 #ifdef HAVE_PSI_INTERFACE
   /** The instrumentation key to use for @ LOCK_index. */
   PSI_mutex_key m_key_LOCK_index;
