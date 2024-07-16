@@ -1692,6 +1692,8 @@ public:
 
 class Item_func_charset :public Item_func_expr_str_metadata
 {
+  LEX_CSTRING m_cached_charset_info;
+
 public:
   Item_func_charset(THD *thd, Item *a)
     :Item_func_expr_str_metadata(thd, a) { }
@@ -1699,6 +1701,23 @@ public:
   const char *func_name() const override { return "charset"; }
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_charset>(thd, this); }
+  table_map used_tables() const override { return 0; }
+  bool fix_length_and_dec() override
+  {
+    if (Item_func_expr_str_metadata::fix_length_and_dec())
+      return true;
+    /*
+      Since this is a const item which doesn't use tables (see used_tables()),
+      we don't want to access the function arguments during execution.
+      That's why we store the charset here during the preparation phase
+      and only return it later at the execution phase
+    */
+    DBUG_ASSERT(args[0]->is_fixed());
+    m_cached_charset_info.str= args[0]->charset_for_protocol()->csname;
+    m_cached_charset_info.length=
+        strlen(args[0]->charset_for_protocol()->csname);
+    return false;
+  }
 };
 
 

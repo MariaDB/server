@@ -3143,11 +3143,27 @@ longlong Item_func_char_length::val_int()
 }
 
 
+bool Item_func_coercibility::fix_length_and_dec()
+{
+  max_length=10;
+  maybe_null= 0;
+  /*
+    Since this is a const item which doesn't use tables (see used_tables()),
+    we don't want to access the function arguments during execution.
+    That's why we store the derivation here during the preparation phase
+    and only return it later at the execution phase
+  */
+  DBUG_ASSERT(args[0]->is_fixed());
+  m_cached_collation_derivation= (longlong) args[0]->collation.derivation;
+  return false;
+}
+
+
 longlong Item_func_coercibility::val_int()
 {
   DBUG_ASSERT(fixed == 1);
   null_value= 0;
-  return (longlong) args[0]->collation.derivation;
+  return m_cached_collation_derivation;
 }
 
 
