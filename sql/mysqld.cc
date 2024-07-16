@@ -120,7 +120,7 @@
 #include "sp_cache.h"
 #include "sql_reload.h"  // reload_acl_and_cache
 #include "sp_head.h"  // init_sp_psi_keys
-
+#include "log_cache.h"
 #include <mysqld_default_groups.h>
 
 #ifdef HAVE_POLL_H
@@ -5608,6 +5608,8 @@ static int init_server_components()
                               WRITE_CACHE, max_binlog_size, 0, TRUE);
     mysql_mutex_unlock(log_lock);
     if (unlikely(error))
+      unireg_abort(1);
+    if (unlikely(init_binlog_cache_dir()))
       unireg_abort(1);
   }
 

@@ -29,6 +29,7 @@
 
 #include "unireg.h"
 #include "log_event.h"
+#include "log_cache.h"
 #include "sql_base.h"                           // close_thread_tables
 #include "sql_cache.h"                       // QUERY_CACHE_FLAGS_SIZE
 #include "sql_locale.h" // MY_LOCALE, my_locale_by_number, my_locale_en_US
@@ -690,6 +691,9 @@ void Log_event::init_show_field_list(THD *thd, List<Item>* field_list)
 int Log_event_writer::write_internal(const uchar *pos, size_t len)
 {
   DBUG_ASSERT(!ctx || encrypt_or_write == &Log_event_writer::encrypt_and_write);
+  if (cache_data && cache_data->write_prepare(len))
+    return 1;
+
   if (my_b_safe_write(file, pos, len))
   {
     DBUG_PRINT("error", ("write to log failed: %d", my_errno));
@@ -2839,7 +2843,7 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
                                bool ro_1pc)
   : Log_event(thd_arg, flags_arg, is_transactional),
     seq_no(seq_no_arg), commit_id(commit_id_arg), domain_id(domain_id_arg),
-    flags2((standalone ? FL_STANDALONE : 0) |
+    pad_to_size(0), flags2((standalone ? FL_STANDALONE : 0) |
            (commit_id_arg ? FL_GROUP_COMMIT_ID : 0)),
     flags_extra(0), extra_engines(0),
     thread_id(thd_arg->variables.pseudo_thread_id)
@@ -2959,10 +2963,7 @@ Gtid_log_event::peek(const uchar *event_start, size_t event_len,
 bool
 Gtid_log_event::write(Log_event_writer *writer)
 {
-  uchar buf[GTID_HEADER_LEN + 2 + sizeof(XID)
-            + 1 /* flags_extra: */
-            + 4 /* Extra Engines */
-            + 4 /* FL_EXTRA_THREAD_ID */];
+  uchar buf[max_data_length];
   size_t write_len= 13;
 
   int8store(buf, seq_no);
@@ -3042,6 +3043,27 @@ Gtid_log_event::write(Log_event_writer *writer)
     bzero(buf+write_len, GTID_HEADER_LEN-write_len);
     write_len= GTID_HEADER_LEN;
   }
+
+  if (unlikely(pad_to_size > write_len))
+  {
+    if (write_header(writer, pad_to_size) ||
+        write_data(writer, buf, write_len))
+      return true;
+
+    pad_to_size-= write_len;
+
+    char pad_buf[IO_SIZE];
+    bzero(pad_buf,  pad_to_size);
+    while (pad_to_size)
+    {
+      uint64 size= pad_to_size >= IO_SIZE ? IO_SIZE : pad_to_size;
+      if (write_data(writer, pad_buf, size))
+        return true;
+      pad_to_size-= size;
+    }
+    return write_footer(writer);
+  }
+
   return write_header(writer, write_len) ||
          write_data(writer, buf, write_len) ||
          write_footer(writer);

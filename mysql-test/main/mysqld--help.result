@@ -95,6 +95,10 @@ The following specify which files/extra groups are read (specified before remain
  statement-based binary logging (smaller binary logs),
  MIXED for statement-based binary logging when it's safe
  with fall back to row-based otherwise
+ --binlog-free-flush-threshold=# 
+ Try to rename the binlog cache temporary file of the
+ commiting transaction to a binlog file when its binlog
+ cache size is bigger than the value of this variable
  --binlog-gtid-index Enable the creation of a GTID index for every binlog
  file, and the use of such index for speeding up GTID
  lookup in the binlog
@@ -1620,6 +1624,7 @@ binlog-direct-non-transactional-updates FALSE
 binlog-expire-logs-seconds 0
 binlog-file-cache-size 16384
 binlog-format MIXED
+binlog-free-flush-threshold 134217728
 binlog-gtid-index TRUE
 binlog-gtid-index-page-size 4096
 binlog-gtid-index-span-min 65536

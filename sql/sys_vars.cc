@@ -7380,3 +7380,13 @@ static Sys_var_enum Sys_block_encryption_mode(
   "AES_ENCRYPT() and AES_DECRYPT() functions",
   SESSION_VAR(block_encryption_mode), CMD_LINE(REQUIRED_ARG),
   block_encryption_mode_values, DEFAULT(0));
+
+extern ulonglong opt_binlog_free_flush_threshold;
+static Sys_var_ulonglong Sys_binlog_free_flush_threshold(
+    "binlog_free_flush_threshold",
+    "Try to rename the binlog cache temporary file of the commiting "
+    "transaction to a binlog file when its binlog cache size "
+    "is bigger than the value of this variable",
+    GLOBAL_VAR(opt_binlog_free_flush_threshold),
+    CMD_LINE(REQUIRED_ARG), VALID_RANGE(10 * 1024 * 1024, ULLONG_MAX),
+    DEFAULT(128 * 1024 * 1024), BLOCK_SIZE(1));
