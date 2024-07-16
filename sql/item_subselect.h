@@ -18,6 +18,7 @@
 
 /* subselect Item */
 
+#include "item.h"
 #ifdef USE_PRAGMA_INTERFACE
 #pragma interface			/* gcc class implementation */
 #endif
@@ -43,6 +44,8 @@ typedef class st_select_lex SELECT_LEX;
 */
 typedef Comp_creator* (*chooser_compare_func_creator)(bool invert);
 class Cached_item;
+class Subq_materialization_tracker;
+class Explain_subq_materialization;
 
 /* base class for subselects */
 
@@ -274,8 +277,8 @@ public:
   void register_as_with_rec_ref(With_element *with_elem);
   void init_expr_cache_tracker(THD *thd);
 
-  Item* build_clone(THD *thd) override { return 0; }
-  Item* get_copy(THD *thd) override { return 0; }
+  Item* do_build_clone(THD *thd) const override { return nullptr; }
+  Item *do_get_copy(THD *thd) const override { return 0; }
 
   st_select_lex *wrap_tvc_into_select(THD *thd, st_select_lex *tvc_sl);
 
@@ -495,6 +498,8 @@ protected:
   bool was_null;
   /* A bitmap of possible execution strategies for an IN predicate. */
   uchar in_strategy;
+  /* Tracker collecting execution parameters of a materialized subquery */
+  Subq_materialization_tracker *materialization_tracker;
 protected:
   /* Used to trigger on/off conditions that were pushed down to subselect */
   bool *pushed_cond_guards;
@@ -519,6 +524,7 @@ protected:
     left_expr could later be changed to something on the execution arena.
   */
   Item *left_expr_orig;
+
 public:
   /* Priority of this predicate in the convert-to-semi-join-nest process. */
   int sj_convert_priority;
@@ -620,7 +626,7 @@ public:
   Item_in_subselect(THD *thd_arg, Item * left_expr, st_select_lex *select_lex);
   Item_in_subselect(THD *thd_arg):
     Item_exists_subselect(thd_arg), left_expr_cache(0), first_execution(TRUE),
-    in_strategy(SUBS_NOT_TRANSFORMED),
+    in_strategy(SUBS_NOT_TRANSFORMED), materialization_tracker(NULL),
     pushed_cond_guards(NULL), func(NULL), do_not_convert_to_sj(FALSE),
     is_jtbm_merged(FALSE), is_jtbm_const_tab(FALSE), upper_item(0),
     converted_from_in_predicate(FALSE) {}
@@ -772,6 +778,9 @@ public:
   { return left_expr; }
   inline Item* left_exp_orig() const
   { return left_expr_orig; }
+  void init_subq_materialization_tracker(THD *thd);
+  Subq_materialization_tracker *get_materialization_tracker() const
+  { return materialization_tracker; }
 
   friend class Item_ref_null_helper;
   friend class Item_is_not_null_test;
@@ -1156,6 +1165,15 @@ public:
                      select_result_interceptor *result,
                      bool temp= FALSE) override;
   bool no_tables() const override;//=>base class
+  /* Possible execution strategies that can be used to compute hash semi-join.*/
+  enum exec_strategy {
+    UNDEFINED= 0,
+    COMPLETE_MATCH, /* Use regular index lookups. */
+    PARTIAL_MATCH,  /* Use some partial matching strategy. */
+    PARTIAL_MATCH_MERGE, /* Use partial matching through index merging. */
+    PARTIAL_MATCH_SCAN,  /* Use partial matching through table scan. */
+    IMPOSSIBLE      /* Subquery materialization is not applicable. */
+  };
 
 protected:
   /* The engine used to compute the IN predicate. */
@@ -1167,15 +1185,6 @@ protected:
   uint count_partial_match_columns;
   uint count_null_only_columns;
   uint count_columns_with_nulls;
-  /* Possible execution strategies that can be used to compute hash semi-join.*/
-  enum exec_strategy {
-    UNDEFINED,
-    COMPLETE_MATCH, /* Use regular index lookups. */
-    PARTIAL_MATCH,  /* Use some partial matching strategy. */
-    PARTIAL_MATCH_MERGE, /* Use partial matching through index merging. */
-    PARTIAL_MATCH_SCAN,  /* Use partial matching through table scan. */
-    IMPOSSIBLE      /* Subquery materialization is not applicable. */
-  };
   /* The chosen execution strategy. Computed after materialization. */
   exec_strategy strategy;
   exec_strategy get_strategy_using_schema();
@@ -1308,6 +1317,7 @@ public:
   rownum_t get_max_null_row() { return max_null_row; }
   MY_BITMAP * get_null_key() { return &null_key; }
   ha_rows get_null_count() { return null_count; }
+  ha_rows get_key_buff_elements() { return key_buff_elements; }
   /*
     Get the search key element that corresponds to the i-th key part of this
     index.
@@ -1548,4 +1558,93 @@ public:
   void cleanup() override;
   enum_engine_type engine_type() override { return TABLE_SCAN_ENGINE; }
 };
+
+/**
+  @brief Subquery materialization tracker
+
+  @details
+  Used to track various parameters of the materialized subquery execution,
+  such as the execution strategy, sizes of buffers employed, etc
+*/
+class Subq_materialization_tracker
+{
+public:
+  using Strategy = subselect_hash_sj_engine::exec_strategy;
+
+  Subq_materialization_tracker(MEM_ROOT *mem_root)
+    : exec_strategy(Strategy::UNDEFINED),
+      partial_match_buffer_size(0),
+      partial_match_array_sizes(mem_root),
+      loops_count(0),
+      index_lookups_count(0),
+      partial_matches_count(0)
+  {}
+
+  void report_partial_merge_keys(Ordered_key **merge_keys,
+                                 uint merge_keys_count);
+
+  void report_exec_strategy(Strategy es)
+  {
+    exec_strategy= es;
+  }
+
+  void report_partial_match_buffer_size(longlong sz)
+  {
+    partial_match_buffer_size= sz;
+  }
+
+  void increment_loops_count()
+  {
+    loops_count++;
+  }
+
+  void increment_index_lookups()
+  {
+    index_lookups_count++;
+  }
+
+  void increment_partial_matches()
+  {
+    partial_matches_count++;
+  }
+
+  void print_json_members(Json_writer *writer) const;
+private:
+  Strategy exec_strategy;
+  ulonglong partial_match_buffer_size;
+  Dynamic_array<ha_rows> partial_match_array_sizes;
+
+  /* Number of times subquery predicate was evaluated */
+  ulonglong loops_count;
+
+  /*
+    Number of times we made a lookup in the materialized temptable
+    (we do this when all parts of left_expr are not NULLs)
+  */
+  ulonglong index_lookups_count;
+
+  /*
+    Number of times we had to check for a partial match (either by
+    scanning the materialized subquery or by doing a merge)
+  */
+  ulonglong partial_matches_count;
+
+  const char *get_exec_strategy() const
+  {
+    switch (exec_strategy)
+    {
+      case Strategy::UNDEFINED:
+        return "undefined";
+      case Strategy::COMPLETE_MATCH:
+        return "index_lookup";
+      case Strategy::PARTIAL_MATCH_MERGE:
+        return "index_lookup;array merge for partial match";
+      case Strategy::PARTIAL_MATCH_SCAN:
+        return "index_lookup;full scan for partial match";
+      default:
+        return "unsupported";
+    }
+  }
+};
+
 #endif /* ITEM_SUBSELECT_INCLUDED */

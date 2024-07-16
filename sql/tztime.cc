@@ -2771,7 +2771,7 @@ main(int argc, char **argv)
 
   printf("set @wsrep_is_on=(%s);\n", wsrep_is_on);
   printf("SET STATEMENT SQL_MODE='' FOR "
-         "SELECT concat('%%', GROUP_CONCAT(OPTION), '%%') INTO @replicate_opt "
+         "SELECT concat('%%', GROUP_CONCAT(OPTION ORDER BY OPTION DESC), '%%') INTO @replicate_opt "
          " FROM"
          "   (SELECT DISTINCT concat('REPLICATE_', UPPER(ENGINE)) AS OPTION"
          "    FROM information_schema.TABLES"
@@ -2782,8 +2782,7 @@ main(int argc, char **argv)
          "                         'time_zone_transition_type',"
          "                         'time_zone_leap_second')"
          "      AND ENGINE in ('MyISAM',"
-         "                     'Aria')) AS o"
-         " ORDER BY OPTION DESC;\n");
+         "                     'Aria')) AS o;\n");
   printf("set @wsrep_cannot_replicate_tz=@wsrep_is_on AND (%s);\n", wsrep_cannot_replicate_tz);
   if (opt_skip_write_binlog)
     /* We turn off session wsrep if we cannot replicate using galera.

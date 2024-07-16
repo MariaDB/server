@@ -3496,11 +3496,11 @@ int os_aio_resize(ulint n_reader_threads, ulint n_writer_threads)
 
 void os_aio_free()
 {
-  srv_thread_pool->disable_aio();
   delete read_slots;
   delete write_slots;
   read_slots= nullptr;
   write_slots= nullptr;
+  srv_thread_pool->disable_aio();
 }
 
 /** Wait until there are no pending asynchronous writes. */

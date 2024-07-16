@@ -127,10 +127,10 @@ let $restart_noprint=2;
 --source ../galera/include/auto_increment_offset_restore.inc
 
 --connection node_1
-CALL mtr.add_suppression("WSREP: Protocol violation\. JOIN message sender 1\.0 \(.*\) is not in state transfer \(SYNCED\)");
+CALL mtr.add_suppression("WSREP: Protocol violation\\. JOIN message sender 1\\.0 (.*) is not in state transfer \\(SYNCED\\)");
 
 --connection node_2
-CALL mtr.add_suppression("WSREP: Protocol violation\. JOIN message sender 1\.0 \(.*\) is not in state transfer \(SYNCED\)");
+CALL mtr.add_suppression("WSREP: Protocol violation\\. JOIN message sender 1\\.0 (.*) is not in state transfer \\(SYNCED\\)");
 
 --connection node_3
-CALL mtr.add_suppression("WSREP: Protocol violation\. JOIN message sender 1\.0 \(.*\) is not in state transfer \(SYNCED\)");
+CALL mtr.add_suppression("WSREP: Protocol violation\\. JOIN message sender 1\\.0 (.*) is not in state transfer \\(SYNCED\\)");

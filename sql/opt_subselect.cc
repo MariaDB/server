@@ -638,8 +638,8 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
     {
       SELECT_LEX *current= thd->lex->current_select;
       thd->lex->current_select= current->return_after_parsing();
-      char const *save_where= thd->where;
-      thd->where= "IN/ALL/ANY subquery";
+      THD_WHERE save_where= thd->where;
+      thd->where= THD_WHERE::IN_ALL_ANY_SUBQUERY;
 
       Item **left= in_subs->left_exp_ptr();
       bool failure= (*left)->fix_fields_if_needed(thd, left);

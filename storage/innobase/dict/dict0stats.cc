@@ -3505,25 +3505,35 @@ dict_stats_fetch_table_stats_step(
 			break;
 
 		case 1: /* mysql.innodb_table_stats.clustered_index_size */
-
+		{
 			ut_a(dtype_get_mtype(type) == DATA_INT);
 			ut_a(len == 8);
 
 			table->stat_clustered_index_size
-				= (ulint) mach_read_from_8(data);
-
+				= std::max<ulint>(
+				      (ulint) mach_read_from_8(data), 1);
 			break;
+		}
 
 		case 2: /* mysql.innodb_table_stats.sum_of_other_index_sizes */
-
+		{
 			ut_a(dtype_get_mtype(type) == DATA_INT);
 			ut_a(len == 8);
 
-			table->stat_sum_of_other_index_sizes
+			ulint stat_other_idx_size
 				= (ulint) mach_read_from_8(data);
+			if (!stat_other_idx_size
+			    && UT_LIST_GET_LEN(table->indexes) > 1) {
+				stat_other_idx_size
+					= UT_LIST_GET_LEN(table->indexes) - 1;
+			}
+			table->stat_sum_of_other_index_sizes
+				= std::max<ulint>(
+				    (ulint) mach_read_from_8(data),
+				    UT_LIST_GET_LEN(table->indexes) - 1);
 
 			break;
-
+		}
 		default:
 
 			/* someone changed SELECT
@@ -3706,12 +3716,14 @@ dict_stats_fetch_index_stats_step(
 
 	if (stat_name_len == 4 /* strlen("size") */
 	    && strncasecmp("size", stat_name, stat_name_len) == 0) {
-		index->stat_index_size = (ulint) stat_value;
+		index->stat_index_size
+			= std::max<ulint>((ulint) stat_value, 1);
 		arg->stats_were_modified = true;
 	} else if (stat_name_len == 12 /* strlen("n_leaf_pages") */
 		   && strncasecmp("n_leaf_pages", stat_name, stat_name_len)
 		   == 0) {
-		index->stat_n_leaf_pages = (ulint) stat_value;
+		index->stat_n_leaf_pages
+			= std::max<ulint>((ulint) stat_value, 1);
 		arg->stats_were_modified = true;
 	} else if (stat_name_len == 12 /* strlen("n_page_split") */
 		   && strncasecmp("n_page_split", stat_name, stat_name_len)
@@ -3791,7 +3803,8 @@ dict_stats_fetch_index_stats_step(
 		index->stat_n_diff_key_vals[n_pfx - 1] = stat_value;
 
 		if (sample_size != UINT64_UNDEFINED) {
-			index->stat_n_sample_sizes[n_pfx - 1] = sample_size;
+			index->stat_n_sample_sizes[n_pfx - 1] =
+				std::max<ib_uint64_t>(sample_size, 1);
 		} else {
 			/* hmm, strange... the user must have UPDATEd the
 			table manually and SET sample_size = NULL */

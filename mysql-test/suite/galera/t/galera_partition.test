@@ -6,7 +6,7 @@
 
 --connection node_1
 
-call mtr.add_suppression("WSREP: RSU failed due to pending transactions, schema: test, query ALTER.*");
+call mtr.add_suppression("WSREP: RSU failed due to pending transactions, schema: test, query ALTER");
 call mtr.add_suppression("WSREP: ALTER TABLE isolation failure");
 
 --connection node_1
@@ -438,6 +438,3 @@ reap;
 --connection node_1
 DROP TABLE t1;
 DROP PROCEDURE p1;
-
-
-

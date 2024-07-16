@@ -6435,5 +6435,27 @@ drop view v1;
 drop table t1, t2, t3;
 
 --echo #
+--echo # MDEV-30623 JSON_TABLE in subquery not correctly marked as correlated
+--echo # update_correlated_cache() fails to take JSON_TABLE functions in
+--echo # subqueries into account.
+--echo #
+
+create table t1(c json);
+insert into t1 values ('[{"x":"1"},{"x":"2"}]'),
+                      ('[{"x":"10"},{"x":"20"}]'),
+                      ('[{"x":"100"},{"x":"200"}]');
+select c,
+       (SELECT sum(x) FROM json_table(c, "$[*]" columns( x int path "$.x"))
+       AS jt)
+  from t1;
+
+explain select c,
+       (SELECT sum(x) FROM json_table(c, "$[*]" columns( x int path "$.x"))
+       AS jt)
+  from t1;
+
+drop table t1;
+
+--echo #
 --echo # End of 10.6 tests
 --echo #

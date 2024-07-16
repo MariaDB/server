@@ -3693,16 +3693,6 @@ void MYSQL_BIN_LOG::cleanup()
 }
 
 
-/* Init binlog-specific vars */
-void MYSQL_BIN_LOG::init(ulong max_size_arg)
-{
-  DBUG_ENTER("MYSQL_BIN_LOG::init");
-  max_size= max_size_arg;
-  DBUG_PRINT("info",("max_size: %lu", max_size));
-  DBUG_VOID_RETURN;
-}
-
-
 void MYSQL_BIN_LOG::init_pthread_objects()
 {
   MYSQL_LOG::init_pthread_objects();
@@ -3894,7 +3884,7 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
     DBUG_RETURN(1);                            /* all warnings issued */
   }
 
-  init(max_size_arg);
+  max_size= max_size_arg;
 
   open_count++;
 
@@ -5528,10 +5518,8 @@ int MYSQL_BIN_LOG::new_file_impl()
   */
   if (unlikely((error= generate_new_name(new_name, name, 0))))
   {
-#ifdef ENABLE_AND_FIX_HANG
-    close_on_error= TRUE;
-#endif
-    goto end2;
+    mysql_mutex_unlock(&LOCK_index);
+    DBUG_RETURN(error);
   }
   new_name_ptr=new_name;
 
@@ -5639,7 +5627,6 @@ end:
     last_used_log_number--;
   }
 
-end2:
   if (delay_close)
   {
     clear_inuse_flag_when_closing(old_file);

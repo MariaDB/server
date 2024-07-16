@@ -6239,7 +6239,7 @@ find_field_in_natural_join(THD *thd, TABLE_LIST *table_ref, const char *name, si
     {
       if (nj_col)
       {
-        my_error(ER_NON_UNIQ_ERROR, MYF(0), name, thd->where);
+        my_error(ER_NON_UNIQ_ERROR, MYF(0), name, thd_where(thd));
         DBUG_RETURN(NULL);
       }
       nj_col= curr_nj_col;
@@ -6884,7 +6884,7 @@ find_field_in_tables(THD *thd, Item_ident *item,
         item->cached_field_index= NO_CACHED_FIELD_INDEX;
       }
 
-      DBUG_ASSERT(thd->where);
+      DBUG_ASSERT(thd->where != THD_WHERE::NOWHERE);
       /*
         If we found a fully qualified field we return it directly as it can't
         have duplicates.
@@ -6897,7 +6897,7 @@ find_field_in_tables(THD *thd, Item_ident *item,
         if (report_error == REPORT_ALL_ERRORS ||
             report_error == IGNORE_EXCEPT_NON_UNIQUE)
           my_error(ER_NON_UNIQ_ERROR, MYF(0),
-                   table_name ? item->full_name() : name, thd->where);
+                   table_name ? item->full_name() : name, thd_where(thd));
         return (Field*) 0;
       }
       found= cur_field;
@@ -6925,13 +6925,13 @@ find_field_in_tables(THD *thd, Item_ident *item,
       strxnmov(buff,sizeof(buff)-1,db,".",table_name,NullS);
       table_name=buff;
     }
-    my_error(ER_UNKNOWN_TABLE, MYF(0), table_name, thd->where);
+    my_error(ER_UNKNOWN_TABLE, MYF(0), table_name, thd_where(thd));
   }
   else
   {
     if (report_error == REPORT_ALL_ERRORS ||
         report_error == REPORT_EXCEPT_NON_UNIQUE)
-      my_error(ER_BAD_FIELD_ERROR, MYF(0), item->full_name(), thd->where);
+      my_error(ER_BAD_FIELD_ERROR, MYF(0), item->full_name(), thd_where(thd));
     else
       found= not_found_field;
   }
@@ -7064,7 +7064,7 @@ find_item_in_list(Item *find, List<Item> &items, uint *counter,
             */
             if (report_error != IGNORE_ERRORS)
               my_error(ER_NON_UNIQ_ERROR, MYF(0),
-                       find->full_name(), current_thd->where);
+                       find->full_name(), thd_where(current_thd));
             return (Item**) 0;
           }
           found_unaliased= li.ref();
@@ -7095,7 +7095,7 @@ find_item_in_list(Item *find, List<Item> &items, uint *counter,
               continue;                           // Same field twice
             if (report_error != IGNORE_ERRORS)
               my_error(ER_NON_UNIQ_ERROR, MYF(0),
-                       find->full_name(), current_thd->where);
+                       find->full_name(), thd_where(current_thd));
             return (Item**) 0;
           }
           found= li.ref();
@@ -7150,7 +7150,7 @@ find_item_in_list(Item *find, List<Item> &items, uint *counter,
   {
     if (report_error != IGNORE_ERRORS)
       my_error(ER_NON_UNIQ_ERROR, MYF(0),
-               find->full_name(), current_thd->where);
+               find->full_name(), thd_where(current_thd));
     return (Item **) 0;
   }
   if (found_unaliased)
@@ -7167,7 +7167,7 @@ find_item_in_list(Item *find, List<Item> &items, uint *counter,
   {
     if (report_error == REPORT_ALL_ERRORS)
       my_error(ER_BAD_FIELD_ERROR, MYF(0),
-               find->full_name(), current_thd->where);
+               find->full_name(), thd_where(current_thd));
     return (Item **) 0;
   }
   else
@@ -7373,7 +7373,7 @@ mark_common_columns(THD *thd, TABLE_LIST *table_ref_1, TABLE_LIST *table_ref_2,
         DBUG_PRINT ("info", ("match c1.is_common=%d", nj_col_1->is_common));
         if (cur_nj_col_2->is_common || found)
         {
-          my_error(ER_NON_UNIQ_ERROR, MYF(0), field_name_1->str, thd->where);
+          my_error(ER_NON_UNIQ_ERROR, MYF(0), field_name_1->str, thd_where(thd));
           goto err;
         }
         if ((!using_fields && !field_2_invisible) || is_using_column_1)
@@ -7587,7 +7587,7 @@ store_natural_using_join_columns(THD *thd, TABLE_LIST *natural_using_join,
         if (!(common_field= it++))
         {
           my_error(ER_BAD_FIELD_ERROR, MYF(0), using_field_name_ptr,
-                   current_thd->where);
+                   thd_where(current_thd));
           goto err;
         }
         if (!my_strcasecmp(system_charset_info,
@@ -7841,7 +7841,7 @@ static bool setup_natural_join_row_types(THD *thd,
                                          Name_resolution_context *context)
 {
   DBUG_ENTER("setup_natural_join_row_types");
-  thd->where= "from clause";
+  thd->where= THD_WHERE::FROM_CLAUSE;
   if (from_clause->elements == 0)
     DBUG_RETURN(false); /* We come here in the case of UNIONs. */
 
@@ -8012,7 +8012,7 @@ bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
               lex->current_select->nest_level);
   if (allow_sum_func)
     lex->allow_sum_func.set_bit(lex->current_select->nest_level);
-  thd->where= THD::DEFAULT_WHERE;
+  thd->where= THD_WHERE::DEFAULT_WHERE;
   save_is_item_list_lookup= lex->current_select->is_item_list_lookup;
   lex->current_select->is_item_list_lookup= 0;
 
@@ -8770,7 +8770,7 @@ bool setup_on_expr(THD *thd, TABLE_LIST *table, bool is_update)
       embedded= embedding;
       if (embedded->on_expr)
       {
-        thd->where="on clause";
+        thd->where= THD_WHERE::ON_CLAUSE;
         embedded->on_expr->mark_as_condition_AND_part(embedded);
         if (embedded->on_expr->fix_fields_if_needed_for_bool(thd,
                                                            &embedded->on_expr))
@@ -8871,7 +8871,7 @@ int setup_conds(THD *thd, TABLE_LIST *tables, List<TABLE_LIST> &leaves,
 
   if (*conds)
   {
-    thd->where="where clause";
+    thd->where= THD_WHERE::WHERE_CLAUSE;
     DBUG_EXECUTE("where",
                  print_where(*conds,
                              "WHERE in setup_conds",

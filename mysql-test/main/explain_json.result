@@ -686,19 +686,21 @@ EXPLAIN
           "filtered": 100,
           "materialized": {
             "unique": 1,
-            "query_block": {
-              "select_id": 2,
-              "temporary_table": {
-                "nested_loop": [
-                  {
-                    "table": {
-                      "table_name": "t1",
-                      "access_type": "ALL",
-                      "rows": 10,
-                      "filtered": 100
+            "materialization": {
+              "query_block": {
+                "select_id": 2,
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 10,
+                        "filtered": 100
+                      }
                     }
-                  }
-                ]
+                  ]
+                }
               }
             }
           }
@@ -1084,18 +1086,20 @@ EXPLAIN
     ],
     "subqueries": [
       {
-        "query_block": {
-          "select_id": 2,
-          "nested_loop": [
-            {
-              "table": {
-                "table_name": "t2",
-                "access_type": "ALL",
-                "rows": 2,
-                "filtered": 100
+        "materialization": {
+          "query_block": {
+            "select_id": 2,
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t2",
+                  "access_type": "ALL",
+                  "rows": 2,
+                  "filtered": 100
+                }
               }
-            }
-          ]
+            ]
+          }
         }
       }
     ]

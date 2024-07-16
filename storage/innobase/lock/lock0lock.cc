@@ -3910,6 +3910,9 @@ dberr_t lock_table(dict_table_t *table, dict_table_t *const*fktable,
   }
   lock_sys.rd_unlock();
 
+#ifdef WITH_WSREP
+  DEBUG_SYNC_C("after_lock_table_for_trx");
+#endif
   return err;
 }
 
@@ -4623,6 +4626,38 @@ static bool lock_release_on_prepare_try(trx_t *trx)
   return all_released;
 }
 
+/*********************************************************************//**
+Removes table locks of the transaction on a table to be dropped. */
+static
+void
+lock_trx_table_locks_remove(
+/*========================*/
+	const lock_t*	lock_to_remove)		/*!< in: lock to remove */
+{
+	trx_t*		trx = lock_to_remove->trx;
+
+	ut_ad(lock_to_remove->is_table());
+	lock_sys.assert_locked(*lock_to_remove->un_member.tab_lock.table);
+	ut_ad(trx->mutex_is_owner());
+
+	for (lock_list::iterator it = trx->lock.table_locks.begin(),
+             end = trx->lock.table_locks.end(); it != end; ++it) {
+		const lock_t*	lock = *it;
+
+		ut_ad(!lock || trx == lock->trx);
+		ut_ad(!lock || lock->is_table());
+		ut_ad(!lock || lock->un_member.tab_lock.table);
+
+		if (lock == lock_to_remove) {
+			*it = NULL;
+			return;
+		}
+	}
+
+	/* Lock must exist in the vector. */
+	ut_error;
+}
+
 /** Release non-exclusive locks on XA PREPARE,
 and release possible other transactions waiting because of these locks. */
 void lock_release_on_prepare(trx_t *trx)
@@ -4682,6 +4717,7 @@ void lock_release_on_prepare(trx_t *trx)
         case LOCK_IS:
         case LOCK_S:
           lock_table_dequeue(lock, false);
+          lock_trx_table_locks_remove(lock);
           break;
         case LOCK_IX:
         case LOCK_X:
@@ -4732,38 +4768,6 @@ void lock_release_on_rollback(trx_t *trx, dict_table_t *table)
 
   lock_sys.wr_unlock();
   trx->mutex_unlock();
-}
-
-/*********************************************************************//**
-Removes table locks of the transaction on a table to be dropped. */
-static
-void
-lock_trx_table_locks_remove(
-/*========================*/
-	const lock_t*	lock_to_remove)		/*!< in: lock to remove */
-{
-	trx_t*		trx = lock_to_remove->trx;
-
-	ut_ad(lock_to_remove->is_table());
-	lock_sys.assert_locked(*lock_to_remove->un_member.tab_lock.table);
-	ut_ad(trx->mutex_is_owner());
-
-	for (lock_list::iterator it = trx->lock.table_locks.begin(),
-             end = trx->lock.table_locks.end(); it != end; ++it) {
-		const lock_t*	lock = *it;
-
-		ut_ad(!lock || trx == lock->trx);
-		ut_ad(!lock || lock->is_table());
-		ut_ad(!lock || lock->un_member.tab_lock.table);
-
-		if (lock == lock_to_remove) {
-			*it = NULL;
-			return;
-		}
-	}
-
-	/* Lock must exist in the vector. */
-	ut_error;
 }
 
 /*===================== VALIDATION AND DEBUGGING ====================*/

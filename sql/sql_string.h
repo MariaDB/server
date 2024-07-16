@@ -585,7 +585,7 @@ public:
     LEX_CSTRING tmp= {Ptr, str_length};
     return tmp;
   }
-  inline LEX_CSTRING *get_value(LEX_CSTRING *res)
+  inline LEX_CSTRING *get_value(LEX_CSTRING *res) const
   {
     res->str=    Ptr;
     res->length= str_length;

@@ -197,16 +197,17 @@ COUNT(*)
 2750
 connection node_2;
 call mtr.add_suppression("WSREP: Ignoring server id for non bootstrap node");
-call mtr.add_suppression("WSREP: Sending JOIN failed:.*");
-call mtr.add_suppression("Sending JOIN failed:.*");
-call mtr.add_suppression("WSREP: Failed to JOIN the cluster after SST.*");
+call mtr.add_suppression("Sending JOIN failed: ");
+call mtr.add_suppression("WSREP: Failed to JOIN the cluster after SST");
+call mtr.add_suppression("WSREP: FLOW message from member .* in non-primary configuration");
 connection node_3;
 call mtr.add_suppression("WSREP: Ignoring server id for non bootstrap node");
-call mtr.add_suppression("WSREP: Sending JOIN failed:.*");
-call mtr.add_suppression("Sending JOIN failed:.*");
-call mtr.add_suppression("WSREP: Failed to JOIN the cluster after SST.*");
+call mtr.add_suppression("Sending JOIN failed: ");
+call mtr.add_suppression("WSREP: Failed to JOIN the cluster after SST");
+call mtr.add_suppression("WSREP: FLOW message from member .* in non-primary configuration");
 # cleanup
 connection node_1;
+call mtr.add_suppression("WSREP: FLOW message from member .* in non-primary configuration");
 DROP PROCEDURE insert_row;
 DROP TABLE t1;
 DROP TABLE t2;
