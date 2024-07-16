@@ -9898,7 +9898,8 @@ int TABLE::open_hlindexes_for_write()
   {
     KEY *key= s->key_info + i;
     for (uint j=0; j < key->usable_key_parts; j++)
-      if (bitmap_is_set(write_set, key->key_part[j].fieldnr - 1))
+      // TODO WHY?
+      // if (bitmap_is_set(write_set, key->key_part[j].fieldnr - 1))
       {
         if (hlindex_open(i))
           return 1;
@@ -9918,12 +9919,49 @@ int TABLE::reset_hlindexes()
   return 0;
 }
 
-int TABLE::update_hlindexes()
+int TABLE::hlindexes_on_insert()
 {
   DBUG_ASSERT(s->total_keys - s->keys == (hlindex != NULL));
   if (hlindex && hlindex->in_use)
     if (int err= mhnsw_insert(this, key_info + s->keys))
       return err;
+  return 0;
+}
+
+int TABLE::hlindexes_on_update()
+{
+  DBUG_ASSERT(s->total_keys - s->keys == (hlindex != NULL));
+  if (!hlindex || !hlindex->in_use)
+    return 0;
+
+  int err;
+  // mark deleted node invalid and insert node for new row
+  if ((err= mhnsw_invalidate(this, this->record[1], key_info + s->keys)) ||
+      (err= mhnsw_insert(this, key_info + s->keys)))
+    return err;
+
+  return 0;
+}
+
+int TABLE::hlindexes_on_delete()
+{
+  DBUG_ASSERT(s->total_keys - s->keys == (hlindex != NULL));
+  if (!hlindex || !hlindex->in_use)
+    return 0;
+
+  if (int err= mhnsw_invalidate(this, this->record[0], key_info + s->keys))
+    return err;
+
+  return 0;
+}
+
+int TABLE::hlindexes_on_delete_all()
+{
+  DBUG_ASSERT(s->total_keys - s->keys == (hlindex != NULL));
+  if (!hlindex || !hlindex->in_use)
+    return 0;
+
+  this->hlindex->file->ha_delete_all_rows();
   return 0;
 }
 
