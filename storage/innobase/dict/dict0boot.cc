@@ -222,6 +222,9 @@ dberr_t dict_boot()
 
 	dberr_t err;
 	const buf_block_t *d = recv_sys.recover(hdr_page_id, &mtr ,&err);
+	DBUG_EXECUTE_IF("hdr_page_corrupt",
+			err= DB_CORRUPTION;
+			d= nullptr;);
 	if (!d) {
 		mtr.commit();
 		return err;

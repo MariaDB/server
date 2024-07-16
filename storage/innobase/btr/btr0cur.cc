@@ -758,6 +758,7 @@ static bool btr_cur_need_opposite_intention(const buf_page_t &bpage,
                                             ulint compress_limit,
                                             const rec_t *rec)
 {
+  ut_ad(bpage.frame == page_align(rec));
   if (UNIV_LIKELY_NULL(bpage.zip.data) &&
       !page_zip_available(&bpage.zip, is_clust, node_ptr_max_size, 1))
     return true;
@@ -958,12 +959,21 @@ static int btr_latch_prev(buf_block_t *block, page_id_t page_id,
   buffer-fixes on both blocks will prevent eviction. */
 
  retry:
-  buf_block_t *prev= buf_page_get_gen(page_id, zip_size, RW_NO_LATCH, nullptr,
-                                      BUF_GET, mtr, err);
-  if (UNIV_UNLIKELY(!prev))
-    return 0;
-
+  /* Pass no_wait pointer to ensure that we don't wait on the current page
+  latch while holding the next page latch to avoid latch ordering violation. */
+  bool no_wait= false;
   int ret= 1;
+
+  buf_block_t *prev= buf_page_get_gen(page_id, zip_size, RW_NO_LATCH, nullptr,
+                                      BUF_GET, mtr, err,  &no_wait);
+  if (UNIV_UNLIKELY(!prev))
+  {
+    /* Check if we had to return because we couldn't wait on latch. */
+    if (no_wait)
+      goto ordered_latch;
+    return 0;
+  }
+
   static_assert(MTR_MEMO_PAGE_S_FIX == mtr_memo_type_t(BTR_SEARCH_LEAF), "");
   static_assert(MTR_MEMO_PAGE_X_FIX == mtr_memo_type_t(BTR_MODIFY_LEAF), "");
 
@@ -983,6 +993,7 @@ static int btr_latch_prev(buf_block_t *block, page_id_t page_id,
   {
     ut_ad(mtr->at_savepoint(mtr->get_savepoint() - 1)->page.id() == page_id);
     mtr->release_last_page();
+ordered_latch:
     if (rw_latch == RW_S_LATCH)
       block->page.lock.s_unlock();
     else
@@ -1219,7 +1230,7 @@ dberr_t btr_cur_t::search_leaf(const dtuple_t *tuple, page_cur_mode_t mode,
           ut_ad(rw_lock_type_t(latch_mode & ~12) == RW_X_LATCH);
           goto relatch_x;
         }
-        if (latch_mode != BTR_MODIFY_PREV)
+        else
         {
           if (!latch_by_caller)
             /* Release the tree s-latch */
@@ -1291,8 +1302,6 @@ dberr_t btr_cur_t::search_leaf(const dtuple_t *tuple, page_cur_mode_t mode,
 
     switch (latch_mode) {
     case BTR_SEARCH_PREV:
-    case BTR_MODIFY_PREV:
-      static_assert(BTR_MODIFY_PREV & BTR_MODIFY_LEAF, "");
       static_assert(BTR_SEARCH_PREV & BTR_SEARCH_LEAF, "");
       ut_ad(!latch_by_caller);
       ut_ad(rw_latch ==
@@ -1332,11 +1341,6 @@ release_tree:
           !btr_block_get(*index(), btr_page_get_next(block->page.frame),
                          RW_X_LATCH, mtr, &err))
         goto func_exit;
-      if (btr_cur_need_opposite_intention(block->page, index()->is_clust(),
-                                          lock_intention,
-                                          node_ptr_max_size, compress_limit,
-                                          page_cur.rec))
-        goto need_opposite_intention;
     }
 
   reached_latched_leaf:
@@ -1357,6 +1361,13 @@ release_tree:
     ut_ad(up_match != ULINT_UNDEFINED || mode != PAGE_CUR_GE);
     ut_ad(up_match != ULINT_UNDEFINED || mode != PAGE_CUR_LE);
     ut_ad(low_match != ULINT_UNDEFINED || mode != PAGE_CUR_LE);
+
+    if (latch_mode == BTR_MODIFY_TREE &&
+        btr_cur_need_opposite_intention(block->page, index()->is_clust(),
+                                        lock_intention,
+                                        node_ptr_max_size, compress_limit,
+                                        page_cur.rec))
+        goto need_opposite_intention;
 
 #ifdef BTR_CUR_HASH_ADAPT
     /* We do a dirty read of btr_search_enabled here.  We will
@@ -1467,7 +1478,6 @@ release_tree:
     case BTR_MODIFY_ROOT_AND_LEAF:
       rw_latch= RW_X_LATCH;
       break;
-    case BTR_MODIFY_PREV: /* btr_pcur_move_to_prev() */
     case BTR_SEARCH_PREV: /* btr_pcur_move_to_prev() */
       ut_ad(rw_latch == RW_S_LATCH || rw_latch == RW_X_LATCH);
 
@@ -1851,7 +1861,6 @@ dberr_t btr_cur_t::open_leaf(bool first, dict_index_t *index,
     ut_ad(!(latch_mode & 8));
     /* This function doesn't need to lock left page of the leaf page */
     static_assert(int{BTR_SEARCH_PREV} == (4 | BTR_SEARCH_LEAF), "");
-    static_assert(int{BTR_MODIFY_PREV} == (4 | BTR_MODIFY_LEAF), "");
     latch_mode= btr_latch_mode(latch_mode & (RW_S_LATCH | RW_X_LATCH));
     ut_ad(!latch_by_caller ||
           mtr->memo_contains_flagged(&index->lock,

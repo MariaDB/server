@@ -7608,11 +7608,11 @@ double Field_string::val_real(void)
 {
   DBUG_ASSERT(marked_for_read());
   THD *thd= get_thd();
-  return Converter_strntod_with_warn(get_thd(),
+  const LEX_CSTRING str= to_lex_cstring();
+  return Converter_strntod_with_warn(thd,
                                      Warn_filter_string(thd, this),
                                      Field_string::charset(),
-                                     (const char *) ptr,
-                                     field_length).result();
+                                     str.str, str.length).result();
 }
 
 
@@ -7620,10 +7620,10 @@ longlong Field_string::val_int(void)
 {
   DBUG_ASSERT(marked_for_read());
   THD *thd= get_thd();
+  const LEX_CSTRING str= to_lex_cstring();
   return Converter_strntoll_with_warn(thd, Warn_filter_string(thd, this),
                                       Field_string::charset(),
-                                      (const char *) ptr,
-                                      field_length).result();
+                                      str.str, str.length).result();
 }
 
 
@@ -7639,20 +7639,26 @@ sql_mode_t Field_string::can_handle_sql_mode_dependency_on_store() const
 }
 
 
-String *Field_string::val_str(String *val_buffer __attribute__((unused)),
-			      String *val_ptr)
+LEX_CSTRING Field_string::to_lex_cstring() const
 {
   DBUG_ASSERT(marked_for_read());
   /* See the comment for Field_long::store(long long) */
   DBUG_ASSERT(!table || table->in_use == current_thd);
-  size_t length;
-  if (get_thd()->variables.sql_mode &
-      MODE_PAD_CHAR_TO_FULL_LENGTH)
-    length= field_charset()->charpos(ptr, ptr + field_length,
-                                     Field_string::char_length());
-  else
-    length= field_charset()->lengthsp((const char*) ptr, field_length);
-  val_ptr->set((const char*) ptr, length, field_charset());
+  if (get_thd()->variables.sql_mode & MODE_PAD_CHAR_TO_FULL_LENGTH)
+    return Lex_cstring((const char*) ptr,
+                       field_charset()->charpos(ptr, ptr + field_length,
+                                                Field_string::char_length()));
+  return Lex_cstring((const char *) ptr,
+                     field_charset()->lengthsp((const char*) ptr, field_length));
+}
+
+
+String *Field_string::val_str(String *val_buffer __attribute__((unused)),
+			      String *val_ptr)
+{
+  DBUG_ASSERT(marked_for_read());
+  const LEX_CSTRING str= to_lex_cstring();
+  val_ptr->set(str.str, str.length, field_charset());
   return val_ptr;
 }
 
@@ -7661,12 +7667,12 @@ my_decimal *Field_string::val_decimal(my_decimal *decimal_value)
 {
   DBUG_ASSERT(marked_for_read());
   THD *thd= get_thd();
+  const LEX_CSTRING str= to_lex_cstring();
   Converter_str2my_decimal_with_warn(thd,
                                      Warn_filter_string(thd, this),
                                      E_DEC_FATAL_ERROR & ~E_DEC_BAD_NUM,
                                      Field_string::charset(),
-                                     (const char *) ptr,
-                                     field_length, decimal_value);
+                                     str.str, str.length, decimal_value);
   return decimal_value;
 }
 

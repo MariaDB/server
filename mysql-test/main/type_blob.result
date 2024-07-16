@@ -27,12 +27,12 @@ Table	Create Table
 t3	CREATE TABLE `t3` (
   `a` mediumtext DEFAULT NULL,
   `b` mediumblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show create TABLE t4;
 Table	Create Table
 t4	CREATE TABLE `t4` (
   `c` mediumtext CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1,t2,t3,t4;
 CREATE TABLE t1 (a char(257) default "hello");
 ERROR 42000: Column length too big for column 'a' (max = 255); use BLOB or TEXT instead
@@ -46,13 +46,13 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` mediumtext DEFAULT 'hello'
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 CREATE TABLE t2 (a blob default "hello");
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` blob DEFAULT 'hello'
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1,t2;
 create table t1 (nr int(5) not null auto_increment,b blob,str char(10), primary key (nr));
 insert into t1 values (null,"a","A");
@@ -93,15 +93,15 @@ update t1 set c="",b=null where c="1";
 lock tables t1 READ;
 show full fields from t1;
 Field	Type	Collation	Null	Key	Default	Extra	Privileges	Comment
-t	text	latin1_swedish_ci	YES		NULL		#	
-c	char(10)	latin1_swedish_ci	YES		NULL		#	
+t	text	utf8mb4_uca1400_ai_ci	YES		NULL		#	
+c	char(10)	utf8mb4_uca1400_ai_ci	YES		NULL		#	
 b	blob	NULL	YES		NULL		#	
 d	varbinary(10)	NULL	YES		NULL		#	
 lock tables t1 WRITE;
 show full fields from t1;
 Field	Type	Collation	Null	Key	Default	Extra	Privileges	Comment
-t	text	latin1_swedish_ci	YES		NULL		#	
-c	char(10)	latin1_swedish_ci	YES		NULL		#	
+t	text	utf8mb4_uca1400_ai_ci	YES		NULL		#	
+c	char(10)	utf8mb4_uca1400_ai_ci	YES		NULL		#	
 b	blob	NULL	YES		NULL		#	
 d	varbinary(10)	NULL	YES		NULL		#	
 unlock tables;
@@ -376,8 +376,8 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` text DEFAULT NULL,
-  KEY `a` (`a`(1000))
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  KEY `a` (`a`(250))
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 CREATE TABLE t1 (
 t1_id bigint(21) NOT NULL auto_increment,
@@ -539,7 +539,7 @@ show full fields from t1;
 Field	Type	Collation	Null	Key	Default	Extra	Privileges	Comment
 l	longblob	NULL	YES		NULL		#	
 drop table t1;
-create table t1 (id integer primary key auto_increment, txt text not null, unique index txt_index (txt (20)));
+create table t1 (id integer primary key auto_increment, txt text not null, unique index txt_index (txt (20))) charset=latin1;
 insert into t1 (txt) values ('Chevy'), ('Chevy ');
 ERROR 23000: Duplicate entry 'Chevy ' for key 'txt_index'
 insert into t1 (txt) values ('Chevy'), ('CHEVY');
@@ -615,7 +615,7 @@ id	txt
 2	Chevy 
 3	Ford
 drop table t1;
-create table t1 (id integer primary key auto_increment, txt text, index txt_index (txt (20)));
+create table t1 (id integer primary key auto_increment, txt text, index txt_index (txt (20))) charset=latin1;
 insert into t1 (txt) values
 ('Chevy'), ('Chevy '), (NULL), ('Honda'), ('Subaru'), ('Honda');
 select * from t1 where txt='Chevy' or txt is NULL;
@@ -718,7 +718,7 @@ id	txt
 3	NULL
 1	Chevy
 drop table t1;
-CREATE TABLE t1 ( i int(11) NOT NULL default '0',    c text NOT NULL, d varchar(1) NOT NULL DEFAULT ' ', PRIMARY KEY  (i), KEY (c(1),d));
+CREATE TABLE t1 ( i int(11) NOT NULL default '0',    c text NOT NULL, d varchar(1) NOT NULL DEFAULT ' ', PRIMARY KEY  (i), KEY (c(1),d)) charset=latin1;
 INSERT t1 (i, c) VALUES (1,''),(2,''),(3,'asdfh'),(4,'');
 select max(i) from t1 where c = '';
 max(i)
@@ -737,7 +737,7 @@ t1	CREATE TABLE `t1` (
   `e` int(11) DEFAULT NULL,
   PRIMARY KEY (`a`,`b`,`c`(255),`d`),
   KEY `a` (`a`,`b`,`d`,`e`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 CREATE table t1 (a blob);
 insert into t1 values ('b'),('a\0'),('a'),('a '),('aa'),(NULL);
@@ -814,7 +814,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` text DEFAULT ''
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (default);
 select * from t1;
 a
@@ -826,7 +826,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` text DEFAULT ''
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 set @@sql_mode='';
 CREATE TABLE t (c TEXT CHARSET ASCII);
@@ -914,7 +914,7 @@ SHOW CREATE TABLE b15776;
 Table	Create Table
 b15776	CREATE TABLE `b15776` (
   `a` year(4) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE b15776;
 CREATE TABLE b15776 (a year(0));
 Warnings:
@@ -943,7 +943,7 @@ SHOW CREATE TABLE b15776;
 Table	Create Table
 b15776	CREATE TABLE `b15776` (
   `a` year(4) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE b15776;
 CREATE TABLE b15776 select cast(null as char(4294967295));
 show columns from b15776;
@@ -1086,7 +1086,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` longtext CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 create table t1 (a int);
 alter table t1 add column b blob, alter column b set default "foo";
@@ -1095,7 +1095,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` blob DEFAULT 'foo'
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 #
 # End of 10.2 test
@@ -1244,7 +1244,7 @@ Note	1105	Cannot use key parts with `test`.`t1`.`indexed_col` in the rewritten c
 DROP TABLE t1;
 SET note_verbosity=DEFAULT;
 SET note_verbosity=unusable_keys;
-CREATE TABLE t1 (indexed_col TEXT, KEY(indexed_col(64)));
+CREATE TABLE t1 (indexed_col TEXT, KEY(indexed_col(64))) charset=latin1;
 FOR i IN 1..31
 DO
 INSERT INTO t1 VALUES (20230100+i);
@@ -1405,7 +1405,7 @@ INSERT INTO t2 VALUES (0x30),(0x31);
 SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
 indexed_col	not_indexed_col
 DROP TABLE t2;
-CREATE TABLE t2 (not_indexed_col VARCHAR(32));
+CREATE TABLE t2 (not_indexed_col VARCHAR(32)) CHARACTER SET latin1;
 INSERT INTO t2 VALUES ('2001-01-01'),('2001-01-02');
 SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
 indexed_col	not_indexed_col

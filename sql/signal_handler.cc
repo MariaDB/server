@@ -149,6 +149,7 @@ extern "C" sig_handler handle_fatal_signal(int sig)
     goto end;
   }
   segfaulted = 1;
+  abort_loop= 1;                                // Disable now connections
   DBUG_PRINT("error", ("handling fatal signal"));
 
   curr_time= my_time(0);

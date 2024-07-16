@@ -17,7 +17,7 @@ t1	CREATE TABLE `t1` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `code` varchar(10) DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=SPIDER DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2"'
+) ENGINE=SPIDER DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2"'
 drop table t1, t2;
 drop server srv;
 for master_1

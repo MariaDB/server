@@ -1,3 +1,4 @@
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 select * from INFORMATION_SCHEMA.ENGINES where ENGINE="ARIA";
 ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
 Aria	YES	Crash-safe tables with MyISAM heritage. Used for internal temporary tables and privilege tables	NO	NO	NO
@@ -658,3 +659,4 @@ drop table t1,t2;
 create table t1 (a int) engine=aria;
 lock table t1 write;
 drop table t1;
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

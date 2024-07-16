@@ -1144,11 +1144,18 @@ String *Item_func_json_extract::read_json(String *str,
         je= sav_je;
     }
 
-    for (int count= 0; count < count_path; count++)
+    if ((not_first_value && str->append(", ", 2)))
+      goto error;
+    while(count_path)
     {
-      if (str->append((const char *) value, v_len) ||
-          str->append(", ", 2))
-        goto error; /* Out of memory. */
+      if (str->append((const char *) value, v_len))
+        goto error;
+      count_path--;
+      if (count_path)
+      {
+        if (str->append(", ", 2))
+          goto error;
+      }
     }
 
     not_first_value= 1;
@@ -1170,11 +1177,6 @@ String *Item_func_json_extract::read_json(String *str,
     goto return_null;
   }
 
-  if (str->length()>2)
-  {
-    str->chop();
-    str->chop();
-  }
   if (possible_multiple_values && str->append(']'))
     goto error; /* Out of memory. */
 
@@ -5416,7 +5418,7 @@ static bool filter_keys(json_engine_t *je1, String *str, HASH items)
         str.append('"');
         str.append('\0');
 
-        char *curr_key= (char*)malloc((size_t)(key_end-key_start+3));
+        char *curr_key= (char*)malloc((size_t)(str.length()+3));
         strncpy(curr_key, str.ptr(), str.length());
 
         if (my_hash_search(&items, (const uchar*)curr_key, strlen(curr_key)))

@@ -130,6 +130,7 @@ public:
   }
 };
 
+extern MYSQL_PLUGIN_IMPORT CHARSET_INFO *table_alias_charset;
 
 /*
   Identifiers for the database objects stored on disk,

@@ -3848,13 +3848,13 @@ my_bool dynstr_append_json_quoted(DYNAMIC_STRING *str,
     register char c= append[i];
     if (unlikely(((uchar)c) <= 0x1F))
     {
-      if (lim < 5)
+      if (lim < 6)
         {
           if (dynstr_realloc(str, additional))
             return TRUE;
           lim+= additional;
         }
-        lim-= 5;
+        lim -= 6;
         str->str[str->length++]= '\\';
         str->str[str->length++]= 'u';
         str->str[str->length++]= '0';
@@ -3865,17 +3865,18 @@ my_bool dynstr_append_json_quoted(DYNAMIC_STRING *str,
     }
     else
     {
+      if (lim < 2)
+      {
+        if (dynstr_realloc(str, additional))
+          return TRUE;
+        lim += additional;
+      }
       if (c == '"' || c == '\\')
       {
-        if (!lim)
-        {
-          if (dynstr_realloc(str, additional))
-            return TRUE;
-          lim= additional;
-        }
         lim--;
         str->str[str->length++]= '\\';
       }
+      lim--;
       str->str[str->length++]= c;
     }
   }

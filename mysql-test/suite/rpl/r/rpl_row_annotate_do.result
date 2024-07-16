@@ -168,7 +168,7 @@ slave-bin.000001	#	Table_map	1	#	table_id: # (test1.t3)
 slave-bin.000001	#	Write_rows_v1	1	#	table_id: # flags: STMT_END_F
 slave-bin.000001	#	Query	1	#	COMMIT
 slave-bin.000001	#	Gtid	2	#	BEGIN GTID 0-2-27
-slave-bin.000001	#	Annotate_rows	2	#	INSERT INTO test_suppressions (pattern) VALUES ( NAME_CONST('pattern',_latin1'Can\'t find record in \'t3\'' COLLATE 'latin1_swedish_ci'))
+slave-bin.000001	#	Annotate_rows	2	#	INSERT INTO test_suppressions (pattern) VALUES ( NAME_CONST('pattern',_utf8mb4'Can\'t find record in \'t3\'' COLLATE 'utf8mb4_uca1400_ai_ci'))
 slave-bin.000001	#	Table_map	2	#	table_id: # (mtr.test_suppressions)
 slave-bin.000001	#	Write_rows_v1	2	#	table_id: # flags: STMT_END_F
 slave-bin.000001	#	Query	2	#	COMMIT

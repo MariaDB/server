@@ -276,14 +276,27 @@ SELECT VARIABLE_NAME, GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHER
 --echo # binlog position and should still succeed despite the SSU stop
 --echo # position pointing to a previous event (because
 --echo # master_demote_to_slave=1 merges gtid_binlog_pos into gtid_slave_pos).
+
+--let $pre_start_slave_thread_count= query_get_value(SHOW STATUS LIKE 'Connections', Value, 1)
+
 --replace_result $ssu_middle_binlog_pos ssu_middle_binlog_pos
 eval START SLAVE UNTIL master_gtid_pos="$ssu_middle_binlog_pos";
 
 --echo # Slave needs time to start and stop automatically
-# Note sync_with_master_gtid.inc, wait_for_slave_to_start.inc, and
-# wait_for_slave_to_stop.inc won't work due to replication state and race
-# conditions
---sleep 1
+--echo # Waiting for both SQL and IO threads to have started..
+--let $expected_cons_after_start_slave= `SELECT ($pre_start_slave_thread_count + 2)`
+--let $status_var= Connections
+--let $status_var_value= $expected_cons_after_start_slave
+--let $status_var_comparsion= >=
+--source include/wait_for_status_var.inc
+--let $status_var_comparsion=
+
+--echo # Waiting for SQL thread to be killed..
+--let $wait_condition= SELECT count(*)=0 from information_schema.PROCESSLIST where COMMAND="Slave_SQL"
+--source include/wait_condition.inc
+--echo # Waiting for IO thread to be killed..
+--let $wait_condition= SELECT count(*)=0 from information_schema.PROCESSLIST where COMMAND="Slave_IO"
+--source include/wait_condition.inc
 
 --echo # Validating neither SQL nor IO threads are running..
 --let $io_state= query_get_value("SHOW SLAVE STATUS", Slave_IO_State, 1)

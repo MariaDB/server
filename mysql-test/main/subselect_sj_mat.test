@@ -19,9 +19,9 @@ drop table if exists t1_16, t2_16, t3_16;
 drop view if exists v1, v2, v1m, v2m;
 --enable_warnings
 
-create table t1 (a1 char(8), a2 char(8));
-create table t2 (b1 char(8), b2 char(8));
-create table t3 (c1 char(8), c2 char(8));
+create table t1 (a1 char(8), a2 char(8)) charset=latin1;
+create table t2 (b1 char(8), b2 char(8)) charset=latin1;
+create table t3 (c1 char(8), c2 char(8)) charset=latin1;
 
 insert into t1 values ('1 - 00', '2 - 00');
 insert into t1 values ('1 - 01', '2 - 01');
@@ -39,9 +39,9 @@ insert into t3 values ('1 - 03', '2 - 03');
 insert into t3 values ('1 - 04', '2 - 04');
 
 # Indexed columns
-create table t1i (a1 char(8), a2 char(8));
-create table t2i (b1 char(8), b2 char(8));
-create table t3i (c1 char(8), c2 char(8));
+create table t1i (a1 char(8), a2 char(8)) charset=latin1;
+create table t2i (b1 char(8), b2 char(8)) charset=latin1;
+create table t3i (c1 char(8), c2 char(8)) charset=latin1;
 create index it1i1 on t1i (a1);
 create index it1i2 on t1i (a2);
 create index it1i3 on t1i (a1, a2);
@@ -886,7 +886,7 @@ drop table t1,t2;
 #
 # BUG#36752 "subquery materialization produces wrong results when comparing different types"
 #
-create table t1 (a char(2), b varchar(10));
+create table t1 (a char(2), b varchar(10)) charset=latin1;
 insert into t1 values ('a',  'aaa');
 insert into t1 values ('aa', 'aaaa');
 
@@ -1185,7 +1185,7 @@ CREATE TABLE t1 (
   c varchar(4),
   d varchar(4),
   PRIMARY KEY (pk)
-);
+) CHARSET=latin1;
 INSERT INTO t1 VALUES (1,'o','ffff','ffff','ffoo'),(2,'f','ffff','ffff','ffff');
 insert into t1 select seq,'x','xxxx','xxxx','xxxx' from seq_10_to_40;
 
@@ -1536,8 +1536,8 @@ DROP TABLE t1,t2;
 --echo #
 --echo # BUG#922254: Assertion `0' failed at item_cmpfunc.cc:5899: Item* Item_equal::get_first(JOIN_TAB*, Item*)
 --echo #
-CREATE TABLE t1 ( a VARCHAR(3) );
-CREATE TABLE t2 ( b VARCHAR(3), c VARCHAR(8), KEY(c) );
+CREATE TABLE t1 ( a VARCHAR(3)) CHARSET=latin1;
+CREATE TABLE t2 ( b VARCHAR(3), c VARCHAR(8), KEY(c)) CHARSET=latin1;
 INSERT INTO t2 VALUES ('USA','Abilene'),('USA','Akron');
 
 EXPLAIN
@@ -1635,7 +1635,7 @@ DROP TABLE t1,t2;
 CREATE TABLE t1 (a int);
 INSERT INTO t1 VALUES (7);
 
-CREATE TABLE t2 (b int, c int, d varchar(1), e varchar(1), KEY (c), KEY (d, c));
+CREATE TABLE t2 (b int, c int, d varchar(1), e varchar(1), KEY (c), KEY (d, c)) CHARSET=latin1;
 
 INSERT INTO t2 VALUES 
   (4,2,'v','v'), (6,1,'v','v'), (0,5,'x','x'), (7,1,'x','x'),
@@ -1989,7 +1989,7 @@ CREATE TABLE t1 (
   PRIMARY KEY (sys_id),
   KEY idx1 (dispatch_group),
   KEY idx2 (assignment_group)
-) ENGINE=MyISAM;
+) ENGINE=MyISAM CHARSET=latin1;
 
 CREATE TABLE t2 (
   ugroup varchar(32),
@@ -1998,13 +1998,13 @@ CREATE TABLE t2 (
   PRIMARY KEY (sys_id),
   KEY idx3 (ugroup),
   KEY idx4 (user)
-) ENGINE=MyISAM;
+) ENGINE=MyISAM CHARSET=latin1;
 
 CREATE TABLE t3 (
   type mediumtext,
   sys_id char(32),
   PRIMARY KEY (sys_id)
-) ENGINE=MyISAM;
+) ENGINE=MyISAM CHARSET=latin1;
 
 --disable_query_log
 

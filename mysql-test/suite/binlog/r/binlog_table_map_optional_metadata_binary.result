@@ -1,3 +1,4 @@
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 RESET MASTER;
 #
 # Verify that SET string values and character sets can be printed correctly
@@ -63,3 +64,4 @@ enum2_v1_å	656E756D325F76315FC3A5
 DROP TABLE t1;
 RESET MASTER;
 SET GLOBAL binlog_row_metadata = NO_LOG;
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

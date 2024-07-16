@@ -5,7 +5,7 @@ fl1 tinyint default 0,
 fl2 tinyint default 0,
 index idx1(nm, fl1),
 index idx2(fl2)
-) engine=myisam;
+) engine=myisam charset=latin1;
 create table name (
 pk int primary key auto_increment,
 nm bigint

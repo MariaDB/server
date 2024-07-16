@@ -1,0 +1,37 @@
+#
+# MDEV-27966 Assertion `fixed()' failed and Assertion `fixed == 1' failed, both in Item_func_concat::val_str on SELECT after INSERT with collation utf32_bin on utf8_bin table
+#
+SET NAMES utf8mb3;
+SET sql_mode='';
+CREATE TABLE t (c1 INT,c2 CHAR AS (CONCAT ('',DAYNAME ('')))) COLLATE utf8_bin ENGINE=InnoDB;
+Warnings:
+Warning	1286	Unknown storage engine 'InnoDB'
+Warning	1266	Using storage engine MyISAM for table 't'
+INSERT INTO t VALUES (0,0),(0,0),(0,0),(0,0),(0,0),(0,0),(0,0),(0,0),(0,0);
+Warnings:
+Warning	1906	The value specified for generated column 'c2' in table 't' has been ignored
+Warning	1292	Incorrect datetime value: ''
+Warning	1906	The value specified for generated column 'c2' in table 't' has been ignored
+Warning	1292	Incorrect datetime value: ''
+Warning	1906	The value specified for generated column 'c2' in table 't' has been ignored
+Warning	1292	Incorrect datetime value: ''
+Warning	1906	The value specified for generated column 'c2' in table 't' has been ignored
+Warning	1292	Incorrect datetime value: ''
+Warning	1906	The value specified for generated column 'c2' in table 't' has been ignored
+Warning	1292	Incorrect datetime value: ''
+Warning	1906	The value specified for generated column 'c2' in table 't' has been ignored
+Warning	1292	Incorrect datetime value: ''
+Warning	1906	The value specified for generated column 'c2' in table 't' has been ignored
+Warning	1292	Incorrect datetime value: ''
+Warning	1906	The value specified for generated column 'c2' in table 't' has been ignored
+Warning	1292	Incorrect datetime value: ''
+Warning	1906	The value specified for generated column 'c2' in table 't' has been ignored
+Warning	1292	Incorrect datetime value: ''
+SET collation_connection='utf32_bin';
+INSERT INTO t VALUES (0,0),(0,0),(0,0),(0,0),(0,0),(0,0),(0,0),(0,0),(0,0);
+ERROR HY000: Illegal mix of collations (utf8mb3_bin,COERCIBLE) and (utf32_bin,COERCIBLE) for operation 'concat'
+SELECT * FROM t;
+ERROR HY000: Illegal mix of collations (utf8mb3_bin,COERCIBLE) and (utf32_bin,COERCIBLE) for operation 'concat'
+DROP TABLE t;
+SET sql_mode=DEFAULT;
+SET NAMES utf8mb3;

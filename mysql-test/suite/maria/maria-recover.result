@@ -17,6 +17,8 @@ drop database if exists mysqltest;
 create database mysqltest;
 use mysqltest;
 create table t1 (a varchar(1000), index(a)) engine=aria;
+Warnings:
+Note	1071	Specified key was too long; max key length is 2300 bytes
 insert into t1 values("ThursdayMorningsMarket");
 flush table t1;
 insert into t1 select concat(a,'b') from t1 limit 1;

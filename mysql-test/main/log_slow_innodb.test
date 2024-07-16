@@ -72,7 +72,7 @@ SET SESSION log_slow_verbosity='query_plan';
 INSERT INTO t1 VALUE(1001,1001);
 --source include/log_slow_stop.inc
 
---let log_slow_verbosity_innodb_expected_matches= 1
+--let log_slow_verbosity_innodb_expected_matches= 0
 --source include/log_slow_grep.inc
 
 DROP TABLE t1;

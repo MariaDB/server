@@ -1351,24 +1351,22 @@ static inline int mysql_mutex_lock(...)
   @ingroup Performance_schema_implementation
 */
 
-thread_local_key_t THR_PFS;
-thread_local_key_t THR_PFS_VG;   // global_variables
-thread_local_key_t THR_PFS_SV;   // session_variables
-thread_local_key_t THR_PFS_VBT;  // variables_by_thread
-thread_local_key_t THR_PFS_SG;   // global_status
-thread_local_key_t THR_PFS_SS;   // session_status
-thread_local_key_t THR_PFS_SBT;  // status_by_thread
-thread_local_key_t THR_PFS_SBU;  // status_by_user
-thread_local_key_t THR_PFS_SBH;  // status_by_host
-thread_local_key_t THR_PFS_SBA;  // status_by_account
+MY_THREAD_LOCAL void* THR_PFS_VG;   // global_variables
+MY_THREAD_LOCAL void* THR_PFS_SV;   // session_variables
+MY_THREAD_LOCAL void* THR_PFS_VBT;  // variables_by_thread
+MY_THREAD_LOCAL void* THR_PFS_SG;   // global_status
+MY_THREAD_LOCAL void* THR_PFS_SS;   // session_status
+MY_THREAD_LOCAL void* THR_PFS_SBT;  // status_by_thread
+MY_THREAD_LOCAL void* THR_PFS_SBU;  // status_by_user
+MY_THREAD_LOCAL void* THR_PFS_SBH;  // status_by_host
+MY_THREAD_LOCAL void* THR_PFS_SBA;  // status_by_account
 
-bool THR_PFS_initialized= false;
+MY_THREAD_LOCAL PFS_thread* THR_PFS;
 
 static inline PFS_thread*
 my_thread_get_THR_PFS()
 {
-  assert(THR_PFS_initialized);
-  PFS_thread *thread= static_cast<PFS_thread*>(my_get_thread_local(THR_PFS));
+  PFS_thread *thread= THR_PFS;
   assert(thread == NULL || sanitize_thread(thread) != NULL);
   return thread;
 }
@@ -1376,8 +1374,7 @@ my_thread_get_THR_PFS()
 static inline void
 my_thread_set_THR_PFS(PFS_thread *pfs)
 {
-  assert(THR_PFS_initialized);
-  my_set_thread_local(THR_PFS, pfs);
+  THR_PFS= pfs;
 }
 
 /**
@@ -2326,6 +2323,14 @@ pfs_get_thread_v1(void)
 {
   PFS_thread *pfs= my_thread_get_THR_PFS();
   return reinterpret_cast<PSI_thread*> (pfs);
+}
+
+const char *pfs_get_thread_class_name_v1(void)
+{
+  PFS_thread *pfs= my_thread_get_THR_PFS();
+  if (!pfs)
+    return NULL;
+  return pfs->m_class->m_name;
 }
 
 /**
@@ -7043,6 +7048,7 @@ PSI_v1 PFS_v1=
   pfs_set_thread_THD_v1,
   pfs_set_thread_os_id_v1,
   pfs_get_thread_v1,
+  pfs_get_thread_class_name_v1,
   pfs_set_thread_user_v1,
   pfs_set_thread_account_v1,
   pfs_set_thread_db_v1,

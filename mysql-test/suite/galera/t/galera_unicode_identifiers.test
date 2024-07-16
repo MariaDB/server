@@ -9,9 +9,11 @@
 SET GLOBAL wsrep_sync_wait = 15;
 
 --connection node_2
+SET NAMES utf8mb4;
 SET GLOBAL wsrep_sync_wait = 15;
 
 --connection node_1
+SET NAMES utf8mb4;
 
 --let $innodb_num_tables_orig = `SELECT COUNT(*) FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES`
 

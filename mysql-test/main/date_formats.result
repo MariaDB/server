@@ -1,9 +1,9 @@
 select str_to_date(concat('15-01-2001',' 2:59:58.999'),
-concat('%d-%m-%Y',' ','%H:%i:%s.%f')) as s;
-s
+concat('%d-%m-%Y',' ','%H:%i:%s.%f')) as exp;
+exp
 2001-01-15 02:59:58.999000
-select STR_TO_DATE('2004.12.12 22.30.61','%Y.%m.%d %T');
-STR_TO_DATE('2004.12.12 22.30.61','%Y.%m.%d %T')
+select STR_TO_DATE('2004.12.12 22.30.61','%Y.%m.%d %T') as exp;
+exp
 NULL
 Warnings:
 Warning	1411	Incorrect time value: '22.30.61' for function str_to_date
@@ -238,8 +238,8 @@ Tuesday 52 2001	%W %V %X	00:00:00.000000
 15-01-2001	%d-%m-%Y %H:%i:%S	00:00:00.000000
 15-01-20	%d-%m-%y	00:00:00.000000
 15-2001-1	%d-%Y-%c	00:00:00.000000
-select concat('',str_to_date('8:11:2.123456 03-01-02','%H:%i:%S.%f %y-%m-%d')) as s;
-s
+select concat('',str_to_date('8:11:2.123456 03-01-02','%H:%i:%S.%f %y-%m-%d')) as exp;
+exp
 2003-01-02 08:11:02.123456
 truncate table t1;
 insert into t1 values
@@ -533,8 +533,8 @@ Thursday 01 January 2009
 # Bug#58005 utf8 + get_format causes failed assertion: !str || str != Ptr'
 #
 SET NAMES utf8;
-SELECT LEAST('%', GET_FORMAT(datetime, 'eur'), CAST(GET_FORMAT(datetime, 'eur') AS CHAR(65535))) as s;
-s
+SELECT LEAST('%', GET_FORMAT(datetime, 'eur'), CAST(GET_FORMAT(datetime, 'eur') AS CHAR(65535))) as exp;
+exp
 %
 SET NAMES latin1;
 #

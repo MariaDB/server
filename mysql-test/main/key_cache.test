@@ -5,6 +5,9 @@
 drop table if exists t1, t2, t3;
 --enable_warnings
 
+--source include/test_db_charset_latin1.inc
+
+
 SET @save_key_buffer_size=@@key_buffer_size;
 SET @save_key_cache_block_size=@@key_cache_block_size;
 SET @save_key_cache_segments=@@key_cache_segments;
@@ -561,3 +564,5 @@ SET GLOBAL keycache1.key_buffer_size=0;
 --echo #
 --echo # End of 10.3 tests
 --echo #
+
+--source include/test_db_charset_restore.inc

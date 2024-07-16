@@ -2510,7 +2510,7 @@ static int initialize_variables_for_repair(HA_CHECK *param,
   *info->state= info->s->state.state;
   if (share->data_file_type == BLOCK_RECORD)
     share->state.state.data_file_length= MY_ALIGN(sort_info->filelength,
-                                                  share->block_size);
+                                                  (my_off_t) share->block_size);
   else
     share->state.state.data_file_length= sort_info->filelength;
   return 0;

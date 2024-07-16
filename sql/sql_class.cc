@@ -2573,6 +2573,8 @@ bool THD::copy_with_error(CHARSET_INFO *dstcs, LEX_STRING *dst,
                           CHARSET_INFO *srccs,
                           const char *src, size_t src_length) const
 {
+  // Don't allow NULL to avoid UB in the called functions: nullptr+0
+  DBUG_ASSERT(src);
   String_copier_with_error status;
   return copy_fix(dstcs, dst, srccs, src, src_length, &status) ||
          status.check_errors(srccs, src, src_length);
@@ -5151,23 +5153,22 @@ void destroy_thd(MYSQL_THD thd)
   like for example, evaluation of virtual function in innodb
   purge.
 */
-extern "C" pthread_key(struct st_my_thread_var *, THR_KEY_mysys);
 MYSQL_THD create_background_thd()
 {
   auto save_thd = current_thd;
   set_current_thd(nullptr);
 
-  auto save_mysysvar= pthread_getspecific(THR_KEY_mysys);
+  auto save_mysysvar= my_thread_var;
 
   /*
     Allocate new mysys_var specifically new THD,
     so that e.g safemalloc, DBUG etc are happy.
   */
-  pthread_setspecific(THR_KEY_mysys, 0);
+  set_mysys_var(nullptr);
   my_thread_init();
-  auto thd_mysysvar= pthread_getspecific(THR_KEY_mysys);
+  auto thd_mysysvar= my_thread_var;
   auto thd= new THD(0);
-  pthread_setspecific(THR_KEY_mysys, save_mysysvar);
+  set_mysys_var(save_mysysvar);
   thd->set_psi(nullptr);
   set_current_thd(save_thd);
 
@@ -5185,6 +5186,9 @@ MYSQL_THD create_background_thd()
   thd->real_id= 0;
   thd->thread_id= 0;
   thd->query_id= 0;
+#ifdef WITH_WSREP
+  thd->variables.wsrep_on= FALSE;
+#endif /* WITH_WSREP */
   return thd;
 }
 
@@ -5200,8 +5204,8 @@ void *thd_attach_thd(MYSQL_THD thd)
   DBUG_ASSERT(!current_thd);
   DBUG_ASSERT(thd && thd->mysys_var);
 
-  auto save_mysysvar= pthread_getspecific(THR_KEY_mysys);
-  pthread_setspecific(THR_KEY_mysys, thd->mysys_var);
+  auto save_mysysvar= my_thread_var;
+  set_mysys_var(thd->mysys_var);
   thd->thread_stack= (char *) &thd;
   thd->store_globals();
   return save_mysysvar;
@@ -5214,7 +5218,7 @@ void *thd_attach_thd(MYSQL_THD thd)
 void thd_detach_thd(void *mysysvar)
 {
   /* Restore mysys_var that is changed when THD was attached.*/
-  pthread_setspecific(THR_KEY_mysys, mysysvar);
+  set_mysys_var((st_my_thread_var *)mysysvar);
   /* Restore the THD (we assume it was NULL during attach).*/
   set_current_thd(0);
 }
@@ -5227,7 +5231,7 @@ void destroy_background_thd(MYSQL_THD thd)
 {
   DBUG_ASSERT(!current_thd);
   auto thd_mysys_var= thd->mysys_var;
-  auto save_mysys_var= thd_attach_thd(thd);
+  auto save_mysys_var= (st_my_thread_var *)thd_attach_thd(thd);
   DBUG_ASSERT(thd_mysys_var != save_mysys_var);
   /*
     Workaround the adverse effect decrementing thread_count on THD()
@@ -5249,9 +5253,9 @@ void destroy_background_thd(MYSQL_THD thd)
   auto save_psi_thread= PSI_CALL_get_thread();
 #endif
   PSI_CALL_set_thread(0);
-  pthread_setspecific(THR_KEY_mysys, thd_mysys_var);
+  set_mysys_var(thd_mysys_var);
   my_thread_end();
-  pthread_setspecific(THR_KEY_mysys, save_mysys_var);
+  set_mysys_var(save_mysys_var);
   PSI_CALL_set_thread(save_psi_thread);
 }
 
@@ -6580,7 +6584,8 @@ int THD::decide_logging_format(TABLE_LIST *tables)
       wsrep_is_active(this) &&
       variables.wsrep_trx_fragment_size > 0)
   {
-    if (!is_current_stmt_binlog_format_row())
+    if (!is_current_stmt_binlog_disabled() &&
+        !is_current_stmt_binlog_format_row())
     {
       my_message(ER_NOT_SUPPORTED_YET,
                  "Streaming replication not supported with "

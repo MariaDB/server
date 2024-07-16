@@ -526,7 +526,7 @@ extern "C" const char *my_crc32c_implementation()
 }  // namespace crc32c
 }  // namespace mysys_namespace
 
-extern "C" unsigned my_crc32c(unsigned int crc, const char *buf, size_t size)
+extern "C" uint32 my_crc32c(uint32 crc, const void *buf, size_t size)
 {
   return mysys_namespace::crc32c::ChosenExtend(crc,buf, size);
 }

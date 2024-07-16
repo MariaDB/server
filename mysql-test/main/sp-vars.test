@@ -19,6 +19,8 @@ DROP FUNCTION IF EXISTS sp_vars_div_zero;
 
 --enable_warnings
 
+--source include/test_db_charset_latin1.inc
+
 ###########################################################################
 #
 # Some general tests for SP-vars functionality.
@@ -2198,3 +2200,5 @@ DELIMITER ;$$
 --echo #
 --echo # End of MDEV-14347 CREATE PROCEDURE returns no error when using an unknown variable
 --echo #
+
+--source include/test_db_charset_restore.inc

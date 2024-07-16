@@ -224,13 +224,13 @@ public:
   /** @brief
     The name that will be used for display purposes.
    */
-  const char *table_type() const {return "CONNECT";}
+  const char *table_type() const override {return "CONNECT";}
 
   /** @brief
     The name of the index type that will be used for display.
     Don't implement this method unless you really have indexes.
    */
-  const char *index_type(uint inx);
+  const char *index_type(uint inx) override;
 
   /** @brief
     The file extensions.
@@ -241,15 +241,15 @@ public:
     Check if a storage engine supports a particular alter table in-place
     @note Called without holding thr_lock.c lock.
  */
- virtual enum_alter_inplace_result
+ enum_alter_inplace_result
  check_if_supported_inplace_alter(TABLE *altered_table,
-                                  Alter_inplace_info *ha_alter_info);
+                                  Alter_inplace_info *ha_alter_info) override;
 
   /** @brief
     This is a list of flags that indicate what functionality the storage engine
     implements. The current table flags are documented in handler.h
   */
-  ulonglong table_flags() const;
+  ulonglong table_flags() const override;
 
   /** @brief
     This is a bitmap of flags that indicates how the storage engine
@@ -261,7 +261,7 @@ public:
     If all_parts is set, MySQL wants to know the flags for the combined
     index, up to and including 'part'.
   */
-  ulong index_flags(uint inx, uint part, bool all_parts) const;
+  ulong index_flags(uint inx, uint part, bool all_parts) const override;
 
   /** @brief
     unireg.cc will call max_supported_record_length(), max_supported_keys(),
@@ -270,7 +270,7 @@ public:
     send. Return *real* limits of your storage engine here; MySQL will do
     min(your_limits, MySQL_limits) automatically.
    */
-  uint max_supported_record_length() const { return HA_MAX_REC_LENGTH; }
+  uint max_supported_record_length() const override { return HA_MAX_REC_LENGTH; }
 
   /** @brief
     unireg.cc will call this to make sure that the storage engine can handle
@@ -281,7 +281,7 @@ public:
     There is no need to implement ..._key_... methods if your engine doesn't
     support indexes.
    */
-  uint max_supported_keys()          const { return 10; }
+  uint max_supported_keys() const override { return 10; }
 
   /** @brief
     unireg.cc will call this to make sure that the storage engine can handle
@@ -292,7 +292,7 @@ public:
     There is no need to implement ..._key_... methods if your engine doesn't
     support indexes.
    */
-  uint max_supported_key_parts()     const { return 10; }
+  uint max_supported_key_parts() const override { return 10; }
 
   /** @brief
     unireg.cc will call this to make sure that the storage engine can handle
@@ -303,19 +303,19 @@ public:
     There is no need to implement ..._key_... methods if your engine doesn't
     support indexes.
    */
-  uint max_supported_key_length()    const { return 255; }
+  uint max_supported_key_length() const override { return 255; }
 
   /** @brief
     Called in test_quick_select to determine if indexes should be used.
   */
-  virtual IO_AND_CPU_COST scan_time()
+  IO_AND_CPU_COST scan_time() override
   { return { 0, (double) (stats.records+stats.deleted) * DISK_READ_COST }; };
 
   /** @brief
     This method will never be called if you do not implement indexes.
   */
-  virtual IO_AND_CPU_COST keyread_time(uint index, ulong ranges, ha_rows rows,
-                                       ulonglong blocks)
+  IO_AND_CPU_COST keyread_time(uint index, ulong ranges, ha_rows rows,
+                                       ulonglong blocks) override
   {
     return { 0, (double) rows * 0.001 };
   }
@@ -327,7 +327,7 @@ public:
     Most of these methods are not obligatory, skip them and
     MySQL will treat them as not implemented
   */
-  virtual bool get_error_message(int error, String *buf);
+  bool get_error_message(int error, String *buf) override;
 
  /**
    Push condition down to the table handler.
@@ -351,27 +351,27 @@ public:
    Calls to rnd_init/rnd_end, index_init/index_end etc do not affect the
    condition stack.
  */
-virtual const COND *cond_push(const COND *cond);
+const COND *cond_push(const COND *cond) override;
 PCFIL CheckCond(PGLOBAL g, PCFIL filp, const Item *cond);
 const char *GetValStr(OPVAL vop, bool neg);
 PFIL  CondFilter(PGLOBAL g, Item *cond);
 //PFIL  CheckFilter(PGLOBAL g);
 
 /** admin commands - called from mysql_admin_table */
-virtual int check(THD* thd, HA_CHECK_OPT* check_opt);
+int check(THD* thd, HA_CHECK_OPT* check_opt) override;
 
  /**
    Number of rows in table. It will only be called if
    (table_flags() & (HA_HAS_RECORDS | HA_STATS_RECORDS_IS_EXACT)) != 0
  */
- virtual ha_rows records();
+ ha_rows records() override;
 
  /**
    Type of table for caching query
    CONNECT should not use caching because its tables are external
    data prone to me modified out of MariaDB
  */
- virtual uint8 table_cache_type(void)
+ uint8 table_cache_type(void) override
  {
 #if defined(MEMORY_TRACE)
    // Temporary until bug MDEV-4771 is fixed
@@ -384,37 +384,37 @@ virtual int check(THD* thd, HA_CHECK_OPT* check_opt);
  /** @brief
     We implement this in ha_connect.cc; it's a required method.
   */
-  int open(const char *name, int mode, uint test_if_locked);    // required
+  int open(const char *name, int mode, uint test_if_locked) override;    // required
 
   /** @brief
     We implement this in ha_connect.cc; it's a required method.
   */
-  int close(void);                                              // required
+  int close(void) override;                                              // required
 
   /** @brief
     We implement this in ha_connect.cc. It's not an obligatory method;
     skip it and and MySQL will treat it as not implemented.
   */
-  int write_row(const uchar *buf);
+  int write_row(const uchar *buf) override;
 
   /** @brief
     We implement this in ha_connect.cc. It's not an obligatory method;
     skip it and and MySQL will treat it as not implemented.
   */
-  int update_row(const uchar *old_data, const uchar *new_data);
+  int update_row(const uchar *old_data, const uchar *new_data) override;
 
   /** @brief
     We implement this in ha_connect.cc. It's not an obligatory method;
     skip it and and MySQL will treat it as not implemented.
   */
-  int delete_row(const uchar *buf);
+  int delete_row(const uchar *buf) override;
 
   // Added to the connect handler
-  int index_init(uint idx, bool sorted);
-  int index_end();
+  int index_init(uint idx, bool sorted) override;
+  int index_end() override;
   int index_read(uchar * buf, const uchar * key, uint key_len,
-                              enum ha_rkey_function find_flag);
-  int index_next_same(uchar *buf, const uchar *key, uint keylen);
+                              enum ha_rkey_function find_flag) override;
+  int index_next_same(uchar *buf, const uchar *key, uint keylen) override;
 
   /** @brief
     We implement this in ha_connect.cc. It's not an obligatory method;
@@ -427,25 +427,25 @@ virtual int check(THD* thd, HA_CHECK_OPT* check_opt);
     We implement this in ha_connect.cc. It's not an obligatory method;
     skip it and and MySQL will treat it as not implemented.
   */
-  int index_next(uchar *buf);
+  int index_next(uchar *buf) override;
 
   /** @brief
     We implement this in ha_connect.cc. It's not an obligatory method;
     skip it and and MySQL will treat it as not implemented.
   */
-int index_prev(uchar *buf);
+int index_prev(uchar *buf) override;
 
   /** @brief
     We implement this in ha_connect.cc. It's not an obligatory method;
     skip it and and MySQL will treat it as not implemented.
   */
-  int index_first(uchar *buf);
+  int index_first(uchar *buf) override;
 
   /** @brief
     We implement this in ha_connect.cc. It's not an obligatory method;
     skip it and and MySQL will treat it as not implemented.
   */
-  int index_last(uchar *buf);
+  int index_last(uchar *buf) override;
 
   /* Index condition pushdown implementation */
 //Item *idx_cond_push(uint keyno, Item* idx_cond);
@@ -458,58 +458,58 @@ int index_prev(uchar *buf);
     cursor to the start of the table; no need to deallocate and allocate
     it again. This is a required method.
   */
-  int rnd_init(bool scan);                                      //required
-  int rnd_end();
-  int rnd_next(uchar *buf);                                     ///< required
-  int rnd_pos(uchar *buf, uchar *pos);                          ///< required
-  void position(const uchar *record);                           ///< required
-  int info(uint);                                               ///< required
-  int extra(enum ha_extra_function operation);
-  int start_stmt(THD *thd, thr_lock_type lock_type);
-  int external_lock(THD *thd, int lock_type);                   ///< required
-  int delete_all_rows(void);
+  int rnd_init(bool scan) override;                                      //required
+  int rnd_end() override;
+  int rnd_next(uchar *buf) override;                                     ///< required
+  int rnd_pos(uchar *buf, uchar *pos) override;                          ///< required
+  void position(const uchar *record) override;                           ///< required
+  int info(uint) override;                                               ///< required
+  int extra(enum ha_extra_function operation) override;
+  int start_stmt(THD *thd, thr_lock_type lock_type) override;
+  int external_lock(THD *thd, int lock_type) override;                   ///< required
+  int delete_all_rows(void) override;
   ha_rows records_in_range(uint inx, const key_range *start_key,
-                           const key_range *end_key, page_range *pages);
+                           const key_range *end_key, page_range *pages) override;
   /**
     These methods can be overridden, but their default implementation
     provide useful functionality.
   */
-  int rename_table(const char *from, const char *to);
+  int rename_table(const char *from, const char *to) override;
   /**
     Delete a table in the engine. Called for base as well as temporary
     tables.
   */
-  int delete_table(const char *name);
+  int delete_table(const char *name) override;
   /**
     Called by delete_table and rename_table
   */
   int delete_or_rename_table(const char *from, const char *to);
   int create(const char *name, TABLE *form,
-             HA_CREATE_INFO *create_info);                      ///< required
+             HA_CREATE_INFO *create_info) override;                  ///< required
   bool check_if_incompatible_data(HA_CREATE_INFO *info,
-                                  uint table_changes);
+                                  uint table_changes) override;
 
   THR_LOCK_DATA **store_lock(THD *thd, THR_LOCK_DATA **to,
-                             enum thr_lock_type lock_type);     ///< required
-  int optimize(THD* thd, HA_CHECK_OPT* check_opt);
+                             enum thr_lock_type lock_type) override; ///< required
+  int optimize(THD* thd, HA_CHECK_OPT* check_opt) override;
 
   /**
    * Multi Range Read interface
    */
   int multi_range_read_init(RANGE_SEQ_IF *seq, void *seq_init_param,
-                            uint n_ranges, uint mode, HANDLER_BUFFER *buf);
-  int multi_range_read_next(range_id_t *range_info);
+                            uint n_ranges, uint mode, HANDLER_BUFFER *buf) override;
+  int multi_range_read_next(range_id_t *range_info) override;
   ha_rows multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
                                       void *seq_init_param,
                                       uint n_ranges, uint *bufsz,
                                       uint *flags, ha_rows limit,
-                                      Cost_estimate *cost);
+                                      Cost_estimate *cost) override;
   ha_rows multi_range_read_info(uint keyno, uint n_ranges, uint keys,
                                 uint key_parts, uint *bufsz,
-                                uint *flags, Cost_estimate *cost);
-  int multi_range_read_explain_info(uint mrr_mode, char *str, size_t size);
+                                uint *flags, Cost_estimate *cost) override;
+  int multi_range_read_explain_info(uint mrr_mode, char *str, size_t size) override;
 
-  int reset(void) {ds_mrr.dsmrr_close(); return 0;}
+  int reset(void) override {ds_mrr.dsmrr_close(); return 0;}
 
   /* Index condition pushdown implementation */
 //  Item *idx_cond_push(uint keyno, Item* idx_cond);

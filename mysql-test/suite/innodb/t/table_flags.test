@@ -256,3 +256,15 @@ INSERT INTO t1 VALUES(2);
 let $shutdown_timeout = 0;
 --source include/restart_mysqld.inc
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-34222 Alter operation on redundant table aborts the server
+--echo #
+SET @df_row = @@global.INNODB_DEFAULT_ROW_FORMAT;
+SET GLOBAL INNODB_DEFAULT_ROW_FORMAT=REDUNDANT;
+CREATE TABLE t1 (c CHAR(1)) ENGINE=InnoDB;
+SET GLOBAL INNODB_DEFAULT_ROW_FORMAT=compact;
+--error ER_ILLEGAL_HA_CREATE_OPTION
+ALTER TABLE t1 PAGE_COMPRESSED=1;
+DROP TABLE t1;
+SET @@global.INNODB_DEFAULT_ROW_FORMAT = @df_row;

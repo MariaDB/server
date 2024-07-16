@@ -240,6 +240,7 @@ int main(int, char **)
 
   MY_INIT("pfs_noop-t");
   test_noop();
+  my_end(MY_CHECK_ERROR);
   return (exit_status());
 }
 

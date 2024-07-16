@@ -56,9 +56,9 @@ TARGET_LINK_LIBRARIES(mariadb-check ${CLIENT_LIB})
 MYSQL_ADD_EXECUTABLE(mariadb-dump mysqldump.cc ../sql-common/my_user.c connection_pool.cc)
 TARGET_LINK_LIBRARIES(mariadb-dump ${CLIENT_LIB})
 
-MYSQL_ADD_EXECUTABLE(mariadb-import mysqlimport.c)
-SET_SOURCE_FILES_PROPERTIES(mysqlimport.c PROPERTIES COMPILE_FLAGS "-DTHREADS")
-TARGET_LINK_LIBRARIES(mariadb-import ${CLIENT_LIB})
+MYSQL_ADD_EXECUTABLE(mariadb-import mysqlimport.cc)
+target_include_directories(mariadb-import PRIVATE ${CMAKE_SOURCE_DIR}/tpool)
+target_link_libraries(mariadb-import PRIVATE tpool ${CLIENT_LIB})
 
 MYSQL_ADD_EXECUTABLE(mariadb-upgrade mysql_upgrade.c COMPONENT Server)
 TARGET_LINK_LIBRARIES(mariadb-upgrade ${CLIENT_LIB})

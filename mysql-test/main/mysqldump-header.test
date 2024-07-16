@@ -1,5 +1,6 @@
 --source include/not_embedded.inc
 
+SET NAMES utf8mb4;
 CREATE TABLE `courses` (
   `course_id` smallint(20) PRIMARY KEY,
   `name` varchar(50),

@@ -102,14 +102,14 @@ public:
       delete file_buff;
     free_root(&blobroot, MYF(0));
   }
-  const char *index_type(uint inx) { return "NONE"; }
-  ulonglong table_flags() const
+  const char *index_type(uint inx) override { return "NONE"; }
+  ulonglong table_flags() const override
   {
     return (HA_NO_TRANSACTIONS | HA_REC_NOT_IN_SEQ | HA_NO_AUTO_INCREMENT |
             HA_BINLOG_ROW_CAPABLE | HA_BINLOG_STMT_CAPABLE | HA_CAN_EXPORT |
             HA_CAN_REPAIR | HA_SLOW_RND_POS);
   }
-  ulong index_flags(uint idx, uint part, bool all_parts) const
+  ulong index_flags(uint idx, uint part, bool all_parts) const override
   {
     /*
       We will never have indexes so this will never be called(AKA we return
@@ -124,7 +124,7 @@ public:
   /*
      Called in test_quick_select to determine if indexes should be used.
    */
-  virtual IO_AND_CPU_COST scan_time()
+  IO_AND_CPU_COST scan_time() override
   {
     return
     { (double) ((share->saved_data_file_length + IO_SIZE-1))/ IO_SIZE,
@@ -137,38 +137,38 @@ public:
     (e.g. save number of records seen on full table scan and/or use file size
     as upper bound)
   */
-  ha_rows estimate_rows_upper_bound() { return HA_POS_ERROR; }
+  ha_rows estimate_rows_upper_bound() override { return HA_POS_ERROR; }
 
-  int open(const char *name, int mode, uint open_options);
-  int close(void);
-  int write_row(const uchar * buf);
-  int update_row(const uchar * old_data, const uchar * new_data);
-  int delete_row(const uchar * buf);
-  int rnd_init(bool scan=1);
-  int rnd_next(uchar *buf);
-  int rnd_pos(uchar * buf, uchar *pos);
-  bool check_and_repair(THD *thd);
-  int check(THD* thd, HA_CHECK_OPT* check_opt);
-  bool is_crashed() const;
-  int rnd_end();
-  int repair(THD* thd, HA_CHECK_OPT* check_opt);
+  int open(const char *name, int mode, uint open_options) override;
+  int close(void) override;
+  int write_row(const uchar * buf) override;
+  int update_row(const uchar * old_data, const uchar * new_data) override;
+  int delete_row(const uchar * buf) override;
+  int rnd_init(bool scan=1) override;
+  int rnd_next(uchar *buf) override;
+  int rnd_pos(uchar * buf, uchar *pos) override;
+  bool check_and_repair(THD *thd) override;
+  int check(THD* thd, HA_CHECK_OPT* check_opt) override;
+  bool is_crashed() const override;
+  int rnd_end() override;
+  int repair(THD* thd, HA_CHECK_OPT* check_opt) override;
   /* This is required for SQL layer to know that we support autorepair */
-  bool auto_repair(int error) const
+  bool auto_repair(int error) const override
   { return error == HA_ERR_CRASHED_ON_USAGE; }
   bool auto_repair() const { return 1; }
-  void position(const uchar *record);
-  int info(uint);
-  int reset();
-  int extra(enum ha_extra_function operation);
-  int delete_all_rows(void);
-  int create(const char *name, TABLE *form, HA_CREATE_INFO *create_info);
+  void position(const uchar *record) override;
+  int info(uint) override;
+  int reset() override;
+  int extra(enum ha_extra_function operation) override;
+  int delete_all_rows(void) override;
+  int create(const char *name, TABLE *form, HA_CREATE_INFO *create_info) override;
   bool check_if_incompatible_data(HA_CREATE_INFO *info,
-                                  uint table_changes);
+                                  uint table_changes) override;
 
-  int external_lock(THD *thd, int lock_type);
+  int external_lock(THD *thd, int lock_type) override;
 
   THR_LOCK_DATA **store_lock(THD *thd, THR_LOCK_DATA **to,
-      enum thr_lock_type lock_type);
+      enum thr_lock_type lock_type) override;
 
   /*
     These functions used to get/update status of the handler.

@@ -3999,7 +3999,8 @@ int ha_partition::open(const char *name, int mode, uint test_if_locked)
                             m_part_info->part_expr->get_monotonicity_info();
   else if (m_part_info->list_of_part_fields)
     m_part_func_monotonicity_info= MONOTONIC_STRICT_INCREASING;
-  info(HA_STATUS_VARIABLE | HA_STATUS_CONST | HA_STATUS_OPEN);
+  if ((error= info(HA_STATUS_VARIABLE | HA_STATUS_CONST | HA_STATUS_OPEN)))
+    goto err_handler;
   DBUG_RETURN(0);
 
 err_handler:
@@ -10599,7 +10600,7 @@ public:
       m_tot_parts(tot_parts)
   {}
 
-  ~ha_partition_inplace_ctx()
+  ~ha_partition_inplace_ctx() override
   {
     if (handler_ctx_array)
     {

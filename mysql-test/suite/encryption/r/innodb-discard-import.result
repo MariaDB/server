@@ -89,7 +89,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` bigint(20) NOT NULL,
   `b` char(200) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `encrypted`=yes `encryption_key_id`=4
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci `encrypted`=yes `encryption_key_id`=4
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 2000
@@ -99,7 +99,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `c1` bigint(20) NOT NULL,
   `b` char(200) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `page_compressed`=1 `encrypted`=yes `encryption_key_id`=4
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci `page_compressed`=1 `encrypted`=yes `encryption_key_id`=4
 SELECT COUNT(*) FROM t2;
 COUNT(*)
 2000
@@ -109,7 +109,7 @@ Table	Create Table
 t3	CREATE TABLE `t3` (
   `c1` bigint(20) NOT NULL,
   `b` char(200) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci ROW_FORMAT=COMPRESSED `encrypted`=yes `encryption_key_id`=4
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci ROW_FORMAT=COMPRESSED `encrypted`=yes `encryption_key_id`=4
 SELECT COUNT(*) FROM t3;
 COUNT(*)
 2000
@@ -119,7 +119,7 @@ Table	Create Table
 t4	CREATE TABLE `t4` (
   `c1` bigint(20) NOT NULL,
   `b` char(200) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `page_compressed`=1
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci `page_compressed`=1
 SELECT COUNT(*) FROM t4;
 COUNT(*)
 2000

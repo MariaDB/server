@@ -346,9 +346,9 @@ static PSI_rwlock_info all_aria_rwlocks[]=
 
 static PSI_thread_info all_aria_threads[]=
 {
-  { &key_thread_checkpoint, "checkpoint_background", PSI_FLAG_GLOBAL},
-  { &key_thread_soft_sync, "soft_sync_background", PSI_FLAG_GLOBAL},
-  { &key_thread_find_all_keys, "thr_find_all_keys", 0}
+  { &key_thread_checkpoint, "checkpoint_bg", PSI_FLAG_GLOBAL},
+  { &key_thread_soft_sync, "soft_sync_bg", PSI_FLAG_GLOBAL},
+  { &key_thread_find_all_keys, "find_all_keys", 0}
 };
 
 static PSI_file_info all_aria_files[]=
@@ -1846,6 +1846,11 @@ int ha_maria::repair(THD *thd, HA_CHECK *param, bool do_optimize)
       _ma_check_print_warning(param, "Number of rows changed from %s to %s",
                               llstr(rows, llbuff),
                               llstr(file->state->records, llbuff2));
+      /*
+        ma_check_print_warning() may generate an error in case of creating keys
+        for ALTER TABLE. In this case we should signal an error.
+      */
+      error= thd->is_error();
     }
   }
   else

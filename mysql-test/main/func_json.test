@@ -1162,6 +1162,20 @@ SELECT JSON_TYPE(json_value(JSON_OBJECT("id", 1, "name", 'Monty', "date", Cast('
 SELECT JSON_REMOVE('{"A": { "B": 1 }}', '$.A.B.C.D');
 
 
+
+--echo #
+--echo # MDEV-34143: Server crashes when executing JSON_EXTRACT after setting non-default collation_connection
+--echo #
+
+SET @save_collation_connection= @@collation_connection;
+
+SET collation_connection='utf16_bin';
+--disable_service_connection
+SELECT JSON_EXTRACT('{"a": 1,"b": 2}','$.a');
+--enable_service_connection
+
+SET @@collation_connection= @save_collation_connection;
+
 --echo #
 --echo # End of 10.5 tests
 --echo #
@@ -4081,6 +4095,16 @@ SELECT JSON_ARRAY_INTERSECT(c1, c2) FROM t1;
 
 DROP TABLE t1;
 
+
+--echo #
+--echo # MDEV-31543: ASAN heap-buffer-overflow in strncpy when fetching keys using JSON_OBJECT_FILTER_KEYS function
+--echo #
+
+SET @arr1='[1,2,"c"]';
+SET character_set_database=ucs2;
+SET CHARACTER SET utf8;
+SET @obj1='{ "a": 1,"b": 2,"c": 3}';
+SELECT JSON_OBJECT_FILTER_KEYS (@obj1,@arr1);
 
 --echo #
 --echo # End of 11.2 Test

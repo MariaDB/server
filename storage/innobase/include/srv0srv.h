@@ -592,7 +592,6 @@ struct export_var_t{
 	ulint innodb_data_reads;		/*!< I/O read requests */
 	ulint innodb_dblwr_pages_written;	/*!< srv_dblwr_pages_written */
 	ulint innodb_dblwr_writes;		/*!< srv_dblwr_writes */
-	ulint innodb_deadlocks;
 	ulint innodb_history_list_length;
 	lsn_t innodb_lsn_current;
 	lsn_t innodb_lsn_flushed;
@@ -616,7 +615,10 @@ struct export_var_t{
 	ulong innodb_undo_truncations;
 
 	/** Number of instant ALTER TABLE operations that affect columns */
-	ulong innodb_instant_alter_column;
+	Atomic_counter<ulint> innodb_instant_alter_column;
+
+	/* Number of InnoDB bulk operations */
+	Atomic_counter<ulint> innodb_bulk_operations;
 
 	ulint innodb_onlineddl_rowlog_rows;	/*!< Online alter rows */
 	ulint innodb_onlineddl_rowlog_pct_used; /*!< Online alter percentage

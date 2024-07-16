@@ -966,6 +966,7 @@ corrupted:
 			first = flst_get_first(FSP_HEADER_OFFSET + FSP_FREE
 					       + header->page.frame);
 			if (first.page == FIL_NULL) {
+				*err = DB_OUT_OF_FILE_SPACE;
 				return nullptr;	/* No free extents left */
 			}
 			if (first.page >= space->free_limit) {
@@ -3472,10 +3473,10 @@ dberr_t fsp_traverse_extents(
   else
   {
     err= old_xdes_entry->insert(0, mtr);
-    if (err) return err;
-    if (threshold & (srv_page_size - 1))
+    if (err == DB_SUCCESS && threshold & (srv_page_size - 1))
       err= old_xdes_entry->insert(
         xdes_calc_descriptor_page(0, threshold), mtr);
+    if (err) return err;
   }
 
   buf_block_t *block= nullptr;
@@ -3714,7 +3715,7 @@ inline void fil_space_t::clear_freed_ranges(uint32_t threshold)
   {
     if (range.first >= threshold)
       continue;
-    else if (range.last > threshold)
+    else if (range.last >= threshold)
     {
       range_t new_range{range.first, threshold - 1};
       current_ranges.add_range(new_range);

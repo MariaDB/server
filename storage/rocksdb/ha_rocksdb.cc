@@ -3170,7 +3170,7 @@ class Rdb_transaction_impl : public Rdb_transaction {
     }
   }
 
-  virtual bool is_writebatch_trx() const override { return false; }
+  bool is_writebatch_trx() const override { return false; }
 
   bool is_prepared() override {
     return m_rocksdb_tx && rocksdb::Transaction::PREPARED == m_rocksdb_tx->GetState();
@@ -3515,7 +3515,7 @@ private:
     m_notifier = std::make_shared<Rdb_snapshot_notifier>(this);
   }
 
-  virtual ~Rdb_transaction_impl() override {
+  ~Rdb_transaction_impl() override {
     rollback();
 
     // Theoretically the notifier could outlive the Rdb_transaction_impl
@@ -3721,7 +3721,7 @@ class Rdb_writebatch_impl : public Rdb_transaction {
                                                true);
   }
 
-  virtual ~Rdb_writebatch_impl() override {
+  ~Rdb_writebatch_impl() override {
     rollback();
     delete m_batch;
   }

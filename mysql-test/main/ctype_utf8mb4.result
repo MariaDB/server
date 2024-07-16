@@ -93,7 +93,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `date_format("2004-01-19 10:10:10", "%Y-%m-%d")` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 select * from t1;
 date_format("2004-01-19 10:10:10", "%Y-%m-%d")
 2004-01-19
@@ -244,7 +244,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` enum('aaaa','проба') CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('проба');
 select * from t1;
 a
@@ -254,7 +254,7 @@ show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `ifnull(a,a)` varchar(5) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 select * from t2;
 ifnull(a,a)
 проба
@@ -381,7 +381,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c` char(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
   UNIQUE KEY `a` (`c`(1)) USING HASH
-) ENGINE=MEMORY DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('a'),('b'),('c'),('d'),('e'),('f');
 insert into t1 values ('aa');
 ERROR 23000: Duplicate entry 'a' for key 'a'
@@ -417,7 +417,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c` char(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
   UNIQUE KEY `a` (`c`(1)) USING BTREE
-) ENGINE=MEMORY DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('a'),('b'),('c'),('d'),('e'),('f');
 insert into t1 values ('aa');
 ERROR 23000: Duplicate entry 'a' for key 'a'
@@ -539,7 +539,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c` char(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL,
   UNIQUE KEY `a` (`c`(1)) USING HASH
-) ENGINE=MEMORY DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('a'),('b'),('c'),('d'),('e'),('f');
 insert into t1 values ('aa');
 ERROR 23000: Duplicate entry 'a' for key 'a'
@@ -575,7 +575,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c` char(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL,
   UNIQUE KEY `a` (`c`(1)) USING BTREE
-) ENGINE=MEMORY DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('a'),('b'),('c'),('d'),('e'),('f');
 insert into t1 values ('aa');
 ERROR 23000: Duplicate entry 'a' for key 'a'
@@ -779,7 +779,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` varchar(5) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
   `b` varchar(15) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t2;
 drop table t1;
 select 'c' like '\_' as want0;
@@ -1010,7 +1010,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
   `b` int(1) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('s',0),(_latin1 0xDF,1);
 SELECT * FROM t1 ORDER BY a, b;
 a	b
@@ -1116,7 +1116,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES (_utf8mb4 0xEFBE9D),(_utf8mb4 0xF0908E84);
 INSERT INTO t1 VALUES (_utf8mb4 0xCE85),(_utf8mb4 0xF4808080);
 SELECT HEX(a), HEX(CONVERT(a USING utf8mb4)) FROM t1 ORDER BY a;
@@ -1721,11 +1721,11 @@ SHOW VARIABLES LIKE 'character\_set\_%';
 Variable_name	Value
 character_set_client	utf8mb4
 character_set_collations	ucs2=ucs2_uca1400_ai_ci,utf16=utf16_uca1400_ai_ci,utf32=utf32_uca1400_ai_ci
-character_set_connection	latin1
-character_set_database	latin1
+character_set_connection	utf8mb4
+character_set_database	utf8mb4
 character_set_filesystem	binary
 character_set_results	utf8mb4
-character_set_server	latin1
+character_set_server	utf8mb4
 character_set_system	utf8mb3
 SET @@character_set_server=@save_character_set_server;
 CREATE DATABASE crashtest DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
@@ -2565,7 +2565,7 @@ t3	CREATE TEMPORARY TABLE `t3` (
   `utf8mb4` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
   `utf8mb3` varchar(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL,
   `concat(utf8mb4,utf8mb3)` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TEMPORARY TABLE t3;
 SELECT * FROM t1, t2 WHERE t1.utf8mb4 > t2.utf8mb3;
 utf8mb4	utf8mb3
@@ -2687,7 +2687,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `CONCAT(s1)` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1, t2;
 #
 # Bug#13581962 HIGH MEMORY USAGE ATTEMPT, THEN CRASH WITH LONGTEXT, UNION, USER VARIABLE
@@ -2871,7 +2871,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `COLUMN_LIST(COLUMN_CREATE('a',1))` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
   `COLUMN_JSON(COLUMN_CREATE('b',1))` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 SET NAMES default;
 SET NAMES utf8mb4;
@@ -2885,7 +2885,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `t` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('abcdefghi'),('ABCDEFGHI');
 SELECT CONCAT(t2,'-',t2) c2 FROM (SELECT LOWER(t) t2 FROM t1) sub;
 c2
@@ -3048,20 +3048,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'utf8mb4_general_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'utf8mb4_general_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'utf8mb4_general_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'utf8mb4_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'utf8mb4_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'utf8mb4_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'utf8mb4_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'utf8mb4_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'utf8mb4_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'utf8mb4_general_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'utf8mb4_general_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'utf8mb4_general_nopad_ci', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'utf8mb4_general_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'utf8mb4_general_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'utf8mb4_general_nopad_ci', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -3186,20 +3186,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'utf8mb4_general_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'utf8mb4_general_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'utf8mb4_general_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'utf8mb4_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'utf8mb4_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'utf8mb4_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'utf8mb4_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'utf8mb4_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'utf8mb4_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'utf8mb4_general_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'utf8mb4_general_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'utf8mb4_general_nopad_ci', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'utf8mb4_general_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'utf8mb4_general_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'utf8mb4_general_nopad_ci', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -3325,20 +3325,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'utf8mb4_nopad_bin' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'utf8mb4_nopad_bin' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'utf8mb4_nopad_bin' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'utf8mb4_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'utf8mb4_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'utf8mb4_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'utf8mb4_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'utf8mb4_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'utf8mb4_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'utf8mb4_nopad_bin', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'utf8mb4_nopad_bin', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'utf8mb4_nopad_bin', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'utf8mb4_nopad_bin', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'utf8mb4_nopad_bin', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'utf8mb4_nopad_bin', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -3463,20 +3463,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'utf8mb4_nopad_bin' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'utf8mb4_nopad_bin' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'utf8mb4_nopad_bin' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'utf8mb4_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'utf8mb4_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'utf8mb4_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'utf8mb4_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'utf8mb4_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'utf8mb4_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'utf8mb4_nopad_bin', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'utf8mb4_nopad_bin', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'utf8mb4_nopad_bin', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'utf8mb4_nopad_bin', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'utf8mb4_nopad_bin', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'utf8mb4_nopad_bin', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -3537,7 +3537,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` char(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 SELECT CAST('a' AS CHAR(10) CHARACTER SET utf8mb4 COLLATE DEFAULT);
 CAST('a' AS CHAR(10) CHARACTER SET utf8mb4 COLLATE DEFAULT)
@@ -3548,7 +3548,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 SELECT COLUMN_GET(COLUMN_CREATE(0, 'string'),0 AS CHAR CHARACTER SET utf8mb4 COLLATE DEFAULT) AS c1;
 c1
@@ -3559,28 +3559,10 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 #
 # End of 10.2 tests
-#
-#
-# Start of 10.5 tests
-#
-#
-# MDEV-24584 Selecting INT column with COLLATE utf8mb4_general_ci throws an error
-#
-SET NAMES utf8mb4;
-SELECT 1 COLLATE utf8mb4_general_ci;
-1 COLLATE utf8mb4_general_ci
-1
-SELECT 1 COLLATE utf8mb4_bin;
-1 COLLATE utf8mb4_bin
-1
-SELECT 1 COLLATE latin1_swedish_ci;
-ERROR 42000: COLLATION 'latin1_swedish_ci' is not valid for CHARACTER SET 'utf8mb4'
-#
-# End of 10.5 tests
 #
 #
 # Start of 10.6 tests
@@ -3605,8 +3587,72 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `name` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 #
 # End of 10.6 tests
+#
+#
+# Start of 10.11 tests
+#
+#
+# MDEV-24584 Selecting INT column with COLLATE utf8mb4_general_ci throws an error
+#
+SET NAMES utf8mb4;
+SELECT 1 COLLATE utf8mb4_general_ci;
+1 COLLATE utf8mb4_general_ci
+1
+SELECT 1 COLLATE utf8mb4_bin;
+1 COLLATE utf8mb4_bin
+1
+SELECT 1 COLLATE latin1_swedish_ci;
+ERROR 42000: COLLATION 'latin1_swedish_ci' is not valid for CHARACTER SET 'utf8mb4'
+#
+# MDEV-10865 COLLATE keyword doesn't work in PREPARE query
+#
+SET NAMES utf8mb4;
+CREATE TABLE t1 (
+c1 varchar(500) COLLATE utf8mb4_unicode_ci NOT NULL
+) CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+INSERT INTO t1 VALUES ('jj');
+SELECT * FROM t1 WHERE c1 LIKE 'jj' COLLATE utf8mb4_unicode_ci;
+c1
+jj
+PREPARE stmt FROM 'SELECT * FROM t1 WHERE c1 LIKE ? COLLATE utf8mb4_unicode_ci';
+EXECUTE stmt USING 'jj';
+c1
+jj
+DROP TABLE t1;
+PREPARE stmt FROM 'CREATE TABLE t1 AS SELECT ? COLLATE utf8mb4_unicode_ci AS c1';
+EXECUTE stmt USING 'test';
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` varchar(4) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t1;
+PREPARE stmt FROM 'CREATE TABLE t1 AS SELECT CONCAT(?) COLLATE utf8mb4_unicode_ci AS c1';
+EXECUTE stmt USING 'test';
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` varchar(4) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t1;
+CREATE TABLE t1 AS SELECT NULL COLLATE utf8mb4_unicode_ci AS c1;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` char(0) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t1;
+CREATE TABLE t1 AS SELECT CONCAT(NULL) COLLATE utf8mb4_unicode_ci AS c1;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` char(0) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t1;
+#
+# End of 10.11 tests
 #

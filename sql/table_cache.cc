@@ -303,9 +303,11 @@ static void tc_remove_all_unused_tables(TDC_element *element,
         periodicly flush all not used tables.
 */
 
-static my_bool tc_purge_callback(TDC_element *element,
-                                 Share_free_tables::List *purge_tables)
+static my_bool tc_purge_callback(void *_element, void *_purge_tables)
 {
+  TDC_element *element= static_cast<TDC_element *>(_element);
+  Share_free_tables::List *purge_tables=
+      static_cast<Share_free_tables::List *>(_purge_tables);
   mysql_mutex_lock(&element->LOCK_table_share);
   tc_remove_all_unused_tables(element, purge_tables);
   mysql_mutex_unlock(&element->LOCK_table_share);
@@ -317,7 +319,7 @@ void tc_purge()
 {
   Share_free_tables::List purge_tables;
 
-  tdc_iterate(0, (my_hash_walk_action) tc_purge_callback, &purge_tables);
+  tdc_iterate(0, tc_purge_callback, &purge_tables);
   while (auto table= purge_tables.pop_front())
     intern_close_table(table);
 }
@@ -576,17 +578,20 @@ static void lf_alloc_destructor(uchar *arg)
 
 
 static void tdc_hash_initializer(LF_HASH *,
-                                 TDC_element *element, LEX_STRING *key)
+                                 void *_element, const void *_key)
 {
+  TDC_element *element= static_cast<TDC_element *>(_element);
+  const LEX_STRING *key= static_cast<const LEX_STRING *>(_key);
   memcpy(element->m_key, key->str, key->length);
   element->m_key_length= (uint)key->length;
   tdc_assert_clean_share(element);
 }
 
 
-static uchar *tdc_hash_key(const TDC_element *element, size_t *length,
+static uchar *tdc_hash_key(const unsigned char *_element, size_t *length,
                            my_bool)
 {
+  const TDC_element *element= (const TDC_element *) _element;
   *length= element->m_key_length;
   return (uchar*) element->m_key;
 }
@@ -1139,7 +1144,7 @@ struct eliminate_duplicates_arg
 
 
 static uchar *eliminate_duplicates_get_key(const uchar *element, size_t *length,
-                                       my_bool not_used __attribute__((unused)))
+                                           my_bool)
 {
   LEX_STRING *key= (LEX_STRING *) element;
   *length= key->length;
@@ -1147,9 +1152,10 @@ static uchar *eliminate_duplicates_get_key(const uchar *element, size_t *length,
 }
 
 
-static my_bool eliminate_duplicates(TDC_element *element,
-                                    eliminate_duplicates_arg *arg)
+static my_bool eliminate_duplicates(void *el, void *a)
 {
+  TDC_element *element= static_cast<TDC_element*>(el);
+  eliminate_duplicates_arg *arg= static_cast<eliminate_duplicates_arg*>(a);
   LEX_STRING *key= (LEX_STRING *) alloc_root(&arg->root, sizeof(LEX_STRING));
 
   if (!key || !(key->str= (char*) memdup_root(&arg->root, element->m_key,
@@ -1195,7 +1201,7 @@ int tdc_iterate(THD *thd, my_hash_walk_action action, void *argument,
                  hash_flags);
     no_dups_argument.action= action;
     no_dups_argument.argument= argument;
-    action= (my_hash_walk_action) eliminate_duplicates;
+    action= eliminate_duplicates;
     argument= &no_dups_argument;
   }
 

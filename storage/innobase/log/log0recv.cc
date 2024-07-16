@@ -1682,7 +1682,7 @@ dberr_t recv_sys_t::find_checkpoint()
   lsn= 0;
   buf= my_assume_aligned<4096>(log_sys.buf);
   if (!log_sys.is_pmem())
-    if (dberr_t err= log_sys.log.read(0, {buf, 4096}))
+    if (dberr_t err= log_sys.log.read(0, {buf, log_sys.START_OFFSET}))
       return err;
   /* Check the header page checksum. There was no
   checksum in the first redo log format (version 0). */
@@ -1751,12 +1751,7 @@ dberr_t recv_sys_t::find_checkpoint()
     for (size_t field= log_t::CHECKPOINT_1; field <= log_t::CHECKPOINT_2;
          field+= log_t::CHECKPOINT_2 - log_t::CHECKPOINT_1)
     {
-      if (log_sys.is_pmem())
-        buf= log_sys.buf + field;
-      else
-        if (dberr_t err= log_sys.log.read(field,
-                                          {buf, log_sys.get_block_size()}))
-          return err;
+      buf= log_sys.buf + field;
       const lsn_t checkpoint_lsn{mach_read_from_8(buf)};
       const lsn_t end_lsn{mach_read_from_8(buf + 8)};
       if (checkpoint_lsn < first_lsn || end_lsn < checkpoint_lsn ||
@@ -2677,8 +2672,7 @@ restart:
       case INIT_PAGE:
         last_offset= FIL_PAGE_TYPE;
       free_or_init_page:
-        if (store)
-          store_freed_or_init_rec(id, (b & 0x70) == FREE_PAGE);
+        store_freed_or_init_rec(id, (b & 0x70) == FREE_PAGE);
         if (UNIV_UNLIKELY(rlen != 0))
           goto record_corrupted;
       copy_if_needed:
@@ -2747,7 +2741,7 @@ restart:
         {
           if (UNIV_UNLIKELY(rlen + last_offset > srv_page_size))
             goto record_corrupted;
-          if (store && UNIV_UNLIKELY(!page_no) && file_checkpoint)
+          if (UNIV_UNLIKELY(!page_no) && file_checkpoint)
           {
             const bool has_size= last_offset <= FSP_HEADER_OFFSET + FSP_SIZE &&
               last_offset + rlen >= FSP_HEADER_OFFSET + FSP_SIZE + 4;
@@ -3813,6 +3807,54 @@ void recv_sys_t::apply(bool last_batch)
 
   garbage_collect();
 
+  if (truncated_sys_space.lsn)
+  {
+    trim({0, truncated_sys_space.pages}, truncated_sys_space.lsn);
+    fil_node_t *file= UT_LIST_GET_LAST(fil_system.sys_space->chain);
+    ut_ad(file->is_open());
+
+    /* Last file new size after truncation */
+    uint32_t new_last_file_size=
+      truncated_sys_space.pages -
+        (srv_sys_space.get_min_size()
+         - srv_sys_space.m_files.at(
+             srv_sys_space.m_files.size() - 1). param_size());
+
+    os_file_truncate(
+      file->name, file->handle,
+      os_offset_t{new_last_file_size} << srv_page_size_shift, true);
+    mysql_mutex_lock(&fil_system.mutex);
+    fil_system.sys_space->size= truncated_sys_space.pages;
+    fil_system.sys_space->chain.end->size= new_last_file_size;
+    srv_sys_space.set_last_file_size(new_last_file_size);
+    truncated_sys_space={0, 0};
+    mysql_mutex_unlock(&fil_system.mutex);
+  }
+
+  for (auto id= srv_undo_tablespaces_open; id--;)
+  {
+    const trunc& t= truncated_undo_spaces[id];
+    if (t.lsn)
+    {
+      /* The entire undo tablespace will be reinitialized by
+      innodb_undo_log_truncate=ON. Discard old log for all pages.
+      Even though we recv_sys_t::parse() already invoked trim(),
+      this will be needed in case recovery consists of multiple batches
+      (there was an invocation with !last_batch). */
+      trim({id + srv_undo_space_id_start, 0}, t.lsn);
+      if (fil_space_t *space = fil_space_get(id + srv_undo_space_id_start))
+      {
+        ut_ad(UT_LIST_GET_LEN(space->chain) == 1);
+        ut_ad(space->recv_size >= t.pages);
+        fil_node_t *file= UT_LIST_GET_FIRST(space->chain);
+        ut_ad(file->is_open());
+        os_file_truncate(file->name, file->handle,
+                         os_offset_t{space->recv_size} <<
+                         srv_page_size_shift, true);
+      }
+    }
+  }
+
   if (!pages.empty())
   {
     ut_ad(!last_batch || lsn == scanned_lsn);
@@ -3820,54 +3862,6 @@ void recv_sys_t::apply(bool last_batch)
     report_progress();
 
     apply_log_recs= true;
-
-    if (truncated_sys_space.lsn)
-    {
-      trim({0, truncated_sys_space.pages}, truncated_sys_space.lsn);
-      fil_node_t *file= UT_LIST_GET_LAST(fil_system.sys_space->chain);
-      ut_ad(file->is_open());
-
-      /* Last file new size after truncation */
-      uint32_t new_last_file_size=
-        truncated_sys_space.pages -
-          (srv_sys_space.get_min_size()
-           - srv_sys_space.m_files.at(
-               srv_sys_space.m_files.size() - 1). param_size());
-
-      os_file_truncate(
-        file->name, file->handle,
-        os_offset_t{new_last_file_size} << srv_page_size_shift, true);
-      mysql_mutex_lock(&fil_system.mutex);
-      fil_system.sys_space->size= truncated_sys_space.pages;
-      fil_system.sys_space->chain.end->size= new_last_file_size;
-      srv_sys_space.set_last_file_size(new_last_file_size);
-      truncated_sys_space={0, 0};
-      mysql_mutex_unlock(&fil_system.mutex);
-    }
-
-    for (auto id= srv_undo_tablespaces_open; id--;)
-    {
-      const trunc& t= truncated_undo_spaces[id];
-      if (t.lsn)
-      {
-        /* The entire undo tablespace will be reinitialized by
-        innodb_undo_log_truncate=ON. Discard old log for all pages.
-        Even though we recv_sys_t::parse() already invoked trim(),
-        this will be needed in case recovery consists of multiple batches
-        (there was an invocation with !last_batch). */
-        trim({id + srv_undo_space_id_start, 0}, t.lsn);
-        if (fil_space_t *space = fil_space_get(id + srv_undo_space_id_start))
-        {
-          ut_ad(UT_LIST_GET_LEN(space->chain) == 1);
-          ut_ad(space->recv_size >= t.pages);
-          fil_node_t *file= UT_LIST_GET_FIRST(space->chain);
-          ut_ad(file->is_open());
-          os_file_truncate(file->name, file->handle,
-                           os_offset_t{space->recv_size} <<
-                           srv_page_size_shift, true);
-        }
-      }
-    }
 
     fil_system.extend_to_recv_size();
 
@@ -3967,7 +3961,7 @@ static bool recv_scan_log(bool last_phase)
   DBUG_ENTER("recv_scan_log");
 
   ut_ad(log_sys.is_latest());
-  const size_t block_size_1{log_sys.get_block_size() - 1};
+  const size_t block_size_1{log_sys.write_size - 1};
 
   mysql_mutex_lock(&recv_sys.mutex);
   if (!last_phase)
@@ -4149,7 +4143,7 @@ static bool recv_scan_log(bool last_phase)
     if (recv_sys.is_corrupt_log())
       break;
 
-    if (recv_sys.offset < log_sys.get_block_size() &&
+    if (recv_sys.offset < log_sys.write_size &&
         recv_sys.lsn == recv_sys.scanned_lsn)
       goto got_eof;
 
@@ -4485,6 +4479,24 @@ dberr_t recv_recovery_read_checkpoint()
   return err;
 }
 
+inline void log_t::set_recovered() noexcept
+{
+  ut_ad(get_flushed_lsn() == get_lsn());
+  ut_ad(recv_sys.lsn == get_lsn());
+  size_t offset{recv_sys.offset};
+  if (!is_pmem())
+  {
+    const size_t bs{log_sys.write_size}, bs_1{bs - 1};
+    memmove_aligned<512>(buf, buf + (offset & ~bs_1), bs);
+    offset&= bs_1;
+  }
+#ifdef HAVE_PMEM
+  else
+    mprotect(buf, size_t(file_size), PROT_READ | PROT_WRITE);
+#endif
+  set_buf_free(offset);
+}
+
 /** Start recovering from a redo log checkpoint.
 of first system tablespace page
 @return error code or DB_SUCCESS */
@@ -4658,24 +4670,11 @@ err_exit:
 	}
 
 	if (!srv_read_only_mode && log_sys.is_latest()) {
-		ut_ad(log_sys.get_flushed_lsn() == log_sys.get_lsn());
-		ut_ad(recv_sys.lsn == log_sys.get_lsn());
-		if (!log_sys.is_pmem()) {
-			const size_t bs_1{log_sys.get_block_size() - 1};
-			const size_t ro{recv_sys.offset};
-			recv_sys.offset &= bs_1;
-			memmove_aligned<64>(log_sys.buf,
-					    log_sys.buf + (ro & ~bs_1),
-					    log_sys.get_block_size());
-#ifdef HAVE_PMEM
-		} else {
-			mprotect(log_sys.buf, size_t(log_sys.file_size),
-				 PROT_READ | PROT_WRITE);
-#endif
-		}
-		log_sys.set_buf_free(recv_sys.offset);
+		log_sys.set_recovered();
 		if (recv_needed_recovery
-	            && srv_operation <= SRV_OPERATION_EXPORT_RESTORED) {
+		    && srv_operation <= SRV_OPERATION_EXPORT_RESTORED
+		    && recv_sys.lsn - log_sys.next_checkpoint_lsn
+		    < log_sys.log_capacity) {
 			/* Write a FILE_CHECKPOINT marker as the first thing,
 			before generating any other redo log. This ensures
 			that subsequent crash recovery will be possible even
@@ -4684,6 +4683,7 @@ err_exit:
 		}
 	}
 
+	DBUG_EXECUTE_IF("before_final_redo_apply", goto err_exit;);
 	mysql_mutex_lock(&recv_sys.mutex);
 	if (UNIV_UNLIKELY(recv_sys.scanned_lsn != recv_sys.lsn)
 	    && log_sys.is_latest()) {

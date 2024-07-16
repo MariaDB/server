@@ -1,0 +1,9 @@
+[mysqld.4.1]
+loose_partition=                         1
+
+[ENV]
+SLAVE1_1_MYPORT=          @mysqld.4.1.port
+SLAVE1_1_MYSOCK=          @mysqld.4.1.socket
+SLAVE1_1_ENGINE_TYPE=     MyISAM
+SLAVE1_1_ENGINE=          ENGINE=MyISAM
+SLAVE1_1_CHARSET=         DEFAULT CHARSET=utf8

@@ -2,6 +2,8 @@
 
 --source include/have_innodb.inc
 --source include/have_innodb_16k.inc
+--source include/test_db_charset_latin1.inc
+
 SET default_storage_engine=InnoDB;
 
 --disable_query_log
@@ -404,3 +406,5 @@ create index idx2 on worklog5743(a(767));
 SET GLOBAL innodb_read_only_compressed=@save_innodb_read_only_compressed;
 --enable_query_log
 drop table worklog5743;
+
+--source include/test_db_charset_restore.inc

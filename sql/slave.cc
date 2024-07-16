@@ -101,7 +101,6 @@ LEX_CSTRING default_master_connection_name= { (char*) "", 0 };
 
 int disconnect_slave_event_count = 0, abort_slave_event_count = 0;
 
-static pthread_key(Master_info*, RPL_MASTER_INFO);
 
 enum enum_slave_reconnect_actions
 {
@@ -581,9 +580,6 @@ int init_slave()
     accepted. However bootstrap may conflict with us if it does START SLAVE.
     So it's safer to take the lock.
   */
-
-  if (pthread_key_create(&RPL_MASTER_INFO, NULL))
-    goto err;
 
   master_info_index= new Master_info_index;
   if (!master_info_index || master_info_index->init_all_master_info())
@@ -4790,6 +4786,7 @@ pthread_handler_t handle_slave_io(void *arg)
 #endif
   // needs to call my_thread_init(), otherwise we get a coredump in DBUG_ stuff
   my_thread_init();
+  my_thread_set_name("slave_io");
   DBUG_ENTER("handle_slave_io");
 
   DBUG_ASSERT(mi->inited);
@@ -4830,9 +4827,6 @@ pthread_handler_t handle_slave_io(void *arg)
 
   DBUG_PRINT("master_info",("log_file_name: '%s'  position: %llu",
                             mi->master_log_name, mi->master_log_pos));
-
-  /* This must be called before run any binlog_relay_io hooks */
-  my_pthread_setspecific_ptr(RPL_MASTER_INFO, mi);
 
   /* Load the set of seen GTIDs, if we did not already. */
   if (rpl_load_gtid_slave_state(thd))
@@ -5448,6 +5442,7 @@ pthread_handler_t handle_slave_sql(void *arg)
 
   // needs to call my_thread_init(), otherwise we get a coredump in DBUG_ stuff
   my_thread_init();
+  my_thread_set_name("slave_sql");
   DBUG_ENTER("handle_slave_sql");
 
 #ifdef WITH_WSREP

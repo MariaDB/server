@@ -2787,7 +2787,7 @@ public:
 
 protected:
   Create_func_area() = default;
-  virtual ~Create_func_area() = default;
+  ~Create_func_area() override = default;
 };
 
 
@@ -2803,7 +2803,7 @@ public:
 
 protected:
   Create_func_as_wkb() = default;
-  virtual ~Create_func_as_wkb() = default;
+  ~Create_func_as_wkb() override = default;
 };
 
 
@@ -2819,7 +2819,7 @@ public:
 
 protected:
   Create_func_as_wkt() = default;
-  virtual ~Create_func_as_wkt() = default;
+  ~Create_func_as_wkt() override = default;
 };
 
 
@@ -2836,7 +2836,7 @@ public:
 
 protected:
   Create_func_centroid() = default;
-  virtual ~Create_func_centroid() = default;
+  ~Create_func_centroid() override = default;
 };
 
 
@@ -2852,7 +2852,7 @@ public:
 
 protected:
   Create_func_convexhull() = default;
-  virtual ~Create_func_convexhull() = default;
+  ~Create_func_convexhull() override = default;
 };
 
 
@@ -2868,7 +2868,7 @@ public:
 
 protected:
   Create_func_pointonsurface() = default;
-  virtual ~Create_func_pointonsurface() = default;
+  ~Create_func_pointonsurface() override = default;
 };
 
 
@@ -2885,7 +2885,7 @@ public:
 
 protected:
   Create_func_mbr_contains() = default;
-  virtual ~Create_func_mbr_contains() = default;
+  ~Create_func_mbr_contains() override = default;
 };
 
 
@@ -2901,7 +2901,7 @@ public:
 
 protected:
   Create_func_contains() = default;
-  virtual ~Create_func_contains() = default;
+  ~Create_func_contains() override = default;
 };
 
 
@@ -2917,7 +2917,7 @@ public:
 
 protected:
   Create_func_crosses() = default;
-  virtual ~Create_func_crosses() = default;
+  ~Create_func_crosses() override = default;
 };
 
 
@@ -2933,7 +2933,7 @@ public:
 
 protected:
   Create_func_dimension() = default;
-  virtual ~Create_func_dimension() = default;
+  ~Create_func_dimension() override = default;
 };
 
 
@@ -2950,7 +2950,7 @@ public:
 
 protected:
   Create_func_mbr_disjoint() = default;
-  virtual ~Create_func_mbr_disjoint() = default;
+  ~Create_func_mbr_disjoint() override = default;
 };
 
 
@@ -2966,7 +2966,7 @@ public:
 
 protected:
   Create_func_disjoint() = default;
-  virtual ~Create_func_disjoint() = default;
+  ~Create_func_disjoint() override = default;
 };
 
 
@@ -2982,7 +2982,7 @@ public:
 
 protected:
   Create_func_distance() = default;
-  virtual ~Create_func_distance() = default;
+  ~Create_func_distance() override = default;
 };
 
 
@@ -2995,7 +2995,7 @@ public:
 
 protected:
   Create_func_distance_sphere() = default;
-  virtual ~Create_func_distance_sphere() = default;
+  ~Create_func_distance_sphere() override = default;
 };
 
 
@@ -3030,7 +3030,7 @@ public:
 
 protected:
   Create_func_endpoint() = default;
-  virtual ~Create_func_endpoint() = default;
+  ~Create_func_endpoint() override = default;
 };
 
 
@@ -3046,7 +3046,7 @@ public:
 
 protected:
   Create_func_envelope() = default;
-  virtual ~Create_func_envelope() = default;
+  ~Create_func_envelope() override = default;
 };
 
 class Create_func_boundary : public Create_func_arg1
@@ -3061,7 +3061,7 @@ public:
 
 protected:
   Create_func_boundary() = default;
-  virtual ~Create_func_boundary() = default;
+  ~Create_func_boundary() override = default;
 };
 
 
@@ -3078,7 +3078,7 @@ public:
 
 protected:
   Create_func_mbr_equals() = default;
-  virtual ~Create_func_mbr_equals() = default;
+  ~Create_func_mbr_equals() override = default;
 };
 
 
@@ -3095,7 +3095,7 @@ public:
 
 protected:
   Create_func_equals() = default;
-  virtual ~Create_func_equals() = default;
+  ~Create_func_equals() override = default;
 };
 
 
@@ -3112,7 +3112,7 @@ public:
 
 protected:
   Create_func_exteriorring() = default;
-  virtual ~Create_func_exteriorring() = default;
+  ~Create_func_exteriorring() override = default;
 };
 
 
@@ -3127,7 +3127,7 @@ public:
 
 protected:
   Create_func_geometry_from_text() = default;
-  virtual ~Create_func_geometry_from_text() = default;
+  ~Create_func_geometry_from_text() override = default;
 };
 
 
@@ -3178,7 +3178,7 @@ public:
 
 protected:
   Create_func_geometry_from_wkb() = default;
-  virtual ~Create_func_geometry_from_wkb() = default;
+  ~Create_func_geometry_from_wkb() override = default;
 };
 
 
@@ -3228,7 +3228,7 @@ public:
 
 protected:
   Create_func_geometry_from_json() = default;
-  virtual ~Create_func_geometry_from_json() = default;
+  ~Create_func_geometry_from_json() override = default;
 };
 
 
@@ -3288,7 +3288,7 @@ public:
 
 protected:
   Create_func_as_geojson() = default;
-  virtual ~Create_func_as_geojson() = default;
+  ~Create_func_as_geojson() override = default;
 };
 
 
@@ -3348,7 +3348,7 @@ public:
 
 protected:
   Create_func_geometry_type() = default;
-  virtual ~Create_func_geometry_type() = default;
+  ~Create_func_geometry_type() override = default;
 };
 
 
@@ -3365,7 +3365,7 @@ public:
 
 protected:
   Create_func_geometryn() = default;
-  virtual ~Create_func_geometryn() = default;
+  ~Create_func_geometryn() override = default;
 };
 
 
@@ -3382,7 +3382,7 @@ public:
 
 protected:
   Create_func_gis_debug() = default;
-  virtual ~Create_func_gis_debug() = default;
+  ~Create_func_gis_debug() override = default;
 };
 #endif
 
@@ -3399,7 +3399,7 @@ public:
 
 protected:
   Create_func_glength() = default;
-  virtual ~Create_func_glength() = default;
+  ~Create_func_glength() override = default;
 };
 
 
@@ -3416,7 +3416,7 @@ public:
 
 protected:
   Create_func_interiorringn() = default;
-  virtual ~Create_func_interiorringn() = default;
+  ~Create_func_interiorringn() override = default;
 };
 
 
@@ -3432,7 +3432,7 @@ public:
 
 protected:
   Create_func_relate() = default;
-  virtual ~Create_func_relate() = default;
+  ~Create_func_relate() override = default;
 };
 
 
@@ -3449,7 +3449,7 @@ public:
 
 protected:
   Create_func_mbr_intersects() = default;
-  virtual ~Create_func_mbr_intersects() = default;
+  ~Create_func_mbr_intersects() override = default;
 };
 
 
@@ -3466,7 +3466,7 @@ public:
 
 protected:
   Create_func_intersects() = default;
-  virtual ~Create_func_intersects() = default;
+  ~Create_func_intersects() override = default;
 };
 
 
@@ -3483,7 +3483,7 @@ public:
 
 protected:
   Create_func_intersection() = default;
-  virtual ~Create_func_intersection() = default;
+  ~Create_func_intersection() override = default;
 };
 
 
@@ -3500,7 +3500,7 @@ public:
 
 protected:
   Create_func_difference() = default;
-  virtual ~Create_func_difference() = default;
+  ~Create_func_difference() override = default;
 };
 
 
@@ -3517,7 +3517,7 @@ public:
 
 protected:
   Create_func_union() = default;
-  virtual ~Create_func_union() = default;
+  ~Create_func_union() override = default;
 };
 
 
@@ -3534,7 +3534,7 @@ public:
 
 protected:
   Create_func_symdifference() = default;
-  virtual ~Create_func_symdifference() = default;
+  ~Create_func_symdifference() override = default;
 };
 
 
@@ -3550,7 +3550,7 @@ public:
 
 protected:
   Create_func_buffer() = default;
-  virtual ~Create_func_buffer() = default;
+  ~Create_func_buffer() override = default;
 };
 
 
@@ -3566,7 +3566,7 @@ public:
 
 protected:
   Create_func_isclosed() = default;
-  virtual ~Create_func_isclosed() = default;
+  ~Create_func_isclosed() override = default;
 };
 
 
@@ -3582,7 +3582,7 @@ public:
 
 protected:
   Create_func_isring() = default;
-  virtual ~Create_func_isring() = default;
+  ~Create_func_isring() override = default;
 };
 
 
@@ -3598,7 +3598,7 @@ public:
 
 protected:
   Create_func_isempty() = default;
-  virtual ~Create_func_isempty() = default;
+  ~Create_func_isempty() override = default;
 };
 
 
@@ -3614,7 +3614,7 @@ public:
 
 protected:
   Create_func_issimple() = default;
-  virtual ~Create_func_issimple() = default;
+  ~Create_func_issimple() override = default;
 };
 
 
@@ -3631,7 +3631,7 @@ public:
 
 protected:
   Create_func_numgeometries() = default;
-  virtual ~Create_func_numgeometries() = default;
+  ~Create_func_numgeometries() override = default;
 };
 
 
@@ -3647,7 +3647,7 @@ public:
 
 protected:
   Create_func_numinteriorring() = default;
-  virtual ~Create_func_numinteriorring() = default;
+  ~Create_func_numinteriorring() override = default;
 };
 
 
@@ -3663,7 +3663,7 @@ public:
 
 protected:
   Create_func_numpoints() = default;
-  virtual ~Create_func_numpoints() = default;
+  ~Create_func_numpoints() override = default;
 };
 
 
@@ -3680,7 +3680,7 @@ public:
 
 protected:
   Create_func_mbr_overlaps() = default;
-  virtual ~Create_func_mbr_overlaps() = default;
+  ~Create_func_mbr_overlaps() override = default;
 };
 
 
@@ -3697,7 +3697,7 @@ public:
 
 protected:
   Create_func_overlaps() = default;
-  virtual ~Create_func_overlaps() = default;
+  ~Create_func_overlaps() override = default;
 };
 
 
@@ -3716,7 +3716,7 @@ public:
 
 protected:
   Create_func_pointn() = default;
-  virtual ~Create_func_pointn() = default;
+  ~Create_func_pointn() override = default;
 };
 
 
@@ -3734,7 +3734,7 @@ public:
 
 protected:
   Create_func_srid() = default;
-  virtual ~Create_func_srid() = default;
+  ~Create_func_srid() override = default;
 };
 
 
@@ -3751,7 +3751,7 @@ public:
 
 protected:
   Create_func_startpoint() = default;
-  virtual ~Create_func_startpoint() = default;
+  ~Create_func_startpoint() override = default;
 };
 
 
@@ -3769,7 +3769,7 @@ public:
 
 protected:
   Create_func_touches() = default;
-  virtual ~Create_func_touches() = default;
+  ~Create_func_touches() override = default;
 };
 
 
@@ -3786,7 +3786,7 @@ public:
 
 protected:
   Create_func_mbr_within() = default;
-  virtual ~Create_func_mbr_within() = default;
+  ~Create_func_mbr_within() override = default;
 };
 
 
@@ -3803,7 +3803,7 @@ public:
 
 protected:
   Create_func_within() = default;
-  virtual ~Create_func_within() = default;
+  ~Create_func_within() override = default;
 };
 
 
@@ -3819,7 +3819,7 @@ public:
 
 protected:
   Create_func_x() = default;
-  virtual ~Create_func_x() = default;
+  ~Create_func_x() override = default;
 };
 
 
@@ -3835,7 +3835,7 @@ public:
 
 protected:
   Create_func_y() = default;
-  virtual ~Create_func_y() = default;
+  ~Create_func_y() override = default;
 };
 
 

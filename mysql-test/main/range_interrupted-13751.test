@@ -5,7 +5,7 @@
 #
 # MDEV-13751 Interrupted SELECT fails with 1030: 'Got error 1 "Operation not permitted" from storage engine MyISAM'
 #
-CREATE TABLE t1 (i INT AUTO_INCREMENT, c VARCHAR(1), KEY(i), KEY(c,i)) ENGINE=MyISAM;
+CREATE TABLE t1 (i INT AUTO_INCREMENT, c VARCHAR(1), KEY(i), KEY(c,i)) ENGINE=MyISAM CHARSET=latin1;
 INSERT INTO t1 (c) select mid("abcdefgh", mod(seq,8)+1, 1) from seq_1_to_256;
 
 explain SELECT 1 FROM t1 AS alias1, t1 AS alias2, t1 AS alias3

@@ -1,3 +1,4 @@
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 drop table if exists t1,t2,t3;
 create table t1 (a int not null,b int not null, primary key (a)) engine=heap comment="testing heaps" avg_row_length=100 min_rows=1 max_rows=100;
 insert into t1 values(1,1),(2,2),(3,3),(4,4);
@@ -878,3 +879,4 @@ DELETE FROM t1 WHERE ts = 1 AND color = 'GREEN';
 SELECT * from t1 WHERE ts = 1 AND color = 'GREEN';
 id	color	ts
 DROP TABLE t1;
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

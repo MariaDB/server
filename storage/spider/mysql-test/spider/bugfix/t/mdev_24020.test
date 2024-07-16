@@ -6,11 +6,11 @@
 
 --connection master_1
 --disable_warnings
-CREATE DATABASE auto_test_local;
+CREATE DATABASE auto_test_local CHARACTER SET latin1;
 USE auto_test_local;
 
 --connection child2_1
-CREATE DATABASE auto_test_remote;
+CREATE DATABASE auto_test_remote CHARACTER SET latin1;
 USE auto_test_remote;
 --enable_warnings
 

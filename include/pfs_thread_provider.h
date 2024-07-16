@@ -80,6 +80,8 @@ void pfs_set_thread_os_id_v1(PSI_thread *thread);
 PSI_thread*
 pfs_get_thread_v1(void);
 
+const char *pfs_get_thread_class_name_v1(void);
+
 void pfs_set_thread_user_v1(const char *user, int user_len);
 
 void pfs_set_thread_account_v1(const char *user, int user_len,

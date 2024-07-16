@@ -1,8 +1,8 @@
 SET @start_value= @@global.max_sort_length;
 ** creating tables **
-CREATE TABLE t (id INT AUTO_INCREMENT PRIMARY KEY, c TEXT);
-CREATE TABLE t1 (id INT AUTO_INCREMENT PRIMARY KEY, c BLOB);
-CREATE TABLE t2 (id INT AUTO_INCREMENT PRIMARY KEY, c TEXT);
+CREATE TABLE t (id INT AUTO_INCREMENT PRIMARY KEY, c TEXT) CHARSET=latin1;
+CREATE TABLE t1 (id INT AUTO_INCREMENT PRIMARY KEY, c BLOB) CHARSET=latin1;
+CREATE TABLE t2 (id INT AUTO_INCREMENT PRIMARY KEY, c TEXT) CHARSET=latin1;
 '#--------------------FN_DYNVARS_098_01-------------------------#'
 connect  test_con1,localhost,root,,;
 ** Setting value to 70 and inserting data **
