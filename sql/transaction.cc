@@ -518,6 +518,7 @@ bool trans_commit_stmt(THD *thd)
 */
 bool trans_rollback_stmt(THD *thd)
 {
+  bool ret= FALSE;
   DBUG_ENTER("trans_rollback_stmt");
 
   /*
@@ -532,7 +533,7 @@ bool trans_rollback_stmt(THD *thd)
 
   if (thd->transaction->stmt.ha_list)
   {
-    ha_rollback_trans(thd, FALSE);
+    ret= ha_rollback_trans(thd, FALSE) ? TRUE : FALSE;
     if (! thd->in_active_multi_stmt_transaction())
       trans_reset_one_shot_chistics(thd);
   }
@@ -547,7 +548,7 @@ bool trans_rollback_stmt(THD *thd)
 
   thd->transaction->stmt.reset();
 
-  DBUG_RETURN(FALSE);
+  DBUG_RETURN(ret);
 }
 
 /* Find a named savepoint in the current transaction. */
