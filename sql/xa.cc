@@ -180,6 +180,13 @@ void XID_STATE::set_error(uint error)
     xid_cache_element->rm_error= error;
 }
 
+void XID_STATE::set_rollback_only()
+{
+  xid_cache_element->xa_state= XA_ROLLBACK_ONLY;
+  if (current_thd)
+    MYSQL_SET_TRANSACTION_XA_STATE(current_thd->m_transaction_psi,
+                                   XA_ROLLBACK_ONLY);
+}
 
 void XID_STATE::er_xaer_rmfail() const
 {
@@ -547,8 +554,21 @@ bool trans_xa_prepare(THD *thd)
     }
     else
     {
-      thd->transaction->xid_state.xid_cache_element->xa_state= XA_PREPARED;
-      MYSQL_SET_TRANSACTION_XA_STATE(thd->m_transaction_psi, XA_PREPARED);
+      if (thd->transaction->xid_state.xid_cache_element->xa_state !=
+          XA_ROLLBACK_ONLY)
+      {
+        thd->transaction->xid_state.xid_cache_element->xa_state= XA_PREPARED;
+        MYSQL_SET_TRANSACTION_XA_STATE(thd->m_transaction_psi, XA_PREPARED);
+      }
+      else
+      {
+        /*
+          In the non-err case, XA_ROLLBACK_ONLY should only be set by a slave
+          thread which prepared an empty transaction, to prevent binlogging a
+          standalone XA COMMIT.
+        */
+        DBUG_ASSERT(thd->rgi_slave && !(thd->transaction->all.ha_list));
+      }
       res= thd->variables.pseudo_slave_mode || thd->slave_thread ?
         slave_applier_reset_xa_trans(thd) : 0;
     }

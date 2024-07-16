@@ -1877,6 +1877,11 @@ bool JOIN::build_explain()
         curr_tab->tracker= tmp->get_using_temporary_read_tracker();
     }
   }
+  if (is_in_subquery())
+  {
+    Item_in_subselect *subq= unit->item->get_IN_subquery();
+    subq->init_subq_materialization_tracker(thd);
+  }
   DBUG_RETURN(0);
 }
 
@@ -17312,7 +17317,7 @@ change_cond_ref_to_const(THD *thd, I_List<COND_CMP> *save_list,
   if (can_change_cond_ref_to_const(func, right_item, left_item,
                                    field_value_owner, field, value))
   {
-    Item *tmp=value->clone_item(thd);
+    Item *tmp=value->clone_const_item(thd);
     if (tmp)
     {
       tmp->collation.set(right_item->collation);
@@ -17342,7 +17347,7 @@ change_cond_ref_to_const(THD *thd, I_List<COND_CMP> *save_list,
   else if (can_change_cond_ref_to_const(func, left_item, right_item,
                                         field_value_owner, field, value))
   {
-    Item *tmp= value->clone_item(thd);
+    Item *tmp= value->clone_const_item(thd);
     if (tmp)
     {
       tmp->collation.set(left_item->collation);

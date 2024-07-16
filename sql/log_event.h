@@ -862,6 +862,7 @@ typedef struct st_print_event_info
   uint lc_time_names_number;
   uint charset_database_number;
   uint verbose;
+  uchar gtid_ev_flags2;
   uint32 flags2;
   uint32 server_id;
   uint32 domain_id;
@@ -933,6 +934,8 @@ typedef struct st_print_event_info
       copy_event_cache_to_file_and_reinit(&body_cache, file);
     fflush(file);
   }
+
+  my_bool is_xa_trans();
 } PRINT_EVENT_INFO;
 #endif  // MYSQL_CLIENT
 
@@ -2194,7 +2197,7 @@ public:        /* !!! Public in this patch to allow old usage */
     If true, the event always be applied by slave SQL thread or be printed by
     mysqlbinlog
    */
-  bool is_trans_keyword()
+  bool is_trans_keyword(bool is_xa)
   {
     /*
       Before the patch for bug#50407, The 'SAVEPOINT and ROLLBACK TO'
@@ -2207,10 +2210,11 @@ public:        /* !!! Public in this patch to allow old usage */
       but we don't handle these cases and after the patch, both quiries are
       binlogged in upper case with no comments.
      */
-    return !strncmp(query, "BEGIN", q_len) ||
-      !strncmp(query, "COMMIT", q_len) ||
-      !strncasecmp(query, "SAVEPOINT", 9) ||
-      !strncasecmp(query, "ROLLBACK", 8);
+    return is_xa ? !strncasecmp(query, C_STRING_WITH_LEN("XA "))
+                 : (!strncmp(query, "BEGIN", q_len) ||
+                    !strncmp(query, "COMMIT", q_len) ||
+                    !strncasecmp(query, "SAVEPOINT", 9) ||
+                    !strncasecmp(query, "ROLLBACK", 8));
   }
   virtual bool is_begin()    { return !strcmp(query, "BEGIN"); }
   virtual bool is_commit()   { return !strcmp(query, "COMMIT"); }

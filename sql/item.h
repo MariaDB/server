@@ -30,6 +30,7 @@
 #include "sql_time.h"
 #include "sql_schema.h"
 #include "mem_root_array.h"
+#include <typeinfo>
 
 #include "cset_narrowing.h"
 
@@ -1866,10 +1867,61 @@ public:
     raise_error_not_evaluable();
     return true;    // Error
   }
-  /* cloning of constant items (0 if it is not const) */
-  virtual Item *clone_item(THD *thd) { return 0; }
-  /* deep copy item */
-  virtual Item* build_clone(THD *thd) { return get_copy(thd); }
+
+  /*
+    Create a shallow copy of the item (usually invoking copy constructor).
+    For deep copying see build_clone().
+
+    Return value:
+    - pointer to a copy of the Item
+    - nullptr if the item is not copyable
+  */
+  Item *get_copy(THD *thd) const
+  {
+    Item *copy= do_get_copy(thd);
+    if (copy)
+    {
+      // Make sure the copy is of same type as this item
+      DBUG_ASSERT(typeid(*copy) == typeid(*this));
+    }
+    return copy;
+  }
+
+  /*
+    Creates a clone of the item by deep copying.
+
+    Return value:
+    - pointer to a clone of the Item
+    - nullptr if the item is not clonable
+  */
+  Item* build_clone(THD *thd) const
+  {
+    Item *clone= do_build_clone(thd);
+    if (clone)
+    {
+      // Make sure the clone is of same type as this item
+      DBUG_ASSERT(typeid(*clone) == typeid(*this));
+    }
+    return clone;
+  }
+
+  /*
+    Clones the constant item
+
+    Return value:
+    - pointer to a clone of the Item
+    - nullptr if the item is not clonable */
+  Item *clone_const_item(THD *thd) const
+  {
+    Item *clone= do_clone_const_item(thd);
+    if (clone)
+    {
+      // Make sure the clone is of same type as this item
+      DBUG_ASSERT(typeid(*clone) == typeid(*this));
+    }
+    return clone;
+  }
+
   virtual cond_result eq_cmp_result() const { return COND_OK; }
   inline uint float_length(uint decimals_par) const
   { return decimals < FLOATING_POINT_DECIMALS ? (DBL_DIG+2+decimals_par) : DBL_DIG+8;}
@@ -2397,12 +2449,6 @@ public:
   */
   virtual bool find_not_null_fields(table_map allowed) { return false; }
 
-  /*
-    Does not guarantee deep copy (depends on copy ctor).
-    See build_clone() for deep copy.
-  */
-  virtual Item *get_copy(THD *thd)=0;
-
   bool cache_const_expr_analyzer(uchar **arg);
   Item* cache_const_expr_transformer(THD *thd, uchar *arg);
 
@@ -2506,8 +2552,7 @@ public:
   { return this; }
   virtual Item *field_transformer_for_having_pushdown(THD *thd, uchar *arg)
   { return this; }
-  virtual Item *multiple_equality_transformer(THD *thd, uchar *arg)
-  { return this; }
+  virtual Item *multiple_equality_transformer(THD *thd, uchar *arg);
   virtual bool expr_cache_is_needed(THD *) { return FALSE; }
   virtual Item *safe_charset_converter(THD *thd, CHARSET_INFO *tocs);
   bool needs_charset_converter(uint32 length, CHARSET_INFO *tocs) const
@@ -2729,12 +2774,33 @@ public:
     DBUG_ASSERT(fixed());
     return false;
   }
+
+protected:
+  /*
+    Service function for public method get_copy(). See comments for get_copy()
+    above. Override this method in derived classes to create shallow copies of
+    the item
+  */
+  virtual Item *do_get_copy(THD *thd) const = 0;
+
+  /*
+    Service function for public method build_clone(). See comments for
+    build_clone() above. Override this method in derived classes to create
+    deep copies (clones) of the item where possible
+  */
+  virtual Item* do_build_clone(THD *thd) const = 0;
+
+  /*
+    Service function for public method clone_const_item(). See comments for
+    clone_const_item() above
+  */
+  virtual Item *do_clone_const_item(THD *thd) const { return nullptr; }
 };
 
 MEM_ROOT *get_thd_memroot(THD *thd);
 
 template <class T>
-inline Item* get_item_copy (THD *thd, T* item)
+inline Item* get_item_copy (THD *thd, const T* item)
 {
   Item *copy= new (get_thd_memroot(thd)) T(*item);
   if (likely(copy))
@@ -3189,7 +3255,8 @@ public:
 
   bool append_for_log(THD *thd, String *str) override;
 
-  Item *get_copy(THD *) override { return nullptr; }
+  Item *do_get_copy(THD *) const override { return nullptr; }
+  Item *do_build_clone(THD *thd) const override { return nullptr; }
 
   /*
     Override the inherited create_field_for_create_select(),
@@ -3234,6 +3301,9 @@ public:
    :Item_splocal(thd, rh, sp_var_name, sp_var_idx, &type_handler_null,
                  pos_in_q, len_in_q)
   { }
+
+  Item *do_get_copy(THD *) const override { return nullptr; }
+  Item *do_build_clone(THD *thd) const override { return nullptr; }
 };
 
 
@@ -3266,6 +3336,9 @@ public:
   Item **this_item_addr(THD *thd, Item **) override;
   bool append_for_log(THD *thd, String *str) override;
   void print(String *str, enum_query_type query_type) override;
+
+  Item *do_get_copy(THD *) const override { return nullptr; }
+  Item *do_build_clone(THD *thd) const override { return nullptr; }
 };
 
 
@@ -3286,6 +3359,9 @@ public:
   { }
   bool fix_fields(THD *thd, Item **it) override;
   void print(String *str, enum_query_type query_type) override;
+
+  Item *do_get_copy(THD *) const override { return nullptr; }
+  Item *do_build_clone(THD *thd) const override { return nullptr; }
 };
 
 
@@ -3329,7 +3405,8 @@ public:
     purposes.
   */
   void print(String *str, enum_query_type query_type) override;
-  Item *get_copy(THD *) override { return nullptr; }
+  Item *do_get_copy(THD *) const override { return nullptr; }
+  Item *do_build_clone(THD *thd) const override { return nullptr; }
 
 private:
   uint m_case_expr_id;
@@ -3409,8 +3486,9 @@ public:
   {
     return mark_unsupported_function("name_const()", arg, VCOL_IMPOSSIBLE);
   }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_name_const>(thd, this); }
+  Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
 };
 
 
@@ -3782,8 +3860,9 @@ public:
   bool cleanup_excluding_const_fields_processor(void *arg) override
   { return field && const_item() ? 0 : cleanup_processor(arg); }
 
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_field>(thd, this); }
+  Item* do_build_clone(THD *thd) const override { return get_copy(thd); }
   bool is_outer_field() const override
   {
     DBUG_ASSERT(fixed());
@@ -3807,7 +3886,7 @@ public:
    :Item_field(thd, field),
     Item_args()
   { }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_field_row>(thd, this); }
 
   const Type_handler *type_handler() const override
@@ -3896,7 +3975,7 @@ public:
   const Type_handler *type_handler() const override
   { return &type_handler_null; }
   bool basic_const_item() const override { return true; }
-  Item *clone_item(THD *thd) override;
+  Item *do_clone_const_item(THD *thd) const override;
   bool const_is_null() const override { return true; }
   bool is_null() override { return true; }
 
@@ -3910,8 +3989,9 @@ public:
   Item_basic_constant *make_string_literal_concat(THD *thd,
                                                   const LEX_CSTRING *)
     override;
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_null>(thd, this); }
+  Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
 };
 
 class Item_null_result :public Item_null
@@ -4120,7 +4200,7 @@ class Item_param :public Item_basic_value,
   PValue value;
 
   const String *value_query_val_str(THD *thd, String* str) const;
-  Item *value_clone_item(THD *thd);
+  Item *value_clone_item(THD *thd) const;
   bool is_evaluable_expression() const override;
   bool can_return_value() const;
 
@@ -4346,7 +4426,7 @@ public:
     basic_const_item returned TRUE.
   */
   Item *safe_charset_converter(THD *thd, CHARSET_INFO *tocs) override;
-  Item *clone_item(THD *thd) override;
+  Item *do_clone_const_item(THD *thd) const override;
   void set_param_type_and_swap_value(Item_param *from);
 
   Rewritable_query_parameter *get_rewritable_query_parameter() override
@@ -4356,7 +4436,9 @@ public:
 
   bool append_for_log(THD *thd, String *str) override;
   bool check_vcol_func_processor(void *) override { return false; }
-  Item *get_copy(THD *) override { return nullptr; }
+  Item *do_get_copy(THD *thd) const override { return nullptr; }
+  Item *do_build_clone(THD *thd) const override { return nullptr; }
+
   bool add_as_clone(THD *thd);
   void sync_clones();
   bool register_clone(Item_param *i) { return m_clones.push_back(i); }
@@ -4446,13 +4528,14 @@ public:
   String *val_str(String*) override;
   int save_in_field(Field *field, bool no_conversions) override;
   bool is_order_clause_position() const override { return true; }
-  Item *clone_item(THD *thd) override;
+  Item *do_clone_const_item(THD *thd) const override;
   void print(String *str, enum_query_type query_type) override;
   Item *neg(THD *thd) override;
   decimal_digits_t decimal_precision() const override
   { return (decimal_digits_t) (max_length - MY_TEST(value < 0)); }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_int>(thd, this); }
+  Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
 };
 
 
@@ -4482,6 +4565,9 @@ public:
       predicate at various condition optimization stages in sql_select.
     */
   }
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_bool>(thd, this); }
+  Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
 };
 
 
@@ -4493,6 +4579,8 @@ public:
 
   void set_join_tab_idx(uint8 join_tab_idx_arg) override
   { DBUG_ASSERT(0); }
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_bool_static>(thd, this); }
 };
 
 extern const Item_bool_static Item_false, Item_true;
@@ -4504,11 +4592,11 @@ public:
   Item_uint(THD *thd, ulonglong i): Item_int(thd, i, 10) {}
   Item_uint(THD *thd, const char *str_arg, longlong i, uint length);
   double val_real()  override { return ulonglong2double((ulonglong)value); }
-  Item *clone_item(THD *thd) override;
+  Item *do_clone_const_item(THD *thd) const override;
   Item *neg(THD *thd) override;
   decimal_digits_t decimal_precision() const override
   { return decimal_digits_t(max_length); }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_uint>(thd, this); }
 };
 
@@ -4559,7 +4647,7 @@ public:
   const my_decimal *const_ptr_my_decimal() const override
   { return &decimal_value; }
   int save_in_field(Field *field, bool no_conversions) override;
-  Item *clone_item(THD *thd) override;
+  Item *do_clone_const_item(THD *thd) const override;
   void print(String *str, enum_query_type query_type) override
   {
     decimal_value.to_string(&str_value);
@@ -4569,8 +4657,9 @@ public:
   decimal_digits_t decimal_precision() const override
   { return decimal_value.precision(); }
   void set_decimal_value(my_decimal *value_par);
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_decimal>(thd, this); }
+  Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
 };
 
 
@@ -4612,11 +4701,12 @@ public:
   }
   String *val_str(String*) override;
   my_decimal *val_decimal(my_decimal *) override;
-  Item *clone_item(THD *thd) override;
+  Item *do_clone_const_item(THD *thd) const override;
   Item *neg(THD *thd) override;
   void print(String *str, enum_query_type query_type) override;
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_float>(thd, this); }
+  Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
 };
 
 
@@ -4732,7 +4822,7 @@ public:
   int save_in_field(Field *field, bool no_conversions) override;
   const Type_handler *type_handler() const override
   { return &type_handler_varchar; }
-  Item *clone_item(THD *thd) override;
+  Item *do_clone_const_item(THD *thd) const override;
   Item *safe_charset_converter(THD *thd, CHARSET_INFO *tocs) override
   {
     return const_charset_converter(thd, tocs, true);
@@ -4775,8 +4865,9 @@ public:
                                                   const LEX_CSTRING *) override;
   Item *make_odbc_literal(THD *thd, const LEX_CSTRING *typestr) override;
 
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_string>(thd, this); }
+  Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
 
 };
 
@@ -4796,6 +4887,9 @@ public:
   {
     return true;
   }
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_string_with_introducer>(thd, this); }
+  Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
 };
 
 
@@ -4985,8 +5079,9 @@ public:
     return field->store_hex_hybrid(str_value.ptr(), str_value.length());
   }
   void print(String *str, enum_query_type query_type) override;
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_hex_hybrid>(thd, this); }
+  Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
 };
 
 
@@ -5024,8 +5119,9 @@ public:
                         collation.collation);
   }
   void print(String *str, enum_query_type query_type) override;
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_hex_string>(thd, this); }
+  Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
 };
 
 
@@ -5081,8 +5177,9 @@ public:
   {
     m_value= value;
   }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_timestamp_literal>(thd, this); }
+  Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
 };
 
 
@@ -5149,7 +5246,7 @@ public:
   {
     return cached_time.get_mysql_time();
   }
-  Item *clone_item(THD *thd) override;
+  Item *do_clone_const_item(THD *thd) const override;
   longlong val_int() override
   {
     return update_null() ? 0 : cached_time.to_longlong();
@@ -5171,8 +5268,9 @@ public:
     return update_null() ? 0 : cached_time.valid_date_to_packed();
   }
   bool get_date(THD *thd, MYSQL_TIME *res, date_mode_t fuzzydate) override;
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_date_literal>(thd, this); }
+  Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
 };
 
 
@@ -5198,7 +5296,7 @@ public:
   {
     return cached_time.get_mysql_time();
   }
-  Item *clone_item(THD *thd) override;
+  Item *do_clone_const_item(THD *thd) const override;
   longlong val_int() override { return cached_time.to_longlong(); }
   double val_real() override { return cached_time.to_double(); }
   String *val_str(String *to) override
@@ -5214,8 +5312,9 @@ public:
   {
     return Time(thd, this).to_native(to, decimals);
   }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_time_literal>(thd, this); }
+  Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
 };
 
 
@@ -5251,7 +5350,7 @@ public:
   {
     return cached_time.get_mysql_time();
   }
-  Item *clone_item(THD *thd) override;
+  Item *do_clone_const_item(THD *thd) const override;
   longlong val_int() override
   {
     return update_null() ? 0 : cached_time.to_longlong();
@@ -5273,8 +5372,9 @@ public:
     return update_null() ? 0 : cached_time.valid_datetime_to_packed();
   }
   bool get_date(THD *thd, MYSQL_TIME *res, date_mode_t fuzzydate) override;
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_datetime_literal>(thd, this); }
+  Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
 };
 
 
@@ -5560,7 +5660,7 @@ public:
   virtual bool fix_length_and_dec()= 0;
   bool const_item() const override { return const_item_cache; }
   table_map used_tables() const override { return used_tables_cache; }
-  Item* build_clone(THD *thd) override;
+  Item* do_build_clone(THD *thd) const override;
   Sql_mode_dependency value_depends_on_sql_mode() const override
   {
     return Item_args::value_depends_on_sql_mode_bit_or().soft_to_hard();
@@ -5810,11 +5910,11 @@ public:
     DBUG_ASSERT(ref);
     return (*ref)->is_outer_field();
   }
-  Item* build_clone(THD *thd) override;
+  Item *do_build_clone(THD *thd) const override;
   /**
     Checks if the item tree that ref points to contains a subquery.
   */
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_ref>(thd, this); }
   bool excl_dep_on_table(table_map tab_map) override
   {
@@ -5895,7 +5995,7 @@ public:
   longlong val_datetime_packed(THD *) override;
   longlong val_time_packed(THD *) override;
   Ref_Type ref_type() override { return DIRECT_REF; }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_direct_ref>(thd, this); }
   Item *remove_item_direct_ref() override
   { return (*ref)->remove_item_direct_ref(); }
@@ -6064,9 +6164,9 @@ public:
   {
     return mark_unsupported_function("cache", arg, VCOL_IMPOSSIBLE);
   }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_cache_wrapper>(thd, this); }
-  Item *build_clone(THD *) override { return nullptr; }
+  Item *do_build_clone(THD *) const override { return nullptr; }
 };
 
 
@@ -6278,7 +6378,7 @@ public:
   my_decimal *val_decimal_result(my_decimal *val) override;
   bool val_bool_result() override;
 
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_direct_view_ref>(thd, this); }
   Item *field_transformer_for_having_pushdown(THD *, uchar *) override
   { return this; }
@@ -6342,6 +6442,9 @@ public:
   table_map not_null_tables() const override { return 0; }
   Ref_Type ref_type() override { return OUTER_REF; }
   bool check_inner_refs_processor(void * arg) override;
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_outer_ref>(thd, this); }
+  Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
 };
 
 
@@ -6378,7 +6481,7 @@ public:
   bool val_native(THD *thd, Native *to) override;
   void print(String *str, enum_query_type query_type) override;
   table_map used_tables() const override;
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_ref_null_helper>(thd, this); }
 };
 
@@ -6404,7 +6507,7 @@ public:
   {
     return ref->save_in_field(field, no_conversions);
   }
-  Item *clone_item(THD *thd) override;
+  Item *do_clone_const_item(THD *thd) const override;
   Item *real_item() override { return ref; }
 };
 
@@ -6541,8 +6644,9 @@ public:
   { return get_date_from_string(thd, ltime, fuzzydate); }
   void copy() override;
   int save_in_field(Field *field, bool no_conversions) override;
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_copy_string>(thd, this); }
+  Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
 };
 
 
@@ -6612,8 +6716,9 @@ public:
     DBUG_ASSERT(sane());
     return null_value || m_value.to_native(to, decimals);
   }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_copy_timestamp>(thd, this); }
+  Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
 };
 
 
@@ -6891,8 +6996,9 @@ public:
     param->set_default();
     return false;
   }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_default_specification>(thd, this); }
+  Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
 };
 
 
@@ -6925,8 +7031,9 @@ public:
     return false;
   }
 
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_ignore_specification>(thd, this); }
+  Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
 };
 
 
@@ -7275,8 +7382,9 @@ public:
   bool cache_value() override;
   int save_in_field(Field *field, bool no_conversions) override;
   Item *convert_to_basic_const_item(THD *thd) override;
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_cache_int>(thd, this); }
+  Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
 };
 
 
@@ -7289,6 +7397,7 @@ public:
   {
     return type_handler_year.Item_get_date_with_warn(thd, this, to, mode);
   }
+  Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
 };
 
 
@@ -7313,7 +7422,7 @@ public:
     is a constant and need not be optimized further.
     Important when storing packed datetime values.
   */
-  Item *clone_item(THD *thd) override;
+  Item *do_clone_const_item(THD *thd) const override;
   Item *convert_to_basic_const_item(THD *thd) override;
   virtual Item *make_literal(THD *) =0;
 };
@@ -7325,7 +7434,7 @@ public:
   Item_cache_time(THD *thd)
    :Item_cache_temporal(thd, &type_handler_time2) { }
   bool cache_value() override;
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_cache_time>(thd, this); }
   Item *make_literal(THD *) override;
   longlong val_datetime_packed(THD *thd) override
@@ -7365,7 +7474,7 @@ class Item_cache_datetime: public Item_cache_temporal
 public:
   Item_cache_datetime(THD *thd)
    :Item_cache_temporal(thd, &type_handler_datetime2) { }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_cache_datetime>(thd, this); }
   Item *make_literal(THD *) override;
   longlong val_datetime_packed(THD *) override
@@ -7400,7 +7509,7 @@ class Item_cache_date: public Item_cache_temporal
 public:
   Item_cache_date(THD *thd)
    :Item_cache_temporal(thd, &type_handler_newdate) { }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_cache_date>(thd, this); }
   Item *make_literal(THD *) override;
   longlong val_datetime_packed(THD *) override
@@ -7433,8 +7542,9 @@ class Item_cache_timestamp: public Item_cache
 public:
   Item_cache_timestamp(THD *thd)
    :Item_cache(thd, &type_handler_timestamp2) { }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_cache_timestamp>(thd, this); }
+  Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
   bool cache_value() override;
   String* val_str(String *to) override
   {
@@ -7493,8 +7603,9 @@ public:
    :Item_cache_real(thd, &type_handler_double)
   { }
   String *val_str(String *str) override;
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_cache_double>(thd, this); }
+  Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
 };
 
 
@@ -7505,8 +7616,9 @@ public:
    :Item_cache_real(thd, &type_handler_float)
   { }
   String *val_str(String *str) override;
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_cache_float>(thd, this); }
+  Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
 };
 
 
@@ -7528,8 +7640,9 @@ public:
   }
   bool cache_value() override;
   Item *convert_to_basic_const_item(THD *thd) override;
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_cache_decimal>(thd, this); }
+  Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
 };
 
 
@@ -7558,8 +7671,9 @@ public:
   int save_in_field(Field *field, bool no_conversions) override;
   bool cache_value() override;
   Item *convert_to_basic_const_item(THD *thd) override;
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_cache_str>(thd, this); }
+  Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
 };
 
 
@@ -7583,8 +7697,9 @@ public:
     */
     return Item::safe_charset_converter(thd, tocs);
   }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_cache_str_for_nullif>(thd, this); }
+  Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
 };
 
 
@@ -7660,8 +7775,9 @@ public:
   }
   bool cache_value() override;
   void set_null() override;
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_cache_row>(thd, this); }
+  Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
 };
 
 
@@ -7730,7 +7846,8 @@ public:
       make_and_init_table_field(root, &name, Record_addr(maybe_null()),
                                 *this, table);
   }
-  Item* get_copy(THD *) override { return nullptr; }
+  Item *do_get_copy(THD *) const override { return nullptr; }
+  Item *do_build_clone(THD *) const override { return nullptr; }
 };
 
 
@@ -7884,7 +8001,7 @@ public:
   Item *safe_charset_converter(THD *thd, CHARSET_INFO *tocs) override;
   Item *get_tmp_table_item(THD *thd) override
   { return m_item->get_tmp_table_item(thd); }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_direct_ref_to_item>(thd, this); }
   COND *build_equal_items(THD *thd, COND_EQUAL *inherited,
                           bool link_item_fields,
@@ -7955,7 +8072,7 @@ public:
   { return m_item->excl_dep_on_grouping_fields(sel); }
   bool is_expensive() override { return m_item->is_expensive(); }
   void set_item(Item *item) { m_item= item; }
-  Item *build_clone(THD *thd) override
+  Item *do_build_clone(THD *thd) const override
   {
     Item *clone_item= m_item->build_clone(thd);
     if (clone_item)
