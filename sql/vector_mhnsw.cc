@@ -16,6 +16,7 @@
 */
 
 #include <my_global.h>
+#include "key.h"                                // key_copy()
 #include "vector_mhnsw.h"
 #include "item_vectorfunc.h"
 #include <scope.h>
@@ -141,7 +142,7 @@ private:
 public:
   Neighborhood *neighbors= nullptr;
   uint8_t max_layer;
-  bool stored;
+  bool stored:1, deleted:1;
 
   FVectorNode(MHNSW_Context *ctx_, const void *gref_);
   FVectorNode(MHNSW_Context *ctx_, const void *tref_, uint8_t layer,
@@ -532,15 +533,16 @@ float *FVectorNode::make_vec(const void *v)
 }
 
 FVectorNode::FVectorNode(MHNSW_Context *ctx_, const void *gref_)
-  : FVector(), ctx(ctx_), stored(true)
+  : FVector(), ctx(ctx_), stored(true), deleted(false)
 {
   memcpy(gref(), gref_, gref_len());
 }
 
 FVectorNode::FVectorNode(MHNSW_Context *ctx_, const void *tref_, uint8_t layer,
                          const void *vec_)
-  : FVector(), ctx(ctx_), stored(false)
+  : FVector(), ctx(ctx_), stored(false), deleted(false)
 {
+  DBUG_ASSERT(tref_);
   memset(gref(), 0xff, gref_len()); // important: larger than any real gref
   memcpy(tref(), tref_, tref_len());
   vec= make_vec(vec_);
@@ -589,9 +591,13 @@ int FVectorNode::load_from_record(TABLE *graph)
     return 0;
 
   String buf, *v= graph->field[FIELD_TREF]->val_str(&buf);
-  if (unlikely(!v || v->length() != tref_len()))
-    return my_errno= HA_ERR_CRASHED;
-  memcpy(tref(), v->ptr(), v->length());
+  deleted= graph->field[FIELD_TREF]->is_null();
+  if (!deleted)
+  {
+    if (unlikely(v->length() != tref_len()))
+      return my_errno= HA_ERR_CRASHED;
+    memcpy(tref(), v->ptr(), v->length());
+  }
 
   v= graph->field[FIELD_VEC]->val_str(&buf);
   if (unlikely(!v))
@@ -761,8 +767,13 @@ int FVectorNode::save(TABLE *graph)
   DBUG_ASSERT(neighbors);
 
   graph->field[FIELD_LAYER]->store(max_layer, false);
-  graph->field[FIELD_TREF]->set_notnull();
-  graph->field[FIELD_TREF]->store_binary(tref(), tref_len());
+  if (deleted)
+    graph->field[FIELD_TREF]->set_null();
+  else
+  {
+    graph->field[FIELD_TREF]->set_notnull();
+    graph->field[FIELD_TREF]->store_binary(tref(), tref_len());
+  }
   graph->field[FIELD_VEC]->store_binary((uchar*)vec, ctx->byte_len);
 
   size_t total_size= 0;
@@ -825,7 +836,7 @@ static int update_second_degree_neighbors(MHNSW_Context *ctx, TABLE *graph,
 
 static int search_layer(MHNSW_Context *ctx, TABLE *graph, const FVector &target,
                         Neighborhood *start_nodes, uint ef, size_t layer,
-                        Neighborhood *result)
+                        Neighborhood *result, bool skip_deleted)
 {
   DBUG_ASSERT(start_nodes->num > 0);
   result->num= 0;
@@ -847,13 +858,15 @@ static int search_layer(MHNSW_Context *ctx, TABLE *graph, const FVector &target,
   {
     Visited *v= visited.create(start_nodes->links[i]);
     candidates.push(v);
+    if (skip_deleted && v->node->deleted)
+      continue;
     if (best.elements() < ef)
       best.push(v);
     else if (v->distance_to_target < best.top()->distance_to_target)
       best.replace_top(v);
   }
 
-  float furthest_best= best.top()->distance_to_target;
+  float furthest_best= FLT_MAX;
   while (candidates.elements())
   {
     const Visited &cur= *candidates.pop();
@@ -880,13 +893,17 @@ static int search_layer(MHNSW_Context *ctx, TABLE *graph, const FVector &target,
         if (best.elements() < ef)
         {
           candidates.push(v);
+          if (skip_deleted && v->node->deleted)
+            continue;
           best.push(v);
           furthest_best= best.top()->distance_to_target;
         }
         else if (v->distance_to_target < furthest_best)
         {
-          best.replace_top(v);
           candidates.push(v);
+          if (skip_deleted && v->node->deleted)
+            continue;
+          best.replace_top(v);
           furthest_best= best.top()->distance_to_target;
         }
       }
@@ -982,7 +999,7 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
   for (cur_layer= max_layer; cur_layer > target_layer; cur_layer--)
   {
     if (int err= search_layer(ctx, graph, *target, &start_nodes, 1, cur_layer,
-                              &candidates))
+                              &candidates, false))
       return err;
     std::swap(start_nodes, candidates);
   }
@@ -991,7 +1008,7 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
   {
     uint max_neighbors= ctx->max_neighbors(cur_layer);
     if (int err= search_layer(ctx, graph, *target, &start_nodes,
-                              ef_construction, cur_layer, &candidates))
+                              ef_construction, cur_layer, &candidates, false))
       return err;
 
     if (int err= select_neighbors(ctx, graph, cur_layer, *target, candidates,
@@ -1061,13 +1078,13 @@ int mhnsw_first(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit)
   for (size_t cur_layer= max_layer; cur_layer > 0; cur_layer--)
   {
     if (int err= search_layer(ctx, graph, target, &start_nodes, 1, cur_layer,
-                              &candidates))
+                              &candidates, false))
       return err;
     std::swap(start_nodes, candidates);
   }
 
   if (int err= search_layer(ctx, graph, target, &start_nodes, ef, 0,
-                            &candidates))
+                            &candidates, true))
     return err;
 
   if (limit > candidates.num)
@@ -1110,6 +1127,60 @@ void mhnsw_free(TABLE_SHARE *share)
   graph_share->hlindex_data= 0;
 }
 
+int mhnsw_invalidate(TABLE *table, uchar *rec, KEY *keyinfo)
+{
+  TABLE *graph= table->hlindex;
+  Field *vec_field= keyinfo->key_part->field;
+  String buf, *res= vec_field->val_str(&buf);
+  handler *h= table->file;
+  int err= 0;
+
+  /* metadata are checked on open */
+  DBUG_ASSERT(graph);
+  DBUG_ASSERT(keyinfo->algorithm == HA_KEY_ALG_VECTOR);
+  DBUG_ASSERT(keyinfo->usable_key_parts == 1);
+  DBUG_ASSERT(vec_field->binary());
+  DBUG_ASSERT(vec_field->cmp_type() == STRING_RESULT);
+  DBUG_ASSERT(res); // ER_INDEX_CANNOT_HAVE_NULL
+  DBUG_ASSERT(h->ref_length <= graph->field[1]->field_length);
+  DBUG_ASSERT(h->ref_length <= graph->field[2]->field_length);
+
+  if (res->length() == 0 || res->length() % 4)
+    return 1;
+
+  // use index on tref
+  if ((err= graph->file->ha_index_init(1, 0)))
+    return err;
+
+  // target record:
+  h->position(rec);
+  graph->field[FIELD_TREF]->set_notnull();
+  graph->field[FIELD_TREF]->store_binary(
+    reinterpret_cast<const char *>(h->ref), h->ref_length);
+
+  uchar *key= (uchar*)alloca(graph->key_info[1].key_length);
+  key_copy(key, graph->record[0], graph->key_info + 1,
+           graph->key_info[1].key_length);
+
+  err= graph->file->ha_index_read_map(graph->record[1], key,
+                                      HA_WHOLE_KEY,
+                                      HA_READ_KEY_EXACT);
+
+  // Deleted tref not found in index, should not happen
+  if (err == HA_ERR_KEY_NOT_FOUND)
+  {
+      DBUG_ASSERT(0);
+      return err;
+  }
+
+  restore_record(graph, record[1]);
+  graph->field[FIELD_TREF]->set_null();
+
+  graph->file->ha_update_row(graph->record[1], graph->record[0]);
+
+  return 0;
+}
+
 const LEX_CSTRING mhnsw_hlindex_table_def(THD *thd, uint ref_length)
 {
   const char templ[]="CREATE TABLE i (                   "
@@ -1117,7 +1188,8 @@ const LEX_CSTRING mhnsw_hlindex_table_def(THD *thd, uint ref_length)
                      "  tref varbinary(%u),              "
                      "  vec blob not null,               "
                      "  neighbors blob not null,         "
-                     "  key (layer))                     ";
+                     "  key (layer),                     "
+                     "  key (ref))                       ";
   size_t len= sizeof(templ) + 32;
   char *s= thd->alloc(len);
   len= my_snprintf(s, len, templ, ref_length);
