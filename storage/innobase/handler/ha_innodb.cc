@@ -14493,11 +14493,13 @@ ha_innobase::info_low(
 			stats.index_file_length
 				= ulonglong(stat_sum_of_other_index_sizes)
 				* size;
-			rw_lock_s_lock(&space->latch);
-			stats.delete_length = 1024
-				* fsp_get_available_space_in_free_extents(
+			if (flag & HA_STATUS_VARIABLE_EXTRA) {
+				rw_lock_s_lock(&space->latch);
+				stats.delete_length = 1024
+					* fsp_get_available_space_in_free_extents(
 					*space);
-			rw_lock_s_unlock(&space->latch);
+				rw_lock_s_unlock(&space->latch);
+			}
 		}
 		stats.check_time = 0;
 		stats.mrr_length_per_rec= (uint)ref_length +  8; // 8 = max(sizeof(void *));
@@ -18376,28 +18378,42 @@ wait_background_drop_list_empty(THD*, st_mysql_sys_var*, void*, const void*)
 Force innodb to checkpoint. */
 static
 void
-checkpoint_now_set(THD*, st_mysql_sys_var*, void*, const void* save)
+checkpoint_now_set(THD* thd, st_mysql_sys_var*, void*, const void* save)
 {
-	if (*(my_bool*) save) {
-		mysql_mutex_unlock(&LOCK_global_system_variables);
-
-		lsn_t lsn;
-
-		while (log_sys.last_checkpoint_lsn.load(
-			       std::memory_order_acquire)
-		       + SIZE_OF_FILE_CHECKPOINT
-		       + log_sys.framing_size()
-		       < (lsn= log_sys.get_lsn(std::memory_order_acquire))) {
-			log_make_checkpoint();
-			log_sys.log.flush();
-		}
-
-		if (dberr_t err = fil_write_flushed_lsn(lsn)) {
-			ib::warn() << "Checkpoint set failed " << err;
-		}
-
-		mysql_mutex_lock(&LOCK_global_system_variables);
+	if (!*(my_bool*) save) {
+		return;
 	}
+
+	if (srv_read_only_mode) {
+		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+				    HA_ERR_UNSUPPORTED,
+				    "InnoDB doesn't force checkpoint "
+				    "when %s",
+				    (srv_force_recovery
+				     == SRV_FORCE_NO_LOG_REDO)
+				    ? "innodb-force-recovery=6."
+				    : "innodb-read-only=1.");
+		return;
+	}
+
+	mysql_mutex_unlock(&LOCK_global_system_variables);
+
+	lsn_t lsn;
+
+	while (log_sys.last_checkpoint_lsn.load(
+		       std::memory_order_acquire)
+	       + SIZE_OF_FILE_CHECKPOINT
+	       + log_sys.framing_size()
+	       < (lsn= log_sys.get_lsn(std::memory_order_acquire))) {
+		log_make_checkpoint();
+		log_sys.log.flush();
+	}
+
+	if (dberr_t err = fil_write_flushed_lsn(lsn)) {
+		ib::warn() << "Checkpoint set failed " << err;
+	}
+
+	mysql_mutex_lock(&LOCK_global_system_variables);
 }
 
 /****************************************************************//**

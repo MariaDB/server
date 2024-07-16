@@ -27,13 +27,13 @@
 
 class Item_func_inet_aton : public Item_longlong_func
 {
-  bool check_arguments() const
+  bool check_arguments() const override
   { return check_argument_types_can_return_text(0, arg_count); }
 public:
   Item_func_inet_aton(THD *thd, Item *a): Item_longlong_func(thd, a) {}
-  longlong val_int();
-  const char *func_name() const { return "inet_aton"; }
-  bool fix_length_and_dec()
+  longlong val_int() override;
+  const char *func_name() const override { return "inet_aton"; }
+  bool fix_length_and_dec() override
   {
     decimals= 0;
     max_length= 21;
@@ -41,7 +41,7 @@ public:
     unsigned_flag= 1;
     return FALSE;
   }
-  Item *get_copy(THD *thd)
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_inet_aton>(thd, this); }
 };
 
@@ -55,16 +55,16 @@ class Item_func_inet_ntoa : public Item_str_func
 public:
   Item_func_inet_ntoa(THD *thd, Item *a): Item_str_func(thd, a)
   { }
-  String* val_str(String* str);
-  const char *func_name() const { return "inet_ntoa"; }
-  bool fix_length_and_dec()
+  String* val_str(String* str) override;
+  const char *func_name() const override { return "inet_ntoa"; }
+  bool fix_length_and_dec() override
   {
     decimals= 0;
     fix_length_and_charset(3 * 8 + 7, default_charset());
     maybe_null= 1;
     return FALSE;
   }
-  Item *get_copy(THD *thd)
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_inet_ntoa>(thd, this); }
 };
 
@@ -82,7 +82,7 @@ public:
   {
     null_value= false;
   }
-  bool need_parentheses_in_default() { return false; }
+  bool need_parentheses_in_default() override { return false; }
 };
 
 
@@ -98,20 +98,20 @@ public:
   { }
 
 public:
-  virtual const char *func_name() const
+  const char *func_name() const override
   { return "inet6_aton"; }
 
-  virtual bool fix_length_and_dec()
+  bool fix_length_and_dec() override
   {
     decimals= 0;
     fix_length_and_charset(16, &my_charset_bin);
     maybe_null= 1;
     return FALSE;
   }
-  Item *get_copy(THD *thd)
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_inet6_aton>(thd, this); }
 
-  String *val_str(String *to);
+  String *val_str(String *to) override;
 };
 
 
@@ -127,10 +127,10 @@ public:
   { }
 
 public:
-  virtual const char *func_name() const
+  const char *func_name() const override
   { return "inet6_ntoa"; }
 
-  virtual bool fix_length_and_dec()
+  bool fix_length_and_dec() override
   {
     decimals= 0;
 
@@ -142,8 +142,8 @@ public:
     maybe_null= 1;
     return FALSE;
   }
-  String *val_str_ascii(String *to);
-  Item *get_copy(THD *thd)
+  String *val_str_ascii(String *to) override;
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_inet6_ntoa>(thd, this); }
 };
 
@@ -160,12 +160,12 @@ public:
   { }
 
 public:
-  virtual const char *func_name() const
+  const char *func_name() const override
   { return "is_ipv4"; }
-  Item *get_copy(THD *thd)
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_is_ipv4>(thd, this); }
 
-  longlong val_int();
+  longlong val_int() override;
 };
 
 
@@ -180,12 +180,12 @@ public:
     Item_func_inet_bool_base(thd, ip_addr)
   { }
 
-  virtual const char *func_name() const
+  const char *func_name() const override
   { return "is_ipv6"; }
-  Item *get_copy(THD *thd)
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_is_ipv6>(thd, this); }
 
-  longlong val_int();
+  longlong val_int() override;
 };
 
 
@@ -199,11 +199,11 @@ public:
   inline Item_func_is_ipv4_compat(THD *thd, Item *ip_addr):
     Item_func_inet_bool_base(thd, ip_addr)
   { }
-  virtual const char *func_name() const
+  const char *func_name() const override
   { return "is_ipv4_compat"; }
-  Item *get_copy(THD *thd)
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_is_ipv4_compat>(thd, this); }
-  longlong val_int();
+  longlong val_int() override;
 };
 
 
@@ -217,11 +217,11 @@ public:
   inline Item_func_is_ipv4_mapped(THD *thd, Item *ip_addr):
     Item_func_inet_bool_base(thd, ip_addr)
   { }
-  virtual const char *func_name() const
+  const char *func_name() const override
   { return "is_ipv4_mapped"; }
-  Item *get_copy(THD *thd)
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_is_ipv4_mapped>(thd, this); }
-  longlong val_int();
+  longlong val_int() override;
 };
 
 #endif // ITEM_INETFUNC_INCLUDED

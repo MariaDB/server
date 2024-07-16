@@ -53,7 +53,7 @@ class Url_http: public Url {
     {
       proxy_host.length= 0;
     }
-  ~Url_http()
+  ~Url_http() override
   {
     my_free(host.str);
     my_free(port.str);
@@ -62,9 +62,9 @@ class Url_http: public Url {
   }
 
   public:
-  void abort();
-  int send(const char* data, size_t data_length);
-  int set_proxy(const char *proxy, size_t proxy_len)
+  void abort() override;
+  int send(const char* data, size_t data_length) override;
+  int set_proxy(const char *proxy, size_t proxy_len) override
   {
     if (use_proxy())
     {

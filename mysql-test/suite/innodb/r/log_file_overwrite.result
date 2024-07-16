@@ -1,0 +1,21 @@
+call mtr.add_suppression("InnoDB: Plugin initialization aborted");
+call mtr.add_suppression("plugin 'InnoDB' registration as a STORAGE ENGINE failed.");
+CREATE TABLE t1(f1 INT NOT NULL, f2 TEXT)ENGINE=InnoDB;
+# restart: --debug_dbug=+d,ib_log_checkpoint_avoid_hard --innodb_flush_sync=0
+INSERT INTO t1 SELECT seq, repeat('a', 4000) FROM seq_1_to_1800;
+# restart: --debug_dbug=+d,before_final_redo_apply --innodb_log_file_size=8M
+# restart: --innodb_log_file_size=10M
+#
+# MDEV-34519 innodb_log_checkpoint_now crashes when
+#              innodb_read_only is enabled
+#
+# restart: --innodb-force-recovery=6
+SET GLOBAL innodb_log_checkpoint_now=1;
+Warnings:
+Warning	138	InnoDB doesn't force checkpoint when innodb-force-recovery=6.
+# restart: --innodb-read-only=1
+SET GLOBAL innodb_log_checkpoint_now=1;
+Warnings:
+Warning	138	InnoDB doesn't force checkpoint when innodb-read-only=1.
+# restart
+DROP TABLE t1;

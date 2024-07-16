@@ -183,7 +183,7 @@ static void send_report(const char *when)
     str.length(0);
     str.append(STRING_WITH_LEN("FEEDBACK_SERVER_UID"));
     str.append('\t');
-    str.append(server_uid_buf);
+    str.append(server_uid);
     str.append('\n');
     str.append(STRING_WITH_LEN("FEEDBACK_WHEN"));
     str.append('\t');

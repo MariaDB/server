@@ -123,8 +123,8 @@ public:
   virtual bool   IsEqual(PVAL vp, bool chktype) = 0;
   virtual bool   Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op);
   virtual bool   FormatValue(PVAL vp, PCSZ fmt) = 0;
-	virtual void   Printf(PGLOBAL g, FILE *, uint);
-	virtual void   Prints(PGLOBAL g, char *ps, uint z);
+	void   Printf(PGLOBAL g, FILE *, uint) override;
+	void   Prints(PGLOBAL g, char *ps, uint z) override;
 
 	/**
 	Set value from a non-aligned in-memory value in the machine byte order.
@@ -194,48 +194,48 @@ class DllExport TYPVAL : public VALUE {
   TYPVAL(TYPE n, int type, int prec = 0, bool un = false);
 
   // Implementation
-  virtual bool   IsTypeNum(void) {return true;}
-  virtual bool   IsZero(void) {return Tval == 0;}
-  virtual void   Reset(void) {Tval = 0;}
-  virtual int    GetValLen(void);
-  virtual int    GetValPrec() {return Prec;}
-  virtual int    GetSize(void) {return sizeof(TYPE);}
+  bool   IsTypeNum(void) override {return true;}
+  bool   IsZero(void) override {return Tval == 0;}
+  void   Reset(void) override {Tval = 0;}
+  int    GetValLen(void) override;
+  int    GetValPrec() override {return Prec;}
+  int    GetSize(void) override {return sizeof(TYPE);}
 //virtual PSZ    GetCharValue(void) {return VALUE::GetCharValue();}
-  virtual char   GetTinyValue(void) {return (char)Tval;}
-  virtual uchar  GetUTinyValue(void) {return (uchar)Tval;}
-  virtual short  GetShortValue(void) {return (short)Tval;}
-  virtual ushort GetUShortValue(void) {return (ushort)Tval;}
-  virtual int    GetIntValue(void) {return (int)Tval;}
-  virtual uint   GetUIntValue(void) {return (uint)Tval;}
-  virtual longlong GetBigintValue(void) {return (longlong)Tval;}
-  virtual ulonglong GetUBigintValue(void) {return (ulonglong)Tval;}
-  virtual double GetFloatValue(void) {return (double)Tval;}
-  virtual void  *GetTo_Val(void) {return &Tval;}
+  char   GetTinyValue(void) override {return (char)Tval;}
+  uchar  GetUTinyValue(void) override {return (uchar)Tval;}
+  short  GetShortValue(void) override {return (short)Tval;}
+  ushort GetUShortValue(void) override {return (ushort)Tval;}
+  int    GetIntValue(void) override {return (int)Tval;}
+  uint   GetUIntValue(void) override {return (uint)Tval;}
+  longlong GetBigintValue(void) override {return (longlong)Tval;}
+  ulonglong GetUBigintValue(void) override {return (ulonglong)Tval;}
+  double GetFloatValue(void) override {return (double)Tval;}
+  void  *GetTo_Val(void) override {return &Tval;}
 
   // Methods
-  virtual bool   SetValue_pval(PVAL valp, bool chktype);
-  virtual bool   SetValue_char(const char *p, int n);
-  virtual void   SetValue_psz(PCSZ s);
-  virtual void   SetValue_bool(bool b) {Tval = (b) ? 1 : 0;}
-  virtual int    CompareValue(PVAL vp);
-  virtual void   SetValue(char c) {Tval = (TYPE)c; Null = false;}
-  virtual void   SetValue(uchar c) {Tval = (TYPE)c; Null = false;}
-  virtual void   SetValue(short i) {Tval = (TYPE)i; Null = false;}
-  virtual void   SetValue(ushort i) {Tval = (TYPE)i; Null = false;}
-  virtual void   SetValue(int n) {Tval = (TYPE)n; Null = false;}
-  virtual void   SetValue(uint n) {Tval = (TYPE)n; Null = false;}
-  virtual void   SetValue(longlong n) {Tval = (TYPE)n; Null = false;}
-  virtual void   SetValue(ulonglong n) {Tval = (TYPE)n; Null = false;}
-  virtual void   SetValue(double f) {Tval = (TYPE)f; Null = false;}
-  virtual void   SetValue_pvblk(PVBLK blk, int n);
-  virtual void   SetBinValue(void *p);
-  virtual bool   GetBinValue(void *buf, int buflen, bool go);
-  virtual int    ShowValue(char *buf, int len);
-  virtual char  *GetCharString(char *p);
-  virtual bool   IsEqual(PVAL vp, bool chktype);
-  virtual bool   Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op);
-  virtual bool   SetConstFormat(PGLOBAL, FORMAT&);
-  virtual bool   FormatValue(PVAL vp, PCSZ fmt);
+  bool   SetValue_pval(PVAL valp, bool chktype) override;
+  bool   SetValue_char(const char *p, int n) override;
+  void   SetValue_psz(PCSZ s) override;
+  void   SetValue_bool(bool b) override {Tval = (b) ? 1 : 0;}
+  int    CompareValue(PVAL vp) override;
+  void   SetValue(char c) override {Tval = (TYPE)c; Null = false;}
+  void   SetValue(uchar c) override {Tval = (TYPE)c; Null = false;}
+  void   SetValue(short i) override {Tval = (TYPE)i; Null = false;}
+  void   SetValue(ushort i) override {Tval = (TYPE)i; Null = false;}
+  void   SetValue(int n) override {Tval = (TYPE)n; Null = false;}
+  void   SetValue(uint n) override {Tval = (TYPE)n; Null = false;}
+  void   SetValue(longlong n) override {Tval = (TYPE)n; Null = false;}
+  void   SetValue(ulonglong n) override {Tval = (TYPE)n; Null = false;}
+  void   SetValue(double f) override {Tval = (TYPE)f; Null = false;}
+  void   SetValue_pvblk(PVBLK blk, int n) override;
+  void   SetBinValue(void *p) override;
+  bool   GetBinValue(void *buf, int buflen, bool go) override;
+  int    ShowValue(char *buf, int len) override;
+  char  *GetCharString(char *p) override;
+  bool   IsEqual(PVAL vp, bool chktype) override;
+  bool   Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op) override;
+  bool   SetConstFormat(PGLOBAL, FORMAT&) override;
+  bool   FormatValue(PVAL vp, PCSZ fmt) override;
 
  protected:
   static  TYPE   MinMaxVal(bool b);
@@ -268,49 +268,49 @@ public:
   TYPVAL(PGLOBAL g, PSZ s, int n, int c);
 
   // Implementation
-  virtual bool   IsTypeNum(void) {return false;}
-  virtual bool   IsZero(void) {return *Strp == 0;}
-  virtual void   Reset(void) {*Strp = 0;}
-  virtual int    GetValLen(void) {return Len;};
-  virtual int    GetValPrec() {return (Ci) ? 1 : 0;}
-  virtual int    GetSize(void) {return (Strp) ? (int)strlen(Strp) : 0;}
-  virtual PSZ    GetCharValue(void) {return Strp;}
-  virtual char   GetTinyValue(void);
-  virtual uchar  GetUTinyValue(void);
-  virtual short  GetShortValue(void);
-  virtual ushort GetUShortValue(void);
-  virtual int    GetIntValue(void);
-  virtual uint   GetUIntValue(void);
-  virtual longlong GetBigintValue(void);
-  virtual ulonglong GetUBigintValue(void);
-  virtual double GetFloatValue(void) {return atof(Strp);}
-  virtual void  *GetTo_Val(void) {return Strp;}
-  virtual void   SetPrec(int prec) {Ci = prec != 0;}
+  bool   IsTypeNum(void) override {return false;}
+  bool   IsZero(void) override {return *Strp == 0;}
+  void   Reset(void) override {*Strp = 0;}
+  int    GetValLen(void) override {return Len;};
+  int    GetValPrec() override {return (Ci) ? 1 : 0;}
+  int    GetSize(void) override {return (Strp) ? (int)strlen(Strp) : 0;}
+  PSZ    GetCharValue(void) override {return Strp;}
+  char   GetTinyValue(void) override;
+  uchar  GetUTinyValue(void) override;
+  short  GetShortValue(void) override;
+  ushort GetUShortValue(void) override;
+  int    GetIntValue(void) override;
+  uint   GetUIntValue(void) override;
+  longlong GetBigintValue(void) override;
+  ulonglong GetUBigintValue(void) override;
+  double GetFloatValue(void) override {return atof(Strp);}
+  void  *GetTo_Val(void) override {return Strp;}
+  void   SetPrec(int prec) override {Ci = prec != 0;}
 
   // Methods
-  virtual bool   SetValue_pval(PVAL valp, bool chktype);
-  virtual bool   SetValue_char(const char *p, int n);
-  virtual void   SetValue_psz(PCSZ s);
-  virtual void   SetValue_pvblk(PVBLK blk, int n);
-  virtual void   SetValue(char c);
-  virtual void   SetValue(uchar c);
-  virtual void   SetValue(short i);
-  virtual void   SetValue(ushort i);
-  virtual void   SetValue(int n);
-  virtual void   SetValue(uint n);
-  virtual void   SetValue(longlong n);
-  virtual void   SetValue(ulonglong n);
-  virtual void   SetValue(double f);
-  virtual void   SetBinValue(void *p);
-  virtual int    CompareValue(PVAL vp);
-  virtual bool   GetBinValue(void *buf, int buflen, bool go);
-  virtual int    ShowValue(char *buf, int len);
-  virtual char  *GetCharString(char *p);
-  virtual bool   IsEqual(PVAL vp, bool chktype);
-  virtual bool   Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op);
-  virtual bool   FormatValue(PVAL vp, PCSZ fmt);
-  virtual bool   SetConstFormat(PGLOBAL, FORMAT&);
-	virtual void   Prints(PGLOBAL g, char *ps, uint z);
+  bool   SetValue_pval(PVAL valp, bool chktype) override;
+  bool   SetValue_char(const char *p, int n) override;
+  void   SetValue_psz(PCSZ s) override;
+  void   SetValue_pvblk(PVBLK blk, int n) override;
+  void   SetValue(char c) override;
+  void   SetValue(uchar c) override;
+  void   SetValue(short i) override;
+  void   SetValue(ushort i) override;
+  void   SetValue(int n) override;
+  void   SetValue(uint n) override;
+  void   SetValue(longlong n) override;
+  void   SetValue(ulonglong n) override;
+  void   SetValue(double f) override;
+  void   SetBinValue(void *p) override;
+  int    CompareValue(PVAL vp) override;
+  bool   GetBinValue(void *buf, int buflen, bool go) override;
+  int    ShowValue(char *buf, int len) override;
+  char  *GetCharString(char *p) override;
+  bool   IsEqual(PVAL vp, bool chktype) override;
+  bool   Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op) override;
+  bool   FormatValue(PVAL vp, PCSZ fmt) override;
+  bool   SetConstFormat(PGLOBAL, FORMAT&) override;
+	void   Prints(PGLOBAL g, char *ps, uint z) override;
 
  protected:
   // Members
@@ -329,16 +329,16 @@ class DllExport DECVAL: public TYPVAL<PSZ> {
   DECVAL(PGLOBAL g, PSZ s, int n, int prec, bool uns);
 
   // Implementation
-  virtual bool   IsTypeNum(void) {return true;}
-  virtual bool   IsZero(void);
-  virtual void   Reset(void);
-  virtual int    GetValPrec() {return Prec;}
+  bool   IsTypeNum(void) override {return true;}
+  bool   IsZero(void) override;
+  void   Reset(void) override;
+  int    GetValPrec() override {return Prec;}
 
   // Methods
-  virtual bool   GetBinValue(void *buf, int buflen, bool go);
-  virtual int    ShowValue(char *buf, int len);
-  virtual bool   IsEqual(PVAL vp, bool chktype);
-  virtual int    CompareValue(PVAL vp);
+  bool   GetBinValue(void *buf, int buflen, bool go) override;
+  int    ShowValue(char *buf, int len) override;
+  bool   IsEqual(PVAL vp, bool chktype) override;
+  int    CompareValue(PVAL vp) override;
 
  protected:
   // Members
@@ -355,47 +355,47 @@ public:
   BINVAL(PGLOBAL g, void *p, int cl, int n);
 
   // Implementation
-  virtual bool   IsTypeNum(void) {return false;}
-  virtual bool   IsZero(void);
-  virtual void   Reset(void);
-  virtual int    GetValLen(void) {return Clen;};
-  virtual int    GetValPrec() {return 0;}
-  virtual int    GetSize(void) {return Len;}
-  virtual PSZ    GetCharValue(void) {return (PSZ)Binp;}
-  virtual char   GetTinyValue(void);
-  virtual uchar  GetUTinyValue(void);
-  virtual short  GetShortValue(void);
-  virtual ushort GetUShortValue(void);
-  virtual int    GetIntValue(void);
-  virtual uint   GetUIntValue(void);
-  virtual longlong GetBigintValue(void);
-  virtual ulonglong GetUBigintValue(void);
-  virtual double GetFloatValue(void);
-  virtual void  *GetTo_Val(void) {return Binp;}
+  bool   IsTypeNum(void) override {return false;}
+  bool   IsZero(void) override;
+  void   Reset(void) override;
+  int    GetValLen(void) override {return Clen;};
+  int    GetValPrec() override {return 0;}
+  int    GetSize(void) override {return Len;}
+  PSZ    GetCharValue(void) override {return (PSZ)Binp;}
+  char   GetTinyValue(void) override;
+  uchar  GetUTinyValue(void) override;
+  short  GetShortValue(void) override;
+  ushort GetUShortValue(void) override;
+  int    GetIntValue(void) override;
+  uint   GetUIntValue(void) override;
+  longlong GetBigintValue(void) override;
+  ulonglong GetUBigintValue(void) override;
+  double GetFloatValue(void) override;
+  void  *GetTo_Val(void) override {return Binp;}
 
   // Methods
-  virtual bool   SetValue_pval(PVAL valp, bool chktype);
-  virtual bool   SetValue_char(const char *p, int n);
-  virtual void   SetValue_psz(PCSZ s);
-  virtual void   SetValue_pvblk(PVBLK blk, int n);
-  virtual void   SetValue(char c);
-  virtual void   SetValue(uchar c);
-  virtual void   SetValue(short i);
-  virtual void   SetValue(ushort i);
-  virtual void   SetValue(int n);
-  virtual void   SetValue(uint n);
-  virtual void   SetValue(longlong n);
-  virtual void   SetValue(ulonglong n);
-  virtual void   SetValue(double f);
-  virtual void   SetBinValue(void *p);
+  bool   SetValue_pval(PVAL valp, bool chktype) override;
+  bool   SetValue_char(const char *p, int n) override;
+  void   SetValue_psz(PCSZ s) override;
+  void   SetValue_pvblk(PVBLK blk, int n) override;
+  void   SetValue(char c) override;
+  void   SetValue(uchar c) override;
+  void   SetValue(short i) override;
+  void   SetValue(ushort i) override;
+  void   SetValue(int n) override;
+  void   SetValue(uint n) override;
+  void   SetValue(longlong n) override;
+  void   SetValue(ulonglong n) override;
+  void   SetValue(double f) override;
+  void   SetBinValue(void *p) override;
 	virtual void   SetBinValue(void* p, ulong len);
-	virtual bool   GetBinValue(void *buf, int buflen, bool go);
-  virtual int    CompareValue(PVAL) {assert(false); return 0;}
-  virtual int    ShowValue(char *buf, int len);
-  virtual char  *GetCharString(char *p);
-  virtual bool   IsEqual(PVAL vp, bool chktype);
-  virtual bool   FormatValue(PVAL vp, PCSZ fmt);
-  virtual bool   SetConstFormat(PGLOBAL, FORMAT&);
+	bool   GetBinValue(void *buf, int buflen, bool go) override;
+  int    CompareValue(PVAL) override {assert(false); return 0;}
+  int    ShowValue(char *buf, int len) override;
+  char  *GetCharString(char *p) override;
+  bool   IsEqual(PVAL vp, bool chktype) override;
+  bool   FormatValue(PVAL vp, PCSZ fmt) override;
+  bool   SetConstFormat(PGLOBAL, FORMAT&) override;
 
  protected:
   // Members
@@ -415,15 +415,15 @@ class DllExport DTVAL : public TYPVAL<int> {
   using TYPVAL<int>::SetValue;
 
   // Implementation
-  virtual bool   SetValue_pval(PVAL valp, bool chktype);
-  virtual bool   SetValue_char(const char *p, int n);
-  virtual void   SetValue_psz(PCSZ s);
-  virtual void   SetValue_pvblk(PVBLK blk, int n);
-  virtual void   SetValue(int n);
-  virtual PSZ    GetCharValue(void) { return Sdate; }
-	virtual char  *GetCharString(char *p);
-  virtual int    ShowValue(char *buf, int len);
-  virtual bool   FormatValue(PVAL vp, PCSZ fmt);
+  bool   SetValue_pval(PVAL valp, bool chktype) override;
+  bool   SetValue_char(const char *p, int n) override;
+  void   SetValue_psz(PCSZ s) override;
+  void   SetValue_pvblk(PVBLK blk, int n) override;
+  void   SetValue(int n) override;
+  PSZ    GetCharValue(void) override { return Sdate; }
+	char  *GetCharString(char *p) override;
+  int    ShowValue(char *buf, int len) override;
+  bool   FormatValue(PVAL vp, PCSZ fmt) override;
           bool   SetFormat(PGLOBAL g, PCSZ fmt, int len, int year = 0);
           bool   SetFormat(PGLOBAL g, PVAL valp);
           bool   IsFormatted(void) {return Pdtp != NULL;}

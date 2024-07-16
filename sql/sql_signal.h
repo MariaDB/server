@@ -85,12 +85,12 @@ public:
 
   virtual ~Sql_cmd_signal() = default;
 
-  virtual enum_sql_command sql_command_code() const
+  enum_sql_command sql_command_code() const override
   {
     return SQLCOM_SIGNAL;
   }
 
-  virtual bool execute(THD *thd);
+  bool execute(THD *thd) override;
 };
 
 /**
@@ -111,12 +111,12 @@ public:
 
   virtual ~Sql_cmd_resignal() = default;
 
-  virtual enum_sql_command sql_command_code() const
+  enum_sql_command sql_command_code() const override
   {
     return SQLCOM_RESIGNAL;
   }
 
-  virtual bool execute(THD *thd);
+  bool execute(THD *thd) override;
 };
 
 #endif

@@ -159,7 +159,7 @@ int THD::register_slave(uchar *packet, size_t packet_length)
   return 0;
 
 err:
-  delete si;
+  my_free(si);
   my_message(ER_UNKNOWN_ERROR, errmsg, MYF(0)); /* purecov: inspected */
   return 1;
 }

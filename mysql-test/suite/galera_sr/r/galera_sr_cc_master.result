@@ -61,7 +61,7 @@ EXPECT_0
 0
 DROP TABLE t1;
 connection node_2b;
-CALL mtr.add_suppression("WSREP: Failed to replicate rollback fragment for");
+CALL mtr.add_suppression("WSREP: Failed to replicate rollback fragment for ");
 disconnect node_2;
 connect node_2, 127.0.0.1, root, , test, $NODE_MYPORT_2;
 disconnect node_2a;

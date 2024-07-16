@@ -83,7 +83,7 @@ SELECT HEX(a), a;
 END;
 $$
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					HEX(a)	253	44	3	Y	0	0	8
+def					HEX(a)	253	16	3	Y	0	0	8
 def				a	a	5	22	3	Y	32768	31	63
 HEX(a)	a
 100	256

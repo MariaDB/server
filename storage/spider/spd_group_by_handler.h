@@ -32,9 +32,9 @@ public:
     spider_fields *fields_arg
   );
   ~spider_group_by_handler();
-  int init_scan();
-  int next_row();
-  int end_scan();
+  int init_scan() override;
+  int next_row() override;
+  int end_scan() override;
 };
 
 group_by_handler *spider_create_group_by_handler(

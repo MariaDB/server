@@ -61,7 +61,7 @@ SET SESSION wsrep_sync_wait=0;
 --let $wait_condition = SELECT VARIABLE_VALUE = 'ON' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_ready'
 --source include/wait_condition.inc
 
-CALL mtr.add_suppression("WSREP: Vote 0 \\\(success\\\) on (.*) is inconsistent with group. Leaving cluster.");
+CALL mtr.add_suppression("WSREP: Vote 0 \\(success\\) on (.*) is inconsistent with group\\. Leaving cluster\\.");
 
 # Restore original auto_increment_offset values.
 --source ../galera/include/auto_increment_offset_restore.inc

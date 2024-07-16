@@ -111,12 +111,12 @@ public:
   flag_set get_flags(flag_set flags_arg) const { return m_flags & flags_arg; }
 
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
-  virtual void pack_info(Protocol *protocol);
+  void pack_info(Protocol *protocol) override;
 #endif
 
 #ifdef MYSQL_CLIENT
   /* not for direct call, each derived has its own ::print() */
-  virtual bool print(FILE *file, PRINT_EVENT_INFO *print_event_info)= 0;
+  bool print(FILE *file, PRINT_EVENT_INFO *print_event_info) override= 0;
 #endif
 
 #ifndef MYSQL_CLIENT
@@ -127,16 +127,19 @@ public:
 #endif
 
   /* Member functions to implement superclass interface */
-  virtual int get_data_size();
+  int get_data_size() override;
 
   MY_BITMAP const *get_cols() const { return &m_cols; }
   size_t get_width() const          { return m_width; }
   ulong get_table_id() const        { return m_table_id; }
 
 #ifndef MYSQL_CLIENT
-  virtual bool write_data_header();
-  virtual bool write_data_body();
-  virtual const char *get_db() { return m_table->s->db.str; }
+  bool write_data_header() override;
+  bool write_data_body() override;
+  const char *get_db() override { return m_table->s->db.str; }
+#ifdef HAVE_REPLICATION
+  bool is_part_of_group() override { return 1; }
+#endif
 #endif
   /*
     Check that malloc() succeeded in allocating memory for the rows
@@ -144,11 +147,10 @@ public:
     is valid is done in the Update_rows_log_event_old::is_valid()
     function.
   */
-  virtual bool is_valid() const
+  bool is_valid() const override
   {
     return m_rows_buf && m_cols.bitmap;
   }
-  bool is_part_of_group() { return 1; }
 
   uint     m_row_count;         /* The number of rows added to the event */
 
@@ -215,9 +217,9 @@ protected:
 private:
 
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
-  virtual int do_apply_event(rpl_group_info *rgi);
-  virtual int do_update_pos(rpl_group_info *rgi);
-  virtual enum_skip_reason do_shall_skip(rpl_group_info *rgi);
+  int do_apply_event(rpl_group_info *rgi) override;
+  int do_update_pos(rpl_group_info *rgi) override;
+  enum_skip_reason do_shall_skip(rpl_group_info *rgi) override;
 
   /*
     Primitive to prepare for a sequence of row executions.
@@ -379,13 +381,13 @@ public:
 
 private:
 #ifdef MYSQL_CLIENT
-  bool print(FILE *file, PRINT_EVENT_INFO *print_event_info);
+  bool print(FILE *file, PRINT_EVENT_INFO *print_event_info) override;
 #endif
 
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
-  virtual int do_before_row_operations(const Slave_reporting_capability *const);
-  virtual int do_after_row_operations(const Slave_reporting_capability *const,int);
-  virtual int do_exec_row(rpl_group_info *);
+  int do_before_row_operations(const Slave_reporting_capability *const) override;
+  int do_after_row_operations(const Slave_reporting_capability *const,int) override;
+  int do_exec_row(rpl_group_info *) override;
 #endif
   /********** END OF CUT & PASTE FROM Write_rows_log_event **********/
 
@@ -397,19 +399,19 @@ public:
   };
 
 private:
-  virtual Log_event_type get_type_code() { return (Log_event_type)TYPE_CODE; }
+  Log_event_type get_type_code() override { return (Log_event_type)TYPE_CODE; }
 
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
   // use old definition of do_apply_event()
-  virtual int do_apply_event(rpl_group_info *rgi)
+  int do_apply_event(rpl_group_info *rgi) override
   { return Old_rows_log_event::do_apply_event(this, rgi); }
 
   // primitives for old version of do_apply_event()
-  virtual int do_before_row_operations(TABLE *table);
-  virtual int do_after_row_operations(TABLE *table, int error);
+  int do_before_row_operations(TABLE *table) override;
+  int do_after_row_operations(TABLE *table, int error) override;
   virtual int do_prepare_row(THD*, rpl_group_info*, TABLE*,
-                             uchar const *row_start, uchar const **row_end);
-  virtual int do_exec_row(TABLE *table);
+                             uchar const *row_start, uchar const **row_end) override;
+  int do_exec_row(TABLE *table) override;
 
 #endif
 };
@@ -455,13 +457,13 @@ public:
 
 protected:
 #ifdef MYSQL_CLIENT
-  bool print(FILE *file, PRINT_EVENT_INFO *print_event_info);
+  bool print(FILE *file, PRINT_EVENT_INFO *print_event_info) override;
 #endif
 
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
-  virtual int do_before_row_operations(const Slave_reporting_capability *const);
-  virtual int do_after_row_operations(const Slave_reporting_capability *const,int);
-  virtual int do_exec_row(rpl_group_info *);
+  int do_before_row_operations(const Slave_reporting_capability *const) override;
+  int do_after_row_operations(const Slave_reporting_capability *const,int) override;
+  int do_exec_row(rpl_group_info *) override;
 #endif /* !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION) */
   /********** END OF CUT & PASTE FROM Update_rows_log_event **********/
 
@@ -475,19 +477,19 @@ public:
   };
 
 private:
-  virtual Log_event_type get_type_code() { return (Log_event_type)TYPE_CODE; }
+  Log_event_type get_type_code() override { return (Log_event_type)TYPE_CODE; }
 
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
   // use old definition of do_apply_event()
-  virtual int do_apply_event(rpl_group_info *rgi)
+  int do_apply_event(rpl_group_info *rgi) override
   { return Old_rows_log_event::do_apply_event(this, rgi); }
 
   // primitives for old version of do_apply_event()
-  virtual int do_before_row_operations(TABLE *table);
-  virtual int do_after_row_operations(TABLE *table, int error);
+  int do_before_row_operations(TABLE *table) override;
+  int do_after_row_operations(TABLE *table, int error) override;
   virtual int do_prepare_row(THD*, rpl_group_info*, TABLE*,
-                             uchar const *row_start, uchar const **row_end);
-  virtual int do_exec_row(TABLE *table);
+                             uchar const *row_start, uchar const **row_end) override;
+  int do_exec_row(TABLE *table) override;
 #endif /* !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION) */
 };
 
@@ -529,13 +531,13 @@ public:
   
 protected:
 #ifdef MYSQL_CLIENT
-  bool print(FILE *file, PRINT_EVENT_INFO *print_event_info);
+  bool print(FILE *file, PRINT_EVENT_INFO *print_event_info) override;
 #endif
 
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
-  virtual int do_before_row_operations(const Slave_reporting_capability *const);
-  virtual int do_after_row_operations(const Slave_reporting_capability *const,int);
-  virtual int do_exec_row(rpl_group_info *);
+  int do_before_row_operations(const Slave_reporting_capability *const) override;
+  int do_after_row_operations(const Slave_reporting_capability *const,int) override;
+  int do_exec_row(rpl_group_info *) override;
 #endif
   /********** END CUT & PASTE FROM Delete_rows_log_event **********/
 
@@ -549,19 +551,19 @@ public:
   };
 
 private:
-  virtual Log_event_type get_type_code() { return (Log_event_type)TYPE_CODE; }
+  Log_event_type get_type_code() override { return (Log_event_type)TYPE_CODE; }
 
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
   // use old definition of do_apply_event()
-  virtual int do_apply_event(rpl_group_info *rgi)
+  int do_apply_event(rpl_group_info *rgi) override
   { return Old_rows_log_event::do_apply_event(this, rgi); }
 
   // primitives for old version of do_apply_event()
-  virtual int do_before_row_operations(TABLE *table);
-  virtual int do_after_row_operations(TABLE *table, int error);
+  int do_before_row_operations(TABLE *table) override;
+  int do_after_row_operations(TABLE *table, int error) override;
   virtual int do_prepare_row(THD*, rpl_group_info*, TABLE*,
-                             uchar const *row_start, uchar const **row_end);
-  virtual int do_exec_row(TABLE *table);
+                             uchar const *row_start, uchar const **row_end) override;
+  int do_exec_row(TABLE *table) override;
 #endif
 };
 

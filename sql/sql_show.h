@@ -174,7 +174,7 @@ public:
   String query_str;
   
   /* Overloaded virtual function */
-  void call_in_target_thread();
+  void call_in_target_thread() override;
 };
 
 /**

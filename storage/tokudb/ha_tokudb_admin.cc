@@ -42,17 +42,17 @@ public:
 
     virtual ~recount_rows_t();
 
-    virtual const char* key();
-    virtual const char* database();
-    virtual const char* table();
-    virtual const char* type();
-    virtual const char* parameters();
-    virtual const char* status();
+    const char* key() override;
+    const char* database() override;
+    const char* table() override;
+    const char* type() override;
+    const char* parameters() override;
+    const char* status() override;
 
 protected:
-    virtual void on_run();
+    void on_run() override;
 
-    virtual void on_destroy();
+    void on_destroy() override;
 
 private:
     // to be provided by the initiator of recount rows
@@ -281,17 +281,17 @@ public:
 
     virtual ~standard_t();
 
-    virtual const char* key(void);
-    virtual const char* database();
-    virtual const char* table();
-    virtual const char* type();
-    virtual const char* parameters();
-    virtual const char* status();
+    const char* key(void) override;
+    const char* database() override;
+    const char* table() override;
+    const char* type() override;
+    const char* parameters() override;
+    const char* status() override;
 
 protected:
-    virtual void on_run();
+    void on_run() override;
 
-    virtual void on_destroy();
+    void on_destroy() override;
 
 private:
     // to be provided by initiator of analyze
