@@ -451,6 +451,8 @@ enum spider_malloc_id {
   if (thd && conn->error_mode) {SPIDER_RESTORE_DASTATUS; error_num = 0;}
 #define SPIDER_CONN_RESTORE_DASTATUS_AND_RESET_TMP_ERROR_NUM \
   if (thd && conn->error_mode) {SPIDER_RESTORE_DASTATUS; tmp_error_num = 0;}
+#define SPIDER_CONN_RESTORE_DASTATUS_AND_RESET_TMP_ERROR_NUM_1 \
+  if (thd) {SPIDER_RESTORE_DASTATUS; tmp_error_num = 0;}
 
 class ha_spider;
 typedef struct st_spider_share SPIDER_SHARE;

@@ -3225,13 +3225,13 @@ int spider_rollback(
               (conn->autocommit != 1 || conn->trx_start) &&
               (tmp_error_num = spider_db_rollback(conn))
             ) {
-              SPIDER_CONN_RESTORE_DASTATUS_AND_RESET_TMP_ERROR_NUM;
+              SPIDER_CONN_RESTORE_DASTATUS_AND_RESET_TMP_ERROR_NUM_1;
               if (tmp_error_num)
                 error_num = tmp_error_num;
             }
             if ((tmp_error_num = spider_end_trx(trx, conn)))
             {
-              SPIDER_CONN_RESTORE_DASTATUS_AND_RESET_TMP_ERROR_NUM;
+              SPIDER_CONN_RESTORE_DASTATUS_AND_RESET_TMP_ERROR_NUM_1;
               if (tmp_error_num)
                 error_num = tmp_error_num;
             }
