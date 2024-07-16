@@ -7550,32 +7550,6 @@ Warning	1292	Truncated incorrect DECIMAL value: 'e'
 drop view v1;
 drop table t1, t2, t3;
 #
-# MDEV-30623 JSON_TABLE in subquery not correctly marked as correlated
-# update_correlated_cache() fails to take JSON_TABLE functions in
-# subqueries into account.
-#
-create table t1(c json);
-insert into t1 values ('[{"x":"1"},{"x":"2"}]'),
-('[{"x":"10"},{"x":"20"}]'),
-('[{"x":"100"},{"x":"200"}]');
-select c,
-(SELECT sum(x) FROM json_table(c, "$[*]" columns( x int path "$.x"))
-AS jt)
-from t1;
-c	(SELECT sum(x) FROM json_table(c, "$[*]" columns( x int path "$.x"))
-AS jt)
-[{"x":"1"},{"x":"2"}]	3
-[{"x":"10"},{"x":"20"}]	30
-[{"x":"100"},{"x":"200"}]	300
-explain select c,
-(SELECT sum(x) FROM json_table(c, "$[*]" columns( x int path "$.x"))
-AS jt)
-from t1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	
-2	DEPENDENT SUBQUERY	jt	ALL	NULL	NULL	NULL	NULL	40	Table function: json_table
-drop table t1;
-#
 # End of 10.6 tests
 #
 #
