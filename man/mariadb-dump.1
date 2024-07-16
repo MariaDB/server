@@ -379,6 +379,21 @@ Adds 'STOP SLAVE' prior to 'CHANGE MASTER' and 'START SLAVE' to bottom of dump\&
 .sp -1
 .IP \(bu 2.3
 .\}
+.\" mysqldump: as-of option
+.\" as-of option: mysqldump
+\fB\-\-as\-of=\fR\fB\fIname\fR\fR
+.sp
+Dump system versioned table as of specified timestamp\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
 .\" mysqldump: character-sets-dir option
 .\" character-sets-dir option: mysqldump
 \fB\-\-character\-sets\-dir=\fR\fB\fIpath\fR\fR
@@ -777,6 +792,22 @@ control whether the date is added to the comment\&. The default is
 (include the date in the comment)\&.
 \fB\-\-skip\-dump\-date\fR
 suppresses date printing\&
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqldump: dump-history option
+.\" dump-history option: mysqldump
+\fB\-\-dump\-history\fR
+.sp
+Dump tables with history. Until this option, mariadb-dump could not read historical rows from versioned tables, 
+and so historical data would not be backed up\&.
 .RE
 .sp
 .RS 4
@@ -1543,7 +1574,7 @@ This option is shorthand\&. It is the same as specifying
 \fB\-\-quick\fR
 \fB\-\-set\-charset\fR\&. It should give you a fast dump operation and produce a dump file that can be reloaded into a MariaDB server quickly\&.
 .sp
-\fIThe \fR\fI\fB\-\-opt\fR\fR\fI option is enabled by default\&. Use \fR\fI\fB\-\-skip\-opt\fR\fR\fI to disable it\&.\fR
+The \fB\-\-opt\fR option is enabled by default\&. Use \fB\-\-skip\-opt\fR to disable it\&.
 See the discussion at the beginning of this section for information about selectively enabling or disabling a subset of the options affected by
 \fB\-\-opt\fR\&.
 .RE
@@ -1575,6 +1606,44 @@ table, but will make the dump operation take considerably longer\&.
 .sp -1
 .IP \(bu 2.3
 .\}
+.\" mysqldump: order-by-size option
+.\" order-by-size option: mysqldump
+\fB\-\-order\-by\-size\fR
+.sp
+Dump each table according to their size, smallest first. Useful when using \-\-single-transaction on tables 
+which get truncated/altered often\&. The assumption here is that smaller tables get truncated more often, 
+and by dumping those first, this reduces the chance that a \-\-single-transaction dump will fail with with 
+'Table definition has changed, please retry transaction'\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqldump: parallel option
+.\" parallel option: mysqldump
+\fB\-\-parallel=#\fR,
+\fB\-j\fR
+.sp
+Number of dump table jobs executed in parallel (only for use with the \-\-tab option). Initial testing 
+indicates that performance can be increased (dump time decreased) up to 4 times on smaller size dumps, 
+when the database fits into memory. There is a point at which disk becomes the bottleneck, after which 
+adding more parallel jobs does not bring better performance.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+
 .\" mysqldump: password option
 .\" password option: mysqldump
 \fB\-\-password[=\fR\fB\fIpassword\fR\fR\fB]\fR,
