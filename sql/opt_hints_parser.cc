@@ -52,15 +52,22 @@ bool Optimizer_hint_parser::parse_token_list(THD *thd)
   return true; // Success
 }
 
-
-void Optimizer_hint_parser::push_warning_syntax_error(THD *thd)
+void Optimizer_hint_parser::push_warning_syntax_error(THD *thd,
+                                                      uint start_lineno)
 {
+  DBUG_ASSERT(m_start <= m_ptr);
+  DBUG_ASSERT(m_ptr <= m_end);
   const char *msg= ER_THD(thd, ER_WARN_OPTIMIZER_HINT_SYNTAX_ERROR);
   ErrConvString txt(m_look_ahead_token.str, strlen(m_look_ahead_token.str),
                     thd->variables.character_set_client);
+  /*
+    start_lineno is the line number on which the whole hint started.
+    Add the line number of the current tokenizer position inside the hint
+    (in case hints are written in multiple lines).
+  */
   push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                       ER_PARSE_ERROR, ER_THD(thd, ER_PARSE_ERROR),
-                      msg, txt.ptr(), 1);
+                      msg, txt.ptr(), start_lineno + lineno());
 }
 
 

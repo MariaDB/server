@@ -167,6 +167,7 @@ class Optimizer_hint_parser: public Optimizer_hint_tokenizer,
 private:
   Token m_look_ahead_token;
   THD *m_thd;
+  const char *m_start;
   bool m_syntax_error;
   bool m_fatal_error;
 public:
@@ -174,6 +175,7 @@ public:
    :Optimizer_hint_tokenizer(cs, hint),
     m_look_ahead_token(get_token(cs)),
     m_thd(thd),
+    m_start(hint.str),
     m_syntax_error(false),
     m_fatal_error(false)
   { }
@@ -187,6 +189,24 @@ public:
     m_fatal_error= true;
     return false;
   }
+  // Calculate the line number inside the whole hint
+  uint lineno(const char *ptr) const
+  {
+    DBUG_ASSERT(m_start <= ptr);
+    DBUG_ASSERT(ptr <= m_end);
+    uint lineno= 0;
+    for ( ; ptr >= m_start; ptr--)
+    {
+      if (*ptr == '\n')
+        lineno++;
+    }
+    return lineno;
+  }
+  uint lineno() const
+  {
+    return lineno(m_ptr);
+  }
+
   TokenID look_ahead_token_id() const
   {
     return is_error() ? TokenID::tNULL : m_look_ahead_token.id();
@@ -249,7 +269,7 @@ public:
 
   bool parse_token_list(THD *thd); // For debug purposes
 
-  void push_warning_syntax_error(THD *thd);
+  void push_warning_syntax_error(THD *thd, uint lineno);
 
 
 private:

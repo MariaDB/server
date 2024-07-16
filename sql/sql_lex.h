@@ -49,6 +49,17 @@ typedef Bitmap<SELECT_NESTING_MAP_SIZE> nesting_map;
 /* YACC and LEX Definitions */
 
 
+struct Lex_comment_st: public LEX_CSTRING
+{
+  uint lineno;
+  void init()
+  {
+    LEX_CSTRING::operator=({nullptr, 0});
+    lineno= 0;
+  }
+};
+
+
 struct Lex_column_list_privilege_st
 {
   List<Lex_ident_sys> *m_columns;
@@ -4897,7 +4908,7 @@ public:
   }
 
   Optimizer_hint_parser::Hint_list *
-    parse_optimizer_hints(const LEX_CSTRING &hint);
+    parse_optimizer_hints(const Lex_comment_st &hint);
 };
 
 
