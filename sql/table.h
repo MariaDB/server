@@ -1795,7 +1795,10 @@ public:
   int hlindex_next();
 
   int open_hlindexes_for_write();
-  int update_hlindexes();
+  int hlindexes_on_insert();
+  int hlindexes_on_update();
+  int hlindexes_on_delete();
+  int hlindexes_on_delete_all();
   int reset_hlindexes();
 
   void prepare_triggers_for_insert_stmt_or_event();
