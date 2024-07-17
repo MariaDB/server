@@ -3112,7 +3112,7 @@ void st_select_lex::init_query()
   pushdown_select= 0;
   orig_names_of_item_list_elems= 0;
   opt_hints_qb= 0;
-  parsed_optimizer_hints= 0; // OLEGS: remove if not used
+  parsed_optimizer_hints= 0;
 }
 
 void st_select_lex::init_select()
@@ -3167,7 +3167,7 @@ void st_select_lex::init_select()
   orig_names_of_item_list_elems= 0;
   item_list_usage= MARK_COLUMNS_READ;
   opt_hints_qb= 0;
-  parsed_optimizer_hints= 0; // OLEGS: remove if not used
+  parsed_optimizer_hints= 0;
 }
 
 /*
@@ -11107,6 +11107,7 @@ bool LEX::parsed_insert_select(SELECT_LEX *first_select)
     return true;
 
   // fix "main" select
+  resolve_optimizer_hints_in_last_select();
   SELECT_LEX *blt __attribute__((unused))= pop_select();
   DBUG_ASSERT(blt == &builtin_select);
   push_select(first_select);
@@ -12900,7 +12901,7 @@ LEX::parse_optimizer_hints(const Lex_comment_st &hints_str)
 }
 
 
-void LEX::resolve_optimizer_hints()
+void LEX::resolve_optimizer_hints_in_last_select()
 {
   SELECT_LEX *select_lex;
   if (likely(select_stack_top))

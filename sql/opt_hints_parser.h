@@ -21,6 +21,7 @@
 #include "lex_ident_sys.h"
 #include "simple_tokenizer.h"
 #include "sql_list.h"
+#include "sql_string.h"
 #include "simple_parser.h"
 
 class st_select_lex;
@@ -565,7 +566,6 @@ private:
   {
   public:
     using OR3::OR3;
-
   };
 
 
@@ -579,8 +579,6 @@ private:
     size_t count() const { return elements; }
   };
 
-public:
-
   class Hint_list: public LIST<PARSER, Hint_list_container,
                                Hint, TokenID::tNULL/*not separated list*/, 1>
   {
@@ -590,6 +588,7 @@ public:
     bool resolve(Parse_context *pc);
   };
 
+public:
   /*
     The main rule:
       hints ::= hint_list EOF
@@ -608,10 +607,10 @@ public:
   instead of including the entire opt_hints_parser.h.
   (forward declarations of qualified nested classes are not possible in C++)
 */
-class Optimizer_hint_parser_output: public Optimizer_hint_parser::Hint_list
+class Optimizer_hint_parser_output: public Optimizer_hint_parser::Hints
 {
 public:
-  using Hint_list::Hint_list;
+  using Hints::Hints;
 };
 
 

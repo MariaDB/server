@@ -1,5 +1,21 @@
---echo # WL#8017 Infrastructure for Optimizer Hints
 --enable_prepare_warnings
+
+SET NAMES utf8mb4;
+
+--echo # Testing that index names in hints are accent sensitive case insensitive
+CREATE TABLE t1 (a INT, ä INT, INDEX idx_a(a), INDEX idx_ä(ä));
+INSERT INTO t1 VALUES (1,1),(2,2);
+SELECT /*+ NO_MRR(t1 idx_a) */ a FROM t1;
+SELECT /*+ NO_MRR(t1 idx_A) */ a FROM t1;
+SELECT /*+ NO_MRR(t1 idx_å) */ a FROM t1;
+SELECT /*+ NO_MRR(t1 idx_a, idx_å, idx_A) */ a FROM t1;
+DROP TABLE t1;
+
+--echo # Testing that query block names are accent sensitive case insensitive
+CREATE TABLE t1 (a INT);
+SELECT /*+ QB_NAME(a) BKA(t1@a) BKA(t1@A) */ * FROM t1;
+SELECT /*+ QB_NAME(a) BKA(t1@a) BKA(t1@å) */ * FROM t1;
+DROP TABLE t1;
 
 CREATE TABLE t1(f1 INT, f2 INT);
 INSERT INTO t1 VALUES
@@ -31,7 +47,6 @@ ANALYZE TABLE t1;
 ANALYZE TABLE t2;
 ANALYZE TABLE t3;
 
-
 --echo # NO_RANGE_OPTIMIZATION hint testing
 set optimizer_switch=default;
 
@@ -50,16 +65,44 @@ SHOW STATUS LIKE 'handler_read%';
 EXPLAIN EXTENDED SELECT f1 FROM t3 WHERE f1 > 30 AND f1 < 33;
 --echo # Turn off range access for PRIMARY key
 --echo # Should use range access by f2_idx key
-EXPLAIN EXTENDED SELECT /*+ NO_RANGE_OPTIMIZATION(t3 PRIMARY) */ f1 FROM t3 WHERE f1 > 30 AND f1 < 33;
+EXPLAIN EXTENDED SELECT /*+ NO_RANGE_OPTIMIZATION(t3 PRIMARY) */ f1
+  FROM t3 WHERE f1 > 30 AND f1 < 33;
 --echo # Turn off range access for PRIMARY & f2_idx keys
 --echo # Should use index access
-EXPLAIN EXTENDED SELECT /*+ NO_RANGE_OPTIMIZATION(t3 PRIMARY, f2_idx) */ f1 FROM t3 WHERE f1 > 30 AND f1 < 33;
+EXPLAIN EXTENDED SELECT /*+ NO_RANGE_OPTIMIZATION(t3 PRIMARY, f2_idx) */ f1
+  FROM t3 WHERE f1 > 30 AND f1 < 33;
 --echo # Turn off range access for all keys
 --echo # Should use index access
-EXPLAIN EXTENDED SELECT /*+ NO_RANGE_OPTIMIZATION(t3) */ f1 FROM t3 WHERE f1 > 30 AND f1 < 33;
+EXPLAIN EXTENDED SELECT /*+ NO_RANGE_OPTIMIZATION(t3) */ f1
+  FROM t3 WHERE f1 > 30 AND f1 < 33;
 --echo # Turn off range access for PRIMARY & f2_idx keys
 --echo # Should use index access
-EXPLAIN EXTENDED SELECT /*+ NO_RANGE_OPTIMIZATION(t3 PRIMARY) NO_RANGE_OPTIMIZATION(t3 f2_idx) */ f1 FROM t3 WHERE f1 > 30 AND f1 < 33;
+EXPLAIN EXTENDED SELECT /*+ NO_RANGE_OPTIMIZATION(t3 PRIMARY) NO_RANGE_OPTIMIZATION(t3 f2_idx) */ f1
+  FROM t3 WHERE f1 > 30 AND f1 < 33;
+
+--echo # Create a clone of t3 with cyrillic names
+CREATE TABLE таблица (f1 INT NOT NULL, поле2 INT, поле3 VARCHAR(32),
+                 PRIMARY KEY(f1), KEY f2_индекс(f1), KEY f3_индекс(поле3))
+                 AS SELECT * FROM t3;
+ANALYZE TABLE таблица;
+--echo # Turn off range access for PRIMARY key
+--echo # Should use range access by f2_индекс key
+EXPLAIN EXTENDED SELECT /*+ NO_RANGE_OPTIMIZATION(таблица PRIMARY) */ f1
+  FROM таблица WHERE f1 > 30 AND f1 < 33;
+--echo # Turn off range access for PRIMARY & f2_индекс keys
+--echo # Should use index access
+EXPLAIN EXTENDED SELECT /*+ NO_RANGE_OPTIMIZATION(таблица PRIMARY, f2_индекс) */ f1
+  FROM таблица WHERE f1 > 30 AND f1 < 33;
+--echo # Turn off range access for all keys
+--echo # Should use index access
+EXPLAIN EXTENDED SELECT /*+ NO_RANGE_OPTIMIZATION(таблица) */ f1
+  FROM таблица WHERE f1 > 30 AND f1 < 33;
+--echo # Turn off range access for PRIMARY & f2_индекс keys
+--echo # Should use index access
+EXPLAIN EXTENDED
+  SELECT /*+ NO_RANGE_OPTIMIZATION(таблица PRIMARY) NO_RANGE_OPTIMIZATION(таблица f2_индекс) */ f1
+  FROM таблица WHERE f1 > 30 AND f1 < 33;
+DROP TABLE таблица;
 
 --echo # NO_ICP hint testing
 set optimizer_switch='index_condition_pushdown=on';
@@ -78,6 +121,12 @@ EXPLAIN EXTENDED SELECT * FROM
 EXPLAIN EXTENDED SELECT /*+ NO_ICP(t5@qb1 x_idx) */ * FROM
   (SELECT /*+ QB_NAME(QB1) */ t4.x, t5.y FROM t4, t4 t5
    WHERE t4.y = 8 AND t5.x BETWEEN 7 AND t4.y+0) AS TD;
+
+--echo # Cyrillic query block name
+EXPLAIN EXTENDED SELECT /*+ NO_ICP(t5@блок1 x_idx) */ * FROM
+  (SELECT /*+ QB_NAME(блок1) */ t4.x, t5.y FROM t4, t4 t5
+   WHERE t4.y = 8 AND t5.x BETWEEN 7 AND t4.y+0) AS TD;
+
 
 --echo # Expected warning for z_idx key, unresolved name.
 EXPLAIN EXTENDED SELECT * FROM
@@ -157,7 +206,7 @@ EXPLAIN EXTENDED SELECT /*+ NO_BKA(t12) */ * FROM t12, t13
 EXPLAIN EXTENDED SELECT /*+ QB_NAME(QB1) NO_BKA(t13@QB1) */ * FROM t12, t13 
   WHERE t12.a=t13.a AND (t13.b+1 <= t13.b+1);
 
---echo # UPDATE|DELETE|INSERT hint testing
+--echo # UPDATE|DELETE|INSERT|REPLACE hint testing
 EXPLAIN EXTENDED UPDATE t3
 SET f3 = 'mnbv' WHERE f1 > 30 AND f1 < 33 AND (t3.f1, t3.f2, t3.f3) IN
   (SELECT t2.f1, t2.f2, t2.f3 FROM t1,t2 WHERE t1.f1=t2.f1 AND
@@ -205,6 +254,25 @@ EXPLAIN EXTENDED INSERT /*+ NO_ICP(t5@QB1) */ INTO t3(f1, f2, f3)
 --echo # Turn off ICP for a particular table and a key
 EXPLAIN EXTENDED INSERT /*+ NO_ICP(t5@QB1 x_idx) */ INTO t3(f1, f2, f3)
   (SELECT /*+ QB_NAME(qb1) */ t4.x, t5.y, 'filler' FROM t4, t4 t5 
+   WHERE t4.y = 8 AND t5.x BETWEEN 7 AND t4.y+0);
+
+--echo # Make sure ICP is expected to be used when there are no hints
+EXPLAIN EXTENDED REPLACE INTO t3(f1, f2, f3)
+  (SELECT t4.x, t5.y, 'filler' FROM t4, t4 t5 WHERE t4.y = 8 AND t5.x BETWEEN 7 AND t4.y+0);
+
+--echo # Turn off ICP. ICP should not be used.
+EXPLAIN EXTENDED REPLACE INTO t3(f1, f2, f3)
+  (SELECT /*+ NO_ICP(t5) */t4.x, t5.y, 'filler' FROM t4, t4 t5
+   WHERE t4.y = 8 AND t5.x BETWEEN 7 AND t4.y+0);
+
+--echo # Turn off ICP for a particular table
+EXPLAIN EXTENDED REPLACE /*+ NO_ICP(t5@QB1) */ INTO t3(f1, f2, f3)
+  (SELECT /*+ QB_NAME(qb1) */ t4.x, t5.y, 'filler' FROM t4, t4 t5
+   WHERE t4.y = 8 AND t5.x BETWEEN 7 AND t4.y+0);
+
+--echo # Turn off ICP for a particular table and a key
+EXPLAIN EXTENDED REPLACE /*+ NO_ICP(t5@QB1 x_idx) */ INTO t3(f1, f2, f3)
+  (SELECT /*+ QB_NAME(qb1) */ t4.x, t5.y, 'filler' FROM t4, t4 t5
    WHERE t4.y = 8 AND t5.x BETWEEN 7 AND t4.y+0);
 
 --echo # Misc tests
@@ -475,7 +543,6 @@ SELECT  /*+ NO_ICP (  ) */ 1;
 SELECT  /*+ NO_ICP() */ 1 UNION SELECT 1;
 (SELECT /*+ NO_ICP() */ 1) UNION (SELECT 1);
 
---echo # OLEGS: this one does not issue a warning although should:
 ((SELECT  /* + NO_ICP() */ 1));
 
 UPDATE  /*+ NO_ICP() */ t1 SET i = 10;
