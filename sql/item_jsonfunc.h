@@ -295,7 +295,7 @@ public:
     Item_json_func(thd, list), paths(NULL), tmp_paths(0), n_paths(0) {}
   virtual ~Item_json_str_multipath();
 
-  bool fix_fields(THD *thd, Item **ref);
+  bool fix_fields(THD *thd, Item **ref) override;
   virtual uint get_n_paths() const = 0;
 };
 

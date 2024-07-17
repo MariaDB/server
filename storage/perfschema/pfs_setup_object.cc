@@ -231,7 +231,7 @@ public:
     : m_pins(pins)
   {}
 
-  virtual void operator()(PFS_setup_object *pfs)
+  void operator()(PFS_setup_object *pfs) override
   {
     lf_hash_delete(&setup_object_hash, m_pins,
                    pfs->m_key.m_hash_key, pfs->m_key.m_key_length);

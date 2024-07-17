@@ -175,7 +175,7 @@ static dberr_t create_log_file(bool create_new_db, lsn_t lsn)
 
 	/* We will retain ib_logfile0 until we have written a new logically
 	empty log as ib_logfile101 and atomically renamed it to
-	ib_logfile0 in log_t::rename_resized(). */
+	ib_logfile0 in log_t::resize_rename(). */
 	delete_log_files();
 
 	ut_ad(!os_aio_pending_reads());

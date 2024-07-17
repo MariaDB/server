@@ -453,10 +453,10 @@ public:
   Item_bool_func2(THD *thd, Item *a, Item *b):
     Item_bool_func(thd, a, b) { }
 
-  bool is_null() { return MY_TEST(args[0]->is_null() || args[1]->is_null()); }
+  bool is_null() override { return MY_TEST(args[0]->is_null() || args[1]->is_null()); }
   COND *remove_eq_conds(THD *thd, Item::cond_result *cond_value,
-                        bool top_level);
-  bool count_sargable_conds(void *arg);
+                        bool top_level) override;
+  bool count_sargable_conds(void *arg) override;
   /*
     Specifies which result type the function uses to compare its arguments.
     This method is used in equal field propagation.
@@ -471,7 +471,7 @@ public:
     */
     return &type_handler_varchar;
   }
-  SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
+  SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr) override
   {
     DBUG_ENTER("Item_bool_func2::get_mm_tree");
     DBUG_ASSERT(arg_count == 2);
@@ -504,7 +504,7 @@ class Item_bool_func2_with_rev :public Item_bool_func2
 {
 protected:
   SEL_TREE *get_func_mm_tree(RANGE_OPT_PARAM *param,
-                             Field *field, Item *value)
+                             Field *field, Item *value) override
   {
     DBUG_ENTER("Item_bool_func2_with_rev::get_func_mm_tree");
     Item_func::Functype func_type=
@@ -515,7 +515,7 @@ public:
   Item_bool_func2_with_rev(THD *thd, Item *a, Item *b):
     Item_bool_func2(thd, a, b) { }
   virtual enum Functype rev_functype() const= 0;
-  SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
+  SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr) override
   {
     DBUG_ENTER("Item_bool_func2_with_rev::get_mm_tree");
     DBUG_ASSERT(arg_count == 2);
@@ -1266,32 +1266,32 @@ public:
     :Item_func_case_abbreviation2(thd, a, b, c)
   { }
 
-  bool date_op(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
+  bool date_op(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override
   {
     Datetime_truncation_not_needed dt(thd, find_item(), fuzzydate);
     return (null_value= dt.copy_to_mysql_time(ltime, mysql_timestamp_type()));
   }
-  bool time_op(THD *thd, MYSQL_TIME *ltime)
+  bool time_op(THD *thd, MYSQL_TIME *ltime) override
   {
     return (null_value= Time(find_item()).copy_to_mysql_time(ltime));
   }
-  longlong int_op()
+  longlong int_op() override
   {
     return val_int_from_item(find_item());
   }
-  double real_op()
+  double real_op() override
   {
     return val_real_from_item(find_item());
   }
-  my_decimal *decimal_op(my_decimal *decimal_value)
+  my_decimal *decimal_op(my_decimal *decimal_value) override
   {
     return val_decimal_from_item(find_item(), decimal_value);
   }
-  String *str_op(String *str)
+  String *str_op(String *str) override
   {
     return val_str_from_item(find_item(), str);
   }
-  bool native_op(THD *thd, Native *to)
+  bool native_op(THD *thd, Native *to) override
   {
     return val_native_with_conversion_from_item(thd, find_item(), to,
                                                 type_handler());
@@ -1608,8 +1608,8 @@ public:
 
   in_temporal(THD *thd, uint elements)
     :in_longlong(thd, elements) {};
-  Item *create_item(THD *thd);
-  void value_to_item(uint pos, Item *item)
+  Item *create_item(THD *thd) override;
+  void value_to_item(uint pos, Item *item) override
   {
     packed_longlong *val= reinterpret_cast<packed_longlong*>(base)+pos;
     Item_datetime *dt= static_cast<Item_datetime*>(item);
@@ -1746,7 +1746,7 @@ public:
   cmp_item_sort_string(CHARSET_INFO *cs):
     cmp_item_string(cs),
     value(value_buff, sizeof(value_buff), cs) {}
-  void store_value(Item *item)
+  void store_value(Item *item) override
   {
     value_res= item->val_str(&value);
     m_null_value= item->null_value;
@@ -1758,13 +1758,13 @@ public:
       value_res= &value;
     }
   }
-  int cmp_not_null(const Value *val)
+  int cmp_not_null(const Value *val) override
   {
     DBUG_ASSERT(!val->is_null());
     DBUG_ASSERT(val->is_string());
     return sortcmp(value_res, &val->m_string, cmp_charset) != 0;
   }
-  int cmp(Item *arg)
+  int cmp(Item *arg) override
   {
     char buff[STRING_BUFFER_USUAL_SIZE];
     String tmp(buff, sizeof(buff), cmp_charset), *res= arg->val_str(&tmp);
@@ -1777,12 +1777,12 @@ public:
     else
       return TRUE;
   }
-  int compare(cmp_item *ci)
+  int compare(cmp_item *ci) override
   {
     cmp_item_string *l_cmp= (cmp_item_string *) ci;
     return sortcmp(value_res, l_cmp->value_res, cmp_charset);
-  } 
-  cmp_item *make_same(THD *thd);
+  }
+  cmp_item *make_same(THD *thd) override;
   void set_charset(CHARSET_INFO *cs)
   {
     cmp_charset= cs;
@@ -1795,28 +1795,28 @@ class cmp_item_int : public cmp_item_scalar
   longlong value;
 public:
   cmp_item_int() = default;                           /* Remove gcc warning */
-  void store_value(Item *item)
+  void store_value(Item *item) override
   {
     value= item->val_int();
     m_null_value= item->null_value;
   }
-  int cmp_not_null(const Value *val)
+  int cmp_not_null(const Value *val) override
   {
     DBUG_ASSERT(!val->is_null());
     DBUG_ASSERT(val->is_longlong());
     return value != val->value.m_longlong;
   }
-  int cmp(Item *arg)
+  int cmp(Item *arg) override
   {
     const bool rc= value != arg->val_int();
     return (m_null_value || arg->null_value) ? UNKNOWN : rc;
   }
-  int compare(cmp_item *ci)
+  int compare(cmp_item *ci) override
   {
     cmp_item_int *l_cmp= (cmp_item_int *)ci;
     return (value < l_cmp->value) ? -1 : ((value == l_cmp->value) ? 0 : 1);
   }
-  cmp_item *make_same(THD *thd);
+  cmp_item *make_same(THD *thd) override;
 };
 
 /*
@@ -1828,7 +1828,7 @@ protected:
   longlong value;
 public:
   cmp_item_temporal() = default;
-  int compare(cmp_item *ci);
+  int compare(cmp_item *ci) override;
 };
 
 
@@ -1838,14 +1838,14 @@ public:
   cmp_item_datetime()
    :cmp_item_temporal()
   { }
-  void store_value(Item *item)
+  void store_value(Item *item) override
   {
     value= item->val_datetime_packed(current_thd);
     m_null_value= item->null_value;
   }
-  int cmp_not_null(const Value *val);
-  int cmp(Item *arg);
-  cmp_item *make_same(THD *thd);
+  int cmp_not_null(const Value *val) override;
+  int cmp(Item *arg) override;
+  cmp_item *make_same(THD *thd) override;
 };
 
 
@@ -1855,14 +1855,14 @@ public:
   cmp_item_time()
    :cmp_item_temporal()
   { }
-  void store_value(Item *item)
+  void store_value(Item *item) override
   {
     value= item->val_time_packed(current_thd);
     m_null_value= item->null_value;
   }
-  int cmp_not_null(const Value *val);
-  int cmp(Item *arg);
-  cmp_item *make_same(THD *thd);
+  int cmp_not_null(const Value *val) override;
+  int cmp(Item *arg) override;
+  cmp_item *make_same(THD *thd) override;
 };
 
 
@@ -1871,11 +1871,11 @@ class cmp_item_timestamp: public cmp_item_scalar
   Timestamp_or_zero_datetime_native m_native;
 public:
   cmp_item_timestamp() :cmp_item_scalar() { }
-  void store_value(Item *item);
-  int cmp_not_null(const Value *val);
-  int cmp(Item *arg);
-  int compare(cmp_item *ci);
-  cmp_item *make_same(THD *thd);
+  void store_value(Item *item) override;
+  int cmp_not_null(const Value *val) override;
+  int cmp(Item *arg) override;
+  int compare(cmp_item *ci) override;
+  cmp_item *make_same(THD *thd) override;
 };
 
 
@@ -1884,28 +1884,28 @@ class cmp_item_real : public cmp_item_scalar
   double value;
 public:
   cmp_item_real() = default;                          /* Remove gcc warning */
-  void store_value(Item *item)
+  void store_value(Item *item) override
   {
     value= item->val_real();
     m_null_value= item->null_value;
   }
-  int cmp_not_null(const Value *val)
+  int cmp_not_null(const Value *val) override
   {
     DBUG_ASSERT(!val->is_null());
     DBUG_ASSERT(val->is_double());
     return value != val->value.m_double;
   }
-  int cmp(Item *arg)
+  int cmp(Item *arg) override
   {
     const bool rc= value != arg->val_real();
     return (m_null_value || arg->null_value) ? UNKNOWN : rc;
   }
-  int compare(cmp_item *ci)
+  int compare(cmp_item *ci) override
   {
     cmp_item_real *l_cmp= (cmp_item_real *) ci;
     return (value < l_cmp->value)? -1 : ((value == l_cmp->value) ? 0 : 1);
   }
-  cmp_item *make_same(THD *thd);
+  cmp_item *make_same(THD *thd) override;
 };
 
 
@@ -1914,11 +1914,11 @@ class cmp_item_decimal : public cmp_item_scalar
   my_decimal value;
 public:
   cmp_item_decimal() = default;                       /* Remove gcc warning */
-  void store_value(Item *item);
-  int cmp(Item *arg);
-  int cmp_not_null(const Value *val);
-  int compare(cmp_item *c);
-  cmp_item *make_same(THD *thd);
+  void store_value(Item *item) override;
+  int cmp(Item *arg) override;
+  int cmp_not_null(const Value *val) override;
+  int compare(cmp_item *c) override;
+  cmp_item *make_same(THD *thd) override;
 };
 
 
@@ -1934,28 +1934,28 @@ class cmp_item_sort_string_in_static :public cmp_item_string
 public:
   cmp_item_sort_string_in_static(CHARSET_INFO *cs):
     cmp_item_string(cs) {}
-  void store_value(Item *item)
+  void store_value(Item *item) override
   {
     value_res= item->val_str(&value);
     m_null_value= item->null_value;
   }
-  int cmp_not_null(const Value *val)
+  int cmp_not_null(const Value *val) override
   {
     DBUG_ASSERT(false);
     return TRUE;
   }
-  int cmp(Item *item)
+  int cmp(Item *item) override
   {
     // Should never be called
     DBUG_ASSERT(false);
     return TRUE;
   }
-  int compare(cmp_item *ci)
+  int compare(cmp_item *ci) override
   {
     cmp_item_string *l_cmp= (cmp_item_string *) ci;
     return sortcmp(value_res, l_cmp->value_res, cmp_charset);
   }
-  cmp_item *make_same(THD *thd)
+  cmp_item *make_same(THD *) override
   {
     return new cmp_item_sort_string_in_static(cmp_charset);
   }
@@ -2682,7 +2682,7 @@ public:
   bool prepare_comparators(THD *, const LEX_CSTRING &funcname,
                            const Item_args *args, uint level);
   int cmp(Item *arg) override;
-  int cmp_not_null(const Value *val) override
+  int cmp_not_null(const Value *) override
   {
     DBUG_ASSERT(false);
     return TRUE;
@@ -3681,11 +3681,11 @@ public:
   Item_func_cursor_bool_attr(THD *thd, const LEX_CSTRING *name, uint offset)
    :Item_bool_func(thd), Cursor_ref(name, offset)
   { }
-  bool check_vcol_func_processor(void *arg)
+  bool check_vcol_func_processor(void *arg) override
   {
     return mark_unsupported_function(func_name(), arg, VCOL_SESSION_FUNC);
   }
-  void print(String *str, enum_query_type query_type)
+  void print(String *str, enum_query_type query_type) override
   {
     Cursor_ref::print_func(str, func_name_cstring());
   }
@@ -3780,11 +3780,11 @@ class Eq_creator :public Comp_creator
 public:
   Eq_creator() = default;                             /* Remove gcc warning */
   virtual ~Eq_creator() = default;                    /* Remove gcc warning */
-  Item_bool_rowready_func2* create(THD *thd, Item *a, Item *b) const;
-  Item_bool_rowready_func2* create_swap(THD *thd, Item *a, Item *b) const;
-  const char* symbol(bool invert) const { return invert? "<>" : "="; }
-  bool eqne_op() const { return 1; }
-  bool l_op() const { return 0; }
+  Item_bool_rowready_func2* create(THD *thd, Item *a, Item *b) const override;
+  Item_bool_rowready_func2* create_swap(THD *thd, Item *a, Item *b) const override;
+  const char* symbol(bool invert) const override { return invert? "<>" : "="; }
+  bool eqne_op() const override { return 1; }
+  bool l_op() const override { return 0; }
 };
 
 class Ne_creator :public Comp_creator
@@ -3792,11 +3792,11 @@ class Ne_creator :public Comp_creator
 public:
   Ne_creator() = default;                             /* Remove gcc warning */
   virtual ~Ne_creator() = default;                    /* Remove gcc warning */
-  Item_bool_rowready_func2* create(THD *thd, Item *a, Item *b) const;
-  Item_bool_rowready_func2* create_swap(THD *thd, Item *a, Item *b) const;
-  const char* symbol(bool invert) const { return invert? "=" : "<>"; }
-  bool eqne_op() const { return 1; }
-  bool l_op() const { return 0; }
+  Item_bool_rowready_func2* create(THD *thd, Item *a, Item *b) const override;
+  Item_bool_rowready_func2* create_swap(THD *thd, Item *a, Item *b) const override;
+  const char* symbol(bool invert) const override { return invert? "=" : "<>"; }
+  bool eqne_op() const override { return 1; }
+  bool l_op() const override { return 0; }
 };
 
 class Gt_creator :public Comp_creator
@@ -3804,11 +3804,11 @@ class Gt_creator :public Comp_creator
 public:
   Gt_creator() = default;                             /* Remove gcc warning */
   virtual ~Gt_creator() = default;                    /* Remove gcc warning */
-  Item_bool_rowready_func2* create(THD *thd, Item *a, Item *b) const;
-  Item_bool_rowready_func2* create_swap(THD *thd, Item *a, Item *b) const;
-  const char* symbol(bool invert) const { return invert? "<=" : ">"; }
-  bool eqne_op() const { return 0; }
-  bool l_op() const { return 0; }
+  Item_bool_rowready_func2* create(THD *thd, Item *a, Item *b) const override;
+  Item_bool_rowready_func2* create_swap(THD *thd, Item *a, Item *b) const override;
+  const char* symbol(bool invert) const override { return invert? "<=" : ">"; }
+  bool eqne_op() const override { return 0; }
+  bool l_op() const override { return 0; }
 };
 
 class Lt_creator :public Comp_creator
@@ -3816,11 +3816,11 @@ class Lt_creator :public Comp_creator
 public:
   Lt_creator() = default;                             /* Remove gcc warning */
   virtual ~Lt_creator() = default;                    /* Remove gcc warning */
-  Item_bool_rowready_func2* create(THD *thd, Item *a, Item *b) const;
-  Item_bool_rowready_func2* create_swap(THD *thd, Item *a, Item *b) const;
-  const char* symbol(bool invert) const { return invert? ">=" : "<"; }
-  bool eqne_op() const { return 0; }
-  bool l_op() const { return 1; }
+  Item_bool_rowready_func2* create(THD *thd, Item *a, Item *b) const override;
+  Item_bool_rowready_func2* create_swap(THD *thd, Item *a, Item *b) const override;
+  const char* symbol(bool invert) const override { return invert? ">=" : "<"; }
+  bool eqne_op() const override { return 0; }
+  bool l_op() const override { return 1; }
 };
 
 class Ge_creator :public Comp_creator
@@ -3828,11 +3828,11 @@ class Ge_creator :public Comp_creator
 public:
   Ge_creator() = default;                             /* Remove gcc warning */
   virtual ~Ge_creator() = default;                    /* Remove gcc warning */
-  Item_bool_rowready_func2* create(THD *thd, Item *a, Item *b) const;
-  Item_bool_rowready_func2* create_swap(THD *thd, Item *a, Item *b) const;
-  const char* symbol(bool invert) const { return invert? "<" : ">="; }
-  bool eqne_op() const { return 0; }
-  bool l_op() const { return 0; }
+  Item_bool_rowready_func2* create(THD *thd, Item *a, Item *b) const override;
+  Item_bool_rowready_func2* create_swap(THD *thd, Item *a, Item *b) const override;
+  const char* symbol(bool invert) const override { return invert? "<" : ">="; }
+  bool eqne_op() const override { return 0; }
+  bool l_op() const override { return 0; }
 };
 
 class Le_creator :public Comp_creator
@@ -3840,11 +3840,11 @@ class Le_creator :public Comp_creator
 public:
   Le_creator() = default;                             /* Remove gcc warning */
   virtual ~Le_creator() = default;                    /* Remove gcc warning */
-  Item_bool_rowready_func2* create(THD *thd, Item *a, Item *b) const;
-  Item_bool_rowready_func2* create_swap(THD *thd, Item *a, Item *b) const;
-  const char* symbol(bool invert) const { return invert? ">" : "<="; }
-  bool eqne_op() const { return 0; }
-  bool l_op() const { return 1; }
+  Item_bool_rowready_func2* create(THD *thd, Item *a, Item *b) const override;
+  Item_bool_rowready_func2* create_swap(THD *thd, Item *a, Item *b) const override;
+  const char* symbol(bool invert) const override { return invert? ">" : "<="; }
+  bool eqne_op() const override { return 0; }
+  bool l_op() const override { return 1; }
 };
 
 /*

@@ -96,10 +96,10 @@ Kaolin
 Tata
 Tatiana
 #disallowed fields in order by
-select score,  percentile_cont(0.5)  within group(order by name) over (partition by score) from t1;
+select score,  percentile_cont(0.5)  within group(order by name) over (partition by score) as result from t1;
 ERROR HY000: Numeric datatype is required for percentile_cont function
-select score,  percentile_disc(0.5)  within group(order by name) over (partition by score) from t1;
-score	percentile_disc(0.5)  within group(order by name) over (partition by score)
+select score,  percentile_disc(0.5)  within group(order by name) over (partition by score) as result from t1;
+score	result
 3.0000	Chun
 3.0000	Chun
 4.0000	Tata

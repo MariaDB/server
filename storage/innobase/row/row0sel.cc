@@ -865,6 +865,8 @@ row_sel_build_committed_vers_for_mysql(
 	mtr_t*		mtr)		/*!< in: mtr */
 {
 	if (prebuilt->trx->snapshot_isolation) {
+		ut_ad(prebuilt->trx->isolation_level
+		    == TRX_ISO_READ_UNCOMMITTED);
 		*old_vers = rec;
 		return;
 	}
@@ -5257,7 +5259,20 @@ no_gap_lock:
 			if (UNIV_LIKELY(prebuilt->row_read_type
 					!= ROW_READ_TRY_SEMI_CONSISTENT)
 			    || unique_search
-			    || index != clust_index) {
+			    || index != clust_index
+			    /* If read view was opened, sel_set_rec_lock()
+			    would return DB_RECORD_CHANGED, and we would not be
+			    here. As read view wasn't opened, do locking read
+			    instead of semi-consistent one for READ COMMITTED.
+			    For READ UNCOMMITTED
+			    row_sel_build_committed_vers_for_mysql() must read
+			    uncommitted version of the record. For REPEATABLE
+			    READ and SERIALIZABLE prebuilt->row_read_type
+			    must be not equal to ROW_READ_TRY_SEMI_CONSISTENT,
+			    so there will be locking read for those isolation
+			    levels. */
+			    || (trx->snapshot_isolation && trx->isolation_level
+			      == TRX_ISO_READ_COMMITTED )) {
 				if (!prebuilt->skip_locked) {
 					goto lock_wait_or_error;
 				}

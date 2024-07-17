@@ -97,16 +97,16 @@ class DllExport UNZFAM : public MAPFAM {
 	UNZFAM(PUNZFAM txfp);
 
 	// Implementation
-	virtual AMT  GetAmType(void) {return TYPE_AM_ZIP;}
-	virtual PTXF Duplicate(PGLOBAL g) {return (PTXF) new(g) UNZFAM(this);}
+	AMT  GetAmType(void) override {return TYPE_AM_ZIP;}
+	PTXF Duplicate(PGLOBAL g) override {return (PTXF) new(g) UNZFAM(this);}
 
 	// Methods
-	virtual int  Cardinality(PGLOBAL g);
-	virtual int  GetFileLength(PGLOBAL g);
+	int  Cardinality(PGLOBAL g) override;
+	int  GetFileLength(PGLOBAL g) override;
 	//virtual int  MaxBlkSize(PGLOBAL g, int s) {return s;}
-	virtual bool OpenTableFile(PGLOBAL g);
-	virtual bool DeferReading(void) { return false; }
-	virtual int  GetNext(PGLOBAL g);
+	bool OpenTableFile(PGLOBAL g) override;
+	bool DeferReading(void) override { return false; }
+	int  GetNext(PGLOBAL g) override;
 	//virtual int  ReadBuffer(PGLOBAL g);
 	//virtual int  WriteBuffer(PGLOBAL g);
 	//virtual int  DeleteRecords(PGLOBAL g, int irc);
@@ -129,14 +129,14 @@ class DllExport UZXFAM : public MPXFAM {
 	UZXFAM(PUZXFAM txfp);
 
 	// Implementation
-	virtual AMT  GetAmType(void) { return TYPE_AM_ZIP; }
-	virtual PTXF Duplicate(PGLOBAL g) { return (PTXF) new(g)UZXFAM(this); }
+	AMT  GetAmType(void) override { return TYPE_AM_ZIP; }
+	PTXF Duplicate(PGLOBAL g) override { return (PTXF) new(g)UZXFAM(this); }
 
 	// Methods
-	virtual int  GetFileLength(PGLOBAL g);
-	virtual int  Cardinality(PGLOBAL g);
-	virtual bool OpenTableFile(PGLOBAL g);
-	virtual int  GetNext(PGLOBAL g);
+	int  GetFileLength(PGLOBAL g) override;
+	int  Cardinality(PGLOBAL g) override;
+	bool OpenTableFile(PGLOBAL g) override;
+	int  GetNext(PGLOBAL g) override;
 	//virtual int  ReadBuffer(PGLOBAL g);
 
  protected:
@@ -156,14 +156,14 @@ public:
 	UZDFAM(PUZDFAM txfp);
 
 	// Implementation
-	virtual AMT  GetAmType(void) { return TYPE_AM_ZIP; }
-	virtual PTXF Duplicate(PGLOBAL g) { return (PTXF) new(g)UZDFAM(this); }
+	AMT  GetAmType(void) override { return TYPE_AM_ZIP; }
+	PTXF Duplicate(PGLOBAL g) override { return (PTXF) new(g)UZDFAM(this); }
 
 	// Methods
-	virtual int  GetFileLength(PGLOBAL g);
-	virtual int  Cardinality(PGLOBAL g);
-	virtual bool OpenTableFile(PGLOBAL g);
-	virtual int  GetNext(PGLOBAL g);
+	int  GetFileLength(PGLOBAL g) override;
+	int  Cardinality(PGLOBAL g) override;
+	bool OpenTableFile(PGLOBAL g) override;
+	int  GetNext(PGLOBAL g) override;
 	//virtual int  ReadBuffer(PGLOBAL g);
 
 protected:
@@ -184,17 +184,17 @@ class DllExport ZIPFAM : public DOSFAM {
 	ZIPFAM(PDOSDEF tdp);
 
 	// Implementation
-	virtual AMT  GetAmType(void) {return TYPE_AM_ZIP;}
+	AMT  GetAmType(void) override {return TYPE_AM_ZIP;}
 
 	// Methods
-	virtual int  Cardinality(PGLOBAL g) {return 0;}
-	virtual int  GetFileLength(PGLOBAL g) {return g ? 0 : 1;}
+	int  Cardinality(PGLOBAL g) override {return 0;}
+	int  GetFileLength(PGLOBAL g) override {return g ? 0 : 1;}
 	//virtual int  MaxBlkSize(PGLOBAL g, int s) {return s;}
-	virtual bool OpenTableFile(PGLOBAL g);
-	virtual int  ReadBuffer(PGLOBAL g);
-	virtual int  WriteBuffer(PGLOBAL g);
+	bool OpenTableFile(PGLOBAL g) override;
+	int  ReadBuffer(PGLOBAL g) override;
+	int  WriteBuffer(PGLOBAL g) override;
 	//virtual int  DeleteRecords(PGLOBAL g, int irc);
-	virtual void CloseTableFile(PGLOBAL g, bool abort);
+	void CloseTableFile(PGLOBAL g, bool abort) override;
 
  protected:
 	// Members
@@ -213,14 +213,14 @@ class DllExport ZPXFAM : public FIXFAM {
 	ZPXFAM(PDOSDEF tdp);
 
 	// Implementation
-	virtual AMT  GetAmType(void) {return TYPE_AM_ZIP;}
+	AMT  GetAmType(void) override {return TYPE_AM_ZIP;}
 
 	// Methods
-	virtual int  Cardinality(PGLOBAL g) {return 0;}
-	virtual int  GetFileLength(PGLOBAL g) {return g ? 0 : 1;}
-	virtual bool OpenTableFile(PGLOBAL g);
-	virtual int  WriteBuffer(PGLOBAL g);
-	virtual void CloseTableFile(PGLOBAL g, bool abort);
+	int  Cardinality(PGLOBAL g) override {return 0;}
+	int  GetFileLength(PGLOBAL g) override {return g ? 0 : 1;}
+	bool OpenTableFile(PGLOBAL g) override;
+	int  WriteBuffer(PGLOBAL g) override;
+	void CloseTableFile(PGLOBAL g, bool abort) override;
 
  protected:
 	// Members
