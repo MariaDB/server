@@ -324,6 +324,7 @@ void *alloc_root(MEM_ROOT *mem_root, size_t length)
     size_t alloced_length;
 
     /* Increase block size over time if there is a lot of mallocs */
+    /* when changing this logic, update root_size() to match      */
     block_size= (MY_ALIGN(mem_root->block_size, ROOT_MIN_BLOCK_SIZE) *
                  (mem_root->block_num >> 2)- MALLOC_OVERHEAD);
     get_size= length + ALIGN_SIZE(sizeof(USED_MEM));

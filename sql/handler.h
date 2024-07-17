@@ -559,6 +559,7 @@ enum legacy_db_type
 {
   /* note these numerical values are fixed and can *not* be changed */
   DB_TYPE_UNKNOWN=0,
+  DB_TYPE_HLINDEX_HELPER=6,
   DB_TYPE_HEAP=6,
   DB_TYPE_MYISAM=9,
   DB_TYPE_MRG_MYISAM=10,
