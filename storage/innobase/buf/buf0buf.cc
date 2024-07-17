@@ -2714,6 +2714,9 @@ BUF_PEEK_IF_IN_POOL, or BUF_GET_IF_IN_POOL_OR_WATCH
 while reading the page from file
 then it makes sure that it does merging of change buffer changes while
 reading the page from file.
+@param[in,out]	no_wait			If not NULL on input, then we must not
+wait for current page latch. On output, the value is set to true if we had to
+return because we could not wait on page latch.
 @return pointer to the block or NULL */
 TRANSACTIONAL_TARGET
 buf_block_t*
@@ -2725,7 +2728,8 @@ buf_page_get_low(
 	ulint			mode,
 	mtr_t*			mtr,
 	dberr_t*		err,
-	bool			allow_ibuf_merge)
+	bool			allow_ibuf_merge,
+	bool*			no_wait)
 {
 	unsigned	access_time;
 	ulint		retries = 0;
@@ -2882,14 +2886,17 @@ ignore_unfixed:
 		in buf_page_t::read_complete() or
 		buf_pool_t::corrupted_evict(), or
 		after buf_zip_decompress() in this function. */
-		if (rw_latch != RW_NO_LATCH) {
+		if (!no_wait) {
 			block->page.lock.s_lock();
 		} else if (!block->page.lock.s_lock_try()) {
-			/* For RW_NO_LATCH, we should not try to acquire S or X
-			latch directly as we could be violating the latching
-			order resulting in deadlock. Instead we try latching the
-			page and retry in case of a failure. */
-			goto wait_for_read;
+			ut_ad(rw_latch == RW_NO_LATCH);
+			/* We should not wait trying to acquire S latch for
+			current page while holding latch for the next page.
+			It would violate the latching order resulting in
+			possible deadlock. Caller must handle the failure. */
+			block->page.unfix();
+			*no_wait= true;
+			return nullptr;
 		}
 		state = block->page.state();
 		ut_ad(state < buf_page_t::READ_FIX
@@ -2945,7 +2952,6 @@ free_unfixed_block:
 	if (UNIV_UNLIKELY(!block->page.frame)) {
 		if (!block->page.lock.x_lock_try()) {
 wait_for_unzip:
-wait_for_read:
 			/* The page is being read or written, or
 			another thread is executing buf_zip_decompress()
 			in buf_page_get_low() on it. */
@@ -3234,6 +3240,9 @@ BUF_PEEK_IF_IN_POOL, or BUF_GET_IF_IN_POOL_OR_WATCH
 @param[out]	err			DB_SUCCESS or error code
 @param[in]	allow_ibuf_merge	Allow change buffer merge while
 reading the pages from file.
+@param[in,out]	no_wait			If not NULL on input, then we must not
+wait for current page latch. On output, the value is set to true if we had to
+return because we could not wait on page latch.
 @return pointer to the block or NULL */
 buf_block_t*
 buf_page_get_gen(
@@ -3244,12 +3253,14 @@ buf_page_get_gen(
 	ulint			mode,
 	mtr_t*			mtr,
 	dberr_t*		err,
-	bool			allow_ibuf_merge)
+	bool			allow_ibuf_merge,
+	bool*			no_wait)
 {
   buf_block_t *block= recv_sys.recover(page_id);
   if (UNIV_LIKELY(!block))
     return buf_page_get_low(page_id, zip_size, rw_latch,
-                            guess, mode, mtr, err, allow_ibuf_merge);
+                            guess, mode, mtr, err, allow_ibuf_merge,
+                            no_wait);
   else if (UNIV_UNLIKELY(block == reinterpret_cast<buf_block_t*>(-1)))
   {
   corrupted:

@@ -980,9 +980,9 @@ public:
   public:
     Item_cache_fbt(THD *thd)
      :Item_cache(thd, singleton()) { }
-    Item *get_copy(THD *thd)
+    Item *get_copy(THD *thd) override
     { return get_item_copy<Item_cache_fbt>(thd, this); }
-    bool cache_value()
+    bool cache_value() override
     {
       if (!example)
         return false;
@@ -992,54 +992,54 @@ public:
                                                    &m_value, type_handler());
       return true;
     }
-    String* val_str(String *to)
+    String* val_str(String *to) override
     {
       if (!has_value())
         return NULL;
       Fbt_null tmp(m_value.ptr(), m_value.length());
       return tmp.is_null() || tmp.to_string(to) ? NULL : to;
     }
-    my_decimal *val_decimal(my_decimal *to)
+    my_decimal *val_decimal(my_decimal *to) override
     {
       if (!has_value())
         return NULL;
       my_decimal_set_zero(to);
       return to;
     }
-    longlong val_int()
+    longlong val_int() override
     {
       if (!has_value())
         return 0;
       return 0;
     }
-    double val_real()
+    double val_real() override
     {
       if (!has_value())
         return 0;
       return 0;
     }
-    longlong val_datetime_packed(THD *thd)
-    {
-      DBUG_ASSERT(0);
-      if (!has_value())
-        return 0;
-      return 0;
-    }
-    longlong val_time_packed(THD *thd)
+    longlong val_datetime_packed(THD *) override
     {
       DBUG_ASSERT(0);
       if (!has_value())
         return 0;
       return 0;
     }
-    bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
+    longlong val_time_packed(THD *) override
+    {
+      DBUG_ASSERT(0);
+      if (!has_value())
+        return 0;
+      return 0;
+    }
+    bool get_date(THD *, MYSQL_TIME *ltime, date_mode_t) override
     {
       if (!has_value())
         return true;
       set_zero_time(ltime, MYSQL_TIMESTAMP_TIME);
       return false;
     }
-    bool val_native(THD *thd, Native *to)
+    bool val_native(THD *, Native *to) override
     {
       if (!has_value())
         return true;

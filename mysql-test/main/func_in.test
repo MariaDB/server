@@ -652,14 +652,11 @@ DROP TABLE t1;
 --echo #
 --echo # MDEV-11514 IN with a mixture of TIME and DATETIME returns a wrong result
 --echo #
-#enable after fix MDEV-27871
---disable_view_protocol
-SELECT TIME'10:20:30' IN (102030,TIME'10:20:31',TIMESTAMP'2001-01-01 10:20:32');
-PREPARE stmt FROM "SELECT TIME'10:20:30' IN (102030,TIME'10:20:31',TIMESTAMP'2001-01-01 10:20:32')";
+SELECT TIME'10:20:30' IN (102030,TIME'10:20:31',TIMESTAMP'2001-01-01 10:20:32') as exp;
+PREPARE stmt FROM "SELECT TIME'10:20:30' IN (102030,TIME'10:20:31',TIMESTAMP'2001-01-01 10:20:32') as exp";
 EXECUTE stmt;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
---enable_view_protocol
 
 --echo #
 --echo # MDEV-11497 Wrong result for (int_expr IN (mixture of signed and unsigned expressions))

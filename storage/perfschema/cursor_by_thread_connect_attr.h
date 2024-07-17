@@ -62,9 +62,9 @@ class cursor_by_thread_connect_attr : public PFS_engine_table
 public:
   static ha_rows get_row_count();
 
-  virtual int rnd_next();
-  virtual int rnd_pos(const void *pos);
-  virtual void reset_position(void);
+  int rnd_next() override;
+  int rnd_pos(const void *pos) override;
+  void reset_position(void) override;
 
 protected:
   cursor_by_thread_connect_attr(const PFS_engine_table_share *share);

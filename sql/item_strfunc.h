@@ -109,7 +109,7 @@ public:
    :Item_str_ascii_func(thd, a) { }
   Item_str_ascii_checksum_func(THD *thd, Item *a, Item *b)
    :Item_str_ascii_func(thd, a, b) { }
-  bool eq(const Item *item, bool binary_cmp) const
+  bool eq(const Item *item, bool binary_cmp) const override
   {
     // Always use binary argument comparison: MD5('x') != MD5('X')
     return Item_func::eq(item, true);
@@ -129,7 +129,7 @@ public:
    :Item_str_func(thd, a) { }
   Item_str_binary_checksum_func(THD *thd, Item *a, Item *b)
    :Item_str_func(thd, a, b) { }
-  bool eq(const Item *item, bool binary_cmp) const
+  bool eq(const Item *item, bool binary_cmp) const override
   {
     /*
       Always use binary argument comparison:
@@ -238,7 +238,7 @@ protected:
 public:
   Item_aes_crypt(THD *thd, Item *a, Item *b)
    :Item_str_binary_checksum_func(thd, a, b) {}
-  String *val_str(String *);
+  String *val_str(String *) override;
 };
 
 class Item_func_aes_encrypt :public Item_aes_crypt
@@ -536,14 +536,14 @@ public:
   Item_func_regexp_replace_oracle(THD *thd, Item *a, Item *b, Item *c)
    :Item_func_regexp_replace(thd, a, b, c)
   {}
-  const Schema *schema() const { return &oracle_schema_ref; }
-  bool fix_length_and_dec(THD *thd)
+  const Schema *schema() const override { return &oracle_schema_ref; }
+  bool fix_length_and_dec(THD *thd) override
   {
     bool rc= Item_func_regexp_replace::fix_length_and_dec(thd);
     set_maybe_null(); // Empty result is converted to NULL
     return rc;
   }
-  String *val_str(String *str)
+  String *val_str(String *str) override
   {
     return val_str_internal(str, true);
   }
@@ -1101,19 +1101,19 @@ class Item_func_sysconst :public Item_str_func
 public:
   Item_func_sysconst(THD *thd): Item_str_func(thd)
   { collation.set(system_charset_info,DERIVATION_SYSCONST); }
-  Item *safe_charset_converter(THD *thd, CHARSET_INFO *tocs);
+  Item *safe_charset_converter(THD *thd, CHARSET_INFO *tocs) override;
   /*
     Used to create correct Item name in new converted item in
     safe_charset_converter, return string representation of this function
     call
   */
   virtual const char *fully_qualified_func_name() const = 0;
-  bool check_vcol_func_processor(void *arg)
+  bool check_vcol_func_processor(void *arg) override
   {
     return mark_unsupported_function(fully_qualified_func_name(), arg,
                                      VCOL_SESSION_FUNC);
   }
-  bool const_item() const;
+  bool const_item() const override;
 };
 
 
@@ -1633,10 +1633,20 @@ public:
   }
   bool fix_length_and_dec(THD *thd) override
   {
+    m_arg0_type_handler= args[0]->type_handler();
     collation.set(default_charset(), DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
     decimals=0;
-    fix_char_length(args[0]->max_length * 2);
-    m_arg0_type_handler= args[0]->type_handler();
+    /*
+      Reserve space for 16 characters for signed numeric data types:
+        hex(-1) -> 'FFFFFFFFFFFFFFFF'.
+      For unsigned numeric types, HEX() can create too large columns.
+      This should be eventually fixed to create minimum possible columns.
+    */
+    const Type_handler_numeric *tn=
+      dynamic_cast<const Type_handler_numeric*>(m_arg0_type_handler);
+    size_t char_length= (tn && !(tn->flags() & UNSIGNED_FLAG)) ?
+                        (size_t) 16 : (size_t) args[0]->max_length * 2;
+    fix_char_length(char_length);
     return FALSE;
   }
   Item *get_copy(THD *thd) override

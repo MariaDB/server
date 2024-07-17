@@ -29,11 +29,11 @@ class XCLDEF : public PRXDEF {            /* Logical table description */
 	 XCLDEF(void);
 
   // Implementation
-  virtual const char *GetType(void) {return "XCL";}
+  const char *GetType(void) override {return "XCL";}
 
   // Methods
-  virtual bool DefineAM(PGLOBAL g, LPCSTR am, int poff);
-  virtual PTDB GetTable(PGLOBAL g, MODE mode);
+  bool DefineAM(PGLOBAL g, LPCSTR am, int poff) override;
+  PTDB GetTable(PGLOBAL g, MODE mode) override;
 
  protected:
   // Members
@@ -54,17 +54,17 @@ class TDBXCL : public TDBPRX {
   TDBXCL(PXCLDEF tdp);
 
   // Implementation
-  virtual AMT   GetAmType(void) {return TYPE_AM_XCOL;}
+  AMT   GetAmType(void) override {return TYPE_AM_XCOL;}
 
   // Methods
-	virtual void  ResetDB(void) {N = 0; Tdbp->ResetDB();}
-	virtual int   RowNumber(PGLOBAL g, bool b = FALSE);
+	void  ResetDB(void) override {N = 0; Tdbp->ResetDB();}
+	int   RowNumber(PGLOBAL g, bool b = FALSE) override;
 
   // Database routines
-	virtual PCOL  MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
-  virtual int   GetMaxSize(PGLOBAL g);
-  virtual bool  OpenDB(PGLOBAL g);
-  virtual int   ReadDB(PGLOBAL g);
+	PCOL  MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n) override;
+  int   GetMaxSize(PGLOBAL g) override;
+  bool  OpenDB(PGLOBAL g) override;
+  int   ReadDB(PGLOBAL g) override;
 
  protected:
   // Members
@@ -89,9 +89,9 @@ class XCLCOL : public PRXCOL {
 
   // Methods
   using PRXCOL::Init;
-  virtual void Reset(void) {}	  // Evaluated only by TDBXCL
-  virtual void ReadColumn(PGLOBAL g);
-  virtual bool Init(PGLOBAL g, PTDB tp = NULL);
+  void Reset(void) override {}	  // Evaluated only by TDBXCL
+  void ReadColumn(PGLOBAL g) override;
+  bool Init(PGLOBAL g, PTDB tp = NULL) override;
 
  protected:
   // Default constructor not to be used

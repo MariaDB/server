@@ -560,9 +560,9 @@ public:
     else
       set_handler(type_handler_long_or_longlong());
   }
-  double real_op() { DBUG_ASSERT(0); return 0; }
-  String *str_op(String *str) { DBUG_ASSERT(0); return 0; }
-  bool date_op(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
+  double real_op() override { DBUG_ASSERT(0); return 0; }
+  String *str_op(String *str) override { DBUG_ASSERT(0); return 0; }
+  bool date_op(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override
   {
     DBUG_ASSERT(0);
     return true;
@@ -1320,7 +1320,7 @@ public:
                        &my_charset_latin1),
     m_fsp(fsp)
   { }
-  String *val_str(String *to)
+  String *val_str(String *to) override
   {
     Interval_DDhhmmssff it(current_thd, args[0], m_fsp);
     null_value= !it.is_valid_interval_DDhhmmssff();
@@ -1716,7 +1716,7 @@ class Func_handler_date_add_interval_datetime:
         public Func_handler_date_add_interval
 {
 public:
-  bool fix_length_and_dec(Item_handled_func *item) const
+  bool fix_length_and_dec(Item_handled_func *item) const override
   {
     uint dec= MY_MAX(item->arguments()[0]->datetime_precision(current_thd),
                      interval_dec(item->arguments()[1], int_type(item)));
@@ -1724,7 +1724,7 @@ public:
     return false;
   }
   bool get_date(THD *thd, Item_handled_func *item,
-                MYSQL_TIME *to, date_mode_t fuzzy) const
+                MYSQL_TIME *to, date_mode_t fuzzy) const override
   {
     Datetime::Options opt(TIME_CONV_NONE, thd);
     Datetime dt(thd, item->arguments()[0], opt);
@@ -1743,7 +1743,7 @@ class Func_handler_date_add_interval_datetime_arg0_time:
 {
 public:
   bool get_date(THD *thd, Item_handled_func *item,
-                MYSQL_TIME *to, date_mode_t fuzzy) const;
+                MYSQL_TIME *to, date_mode_t fuzzy) const override;
 };
 
 
@@ -1753,7 +1753,7 @@ class Func_handler_date_add_interval_date:
 {
 public:
   bool get_date(THD *thd, Item_handled_func *item,
-                MYSQL_TIME *to, date_mode_t fuzzy) const
+                MYSQL_TIME *to, date_mode_t fuzzy) const override
   {
     /*
       The first argument is known to be of the DATE data type (not DATETIME).
@@ -1775,7 +1775,7 @@ class Func_handler_date_add_interval_time:
         public Func_handler_date_add_interval
 {
 public:
-  bool fix_length_and_dec(Item_handled_func *item) const
+  bool fix_length_and_dec(Item_handled_func *item) const override
   {
     uint dec= MY_MAX(item->arguments()[0]->time_precision(current_thd),
                      interval_dec(item->arguments()[1], int_type(item)));
@@ -1783,7 +1783,7 @@ public:
     return false;
   }
   bool get_date(THD *thd, Item_handled_func *item,
-                MYSQL_TIME *to, date_mode_t fuzzy) const
+                MYSQL_TIME *to, date_mode_t fuzzy) const override
   {
     Time t(thd, item->arguments()[0]);
     if (!t.is_valid_time())
@@ -1800,7 +1800,7 @@ class Func_handler_date_add_interval_string:
         public Func_handler_date_add_interval
 {
 public:
-  bool fix_length_and_dec(Item_handled_func *item) const
+  bool fix_length_and_dec(Item_handled_func *item) const override
   {
     uint dec= MY_MAX(item->arguments()[0]->datetime_precision(current_thd),
                      interval_dec(item->arguments()[1], int_type(item)));
@@ -1812,7 +1812,7 @@ public:
     return false;
   }
   bool get_date(THD *thd, Item_handled_func *item,
-                MYSQL_TIME *to, date_mode_t fuzzy) const
+                MYSQL_TIME *to, date_mode_t fuzzy) const override
   {
     if (item->arguments()[0]->
           get_date(thd, to, Datetime::Options(TIME_CONV_NONE, thd)) ||
@@ -1841,7 +1841,7 @@ public:
   Func_handler_add_time_datetime(int sign)
    :Func_handler_sign(sign)
   { }
-  bool fix_length_and_dec(Item_handled_func *item) const
+  bool fix_length_and_dec(Item_handled_func *item) const override
   {
     THD *thd= current_thd;
     uint dec0= item->arguments()[0]->datetime_precision(thd);
@@ -1850,7 +1850,7 @@ public:
     return false;
   }
   bool get_date(THD *thd, Item_handled_func *item,
-                MYSQL_TIME *to, date_mode_t fuzzy) const
+                MYSQL_TIME *to, date_mode_t fuzzy) const override
   {
     DBUG_ASSERT(item->fixed());
     Datetime::Options opt(TIME_CONV_NONE, thd);
@@ -1875,7 +1875,7 @@ public:
   Func_handler_add_time_time(int sign)
    :Func_handler_sign(sign)
   { }
-  bool fix_length_and_dec(Item_handled_func *item) const
+  bool fix_length_and_dec(Item_handled_func *item) const override
   {
     THD *thd= current_thd;
     uint dec0= item->arguments()[0]->time_precision(thd);
@@ -1884,7 +1884,7 @@ public:
     return false;
   }
   bool get_date(THD *thd, Item_handled_func *item,
-                MYSQL_TIME *to, date_mode_t fuzzy) const
+                MYSQL_TIME *to, date_mode_t fuzzy) const override
   {
     DBUG_ASSERT(item->fixed());
     Time t(thd, item->arguments()[0]);
@@ -1908,7 +1908,7 @@ public:
   Func_handler_add_time_string(int sign)
    :Func_handler_sign(sign)
   { }
-  bool fix_length_and_dec(Item_handled_func *item) const
+  bool fix_length_and_dec(Item_handled_func *item) const override
   {
     uint dec0= item->arguments()[0]->decimals;
     uint dec1= Interval_DDhhmmssff::fsp(current_thd, item->arguments()[1]);
@@ -1921,7 +1921,7 @@ public:
     return false;
   }
   bool get_date(THD *thd, Item_handled_func *item,
-                MYSQL_TIME *to, date_mode_t fuzzy) const
+                MYSQL_TIME *to, date_mode_t fuzzy) const override
   {
     DBUG_ASSERT(item->fixed());
     // Detect a proper timestamp type based on the argument values
@@ -1945,13 +1945,13 @@ class Func_handler_str_to_date_datetime_sec:
         public Item_handled_func::Handler_datetime
 {
 public:
-  bool fix_length_and_dec(Item_handled_func *item) const
+  bool fix_length_and_dec(Item_handled_func *item) const override
   {
     item->fix_attributes_datetime(0);
     return false;
   }
   bool get_date(THD *thd, Item_handled_func *item,
-                MYSQL_TIME *to, date_mode_t fuzzy) const
+                MYSQL_TIME *to, date_mode_t fuzzy) const override
   {
     return static_cast<Item_func_str_to_date*>(item)->
              get_date_common(thd, to, fuzzy, MYSQL_TIMESTAMP_DATETIME);
@@ -1963,13 +1963,13 @@ class Func_handler_str_to_date_datetime_usec:
         public Item_handled_func::Handler_datetime
 {
 public:
-  bool fix_length_and_dec(Item_handled_func *item) const
+  bool fix_length_and_dec(Item_handled_func *item) const override
   {
     item->fix_attributes_datetime(TIME_SECOND_PART_DIGITS);
     return false;
   }
   bool get_date(THD *thd, Item_handled_func *item,
-                MYSQL_TIME *to, date_mode_t fuzzy) const
+                MYSQL_TIME *to, date_mode_t fuzzy) const override
   {
     return static_cast<Item_func_str_to_date*>(item)->
              get_date_common(thd, to, fuzzy, MYSQL_TIMESTAMP_DATETIME);
@@ -1981,7 +1981,7 @@ class Func_handler_str_to_date_date: public Item_handled_func::Handler_date
 {
 public:
   bool get_date(THD *thd, Item_handled_func *item,
-                MYSQL_TIME *to, date_mode_t fuzzy) const
+                MYSQL_TIME *to, date_mode_t fuzzy) const override
   {
     return static_cast<Item_func_str_to_date*>(item)->
              get_date_common(thd, to, fuzzy, MYSQL_TIMESTAMP_DATE);
@@ -1993,7 +1993,7 @@ class Func_handler_str_to_date_time: public Item_handled_func::Handler_time
 {
 public:
   bool get_date(THD *thd, Item_handled_func *item,
-                MYSQL_TIME *to, date_mode_t fuzzy) const
+                MYSQL_TIME *to, date_mode_t fuzzy) const override
   {
     if (static_cast<Item_func_str_to_date*>(item)->
          get_date_common(thd, to, fuzzy, MYSQL_TIMESTAMP_TIME))
@@ -2016,7 +2016,7 @@ public:
 class Func_handler_str_to_date_time_sec: public Func_handler_str_to_date_time
 {
 public:
-  bool fix_length_and_dec(Item_handled_func *item) const
+  bool fix_length_and_dec(Item_handled_func *item) const override
   {
     item->fix_attributes_time(0);
     return false;
@@ -2027,7 +2027,7 @@ public:
 class Func_handler_str_to_date_time_usec: public Func_handler_str_to_date_time
 {
 public:
-  bool fix_length_and_dec(Item_handled_func *item) const
+  bool fix_length_and_dec(Item_handled_func *item) const override
   {
     item->fix_attributes_time(TIME_SECOND_PART_DIGITS);
     return false;
