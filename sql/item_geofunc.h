@@ -1285,6 +1285,21 @@ public:
 };
 
 
+class Item_func_longfromgeohash: public Item_func_latlongfromgeohash
+{
+public:
+  Item_func_longfromgeohash(THD *thd, Item *a)
+   :Item_func_latlongfromgeohash(thd, a, true) {}
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("st_longfromgeohash") };
+    return name;
+  }
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_func_longfromgeohash>(thd, this); }
+};
+
+
 class Item_func_pointonsurface: public Item_geometry_func_args_geometry
 {
   String tmp_value;
