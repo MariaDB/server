@@ -55,6 +55,7 @@
 #include "opt_trace_context.h"
 #include "log_event.h"
 #include "optimizer_defaults.h"
+#include "vector_mhnsw.h"
 
 #ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
 #include "../storage/perfschema/pfs_server.h"
@@ -7399,3 +7400,7 @@ static Sys_var_uint Sys_mhnsw_max_edges_per_node(
        "memory consumption, but better search results",
        SESSION_VAR(mhnsw_max_edges_per_node), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(3, 200), DEFAULT(6), BLOCK_SIZE(1));
+static Sys_var_ulonglong Sys_mhnsw_cache_size(
+       "mhnsw_cache_size", "Size of the cache for the MHNSW vector index",
+       GLOBAL_VAR(mhnsw_cache_size), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(1024*1024, SIZE_T_MAX), DEFAULT(16*1024*1024), BLOCK_SIZE(1));
