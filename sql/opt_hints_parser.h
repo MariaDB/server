@@ -602,4 +602,17 @@ public:
 
 };
 
+
+/*
+  This wrapper class is needed to use a forward declaration in sql_lex.h
+  instead of including the entire opt_hints_parser.h.
+  (forward declarations of qualified nested classes are not possible in C++)
+*/
+class Optimizer_hint_parser_output: public Optimizer_hint_parser::Hint_list
+{
+public:
+  using Hint_list::Hint_list;
+};
+
+
 #endif // OPT_HINTS_PARSER

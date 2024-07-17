@@ -18,6 +18,7 @@
 #include "sql_lex.h"
 #include "sql_select.h"
 #include "opt_hints.h"
+#include "opt_hints_parser.h"
 
 /**
   Information about hints. Sould be

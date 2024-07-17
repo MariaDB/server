@@ -277,7 +277,7 @@ void _CONCAT_UNDERSCORED(turn_parser_debug_on,yyparse)()
   TABLE_LIST *table_list;
   Table_ident *table;
   Qualified_column_ident *qualified_column_ident;
-  Optimizer_hint_parser::Hint_list *opt_hints;
+  Optimizer_hint_parser_output *opt_hints;
   char *simple_string;
   const char *const_simple_string;
   chooser_compare_func_creator boolfunc2creator;

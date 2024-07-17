@@ -12415,7 +12415,7 @@ bool SELECT_LEX_UNIT::is_derived_eliminated() const
   rc == nullptr  false            no hints, empty hints, hint parse error
   rc == nullptr  true             fatal error, such as EOM
 */
-Optimizer_hint_parser::Hint_list *
+Optimizer_hint_parser_output *
 LEX::parse_optimizer_hints(const Lex_comment_st &hints_str)
 {
   DBUG_ASSERT(!hints_str.str || hints_str.length >= 5);
@@ -12428,7 +12428,7 @@ LEX::parse_optimizer_hints(const Lex_comment_st &hints_str)
   Optimizer_hint_parser p(thd, thd->charset(),
                           Lex_cstring(hints_str.str + 3, hints_str.length - 5));
   // Parse hints
-  Optimizer_hint_parser::Hints hints(&p);
+  Optimizer_hint_parser_output hints(&p);
   DBUG_ASSERT(!p.is_error() || !hints);
 
   if (p.is_fatal_error())
@@ -12448,5 +12448,20 @@ LEX::parse_optimizer_hints(const Lex_comment_st &hints_str)
   }
 
   // Hints were not empty and were parsed without errors
-  return new (thd->mem_root) Optimizer_hint_parser::Hint_list(std::move(hints));
+  return new (thd->mem_root) Optimizer_hint_parser_output(std::move(hints));
+}
+
+
+void LEX::resolve_optimizer_hints()
+{
+  SELECT_LEX *select_lex;
+  if (likely(select_stack_top))
+    select_lex= select_stack[select_stack_top - 1];
+  else
+    select_lex= nullptr;
+  if (select_lex && select_lex->parsed_optimizer_hints)
+  {
+    Parse_context pc(thd, select_lex);
+    select_lex->parsed_optimizer_hints->resolve(&pc);
+  }
 }
