@@ -1255,6 +1255,40 @@ public:
 };
 
 
+class Item_func_latlongfromgeohash : public Item_real_func {
+ private:
+  String buf;
+  static const uint8_t geohash_alphabet[256];
+  const bool decode_longitude;
+  static bool is_invalid_geohash_field(enum_field_types field_type);
+
+ public:
+  Item_func_latlongfromgeohash(THD *thd, Item *a, bool start_on_even_bit_arg)
+      : Item_real_func(thd, a),
+        decode_longitude(start_on_even_bit_arg) {}
+  double val_real() override;
+  static bool decode_geohash(String *geohash, double *result_latitude,
+                             double *result_longitude);
+  static double round_latlongitude(double latlongitude, double error_range,
+                                   double lower_limit, double upper_limit);
+};
+
+
+class Item_func_latfromgeohash: public Item_func_latlongfromgeohash
+{
+public:
+  Item_func_latfromgeohash(THD *thd, Item *a)
+   :Item_func_latlongfromgeohash(thd, a, false) {}
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("st_latfromgeohash") };
+    return name;
+  }
+  Item *get_copy(THD *thd) override
+  { return get_item_copy<Item_func_latfromgeohash>(thd, this); }
+};
+
+
 class Item_func_pointonsurface: public Item_geometry_func_args_geometry
 {
   String tmp_value;
