@@ -141,8 +141,26 @@ public:
     if (head == '`' || head=='"')
     {
       const Token_with_metadata delimited_ident= get_quoted_string();
-      if (delimited_ident.length)
+      /*
+        Consider only non-empty quoted strings as identifiers.
+        Table and index names cannot be empty in MariaDB.
+        Let's also disallow empty query block names.
+        Note, table aliases can actually be empty:
+          SELECT ``.a FROM t1 ``;
+        But let's disallow them in hints for simplicity, to handle
+        all identifiers in the same way in the hint parser.
+      */
+      if (delimited_ident.length > 2)
         return Token(delimited_ident, TokenID::tIDENT);
+      /*
+        If the string is empty, "unget" it to have a good
+        syntax error position in the message text.
+        The point is to include the empty string in the error message:
+          EXPLAIN EXTENDED SELECT ... QB_NAME(``) ...;  -->
+          Optimizer hint syntax error near '``) ...' at line 1
+      */
+      m_ptr-= delimited_ident.length;
+      return Token(Lex_cstring(m_ptr, m_ptr), TokenID::tNULL);
     }
     const Token_with_metadata ident= get_ident();
     if (ident.length)
