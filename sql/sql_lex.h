@@ -1387,6 +1387,7 @@ public:
   uint get_cardinality_of_ref_ptrs_slice(uint order_group_num_arg);
   void print(THD *thd, String *str, enum_query_type query_type);
   void print_lock_type(String *str);
+  void print_hints(THD *thd, String *hint_str);
   void print_item_list(THD *thd, String *str, enum_query_type query_type);
   void print_set_clause(THD *thd, String *str, enum_query_type query_type);
   void print_on_duplicate_key_clause(THD *thd, String *str,
@@ -3731,7 +3732,7 @@ public:
     DBUG_RETURN(select_lex);
   }
 
-  void resolve_optimizer_hints();
+  void resolve_optimizer_hints_in_last_select();
 
   SELECT_LEX *current_select_or_default()
   {

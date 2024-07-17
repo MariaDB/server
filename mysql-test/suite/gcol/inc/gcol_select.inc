@@ -895,7 +895,7 @@ CREATE TABLE t (
 
 INSERT INTO t(a,b) VALUES(1,'cccc');
 let $query=
-SELECT /*+ bka() */ 1 AS c FROM t AS b RIGHT JOIN t AS c ON b.a > c.c
+SELECT 1 AS c FROM t AS b RIGHT JOIN t AS c ON b.a > c.c
 WHERE b.b>c.a;
 eval EXPLAIN $query;
 eval $query;
@@ -1022,13 +1022,12 @@ VALUES (1, 'j'), (2, 'c'), (0, 'a');
 
 ANALYZE TABLE t1, t2, t3, t4;
 
-# Hint is added to avoid materialization of the subquery
 let query=
-SELECT /*+ NO_SEMIJOIN(@subq1) */ t1.c1, t2.i1
+SELECT t1.c1, t2.i1
 FROM t1 STRAIGHT_JOIN t3 STRAIGHT_JOIN t2
 WHERE ( t3.pk IN
   (
-    SELECT /*+ QB_NAME(subq1) */ t4.i1
+    SELECT t4.i1
     FROM t4
     WHERE t4.c1 < 'o'
   )
@@ -1049,13 +1048,12 @@ if ($support_virtual_index)
 ALTER TABLE t3 ADD INDEX v_idx2 (i2_key, i1);
 }
 
-# Hint is added to avoid materialization of the subquery
 let query=
-SELECT /*+ NO_SEMIJOIN(@subq1) */ t1.c1, t2.i1
+SELECT t1.c1, t2.i1
 FROM t1 STRAIGHT_JOIN t3 STRAIGHT_JOIN t2
 WHERE ( t3.pk IN
   (
-    SELECT /*+ QB_NAME(subq1) */ t4.i1
+    SELECT t4.i1
     FROM t4
     WHERE t4.c1 < 'o'
   )
@@ -1079,11 +1077,11 @@ ALTER TABLE t3 DROP INDEX v_idx;
 
 # Hint is added to avoid materialization of the subquery
 let query=
-SELECT /*+ NO_SEMIJOIN(@subq1) */ t1.c1, t2.i1
+SELECT t1.c1, t2.i1
 FROM t1 STRAIGHT_JOIN t3 STRAIGHT_JOIN t2
 WHERE ( t3.pk IN
   (
-    SELECT /*+ QB_NAME(subq1) */ t4.i1
+    SELECT t4.i1
     FROM t4
     WHERE t4.c1 < 'o'
   )
@@ -1117,11 +1115,11 @@ VALUES (10,1), (11,1), (12,1), (13,1), (14,1),(15,1), (16,1),(17,1), (18,1),
 --echo # non-covering.
 # Hint is added to avoid materialization of the subquery
 let query=
-SELECT /*+ NO_SEMIJOIN(@subq1) */ t1.c1, t2.i1, t3.i1
+SELECT t1.c1, t2.i1, t3.i1
 FROM t1 STRAIGHT_JOIN t3 STRAIGHT_JOIN t2
 WHERE ( t3.pk IN
   (
-    SELECT /*+ QB_NAME(subq1) */ t4.i1
+    SELECT t4.i1
     FROM t4
     WHERE t4.c1 < 'o'
   )
@@ -1154,11 +1152,11 @@ eval $query;
 # an extra query condition is added to the subquery.
 # Hint is added to avoid materialization of the subquery
 let query=
-SELECT /*+ NO_SEMIJOIN(@subq1) */ t1.c1, t2.i1
+SELECT t1.c1, t2.i1
 FROM t1 STRAIGHT_JOIN t3 STRAIGHT_JOIN t2
 WHERE ( t3.pk IN
   (
-    SELECT /*+ QB_NAME(subq1) */ t4.i1
+    SELECT t4.i1
     FROM t4
     WHERE t4.c1 < 'o' and t4.i1 < (t2.i1 + 1)
   )
