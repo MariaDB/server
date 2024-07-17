@@ -2847,6 +2847,226 @@ void Item_func_geohash::set_bit(double &max_value, double &min_value, const doub
 }
 
 
+const uint8_t Item_func_latlongfromgeohash::geohash_alphabet[256] = {
+    // 0-47
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255,
+    // '0'-'9' (48-57)
+    0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
+    // 58-65
+    255, 255, 255, 255, 255, 255, 255, 255,
+    // 'B'-'H' (66-73)
+    10, 11, 12, 13, 14, 15, 16,
+    // 'I' (74)
+    255,
+    // 'J'-'K' (75-76)
+    17, 18,
+    // 'L' (77)
+    255,
+    // 'M'-'N' (78-79)
+    19, 20,
+    // O (80)
+    255,
+    // 'P'-'Z' (81-92)
+    21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31,
+    255, 255, 255, 255, 255, 255, 255,
+    // 'b'-'h' (97-104)
+    10, 11, 12, 13, 14, 15, 16,
+    // 'i' (105)
+    255,
+    // 'j'-'k' (106-107)
+    17, 18,
+    // 'l' (108)
+    255,
+    // 'm'-'n' (109-110)
+    19, 20,
+    // 'o' (111)
+    255,
+    // 'p'-'z' (112-122)
+    21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31,
+    // 123-255
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255
+};
+
+
+/**
+  Decodes a geohash string into longitude and latitude.
+  The results are rounded,  based on the length of input geohash. The function
+  will stop evaluating when the error range, or "accuracy", has become 0.0 for
+  both latitude and longitude since no more changes can happen after this.
+  @param geohash The geohash to decode.
+  @param upper_latitude Upper limit of returned latitude (normally 90.0).
+  @param[out] result_latitude Calculated latitude.
+  @param[out] result_longitude Calculated longitude.
+  @return false on success, true on failure (invalid geohash string).
+*/
+bool Item_func_latlongfromgeohash::decode_geohash(
+    String *geohash, double *result_latitude,
+    double *result_longitude)
+{
+  double latitude_accuracy= (MAX_LATITUDE - MIN_LATITUDE) / 2.0;
+  double longitude_accuracy= (MAX_LONGITUDE - MIN_LONGITUDE) / 2.0;
+
+  double latitude_value= (MAX_LATITUDE + MIN_LATITUDE) / 2.0;
+  double longitude_value= (MAX_LONGITUDE + MIN_LONGITUDE) / 2.0;
+
+  uint number_of_bits_used= 0;
+  const uint input_length= geohash->length();
+
+  for (uint i = 0; i < input_length; i++)
+  {
+    int converted_character =
+      Item_func_latlongfromgeohash::geohash_alphabet[(int) (*geohash)[i]];
+
+    if (converted_character == 255) {
+      return true;
+    }
+
+    for (int bit_number = 4; bit_number >= 0; bit_number--)
+    {
+      if (number_of_bits_used % 2) {
+        latitude_accuracy/= 2.0;
+        if (converted_character & (1 << bit_number))
+          latitude_value+= latitude_accuracy;
+        else
+          latitude_value-= latitude_accuracy;
+      } else {
+        longitude_accuracy/= 2.0;
+        if (converted_character & (1 << bit_number))
+          longitude_value+= longitude_accuracy;
+        else
+          longitude_value-= longitude_accuracy;
+      }
+
+      number_of_bits_used++;
+    }
+
+    if (latitude_accuracy <= 0.0 || longitude_accuracy <= 0.0)
+      break;
+  }
+
+  *result_latitude= round_latlongitude(latitude_value, latitude_accuracy * 2.0,
+                                       latitude_value - latitude_accuracy,
+                                       latitude_value + latitude_accuracy);
+  *result_longitude= round_latlongitude(longitude_value,
+                                        longitude_accuracy * 2.0,
+                                        longitude_value - longitude_accuracy,
+                                        longitude_value + longitude_accuracy);
+
+  return false;
+}
+
+
+/**
+  Rounds a latitude or longitude value.
+  This will round a latitude or longitude value, based on error_range.
+  The error_range is the difference between upper and lower lat/longitude
+  (e.g upper value of 45.0 and a lower value of 22.5, gives an error range of
+  22.5).
+  The returned result will always be in the range [lower_limit, upper_limit]
+  @param latlongitude The latitude or longitude to round.
+  @param error_range The total error range of the calculated laglongitude.
+  @param lower_limit Lower limit of the returned result.
+  @param upper_limit Upper limit of the returned result.
+  @return A rounded latitude or longitude.
+*/
+double Item_func_latlongfromgeohash::round_latlongitude(double latlongitude,
+                                                        double error_range,
+                                                        double lower_limit,
+                                                        double upper_limit)
+{
+  if (error_range == 0.0)
+    return latlongitude;
+
+  uint number_of_decimals= 0;
+  while (error_range <= 0.1 && number_of_decimals <= DBL_DIG) {
+    number_of_decimals++;
+    error_range*= 10.0;
+  }
+
+  double return_value;
+  do {
+    return_value= my_double_round(latlongitude, number_of_decimals, false,
+                                  false);
+    number_of_decimals++;
+  } while ((lower_limit > return_value || return_value > upper_limit) &&
+           number_of_decimals <= DBL_DIG);
+
+  // If the result is outside the allowed range, return the input value
+  if (lower_limit > return_value || return_value > upper_limit)
+    return_value= latlongitude;
+
+  // Avoid printing signed zero
+  return return_value + 0.0;
+}
+
+
+bool Item_func_latlongfromgeohash::is_invalid_geohash_field(
+      enum_field_types field_type)
+{
+  switch (field_type)
+  {
+    case MYSQL_TYPE_NULL:
+    case MYSQL_TYPE_VARCHAR:
+      return false;
+    default:
+      return true;
+  }
+}
+
+
+double Item_func_latlongfromgeohash::val_real()
+{
+  null_value= 1;
+  String *input_value;
+
+  if (args[0]->null_value)
+    return 0.0;
+
+  if (is_invalid_geohash_field(args[0]->field_type()))
+  {
+    my_error(ER_GIS_INVALID_DATA, MYF(0), decode_longitude ?
+                                          "ST_LongFromGeoHas" :
+                                          "ST_LatFromGeohash");
+    return 0.0;
+  }
+
+  input_value= args[0]->val_str(&buf);
+  if (args[0]->null_value)
+  {
+    args[0]->null_value= 0;
+    return 0.0;
+  }
+
+  if (input_value->is_empty())
+  {
+    my_error(ER_WRONG_VALUE_FOR_TYPE, MYF(0), "geohash",
+            input_value->c_ptr_safe(), func_name());
+    return 0.0;
+  }
+
+  double latitude= 0.0, longitude= 0.0;
+  if (decode_geohash(input_value, &latitude, &longitude)) {
+    my_error(ER_WRONG_VALUE_FOR_TYPE, MYF(0), "geohash",
+             input_value->c_ptr_safe(), func_name());
+    return 0.0;
+  }
+
+  null_value= 0;
+  if (decode_longitude) return longitude;
+  return latitude;
+}
+
 String *Item_func_pointonsurface::val_str(String *str)
 {
   Gcalc_operation_transporter trn(&func, &collector);
@@ -3290,6 +3510,20 @@ Create_func_geohash::create_native(THD *thd, const LEX_CSTRING *name,
   return func;
 }
 
+class Create_func_latfromgeohash : public Create_func_arg1
+{
+public:
+  Item *create_1_arg(THD *thd, Item *arg1) override
+  {
+    return new (thd->mem_root) Item_func_latfromgeohash(thd, arg1);
+  }
+
+  static Create_func_latfromgeohash s_singleton;
+
+protected:
+  Create_func_latfromgeohash() = default;
+  virtual ~Create_func_latfromgeohash() = default;
+};
 
 class Create_func_endpoint : public Create_func_arg1
 {
@@ -4144,6 +4378,7 @@ Create_func_disjoint Create_func_disjoint::s_singleton;
 Create_func_distance Create_func_distance::s_singleton;
 Create_func_distance_sphere Create_func_distance_sphere::s_singleton;
 Create_func_geohash Create_func_geohash::s_singleton;
+Create_func_latfromgeohash Create_func_latfromgeohash ::s_singleton;
 Create_func_endpoint Create_func_endpoint::s_singleton;
 Create_func_envelope Create_func_envelope::s_singleton;
 Create_func_equals Create_func_equals::s_singleton;
@@ -4268,6 +4503,7 @@ static Native_func_registry func_array_geom[] =
   { { STRING_WITH_LEN("POLYGONFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
   { { STRING_WITH_LEN("POLYGONFROMWKB") }, GEOM_BUILDER(Create_func_geometry_from_wkb)},
   { { STRING_WITH_LEN("GEOHASH") }, GEOM_BUILDER(Create_func_geohash)},
+  { { STRING_WITH_LEN("LATFROMGEOHASH") }, GEOM_BUILDER(Create_func_latfromgeohash)},
   { { STRING_WITH_LEN("SRID") }, GEOM_BUILDER(Create_func_srid)},
   { { STRING_WITH_LEN("ST_AREA") }, GEOM_BUILDER(Create_func_area)},
   { { STRING_WITH_LEN("STARTPOINT") }, GEOM_BUILDER(Create_func_startpoint)},
@@ -4349,6 +4585,7 @@ static Native_func_registry func_array_geom[] =
   { { STRING_WITH_LEN("ST_Y") }, GEOM_BUILDER(Create_func_y)},
   { { STRING_WITH_LEN("ST_DISTANCE_SPHERE") }, GEOM_BUILDER(Create_func_distance_sphere)},
   { { STRING_WITH_LEN("ST_GEOHASH") }, GEOM_BUILDER(Create_func_geohash)},
+  { { STRING_WITH_LEN("ST_LATFROMGEOHASH") }, GEOM_BUILDER(Create_func_latfromgeohash)},
   { { STRING_WITH_LEN("TOUCHES") }, GEOM_BUILDER(Create_func_touches)},
   { { STRING_WITH_LEN("WITHIN") }, GEOM_BUILDER(Create_func_within)},
   { { STRING_WITH_LEN("X") }, GEOM_BUILDER(Create_func_x)},
