@@ -1,3 +1,5 @@
+diff --git a/mysql-test/suite/sys_vars/r/sysvars_server_notembedded.result b/mysql-test/suite/sys_vars/r/sysvars_server_notembedded.result
+index 0906f942121..1521ce1a728 100644
 --- a/mysql-test/suite/sys_vars/r/sysvars_server_notembedded.result
 +++ b/mysql-test/suite/sys_vars/r/sysvars_server_notembedded.result
 @@ -44,7 +44,7 @@ READ_ONLY	NO
@@ -611,7 +613,16 @@
  VARIABLE_COMMENT	Unused
  NUMERIC_MIN_VALUE	1
  NUMERIC_MAX_VALUE	1024
-@@ -2384,7 +2384,7 @@ READ_ONLY	YES
+@@ -2377,7 +2377,7 @@ VARIABLE_SCOPE	GLOBAL
+ VARIABLE_TYPE	BIGINT UNSIGNED
+ VARIABLE_COMMENT	Size of the cache for the MHNSW vector index
+ NUMERIC_MIN_VALUE	1048576
+-NUMERIC_MAX_VALUE	18446744073709551615
++NUMERIC_MAX_VALUE	4294967295
+ NUMERIC_BLOCK_SIZE	1
+ ENUM_VALUE_LIST	NULL
+ READ_ONLY	NO
+@@ -2414,7 +2414,7 @@ READ_ONLY	NO
  COMMAND_LINE_ARGUMENT	REQUIRED
  VARIABLE_NAME	MIN_EXAMINED_ROW_LIMIT
  VARIABLE_SCOPE	SESSION
