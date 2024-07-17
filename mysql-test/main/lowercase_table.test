@@ -204,3 +204,33 @@ DROP PACKAGE test.pkg;
 --echo #
 --echo # End of 11.4 tests
 --echo #
+
+
+--echo #
+--echo # Start of 11.7 tests
+--echo #
+
+--echo #
+--echo # MDEV-33281 Implement optimizer hints like in MySQL
+--echo #
+
+SET NAMES utf8mb4;
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1), (2);
+
+# Test that aliases are accent sensitive with lowercase-table-names=1
+# Test that table names in hints are also accent sensitive
+SELECT /*+BKA(a) BKA(å)*/ a.a FROM t1 a, t1 å;
+
+# Test that aliases are case insensitive with lowercase-table-names=1
+--error ER_NONUNIQ_TABLE
+SELECT a.a, A.a FROM t1 a, t1 A;
+# Test that table names in hints are also case insensitive
+SELECT /*+BKA(a) BKA(A)*/ a.a FROM t1 a;
+
+DROP TABLE t1;
+
+--echo #
+--echo # End of 11.7 tests
+--echo #

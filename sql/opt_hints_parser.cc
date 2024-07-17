@@ -21,6 +21,7 @@
 #include "sql_error.h"
 #include "mysqld_error.h"
 #include "sql_class.h"
+#include "sql_show.h"
 
 
 extern struct st_opt_hint_info opt_hint_info[];
