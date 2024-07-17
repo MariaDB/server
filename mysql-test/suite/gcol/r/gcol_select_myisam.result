@@ -1174,14 +1174,14 @@ c BLOB GENERATED ALWAYS AS (a+b) VIRTUAL,
 UNIQUE KEY i0008 (a)
 );
 INSERT INTO t(a,b) VALUES(1,'cccc');
-EXPLAIN SELECT /*+ bka() */ 1 AS c FROM t AS b RIGHT JOIN t AS c ON b.a > c.c
+EXPLAIN SELECT 1 AS c FROM t AS b RIGHT JOIN t AS c ON b.a > c.c
 WHERE b.b>c.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 Warnings:
 Warning	1292	Truncated incorrect DOUBLE value: 'cccc'
 Warning	1292	Truncated incorrect DECIMAL value: 'cccc'
-SELECT /*+ bka() */ 1 AS c FROM t AS b RIGHT JOIN t AS c ON b.a > c.c
+SELECT 1 AS c FROM t AS b RIGHT JOIN t AS c ON b.a > c.c
 WHERE b.b>c.a;
 c
 Warnings:
@@ -1315,11 +1315,11 @@ test.t3	analyze	status	Engine-independent statistics collected
 test.t3	analyze	status	OK
 test.t4	analyze	status	Engine-independent statistics collected
 test.t4	analyze	status	OK
-EXPLAIN SELECT /*+ NO_SEMIJOIN(@subq1) */ t1.c1, t2.i1
+EXPLAIN SELECT t1.c1, t2.i1
 FROM t1 STRAIGHT_JOIN t3 STRAIGHT_JOIN t2
 WHERE ( t3.pk IN
 (
-SELECT /*+ QB_NAME(subq1) */ t4.i1
+SELECT t4.i1
 FROM t4
 WHERE t4.c1 < 'o'
   )
@@ -1330,11 +1330,11 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using join buffer (flat, BNL join)
 1	PRIMARY	t3	eq_ref	PRIMARY,v_idx	PRIMARY	4	test.t4.i1	1	Using where; End temporary
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using join buffer (flat, BNL join)
-SELECT /*+ NO_SEMIJOIN(@subq1) */ t1.c1, t2.i1
+SELECT t1.c1, t2.i1
 FROM t1 STRAIGHT_JOIN t3 STRAIGHT_JOIN t2
 WHERE ( t3.pk IN
 (
-SELECT /*+ QB_NAME(subq1) */ t4.i1
+SELECT t4.i1
 FROM t4
 WHERE t4.c1 < 'o'
   )
@@ -1370,11 +1370,11 @@ t	9
 # Test 2: Two alternative covering indexes for the range scan
 #
 ALTER TABLE t3 ADD INDEX v_idx2 (i2_key, i1);
-EXPLAIN SELECT /*+ NO_SEMIJOIN(@subq1) */ t1.c1, t2.i1
+EXPLAIN SELECT t1.c1, t2.i1
 FROM t1 STRAIGHT_JOIN t3 STRAIGHT_JOIN t2
 WHERE ( t3.pk IN
 (
-SELECT /*+ QB_NAME(subq1) */ t4.i1
+SELECT t4.i1
 FROM t4
 WHERE t4.c1 < 'o'
   )
@@ -1385,11 +1385,11 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using join buffer (flat, BNL join)
 1	PRIMARY	t3	eq_ref	PRIMARY,v_idx,v_idx2	PRIMARY	4	test.t4.i1	1	Using where; End temporary
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using join buffer (flat, BNL join)
-SELECT /*+ NO_SEMIJOIN(@subq1) */ t1.c1, t2.i1
+SELECT t1.c1, t2.i1
 FROM t1 STRAIGHT_JOIN t3 STRAIGHT_JOIN t2
 WHERE ( t3.pk IN
 (
-SELECT /*+ QB_NAME(subq1) */ t4.i1
+SELECT t4.i1
 FROM t4
 WHERE t4.c1 < 'o'
   )
@@ -1427,11 +1427,11 @@ t	9
 #
 # Drop the index with only the virtual column
 ALTER TABLE t3 DROP INDEX v_idx;
-EXPLAIN SELECT /*+ NO_SEMIJOIN(@subq1) */ t1.c1, t2.i1
+EXPLAIN SELECT t1.c1, t2.i1
 FROM t1 STRAIGHT_JOIN t3 STRAIGHT_JOIN t2
 WHERE ( t3.pk IN
 (
-SELECT /*+ QB_NAME(subq1) */ t4.i1
+SELECT t4.i1
 FROM t4
 WHERE t4.c1 < 'o'
   )
@@ -1442,11 +1442,11 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using join buffer (flat, BNL join)
 1	PRIMARY	t3	eq_ref	PRIMARY,v_idx2	PRIMARY	4	test.t4.i1	1	Using where; End temporary
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using join buffer (flat, BNL join)
-SELECT /*+ NO_SEMIJOIN(@subq1) */ t1.c1, t2.i1
+SELECT t1.c1, t2.i1
 FROM t1 STRAIGHT_JOIN t3 STRAIGHT_JOIN t2
 WHERE ( t3.pk IN
 (
-SELECT /*+ QB_NAME(subq1) */ t4.i1
+SELECT t4.i1
 FROM t4
 WHERE t4.c1 < 'o'
   )
@@ -1493,11 +1493,11 @@ VALUES (10,1), (11,1), (12,1), (13,1), (14,1),(15,1), (16,1),(17,1), (18,1),
 (28,1), (29,1);
 # Change the query to read an extra column (t3.i1) making the index
 # non-covering.
-EXPLAIN SELECT /*+ NO_SEMIJOIN(@subq1) */ t1.c1, t2.i1, t3.i1
+EXPLAIN SELECT t1.c1, t2.i1, t3.i1
 FROM t1 STRAIGHT_JOIN t3 STRAIGHT_JOIN t2
 WHERE ( t3.pk IN
 (
-SELECT /*+ QB_NAME(subq1) */ t4.i1
+SELECT t4.i1
 FROM t4
 WHERE t4.c1 < 'o'
   )
@@ -1508,11 +1508,11 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using join buffer (flat, BNL join)
 1	PRIMARY	t3	eq_ref	PRIMARY,v_idx	PRIMARY	4	test.t4.i1	1	Using where; End temporary
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using join buffer (flat, BNL join)
-SELECT /*+ NO_SEMIJOIN(@subq1) */ t1.c1, t2.i1, t3.i1
+SELECT t1.c1, t2.i1, t3.i1
 FROM t1 STRAIGHT_JOIN t3 STRAIGHT_JOIN t2
 WHERE ( t3.pk IN
 (
-SELECT /*+ QB_NAME(subq1) */ t4.i1
+SELECT t4.i1
 FROM t4
 WHERE t4.c1 < 'o'
   )
@@ -1548,11 +1548,11 @@ t	9	48
 # Test 5: Test where the added primary key to secondary indexes is
 #         used after it has been included in the join buffer
 #
-EXPLAIN SELECT /*+ NO_SEMIJOIN(@subq1) */ t1.c1, t2.i1
+EXPLAIN SELECT t1.c1, t2.i1
 FROM t1 STRAIGHT_JOIN t3 STRAIGHT_JOIN t2
 WHERE ( t3.pk IN
 (
-SELECT /*+ QB_NAME(subq1) */ t4.i1
+SELECT t4.i1
 FROM t4
 WHERE t4.c1 < 'o' and t4.i1 < (t2.i1 + 1)
 )
@@ -1563,11 +1563,11 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using join buffer (flat, BNL join)
 1	PRIMARY	t3	eq_ref	PRIMARY,v_idx	PRIMARY	4	test.t4.i1	1	Using where
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using where; End temporary; Using join buffer (flat, BNL join)
-SELECT /*+ NO_SEMIJOIN(@subq1) */ t1.c1, t2.i1
+SELECT t1.c1, t2.i1
 FROM t1 STRAIGHT_JOIN t3 STRAIGHT_JOIN t2
 WHERE ( t3.pk IN
 (
-SELECT /*+ QB_NAME(subq1) */ t4.i1
+SELECT t4.i1
 FROM t4
 WHERE t4.c1 < 'o' and t4.i1 < (t2.i1 + 1)
 )
