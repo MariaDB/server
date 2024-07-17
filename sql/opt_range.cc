@@ -2269,10 +2269,10 @@ public:
   TRP_RANGE(SEL_ARG *key_arg, uint idx_arg, uint mrr_flags_arg)
    : key(key_arg), key_idx(idx_arg), mrr_flags(mrr_flags_arg)
   {}
-  virtual ~TRP_RANGE() = default;                     /* Remove gcc warning */
+  ~TRP_RANGE() override = default;                     /* Remove gcc warning */
 
   QUICK_SELECT_I *make_quick(PARAM *param, bool retrieve_full_rows,
-                             MEM_ROOT *parent_alloc)
+                             MEM_ROOT *parent_alloc) override
   {
     DBUG_ENTER("TRP_RANGE::make_quick");
     QUICK_RANGE_SELECT *quick;
@@ -2285,7 +2285,7 @@ public:
     DBUG_RETURN(quick);
   }
   void trace_basic_info(PARAM *param,
-                        Json_writer_object *trace_object) const;
+                        Json_writer_object *trace_object) const override;
 };
 
 void TRP_RANGE::trace_basic_info(PARAM *param,
@@ -2317,9 +2317,9 @@ class TRP_ROR_INTERSECT : public TABLE_READ_PLAN
 {
 public:
   TRP_ROR_INTERSECT() = default;                      /* Remove gcc warning */
-  virtual ~TRP_ROR_INTERSECT() = default;             /* Remove gcc warning */
+  ~TRP_ROR_INTERSECT() override = default;             /* Remove gcc warning */
   QUICK_SELECT_I *make_quick(PARAM *param, bool retrieve_full_rows,
-                             MEM_ROOT *parent_alloc);
+                             MEM_ROOT *parent_alloc) override;
 
   /* Array of pointers to ROR range scans used in this intersection */
   struct st_ror_scan_info **first_scan;
@@ -2328,7 +2328,7 @@ public:
   bool is_covering; /* TRUE if no row retrieval phase is necessary */
   double index_scan_costs; /* SUM(cost(index_scan)) */
   void trace_basic_info(PARAM *param,
-                        Json_writer_object *trace_object) const;
+                        Json_writer_object *trace_object) const override;
 };
 
 
@@ -2343,13 +2343,13 @@ class TRP_ROR_UNION : public TABLE_READ_PLAN
 {
 public:
   TRP_ROR_UNION() = default;                          /* Remove gcc warning */
-  virtual ~TRP_ROR_UNION() = default;                 /* Remove gcc warning */
+  ~TRP_ROR_UNION() override = default;                 /* Remove gcc warning */
   QUICK_SELECT_I *make_quick(PARAM *param, bool retrieve_full_rows,
-                             MEM_ROOT *parent_alloc);
+                             MEM_ROOT *parent_alloc) override;
   TABLE_READ_PLAN **first_ror; /* array of ptrs to plans for merged scans */
   TABLE_READ_PLAN **last_ror;  /* end of the above array */
   void trace_basic_info(PARAM *param,
-                        Json_writer_object *trace_object) const;
+                        Json_writer_object *trace_object) const override;
 };
 
 void TRP_ROR_UNION::trace_basic_info(PARAM *param,
@@ -2376,15 +2376,15 @@ class TRP_INDEX_INTERSECT : public TABLE_READ_PLAN
 {
 public:
   TRP_INDEX_INTERSECT() = default;                     /* Remove gcc warning */
-  virtual ~TRP_INDEX_INTERSECT() = default;            /* Remove gcc warning */
+  ~TRP_INDEX_INTERSECT() override = default;            /* Remove gcc warning */
   QUICK_SELECT_I *make_quick(PARAM *param, bool retrieve_full_rows,
-                             MEM_ROOT *parent_alloc);
+                             MEM_ROOT *parent_alloc) override;
   TRP_RANGE **range_scans; /* array of ptrs to plans of intersected scans */
   TRP_RANGE **range_scans_end; /* end of the array */
   /* keys whose scans are to be filtered by cpk conditions */
   key_map filtered_scans;
   void trace_basic_info(PARAM *param,
-                        Json_writer_object *trace_object) const;
+                        Json_writer_object *trace_object) const override;
 
 };
 
@@ -2413,13 +2413,13 @@ class TRP_INDEX_MERGE : public TABLE_READ_PLAN
 {
 public:
   TRP_INDEX_MERGE() = default;                        /* Remove gcc warning */
-  virtual ~TRP_INDEX_MERGE() = default;               /* Remove gcc warning */
+  ~TRP_INDEX_MERGE() override = default;               /* Remove gcc warning */
   QUICK_SELECT_I *make_quick(PARAM *param, bool retrieve_full_rows,
-                             MEM_ROOT *parent_alloc);
+                             MEM_ROOT *parent_alloc) override;
   TRP_RANGE **range_scans; /* array of ptrs to plans of merged scans */
   TRP_RANGE **range_scans_end; /* end of the array */
   void trace_basic_info(PARAM *param,
-                        Json_writer_object *trace_object) const;
+                        Json_writer_object *trace_object) const override;
 };
 
 void TRP_INDEX_MERGE::trace_basic_info(PARAM *param,
@@ -2481,13 +2481,13 @@ public:
       if (key_infix_len)
         memcpy(this->key_infix, key_infix_arg, key_infix_len);
     }
-  virtual ~TRP_GROUP_MIN_MAX() = default;             /* Remove gcc warning */
+  ~TRP_GROUP_MIN_MAX() override = default;             /* Remove gcc warning */
 
   QUICK_SELECT_I *make_quick(PARAM *param, bool retrieve_full_rows,
-                             MEM_ROOT *parent_alloc);
+                             MEM_ROOT *parent_alloc) override;
   void use_index_scan() { is_index_scan= TRUE; }
   void trace_basic_info(PARAM *param,
-                        Json_writer_object *trace_object) const;
+                        Json_writer_object *trace_object) const override;
 };
 
 
@@ -2708,7 +2708,10 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
     only_single_index_range_scan= 1;
 
   if (head->force_index || force_quick_range)
+  {
+    DEBUG_SYNC(thd, "in_forced_range_optimize");
     scan_time= read_time= DBL_MAX;
+  }
   else
   {
     scan_time= rows2double(records) / TIME_FOR_COMPARE;
@@ -16450,6 +16453,7 @@ static
 void print_range(String *out, const KEY_PART_INFO *key_part,
                  KEY_MULTI_RANGE *range, uint n_key_parts)
 {
+  Check_level_instant_set check_field(current_thd, CHECK_FIELD_IGNORE);
   uint flag= range->range_flag;
   String key_name;
   key_name.set_charset(system_charset_info);

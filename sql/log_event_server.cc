@@ -1437,7 +1437,7 @@ Query_log_event::Query_log_event(THD* thd_arg, const char* query_arg,
     is created we create tables with thd->variables.wsrep_on=false
     to avoid replicating wsrep_schema tables to other nodes.
    */
-  if (WSREP_ON && !is_trans_keyword())
+  if (WSREP_ON && !is_trans_keyword(false))
   {
     thd->wsrep_PA_safe= false;
   }
@@ -1715,7 +1715,11 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
             ::do_apply_event(), then the companion SET also have so
             we don't need to reset_one_shot_variables().
   */
-  if (is_trans_keyword() || rpl_filter->db_ok(thd->db.str))
+  if (rpl_filter->is_db_empty() ||
+      is_trans_keyword(
+          (rgi->gtid_ev_flags2 & (Gtid_log_event::FL_PREPARED_XA |
+                                  Gtid_log_event::FL_COMPLETED_XA))) ||
+      rpl_filter->db_ok(thd->db.str))
   {
 #ifdef WITH_WSREP
     if (!wsrep_thd_is_applying(thd))
@@ -2039,6 +2043,16 @@ compare_errors:
       if (actual_error == ER_QUERY_INTERRUPTED ||
           actual_error == ER_CONNECTION_KILLED)
         thd->reset_killed();
+    }
+    else if (actual_error == ER_XAER_NOTA && !rpl_filter->db_ok(get_db()))
+    {
+      /*
+        If there is an XA query whos XID cannot be found, if the replication
+        filter is active and filters the target database, assume that the XID
+        cache has been cleared (e.g. by server restart) since it was prepared,
+        so we can just ignore this event.
+      */
+      thd->clear_error(1);
     }
     /*
       Other cases: mostly we expected no error and get one.
@@ -8523,6 +8537,7 @@ uint8 Update_rows_log_event::get_trg_event_map()
 #endif
 
 
+#if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
 void Incident_log_event::pack_info(Protocol *protocol)
 {
   char buf[256];
@@ -8535,7 +8550,7 @@ void Incident_log_event::pack_info(Protocol *protocol)
                        m_incident, description(), m_message.str);
   protocol->store(buf, bytes, &my_charset_bin);
 }
-
+#endif
 
 #if defined(WITH_WSREP)
 /*
@@ -8622,6 +8637,7 @@ Incident_log_event::write_data_body()
 }
 
 
+#if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
 /* Pack info for its unrecognized ignorable event */
 void Ignorable_log_event::pack_info(Protocol *protocol)
 {
@@ -8631,7 +8647,7 @@ void Ignorable_log_event::pack_info(Protocol *protocol)
                      number, description);
   protocol->store(buf, bytes, &my_charset_bin);
 }
-
+#endif
 
 #if defined(HAVE_REPLICATION)
 Heartbeat_log_event::Heartbeat_log_event(const char* buf, ulong event_len,

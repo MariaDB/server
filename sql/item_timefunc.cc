@@ -2462,21 +2462,21 @@ String *Item_char_typecast::val_str_binary_from_native(String *str)
 class Item_char_typecast_func_handler: public Item_handled_func::Handler_str
 {
 public:
-  const Type_handler *return_type_handler(const Item_handled_func *item) const
+  const Type_handler *return_type_handler(const Item_handled_func *item) const override
   {
     return Type_handler::string_type_handler(item->max_length);
   }
   const Type_handler *
-    type_handler_for_create_select(const Item_handled_func *item) const
+    type_handler_for_create_select(const Item_handled_func *item) const override
   {
     return return_type_handler(item)->type_handler_for_tmp_table(item);
   }
 
-  bool fix_length_and_dec(Item_handled_func *item) const
+  bool fix_length_and_dec(Item_handled_func *item) const override
   {
     return false;
   }
-  String *val_str(Item_handled_func *item, String *to) const
+  String *val_str(Item_handled_func *item, String *to) const override
   {
     DBUG_ASSERT(dynamic_cast<const Item_char_typecast*>(item));
     return static_cast<Item_char_typecast*>(item)->val_str_generic(to);

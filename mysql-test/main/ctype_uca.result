@@ -10021,8 +10021,8 @@ INSERT INTO t1 (s1) VALUES
 (_ucs2 0x1011103910191004103A1038 /* cooked rice */),
 (_ucs2 0x101C1000103A10181000103A),
 (_ucs2 0x101C103910181000103A /* tea */);
-SELECT id, IF(LEFT(s1,1)='-',s1,CONCAT(HEX(WEIGHT_STRING(s1)),'\t', HEX(CONVERT(s1 USING ucs2)))) FROM t1 ORDER BY id;
-id	IF(LEFT(s1,1)='-',s1,CONCAT(HEX(WEIGHT_STRING(s1)),'\t', HEX(CONVERT(s1 USING ucs2))))
+SELECT id, IF(LEFT(s1,1)='-',s1,CONCAT(HEX(WEIGHT_STRING(s1)),'\t', HEX(CONVERT(s1 USING ucs2)))) as exp FROM t1 ORDER BY id;
+id	exp
 1	2259	108C
 2	22593ACB	1037
 3	22593ACC	1038
@@ -12597,8 +12597,8 @@ INSERT INTO t1 (s1) VALUES
 (_ucs2 0x1011103910191004103A1038 /* cooked rice */),
 (_ucs2 0x101C1000103A10181000103A),
 (_ucs2 0x101C103910181000103A /* tea */);
-SELECT id, IF(LEFT(s1,1)='-',s1,CONCAT(HEX(WEIGHT_STRING(s1)),'\t', HEX(CONVERT(s1 USING ucs2)))) FROM t1 ORDER BY id;
-id	IF(LEFT(s1,1)='-',s1,CONCAT(HEX(WEIGHT_STRING(s1)),'\t', HEX(CONVERT(s1 USING ucs2))))
+SELECT id, IF(LEFT(s1,1)='-',s1,CONCAT(HEX(WEIGHT_STRING(s1)),'\t', HEX(CONVERT(s1 USING ucs2)))) as exp FROM t1 ORDER BY id;
+id	exp
 1	2259	108C
 2	22593ACB	1037
 3	22593ACC	1038
@@ -15369,4 +15369,40 @@ DROP VIEW v1;
 DROP TABLE t1;
 #
 # End of MariaDB-10.2 tests
+#
+#
+# Start of 10.5 tests
+#
+#
+# MDEV-34417 Wrong result set with utf8mb4_danish_ci and BNLH join
+#
+CREATE TABLE t1 (a VARCHAR(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_danish_ci);
+INSERT INTO t1 VALUES ('aaaa'),('åå');
+SELECT * FROM t1 WHERE a='aaaa';
+a
+aaaa
+åå
+SET join_cache_level=1;
+SELECT * FROM t1 NATURAL JOIN t1 t2;
+a
+aaaa
+åå
+aaaa
+åå
+# Expect a BNHL join
+SET join_cache_level=3;
+EXPLAIN SELECT * FROM t1 NATURAL JOIN t1 t2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	SIMPLE	t2	hash_ALL	NULL	#hash#$hj	2003	test.t1.a	2	Using where; Using join buffer (flat, BNLH join)
+SELECT * FROM t1 NATURAL JOIN t1 t2;
+a
+aaaa
+åå
+aaaa
+åå
+DROP TABLE t1;
+SET join_cache_level=DEFAULT;
+#
+# End of 10.5 tests
 #

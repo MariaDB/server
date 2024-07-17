@@ -441,7 +441,7 @@ class ha_rocksdb : public my_core::handler {
 
   ha_rocksdb(my_core::handlerton *const hton,
              my_core::TABLE_SHARE *const table_arg);
-  virtual ~ha_rocksdb() override {
+  ~ha_rocksdb() override {
     int err MY_ATTRIBUTE((__unused__));
     err = finalize_bulk_load(false);
     if (err != 0) {
@@ -458,7 +458,7 @@ class ha_rocksdb : public my_core::handler {
 
     const char *table_type() const
 
-    is non-virtual in class handler, so there's no point to override it.
+    is non-in class handler, so there's no point to override it.
   */
 
   /* The following is only used by SHOW KEYS: */
@@ -623,15 +623,15 @@ public:
                        bool sorted) override
       MY_ATTRIBUTE((__warn_unused_result__));
 
-  virtual double scan_time() override {
+  double scan_time() override {
     DBUG_ENTER_FUNC();
 
     DBUG_RETURN(
         static_cast<double>((stats.records + stats.deleted) / 20.0 + 10));
   }
 
-  virtual double read_time(uint, uint, ha_rows rows) override;
-  virtual void print_error(int error, myf errflag) override;
+  double read_time(uint, uint, ha_rows rows) override;
+  void print_error(int error, myf errflag) override;
 
   int open(const char *const name, int mode, uint test_if_locked) override
       MY_ATTRIBUTE((__warn_unused_result__));
@@ -977,11 +977,11 @@ public:
 
 #ifdef MARIAROCKS_NOT_YET // MDEV-10976
  public:
-  virtual void rpl_before_delete_rows() override;
-  virtual void rpl_after_delete_rows() override;
-  virtual void rpl_before_update_rows() override;
-  virtual void rpl_after_update_rows() override;
-  virtual bool use_read_free_rpl() const override;
+  void rpl_before_delete_rows() override;
+  void rpl_after_delete_rows() override;
+  void rpl_before_update_rows() override;
+  void rpl_after_update_rows() override;
+  bool use_read_free_rpl() const override;
 #endif // MARIAROCKS_NOT_YET
 
  private:

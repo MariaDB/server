@@ -118,37 +118,37 @@ public:
   Item_sum_row_number(THD *thd)
     : Item_sum_int(thd),  count(0) {}
 
-  const Type_handler *type_handler() const { return &type_handler_slonglong; }
+  const Type_handler *type_handler() const override { return &type_handler_slonglong; }
 
-  void clear()
+  void clear() override
   {
     count= 0;
   }
 
-  bool add()
+  bool add() override
   {
     count++;
     return false;
   }
 
-  void reset_field() { DBUG_ASSERT(0); }
-  void update_field() {}
+  void reset_field() override { DBUG_ASSERT(0); }
+  void update_field() override {}
 
-  enum Sumfunctype sum_func() const
+  enum Sumfunctype sum_func() const override
   {
     return ROW_NUMBER_FUNC;
   }
 
-  longlong val_int()
+  longlong val_int() override
   {
     return count;
   }
-  const char*func_name() const
+  const char*func_name() const override
   {
     return "row_number";
   }
 
-  Item *get_copy(THD *thd)
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_sum_row_number>(thd, this); }
 };
 
@@ -181,38 +181,38 @@ public:
 
   Item_sum_rank(THD *thd) : Item_sum_int(thd), peer_tracker(NULL) {}
 
-  const Type_handler *type_handler() const { return &type_handler_slonglong; }
+  const Type_handler *type_handler() const override { return &type_handler_slonglong; }
 
-  void clear()
+  void clear() override
   {
     /* This is called on partition start */
     cur_rank= 1;
     row_number= 0;
   }
 
-  bool add();
+  bool add() override;
 
-  longlong val_int()
+  longlong val_int() override
   {
     return cur_rank;
   }
 
-  void reset_field() { DBUG_ASSERT(0); }
-  void update_field() {}
+  void reset_field() override { DBUG_ASSERT(0); }
+  void update_field() override {}
 
-  enum Sumfunctype sum_func () const
+  enum Sumfunctype sum_func () const override
   {
     return RANK_FUNC;
   }
 
-  const char*func_name() const
+  const char*func_name() const override
   {
     return "rank";
   }
 
-  void setup_window_func(THD *thd, Window_spec *window_spec);
+  void setup_window_func(THD *thd, Window_spec *window_spec) override;
 
-  void cleanup()
+  void cleanup() override
   {
     if (peer_tracker)
     {
@@ -221,7 +221,7 @@ public:
     }
     Item_sum_int::cleanup();
   }
-  Item *get_copy(THD *thd)
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_sum_rank>(thd, this); }
 };
 
@@ -255,35 +255,35 @@ class Item_sum_dense_rank: public Item_sum_int
      XXX(cvicentiu) This class could potentially be implemented in the rank
      class, with a switch for the DENSE case.
   */
-  void clear()
+  void clear() override
   {
     dense_rank= 0;
     first_add= true;
   }
-  bool add();
-  void reset_field() { DBUG_ASSERT(0); }
-  void update_field() {}
-  longlong val_int()
+  bool add() override;
+  void reset_field() override { DBUG_ASSERT(0); }
+  void update_field() override {}
+  longlong val_int() override
   {
     return dense_rank;
   }
 
   Item_sum_dense_rank(THD *thd)
     : Item_sum_int(thd), dense_rank(0), first_add(true), peer_tracker(NULL) {}
-  const Type_handler *type_handler() const { return &type_handler_slonglong; }
-  enum Sumfunctype sum_func () const
+  const Type_handler *type_handler() const override { return &type_handler_slonglong; }
+  enum Sumfunctype sum_func () const override
   {
     return DENSE_RANK_FUNC;
   }
 
-  const char*func_name() const
+  const char*func_name() const override
   {
     return "dense_rank";
   }
 
-  void setup_window_func(THD *thd, Window_spec *window_spec);
+  void setup_window_func(THD *thd, Window_spec *window_spec) override;
 
-  void cleanup()
+  void cleanup() override
   {
     if (peer_tracker)
     {
@@ -292,7 +292,7 @@ class Item_sum_dense_rank: public Item_sum_int
     }
     Item_sum_int::cleanup();
   }
-  Item *get_copy(THD *thd)
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_sum_dense_rank>(thd, this); }
 };
 
@@ -309,22 +309,22 @@ class Item_sum_hybrid_simple : public Item_sum_hybrid
    value(NULL)
   { }
 
-  bool add();
-  bool fix_fields(THD *, Item **);
-  bool fix_length_and_dec();
+  bool add() override;
+  bool fix_fields(THD *, Item **) override;
+  bool fix_length_and_dec() override;
   void setup_hybrid(THD *thd, Item *item);
-  double val_real();
-  longlong val_int();
-  my_decimal *val_decimal(my_decimal *);
-  void reset_field();
-  String *val_str(String *);
-  bool val_native(THD *thd, Native *to);
-  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate);
-  const Type_handler *type_handler() const
+  double val_real() override;
+  longlong val_int() override;
+  my_decimal *val_decimal(my_decimal *) override;
+  void reset_field() override;
+  String *val_str(String *) override;
+  bool val_native(THD *thd, Native *to) override;
+  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override;
+  const Type_handler *type_handler() const override
   { return Type_handler_hybrid_field_type::type_handler(); }
-  void update_field();
-  Field *create_tmp_field(MEM_ROOT *root, bool group, TABLE *table);
-  void clear()
+  void update_field() override;
+  Field *create_tmp_field(MEM_ROOT *root, bool group, TABLE *table) override;
+  void clear() override
   {
     value->clear();
     null_value= 1;
@@ -345,17 +345,17 @@ class Item_sum_first_value : public Item_sum_hybrid_simple
     Item_sum_hybrid_simple(thd, arg_expr) {}
 
 
-  enum Sumfunctype sum_func () const
+  enum Sumfunctype sum_func () const override
   {
     return FIRST_VALUE_FUNC;
   }
 
-  const char*func_name() const
+  const char*func_name() const override
   {
     return "first_value";
   }
 
-  Item *get_copy(THD *thd)
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_sum_first_value>(thd, this); }
 };
 
@@ -371,17 +371,17 @@ class Item_sum_last_value : public Item_sum_hybrid_simple
   Item_sum_last_value(THD* thd, Item* arg_expr) :
     Item_sum_hybrid_simple(thd, arg_expr) {}
 
-  enum Sumfunctype sum_func() const
+  enum Sumfunctype sum_func() const override
   {
     return LAST_VALUE_FUNC;
   }
 
-  const char*func_name() const
+  const char*func_name() const override
   {
     return "last_value";
   }
 
-  Item *get_copy(THD *thd)
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_sum_last_value>(thd, this); }
 };
 
@@ -391,17 +391,17 @@ class Item_sum_nth_value : public Item_sum_hybrid_simple
   Item_sum_nth_value(THD *thd, Item *arg_expr, Item* offset_expr) :
     Item_sum_hybrid_simple(thd, arg_expr, offset_expr) {}
 
-  enum Sumfunctype sum_func() const
+  enum Sumfunctype sum_func() const override
   {
     return NTH_VALUE_FUNC;
   }
 
-  const char*func_name() const
+  const char*func_name() const override
   {
     return "nth_value";
   }
 
-  Item *get_copy(THD *thd)
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_sum_nth_value>(thd, this); }
 };
 
@@ -411,17 +411,17 @@ class Item_sum_lead : public Item_sum_hybrid_simple
   Item_sum_lead(THD *thd, Item *arg_expr, Item* offset_expr) :
     Item_sum_hybrid_simple(thd, arg_expr, offset_expr) {}
 
-  enum Sumfunctype sum_func() const
+  enum Sumfunctype sum_func() const override
   {
     return LEAD_FUNC;
   }
 
-  const char*func_name() const
+  const char*func_name() const override
   {
     return "lead";
   }
 
-  Item *get_copy(THD *thd)
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_sum_lead>(thd, this); }
 };
 
@@ -431,17 +431,17 @@ class Item_sum_lag : public Item_sum_hybrid_simple
   Item_sum_lag(THD *thd, Item *arg_expr, Item* offset_expr) :
     Item_sum_hybrid_simple(thd, arg_expr, offset_expr) {}
 
-  enum Sumfunctype sum_func() const
+  enum Sumfunctype sum_func() const override
   {
     return LAG_FUNC;
   }
 
-  const char*func_name() const
+  const char*func_name() const override
   {
     return "lag";
   }
 
-  Item *get_copy(THD *thd)
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_sum_lag>(thd, this); }
 };
 
@@ -495,7 +495,7 @@ class Item_sum_percent_rank: public Item_sum_double,
   Item_sum_percent_rank(THD *thd)
     : Item_sum_double(thd), cur_rank(1), peer_tracker(NULL) {}
 
-  longlong val_int()
+  longlong val_int() override
   {
    /*
       Percent rank is a real value so calling the integer value should never
@@ -505,7 +505,7 @@ class Item_sum_percent_rank: public Item_sum_double,
     return 0;
   }
 
-  double val_real()
+  double val_real() override
   {
    /*
      We can not get the real value without knowing the number of rows
@@ -518,43 +518,43 @@ class Item_sum_percent_rank: public Item_sum_double,
              static_cast<double>(cur_rank - 1) / (partition_rows - 1) : 0;
   }
 
-  enum Sumfunctype sum_func () const
+  enum Sumfunctype sum_func () const override
   {
     return PERCENT_RANK_FUNC;
   }
 
-  const char*func_name() const
+  const char*func_name() const override
   {
     return "percent_rank";
   }
 
-  void update_field() {}
+  void update_field() override {}
 
-  void clear()
+  void clear() override
   {
     cur_rank= 1;
     row_number= 0;
   }
-  bool add();
-  const Type_handler *type_handler() const { return &type_handler_double; }
+  bool add() override;
+  const Type_handler *type_handler() const override { return &type_handler_double; }
 
-  bool fix_length_and_dec()
+  bool fix_length_and_dec() override
   {
     decimals = 10;  // TODO-cvicentiu find out how many decimals the standard
                     // requires.
     return FALSE;
   }
 
-  void setup_window_func(THD *thd, Window_spec *window_spec);
+  void setup_window_func(THD *thd, Window_spec *window_spec) override;
 
-  void reset_field() { DBUG_ASSERT(0); }
+  void reset_field() override { DBUG_ASSERT(0); }
 
-  void set_partition_row_count(ulonglong count)
+  void set_partition_row_count(ulonglong count) override
   {
     Partition_row_count::set_partition_row_count(count);
   }
 
-  Item *get_copy(THD *thd)
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_sum_percent_rank>(thd, this); }
 
  private:
@@ -563,7 +563,7 @@ class Item_sum_percent_rank: public Item_sum_double,
 
   Group_bound_tracker *peer_tracker;
 
-  void cleanup()
+  void cleanup() override
   {
     if (peer_tracker)
     {
@@ -596,51 +596,51 @@ class Item_sum_cume_dist: public Item_sum_double,
   Item_sum_cume_dist(THD *thd) :Item_sum_double(thd) { }
   Item_sum_cume_dist(THD *thd, Item *arg) :Item_sum_double(thd, arg) { }
 
-  double val_real()
+  double val_real() override
   {
     return calc_val_real(&null_value, current_row_count_);
   }
 
-  bool add()
+  bool add() override
   {
     current_row_count_++;
     return false;
   }
 
-  enum Sumfunctype sum_func() const
+  enum Sumfunctype sum_func() const override
   {
     return CUME_DIST_FUNC;
   }
 
-  void clear()
+  void clear() override
   {
     current_row_count_= 0;
     partition_row_count_= 0;
   }
 
-  const char*func_name() const
+  const char*func_name() const override
   {
     return "cume_dist";
   }
 
-  void update_field() {}
-  const Type_handler *type_handler() const { return &type_handler_double; }
+  void update_field() override {}
+  const Type_handler *type_handler() const override { return &type_handler_double; }
 
-  bool fix_length_and_dec()
+  bool fix_length_and_dec() override
   {
     decimals = 10;  // TODO-cvicentiu find out how many decimals the standard
                     // requires.
     return FALSE;
   }
   
-  void reset_field() { DBUG_ASSERT(0); }
+  void reset_field() override { DBUG_ASSERT(0); }
 
-  void set_partition_row_count(ulonglong count)
+  void set_partition_row_count(ulonglong count) override
   {
     Partition_row_count::set_partition_row_count(count);
   }
 
-  Item *get_copy(THD *thd)
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_sum_cume_dist>(thd, this); }
 
 };
@@ -654,7 +654,7 @@ class Item_sum_ntile : public Item_sum_int,
     Item_sum_int(thd, num_quantiles_expr), n_old_val_(0)
   { }
 
-  longlong val_int()
+  longlong val_int() override
   {
     if (get_row_count() == 0)
     {
@@ -681,41 +681,41 @@ class Item_sum_ntile : public Item_sum_int,
     return (current_row_count_ - 1 - extra_rows) / quantile_size + 1;
   }
 
-  bool add()
+  bool add() override
   {
     current_row_count_++;
     return false;
   }
 
-  enum Sumfunctype sum_func() const
+  enum Sumfunctype sum_func() const override
   {
     return NTILE_FUNC;
   }
 
-  void clear()
+  void clear() override
   {
     current_row_count_= 0;
     partition_row_count_= 0;
     n_old_val_= 0;
   }
 
-  const char*func_name() const
+  const char*func_name() const override
   {
     return "ntile";
   }
 
-  void update_field() {}
+  void update_field() override {}
 
-  const Type_handler *type_handler() const { return &type_handler_slonglong; }
+  const Type_handler *type_handler() const override { return &type_handler_slonglong; }
 
-  void reset_field() { DBUG_ASSERT(0); }
+  void reset_field() override { DBUG_ASSERT(0); }
 
-  void set_partition_row_count(ulonglong count)
+  void set_partition_row_count(ulonglong count) override
   {
     Partition_row_count::set_partition_row_count(count);
   }
 
-  Item *get_copy(THD *thd)
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_sum_ntile>(thd, this); }
 
  private:
@@ -734,7 +734,7 @@ public:
                            value(NULL), val_calculated(FALSE), first_call(TRUE),
                            prev_value(0), order_item(NULL){}
 
-  double val_real()
+  double val_real() override
   {
     if (get_row_count() == 0 || get_arg(0)->is_null())
     {
@@ -745,7 +745,7 @@ public:
     return value->val_real();
   }
 
-  longlong val_int()
+  longlong val_int() override
   {
     if (get_row_count() == 0 || get_arg(0)->is_null())
     {
@@ -756,7 +756,7 @@ public:
     return value->val_int();
   }
 
-  my_decimal* val_decimal(my_decimal* dec)
+  my_decimal* val_decimal(my_decimal* dec) override
   {
     if (get_row_count() == 0 || get_arg(0)->is_null())
     {
@@ -767,7 +767,7 @@ public:
     return value->val_decimal(dec);
   }
 
-  String* val_str(String *str)
+  String* val_str(String *str) override
   {
     if (get_row_count() == 0 || get_arg(0)->is_null())
     {
@@ -778,7 +778,7 @@ public:
     return value->val_str(str);
   }
 
-  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
+  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override
   {
     if (get_row_count() == 0 || get_arg(0)->is_null())
     {
@@ -789,7 +789,7 @@ public:
     return value->get_date(thd, ltime, fuzzydate);
   }
 
-  bool val_native(THD *thd, Native *to)
+  bool val_native(THD *thd, Native *to) override
   {
     if (get_row_count() == 0 || get_arg(0)->is_null())
     {
@@ -800,7 +800,7 @@ public:
     return value->val_native(thd, to);
   }
 
-  bool add()
+  bool add() override
   {
     Item *arg= get_arg(0);
     if (arg->is_null())
@@ -841,12 +841,12 @@ public:
     return false;
   }
 
-  enum Sumfunctype sum_func() const
+  enum Sumfunctype sum_func() const override
   {
     return PERCENTILE_DISC_FUNC;
   }
 
-  void clear()
+  void clear() override
   {
     val_calculated= false;
     first_call= true;
@@ -855,34 +855,34 @@ public:
     current_row_count_= 0;
   }
 
-  const char*func_name() const
+  const char*func_name() const override
   {
     return "percentile_disc";
   }
 
-  void update_field() {}
-  const Type_handler *type_handler() const
+  void update_field() override {}
+  const Type_handler *type_handler() const override
   {return Type_handler_hybrid_field_type::type_handler();}
 
-  bool fix_length_and_dec()
+  bool fix_length_and_dec() override
   {
     decimals = 10;  // TODO-cvicentiu find out how many decimals the standard
                     // requires.
     return FALSE;
   }
 
-  void reset_field() { DBUG_ASSERT(0); }
+  void reset_field() override { DBUG_ASSERT(0); }
 
-  void set_partition_row_count(ulonglong count)
+  void set_partition_row_count(ulonglong count) override
   {
     Partition_row_count::set_partition_row_count(count);
   }
 
-  Item *get_copy(THD *thd)
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_sum_percentile_disc>(thd, this); }
-  void setup_window_func(THD *thd, Window_spec *window_spec);
+  void setup_window_func(THD *thd, Window_spec *window_spec) override;
   void setup_hybrid(THD *thd, Item *item);
-  bool fix_fields(THD *thd, Item **ref);
+  bool fix_fields(THD *thd, Item **ref) override;
 
 private:
   Item_cache *value;
@@ -901,7 +901,7 @@ public:
                            floor_value(NULL), ceil_value(NULL), first_call(TRUE),prev_value(0),
                            ceil_val_calculated(FALSE), floor_val_calculated(FALSE), order_item(NULL){}
 
-  double val_real()
+  double val_real() override
   {
     if (get_row_count() == 0 || get_arg(0)->is_null())
     {
@@ -928,7 +928,7 @@ public:
     return ret_val;
   }
 
-  bool add()
+  bool add() override
   {
     Item *arg= get_arg(0);
     if (arg->is_null())
@@ -978,12 +978,12 @@ public:
     return false;
   }
 
-  enum Sumfunctype sum_func() const
+  enum Sumfunctype sum_func() const override
   {
     return PERCENTILE_CONT_FUNC;
   }
 
-  void clear()
+  void clear() override
   {
     first_call= true;
     floor_value->clear();
@@ -994,31 +994,31 @@ public:
     current_row_count_= 0;
   }
 
-  const char*func_name() const
+  const char*func_name() const override
   {
     return "percentile_cont";
   }
-  void update_field() {}
+  void update_field() override {}
 
-  bool fix_length_and_dec()
+  bool fix_length_and_dec() override
   {
     decimals = 10;  // TODO-cvicentiu find out how many decimals the standard
                     // requires.
     return FALSE;
   }
 
-  void reset_field() { DBUG_ASSERT(0); }
+  void reset_field() override { DBUG_ASSERT(0); }
 
-  void set_partition_row_count(ulonglong count)
+  void set_partition_row_count(ulonglong count) override
   {
     Partition_row_count::set_partition_row_count(count);
   }
 
-  Item *get_copy(THD *thd)
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_sum_percentile_cont>(thd, this); }
-  void setup_window_func(THD *thd, Window_spec *window_spec);
+  void setup_window_func(THD *thd, Window_spec *window_spec) override;
   void setup_hybrid(THD *thd, Item *item);
-  bool fix_fields(THD *thd, Item **ref);
+  bool fix_fields(THD *thd, Item **ref) override;
 
 private:
   Item_cache *floor_value;
@@ -1056,7 +1056,7 @@ public:
 
   Item_sum *window_func() const { return (Item_sum *) args[0]; }
 
-  void update_used_tables();
+  void update_used_tables() override;
 
   /*
     This is used by filesort to mark the columns it needs to read (because they
@@ -1067,7 +1067,7 @@ public:
     have been computed. In that case, window function will need to read its
     temp.table field. In order to allow that, mark that field in the read_set.
   */
-  bool register_field_in_read_map(void *arg)
+  bool register_field_in_read_map(void *arg) override
   {
     TABLE *table= (TABLE*) arg;
     if (result_field && (result_field->table == table || !table))
@@ -1170,11 +1170,11 @@ public:
   */
   void setup_partition_border_check(THD *thd);
 
-  const Type_handler *type_handler() const
+  const Type_handler *type_handler() const override
   {
     return ((Item_sum *) args[0])->type_handler();
   }
-  enum Item::Type type() const { return Item::WINDOW_FUNC_ITEM; }
+  enum Item::Type type() const override { return Item::WINDOW_FUNC_ITEM; }
 
 private:
   /* 
@@ -1217,7 +1217,7 @@ public:
     read_value_from_result_field= true;
   }
 
-  bool is_null()
+  bool is_null() override
   {
     if (force_return_blank)
       return true;
@@ -1228,7 +1228,7 @@ public:
     return window_func()->is_null();
   }
 
-  double val_real() 
+  double val_real() override 
   {
     double res;
     if (force_return_blank)
@@ -1249,7 +1249,7 @@ public:
     return res;
   }
 
-  longlong val_int()
+  longlong val_int() override
   {
     longlong res;
     if (force_return_blank)
@@ -1270,7 +1270,7 @@ public:
     return res;
   }
 
-  String* val_str(String* str)
+  String* val_str(String* str) override
   {
     String *res;
     if (force_return_blank)
@@ -1293,7 +1293,7 @@ public:
     return res;
   }
 
-  bool val_native(THD *thd, Native *to)
+  bool val_native(THD *thd, Native *to) override
   {
     if (force_return_blank)
       return null_value= true;
@@ -1302,7 +1302,7 @@ public:
     return val_native_from_item(thd, window_func(), to);
   }
 
-  my_decimal* val_decimal(my_decimal* dec)
+  my_decimal* val_decimal(my_decimal* dec) override
   {
     my_decimal *res;
     if (force_return_blank)
@@ -1325,7 +1325,7 @@ public:
     return res;
   }
 
-  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
+  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override
   {
     bool res;
     if (force_return_blank)
@@ -1349,23 +1349,23 @@ public:
   }
 
   void split_sum_func(THD *thd, Ref_ptr_array ref_pointer_array,
-                              List<Item> &fields, uint flags);
+                              List<Item> &fields, uint flags) override;
 
-  bool fix_length_and_dec()
+  bool fix_length_and_dec() override
   {
     Type_std_attributes::set(window_func());
     return FALSE;
   }
 
-  const char* func_name() const { return "WF"; }
+  const char* func_name() const override { return "WF"; }
 
-  bool fix_fields(THD *thd, Item **ref);
+  bool fix_fields(THD *thd, Item **ref) override;
 
   bool resolve_window_name(THD *thd);
   
-  void print(String *str, enum_query_type query_type);
+  void print(String *str, enum_query_type query_type) override;
 
- Item *get_copy(THD *thd) { return 0; }
+ Item *do_get_copy(THD *thd) const override { return 0; }
 
 };
 

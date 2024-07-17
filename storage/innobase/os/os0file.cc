@@ -3560,8 +3560,9 @@ os_file_get_status(
 
 extern void fil_aio_callback(const IORequest &request);
 
-static void io_callback(tpool::aiocb* cb)
+static void io_callback(void *_cb)
 {
+  tpool::aiocb* cb= static_cast<tpool::aiocb*>(_cb);
   const IORequest request(*static_cast<const IORequest*>
                           (static_cast<const void*>(cb->m_userdata)));
   if (cb->m_err != DB_SUCCESS)
@@ -3751,11 +3752,11 @@ disable:
 
 void os_aio_free()
 {
-  srv_thread_pool->disable_aio();
   delete read_slots;
   delete write_slots;
   read_slots= nullptr;
   write_slots= nullptr;
+  srv_thread_pool->disable_aio();
 }
 
 /** Wait until there are no pending asynchronous writes. */

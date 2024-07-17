@@ -199,10 +199,10 @@ public:
       m_current_search_depth(0),
       m_found_deadlock(FALSE)
   {}
-  virtual bool enter_node(MDL_context *node);
-  virtual void leave_node(MDL_context *node);
+  bool enter_node(MDL_context *node) override;
+  void leave_node(MDL_context *node) override;
 
-  virtual bool inspect_edge(MDL_context *dest);
+  bool inspect_edge(MDL_context *dest) override;
 
   MDL_context *get_victim() const { return m_victim; }
 private:
@@ -434,11 +434,11 @@ public:
   struct MDL_scoped_lock : public MDL_lock_strategy
   {
     MDL_scoped_lock() = default;
-    virtual const bitmap_t *incompatible_granted_types_bitmap() const
+    const bitmap_t *incompatible_granted_types_bitmap() const override
     { return m_granted_incompatible; }
-    virtual const bitmap_t *incompatible_waiting_types_bitmap() const
+    const bitmap_t *incompatible_waiting_types_bitmap() const override
     { return m_waiting_incompatible; }
-    virtual bool needs_notification(const MDL_ticket *ticket) const
+    bool needs_notification(const MDL_ticket *ticket) const override
     { return (ticket->get_type() == MDL_SHARED); }
 
     /**
@@ -449,14 +449,14 @@ public:
       insert delayed. We need to kill such threads in order to get
       global shared lock. We do this my calling code outside of MDL.
     */
-    virtual bool conflicting_locks(const MDL_ticket *ticket) const
+    bool conflicting_locks(const MDL_ticket *ticket) const override
     { return ticket->get_type() == MDL_INTENTION_EXCLUSIVE; }
 
     /*
       In scoped locks, only IX lock request would starve because of X/S. But that
       is practically very rare case. So just return 0 from this function.
     */
-    virtual bitmap_t hog_lock_types_bitmap() const
+    bitmap_t hog_lock_types_bitmap() const override
     { return 0; }
   private:
     static const bitmap_t m_granted_incompatible[MDL_TYPE_END];
@@ -471,11 +471,11 @@ public:
   struct MDL_object_lock : public MDL_lock_strategy
   {
     MDL_object_lock() = default;
-    virtual const bitmap_t *incompatible_granted_types_bitmap() const
+    const bitmap_t *incompatible_granted_types_bitmap() const override
     { return m_granted_incompatible; }
-    virtual const bitmap_t *incompatible_waiting_types_bitmap() const
+    const bitmap_t *incompatible_waiting_types_bitmap() const override
     { return m_waiting_incompatible; }
-    virtual bool needs_notification(const MDL_ticket *ticket) const
+    bool needs_notification(const MDL_ticket *ticket) const override
     {
       return (MDL_BIT(ticket->get_type()) &
               (MDL_BIT(MDL_SHARED_NO_WRITE) |
@@ -491,7 +491,7 @@ public:
       lock or some other non-MDL resource we might need to wake it up
       by calling code outside of MDL.
     */
-    virtual bool conflicting_locks(const MDL_ticket *ticket) const
+    bool conflicting_locks(const MDL_ticket *ticket) const override
     { return ticket->get_type() < MDL_SHARED_UPGRADABLE; }
 
     /*
@@ -499,7 +499,7 @@ public:
       max_write_lock_count times in a row while other lock types are
       waiting.
     */
-    virtual bitmap_t hog_lock_types_bitmap() const
+    bitmap_t hog_lock_types_bitmap() const override
     {
       return (MDL_BIT(MDL_SHARED_NO_WRITE) |
               MDL_BIT(MDL_SHARED_NO_READ_WRITE) |
@@ -515,11 +515,11 @@ public:
   struct MDL_backup_lock: public MDL_lock_strategy
   {
     MDL_backup_lock() = default;
-    virtual const bitmap_t *incompatible_granted_types_bitmap() const
+    const bitmap_t *incompatible_granted_types_bitmap() const override
     { return m_granted_incompatible; }
-    virtual const bitmap_t *incompatible_waiting_types_bitmap() const
+    const bitmap_t *incompatible_waiting_types_bitmap() const override
     { return m_waiting_incompatible; }
-    virtual bool needs_notification(const MDL_ticket *ticket) const
+    bool needs_notification(const MDL_ticket *ticket) const override
     {
       return (MDL_BIT(ticket->get_type()) & MDL_BIT(MDL_BACKUP_FTWRL1));
     }
@@ -529,7 +529,7 @@ public:
        We need to kill such threads in order to get lock for FTWRL statements.
        We do this by calling code outside of MDL.
     */
-    virtual bool conflicting_locks(const MDL_ticket *ticket) const
+    bool conflicting_locks(const MDL_ticket *ticket) const override
     {
       return (MDL_BIT(ticket->get_type()) &
               (MDL_BIT(MDL_BACKUP_DML) |
@@ -541,7 +541,7 @@ public:
       BACKUP statements. This scenario is partically useless in real world,
       so we just return 0 here.
     */
-    virtual bitmap_t hog_lock_types_bitmap() const
+    bitmap_t hog_lock_types_bitmap() const override
     { return 0; }
   private:
     static const bitmap_t m_granted_incompatible[MDL_BACKUP_END];

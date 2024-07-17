@@ -169,6 +169,8 @@ void spider_print_keys(
 );
 #endif
 
+void spider_create_conn_key_add_one(int* counter, char** target, char* src);
+
 int spider_create_conn_keys(
   SPIDER_SHARE *share
 );

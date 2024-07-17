@@ -977,7 +977,7 @@ VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	INT UNSIGNED
 VARIABLE_COMMENT	Extra port number to use for tcp connections in a one-thread-per-connection manner. 0 means don't use another port
 NUMERIC_MIN_VALUE	0
-NUMERIC_MAX_VALUE	4294967295
+NUMERIC_MAX_VALUE	65535
 NUMERIC_BLOCK_SIZE	1
 ENUM_VALUE_LIST	NULL
 READ_ONLY	YES
@@ -1815,7 +1815,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	LOG_SLOW_FILTER
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	SET
-VARIABLE_COMMENT	Log only certain types of queries to the slow log. If variable empty alll kind of queries are logged.  All types are bound by slow_query_time, except 'not_using_index' which is always logged if enabled
+VARIABLE_COMMENT	Log only certain types of queries to the slow log. If variable empty all kind of queries are logged.  All types are bound by slow_query_time, except 'not_using_index' which is always logged if enabled
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -2937,7 +2937,7 @@ VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	INT UNSIGNED
 VARIABLE_COMMENT	Port number to use for connection or 0 to default to, my.cnf, $MYSQL_TCP_PORT, /etc/services, built-in default (3306), whatever comes first
 NUMERIC_MIN_VALUE	0
-NUMERIC_MAX_VALUE	4294967295
+NUMERIC_MAX_VALUE	65535
 NUMERIC_BLOCK_SIZE	1
 ENUM_VALUE_LIST	NULL
 READ_ONLY	YES
@@ -3522,6 +3522,16 @@ NUMERIC_BLOCK_SIZE	1
 ENUM_VALUE_LIST	NULL
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	SERVER_UID
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	VARCHAR
+VARIABLE_COMMENT	Automatically calculated server unique id hash
+NUMERIC_MIN_VALUE	NULL
+NUMERIC_MAX_VALUE	NULL
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	NULL
+READ_ONLY	YES
+COMMAND_LINE_ARGUMENT	NULL
 VARIABLE_NAME	SESSION_TRACK_SCHEMA
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BOOLEAN

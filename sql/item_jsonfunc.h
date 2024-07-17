@@ -75,23 +75,23 @@ protected:
 
 public:
   Item_func_json_valid(THD *thd, Item *json) : Item_bool_func(thd, json) {}
-  longlong val_int();
-  const char *func_name() const { return "json_valid"; }
-  bool fix_length_and_dec()
+  longlong val_int() override;
+  const char *func_name() const override { return "json_valid"; }
+  bool fix_length_and_dec() override
   {
     if (Item_bool_func::fix_length_and_dec())
       return TRUE;
     maybe_null= 1;
     return FALSE;
   }
-  bool set_format_by_check_constraint(Send_field_extended_metadata *to) const
+  bool set_format_by_check_constraint(Send_field_extended_metadata *to) const override
   {
     static const Lex_cstring fmt(STRING_WITH_LEN("json"));
     return to->set_format_name(fmt);
   }
-  Item *get_copy(THD *thd)
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_valid>(thd, this); }
-  enum Functype functype() const   { return JSON_VALID_FUNC; }
+  enum Functype functype() const override   { return JSON_VALID_FUNC; }
 };
 
 
@@ -104,11 +104,11 @@ protected:
 public:
   Item_func_json_exists(THD *thd, Item *js, Item *i_path):
     Item_bool_func(thd, js, i_path) {}
-  const char *func_name() const { return "json_exists"; }
-  bool fix_length_and_dec();
-  Item *get_copy(THD *thd)
+  const char *func_name() const override { return "json_exists"; }
+  bool fix_length_and_dec() override;
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_exists>(thd, this); }
-  longlong val_int();
+  longlong val_int() override;
 };
 
 
@@ -150,7 +150,7 @@ public:
   {
     return je->check_and_get_value_scalar(res, error);
   }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_value>(thd, this); }
 };
 
@@ -174,7 +174,7 @@ public:
   {
     return je->check_and_get_value_complex(res, error);
   }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_query>(thd, this); }
 };
 
@@ -186,10 +186,10 @@ protected:
 
 public:
   Item_func_json_quote(THD *thd, Item *s): Item_str_func(thd, s) {}
-  const char *func_name() const { return "json_quote"; }
-  bool fix_length_and_dec();
-  String *val_str(String *);
-  Item *get_copy(THD *thd)
+  const char *func_name() const override { return "json_quote"; }
+  bool fix_length_and_dec() override;
+  String *val_str(String *) override;
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_quote>(thd, this); }
 };
 
@@ -201,10 +201,10 @@ protected:
   String *read_json(json_engine_t *je);
 public:
   Item_func_json_unquote(THD *thd, Item *s): Item_str_func(thd, s) {}
-  const char *func_name() const { return "json_unquote"; }
-  bool fix_length_and_dec();
-  String *val_str(String *);
-  Item *get_copy(THD *thd)
+  const char *func_name() const override { return "json_unquote"; }
+  bool fix_length_and_dec() override;
+  String *val_str(String *) override;
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_unquote>(thd, this); }
 };
 
@@ -233,7 +233,7 @@ public:
     Item_json_func(thd, list), paths(NULL), tmp_paths(0), n_paths(0) {}
   virtual ~Item_json_str_multipath();
 
-  bool fix_fields(THD *thd, Item **ref);
+  bool fix_fields(THD *thd, Item **ref) override;
   virtual uint get_n_paths() const = 0;
 };
 
@@ -247,15 +247,15 @@ public:
                     char **out_val, int *value_len);
   Item_func_json_extract(THD *thd, List<Item> &list):
     Item_json_str_multipath(thd, list) {}
-  const char *func_name() const { return "json_extract"; }
-  enum Functype functype() const   { return JSON_EXTRACT_FUNC; }
-  bool fix_length_and_dec();
-  String *val_str(String *);
-  longlong val_int();
-  double val_real();
-  my_decimal *val_decimal(my_decimal *);
-  uint get_n_paths() const { return arg_count - 1; }
-  Item *get_copy(THD *thd)
+  const char *func_name() const override { return "json_extract"; }
+  enum Functype functype() const override   { return JSON_EXTRACT_FUNC; }
+  bool fix_length_and_dec() override;
+  String *val_str(String *) override;
+  longlong val_int() override;
+  double val_real() override;
+  my_decimal *val_decimal(my_decimal *) override;
+  uint get_n_paths() const override { return arg_count - 1; }
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_extract>(thd, this); }
 };
 
@@ -271,10 +271,10 @@ protected:
 public:
   Item_func_json_contains(THD *thd, List<Item> &list):
     Item_bool_func(thd, list) {}
-  const char *func_name() const { return "json_contains"; }
-  bool fix_length_and_dec();
-  longlong val_int();
-  Item *get_copy(THD *thd)
+  const char *func_name() const override { return "json_contains"; }
+  bool fix_length_and_dec() override;
+  longlong val_int() override;
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_contains>(thd, this); }
 };
 
@@ -293,11 +293,11 @@ public:
   Item_func_json_contains_path(THD *thd, List<Item> &list):
     Item_bool_func(thd, list), tmp_paths(0) {}
   virtual ~Item_func_json_contains_path();
-  const char *func_name() const { return "json_contains_path"; }
-  bool fix_fields(THD *thd, Item **ref);
-  bool fix_length_and_dec();
-  longlong val_int();
-  Item *get_copy(THD *thd)
+  const char *func_name() const override { return "json_contains_path"; }
+  bool fix_fields(THD *thd, Item **ref) override;
+  bool fix_length_and_dec() override;
+  longlong val_int() override;
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_contains_path>(thd, this); }
 };
 
@@ -312,10 +312,10 @@ public:
     Item_json_func(thd) {}
   Item_func_json_array(THD *thd, List<Item> &list):
     Item_json_func(thd, list) {}
-  String *val_str(String *);
-  bool fix_length_and_dec();
-  const char *func_name() const { return "json_array"; }
-  Item *get_copy(THD *thd)
+  String *val_str(String *) override;
+  bool fix_length_and_dec() override;
+  const char *func_name() const override { return "json_array"; }
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_array>(thd, this); }
 };
 
@@ -328,11 +328,11 @@ protected:
 public:
   Item_func_json_array_append(THD *thd, List<Item> &list):
     Item_json_str_multipath(thd, list) {}
-  bool fix_length_and_dec();
-  String *val_str(String *);
-  uint get_n_paths() const { return arg_count/2; }
-  const char *func_name() const { return "json_array_append"; }
-  Item *get_copy(THD *thd)
+  bool fix_length_and_dec() override;
+  String *val_str(String *) override;
+  uint get_n_paths() const override { return arg_count/2; }
+  const char *func_name() const override { return "json_array_append"; }
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_array_append>(thd, this); }
 };
 
@@ -342,9 +342,9 @@ class Item_func_json_array_insert: public Item_func_json_array_append
 public:
   Item_func_json_array_insert(THD *thd, List<Item> &list):
     Item_func_json_array_append(thd, list) {}
-  String *val_str(String *);
-  const char *func_name() const { return "json_array_insert"; }
-  Item *get_copy(THD *thd)
+  String *val_str(String *) override;
+  const char *func_name() const override { return "json_array_insert"; }
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_array_insert>(thd, this); }
 };
 
@@ -356,9 +356,9 @@ public:
     Item_func_json_array(thd) {}
   Item_func_json_object(THD *thd, List<Item> &list):
     Item_func_json_array(thd, list) {}
-  String *val_str(String *);
-  const char *func_name() const { return "json_object"; }
-  Item *get_copy(THD *thd)
+  String *val_str(String *) override;
+  const char *func_name() const override { return "json_object"; }
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_object>(thd, this); }
 };
 
@@ -370,9 +370,9 @@ protected:
 public:
   Item_func_json_merge(THD *thd, List<Item> &list):
     Item_func_json_array(thd, list) {}
-  String *val_str(String *);
-  const char *func_name() const { return "json_merge_preserve"; }
-  Item *get_copy(THD *thd)
+  String *val_str(String *) override;
+  const char *func_name() const override { return "json_merge_preserve"; }
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_merge>(thd, this); }
 };
 
@@ -381,15 +381,15 @@ class Item_func_json_merge_patch: public Item_func_json_merge
 public:
   Item_func_json_merge_patch(THD *thd, List<Item> &list):
     Item_func_json_merge(thd, list) {}
-  const char *func_name() const { return "json_merge_patch"; }
-  String *val_str(String *);
-  Item *get_copy(THD *thd)
+  const char *func_name() const override { return "json_merge_patch"; }
+  String *val_str(String *) override;
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_merge_patch>(thd, this); }
 };
 
 class Item_func_json_length: public Item_long_func
 {
-  bool check_arguments() const
+  bool check_arguments() const override
   {
     if (arg_count == 0 || arg_count > 2)
     {
@@ -407,26 +407,26 @@ protected:
 public:
   Item_func_json_length(THD *thd, List<Item> &list):
     Item_long_func(thd, list) {}
-  const char *func_name() const { return "json_length"; }
-  bool fix_length_and_dec();
-  longlong val_int();
-  Item *get_copy(THD *thd)
+  const char *func_name() const override { return "json_length"; }
+  bool fix_length_and_dec() override;
+  longlong val_int() override;
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_length>(thd, this); }
 };
 
 
 class Item_func_json_depth: public Item_long_func
 {
-  bool check_arguments() const
+  bool check_arguments() const override
   { return args[0]->check_type_can_return_text(func_name()); }
 protected:
   String tmp_js;
 public:
   Item_func_json_depth(THD *thd, Item *js): Item_long_func(thd, js) {}
-  const char *func_name() const { return "json_depth"; }
-  bool fix_length_and_dec() { max_length= 10; return FALSE; }
-  longlong val_int();
-  Item *get_copy(THD *thd)
+  const char *func_name() const override { return "json_depth"; }
+  bool fix_length_and_dec() override { max_length= 10; return FALSE; }
+  longlong val_int() override;
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_depth>(thd, this); }
 };
 
@@ -437,10 +437,10 @@ protected:
   String tmp_js;
 public:
   Item_func_json_type(THD *thd, Item *js): Item_str_func(thd, js) {}
-  const char *func_name() const { return "json_type"; }
-  bool fix_length_and_dec();
-  String *val_str(String *);
-  Item *get_copy(THD *thd)
+  const char *func_name() const override { return "json_type"; }
+  bool fix_length_and_dec() override;
+  String *val_str(String *) override;
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_type>(thd, this); }
 };
 
@@ -455,15 +455,15 @@ public:
   Item_func_json_insert(bool i_mode, bool r_mode, THD *thd, List<Item> &list):
     Item_json_str_multipath(thd, list),
       mode_insert(i_mode), mode_replace(r_mode) {}
-  bool fix_length_and_dec();
-  String *val_str(String *);
-  uint get_n_paths() const { return arg_count/2; }
-  const char *func_name() const
+  bool fix_length_and_dec() override;
+  String *val_str(String *) override;
+  uint get_n_paths() const override { return arg_count/2; }
+  const char *func_name() const override
   {
     return mode_insert ?
              (mode_replace ? "json_set" : "json_insert") : "json_replace";
   }
-  Item *get_copy(THD *thd)
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_insert>(thd, this); }
 };
 
@@ -475,11 +475,11 @@ protected:
 public:
   Item_func_json_remove(THD *thd, List<Item> &list):
     Item_json_str_multipath(thd, list) {}
-  bool fix_length_and_dec();
-  String *val_str(String *);
-  uint get_n_paths() const { return arg_count - 1; }
-  const char *func_name() const { return "json_remove"; }
-  Item *get_copy(THD *thd)
+  bool fix_length_and_dec() override;
+  String *val_str(String *) override;
+  uint get_n_paths() const override { return arg_count - 1; }
+  const char *func_name() const override { return "json_remove"; }
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_remove>(thd, this); }
 };
 
@@ -493,10 +493,10 @@ protected:
 public:
   Item_func_json_keys(THD *thd, List<Item> &list):
     Item_str_func(thd, list) {}
-  const char *func_name() const { return "json_keys"; }
-  bool fix_length_and_dec();
-  String *val_str(String *);
-  Item *get_copy(THD *thd)
+  const char *func_name() const override { return "json_keys"; }
+  bool fix_length_and_dec() override;
+  String *val_str(String *) override;
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_keys>(thd, this); }
 };
 
@@ -516,12 +516,12 @@ protected:
 public:
   Item_func_json_search(THD *thd, List<Item> &list):
     Item_json_str_multipath(thd, list) {}
-  const char *func_name() const { return "json_search"; }
-  bool fix_fields(THD *thd, Item **ref);
-  bool fix_length_and_dec();
-  String *val_str(String *);
-  uint get_n_paths() const { return arg_count > 4 ? arg_count - 4 : 0; }
-  Item *get_copy(THD *thd)
+  const char *func_name() const override { return "json_search"; }
+  bool fix_fields(THD *thd, Item **ref) override;
+  bool fix_length_and_dec() override;
+  String *val_str(String *) override;
+  uint get_n_paths() const override { return arg_count > 4 ? arg_count - 4 : 0; }
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_search>(thd, this); }
 };
 
@@ -545,11 +545,11 @@ public:
   Item_func_json_format(THD *thd, List<Item> &list):
     Item_json_func(thd, list), fmt(DETAILED) {}
 
-  const char *func_name() const;
-  bool fix_length_and_dec();
-  String *val_str(String *str);
-  String *val_json(String *str);
-  Item *get_copy(THD *thd)
+  const char *func_name() const override;
+  bool fix_length_and_dec() override;
+  String *val_str(String *str) override;
+  String *val_json(String *str) override;
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_format>(thd, this); }
 };
 
@@ -591,7 +591,7 @@ public:
   String* val_str(String *str) override;
 
   Item *copy_or_same(THD* thd) override;
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_arrayagg>(thd, this); }
 };
 
@@ -636,7 +636,7 @@ public:
   String* val_str(String* str) override;
   Item *copy_or_same(THD* thd) override;
   void no_rows_in_result() override {}
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_objectagg>(thd, this); }
 };
 

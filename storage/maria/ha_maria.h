@@ -77,7 +77,7 @@ public:
   { return max_supported_key_length(); }
   enum row_type get_row_type() const override final;
   void change_table_ptr(TABLE *table_arg, TABLE_SHARE *share) override final;
-  virtual double scan_time() override final;
+  double scan_time() override final;
 
   int open(const char *name, int mode, uint test_if_locked) override;
   int close(void) override final;

@@ -274,9 +274,9 @@ public:
 
   ~Range_rowid_filter();
 
-  build_return_code build();
+  build_return_code build() override;
 
-  bool check(char *elem)
+  bool check(char *elem) override
   {
     if (container->is_empty())
       return false;
@@ -372,16 +372,16 @@ public:
   Rowid_filter_sorted_array(uint elems, uint elem_size)
     : refpos_container(elems, elem_size), is_checked(false) {}
 
-  Rowid_filter_container_type get_type()
+  Rowid_filter_container_type get_type() override
   { return SORTED_ARRAY_CONTAINER; }
 
-  bool alloc() { return refpos_container.alloc(); }
+  bool alloc() override { return refpos_container.alloc(); }
 
-  bool add(void *ctxt, char *elem) { return refpos_container.add(elem); }
+  bool add(void *ctxt, char *elem) override { return refpos_container.add(elem); }
 
-  bool check(void *ctxt, char *elem);
+  bool check(void *ctxt, char *elem) override;
 
-  bool is_empty() { return refpos_container.is_empty(); }
+  bool is_empty() override { return refpos_container.is_empty(); }
 };
 
 /**

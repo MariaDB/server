@@ -3625,9 +3625,8 @@ String *Item_func_charset::val_str(String *str)
   DBUG_ASSERT(fixed == 1);
   uint dummy_errors;
 
-  CHARSET_INFO *cs= args[0]->charset_for_protocol(); 
   null_value= 0;
-  str->copy(cs->csname, (uint) strlen(cs->csname),
+  str->copy(m_cached_charset_info.str, m_cached_charset_info.length,
 	    &my_charset_latin1, collation.collation, &dummy_errors);
   return str;
 }
@@ -3770,9 +3769,11 @@ String *Item_func_hex::val_str_ascii_from_val_real(String *str)
     return 0;
   if ((val <= (double) LONGLONG_MIN) ||
       (val >= (double) (ulonglong) ULONGLONG_MAX))
-    dec= ~(longlong) 0;
+    dec= ULONGLONG_MAX;
+  else if (val < 0)
+    dec= (ulonglong) (longlong) (val - 0.5);
   else
-    dec= (ulonglong) (val + (val > 0 ? 0.5 : -0.5));
+    dec= (ulonglong) (val + 0.5);
   return str->set_hex(dec) ? make_empty_result(str) : str;
 }
 

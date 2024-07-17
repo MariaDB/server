@@ -1689,8 +1689,8 @@ class Multiupdate_prelocking_strategy : public DML_prelocking_strategy
   bool done;
   bool has_prelocking_list;
 public:
-  void reset(THD *thd);
-  bool handle_end(THD *thd);
+  void reset(THD *thd) override;
+  bool handle_end(THD *thd) override;
 };
 
 void Multiupdate_prelocking_strategy::reset(THD *thd)

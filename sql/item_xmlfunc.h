@@ -117,9 +117,9 @@ public:
   {
     maybe_null= TRUE;
   }
-  bool fix_fields(THD *thd, Item **ref);
-  bool fix_length_and_dec();
-  bool const_item() const
+  bool fix_fields(THD *thd, Item **ref) override;
+  bool fix_length_and_dec() override;
+  bool const_item() const override
   {
     return const_item_cache && (!nodeset_func || nodeset_func->const_item());
   }
@@ -131,9 +131,9 @@ class Item_func_xml_extractvalue: public Item_xml_str_func
 public:
   Item_func_xml_extractvalue(THD *thd, Item *a, Item *b):
     Item_xml_str_func(thd, a, b) {}
-  const char *func_name() const { return "extractvalue"; }
-  String *val_str(String *);
-  Item *get_copy(THD *thd)
+  const char *func_name() const override { return "extractvalue"; }
+  String *val_str(String *) override;
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_xml_extractvalue>(thd, this); }
 };
 
@@ -148,9 +148,9 @@ class Item_func_xml_update: public Item_xml_str_func
 public:
   Item_func_xml_update(THD *thd, Item *a, Item *b, Item *c):
     Item_xml_str_func(thd, a, b, c) {}
-  const char *func_name() const { return "updatexml"; }
-  String *val_str(String *);
-  Item *get_copy(THD *thd)
+  const char *func_name() const override { return "updatexml"; }
+  String *val_str(String *) override;
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_xml_update>(thd, this); }
 };
 
