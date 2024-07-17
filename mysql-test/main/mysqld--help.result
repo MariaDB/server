@@ -690,6 +690,8 @@ The following specify which files/extra groups are read (specified before remain
  Unused. Deprecated, will be removed in a future release.
  --metadata-locks-hash-instances=# 
  Unused. Deprecated, will be removed in a future release.
+ --mhnsw-cache-size=# 
+ Size of the cache for the MHNSW vector index
  --mhnsw-max-edges-per-node=# 
  Larger values means slower INSERT, larger index size and
  higher memory consumption, but better search results
@@ -1797,6 +1799,7 @@ max-write-lock-count 18446744073709551615
 memlock FALSE
 metadata-locks-cache-size 1024
 metadata-locks-hash-instances 8
+mhnsw-cache-size 16777216
 mhnsw-max-edges-per-node 6
 mhnsw-min-limit 20
 min-examined-row-limit 0

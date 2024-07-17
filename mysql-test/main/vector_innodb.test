@@ -1,0 +1,73 @@
+source include/have_innodb.inc;
+
+create table t1 (id int auto_increment primary key, v blob not null, vector index (v)) engine=innodb;
+show create table t1;
+# print unpack("H*",pack("f*",map{rand}1..8))
+insert t1 (v) values
+          (x'106d263fdf68ba3eb08d533f97d46e3fd1e1ec3edc4c123f984c563f621a233f'),
+          (x'd55bee3c56eb9e3e84e3093f838dce3eb7cd653fe32d7d3f12de133c5715d23e'),
+          (x'fcd5553f3822443f5dae413f2593493f7777363f5f7f113ebf12373d4d145a3f'),
+          (x'7493093fd9a27d3e9b13783f8c66653f0bd7d23e50db983d251b013f1dba133f'),
+          (x'2e30373fae331a3eba94153ee32bce3e3311b33d5bc75d3f6c25653eb769113f'),
+          (x'381d5f3f2781de3e4f011f3f9353483f9bb37e3edd622d3eabecb63ec246953e'),
+          (x'4ee5dc3e214b103f0e7e583f5f36473e79d7823ea872ec3e3ab2913d1b84433f'),
+          (x'8826243f7d20f03e5135593f83ba653e44572d3fa87e8e3e943e0e3f649a293f'),
+          (x'3859ac3e7d21823ed3f5753fc79c143e61d39c3cee39ba3eb0b0133e815c173f'),
+          (x'cff0d93c32941e3f64b22a3f1e4f083f4ea2563fbff4a63e12a4703f6c824b3f');
+
+### savepoints and rollbacks:
+start transaction;
+insert t1 values
+     (30, x'f8e2413ed4ff773fef8b893eba487b3febee3f3f9e6f693f5961fd3ee479303d');
+savepoint foo;
+insert t1 values
+     (31, x'6129683f90fe1f3e1437bc3ed8c8f63dd141033f21e3a93e54346c3f8c4e043f'),
+     (32, x'1ec8b83d398c4d3f2efb463f23947a3fa1a5093fdde6303e5580413f51569b3e');
+rollback to savepoint foo;
+insert t1 values
+     (33, x'86d1003d4262033f8086713ffc4a633e317e933c4dce013d9c4d573fca83b93e');
+commit;
+start transaction;
+insert t1 values
+     (40, x'71046a3e85329b3e05240e3f45c9283f1847363f98d47d3f4224b73d487b613f'),
+     (41, x'71046a3e85329b3e05240e3f45c9283f1847363f98d47d3f4224b73d487b613f');
+rollback;
+
+select id,vec_distance(v, x'c923e33dc0da313fe7c7983e526b3d3fde63963e6eaf3a3f27fa133fe27a583f') d from t1 order by d limit 5;
+select id,vec_distance(v, x'754b5f3ea2312b3fc169f43e4604883e1d20173e8dd7443f421b703fb11e0d3e') d from t1 order by d limit 5;
+
+### two indexes in one transaction:
+create table t2 (id int auto_increment primary key, v blob not null, vector index (v)) engine=innodb;
+
+insert t2 (v) values
+          (x'45cf153f830a313f7a0a113fb1ff533f47a1533fcf9e6e3f'),
+          (x'4b311d3fdd82423f35ba7d3fa041223dfd7db03e72d5833e'),
+          (x'f0d4123f6fc1833ea30a483fd9649d3cb94d733f4574a63d'),
+          (x'7ff8a53bf68e4a3e66e3563f214dea3e63372f3ec24d513f'),
+          (x'4709683f0d44473f8a045f3f40f3693df7f1303fdb98b73e'),
+          (x'09de2b3f5db80d3fb4405f3f64aadc3ecfa6183f823c733f'),
+          (x'a93a143f7f71e33d0cde5c3ff106373fd6f6233fc1f4fc3e'),
+          (x'11236e3de44a0d3f8241023d44d8383f2f70733f44d65c3f'),
+          (x'b5e47c3f35d3413fad8a533d5945133f66dbf33d92c6103f');
+
+start transaction;
+insert t1 values
+     (50, x'acae183f56ddc43e5093983d280df53e6fa2093f79c01a3eb1591f3f423a0e3d'),
+     (51, x'6285303f42ef6e3f355e313f3e96a53e70959b3edd720b3ec07f733e5bc8603f');
+insert t2 values
+     (20, x'58dc7d3fc9feaa3e19e26b3f31820c3f93070b3fc4e36e3f'),
+     (21, x'35e05d3f18e8513fb81a3d3f8acf7d3e794a1d3c72f9613f');
+commit;
+
+select id,vec_distance(v, x'1f4d053f7056493f937da03dd8c97a3f220cbb3c926c1c3facca213ec0618a3e') d from t1 order by d limit 5;
+select id,vec_distance(v, x'f618663f256be73e62cd453f8bcdbf3e16ae503c3858313f') d from t2 order by d limit 5;
+
+drop table t1, t2;
+
+--echo #
+--echo # MDEV-34989 After selecting from empty table with vector key the next insert hangs
+--echo #
+create table t (v blob not null, vector key(v)) engine=InnoDB;
+select vec_distance_euclidean(v, x'B047263C9F87233fcfd27e3eae493e3f0329f43e') as e from t order by e limit 1;
+insert into t values (x'B047263C9F87233fcfd27e3eae493e3f0329f43e');
+drop table t;
