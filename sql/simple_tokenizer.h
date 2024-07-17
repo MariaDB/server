@@ -17,7 +17,7 @@
 #define SIMPLE_TOKENIZER_INCLUDED
 
 
-#include "lex_ident.h"
+#include "lex_string.h"
 #include "scan_char.h"
 
 /**

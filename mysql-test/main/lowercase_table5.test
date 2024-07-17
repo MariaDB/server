@@ -187,3 +187,30 @@ DROP DATABASE MYSQL;
 --echo #
 --echo # End of 10.5 tests
 --echo #
+
+--echo #
+--echo # Start of 11.7 tests
+--echo #
+
+--echo #
+--echo # MDEV-33281 Implement optimizer hints like in MySQL
+--echo #
+
+SET NAMES utf8mb4;
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1), (2);
+
+# Test that table aliases are accent sensitive with lowercase-table-names=0
+# Test that table names in hints are also accent sensitive
+SELECT /*+BKA(a) BKA(å)*/ a.a, å.a FROM t1 a, t1 å;
+
+# Test that table aliases are case sensitive with lowercase-table-names=0
+# Test that table names in hints are also case sensitive
+SELECT /*+BKA(a) BKA(A)*/ a.a, A.a FROM t1 a, t1 A;
+
+DROP TABLE t1;
+
+--echo #
+--echo # End of 11.7 tests
+--echo #

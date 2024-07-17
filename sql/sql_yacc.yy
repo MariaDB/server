@@ -8765,6 +8765,7 @@ query_specification:
           opt_having_clause
           opt_window_clause
           {
+            Lex->resolve_optimizer_hints();
             $$= Lex->pop_select();
           }
         ;
@@ -8778,6 +8779,7 @@ select_into_query_specification:
           opt_having_clause
           opt_window_clause
           {
+            Lex->resolve_optimizer_hints();
             $$= Lex->pop_select();
           }
         ;
@@ -8917,7 +8919,6 @@ query_expression_body:
           query_simple
           {
             Lex->push_select($1);
-            Lex->resolve_optimizer_hints();
             if (!($$= Lex->create_unit($1)))
               MYSQL_YYABORT;
           }
@@ -13358,8 +13359,9 @@ replace:
             Select->set_lock_for_tables($5, true, false);
           }
           insert_field_spec opt_returning
-          stmt_end
+          insert_stmt_end
           {
+            Lex->resolve_optimizer_hints();
             Lex->mark_first_table_as_inserting();
             thd->get_stmt_da()->reset_current_row_for_warning(0);
           }
