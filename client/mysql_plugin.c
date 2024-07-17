@@ -683,7 +683,7 @@ static int load_plugin_data(char *plugin_name, char *config_file)
     if (i == -1) /* if first pass, read this line as so_name */
     {
       /* Add proper file extension for soname */
-      if (safe_strcpy(line + line_len - 1, sizeof(line), FN_SOEXT))
+      if (safe_strcpy_truncated(line + line_len - 1, sizeof line, FN_SOEXT))
       {
         reason= "Plugin name too long.";
         fclose(file_ptr);
@@ -746,7 +746,7 @@ static int check_options(int argc, char **argv, char *operation)
   const char *plugin_dir_prefix = "--plugin_dir=";
   size_t plugin_dir_len= strlen(plugin_dir_prefix);
 
-  strcpy(plugin_name, "");
+  *plugin_name= '\0';
   for (i = 0; i < argc && num_found < 5; i++)
   {
 
@@ -784,8 +784,8 @@ static int check_options(int argc, char **argv, char *operation)
     /* read the plugin config file and check for match against argument */
     else
     {
-      if (safe_strcpy(plugin_name, sizeof(plugin_name), argv[i]) ||
-          safe_strcpy(config_file, sizeof(config_file), argv[i]) ||
+      if (safe_strcpy_truncated(plugin_name, sizeof plugin_name, argv[i]) ||
+          safe_strcpy_truncated(config_file, sizeof config_file, argv[i]) ||
           safe_strcat(config_file, sizeof(config_file), ".ini"))
       {
         fprintf(stderr, "ERROR: argument is too long.\n");

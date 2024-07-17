@@ -1,5 +1,6 @@
 --source include/have_innodb.inc
 --source include/innodb_row_format.inc
+--source include/test_db_charset_latin1.inc
 
 ####################################################################
 # TC to test temp-table DML optimization changes for correctness   #
@@ -213,3 +214,5 @@ select count(*) from prep_1;
 drop prepare stm;
 drop prepare stm_1;
 drop prepare stm_2;
+
+--source include/test_db_charset_restore.inc

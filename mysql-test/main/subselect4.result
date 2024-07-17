@@ -422,17 +422,17 @@ CREATE TABLE t1
 (EMPNUM   CHAR(3) NOT NULL,
 EMPNAME  CHAR(20),
 GRADE    DECIMAL(4),
-CITY     CHAR(15));
+CITY     CHAR(15)) CHARSET=latin1;
 CREATE TABLE t2
 (PNUM     CHAR(3) NOT NULL,
 PNAME    CHAR(20),
 PTYPE    CHAR(6),
 BUDGET   DECIMAL(9),
-CITY     CHAR(15));
+CITY     CHAR(15)) CHARSET=latin1;
 CREATE TABLE t3
 (EMPNUM   CHAR(3) NOT NULL,
 PNUM     CHAR(3) NOT NULL,
-HOURS    DECIMAL(5));
+HOURS    DECIMAL(5)) CHARSET=latin1;
 INSERT INTO t1 VALUES ('E1','Alice',12,'Deale');
 INSERT INTO t1 VALUES ('E2','Betty',10,'Vienna');
 INSERT INTO t1 VALUES ('E3','Carmen',13,'Vienna');
@@ -1220,12 +1220,12 @@ drop table t1, t2;
 #
 # LP BUG#641203 Query returns rows where no result is expected (impossible WHERE)
 #
-CREATE TABLE t1 (c1 varchar(1) DEFAULT NULL);
-CREATE TABLE t2 (c1 varchar(1) DEFAULT NULL);
+CREATE TABLE t1 (c1 varchar(1) DEFAULT NULL) CHARSET=latin1;
+CREATE TABLE t2 (c1 varchar(1) DEFAULT NULL) CHARSET=latin1;
 INSERT INTO t2 VALUES ('k'), ('d'),('x');
-CREATE TABLE t3 (c1 varchar(1) DEFAULT NULL);
+CREATE TABLE t3 (c1 varchar(1) DEFAULT NULL) CHARSET=latin1;
 INSERT INTO t3 VALUES ('a'), ('b'), ('c');
-CREATE TABLE t4 (c1 varchar(1) primary key);
+CREATE TABLE t4 (c1 varchar(1) primary key) CHARSET=latin1;
 INSERT INTO t4 VALUES ('k'), ('d');
 SET @save_optimizer_switch=@@optimizer_switch;
 SET optimizer_switch='outer_join_with_cache=off';
@@ -2545,7 +2545,7 @@ DROP TABLE t1,t2;
 #
 # MDEV-17606: Query returns wrong results (while using CHARACTER SET utf8)
 #
-CREATE TABLE t1(l1 varchar(10), i2 int);
+CREATE TABLE t1(l1 varchar(10), i2 int) CHARSET=latin1;
 INSERT INTO t1 VALUES ('e',2),('o',6),('x',4);
 CREATE TABLE t2 (v1 varchar(10) CHARACTER SET utf8, KEY v1 (v1(3)));
 INSERT INTO t2 VALUES  ('k'),('rid'),('f'),('x');
@@ -2709,15 +2709,15 @@ drop table t1;
 #
 # MDEV-18335: Assertion `!error || error == 137' failed in subselect_rowid_merge_engine::init
 #
-CREATE TABLE t1 (i1 int,v1 varchar(1),KEY (v1,i1));
+CREATE TABLE t1 (i1 int,v1 varchar(1),KEY (v1,i1)) CHARSET=latin1;
 INSERT INTO t1 VALUES
 (9,'y'),(4,'q'),(0,null),(0,'p'),(null,'j');
 CREATE TABLE t2 (pk int);
 INSERT INTO t2 VALUES (1),(2);
-CREATE TABLE t3 (v2 varchar(1));
+CREATE TABLE t3 (v2 varchar(1)) CHARSET=latin1;
 INSERT INTO t3 VALUES
 ('p'),('j'),('y'),('q');
-CREATE TABLE t4 (v2 varchar(1));
+CREATE TABLE t4 (v2 varchar(1)) CHARSET=latin1;
 INSERT INTO t4 VALUES
 ('a'),('a'),('b'),('b'),('c'),('c'),
 ('d'),('d'),('e'),('e'),('f'),('f'),
@@ -2839,20 +2839,20 @@ CREATE TABLE t1 (
 key1 varchar(30) NOT NULL,
 col1 int(11) NOT NULL,
 filler char(100)
-);
+) CHARSET=latin1;
 insert into t1 select seq, seq, seq from seq_1_to_100;
 CREATE TABLE t10 (
 key1 varchar(30) NOT NULL,
 col1 int,
 filler char(100),
 PRIMARY KEY (key1)
-);
+) CHARSET=latin1;
 insert into t10 select seq, seq, seq from seq_1_to_1000;
 CREATE TABLE t11 (
 key1 varchar(30) NOT NULL,
 filler char(100),
 PRIMARY KEY (key1)
-);
+) CHARSET=latin1;
 insert into t11 select seq, seq from seq_1_to_1000;
 set @tmp_os=@@optimizer_switch;
 set optimizer_switch='semijoin=off,materialization=off';

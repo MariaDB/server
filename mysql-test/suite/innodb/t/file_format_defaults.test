@@ -7,6 +7,8 @@
 
 call mtr.add_suppression("InnoDB: Cannot add field `c1` in table `test`\\.`tab0`");
 
+--source include/test_db_charset_latin1.inc
+
 # Check some default settings
 SELECT @@innodb_strict_mode;
 
@@ -42,3 +44,5 @@ DROP TABLE tab1;
 --disable_query_log
 SET GLOBAL innodb_read_only_compressed=@save_innodb_read_only_compressed;
 --enable_query_log
+
+--source include/test_db_charset_restore.inc

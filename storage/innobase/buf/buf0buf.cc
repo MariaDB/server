@@ -2332,6 +2332,12 @@ void buf_page_free(fil_space_t *space, uint32_t page, mtr_t *mtr)
   mtr->memo_push(block, MTR_MEMO_PAGE_X_MODIFY);
 }
 
+static void buf_inc_get(ha_handler_stats *stats)
+{
+  mariadb_increment_pages_accessed(stats);
+  ++buf_pool.stat.n_page_gets;
+}
+
 /** Get read access to a compressed page (usually of type
 FIL_PAGE_TYPE_ZBLOB or FIL_PAGE_TYPE_ZBLOB2).
 The page must be released with unfix().
@@ -2347,8 +2353,8 @@ buf_page_t* buf_page_get_zip(const page_id_t page_id, ulint zip_size)
 {
   ut_ad(zip_size);
   ut_ad(ut_is_2pow(zip_size));
-  ++buf_pool.stat.n_page_gets;
-  mariadb_increment_pages_accessed();
+  ha_handler_stats *const stats= mariadb_stats;
+  buf_inc_get(stats);
 
   buf_pool_t::hash_chain &chain= buf_pool.page_hash.cell_get(page_id.fold());
   page_hash_latch &hash_lock= buf_pool.page_hash.lock_get(chain);
@@ -2450,7 +2456,7 @@ must_read_page:
   switch (dberr_t err= buf_read_page(page_id, zip_size, chain)) {
   case DB_SUCCESS:
   case DB_SUCCESS_LOCKED_REC:
-    mariadb_increment_pages_read();
+    mariadb_increment_pages_read(stats);
     goto lookup;
   default:
     ib::error() << "Reading compressed page " << page_id
@@ -2573,6 +2579,9 @@ err_exit:
 or BUF_PEEK_IF_IN_POOL
 @param[in]	mtr			mini-transaction
 @param[out]	err			DB_SUCCESS or error code
+@param[in,out]	no_wait			If not NULL on input, then we must not
+wait for current page latch. On output, the value is set to true if we had to
+return because we could not wait on page latch.
 @return pointer to the block or NULL */
 TRANSACTIONAL_TARGET
 buf_block_t*
@@ -2583,7 +2592,8 @@ buf_page_get_gen(
 	buf_block_t*		guess,
 	ulint			mode,
 	mtr_t*			mtr,
-	dberr_t*		err)
+	dberr_t*		err,
+        bool*			no_wait)
 {
 	ulint		retries = 0;
 
@@ -2592,9 +2602,12 @@ buf_page_get_gen(
 	recovery may be in progress. The only case when it may be
 	invoked outside recovery is when dict_create() has initialized
 	a new database and is invoking dict_boot(). In this case, the
-	LSN will be small. */
+	LSN will be small. At the end of a bootstrap, the shutdown LSN
+	would typically be around 60000 with the default
+	innodb_undo_tablespaces=3, and less than 110000 with the maximum
+	innodb_undo_tablespaces=127. */
 	ut_ad(mode == BUF_GET_RECOVER
-	      ? recv_recovery_is_on() || log_sys.get_lsn() < 50000
+	      ? recv_recovery_is_on() || log_sys.get_lsn() < 120000
 	      : !recv_recovery_is_on() || recv_sys.after_apply);
 	ut_ad(!mtr || mtr->is_active());
 	ut_ad(mtr || mode == BUF_PEEK_IF_IN_POOL);
@@ -2626,9 +2639,8 @@ buf_page_get_gen(
 	}
 #endif /* UNIV_DEBUG */
 
-	++buf_pool.stat.n_page_gets;
-        mariadb_increment_pages_accessed();
-
+	ha_handler_stats* const stats = mariadb_stats;
+	buf_inc_get(stats);
 	auto& chain= buf_pool.page_hash.cell_get(page_id.fold());
 	page_hash_latch& hash_lock = buf_pool.page_hash.lock_get(chain);
 loop:
@@ -2687,7 +2699,7 @@ loop:
 	switch (dberr_t local_err = buf_read_page(page_id, zip_size, chain)) {
 	case DB_SUCCESS:
 	case DB_SUCCESS_LOCKED_REC:
-                mariadb_increment_pages_read();
+		mariadb_increment_pages_read(stats);
 		buf_read_ahead_random(page_id, zip_size);
 		break;
 	default:
@@ -2732,14 +2744,17 @@ ignore_unfixed:
 		in buf_page_t::read_complete() or
 		buf_pool_t::corrupted_evict(), or
 		after buf_zip_decompress() in this function. */
-		if (rw_latch != RW_NO_LATCH) {
+		if (!no_wait) {
 			block->page.lock.s_lock();
 		} else if (!block->page.lock.s_lock_try()) {
-			/* For RW_NO_LATCH, we should not try to acquire S or X
-			latch directly as we could be violating the latching
-			order resulting in deadlock. Instead we try latching the
-			page and retry in case of a failure. */
-			goto wait_for_read;
+			ut_ad(rw_latch == RW_NO_LATCH);
+			/* We should not wait trying to acquire S latch for
+			current page while holding latch for the next page.
+			It would violate the latching order resulting in
+			possible deadlock. Caller must handle the failure. */
+			block->page.unfix();
+			*no_wait= true;
+			return nullptr;
 		}
 		state = block->page.state();
 		ut_ad(state < buf_page_t::READ_FIX
@@ -2748,15 +2763,15 @@ ignore_unfixed:
 		block->page.lock.s_unlock();
 
 		if (UNIV_UNLIKELY(state < buf_page_t::UNFIXED)) {
+			block->page.unfix();
 			if (UNIV_UNLIKELY(id == page_id)) {
 				/* The page read was completed, and
 				another thread marked the page as free
 				while we were waiting. */
-				goto ignore_block;
+				goto ignore_unfixed;
 			}
 
 			ut_ad(id == page_id_t{~0ULL});
-			block->page.unfix();
 
 			if (++retries < BUF_PAGE_READ_MAX_RETRIES) {
 				goto loop;
@@ -2795,7 +2810,6 @@ free_unfixed_block:
 	if (UNIV_UNLIKELY(!block->page.frame)) {
 		if (!block->page.lock.x_lock_try()) {
 wait_for_unzip:
-wait_for_read:
 			/* The page is being read or written, or
 			another thread is executing buf_zip_decompress()
 			in buf_page_get_gen() on it. */
@@ -3068,8 +3082,7 @@ buf_block_t *buf_page_try_get(const page_id_t page_id, mtr_t *mtr)
   ut_ad(block->page.buf_fix_count());
   ut_ad(block->page.id() == page_id);
 
-  ++buf_pool.stat.n_page_gets;
-  mariadb_increment_pages_accessed();
+  buf_inc_get(mariadb_stats);
   return block;
 }
 
@@ -3589,15 +3602,13 @@ void buf_refresh_io_stats()
 All pages must be in a replaceable state (not modified or latched). */
 void buf_pool_invalidate()
 {
-	mysql_mutex_lock(&buf_pool.mutex);
-
 	/* It is possible that a write batch that has been posted
 	earlier is still not complete. For buffer pool invalidation to
 	proceed we must ensure there is NO write activity happening. */
 
-	ut_d(mysql_mutex_unlock(&buf_pool.mutex));
+	os_aio_wait_until_no_pending_writes(false);
 	ut_d(buf_pool.assert_all_freed());
-	ut_d(mysql_mutex_lock(&buf_pool.mutex));
+	mysql_mutex_lock(&buf_pool.mutex);
 
 	while (UT_LIST_GET_LEN(buf_pool.LRU)) {
 		buf_LRU_scan_and_free_block();

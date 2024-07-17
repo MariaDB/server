@@ -2,6 +2,9 @@
 --source include/have_partition.inc
 --source include/have_binlog_format_mixed_or_row.inc
 --source include/master-slave.inc
+--connection master
+--source include/test_db_charset_latin1.inc
+--sync_slave_with_master
 --connection slave
 --source include/stop_slave.inc
 
@@ -61,9 +64,10 @@ DROP TABLE table1_key_pk_parts_2_int_autoinc;
 DROP TABLE table2_int_autoinc;
 DROP TABLE table2_key_pk_parts_2_int_autoinc;
 SET sql_log_bin=1;
-
+--source include/test_db_charset_restore.inc
 --source include/start_slave.inc
 
 --connection master
+--source include/test_db_charset_restore.inc
 
 --source include/rpl_end.inc

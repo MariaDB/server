@@ -363,6 +363,8 @@ LEX_STRING opt_init_connect, opt_init_slave;
 static DYNAMIC_ARRAY all_options;
 static longlong start_memory_used;
 
+char server_uid[SERVER_UID_SIZE+1];   // server uid will be written here
+
 /* Global variables */
 
 bool opt_bin_log, opt_bin_log_used=0, opt_ignore_builtin_innodb= 0;
@@ -453,7 +455,7 @@ my_bool opt_master_verify_checksum= 0;
 my_bool opt_slave_sql_verify_checksum= 1;
 const char *binlog_format_names[]= {"MIXED", "STATEMENT", "ROW", NullS};
 volatile sig_atomic_t calling_initgroups= 0; /**< Used in SIGSEGV handler. */
-uint mysqld_port, select_errors, dropping_tables, ha_open_options;
+uint mysqld_port, select_errors, ha_open_options;
 uint mysqld_extra_port;
 uint mysqld_port_timeout;
 ulong delay_key_write_options;
@@ -783,6 +785,12 @@ char *opt_relay_logname = 0, *opt_relaylog_index_name=0;
 char *opt_logname, *opt_slow_logname, *opt_bin_logname;
 char *opt_binlog_index_name=0;
 my_bool opt_binlog_legacy_event_pos= FALSE;
+
+/*
+  Flag if the METADATA_LOCK_INFO is used. In this case we store the time
+  when we take a MDL lock.
+*/
+bool metadata_lock_info_plugin_loaded= 0;
 
 /* Static variables */
 
@@ -1183,9 +1191,9 @@ static PSI_thread_info all_server_threads[]=
   { &key_thread_main, "main", PSI_FLAG_GLOBAL},
   { &key_thread_one_connection, "one_connection", 0},
   { &key_thread_signal_hand, "signal_handler", PSI_FLAG_GLOBAL},
-  { &key_thread_slave_background, "slave_background", PSI_FLAG_GLOBAL},
+  { &key_thread_slave_background, "slave_bg", PSI_FLAG_GLOBAL},
   { &key_thread_ack_receiver, "Ack_receiver", PSI_FLAG_GLOBAL},
-  { &key_rpl_parallel_thread, "rpl_parallel_thread", 0}
+  { &key_rpl_parallel_thread, "rpl_parallel", 0}
 };
 
 #ifdef HAVE_MMAP
@@ -1197,6 +1205,8 @@ PSI_file_key key_file_map;
 #ifdef HAVE_PSI_STATEMENT_INTERFACE
 PSI_statement_info stmt_info_new_packet;
 #endif
+
+static int calculate_server_uid(char *dest);
 
 #ifndef EMBEDDED_LIBRARY
 void net_before_header_psi(struct st_net *net, void *thd, size_t /* unused: count */)
@@ -2329,6 +2339,7 @@ static void activate_tcp_port(uint port,
   else
     real_bind_addr_str= my_bind_addr_str;
 
+  DBUG_EXECUTE_IF("sabotage_port_number", port= UINT_MAX32;);
   my_snprintf(port_buf, NI_MAXSERV, "%d", port);
 
   if (real_bind_addr_str && *real_bind_addr_str)
@@ -2372,6 +2383,13 @@ static void activate_tcp_port(uint port,
   else
   {
     error= getaddrinfo(real_bind_addr_str, port_buf, &hints, &ai);
+    if (unlikely(error != 0))
+    {
+      sql_print_error("%s: %s", ER_DEFAULT(ER_IPSOCK_ERROR),
+                      gai_strerror(error));
+      unireg_abort(1); /* purecov: tested */
+    }
+
     head= ai;
   }
 
@@ -3202,6 +3220,15 @@ static void start_signal_handler(void)
   DBUG_VOID_RETURN;
 }
 
+/** Called only from signal_hand function. */
+static void* exit_signal_handler()
+{
+  my_thread_end();
+  signal_thread_in_use= 0;
+  pthread_exit(0);  // Safety
+  return nullptr;  // Avoid compiler warnings
+}
+
 
 /** This threads handles all signals and alarms. */
 /* ARGSUSED */
@@ -3210,6 +3237,7 @@ pthread_handler_t signal_hand(void *)
   sigset_t set;
   int sig;
   my_thread_init();				// Init new thread
+  my_thread_set_name("signal_handler");
   signal_thread_in_use= 1;
 
   if (test_flags & TEST_SIGINT)
@@ -3305,7 +3333,7 @@ pthread_handler_t signal_hand(void *)
   my_thread_end();
   signal_thread_in_use= 0;
   pthread_exit(0); // Safety
-  return(0);					/* purecov: deadcode */
+  return exit_signal_handler();
 }
 
 static void check_data_home(const char *path)
@@ -3804,6 +3832,7 @@ static int temp_file_size_cb_func(struct tmp_file_tracking *track,
       {
         global_tmp_space_used-= size_change;
         error= EE_GLOBAL_TMP_SPACE_FULL;
+        my_errno= ENOSPC;
         goto exit;
       }
       if (thd->status_var.tmp_space_used + size_change >
@@ -3812,6 +3841,7 @@ static int temp_file_size_cb_func(struct tmp_file_tracking *track,
       {
         global_tmp_space_used-= size_change;
         error= EE_LOCAL_TMP_SPACE_FULL;
+        my_errno= ENOSPC;
         goto exit;
       }
       set_if_bigger(global_status_var.max_tmp_space_used, cached_space);
@@ -4093,6 +4123,9 @@ static int init_common_variables()
   if (IS_SYSVAR_AUTOSIZE(&server_version_ptr))
     set_server_version(server_version, sizeof(server_version));
 
+  if (calculate_server_uid(server_uid))
+    strmov(server_uid, "unknown");
+
   mysql_real_data_home_len= uint(strlen(mysql_real_data_home));
 
   sf_leaking_memory= 0; // no memory leaks from now on
@@ -4326,8 +4359,10 @@ static int init_common_variables()
   if (is_supported_parser_charset(default_charset_info))
   {
     global_system_variables.collation_connection= default_charset_info;
-    global_system_variables.character_set_results= default_charset_info;
-    global_system_variables.character_set_client= default_charset_info;
+    global_system_variables.character_set_results=
+    global_system_variables.character_set_client=
+      Lex_exact_charset_opt_extended_collate(default_charset_info, true).
+        find_compiled_default_collation();
   }
   else
   {
@@ -5017,8 +5052,10 @@ static int init_server_components()
     first in error log, for troubleshooting and debugging purposes
   */
   if (!opt_help)
-    sql_print_information("Starting MariaDB %s source revision %s as process %lu",
-                          server_version, SOURCE_REVISION, (ulong) getpid());
+    sql_print_information("Starting MariaDB %s source revision %s "
+                          "server_uid %s as process %lu",
+                          server_version, SOURCE_REVISION, server_uid,
+                          (ulong) getpid());
 
 #ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
   /*
@@ -5387,7 +5424,6 @@ static int init_server_components()
       MARIADB_REMOVED_OPTION("innodb-log-compressed-pages"),
       MARIADB_REMOVED_OPTION("innodb-log-files-in-group"),
       MARIADB_REMOVED_OPTION("innodb-log-optimize-ddl"),
-      MARIADB_REMOVED_OPTION("innodb-log-write-ahead-size"),
       MARIADB_REMOVED_OPTION("innodb-page-cleaners"),
       MARIADB_REMOVED_OPTION("innodb-replication-delay"),
       MARIADB_REMOVED_OPTION("innodb-scrub-log"),
@@ -6762,7 +6798,7 @@ struct my_option my_long_options[]=
 #ifdef HAVE_REPLICATION
   {"init-rpl-role", 0, "Set the replication role",
    &rpl_status, &rpl_status, &rpl_role_typelib,
-   GET_ENUM, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+   GET_ENUM, REQUIRED_ARG, RPL_AUTH_MASTER, 0, 0, 0, 0, 0},
 #endif /* HAVE_REPLICATION */
   {"memlock", 0, "Lock mariadbd process in memory", &locked_in_memory,
    &locked_in_memory, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
@@ -7902,7 +7938,7 @@ static int mysql_init_variables(void)
   disable_log_notes= 0;
   mqh_used= 0;
   cleanup_done= 0;
-  select_errors= dropping_tables= ha_open_options=0;
+  select_errors= ha_open_options= 0;
   THD_count::count= CONNECT::count= 0;
   slave_open_temp_tables= 0;
   opt_endinfo= using_udf_functions= 0;
@@ -8419,6 +8455,14 @@ mysqld_get_one_option(const struct my_option *opt, const char *argument,
     */
     if (argument == NULL) /* no argument */
       log_error_file_ptr= const_cast<char*>("");
+    break;
+  case OPT_LOG_SLOW_FILTER:
+    if (argument == NULL || *argument == 0)
+    {
+      /* By default log_slow_filter_has all values except QPLAN_NOT_USING_INDEX */
+      global_system_variables.log_slow_filter= opt->def_value | QPLAN_NOT_USING_INDEX;
+      sql_print_warning("log_slow_filter=\"\" changed to log_slow_filter=ALL");
+    }
     break;
   case OPT_IGNORE_DB_DIRECTORY:
     opt_ignore_db_dirs= NULL; // will be set in ignore_db_dirs_process_additions
@@ -9787,33 +9831,22 @@ static PSI_memory_info all_server_memory[]=
   { &key_memory_locked_table_list, "Locked_tables_list::m_locked_tables_root", 0},
   { &key_memory_locked_thread_list, "display_table_locks", PSI_FLAG_THREAD},
   { &key_memory_thd_transactions, "THD::transactions::mem_root", PSI_FLAG_THREAD},
-//  { &key_memory_delegate, "Delegate::memroot", 0},
   { &key_memory_acl_mem, "sql_acl_mem", PSI_FLAG_GLOBAL},
   { &key_memory_acl_memex, "sql_acl_memex", PSI_FLAG_GLOBAL},
   { &key_memory_acl_cache, "acl_cache", PSI_FLAG_GLOBAL},
   { &key_memory_thd_main_mem_root, "thd::main_mem_root", PSI_FLAG_THREAD},
-//  { &key_memory_help, "help", 0},
-//  { &key_memory_new_frm_mem, "new_frm_mem", 0},
   { &key_memory_table_share, "TABLE_SHARE::mem_root", PSI_FLAG_GLOBAL}, /* table definition cache */
   { &key_memory_gdl, "gdl", 0},
   { &key_memory_table_triggers_list, "Table_triggers_list", 0},
 //  { &key_memory_servers, "servers", 0},
   { &key_memory_prepared_statement_map, "Prepared_statement_map", PSI_FLAG_THREAD},
   { &key_memory_prepared_statement_main_mem_root, "Prepared_statement::main_mem_root", PSI_FLAG_THREAD},
-//  { &key_memory_protocol_rset_root, "Protocol_local::m_rset_root", PSI_FLAG_THREAD},
-//  { &key_memory_warning_info_warn_root, "Warning_info::m_warn_root", PSI_FLAG_THREAD},
   { &key_memory_sp_cache, "THD::sp_cache", 0},
   { &key_memory_sp_head_main_root, "sp_head::main_mem_root", 0},
   { &key_memory_sp_head_execute_root, "sp_head::execute_mem_root", PSI_FLAG_THREAD},
   { &key_memory_sp_head_call_root, "sp_head::call_mem_root", PSI_FLAG_THREAD},
   { &key_memory_table_mapping_root, "table_mapping::m_mem_root", 0},
   { &key_memory_quick_range_select_root, "QUICK_RANGE_SELECT::alloc", PSI_FLAG_THREAD},
-//  { &key_memory_quick_index_merge_root, "QUICK_INDEX_MERGE_SELECT::alloc", PSI_FLAG_THREAD},
-//  { &key_memory_quick_ror_intersect_select_root, "QUICK_ROR_INTERSECT_SELECT::alloc", PSI_FLAG_THREAD},
-//  { &key_memory_quick_ror_union_select_root, "QUICK_ROR_UNION_SELECT::alloc", PSI_FLAG_THREAD},
-//  { &key_memory_quick_group_min_max_select_root, "QUICK_GROUP_MIN_MAX_SELECT::alloc", PSI_FLAG_THREAD},
-//  { &key_memory_test_quick_select_exec, "test_quick_select", PSI_FLAG_THREAD},
-//  { &key_memory_prune_partitions_exec, "prune_partitions::exec", 0},
   { &key_memory_binlog_recover_exec, "MYSQL_BIN_LOG::recover", 0},
   { &key_memory_blob_mem_storage, "Blob_mem_storage::storage", 0},
   { &key_memory_NAMED_ILINK_name, "NAMED_ILINK::name", 0},
@@ -9822,17 +9855,12 @@ static PSI_memory_info all_server_memory[]=
   { &key_memory_queue_item, "Queue::queue_item", 0},
   { &key_memory_THD_db, "THD::db", 0},
   { &key_memory_user_var_entry, "user_var_entry", 0},
-//  { &key_memory_Slave_job_group_group_relay_log_name, "Slave_job_group::group_relay_log_name", 0},
   { &key_memory_Relay_log_info_group_relay_log_name, "Relay_log_info::group_relay_log_name", 0},
   { &key_memory_binlog_cache_mngr, "binlog_cache_mngr", 0},
   { &key_memory_binlog_gtid_index, "binlog_gtid_index", 0},
   { &key_memory_Row_data_memory_memory, "Row_data_memory::memory", 0},
-//  { &key_memory_Gtid_set_to_string, "Gtid_set::to_string", 0},
-//  { &key_memory_Gtid_state_to_string, "Gtid_state::to_string", 0},
-//  { &key_memory_Owned_gtids_to_string, "Owned_gtids::to_string", 0},
 //  { &key_memory_log_event, "Log_event", 0},
 //  { &key_memory_Incident_log_event_message, "Incident_log_event::message", 0},
-//  { &key_memory_Rows_query_log_event_rows_query, "Rows_query_log_event::rows_query", 0},
   { &key_memory_Sort_param_tmp_buffer, "Sort_param::tmp_buffer", 0},
   { &key_memory_Filesort_info_merge, "Filesort_info::merge", 0},
   { &key_memory_Filesort_info_record_pointers, "Filesort_info::record_pointers", 0},
@@ -9845,7 +9873,6 @@ static PSI_memory_info all_server_memory[]=
   { &key_memory_User_level_lock, "User_level_lock", 0},
   { &key_memory_MYSQL_LOG_name, "MYSQL_LOG::name", 0},
   { &key_memory_TC_LOG_MMAP_pages, "TC_LOG_MMAP::pages", 0},
-//  { &key_memory_my_bitmap_map, "my_bitmap_map", 0},
   { &key_memory_QUICK_RANGE_SELECT_mrr_buf_desc, "QUICK_RANGE_SELECT::mrr_buf_desc", 0},
   { &key_memory_Event_queue_element_for_exec_names, "Event_queue_element_for_exec::names", 0},
   { &key_memory_my_str_malloc, "my_str_malloc", 0},
@@ -9856,39 +9883,21 @@ static PSI_memory_info all_server_memory[]=
   { &key_memory_rpl_filter, "rpl_filter memory", 0},
   { &key_memory_errmsgs, "errmsgs", 0},
   { &key_memory_Gis_read_stream_err_msg, "Gis_read_stream::err_msg", 0},
-//  { &key_memory_Geometry_objects_data, "Geometry::ptr_and_wkb_data", 0},
   { &key_memory_MYSQL_LOCK, "MYSQL_LOCK", 0},
 //  { &key_memory_NET_buff, "NET::buff", 0},
 //  { &key_memory_NET_compress_packet, "NET::compress_packet", 0},
   { &key_memory_Event_scheduler_scheduler_param, "Event_scheduler::scheduler_param", 0},
-//  { &key_memory_Gtid_set_Interval_chunk, "Gtid_set::Interval_chunk", 0},
-//  { &key_memory_Owned_gtids_sidno_to_hash, "Owned_gtids::sidno_to_hash", 0},
-//  { &key_memory_Sid_map_Node, "Sid_map::Node", 0},
-//  { &key_memory_Gtid_state_group_commit_sidno, "Gtid_state::group_commit_sidno_locks", 0},
-//  { &key_memory_Mutex_cond_array_Mutex_cond, "Mutex_cond_array::Mutex_cond", 0},
   { &key_memory_TABLE_RULE_ENT, "TABLE_RULE_ENT", 0},
-//  { &key_memory_Rpl_info_table, "Rpl_info_table", 0},
   { &key_memory_Rpl_info_file_buffer, "Rpl_info_file::buffer", 0},
-//  { &key_memory_db_worker_hash_entry, "db_worker_hash_entry", 0},
-//  { &key_memory_rpl_slave_check_temp_dir, "rpl_slave::check_temp_dir", 0},
-//  { &key_memory_rpl_slave_command_buffer, "rpl_slave::command_buffer", 0},
   { &key_memory_binlog_ver_1_event, "binlog_ver_1_event", 0},
   { &key_memory_SLAVE_INFO, "SLAVE_INFO", 0},
   { &key_memory_binlog_pos, "binlog_pos", 0},
-//  { &key_memory_HASH_ROW_ENTRY, "HASH_ROW_ENTRY", 0},
   { &key_memory_binlog_statement_buffer, "binlog_statement_buffer", 0},
-//  { &key_memory_partition_syntax_buffer, "partition_syntax_buffer", 0},
-//  { &key_memory_READ_INFO, "READ_INFO", 0},
   { &key_memory_JOIN_CACHE, "JOIN_CACHE", 0},
-//  { &key_memory_TABLE_sort_io_cache, "TABLE::sort_io_cache", 0},
-//  { &key_memory_frm, "frm", 0},
   { &key_memory_Unique_sort_buffer, "Unique::sort_buffer", 0},
   { &key_memory_Unique_merge_buffer, "Unique::merge_buffer", 0},
   { &key_memory_TABLE, "TABLE", PSI_FLAG_GLOBAL}, /* Table cache */
-//  { &key_memory_frm_extra_segment_buff, "frm::extra_segment_buff", 0},
-//  { &key_memory_frm_form_pos, "frm::form_pos", 0},
   { &key_memory_frm_string, "frm::string", 0},
-//  { &key_memory_LOG_name, "LOG_name", 0},
   { &key_memory_DATE_TIME_FORMAT, "DATE_TIME_FORMAT", 0},
   { &key_memory_DDL_LOG_MEMORY_ENTRY, "DDL_LOG_MEMORY_ENTRY", 0},
   { &key_memory_ST_SCHEMA_TABLE, "ST_SCHEMA_TABLE", 0},
@@ -9896,30 +9905,15 @@ static PSI_memory_info all_server_memory[]=
   { &key_memory_PROFILE, "PROFILE", 0},
   { &key_memory_global_system_variables, "global_system_variables", 0},
   { &key_memory_THD_variables, "THD::variables", 0},
-//  { &key_memory_Security_context, "Security_context", 0},
-//  { &key_memory_shared_memory_name, "Shared_memory_name", 0},
   { &key_memory_bison_stack, "bison_stack", 0},
   { &key_memory_THD_handler_tables_hash, "THD::handler_tables_hash", 0},
   { &key_memory_hash_index_key_buffer, "hash_index_key_buffer", 0},
   { &key_memory_dboptions_hash, "dboptions_hash", 0},
   { &key_memory_dbnames_cache, "dbnames_cache", 0},
   { &key_memory_user_conn, "user_conn", 0},
-//  { &key_memory_LOG_POS_COORD, "LOG_POS_COORD", 0},
-//  { &key_memory_XID_STATE, "XID_STATE", 0},
   { &key_memory_MPVIO_EXT_auth_info, "MPVIO_EXT::auth_info", 0},
-//  { &key_memory_opt_bin_logname, "opt_bin_logname", 0},
   { &key_memory_Query_cache, "Query_cache", PSI_FLAG_GLOBAL},
-//  { &key_memory_READ_RECORD_cache, "READ_RECORD_cache", 0},
-//  { &key_memory_Quick_ranges, "Quick_ranges", 0},
-//  { &key_memory_File_query_log_name, "File_query_log::name", 0},
   { &key_memory_Table_trigger_dispatcher, "Table_trigger_dispatcher::m_mem_root", 0},
-//  { &key_memory_thd_timer, "thd_timer", 0},
-//  { &key_memory_THD_Session_tracker, "THD::Session_tracker", 0},
-//  { &key_memory_THD_Session_sysvar_resource_manager, "THD::Session_sysvar_resource_manager", 0},
-//  { &key_memory_show_slave_status_io_gtid_set, "show_slave_status_io_gtid_set", 0},
-//  { &key_memory_write_set_extraction, "write_set_extraction", 0},
-//  { &key_memory_get_all_tables, "get_all_tables", 0},
-//  { &key_memory_fill_schema_schemata, "fill_schema_schemata", 0},
   { &key_memory_native_functions, "native_functions", PSI_FLAG_GLOBAL},
   { &key_memory_WSREP, "wsrep", 0 }
 };
@@ -10105,4 +10099,32 @@ my_thread_id next_thread_id(void)
 
   mysql_mutex_unlock(&LOCK_thread_id);
   return retval;
+}
+
+
+/**
+  calculates the server unique identifier
+
+  UID is a base64 encoded SHA1 hash of the MAC address of one of
+  the interfaces, and the tcp port that the server is listening on
+*/
+
+static int calculate_server_uid(char *dest)
+{
+  uchar rawbuf[2 + 6];
+  uchar shabuf[MY_SHA1_HASH_SIZE];
+
+  int2store(rawbuf, mysqld_port);
+  if (my_gethwaddr(rawbuf + 2))
+  {
+    sql_print_error("feedback plugin: failed to retrieve the MAC address");
+    return 1;
+  }
+
+  my_sha1((uint8*) shabuf, (char*) rawbuf, sizeof(rawbuf));
+
+  assert(my_base64_needed_encoded_length(sizeof(shabuf)) <= SERVER_UID_SIZE);
+  my_base64_encode(shabuf, sizeof(shabuf), dest);
+
+  return 0;
 }

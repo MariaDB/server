@@ -13734,10 +13734,10 @@ delete_part2:
         ;
 
 delete_single_table:
-          FROM table_ident opt_use_partition
+          FROM table_ident opt_table_alias_clause opt_use_partition
           {
             if (unlikely(!Select->
-                         add_table_to_list(thd, $2, NULL, TL_OPTION_UPDATING,
+                         add_table_to_list(thd, $2, $3, TL_OPTION_UPDATING,
                                            YYPS->m_lock_type,
                                            YYPS->m_mdl_type,
                                            NULL,
@@ -13750,11 +13750,11 @@ delete_single_table:
             Lex->query_tables= 0;
             Lex->query_tables_last= &Lex->query_tables;
             if (unlikely(!Select->
-                         add_table_to_list(thd, $2, NULL, TL_OPTION_UPDATING,
+                         add_table_to_list(thd, $2, $3, TL_OPTION_UPDATING,
                                            YYPS->m_lock_type,
                                            YYPS->m_mdl_type,
                                            NULL,
-                                           $3)))
+                                           $4)))
               MYSQL_YYABORT;
             Lex->auxiliary_table_list.first->correspondent_table=
               Lex->query_tables;
@@ -17031,23 +17031,15 @@ option_value_no_option_type:
           }
         | NAMES_SYM charset_name_or_default
           {
-            CHARSET_INFO *def= global_system_variables.character_set_client;
-            Lex_exact_charset_opt_extended_collate tmp($2 ? $2 : def, false);
-            Lex_extended_collation_st cl;
-            cl.set_collate_default();
-            if (tmp.merge_collation(thd, thd->variables.
-                                      character_set_collations, cl) ||
-                Lex->set_names($1.pos(), tmp, yychar == YYEMPTY))
+            if (Lex->set_names($1.pos(), $2,
+                               Lex_extended_collation_st::collate_default(),
+                               yychar == YYEMPTY))
               MYSQL_YYABORT;
           }
         | NAMES_SYM charset_name_or_default
                     COLLATE_SYM collation_name_or_default
           {
-            CHARSET_INFO *def= global_system_variables.character_set_client;
-            Lex_exact_charset_opt_extended_collate tmp($2 ? $2 : def, false);
-            if (tmp.merge_collation(thd, thd->variables.
-                                      character_set_collations, $4) ||
-                Lex->set_names($1.pos(), tmp, yychar == YYEMPTY))
+            if (Lex->set_names($1.pos(), $2, $4, yychar == YYEMPTY))
               MYSQL_YYABORT;
           }
         | DEFAULT ROLE_SYM grant_role

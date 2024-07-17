@@ -2573,6 +2573,8 @@ bool THD::copy_with_error(CHARSET_INFO *dstcs, LEX_STRING *dst,
                           CHARSET_INFO *srccs,
                           const char *src, size_t src_length) const
 {
+  // Don't allow NULL to avoid UB in the called functions: nullptr+0
+  DBUG_ASSERT(src);
   String_copier_with_error status;
   return copy_fix(dstcs, dst, srccs, src, src_length, &status) ||
          status.check_errors(srccs, src, src_length);
@@ -5184,6 +5186,9 @@ MYSQL_THD create_background_thd()
   thd->real_id= 0;
   thd->thread_id= 0;
   thd->query_id= 0;
+#ifdef WITH_WSREP
+  thd->variables.wsrep_on= FALSE;
+#endif /* WITH_WSREP */
   return thd;
 }
 
@@ -6579,7 +6584,8 @@ int THD::decide_logging_format(TABLE_LIST *tables)
       wsrep_is_active(this) &&
       variables.wsrep_trx_fragment_size > 0)
   {
-    if (!is_current_stmt_binlog_format_row())
+    if (!is_current_stmt_binlog_disabled() &&
+        !is_current_stmt_binlog_format_row())
     {
       my_message(ER_NOT_SUPPORTED_YET,
                  "Streaming replication not supported with "

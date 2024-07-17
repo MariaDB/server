@@ -50,7 +50,7 @@ t1	CREATE TABLE `t1` (
   `b` blob DEFAULT NULL,
   `c` blob DEFAULT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=InnoDB AUTO_INCREMENT=46 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci ROW_FORMAT=DYNAMIC
+) ENGINE=InnoDB AUTO_INCREMENT=46 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci ROW_FORMAT=DYNAMIC
 # Auto increment value must be more than maximum column value
 SELECT MAX(a) FROM t1;
 MAX(a)
@@ -140,7 +140,7 @@ t1	CREATE TABLE `t1` (
   `c2` point NOT NULL,
   `c3` linestring NOT NULL,
   PRIMARY KEY (`c1`)
-) ENGINE=InnoDB AUTO_INCREMENT=14325 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci ROW_FORMAT=DYNAMIC
+) ENGINE=InnoDB AUTO_INCREMENT=14325 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci ROW_FORMAT=DYNAMIC
 # Auto increment value must be more than maximum column value
 SELECT MAX(c1) FROM t1;
 MAX(c1)

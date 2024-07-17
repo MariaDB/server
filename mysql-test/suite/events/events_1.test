@@ -11,7 +11,7 @@ call mtr.add_suppression("Column count of mysql.event is wrong. Expected .*, fou
 call mtr.add_suppression("Incorrect definition of table mysql.event:.*");
 call mtr.add_suppression("Event Scheduler: .* DROP command denied to user");
 
-create database events_test;
+create database events_test character set latin1;
 use events_test;
 
 #

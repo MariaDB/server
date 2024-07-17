@@ -320,7 +320,7 @@ Note	1105	DBUG: [1] arg=2 handler=0 (decimal)
 Note	1105	DBUG: [2] arg=3 handler=0 (decimal)
 Note	1105	DBUG: types_compatible=yes bisect=yes
 DROP TABLE t1;
-CREATE TABLE t1 (a VARCHAR(10));
+CREATE TABLE t1 (a VARCHAR(10)) CHARSET=latin1;
 SELECT a IN ('a','b','c') FROM t1;
 a IN ('a','b','c')
 Warnings:
@@ -576,7 +576,7 @@ Note	1105	DBUG: [2] arg=3 handler=0 (decimal)
 Note	1105	DBUG: [3] arg=4 handler=0 (decimal)
 Note	1105	DBUG: types_compatible=yes bisect=no
 DROP TABLE t1;
-CREATE TABLE t1 (a VARCHAR(10));
+CREATE TABLE t1 (a VARCHAR(10)) CHARSET=latin1;
 SELECT 'a' IN (a,'b','c') FROM t1;
 'a' IN (a,'b','c')
 Warnings:
@@ -1194,7 +1194,7 @@ Note	1105	DBUG: [0] arg=1 handler=0 (double)
 Note	1105	DBUG: [1] arg=2 handler=1 (datetime)
 Note	1105	DBUG: types_compatible=no bisect=no
 DROP TABLE t1;
-CREATE TABLE t1 (a VARCHAR(10));
+CREATE TABLE t1 (a VARCHAR(10)) CHARSET=latin1;
 SELECT a IN ('a',1) FROM t1;
 a IN ('a',1)
 Warnings:
@@ -1545,7 +1545,7 @@ Note	1105	DBUG: [1] arg=2 handler=0 (time)
 Note	1105	DBUG: [2] arg=3 handler=2 (datetime)
 Note	1105	DBUG: types_compatible=no bisect=no
 DEALLOCATE PREPARE stmt;
-CREATE TABLE t1 (a VARCHAR(10));
+CREATE TABLE t1 (a VARCHAR(10)) CHARSET=latin1;
 INSERT INTO t1 VALUES ('A'),('B'),('A');
 SELECT a,NULL AS b FROM t1 GROUP BY a HAVING 'A' IN (b,'A');
 a	b
@@ -1758,7 +1758,7 @@ a
 Warnings:
 Note	1105	bin_eq=0 a=(int)-1 b=(decimal)18446744073709551616
 DROP TABLE t1;
-CREATE TABLE t1 (a VARCHAR(10));
+CREATE TABLE t1 (a VARCHAR(10)) CHARSET=latin1;
 INSERT INTO t1 VALUES ('0'),('1'),('2');
 SELECT * FROM t1 WHERE a BETWEEN '0' AND '0';
 a
@@ -1839,7 +1839,7 @@ SET SESSION debug_dbug="-d,Item_basic_value";
 # MDEV-16426 Optimizer erroneously treats equal constants of different formats as same
 #
 SET SESSION debug_dbug="+d,Item_basic_value";
-CREATE TABLE t1 (a VARCHAR(10));
+CREATE TABLE t1 (a VARCHAR(10)) CHARSET=latin1;
 INSERT INTO t1 VALUES ('a'),('b'),('c');
 SELECT * FROM t1 WHERE a BETWEEN 'a' AND 0x61;
 a

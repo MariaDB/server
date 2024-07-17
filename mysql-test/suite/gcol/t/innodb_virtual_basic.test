@@ -4,6 +4,7 @@
 
 call mtr.add_suppression("\\[Warning\\] InnoDB: Compute virtual");
 
+--source include/test_db_charset_latin1.inc
 set default_storage_engine=innodb;
 
 CREATE TABLE t (a INT, b INT GENERATED ALWAYS AS (a), c CHAR(10), d CHAR(20), e CHAR(10) GENERATED ALWAYS AS (c), g INT);
@@ -1444,3 +1445,5 @@ SELECT * FROM t1;
 INSERT INTO t1 SET c=3;
 SELECT * FROM t1;
 DROP TABLE t1;
+
+--source include/test_db_charset_restore.inc

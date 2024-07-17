@@ -13,6 +13,7 @@
 # Change:                                                                    #
 ##############################################################################
 
+--source include/test_db_charset_latin1.inc
 --disable_query_log
 set @local_optimizer_switch=@@optimizer_switch;
 set optimizer_switch='derived_merge=off,join_cache_hashed=off';
@@ -1173,3 +1174,4 @@ DROP TABLE t1, t2, t3, t4;
 --disable_query_log
 set @@optimizer_switch=@local_optimizer_switch;
 --enable_query_log
+--source include/test_db_charset_restore.inc

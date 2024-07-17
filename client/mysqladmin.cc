@@ -421,7 +421,7 @@ int main(int argc,char *argv[])
       is given a t!=0, we get an endless loop, or n iterations if --count=n
       was given an n!=0. If --sleep wasn't given, we get one iteration.
 
-      To wit, --wait loops the connection-attempts, while --sleep loops
+      To wait, --wait loops the connection-attempts, while --sleep loops
       the command execution (endlessly if no --count is given).
     */
 

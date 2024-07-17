@@ -355,7 +355,7 @@ public:
                         const char* sqlstate,
                         Sql_condition::enum_warning_level *level,
                         const char* msg,
-                        Sql_condition ** cond_hdl)
+                        Sql_condition ** cond_hdl) override
   {
     if (sql_errno == ER_CANT_FIND_DL_ENTRY ||
         sql_errno == ER_CANT_OPEN_LIBRARY)
@@ -1124,7 +1124,7 @@ public:
 
   bool handle_condition(THD *thd, uint sql_errno, const char * /* sqlstate */,
                         Sql_condition::enum_warning_level *level,
-                        const char *message, Sql_condition ** /* cond_hdl */)
+                        const char *message, Sql_condition ** /* cond_hdl */) override
   {
     /*
        The handler does not handle the errors raised by itself.
@@ -3960,7 +3960,7 @@ static bool show_status_array(THD *thd, const char *wild,
     */
     for (var=variables; var->type == SHOW_FUNC ||
            var->type == SHOW_SIMPLE_FUNC; var= &tmp)
-      ((mysql_show_var_func)(var->value))(thd, &tmp, buff,
+      ((mysql_show_var_func)(var->value))(thd, &tmp, (void *) buff,
                                           status_var, scope);
     
     SHOW_TYPE show_type=var->type;
@@ -5306,7 +5306,7 @@ class Warnings_only_error_handler : public Internal_error_handler
 public:
   bool handle_condition(THD *thd, uint sql_errno, const char* sqlstate,
                         Sql_condition::enum_warning_level *level,
-                        const char* msg, Sql_condition ** cond_hdl)
+                        const char* msg, Sql_condition ** cond_hdl) override
   {
     if (sql_errno == ER_TRG_NO_DEFINER || sql_errno == ER_TRG_NO_CREATION_CTX
         || sql_errno == ER_PARSE_ERROR)
@@ -10921,12 +10921,12 @@ class IS_internal_schema_access : public ACL_internal_schema_access
 public:
   IS_internal_schema_access() = default;
 
-  ~IS_internal_schema_access() = default;
+  ~IS_internal_schema_access() override = default;
 
   ACL_internal_access_result check(privilege_t want_access,
-                                   privilege_t *save_priv) const;
+                                   privilege_t *save_priv) const override;
 
-  const ACL_internal_table_access *lookup(const char *name) const;
+  const ACL_internal_table_access *lookup(const char *name) const override;
 };
 
 ACL_internal_access_result

@@ -116,7 +116,7 @@ time_zone	SYSTEM
 Create Event	CREATE DEFINER=`root`@`localhost` EVENT `a` ON SCHEDULE EVERY 1 DAY STARTS '2020-10-10 05:05:05' ON COMPLETION NOT PRESERVE ENABLE DO set @a:=1
 character_set_client	latin1
 collation_connection	latin1_swedish_ci
-Database Collation	latin1_swedish_ci
+Database Collation	utf8mb4_uca1400_ai_ci
 drop event a;
 set timestamp=default;
 #

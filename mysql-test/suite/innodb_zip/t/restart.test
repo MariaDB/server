@@ -6,6 +6,7 @@
 --source include/not_embedded.inc
 --source include/innodb_checksum_algorithm.inc
 --source include/have_symlink.inc
+--source include/test_db_charset_latin1.inc
 
 SET default_storage_engine=InnoDB;
 LET $MYSQLD_DATADIR = `select @@datadir`;
@@ -591,3 +592,4 @@ DROP TABLE t77_restart;
 --rmdir $MYSQL_TMP_DIR/alt_dir
 --rmdir $MYSQL_TMP_DIR/new_dir/test
 --rmdir $MYSQL_TMP_DIR/new_dir
+--source include/test_db_charset_restore.inc

@@ -9,10 +9,10 @@ ERROR 42000: FUNCTION hello already exists
 connection slave;
 SHOW CREATE FUNCTION hello;
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
-hello	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` FUNCTION `hello`(str CHAR(20)) RETURNS char(50) CHARSET latin1 COLLATE latin1_swedish_ci
+hello	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` FUNCTION `hello`(str CHAR(20)) RETURNS char(50) CHARSET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci
     DETERMINISTIC
 RETURN
-CONCAT('Hello, ', str, '!')	latin1	latin1_swedish_ci	latin1_swedish_ci
+CONCAT('Hello, ', str, '!')	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 connection master;
 CREATE OR REPLACE FUNCTION IF NOT EXISTS hello (str CHAR(20)) RETURNS CHAR(50) DETERMINISTIC RETURN
 CONCAT('Hello, ', str, '!');

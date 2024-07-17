@@ -349,6 +349,8 @@ struct rows_stats
   ha_rows updated;
   ha_rows inserted;
   ha_rows deleted;
+  ha_rows pages_accessed;
+  ha_rows pages_read_count;                     // Read from disk
 };
 
 

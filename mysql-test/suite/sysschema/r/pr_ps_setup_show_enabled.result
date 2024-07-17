@@ -14,7 +14,8 @@ UPDATE performance_schema.threads
 SET INSTRUMENTED = 'NO'
  WHERE NAME LIKE 'thread/innodb/srv\_%'
     OR NAME LIKE '%con\_%'
-    OR NAME LIKE '%signal_handler%';
+    OR NAME LIKE '%signal_handler%'
+    OR NAME LIKE '%worker%';
 CALL sys.ps_setup_show_enabled(FALSE, FALSE);
 performance_schema_enabled
 1
@@ -203,8 +204,8 @@ global_instrumentation
 statements_digest
 thread_instrumentation
 enabled_threads	thread_type
-aria/checkpoint_background	BACKGROUND
-innodb/page_cleaner_thread	BACKGROUND
+aria/checkpoint_bg	BACKGROUND
+innodb/page_cleaner	BACKGROUND
 mysys/statement_timer	BACKGROUND
 root@localhost	FOREGROUND
 sql/main	BACKGROUND
@@ -234,8 +235,8 @@ global_instrumentation
 statements_digest
 thread_instrumentation
 enabled_threads	thread_type
-aria/checkpoint_background	BACKGROUND
-innodb/page_cleaner_thread	BACKGROUND
+aria/checkpoint_bg	BACKGROUND
+innodb/page_cleaner	BACKGROUND
 mysys/statement_timer	BACKGROUND
 root@localhost	FOREGROUND
 sql/main	BACKGROUND

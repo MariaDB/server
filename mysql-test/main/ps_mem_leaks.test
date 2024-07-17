@@ -110,3 +110,60 @@ DEALLOCATE PREPARE stmt;
 DROP TABLE t1;
 
 --echo # End of 10.4 tests
+
+--echo #
+--echo # MDEV-33769: Memory leak found in the test main.rownum run with --ps-protocol against a server built with the option -DWITH_PROTECT_STATEMENT_MEMROOT
+--echo #
+CREATE OR REPLACE TABLE t1(a INT);
+PREPARE stmt FROM 'SELECT 1 FROM t1 WHERE ROWNUM() < 2';
+EXECUTE stmt;
+EXECUTE stmt;
+
+INSERT INTO t1 VALUES (1), (2), (3), (4), (5);
+
+PREPARE stmt FROM 'SELECT * FROM t1 WHERE ROWNUM() < ?';
+--echo # Expected output is two rows (1), (2)
+EXECUTE stmt USING 3;
+--echo # Expected output is one row (1)
+EXECUTE stmt USING 2;
+--echo # Expected output is three rows (1), (2), (3)
+EXECUTE stmt USING 4;
+
+--echo # Clean up
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1;
+
+--echo # End of 10.6 tests
+
+--echo #
+--echo # MDEV-34447: Memory leakage is detected on running the test main.ps against the server 11.1
+--echo #
+CREATE TABLE t1 (id INT, value INT);
+CREATE TABLE t2 (id INT);
+
+PREPARE stmt FROM 'UPDATE t1 SET value = (SELECT 1 FROM t2 WHERE id = t1.id)';
+EXECUTE stmt;
+INSERT INTO t1 VALUES (1,10),(2,10),(3,10);
+INSERT INTO t2 VALUES (1),(2);
+EXECUTE stmt;
+SELECT * FROM t1;
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1, t2;
+
+--echo # Memory leak also could take place on running the DELETE statement
+--echo # with the LIMIT clause. Check it.
+CREATE TABLE t1 (c1 INT);
+INSERT INTO t1 (c1) VALUES (1), (2), (3);
+
+CREATE PROCEDURE p1(p1 INT)
+  DELETE FROM t1 LIMIT p1;
+
+CALL p1(0);
+CALL p1(1);
+CALL p1(2);
+
+--echo # Clean up
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+--echo # End of 10.11 tests

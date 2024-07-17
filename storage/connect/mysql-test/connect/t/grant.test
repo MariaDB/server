@@ -25,7 +25,7 @@ CREATE TABLE t1 (
   fname VARCHAR(256) NOT NULL,
   ftype CHAR(4) NOT NULL,
   size DOUBLE(12,0) NOT NULL flag=5
-) ENGINE=CONNECT TABLE_TYPE=DIR FILE_NAME='*.*';
+) ENGINE=CONNECT TABLE_TYPE=DIR FILE_NAME='*.*' CHARSET=latin1;
 # "size>0" to skip directory names on Windows
 --replace_result $MYSQLD_DATADIR DATADIR/
 SELECT fname, ftype, size FROM t1 WHERE size>0 AND ftype!='.opt';

@@ -9,19 +9,19 @@ DROP TABLE t1;
 CREATE TABLE t1 (a INT KEY AUTO_INCREMENT, c CHAR(8)) ENGINE=rocksdb;
 SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	ROCKSDB	10	Fixed	#	#	#	0	0	0	1	#	#	NULL	latin1_swedish_ci	NULL			0	N
+t1	ROCKSDB	10	Fixed	#	#	#	0	0	0	1	#	#	NULL	utf8mb4_uca1400_ai_ci	NULL			0	N
 INSERT INTO t1 (c) VALUES ('a'),('b'),('c');
 SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	ROCKSDB	10	Fixed	#	#	#	0	0	0	4	#	#	NULL	latin1_swedish_ci	NULL			0	N
+t1	ROCKSDB	10	Fixed	#	#	#	0	0	0	4	#	#	NULL	utf8mb4_uca1400_ai_ci	NULL			0	N
 TRUNCATE TABLE t1;
 SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	ROCKSDB	10	Fixed	#	#	#	0	0	0	1	#	#	NULL	latin1_swedish_ci	NULL			0	N
+t1	ROCKSDB	10	Fixed	#	#	#	0	0	0	1	#	#	NULL	utf8mb4_uca1400_ai_ci	NULL			0	N
 INSERT INTO t1 (c) VALUES ('d');
 SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	ROCKSDB	10	Fixed	#	#	#	0	0	0	2	#	#	NULL	latin1_swedish_ci	NULL			0	N
+t1	ROCKSDB	10	Fixed	#	#	#	0	0	0	2	#	#	NULL	utf8mb4_uca1400_ai_ci	NULL			0	N
 SELECT a,c FROM t1;
 a	c
 1	d

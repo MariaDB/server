@@ -1,6 +1,6 @@
 --- instant_alter_limit.result
 +++ instant_alter_limit,4k.reject
-@@ -5,6 +5,276 @@
+@@ -6,6 +6,276 @@
  ENGINE=InnoDB;
  INSERT INTO t VALUES(1,2,3,4,5);
  SET innodb_strict_mode = OFF;
@@ -277,7 +277,7 @@
  SELECT * FROM t;
  b	d	a	c	e
  NULL	NULL	1	NULL	NULL
-@@ -12,11 +282,17 @@
+@@ -13,11 +283,17 @@
  ADD COLUMN b INT, ALGORITHM=INSTANT;
  ERROR 0A000: ALGORITHM=INSTANT is not supported for this operation. Try ALGORITHM=INPLACE
  ALTER TABLE t CHANGE COLUMN b beta INT AFTER a, ALGORITHM=INSTANT;
@@ -295,7 +295,7 @@
  ALTER TABLE t ADD COLUMN b INT NOT NULL, ALGORITHM=INSTANT;
  ERROR 0A000: ALGORITHM=INSTANT is not supported for this operation. Try ALGORITHM=INPLACE
  SELECT variable_value-@old_instant instants
-@@ -43,5 +319,14 @@
+@@ -44,6 +320,15 @@
  FROM information_schema.global_status
  WHERE variable_name = 'innodb_instant_alter_column';
  instants
@@ -311,3 +311,4 @@
 +Warnings:
 +Warning	139	Row size too large (> 1982). Changing some columns to TEXT or BLOB or using ROW_FORMAT=DYNAMIC or ROW_FORMAT=COMPRESSED may help. In current row format, BLOB prefix of 768 bytes is stored inline.
 +DROP TABLE t1;
+ ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

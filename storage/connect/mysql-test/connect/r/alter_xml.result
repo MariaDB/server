@@ -25,7 +25,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c` int(11) NOT NULL,
   `d` char(10) NOT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `HEADER`=1 `QUOTED`=1 `TABLE_TYPE`=XML `TABNAME`=t1 `OPTION_LIST`='xmlsup=domdoc,rownode=row'
+) ENGINE=CONNECT DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci `HEADER`=1 `QUOTED`=1 `TABLE_TYPE`=XML `TABNAME`=t1 `OPTION_LIST`='xmlsup=domdoc,rownode=row'
 # Let us see the XML file
 CREATE TABLE t2 (line VARCHAR(100) NOT NULL) ENGINE=CONNECT FILE_NAME='t1.xml';
 Warnings:
@@ -65,7 +65,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c` int(11) NOT NULL,
   `d` char(10) NOT NULL `XPATH`='@'
-) ENGINE=CONNECT DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `QUOTED`=1 `TABLE_TYPE`=XML `TABNAME`=t1 `OPTION_LIST`='xmlsup=domdoc,rownode=row' `HEADER`=0
+) ENGINE=CONNECT DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci `QUOTED`=1 `TABLE_TYPE`=XML `TABNAME`=t1 `OPTION_LIST`='xmlsup=domdoc,rownode=row' `HEADER`=0
 SELECT * FROM t2;
 line
 <?xml version="1.0" encoding="UTF-8"?>

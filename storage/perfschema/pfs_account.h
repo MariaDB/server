@@ -27,6 +27,7 @@
   @file storage/perfschema/pfs_account.h
   Performance schema account (declarations).
 */
+#include <atomic>
 
 #include "pfs_lock.h"
 #include "lf.h"
@@ -62,22 +63,22 @@ struct PFS_ALIGNED PFS_account : PFS_connection_slice
 public:
   inline void init_refcount(void)
   {
-    PFS_atomic::store_32(& m_refcount, 1);
+    m_refcount.store(1);
   }
 
   inline int get_refcount(void)
   {
-    return PFS_atomic::load_32(& m_refcount);
+    return m_refcount.load();
   }
 
   inline void inc_refcount(void)
   {
-    PFS_atomic::add_32(& m_refcount, 1);
+    m_refcount.fetch_add(1);
   }
 
   inline void dec_refcount(void)
   {
-    PFS_atomic::add_32(& m_refcount, -1);
+    m_refcount.fetch_sub(1);
   }
 
   void aggregate(bool alive, PFS_user *safe_user, PFS_host *safe_host);
@@ -109,7 +110,7 @@ public:
   ulonglong m_disconnected_count;
 
 private:
-  int m_refcount;
+  std::atomic<int> m_refcount;
 };
 
 int init_account(const PFS_global_param *param);

@@ -11,6 +11,7 @@ eval CREATE TABLE t1 (
     warnings INT(4) NOT NULL FLAG=3,
     number INT(5) NOT NULL FLAG=1,
     message VARCHAR(255) FLAG=2)
+  CHARSET=latin1
   ENGINE=CONNECT TABLE_TYPE=MYSQL CONNECTION='mysql://root@127.0.0.1:$SLAVE_MYPORT/test' OPTION_LIST='Execsrc=1,maxerr=2';
 
 --disable_ps2_protocol
@@ -29,7 +30,7 @@ SELECT * FROM t1 WHERE command IN ('Warning','Note',
 --echo # Checking Using Procedure
 --echo #
 DROP PROCEDURE IF EXISTS p1;
-CREATE PROCEDURE p1(cmd varchar(512))
+CREATE PROCEDURE p1(cmd varchar(512) CHARACTER SET latin1)
   READS SQL DATA
   SELECT * FROM t1 WHERE command IN ('Warning','Note',cmd);
 

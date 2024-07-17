@@ -44,7 +44,7 @@ teststring
 teststring
 explain select * from t1 order by text1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	key1	34	NULL	3	Using index
+1	SIMPLE	t1	index	NULL	key1	130	NULL	3	Using index
 alter table t1 modify text1 char(32) binary not null;
 check table t1;
 Table	Op	Msg_type	Msg_text
@@ -100,7 +100,7 @@ concat('|', text1, '|')
 |teststring |
 explain select concat('|', text1, '|') from t1 where text1='teststring ';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	key1	key1	22	const	2	Using where
+1	SIMPLE	t1	ref	key1	key1	82	const	2	Using where
 select concat('|', text1, '|') from t1 where text1 like 'teststring_%';
 concat('|', text1, '|')
 |teststring	|
@@ -132,7 +132,7 @@ concat('|', text1, '|')
 |teststring	|
 |teststring|
 drop table t1;
-create table t1 (text1 varchar(32) not NULL, KEY key1 using BTREE (text1)) engine=heap;
+create table t1 (text1 varchar(32) not NULL, KEY key1 using BTREE (text1)) engine=heap charset=latin1;
 insert into t1 values ('teststring'), ('nothing'), ('teststring\t');
 select * from t1 ignore key (key1) where text1='teststring' or 
 text1 like 'teststring_%' ORDER BY text1;
@@ -162,7 +162,7 @@ nothing
 teststring	
 teststring
 drop table t1;
-create table t1 (text1 varchar(32) not NULL, KEY key1 (text1)) engine=innodb
+create table t1 (text1 varchar(32) not NULL, KEY key1 (text1)) engine=innodb charset=latin1
 stats_persistent=0;
 insert into t1 values ('teststring'), ('nothing'), ('teststring\t');
 check table t1;

@@ -2207,28 +2207,6 @@ drop user user_11766767;
 drop database mysqltest1;
 drop database mysqltest2;
 
---echo # Check that a user without access to the schema 'foo' cannot query
---echo # a JSON_TABLE view in that schema.
-CREATE SCHEMA foo;
-CREATE VIEW foo.v AS SELECT * FROM JSON_TABLE('[1,2,3]', '$[*]' COLUMNS (num INT PATH '$[0]')) AS jt;
-
-CREATE USER foo@localhost;
-GRANT SELECT on test.* to foo@localhost;
-connect (con1,localhost,foo,,);
---error ER_TABLEACCESS_DENIED_ERROR
-SELECT * FROM foo.v;
-
---echo #
---echo # Clean-up.
---echo #
-connection default;
-disconnect con1;
-drop user foo@localhost;
-drop schema foo;
-
-# Wait till we reached the initial number of concurrent sessions
---source include/wait_until_count_sessions.inc
-
 --echo #
 --echo # MDEV-33119 User is case insensitive in INFORMATION_SCHEMA.VIEWS
 --echo #
@@ -2255,3 +2233,28 @@ SELECT CURRENT_USER;
 DROP VIEW v1;
 DROP USER foo;
 DROP USER FOO;
+
+--echo # End of 10.5 tests
+
+--echo # Check that a user without access to the schema 'foo' cannot query
+--echo # a JSON_TABLE view in that schema.
+CREATE SCHEMA foo;
+CREATE VIEW foo.v AS SELECT * FROM JSON_TABLE('[1,2,3]', '$[*]' COLUMNS (num INT PATH '$[0]')) AS jt;
+
+CREATE USER foo@localhost;
+GRANT SELECT on test.* to foo@localhost;
+connect (con1,localhost,foo,,);
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM foo.v;
+
+--echo #
+--echo # Clean-up.
+--echo #
+connection default;
+disconnect con1;
+drop user foo@localhost;
+drop schema foo;
+--echo # End of 10.6 tests
+
+# Wait till we reached the initial number of concurrent sessions
+--source include/wait_until_count_sessions.inc

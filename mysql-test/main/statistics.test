@@ -1,6 +1,7 @@
 --source include/no_valgrind_without_big.inc
 --source include/have_stat_tables.inc
 --source include/have_innodb.inc
+--source include/test_db_charset_latin1.inc
 
 set @SINGLE_PREC_TYPE='single_prec_hb';
 set @DOUBLE_PREC_TYPE='double_prec_hb';
@@ -1050,3 +1051,4 @@ set analyze_sample_percentage=@save_analyze_sample_percentage;
 set histogram_size=@save_histogram_size;
 set use_stat_tables=@save_use_stat_tables;
 set @@global.histogram_size=@save_histogram_size;
+--source include/test_db_charset_restore.inc

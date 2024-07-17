@@ -64,7 +64,6 @@
 PSI_memory_key key_memory_log_event;
 #endif
 PSI_memory_key key_memory_Incident_log_event_message;
-PSI_memory_key key_memory_Rows_query_log_event_rows_query;
 
 /**
   BINLOG_CHECKSUM variable.

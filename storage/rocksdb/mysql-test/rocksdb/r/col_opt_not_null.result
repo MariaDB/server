@@ -652,7 +652,7 @@ c1 CHAR(1) NOT NULL,
 c20 CHAR(20) NOT NULL,
 c255 CHAR(255) NOT NULL,
 PRIMARY KEY (c255)
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARACTER SET latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 c	char(1)	NO		NULL	
@@ -750,14 +750,14 @@ v1 VARCHAR(1) NOT NULL,
 v64 VARCHAR(64) NOT NULL,
 v65000 VARCHAR(65000) NOT NULL,
 PRIMARY KEY (v64)
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 v0	varchar(0)	NO		NULL	
 v1	varchar(1)	NO		NULL	
 v64	varchar(64)	NO	PRI	NULL	
 v65000	varchar(65000)	NO		NULL	
-CREATE TABLE t2 (v VARCHAR(65532), PRIMARY KEY (v(255))) ENGINE=rocksdb;
+CREATE TABLE t2 (v VARCHAR(65532), PRIMARY KEY (v(255))) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t2;
 Field	Type	Null	Key	Default	Extra
 v	varchar(65532)	NO	PRI	NULL	
@@ -2415,7 +2415,7 @@ t17m TEXT(17000000) NOT NULL,
 tt TINYTEXT NOT NULL,
 m MEDIUMTEXT NOT NULL,
 l LONGTEXT NOT NULL
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment

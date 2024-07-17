@@ -920,7 +920,7 @@ bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
     */
     build_table_filename(path, sizeof(path) - 1, lpt->alter_info->db.str,
                          lpt->alter_info->table_name.str, "", 0);
-    strxnmov(frm_name, sizeof(frm_name), path, reg_ext, NullS);
+    strxnmov(frm_name, sizeof(frm_name)-1, path, reg_ext, NullS);
     /*
       When we are changing to use new frm file we need to ensure that we
       don't collide with another thread in process to open the frm file.
@@ -11802,6 +11802,7 @@ end_temporary:
 
   thd->variables.option_bits&= ~OPTION_BIN_COMMIT_OFF;
 
+  thd_progress_end(thd);
   *recreate_info= Recreate_info(copied, deleted);
   thd->my_ok_with_recreate_info(*recreate_info,
                                 (ulong) thd->get_stmt_da()->
@@ -11929,7 +11930,7 @@ class Has_default_error_handler : public Internal_error_handler
 public:
   bool handle_condition(THD *, uint sql_errno, const char *,
                         Sql_condition::enum_warning_level *,
-                        const char *, Sql_condition **)
+                        const char *, Sql_condition **) override
   {
     return sql_errno == ER_NO_DEFAULT_FOR_FIELD;
   }

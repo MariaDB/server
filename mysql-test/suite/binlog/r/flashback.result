@@ -1,3 +1,4 @@
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 #
 # Preparatory cleanup.
 #
@@ -765,3 +766,4 @@ Warnings:
 Warning	1105	MariaDB Galera and flashback do not support binlog format: STATEMENT
 SET GLOBAL binlog_format=statement;
 ERROR HY000: Flashback does not support binlog_format STATEMENT
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

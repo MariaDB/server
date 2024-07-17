@@ -6,7 +6,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`a`)
 SUBPARTITION BY KEY (`a`)
 (PARTITION `p0` VALUES LESS THAN (10)
@@ -56,7 +56,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=X DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=X DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`a`)
 (PARTITION `p0` VALUES LESS THAN (0) ENGINE = X,
  PARTITION `p1` VALUES LESS THAN (10) ENGINE = X)
@@ -67,12 +67,12 @@ show create table tp2;
 Table	Create Table
 tp2	CREATE TABLE `tp2` (
   `x` int(11) DEFAULT NULL
-) ENGINE=X DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=X DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=X DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=X DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`a`)
 (PARTITION `p0` VALUES LESS THAN (0) ENGINE = X,
  PARTITION `p1` VALUES LESS THAN (10) ENGINE = X)
@@ -97,7 +97,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=X DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=X DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`a`)
 (PARTITION `p0` VALUES LESS THAN (0) ENGINE = X,
  PARTITION `p1` VALUES LESS THAN (10) ENGINE = X,
@@ -187,7 +187,7 @@ show create table tp2;
 Table	Create Table
 tp2	CREATE TABLE `tp2` (
   `x` int(11) DEFAULT NULL
-) ENGINE=X DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=X DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 select * from tp2;
 x
 12
@@ -195,7 +195,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `x` int(11) DEFAULT NULL
-) ENGINE=X DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=X DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`x`)
 (PARTITION `p1` VALUES LESS THAN (10) ENGINE = X,
  PARTITION `p3` VALUES LESS THAN (30) ENGINE = X,
@@ -217,7 +217,7 @@ show create table EXISTENT.TP3;
 Table	Create Table
 TP3	CREATE TABLE `TP3`-ok (
   `x` int(11) DEFAULT NULL
-) ENGINE=X DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=X DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 select * from EXISTENT.TP3 order by x;
 x
 22
@@ -225,7 +225,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `x` int(11) DEFAULT NULL
-) ENGINE=X DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=X DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`x`)
 (PARTITION `p1` VALUES LESS THAN (10) ENGINE = X,
  PARTITION `p4` VALUES LESS THAN (40) ENGINE = X,
@@ -247,7 +247,7 @@ show create table tp4;
 Table	Create Table
 tp4	CREATE TABLE `tp4` (
   `x` int(11) DEFAULT NULL
-) ENGINE=X DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=X DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 select * from tp4;
 x
 32
@@ -255,7 +255,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `x` int(11) DEFAULT NULL
-) ENGINE=X DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=X DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`x`)
 (PARTITION `p1` VALUES LESS THAN (10) ENGINE = X,
  PARTITION `p5` VALUES LESS THAN (50) ENGINE = X,
@@ -272,7 +272,7 @@ show create table tp5;
 Table	Create Table
 tp5	CREATE TABLE `tp5` (
   `x` int(11) DEFAULT NULL
-) ENGINE=X DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=X DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 select * from tp5;
 x
 42
@@ -280,7 +280,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `x` int(11) DEFAULT NULL
-) ENGINE=X DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=X DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`x`)
 (PARTITION `p1` VALUES LESS THAN (10) ENGINE = X,
  PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = X)

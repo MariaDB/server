@@ -327,11 +327,11 @@ public:
 
   set_var(THD *thd, enum_var_type type_arg, sys_var *var_arg,
           const LEX_CSTRING *base_name_arg, Item *value_arg);
-  virtual bool is_system() { return 1; }
-  int check(THD *thd);
-  int update(THD *thd);
-  int light_check(THD *thd);
-  virtual bool is_var_optimizer_trace() const
+  bool is_system() override { return 1; }
+  int check(THD *thd) override;
+  int update(THD *thd) override;
+  int light_check(THD *thd) override;
+  bool is_var_optimizer_trace() const override
   {
     extern sys_var *Sys_optimizer_trace_ptr;
     return var == Sys_optimizer_trace_ptr;
@@ -347,9 +347,9 @@ public:
   set_var_user(Item_func_set_user_var *item)
     :user_var_item(item)
   {}
-  int check(THD *thd);
-  int update(THD *thd);
-  int light_check(THD *thd);
+  int check(THD *thd) override;
+  int update(THD *thd) override;
+  int light_check(THD *thd) override;
 };
 
 /* For SET PASSWORD */
@@ -360,8 +360,8 @@ class set_var_password: public set_var_base
 public:
   set_var_password(LEX_USER *user_arg) :user(user_arg)
   {}
-  int check(THD *thd);
-  int update(THD *thd);
+  int check(THD *thd) override;
+  int update(THD *thd) override;
 };
 
 /* For SET ROLE */
@@ -372,8 +372,8 @@ class set_var_role: public set_var_base
   privilege_t access;
 public:
   set_var_role(LEX_CSTRING role_arg) : role(role_arg), access(NO_ACL) {}
-  int check(THD *thd);
-  int update(THD *thd);
+  int check(THD *thd) override;
+  int update(THD *thd) override;
 };
 
 /* For SET DEFAULT ROLE */
@@ -386,8 +386,8 @@ class set_var_default_role: public set_var_base
 public:
   set_var_default_role(LEX_USER *user_arg, LEX_CSTRING role_arg) :
     user(user_arg), role(role_arg) {}
-  int check(THD *thd);
-  int update(THD *thd);
+  int check(THD *thd) override;
+  int update(THD *thd) override;
 };
 
 /* For SET NAMES and SET CHARACTER SET */
@@ -405,8 +405,8 @@ public:
      character_set_results(result_coll_arg),
      collation_connection(connection_coll_arg)
   {}
-  int check(THD *thd);
-  int update(THD *thd);
+  int check(THD *thd) override;
+  int update(THD *thd) override;
 };
 
 

@@ -188,3 +188,15 @@ IF(CMAKE_COMPILER_IS_GNUCXX AND CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64" AND
    CMAKE_C_COMPILER_VERSION VERSION_GREATER "5")
   ADD_COMPILE_FLAGS(ts/ts_expr_node.c COMPILE_FLAGS "-fno-tree-loop-vectorize")
 ENDIF()
+
+# Workaround long compile times with GCC and sanitizers
+IF(CMAKE_C_COMPILER_ID STREQUAL "GNU"
+   AND CMAKE_C_COMPILER_VERSION VERSION_GREATER "11.99")
+  IF(WITH_UBSAN)
+    ADD_COMPILE_FLAGS(expr.c COMPILE_FLAGS "-fno-sanitize=undefined")
+  ENDIF()
+  IF(WITH_ASAN)
+    ADD_COMPILE_FLAGS(expr.c COMPILE_FLAGS "-fno-sanitize=address")
+  ENDIF()
+ENDIF()
+

@@ -454,16 +454,16 @@ class Item_func_boundary: public Item_geometry_func_args_geometry
     Transporter(Gcalc_result_receiver *receiver) :
       Gcalc_shape_transporter(NULL), m_receiver(receiver)
     {}
-    int single_point(double x, double y);
-    int start_line();
-    int complete_line();
-    int start_poly();
-    int complete_poly();
-    int start_ring();
-    int complete_ring();
-    int add_point(double x, double y);
+    int single_point(double x, double y) override;
+    int start_line() override;
+    int complete_line() override;
+    int start_poly() override;
+    int complete_poly() override;
+    int start_ring() override;
+    int complete_ring() override;
+    int add_point(double x, double y) override;
 
-    int start_collection(int n_objects);
+    int start_collection(int n_objects) override;
   };
   Gcalc_result_receiver res_receiver;
 public:
@@ -909,16 +909,16 @@ protected:
                                           Gcalc_function::op_difference),
       skip_line(FALSE)
     {}
-    int single_point(double x, double y);
-    int start_line();
-    int complete_line();
-    int start_poly();
-    int complete_poly();
-    int start_ring();
-    int complete_ring();
-    int add_point(double x, double y);
+    int single_point(double x, double y) override;
+    int start_line() override;
+    int complete_line() override;
+    int start_poly() override;
+    int complete_poly() override;
+    int start_ring() override;
+    int complete_ring() override;
+    int add_point(double x, double y) override;
 
-    int start_collection(int n_objects);
+    int start_collection(int n_objects) override;
   };
   Gcalc_heap collector;
   Gcalc_function func;

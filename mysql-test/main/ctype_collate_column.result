@@ -4,6 +4,8 @@
 #
 # MDEV-27853 Wrong data type on column `COLLATE DEFAULT` and table `COLLATE some_non_default_collation`
 #
+CREATE DATABASE test1 CHARACTER SET latin1;
+USE test1;
 SET character_set_collations='utf8mb4=utf8mb4_general_ci';
 CREATE TABLE t1 (
 a CHAR(10) COLLATE DEFAULT
@@ -168,7 +170,7 @@ FOR row IN (SELECT CONCAT(COLUMN_TYPE,
 ' CHARACTER SET ', CHARACTER_SET_NAME,
 ' COLLATE ', COLLATION_NAME) AS result
 FROM INFORMATION_SCHEMA.COLUMNS
-WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1')
+WHERE TABLE_SCHEMA='test1' AND TABLE_NAME='t1')
 DO
 INSERT INTO results (dt,cs,cl0,cl1,cl2,tcs,query,result)
 VALUES (dt,cs,cl0,cl1,cl2,tcs,query,row.result);
@@ -11813,6 +11815,8 @@ DROP FUNCTION is_conflicting_collate_explicit2;
 DROP FUNCTION is_conflicting_collate_default_collate_explicit;
 DROP FUNCTION collate_cs_default_collation;
 SET character_set_collations=DEFAULT;
+USE test;
+DROP DATABASE test1;
 #
 # End of 10.9 tests
 #

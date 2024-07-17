@@ -604,7 +604,6 @@ dberr_t rtr_search_to_nth_level(btr_cur_t *cur, que_thr_t *thr,
     upper_rw_latch= RW_X_LATCH;
     break;
   default:
-    ut_ad(latch_mode != BTR_MODIFY_PREV);
     ut_ad(latch_mode != BTR_SEARCH_PREV);
     if (!latch_by_caller)
       mtr_s_lock_index(index, mtr);

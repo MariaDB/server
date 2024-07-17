@@ -1,3 +1,4 @@
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 SET sql_mode=ORACLE;
 SET column_compression_zlib_wrap=true;
 CREATE TABLE t1 (a BLOB COMPRESSED);
@@ -1135,3 +1136,4 @@ CREATE TABLE t1 (a NVARCHAR(10) COMPRESSED BINARY COMPRESSED);
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
 CREATE TABLE t1 (a NVARCHAR(10) COMPRESSED DEFAULT '' COMPRESSED);
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

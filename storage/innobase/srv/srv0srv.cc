@@ -531,6 +531,7 @@ static void thread_pool_thread_init()
 {
 	my_thread_init();
 	pfs_register_thread(thread_pool_thread_key);
+	my_thread_set_name("ib_tpool_worker");
 }
 static void thread_pool_thread_end()
 {

@@ -87,7 +87,7 @@ eval CREATE TABLE t1 (f1 INT, f2 INT, f3 INT PRIMARY KEY, f4 CHAR(20),
                       f8 TEXT,
                       f9 LONGBLOB,
                       f10 BIT(63),
-                      f11 VARBINARY(64))ENGINE=$engine_type;
+                      f11 VARBINARY(64))ENGINE=$engine_type CHARSET=latin1;
 --echo
 --echo * Alter Table on Slave and drop columns f5 through f11 *
 --echo
@@ -163,7 +163,7 @@ connection master;
 		       f10 VARCHAR(1024),
 		       f11 BINARY(20) NOT NULL DEFAULT '\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0',
 		       f12 SET('a', 'b', 'c') default 'b')
-                       ENGINE=$engine_type;
+                       ENGINE=$engine_type CHARSET=latin1;
 --echo
    eval CREATE TABLE t3 (f1 INT, f2 INT, f3 INT PRIMARY KEY, f4 CHAR(20),
                       /* extra */
@@ -173,7 +173,7 @@ connection master;
 		       f10 VARCHAR(1024),
 		       f11 BINARY(20) NOT NULL DEFAULT '\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0',
 		       f12 SET('a', 'b', 'c') default 'b')
-                       ENGINE=$engine_type;
+                       ENGINE=$engine_type CHARSET=latin1;
 
 --echo
 # no ENUM and SET
@@ -186,7 +186,7 @@ connection master;
 		       f9 VARCHAR(1024),
 		       f10 BINARY(20) not null default '\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0',
 		       f11 CHAR(255))
-                       ENGINE=$engine_type;
+                       ENGINE=$engine_type CHARSET=latin1;
 
 --echo
     eval CREATE TABLE t31 (f1 INT, f2 INT, f3 INT PRIMARY KEY, f4 CHAR(20),
@@ -224,7 +224,7 @@ connection master;
 		       f33 SET ('a', 'b', 'c') default 'b',
 		       f34 VARBINARY(1025),
 		       f35 VARCHAR(257)       
-                       ) ENGINE=$engine_type;
+                       ) ENGINE=$engine_type CHARSET=latin1;
 --echo
 --echo ** Alter tables on slave and drop columns **
 --echo
@@ -458,14 +458,14 @@ STOP SLAVE;
 --echo
 --echo ** create table slave side **
 eval CREATE TABLE t10 (a INT PRIMARY KEY, b BLOB, c CHAR(5)
-                       ) ENGINE=$engine_type;
+                       ) ENGINE=$engine_type CHARSET=latin1;
 
 --echo
 --echo ** Connect to master and create table **
 --echo
 --connection master
 eval CREATE TABLE t10 (a INT KEY, b BLOB, f DOUBLE DEFAULT '233',
-                      c CHAR(5), e INT DEFAULT '1')ENGINE=$engine_type;
+                      c CHAR(5), e INT DEFAULT '1')ENGINE=$engine_type CHARSET=latin1;
 RESET MASTER;
 
 --echo
@@ -514,13 +514,13 @@ STOP SLAVE;
 --source include/reset_slave.inc
 
 eval CREATE TABLE t11 (a INT PRIMARY KEY, b BLOB, c VARCHAR(254)
-                       ) ENGINE=$engine_type;
+                       ) ENGINE=$engine_type CHARSET=latin1;
 
 --echo
 --echo *** Create t11 on Master ***
 connection master;
 eval CREATE TABLE t11 (a INT KEY, b BLOB, f TEXT,
-                      c CHAR(5) DEFAULT 'test', e INT DEFAULT '1')ENGINE=$engine_type;
+                      c CHAR(5) DEFAULT 'test', e INT DEFAULT '1')ENGINE=$engine_type CHARSET=latin1;
 
 RESET MASTER;
 
@@ -569,13 +569,13 @@ sync_slave_with_master;
 STOP SLAVE;
 --source include/reset_slave.inc
 eval CREATE TABLE t12 (a INT PRIMARY KEY, b BLOB, c BLOB
-                       ) ENGINE=$engine_type;
+                       ) ENGINE=$engine_type CHARSET=latin1;
 
 --echo
 --echo *** Create t12 on Master ***
 connection master;
 eval CREATE TABLE t12 (a INT KEY, b BLOB, f TEXT,
-                      c CHAR(5) DEFAULT 'test', e INT DEFAULT '1')ENGINE=$engine_type;
+                      c CHAR(5) DEFAULT 'test', e INT DEFAULT '1')ENGINE=$engine_type CHARSET=latin1;
 
 RESET MASTER;
 
@@ -620,7 +620,7 @@ sync_slave_with_master;
 STOP SLAVE;
 --source include/reset_slave.inc
 eval CREATE TABLE t14 (c1 INT PRIMARY KEY, c4 BLOB, c5 CHAR(5)
-                       ) ENGINE=$engine_type;
+                       ) ENGINE=$engine_type CHARSET=latin1;
 
 --echo
 --echo *** Create t14 on Master ***
@@ -628,7 +628,7 @@ connection master;
 eval CREATE TABLE t14 (c1 INT KEY, c4 BLOB, c5 CHAR(5),
                       c6 INT DEFAULT '1',
                       c7 TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP
-                      )ENGINE=$engine_type;
+                      )ENGINE=$engine_type CHARSET=latin1;
 
 RESET MASTER;
 
@@ -717,7 +717,7 @@ START SLAVE;
 STOP SLAVE;
 --source include/reset_slave.inc
 eval CREATE TABLE t15 (c1 INT PRIMARY KEY, c4 BLOB, c5 CHAR(5)
-                       ) ENGINE=$engine_type;
+                       ) ENGINE=$engine_type CHARSET=latin1;
 
 --echo
 --echo *** Create t15 on Master ***
@@ -725,7 +725,7 @@ connection master;
 eval CREATE TABLE t15 (c1 INT KEY, c4 BLOB, c5 CHAR(5),
                       c6 INT DEFAULT '1',
                       c7 TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP
-                      )ENGINE=$engine_type;
+                      )ENGINE=$engine_type CHARSET=latin1;
 
 RESET MASTER;
 
@@ -781,7 +781,7 @@ START SLAVE;
 STOP SLAVE;
 --source include/reset_slave.inc
 eval CREATE TABLE t16 (c1 INT PRIMARY KEY, c4 BLOB, c5 CHAR(5)
-                       ) ENGINE=$engine_type;
+                       ) ENGINE=$engine_type CHARSET=latin1;
 
 --echo
 --echo *** Create t16 on Master ***
@@ -789,7 +789,7 @@ connection master;
 eval CREATE TABLE t16 (c1 INT KEY, c4 BLOB, c5 CHAR(5),
                       c6 INT DEFAULT '1',
                       c7 TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP
-                      )ENGINE=$engine_type;
+                      )ENGINE=$engine_type CHARSET=latin1;
 
 RESET MASTER;
 
@@ -859,7 +859,7 @@ START SLAVE;
 STOP SLAVE;
 --source include/reset_slave.inc
 eval CREATE TABLE t17 (c1 INT PRIMARY KEY, c4 BLOB, c5 CHAR(5)
-                       ) ENGINE=$engine_type;
+                       ) ENGINE=$engine_type CHARSET=latin1;
 
 --echo
 --echo *** Create t17 on Master ***
@@ -867,7 +867,7 @@ connection master;
 eval CREATE TABLE t17 (c1 INT KEY, c4 BLOB, c5 CHAR(5),
                       c6 INT DEFAULT '1',
                       c7 TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP
-                      )ENGINE=$engine_type;
+                      )ENGINE=$engine_type CHARSET=latin1;
 
 RESET MASTER;
 
@@ -925,7 +925,7 @@ sync_slave_with_master;
 STOP SLAVE;
 --source include/reset_slave.inc
 eval CREATE TABLE t18 (c1 INT PRIMARY KEY, c4 BLOB, c5 CHAR(5)
-                       ) ENGINE=$engine_type;
+                       ) ENGINE=$engine_type CHARSET=latin1;
 
 --echo
 --echo *** Create t18 on Master ***
@@ -933,7 +933,7 @@ connection master;
 eval CREATE TABLE t18 (c1 INT KEY, c4 BLOB, c5 CHAR(5),
                       c6 INT DEFAULT '1',
                       c7 TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP
-                      )ENGINE=$engine_type;
+                      )ENGINE=$engine_type CHARSET=latin1;
 
 RESET MASTER;
 
@@ -988,7 +988,7 @@ sync_slave_with_master;
 STOP SLAVE;
 --source include/reset_slave.inc
 eval CREATE TABLE t5 (c1 INT PRIMARY KEY, c4 BLOB, c5 CHAR(5)
-                       ) ENGINE=$engine_type;
+                       ) ENGINE=$engine_type CHARSET=latin1;
 
 --echo
 --echo *** Create t5 on Master ***
@@ -996,7 +996,7 @@ connection master;
 eval CREATE TABLE t5 (c1 INT KEY, c4 BLOB, c5 CHAR(5),
                       c6 LONG, 
                       c7 TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP
-                      )ENGINE=$engine_type;
+                      )ENGINE=$engine_type CHARSET=latin1;
 
 RESET MASTER;
 

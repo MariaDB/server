@@ -21,7 +21,7 @@
 ###############################################################################
 --source include/master-slave.inc
 call mtr.add_suppression("'utf16' can not be used as client character set");
-CREATE TABLE t1(i VARCHAR(20));
+CREATE TABLE t1(i VARCHAR(20)) CHARSET=latin1;
 INSERT INTO t1 VALUES (0xFFFF);
 --sync_slave_with_master
 --let diff_tables=master:t1, slave:t1

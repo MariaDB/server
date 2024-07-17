@@ -1,0 +1,74 @@
+#
+# r_engine_stats tests that require slow query log.
+#
+--source include/analyze-format.inc
+--source include/have_sequence.inc
+--source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-34125: ANALYZE FORMAT=JSON: r_engine_stats.pages_read_time_ms has wrong scale
+--echo #
+
+# Each row is 1K.
+create table t1 (
+  a varchar(255),
+  b varchar(255),
+  c varchar(255),
+  d varchar(255),
+  primary key(a,b,c,d)
+) engine=innodb character set latin1;
+
+SET unique_checks=0, foreign_key_checks= 0;
+begin;
+
+# The data size is 160K * 1K = 160M 
+#  16M / (page_size=16K) = 1K pages.
+insert into t1 select
+  repeat(uuid(), 7), 
+  repeat(uuid(), 7), 
+  repeat(uuid(), 7), 
+  repeat(uuid(), 7)
+from seq_1_to_16384;
+commit;
+
+SET GLOBAL innodb_fast_shutdown=0;
+source include/restart_mysqld.inc;
+set log_slow_verbosity='engine';
+set long_query_time=0.0;
+
+let $analyze_output= `analyze format=json
+select * from t1 force index (PRIMARY) order by a desc, b desc, c desc, d desc`;
+evalp set @js='$analyze_output';
+
+set @pages_read_time_ms=
+  (select json_value(@js,'$.query_block.nested_loop[0].table.r_engine_stats.pages_read_time_ms'));
+
+let ANALYZE_PAGES=`select @pages_read_time_ms`;
+let SLOW_LOG_FILE= `select @@slow_query_log_file`;
+
+perl;
+  my $slow_log_file= $ENV{'SLOW_LOG_FILE'} or die "SLOW_LOG_FILE not set";
+  my $analyze_pages=$ENV{'ANALYZE_PAGES'};
+  open(FILE, $slow_log_file) or die "Failed to open $slow_log_file";
+  # We didn't run any queries touching a storage engine after the query of
+  # interest, so we will be fine here if we just get the last occurrence of 
+  # Pages_read_time: NNNN in the file
+  while(<FILE>) {
+    $slow_log_pages=$1 if (/Pages_read_time: ([0-9.]+)/);
+  }
+  close(FILE);
+  
+  if ( $slow_log_pages > $analyze_pages * 0.95 && 
+       $slow_log_pages < $analyze_pages * 1.05) {
+    print "\n\n  OK: pages_read_time is same in slow log and ANALYZE\n\n";
+  } else {
+    print "\n\n  FAIL: $slow_log_pages not equal to  $analyze_pages\n";
+  }
+
+EOF
+
+
+set long_query_time=default;
+drop table t1;
+
+

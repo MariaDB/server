@@ -2,7 +2,7 @@
 DROP DATABASE IF EXISTS dbt3_s001;
 --enable_warnings
 
-CREATE DATABASE dbt3_s001;
+CREATE DATABASE dbt3_s001 CHARACTER SET latin1;
 
 use dbt3_s001;
 

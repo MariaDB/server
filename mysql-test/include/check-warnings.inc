@@ -30,7 +30,7 @@ create temporary table error_log (
   suspicious int default 1,
   file_name varchar(255),
   line varchar(1024) default null
-) engine=myisam;
+) engine=myisam charset=latin1;
 
 # Get the name of servers error log
 let $log_error= $MTR_LOG_ERROR;
@@ -41,7 +41,7 @@ let $log_warning= $log_error.warnings;
 # running with the --secure-file-priv" in which case
 # an attempt to load the file using LOAD DATA LOCAL is made
 --error 0,1290
-eval load data infile '$log_warning' into table error_log
+eval load data infile '$log_warning' into table error_log character set latin1
   fields terminated by 'xykls37' escaped by ''
   ignore 1 lines
   (line)

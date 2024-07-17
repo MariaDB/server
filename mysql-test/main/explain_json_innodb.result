@@ -52,7 +52,7 @@ EXPLAIN
                 "access_type": "eq_ref",
                 "possible_keys": ["PRIMARY"],
                 "key": "PRIMARY",
-                "key_length": "9",
+                "key_length": "18",
                 "used_key_parts": ["c", "b"],
                 "ref": [
                   "test.tbl_alias1.column_name_2",

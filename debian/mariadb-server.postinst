@@ -60,11 +60,11 @@ case "$1" in
       fi
     fi
 
-    mysql_statedir=/usr/share/mariadb
-    mysql_datadir=/var/lib/mysql
-    mysql_logdir=/var/log/mysql
-    mysql_cfgdir=/etc/mysql
-    mysql_upgradedir=/var/lib/mysql-upgrade
+    mariadb_statedir=/usr/share/mariadb
+    mariadb_datadir=/var/lib/mysql
+    mariadb_logdir=/var/log/mysql
+    mariadb_cfgdir=/etc/mysql
+    mariadb_upgradedir=/var/lib/mysql-upgrade
 
     # If the following symlink exists, it is a preserved copy the old data dir
     # created by the preinst script during a upgrade that would have otherwise
@@ -74,12 +74,12 @@ case "$1" in
 
       if [ "$dir" = "DATADIR" ]
       then
-        targetdir=$mysql_datadir
+        targetdir=$mariadb_datadir
       else
-        targetdir=$mysql_logdir
+        targetdir=$mariadb_logdir
       fi
 
-      savelink="$mysql_upgradedir/$dir.link"
+      savelink="$mariadb_upgradedir/$dir.link"
       if [ -L "$savelink" ]
       then
         # If the targetdir was a symlink before we upgraded it is supposed
@@ -92,10 +92,10 @@ case "$1" in
           mv "$savelink" "$targetdir"
         else
           # this should never even happen, but just in case...
-          mysql_tmp=$(mktemp -d -t mysql-symlink-restore-XXXXXX)
-          echo "this is very strange!  see $mysql_tmp/README..." >&2
-          mv "$targetdir" "$mysql_tmp"
-          cat << EOF > "$mysql_tmp/README"
+          mariadb_tmp=$(mktemp -d -t mariadb-symlink-restore-XXXXXX)
+          echo "this is very strange!  see $mariadb_tmp/README..." >&2
+          mv "$targetdir" "$mariadb_tmp"
+          cat << EOF > "$mariadb_tmp/README"
 
 If you're reading this, it's most likely because you had replaced /var/lib/mysql
 with a symlink, then upgraded to a new version of mysql, and then dpkg
@@ -110,7 +110,7 @@ this all away.
 EOF
         fi
       fi
-      rmdir $mysql_upgradedir 2>/dev/null || true
+      rmdir $mariadb_upgradedir 2>/dev/null || true
 
     done
 
@@ -122,10 +122,10 @@ EOF
     # This direct update is needed to enable an authentication mechanism to
     # perform mariadb-upgrade, (MDEV-22678).  To keep the impact minimal, we
     # skip innodb and set key-buffer-size to 0 as it isn't reused.
-    if [ -f "$mysql_datadir/auto.cnf" ] &&
-    [ -f "$mysql_datadir/mysql/user.MYD" ] &&
-    ! lsof -nt "$mysql_datadir"/mysql/user.MYD > /dev/null &&
-    [ ! -f "$mysql_datadir/undo_001" ]
+    if [ -f "$mariadb_datadir/auto.cnf" ] &&
+    [ -f "$mariadb_datadir/mysql/user.MYD" ] &&
+    ! lsof -nt "$mariadb_datadir"/mysql/user.MYD > /dev/null &&
+    [ ! -f "$mariadb_datadir/undo_001" ]
     then
       echo "UPDATE mysql.user SET plugin='unix_socket' WHERE plugin='auth_socket';" |
       mariadbd --skip-innodb --key_buffer_size=0  --default-storage-engine=MyISAM --bootstrap 2> /dev/null
@@ -133,27 +133,27 @@ EOF
 
     # Ensure the existence and right permissions for the database and
     # log files. Use mkdir option 'Z' to create with correct SELinux context.
-    if [ ! -d "$mysql_statedir" ] && [ ! -L "$mysql_statedir" ]
+    if [ ! -d "$mariadb_statedir" ] && [ ! -L "$mariadb_statedir" ]
     then
-      mkdir -Z "$mysql_statedir"
+      mkdir -Z "$mariadb_statedir"
     fi
-    if [ ! -d "$mysql_datadir"  ] && [ ! -L "$mysql_datadir" ]
+    if [ ! -d "$mariadb_datadir"  ] && [ ! -L "$mariadb_datadir" ]
     then
-      mkdir -Z "$mysql_datadir"
+      mkdir -Z "$mariadb_datadir"
     fi
-    if [ ! -d "$mysql_logdir"   ] && [ ! -L "$mysql_logdir"  ]
+    if [ ! -d "$mariadb_logdir"   ] && [ ! -L "$mariadb_logdir"  ]
     then
-      mkdir -Z "$mysql_logdir"
+      mkdir -Z "$mariadb_logdir"
     fi
     # When creating an ext3 jounal on an already mounted filesystem like e.g.
     # /var/lib/mysql, you get a .journal file that is not modifiable by chown.
-    # The mysql_statedir must not be writable by the mysql user under any
+    # The mariadb_statedir must not be writable by the mysql user under any
     # circumstances as it contains scripts that are executed by root.
     set +e
-    chown -R 0:0 $mysql_statedir
-    find $mysql_datadir ! -uid "$(id -u mysql)" -print0 | xargs -0 -r chown mysql
-    chown -R mysql:adm $mysql_logdir
-    chmod 2750 $mysql_logdir
+    chown -R 0:0 $mariadb_statedir
+    find $mariadb_datadir ! -uid "$(id -u mysql)" -print0 | xargs -0 -r chown mysql
+    chown -R mysql:adm $mariadb_logdir
+    chmod 2750 $mariadb_logdir
     set -e
 
     ## Set the correct filesystem ownership for the PAM v2 plugin
@@ -176,14 +176,14 @@ EOF
     chown mysql /usr/lib/mysql/plugin/auth_pam_tool_dir
 
     # This is important to avoid dataloss when there is a removed
-    # mysql-server version from Woody lying around which used the same
+    # mariadb-server version from Woody lying around which used the same
     # data directory and then somehow gets purged by the admin.
     db_set mariadb-server/postrm_remove_database false || true
 
     # Clean up old flags before setting new one
-    rm -f $mysql_datadir/debian-*.flag
+    rm -f $mariadb_datadir/debian-*.flag
     # Flag data dir to avoid downgrades
-    touch "$mysql_datadir/debian-__MARIADB_MAJOR_VER__.flag"
+    touch "$mariadb_datadir/debian-__MARIADB_MAJOR_VER__.flag"
 
     # initiate databases. Output is not allowed by debconf :-(
     # This will fail if we are upgrading an existing database; in this case
@@ -205,10 +205,10 @@ EOF
     # --defaults-file option for tools (for the sake of upgrades)
     # and thus need /etc/mysql/debian.cnf to exist, even if it's empty.
     # In the long run the goal is to obsolete this file.
-    dc="$mysql_cfgdir/debian.cnf"
-    if [ ! -d "$mysql_cfgdir" ]
+    dc="$mariadb_cfgdir/debian.cnf"
+    if [ ! -d "$mariadb_cfgdir" ]
     then
-      install -o 0 -g 0 -m 0755 -d $mysql_cfgdir
+      install -o 0 -g 0 -m 0755 -d $mariadb_cfgdir
     fi
     if [ ! -e "$dc" ]
     then
@@ -224,7 +224,7 @@ EOF
         echo "[client]";
         echo "host     = localhost";
         echo "user     = root";
-        echo "[mysql_upgrade]";
+        echo "[mariadb_upgrade]";
         echo "host     = localhost";
         echo "user     = root";
         echo "# THIS FILE WILL BE REMOVED IN A FUTURE DEBIAN RELEASE.";

@@ -1,3 +1,4 @@
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 SET GLOBAL innodb_monitor_reset_all=all;
 SET GLOBAL innodb_monitor_reset_all=default;
 call mtr.add_suppression("InnoDB: Warning: Small buffer pool size");
@@ -492,3 +493,4 @@ SET DEBUG_SYNC=RESET;
 disconnect con1;
 SET GLOBAL innodb_monitor_enable  = default;
 SET GLOBAL innodb_monitor_disable = default;
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

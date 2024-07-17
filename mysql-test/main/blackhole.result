@@ -27,6 +27,6 @@ End of 5.6 tests
 CREATE TABLE `t` (
 `a` varchar(3000) NOT NULL default '',
 PRIMARY KEY  (`a`)
-) ENGINE=BLACKHOLE;
+) ENGINE=BLACKHOLE CHARSET=latin1;
 DROP TABLE `t`;
 End of 10.1 tests

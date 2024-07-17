@@ -154,7 +154,8 @@ TABLE *THD::find_temporary_table(const TABLE_LIST *tl,
                                  Temporary_table_state state)
 {
   DBUG_ENTER("THD::find_temporary_table");
-  TABLE *table= find_temporary_table(tl->get_db_name(), tl->get_table_name(),
+  TABLE *table= find_temporary_table(tl->get_db_name(),
+                                     tl->get_table_name(),
                                      state);
   DBUG_RETURN(table);
 }
@@ -1187,7 +1188,7 @@ bool THD::find_and_use_tmp_table(const TABLE_LIST *tl, TABLE **out_table)
   DBUG_ENTER("THD::find_and_use_tmp_table");
 
   key_length= create_tmp_table_def_key(key, tl->get_db_name(),
-                                        tl->get_table_name());
+                                       tl->get_table_name());
   result= use_temporary_table(find_temporary_table(key, key_length,
                                                    TMP_TABLE_NOT_IN_USE),
                               out_table);

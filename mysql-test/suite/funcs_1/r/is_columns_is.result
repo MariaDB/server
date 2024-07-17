@@ -471,6 +471,8 @@ def	information_schema	TABLE_PRIVILEGES	TABLE_NAME	4	NULL	NO	varchar	64	192	NULL
 def	information_schema	TABLE_PRIVILEGES	TABLE_SCHEMA	3	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(64)			select		NEVER	NULL	NO	NO
 def	information_schema	TABLE_STATISTICS	KEY_READ_HITS	9	NULL	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(21)			select		NEVER	NULL	NO	NO
 def	information_schema	TABLE_STATISTICS	KEY_READ_MISSES	10	NULL	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(21)			select		NEVER	NULL	NO	NO
+def	information_schema	TABLE_STATISTICS	PAGES_ACCESSED	11	NULL	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(21)			select		NEVER	NULL	NO	NO
+def	information_schema	TABLE_STATISTICS	PAGES_READ_FROM_DISK	12	NULL	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(21)			select		NEVER	NULL	NO	NO
 def	information_schema	TABLE_STATISTICS	ROWS_CHANGED	4	NULL	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(21)			select		NEVER	NULL	NO	NO
 def	information_schema	TABLE_STATISTICS	ROWS_CHANGED_X_INDEXES	5	NULL	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(21)			select		NEVER	NULL	NO	NO
 def	information_schema	TABLE_STATISTICS	ROWS_DELETED	8	NULL	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(21)			select		NEVER	NULL	NO	NO
@@ -1085,6 +1087,8 @@ NULL	information_schema	TABLE_STATISTICS	ROWS_UPDATED	bigint	NULL	NULL	NULL	NULL
 NULL	information_schema	TABLE_STATISTICS	ROWS_DELETED	bigint	NULL	NULL	NULL	NULL	bigint(21)
 NULL	information_schema	TABLE_STATISTICS	KEY_READ_HITS	bigint	NULL	NULL	NULL	NULL	bigint(21)
 NULL	information_schema	TABLE_STATISTICS	KEY_READ_MISSES	bigint	NULL	NULL	NULL	NULL	bigint(21)
+NULL	information_schema	TABLE_STATISTICS	PAGES_ACCESSED	bigint	NULL	NULL	NULL	NULL	bigint(21)
+NULL	information_schema	TABLE_STATISTICS	PAGES_READ_FROM_DISK	bigint	NULL	NULL	NULL	NULL	bigint(21)
 3.0000	information_schema	TRIGGERS	TRIGGER_CATALOG	varchar	512	1536	utf8mb3	utf8mb3_general_ci	varchar(512)
 3.0000	information_schema	TRIGGERS	TRIGGER_SCHEMA	varchar	64	192	utf8mb3	utf8mb3_general_ci	varchar(64)
 3.0000	information_schema	TRIGGERS	TRIGGER_NAME	varchar	64	192	utf8mb3	utf8mb3_general_ci	varchar(64)
