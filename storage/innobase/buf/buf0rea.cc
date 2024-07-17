@@ -300,12 +300,15 @@ buf_read_page_low(
 	}
 
 	ut_ad(bpage->in_file());
-	ulonglong mariadb_timer= 0;
+	ulonglong mariadb_timer = 0;
 
 	if (sync) {
 		thd_wait_begin(nullptr, THD_WAIT_DISKIO);
-		if (mariadb_stats_active())
-		  mariadb_timer= mariadb_measure();
+		if (const ha_handler_stats *stats = mariadb_stats) {
+			if (stats->active) {
+				mariadb_timer = mariadb_measure();
+			}
+		}
 	}
 
 	DBUG_LOG("ib_buf",
@@ -324,15 +327,16 @@ buf_read_page_low(
 	if (UNIV_UNLIKELY(fio.err != DB_SUCCESS)) {
 		buf_pool.corrupted_evict(bpage, buf_page_t::READ_FIX);
 	} else if (sync) {
-		thd_wait_end(NULL);
+		thd_wait_end(nullptr);
 		/* The i/o was already completed in space->io() */
 		fio.err = bpage->read_complete(*fio.node);
 		space->release();
 		if (fio.err == DB_FAIL) {
 			fio.err = DB_PAGE_CORRUPTED;
 		}
-		if (mariadb_timer)
-		  mariadb_increment_pages_read_time(mariadb_timer);
+		if (mariadb_timer) {
+			mariadb_increment_pages_read_time(mariadb_timer);
+		}
 	}
 
 	return fio.err;
@@ -423,6 +427,7 @@ read_ahead:
 
   if (count)
   {
+    mariadb_increment_pages_prefetched(count);
     DBUG_PRINT("ib_buf", ("random read-ahead %zu pages from %s: %u",
 			  count, space->chain.start->name,
 			  low.page_no()));
@@ -667,6 +672,7 @@ failed:
 
   if (count)
   {
+    mariadb_increment_pages_prefetched(count);
     DBUG_PRINT("ib_buf", ("random read-ahead %zu pages from %s: %u",
                           count, space->chain.start->name,
                           new_low.page_no()));

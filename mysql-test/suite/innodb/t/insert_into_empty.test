@@ -26,9 +26,19 @@ DROP TEMPORARY TABLE t;
 SET @save_ahi = @@global.innodb_adaptive_hash_index;
 SET GLOBAL innodb_adaptive_hash_index = 1;
 CREATE TABLE t1(f1 INT NOT NULL)ENGINE=InnoDB;
+
+SET @old_bulk_op=
+(SELECT variable_value FROM information_schema.global_status
+WHERE variable_name = 'innodb_bulk_operations');
+
 BEGIN;
 INSERT INTO t1 SELECT * FROM seq_1_to_65536;
 ROLLBACK;
+
+SELECT variable_value-@old_bulk_op bulk_operations
+FROM information_schema.global_status
+WHERE variable_name = 'innodb_bulk_operations';
+
 CHECK TABLE t1;
 --echo #
 --echo # MDEV-24832 Root page AHI Removal fails fails during
@@ -153,9 +163,9 @@ DROP TABLE t1,t2;
 
 CREATE TABLE t1 (a INT KEY) ENGINE=InnoDB;
 
---error 0,1193
+--error 0,ER_UNKNOWN_SYSTEM_VARIABLE
 SET @save_limit = @@GLOBAL.innodb_limit_optimistic_insert_debug;
---error 0,1193
+--error 0,ER_UNKNOWN_SYSTEM_VARIABLE
 SET GLOBAL innodb_limit_optimistic_insert_debug = 2;
 
 BEGIN;
@@ -281,6 +291,32 @@ CREATE TABLE t1(a INT KEY)ENGINE=InnoDB
 INSERT INTO t1 VALUES(1);
 UPDATE t1 SET a = 2 WHERE a = 1;
 DROP TABLE t1;
+
+--echo #
+--echo #  MDEV-34265 Possible hang during IO burst with innodb_flush_sync enabled
+--echo #
+CREATE TABLE t1(f1 MEDIUMTEXT)ENGINE=InnoDB;
+
+--error 0,ER_UNKNOWN_SYSTEM_VARIABLE
+SET @save_dbug=@@GLOBAL.debug_dbug;
+--error 0,ER_UNKNOWN_SYSTEM_VARIABLE
+SET @@GLOBAL.debug_dbug='+d,ib_page_cleaner_sleep';
+
+if ($have_debug) {
+  SET STATEMENT debug_dbug='+d,ib_free_page_sleep' FOR
+  INSERT INTO t1 VALUES(REPEAT(1, 8459264));
+}
+if (!$have_debug) {
+  --echo SET STATEMENT debug_dbug='+d,ib_free_page_sleep' FOR
+  INSERT INTO t1 VALUES(REPEAT(1, 8459264));
+}
+
+--error 0,ER_UNKNOWN_SYSTEM_VARIABLE
+SET @@GLOBAL.debug_dbug=@save_dbug;
+
+SELECT length(f1) FROM t1;
+DROP TABLE t1;
+
 --echo # End of 10.6 tests
 
 --echo #

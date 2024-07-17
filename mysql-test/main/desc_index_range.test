@@ -16,12 +16,12 @@ insert into t1 select seq from seq_1_to_1000;
 set optimizer_trace=1;
 explain select * from t1 force index(a) where a in (2, 4, 6);
 
-#enable after fix MDEV-27871
+#Enable after fix MDEV-32034
 --disable_view_protocol
-select json_detailed(json_extract(trace, '$**.range_access_plan.ranges'))
+select json_detailed(json_extract(trace, '$**.range_access_plan.ranges')) as jd
 from information_schema.optimizer_trace;
---enable_view_protocol
 set optimizer_trace=default;
+--enable_view_protocol
 
 --echo # These should go in reverse order:
 select * from t1 force index(a) where a in (2, 4, 6);
@@ -38,26 +38,29 @@ create table t1 (
 
 insert into t1 select A.seq, B.seq*10 from seq_1_to_10 A, seq_1_to_10 B;
 
-#enable after fix MDEV-27871
---disable_view_protocol
 set optimizer_trace=1;
 explain select * from t1 force index(ab) where a>=8 and b>=50;
-select json_detailed(json_extract(trace, '$**.range_access_plan.ranges'))
+#Enable after fix MDEV-32034
+--disable_view_protocol
+select json_detailed(json_extract(trace, '$**.range_access_plan.ranges')) as jd
 from information_schema.optimizer_trace;
+--enable_view_protocol
 
 explain select * from t1 force index(ab) where a>=8 and b<=50;
-select json_detailed(json_extract(trace, '$**.range_access_plan.ranges'))
+#Enable after fix MDEV-32034
+--disable_view_protocol
+select json_detailed(json_extract(trace, '$**.range_access_plan.ranges')) as jd
 from information_schema.optimizer_trace;
 --enable_view_protocol
 
 select * from t1 force index(ab) where a>=8 and b<=50;
 select * from t1 ignore index(ab) where a>=8 and b<=50 order by a, b desc;
 
-#enable after fix MDEV-27871
---disable_view_protocol
 explain
 select * from t1 where a between 2 and 4 and b between 50 and 80;
-select json_detailed(json_extract(trace, '$**.range_access_plan.ranges'))
+#Enable after fix MDEV-32034
+--disable_view_protocol
+select json_detailed(json_extract(trace, '$**.range_access_plan.ranges')) as jd
 from information_schema.optimizer_trace;
 --enable_view_protocol
 
@@ -72,16 +75,19 @@ create table t2 (
 );
 insert into t2 select A.seq, B.seq*10 from seq_1_to_10 A, seq_1_to_10 B;
 
-#enable after fix MDEV-27871
---disable_view_protocol
 explain
 select * from t2 where a between 2 and 4;
-select json_detailed(json_extract(trace, '$**.range_access_plan.ranges'))
+#Enable after fix MDEV-32034
+--disable_view_protocol
+select json_detailed(json_extract(trace, '$**.range_access_plan.ranges')) as jd
 from information_schema.optimizer_trace;
+--enable_view_protocol
 
 explain
 select * from t2 where a between 2 and 4 and b between 50 and 80;
-select json_detailed(json_extract(trace, '$**.range_access_plan.ranges'))
+#Enable after fix MDEV-32034
+--disable_view_protocol
+select json_detailed(json_extract(trace, '$**.range_access_plan.ranges')) as jd
 from information_schema.optimizer_trace;
 --enable_view_protocol
 
@@ -93,9 +99,9 @@ drop table t2;
 CREATE TABLE t1 (p int NOT NULL, a int NOT NULL, PRIMARY KEY (p,a desc));
 insert into t1 select 2,seq from seq_0_to_1000;
 EXPLAIN select MIN(a) from t1 where p = 2 group by p;
-#enable after fix MDEV-27871
+#Enable after fix MDEV-32034
 --disable_view_protocol
-select json_detailed(json_extract(trace, '$**.potential_group_range_indexes'))
+select json_detailed(json_extract(trace, '$**.potential_group_range_indexes')) as jd
 from information_schema.optimizer_trace;
 --enable_view_protocol
 drop table t1;

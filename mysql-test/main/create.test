@@ -1935,4 +1935,13 @@ DROP TABLE t1;
 CREATE TABLE t1 (id1 INT, id2 INT, primary key (id1), unique index (id2) visible);
 drop table t1;
 
+--echo #
+--echo # MDEV-32376 SHOW CREATE DATABASE statement crashes the server when db name contains some unicode characters, ASAN stack-buffer-overflow
+--echo #
+
+SET NAMES utf8mb3;
+--error ER_WRONG_DB_NAME
+SHOW CREATE DATABASE `#testone#￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭`;
+SET NAMES DEFAULT;
+
 --echo # End of 10.5 Test

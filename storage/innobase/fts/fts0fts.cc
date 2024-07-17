@@ -2582,89 +2582,88 @@ fts_get_next_doc_id(
 	return(DB_SUCCESS);
 }
 
-/*********************************************************************//**
-This function fetch the Doc ID from CONFIG table, and compare with
+/** Read the synced document id from the fts configuration table
+@param table  fts table
+@param doc_id document id to be read
+@param trx    transaction to read from config table
+@return DB_SUCCESS in case of success */
+static
+dberr_t fts_read_synced_doc_id(const dict_table_t *table,
+                               doc_id_t *doc_id,
+                               trx_t *trx)
+{
+  dberr_t error;
+  char    table_name[MAX_FULL_NAME_LEN];
+
+  fts_table_t fts_table;
+  fts_table.suffix= "CONFIG";
+  fts_table.table_id= table->id;
+  fts_table.type= FTS_COMMON_TABLE;
+  fts_table.table= table;
+  ut_a(table->fts->doc_col != ULINT_UNDEFINED);
+
+  trx->op_info = "update the next FTS document id";
+  pars_info_t *info= pars_info_create();
+  pars_info_bind_function(info, "my_func", fts_fetch_store_doc_id,
+                          doc_id);
+
+  fts_get_table_name(&fts_table, table_name);
+  pars_info_bind_id(info, "config_table", table_name);
+
+  que_t *graph= fts_parse_sql(
+           &fts_table, info,
+           "DECLARE FUNCTION my_func;\n"
+           "DECLARE CURSOR c IS SELECT value FROM $config_table"
+           " WHERE key = 'synced_doc_id' FOR UPDATE;\n"
+           "BEGIN\n"
+           ""
+           "OPEN c;\n"
+           "WHILE 1 = 1 LOOP\n"
+           "  FETCH c INTO my_func();\n"
+           "  IF c % NOTFOUND THEN\n"
+           "    EXIT;\n"
+           "  END IF;\n"
+           "END LOOP;\n"
+           "CLOSE c;");
+
+  *doc_id= 0;
+  error = fts_eval_sql(trx, graph);
+  que_graph_free(graph);
+  return error;
+}
+
+/** This function fetch the Doc ID from CONFIG table, and compare with
 the Doc ID supplied. And store the larger one to the CONFIG table.
+@param table fts  table
+@param cmp_doc_id Doc ID to compare
+@param doc_id     larger document id after comparing "cmp_doc_id" to
+	          the one stored in CONFIG table
+@param trx	  transaction
 @return DB_SUCCESS if OK */
-static MY_ATTRIBUTE((nonnull))
+static
 dberr_t
 fts_cmp_set_sync_doc_id(
-/*====================*/
-	const dict_table_t*	table,		/*!< in: table */
-	doc_id_t		cmp_doc_id,	/*!< in: Doc ID to compare */
-	ibool			read_only,	/*!< in: TRUE if read the
-						synced_doc_id only */
-	doc_id_t*		doc_id)		/*!< out: larger document id
-						after comparing "cmp_doc_id"
-						to the one stored in CONFIG
-						table */
+	const dict_table_t *table,
+	doc_id_t           cmp_doc_id,
+	doc_id_t           *doc_id,
+	trx_t	           *trx=nullptr)
 {
 	if (srv_read_only_mode) {
 		return DB_READ_ONLY;
 	}
 
-	trx_t*		trx;
-	pars_info_t*	info;
-	dberr_t		error;
-	fts_table_t	fts_table;
-	que_t*		graph = NULL;
-	fts_cache_t*	cache = table->fts->cache;
-	char		table_name[MAX_FULL_NAME_LEN];
-	ut_a(table->fts->doc_col != ULINT_UNDEFINED);
+	fts_cache_t*	cache= table->fts->cache;
+	dberr_t 	error = DB_SUCCESS;
+	const trx_t*	const caller_trx = trx;
 
-	fts_table.suffix = "CONFIG";
-	fts_table.table_id = table->id;
-	fts_table.type = FTS_COMMON_TABLE;
-	fts_table.table = table;
-
-	trx= trx_create();
+	if (trx == nullptr) {
+		trx = trx_create();
+		trx_start_internal_read_only(trx);
+	}
 retry:
-	trx_start_internal(trx);
+	error = fts_read_synced_doc_id(table, doc_id, trx);
 
-	trx->op_info = "update the next FTS document id";
-
-	info = pars_info_create();
-
-	pars_info_bind_function(
-		info, "my_func", fts_fetch_store_doc_id, doc_id);
-
-	fts_get_table_name(&fts_table, table_name);
-	pars_info_bind_id(info, "config_table", table_name);
-
-	graph = fts_parse_sql(
-		&fts_table, info,
-		"DECLARE FUNCTION my_func;\n"
-		"DECLARE CURSOR c IS SELECT value FROM $config_table"
-		" WHERE key = 'synced_doc_id' FOR UPDATE;\n"
-		"BEGIN\n"
-		""
-		"OPEN c;\n"
-		"WHILE 1 = 1 LOOP\n"
-		"  FETCH c INTO my_func();\n"
-		"  IF c % NOTFOUND THEN\n"
-		"    EXIT;\n"
-		"  END IF;\n"
-		"END LOOP;\n"
-		"CLOSE c;");
-
-	*doc_id = 0;
-
-	error = fts_eval_sql(trx, graph);
-
-	que_graph_free(graph);
-
-	// FIXME: We need to retry deadlock errors
-	if (error != DB_SUCCESS) {
-		goto func_exit;
-	}
-
-	if (read_only) {
-		/* InnoDB stores actual synced_doc_id value + 1 in
-		FTS_CONFIG table. Reduce the value by 1 while reading
-		after startup. */
-		if (*doc_id) *doc_id -= 1;
-		goto func_exit;
-	}
+	if (error != DB_SUCCESS) goto func_exit;
 
 	if (cmp_doc_id == 0 && *doc_id) {
 		cache->synced_doc_id = *doc_id - 1;
@@ -2689,6 +2688,10 @@ retry:
 
 func_exit:
 
+	if (caller_trx) {
+		return error;
+	}
+
 	if (UNIV_LIKELY(error == DB_SUCCESS)) {
 		fts_sql_commit(trx);
 	} else {
@@ -2696,6 +2699,7 @@ func_exit:
 
 		ib::error() << "(" << error << ") while getting next doc id "
 			"for table " << table->name;
+
 		fts_sql_rollback(trx);
 
 		if (error == DB_DEADLOCK || error == DB_LOCK_WAIT_TIMEOUT) {
@@ -4174,8 +4178,8 @@ fts_sync_commit(
 
 	/* After each Sync, update the CONFIG table about the max doc id
 	we just sync-ed to index table */
-	error = fts_cmp_set_sync_doc_id(sync->table, sync->max_doc_id, FALSE,
-					&last_doc_id);
+	error = fts_cmp_set_sync_doc_id(sync->table, sync->max_doc_id,
+					&last_doc_id, trx);
 
 	/* Get the list of deleted documents that are either in the
 	cache or were headed there but were deleted before the add
@@ -4195,6 +4199,7 @@ fts_sync_commit(
 	mysql_mutex_unlock(&cache->lock);
 
 	if (UNIV_LIKELY(error == DB_SUCCESS)) {
+		DEBUG_SYNC_C("fts_crash_before_commit_sync");
 		fts_sql_commit(trx);
 	} else {
 		fts_sql_rollback(trx);
@@ -4856,7 +4861,7 @@ fts_init_doc_id(
 
 	/* Then compare this value with the ID value stored in the CONFIG
 	table. The larger one will be our new initial Doc ID */
-	fts_cmp_set_sync_doc_id(table, 0, FALSE, &max_doc_id);
+	fts_cmp_set_sync_doc_id(table, 0, &max_doc_id);
 
 	/* If DICT_TF2_FTS_ADD_DOC_ID is set, we are in the process of
 	creating index (and add doc id column. No need to recovery
@@ -6165,7 +6170,17 @@ fts_init_index(
 	start_doc = cache->synced_doc_id;
 
 	if (!start_doc) {
-		fts_cmp_set_sync_doc_id(table, 0, TRUE, &start_doc);
+		trx_t *trx = trx_create();
+		trx_start_internal_read_only(trx);
+		dberr_t err= fts_read_synced_doc_id(table, &start_doc, trx);
+		fts_sql_commit(trx);
+		trx->free();
+		if (err != DB_SUCCESS) {
+			goto func_exit;
+		}
+		if (start_doc) {
+			start_doc--;
+		}
 		cache->synced_doc_id = start_doc;
 	}
 

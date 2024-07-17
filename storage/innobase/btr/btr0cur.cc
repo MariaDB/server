@@ -756,6 +756,7 @@ static bool btr_cur_need_opposite_intention(const buf_page_t &bpage,
                                             ulint compress_limit,
                                             const rec_t *rec)
 {
+  ut_ad(bpage.frame == page_align(rec));
   if (UNIV_LIKELY_NULL(bpage.zip.data) &&
       !page_zip_available(&bpage.zip, is_clust, node_ptr_max_size, 1))
     return true;
@@ -970,12 +971,21 @@ static int btr_latch_prev(buf_block_t *block, page_id_t page_id,
   buffer-fixes on both blocks will prevent eviction. */
 
  retry:
-  buf_block_t *prev= buf_page_get_gen(page_id, zip_size, RW_NO_LATCH, nullptr,
-                                      BUF_GET, mtr, err, false);
-  if (UNIV_UNLIKELY(!prev))
-    return 0;
-
+  /* Pass no_wait pointer to ensure that we don't wait on the current page
+  latch while holding the next page latch to avoid latch ordering violation. */
+  bool no_wait= false;
   int ret= 1;
+
+  buf_block_t *prev= buf_page_get_gen(page_id, zip_size, RW_NO_LATCH, nullptr,
+                                      BUF_GET, mtr, err, false, &no_wait);
+  if (UNIV_UNLIKELY(!prev))
+  {
+    /* Check if we had to return because we couldn't wait on latch. */
+    if (no_wait)
+      goto ordered_latch;
+    return 0;
+  }
+
   static_assert(MTR_MEMO_PAGE_S_FIX == mtr_memo_type_t(BTR_SEARCH_LEAF), "");
   static_assert(MTR_MEMO_PAGE_X_FIX == mtr_memo_type_t(BTR_MODIFY_LEAF), "");
 
@@ -995,6 +1005,7 @@ static int btr_latch_prev(buf_block_t *block, page_id_t page_id,
   {
     ut_ad(mtr->at_savepoint(mtr->get_savepoint() - 1)->page.id() == page_id);
     mtr->release_last_page();
+ordered_latch:
     if (rw_latch == RW_S_LATCH)
       block->page.lock.s_unlock();
     else
@@ -1438,11 +1449,6 @@ release_tree:
           !btr_block_get(*index(), btr_page_get_next(block->page.frame),
                          RW_X_LATCH, false, mtr, &err))
         goto func_exit;
-      if (btr_cur_need_opposite_intention(block->page, index()->is_clust(),
-                                          lock_intention,
-                                          node_ptr_max_size, compress_limit,
-                                          page_cur.rec))
-        goto need_opposite_intention;
     }
 
   reached_latched_leaf:
@@ -1463,6 +1469,13 @@ release_tree:
     ut_ad(up_match != ULINT_UNDEFINED || mode != PAGE_CUR_GE);
     ut_ad(up_match != ULINT_UNDEFINED || mode != PAGE_CUR_LE);
     ut_ad(low_match != ULINT_UNDEFINED || mode != PAGE_CUR_LE);
+
+    if (latch_mode == BTR_MODIFY_TREE &&
+        btr_cur_need_opposite_intention(block->page, index()->is_clust(),
+                                        lock_intention,
+                                        node_ptr_max_size, compress_limit,
+                                        page_cur.rec))
+        goto need_opposite_intention;
 
 #ifdef BTR_CUR_HASH_ADAPT
     /* We do a dirty read of btr_search_enabled here.  We will

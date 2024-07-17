@@ -500,6 +500,8 @@ START SLAVE UNTIL master_gtid_pos="ssu_middle_binlog_pos";
 Warnings:
 Note	1278	It is recommended to use --skip-slave-start when doing step-by-step replication with START SLAVE UNTIL; otherwise, you will get problems if you get an unexpected slave's mariadbd restart
 # Slave needs time to start and stop automatically
+# Waiting for both SQL and IO threads to have started..
+# Waiting for Slave SQL and IO threads to be killed..
 # Validating neither SQL nor IO threads are running..
 # ..success
 # Clean slave state of master

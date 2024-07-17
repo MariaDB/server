@@ -236,7 +236,8 @@ Description: MariaDB embedded database, development files package
  language in the world. The main goals of MariaDB are speed, robustness and
  ease of use.
  .
- This package includes the MariaDB embedded server library development and header files.
+ This package includes the MariaDB embedded server library development
+ and header files.
 
 Package: mysql-common
 Architecture: all
@@ -975,9 +976,11 @@ Depends: libcrack2 (>= 2.9.0),
          ${shlibs:Depends}
 Description: CrackLib Password Validation Plugin for MariaDB server
  This password validation plugin uses cracklib to allow only
- sufficiently secure (as defined by cracklib) user passwords in MariaDB server.
+ sufficiently secure (as defined by cracklib) user passwords in
+ MariaDB server.
  .
- Install and configure this to enforce stronger passwords for MariaDB server users.
+ Install and configure this to enforce stronger passwords for
+ MariaDB server users.
 
 Package: mariadb-plugin-hashicorp-key-management
 Architecture: any
@@ -1071,8 +1074,7 @@ Depends: mariadb-client (= ${binary:Version}),
 Conflicts: mariadb-server-5.5,
            mysql-server-5.7,
            mysql-server-core-8.0
-Breaks: mariadb-server-5.5,
-        mariadb-test-10.0,
+Breaks: mariadb-test-10.0,
         mariadb-test-10.1,
         mariadb-test-10.2,
         mariadb-test-10.3,

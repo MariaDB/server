@@ -2463,6 +2463,12 @@ void buf_page_free(fil_space_t *space, uint32_t page, mtr_t *mtr)
   mtr->memo_push(block, MTR_MEMO_PAGE_X_MODIFY);
 }
 
+static void buf_inc_get(ha_handler_stats *stats)
+{
+  mariadb_increment_pages_accessed(stats);
+  ++buf_pool.stat.n_page_gets;
+}
+
 /** Get read access to a compressed page (usually of type
 FIL_PAGE_TYPE_ZBLOB or FIL_PAGE_TYPE_ZBLOB2).
 The page must be released with unfix().
@@ -2478,8 +2484,8 @@ buf_page_t* buf_page_get_zip(const page_id_t page_id, ulint zip_size)
 {
   ut_ad(zip_size);
   ut_ad(ut_is_2pow(zip_size));
-  ++buf_pool.stat.n_page_gets;
-  mariadb_increment_pages_accessed();
+  ha_handler_stats *const stats= mariadb_stats;
+  buf_inc_get(stats);
 
   buf_pool_t::hash_chain &chain= buf_pool.page_hash.cell_get(page_id.fold());
   page_hash_latch &hash_lock= buf_pool.page_hash.lock_get(chain);
@@ -2581,7 +2587,7 @@ must_read_page:
   switch (dberr_t err= buf_read_page(page_id, zip_size)) {
   case DB_SUCCESS:
   case DB_SUCCESS_LOCKED_REC:
-    mariadb_increment_pages_read();
+    mariadb_increment_pages_read(stats);
     goto lookup;
   default:
     ib::error() << "Reading compressed page " << page_id
@@ -2708,6 +2714,9 @@ BUF_PEEK_IF_IN_POOL, or BUF_GET_IF_IN_POOL_OR_WATCH
 while reading the page from file
 then it makes sure that it does merging of change buffer changes while
 reading the page from file.
+@param[in,out]	no_wait			If not NULL on input, then we must not
+wait for current page latch. On output, the value is set to true if we had to
+return because we could not wait on page latch.
 @return pointer to the block or NULL */
 TRANSACTIONAL_TARGET
 buf_block_t*
@@ -2719,7 +2728,8 @@ buf_page_get_low(
 	ulint			mode,
 	mtr_t*			mtr,
 	dberr_t*		err,
-	bool			allow_ibuf_merge)
+	bool			allow_ibuf_merge,
+	bool*			no_wait)
 {
 	unsigned	access_time;
 	ulint		retries = 0;
@@ -2758,9 +2768,8 @@ buf_page_get_low(
 	ut_ad(!mtr || !ibuf_inside(mtr)
 	      || ibuf_page_low(page_id, zip_size, FALSE, NULL));
 
-	++buf_pool.stat.n_page_gets;
-        mariadb_increment_pages_accessed();
-
+	ha_handler_stats* const stats = mariadb_stats;
+	buf_inc_get(stats);
 	auto& chain= buf_pool.page_hash.cell_get(page_id.fold());
 	page_hash_latch& hash_lock = buf_pool.page_hash.lock_get(chain);
 loop:
@@ -2831,7 +2840,7 @@ loop:
 	switch (dberr_t local_err = buf_read_page(page_id, zip_size)) {
 	case DB_SUCCESS:
 	case DB_SUCCESS_LOCKED_REC:
-                mariadb_increment_pages_read();
+		mariadb_increment_pages_read(stats);
 		buf_read_ahead_random(page_id, zip_size, ibuf_inside(mtr));
 		break;
 	default:
@@ -2877,14 +2886,17 @@ ignore_unfixed:
 		in buf_page_t::read_complete() or
 		buf_pool_t::corrupted_evict(), or
 		after buf_zip_decompress() in this function. */
-		if (rw_latch != RW_NO_LATCH) {
+		if (!no_wait) {
 			block->page.lock.s_lock();
 		} else if (!block->page.lock.s_lock_try()) {
-			/* For RW_NO_LATCH, we should not try to acquire S or X
-			latch directly as we could be violating the latching
-			order resulting in deadlock. Instead we try latching the
-			page and retry in case of a failure. */
-			goto wait_for_read;
+			ut_ad(rw_latch == RW_NO_LATCH);
+			/* We should not wait trying to acquire S latch for
+			current page while holding latch for the next page.
+			It would violate the latching order resulting in
+			possible deadlock. Caller must handle the failure. */
+			block->page.unfix();
+			*no_wait= true;
+			return nullptr;
 		}
 		state = block->page.state();
 		ut_ad(state < buf_page_t::READ_FIX
@@ -2940,7 +2952,6 @@ free_unfixed_block:
 	if (UNIV_UNLIKELY(!block->page.frame)) {
 		if (!block->page.lock.x_lock_try()) {
 wait_for_unzip:
-wait_for_read:
 			/* The page is being read or written, or
 			another thread is executing buf_zip_decompress()
 			in buf_page_get_low() on it. */
@@ -3229,6 +3240,9 @@ BUF_PEEK_IF_IN_POOL, or BUF_GET_IF_IN_POOL_OR_WATCH
 @param[out]	err			DB_SUCCESS or error code
 @param[in]	allow_ibuf_merge	Allow change buffer merge while
 reading the pages from file.
+@param[in,out]	no_wait			If not NULL on input, then we must not
+wait for current page latch. On output, the value is set to true if we had to
+return because we could not wait on page latch.
 @return pointer to the block or NULL */
 buf_block_t*
 buf_page_get_gen(
@@ -3239,12 +3253,14 @@ buf_page_get_gen(
 	ulint			mode,
 	mtr_t*			mtr,
 	dberr_t*		err,
-	bool			allow_ibuf_merge)
+	bool			allow_ibuf_merge,
+	bool*			no_wait)
 {
   buf_block_t *block= recv_sys.recover(page_id);
   if (UNIV_LIKELY(!block))
     return buf_page_get_low(page_id, zip_size, rw_latch,
-                            guess, mode, mtr, err, allow_ibuf_merge);
+                            guess, mode, mtr, err, allow_ibuf_merge,
+                            no_wait);
   else if (UNIV_UNLIKELY(block == reinterpret_cast<buf_block_t*>(-1)))
   {
   corrupted:
@@ -3425,8 +3441,7 @@ buf_block_t *buf_page_try_get(const page_id_t page_id, mtr_t *mtr)
   ut_ad(block->page.buf_fix_count());
   ut_ad(block->page.id() == page_id);
 
-  ++buf_pool.stat.n_page_gets;
-  mariadb_increment_pages_accessed();
+  buf_inc_get(mariadb_stats);
   return block;
 }
 
@@ -3999,15 +4014,13 @@ void buf_refresh_io_stats()
 All pages must be in a replaceable state (not modified or latched). */
 void buf_pool_invalidate()
 {
-	mysql_mutex_lock(&buf_pool.mutex);
-
 	/* It is possible that a write batch that has been posted
 	earlier is still not complete. For buffer pool invalidation to
 	proceed we must ensure there is NO write activity happening. */
 
-	ut_d(mysql_mutex_unlock(&buf_pool.mutex));
+	os_aio_wait_until_no_pending_writes(false);
 	ut_d(buf_pool.assert_all_freed());
-	ut_d(mysql_mutex_lock(&buf_pool.mutex));
+	mysql_mutex_lock(&buf_pool.mutex);
 
 	while (UT_LIST_GET_LEN(buf_pool.LRU)) {
 		buf_LRU_scan_and_free_block();
