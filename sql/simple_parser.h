@@ -196,7 +196,7 @@ protected:
 
 
   /*
-    A rule consisting of three other rules in a row:
+    A rule consisting of four other rules in a row:
       rule ::= rule1 rule2 rule3 rule4
   */
   template<class PARSER, class A, class B, class C, class D>

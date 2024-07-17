@@ -32105,35 +32105,10 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
     return;
   }
 
-  char buff[NAME_LEN];
-  String hint_str(buff, sizeof(buff), system_charset_info);
-  hint_str.length(0);
-  if (thd->lex->opt_hints_global)
-  {
-    char tmp_buff[NAME_LEN];
-    String hints_tmp(tmp_buff, sizeof(tmp_buff), system_charset_info);
-    hints_tmp.length(0);
-    if (select_number == 1)
-    {
-      if (opt_hints_qb)
-        opt_hints_qb->append_qb_hint(thd, &hints_tmp);
-      thd->lex->opt_hints_global->print(thd, &hints_tmp);
-    }
-    else if (opt_hints_qb)
-      opt_hints_qb->append_qb_hint(thd, &hints_tmp);
-
-    if (hints_tmp.length() > 0)
-    {
-      hint_str.append(STRING_WITH_LEN("/*+ "));
-      hint_str.append(hints_tmp);
-      hint_str.append(STRING_WITH_LEN("*/ "));
-    }
-  }
-
-  if (hint_str.length() > 0 && (sel_type == SELECT_CMD ||
-                                sel_type == INSERT_CMD ||
-                                sel_type == REPLACE_CMD))
-    str->append(hint_str);
+  if (sel_type == SELECT_CMD ||
+      sel_type == INSERT_CMD ||
+      sel_type == REPLACE_CMD)
+    print_hints(thd, str);
 
   /* First add options */
   if (options & SELECT_STRAIGHT_JOIN)
@@ -32190,8 +32165,7 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
     if (sel_type == UPDATE_CMD || sel_type == DELETE_CMD)
     {
       str->append(get_explainable_cmd_name(sel_type));
-      if (hint_str.length() > 0)
-        str->append(hint_str);
+      print_hints(thd, str);
     }
     if (sel_type == DELETE_CMD)
     {
@@ -32317,6 +32291,36 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
   // PROCEDURE unsupported here
 }
 
+
+void st_select_lex::print_hints(THD *thd,
+                                String *str)
+{
+  if (!thd->lex->opt_hints_global)
+    return;
+
+  constexpr LEX_CSTRING header={STRING_WITH_LEN("/*+ ")};
+  str->append(header);
+  uint32 len_before_hints= str->length();
+  if (select_number == 1)
+  {
+    if (opt_hints_qb)
+      opt_hints_qb->append_qb_hint(thd, str);
+    thd->lex->opt_hints_global->print(thd, str);
+  }
+  else if (opt_hints_qb)
+    opt_hints_qb->append_qb_hint(thd, str);
+
+  if (str->length() > len_before_hints)
+  {
+    // Some hints were printed, close the hint string
+    str->append(STRING_WITH_LEN("*/ "));
+  }
+  else
+  {
+    // No hints were added, rollback the previouly added header
+    str->length(len_before_hints - header.length);
+  }
+}
 
 /**
   Change the select_result object of the JOIN.
