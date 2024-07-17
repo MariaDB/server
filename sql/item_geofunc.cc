@@ -2682,7 +2682,7 @@ String *Item_func_geohash::val_str(String *str)
 {
   DBUG_ASSERT(fixed());
   double latitude, longitude;
-  uint geohash_length;
+  int geohash_length;
   Item* length_field;
   null_value= 1;
 
@@ -2693,7 +2693,7 @@ String *Item_func_geohash::val_str(String *str)
     String tmp;
     String *wkb= args[0]->val_str(&tmp);
 
-    if (args[0]->null_value || args[1]->null_value)
+    if (args[0]->null_value)
       return 0;
 
     length_field= args[1];
@@ -2708,7 +2708,7 @@ String *Item_func_geohash::val_str(String *str)
   }
   else
   {
-    if (args[0]->null_value || args[1]->null_value || args[2]->null_value)
+    if (args[0]->null_value || args[1]->null_value)
       return 0;
 
     if (is_invalid_longitude_field(args[0]->field_type()) ||
@@ -2720,6 +2720,10 @@ String *Item_func_geohash::val_str(String *str)
 
     longitude= args[0]->val_real();
     latitude= args[1]->val_real();
+
+    if (args[0]->null_value || args[1]->null_value)
+      return 0;
+
     length_field= args[2];
   }
 
@@ -2744,6 +2748,9 @@ String *Item_func_geohash::val_str(String *str)
   }
 
   geohash_length= static_cast<uint>(length_field->val_int());
+  if (length_field->null_value)
+    geohash_length= MAX_GEOHASH_LENGTH;
+
   if (geohash_length <= MIN_GEOHASH_LENGTH ||
       geohash_length > MAX_GEOHASH_LENGTH)
   {
@@ -2770,7 +2777,9 @@ bool Item_func_geohash::is_invalid_length_field(enum_field_types field_type)
   {
     case MYSQL_TYPE_LONG:
     case MYSQL_TYPE_NULL:
+    case MYSQL_TYPE_LONGLONG:
     case MYSQL_TYPE_VARCHAR:
+    case MYSQL_TYPE_LONG_BLOB:
       return false;
     default:
       return true;
@@ -2785,6 +2794,9 @@ bool Item_func_geohash::is_invalid_longitude_field(enum_field_types field_type)
     case MYSQL_TYPE_LONG:
     case MYSQL_TYPE_VARCHAR:
     case MYSQL_TYPE_NEWDECIMAL:
+    case MYSQL_TYPE_GEOMETRY:
+    case MYSQL_TYPE_DOUBLE:
+    case MYSQL_TYPE_LONG_BLOB:
       return false;
     default:
       return true;
@@ -3018,6 +3030,8 @@ bool Item_func_latlongfromgeohash::is_invalid_geohash_field(
   {
     case MYSQL_TYPE_NULL:
     case MYSQL_TYPE_VARCHAR:
+    case MYSQL_TYPE_LONG_BLOB:
+    case MYSQL_TYPE_GEOMETRY:
       return false;
     default:
       return true;
@@ -3524,6 +3538,23 @@ protected:
   Create_func_latfromgeohash() = default;
   virtual ~Create_func_latfromgeohash() = default;
 };
+
+
+class Create_func_longfromgeohash : public Create_func_arg1
+{
+public:
+  Item *create_1_arg(THD *thd, Item *arg1) override
+  {
+    return new (thd->mem_root) Item_func_longfromgeohash(thd, arg1);
+  }
+
+  static Create_func_longfromgeohash s_singleton;
+
+protected:
+  Create_func_longfromgeohash() = default;
+  virtual ~Create_func_longfromgeohash() = default;
+};
+
 
 class Create_func_endpoint : public Create_func_arg1
 {
@@ -4379,6 +4410,7 @@ Create_func_distance Create_func_distance::s_singleton;
 Create_func_distance_sphere Create_func_distance_sphere::s_singleton;
 Create_func_geohash Create_func_geohash::s_singleton;
 Create_func_latfromgeohash Create_func_latfromgeohash ::s_singleton;
+Create_func_longfromgeohash Create_func_longfromgeohash ::s_singleton;
 Create_func_endpoint Create_func_endpoint::s_singleton;
 Create_func_envelope Create_func_envelope::s_singleton;
 Create_func_equals Create_func_equals::s_singleton;
@@ -4504,6 +4536,7 @@ static Native_func_registry func_array_geom[] =
   { { STRING_WITH_LEN("POLYGONFROMWKB") }, GEOM_BUILDER(Create_func_geometry_from_wkb)},
   { { STRING_WITH_LEN("GEOHASH") }, GEOM_BUILDER(Create_func_geohash)},
   { { STRING_WITH_LEN("LATFROMGEOHASH") }, GEOM_BUILDER(Create_func_latfromgeohash)},
+  { { STRING_WITH_LEN("LONGFROMGEOHASH") }, GEOM_BUILDER(Create_func_longfromgeohash)},
   { { STRING_WITH_LEN("SRID") }, GEOM_BUILDER(Create_func_srid)},
   { { STRING_WITH_LEN("ST_AREA") }, GEOM_BUILDER(Create_func_area)},
   { { STRING_WITH_LEN("STARTPOINT") }, GEOM_BUILDER(Create_func_startpoint)},
@@ -4586,6 +4619,7 @@ static Native_func_registry func_array_geom[] =
   { { STRING_WITH_LEN("ST_DISTANCE_SPHERE") }, GEOM_BUILDER(Create_func_distance_sphere)},
   { { STRING_WITH_LEN("ST_GEOHASH") }, GEOM_BUILDER(Create_func_geohash)},
   { { STRING_WITH_LEN("ST_LATFROMGEOHASH") }, GEOM_BUILDER(Create_func_latfromgeohash)},
+  { { STRING_WITH_LEN("ST_LONGFROMGEOHASH") }, GEOM_BUILDER(Create_func_longfromgeohash)},
   { { STRING_WITH_LEN("TOUCHES") }, GEOM_BUILDER(Create_func_touches)},
   { { STRING_WITH_LEN("WITHIN") }, GEOM_BUILDER(Create_func_within)},
   { { STRING_WITH_LEN("X") }, GEOM_BUILDER(Create_func_x)},
