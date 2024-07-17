@@ -1,3 +1,254 @@
+CREATE TABLE geohashes  (gid INT NOT NULL PRIMARY KEY, hash_value VARCHAR(255));
+INSERT INTO geohashes VALUES
+(1, "000000000000000000000"),
+(2, "zzzzzzzzzzzzzzzzzzzzz"),
+(3, NULL),
+(4, "s00t"),
+(5, "7zzzm"),
+(6, "s00d"),
+(7, "0"),
+(8, "z"),
+(9, "3ejh6z75ddt2d839zh2u"),
+(10, "twtsuqg3q7vh3nrbt0nn"),
+(11, "yw8s10dxddhe4s06nsph"),
+(12, "h4g4h9yrjtgzvewxm0ru"),
+(13, "9kqbredcnhq1b44ue48s"),
+(14, "1pckwjkqw3km0v6ye5d2"),
+(15, "wm313fnr92ggsysm64e6"),
+(16, "vqghx20fx6d8r5vfkbgf"),
+(17, "wvetm3u23kr9r6663k31"),
+(18, "e5t2p7sk291vpyb08pwu");
+# valid characters
+SELECT ST_LATFROMGEOHASH("0");
+ST_LATFROMGEOHASH("0")
+-68
+SELECT ST_LATFROMGEOHASH("z");
+ST_LATFROMGEOHASH("z")
+68
+SELECT ST_LATFROMGEOHASH("0z");
+ST_LATFROMGEOHASH("0z")
+-48
+SELECT ST_LATFROMGEOHASH("xbpb");
+ST_LATFROMGEOHASH("xbpb")
+0
+SELECT ST_LATFROMGEOHASH("8000");
+ST_LATFROMGEOHASH("8000")
+0
+SELECT ST_LATFROMGEOHASH("s000");
+ST_LATFROMGEOHASH("s000")
+0
+SELECT ST_LATFROMGEOHASH("0123456789");
+ST_LATFROMGEOHASH("0123456789")
+-82.774507
+SELECT ST_LATFROMGEOHASH("9876543210");
+ST_LATFROMGEOHASH("9876543210")
+1.770175
+SELECT ST_LATFROMGEOHASH("bcdefghjkmnpqrstuvwxyz");
+ST_LATFROMGEOHASH("bcdefghjkmnpqrstuvwxyz")
+54.11408847964353
+SELECT ST_LATFROMGEOHASH("zyxwvutsrqpnmkjhgfedcb");
+ST_LATFROMGEOHASH("zyxwvutsrqpnmkjhgfedcb")
+82.77450549262497
+SELECT ST_LATFROMGEOHASH("zzzzzzzzzzzzzzzzzzzz");
+ST_LATFROMGEOHASH("zzzzzzzzzzzzzzzzzzzz")
+90
+SELECT ST_LATFROMGEOHASH("bpbpbpbpbpbpbpbpbpbp");
+ST_LATFROMGEOHASH("bpbpbpbpbpbpbpbpbpbp")
+90
+SELECT ST_LATFROMGEOHASH("pbpbpbpbpbpbpbpbpbpb");
+ST_LATFROMGEOHASH("pbpbpbpbpbpbpbpbpbpb")
+-90
+SELECT ST_LATFROMGEOHASH("00000000000000000000");
+ST_LATFROMGEOHASH("00000000000000000000")
+-90
+SELECT ST_LATFROMGEOHASH("gzzzzzzzzzzzzzzzzzzz");
+ST_LATFROMGEOHASH("gzzzzzzzzzzzzzzzzzzz")
+90
+SELECT ST_LATFROMGEOHASH("5bpbpbpbpbpbpbpbpbpb");
+ST_LATFROMGEOHASH("5bpbpbpbpbpbpbpbpbpb")
+-90
+SELECT ST_LATFROMGEOHASH("7zzzzzzzzzzzzzzzzzzz");
+ST_LATFROMGEOHASH("7zzzzzzzzzzzzzzzzzzz")
+0
+SELECT ST_LATFROMGEOHASH("rzzzzzzzzzzzzzzzzzzz");
+ST_LATFROMGEOHASH("rzzzzzzzzzzzzzzzzzzz")
+0
+SELECT ST_LATFROMGEOHASH("2pbpbpbpbpbpbpbpbpbp");
+ST_LATFROMGEOHASH("2pbpbpbpbpbpbpbpbpbp")
+0
+SELECT ST_LATFROMGEOHASH("0000000000zzzzzzzzzz");
+ST_LATFROMGEOHASH("0000000000zzzzzzzzzz")
+-89.999994635582
+SELECT ST_LATFROMGEOHASH("zzzzzzzzzz0000000000");
+ST_LATFROMGEOHASH("zzzzzzzzzz0000000000")
+89.999994635582
+SELECT ST_LATFROMGEOHASH("s000000001z7wsg7zzm6");
+ST_LATFROMGEOHASH("s000000001z7wsg7zzm6")
+0.00001
+SELECT ST_LATFROMGEOHASH("ebpbpbpbpcbe9kuebp6d");
+ST_LATFROMGEOHASH("ebpbpbpbpcbe9kuebp6d")
+0.00001
+SELECT ST_LATFROMGEOHASH("kpbpbpbpbnpkqe5kpbtm");
+ST_LATFROMGEOHASH("kpbpbpbpbnpkqe5kpbtm")
+-0.00001
+SELECT ST_LATFROMGEOHASH("7zzzzzzzzy0s37hs00dt");
+ST_LATFROMGEOHASH("7zzzzzzzzy0s37hs00dt")
+-0.00001
+SELECT ST_LATFROMGEOHASH("tzzzzzzzzzzzzzzzzzzz");
+ST_LATFROMGEOHASH("tzzzzzzzzzzzzzzzzzzz")
+45
+SELECT ST_LATFROMGEOHASH("9zzzzzzzzzzzzzzzzzzz");
+ST_LATFROMGEOHASH("9zzzzzzzzzzzzzzzzzzz")
+45
+SELECT ST_LATFROMGEOHASH("jzzzzzzzzzzzzzzzzzzz");
+ST_LATFROMGEOHASH("jzzzzzzzzzzzzzzzzzzz")
+-45
+SELECT ST_LATFROMGEOHASH("1zzzzzzzzzzzzzzzzzzz");
+ST_LATFROMGEOHASH("1zzzzzzzzzzzzzzzzzzz")
+-45
+SELECT ST_LATFROMGEOHASH("zbzurypzpgxczbzurypz");
+ST_LATFROMGEOHASH("zbzurypzpgxczbzurypz")
+50
+SELECT ST_LATFROMGEOHASH("5zpgxczbzurypzpgxczb");
+ST_LATFROMGEOHASH("5zpgxczbzurypzpgxczb")
+-50
+SELECT ST_LATFROMGEOHASH("0z0z0z0z0z0z0z0z0z0z0z0z0z0z0z0z");
+ST_LATFROMGEOHASH("0z0z0z0z0z0z0z0z0z0z0z0z0z0z0z0z")
+-49.35483870967742
+SELECT ST_LATFROMGEOHASH("0123456789bcdefghjkmnpqrstuvwxyz");
+ST_LATFROMGEOHASH("0123456789bcdefghjkmnpqrstuvwxyz")
+-82.77450549262497
+SELECT ST_LATFROMGEOHASH("0123456789BCDEFGHJKMNPQRSTUVWXYZ");
+ST_LATFROMGEOHASH("0123456789BCDEFGHJKMNPQRSTUVWXYZ")
+-82.77450549262497
+SELECT ST_LATFROMGEOHASH("zyxwvutsrqpnmkjhgfedcb9876543210");
+ST_LATFROMGEOHASH("zyxwvutsrqpnmkjhgfedcb9876543210")
+82.77450549262497
+SELECT ST_LATFROMGEOHASH("ZYXWVUTSRQPNMKJHGFEDCB9876543210");
+ST_LATFROMGEOHASH("ZYXWVUTSRQPNMKJHGFEDCB9876543210")
+82.77450549262497
+SELECT ST_LATFROMGEOHASH("1e1");
+ST_LATFROMGEOHASH("1e1")
+-72
+SELECT ST_LATFROMGEOHASH("100");
+ST_LATFROMGEOHASH("100")
+-89
+SELECT ST_LATFROMGEOHASH(CAST(100 AS CHAR));
+ST_LATFROMGEOHASH(CAST(100 AS CHAR))
+-89
+SELECT ST_LATFROMGEOHASH("10111000110001111001");
+ST_LATFROMGEOHASH("10111000110001111001")
+-89.8242133801793
+SELECT ST_LATFROMGEOHASH("11111111111111111111");
+ST_LATFROMGEOHASH("11111111111111111111")
+-84.1935483870967
+SELECT ST_LATFROMGEOHASH("99999999999999999999");
+ST_LATFROMGEOHASH("99999999999999999999")
+8.7096774193548
+SELECT ST_LATFROMGEOHASH(NULL);
+ST_LATFROMGEOHASH(NULL)
+NULL
+SELECT ST_LATFROMGEOHASH(null);
+ST_LATFROMGEOHASH(null)
+NULL
+SELECT ST_LATFROMGEOHASH(CAST("012" AS BINARY));
+ST_LATFROMGEOHASH(CAST("012" AS BINARY))
+-82
+# invalid characters and inputs
+SELECT ST_LATFROMGEOHASH("0123a45");
+ERROR HY000: Incorrect geohash value: '0123a45' for function st_latfromgeohash
+SELECT ST_LATFROMGEOHASH("xyzi");
+ERROR HY000: Incorrect geohash value: 'xyzi' for function st_latfromgeohash
+SELECT ST_LATFROMGEOHASH("zyxLwv");
+ERROR HY000: Incorrect geohash value: 'zyxLwv' for function st_latfromgeohash
+SELECT ST_LATFROMGEOHASH("bcdjo");
+ERROR HY000: Incorrect geohash value: 'bcdjo' for function st_latfromgeohash
+SELECT ST_LATFROMGEOHASH("zyx**wv");
+ERROR HY000: Incorrect geohash value: 'zyx**wv' for function st_latfromgeohash
+SELECT ST_LATFROMGEOHASH("1 2 3 4");
+ERROR HY000: Incorrect geohash value: '1 2 3 4' for function st_latfromgeohash
+SELECT ST_LATFROMGEOHASH("1''2345");
+ERROR HY000: Incorrect geohash value: '1''2345' for function st_latfromgeohash
+SELECT ST_LATFROMGEOHASH("12.345");
+ERROR HY000: Incorrect geohash value: '12.345' for function st_latfromgeohash
+SELECT ST_LATFROMGEOHASH("   ");
+ERROR HY000: Incorrect geohash value: '   ' for function st_latfromgeohash
+SELECT ST_LATFROMGEOHASH("NULL");
+ERROR HY000: Incorrect geohash value: 'NULL' for function st_latfromgeohash
+SELECT ST_LATFROMGEOHASH("-100");
+ERROR HY000: Incorrect geohash value: '-100' for function st_latfromgeohash
+SELECT ST_LATFROMGEOHASH("");
+ERROR HY000: Incorrect geohash value: '' for function st_latfromgeohash
+SELECT ST_LATFROMGEOHASH(9876543210);
+ERROR 22023: Invalid GIS data provided to function ST_LatFromGeohash.
+SELECT ST_LATFROMGEOHASH(0123456789);
+ERROR 22023: Invalid GIS data provided to function ST_LatFromGeohash.
+SELECT ST_LATFROMGEOHASH(1e1);
+ERROR 22023: Invalid GIS data provided to function ST_LatFromGeohash.
+SELECT ST_LATFROMGEOHASH();
+ERROR 42000: Incorrect parameter count in the call to native function 'ST_LATFROMGEOHASH'
+SELECT ST_LATFROMGEOHASH("123","456");
+ERROR 42000: Incorrect parameter count in the call to native function 'ST_LATFROMGEOHASH'
+SELECT ST_LATFROMGEOHASH("123",);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ')' at line 1
+SELECT ST_LATFROMGEOHASH(,"456");
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '"456")' at line 1
+SELECT ST_LATFROMGEOHASH(,);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ')' at line 1
+SELECT ST_LATFROMGEOHASH("0123456"789);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '789)' at line 1
+SELECT ST_LATFROMGEOHASH(abcdef);
+ERROR 42S22: Unknown column 'abcdef' in 'field list'
+# very long geohash
+SELECT ST_LATFROMGEOHASH("0123456789bcdefghjkmnpqrstuvwxyz0123456789bcdefghjkmn"
+                         "pqrstuvwxyz0123456789bcdefghjkmnpqrstuvwxyz0123456789"
+                         "bcdefghjkmnpqrstuvwxyz");
+ST_LATFROMGEOHASH("0123456789bcdefghjkmnpqrstuvwxyz0123456789bcdefghjkmn"
+                         "pqrstuvwxyz0123456789bcdefghjkmnpqrstuvwxyz0123456789"
+                         "bcdefghjkmnpqrstuvwxyz")
+-82.77450549262497
+SELECT ST_LATFROMGEOHASH("0123456789BCDEFGHJKMNPQRSTUVWXYZ0123456789BCDEFGHJKMN"
+                         "PQRSTUVWXYZ0123456789BCDEFGHJKMNPQRSTUVWXYZ0123456789"
+                         "BCDEFGHJKMNPQRSTUVWXYZ");
+ST_LATFROMGEOHASH("0123456789BCDEFGHJKMNPQRSTUVWXYZ0123456789BCDEFGHJKMN"
+                         "PQRSTUVWXYZ0123456789BCDEFGHJKMNPQRSTUVWXYZ0123456789"
+                         "BCDEFGHJKMNPQRSTUVWXYZ")
+-82.77450549262497
+SELECT ST_LATFROMGEOHASH("zyxwvutsrqpnmkjhgfedcb9876543210zyxwvutsrqpnmkjhgfedc"
+                         "b9876543210zyxwvutsrqpnmkjhgfedcb9876543210zyxwvutsrq"
+                         "pnmkjhgfedcb9876543210");
+ST_LATFROMGEOHASH("zyxwvutsrqpnmkjhgfedcb9876543210zyxwvutsrqpnmkjhgfedc"
+                         "b9876543210zyxwvutsrqpnmkjhgfedcb9876543210zyxwvutsrq"
+                         "pnmkjhgfedcb9876543210")
+82.77450549262497
+SELECT ST_LATFROMGEOHASH("ZYXWVUTSRQPNMKJHGFEDCB9876543210ZYXWVUTSRQPNMKJHGFEDC"
+                         "B9876543210ZYXWVUTSRQPNMKJHGFEDCB9876543210ZYXWVUTSRQ"
+                         "PNMKJHGFEDCB9876543210");
+ST_LATFROMGEOHASH("ZYXWVUTSRQPNMKJHGFEDCB9876543210ZYXWVUTSRQPNMKJHGFEDC"
+                         "B9876543210ZYXWVUTSRQPNMKJHGFEDCB9876543210ZYXWVUTSRQ"
+                         "PNMKJHGFEDCB9876543210")
+82.77450549262497
+# different random geohash values
+SELECT ST_LATFROMGEOHASH(hash_value) FROM geohashes;
+ST_LATFROMGEOHASH(hash_value)
+-90
+90
+NULL
+1
+-0.1
+0.4
+-68
+68
+-27.3374899367448
+37.4347752334972
+82.269670295412
+-74.168840669129
+23.9696161514665
+-45.5852718924236
+29.763254995923
+83.7602082514146
+31.8700305354552
+19.7074618731612
 # valid inputs
 SELECT ST_GEOHASH(0,0,1);
 ST_GEOHASH(0,0,1)
@@ -362,3 +613,5 @@ SELECT ST_GEOHASH(ST_DIFFERENCE(ST_GEOMFROMTEXT('POINT(180 90)'),ST_GEOMFROMTEXT
 ERROR 22023: Invalid GIS data provided to function ST_GeoHash.
 SELECT ST_GEOHASH(ST_SYMDIFFERENCE(ST_GEOMFROMTEXT('POINT(180 90)'),ST_GEOMFROMTEXT('POINT(0 0)')),20);
 ERROR 22023: Invalid GIS data provided to function ST_GeoHash.
+# Clean up
+DROP TABLE geohashes;
