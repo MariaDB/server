@@ -2214,8 +2214,9 @@ bool Item_name_const::fix_fields(THD *thd, Item **ref)
   */
   if ((thd->where == THD_WHERE::WHERE_CLAUSE ||
        thd->where == THD_WHERE::ON_CLAUSE) &&
-      (value_item->type() == FUNC_ITEM ||
-       value_item->type() == CONST_ITEM))
+      (value_item->type() == CONST_ITEM ||
+       value_item->type() == FUNC_ITEM) &&
+      !thd->lex->is_ps_or_view_context_analysis())
   {
     thd->change_item_tree(ref, value_item);
 
