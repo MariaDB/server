@@ -742,7 +742,11 @@ struct TABLE_SHARE
   Virtual_column_info **check_constraints;
   uint	*blob_field;			/* Index to blobs in Field arrray*/
   LEX_CUSTRING vcol_defs;               /* definitions of generated columns */
-  TABLE_SHARE *hlindex;
+
+  union {
+    void *hlindex_data;                 /* for hlindex tables */
+    TABLE_SHARE *hlindex;               /* for normal tables  */
+  };
 
   /*
     EITS statistics data from the last time the table was opened or ANALYZE
