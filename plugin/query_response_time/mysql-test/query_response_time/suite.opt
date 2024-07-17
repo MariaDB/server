@@ -1,1 +1,1 @@
---plugin-load-add=$QUERY_RESPONSE_TIME_SO  --plugin-query-response-time=ON --plugin-query-response-time-audit=ON
+--plugin-load-add=$QUERY_RESPONSE_TIME_SO  --plugin-query-response-time=ON --plugin-query-response-time-audit=ON --plugin-query-response-time-read=ON --plugin-query-response-time-write=ON --plugin-query-response-time-read-write=ON

@@ -1,5 +1,5 @@
 install soname 'auth_ed25519';
-flush status;
+flush global status;
 flush hosts;
 flush user_resources;
 flush privileges;

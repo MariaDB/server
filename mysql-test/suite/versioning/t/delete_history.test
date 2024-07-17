@@ -1,6 +1,7 @@
 --source suite/versioning/common.inc
 --source include/have_partition.inc
 --source suite/versioning/engines.inc
+--source include/word_size.inc
 
 call mtr.add_suppression("need more HISTORY partitions");
 

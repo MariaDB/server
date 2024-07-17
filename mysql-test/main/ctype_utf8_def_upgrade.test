@@ -10,23 +10,30 @@ let $MYSQLD_DATADIR= `select @@datadir`;
 
 --echo # Test with a saved table from 3.23
 
-SELECT @@character_set_database;
-SET @@character_set_database="latin1";
+SELECT @@collation_database;
+SET @@collation_database="latin1_swedish_ci";
 --copy_file std_data/host_old.frm $MYSQLD_DATADIR/test/t1.frm
 --copy_file std_data/host_old.MYD $MYSQLD_DATADIR/test/t1.MYD
 --copy_file std_data/host_old.MYI $MYSQLD_DATADIR/test/t1.MYI
 
+--disable_service_connection
 --error ER_GET_ERRNO
 SELECT COUNT(*) FROM t1;
+--error ER_GET_ERRNO
+ALTER TABLE t1 FORCE;
 CHECK TABLE t1;
 REPAIR TABLE t1;
+REPAIR TABLE t1 FORCE;
 REPAIR TABLE t1 USE_FRM;
 SELECT COUNT(*) FROM t1;
 CHECK TABLE t1;
+ALTER TABLE t1 FORCE;
+CHECK TABLE t1;
+SELECT COUNT(*) FROM t1;
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
-SET @@character_set_database=DEFAULT;
-
+SET @@collation_database=DEFAULT;
+--enable_service_connection
 
 --echo # Now do the same, but doing 'ALTER DATABASE' to create the db.opt file,
 --echo # instead of setting variables directly.
@@ -35,23 +42,27 @@ SET @@character_set_database=DEFAULT;
 --mkdir $MYSQLD_DATADIR/db1
 SHOW CREATE DATABASE db1;
 USE db1;
-SELECT @@character_set_database, 'taken from defaults' AS comment;
+SELECT @@collation_database, 'taken from defaults' AS comment;
 USE test;
 ALTER DATABASE db1 DEFAULT CHARACTER SET latin1;
 USE db1;
-SELECT @@character_set_database, 'taken from db.opt' AS comment;
+SELECT @@collation_database, 'taken from db.opt' AS comment;
 
 --copy_file std_data/host_old.frm $MYSQLD_DATADIR/db1/t1.frm
 --copy_file std_data/host_old.MYD $MYSQLD_DATADIR/db1/t1.MYD
 --copy_file std_data/host_old.MYI $MYSQLD_DATADIR/db1/t1.MYI
 
+--disable_service_connection
 --error ER_GET_ERRNO
 SELECT COUNT(*) FROM t1;
 REPAIR TABLE t1 USE_FRM;
 SELECT COUNT(*) FROM t1;
 CHECK TABLE t1;
+ALTER TABLE t1 FORCE;
+CHECK TABLE t1;
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
+--enable_service_connection
 
 DROP DATABASE db1;
 USE test;

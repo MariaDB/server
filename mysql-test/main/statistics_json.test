@@ -8,6 +8,8 @@ let $histogram_type_override='JSON_HB';
 --source include/have_innodb.inc
 --source include/have_stat_tables.inc
 --source include/have_sequence.inc
+--source include/test_db_charset_latin1.inc
+
 --disable_warnings
 drop table if exists t1;
 --enable_warnings
@@ -482,3 +484,4 @@ explain format=json select * from t1 where a > 'y';
 
 drop table t1;
 
+--source include/test_db_charset_restore.inc

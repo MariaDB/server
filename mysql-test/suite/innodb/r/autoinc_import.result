@@ -193,9 +193,13 @@ test.t1	check	status	OK
 test.t1b	check	status	OK
 test.t1t	check	status	OK
 test.t1z	check	status	OK
+test.t5_7	check	note	Auto_increment checked and .frm file version updated
 test.t5_7	check	status	OK
+test.t5_7b	check	note	Auto_increment checked and .frm file version updated
 test.t5_7b	check	status	OK
+test.t10_1	check	note	Auto_increment checked and .frm file version updated
 test.t10_1	check	status	OK
+test.t10_1b	check	note	Auto_increment checked and .frm file version updated
 test.t10_1b	check	status	OK
 SELECT * FROM t1;
 id

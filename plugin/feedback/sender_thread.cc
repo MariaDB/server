@@ -183,7 +183,7 @@ static void send_report(const char *when)
     str.length(0);
     str.append(STRING_WITH_LEN("FEEDBACK_SERVER_UID"));
     str.append('\t');
-    str.append(server_uid_buf, sizeof(server_uid_buf)-1);
+    str.append(server_uid,  sizeof(server_uid)-1);
     str.append('\n');
     str.append(STRING_WITH_LEN("FEEDBACK_WHEN"));
     str.append('\t');
@@ -257,7 +257,8 @@ ret:
       the effect of the background thread on SHOW STATUS.
     */
     server_threads.erase(thd);
-    thd->set_status_var_init();
+    DBUG_ASSERT(thd->status_var.tmp_space_used == 0);
+    thd->set_status_var_init(clear_for_new_connection);
     thd->killed= KILL_CONNECTION;
     delete thd;
     thd= 0;

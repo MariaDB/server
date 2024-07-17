@@ -2,6 +2,7 @@
 # Restarting is not supported when testing the embedded server.
 --source include/not_embedded.inc
 --source include/no_valgrind_without_big.inc
+--source include/test_db_charset_latin1.inc
 
 if ($MTR_COMBINATION_DESC) {
   let $AUTO_INCREMENT_KEY_a= AUTO_INCREMENT, PRIMARY KEY(a DESC);
@@ -567,3 +568,5 @@ SELECT MAX(b) AS `Expect 4` FROM t33;
 SELECT * FROM t33;
 
 DROP TABLE t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t30, t32, t33;
+
+--source include/test_db_charset_restore.inc

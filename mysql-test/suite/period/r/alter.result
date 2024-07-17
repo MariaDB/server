@@ -9,7 +9,7 @@ t	CREATE TABLE `t` (
   `s` date NOT NULL,
   `e` date NOT NULL,
   PERIOD FOR `a` (`s`, `e`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 create or replace table t (s date, e date);
 alter table t change s s date, add period for a(s, e);
 show create table t;
@@ -18,7 +18,7 @@ t	CREATE TABLE `t` (
   `s` date NOT NULL,
   `e` date NOT NULL,
   PERIOD FOR `a` (`s`, `e`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 alter table t add id int;
 show create table t;
 Table	Create Table
@@ -27,7 +27,7 @@ t	CREATE TABLE `t` (
   `e` date NOT NULL,
   `id` int(11) DEFAULT NULL,
   PERIOD FOR `a` (`s`, `e`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 alter table t drop id;
 show create table t;
 Table	Create Table
@@ -35,7 +35,7 @@ t	CREATE TABLE `t` (
   `s` date NOT NULL,
   `e` date NOT NULL,
   PERIOD FOR `a` (`s`, `e`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert t values(@e, @s);
 ERROR 23000: CONSTRAINT `a` failed for `test`.`t`
 alter table t drop constraint a;
@@ -60,7 +60,7 @@ t	CREATE TABLE `t` (
   `s` date NOT NULL,
   `e` date NOT NULL,
   PERIOD FOR `a` (`s`, `e`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 alter table t drop period for a;
 # Constraint is dropped
 insert t values(@e, @s);
@@ -83,7 +83,7 @@ t	CREATE TABLE `t` (
   `e` date NOT NULL,
   `s1` date NOT NULL,
   PERIOD FOR `b` (`s1`, `e`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert t(s, s1, e) values(@e, @s, @e);
 insert t(s, s1, e) values(@e, @e, @s);
 ERROR 23000: CONSTRAINT `b` failed for `test`.`t`
@@ -95,7 +95,7 @@ t1	CREATE TABLE `t1` (
   `e` date NOT NULL,
   `s1` date NOT NULL,
   PERIOD FOR `b` (`s1`, `e`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 create table t2 (period for b(s,e)) select * from t;
 ERROR 23000: CONSTRAINT `b` failed for `test`.`t2`
@@ -157,7 +157,7 @@ t	CREATE TABLE `t` (
   `s` date NOT NULL,
   `e` date NOT NULL,
   PERIOD FOR `mytime` (`s`, `e`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 alter table t add constraint mytime check (x > 1);
 show create table t;
 Table	Create Table
@@ -167,7 +167,7 @@ t	CREATE TABLE `t` (
   `e` date NOT NULL,
   PERIOD FOR `mytime` (`s`, `e`),
   CONSTRAINT `mytime` CHECK (`x` > 1)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert t values (2, @e, @s);
 ERROR 23000: CONSTRAINT `mytime_1` failed for `test`.`t`
 alter table t add constraint mytime_1 check (x > 2);
@@ -219,6 +219,6 @@ t1	CREATE TABLE `t1` (
   `x` date NOT NULL,
   `y` date NOT NULL,
   PERIOD FOR `mytime` (`x`, `y`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 # End of 10.5 tests

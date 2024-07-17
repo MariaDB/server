@@ -144,7 +144,7 @@ static void GCALC_DBUG_PRINT_SLICE(const char *header,
   size_t nbuf;
   char buf[1024];
   nbuf= strlen(header);
-  strcpy(buf, header);
+  safe_strcpy(buf, sizeof(buf), header);
   for (; slice; slice= slice->get_next())
   {
     size_t lnbuf= nbuf;

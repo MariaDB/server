@@ -1,3 +1,5 @@
+SET @global_start_value_collation_server = @@global.collation_server;
+SET @session_start_value_collation_server = @@session.collation_server;
 SET @global_start_value = @@global.character_set_server;
 SET @@global.character_set_server=@@character_set_client;
 SELECT @@global.character_set_server;
@@ -6,15 +8,15 @@ latin1
 SET @session_start_value = @@character_set_server;
 SELECT @session_start_value;
 @session_start_value
-latin1
+utf8mb4
 SET @session_start_value = @@local.character_set_server;
 SELECT @session_start_value;
 @session_start_value
-latin1
+utf8mb4
 SET @session_start_value = @@session.character_set_server;
 SELECT @session_start_value;
 @session_start_value
-latin1
+utf8mb4
 '#--------------------FN_DYNVARS_009_01------------------#'
 SELECT character_set_server;
 ERROR 42S22: Unknown column 'character_set_server' in 'field list'
@@ -502,5 +504,5 @@ collation_server	latin2_general_ci
 SET @@pseudo_slave_mode=0;
 Warnings:
 Warning	1231	Slave applier execution mode not active, statement ineffective.
-SET @@global.character_set_server = @global_start_value;
-SET @@session.character_set_server = @session_start_value;
+SET @@global.collation_server = @global_start_value_collation_server;
+SET @@session.collation_server = @session_start_value_collation_server;

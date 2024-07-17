@@ -48,7 +48,8 @@
 #include "sql_db.h"              // get_default_db_collation
 #include "sql_update.h"          // class Sql_cmd_update
 #include "sql_delete.h"          // class Sql_cmd_delete
-
+#include "rpl_rli.h"             // class rpl_group_info
+#include "rpl_mi.h"              // class Master_info
 
 #ifdef WITH_WSREP
 #include "wsrep_schema.h"
@@ -134,7 +135,9 @@ static bool fix_type_pointers(const char ***typelib_value_names,
 static field_index_t find_field(Field **fields, uchar *record, uint start,
                                 uint length);
 
-inline bool is_system_table_name(const char *name, size_t length);
+static inline bool is_system_table_name(const Lex_ident_table &name);
+static inline bool is_statistics_table_name(const Lex_ident_table &name);
+
 
 /**************************************************************************
   Object_creation_ctx implementation.
@@ -312,17 +315,18 @@ TABLE_CATEGORY get_table_category(const Lex_ident_db &db,
 
   if (db.streq(MYSQL_SCHEMA_NAME))
   {
-    if (is_system_table_name(name.str, name.length))
+    if (is_system_table_name(name))
       return TABLE_CATEGORY_SYSTEM;
 
-    if (name.streq(GENERAL_LOG_NAME))
+    if (is_statistics_table_name(name))
+      return TABLE_CATEGORY_STATISTICS;
+
+    if (name.streq(GENERAL_LOG_NAME) ||
+        name.streq(SLOW_LOG_NAME) ||
+        name.streq(TRANSACTION_REG_NAME))
       return TABLE_CATEGORY_LOG;
 
-    if (name.streq(SLOW_LOG_NAME))
-      return TABLE_CATEGORY_LOG;
-
-    if (name.streq(TRANSACTION_REG_NAME))
-      return TABLE_CATEGORY_LOG;
+    return TABLE_CATEGORY_MYSQL;
   }
 
   return TABLE_CATEGORY_USER;
@@ -578,58 +582,65 @@ void free_table_share(TABLE_SHARE *share)
   and should not contain user tables.
 */
 
-inline bool is_system_table_name(const char *name, size_t length)
+static inline bool is_system_table_name(const Lex_ident_table &name)
 {
-  CHARSET_INFO *ci= system_charset_info;
-
   return (
           /* mysql.proc table */
-          (length == 4 &&
-           my_tolower(ci, name[0]) == 'p' && 
-           my_tolower(ci, name[1]) == 'r' &&
-           my_tolower(ci, name[2]) == 'o' &&
-           my_tolower(ci, name[3]) == 'c') ||
+          (name.length == 4 &&
+           (name.str[0] | 32) == 'p' &&
+           (name.str[1] | 32) == 'r' &&
+           (name.str[2] | 32) == 'o' &&
+           (name.str[3] | 32) == 'c') ||
 
-          (length > 4 &&
+          (name.length > 4 &&
            (
             /* one of mysql.help* tables */
-            (my_tolower(ci, name[0]) == 'h' &&
-             my_tolower(ci, name[1]) == 'e' &&
-             my_tolower(ci, name[2]) == 'l' &&
-             my_tolower(ci, name[3]) == 'p') ||
+            ((name.str[0] | 32) == 'h' &&
+             (name.str[1] | 32) == 'e' &&
+             (name.str[2] | 32) == 'l' &&
+             (name.str[3] | 32) == 'p') ||
 
             /* one of mysql.time_zone* tables */
-            (my_tolower(ci, name[0]) == 't' &&
-             my_tolower(ci, name[1]) == 'i' &&
-             my_tolower(ci, name[2]) == 'm' &&
-             my_tolower(ci, name[3]) == 'e') ||
-
-            /* one of mysql.*_stat tables, but not mysql.innodb* tables*/
-            ((my_tolower(ci, name[length-5]) == 's' &&
-              my_tolower(ci, name[length-4]) == 't' &&
-              my_tolower(ci, name[length-3]) == 'a' &&
-              my_tolower(ci, name[length-2]) == 't' &&
-              my_tolower(ci, name[length-1]) == 's') &&
-             !(my_tolower(ci, name[0]) == 'i' &&
-               my_tolower(ci, name[1]) == 'n' &&
-               my_tolower(ci, name[2]) == 'n' &&
-               my_tolower(ci, name[3]) == 'o')) ||
+            ((name.str[0] | 32) == 't' &&
+             (name.str[1] | 32) == 'i' &&
+             (name.str[2] | 32) == 'm' &&
+             (name.str[3] | 32) == 'e') ||
 
             /* mysql.event table */
-            (my_tolower(ci, name[0]) == 'e' &&
-             my_tolower(ci, name[1]) == 'v' &&
-             my_tolower(ci, name[2]) == 'e' &&
-             my_tolower(ci, name[3]) == 'n' &&
-             my_tolower(ci, name[4]) == 't')
+            ((name.str[0] | 32) == 'e' &&
+             (name.str[1] | 32) == 'v' &&
+             (name.str[2] | 32) == 'e' &&
+             (name.str[3] | 32) == 'n' &&
+             (name.str[4] | 32) == 't')
             )
            )
          );
 }
 
 
+static inline bool is_statistics_table_name(const Lex_ident_table &name)
+{
+  if (name.length > 6)
+  {
+    /* one of mysql.*_stat tables, but not mysql.innodb* tables*/
+    if (((name.str[name.length - 5] | 32) == 's' &&
+         (name.str[name.length - 4] | 32) == 't' &&
+         (name.str[name.length - 3] | 32) == 'a' &&
+         (name.str[name.length - 2] | 32) == 't' &&
+         (name.str[name.length - 1] | 32) == 's') &&
+        !((name.str[0] | 32) == 'i' &&
+          (name.str[1] | 32) == 'n' &&
+          (name.str[2] | 32) == 'n' &&
+          (name.str[3] | 32) == 'o'))
+      return 1;
+  }
+  return 0;
+}
+
+
 /*
   Read table definition from a binary / text based .frm file
-  
+
   SYNOPSIS
   open_table_def()
   thd		  Thread handler
@@ -1848,6 +1859,9 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   }
 
   share->frm_version= frm_image[2];
+  if (share->frm_version < FRM_VER_TRUE_VARCHAR)
+    share->keep_original_mysql_version= 1;
+
   /*
     Check if .frm file created by MySQL 5.0. In this case we want to
     display CHAR fields as CHAR and not as VARCHAR.
@@ -9542,6 +9556,34 @@ void TABLE::vers_update_end()
     DBUG_ASSERT(0);
 }
 
+
+#ifdef HAVE_REPLICATION
+void TABLE::vers_fix_old_timestamp(rpl_group_info *rgi)
+{
+  /*
+    rgi->rli->mi is not set if we are not connected to a slave.
+    This can happen in case of
+    - Data sent from mariadb-binlog
+    - online_alter_read_from_binlog (in this case no transformation is needed)
+  */
+  if (rgi->rli->mi &&
+      file->check_versioned_compatibility(rgi->rli->mi->mysql_version))
+  {
+    Field *end_field= vers_end_field();
+
+    if (!memcmp(end_field->ptr, timestamp_old_bytes,
+                sizeof(timestamp_old_bytes)))
+    {
+      /*
+        Upgrade timestamp.
+        Check Field::do_field_versioned_timestamp() for details
+      */
+      end_field->ptr[0]= 0xff;
+    }
+  }
+}
+#endif /* HAVE_REPLICATION */
+
 /**
    Reset markers that fields are being updated
 */
@@ -10386,7 +10428,7 @@ void TR_table::store(uint field_id, ulonglong val)
   table->field[field_id]->set_notnull();
 }
 
-void TR_table::store(uint field_id, timeval ts)
+void TR_table::store(uint field_id, my_timeval ts)
 {
   table->field[field_id]->store_timestamp(ts.tv_sec, ts.tv_usec);
   table->field[field_id]->set_notnull();
@@ -10406,7 +10448,7 @@ bool TR_table::update(ulonglong start_id, ulonglong end_id)
 
   store(FLD_BEGIN_TS, thd->transaction_time());
   thd->set_time();
-  timeval end_time= {thd->query_start(), int(thd->query_start_sec_part())};
+  my_timeval end_time= { thd->query_start(), thd->query_start_sec_part()};
   store(FLD_TRX_ID, start_id);
   store(FLD_COMMIT_ID, end_id);
   store(FLD_COMMIT_TS, end_time);

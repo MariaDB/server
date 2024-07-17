@@ -152,7 +152,7 @@ t	CREATE TABLE `t` (
   `a` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
   `b` int(11) DEFAULT NULL,
   UNIQUE KEY `a` (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 # a is unique in the old table, but is shrunk in the new one.
 # Only unsafe approach is fine because of possible collisions.
 alter table t modify a int, modify b serial, algorithm=copy, lock=none;
@@ -177,7 +177,7 @@ t	CREATE TABLE `t` (
   `b` int(11) NOT NULL AUTO_INCREMENT,
   `c` int(11) DEFAULT 0,
   UNIQUE KEY `b` (`b`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 alter table t drop b, change c c serial, algorithm=copy, lock=none;
 ERROR 0A000: LOCK=NONE is not supported. Reason: CHANGE COLUMN ... AUTO_INCREMENT. Try LOCK=SHARED
 # Check existed unique keys.
@@ -260,4 +260,35 @@ rollback;
 connection default;
 drop table t1;
 disconnect con2;
+# MDEV-34164 Server crashes when executing OPTIMIZE or REPAIR TABLE for InnoDB temporary tables
+create temporary table t1 (i int) engine=innodb;
+create table t2 (i int) engine=aria ;
+optimize table t1,t2;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	note	Table does not support optimize, doing recreate + analyze instead
+test.t1	optimize	status	OK
+test.t2	optimize	status	Table is already up to date
+drop table t1,t2;
+create temporary table t1 (f int) engine=innodb;
+create temporary table t2 (f int) engine=innodb;
+optimize local table t1,t2;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	note	Table does not support optimize, doing recreate + analyze instead
+test.t1	optimize	status	OK
+test.t2	optimize	note	Table does not support optimize, doing recreate + analyze instead
+test.t2	optimize	status	OK
+drop table t1,t2;
+set @save_sql_mode = @@sql_mode;
+set sql_mode= '';
+create temporary table t (c decimal zerofill,c2 int zerofill,c3 char binary,key(c)) engine=innodb;
+insert into t values (1,1,1);
+set session enforce_storage_engine=aria;
+optimize no_write_to_binlog table t;
+Table	Op	Msg_type	Msg_text
+test.t	optimize	note	Table does not support optimize, doing recreate + analyze instead
+test.t	optimize	status	OK
+Warnings:
+Note	1266	Using storage engine Aria for table 't'
+drop table t;
+set sql_mode= @save_sql_mode;
 # End of 11.2 tests

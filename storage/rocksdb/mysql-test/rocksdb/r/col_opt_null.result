@@ -564,7 +564,7 @@ c1 CHAR(1) NULL,
 c20 CHAR(20) NULL,
 c255 CHAR(255) NULL,
 PRIMARY KEY (c255)
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARACTER SET latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 c	char(1)	YES		NULL	
@@ -651,14 +651,14 @@ v1 VARCHAR(1) NULL,
 v64 VARCHAR(64) NULL,
 v65000 VARCHAR(65000) NULL,
 PRIMARY KEY (v64)
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 v0	varchar(0)	YES		NULL	
 v1	varchar(1)	YES		NULL	
 v64	varchar(64)	NO	PRI	NULL	
 v65000	varchar(65000)	YES		NULL	
-CREATE TABLE t2 (v VARCHAR(65532), PRIMARY KEY (v(255))) ENGINE=rocksdb;
+CREATE TABLE t2 (v VARCHAR(65532), PRIMARY KEY (v(255))) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t2;
 Field	Type	Null	Key	Default	Extra
 v	varchar(65532)	NO	PRI	NULL	
@@ -818,7 +818,7 @@ y2 YEAR(2) NULL,
 pk DATETIME PRIMARY KEY
 ) ENGINE=rocksdb;
 Warnings:
-Warning	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Warning	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use 'YEAR(4)' instead
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 d	date	YES		NULL	
@@ -1003,9 +1003,9 @@ c2 YEAR(2) NULL DEFAULT '12',
 pk INT AUTO_INCREMENT PRIMARY KEY
 ) ENGINE=rocksdb;
 Warnings:
-Warning	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
-Warning	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
-Warning	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Warning	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use 'YEAR(4)' instead
+Warning	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use 'YEAR(4)' instead
+Warning	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use 'YEAR(4)' instead
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 c	year(2)	YES		NULL	
@@ -2114,7 +2114,7 @@ t17m TEXT(17000000) NULL,
 tt TINYTEXT NULL,
 m MEDIUMTEXT NULL,
 l LONGTEXT NULL
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment

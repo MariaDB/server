@@ -3365,7 +3365,7 @@ drop procedure if exists bug6857|
 --enable_warnings
 create procedure bug6857()
 begin
-  declare t0, t1 int;
+  declare t0, t1 bigint;
   declare plus bool default 0;
   set t0 = unix_timestamp();
   select sleep(1.1);
@@ -8128,7 +8128,7 @@ DROP FUNCTION IF EXISTS f2;
 
 --echo
 
-CREATE FUNCTION f1() RETURNS VARCHAR(65525) RETURN 'Hello';
+CREATE FUNCTION f1() RETURNS VARCHAR(65525) CHARACTER SET latin1 RETURN 'Hello';
 
 --echo
 

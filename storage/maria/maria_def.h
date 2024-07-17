@@ -73,6 +73,13 @@ C_MODE_START
 #define MARIA_MIN_PAGE_CACHE_SIZE       (8192L*16L)
 
 /*
+  File align size (must be power of 2) used for pre-allocation of
+  temporary table space. It is used to reduce the number of calls to
+  update_tmp_file_size for static and dynamic rows.
+*/
+#define MARIA_TRACK_INCREMENT_SIZE	        8192
+
+/*
   In the following macros '_keyno_' is 0 .. keys-1.
   If there can be more keys than bits in the key_map, the highest bit
   is for all upper keys. They cannot be switched individually.
@@ -389,6 +396,7 @@ typedef struct st_maria_sort_param
   MEM_ROOT wordroot;
   uchar *record;
   MY_TMPDIR *tmpdir;
+  HA_CHECK *check_param;
 
   /* 
     The next two are used to collect statistics, see maria_update_key_parts for
@@ -694,6 +702,7 @@ typedef struct st_maria_share
   LIST *open_list;			/* Tables open with this share */
   PAGECACHE *pagecache;			/* ref to the current key cache */
   MARIA_DECODE_TREE *decode_trees;
+  int crash_error;                      /* Reason for marked crashed */
   /*
     Previous auto-increment value. Used to verify if we can restore the
     auto-increment counter if we have to abort an insert (duplicate key).
@@ -783,6 +792,14 @@ typedef struct st_maria_share
   myf write_flag;
   enum data_file_type data_file_type;
   enum pagecache_page_type page_type;   /* value depending transactional */
+
+  /*
+    tracked will cause lost bytes (not aligned) but this is ok as it is always
+    used with tmp_file_tracking if set
+  */
+  my_bool tracked;                      /* Tracked table (always internal) */
+  struct tmp_file_tracking track_data,track_index;
+
   /**
      if Checkpoint looking at table; protected by close_lock or THR_LOCK_maria
   */
@@ -1140,19 +1157,23 @@ struct ha_table_option_struct
 #define int4store_aligned(A,B) int4store((A),(B))
 
 #define maria_mark_crashed(x) do{(x)->s->state.changed|= STATE_CRASHED; \
+    (x)->s->crash_error= my_errno;                                      \
     DBUG_PRINT("error", ("Marked table crashed"));                      \
   }while(0)
 #define maria_mark_crashed_share(x)                                     \
   do{(x)->state.changed|= STATE_CRASHED;                                \
+    (x)->crash_error= my_errno;                                         \
     DBUG_PRINT("error", ("Marked table crashed"));                      \
   }while(0)
 #define maria_mark_crashed_on_repair(x) do{(x)->s->state.changed|=      \
       STATE_CRASHED|STATE_CRASHED_ON_REPAIR;                            \
     (x)->update|= HA_STATE_CHANGED;                                     \
+    (x)->s->crash_error= my_errno;                                      \
     DBUG_PRINT("error", ("Marked table crashed on repair"));            \
   }while(0)
 #define maria_mark_in_repair(x) do{(x)->s->state.changed|=      \
       STATE_CRASHED | STATE_IN_REPAIR;                          \
+    (x)->s->crash_error= my_errno;                              \
     (x)->update|= HA_STATE_CHANGED;                             \
     DBUG_PRINT("error", ("Marked table crashed for repair"));   \
   }while(0)
@@ -1780,6 +1801,8 @@ extern my_bool ma_killed_standalone(MARIA_HA *);
 extern uint _ma_file_callback_to_id(void *callback_data);
 extern uint _ma_write_flags_callback(void *callback_data, myf flags);
 extern void free_maria_share(MARIA_SHARE *share);
+extern int _ma_update_tmp_file_size(struct tmp_file_tracking *track,
+                                    ulonglong file_size);
 
 static inline void unmap_file(MARIA_HA *info __attribute__((unused)))
 {
@@ -1798,6 +1821,7 @@ static inline void decrement_share_in_trans(MARIA_SHARE *share)
   else
     mysql_mutex_unlock(&share->intern_lock);
 }
+
 C_MODE_END
 #endif
 

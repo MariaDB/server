@@ -1,0 +1,9 @@
+INSTALL PLUGIN Spider SONAME 'ha_spider.so';
+CREATE TABLE t (c DATE, c2 VARCHAR(1025) CHARACTER SET utf8mb3, UNIQUE KEY k(c2)) ENGINE=SPIDER;
+UPDATE t SET c='２';
+ERROR HY000: Unable to connect to foreign data source: localhost
+drop table t;
+Warnings:
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
+Note	1305	PLUGIN SPIDER_ALLOC_MEM does not exist
+Note	1305	PLUGIN SPIDER_WRAPPER_PROTOCOLS does not exist

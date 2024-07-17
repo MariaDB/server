@@ -204,6 +204,9 @@ buf_page_t *buf_page_get_zip(const page_id_t page_id, ulint zip_size);
 or BUF_PEEK_IF_IN_POOL
 @param[in,out]	mtr			mini-transaction
 @param[out]	err			DB_SUCCESS or error code
+@param[in,out]	no_wait			If not NULL on input, then we must not
+wait for current page latch. On output, the value is set to true if we had to
+return because we could not wait on page latch.
 @return pointer to the block or NULL */
 buf_block_t*
 buf_page_get_gen(
@@ -213,7 +216,8 @@ buf_page_get_gen(
 	buf_block_t*		guess,
 	ulint			mode,
 	mtr_t*			mtr,
-	dberr_t*		err = nullptr);
+	dberr_t*		err = nullptr,
+        bool*			no_wait = nullptr);
 
 /** Initialize a page in the buffer pool. The page is usually not read
 from a file even if it cannot be found in the buffer buf_pool. This is one
@@ -1366,7 +1370,7 @@ public:
   {
     return !recv_recovery_is_on() &&
       UT_LIST_GET_LEN(free) + UT_LIST_GET_LEN(LRU) <
-        n_chunks_new / 4 * chunks->size;
+        (n_chunks_new * chunks->size) / 4;
   }
 
   /** @return whether the buffer pool is running low */

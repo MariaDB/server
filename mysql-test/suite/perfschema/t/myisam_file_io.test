@@ -16,7 +16,7 @@ truncate table performance_schema.events_waits_history_long;
 
 # Reset lost counters to a known state
 truncate table performance_schema.events_statements_summary_by_digest;
-flush status;
+flush global status;
 
 # Code to test
 

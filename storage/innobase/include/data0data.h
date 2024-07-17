@@ -486,7 +486,7 @@ struct dfield_t{
 		ut_ad(type.vers_sys_end());
 		if (type.mtype == DATA_FIXBINARY) {
 			ut_ad(len == sizeof timestamp_max_bytes);
-			return 0 != memcmp(data, timestamp_max_bytes, len);
+			return !IS_MAX_TIMESTAMP(data);
 		} else {
 			ut_ad(type.mtype == DATA_INT);
 			ut_ad(len == sizeof trx_id_max_bytes);

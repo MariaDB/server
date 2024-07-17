@@ -157,8 +157,9 @@ int select_unit::send_data(List<Item> &values)
   switch (step)
   {
   case UNION_TYPE:
+    /* Errors not related to duplicate key are reported by write_record() */
     rc= write_record();
-    /* no reaction with conversion */
+    /* no reaction with conversion. rc == -1 (dupp key) is ignored by caller */
     if (rc == -2)
       rc= 0;
     break;
@@ -431,18 +432,11 @@ int select_unit::write_record()
                                               tmp_table_param.start_recinfo,
                                               &tmp_table_param.recinfo,
                                               write_err, 1, &is_duplicate))
-      {
         return -2;
-      }
-      else
-      {
-        return 1;
-      }
+      return 1;
     }
     if (is_duplicate)
-    {
       return -1;
-    }
   }
   return 0;
 }
@@ -498,26 +492,25 @@ bool select_unit_ext::disable_index_if_needed(SELECT_LEX *curr_sl)
   @retval
     0   no error
     -1  conversion happened
+    1   error
+
+    Note that duplicate keys are ignored (write_record() is returning -1)
 */
 
 int select_unit_ext::unfold_record(ha_rows cnt)
 {
 
   DBUG_ASSERT(cnt > 0);
-  int error= 0;
-  bool is_convertion_happened= false;
+  int ret= 0;
   while (--cnt)
   {
-    error= write_record();
+    int error= write_record();
     if (error == -2)
-    {
-      is_convertion_happened= true;
-      error= -1;
-    }
+      ret= -1;                                  // Conversion happened
+    else if (error > 0)
+      return error;
   }
-  if (is_convertion_happened)
-    return -1;
-  return error;
+  return ret;
 }
 
 /*
@@ -873,7 +866,7 @@ bool select_unit_ext::send_eof()
       if (unlikely(error))
         break;
 
-      if (unfold_record(dup_cnt) == -1)
+      if ((error= unfold_record(dup_cnt)) == -1)
       {
         /* restart the scan */
         if (unlikely(table->file->ha_rnd_init_with_error(1)))
@@ -884,7 +877,13 @@ bool select_unit_ext::send_eof()
           additional_cnt= table->field[addon_cnt - 2];
         else
           additional_cnt= NULL;
+        error= 0;
         continue;
+      }
+      else if (error > 0)
+      {
+        table->file->ha_index_or_rnd_end();
+        return 1;
       }
     } while (likely(!error));
     table->file->ha_rnd_end();

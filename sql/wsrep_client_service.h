@@ -36,38 +36,38 @@ class Wsrep_client_service : public wsrep::client_service
 public:
   Wsrep_client_service(THD*, Wsrep_client_state&);
 
-  bool interrupted(wsrep::unique_lock<wsrep::mutex>&) const;
-  void reset_globals();
-  void store_globals();
-  int prepare_data_for_replication();
-  void cleanup_transaction();
-  bool statement_allowed_for_streaming() const;
-  size_t bytes_generated() const;
-  int prepare_fragment_for_replication(wsrep::mutable_buffer&, size_t&);
-  int remove_fragments();
-  void emergency_shutdown()
+  bool interrupted(wsrep::unique_lock<wsrep::mutex>&) const override;
+  void reset_globals() override;
+  void store_globals() override;
+  int prepare_data_for_replication() override;
+  void cleanup_transaction() override;
+  bool statement_allowed_for_streaming() const override;
+  size_t bytes_generated() const override;
+  int prepare_fragment_for_replication(wsrep::mutable_buffer&, size_t&) override;
+  int remove_fragments() override;
+  void emergency_shutdown() override
   { throw wsrep::not_implemented_error(); }
-  void will_replay();
-  void signal_replayed();
-  enum wsrep::provider::status replay();
-  enum wsrep::provider::status replay_unordered();
-  void wait_for_replayers(wsrep::unique_lock<wsrep::mutex>&);
-  enum wsrep::provider::status commit_by_xid();
-  bool is_explicit_xa()
+  void will_replay() override;
+  void signal_replayed() override;
+  enum wsrep::provider::status replay() override;
+  enum wsrep::provider::status replay_unordered() override;
+  void wait_for_replayers(wsrep::unique_lock<wsrep::mutex>&) override;
+  enum wsrep::provider::status commit_by_xid() override;
+  bool is_explicit_xa() override
   {
     return false;
   }
-  bool is_prepared_xa()
+  bool is_prepared_xa() override
   {
     return false;
   }
-  bool is_xa_rollback()
+  bool is_xa_rollback() override
   {
     return false;
   }
-  void debug_sync(const char*);
-  void debug_crash(const char*);
-  int bf_rollback();
+  void debug_sync(const char*) override;
+  void debug_crash(const char*) override;
+  int bf_rollback() override;
 private:
   friend class Wsrep_server_service;
   THD* m_thd;

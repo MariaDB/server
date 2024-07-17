@@ -1,6 +1,7 @@
 --source include/no_valgrind_without_big.inc
 --source include/default_optimizer_switch.inc
 --source include/default_charset.inc
+--source include/test_db_charset_latin1.inc
 
 --disable_warnings
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7,t8,t9,t10,t11;
@@ -30,7 +31,7 @@ set global innodb_stats_persistent_sample_pages=100;
 
 set names utf8;
 
-CREATE DATABASE world;
+CREATE DATABASE world CHARACTER SET latin1;
 
 use world;
 
@@ -394,7 +395,7 @@ set join_buffer_size=@save_join_buffer_size;
 DROP DATABASE world; 
 
 
-CREATE DATABASE world;
+CREATE DATABASE world CHARACTER SET latin1;
 
 use world;
 
@@ -456,24 +457,19 @@ SELECT Name FROM City
         City.Population > 100000;
 
 --echo # Part 2, join_cache_level=3, Query 7
-#enable after fix MDEV-27871
---disable_view_protocol
-
 EXPLAIN
-SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage)
+SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage) as epx
   FROM Country LEFT JOIN CountryLanguage ON
        (CountryLanguage.Country=Country.Code AND Language='English')
   WHERE 
        Country.Population > 10000000;
 
 --echo # Part 2, join_cache_level=3, Query 8
-SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage)
+SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage) as epx
   FROM Country LEFT JOIN CountryLanguage ON
        (CountryLanguage.Country=Country.Code AND Language='English')
   WHERE 
        Country.Population > 10000000;
-
---enable_view_protocol
 
 show variables like 'join_buffer_size';
 set join_cache_level=4;
@@ -523,24 +519,20 @@ SELECT Name FROM City
         City.Population > 100000;
 
 --echo # Part 2, join_cache_level=4, Query 7
-#enable after fix MDEV-27871
---disable_view_protocol
-
 EXPLAIN
-SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage)
+SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage) as epx
   FROM Country LEFT JOIN CountryLanguage ON
        (CountryLanguage.Country=Country.Code AND Language='English')
   WHERE 
        Country.Population > 10000000;
 
 --echo # Part 2, join_cache_level=4, Query 8
-SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage)
+SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage) as epx
   FROM Country LEFT JOIN CountryLanguage ON
        (CountryLanguage.Country=Country.Code AND Language='English')
   WHERE 
        Country.Population > 10000000;
 
---enable_view_protocol
 --echo # Part 2, join_cache_level=4, Query 9
 --replace_column 9 #
 EXPLAIN
@@ -615,23 +607,18 @@ SELECT Name FROM City
   WHERE City.Country IN (SELECT Code FROM Country WHERE Country.Name LIKE 'L%') AND
         City.Population > 100000;
 
-#enable after fix MDEV-27871
---disable_view_protocol
-
 EXPLAIN
-SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage)
+SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage) as epx
   FROM Country LEFT JOIN CountryLanguage ON
        (CountryLanguage.Country=Country.Code AND Language='English')
   WHERE 
        Country.Population > 10000000;
 
-SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage)
+SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage) as epx
   FROM Country LEFT JOIN CountryLanguage ON
        (CountryLanguage.Country=Country.Code AND Language='English')
   WHERE 
        Country.Population > 10000000;
-
---enable_view_protocol
 
 set join_cache_level=6;
 show variables like 'join_cache_level';
@@ -673,23 +660,18 @@ SELECT Name FROM City
   WHERE City.Country IN (SELECT Code FROM Country WHERE Country.Name LIKE 'L%') AND
         City.Population > 100000;
 
-#enable after fix MDEV-27871
---disable_view_protocol
-
 EXPLAIN
-SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage)
+SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage) as epx
   FROM Country LEFT JOIN CountryLanguage ON
        (CountryLanguage.Country=Country.Code AND Language='English')
   WHERE 
        Country.Population > 10000000;
 
-SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage)
+SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage) as epx
   FROM Country LEFT JOIN CountryLanguage ON
        (CountryLanguage.Country=Country.Code AND Language='English')
   WHERE 
        Country.Population > 10000000;
-
---enable_view_protocol
 
 set join_cache_level=7;
 show variables like 'join_cache_level';
@@ -731,23 +713,18 @@ SELECT Name FROM City
   WHERE City.Country IN (SELECT Code FROM Country WHERE Country.Name LIKE 'L%') AND
         City.Population > 100000;
 
-#enable after fix MDEV-27871
---disable_view_protocol
-
 EXPLAIN
-SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage)
+SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage) as epx
   FROM Country LEFT JOIN CountryLanguage ON
        (CountryLanguage.Country=Country.Code AND Language='English')
   WHERE 
        Country.Population > 10000000;
 
-SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage)
+SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage) as epx
   FROM Country LEFT JOIN CountryLanguage ON
        (CountryLanguage.Country=Country.Code AND Language='English')
   WHERE 
        Country.Population > 10000000;
-
---enable_view_protocol
 
 set join_cache_level=8;
 show variables like 'join_cache_level';
@@ -789,23 +766,19 @@ SELECT Name FROM City
   WHERE City.Country IN (SELECT Code FROM Country WHERE Country.Name LIKE 'L%') AND
         City.Population > 100000;
 
-#enable after fix MDEV-27871
---disable_view_protocol
-
 EXPLAIN
-SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage)
+SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage) as epx
   FROM Country LEFT JOIN CountryLanguage ON
        (CountryLanguage.Country=Country.Code AND Language='English')
   WHERE 
        Country.Population > 10000000;
 
-SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage)
+SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage) as epx
   FROM Country LEFT JOIN CountryLanguage ON
        (CountryLanguage.Country=Country.Code AND Language='English')
   WHERE 
        Country.Population > 10000000;
 
---enable_view_protocol
 
 set join_buffer_size=256;
 show variables like 'join_buffer_size';
@@ -4386,3 +4359,5 @@ DROP TABLE t1,t2,t3;
 --echo #
 --echo # End of 10.4 tests
 --echo #
+
+--source include/test_db_charset_restore.inc

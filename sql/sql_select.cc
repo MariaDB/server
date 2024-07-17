@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2022, MariaDB Corporation.
+   Copyright (c) 2009, 2024, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2015,7 +2015,7 @@ int JOIN::optimize()
     the joined table.
 
   @retval false  Ok
-  @retval true   Error
+  @retval true   Error, query should abort
 */
 
 bool JOIN::make_range_rowid_filters()
@@ -2065,8 +2065,9 @@ bool JOIN::make_range_rowid_filters()
     rc= sel->test_quick_select(thd, filter_map, (table_map) 0,
                                (ha_rows) HA_POS_ERROR, true, false, true,
                                true, Item_func::BITMAP_EXCEPT_ANY_EQUALITY);
-    if (rc == SQL_SELECT::ERROR || thd->is_error())
+    if (rc == SQL_SELECT::ERROR || thd->is_error() || thd->check_killed())
     {
+      delete sel;
       DBUG_RETURN(true); /* Fatal error */
     }
     /*
@@ -2095,8 +2096,6 @@ bool JOIN::make_range_rowid_filters()
       }
     }
   no_filter:
-    if (sel->quick)
-      delete sel->quick;
     delete sel;
   }
 
@@ -2114,7 +2113,9 @@ bool JOIN::make_range_rowid_filters()
     rowid container employed by the filter. On success it lets the table engine
     know that what rowid filter will be used when accessing the table rows.
 
-  @retval false  always
+  @retval
+    false OK
+    true  Error, query should abort
 */
 
 bool
@@ -2299,12 +2300,14 @@ JOIN::optimize_inner()
 
     add_table_function_dependencies(join_list, table_map(-1));
 
-    if (thd->is_error() || select_lex->save_leaf_tables(thd))
+    if (thd->is_error() ||
+        (!select_lex->leaf_tables_saved && select_lex->save_leaf_tables(thd)))
     {
       if (arena)
         thd->restore_active_arena(arena, &backup);
       DBUG_RETURN(1);
     }
+    select_lex->leaf_tables_saved= true;
     build_bitmap_for_nested_joins(join_list, 0);
 
     sel->prep_where= conds ? conds->copy_andor_structure(thd) : 0;
@@ -2407,8 +2410,12 @@ JOIN::optimize_inner()
     DBUG_RETURN(1);
   }
   if (select_lex->with_rownum && ! order && ! group_list &&
-      !select_distinct && conds && select_lex == unit->global_parameters())
+      !select_distinct && conds && select_lex == unit->global_parameters() &&
+      select_lex->first_rownum_optimization)
+  {
     optimize_rownum(thd, unit, conds);
+    select_lex->first_rownum_optimization= false;
+  }
 
   having= optimize_cond(this, having, join_list, TRUE,
                         &having_value, &having_equal);
@@ -3651,7 +3658,8 @@ bool JOIN::make_aggr_tables_info()
 {
   List<Item> *curr_all_fields= &all_fields;
   List<Item> *curr_fields_list= &fields_list;
-  JOIN_TAB *curr_tab= join_tab + const_tables;
+  // Avoid UB (applying .. offset to nullptr) when join_tab is nullptr
+  JOIN_TAB *curr_tab= join_tab ? join_tab + const_tables : nullptr;
   TABLE *exec_tmp_table= NULL;
   bool distinct= false;
   const bool has_group_by= this->group;
@@ -4212,9 +4220,9 @@ bool JOIN::make_aggr_tables_info()
     - duplicate value removal
     Both of these operations are done after window function computation step.
   */
-  curr_tab= join_tab + total_join_tab_cnt();
   if (select_lex->window_funcs.elements)
   {
+    curr_tab= join_tab + total_join_tab_cnt();
     if (!(curr_tab->window_funcs_step= new Window_funcs_computation))
       DBUG_RETURN(true);
     if (curr_tab->window_funcs_step->setup(thd, &select_lex->window_funcs,
@@ -4972,7 +4980,10 @@ int JOIN::exec_inner()
 
   if ((this->select_lex->options & OPTION_SCHEMA_TABLE) &&
       get_schema_tables_result(this, PROCESSED_BY_JOIN_EXEC))
-    DBUG_RETURN(0);
+  {
+    error= thd->is_error();
+    DBUG_RETURN(error);
+  }
 
   if (select_options & SELECT_DESCRIBE)
   {
@@ -21249,7 +21260,7 @@ TABLE *Create_tmp_table::start(THD *thd,
                         &m_key_part_info,
                         sizeof(*m_key_part_info)*(param->group_parts+1),
                         &param->start_recinfo,
-                        sizeof(*param->recinfo)*(field_count*2+4),
+                        sizeof(*param->start_recinfo)*(field_count*2+4),
                         &param->rec_per_key, sizeof(ulong)*param->group_parts,
                         &tmpname, (uint) strlen(path)+1,
                         &m_group_buff, (m_group && ! m_using_unique_constraint ?
@@ -22305,7 +22316,8 @@ bool open_tmp_table(TABLE *table)
   int error;
   if (unlikely((error= table->file->ha_open(table, table->s->path.str, O_RDWR,
                                             HA_OPEN_TMP_TABLE |
-                                            HA_OPEN_INTERNAL_TABLE))))
+                                            HA_OPEN_INTERNAL_TABLE |
+                                            HA_OPEN_SIZE_TRACKING))))
   {
     table->file->print_error(error, MYF(0)); /* purecov: inspected */
     table->db_stat= 0;
@@ -22352,7 +22364,7 @@ bool open_tmp_table(TABLE *table)
 
    RETURN
      FALSE - OK
-     TRUE  - Error
+     TRUE  - Error.  my_error() have been called
 */
 
 
@@ -22568,7 +22580,7 @@ bool create_internal_tmp_table(TABLE *table, KEY *org_keyinfo,
 
    RETURN
      FALSE - OK
-     TRUE  - Error
+     TRUE  - Error ; my_error() has been called.
 */
 
 /* Create internal MyISAM temporary table */
@@ -22708,6 +22720,9 @@ bool create_internal_tmp_table(TABLE *table, KEY *org_keyinfo,
 /*
   If a HEAP table gets full, create a internal table in MyISAM or Maria
   and copy all rows to this
+
+  In case of error, my_error() or handler::print_error() will be called.
+  Note that in case of error, table->file->ha_rnd_end() may have been called!
 */
 
 
@@ -22761,7 +22776,10 @@ create_internal_tmp_table_from_heap(THD *thd, TABLE *table,
 			        thd->variables.option_bits))
     goto err2;
   if (open_tmp_table(&new_table))
-    goto err1;
+  {
+    TMP_ENGINE_HTON->drop_table(TMP_ENGINE_HTON, new_table.s->path.str);
+    goto err2;
+  }
   if (table->file->indexes_are_disabled())
     new_table.file->ha_disable_indexes(key_map(0), false);
   table->file->ha_index_or_rnd_end();
@@ -22791,7 +22809,7 @@ create_internal_tmp_table_from_heap(THD *thd, TABLE *table,
     if (unlikely(thd->check_killed()))
       goto err_killed;
   }
-  if (!new_table.no_rows && new_table.file->ha_end_bulk_insert())
+  if (!new_table.no_rows && (write_err= new_table.file->ha_end_bulk_insert()))
     goto err;
   /* copy row that filled HEAP table */
   if (unlikely((write_err=new_table.file->ha_write_tmp_row(table->record[0]))))
@@ -22840,9 +22858,7 @@ create_internal_tmp_table_from_heap(THD *thd, TABLE *table,
   table->file->print_error(write_err, MYF(0));
 err_killed:
   (void) table->file->ha_rnd_end();
-  (void) new_table.file->ha_close();
- err1:
-  TMP_ENGINE_HTON->drop_table(TMP_ENGINE_HTON, new_table.s->path.str);
+  (void) new_table.file->drop_table(new_table.s->path.str);
  err2:
   delete new_table.file;
   thd_proc_info(thd, save_proc_info);
@@ -22873,7 +22889,13 @@ free_tmp_table(THD *thd, TABLE *entry)
       thd->tmp_tables_size+= (entry->file->stats.data_file_length +
                               entry->file->stats.index_file_length);
     }
-    entry->file->ha_drop_table(entry->s->path.str);
+    /*
+      This is an internal temporary table, we should not call ha_drop_table()
+      as it will mark the transaction read/write
+    */
+    DBUG_ASSERT(entry->s->tmp_table == SYSTEM_TMP_TABLE ||
+                entry->s->tmp_table == INTERNAL_TMP_TABLE);
+    entry->file->drop_table(entry->s->path.str);
     delete entry->file;
     entry->file= NULL;
     entry->reset_created();
@@ -26448,6 +26470,90 @@ void compute_part_of_sort_key_for_equals(JOIN *join, TABLE *table,
 }
 
 
+/*
+  @brief
+    This is called when switching table access to produce records
+    in reverse order.
+
+  @detail
+    - Disable "Range checked for each record" (Is this strictly necessary
+      here?)
+    - Disable Index Condition Pushdown and Rowid Filtering.
+
+  IndexConditionPushdownAndReverseScans, RowidFilteringAndReverseScans:
+  Suppose we're computing
+
+    select * from t1
+    where
+      key1 between 10 and 20 and extra_condition
+    order by key1 desc
+
+  here the range access uses a reverse-ordered scan on (1 <= key1 <= 10) and
+  extra_condition is checked by either ICP or Rowid Filtering.
+
+  Also suppose that extra_condition happens to be false for rows of t1 that
+  do not satisfy the "10 <= key1 <= 20" condition.
+
+  For forward ordered range scan, the SQL layer will make these calls:
+
+    h->read_range_first(RANGE(10 <= key1 <= 20));
+    while (h->read_range_next()) { ... }
+
+  The storage engine sees the end endpoint of "key1<=20" and can stop scanning
+  as soon as it encounters a row with key1>20.
+
+  For backward-ordered range scan, the SQL layer will make these calls:
+
+    h->index_read_map(key1=20, HA_READ_PREFIX_LAST_OR_PREV);
+    while (h->index_prev()) {
+      if (cmp_key(h->record, "key1=10" )<0)
+        break; // end of range
+      ...
+    }
+
+  Note that the check whether we've walked beyond the key=10 endpoint is
+  made at the SQL layer. The storage engine has no information about the left
+  endpoint of the interval we're scanning.  If all rows before that endpoint
+  do not satisfy ICP condition or do not pass the Rowid Filter, the storage
+  engine will enumerate the records until the table start.
+
+  In MySQL, the API is extended with set_end_range() call so that the storage
+  engine "knows" when to stop scanning.
+*/
+
+static void prepare_for_reverse_ordered_access(JOIN_TAB *tab)
+{
+  /* Cancel "Range checked for each record" */
+  if (tab->use_quick == 2)
+  {
+    tab->use_quick= 1;
+    tab->read_first_record= join_init_read_record;
+  }
+  /*
+    Cancel Pushed Index Condition, as it doesn't work for reverse scans.
+  */
+  if (tab->select && tab->select->pre_idx_push_select_cond)
+  {
+    tab->set_cond(tab->select->pre_idx_push_select_cond);
+     tab->table->file->cancel_pushed_idx_cond();
+  }
+  /*
+    The same with Rowid Filter: it doesn't work with reverse scans so cancel
+    it, too.
+  */
+  {
+    /*
+      Rowid Filter is initialized at a later stage. It is not pushed to
+      the storage engine yet:
+    */
+    DBUG_ASSERT(!tab->table->file->pushed_rowid_filter);
+    tab->range_rowid_filter_info= NULL;
+    delete tab->rowid_filter;
+    tab->rowid_filter= NULL;
+  }
+}
+
+
 /**
   Test if we can skip the ORDER BY by using an index.
 
@@ -26904,23 +27010,11 @@ check_reverse_order:
           tab->limit= 0;
           goto use_filesort;           // Reverse sort failed -> filesort
         }
-        /*
-          Cancel Pushed Index Condition, as it doesn't work for reverse scans.
-        */
-        if (tab->select && tab->select->pre_idx_push_select_cond)
-	{
-          tab->set_cond(tab->select->pre_idx_push_select_cond);
-           tab->table->file->cancel_pushed_idx_cond();
-        }
+        prepare_for_reverse_ordered_access(tab);
+
         if (select->quick == save_quick)
           save_quick= 0;                // make_reverse() consumed it
         select->set_quick(tmp);
-        /* Cancel "Range checked for each record" */
-        if (tab->use_quick == 2)
-        {
-          tab->use_quick= 1;
-          tab->read_first_record= join_init_read_record;
-        }
       }
       else if (tab->type != JT_NEXT && tab->type != JT_REF_OR_NULL &&
                tab->ref.key >= 0 && tab->ref.key_parts <= used_key_parts)
@@ -26933,20 +27027,7 @@ check_reverse_order:
         */
         tab->read_first_record= join_read_last_key;
         tab->read_record.read_record_func= join_read_prev_same;
-        /* Cancel "Range checked for each record" */
-        if (tab->use_quick == 2)
-        {
-          tab->use_quick= 1;
-          tab->read_first_record= join_init_read_record;
-        }
-        /*
-          Cancel Pushed Index Condition, as it doesn't work for reverse scans.
-        */
-        if (tab->select && tab->select->pre_idx_push_select_cond)
-	{
-          tab->set_cond(tab->select->pre_idx_push_select_cond);
-           tab->table->file->cancel_pushed_idx_cond();
-        }
+        prepare_for_reverse_ordered_access(tab);
       }
     }
     else if (select && select->quick)

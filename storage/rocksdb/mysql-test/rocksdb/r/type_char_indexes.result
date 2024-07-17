@@ -6,7 +6,7 @@ c CHAR,
 c20 CHAR(20) PRIMARY KEY,
 v16 VARCHAR(16),
 v128 VARCHAR(128)
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW INDEX IN t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t1	0	PRIMARY	1	c20	A	1000	NULL	NULL		LSMTREE			NO
@@ -37,7 +37,7 @@ v16 VARCHAR(16),
 v128 VARCHAR(128),
 pk VARCHAR(64) PRIMARY KEY,
 INDEX (v16)
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW INDEX IN t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t1	0	PRIMARY	1	pk	A	1000	NULL	NULL		LSMTREE			NO

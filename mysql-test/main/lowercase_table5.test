@@ -50,6 +50,9 @@ DROP PROCEDURE SP;
 --echo # End of 10.4 tests
 --echo #
 
+--echo #
+--echo # Start of 10.5 tests
+--echo #
 
 --echo #
 --echo # MDEV-33084 LASTVAL(t1) and LASTVAL(T1) do not work well with lower-case-table-names=0
@@ -181,4 +184,6 @@ INSERT INTO MYSQL.transaction_registry VALUES (1),(2);
 DROP TABLE MYSQL.transaction_registry;
 DROP DATABASE MYSQL;
 
---echo # End of 11.5 tests
+--echo #
+--echo # End of 10.5 tests
+--echo #

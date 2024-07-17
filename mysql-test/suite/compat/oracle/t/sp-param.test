@@ -1,3 +1,5 @@
+--source include/test_db_charset_latin1.inc
+
 SET sql_mode=ORACLE;
 
 --echo #
@@ -361,3 +363,5 @@ CALL p2(65535);
 CALL p2(65536);
 DROP PROCEDURE p2;
 DROP FUNCTION f1;
+
+--source include/test_db_charset_restore.inc

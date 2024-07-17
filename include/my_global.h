@@ -782,7 +782,7 @@ inline unsigned long long my_double2ulonglong(double d)
 #define INT_MAX64       0x7FFFFFFFFFFFFFFFLL
 #define INT_MIN32       (~0x7FFFFFFFL)
 #define INT_MAX32       0x7FFFFFFFL
-#define UINT_MAX32      0xFFFFFFFFL
+#define UINT_MAX32      0xFFFFFFFFUL
 #define INT_MIN24       (~0x007FFFFF)
 #define INT_MAX24       0x007FFFFF
 #define UINT_MAX24      0x00FFFFFF

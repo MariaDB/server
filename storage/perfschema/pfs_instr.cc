@@ -434,7 +434,7 @@ void destroy_cond(PFS_cond *pfs)
 
 PFS_thread* PFS_thread::get_current_thread()
 {
-  return static_cast<PFS_thread*>(my_get_thread_local(THR_PFS));
+  return THR_PFS;
 }
 
 void PFS_thread::reset_session_connect_attrs()
@@ -527,7 +527,7 @@ PFS_thread* create_thread(PFS_thread_class *klass, const void *identity,
   if (pfs != NULL)
   {
     pfs->m_thread_internal_id=
-      PFS_atomic::add_u64(&thread_internal_id_counter.m_u64, 1);
+      thread_internal_id_counter.m_u64.fetch_add(1);
     pfs->m_parent_thread_internal_id= 0;
     pfs->m_processlist_id= static_cast<ulong>(processlist_id);
     pfs->m_thread_os_id= my_thread_os_id();

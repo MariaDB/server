@@ -156,7 +156,7 @@ xb_mysql_connect()
 	}
 
 #if !defined(DONT_USE_MYSQL_PWD)
-	if (!opt_password)
+	if (!opt_password || !strlen(opt_password))
 	{
 		opt_password=getenv("MYSQL_PWD");
 	}

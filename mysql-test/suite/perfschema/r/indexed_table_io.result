@@ -7,7 +7,7 @@ update performance_schema.setup_instruments set enabled='NO';
 update performance_schema.setup_instruments set enabled='YES'
   where name like "wait/io/table/%";
 truncate table performance_schema.events_waits_history_long;
-flush status;
+flush global status;
 flush tables;
 create table test.no_index_tab
 ( a int, b char(30) default 'Default') engine = MyISAM;
@@ -18,14 +18,14 @@ Table	Create Table
 no_index_tab	CREATE TABLE `no_index_tab` (
   `a` int(11) DEFAULT NULL,
   `b` char(30) DEFAULT 'Default'
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show create table test.index_tab;
 Table	Create Table
 index_tab	CREATE TABLE `index_tab` (
   `a` int(11) DEFAULT NULL,
   `b` char(30) DEFAULT 'Default',
   UNIQUE KEY `uidx` (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 truncate table performance_schema.events_waits_history_long;
 update performance_schema.setup_consumers set enabled='YES';
 # Printing of 100 inserts per table is suppressed
@@ -161,6 +161,6 @@ drop table test.index_tab;
 update performance_schema.setup_consumers set enabled='NO';
 truncate performance_schema.events_waits_history_long;
 drop table test.marker;
-flush status;
+flush global status;
 update performance_schema.setup_instruments set enabled='YES';
 update performance_schema.setup_consumers set enabled='YES';

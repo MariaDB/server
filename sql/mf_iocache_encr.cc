@@ -218,7 +218,8 @@ static int my_b_encr_write(IO_CACHE *info, const uchar *Buffer, size_t Count)
       crypt_data->last_block_length= wlength;
     }
 
-    if (mysql_file_write(info->file, wbuffer, wlength, info->myflags | MY_NABP))
+    if (io_cache_tmp_file_track(info, info->pos_in_file + wlength) ||
+        mysql_file_write(info->file, wbuffer, wlength, info->myflags | MY_NABP))
       DBUG_RETURN(info->error= -1);
 
     Buffer+= length;

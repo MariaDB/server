@@ -188,7 +188,7 @@ select variable_value > 0 from information_schema.global_status
 where variable_name like 'PERFORMANCE_SCHEMA_INDEX_STAT_LOST';
 variable_value > 0
 1
-FLUSH STATUS;
+FLUSH GLOBAL STATUS;
 select variable_value from information_schema.global_status
 where variable_name like 'PERFORMANCE_SCHEMA_INDEX_STAT_LOST';
 variable_value
@@ -239,7 +239,7 @@ select variable_value > 0 from information_schema.global_status
 where variable_name like 'PERFORMANCE_SCHEMA_INDEX_STAT_LOST';
 variable_value > 0
 1
-FLUSH STATUS;
+FLUSH GLOBAL STATUS;
 update performance_schema.setup_objects set ENABLED='NO' where OBJECT_TYPE='TABLE';
 insert into db1.t1 values('5', 'abc');
 insert into db1.t1 values('6', 'abc');

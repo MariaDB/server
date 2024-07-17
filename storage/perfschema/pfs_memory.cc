@@ -33,7 +33,6 @@
 #include "pfs_account.h"
 #include "pfs_host.h"
 #include "pfs_user.h"
-#include "pfs_atomic.h"
 #include "pfs_buffer_container.h"
 #include "m_string.h"
 

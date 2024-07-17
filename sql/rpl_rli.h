@@ -251,7 +251,7 @@ public:
    */
   bool sql_force_rotate_relay;
 
-  time_t last_master_timestamp;
+  my_time_t last_master_timestamp;
   /*
     The SQL driver thread sets this true while it is waiting at the end of the
     relay log for more events to arrive. SHOW SLAVE STATUS uses this to report
@@ -838,7 +838,7 @@ struct rpl_group_info
     Used to do delayed update of rli->last_master_timestamp, for getting
     reasonable values out of Seconds_Behind_Master in SHOW SLAVE STATUS.
   */
-  time_t last_master_timestamp;
+  my_time_t last_master_timestamp;
 
   /*
     Information to be able to re-try an event group in case of a deadlock or

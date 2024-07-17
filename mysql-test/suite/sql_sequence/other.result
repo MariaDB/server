@@ -18,7 +18,7 @@ next value for s1
 flush tables;
 repair table s1;
 Table	Op	Msg_type	Msg_text
-test.s1	repair	note	The storage engine for the table doesn't support repair
+test.s1	repair	status	OK
 select next value for s1;
 next value for s1
 2001
@@ -29,7 +29,7 @@ next value for s1
 1
 repair table s1;
 Table	Op	Msg_type	Msg_text
-test.s1	repair	note	The storage engine for the table doesn't support repair
+test.s1	repair	status	OK
 check table s1;
 Table	Op	Msg_type	Msg_text
 test.s1	check	note	The storage engine for the table doesn't support check

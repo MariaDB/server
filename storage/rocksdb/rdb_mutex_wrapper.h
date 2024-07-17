@@ -39,7 +39,7 @@ class Rdb_mutex : public rocksdb::TransactionDBMutex {
 
  public:
   Rdb_mutex();
-  virtual ~Rdb_mutex() override;
+  ~Rdb_mutex() override;
 
   /*
     Override parent class's virtual methods of interrest.
@@ -47,7 +47,7 @@ class Rdb_mutex : public rocksdb::TransactionDBMutex {
 
   // Attempt to acquire lock.  Return OK on success, or other Status on failure.
   // If returned status is OK, TransactionDB will eventually call UnLock().
-  virtual rocksdb::Status Lock() override;
+  rocksdb::Status Lock() override;
 
   // Attempt to acquire lock.  If timeout is non-negative, operation should be
   // failed after this many microseconds.
@@ -59,7 +59,7 @@ class Rdb_mutex : public rocksdb::TransactionDBMutex {
       int64_t timeout_time MY_ATTRIBUTE((__unused__))) override;
 
   // Unlock Mutex that was successfully locked by Lock() or TryLockUntil()
-  virtual void UnLock() override;
+  void UnLock() override;
 
  private:
   mysql_mutex_t m_mutex;
@@ -77,7 +77,7 @@ class Rdb_cond_var : public rocksdb::TransactionDBCondVar {
 
  public:
   Rdb_cond_var();
-  virtual ~Rdb_cond_var() override;
+  ~Rdb_cond_var() override;
 
   /*
     Override parent class's virtual methods of interrest.
@@ -109,10 +109,10 @@ class Rdb_cond_var : public rocksdb::TransactionDBCondVar {
 
   // If any threads are waiting on *this, unblock at least one of the
   // waiting threads.
-  virtual void Notify() override;
+  void Notify() override;
 
   // Unblocks all threads waiting on *this.
-  virtual void NotifyAll() override;
+  void NotifyAll() override;
 
  private:
   mysql_cond_t m_cond;
@@ -137,7 +137,7 @@ class Rdb_mutex_factory : public rocksdb::TransactionDBMutexFactory {
     return std::make_shared<Rdb_cond_var>();
   }
 
-  virtual ~Rdb_mutex_factory() override = default;
+  ~Rdb_mutex_factory() override = default;
 };
 
 }  // namespace myrocks

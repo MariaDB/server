@@ -18,6 +18,8 @@ let $old_binlog_cache_size= query_get_value(SHOW VARIABLES LIKE "binlog_cache_si
 let $old_max_binlog_stmt_cache_size= query_get_value(SHOW VARIABLES LIKE "max_binlog_stmt_cache_size", Value, 1);
 let $old_binlog_stmt_cache_size= query_get_value(SHOW VARIABLES LIKE "binlog_stmt_cache_size", Value, 1);
 
+--source include/test_db_charset_latin1.inc
+
 --echo "*********** Annotate Event write failure **************"
 
 SET GLOBAL max_binlog_cache_size = 4096;
@@ -540,4 +542,5 @@ if(!$log_error_)
 --eval SET GLOBAL debug_dbug = '$debug_save'
 DROP TABLE tm,ti;
 
+--source include/test_db_charset_restore.inc
 --source include/rpl_end.inc

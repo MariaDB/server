@@ -5,6 +5,9 @@
 drop table if exists t1, t2, t3;
 --enable_warnings
 
+--source include/test_db_charset_latin1.inc
+
+
 SET @save_key_buffer_size=@@key_buffer_size;
 SET @save_key_cache_block_size=@@key_cache_block_size;
 SET @save_key_cache_segments=@@key_cache_segments;
@@ -369,7 +372,7 @@ delete from t2;
 --replace_column 7 #
 select * from information_schema.key_caches where segment_number is null;
 
-flush tables; flush status;
+flush tables; flush global status;
 --replace_column 7 #
 select * from information_schema.key_caches where segment_number is null;
 
@@ -423,7 +426,7 @@ select * from t2 where p between 1010 and 1020 ;
 select * from information_schema.key_caches where segment_number is null;
 
 analyze table t2;
-flush tables; flush status;
+flush tables; flush global status;
 update t1 set a='zzzz' where a='qqqq';
 set statement optimizer_scan_setup_cost=0 for update t2 set i=1 where i=2;
 --replace_column 6 # 7 #
@@ -561,3 +564,5 @@ SET GLOBAL keycache1.key_buffer_size=0;
 --echo #
 --echo # End of 10.3 tests
 --echo #
+
+--source include/test_db_charset_restore.inc

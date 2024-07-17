@@ -19,6 +19,11 @@ COMMIT;
 SET DEBUG_SYNC="now SIGNAL dml_commit";
 
 connection default;
+--echo # The below error displays a wrong (too long) key value.
+--echo # The problem is reported as:
+--echo #   MDEV-34387 Too long value in the Duplicate entry message with online alter and utf8
+--echo # Please make sure to remove this comment when MDEV-34387 is fixed.
+
 --error ER_DUP_ENTRY
 reap;
 

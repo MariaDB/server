@@ -5,6 +5,7 @@ CREATE DATABASE federated;
 connection slave;
 CREATE DATABASE federated;
 connection default;
+ALTER DATABASE federated CHARACTER SET latin1;
 set global federated_pushdown=1;
 connection slave;
 DROP TABLE IF EXISTS federated.t1;
@@ -513,6 +514,7 @@ a
 1
 2
 3
+DROP SERVER fedlink;
 #
 # MDEV-29655: ASAN heap-use-after-free in
 #             Pushdown_derived::Pushdown_derived

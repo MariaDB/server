@@ -1,5 +1,6 @@
 --source include/have_innodb.inc
 --source include/default_charset.inc
+--source include/test_db_charset_latin1.inc
 
 SET NAMES utf8mb4;
 
@@ -730,3 +731,5 @@ DROP TABLE t1;
 #
 # End of 10.2 tests
 #
+
+--source include/test_db_charset_restore.inc

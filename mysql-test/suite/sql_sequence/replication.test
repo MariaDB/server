@@ -262,7 +262,7 @@ drop sequence s_db.s1;
 --echo query cache test
 --echo ###########################################
 connection master;
-flush status;
+flush global status;
 show global variables like 'query_cache_type';
 
 show status like 'Qcache_hits';

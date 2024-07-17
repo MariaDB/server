@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2022, MariaDB
+   Copyright (c) 2010, 2024, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -118,7 +118,7 @@ public:
                         const char* sqlstate,
                         Sql_condition::enum_warning_level *level,
                         const char* msg,
-                        Sql_condition ** cond_hdl);
+                        Sql_condition ** cond_hdl) override;
 
   /**
     Returns TRUE if there were ER_NO_SUCH_/WRONG_MRG_TABLE and there
@@ -254,9 +254,10 @@ public:
 };
 
 
-static my_bool list_open_tables_callback(TDC_element *element,
-                                         list_open_tables_arg *arg)
+static my_bool list_open_tables_callback(void *el, void *a)
 {
+  TDC_element *element= static_cast<TDC_element*>(el);
+  list_open_tables_arg *arg= static_cast<list_open_tables_arg*>(a);
   const Lex_ident_db
     db= Lex_ident_db(Lex_cstring_strlen((const char*) element->m_key));
   const char *table_name= db.str + db.length + 1;
@@ -304,8 +305,7 @@ OPEN_TABLE_LIST *list_open_tables(THD *thd,
   DBUG_ENTER("list_open_tables");
   list_open_tables_arg argument(thd, db, wild);
 
-  if (tdc_iterate(thd, (my_hash_walk_action) list_open_tables_callback,
-                  &argument, true))
+  if (tdc_iterate(thd, list_open_tables_callback, &argument, true))
     DBUG_RETURN(0);
 
   DBUG_RETURN(argument.open_list);
@@ -464,9 +464,10 @@ struct tc_collect_arg
   flush_tables_type flush_type;
 };
 
-static my_bool tc_collect_used_shares(TDC_element *element,
-                                      tc_collect_arg *arg)
+static my_bool tc_collect_used_shares(void *el, void *a)
 {
+  TDC_element *element= static_cast<TDC_element*>(el);
+  tc_collect_arg *arg= static_cast<tc_collect_arg*>(a);
   my_bool result= FALSE;
 
   DYNAMIC_ARRAY *shares= &arg->shares;
@@ -518,7 +519,7 @@ public:
                         const char* sqlstate,
                         Sql_condition::enum_warning_level *level,
                         const char* msg,
-                        Sql_condition ** cond_hdl)
+                        Sql_condition ** cond_hdl) override
   {
     *cond_hdl= NULL;
     if (sql_errno == ER_OPEN_AS_READONLY || sql_errno == ER_LOCK_WAIT_TIMEOUT)
@@ -576,8 +577,7 @@ bool flush_tables(THD *thd, flush_tables_type flag)
   my_init_dynamic_array(PSI_INSTRUMENT_ME, &collect_arg.shares,
                         sizeof(TABLE_SHARE*), 100, 100, MYF(0));
   collect_arg.flush_type= flag;
-  if (tdc_iterate(thd, (my_hash_walk_action) tc_collect_used_shares,
-                  &collect_arg, true))
+  if (tdc_iterate(thd, tc_collect_used_shares, &collect_arg, true))
   {
     /* Release already collected shares */
     for (uint i= 0 ; i < collect_arg.shares.elements ; i++)
@@ -933,7 +933,7 @@ int close_thread_tables(THD *thd)
 
       Note that even if we are in LTM_LOCK_TABLES mode and statement
       requires prelocking (e.g. when we are closing tables after
-      failing ot "open" all tables required for statement execution)
+      failing at "open" all tables required for statement execution)
       we will exit this function a few lines below.
     */
     if (! thd->lex->requires_prelocking())
@@ -964,16 +964,13 @@ int close_thread_tables(THD *thd)
   if (thd->lock)
   {
     /*
-      For RBR we flush the pending event just before we unlock all the
-      tables.  This means that we are at the end of a topmost
-      statement, so we ensure that the STMT_END_F flag is set on the
-      pending event.  For statements that are *inside* stored
-      functions, the pending event will not be flushed: that will be
-      handled either before writing a query log event (inside
-      binlog_query()) or when preparing a pending event.
-     */
-    (void)thd->binlog_flush_pending_rows_event(TRUE);
-    error= mysql_unlock_tables(thd, thd->lock);
+      Ensure binlog caches has been flushed in binlog_query() or
+      binlog_commit().
+    */
+    DBUG_ASSERT((thd->state_flags & Open_tables_state::BACKUPS_AVAIL) ||
+                !thd->has_pending_row_events());
+    if (mysql_unlock_tables(thd, thd->lock))
+      error= 1;
     thd->lock=0;
   }
   /*
@@ -1482,14 +1479,14 @@ public:
     : m_ot_ctx(ot_ctx_arg), m_is_active(FALSE)
   {}
 
-  virtual ~MDL_deadlock_handler() = default;
+  ~MDL_deadlock_handler() override = default;
 
-  virtual bool handle_condition(THD *thd,
+  bool handle_condition(THD *thd,
                                 uint sql_errno,
                                 const char* sqlstate,
                                 Sql_condition::enum_warning_level *level,
                                 const char* msg,
-                                Sql_condition ** cond_hdl);
+                                Sql_condition ** cond_hdl) override;
 
 private:
   /** Open table context to be used for back-off request. */
@@ -1905,6 +1902,7 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
   TABLE_SHARE *share;
   uint gts_flags;
   bool from_share= false;
+  bool is_write_lock_request= table_list->mdl_request.is_write_lock_request();
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   int part_names_error=0;
 #endif
@@ -1934,7 +1932,7 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
     Note that we allow write locks on log tables as otherwise logging
     to general/slow log would be disabled in read only transactions.
   */
-  if (table_list->mdl_request.is_write_lock_request() &&
+  if (is_write_lock_request &&
       thd->tx_read_only &&
       !(flags & (MYSQL_LOCK_LOG_TABLE | MYSQL_OPEN_HAS_MDL_LOCK)))
   {
@@ -1967,7 +1965,7 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
       if (table->s->table_cache_key.length == key_length &&
 	  !memcmp(table->s->table_cache_key.str, key, key_length))
       {
-        if (table_alias_charset->streq(table->alias.to_lex_cstring(), alias) &&
+        if (Lex_ident_table(table->alias.to_lex_cstring()).streq(alias) &&
             table->query_id != thd->query_id && /* skip tables already used */
             (thd->locked_tables_mode == LTM_LOCK_TABLES ||
              table->query_id == 0))
@@ -2311,12 +2309,13 @@ retry_share:
     */
     enum enum_mdl_type mdl_type= MDL_BACKUP_DML;
 
-    if (table->s->table_category != TABLE_CATEGORY_USER)
+    if (table->s->table_category != TABLE_CATEGORY_USER &&
+        table->s->table_category != TABLE_CATEGORY_MYSQL)
       mdl_type= MDL_BACKUP_SYS_DML;
     else if (table->s->online_backup)
       mdl_type= MDL_BACKUP_TRANS_DML;
 
-    if (table_list->mdl_request.is_write_lock_request() &&
+    if (is_write_lock_request &&
         ! (flags & (MYSQL_OPEN_IGNORE_GLOBAL_READ_LOCK |
                     MYSQL_OPEN_FORCE_SHARED_MDL |
                     MYSQL_OPEN_FORCE_SHARED_HIGH_PRIO_MDL |
@@ -3235,7 +3234,7 @@ static bool open_table_entry_fini(THD *thd, TABLE_SHARE *share, TABLE *entry)
       String query(query_buf, sizeof(query_buf), system_charset_info);
 
       query.length(0);
-      query.append(STRING_WITH_LEN("DELETE FROM "));
+      query.append(STRING_WITH_LEN("TRUNCATE TABLE "));
       append_identifier(thd, &query, &share->db);
       query.append('.');
       append_identifier(thd, &query, &share->table_name);
@@ -3412,12 +3411,12 @@ request_backoff_action(enum_open_table_action action_arg,
 class MDL_deadlock_discovery_repair_handler : public Internal_error_handler
 {
 public:
-  virtual bool handle_condition(THD *thd,
+  bool handle_condition(THD *thd,
                                   uint sql_errno,
                                   const char* sqlstate,
                                   Sql_condition::enum_warning_level *level,
                                   const char* msg,
-                                  Sql_condition ** cond_hdl)
+                                  Sql_condition ** cond_hdl) override
   {
     if (sql_errno == ER_LOCK_DEADLOCK)
     {
@@ -4681,7 +4680,8 @@ restart:
             have failed to open since closing tables can trigger removal of
             elements from the table list (if MERGE tables are involved),
           */
-          close_tables_for_reopen(thd, start, ot_ctx.start_of_statement_svp());
+          close_tables_for_reopen(thd, start, ot_ctx.start_of_statement_svp(),
+                                  ot_ctx.remove_implicitly_used_deps());
 
           /*
             Here we rely on the fact that 'tables' still points to the valid
@@ -4749,10 +4749,10 @@ restart:
           /* F.ex. deadlock happened */
           if (ot_ctx.can_recover_from_failed_open())
           {
-            DBUG_ASSERT(ot_ctx.get_action() !=
-                        Open_table_context::OT_ADD_HISTORY_PARTITION);
+            DBUG_ASSERT(ot_ctx.remove_implicitly_used_deps());
             close_tables_for_reopen(thd, start,
-                                    ot_ctx.start_of_statement_svp());
+                                    ot_ctx.start_of_statement_svp(),
+                                    ot_ctx.remove_implicitly_used_deps());
             if (ot_ctx.recover_from_failed_open())
               goto error;
 
@@ -6064,27 +6064,34 @@ bool restart_trans_for_tables(THD *thd, TABLE_LIST *table)
                          trying to reopen tables. NULL if no metadata locks
                          were held and thus all metadata locks should be
                          released.
+  @param[in] remove_implicit_deps  True in case routines and tables implicitly
+                                   used by a statement should be removed.
 */
 
 void close_tables_for_reopen(THD *thd, TABLE_LIST **tables,
-                             const MDL_savepoint &start_of_statement_svp)
+                             const MDL_savepoint &start_of_statement_svp,
+                             bool remove_implicit_deps)
 {
   TABLE_LIST *first_not_own_table= thd->lex->first_not_own_table();
   TABLE_LIST *tmp;
 
-  /*
-    If table list consists only from tables from prelocking set, table list
-    for new attempt should be empty, so we have to update list's root pointer.
-  */
-  if (first_not_own_table == *tables)
-    *tables= 0;
-  thd->lex->chop_off_not_own_tables();
-  /* Reset MDL tickets for procedures/functions */
-  for (Sroutine_hash_entry *rt=
-         (Sroutine_hash_entry*)thd->lex->sroutines_list.first;
-       rt; rt= rt->next)
-    rt->mdl_request.ticket= NULL;
-  sp_remove_not_own_routines(thd->lex);
+  if (remove_implicit_deps)
+  {
+    /*
+      If table list consists only from tables from prelocking set, table list
+      for new attempt should be empty, so we have to update list's root pointer.
+    */
+    if (first_not_own_table == *tables)
+      *tables= 0;
+    thd->lex->chop_off_not_own_tables();
+
+    /* Reset MDL tickets for procedures/functions */
+    for (Sroutine_hash_entry *rt=
+        (Sroutine_hash_entry*)thd->lex->sroutines_list.first;
+        rt; rt= rt->next)
+      rt->mdl_request.ticket= NULL;
+    sp_remove_not_own_routines(thd->lex);
+  }
   for (tmp= *tables; tmp; tmp= tmp->next_global)
   {
     tmp->table= 0;
@@ -7353,7 +7360,7 @@ mark_common_columns(THD *thd, TABLE_LIST *table_ref_1, TABLE_LIST *table_ref_2,
     is_using_column_1= using_fields && 
       test_if_string_in_list(field_name_1, using_fields);
     DBUG_PRINT ("info", ("field_name_1=%s.%s", 
-                         nj_col_1->safe_table_name(),
+                         nj_col_1->safe_table_name().str,
                          field_name_1.str));
 
     if (field_1_invisible && !is_using_column_1)
@@ -7382,7 +7389,7 @@ mark_common_columns(THD *thd, TABLE_LIST *table_ref_1, TABLE_LIST *table_ref_2,
 
       cur_field_name_2= cur_nj_col_2->name();
       DBUG_PRINT ("info", ("cur_field_name_2=%s.%s", 
-                           cur_nj_col_2->safe_table_name(),
+                           cur_nj_col_2->safe_table_name().str,
                            cur_field_name_2.str));
 
       /*
@@ -7487,9 +7494,9 @@ mark_common_columns(THD *thd, TABLE_LIST *table_ref_1, TABLE_LIST *table_ref_2,
 
       nj_col_1->is_common= nj_col_2->is_common= TRUE;
       DBUG_PRINT ("info", ("%s.%s and %s.%s are common", 
-                           nj_col_1->safe_table_name(),
+                           nj_col_1->safe_table_name().str,
                            nj_col_1->name().str,
-                           nj_col_2->safe_table_name(),
+                           nj_col_2->safe_table_name().str,
                            nj_col_2->name().str));
 
       if (field_1)
@@ -8966,9 +8973,12 @@ static bool vers_update_or_validate_fields(TABLE *table)
          TIME_NO_ZERO_DATE, time_round_mode_t(time_round_mode_t::FRAC_NONE))))
     return 0;
 
-  StringBuffer<MAX_DATETIME_FULL_WIDTH+1> val;
-  row_start->val_str(&val);
-  my_error(ER_WRONG_VALUE, MYF(0), row_start->field_name.str, val.c_ptr());
+  StringBuffer<MAX_DATETIME_FULL_WIDTH+1> val_start, val_end;
+  row_start->val_str(&val_start);
+  row_end->val_str(&val_end);
+  my_error(ER_WRONG_VERSIONING_RANGE, MYF(0),
+           row_start->field_name.str, val_start.c_ptr(),
+           row_end->field_name.str, val_end.c_ptr());
   return 1;
 }
 
@@ -9615,9 +9625,11 @@ open_system_tables_for_read(THD *thd, TABLE_LIST *table_list)
 
   for (TABLE_LIST *tables= table_list; tables; tables= tables->next_global)
   {
-    DBUG_ASSERT(tables->table->s->table_category == TABLE_CATEGORY_SYSTEM);
-    tables->table->file->row_logging= 0;
-    tables->table->use_all_columns();
+    TABLE *table= tables->table;
+    DBUG_ASSERT(table->s->table_category == TABLE_CATEGORY_SYSTEM ||
+                table->s->table_category == TABLE_CATEGORY_STATISTICS);
+    table->file->row_logging= 0;
+    table->use_all_columns();
   }
   lex->restore_backup_query_tables_list(&query_tables_list_backup);
 

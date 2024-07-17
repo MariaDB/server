@@ -205,7 +205,7 @@ select variable_value > 0 from information_schema.global_status
 where variable_name like 'PERFORMANCE_SCHEMA_TABLE_LOCK_STAT_LOST';
 variable_value > 0
 1
-flush status;
+flush global status;
 update performance_schema.setup_objects set ENABLED='NO'
   where OBJECT_TYPE='TABLE' and OBJECT_SCHEMA="%";
 insert into db1.t1 values('5', 'abc');

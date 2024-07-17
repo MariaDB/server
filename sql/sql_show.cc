@@ -345,11 +345,33 @@ int fill_plugins(THD *thd, TABLE_LIST *tables, COND *cond)
 }
 
 
+/* Ignore common errors from plugin load */
+
+class plugin_show_error_handler : public Internal_error_handler
+{
+public:
+  bool handle_condition(THD *thd,
+                        uint sql_errno,
+                        const char* sqlstate,
+                        Sql_condition::enum_warning_level *level,
+                        const char* msg,
+                        Sql_condition ** cond_hdl) override
+  {
+    if (sql_errno == ER_CANT_FIND_DL_ENTRY ||
+        sql_errno == ER_CANT_OPEN_LIBRARY)
+      return true;
+    return false;
+  }
+};
+
+
 int fill_all_plugins(THD *thd, TABLE_LIST *tables, COND *cond)
 {
   DBUG_ENTER("fill_all_plugins");
   TABLE *table= tables->table;
   LOOKUP_FIELD_VALUES lookup;
+  plugin_show_error_handler err_handler;
+  const char *wstr, *wend;
 
   if (get_lookup_field_values(thd, cond, true, tables, &lookup))
     DBUG_RETURN(0);
@@ -364,10 +386,16 @@ int fill_all_plugins(THD *thd, TABLE_LIST *tables, COND *cond)
     DBUG_RETURN(1);
   }
 
-  if (!lookup.db_value.str)
-    plugin_dl_foreach(thd, 0, show_plugins, table);
+  thd->push_internal_handler(&err_handler);
 
-  const char *wstr= lookup.db_value.str, *wend= wstr + lookup.db_value.length;
+  if (!lookup.db_value.str)
+  {
+    if (plugin_dl_foreach(thd, 0, show_plugins, table) && thd->is_error())
+      goto end;
+  }
+
+  wstr= lookup.db_value.str;
+  wend= wstr + lookup.db_value.length;
   for (size_t i=0; i < dirp->number_of_files; i++)
   {
     FILEINFO *file= dirp->dir_entry+i;
@@ -394,12 +422,14 @@ int fill_all_plugins(THD *thd, TABLE_LIST *tables, COND *cond)
       }
     }
 
-    plugin_dl_foreach(thd, &dl, show_plugins, table);
-    thd->clear_error();
+    if (plugin_dl_foreach(thd, &dl, show_plugins, table) && thd->is_error())
+      break;
   }
 
+end:
+  thd->pop_internal_handler();
   my_dirend(dirp);
-  DBUG_RETURN(0);
+  DBUG_RETURN(thd->is_error());
 }
 
 
@@ -1094,7 +1124,7 @@ public:
 
   bool handle_condition(THD *thd, uint sql_errno, const char * /* sqlstate */,
                         Sql_condition::enum_warning_level *level,
-                        const char *message, Sql_condition ** /* cond_hdl */)
+                        const char *message, Sql_condition ** /* cond_hdl */) override
   {
     /*
        The handler does not handle the errors raised by itself.
@@ -3460,6 +3490,8 @@ static my_bool processlist_callback(THD *tmp, processlist_callback_arg *arg)
 
   arg->table->field[18]->store(tmp->os_thread_id);
 
+  arg->table->field[19]->store((longlong) tmp->status_var.tmp_space_used, TRUE);
+
   if (schema_table_store_record(arg->thd, arg->table))
     return 1;
   return 0;
@@ -3582,6 +3614,8 @@ void reset_status_vars()
     /* Note that SHOW_LONG_NOFLUSH variables are not reset */
     if (ptr->type == SHOW_LONG)
       *(ulong*) ptr->value= 0;
+    if (ptr->type == SHOW_LONGLONG)
+      *(ulonglong*) ptr->value= 0;
   }
 }
 
@@ -3780,6 +3814,7 @@ const char* get_one_variable(THD *thd,
   case SHOW_SLONG:
     end= int10_to_str(*value.as_long, buff, -10);
     break;
+  case SHOW_LONGLONG_NOFLUSH: // the difference lies in refresh_status()
   case SHOW_SLONGLONG:
     end= longlong10_to_str(*value.as_longlong, buff, -10);
     break;
@@ -3925,7 +3960,7 @@ static bool show_status_array(THD *thd, const char *wild,
     */
     for (var=variables; var->type == SHOW_FUNC ||
            var->type == SHOW_SIMPLE_FUNC; var= &tmp)
-      ((mysql_show_var_func)(var->value))(thd, &tmp, buff,
+      ((mysql_show_var_func)(var->value))(thd, &tmp, (void *) buff,
                                           status_var, scope);
     
     SHOW_TYPE show_type=var->type;
@@ -4805,10 +4840,15 @@ fill_schema_table_by_open(THD *thd, MEM_ROOT *mem_root,
                && thd->get_stmt_da()->sql_errno() != ER_WRONG_OBJECT
                && thd->get_stmt_da()->sql_errno() != ER_NOT_SEQUENCE;
       if (!run)
+      {
         thd->clear_error();
+        result= false;
+      }
       else if (!ext_error_handling)
+      {
         convert_error_to_warning(thd);
-      result= false;
+        result= false;
+      }
     }
   }
 
@@ -5266,7 +5306,7 @@ class Warnings_only_error_handler : public Internal_error_handler
 public:
   bool handle_condition(THD *thd, uint sql_errno, const char* sqlstate,
                         Sql_condition::enum_warning_level *level,
-                        const char* msg, Sql_condition ** cond_hdl)
+                        const char* msg, Sql_condition ** cond_hdl) override
   {
     if (sql_errno == ER_TRG_NO_DEFINER || sql_errno == ER_TRG_NO_CREATION_CTX
         || sql_errno == ER_PARSE_ERROR)
@@ -10137,6 +10177,7 @@ ST_FIELD_INFO processlist_fields_info[]=
   Column("QUERY_ID",       SLonglong(10),             NOT_NULL),
   Column("INFO_BINARY",Blob(PROCESS_LIST_INFO_WIDTH),NULLABLE, "Info_binary"),
   Column("TID",            SLonglong(10),             NOT_NULL, "Tid"),
+  Column("TMP_SPACE_USED", SLonglong(10),             NOT_NULL, "Tmp_space_used"),
   CEnd()
 };
 
@@ -10202,6 +10243,7 @@ ST_FIELD_INFO files_fields_info[]=
   CEnd()
 };
 
+  extern ST_FIELD_INFO users_fields_info[];
 }; // namespace Show
 
 
@@ -10515,6 +10557,8 @@ ST_SCHEMA_TABLE schema_tables[]=
   {"TRIGGERS"_Lex_ident_i_s_table, Show::triggers_fields_info, 0,
    get_all_tables, make_old_format, get_schema_triggers_record, 5, 6, 0,
    OPEN_TRIGGER_ONLY|OPTIMIZE_I_S_TABLE},
+  {"USERS"_Lex_ident_i_s_table, Show::users_fields_info, 0, fill_users_schema_table,
+   0, 0, -1, -1, 0, 0},
   {"USER_PRIVILEGES"_Lex_ident_i_s_table,
    Show::user_privileges_fields_info, 0,
    fill_schema_user_privileges, 0, 0, -1, -1, 0, 0},
@@ -10877,12 +10921,12 @@ class IS_internal_schema_access : public ACL_internal_schema_access
 public:
   IS_internal_schema_access() = default;
 
-  ~IS_internal_schema_access() = default;
+  ~IS_internal_schema_access() override = default;
 
   ACL_internal_access_result check(privilege_t want_access,
-                                   privilege_t *save_priv) const;
+                                   privilege_t *save_priv) const override;
 
-  const ACL_internal_table_access *lookup(const char *name) const;
+  const ACL_internal_table_access *lookup(const char *name) const override;
 };
 
 ACL_internal_access_result

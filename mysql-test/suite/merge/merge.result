@@ -1,3 +1,4 @@
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 set @save_default_storage_engine=@@global.default_storage_engine;
 set global default_storage_engine=myisam;
 set session default_storage_engine=myisam;
@@ -185,7 +186,7 @@ ERROR HY000: Unable to open underlying table which is differently defined or of 
 flush tables;
 select * from t4;
 ERROR HY000: Unable to open underlying table which is differently defined or of non-MyISAM type or doesn't exist
-create database mysqltest;
+create database mysqltest character set latin1;
 create table mysqltest.t6 (a int not null primary key auto_increment, message char(20));
 create table t5 (a int not null, b char(20), key(a)) engine=MERGE UNION=(test.t1,mysqltest.t6);
 show create table t5;
@@ -1823,7 +1824,7 @@ DELETE FROM t4 WHERE c1 = 33;
 #
 REPAIR TABLE t4;
 Table	Op	Msg_type	Msg_text
-test.t4	repair	note	The storage engine for the table doesn't support repair
+test.t4	repair	status	OK
 REPAIR TABLE t2;
 Table	Op	Msg_type	Msg_text
 test.t2	repair	status	OK
@@ -1836,7 +1837,7 @@ c1
 LOCK TABLES t3 WRITE, t2 WRITE, t4 WRITE, t1 WRITE;
 REPAIR TABLE t4;
 Table	Op	Msg_type	Msg_text
-test.t4	repair	note	The storage engine for the table doesn't support repair
+test.t4	repair	status	OK
 REPAIR TABLE t2;
 Table	Op	Msg_type	Msg_text
 test.t2	repair	status	OK
@@ -2312,7 +2313,7 @@ SHOW CREATE TABLE `test/1`.m1;
 Table	Create Table
 m1	CREATE TABLE `m1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MRG_MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci UNION=(`t/1`)
+) ENGINE=MRG_MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci UNION=(`t/1`)
 DROP TABLE `test/1`.m1;
 DROP TABLE `test/1`.`t/1`;
 CREATE TEMPORARY TABLE `test/1`.`t/1`(a INT);
@@ -2332,7 +2333,7 @@ SHOW CREATE TABLE `test/1`.m1;
 Table	Create Table
 m1	CREATE TEMPORARY TABLE `m1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MRG_MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci UNION=(`t/1`)
+) ENGINE=MRG_MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci UNION=(`t/1`)
 DROP TABLE `test/1`.m1;
 DROP TABLE `test/1`.`t/1`;
 DROP DATABASE `test/1`;
@@ -2396,7 +2397,7 @@ Table	Op	Msg_type	Msg_text
 test.m1	repair	note	The storage engine for the table doesn't support repair
 REPAIR TABLE m1;
 Table	Op	Msg_type	Msg_text
-test.m1	repair	note	The storage engine for the table doesn't support repair
+test.m1	repair	status	OK
 DROP TABLE m1, t1;
 CREATE TEMPORARY TABLE m1 (f1 BIGINT) ENGINE=MRG_MyISAM UNION(t1);
 REPAIR TABLE m1 USE_FRM;
@@ -2409,7 +2410,7 @@ Table	Op	Msg_type	Msg_text
 m1	repair	error	Cannot repair temporary table from .frm file
 REPAIR TABLE m1;
 Table	Op	Msg_type	Msg_text
-test.m1	repair	note	The storage engine for the table doesn't support repair
+test.m1	repair	status	OK
 DROP TABLE m1, t1;
 create temporary table t1_temp(i int);
 create temporary table tm_temp_temp (i int) engine=merge union=(t1_temp) insert_method=last;
@@ -3855,7 +3856,7 @@ Table	Op	Msg_type	Msg_text
 test.m1	check	status	OK
 repair table m1;
 Table	Op	Msg_type	Msg_text
-test.m1	repair	note	The storage engine for the table doesn't support repair
+test.m1	repair	status	OK
 checksum table m1;
 Table	Checksum
 test.m1	3459908756
@@ -3868,7 +3869,7 @@ Table	Op	Msg_type	Msg_text
 test.m1	check	status	OK
 repair table m1;
 Table	Op	Msg_type	Msg_text
-test.m1	repair	note	The storage engine for the table doesn't support repair
+test.m1	repair	status	OK
 checksum table m1;
 Table	Checksum
 test.m1	3459908756
@@ -3881,7 +3882,7 @@ Table	Op	Msg_type	Msg_text
 test.m1	check	status	OK
 repair table m1;
 Table	Op	Msg_type	Msg_text
-test.m1	repair	note	The storage engine for the table doesn't support repair
+test.m1	repair	status	OK
 checksum table m1;
 Table	Checksum
 test.m1	3459908756
@@ -4002,3 +4003,4 @@ UPDATE v1 SET a=0;
 DROP VIEW v1;
 DROP TABLE t1;
 # End of 11.1 tests
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

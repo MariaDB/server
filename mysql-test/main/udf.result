@@ -2,7 +2,7 @@ drop table if exists t1;
 CREATE FUNCTION metaphon RETURNS STRING SONAME "UDF_EXAMPLE_LIB";
 CREATE FUNCTION myfunc_double RETURNS REAL SONAME "UDF_EXAMPLE_LIB";
 CREATE FUNCTION myfunc_nonexist RETURNS INTEGER SONAME "UDF_EXAMPLE_LIB";
-ERROR HY000: Can't find symbol 'myfunc_nonexist' in library
+ERROR HY000: Can't find symbol 'myfunc_nonexist' in library 'UDF_EXAMPLE_LIB'
 CREATE FUNCTION myfunc_int RETURNS INTEGER SONAME "UDF_EXAMPLE_LIB";
 CREATE FUNCTION udf_sequence RETURNS INTEGER SONAME "UDF_EXAMPLE_LIB";
 CREATE FUNCTION lookup RETURNS STRING SONAME "UDF_EXAMPLE_LIB";
@@ -458,7 +458,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) DEFAULT metaphon(`a` AS `a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 (a) VALUES ('Hello');
 SELECT * FROM t1;
 a	b

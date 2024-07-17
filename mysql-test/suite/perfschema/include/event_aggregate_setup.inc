@@ -145,7 +145,7 @@ update performance_schema.setup_instruments set enabled='YES', timed='YES'
 
 # Start from a known clean state, to avoid noise from previous tests
 flush tables;
-flush status;
+flush global status;
 truncate performance_schema.events_waits_summary_by_thread_by_event_name;
 truncate performance_schema.events_waits_summary_by_account_by_event_name;
 truncate performance_schema.events_waits_summary_by_user_by_event_name;

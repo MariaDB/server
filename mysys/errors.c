@@ -19,7 +19,7 @@
 
 #ifndef SHARED_LIBRARY
 
-const char *globerrs[GLOBERRS]=
+const char *globerrs[GLOBERRS+1]=
 {
   "Can't create/write to file '%s' (Errcode: %M)",
   "Error reading file '%s' (Errcode: %M)",
@@ -60,7 +60,10 @@ const char *globerrs[GLOBERRS]=
   "Lock Pages in memory access rights required",
   "Memcntl %s cmd %s error",
   "Warning: Charset id '%d' csname '%s' trying to replace existing csname '%s'",
-  "Deprecated program name. It will be removed in a future release, use '%s' instead"
+  "Deprecated program name. It will be removed in a future release, use '%s' instead",
+  "Local temporary space limit reached",
+  "Global temporary space limit reached",
+  ""
 };
 
 void init_glob_errs(void)
@@ -110,7 +113,9 @@ void init_glob_errs()
   EE(EE_PERM_LOCK_MEMORY)= "Lock Pages in memory access rights required";
   EE(EE_MEMCNTL)         = "Memcntl %s cmd %s error";
   EE(EE_DUPLICATE_CHARSET)= "Warning: Charset id %d trying to replace csname %s with %s";
-  EE(EE_NAME_DEPRECATED)  = "Notice: %s is deprecated and will be removed in a future release, use command '%s'"
+  EE(EE_NAME_DEPRECATED)  = "Notice: %s is deprecated and will be removed in a future release, use command '%s'";
+ EE(EE_LOCAL_TMP_SPACE_FULL) = "Local temporary space limit reached";
+ EE(EE_GLOBAL_TMP_SPACE_FULL) = "Global temporary space limit reached";
 }
 #endif
 

@@ -582,6 +582,7 @@ set debug_sync= 'now SIGNAL end';
 --connection default
 --reap
 show create table t1;
+--replace_result 4294967295 2147483647
 select *, UNIX_TIMESTAMP(row_start), UNIX_TIMESTAMP(row_end) from t1 for system_time all;
 
 ## at the moment DROP SYSTEM VERSIONING cannot be done online

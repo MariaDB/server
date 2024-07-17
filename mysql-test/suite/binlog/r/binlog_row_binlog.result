@@ -373,7 +373,7 @@ set @bcs = @@binlog_cache_size;
 set global binlog_cache_size=4096;
 reset master;
 create table t1 (a int, b char(255)) engine=innodb;
-flush status;
+flush global status;
 show status like "binlog_cache_use";
 Variable_name	Value
 Binlog_cache_use	0
@@ -385,7 +385,7 @@ Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; create table t1 (a int, b char(255)) engine=innodb
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test`; flush status
+master-bin.000001	#	Query	#	#	use `test`; flush global status
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Annotate_rows	#	#	insert into t1 values( 100, 'just to fill void to make transaction occupying at least two buffers of the trans cache' )
 master-bin.000001	#	Table_map	#	#	table_id: # (test.t1)

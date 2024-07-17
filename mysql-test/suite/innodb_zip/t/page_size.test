@@ -1,5 +1,7 @@
 --source include/innodb_page_size_small.inc
 --source include/innodb_checksum_algorithm.inc
+--source include/test_db_charset_latin1.inc
+
 SET default_storage_engine=InnoDB;
 
 --disable_query_log
@@ -885,3 +887,5 @@ DROP TABLE u, t;
 SET GLOBAL innodb_compression_level=@save_compression_level;
 
 --echo # End of 10.6 tests
+
+--source include/test_db_charset_restore.inc

@@ -20,7 +20,7 @@
 DROP TABLE IF EXISTS users;
 --enable_warnings
 
-FLUSH STATUS;
+FLUSH GLOBAL STATUS;
 
 CREATE TABLE users (
   id INT,

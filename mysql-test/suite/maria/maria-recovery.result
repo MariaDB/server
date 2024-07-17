@@ -228,7 +228,7 @@ t1	CREATE TABLE `t1` (
   `c` varchar(6) DEFAULT NULL,
   PRIMARY KEY (`i`),
   KEY `c` (`c`)
-) ENGINE=Aria AUTO_INCREMENT=5 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
+) ENGINE=Aria AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
 * TEST of UPDATE vs state.auto_increment
 connection admin;
 * copied t1 for feeding_recovery
@@ -260,7 +260,7 @@ t1	CREATE TABLE `t1` (
   `c` varchar(6) DEFAULT NULL,
   PRIMARY KEY (`i`),
   KEY `c` (`c`)
-) ENGINE=Aria AUTO_INCREMENT=16 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
+) ENGINE=Aria AUTO_INCREMENT=16 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
 * TEST of INSERT's rollback vs state.auto_increment
 connection admin;
 flush table t1;
@@ -289,7 +289,7 @@ t1	CREATE TABLE `t1` (
   `c` varchar(6) DEFAULT NULL,
   PRIMARY KEY (`i`),
   KEY `c` (`c`)
-) ENGINE=Aria AUTO_INCREMENT=17 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
+) ENGINE=Aria AUTO_INCREMENT=17 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
 insert into t1 values(null, "f");
 drop table t1;
 Test that bulk insert works with recovery

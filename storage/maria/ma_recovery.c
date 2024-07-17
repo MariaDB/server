@@ -921,7 +921,7 @@ prototype_redo_exec_hook(REDO_CREATE_TABLE)
   }
   if (my_pwrite(kfile, kfile_header,
                 kfile_size_before_extension, 0, MYF(MY_NABP|MY_WME)) ||
-      mysql_file_chsize(kfile, keystart, 0, MYF(MY_WME)))
+      mysql_file_chsize(kfile, keystart, 0, MYF(MY_WME)) > 0)
   {
     eprint(tracef, "Failed to write to index file");
     goto end;

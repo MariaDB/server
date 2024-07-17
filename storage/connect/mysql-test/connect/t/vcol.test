@@ -9,7 +9,7 @@ create table t1 (
   hired date not null date_format='DD/MM/YYYY' flag=36,
   agehired int(3) as (floor(datediff(hired,birth)/365.25))
   )
-engine=CONNECT table_type=FIX file_name='boys.txt' mapped=YES lrecl=47 ending=1;
+ENGINE=CONNECT CHARSET=latin1 table_type=FIX file_name='boys.txt' mapped=YES lrecl=47 ending=1;
 select * from t1;
 drop table t1;
 
@@ -23,7 +23,7 @@ create table t1 (
   agehired int(3) as (floor(datediff(hired,birth)/365.25)),
   index (agehired)
   )
-engine=CONNECT table_type=FIX file_name='boys.txt' mapped=YES lrecl=47 ending=1;
+ENGINE=CONNECT CHARSET=latin1 table_type=FIX file_name='boys.txt' mapped=YES lrecl=47 ending=1;
 
 #
 # Clean up

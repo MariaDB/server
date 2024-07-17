@@ -10,7 +10,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` varchar(10) NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=MRG_MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci UNION=(`t1`)
+) ENGINE=MRG_MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci UNION=(`t1`)
 flush tables;
 alter table t1 modify a varchar(10) not null;
 show create table t2;
@@ -18,5 +18,5 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` varchar(10) NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=MRG_MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci UNION=(`t1`)
+) ENGINE=MRG_MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci UNION=(`t1`)
 drop table if exists t1, t2;

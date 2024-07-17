@@ -104,6 +104,10 @@ execute immediate if(@wsrep_cannot_replicate_tz, concat('ALTER TABLE time_zone_n
 execute immediate if(@wsrep_cannot_replicate_tz, concat('ALTER TABLE time_zone_transition ENGINE=', @time_zone_transition_engine, ', ORDER BY Time_zone_id, Transition_time'), 'do 0');
 execute immediate if(@wsrep_cannot_replicate_tz, concat('ALTER TABLE time_zone_transition_type ENGINE=', @time_zone_transition_type_engine, ', ORDER BY Time_zone_id, Transition_type_id'), 'do 0');
 SET session alter_algorithm=@old_alter_alg;
+Warnings:
+Warning	4200	The variable '@@alter_algorithm' is ignored. It only exists for compatibility with old installations and will be removed in a future release
+Warnings:
+Warning	4200	The variable '@@alter_algorithm' is ignored. It only exists for compatibility with old installations and will be removed in a future release
 SELECT COUNT(*) FROM time_zone;
 COUNT(*)
 2
@@ -161,6 +165,10 @@ execute immediate if(@wsrep_cannot_replicate_tz, 'do 0','ALTER TABLE time_zone_t
 SET SESSION SQL_LOG_BIN=@save_sql_log_bin;
 execute immediate if(@wsrep_is_on, 'SET SESSION WSREP_ON=@save_wsrep_on', 'do 0');
 SET session alter_algorithm=@old_alter_alg;
+Warnings:
+Warning	4200	The variable '@@alter_algorithm' is ignored. It only exists for compatibility with old installations and will be removed in a future release
+Warnings:
+Warning	4200	The variable '@@alter_algorithm' is ignored. It only exists for compatibility with old installations and will be removed in a future release
 SELECT COUNT(*) FROM time_zone;
 COUNT(*)
 2
@@ -481,6 +489,10 @@ execute immediate if(@wsrep_is_on, 'SET SESSION WSREP_ON=@save_wsrep_on', 'do 0'
 # MDEV-29347 MariaDB 10.6.8 fails to start when ONLY_FULL_GROUP_BY gets provided
 #
 set sql_mode=only_full_group_by;
+Warnings:
+Warning	4200	The variable '@@alter_algorithm' is ignored. It only exists for compatibility with old installations and will be removed in a future release
+Warnings:
+Warning	4200	The variable '@@alter_algorithm' is ignored. It only exists for compatibility with old installations and will be removed in a future release
 SELECT COUNT(*) FROM time_zone;
 COUNT(*)
 2

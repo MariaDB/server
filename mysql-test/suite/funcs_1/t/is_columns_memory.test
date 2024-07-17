@@ -14,6 +14,7 @@
 # privileges.
 --source include/not_embedded.inc
 --source include/default_charset.inc
+--source include/test_db_charset_latin1.inc
 
 --enable_prepare_warnings
 
@@ -28,3 +29,4 @@ let $my_where = WHERE table_schema LIKE 'test%';
 --disable_prepare_warnings
 
 --source suite/funcs_1/include/cleanup.inc
+--source include/test_db_charset_restore.inc

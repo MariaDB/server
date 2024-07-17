@@ -1580,7 +1580,8 @@ public:
       return true;
 
     if (open_cached_file(&io_cache, mysql_tmpdir, TEMP_PREFIX,
-                         1024, MYF(MY_WME)))
+                         1024,
+                         MYF(MY_WME | MY_TRACK_WITH_LIMIT)))
       return true;
 
     handler *h= owner->stat_file;
@@ -1604,12 +1605,14 @@ public:
 
     do {
       h->position(owner->record[0]);
-      my_b_write(&io_cache, h->ref, rowid_size);
+      if (my_b_write(&io_cache, h->ref, rowid_size))
+        return true;
 
     } while (!h->ha_index_next_same(owner->record[0], key, prefix_len));
 
     /* Prepare for reading */
-    reinit_io_cache(&io_cache, READ_CACHE, 0L, 0, 0);
+    if (reinit_io_cache(&io_cache, READ_CACHE, 0L, 0, 0))
+      return true;
     h->ha_index_or_rnd_end();
     if (h->ha_rnd_init(false))
       return true;
@@ -1905,7 +1908,7 @@ public:
                      tree_key_length, max_heap_table_size, 1);
   }
 
-  bool add()
+  bool add() override
   {
     longlong val= table_field->val_int();   
     return tree->unique_add(&val);
@@ -3268,7 +3271,8 @@ read_statistics_for_tables(THD *thd, TABLE_LIST *tables, bool force_reload)
     TABLE_SHARE *table_share;
 
     /* Skip tables that can't have statistics. */
-    if (tl->is_view_or_derived() || !table || !(table_share= table->s))
+    if (tl->is_view_or_derived() || !table || !(table_share= table->s) ||
+        table_share->sequence)
       continue;
     /* Skip temporary tables */
     if (table_share->tmp_table != NO_TMP_TABLE)
@@ -3300,7 +3304,7 @@ read_statistics_for_tables(THD *thd, TABLE_LIST *tables, bool force_reload)
         statistics_for_tables_is_needed= true;
       }
     }
-    else if (is_stat_table(tl->db, tl->alias))
+    else if (table_share->table_category == TABLE_CATEGORY_STATISTICS)
       found_stat_table= true;
   }
 

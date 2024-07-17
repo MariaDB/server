@@ -82,6 +82,8 @@ enum enum_conv_type
   CONV_TYPE_IMPOSSIBLE
 };
 
+/* Old 32 bit timestamp */
+extern const uchar timestamp_old_bytes[7];
 
 class Conv_param
 {
@@ -774,6 +776,7 @@ protected:
   static void do_field_temporal(const Copy_field *copy, date_mode_t fuzzydate);
   static void do_field_datetime(const Copy_field *copy);
   static void do_field_timestamp(const Copy_field *copy);
+  static void do_field_versioned_timestamp(const Copy_field *copy);
   static void do_field_decimal(const Copy_field *copy);
 public:
   static void *operator new(size_t size, MEM_ROOT *mem_root) throw ()
@@ -969,11 +972,13 @@ public:
   virtual int  store(longlong nr, bool unsigned_val)=0;
   virtual int  store_decimal(const my_decimal *d)=0;
   virtual int  store_time_dec(const MYSQL_TIME *ltime, uint dec);
-  virtual int  store_timestamp_dec(const timeval &ts, uint dec);
+  virtual int  store_timestamp_dec(const my_timeval &ts, uint dec);
   int store_timestamp(my_time_t timestamp, ulong sec_part)
   {
-    return store_timestamp_dec(Timeval(timestamp, sec_part),
-                               TIME_SECOND_PART_DIGITS);
+    struct my_timeval tmp;
+    tmp.tv_sec=  (longlong) timestamp;
+    tmp.tv_usec= (long) sec_part;
+    return store_timestamp_dec(tmp, TIME_SECOND_PART_DIGITS);
   }
   /**
     Store a value represented in native format
@@ -3228,7 +3233,7 @@ public:
     :Field_temporal(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
                     unireg_check_arg, field_name_arg)
     {}
-  bool validate_value_in_record(THD *thd, const uchar *record) const;
+  bool validate_value_in_record(THD *thd, const uchar *record) const override;
 };
 
 
@@ -3236,10 +3241,10 @@ class Field_timestamp :public Field_temporal {
 protected:
   int store_TIME_with_warning(THD *, const Datetime *,
                               const ErrConv *, int warn);
-  virtual void store_TIMEVAL(const timeval &tv)= 0;
+  virtual void store_TIMEVAL(const my_timeval &tv)= 0;
   void store_TIMESTAMP(const Timestamp &ts)
   {
-    store_TIMEVAL(ts.tv());
+    store_TIMEVAL(ts);
   }
   int zero_time_stored_return_code_with_warning();
 public:
@@ -3260,7 +3265,7 @@ public:
   int  store(longlong nr, bool unsigned_val) override;
   int  store_time_dec(const MYSQL_TIME *ltime, uint dec) override;
   int  store_decimal(const my_decimal *) override;
-  int  store_timestamp_dec(const timeval &ts, uint dec) override;
+  int  store_timestamp_dec(const my_timeval &ts, uint dec) override;
   int  save_in_field(Field *to) override;
   longlong val_int() override;
   String *val_str(String *, String *) override;
@@ -3290,7 +3295,7 @@ public:
 
 class Field_timestamp0 :public Field_timestamp
 {
-  void store_TIMEVAL(const timeval &tv) override
+  void store_TIMEVAL(const my_timeval &tv) override
   {
     int4store(ptr, tv.tv_sec);
   }
@@ -3382,7 +3387,7 @@ class Field_timestamp_hires :public Field_timestamp_with_dec {
   {
     return Type_handler_timestamp::sec_part_bytes(dec);
   }
-  void store_TIMEVAL(const timeval &tv) override;
+  void store_TIMEVAL(const my_timeval &tv) override;
 public:
   Field_timestamp_hires(uchar *ptr_arg,
                         uchar *null_ptr_arg, uchar null_bit_arg,
@@ -3411,7 +3416,7 @@ public:
   TIMESTAMP(0..6) - MySQL56 version
 */
 class Field_timestampf :public Field_timestamp_with_dec {
-  void store_TIMEVAL(const timeval &tv) override;
+  void store_TIMEVAL(const my_timeval &tv) override;
 public:
   Field_timestampf(uchar *ptr_arg,
                    uchar *null_ptr_arg, uchar null_bit_arg,
@@ -4087,6 +4092,7 @@ class Field_string final :public Field_longstr {
            field_length >= 4 &&
            orig_table->s->frm_version < FRM_VER_TRUE_VARCHAR;
   }
+  LEX_CSTRING to_lex_cstring() const;
 public:
   bool can_alter_field_type;
   Field_string(uchar *ptr_arg, uint32 len_arg,uchar *null_ptr_arg,
@@ -5195,20 +5201,20 @@ public:
      m_table(NULL)
     {}
   ~Field_row();
-  en_fieldtype tmp_engine_column_type(bool use_packed_rows) const
+  en_fieldtype tmp_engine_column_type(bool use_packed_rows) const override
   {
     DBUG_ASSERT(0);
     return Field::tmp_engine_column_type(use_packed_rows);
   }
   enum_conv_type rpl_conv_type_from(const Conv_source &source,
                                     const Relay_log_info *rli,
-                                    const Conv_param &param) const
+                                    const Conv_param &param) const override
   {
     DBUG_ASSERT(0);
     return CONV_TYPE_IMPOSSIBLE;
   }
-  Virtual_tmp_table **virtual_tmp_table_addr() { return &m_table; }
-  bool sp_prepare_and_store_item(THD *thd, Item **value);
+  Virtual_tmp_table **virtual_tmp_table_addr() override { return &m_table; }
+  bool sp_prepare_and_store_item(THD *thd, Item **value) override;
 };
 
 

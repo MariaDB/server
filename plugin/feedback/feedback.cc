@@ -26,10 +26,8 @@ namespace feedback {
 ulong debug_startup_interval, debug_first_interval, debug_interval;
 #endif
 
-char server_uid_buf[SERVER_UID_SIZE+1]; ///< server uid will be written here
-
 /* backing store for system variables */
-static char *server_uid= server_uid_buf, *url, *http_proxy;
+static char *url, *http_proxy;
 char *user_info;
 ulong send_timeout, send_retry_wait;
 
@@ -253,9 +251,6 @@ static int init(void *p)
   PSI_register(cond);
   PSI_register(thread);
 
-  if (calculate_server_uid(server_uid_buf))
-    return 1;
-
   prepare_linux_info();
 
 #ifndef DBUG_OFF
@@ -361,25 +356,22 @@ static int free(void *p)
 #define DEFAULT_PROTO "http://"
 #endif
 
-static MYSQL_SYSVAR_STR(server_uid, server_uid,
-       PLUGIN_VAR_READONLY | PLUGIN_VAR_NOCMDOPT,
-       "Automatically calculated server unique id hash.", NULL, NULL, 0);
 static MYSQL_SYSVAR_STR(user_info, user_info,
        PLUGIN_VAR_READONLY | PLUGIN_VAR_RQCMDARG,
-       "User specified string that will be included in the feedback report.",
+       "User specified string that will be included in the feedback report",
        NULL, NULL, "");
 static MYSQL_SYSVAR_STR(url, url, PLUGIN_VAR_READONLY | PLUGIN_VAR_RQCMDARG,
-       "Space separated URLs to send the feedback report to.", NULL, NULL,
+       "Space separated URLs to send the feedback report to", NULL, NULL,
        DEFAULT_PROTO "feedback.mariadb.org/rest/v1/post");
 static MYSQL_SYSVAR_ULONG(send_timeout, send_timeout, PLUGIN_VAR_RQCMDARG,
-       "Timeout (in seconds) for the sending the report.",
+       "Timeout (in seconds) for the sending the report",
        NULL, NULL, 60, 1, 60*60*24, 1);
 static MYSQL_SYSVAR_ULONG(send_retry_wait, send_retry_wait, PLUGIN_VAR_RQCMDARG,
-       "Wait this many seconds before retrying a failed send.",
+       "Wait this many seconds before retrying a failed send",
        NULL, NULL, 60, 1, 60*60*24, 1);
 static MYSQL_SYSVAR_STR(http_proxy, http_proxy,
                         PLUGIN_VAR_READONLY | PLUGIN_VAR_RQCMDARG,
-       "Proxy server host:port.", NULL, NULL,0);
+       "Proxy server host:port", NULL, NULL,0);
 
 #ifndef DBUG_OFF
 static MYSQL_SYSVAR_ULONG(debug_startup_interval, debug_startup_interval,
@@ -394,7 +386,6 @@ static MYSQL_SYSVAR_ULONG(debug_interval, debug_interval,
 #endif
 
 static struct st_mysql_sys_var* settings[] = {
-  MYSQL_SYSVAR(server_uid),
   MYSQL_SYSVAR(user_info),
   MYSQL_SYSVAR(url),
   MYSQL_SYSVAR(send_timeout),

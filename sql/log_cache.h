@@ -23,6 +23,11 @@ static constexpr my_off_t MY_OFF_T_UNDEF= ~0ULL;
 static constexpr my_off_t CACHE_FILE_TRUNC_SIZE = 65536;
 
 
+/*
+  Helper classes to store non-transactional and transactional data
+  before copying it to the binary log.
+*/
+
 class binlog_cache_data
 {
 public:
@@ -90,15 +95,15 @@ public:
   {
     bool cache_was_empty= empty();
     bool truncate_file= (cache_log.file != -1 &&
-                         my_b_write_tell(&cache_log) > CACHE_FILE_TRUNC_SIZE);
+                         my_b_write_tell(&cache_log) >
+                         MY_MIN(CACHE_FILE_TRUNC_SIZE, binlog_stmt_cache_size));
     truncate(0,1);                              // Forget what's in cache
     checksum_opt= !precompute_checksums ? BINLOG_CHECKSUM_ALG_OFF :
       (enum_binlog_checksum_alg)binlog_checksum_options;
     if (!cache_was_empty)
       compute_statistics();
     if (truncate_file)
-      my_chsize(cache_log.file, 0, 0, MYF(MY_WME));
-
+      truncate_io_cache(&cache_log);
     status= 0;
     incident= FALSE;
     before_stmt_pos= MY_OFF_T_UNDEF;

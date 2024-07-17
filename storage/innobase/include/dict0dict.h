@@ -698,35 +698,32 @@ bool
 dict_table_has_indexed_v_cols(
 	const dict_table_t*	table);
 
-/********************************************************************//**
-Gets the approximately estimated number of rows in the table.
+TPOOL_SUPPRESS_TSAN
+/** Get the estimated number of rows in the table.
 @return estimated number of rows */
-UNIV_INLINE
-ib_uint64_t
-dict_table_get_n_rows(
-/*==================*/
-	const dict_table_t*	table)	/*!< in: table */
-	MY_ATTRIBUTE((warn_unused_result));
-/********************************************************************//**
-Increment the number of rows in the table by one.
-Notice that this operation is not protected by any latch, the number is
-approximate. */
-UNIV_INLINE
-void
-dict_table_n_rows_inc(
-/*==================*/
-	dict_table_t*	table)	/*!< in/out: table */
-	MY_ATTRIBUTE((nonnull));
-/********************************************************************//**
-Decrement the number of rows in the table by one.
-Notice that this operation is not protected by any latch, the number is
-approximate. */
-UNIV_INLINE
-void
-dict_table_n_rows_dec(
-/*==================*/
-	dict_table_t*	table)	/*!< in/out: table */
-	MY_ATTRIBUTE((nonnull));
+inline uint64_t dict_table_get_n_rows(const dict_table_t *table)
+{
+  ut_ad(table->stat_initialized);
+  return table->stat_n_rows;
+}
+
+/** Increment the number of rows in the table by one.
+Note that this operation is not protected by any latch,
+the number is approximate. */
+TPOOL_SUPPRESS_TSAN inline void dict_table_n_rows_inc(dict_table_t *table)
+{
+  if (auto n_rows= table->stat_n_rows + 1)
+    table->stat_n_rows= n_rows;
+}
+
+/** Decrement the number of rows in the table by one.
+Note that this operation is not protected by any latch,
+the number is approximate. */
+TPOOL_SUPPRESS_TSAN inline void dict_table_n_rows_dec(dict_table_t *table)
+{
+  if (auto n_rows= table->stat_n_rows)
+    table->stat_n_rows= n_rows - 1;
+}
 
 /** Get nth virtual column
 @param[in]	table	target table

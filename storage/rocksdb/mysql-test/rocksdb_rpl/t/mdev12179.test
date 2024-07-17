@@ -48,7 +48,7 @@ SELECT * FROM mysql.gtid_slave_pos_rocksdb ORDER BY sub_id;
 
 # Test status variable Transactions_multi_engine.
 --connection server_2
-FLUSH NO_WRITE_TO_BINLOG STATUS;
+FLUSH NO_WRITE_TO_BINLOG GLOBAL STATUS;
 SET sql_log_bin=0;
 SHOW STATUS LIKE "Transactions_multi_engine";
 INSERT INTO t1 VALUES (100);
@@ -180,7 +180,7 @@ DROP TABLE mysql.gtid_slave_pos_rocksdb;
 DROP TABLE mysql.gtid_slave_pos_myisam_redundant;
 DROP TABLE mysql.gtid_slave_pos_innodb_redundant;
 SET sql_log_bin=1;
-FLUSH NO_WRITE_TO_BINLOG STATUS;
+FLUSH NO_WRITE_TO_BINLOG GLOBAL STATUS;
 --source include/start_slave.inc
 SHOW STATUS LIKE "%transactions%engine";
 

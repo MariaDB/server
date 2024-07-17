@@ -689,6 +689,7 @@ class Repl_semi_sync_master
 
   /* Export internal statistics for semi-sync replication. */
   void set_export_stats();
+  void reset_stats();
 
   /* 'reset master' command is issued from the user and semi-sync need to
    * go off for that.

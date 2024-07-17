@@ -849,6 +849,12 @@ void wsrep_init_globals()
     }
   }
   wsrep_init_schema();
+  {
+    /* apparently this thread has already called my_thread_init(),
+     * so we skip it, hence 'false' for initialization. */
+    wsp::thd thd(false, true);
+    wsrep_sst_cleanup_user(thd.ptr);
+  }
   if (WSREP_ON)
   {
     Wsrep_server_state::instance().initialized();
@@ -868,7 +874,6 @@ int wsrep_init()
   assert(wsrep_provider);
 
   wsrep_init_position();
-  wsrep_sst_auth_init();
 
   if (!*wsrep_provider ||
       !strcasecmp(wsrep_provider, WSREP_NONE))
@@ -1059,11 +1064,6 @@ void wsrep_deinit(bool free_options)
     char* p= wsrep_provider_capabilities;
     wsrep_provider_capabilities= NULL;
     free(p);
-  }
-
-  if (free_options)
-  {
-    wsrep_sst_auth_free();
   }
 }
 
@@ -1444,15 +1444,20 @@ bool wsrep_check_mode_after_open_table (THD *thd,
                    (db_type == DB_TYPE_ARIA && wsrep_check_mode(WSREP_MODE_REPLICATE_ARIA)));
   TABLE *tbl= tables->table;
 
+  DBUG_ASSERT(tbl);
   if (replicate)
   {
-    /* It is not recommended to replicate MyISAM as it lacks rollback feature
-    but if user demands then actions are replicated using TOI.
-    Following code will kick-start the TOI but this has to be done only once
-    per statement.
-    Note: kick-start will take-care of creating isolation key for all tables
-    involved in the list (provided all of them are MYISAM or Aria tables). */
-    if (!is_stat_table(tables->db, tables->alias))
+    /*
+      It is not recommended to replicate MyISAM as it lacks rollback
+      feature but if user demands then actions are replicated using TOI.
+      Following code will kick-start the TOI but this has to be done
+      only once per statement.
+
+      Note: kick-start will take care of creating isolation key for
+      all tables involved in the list (provided all of them are MYISAM
+      or Aria tables).
+    */
+    if (tbl->s->table_category != TABLE_CATEGORY_STATISTICS)
     {
       if (tbl->s->primary_key == MAX_KEY &&
           wsrep_check_mode(WSREP_MODE_REQUIRED_PRIMARY_KEY))
@@ -1470,13 +1475,14 @@ bool wsrep_check_mode_after_open_table (THD *thd,
              db_type != DB_TYPE_PERFORMANCE_SCHEMA)
   {
     bool is_system_db= (tbl &&
-                       ((strcmp(tbl->s->db.str, "mysql") == 0) ||
-                        (strcmp(tbl->s->db.str, "information_schema") == 0)));
+                        (!strcmp(tbl->s->db.str, "mysql") ||
+                         (tbl->s->table_category ==
+                          TABLE_CATEGORY_INFORMATION &&
+                          !strcmp(tbl->s->db.str, "information_schema"))));
 
     if (!is_system_db &&
 	!is_temporary_table(tables))
     {
-
       if (db_type != DB_TYPE_INNODB &&
 	  wsrep_check_mode(WSREP_MODE_STRICT_REPLICATION))
       {

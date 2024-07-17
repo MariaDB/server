@@ -1,5 +1,5 @@
 call mtr.add_suppression("2001:db8::6:6");
-flush status;
+flush global status;
 flush hosts;
 flush user_resources;
 flush privileges;

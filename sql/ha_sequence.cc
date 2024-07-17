@@ -298,7 +298,7 @@ int ha_sequence::write_row(const uchar *buf)
     Log_func *log_func= Write_rows_log_event::binlog_row_logging_function;
     if (!sequence_locked)
       sequence->copy(&tmp_seq);
-    rows_changed++;
+    rows_stats.updated++;
     /* We have to do the logging while we hold the sequence mutex */
     error= binlog_log_row(0, buf, log_func);
   }

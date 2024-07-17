@@ -1284,8 +1284,8 @@ test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
 explain SELECT * FROM t1 JOIN t2 ON t1.v = t2.v WHERE t2.v IS NULL ORDER BY 1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ref	ix2	ix2	5	const	2	Using index condition; Using temporary; Using filesort
-1	SIMPLE	t1	ref	ix1	ix1	5	test.t2.v	1	
+1	SIMPLE	t2	ref	ix2	ix2	11	const	2	Using index condition; Using temporary; Using filesort
+1	SIMPLE	t1	ref	ix1	ix1	11	test.t2.v	1	
 FLUSH STATUS;
 SELECT * FROM t1 JOIN t2 ON t1.v = t2.v WHERE t2.v IS NULL ORDER BY 1;
 pk	v	pk	v
@@ -1485,8 +1485,8 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	DU	system	dog_id	NULL	NULL	NULL	1	
 1	SIMPLE	D	system	PRIMARY	NULL	NULL	NULL	1	
 1	SIMPLE	DSAR	system	NULL	NULL	NULL	NULL	1	
-1	SIMPLE	DSA	ref	PRIMARY	PRIMARY	4	const	3	Using where; Using index
-1	SIMPLE	DT	ref	t_id	t_id	2	test.DSA.t_id	1	Using where
+1	SIMPLE	DSA	ref	PRIMARY	PRIMARY	4	const	4	Using where; Using index
+1	SIMPLE	DT	ref	t_id	t_id	5	test.DSA.t_id	1	Using where
 SELECT * FROM t5 DU, t1 D, t4 DT, t2 DSA, t3 DSAR
 WHERE DU.dog_id=D.dog_id AND D.dog_id=DT.dog_id AND D.birthday=DT.birthday AND
 DT.t_id=DSA.t_id AND DT.birthday=DSA.birthday AND DSA.dog_id=DSAR.dog_id;

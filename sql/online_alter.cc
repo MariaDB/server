@@ -222,6 +222,8 @@ int online_alter_end_trans(Online_alter_cache_list &cache_list, THD *thd,
     {
       // Do not set STMT_END for last event to leave table open in altering thd
       error= binlog_flush_pending_rows_event(thd, false, true, binlog, &cache);
+      if (error)
+        do_commit= commit= 0;
     }
 
     if (do_commit)

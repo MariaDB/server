@@ -464,7 +464,7 @@ create table t1 (
   v1 mediumtext generated always as (concat('f1:', f1)) virtual,
   unique key (f1) using hash,
   key (v1(1000))
-);
+) charset=latin1;
 flush status;
 insert ignore t1 (f1) values (9599),(94410);
 # handler_read_next must be 1 below, meaning there was a hash collision above.

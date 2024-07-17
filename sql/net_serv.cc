@@ -702,21 +702,21 @@ net_real_write(NET *net,const uchar *packet, size_t len)
         if (retry_count++ < net->retry_count)
           continue;
       }
-      EXTRA_DEBUG_fprintf(stderr, "%s: write looped, aborting thread\n",
-                          my_progname);
+      EXTRA_DEBUG_fprintf(stderr,
+                          "%s: write looped on vio with state %d, aborting thread\n",
+                          my_progname, (int) net->vio->type);
       net->error= 2;				/* Close socket */
       net->last_errno= (interrupted ? ER_NET_WRITE_INTERRUPTED :
                         ER_NET_ERROR_ON_WRITE);
 #ifdef MYSQL_SERVER
       if (global_system_variables.log_warnings > 3)
       {
-        my_printf_error(net->last_errno,
-                        "Could not write packet: fd: %lld  state: %d  "
-                        "errno: %d  vio_errno: %d  length: %ld",
-                        MYF(ME_ERROR_LOG),
-                        (longlong) vio_fd(net->vio), (int) net->vio->state,
-                        vio_errno(net->vio), net->last_errno, (ulong) (end-pos));
-        break;
+        sql_print_warning("Could not write packet: fd: %lld  state: %d  "
+                          "errno: %d  vio_errno: %d  length: %ld",
+                          MYF(ME_ERROR_LOG | ME_WARNING),
+                          (longlong) vio_fd(net->vio), (int) net->vio->state,
+                          vio_errno(net->vio), net->last_errno,
+                          (ulong) (end-pos));
       }
 #endif
       MYSQL_SERVER_my_error(net->last_errno, MYF(0));
@@ -857,8 +857,9 @@ retry:
         if (vio_should_retry(net->vio) && retry_count++ < net->retry_count)
           continue;
         EXTRA_DEBUG_fprintf(stderr,
-                            "%s: read looped with error %d, aborting thread\n",
-                            my_progname, vio_errno(net->vio));
+                            "%s: read looped with error %d on vio with state %d, "
+                            "aborting thread\n",
+                            my_progname, vio_errno(net->vio), (int) net->vio->type);
         DBUG_PRINT("error",
                    ("Couldn't read packet: remain: %u  errno: %d  length: %ld",
                     remain, vio_errno(net->vio), (long) length));
@@ -869,17 +870,16 @@ retry:
 #ifdef MYSQL_SERVER
           if (global_system_variables.log_warnings > 3)
           {
-            my_printf_error(net->last_errno,
-                            "Could not read packet: fd: %lld  state: %d  "
-                            "remain: %u  errno: %d  vio_errno: %d  "
-                            "length: %lld",
-                            MYF(ME_ERROR_LOG),
-                            (longlong) vio_fd(net->vio), (int) net->vio->state,
-                            remain, vio_errno(net->vio), net->last_errno,
-                            (longlong) length);
+            /* Log things as a warning */
+            sql_print_warning("Could not read packet: fd: %lld  state: %d  "
+                              "read_length: %u  errno: %d  vio_errno: %d  "
+                              "length: %lld",
+                              (longlong) vio_fd(net->vio),
+                              (int) net->vio->state,
+                              remain, vio_errno(net->vio), net->last_errno,
+                              (longlong) length);
           }
-          else
-            my_error(net->last_errno, MYF(0));
+          my_error(net->last_errno, MYF(0));
 #endif /* MYSQL_SERVER */
         goto end;
       }

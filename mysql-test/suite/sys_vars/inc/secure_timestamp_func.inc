@@ -58,7 +58,7 @@ set time_zone='+00:00';
 set timestamp=1234567890.101112;
 select @@timestamp, now(6);
 
-create table t1 (b varchar(20), a timestamp(6) default current_timestamp(6));
+create table t1 (b varchar(20), a timestamp(6) default current_timestamp(6)) charset=latin1;
 insert t1 (b) values ('replicated');
 sync_slave_with_master;
 create trigger t1rbr before insert on t1 for each row set new.a=now(6);

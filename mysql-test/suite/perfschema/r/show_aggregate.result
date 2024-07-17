@@ -7,7 +7,7 @@ SET @@session.sql_log_bin=OFF;
 # CREATE 3 CLIENTS, 3 CONNECTIONS, RESULTS TABLE
 connection default;
 USE test;
-flush status;
+flush global status;
 #
 # Create results table
 CREATE TABLE test.status_results 
@@ -492,10 +492,10 @@ variable_name	h1	h2	h3	delta	host	Expected
 Handler_delete	6	0	0	6	6	OKp
 Handler_rollback	6	0	0	6	6	OKp
 # ================================================================================
-# TEST 8: FLUSH STATUS should clear account, host and user status
+# TEST 8: FLUSH GLOBAL STATUS should clear account, host and user status
 # ================================================================================
 #
-FLUSH STATUS;
+FLUSH GLOBAL STATUS;
 #
 SELECT * FROM status_by_account WHERE user IN ('user1', 'user2', 'user3') AND variable_name IN ('handler_delete');
 USER	HOST	VARIABLE_NAME	VARIABLE_VALUE

@@ -67,6 +67,7 @@ select x, check_fields(x, row_start, row_end) from t2 for system_time all order 
 --exec $MYSQL_DUMP --databases test > $TMP/dump_no_history.sql
 --exec $MYSQL_DUMP --dump-history --no-create-info --skip-comments --databases test > $TMP/dump_only_data.sql
 --exec $MYSQL_DUMP --dump-history --compact test 2>&1 > $TMP/dump_history_compact.sql
+--replace_result $sys_time_max_replace MAX_TIME
 --cat_file $TMP/dump_history_compact.sql
 --replace_result mariadb-dump.exe mariadb-dump
 --error 1

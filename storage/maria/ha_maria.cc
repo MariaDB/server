@@ -157,20 +157,20 @@ static void update_log_file_size(MYSQL_THD thd,
 /* The 4096 is there because of MariaDB privilege tables */
 static MYSQL_SYSVAR_ULONG(block_size, maria_block_size,
        PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-       "Block size to be used for Aria index pages.", 0, 0,
+       "Block size to be used for Aria index pages", 0, 0,
        MARIA_KEY_BLOCK_LENGTH, 4096,
        MARIA_MAX_KEY_BLOCK_LENGTH, MARIA_MIN_KEY_BLOCK_LENGTH);
 
 static MYSQL_SYSVAR_ULONG(checkpoint_interval, checkpoint_interval,
        PLUGIN_VAR_RQCMDARG,
        "Interval between tries to do an automatic checkpoints. In seconds; 0 means"
-       " 'no automatic checkpoints' which makes sense only for testing.",
+       " 'no automatic checkpoints' which makes sense only for testing",
        NULL, update_checkpoint_interval, 30, 0, UINT_MAX, 1);
 
 static MYSQL_SYSVAR_ULONG(checkpoint_log_activity, maria_checkpoint_min_log_activity,
        PLUGIN_VAR_RQCMDARG,
        "Number of bytes that the transaction log has to grow between checkpoints before a new "
-       "checkpoint is written to the log.",
+       "checkpoint is written to the log",
        NULL, NULL, 1024*1024, 0, UINT_MAX, 1);
 
 static MYSQL_SYSVAR_ULONG(force_start_after_recovery_failures,
@@ -182,7 +182,7 @@ static MYSQL_SYSVAR_ULONG(force_start_after_recovery_failures,
        PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
        "Number of consecutive log recovery failures after which logs will be"
        " automatically deleted to cure the problem; 0 (the default) disables"
-       " the feature.", NULL, NULL, 0, 0, UINT_MAX8, 1);
+       " the feature", NULL, NULL, 0, 0, UINT_MAX8, 1);
 
 static MYSQL_SYSVAR_BOOL(page_checksum, maria_page_checksums, 0,
        "Maintain page checksums (can be overridden per table "
@@ -227,7 +227,7 @@ static MYSQL_SYSVAR_ENUM(log_purge_type, log_purge_type,
 static MYSQL_SYSVAR_ULONGLONG(max_sort_file_size,
        maria_max_temp_length, PLUGIN_VAR_RQCMDARG,
        "Don't use the fast sort index method to created index if the "
-       "temporary file would get bigger than this.",
+       "temporary file would get bigger than this",
        0, 0, MAX_FILE_SIZE & ~((ulonglong) (1*MB-1)),
        0, MAX_FILE_SIZE, 1*MB);
 
@@ -236,14 +236,14 @@ static MYSQL_SYSVAR_ULONG(pagecache_age_threshold,
        "This characterizes the number of hits a hot block has to be untouched "
        "until it is considered aged enough to be downgraded to a warm block. "
        "This specifies the percentage ratio of that number of hits to the "
-       "total number of blocks in the page cache.", 0, 0,
+       "total number of blocks in the page cache", 0, 0,
        300, 100, ~ (ulong) 0L, 100);
 
 static MYSQL_SYSVAR_ULONGLONG(pagecache_buffer_size, pagecache_buffer_size,
        PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
        "The size of the buffer used for index blocks for Aria tables. "
        "Increase this to get better index handling (for all reads and "
-       "multiple writes) to as much as you can afford.", 0, 0,
+       "multiple writes) to as much as you can afford", 0, 0,
        KEY_CACHE_SIZE, 8192*16L, ~(ulonglong) 0, 1);
 
 static MYSQL_SYSVAR_ULONG(pagecache_division_limit, pagecache_division_limit,
@@ -255,7 +255,7 @@ static MYSQL_SYSVAR_ULONG(pagecache_file_hash_size, pagecache_file_hash_size,
        PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
        "Number of hash buckets for open and changed files.  If you have a lot of Aria "
        "files open you should increase this for faster flush of changes. A good "
-       "value is probably 1/10 of number of possible open Aria files.", 0,0,
+       "value is probably 1/10 of number of possible open Aria files", 0,0,
        512, 128, 16384, 1);
 
 static MYSQL_SYSVAR_SET(recover_options, maria_recover_options, PLUGIN_VAR_OPCMDARG,
@@ -264,12 +264,12 @@ static MYSQL_SYSVAR_SET(recover_options, maria_recover_options, PLUGIN_VAR_OPCMD
 
 static MYSQL_THDVAR_ULONG(repair_threads, PLUGIN_VAR_RQCMDARG,
        "Number of threads to use when repairing Aria tables. The value of 1 "
-       "disables parallel repair.",
+       "disables parallel repair",
        0, 0, 1, 1, 128, 1);
 
 static MYSQL_THDVAR_ULONGLONG(sort_buffer_size, PLUGIN_VAR_RQCMDARG,
        "The buffer that is allocated when sorting the index when doing a "
-       "REPAIR or when creating indexes with CREATE INDEX or ALTER TABLE.",
+       "REPAIR or when creating indexes with CREATE INDEX or ALTER TABLE",
        NULL, NULL,
        SORT_BUFFER_INIT, MARIA_MIN_SORT_MEMORY, SIZE_T_MAX/16, 1);
 
@@ -346,9 +346,9 @@ static PSI_rwlock_info all_aria_rwlocks[]=
 
 static PSI_thread_info all_aria_threads[]=
 {
-  { &key_thread_checkpoint, "checkpoint_background", PSI_FLAG_GLOBAL},
-  { &key_thread_soft_sync, "soft_sync_background", PSI_FLAG_GLOBAL},
-  { &key_thread_find_all_keys, "thr_find_all_keys", 0}
+  { &key_thread_checkpoint, "checkpoint_bg", PSI_FLAG_GLOBAL},
+  { &key_thread_soft_sync, "soft_sync_bg", PSI_FLAG_GLOBAL},
+  { &key_thread_find_all_keys, "find_all_keys", 0}
 };
 
 static PSI_file_info all_aria_files[]=
@@ -1266,6 +1266,7 @@ int ha_maria::close(void)
   MARIA_HA *tmp= file;
   if (!tmp)
     return 0;
+  /* Ensure we have no open transactions */
   DBUG_ASSERT(file->trn == 0 || file->trn == &dummy_transaction_object);
   DBUG_ASSERT(file->trn_next == 0 && file->trn_prev == 0);
   file= 0;
@@ -1395,6 +1396,7 @@ int ha_maria::check(THD * thd, HA_CHECK_OPT * check_opt)
       DBUG_PRINT("info", ("Resetting crashed state"));
       share->state.changed&= ~(STATE_CHANGED | STATE_CRASHED_FLAGS |
                                STATE_IN_REPAIR);
+      share->crash_error= 0;
       if (!(table->db_stat & HA_READ_ONLY))
       {
         int tmp;
@@ -1633,6 +1635,19 @@ int ha_maria::optimize(THD * thd, HA_CHECK_OPT *check_opt)
   return error;
 }
 
+/*
+  Set current_thd() for parallel worker thread
+*/
+
+C_MODE_START
+void maria_setup_thd_for_repair_thread(void *arg)
+{
+  THD *thd= (THD*) arg;
+  DBUG_ASSERT(thd->shared_thd);
+  set_current_thd(thd);
+}
+C_MODE_END
+
 
 int ha_maria::repair(THD *thd, HA_CHECK *param, bool do_optimize)
 {
@@ -1724,8 +1739,17 @@ int ha_maria::repair(THD *thd, HA_CHECK *param, bool do_optimize)
         my_snprintf(buf, 40, "Repair with %d threads", my_count_bits(key_map));
         thd_proc_info(thd, buf);
         param->testflag|= T_REP_PARALLEL;
+        /*
+          Ensure that all threads are using the same THD. This is needed
+          to get limit of tmp files to work
+        */
+        param->init_repair_thread= maria_setup_thd_for_repair_thread;
+        param->init_repair_thread_arg= table->in_use;
+        /* Mark that multiple threads are using the thd */
+        table->in_use->shared_thd= 1;
         error= maria_repair_parallel(param, file, fixed_name,
                                      MY_TEST(param->testflag & T_QUICK));
+        table->in_use->shared_thd= 0;
         /* to reset proc_info, as it was pointing to local buffer */
         thd_proc_info(thd, "Repair done");
       }
@@ -1795,6 +1819,7 @@ int ha_maria::repair(THD *thd, HA_CHECK *param, bool do_optimize)
       DBUG_PRINT("info", ("Resetting crashed state"));
       share->state.changed&= ~(STATE_CHANGED | STATE_CRASHED_FLAGS |
                                STATE_IN_REPAIR | STATE_MOVED);
+      share->crash_error= 0;
       file->update |= HA_STATE_CHANGED | HA_STATE_ROW_CHANGED;
     }
     /*
@@ -1821,6 +1846,11 @@ int ha_maria::repair(THD *thd, HA_CHECK *param, bool do_optimize)
       _ma_check_print_warning(param, "Number of rows changed from %s to %s",
                               llstr(rows, llbuff),
                               llstr(file->state->records, llbuff2));
+      /*
+        ma_check_print_warning() may generate an error in case of creating keys
+        for ALTER TABLE. In this case we should signal an error.
+      */
+      error= thd->is_error();
     }
   }
   else
@@ -2097,12 +2127,13 @@ int ha_maria::enable_indexes(key_map map, bool persist)
       This can be set when doing an ALTER TABLE and enabling unique keys
     */
     if ((error= (repair(thd, param, 0) != HA_ADMIN_OK)) && param->retry_repair &&
+        !file->s->internal_table &&
         (my_errno != HA_ERR_FOUND_DUPP_KEY ||
          !file->create_unique_index_by_sort))
     {
-      sql_print_warning("Warning: Enabling keys got errno %d on %s.%s, "
+      sql_print_warning("Warning: Enabling keys got errno %d on %s, "
                         "retrying",
-                        my_errno, param->db_name, param->table_name);
+                        my_errno, file->s->open_file_name);
       /* Repairing by sort failed. Now try standard repair method. */
       param->testflag &= ~T_REP_BY_SORT;
       file->state->records= start_rows;
@@ -2395,7 +2426,7 @@ int ha_maria::end_bulk_insert()
   can_enable_indexes= 0;
   if (first_error)
     my_errno= first_errno;
-  DBUG_RETURN(first_error);
+  DBUG_RETURN(first_errno);
 }
 
 
@@ -2882,9 +2913,32 @@ int ha_maria::delete_table(const char *name)
 
 void ha_maria::drop_table(const char *name)
 {
+  my_bool tracked= file && file->s->tracked;
+  struct tmp_file_tracking track_data;
+  struct tmp_file_tracking track_index;
+
   DBUG_ASSERT(!file || file->s->temporary);
+
+  if (tracked)
+  {
+    /* Inform tracking after files are deleted */
+    track_data= file->s->track_data;
+    track_index= file->s->track_index;
+#ifndef DBUG_OFF
+    /* Avoid DBUG_ASSERT in maria_close() */
+    bzero(&file->s->track_data, sizeof(file->s->track_data));
+    bzero(&file->s->track_index, sizeof(file->s->track_index));
+#endif
+  }
+
   (void) ha_close();
   (void) maria_delete_table_files(name, 1, MY_WME);
+
+  if (tracked)
+  {
+    _ma_update_tmp_file_size(&track_data, 0);
+    _ma_update_tmp_file_size(&track_index, 0);
+  }
 }
 
 

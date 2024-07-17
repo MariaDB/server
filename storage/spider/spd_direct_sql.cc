@@ -1165,7 +1165,7 @@ int spider_udf_set_direct_sql_param_default(
     direct_sql->tgt_default_db_name_length = SPIDER_THD_db_length(trx->thd);
     if (
       !(direct_sql->tgt_default_db_name = spider_create_string(
-        SPIDER_THD_db_str(trx->thd),
+          trx->thd->get_db(),
         direct_sql->tgt_default_db_name_length))
     ) {
       my_error(ER_OUT_OF_RESOURCES, MYF(0), HA_ERR_OUT_OF_MEM);

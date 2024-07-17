@@ -90,7 +90,7 @@ id	name
 /*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
 /*M!100616 SET @OLD_NOTE_VERBOSITY=@@NOTE_VERBOSITY, NOTE_VERBOSITY=0 */;
 
-CREATE DATABASE /*!32312 IF NOT EXISTS*/ `test` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */;
+CREATE DATABASE /*!32312 IF NOT EXISTS*/ `test` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci */;
 
 USE `test`;
 DROP TABLE IF EXISTS `t1`;
@@ -99,7 +99,7 @@ DROP TABLE IF EXISTS `t1`;
 CREATE TABLE `t1` (
   `id` int(8) DEFAULT NULL,
   `name` varchar(32) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40000 ALTER TABLE `t1` DISABLE KEYS */;
@@ -116,7 +116,7 @@ DROP TABLE IF EXISTS `t2`;
 CREATE TABLE `t2` (
   `id` int(8) DEFAULT NULL,
   `name` varchar(32) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40000 ALTER TABLE `t2` DISABLE KEYS */;
@@ -133,7 +133,7 @@ DROP TABLE IF EXISTS `t3`;
 CREATE TABLE `t3` (
   `id` int(8) DEFAULT NULL,
   `name` varchar(32) DEFAULT NULL
-) ENGINE=MEMORY DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40000 ALTER TABLE `t3` DISABLE KEYS */;
@@ -150,7 +150,7 @@ DROP TABLE IF EXISTS `t4`;
 CREATE TABLE `t4` (
   `id` int(8) DEFAULT NULL,
   `name` varchar(32) DEFAULT NULL
-) ENGINE=MEMORY DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40000 ALTER TABLE `t4` DISABLE KEYS */;
@@ -167,7 +167,7 @@ DROP TABLE IF EXISTS `t5`;
 CREATE TABLE `t5` (
   `id` int(8) DEFAULT NULL,
   `name` varchar(32) DEFAULT NULL
-) ENGINE=ARCHIVE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+) ENGINE=ARCHIVE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40000 ALTER TABLE `t5` DISABLE KEYS */;
@@ -184,7 +184,7 @@ DROP TABLE IF EXISTS `t6`;
 CREATE TABLE `t6` (
   `id` int(8) DEFAULT NULL,
   `name` varchar(32) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40000 ALTER TABLE `t6` DISABLE KEYS */;
@@ -218,7 +218,7 @@ INSERT IGNORE INTO `t6` VALUES
 /*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
 /*M!100616 SET @OLD_NOTE_VERBOSITY=@@NOTE_VERBOSITY, NOTE_VERBOSITY=0 */;
 
-CREATE DATABASE /*!32312 IF NOT EXISTS*/ `test` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */;
+CREATE DATABASE /*!32312 IF NOT EXISTS*/ `test` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci */;
 
 USE `test`;
 DROP TABLE IF EXISTS `t1`;
@@ -227,7 +227,7 @@ DROP TABLE IF EXISTS `t1`;
 CREATE TABLE `t1` (
   `id` int(8) DEFAULT NULL,
   `name` varchar(32) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40000 ALTER TABLE `t1` DISABLE KEYS */;
@@ -244,7 +244,7 @@ DROP TABLE IF EXISTS `t2`;
 CREATE TABLE `t2` (
   `id` int(8) DEFAULT NULL,
   `name` varchar(32) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40000 ALTER TABLE `t2` DISABLE KEYS */;
@@ -261,7 +261,7 @@ DROP TABLE IF EXISTS `t3`;
 CREATE TABLE `t3` (
   `id` int(8) DEFAULT NULL,
   `name` varchar(32) DEFAULT NULL
-) ENGINE=MEMORY DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40000 ALTER TABLE `t3` DISABLE KEYS */;
@@ -278,7 +278,7 @@ DROP TABLE IF EXISTS `t4`;
 CREATE TABLE `t4` (
   `id` int(8) DEFAULT NULL,
   `name` varchar(32) DEFAULT NULL
-) ENGINE=MEMORY DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40000 ALTER TABLE `t4` DISABLE KEYS */;
@@ -295,7 +295,7 @@ DROP TABLE IF EXISTS `t5`;
 CREATE TABLE `t5` (
   `id` int(8) DEFAULT NULL,
   `name` varchar(32) DEFAULT NULL
-) ENGINE=ARCHIVE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+) ENGINE=ARCHIVE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40000 ALTER TABLE `t5` DISABLE KEYS */;
@@ -312,7 +312,7 @@ DROP TABLE IF EXISTS `t6`;
 CREATE TABLE `t6` (
   `id` int(8) DEFAULT NULL,
   `name` varchar(32) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40000 ALTER TABLE `t6` DISABLE KEYS */;

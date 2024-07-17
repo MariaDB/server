@@ -5,7 +5,7 @@ SET GLOBAL LOG_OUTPUT = 'FILE';
 connect  con1,localhost,root,,;
 connect  con2,localhost,root,,;
 connection default;
-flush status;
+flush global status;
 show status like 'Table_lock%';
 Variable_name	Value
 Table_locks_immediate	0
@@ -82,7 +82,7 @@ show status like 'last_query_cost';
 Variable_name	Value
 Last_query_cost	0.000000
 drop table t1;
-FLUSH STATUS;
+FLUSH GLOBAL STATUS;
 SHOW STATUS LIKE 'max_used_connections';
 Variable_name	Value
 Max_used_connections	1
@@ -101,7 +101,7 @@ Max_used_connections	3
 SELECT * FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME LIKE 'max_used_connections';
 VARIABLE_NAME	VARIABLE_VALUE
 MAX_USED_CONNECTIONS	3
-FLUSH STATUS;
+FLUSH GLOBAL STATUS;
 SHOW STATUS LIKE 'max_used_connections';
 Variable_name	Value
 Max_used_connections	2
@@ -183,7 +183,7 @@ show status like 'hand%write%';
 Variable_name	Value
 Handler_tmp_write	0
 Handler_write	0
-show status like '%tmp%';
+show status like '%\_tmp%';
 Variable_name	Value
 Created_tmp_disk_tables	0
 Created_tmp_files	0
@@ -191,12 +191,13 @@ Created_tmp_tables	0
 Handler_tmp_delete	0
 Handler_tmp_update	0
 Handler_tmp_write	0
+Max_tmp_space_used	0
 Rows_tmp_read	5
 show status like 'hand%write%';
 Variable_name	Value
 Handler_tmp_write	0
 Handler_write	0
-show status like '%tmp%';
+show status like '%\_tmp%';
 Variable_name	Value
 Created_tmp_disk_tables	0
 Created_tmp_files	0
@@ -204,12 +205,13 @@ Created_tmp_tables	0
 Handler_tmp_delete	0
 Handler_tmp_update	0
 Handler_tmp_write	0
-Rows_tmp_read	14
+Max_tmp_space_used	0
+Rows_tmp_read	15
 show status like 'com_show_status';
 Variable_name	Value
 Com_show_status	8
 rnd_diff	tmp_table_diff
-30	8
+32	8
 disconnect con1;
 connection default;
 flush status;
@@ -340,7 +342,7 @@ Handler_tmp_update	2
 Handler_tmp_write	7
 Handler_update	0
 Handler_write	4
-show status like '%tmp%';
+show status like '%_tmp%';
 Variable_name	Value
 Created_tmp_disk_tables	1
 Created_tmp_files	0
@@ -348,6 +350,7 @@ Created_tmp_tables	2
 Handler_tmp_delete	0
 Handler_tmp_update	2
 Handler_tmp_write	7
+Max_tmp_space_used	32768
 Rows_tmp_read	44
 drop table t1;
 CREATE TABLE t1 (i int(11) DEFAULT NULL, KEY i (i) ) ENGINE=MyISAM;
@@ -450,7 +453,7 @@ SET GLOBAL log_output = @old_log_output;
 #
 # MDEV-30543 New status variable: Max_used_connections_time
 #
-FLUSH STATUS;
+FLUSH GLOBAL STATUS;
 connect  con1,localhost,root,,;
 connect  con2,localhost,root,,;
 connection con1;
@@ -466,3 +469,51 @@ expect_1
 disconnect con4;
 disconnect con3;
 disconnect con1;
+connection default;
+# Test Uptime_since_flush_status
+# All results below should be 1
+flush global status;
+flush session status;
+select $global_flush_status >= $local_flush_status as "1";
+1
+1
+flush session status;
+select $new_global_flush_status >= $global_flush_status as "1";
+1
+1
+select $new_local_flush_status < $global_flush_status as "1";
+1
+1
+flush global status;
+select $new_local_flush_status  >= $local_flush_status as "1";
+1
+1
+select $new_global_flush_status < $new_local_flush_status as "1";
+1
+1
+create or replace table t1 (a int, key(a)) engine=MyISAM;
+insert into t1 values (1),(2);
+connect con1,localhost,root;
+set old_mode=OLD_FLUSH_STATUS;
+Warnings:
+Warning	1287	'OLD_FLUSH_STATUS' is deprecated and will be removed in a future release
+insert into t1 values (3),(4);
+drop table t1;
+select t1.variable_name, t1.variable_value as global_value, t2.variable_value as session_value
+from information_schema.global_status t1 join information_schema.session_status t2
+on t1.variable_name = t2.variable_name
+where t1.variable_name in ('Key_writes','Com_insert');
+variable_name	global_value	session_value
+COM_INSERT	2	1
+KEY_WRITES	2	2
+flush status;
+select t1.variable_name, t1.variable_value as global_value, t2.variable_value as session_value
+from information_schema.global_status t1 join information_schema.session_status t2
+on t1.variable_name = t2.variable_name
+where t1.variable_name in ('Key_writes','Com_insert');
+variable_name	global_value	session_value
+COM_INSERT	2	0
+KEY_WRITES	0	0
+disconnect con1;
+connection default;
+# end of 11.5 tests

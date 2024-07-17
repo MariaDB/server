@@ -42,7 +42,7 @@ if ($cnf == "mariadb_to_mariadb")
 
 --echo ### Master: Create and populate t1
 --connection master
-CREATE TABLE t1(a TEXT) ENGINE=InnoDB;
+CREATE TABLE t1(a TEXT) ENGINE=InnoDB CHARSET=latin1;
 START TRANSACTION;
 INSERT INTO t1 VALUES ('tr#00:stmt#00 - slave run#0, before backup');
 INSERT INTO t1 VALUES ('tr#00:stmt#01 - slave run#0, before backup');

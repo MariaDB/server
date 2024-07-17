@@ -4962,7 +4962,7 @@ class Func_handler_bit_or_int_to_ulonglong:
         public Item_handled_func::Handler_ulonglong
 {
 public:
-  Longlong_null to_longlong_null(Item_handled_func *item) const
+  Longlong_null to_longlong_null(Item_handled_func *item) const override
   {
     DBUG_ASSERT(item->fixed());
     Longlong_null a= item->arguments()[0]->to_longlong_null();
@@ -4975,7 +4975,7 @@ class Func_handler_bit_or_dec_to_ulonglong:
         public Item_handled_func::Handler_ulonglong
 {
 public:
-  Longlong_null to_longlong_null(Item_handled_func *item) const
+  Longlong_null to_longlong_null(Item_handled_func *item) const override
   {
     DBUG_ASSERT(item->fixed());
     VDec a(item->arguments()[0]);
@@ -4997,7 +4997,7 @@ class Func_handler_bit_and_int_to_ulonglong:
         public Item_handled_func::Handler_ulonglong
 {
 public:
-  Longlong_null to_longlong_null(Item_handled_func *item) const
+  Longlong_null to_longlong_null(Item_handled_func *item) const override
   {
     DBUG_ASSERT(item->fixed());
     Longlong_null a= item->arguments()[0]->to_longlong_null();
@@ -5010,7 +5010,7 @@ class Func_handler_bit_and_dec_to_ulonglong:
         public Item_handled_func::Handler_ulonglong
 {
 public:
-  Longlong_null to_longlong_null(Item_handled_func *item) const
+  Longlong_null to_longlong_null(Item_handled_func *item) const override
   {
     DBUG_ASSERT(item->fixed());
     VDec a(item->arguments()[0]);

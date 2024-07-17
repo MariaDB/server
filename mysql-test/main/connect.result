@@ -285,7 +285,7 @@ DROP USER mysqltest_u1@localhost;
 
 # -- Bug#35074: max_used_connections is not correct.
 
-FLUSH STATUS;
+FLUSH GLOBAL STATUS;
 
 SHOW STATUS LIKE 'max_used_connections';
 Variable_name	Value
@@ -422,7 +422,7 @@ Warning	1287	'@@secure_auth' is deprecated and will be removed in a future relea
 # MDEV-19277: Add status variable that gets incremented if
 # connection is aborted prior to authentication
 #
-flush status;
+flush global status;
 SHOW GLOBAL STATUS LIKE 'Aborted_connects%';
 Variable_name	Value
 Aborted_connects	0

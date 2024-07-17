@@ -14,6 +14,8 @@
 --source include/default_charset.inc
 --source include/have_sequence.inc
 
+--source include/test_db_charset_latin1.inc
+
 call mtr.add_suppression("InnoDB: Tablespace for table .* is set as discarded\\.");
 call mtr.add_suppression("InnoDB: Cannot calculate statistics for table .* because the .ibd file is missing. Please refer to .* for how to resolve the issue\\.");
 call mtr.add_suppression("InnoDB: Page 0 at offset 0 looks corrupted in file");
@@ -641,3 +643,5 @@ call mtr.add_suppression("Index for table 't1' is corrupt; try to repair it");
 #cleanup
 --remove_file $MYSQLTEST_VARDIR/tmp/t1.cfg
 --remove_file $MYSQLTEST_VARDIR/tmp/t1.ibd
+
+--source include/test_db_charset_restore.inc

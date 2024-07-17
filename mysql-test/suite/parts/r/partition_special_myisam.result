@@ -1,3 +1,4 @@
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 create table t1 (a date not null, b varchar(50) not null, c varchar(50) not null, d enum('m', 'w'), primary key(a,b,c,d)) engine='MyISAM' 
 partition by key (a,b,c,d) (
 partition pa1 max_rows=20 min_rows=2,
@@ -228,3 +229,4 @@ DROP TABLE t1;
 disconnect con3;
 disconnect con2;
 connection default;
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

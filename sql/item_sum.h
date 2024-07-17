@@ -704,15 +704,15 @@ public:
     Aggregator(sum), table(NULL), tmp_table_param(NULL), tree(NULL),
     always_null(false), use_distinct_values(false) {}
   virtual ~Aggregator_distinct ();
-  Aggregator_type Aggrtype() { return DISTINCT_AGGREGATOR; }
+  Aggregator_type Aggrtype() override { return DISTINCT_AGGREGATOR; }
 
-  bool setup(THD *);
-  void clear(); 
-  bool add();
-  void endup();
-  virtual my_decimal *arg_val_decimal(my_decimal * value);
-  virtual double arg_val_real();
-  virtual bool arg_is_null(bool use_null_value);
+  bool setup(THD *) override;
+  void clear() override;
+  bool add() override;
+  void endup() override;
+  my_decimal *arg_val_decimal(my_decimal * value) override;
+  double arg_val_real() override;
+  bool arg_is_null(bool use_null_value) override;
 
   bool unique_walk_function(void *element);
   bool unique_walk_function_for_count(void *element);
@@ -731,15 +731,15 @@ public:
 
   Aggregator_simple (Item_sum *sum) :
     Aggregator(sum) {}
-  Aggregator_type Aggrtype() { return Aggregator::SIMPLE_AGGREGATOR; }
+  Aggregator_type Aggrtype() override { return Aggregator::SIMPLE_AGGREGATOR; }
 
-  bool setup(THD * thd) { return item_sum->setup(thd); }
-  void clear() { item_sum->clear(); }
-  bool add() { return item_sum->add(); }
-  void endup() {};
-  virtual my_decimal *arg_val_decimal(my_decimal * value);
-  virtual double arg_val_real();
-  virtual bool arg_is_null(bool use_null_value);
+  bool setup(THD * thd) override { return item_sum->setup(thd); }
+  void clear() override { item_sum->clear(); }
+  bool add() override { return item_sum->add(); }
+  void endup() override {};
+  my_decimal *arg_val_decimal(my_decimal * value) override;
+  double arg_val_real() override;
+  bool arg_is_null(bool use_null_value) override;
 };
 
 
@@ -755,7 +755,7 @@ public:
     Item_sum(thd, list) {}
   Item_sum_num(THD *thd, Item_sum_num *item):
     Item_sum(thd, item) {}
-  bool fix_fields(THD *, Item **);
+  bool fix_fields(THD *, Item **) override;
 };
 
 
@@ -807,7 +807,8 @@ public:
     max_length=21;
     base_flags&= ~item_base_t::MAYBE_NULL;
     null_value=0;
-    return FALSE; }
+    return false;
+  }
 };
 
 
@@ -834,8 +835,8 @@ public:
   }
   Item_sum_sum(THD *thd, Item_sum_sum *item);
   enum Sumfunctype sum_func() const override
-  { 
-    return has_with_distinct() ? SUM_DISTINCT_FUNC : SUM_FUNC; 
+  {
+    return has_with_distinct() ? SUM_DISTINCT_FUNC : SUM_FUNC;
   }
   void cleanup() override;
   void direct_add(my_decimal *add_sum_decimal);
@@ -1228,7 +1229,7 @@ class Item_sum_max final :public Item_sum_min_max
 public:
   Item_sum_max(THD *thd, Item *item_par): Item_sum_min_max(thd, item_par, -1) {}
   Item_sum_max(THD *thd, Item_sum_max *item) :Item_sum_min_max(thd, item) {}
-  enum Sumfunctype sum_func () const  override {return MAX_FUNC;}
+  enum Sumfunctype sum_func() const override {return MAX_FUNC;}
 
   bool add() override;
   LEX_CSTRING func_name_cstring() const override
@@ -1279,9 +1280,7 @@ public:
       clear_as_window();
     Item_sum_int::cleanup();
   }
-  void setup_window_func(THD *thd __attribute__((unused)),
-                         Window_spec *window_spec __attribute__((unused)))
-    override
+  void setup_window_func(THD *, Window_spec *) override
   {
     as_window_function= TRUE;
     clear_as_window();

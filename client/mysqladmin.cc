@@ -421,7 +421,7 @@ int main(int argc,char *argv[])
       is given a t!=0, we get an endless loop, or n iterations if --count=n
       was given an n!=0. If --sleep wasn't given, we get one iteration.
 
-      To wit, --wait loops the connection-attempts, while --sleep loops
+      To wait, --wait loops the connection-attempts, while --sleep loops
       the command execution (endlessly if no --count is given).
     */
 
@@ -985,7 +985,7 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
     }
     case ADMIN_FLUSH_STATUS:
     {
-      if (flush(mysql, "status"))
+      if (flush(mysql, "/*!110500 global */ status"))
 	return -1;
       break;
     }
@@ -1034,8 +1034,9 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
     }
     case ADMIN_FLUSH_ALL_STATUS:
     {
-      if (flush(mysql, "status,table_statistics,index_statistics,"
-                       "user_statistics,client_statistics"))
+      if (flush(mysql,
+                "/*!110500 global */ status,table_statistics,"
+                "index_statistics, user_statistics,client_statistics"))
 	return -1;
       break;
     }

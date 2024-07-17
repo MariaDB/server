@@ -1,6 +1,6 @@
 drop procedure if exists check_instrument;
 truncate table performance_schema.events_statements_summary_by_digest;
-flush status;
+flush global status;
 create procedure check_instrument(in instr_name varchar(128))
 begin
 declare save_count_expected integer;

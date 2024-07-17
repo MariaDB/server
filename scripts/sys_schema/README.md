@@ -680,7 +680,7 @@ mysql> select * from io_by_thread_by_latency;
 +---------------------+-------+---------------+-------------+-------------+-------------+-----------+----------------+
 | root@localhost      | 11580 | 18.01 s       | 429.78 ns   | 1.12 ms     | 181.07 ms   |        25 |              6 |
 | main                |  1358 | 1.31 s        | 475.02 ns   | 2.27 ms     | 350.70 ms   |         1 |           NULL |
-| page_cleaner_thread |   654 | 147.44 ms     | 588.12 ns   | 225.44 us   | 46.41 ms    |        18 |           NULL |
+| page_cleaner        |   654 | 147.44 ms     | 588.12 ns   | 225.44 us   | 46.41 ms    |        18 |           NULL |
 | io_write_thread     |   131 | 107.75 ms     | 8.60 us     | 822.55 us   | 27.69 ms    |         8 |           NULL |
 | io_write_thread     |    46 | 47.07 ms      | 10.64 us    | 1.02 ms     | 16.90 ms    |         9 |           NULL |
 | io_write_thread     |    71 | 46.99 ms      | 9.11 us     | 661.81 us   | 17.04 ms    |        11 |           NULL |
@@ -4904,7 +4904,7 @@ mysql> CALL sys.ps_setup_show_enabled(TRUE, TRUE);
 | innodb/io_read_thread           | BACKGROUND  |
 | innodb/io_write_thread          | BACKGROUND  |
 | innodb/io_write_thread          | BACKGROUND  |
-| innodb/page_cleaner_thread      | BACKGROUND  |
+| innodb/page_cleaner             | BACKGROUND  |
 | innodb/srv_lock_timeout_thread  | BACKGROUND  |
 | innodb/srv_error_monitor_thread | BACKGROUND  |
 | innodb/srv_monitor_thread       | BACKGROUND  |

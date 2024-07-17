@@ -422,7 +422,8 @@ Repl_semi_sync_master::Repl_semi_sync_master()
     m_state(0),
     m_wait_point(0)
 {
-  m_reply_file_name[0]= m_wait_file_name[0]= 0;
+  m_reply_file_name[0]= '\0';
+  m_wait_file_name[0]= '\0';
 }
 
 int Repl_semi_sync_master::init_object()
@@ -570,6 +571,7 @@ void Repl_semi_sync_master::add_slave()
 void Repl_semi_sync_master::remove_slave()
 {
   lock();
+  DBUG_ASSERT(rpl_semi_sync_master_clients > 0);
   if (!(--rpl_semi_sync_master_clients) && !rpl_semi_sync_master_wait_no_slave)
   {
     /*
@@ -802,7 +804,8 @@ int Repl_semi_sync_master::report_binlog_update(THD *trans_thd,
         return 1;
       trans_thd->semisync_info= log_info;
     }
-    strcpy(log_info->log_file, log_file + dirname_length(log_file));
+    safe_strcpy(log_info->log_file, sizeof(log_info->log_file), 
+                log_file + dirname_length(log_file));
     log_info->log_pos = log_pos;
 
     return write_tranx_in_binlog(waiter_thd, log_info->log_file,
@@ -1417,6 +1420,22 @@ void Repl_semi_sync_master::set_export_stats()
     ((rpl_semi_sync_master_net_wait_num) ?
      (ulong)((double)rpl_semi_sync_master_net_wait_time /
                      ((double)rpl_semi_sync_master_net_wait_num)) : 0);
+  unlock();
+}
+
+void Repl_semi_sync_master::reset_stats()
+{
+  lock();
+  rpl_semi_sync_master_yes_transactions = 0;
+  rpl_semi_sync_master_no_transactions = 0;
+  rpl_semi_sync_master_off_times = 0;
+  rpl_semi_sync_master_timefunc_fails = 0;
+  rpl_semi_sync_master_wait_sessions = 0;
+  rpl_semi_sync_master_wait_pos_backtraverse = 0;
+  rpl_semi_sync_master_trx_wait_num = 0;
+  rpl_semi_sync_master_trx_wait_time = 0;
+  rpl_semi_sync_master_net_wait_num = 0;
+  rpl_semi_sync_master_net_wait_time = 0;
   unlock();
 }
 

@@ -9,11 +9,11 @@ server-id=11
 
 [mysqld.2]
 wsrep_gtid_domain_id=1
-server-id=12
+server-id=11
 
 [mysqld.3]
 wsrep_gtid_domain_id=1
-server-id=13
+server-id=11
 
 [mysqld.4]
 wsrep_gtid_domain_id=2
@@ -21,8 +21,8 @@ server-id=21
 
 [mysqld.5]
 wsrep_gtid_domain_id=2
-server-id=22
+server-id=21
 
 [mysqld.6]
 wsrep_gtid_domain_id=2
-server-id=23
+server-id=21

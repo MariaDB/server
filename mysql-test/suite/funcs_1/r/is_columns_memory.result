@@ -1,6 +1,7 @@
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 SET @@session.sql_mode = 'NO_ENGINE_SUBSTITUTION';
 DROP DATABASE IF EXISTS test1;
-CREATE DATABASE test1;
+CREATE DATABASE test1 CHARACTER SET latin1;
 USE test;
 drop table if exists tb1 ;
 create table tb1 (
@@ -129,7 +130,7 @@ f108 enum("1enum","2enum") not null default "1enum",
 f109 set("1set","2set") not null default "1set"
 ) engine = memory;
 Warnings:
-Warning	1287	'YEAR(3)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Warning	1287	'YEAR(3)' is deprecated and will be removed in a future release. Please use 'YEAR(4)' instead
 load data infile '<MYSQLTEST_VARDIR>/std_data/funcs_1/memory_tb2.txt'
 into table tb2 ;
 drop table if exists tb3;
@@ -254,7 +255,7 @@ f239 varbinary(0),
 f240 varchar(1200)
 ) engine = memory;
 Warnings:
-Warning	1287	'YEAR(3)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Warning	1287	'YEAR(3)' is deprecated and will be removed in a future release. Please use 'YEAR(4)' instead
 load data infile '<MYSQLTEST_VARDIR>/std_data/funcs_1/memory_tb4.txt'
 into table tb4;
 USE test1;
@@ -313,7 +314,7 @@ f108 enum("1enum","2enum") not null default "1enum",
 f109 set("1set","2set") not null default "1set"
 ) engine = memory;
 Warnings:
-Warning	1287	'YEAR(3)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Warning	1287	'YEAR(3)' is deprecated and will be removed in a future release. Please use 'YEAR(4)' instead
 load data infile '<MYSQLTEST_VARDIR>/std_data/funcs_1/memory_tb2.txt'
 into table tb2 ;
 USE test;
@@ -338,7 +339,7 @@ drop TABLE if exists t3;
 CREATE TABLE t3 (f1 char(20), f2 char(20), f3 integer) ENGINE = MEMORY;
 LOAD DATA INFILE '<MYSQLTEST_VARDIR>/std_data/funcs_1/t3.txt' INTO TABLE t3;
 drop database if exists test4;
-CREATE database test4;
+CREATE database test4 CHARACTER SET latin1;
 use test4;
 CREATE TABLE t6 (f1 char(20), f2 char(25), f3 date, f4 int, f5 char(25), f6 int)
 ENGINE = MEMORY;
@@ -1085,3 +1086,4 @@ DROP TABLE test.tb1;
 DROP TABLE test.tb2;
 DROP TABLE test.tb3;
 DROP TABLE test.tb4;
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

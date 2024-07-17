@@ -87,7 +87,7 @@ reset master;
 
 create table t1 (a int, b char(255)) engine=innodb;
 
-flush status;
+flush global status;
 show status like "binlog_cache_use";
 
 let $1=100;

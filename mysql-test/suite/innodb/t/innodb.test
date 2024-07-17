@@ -6,6 +6,8 @@ let $MYSQLD_DATADIR= `select @@datadir`;
 let collation=utf8mb3_unicode_ci;
 --source include/have_collation.inc
 
+--source include/test_db_charset_latin1.inc
+
 create temporary table t (a char(1) character set filename) engine=innodb;
 drop temporary table t;
 
@@ -2615,3 +2617,5 @@ CHECK TABLE t1;
 ALTER TABLE t1 FORCE;
 # Cleanup
 DROP TABLE t1;
+
+--source include/test_db_charset_restore.inc

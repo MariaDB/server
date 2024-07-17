@@ -1,3 +1,4 @@
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 #
 # MDEV-6076 Persistent AUTO_INCREMENT for InnoDB
 #
@@ -979,3 +980,4 @@ a	b
 2	2
 3	4
 DROP TABLE t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t30, t32, t33;
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

@@ -6,6 +6,7 @@
 -- source include/have_maria.inc
 -- source include/have_partition.inc
 -- source include/have_sequence.inc
+--source include/test_db_charset_latin1.inc
 
 call mtr.add_suppression("Can't find record in '.*'");
 
@@ -2078,3 +2079,5 @@ SET NAMES 'sjis';
 SELECT 'למטה' AS a UNION SELECT 'Wetter' AS a;
 connection default;
 disconnect session1;
+
+--source include/test_db_charset_restore.inc

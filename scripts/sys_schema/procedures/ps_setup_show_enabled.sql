@@ -86,7 +86,7 @@ CREATE DEFINER='mariadb.sys'@'localhost' PROCEDURE ps_setup_show_enabled (
              | innodb/io_read_thread           | BACKGROUND  |
              | innodb/io_write_thread          | BACKGROUND  |
              | innodb/io_write_thread          | BACKGROUND  |
-             | innodb/page_cleaner_thread      | BACKGROUND  |
+             | innodb/page_cleaner             | BACKGROUND  |
              | innodb/srv_lock_timeout_thread  | BACKGROUND  |
              | innodb/srv_error_monitor_thread | BACKGROUND  |
              | innodb/srv_monitor_thread       | BACKGROUND  |

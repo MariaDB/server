@@ -9,7 +9,7 @@ manager CHAR(5) NOT NULL,
 department CHAR(4) NOT NULL FLAG=41,
 secretary CHAR(5) NOT NULL FLAG=46,
 salary DOUBLE(8,2) NOT NULL FLAG=52
-) ENGINE=connect TABLE_TYPE=fix FILE_NAME='employee.dat' ENDING=1;
+) ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=fix FILE_NAME='employee.dat' ENDING=1;
 SELECT * FROM employee;
 serialno	name	sex	title	manager	department	secretary	salary
 74200	BANCROFT	2	SALESMAN	70012	0318	24888	9600.00
@@ -59,7 +59,7 @@ END//
 #
 # Testing DOS table changes
 #
-CREATE TABLE t1 ENGINE=connect AS SELECT * FROM employee;
+CREATE TABLE t1 ENGINE=CONNECT CHARSET=latin1 AS SELECT * FROM employee;
 Warnings:
 Warning	1105	No table_type. Will be set to DOS
 Warning	1105	No file name. Table will use t1.dos
@@ -157,7 +157,7 @@ serialno	name	sex	title	manager	department	secretary	salary
 #
 # Testing DOS table changes
 #
-CREATE TABLE t1 ENGINE=connect mapped=yes AS SELECT * FROM employee;
+CREATE TABLE t1 ENGINE=CONNECT CHARSET=latin1 mapped=yes AS SELECT * FROM employee;
 Warnings:
 Warning	1105	No table_type. Will be set to DOS
 Warning	1105	No file name. Table will use t1.dos
@@ -255,7 +255,7 @@ serialno	name	sex	title	manager	department	secretary	salary
 #
 # Testing FIX table changes
 #
-CREATE TABLE t1 ENGINE=connect TABLE_TYPE=fix AS SELECT * FROM employee;
+CREATE TABLE t1 ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=fix AS SELECT * FROM employee;
 Warnings:
 Warning	1105	No file name. Table will use t1.fix
 CALL test.tst_up();
@@ -352,7 +352,7 @@ serialno	name	sex	title	manager	department	secretary	salary
 #
 # Testing FIX table changes
 #
-CREATE TABLE t1 ENGINE=connect TABLE_TYPE=fix mapped=yes AS SELECT * FROM employee;
+CREATE TABLE t1 ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=fix mapped=yes AS SELECT * FROM employee;
 Warnings:
 Warning	1105	No file name. Table will use t1.fix
 CALL test.tst_up();
@@ -449,7 +449,7 @@ serialno	name	sex	title	manager	department	secretary	salary
 #
 # Testing FIX table changes
 #
-CREATE TABLE t1 ENGINE=connect TABLE_TYPE=fix huge=yes AS SELECT * FROM employee;
+CREATE TABLE t1 ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=fix huge=yes AS SELECT * FROM employee;
 Warnings:
 Warning	1105	No file name. Table will use t1.fix
 CALL test.tst_up();
@@ -546,7 +546,7 @@ serialno	name	sex	title	manager	department	secretary	salary
 #
 # Testing CSV table changes
 #
-CREATE TABLE t1 ENGINE=connect TABLE_TYPE=csv AS SELECT * FROM employee;
+CREATE TABLE t1 ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=csv AS SELECT * FROM employee;
 Warnings:
 Warning	1105	No file name. Table will use t1.csv
 CALL test.tst_up();
@@ -643,7 +643,7 @@ serialno	name	sex	title	manager	department	secretary	salary
 #
 # Testing CSV table changes
 #
-CREATE TABLE t1 ENGINE=connect TABLE_TYPE=csv mapped=yes AS SELECT * FROM employee;
+CREATE TABLE t1 ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=csv mapped=yes AS SELECT * FROM employee;
 Warnings:
 Warning	1105	No file name. Table will use t1.csv
 CALL test.tst_up();
@@ -740,7 +740,7 @@ serialno	name	sex	title	manager	department	secretary	salary
 #
 # Testing DBF table changes
 #
-CREATE TABLE t1 ENGINE=connect TABLE_TYPE=dbf AS SELECT * FROM employee;
+CREATE TABLE t1 ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=dbf AS SELECT * FROM employee;
 Warnings:
 Warning	1105	No file name. Table will use t1.dbf
 CALL test.tst_up();
@@ -837,7 +837,7 @@ serialno	name	sex	title	manager	department	secretary	salary
 #
 # Testing DBF table changes
 #
-CREATE TABLE t1 ENGINE=connect TABLE_TYPE=dbf mapped=yes AS SELECT * FROM employee;
+CREATE TABLE t1 ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=dbf mapped=yes AS SELECT * FROM employee;
 Warnings:
 Warning	1105	No file name. Table will use t1.dbf
 CALL test.tst_up();
@@ -934,7 +934,7 @@ serialno	name	sex	title	manager	department	secretary	salary
 #
 # Testing BIN table changes
 #
-CREATE TABLE t1 ENGINE=connect TABLE_TYPE=bin AS SELECT * FROM employee;
+CREATE TABLE t1 ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=bin AS SELECT * FROM employee;
 Warnings:
 Warning	1105	No file name. Table will use t1.bin
 CALL test.tst_up();
@@ -1031,7 +1031,7 @@ serialno	name	sex	title	manager	department	secretary	salary
 #
 # Testing BIN table changes
 #
-CREATE TABLE t1 ENGINE=connect TABLE_TYPE=bin mapped=yes AS SELECT * FROM employee;
+CREATE TABLE t1 ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=bin mapped=yes AS SELECT * FROM employee;
 Warnings:
 Warning	1105	No file name. Table will use t1.bin
 CALL test.tst_up();
@@ -1128,7 +1128,7 @@ serialno	name	sex	title	manager	department	secretary	salary
 #
 # Testing BIN table changes
 #
-CREATE TABLE t1 ENGINE=connect TABLE_TYPE=bin huge=yes AS SELECT * FROM employee;
+CREATE TABLE t1 ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=bin huge=yes AS SELECT * FROM employee;
 Warnings:
 Warning	1105	No file name. Table will use t1.bin
 CALL test.tst_up();
@@ -1225,7 +1225,7 @@ serialno	name	sex	title	manager	department	secretary	salary
 #
 # Testing VEC table changes
 #
-CREATE TABLE t1 ENGINE=connect TABLE_TYPE=vec MAX_ROWS=30 AS SELECT * FROM employee;
+CREATE TABLE t1 ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=vec MAX_ROWS=30 AS SELECT * FROM employee;
 Warnings:
 Warning	1105	No file name. Table will use t1.vec
 CALL test.tst_up();
@@ -1322,7 +1322,7 @@ serialno	name	sex	title	manager	department	secretary	salary
 #
 # Testing VEC table changes
 #
-CREATE TABLE t1 ENGINE=connect TABLE_TYPE=vec mapped=yes MAX_ROWS=30 AS SELECT * FROM employee;
+CREATE TABLE t1 ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=vec mapped=yes MAX_ROWS=30 AS SELECT * FROM employee;
 Warnings:
 Warning	1105	No file name. Table will use t1.vec
 CALL test.tst_up();
@@ -1419,7 +1419,7 @@ serialno	name	sex	title	manager	department	secretary	salary
 #
 # Testing VEC table changes
 #
-CREATE TABLE t1 ENGINE=connect TABLE_TYPE=vec huge=yes MAX_ROWS=30 AS SELECT * FROM employee;
+CREATE TABLE t1 ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=vec huge=yes MAX_ROWS=30 AS SELECT * FROM employee;
 Warnings:
 Warning	1105	No file name. Table will use t1.vec
 CALL test.tst_up();
@@ -1526,7 +1526,7 @@ manager CHAR(5),
 department CHAR(4),
 secretary CHAR(5),
 salary DOUBLE(8,2) NOT NULL
-) ENGINE=connect TABLE_TYPE=ini;
+) ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=ini;
 Warnings:
 Warning	1105	No file name. Table will use t1.ini
 INSERT INTO t1 SELECT * FROM employee;
@@ -1637,7 +1637,7 @@ name char(12) not null,
 city char(11) not null,
 birth date not null date_format='DD/MM/YYYY',
 hired date not null date_format='DD/MM/YYYY' flag=36
-) ENGINE=CONNECT TABLE_TYPE=FIX FILE_NAME='boys.txt' ENDING=1;
+) ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=FIX FILE_NAME='boys.txt' ENDING=1;
 CREATE TABLE t2 (
 _id INT(2) NOT NULL,
 name_first CHAR(9) NOT NULL JPATH='$.name.first',
@@ -1650,7 +1650,7 @@ contribs CHAR(50) NOT NULL JPATH='$.contribs',
 awards_award CHAR(42) DEFAULT NULL JPATH='$.awards.award',
 awards_year CHAR(4) DEFAULT NULL JPATH='$.awards.year',
 awards_by CHAR(38) DEFAULT NULL JPATH='$.awards.by'
-) ENGINE=CONNECT TABLE_TYPE=JSON FILE_NAME='bios.json';
+) ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=JSON FILE_NAME='bios.json';
 # Multi-update 
 select t1.name, t1.city from t1;
 name	city

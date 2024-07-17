@@ -154,8 +154,7 @@ sys_var::sys_var(sys_var_chain *chain, const char *name_arg,
                  const char *substitute) :
   next(0), binlog_status(binlog_status_arg), value_origin(COMPILE_TIME),
   flags(flags_arg), show_val_type(show_val_type_arg),
-  guard(lock), offset(off), on_check(on_check_func), on_update(on_update_func),
-  deprecation_substitute(substitute)
+  guard(lock), offset(off), on_check(on_check_func), on_update(on_update_func)
 {
   /*
     There is a limitation in handle_options() related to short options:
@@ -171,6 +170,8 @@ sys_var::sys_var(sys_var_chain *chain, const char *name_arg,
   name.str= name_arg;     // ER_NO_DEFAULT relies on 0-termination of name_arg
   name.length= strlen(name_arg);                // and so does this.
   DBUG_ASSERT(name.length <= NAME_CHAR_LEN);
+  DBUG_ASSERT(!comment || !comment[0] || comment[strlen(comment)-1] != '.');
+  DBUG_ASSERT(!comment || !comment[0] || comment[strlen(comment)-1] != ' ');
 
   bzero(&option, sizeof(option));
   option.name= name_arg;
@@ -181,6 +182,7 @@ sys_var::sys_var(sys_var_chain *chain, const char *name_arg,
   option.def_value= def_val;
   option.app_type= this;
   option.var_type= flags & AUTO_SET ? GET_AUTO : 0;
+  option.deprecation_substitute= substitute;
 
   if (chain->last)
     chain->last->next= this;
@@ -418,14 +420,28 @@ double sys_var::val_real(bool *is_null,
   return ret;
 }
 
+/* Marker if the variable is deleted instead of depricated */
+const char *UNUSED_HELP="Unused";
 
 void sys_var::do_deprecated_warning(THD *thd)
 {
-  if (deprecation_substitute != NULL)
+  if (option.deprecation_substitute != NULL)
   {
     char buf1[NAME_CHAR_LEN + 3];
     strxnmov(buf1, sizeof(buf1)-1, "@@", name.str, 0);
-    warn_deprecated<999999>(thd, buf1, deprecation_substitute);
+
+    if (option.comment == UNUSED_HELP ||
+        strcmp(option.comment, UNUSED_HELP) == 0)
+      my_error(ER_VARIABLE_IGNORED, MYF(ME_WARNING), buf1);
+    else
+    {
+      char buf2[NAME_CHAR_LEN + 3];
+      if (!IS_DEPRECATED_NO_REPLACEMENT(option.deprecation_substitute))
+        strxnmov(buf2, sizeof(buf2)-1, "@@", option.deprecation_substitute, 0);
+      else
+        buf2[0]= 0;
+      warn_deprecated<999999>(thd, buf1, buf2);
+    }
   }
 }
 
@@ -1174,7 +1190,7 @@ int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond)
 
     // VARIABLE_COMMENT
     fields[7]->store(var->option.comment, strlen(var->option.comment),
-                           scs);
+                    scs);
 
     // NUMERIC_MIN_VALUE
     // NUMERIC_MAX_VALUE

@@ -67,3 +67,17 @@ DROP VIEW v0, v1, v2;
 #
 # End of 10.6 tests
 #
+#
+# MDEV-33145 Add FLUSH GLOBAL STATUS
+#
+CREATE USER mysqltest@localhost;
+GRANT USAGE ON *.* TO mysqltest@localhost;
+connect con1, localhost, mysqltest;
+FLUSH STATUS;
+FLUSH SESSION STATUS;
+FLUSH GLOBAL STATUS;
+ERROR 42000: Access denied; you need (at least one of) the RELOAD privilege(s) for this operation
+disconnect con1;
+connection default;
+DROP USER mysqltest@localhost;
+# End of 11.5 tests

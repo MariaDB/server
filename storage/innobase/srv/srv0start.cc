@@ -174,7 +174,7 @@ static dberr_t create_log_file(bool create_new_db, lsn_t lsn)
 
 	/* We will retain ib_logfile0 until we have written a new logically
 	empty log as ib_logfile101 and atomically renamed it to
-	ib_logfile0 in log_t::rename_resized(). */
+	ib_logfile0 in log_t::resize_rename(). */
 	delete_log_files();
 
 	ut_ad(!os_aio_pending_reads());
@@ -680,13 +680,9 @@ err_exit:
     space_id= id;
     fsp_flags= mach_read_from_4(FSP_HEADER_OFFSET + FSP_SPACE_FLAGS + page);
 
-    if (buf_page_is_corrupted(false, page, fsp_flags))
-    {
-      sql_print_error("InnoDB: Checksum mismatch in the first page of file %s",
-                      name);
-      if (recv_sys.dblwr.restore_first_page(space_id, name, fh))
-        goto err_exit;
-    }
+    if (buf_page_is_corrupted(false, page, fsp_flags) &&
+        recv_sys.dblwr.restore_first_page(space_id, name, fh))
+      goto err_exit;
 
     aligned_free(page);
   }
