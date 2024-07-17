@@ -1,4 +1,5 @@
 /* Copyright (c) 2015, Oracle and/or its affiliates. All rights reserved.
+   Copyright (c) 2024, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -53,7 +54,7 @@ enum opt_hints_enum
 
 struct st_opt_hint_info
 {
-  const char* hint_name;  // Hint name.
+  LEX_CSTRING hint_name;  // Hint name.
   bool check_upper_lvl;   // true if upper level hint check is needed (for hints
                           // which can be specified on more than one level).
   bool switch_hint;       // true if hint is not complex.
@@ -81,7 +82,7 @@ public:
      Check if hint is specified.
 
      @param type_arg   hint type
-     
+
      @return true if hint is specified,
              false otherwise
   */
@@ -111,15 +112,13 @@ public:
 
      @return switch value.
   */
-  bool switch_on(opt_hints_enum type_arg) const
+  bool is_switched_on(opt_hints_enum type_arg) const
   {
     return hints.is_set(type_arg);
   }
 };
 
 
-class PT_hint;
-class PT_hint_max_execution_time;
 class Opt_hints_key;
 
 
@@ -129,15 +128,16 @@ class Opt_hints_key;
 
   Opt_hints_global class is hierarchical structure.
   It contains information about global hints and also
-  conains array of QUERY BLOCK level objects (Opt_hints_qb class).
+  contains array of QUERY BLOCK level objects (Opt_hints_qb class).
   Each QUERY BLOCK level object contains array of TABLE level hints
   (class Opt_hints_table). Each TABLE level hint contains array of
-  KEY lelev hints (Opt_hints_key class).
+  KEY level hints (Opt_hints_key class).
   Hint information(specified, on|off state) is stored in hints_map object.
 */
 
 class Opt_hints : public Sql_alloc
 {
+protected:
   /*
     Name of object referred by the hint.
     This name is empty for global level,
@@ -146,6 +146,7 @@ class Opt_hints : public Sql_alloc
     for key level.
   */
   Lex_ident_sys name;
+private:
   /*
     Parent object. There is no parent for global level,
     for query block level parent is Opt_hints_global object,
@@ -209,9 +210,14 @@ public:
   */
   bool get_switch(opt_hints_enum type_arg) const;
 
-  virtual const LEX_CSTRING *get_name() const
+  virtual CHARSET_INFO *charset_info() const
   {
-    return name.str ? &name : nullptr;
+    return Lex_ident_column::charset_info();
+  }
+
+  const LEX_CSTRING get_name() const
+  {
+    return name;
   }
   void set_name(const Lex_ident_sys &name_arg) { name= name_arg; }
   Opt_hints *get_parent() const { return parent; }
@@ -230,25 +236,11 @@ public:
     child_array.push_back(hint_arg);
   }
 
-  // OLEGS: remove it if not used
-  /**
-    Returns pointer to complex hint for a given type
-
-    @param type  hint type
-
-    @return  pointer to complex hint for a given type.
-  */
-  // virtual PT_hint *get_complex_hints(uint type)
-  // {
-  //   DBUG_ASSERT(0);
-  //   return NULL; /* error C4716: must return a value*/
-  // };
-
   /**
     Find hint among lower-level hint objects.
 
     @param name_arg        hint name
-  
+
     @return  hint if found,
              NULL otherwise
   */
@@ -303,16 +295,11 @@ class Opt_hints_global : public Opt_hints
 {
 
 public:
-  PT_hint_max_execution_time *max_exec_time;
- 
   Opt_hints_global(MEM_ROOT *mem_root_arg)
     : Opt_hints(Lex_ident_sys(), NULL, mem_root_arg)
-  {
-    max_exec_time= NULL;
-  }
+  {}
 
-  virtual void append_name(THD *thd, String *str) {}
-  virtual PT_hint *get_complex_hints(uint type);
+  virtual void append_name(THD *thd, String *str) override {}
 };
 
 
@@ -334,10 +321,9 @@ public:
                MEM_ROOT *mem_root_arg,
                uint select_number_arg);
 
-  const LEX_CSTRING *get_print_name()
+  const LEX_CSTRING get_print_name()
   {
-    const LEX_CSTRING *str= Opt_hints::get_name();
-    return str ? str : &sys_name;
+    return name.str ? name : sys_name;
   }
 
   /**
@@ -348,10 +334,10 @@ public:
   */
   void append_qb_hint(THD *thd, String *str)
   {
-    if (get_name())
+    if (name.str)
     {
       str->append(STRING_WITH_LEN("QB_NAME("));
-      append_identifier(thd, str, get_name()->str, get_name()->length);
+      append_identifier(thd, str, &name);
       str->append(STRING_WITH_LEN(") "));
     }
   }
@@ -361,10 +347,11 @@ public:
     @param thd   pointer to THD object
     @param str   pointer to String object
   */
-  virtual void append_name(THD *thd, String *str)
+  virtual void append_name(THD *thd, String *str) override
   {
     str->append(STRING_WITH_LEN("@"));
-    append_identifier(thd, str, get_print_name()->str, get_print_name()->length);
+    const LEX_CSTRING print_name= get_print_name();
+    append_identifier(thd, str, &print_name);
   }
 
   /**
@@ -399,15 +386,21 @@ public:
       keyinfo_array(mem_root_arg)
   { }
 
+  CHARSET_INFO *charset_info() const override
+  {
+    return Lex_ident_table::charset_info();
+  }
+
+
   /**
     Append table name.
 
     @param thd   pointer to THD object
     @param str   pointer to String object
   */
-  virtual void append_name(THD *thd, String *str)
+  virtual void append_name(THD *thd, String *str) override
   {
-    append_identifier(thd, str, get_name()->str, get_name()->length);
+    append_identifier(thd, str, &name);
     get_parent()->append_name(thd, str);
   }
   /**
@@ -445,11 +438,11 @@ public:
     @param thd   pointer to THD object
     @param str   pointer to String object
   */
-  virtual void append_name(THD *thd, String *str)
+  virtual void append_name(THD *thd, String *str) override
   {
     get_parent()->append_name(thd, str);
     str->append(' ');
-    append_identifier(thd, str, get_name()->str, get_name()->length);
+    append_identifier(thd, str, &name);
   }
 
   virtual uint get_warn_unresolved_code() const override
@@ -507,5 +500,4 @@ bool hint_table_state(const THD *thd, const TABLE *table,
 bool hint_table_state_or_fallback(const THD *thd, const TABLE *table,
                                   opt_hints_enum type_arg,
                                   bool fallback_value);
-
 #endif /* OPT_HINTS_INCLUDED */
