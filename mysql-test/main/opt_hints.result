@@ -299,7 +299,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t13	hash_ALL	a	#hash#a	5	test.t12.a	1000	0.10	Using where; Using join buffer (flat, BNLH join)
 Warnings:
 Note	1003	select /*+ QB_NAME(`QB1`) NO_BKA(`t13`@`QB1`) */ `test`.`t12`.`a` AS `a`,`test`.`t12`.`b` AS `b`,`test`.`t13`.`a` AS `a`,`test`.`t13`.`b` AS `b`,`test`.`t13`.`c` AS `c`,`test`.`t13`.`filler` AS `filler` from `test`.`t12` join `test`.`t13` where `test`.`t13`.`a` = `test`.`t12`.`a` and `test`.`t13`.`b` + 1 <= `test`.`t13`.`b` + 1
-# UPDATE|DELETE|INSERT hint testing
+# UPDATE|DELETE|INSERT|REPLACE hint testing
 EXPLAIN EXTENDED UPDATE t3
 SET f3 = 'mnbv' WHERE f1 > 30 AND f1 < 33 AND (t3.f1, t3.f2, t3.f3) IN
 (SELECT t2.f1, t2.f2, t2.f3 FROM t1,t2 WHERE t1.f1=t2.f1 AND
@@ -390,13 +390,48 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t5	range	x_idx	x_idx	5	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
 Warnings:
 Note	1003	(insert into `test`.`t3`(f1,f2,f3) select /*+ QB_NAME(`qb1`) NO_ICP(`t5`@`qb1` `x_idx`) */ `test`.`t4`.`x` AS `x`,`test`.`t5`.`y` AS `y`,'filler' AS `filler` from `test`.`t4` join `test`.`t4` `t5` where `test`.`t4`.`y` = 8 and `test`.`t5`.`x` between 7 and <cache>(8 + 0))
+# Make sure ICP is expected to be used when there are no hints
+EXPLAIN EXTENDED REPLACE INTO t3(f1, f2, f3)
+(SELECT t4.x, t5.y, 'filler' FROM t4, t4 t5 WHERE t4.y = 8 AND t5.x BETWEEN 7 AND t4.y+0);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t4	ref	y_idx	y_idx	5	const	1	100.00	
+1	SIMPLE	t5	range	x_idx	x_idx	5	NULL	2	100.00	Using index condition; Using where; Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	(replace into `test`.`t3`(f1,f2,f3) select `test`.`t4`.`x` AS `x`,`test`.`t5`.`y` AS `y`,'filler' AS `filler` from `test`.`t4` join `test`.`t4` `t5` where `test`.`t4`.`y` = 8 and `test`.`t5`.`x` between 7 and <cache>(8 + 0))
+# Turn off ICP. ICP should not be used.
+EXPLAIN EXTENDED REPLACE INTO t3(f1, f2, f3)
+(SELECT /*+ NO_ICP(t5) */t4.x, t5.y, 'filler' FROM t4, t4 t5
+WHERE t4.y = 8 AND t5.x BETWEEN 7 AND t4.y+0);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t4	ref	y_idx	y_idx	5	const	1	100.00	
+1	SIMPLE	t5	range	x_idx	x_idx	5	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	(replace into `test`.`t3`(f1,f2,f3) select /*+ NO_ICP(`t5`@`select#2`) */ `test`.`t4`.`x` AS `x`,`test`.`t5`.`y` AS `y`,'filler' AS `filler` from `test`.`t4` join `test`.`t4` `t5` where `test`.`t4`.`y` = 8 and `test`.`t5`.`x` between 7 and <cache>(8 + 0))
+# Turn off ICP for a particular table
+EXPLAIN EXTENDED REPLACE /*+ NO_ICP(t5@QB1) */ INTO t3(f1, f2, f3)
+(SELECT /*+ QB_NAME(qb1) */ t4.x, t5.y, 'filler' FROM t4, t4 t5
+WHERE t4.y = 8 AND t5.x BETWEEN 7 AND t4.y+0);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t4	ref	y_idx	y_idx	5	const	1	100.00	
+1	SIMPLE	t5	range	x_idx	x_idx	5	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	(replace into `test`.`t3`(f1,f2,f3) select /*+ QB_NAME(`qb1`) NO_ICP(`t5`@`qb1`) */ `test`.`t4`.`x` AS `x`,`test`.`t5`.`y` AS `y`,'filler' AS `filler` from `test`.`t4` join `test`.`t4` `t5` where `test`.`t4`.`y` = 8 and `test`.`t5`.`x` between 7 and <cache>(8 + 0))
+# Turn off ICP for a particular table and a key
+EXPLAIN EXTENDED REPLACE /*+ NO_ICP(t5@QB1 x_idx) */ INTO t3(f1, f2, f3)
+(SELECT /*+ QB_NAME(qb1) */ t4.x, t5.y, 'filler' FROM t4, t4 t5
+WHERE t4.y = 8 AND t5.x BETWEEN 7 AND t4.y+0);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t4	ref	y_idx	y_idx	5	const	1	100.00	
+1	SIMPLE	t5	range	x_idx	x_idx	5	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	(replace into `test`.`t3`(f1,f2,f3) select /*+ QB_NAME(`qb1`) NO_ICP(`t5`@`qb1` `x_idx`) */ `test`.`t4`.`x` AS `x`,`test`.`t5`.`y` AS `y`,'filler' AS `filler` from `test`.`t4` join `test`.`t4` `t5` where `test`.`t4`.`y` = 8 and `test`.`t5`.`x` between 7 and <cache>(8 + 0))
 # Misc tests
 # Should issue warning
 EXPLAIN EXTENDED SELECT /*+ QB_NAME(qb1) QB_NAME(qb1 ) */ * FROM t2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	28	100.00	
 Warnings:
-Warning	4197	Hint QB_NAME(`qb1`) is ignored as conflicting/duplicated
+Warning	4202	Hint QB_NAME(`qb1`) is ignored as conflicting/duplicated
 Note	1003	select /*+ QB_NAME(`qb1`) */ `test`.`t2`.`f1` AS `f1`,`test`.`t2`.`f2` AS `f2`,`test`.`t2`.`f3` AS `f3` from `test`.`t2`
 # Should issue warning
 EXPLAIN EXTENDED SELECT /*+ BKA(@qb1) QB_NAME(qb1) */ t2.f1, t2.f2, t2.f3 FROM t1,t2
@@ -471,7 +506,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	28	100.00	Using join buffer (flat, BNL join)
 1	SIMPLE	t3	index	NULL	PRIMARY	4	NULL	56	100.00	Using index; Using join buffer (incremental, BNL join)
 Warnings:
-Warning	1064	Optimizer hint syntax error near 'qb1, t2@qb1, t3) */ t2.f1, t2.f2, t2.f3 FROM t1,t2,t3) tt' at line 2
+Warning	1064	Optimizer hint syntax error near '@qb1, t2@qb1, t3) */ t2.f1, t2.f2, t2.f3 FROM t1,t2,t3) tt' at line 2
 Note	1003	select `test`.`t2`.`f1` AS `f1`,`test`.`t2`.`f2` AS `f2`,`test`.`t2`.`f3` AS `f3` from `test`.`t1` join `test`.`t2` join `test`.`t3`
 # Check '@qb_name table_name' syntax
 EXPLAIN EXTENDED SELECT /*+ BKA(@qb1 t13) */ * FROM (SELECT /*+ QB_NAME(QB1) */ t12.a, t13.b FROM t12, t13
@@ -1152,39 +1187,39 @@ CREATE TABLE ` quoted name test` (i INT);
 SELECT /*+ BKA(` quoted name test`) */ 1 FROM t1;
 1
 Warnings:
-Warning	4199	Unresolved name ` quoted name test`@`select#1` for BKA hint
+Warning	4204	Unresolved table name ` quoted name test`@`select#1` for BKA hint
 SELECT /*+ BKA(` quoted name test`@`select#1`) */ 1 FROM t1;
 1
 Warnings:
-Warning	4198	Query block name `select#1` is not found for BKA hint
+Warning	4203	Query block name `select#1` is not found for BKA hint
 DROP TABLE ` quoted name test`;
 SET SQL_MODE = 'ANSI_QUOTES';
 CREATE TABLE " quoted name test" (i INT);
 SELECT /*+ BKA(" quoted name test") */ 1 FROM t1;
 1
 Warnings:
-Warning	4199	Unresolved name " quoted name test"@"select#1" for BKA hint
+Warning	4204	Unresolved table name " quoted name test"@"select#1" for BKA hint
 SELECT /*+ BKA(" quoted name test"@"select#1") */ 1 FROM t1;
 1
 Warnings:
-Warning	4198	Query block name "select#1" is not found for BKA hint
+Warning	4203	Query block name "select#1" is not found for BKA hint
 CREATE TABLE `test1``test2``` (i INT);
 SELECT /*+ BKA(`test1``test2```) */ 1;
 1
 1
 Warnings:
-Warning	4199	Unresolved name "test1`test2`"@"select#1" for BKA hint
+Warning	4204	Unresolved table name "test1`test2`"@"select#1" for BKA hint
 SELECT /*+ BKA("test1""test2""") */ 1;
 1
 1
 Warnings:
-Warning	4199	Unresolved name "test1""test2"""@"select#1" for BKA hint
+Warning	4204	Unresolved table name "test1""test2"""@"select#1" for BKA hint
 SET SQL_MODE = '';
 # should warn:
 SELECT /*+ BKA(" quoted name test") */ 1 FROM t1;
 1
 Warnings:
-Warning	4204	Unresolved table name `" quoted name test"`@`select#1` for BKA hint
+Warning	4204	Unresolved table name ` quoted name test`@`select#1` for BKA hint
 DROP TABLE ` quoted name test`;
 DROP TABLE `test1``test2```;
 # Valid hints, no warning:
@@ -1238,7 +1273,7 @@ CREATE TABLE таблица (i INT);
 SELECT /*+ BKA(`таблица`) */ 1 FROM t1;
 1
 Warnings:
-Warning	4199	Unresolved name `таблица`@`select#1` for BKA hint
+Warning	4204	Unresolved table name `таблица`@`select#1` for BKA hint
 SELECT /*+ BKA(таблица) */ 1 FROM t1;
 1
 Warnings:
@@ -1250,7 +1285,7 @@ Warning	4203	Query block name `таблица` is not found for BKA hint
 SELECT /*+ NO_ICP(`\D1`) */ 1 FROM t1;
 1
 Warnings:
-Warning	4199	Unresolved name `\D1`@`select#1` for NO_ICP hint
+Warning	4204	Unresolved table name `\D1`@`select#1` for NO_ICP hint
 DROP TABLE таблица;
 
 # derived tables and other subqueries:

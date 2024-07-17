@@ -157,7 +157,7 @@ EXPLAIN EXTENDED SELECT /*+ NO_BKA(t12) */ * FROM t12, t13
 EXPLAIN EXTENDED SELECT /*+ QB_NAME(QB1) NO_BKA(t13@QB1) */ * FROM t12, t13 
   WHERE t12.a=t13.a AND (t13.b+1 <= t13.b+1);
 
---echo # UPDATE|DELETE|INSERT hint testing
+--echo # UPDATE|DELETE|INSERT|REPLACE hint testing
 EXPLAIN EXTENDED UPDATE t3
 SET f3 = 'mnbv' WHERE f1 > 30 AND f1 < 33 AND (t3.f1, t3.f2, t3.f3) IN
   (SELECT t2.f1, t2.f2, t2.f3 FROM t1,t2 WHERE t1.f1=t2.f1 AND
@@ -205,6 +205,25 @@ EXPLAIN EXTENDED INSERT /*+ NO_ICP(t5@QB1) */ INTO t3(f1, f2, f3)
 --echo # Turn off ICP for a particular table and a key
 EXPLAIN EXTENDED INSERT /*+ NO_ICP(t5@QB1 x_idx) */ INTO t3(f1, f2, f3)
   (SELECT /*+ QB_NAME(qb1) */ t4.x, t5.y, 'filler' FROM t4, t4 t5 
+   WHERE t4.y = 8 AND t5.x BETWEEN 7 AND t4.y+0);
+
+--echo # Make sure ICP is expected to be used when there are no hints
+EXPLAIN EXTENDED REPLACE INTO t3(f1, f2, f3)
+  (SELECT t4.x, t5.y, 'filler' FROM t4, t4 t5 WHERE t4.y = 8 AND t5.x BETWEEN 7 AND t4.y+0);
+
+--echo # Turn off ICP. ICP should not be used.
+EXPLAIN EXTENDED REPLACE INTO t3(f1, f2, f3)
+  (SELECT /*+ NO_ICP(t5) */t4.x, t5.y, 'filler' FROM t4, t4 t5
+   WHERE t4.y = 8 AND t5.x BETWEEN 7 AND t4.y+0);
+
+--echo # Turn off ICP for a particular table
+EXPLAIN EXTENDED REPLACE /*+ NO_ICP(t5@QB1) */ INTO t3(f1, f2, f3)
+  (SELECT /*+ QB_NAME(qb1) */ t4.x, t5.y, 'filler' FROM t4, t4 t5
+   WHERE t4.y = 8 AND t5.x BETWEEN 7 AND t4.y+0);
+
+--echo # Turn off ICP for a particular table and a key
+EXPLAIN EXTENDED REPLACE /*+ NO_ICP(t5@QB1 x_idx) */ INTO t3(f1, f2, f3)
+  (SELECT /*+ QB_NAME(qb1) */ t4.x, t5.y, 'filler' FROM t4, t4 t5
    WHERE t4.y = 8 AND t5.x BETWEEN 7 AND t4.y+0);
 
 --echo # Misc tests

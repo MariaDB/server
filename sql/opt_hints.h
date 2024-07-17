@@ -230,20 +230,6 @@ public:
     child_array.push_back(hint_arg);
   }
 
-  // OLEGS: remove it if not used
-  /**
-    Returns pointer to complex hint for a given type
-
-    @param type  hint type
-
-    @return  pointer to complex hint for a given type.
-  */
-  // virtual PT_hint *get_complex_hints(uint type)
-  // {
-  //   DBUG_ASSERT(0);
-  //   return NULL; /* error C4716: must return a value*/
-  // };
-
   /**
     Find hint among lower-level hint objects.
 
@@ -311,7 +297,7 @@ public:
     max_exec_time= NULL;
   }
 
-  virtual void append_name(THD *thd, String *str) {}
+  virtual void append_name(THD *thd, String *str) override {}
   virtual PT_hint *get_complex_hints(uint type);
 };
 
@@ -361,7 +347,7 @@ public:
     @param thd   pointer to THD object
     @param str   pointer to String object
   */
-  virtual void append_name(THD *thd, String *str)
+  virtual void append_name(THD *thd, String *str) override
   {
     str->append(STRING_WITH_LEN("@"));
     append_identifier(thd, str, get_print_name()->str, get_print_name()->length);
@@ -405,7 +391,7 @@ public:
     @param thd   pointer to THD object
     @param str   pointer to String object
   */
-  virtual void append_name(THD *thd, String *str)
+  virtual void append_name(THD *thd, String *str) override
   {
     append_identifier(thd, str, get_name()->str, get_name()->length);
     get_parent()->append_name(thd, str);
@@ -445,7 +431,7 @@ public:
     @param thd   pointer to THD object
     @param str   pointer to String object
   */
-  virtual void append_name(THD *thd, String *str)
+  virtual void append_name(THD *thd, String *str) override
   {
     get_parent()->append_name(thd, str);
     str->append(' ');

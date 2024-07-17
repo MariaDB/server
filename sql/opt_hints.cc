@@ -77,7 +77,7 @@ static void print_warn(THD *thd, uint err_code, opt_hints_enum hint_type,
                 bool hint_state,
                 const Lex_ident_sys *qb_name_arg,
                 const Lex_ident_sys *table_name_arg,
-                const Lex_ident_sys *key_name_arg/*,        PT_hint *hint*/)
+                const Lex_ident_sys *key_name_arg)
 {
   String str;
 
@@ -107,7 +107,14 @@ static void print_warn(THD *thd, uint err_code, opt_hints_enum hint_type,
   /* Append QB name */
   if (qb_name_arg && qb_name_arg->length > 0)
   {
-    str.append(STRING_WITH_LEN("@"));
+    if (hint_type != QB_NAME_HINT_ENUM)
+    {
+      /*
+        Add the delimiter for warnings like "Hint NO_ICP(`t1`@`q1` is ignored".
+        No need for the delimiter for warnings "Hint QB_NAME(qb1) is ignored"
+      */
+      str.append(STRING_WITH_LEN("@"));
+    }
     append_identifier(thd, &str, qb_name_arg->str, qb_name_arg->length);
   }
 
@@ -117,16 +124,6 @@ static void print_warn(THD *thd, uint err_code, opt_hints_enum hint_type,
     str.append(' ');
     append_identifier(thd, &str, key_name_arg->str, key_name_arg->length);
   }
-
-  /* Append additional hint arguments if they exist */
-  // OLEGS: todo
-  // if (hint)
-  // {
-  //   if (qb_name_arg || table_name_arg || key_name_arg)
-  //     str.append(' ');
-
-  //   hint->append_args(thd, &str);
-  // }
 
   str.append(')');
 
@@ -182,8 +179,9 @@ static Opt_hints_qb *get_qb_hints(Parse_context *pc)
   if the query block is not found.
 
   @param pc          pointer to Parse_context object
-  @param table_name  query block name
-  @param hint        processed hint // OLEGS: amend this
+  @param qb_name     query block name
+  @param hint_type   the type of the hint from opt_hints_enum
+  @param hint_state  true: hint enables a feature; false: disables it
 
   @return  pointer to Opt_hints_table object if found,
            NULL otherwise
@@ -237,8 +235,6 @@ static Opt_hints_table *get_table_hints(Parse_context *pc,
 }
 
 
-
-
 bool Opt_hints::get_switch(opt_hints_enum type_arg) const
 {
   if (is_specified(type_arg))
@@ -272,9 +268,6 @@ void Opt_hints::print(THD *thd, String *str)
       append_hint_type(str, static_cast<opt_hints_enum>(i));
       str->append(STRING_WITH_LEN("("));
       append_name(thd, str);
-      // OLEGS: 
-      //if (!opt_hint_info[i].switch_hint)
-      //  get_complex_hints(i)->append_args(thd, str);
       str->append(STRING_WITH_LEN(") "));
     }
   }
@@ -543,7 +536,7 @@ bool Optimizer_hint_parser::Table_level_hint::resolve(Parse_context *pc) const
       // e.g. BKA(@qb1)
       if (qb->set_switch(hint_state, hint_type, false))
         print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, hint_type, hint_state,
-                   &qb_name_sys, NULL, NULL/*, this*/);
+                   &qb_name_sys, NULL, NULL);
       return false;
     }
     else
@@ -555,10 +548,10 @@ bool Optimizer_hint_parser::Table_level_hint::resolve(Parse_context *pc) const
         const Lex_ident_sys table_name_sys= table.to_ident_sys(pc->thd);
         Opt_hints_table *tab= get_table_hints(pc, table_name_sys, qb);
         if (!tab)
-          return true; // OLEGS: why no warning?
+          return true;
         if (tab->set_switch(hint_state, hint_type, true))
           print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, hint_type, hint_state,
-                     &qb_name_sys, &table_name_sys, NULL/*, this*/);
+                     &qb_name_sys, &table_name_sys, NULL);
       }
     }
   }
@@ -575,7 +568,7 @@ bool Optimizer_hint_parser::Table_level_hint::resolve(Parse_context *pc) const
       // e.g. BKA()
       if (qb->set_switch(hint_state, hint_type, false))
         print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, hint_type, hint_state,
-                   &null_ident_sys, NULL, NULL/*, this*/);
+                   &null_ident_sys, NULL, NULL);
       return false;
     }
     for (const Table_name &table : table_name_list)
@@ -584,10 +577,10 @@ bool Optimizer_hint_parser::Table_level_hint::resolve(Parse_context *pc) const
       const Lex_ident_sys table_name_sys= table.to_ident_sys(pc->thd);
       Opt_hints_table *tab= get_table_hints(pc, table_name_sys, qb);
       if (!tab)
-        return true; // OLEGS: no warning?
+        return true;
       if (tab->set_switch(hint_state, hint_type, true))
         print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, hint_type, hint_state,
-                   &null_ident_sys, &table_name_sys, NULL/*, this*/);
+                   &null_ident_sys, &table_name_sys, NULL);
     }
   
     for (const Hint_param_table &table : opt_hint_param_table_list)
@@ -598,16 +591,14 @@ bool Optimizer_hint_parser::Table_level_hint::resolve(Parse_context *pc) const
       Opt_hints_qb *qb= find_qb_hints(pc, qb_name_sys, hint_type, hint_state);
       if (qb == NULL)
         return false;
-      // OLEGS: todo
       const Lex_ident_sys table_name_sys= table.Table_name::
                                             to_ident_sys(pc->thd);
       Opt_hints_table *tab= get_table_hints(pc, table_name_sys, qb);
       if (!tab)
-        return true; // OLEGS: why no warning?
-  
+        return true;
       if (tab->set_switch(hint_state, hint_type, true))
          print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, hint_type, hint_state,
-                    &qb_name_sys, &table_name_sys, NULL/*, this*/);
+                    &qb_name_sys, &table_name_sys, NULL);
     }
   }
   return false;
@@ -654,13 +645,13 @@ bool Optimizer_hint_parser::Index_level_hint::resolve(Parse_context *pc) const
 
   Opt_hints_table *tab= get_table_hints(pc, table_name_sys, qb);
   if (!tab)
-    return true; // OLEGS: why no warning?
+    return true;
   
   if (is_empty())  // Table level hint
   {
     if (tab->set_switch(hint_state, hint_type, false))
       print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, hint_type, hint_state,
-                 &qb_name_sys, &table_name_sys, NULL/*, this*/);
+                 &qb_name_sys, &table_name_sys, NULL);
     return false;
   }
 
@@ -676,7 +667,7 @@ bool Optimizer_hint_parser::Index_level_hint::resolve(Parse_context *pc) const
 
     if (idx->set_switch(hint_state, hint_type, true))
       print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, hint_type, hint_state,
-                 &qb_name_sys, &table_name_sys, &index_name_sys/*, this*/);
+                 &qb_name_sys, &table_name_sys, &index_name_sys);
   }
 
   return false;
@@ -694,8 +685,8 @@ bool Optimizer_hint_parser::Qb_name_hint::resolve(Parse_context *pc) const
   if (qb->get_name() ||                            // QB name is already set
       qb->get_parent()->find_by_name(qb_name_sys)) // Name is already used
   {
-    print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, QB_NAME_HINT_ENUM, false,
-               NULL, NULL, NULL/*, this*/);
+    print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, QB_NAME_HINT_ENUM, true,
+               &qb_name_sys, NULL, NULL);
     return false;
   }
 
@@ -728,7 +719,7 @@ bool Optimizer_hint_parser::Hint_list::resolve(Parse_context *pc)
              static_cast<const Qb_name_hint &>(*hint))
     {
       if (qb_hint.resolve(pc))
-        return true; // OLEGS: check this result
+        return true;
     }
   }
   return false;
