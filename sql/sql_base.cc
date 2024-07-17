@@ -2401,6 +2401,10 @@ retry_share:
     my_error(ER_NOT_SEQUENCE, MYF(0), table_list->db.str, table_list->alias.str);
     DBUG_RETURN(true);
   }
+  /* hlindexes don't support concurrent insert */
+  if (table->s->total_keys > table->s->keys &&
+      table_list->lock_type == TL_WRITE_CONCURRENT_INSERT)
+    table_list->lock_type= TL_WRITE_DEFAULT;
 
   DBUG_ASSERT(thd->locked_tables_mode || table->file->row_logging == 0);
   DBUG_RETURN(false);
