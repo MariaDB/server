@@ -2548,13 +2548,21 @@ int spider_db_mbase::commit(
 int spider_db_mbase::rollback(
   int *need_mon
 ) {
-  bool is_error;
+  bool is_error, save_in_before_query;
   int error_num= 0;
   DBUG_ENTER("spider_db_mbase::rollback");
   DBUG_PRINT("info",("spider this=%p", this));
   spider_lock_before_query(conn, need_mon);
-  if (spider_db_query(conn, SPIDER_SQL_ROLLBACK_STR,
-                      SPIDER_SQL_ROLLBACK_LEN, -1, need_mon))
+  save_in_before_query= conn->in_before_query;
+  /*
+    We do not execute the before queries to avoid unnecessary
+    failures in rollback
+  */
+  conn->in_before_query= TRUE;
+  error_num= spider_db_query(conn, SPIDER_SQL_ROLLBACK_STR,
+                             SPIDER_SQL_ROLLBACK_LEN, -1, need_mon);
+  conn->in_before_query= save_in_before_query;
+  if (error_num)
   {
     is_error= conn->thd->is_error();
     error_num= spider_db_errorno(conn);
