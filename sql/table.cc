@@ -442,19 +442,15 @@ TABLE_SHARE *alloc_table_share(const char *db, const char *table_name,
 
 void init_tmp_table_share(THD *thd, TABLE_SHARE *share, const char *key,
                           uint key_length, const char *table_name,
-                          const char *path)
+                          const char *path, bool thread_specific)
 {
   DBUG_ENTER("init_tmp_table_share");
   DBUG_PRINT("enter", ("table: '%s'.'%s'", key, table_name));
 
   bzero((char*) share, sizeof(*share));
-  /*
-    This can't be MY_THREAD_SPECIFIC for slaves as they are freed
-    during cleanup() from Relay_log_info::close_temporary_tables()
-  */
   init_sql_alloc(key_memory_table_share, &share->mem_root,
                  TABLE_ALLOC_BLOCK_SIZE, 0,
-                 MYF(thd->slave_thread ? 0 : MY_THREAD_SPECIFIC));
+                 thread_specific ? MY_THREAD_SPECIFIC : 0);
   share->table_category=         TABLE_CATEGORY_TEMPORARY;
   share->tmp_table=              INTERNAL_TMP_TABLE;
   share->db.str=                 (char*) key;

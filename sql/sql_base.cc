@@ -9484,7 +9484,7 @@ my_bool mysql_rm_tmp_tables(void)
           /* We should cut file extention before deleting of table */
           memcpy(path_copy, path, path_len - ext_len);
           path_copy[path_len - ext_len]= 0;
-          init_tmp_table_share(thd, &share, "", 0, "", path_copy);
+          init_tmp_table_share(thd, &share, "", 0, "", path_copy, true);
           if (!open_table_def(thd, &share))
             share.db_type()->drop_table(share.db_type(), path_copy);
           free_table_share(&share);
