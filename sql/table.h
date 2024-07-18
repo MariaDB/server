@@ -1797,7 +1797,7 @@ public:
   int open_hlindexes_for_write();
   int hlindexes_on_insert();
   int hlindexes_on_update();
-  int hlindexes_on_delete();
+  int hlindexes_on_delete(const uchar *buf);
   int hlindexes_on_delete_all();
   int reset_hlindexes();
 
