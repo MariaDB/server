@@ -4644,7 +4644,7 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
   DBUG_ENTER("select_create::create_table_from_items");
 
   tmp_table.s= &share;
-  init_tmp_table_share(thd, &share, "", 0, "", "");
+  init_tmp_table_share(thd, &share, "", 0, "", "", true);
 
   tmp_table.s->db_create_options=0;
   tmp_table.null_row= 0;
