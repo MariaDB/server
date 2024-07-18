@@ -638,6 +638,7 @@ mysql_ha_fix_cond_and_key(SQL_HANDLER *handler,
                "WHERE", "HANDLER");
       return 1;                                 // ROWNUM() used
     }
+    thd->where= THD_WHERE::WHERE_CLAUSE;
     if (cond->fix_fields_if_needed_for_bool(thd, &cond))
       return 1;
   }
@@ -696,6 +697,7 @@ mysql_ha_fix_cond_and_key(SQL_HANDLER *handler,
         return 1;
       }
 
+      thd->where= THD_WHERE::HANDLER_STATEMENT;
       for (keypart_map= key_len=0 ; (item=it_ke++) ; key_part++)
       {
 	/* note that 'item' can be changed by fix_fields() call */

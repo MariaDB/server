@@ -631,51 +631,47 @@ const char *thd_where(THD *thd)
 {
     switch(thd->where) {
     case THD_WHERE::CHECKING_TRANSFORMED_SUBQUERY:
-        return "checking transformed subquery";
-        break;
     case THD_WHERE::IN_ALL_ANY_SUBQUERY:
-        return "IN/ALL/ANY subquery";
-        break;
+        return "IN/ALL/ANY";
     case THD_WHERE::JSON_TABLE_ARGUMENT:
-        return "JSON_TABLE argument";
-        break;
-    case THD_WHERE::DEFAULT_WHERE:  // same as FIELD_LIST
+        return "JSON_TABLE";
+    case THD_WHERE::DEFAULT_WHERE:
+        return "SELECT";
     case THD_WHERE::FIELD_LIST:
-        return "field list";
-        break;
     case THD_WHERE::PARTITION_FUNCTION:
-        return "partition function";
-        break;
+        return "PARTITION BY";
     case THD_WHERE::FROM_CLAUSE:
-        return "from clause";
-        break;
+        return "FROM";
     case THD_WHERE::ON_CLAUSE:
-        return "on clause";
-        break;
+        return "ON";
     case THD_WHERE::WHERE_CLAUSE:
-        return "where clause";
-        break;
-    case THD_WHERE::CONVERT_CHARSET_CONST:
-        return "convert character set partition constant";
-        break;
+        return "WHERE";
+    case THD_WHERE::SET_LIST:
+        return "SET";
+    case THD_WHERE::INSERT_LIST:
+        return "INSERT INTO";
+    case THD_WHERE::RETURNING:
+        return "RETURNING";
+    case THD_WHERE::UPDATE_CLAUSE:
+        return "UPDATE";
+    case THD_WHERE::VALUES_CLAUSE:
+        return "VALUES";
     case THD_WHERE::FOR_SYSTEM_TIME:
         return "FOR SYSTEM_TIME";
-        break;
     case THD_WHERE::ORDER_CLAUSE:
-        return "order clause";
-        break;
+        return "ORDER BY";
     case THD_WHERE::HAVING_CLAUSE:
-        return "having clause";
-        break;
+        return "HAVING";
     case THD_WHERE::GROUP_STATEMENT:
-        return "group statement";
-        break;
+        return "GROUP BY";
     case THD_WHERE::PROCEDURE_LIST:
-        return "procedure list";
-        break;
+        return "PROCEDURE";
     case THD_WHERE::CHECK_OPTION:
-        return "check option";
-        break;
+        return "CHECK OPTION";
+    case THD_WHERE::DO_STATEMENT:
+        return "DO";
+    case THD_WHERE::HANDLER_STATEMENT:
+        return "HANDLER ... READ";
     case THD_WHERE::USE_WHERE_STRING:
         return thd->where_str;
     default:

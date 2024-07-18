@@ -67,7 +67,7 @@ SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='ANSI_QUOTES';
 INSERT INTO t1 VALUES (1.2345, 2.3456);
 INSERT INTO t1 VALUES ('1.2345', 2.3456);
 INSERT INTO t1 VALUES ("1.2345", 2.3456);
-ERROR 42S22: Unknown column '1.2345' in 'field list'
+ERROR 42S22: Unknown column '1.2345' in 'VALUES'
 SET SQL_MODE=@OLD_SQL_MODE;
 /*M!999999\- enable the sandbox mode */ 
 /*!40101 SET @saved_cs_client     = @@character_set_client */;

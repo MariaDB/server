@@ -7704,7 +7704,7 @@ int setup_wild(THD *thd, TABLE_LIST *tables, List<Item> &fields,
 bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
                   List<Item> &fields, enum_column_usage column_usage,
                   List<Item> *sum_func_list, List<Item> *pre_fix,
-                  bool allow_sum_func)
+                  bool allow_sum_func, THD_WHERE where)
 {
   Item *item;
   enum_column_usage saved_column_usage= thd->column_usage;
@@ -7730,7 +7730,7 @@ bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
               thd->lex->current_select->nest_level);
   if (allow_sum_func)
     thd->lex->allow_sum_func.set_bit(thd->lex->current_select->nest_level);
-  thd->where= THD_WHERE::DEFAULT_WHERE;
+  thd->where= where;
   save_is_item_list_lookup= thd->lex->current_select->is_item_list_lookup;
   thd->lex->current_select->is_item_list_lookup= 0;
 
@@ -7811,7 +7811,7 @@ bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
   thd->lex->allow_sum_func= save_allow_sum_func;
   thd->column_usage= saved_column_usage;
   DBUG_PRINT("info", ("thd->column_usage: %d", thd->column_usage));
-  DBUG_RETURN(MY_TEST(thd->is_error()));
+  DBUG_RETURN(thd->is_error());
 }
 
 /*
@@ -7864,7 +7864,7 @@ int setup_returning_fields(THD* thd, TABLE_LIST* table_list)
   return setup_wild(thd, table_list, thd->lex->returning()->item_list, NULL,
                     thd->lex->returning(), true)
       || setup_fields(thd, Ref_ptr_array(), thd->lex->returning()->item_list,
-                      MARK_COLUMNS_READ, NULL, NULL, false);
+                      MARK_COLUMNS_READ, NULL, NULL, 0, THD_WHERE::RETURNING);
 }
 
 
