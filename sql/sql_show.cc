@@ -6946,7 +6946,7 @@ int store_schema_params(THD *thd, TABLE *table, TABLE *proc_table,
 
   bzero((char*) &tbl, sizeof(TABLE));
   (void) build_table_filename(path, sizeof(path), "", "", "", 0);
-  init_tmp_table_share(thd, &share, "", 0, "", path);
+  init_tmp_table_share(thd, &share, "", 0, "", path, true);
 
   proc_table->field[MYSQL_PROC_FIELD_DB]->val_str_nopad(thd->mem_root, &db);
   proc_table->field[MYSQL_PROC_FIELD_NAME]->val_str_nopad(thd->mem_root, &name);
@@ -7131,7 +7131,7 @@ int store_schema_proc(THD *thd, TABLE *table, TABLE *proc_table,
 
           bzero((char*) &tbl, sizeof(TABLE));
           (void) build_table_filename(path, sizeof(path), "", "", "", 0);
-          init_tmp_table_share(thd, &share, "", 0, "", path);
+          init_tmp_table_share(thd, &share, "", 0, "", path ,true);
           store_variable_type(thd, sp->m_return_field_def,
                               ""_Lex_ident_column, &tbl, &share, cs, table, 5);
           free_table_share(&share);
