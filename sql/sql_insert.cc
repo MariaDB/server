@@ -956,7 +956,7 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
   if (lock_type != TL_WRITE_DELAYED)
 #endif /* EMBEDDED_LIBRARY */
   {
-    bool create_lookup_handler= duplic != DUP_ERROR;
+    bool create_lookup_handler= false;
     if (duplic != DUP_ERROR || ignore)
     {
       create_lookup_handler= true;
@@ -967,7 +967,7 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
           goto abort;
       }
     }
-    if (table->file->prepare_for_insert(create_lookup_handler))
+    if (table->file->prepare_for_modify(true, create_lookup_handler))
       goto abort;
     /**
       This is a simple check for the case when the table has a trigger
@@ -3686,7 +3686,7 @@ bool Delayed_insert::handle_inserts(void)
     handler_writes() will not have called decide_logging_format.
   */
   table->file->prepare_for_row_logging();
-  table->file->prepare_for_insert(1);
+  table->file->prepare_for_modify(true, true);
   using_bin_log= table->file->row_logging;
 
   /*
@@ -4195,7 +4195,7 @@ select_insert::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
 #endif
 
   thd->cuted_fields=0;
-  bool create_lookup_handler= info.handle_duplicates != DUP_ERROR;
+  bool create_lookup_handler= false;
   if (info.ignore || info.handle_duplicates != DUP_ERROR)
   {
     create_lookup_handler= true;
@@ -4206,7 +4206,7 @@ select_insert::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
         DBUG_RETURN(1);
     }
   }
-  table->file->prepare_for_insert(create_lookup_handler);
+  table->file->prepare_for_modify(true, create_lookup_handler);
   if (info.handle_duplicates == DUP_REPLACE &&
       (!table->triggers || !table->triggers->has_delete_triggers()))
     table->file->extra(HA_EXTRA_WRITE_CAN_REPLACE);
@@ -4984,7 +4984,7 @@ select_create::prepare(List<Item> &_values, SELECT_LEX_UNIT *u)
 
   restore_record(table,s->default_values);      // Get empty record
   thd->cuted_fields=0;
-  bool create_lookup_handler= info.handle_duplicates != DUP_ERROR;
+  bool create_lookup_handler= false;
   if (info.ignore || info.handle_duplicates != DUP_ERROR)
   {
     create_lookup_handler= true;
@@ -4995,7 +4995,7 @@ select_create::prepare(List<Item> &_values, SELECT_LEX_UNIT *u)
         DBUG_RETURN(1);
     }
   }
-  table->file->prepare_for_insert(create_lookup_handler);
+  table->file->prepare_for_modify(true, create_lookup_handler);
   if (info.handle_duplicates == DUP_REPLACE &&
       (!table->triggers || !table->triggers->has_delete_triggers()))
     table->file->extra(HA_EXTRA_WRITE_CAN_REPLACE);

@@ -8084,20 +8084,30 @@ bool handler::prepare_for_row_logging()
 
 
 /*
-  Do all initialization needed for insert
+  Do all initialization needed for writes: INSERT/UPDATE/DELETE
+
+  can_set_fields is true if values of individual fields in a record
+  can be set. That is, INSERT/UPDATE, need uniqueness checks, for example.
+
+  can_lookup is true if the operation needs to look up rows in the table,
+  that is UPDATE/DELETE, and here we need a separate `lookup_handler`
+  to avoid disrupting the state of `this`
 */
 
-int handler::prepare_for_insert(bool do_create)
+int handler::prepare_for_modify(bool can_set_fields, bool can_lookup)
 {
   if (table->open_hlindexes_for_write())
     return 1;
 
-  /* Preparation for unique of blob's */
-  if (table->s->long_unique_table || table->s->period.unique_keys)
+  if (can_set_fields)
   {
-    if (do_create && create_lookup_handler())
-      return 1;
-    alloc_lookup_buffer();
+    /* Preparation for unique of blob's */
+    if (table->s->long_unique_table || table->s->period.unique_keys)
+    {
+      if (can_lookup && create_lookup_handler())
+        return 1;
+      alloc_lookup_buffer();
+    }
   }
   return 0;
 }
@@ -8106,8 +8116,8 @@ int handler::prepare_for_insert(bool do_create)
 int handler::ha_write_row(const uchar *buf)
 {
   int error;
-  DBUG_ASSERT(table_share->tmp_table != NO_TMP_TABLE ||
-              m_lock_type == F_WRLCK);
+  DBUG_ASSERT(table_share->tmp_table != NO_TMP_TABLE || m_lock_type == F_WRLCK);
+  DBUG_ASSERT(buf == table->record[0]);
   DBUG_ENTER("handler::ha_write_row");
   DEBUG_SYNC_C("ha_write_row_start");
 #ifdef WITH_WSREP
@@ -8128,7 +8138,7 @@ int handler::ha_write_row(const uchar *buf)
     DBUG_ASSERT(inited == NONE || lookup_handler != this);
     if ((error= check_duplicate_long_entries(buf)))
     {
-      if (table->next_number_field && buf == table->record[0])
+      if (table->next_number_field)
         if (int err= update_auto_increment())
           error= err;
       DBUG_RETURN(error);
@@ -8262,9 +8272,9 @@ int handler::ha_delete_row(const uchar *buf)
               m_lock_type == F_WRLCK);
   /*
     Normally table->record[0] is used, but sometimes table->record[1] is used.
+    (notably, for REPLACE and in sql_acl.cc)
   */
-  DBUG_ASSERT(buf == table->record[0] ||
-              buf == table->record[1]);
+  DBUG_ASSERT(buf == table->record[0] || buf == table->record[1]);
 
   MYSQL_DELETE_ROW_START(table_share->db.str, table_share->table_name.str);
   mark_trx_read_write();
