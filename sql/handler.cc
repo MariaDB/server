@@ -6373,7 +6373,7 @@ int ha_create_table(THD *thd, const char *path, const char *db,
     create_info->options & (HA_LEX_CREATE_TMP_TABLE | HA_CREATE_TMP_ALTER);
   DBUG_ENTER("ha_create_table");
 
-  init_tmp_table_share(thd, &share, db, 0, table_name, path);
+  init_tmp_table_share(thd, &share, db, 0, table_name, path, true);
 
   if (frm)
   {
