@@ -6058,8 +6058,8 @@ static int do_show_master_status(MYSQL *mysql_con, int consistent_binlog_pos,
               "%sCHANGE MASTER TO MASTER_USE_GTID=slave_pos;\n",
               comment_prefix);
     /*
-      Defer print of SET gtid_slave_pos until after its placeholder
-      table is guaranteed to have been dumped.
+      When --gtid is specified defer print of SET gtid_slave_pos until
+      after its placeholder table is guaranteed to have been dumped.
     */
     if (opt_master_data == MYSQL_OPT_MASTER_DATA_COMMENTED_SQL || !use_gtid)
       fprintf(md_result_file, fmt_gtid_pos,
