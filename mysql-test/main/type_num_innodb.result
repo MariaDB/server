@@ -109,6 +109,30 @@ c
 Warnings:
 Warning	1292	Truncated incorrect DOUBLE value: '0.0e'
 DROP TABLE t1;
+CREATE TABLE t1 (c BLOB) ENGINE=InnoDB;
+INSERT INTO t1 VALUES ('0.0e'),('0.0e+0');
+SELECT * FROM t1 WHERE c=0.0;
+c
+0.0e
+0.0e+0
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: '0.0e'
+SELECT * FROM t1 WHERE c=0.0e0;
+c
+0.0e
+0.0e+0
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: '0.0e'
+DROP TABLE t1;
+CREATE TABLE t1 (c1 MEDIUMBLOB NOT NULL);
+INSERT INTO t1 VALUES ('1e+');
+SELECT AVG(c1) AS VALUE FROM t1 WHERE c1 <> 0;
+VALUE
+1
+Warnings:
+Warning	1292	Truncated incorrect DECIMAL value: '1e+'
+Warning	1292	Truncated incorrect DOUBLE value: '1e+'
+DROP TABLE t1;
 #
 # End of 10.5 tests
 #
