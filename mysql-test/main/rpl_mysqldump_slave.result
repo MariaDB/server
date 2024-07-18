@@ -46,10 +46,10 @@ DROP TABLE t2;
 1. --dump-slave=1 --gtid
 
 /*!999999\- enable the sandbox mode */ 
-SET GLOBAL gtid_slave_pos='0-1-1001';
 CHANGE MASTER '' TO MASTER_USE_GTID=slave_pos;
 -- CHANGE MASTER '' TO MASTER_LOG_FILE='master-bin.000001', MASTER_LOG_POS=BINLOG_START;
 
+SET GLOBAL gtid_slave_pos='0-1-1001';
 
 1a. --dump-slave=1
 
@@ -78,8 +78,8 @@ CHANGE MASTER '' TO MASTER_LOG_FILE='master-bin.000001', MASTER_LOG_POS=BINLOG_S
 
 /*!999999\- enable the sandbox mode */ 
 CHANGE MASTER TO MASTER_USE_GTID=slave_pos;
-SET GLOBAL gtid_slave_pos='0-2-1003';
 -- CHANGE MASTER TO MASTER_LOG_FILE='slave-bin.000001', MASTER_LOG_POS=BINLOG_START;
+SET GLOBAL gtid_slave_pos='0-2-1003';
 
 1a. --master-data=1
 
@@ -104,8 +104,8 @@ CHANGE MASTER TO MASTER_LOG_FILE='slave-bin.000001', MASTER_LOG_POS=BINLOG_START
 
 /*!999999\- enable the sandbox mode */ 
 CHANGE MASTER TO MASTER_USE_GTID=slave_pos;
-SET GLOBAL gtid_slave_pos='0-2-1003';
 -- CHANGE MASTER TO MASTER_LOG_FILE='slave-bin.000001', MASTER_LOG_POS=BINLOG_START;
+SET GLOBAL gtid_slave_pos='0-2-1003';
 
 3a. --master-data --single-transaction
 
