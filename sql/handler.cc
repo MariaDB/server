@@ -5475,12 +5475,11 @@ handler::ha_delete_all_rows()
               m_lock_type == F_WRLCK);
   mark_trx_read_write();
 
-  int err= 0;
-  if ((err= table->open_hlindexes_for_write()) ||
-      (err= table->hlindexes_on_delete_all()))
-    return err;
+  int err= delete_all_rows();
+  if (!err)
+    err= table->hlindexes_on_delete_all();
 
-  return delete_all_rows();
+  return err;
 }
 
 
@@ -8186,9 +8185,6 @@ int handler::ha_update_row(const uchar *old_data, const uchar *new_data)
   DBUG_ASSERT(new_data == table->record[0]);
   DBUG_ASSERT(old_data == table->record[1]);
 
-  if (table->open_hlindexes_for_write())
-    return 1;
-
   uint saved_status= table->status;
   error= ha_check_overlaps(old_data, new_data);
 
@@ -8280,13 +8276,10 @@ int handler::ha_delete_row(const uchar *buf)
   mark_trx_read_write();
   increment_statistics(&SSV::ha_delete_count);
 
-  if (table->open_hlindexes_for_write())
-    return 1;
-
   TABLE_IO_WAIT(tracker, PSI_TABLE_DELETE_ROW, active_index, error,
     { error= delete_row(buf);})
   MYSQL_DELETE_ROW_DONE(error);
-  if (likely(!error) && !(error= table->hlindexes_on_delete()))
+  if (likely(!error) && !(error= table->hlindexes_on_delete(buf)))
   {
     rows_stats.deleted++;
     Log_func *log_func= Delete_rows_log_event::binlog_row_logging_function;

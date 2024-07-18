@@ -37,7 +37,7 @@ enum Graph_table_fields {
   FIELD_LAYER, FIELD_TREF, FIELD_VEC, FIELD_NEIGHBORS
 };
 enum Graph_table_indices {
-  IDX_LAYER
+  IDX_TREF, IDX_LAYER
 };
 
 class MHNSW_Context;
@@ -258,7 +258,7 @@ public:
   static int acquire(MHNSW_Context **ctx, TABLE *table, bool for_update);
   static MHNSW_Context *get_from_share(TABLE_SHARE *share, TABLE *table);
 
-  void reset_ctx(TABLE_SHARE *share)
+  virtual void reset(TABLE_SHARE *share)
   {
     mysql_mutex_lock(&share->LOCK_share);
     if (static_cast<MHNSW_Context*>(share->hlindex->hlindex_data) == this)
@@ -279,7 +279,7 @@ public:
     if (can_commit)
       mysql_rwlock_unlock(&commit_lock);
     if (root_size(&root) > mhnsw_cache_size)
-      reset_ctx(share);
+      reset(share);
     if (--refcnt == 0)
       this->~MHNSW_Context(); // XXX reuse
   }
@@ -351,7 +351,7 @@ public:
   MHNSW_Trx *next= nullptr;
 
   MHNSW_Trx(TABLE *table) : MHNSW_Context(table), table_share(table->s) {}
-  void reset_trx()
+  void reset(TABLE_SHARE *) override
   {
     node_cache.clear();
     free_root(&root, MYF(0));
@@ -361,7 +361,7 @@ public:
   void release(bool, TABLE_SHARE *) override
   {
     if (root_size(&root) > mhnsw_cache_size)
-      reset_trx();
+      reset(nullptr);
   }
 
   static MHNSW_Trx *get_from_thd(THD *thd, TABLE *table);
@@ -395,7 +395,7 @@ int MHNSW_Trx::MHNSW_hton::do_savepoint_rollback(handlerton *, THD *thd, void *)
 {
   for (auto trx= static_cast<MHNSW_Trx*>(thd_get_ha_data(thd, &hton));
        trx; trx= trx->next)
-    trx->reset_trx();
+    trx->reset(nullptr);
   return 0;
 }
 
@@ -424,7 +424,7 @@ int MHNSW_Trx::MHNSW_hton::do_commit(handlerton *, THD *thd, bool)
     {
       mysql_rwlock_wrlock(&ctx->commit_lock);
       if (trx->list_of_nodes_is_lost)
-        ctx->reset_ctx(trx->table_share);
+        ctx->reset(trx->table_share);
       else
       {
         // consider copying nodes from trx to shared cache when it makes sense
@@ -1127,56 +1127,66 @@ void mhnsw_free(TABLE_SHARE *share)
   graph_share->hlindex_data= 0;
 }
 
-int mhnsw_invalidate(TABLE *table, uchar *rec, KEY *keyinfo)
+int mhnsw_invalidate(TABLE *table, const uchar *rec, KEY *keyinfo)
 {
   TABLE *graph= table->hlindex;
-  Field *vec_field= keyinfo->key_part->field;
-  String buf, *res= vec_field->val_str(&buf);
   handler *h= table->file;
-  int err= 0;
+  MHNSW_Context *ctx;
+  bool use_ctx= !MHNSW_Context::acquire(&ctx, table, true);
 
   /* metadata are checked on open */
   DBUG_ASSERT(graph);
   DBUG_ASSERT(keyinfo->algorithm == HA_KEY_ALG_VECTOR);
   DBUG_ASSERT(keyinfo->usable_key_parts == 1);
-  DBUG_ASSERT(vec_field->binary());
-  DBUG_ASSERT(vec_field->cmp_type() == STRING_RESULT);
-  DBUG_ASSERT(res); // ER_INDEX_CANNOT_HAVE_NULL
-  DBUG_ASSERT(h->ref_length <= graph->field[1]->field_length);
-  DBUG_ASSERT(h->ref_length <= graph->field[2]->field_length);
-
-  if (res->length() == 0 || res->length() % 4)
-    return 1;
-
-  // use index on tref
-  if ((err= graph->file->ha_index_init(1, 0)))
-    return err;
+  DBUG_ASSERT(h->ref_length <= graph->field[FIELD_TREF]->field_length);
 
   // target record:
   h->position(rec);
   graph->field[FIELD_TREF]->set_notnull();
-  graph->field[FIELD_TREF]->store_binary(
-    reinterpret_cast<const char *>(h->ref), h->ref_length);
+  graph->field[FIELD_TREF]->store_binary(h->ref, h->ref_length);
 
-  uchar *key= (uchar*)alloca(graph->key_info[1].key_length);
-  key_copy(key, graph->record[0], graph->key_info + 1,
-           graph->key_info[1].key_length);
+  uchar *key= (uchar*)alloca(graph->key_info[IDX_TREF].key_length);
+  key_copy(key, graph->record[0], &graph->key_info[IDX_TREF],
+           graph->key_info[IDX_TREF].key_length);
 
-  err= graph->file->ha_index_read_map(graph->record[1], key,
-                                      HA_WHOLE_KEY,
-                                      HA_READ_KEY_EXACT);
-
-  // Deleted tref not found in index, should not happen
-  if (err == HA_ERR_KEY_NOT_FOUND)
-  {
-      DBUG_ASSERT(0);
-      return err;
-  }
+  if (int err= graph->file->ha_index_read_idx_map(graph->record[1], IDX_TREF,
+                                        key, HA_WHOLE_KEY, HA_READ_KEY_EXACT))
+   return err;
 
   restore_record(graph, record[1]);
   graph->field[FIELD_TREF]->set_null();
+  if (int err= graph->file->ha_update_row(graph->record[1], graph->record[0]))
+    return err;
 
-  graph->file->ha_update_row(graph->record[1], graph->record[0]);
+  if (use_ctx)
+  {
+    graph->file->position(graph->record[0]);
+    FVectorNode *node= ctx->get_node(graph->file->ref);
+    node->deleted= true;
+    ctx->release(table);
+  }
+
+  return 0;
+}
+
+int mhnsw_delete_all(TABLE *table, KEY *keyinfo)
+{
+  TABLE *graph= table->hlindex;
+
+  /* metadata are checked on open */
+  DBUG_ASSERT(graph);
+  DBUG_ASSERT(keyinfo->algorithm == HA_KEY_ALG_VECTOR);
+  DBUG_ASSERT(keyinfo->usable_key_parts == 1);
+
+  if (int err= graph->file->ha_delete_all_rows())
+   return err;
+
+  MHNSW_Context *ctx;
+  if (!MHNSW_Context::acquire(&ctx, table, true))
+  {
+    ctx->reset(table->s);
+    ctx->release(table);
+  }
 
   return 0;
 }
@@ -1188,8 +1198,8 @@ const LEX_CSTRING mhnsw_hlindex_table_def(THD *thd, uint ref_length)
                      "  tref varbinary(%u),              "
                      "  vec blob not null,               "
                      "  neighbors blob not null,         "
-                     "  key (layer),                     "
-                     "  key (ref))                       ";
+                     "  unique (tref),                   "
+                     "  key (layer))                     ";
   size_t len= sizeof(templ) + 32;
   char *s= thd->alloc(len);
   len= my_snprintf(s, len, templ, ref_length);

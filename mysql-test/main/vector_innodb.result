@@ -21,10 +21,13 @@ insert t1 (v) values
 start transaction;
 insert t1 values
 (30, x'f8e2413ed4ff773fef8b893eba487b3febee3f3f9e6f693f5961fd3ee479303d');
+delete from t1 where id=1;
+update t1 set v=x'a17e353e91676a3f8005c53e319b2d3f1410133fc018153e8dca3e3f3144ac3e' where id=2;
 savepoint foo;
 insert t1 values
 (31, x'6129683f90fe1f3e1437bc3ed8c8f63dd141033f21e3a93e54346c3f8c4e043f'),
 (32, x'1ec8b83d398c4d3f2efb463f23947a3fa1a5093fdde6303e5580413f51569b3e');
+delete from t1 where id=5;
 rollback to savepoint foo;
 insert t1 values
 (33, x'86d1003d4262033f8086713ffc4a633e317e933c4dce013d9c4d573fca83b93e');
@@ -33,19 +36,20 @@ start transaction;
 insert t1 values
 (40, x'71046a3e85329b3e05240e3f45c9283f1847363f98d47d3f4224b73d487b613f'),
 (41, x'71046a3e85329b3e05240e3f45c9283f1847363f98d47d3f4224b73d487b613f');
+delete from t1 where id=7;
 rollback;
 select id,vec_distance(v, x'c923e33dc0da313fe7c7983e526b3d3fde63963e6eaf3a3f27fa133fe27a583f') d from t1 order by d limit 5;
 id	d
+2	0.8781474260354732
 10	0.8856208347761952
-1	0.9381363209273885
 30	1.0162643974895857
 7	1.026397313888122
 5	1.0308161006949719
 select id,vec_distance(v, x'754b5f3ea2312b3fc169f43e4604883e1d20173e8dd7443f421b703fb11e0d3e') d from t1 order by d limit 5;
 id	d
+2	0.9426904171992334
 33	0.9477554826856
 30	1.111405427702547
-1	1.1154613877616022
 10	1.118630286292343
 8	1.1405733350751739
 create table t2 (id int auto_increment primary key, v blob not null, vector index (v)) engine=innodb;
@@ -73,7 +77,7 @@ id	d
 5	0.9706304662574956
 30	0.98144492002831
 50	1.079862635421575
-51	1.2403734530917931
+2	1.0907138991979892
 select id,vec_distance(v, x'f618663f256be73e62cd453f8bcdbf3e16ae503c3858313f') d from t2 order by d limit 5;
 id	d
 21	0.43559180321379337

@@ -9880,12 +9880,13 @@ int TABLE::hlindex_open(uint nr)
     else
       mysql_mutex_unlock(&s->LOCK_share);
     TABLE *table= (TABLE*)alloc_root(&mem_root, sizeof(*table));
-    if (!table ||
-        open_table_from_share(in_use, s->hlindex, &empty_clex_str, db_stat, EXTRA_RECORD,
-                              in_use->open_options, table, 0))
+    if (!table || open_table_from_share(in_use, s->hlindex, &empty_clex_str,
+                    db_stat, EXTRA_RECORD, in_use->open_options, table, 0))
       return 1;
     hlindex= table;
   }
+  else if (hlindex->in_use == in_use)
+    return 0;
   hlindex->in_use= in_use;      // mark in use for this query
   hlindex->use_all_columns();
   return hlindex->file->ha_external_lock(in_use, F_WRLCK);
@@ -9895,17 +9896,8 @@ int TABLE::open_hlindexes_for_write()
 {
   DBUG_ASSERT(s->total_keys - s->keys <= 1);
   for (uint i= s->keys; i < s->total_keys; i++)
-  {
-    KEY *key= s->key_info + i;
-    for (uint j=0; j < key->usable_key_parts; j++)
-      // TODO WHY?
-      // if (bitmap_is_set(write_set, key->key_part[j].fieldnr - 1))
-      {
-        if (hlindex_open(i))
-          return 1;
-        break;
-      }
-  }
+    if (hlindex_open(i))
+      return 1;
   return 0;
 }
 
@@ -9931,37 +9923,34 @@ int TABLE::hlindexes_on_insert()
 int TABLE::hlindexes_on_update()
 {
   DBUG_ASSERT(s->total_keys - s->keys == (hlindex != NULL));
-  if (!hlindex || !hlindex->in_use)
-    return 0;
-
-  int err;
-  // mark deleted node invalid and insert node for new row
-  if ((err= mhnsw_invalidate(this, this->record[1], key_info + s->keys)) ||
-      (err= mhnsw_insert(this, key_info + s->keys)))
-    return err;
+  if (hlindex && hlindex->in_use)
+  {
+    int err;
+    // mark deleted node invalid and insert node for new row
+    if ((err= mhnsw_invalidate(this, record[1], key_info + s->keys)) ||
+        (err= mhnsw_insert(this, key_info + s->keys)))
+      return err;
+  }
 
   return 0;
 }
 
-int TABLE::hlindexes_on_delete()
+int TABLE::hlindexes_on_delete(const uchar *buf)
 {
   DBUG_ASSERT(s->total_keys - s->keys == (hlindex != NULL));
-  if (!hlindex || !hlindex->in_use)
-    return 0;
-
-  if (int err= mhnsw_invalidate(this, this->record[0], key_info + s->keys))
-    return err;
-
+  DBUG_ASSERT(buf == record[0] || buf == record[1]); // note: REPLACE
+  if (hlindex && hlindex->in_use)
+    if (int err= mhnsw_invalidate(this, buf, key_info + s->keys))
+      return err;
   return 0;
 }
 
 int TABLE::hlindexes_on_delete_all()
 {
   DBUG_ASSERT(s->total_keys - s->keys == (hlindex != NULL));
-  if (!hlindex || !hlindex->in_use)
-    return 0;
-
-  this->hlindex->file->ha_delete_all_rows();
+  if (hlindex && hlindex->in_use)
+    if (int err= mhnsw_delete_all(this, key_info + s->keys))
+      return err;
   return 0;
 }
 
