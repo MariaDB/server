@@ -11680,11 +11680,13 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
     {
       if (!binlog_checkpoint_found)
         break;
-      DBUG_EXECUTE_IF("xa_recover_expect_master_bin_000004",
-          if (0 != strcmp("./master-bin.000004", binlog_checkpoint_name) &&
-              0 != strcmp(".\\master-bin.000004", binlog_checkpoint_name))
-            DBUG_SUICIDE();
-        );
+      /*
+        DBUG_EXECUTE_IF("xa_recover_expect_master_bin_000004",
+            if (0 != strcmp("./master-bin.000004", binlog_checkpoint_name) &&
+                0 != strcmp(".\\master-bin.000004", binlog_checkpoint_name))
+              DBUG_SUICIDE();
+          );
+       */
       if (find_log_pos(linfo, binlog_checkpoint_name, 1))
       {
         sql_print_error("Binlog file '%s' not found in binlog index, needed "

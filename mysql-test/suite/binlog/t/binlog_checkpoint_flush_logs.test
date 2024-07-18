@@ -54,7 +54,7 @@ SET DEBUG_SYNC= "now SIGNAL default_go";
 connection default;
 --enable_reconnect
 --error 0,2013
---reap
+--reap # sigabrt
 
 --echo Must be tree logs in the list:
 --source include/show_binary_logs.inc

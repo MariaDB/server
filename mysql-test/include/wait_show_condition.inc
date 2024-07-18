@@ -77,7 +77,8 @@ if ($wait_for_all != 1)
      while ($do_loop)
      {
         let $field_value= query_get_value($show_statement, $field, $rowno);
-        if (`SELECT '$field_value' $condition`)
+        # let $field_value= `select quote($field_value)`;
+        if (`SELECT "$field_value" $condition`)
         {
            let $found= 1;
 	   let $do_loop= 0;

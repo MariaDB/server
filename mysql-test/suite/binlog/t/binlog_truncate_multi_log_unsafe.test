@@ -94,6 +94,7 @@ SELECT @@global.gtid_binlog_state;
 --error 1
 --exec $MYSQLD_LAST_CMD  --init-rpl-role=SLAVE >> $MYSQLTEST_VARDIR/log/mysqld.1.err 2>&1
 
+# somewhere below: sigabrt
 --echo # Normal restart
 --source include/start_mysqld.inc
 

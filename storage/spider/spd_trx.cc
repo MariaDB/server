@@ -3287,6 +3287,9 @@ int spider_xa_commit_by_xid(
   THD* thd = current_thd;
   DBUG_ENTER("spider_xa_commit_by_xid");
 
+  /*
+    abort();
+   */
   if (!(trx = spider_get_trx(thd, TRUE, &error_num)))
     goto error_get_trx;
 
@@ -3309,6 +3312,9 @@ int spider_xa_rollback_by_xid(
   THD* thd = current_thd;
   DBUG_ENTER("spider_xa_rollback_by_xid");
 
+  /*
+    abort();
+   */
   if (!(trx = spider_get_trx(thd, TRUE, &error_num)))
     goto error_get_trx;
 

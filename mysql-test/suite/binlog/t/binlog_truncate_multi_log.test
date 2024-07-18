@@ -63,6 +63,7 @@ SELECT @@global.gtid_binlog_state;
 #
 # Server restart
 #
+# sigabrt somewhere here
 --let $restart_parameters= --init-rpl-role=SLAVE --sync-binlog=1 --log-warnings=3
 --source include/start_mysqld.inc
 

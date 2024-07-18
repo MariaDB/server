@@ -10,7 +10,11 @@ SET GLOBAL max_binlog_size= 4096;
 SET GLOBAL innodb_flush_log_at_trx_commit= 1;
 RESET MASTER;
 
-CREATE TABLE t1 (a INT PRIMARY KEY, b MEDIUMTEXT) ENGINE=Innodb;
+install soname 'ha_spider';
+set spider_same_server_link=1;
+evalp CREATE SERVER srv FOREIGN DATA WRAPPER MYSQL OPTIONS (SOCKET "$MASTER_MYSOCK", DATABASE 'test',user 'root');
+create table t2 (a INT PRIMARY KEY, b MEDIUMTEXT);
+CREATE TABLE t1 (a INT PRIMARY KEY, b MEDIUMTEXT) ENGINE=Spider COMMENT="srv 'srv', table 't2'";
 # MDEV-515 takes X-lock on the table for the first insert
 # In that case, Concurrent DML will get blocked
 INSERT INTO t1 VALUES(100, "MDEV-515");
@@ -44,7 +48,7 @@ EOF
 SET DEBUG_SYNC= "now SIGNAL con1_cont";
 connection con1;
 --error 2006,2013
-reap;
+reap; # sigabrt
 
 --append_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 restart-binlog_mdev342.test
