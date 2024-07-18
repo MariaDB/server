@@ -1031,12 +1031,7 @@ int spider_create_string_list(
   tmp_ptr = str;
   while (*tmp_ptr == ' ')
     tmp_ptr++;
-  if (*tmp_ptr)
-    *list_length = 1;
-  else {
-    *string_list = NULL;
-    DBUG_RETURN(0);
-  }
+  *list_length= 1;
 
   bool last_esc_flg = FALSE;
   while (TRUE)
@@ -3970,6 +3965,44 @@ void spider_print_keys(
 }
 #endif
 
+void spider_create_conn_key_add_one(int* counter, char** target, char* src)
+{
+  (*counter)++;
+  if (src)
+  {
+    **target= (char) *counter;
+    *target= strmov(*target + 1, src);
+    (*target)++;
+  }
+}
+
+/*
+  The conn keys are strings of the following format:
+
+  0 \<idx1> <value1> \0 \<idx2> <value2> \0 ... \<idxN> <valueN> \0
+
+  Where idx1, idx2, etc. are the index of first, second, etc. options
+  where the value is specified. We have the wrapper as the first
+  option, host as the second, port as the third, socket as the fourth,
+  and so on (see below for the order of all options). So here would be
+  a conn key where only the host and the port are specified and
+  nothing else:
+
+  0\002localhost\000\00303306\000
+
+  And it has length 1 + 1 + 9 + 1 + 1 + 5 + 1 = 19.
+
+  In case of HA, say we have another link with the same options
+  specified except that the port is 3307, then we place an extra NUL
+  before placing the next conn_key:
+
+  0\002localhost\000\00303306\000\0000\002localhost\000\00303307\000
+  ^                                  ^
+  conn_keys[0]                       conn_keys[1]
+
+  Thus the total number of chars (share->conn_keys_charlen) needed is
+  (19 + 1) * 2 = 40
+*/
 int spider_create_conn_keys(
   SPIDER_SHARE *share
 ) {
@@ -4031,26 +4064,26 @@ int spider_create_conn_keys(
     }
     conn_keys_lengths[roop_count]
       = 1
-      + share->tgt_wrappers_lengths[roop_count] + 1
-      + share->tgt_hosts_lengths[roop_count] + 1
-      + 5 + 1
-      + share->tgt_sockets_lengths[roop_count] + 1
-      + (tables_on_different_db_are_joinable ?
-        0 : share->tgt_dbs_lengths[roop_count] + 1)
-      + share->tgt_usernames_lengths[roop_count] + 1
-      + share->tgt_passwords_lengths[roop_count] + 1
-      + share->tgt_ssl_cas_lengths[roop_count] + 1
-      + share->tgt_ssl_capaths_lengths[roop_count] + 1
-      + share->tgt_ssl_certs_lengths[roop_count] + 1
-      + share->tgt_ssl_ciphers_lengths[roop_count] + 1
-      + share->tgt_ssl_keys_lengths[roop_count] + 1
-      + 1 + 1
-      + share->tgt_default_files_lengths[roop_count] + 1
-      + share->tgt_default_groups_lengths[roop_count] + 1
-      + share->tgt_dsns_lengths[roop_count] + 1
-      + share->tgt_filedsns_lengths[roop_count] + 1
-      + share->tgt_drivers_lengths[roop_count];
-    share->conn_keys_charlen += conn_keys_lengths[roop_count] + 2;
+      + (share->tgt_wrappers[roop_count] ? share->tgt_wrappers_lengths[roop_count] + 2 : 0)
+      + (share->tgt_hosts[roop_count] ? share->tgt_hosts_lengths[roop_count] + 2 : 0)
+      + 5 + 2
+      + (share->tgt_sockets[roop_count] ? share->tgt_sockets_lengths[roop_count] + 2 : 0)
+      + (!tables_on_different_db_are_joinable && share->tgt_dbs[roop_count] ?
+         share->tgt_dbs_lengths[roop_count] + 2 : 0)
+      + (share->tgt_usernames[roop_count] ? share->tgt_usernames_lengths[roop_count] + 2 : 0)
+      + (share->tgt_passwords[roop_count] ? share->tgt_passwords_lengths[roop_count] + 2 : 0)
+      + (share->tgt_ssl_cas[roop_count] ? share->tgt_ssl_cas_lengths[roop_count] + 2 : 0)
+      + (share->tgt_ssl_capaths[roop_count] ? share->tgt_ssl_capaths_lengths[roop_count] + 2 : 0)
+      + (share->tgt_ssl_certs[roop_count] ? share->tgt_ssl_certs_lengths[roop_count] + 2 : 0)
+      + (share->tgt_ssl_ciphers[roop_count] ? share->tgt_ssl_ciphers_lengths[roop_count] + 2 : 0)
+      + (share->tgt_ssl_keys[roop_count] ? share->tgt_ssl_keys_lengths[roop_count] + 2 : 0)
+      + 1 + 2
+      + (share->tgt_default_files[roop_count] ? share->tgt_default_files_lengths[roop_count] + 2 : 0)
+      + (share->tgt_default_groups[roop_count] ? share->tgt_default_groups_lengths[roop_count] + 2 : 0)
+      + (share->tgt_dsns[roop_count] ? share->tgt_dsns_lengths[roop_count] + 2 : 0)
+      + (share->tgt_filedsns[roop_count] ? share->tgt_filedsns_lengths[roop_count] + 2 : 0)
+      + (share->tgt_drivers[roop_count] ? share->tgt_drivers_lengths[roop_count] + 2 : 0);
+    share->conn_keys_charlen += conn_keys_lengths[roop_count] + 1;
   }
   if (!(share->conn_keys = (char **)
     spider_bulk_alloc_mem(spider_current_trx, SPD_MID_CREATE_CONN_KEYS_1,
@@ -4089,123 +4122,37 @@ int spider_create_conn_keys(
 
     share->conn_keys[roop_count] = tmp_name;
     *tmp_name = '0';
-    DBUG_PRINT("info",("spider tgt_wrappers[%d]=%s", roop_count,
-      share->tgt_wrappers[roop_count]));
-    tmp_name = strmov(tmp_name + 1, share->tgt_wrappers[roop_count]);
-    if (share->tgt_hosts[roop_count])
-    {
-      DBUG_PRINT("info",("spider tgt_hosts[%d]=%s", roop_count,
-        share->tgt_hosts[roop_count]));
-      tmp_name = strmov(tmp_name + 1, share->tgt_hosts[roop_count]);
-    } else {
-      tmp_name++;
-    }
+    tmp_name++;
+    int counter= 0;
+    spider_create_conn_key_add_one(&counter, &tmp_name, share->tgt_wrappers[roop_count]);
+    spider_create_conn_key_add_one(&counter, &tmp_name, share->tgt_hosts[roop_count]);
     my_sprintf(port_str, (port_str, "%05ld", share->tgt_ports[roop_count]));
-    DBUG_PRINT("info",("spider port_str=%s", port_str));
-    tmp_name = strmov(tmp_name + 1, port_str);
-    if (share->tgt_sockets[roop_count])
+    spider_create_conn_key_add_one(&counter, &tmp_name, port_str);
+    spider_create_conn_key_add_one(&counter, &tmp_name, share->tgt_sockets[roop_count]);
+    counter++;
+    if (!tables_on_different_db_are_joinable && share->tgt_dbs[roop_count])
     {
-      DBUG_PRINT("info",("spider tgt_sockets[%d]=%s", roop_count,
-        share->tgt_sockets[roop_count]));
-      tmp_name = strmov(tmp_name + 1, share->tgt_sockets[roop_count]);
-    } else
+      *tmp_name= (char) counter;
+      tmp_name = strmov(tmp_name + 1, share->tgt_dbs[roop_count]);
       tmp_name++;
-    if (!tables_on_different_db_are_joinable)
-    {
-      if (share->tgt_dbs[roop_count])
-      {
-        DBUG_PRINT("info",("spider tgt_dbs[%d]=%s", roop_count,
-          share->tgt_dbs[roop_count]));
-        tmp_name = strmov(tmp_name + 1, share->tgt_dbs[roop_count]);
-      } else
-        tmp_name++;
     }
-    if (share->tgt_usernames[roop_count])
-    {
-      DBUG_PRINT("info",("spider tgt_usernames[%d]=%s", roop_count,
-        share->tgt_usernames[roop_count]));
-      tmp_name = strmov(tmp_name + 1, share->tgt_usernames[roop_count]);
-    } else
-      tmp_name++;
-    if (share->tgt_passwords[roop_count])
-    {
-      DBUG_PRINT("info",("spider tgt_passwords[%d]=%s", roop_count,
-        share->tgt_passwords[roop_count]));
-      tmp_name = strmov(tmp_name + 1, share->tgt_passwords[roop_count]);
-    } else
-      tmp_name++;
-    if (share->tgt_ssl_cas[roop_count])
-    {
-      DBUG_PRINT("info",("spider tgt_ssl_cas[%d]=%s", roop_count,
-        share->tgt_ssl_cas[roop_count]));
-      tmp_name = strmov(tmp_name + 1, share->tgt_ssl_cas[roop_count]);
-    } else
-      tmp_name++;
-    if (share->tgt_ssl_capaths[roop_count])
-    {
-      DBUG_PRINT("info",("spider tgt_ssl_capaths[%d]=%s", roop_count,
-        share->tgt_ssl_capaths[roop_count]));
-      tmp_name = strmov(tmp_name + 1, share->tgt_ssl_capaths[roop_count]);
-    } else
-      tmp_name++;
-    if (share->tgt_ssl_certs[roop_count])
-    {
-      DBUG_PRINT("info",("spider tgt_ssl_certs[%d]=%s", roop_count,
-        share->tgt_ssl_certs[roop_count]));
-      tmp_name = strmov(tmp_name + 1, share->tgt_ssl_certs[roop_count]);
-    } else
-      tmp_name++;
-    if (share->tgt_ssl_ciphers[roop_count])
-    {
-      DBUG_PRINT("info",("spider tgt_ssl_ciphers[%d]=%s", roop_count,
-        share->tgt_ssl_ciphers[roop_count]));
-      tmp_name = strmov(tmp_name + 1, share->tgt_ssl_ciphers[roop_count]);
-    } else
-      tmp_name++;
-    if (share->tgt_ssl_keys[roop_count])
-    {
-      DBUG_PRINT("info",("spider tgt_ssl_keys[%d]=%s", roop_count,
-        share->tgt_ssl_keys[roop_count]));
-      tmp_name = strmov(tmp_name + 1, share->tgt_ssl_keys[roop_count]);
-    } else
-      tmp_name++;
+    spider_create_conn_key_add_one(&counter, &tmp_name, share->tgt_usernames[roop_count]);
+    spider_create_conn_key_add_one(&counter, &tmp_name, share->tgt_passwords[roop_count]);
+    spider_create_conn_key_add_one(&counter, &tmp_name, share->tgt_ssl_cas[roop_count]);
+    spider_create_conn_key_add_one(&counter, &tmp_name, share->tgt_ssl_capaths[roop_count]);
+    spider_create_conn_key_add_one(&counter, &tmp_name, share->tgt_ssl_certs[roop_count]);
+    spider_create_conn_key_add_one(&counter, &tmp_name, share->tgt_ssl_ciphers[roop_count]);
+    spider_create_conn_key_add_one(&counter, &tmp_name, share->tgt_ssl_keys[roop_count]);
+    counter++;
+    *tmp_name= (char) counter;
     tmp_name++;
     *tmp_name = '0' + ((char) share->tgt_ssl_vscs[roop_count]);
-    if (share->tgt_default_files[roop_count])
-    {
-      DBUG_PRINT("info",("spider tgt_default_files[%d]=%s", roop_count,
-        share->tgt_default_files[roop_count]));
-      tmp_name = strmov(tmp_name + 1, share->tgt_default_files[roop_count]);
-    } else
-      tmp_name++;
-    if (share->tgt_default_groups[roop_count])
-    {
-      DBUG_PRINT("info",("spider tgt_default_groups[%d]=%s", roop_count,
-        share->tgt_default_groups[roop_count]));
-      tmp_name = strmov(tmp_name + 1, share->tgt_default_groups[roop_count]);
-    } else
-      tmp_name++;
-    if (share->tgt_dsns[roop_count])
-    {
-      DBUG_PRINT("info",("spider tgt_dsns[%d]=%s", roop_count,
-        share->tgt_dsns[roop_count]));
-      tmp_name = strmov(tmp_name + 1, share->tgt_dsns[roop_count]);
-    } else
-      tmp_name++;
-    if (share->tgt_filedsns[roop_count])
-    {
-      DBUG_PRINT("info",("spider tgt_filedsns[%d]=%s", roop_count,
-        share->tgt_filedsns[roop_count]));
-      tmp_name = strmov(tmp_name + 1, share->tgt_filedsns[roop_count]);
-    } else
-      tmp_name++;
-    if (share->tgt_drivers[roop_count])
-    {
-      DBUG_PRINT("info",("spider tgt_drivers[%d]=%s", roop_count,
-        share->tgt_drivers[roop_count]));
-      tmp_name = strmov(tmp_name + 1, share->tgt_drivers[roop_count]);
-    } else
-      tmp_name++;
+    tmp_name++;
+    spider_create_conn_key_add_one(&counter, &tmp_name, share->tgt_default_files[roop_count]);
+    spider_create_conn_key_add_one(&counter, &tmp_name, share->tgt_default_groups[roop_count]);
+    spider_create_conn_key_add_one(&counter, &tmp_name, share->tgt_dsns[roop_count]);
+    spider_create_conn_key_add_one(&counter, &tmp_name, share->tgt_filedsns[roop_count]);
+    spider_create_conn_key_add_one(&counter, &tmp_name, share->tgt_drivers[roop_count]);
     tmp_name++;
     tmp_name++;
 #ifdef SPIDER_HAS_HASH_VALUE_TYPE

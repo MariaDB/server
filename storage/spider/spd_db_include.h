@@ -1133,6 +1133,7 @@ public:
   uint dbton_id;
   ha_spider *spider;
   spider_db_share *db_share;
+  /* Index of active server, used in query construction. */
   int first_link_idx;
   bool strict_group_by= false;
   bool no_where_cond= false;

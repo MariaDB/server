@@ -71,7 +71,7 @@ if [ -x /usr/sbin/semodule ] ; then
   /usr/sbin/semodule -i /usr/share/mysql/policy/selinux/mariadb.pp
 fi
 
-if [ -x /sbin/restorecon ] ; then
+if [ -x /sbin/restorecon -a -d /var/lib/mysql ] ; then
 	/sbin/restorecon -R /var/lib/mysql
 fi
 

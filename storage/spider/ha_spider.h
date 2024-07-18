@@ -67,8 +67,10 @@ public:
   char               *conn_keys_first_ptr;
   char               **conn_keys;
   SPIDER_CONN        **conns;
-  /* for active-standby mode */
+  /* array of indexes of active servers */
   uint               *conn_link_idx;
+  /* A bitmap indicating whether each active server have some higher
+  numbered server in the same "group" left to try (can fail over) */
   uchar              *conn_can_fo;
   void               **quick_targets;
   int                *need_mons;
@@ -165,7 +167,13 @@ public:
   ulonglong          *db_request_id;
   uchar              *db_request_phase;
   uchar              *m_handler_opened;
+  /* ids for use in HANDLER command */
   uint               *m_handler_id;
+  /*
+    aliases for use in HANDLER command, in the format of t%5u on
+    m_handler_id. So for example, if m_handler_id is 3, then the
+    corresponding m_handler_cid is t00003
+  */
   char               **m_handler_cid;
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
   bool               do_direct_update;

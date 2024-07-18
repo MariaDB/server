@@ -3870,7 +3870,7 @@ Gtid_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
         print_event_info->allow_parallel != !!(flags2 & FL_ALLOW_PARALLEL))
     {
       if (my_b_printf(&cache,
-                  "/*!100101 SET @@session.skip_parallel_replication=%u*/%s\n",
+                  "/*M!100101 SET @@session.skip_parallel_replication=%u*/%s\n",
                       !(flags2 & FL_ALLOW_PARALLEL),
                       print_event_info->delimiter))
         goto err;
@@ -3882,7 +3882,7 @@ Gtid_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
         print_event_info->domain_id != domain_id)
     {
       if (my_b_printf(&cache,
-                      "/*!100001 SET @@session.gtid_domain_id=%u*/%s\n",
+                      "/*M!100001 SET @@session.gtid_domain_id=%u*/%s\n",
                       domain_id, print_event_info->delimiter))
         goto err;
       print_event_info->domain_id= domain_id;
@@ -3892,7 +3892,7 @@ Gtid_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
     if (!print_event_info->server_id_printed ||
         print_event_info->server_id != server_id)
     {
-      if (my_b_printf(&cache, "/*!100001 SET @@session.server_id=%u*/%s\n",
+      if (my_b_printf(&cache, "/*M!100001 SET @@session.server_id=%u*/%s\n",
                       server_id, print_event_info->delimiter))
         goto err;
       print_event_info->server_id= server_id;
@@ -3900,7 +3900,7 @@ Gtid_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
     }
 
     if (!is_flashback)
-      if (my_b_printf(&cache, "/*!100001 SET @@session.gtid_seq_no=%s*/%s\n",
+      if (my_b_printf(&cache, "/*M!100001 SET @@session.gtid_seq_no=%s*/%s\n",
                       buf, print_event_info->delimiter))
         goto err;
   }
