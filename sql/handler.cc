@@ -6375,7 +6375,7 @@ int ha_create_table(THD *thd, const char *path, const char *db,
   Abort_on_warning_instant_set old_abort_on_warning(thd, 0);
   DBUG_ENTER("ha_create_table");
 
-  init_tmp_table_share(thd, &share, db, 0, table_name, path);
+  init_tmp_table_share(thd, &share, db, 0, table_name, path, true);
 
   if (frm)
   {

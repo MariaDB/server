@@ -4550,7 +4550,7 @@ int create_table_impl(THD *thd,
       goto err;
     }
 
-    init_tmp_table_share(thd, &share, db.str, 0, table_name.str, path.str);
+    init_tmp_table_share(thd, &share, db.str, 0, table_name.str, path.str, true);
 
     /* prepare everything for discovery */
     share.field= &no_fields;
@@ -9796,7 +9796,7 @@ static int create_table_for_inplace_alter(THD *thd,
                                           TABLE *table)
 {
   init_tmp_table_share(thd, share, alter_ctx.new_db.str, 0,
-                       alter_ctx.new_name.str, alter_ctx.get_tmp_path());
+                       alter_ctx.new_name.str, alter_ctx.get_tmp_path(), true);
   if (share->init_from_binary_frm_image(thd, true, frm->str, frm->length) ||
       open_table_from_share(thd, share, &alter_ctx.new_name, 0,
                             EXTRA_RECORD, thd->open_options,
