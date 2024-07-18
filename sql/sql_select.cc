@@ -21297,7 +21297,7 @@ TABLE *Create_tmp_table::start(THD *thd,
   table->expr_arena= thd;
 
   table->s= share;
-  init_tmp_table_share(thd, share, "", 0, "(temporary)", tmpname);
+  init_tmp_table_share(thd, share, "", 0, "(temporary)", tmpname, true);
   share->blob_field= blob_field;
   share->table_charset= param->table_charset;
   share->primary_key= MAX_KEY;               // Indicate no primary key

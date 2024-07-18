@@ -3413,8 +3413,8 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
 TABLE_SHARE *alloc_table_share(const char *db, const char *table_name,
                                const char *key, uint key_length);
 void init_tmp_table_share(THD *thd, TABLE_SHARE *share, const char *key,
-                          uint key_length,
-                          const char *table_name, const char *path);
+                          uint key_length, const char *table_name,
+                          const char *path, bool thread_specific);
 void free_table_share(TABLE_SHARE *share);
 enum open_frm_error open_table_def(THD *thd, TABLE_SHARE *share,
                                    uint flags = GTS_TABLE);
