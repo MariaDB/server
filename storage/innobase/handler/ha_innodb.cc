@@ -7858,7 +7858,10 @@ set_max_autoinc:
 		if (wsrep_append_keys(m_user_thd, WSREP_SERVICE_KEY_EXCLUSIVE,
 				      record,
 				      NULL)) {
-			DBUG_PRINT("wsrep", ("row key failed"));
+			WSREP_DEBUG("::write_rows::wsrep_append_keys failed THD %ld for %s.%s",
+				    thd_get_thread_id(m_user_thd),
+				    table->s->db.str,
+				    table->s->table_name.str);
 			error_result = HA_ERR_INTERNAL_ERROR;
 			goto func_exit;
 		}
@@ -8558,16 +8561,20 @@ func_exit:
 #ifdef WITH_WSREP
 	if (error == DB_SUCCESS && trx->is_wsrep()
 	    && wsrep_thd_is_local(m_user_thd)
-	    && !wsrep_thd_ignore_table(m_user_thd)) {
-		DBUG_PRINT("wsrep", ("update row key"));
+	    && !wsrep_thd_ignore_table(m_user_thd)
+	    && (thd_sql_command(m_user_thd) != SQLCOM_CREATE_TABLE)
+	    && (thd_sql_command(m_user_thd) != SQLCOM_LOAD ||
+	        thd_binlog_format(m_user_thd) == BINLOG_FORMAT_ROW)) {
 
 		if (wsrep_append_keys(m_user_thd,
 				      wsrep_protocol_version >= 4
 				      ? WSREP_SERVICE_KEY_UPDATE
 				      : WSREP_SERVICE_KEY_EXCLUSIVE,
-				      old_row, new_row)){
-			WSREP_DEBUG("WSREP: UPDATE_ROW_KEY FAILED");
-			DBUG_PRINT("wsrep", ("row key failed"));
+				      old_row, new_row)) {
+			WSREP_DEBUG("::update_rows::wsrep_append_keys failed THD %ld for %s.%s",
+				    thd_get_thread_id(m_user_thd),
+				    table->s->db.str,
+				    table->s->table_name.str);
 			DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
 		}
 	}
@@ -8620,7 +8627,10 @@ ha_innobase::delete_row(
 		if (wsrep_append_keys(m_user_thd, WSREP_SERVICE_KEY_EXCLUSIVE,
 				      record,
 				      NULL)) {
-			DBUG_PRINT("wsrep", ("delete fail"));
+			WSREP_DEBUG("::delete_rows::wsrep_append_keys failed THD %ld for %s.%s",
+				    thd_get_thread_id(m_user_thd),
+				    table->s->db.str,
+				    table->s->table_name.str);
 			DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
 		}
 	}
