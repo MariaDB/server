@@ -19,10 +19,13 @@ insert t1 (v) values
 start transaction;
 insert t1 values
      (30, x'f8e2413ed4ff773fef8b893eba487b3febee3f3f9e6f693f5961fd3ee479303d');
+delete from t1 where id=1;
+update t1 set v=x'a17e353e91676a3f8005c53e319b2d3f1410133fc018153e8dca3e3f3144ac3e' where id=2;
 savepoint foo;
 insert t1 values
      (31, x'6129683f90fe1f3e1437bc3ed8c8f63dd141033f21e3a93e54346c3f8c4e043f'),
      (32, x'1ec8b83d398c4d3f2efb463f23947a3fa1a5093fdde6303e5580413f51569b3e');
+delete from t1 where id=5;
 rollback to savepoint foo;
 insert t1 values
      (33, x'86d1003d4262033f8086713ffc4a633e317e933c4dce013d9c4d573fca83b93e');
@@ -31,6 +34,7 @@ start transaction;
 insert t1 values
      (40, x'71046a3e85329b3e05240e3f45c9283f1847363f98d47d3f4224b73d487b613f'),
      (41, x'71046a3e85329b3e05240e3f45c9283f1847363f98d47d3f4224b73d487b613f');
+delete from t1 where id=7;
 rollback;
 
 select id,vec_distance(v, x'c923e33dc0da313fe7c7983e526b3d3fde63963e6eaf3a3f27fa133fe27a583f') d from t1 order by d limit 5;
