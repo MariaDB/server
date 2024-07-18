@@ -5086,7 +5086,8 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
     Rows_log_event::Db_restore_ctx restore_ctx(this);
     master_had_triggers= table->master_had_triggers;
     bool transactional_table= table->file->has_transactions_and_rollback();
-    table->file->prepare_for_insert(get_general_type_code() != WRITE_ROWS_EVENT);
+    table->file->prepare_for_modify(true,
+                                  get_general_type_code() != WRITE_ROWS_EVENT);
 
     /*
       table == NULL means that this table should not be replicated
