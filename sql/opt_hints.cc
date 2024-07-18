@@ -1,4 +1,5 @@
 /* Copyright (c) 2015, Oracle and/or its affiliates. All rights reserved.
+   Copyright (c) 2024, MariaDB.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -33,13 +34,13 @@
 
 struct st_opt_hint_info opt_hint_info[]=
 {
-  {"BKA", true, true},
-  {"BNL", true, true},
-  {"ICP", true, true},
-  {"MRR", true, true},
-  {"NO_RANGE_OPTIMIZATION", true, true},
-  {"QB_NAME", false, false},
-  {0, 0, 0}
+  {Lex_cstring_strlen("BKA"), true, true},
+  {Lex_cstring_strlen("BNL"), true, true},
+  {Lex_cstring_strlen("ICP"), true, true},
+  {Lex_cstring_strlen("MRR"), true, true},
+  {Lex_cstring_strlen("NO_RANGE_OPTIMIZATION"), true, true},
+  {Lex_cstring_strlen("QB_NAME"), false, false},
+  {null_clex_str, 0, 0}
 };
 
 /**
@@ -48,28 +49,6 @@ struct st_opt_hint_info opt_hint_info[]=
 */
 
 const LEX_CSTRING sys_qb_prefix=  {"select#", 7};
-
-
-/*
-  Compare LEX_CSTRING objects.
-
-  @param s     Pointer to LEX_CSTRING
-  @param t     Pointer to LEX_CSTRING
-
-  @return  0 if strings are equal
-           1 if s is greater
-          -1 if t is greater
-*/
-
-static int cmp_lex_string(const LEX_CSTRING *s,
-                          const LEX_CSTRING *t)
-{
-   return system_charset_info->
-     coll->strnncollsp(system_charset_info,
-                       (uchar *) s->str, s->length,
-                       (uchar *) t->str, t->length);
-}
-
 
 static const Lex_ident_sys null_ident_sys;
 
@@ -147,7 +126,10 @@ static Opt_hints_global *get_global_hints(Parse_context *pc)
   LEX *lex= pc->thd->lex;
 
   if (!lex->opt_hints_global)
-    lex->opt_hints_global= new Opt_hints_global(pc->thd->mem_root);
+  {
+    lex->opt_hints_global= new (pc->thd->mem_root)
+        Opt_hints_global(pc->thd->mem_root);
+  }
   if (lex->opt_hints_global)
     lex->opt_hints_global->set_resolved();
   return lex->opt_hints_global;
@@ -163,8 +145,8 @@ static Opt_hints_qb *get_qb_hints(Parse_context *pc)
   if (global_hints == NULL)
     return NULL;
 
-  Opt_hints_qb *qb= new Opt_hints_qb(global_hints, pc->thd->mem_root,
-                                     pc->select->select_number);
+  Opt_hints_qb *qb= new (pc->thd->mem_root)
+      Opt_hints_qb(global_hints, pc->thd->mem_root, pc->select->select_number);
   if (qb)
   {
     global_hints->register_child(qb);
@@ -227,7 +209,8 @@ static Opt_hints_table *get_table_hints(Parse_context *pc,
     static_cast<Opt_hints_table *> (qb->find_by_name(table_name));
   if (!tab)
   {
-    tab= new Opt_hints_table(table_name, qb, pc->thd->mem_root);
+    tab= new (pc->thd->mem_root)
+        Opt_hints_table(table_name, qb, pc->thd->mem_root);
     qb->register_child(tab);
   }
 
@@ -252,7 +235,8 @@ Opt_hints* Opt_hints::find_by_name(const LEX_CSTRING &name_arg) const
   for (uint i= 0; i < child_array.size(); i++)
   {
     const LEX_CSTRING *name= child_array[i]->get_name();
-    if (name && !cmp_lex_string(name, &name_arg))
+    CHARSET_INFO *cs= child_array[i]->charset_info();
+    if (name && !cs->strnncollsp(*name, name_arg))
       return child_array[i];
   }
   return NULL;
@@ -279,10 +263,9 @@ void Opt_hints::print(THD *thd, String *str)
 
 void Opt_hints::append_hint_type(String *str, opt_hints_enum type)
 {
-  const char* hint_name= opt_hint_info[type].hint_name;
   if(!hints_map.switch_on(type))
     str->append(STRING_WITH_LEN("NO_"));
-  str->append(hint_name);
+  str->append(opt_hint_info[type].hint_name);
 }
 
 
@@ -373,7 +356,7 @@ void Opt_hints_table::adjust_key_hints(TABLE *table)
     KEY *key_info= table->key_info;
     for (uint j= 0 ; j < table->s->keys ; j++, key_info++)
     {
-      if (!cmp_lex_string((*hint)->get_name(), &key_info->name))
+      if (key_info->name.streq((*hint)->get_name()[0]))
       {
         (*hint)->set_resolved();
         keyinfo_array[j]= static_cast<Opt_hints_key *>(*hint);
@@ -661,7 +644,8 @@ bool Optimizer_hint_parser::Index_level_hint::resolve(Parse_context *pc) const
     Opt_hints_key *idx= (Opt_hints_key *)tab->find_by_name(index_name_sys);
     if (!idx)
     {
-      idx= new Opt_hints_key(index_name_sys, tab, pc->thd->mem_root);
+      idx= new (pc->thd->mem_root)
+          Opt_hints_key(index_name_sys, tab, pc->thd->mem_root);
       tab->register_child(idx);
     }
 

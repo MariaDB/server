@@ -1,4 +1,5 @@
 /* Copyright (c) 2015, Oracle and/or its affiliates. All rights reserved.
+   Copyright (c) 2024, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -53,7 +54,7 @@ enum opt_hints_enum
 
 struct st_opt_hint_info
 {
-  const char* hint_name;  // Hint name.
+  LEX_CSTRING hint_name;  // Hint name.
   bool check_upper_lvl;   // true if upper level hint check is needed (for hints
                           // which can be specified on more than one level).
   bool switch_hint;       // true if hint is not complex.
@@ -81,7 +82,7 @@ public:
      Check if hint is specified.
 
      @param type_arg   hint type
-     
+
      @return true if hint is specified,
              false otherwise
   */
@@ -209,6 +210,11 @@ public:
   */
   bool get_switch(opt_hints_enum type_arg) const;
 
+  virtual CHARSET_INFO *charset_info() const
+  {
+    return Lex_ident_column::charset_info();
+  }
+
   virtual const LEX_CSTRING *get_name() const
   {
     return name.str ? &name : nullptr;
@@ -234,7 +240,7 @@ public:
     Find hint among lower-level hint objects.
 
     @param name_arg        hint name
-  
+
     @return  hint if found,
              NULL otherwise
   */
@@ -290,7 +296,7 @@ class Opt_hints_global : public Opt_hints
 
 public:
   PT_hint_max_execution_time *max_exec_time;
- 
+
   Opt_hints_global(MEM_ROOT *mem_root_arg)
     : Opt_hints(Lex_ident_sys(), NULL, mem_root_arg)
   {
@@ -384,6 +390,12 @@ public:
     : Opt_hints(table_name_arg, qb_hints_arg, mem_root_arg),
       keyinfo_array(mem_root_arg)
   { }
+
+  CHARSET_INFO *charset_info() const override
+  {
+    return Lex_ident_table::charset_info();
+  }
+
 
   /**
     Append table name.
@@ -493,5 +505,14 @@ bool hint_table_state(const THD *thd, const TABLE *table,
 bool hint_table_state_or_fallback(const THD *thd, const TABLE *table,
                                   opt_hints_enum type_arg,
                                   bool fallback_value);
+
+
+class Hints_string_buffer : public StringBuffer<64>
+{
+public:
+  Hints_string_buffer()
+   :StringBuffer(system_charset_info)
+  { }
+};
 
 #endif /* OPT_HINTS_INCLUDED */

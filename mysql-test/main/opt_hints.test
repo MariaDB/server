@@ -1,6 +1,23 @@
 --echo # WL#8017 Infrastructure for Optimizer Hints
 --enable_prepare_warnings
 
+SET NAMES utf8mb4;
+
+# Testing that index names in hints are accent sensitive case insensitive
+CREATE TABLE t1 (a INT, ä INT, INDEX idx_a(a), INDEX idx_ä(ä));
+INSERT INTO t1 VALUES (1,1),(2,2);
+SELECT /*+ NO_MRR(t1 idx_a) */ a FROM t1;
+SELECT /*+ NO_MRR(t1 idx_A) */ a FROM t1;
+SELECT /*+ NO_MRR(t1 idx_å) */ a FROM t1;
+SELECT /*+ NO_MRR(t1 idx_a, idx_å, idx_A) */ a FROM t1;
+DROP TABLE t1;
+
+# Testing that query block names are accent sensitive case insensitive
+CREATE TABLE t1 (a INT);
+SELECT /*+ QB_NAME(a) BKA(t1@a) BKA(t1@A) */ * FROM t1;
+SELECT /*+ QB_NAME(a) BKA(t1@a) BKA(t1@å) */ * FROM t1;
+DROP TABLE t1;
+
 CREATE TABLE t1(f1 INT, f2 INT);
 INSERT INTO t1 VALUES
 (1,1),(2,2),(3,3);
