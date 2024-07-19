@@ -8375,7 +8375,7 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
   }
 
   bool has_alias_ptr= alias != nullptr;
-  void *memregion= thd->calloc(sizeof(TABLE_LIST));
+  void *memregion= thd->alloc(sizeof(TABLE_LIST));
   TABLE_LIST *ptr= new (memregion) TABLE_LIST(thd, db, fqtn, alias_str,
                                               has_alias_ptr, table, lock_type,
                                               mdl_type, table_options,
