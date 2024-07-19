@@ -34,12 +34,12 @@
 
 struct st_opt_hint_info opt_hint_info[]=
 {
-  {Lex_cstring_strlen("BKA"), true, true},
-  {Lex_cstring_strlen("BNL"), true, true},
-  {Lex_cstring_strlen("ICP"), true, true},
-  {Lex_cstring_strlen("MRR"), true, true},
-  {Lex_cstring_strlen("NO_RANGE_OPTIMIZATION"), true, true},
-  {Lex_cstring_strlen("QB_NAME"), false, false},
+  {{STRING_WITH_LEN("BKA")}, true, true},
+  {{STRING_WITH_LEN("BNL")}, true, true},
+  {{STRING_WITH_LEN("ICP")}, true, true},
+  {{STRING_WITH_LEN("MRR")}, true, true},
+  {{STRING_WITH_LEN("NO_RANGE_OPTIMIZATION")}, true, true},
+  {{STRING_WITH_LEN("QB_NAME")}, false, false},
   {null_clex_str, 0, 0}
 };
 
@@ -234,9 +234,9 @@ Opt_hints* Opt_hints::find_by_name(const LEX_CSTRING &name_arg) const
 {
   for (uint i= 0; i < child_array.size(); i++)
   {
-    const LEX_CSTRING *name= child_array[i]->get_name();
+    const LEX_CSTRING name= child_array[i]->get_name();
     CHARSET_INFO *cs= child_array[i]->charset_info();
-    if (name && !cs->strnncollsp(*name, name_arg))
+    if (name.str && !cs->strnncollsp(name, name_arg))
       return child_array[i];
   }
   return NULL;
@@ -356,7 +356,7 @@ void Opt_hints_table::adjust_key_hints(TABLE *table)
     KEY *key_info= table->key_info;
     for (uint j= 0 ; j < table->s->keys ; j++, key_info++)
     {
-      if (key_info->name.streq((*hint)->get_name()[0]))
+      if (key_info->name.streq((*hint)->get_name()))
       {
         (*hint)->set_resolved();
         keyinfo_array[j]= static_cast<Opt_hints_key *>(*hint);
@@ -666,7 +666,7 @@ bool Optimizer_hint_parser::Qb_name_hint::resolve(Parse_context *pc) const
 
   const Lex_ident_sys qb_name_sys= Query_block_name::to_ident_sys(pc->thd);
 
-  if (qb->get_name() ||                            // QB name is already set
+  if (qb->get_name().str ||                        // QB name is already set
       qb->get_parent()->find_by_name(qb_name_sys)) // Name is already used
   {
     print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, QB_NAME_HINT_ENUM, true,

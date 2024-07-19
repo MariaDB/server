@@ -139,6 +139,7 @@ class Opt_hints_key;
 
 class Opt_hints : public Sql_alloc
 {
+protected:
   /*
     Name of object referred by the hint.
     This name is empty for global level,
@@ -147,6 +148,7 @@ class Opt_hints : public Sql_alloc
     for key level.
   */
   Lex_ident_sys name;
+private:
   /*
     Parent object. There is no parent for global level,
     for query block level parent is Opt_hints_global object,
@@ -215,9 +217,9 @@ public:
     return Lex_ident_column::charset_info();
   }
 
-  virtual const LEX_CSTRING *get_name() const
+  const LEX_CSTRING get_name() const
   {
-    return name.str ? &name : nullptr;
+    return name;
   }
   void set_name(const Lex_ident_sys &name_arg) { name= name_arg; }
   Opt_hints *get_parent() const { return parent; }
@@ -326,10 +328,9 @@ public:
                MEM_ROOT *mem_root_arg,
                uint select_number_arg);
 
-  const LEX_CSTRING *get_print_name()
+  const LEX_CSTRING get_print_name()
   {
-    const LEX_CSTRING *str= Opt_hints::get_name();
-    return str ? str : &sys_name;
+    return name.str ? name : sys_name;
   }
 
   /**
@@ -340,10 +341,10 @@ public:
   */
   void append_qb_hint(THD *thd, String *str)
   {
-    if (get_name())
+    if (name.str)
     {
       str->append(STRING_WITH_LEN("QB_NAME("));
-      append_identifier(thd, str, get_name()->str, get_name()->length);
+      append_identifier(thd, str, &name);
       str->append(STRING_WITH_LEN(") "));
     }
   }
@@ -356,7 +357,8 @@ public:
   virtual void append_name(THD *thd, String *str) override
   {
     str->append(STRING_WITH_LEN("@"));
-    append_identifier(thd, str, get_print_name()->str, get_print_name()->length);
+    const LEX_CSTRING print_name= get_print_name();
+    append_identifier(thd, str, &print_name);
   }
 
   /**
@@ -405,7 +407,7 @@ public:
   */
   virtual void append_name(THD *thd, String *str) override
   {
-    append_identifier(thd, str, get_name()->str, get_name()->length);
+    append_identifier(thd, str, &name);
     get_parent()->append_name(thd, str);
   }
   /**
@@ -447,7 +449,7 @@ public:
   {
     get_parent()->append_name(thd, str);
     str->append(' ');
-    append_identifier(thd, str, get_name()->str, get_name()->length);
+    append_identifier(thd, str, &name);
   }
 
   virtual uint get_warn_unresolved_code() const override
@@ -505,14 +507,4 @@ bool hint_table_state(const THD *thd, const TABLE *table,
 bool hint_table_state_or_fallback(const THD *thd, const TABLE *table,
                                   opt_hints_enum type_arg,
                                   bool fallback_value);
-
-
-class Hints_string_buffer : public StringBuffer<64>
-{
-public:
-  Hints_string_buffer()
-   :StringBuffer(system_charset_info)
-  { }
-};
-
 #endif /* OPT_HINTS_INCLUDED */

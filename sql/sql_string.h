@@ -363,21 +363,6 @@ public:
     }
   }
 
-  /*
-    Remove `num_of_chars` trailing characters from the string.
-    If `num_of_chars` is larger than the string length, the methods chops all
-    characters
-  */
-  void chop(uint32 num_of_chars)
-  {
-    if (num_of_chars < str_length)
-      str_length-= num_of_chars;
-    else
-      str_length= 0;
-    Ptr[str_length]= '\0';
-    DBUG_ASSERT(strlen(Ptr) == str_length);
-  }
-
   // Returns offset to substring or -1
   int strstr(const Binary_string &search, uint32 offset=0) const;
   int strstr(const char *search, uint32 search_length, uint32 offset=0) const;

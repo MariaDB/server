@@ -189,7 +189,7 @@ DROP DATABASE MYSQL;
 --echo #
 
 --echo #
---echo # Start of 11.6 tests
+--echo # Start of 11.7 tests
 --echo #
 
 --echo #
@@ -212,5 +212,5 @@ SELECT /*+BKA(a) BKA(A)*/ a.a, A.a FROM t1 a, t1 A;
 DROP TABLE t1;
 
 --echo #
---echo # End of 11.6 tests
+--echo # End of 11.7 tests
 --echo #

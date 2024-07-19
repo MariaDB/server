@@ -209,7 +209,7 @@ DROP PACKAGE test.pkg;
 # End of 11.4 tests
 #
 #
-# Start of 11.6 tests
+# Start of 11.7 tests
 #
 #
 # MDEV-33281 Implement optimizer hints like in MySQL
@@ -233,5 +233,5 @@ Warnings:
 Warning	4202	Hint BKA("A") is ignored as conflicting/duplicated
 DROP TABLE t1;
 #
-# End of 11.6 tests
+# End of 11.7 tests
 #

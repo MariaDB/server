@@ -31665,10 +31665,10 @@ void st_select_lex::print_hints(THD *thd,
     // Some hints were printed, close the hint string
     str->append(STRING_WITH_LEN("*/ "));
   }
-  else 
+  else
   {
     // No hints were added, rollback the previouly added header
-    str->chop(header.length);
+    str->length(len_before_hints - header.length);
   }
 }
 
