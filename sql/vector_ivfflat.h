@@ -23,7 +23,6 @@
 
 
 const LEX_CSTRING ivflfat_hlindex_table_def(THD *thd, uint ref_length);
-// extern const LEX_CSTRING ivfflat_hlindex_table;
 int ivfflat_insert(TABLE *table, KEY *keyinfo);
 int ivfflat_first(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit);
 int ivfflat_next(TABLE *table);
