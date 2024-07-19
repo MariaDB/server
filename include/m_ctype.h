@@ -685,6 +685,10 @@ struct charset_info_st
   {
     return (cset->numchars)(this, b, e);
   }
+  size_t numchars(const char *str, size_t length) const
+  {
+    return (cset->numchars)(this, str, str + length);
+  }
 
   size_t charpos(const char *b, const char *e, size_t pos) const
   {

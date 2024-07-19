@@ -755,10 +755,12 @@ ulong key_hashnr(KEY *key_info, uint used_key_parts, const uchar *key)
     if (is_string)
     {
       /*
-        Prefix keys are not possible in BNLH joins.
-        Use the whole string to calculate the hash.
+        Let's assert that no truncation is needed,
+        so we can pass the whole string into hash_sort().
       */
-      DBUG_ASSERT((key_part->key_part_flag & HA_PART_KEY_SEG) == 0);
+      DBUG_ASSERT(length <= key_part->length);
+      DBUG_ASSERT(cs->numchars((const char *) pos + pack_length, length) <=
+                  key_part->length / cs->mbmaxlen);
       cs->hash_sort(pos+pack_length, length, &nr, &nr2);
       key+= pack_length;
     }
@@ -862,10 +864,15 @@ bool key_buf_cmp(KEY *key_info, uint used_key_parts,
     if (is_string)
     {
       /*
-        Prefix keys are not possible in BNLH joins.
-        Compare whole strings.
+        Let's assert that no truncation is needed,
+        so we can pass the whole string into strnncollsp().
       */
-      DBUG_ASSERT((key_part->key_part_flag & HA_PART_KEY_SEG) == 0);
+      DBUG_ASSERT(length1 <= key_part->length);
+      DBUG_ASSERT(length2 <= key_part->length);
+      DBUG_ASSERT(cs->numchars((const char *) pos1 + pack_length, length1) <=
+                  key_part->length / cs->mbmaxlen);
+      DBUG_ASSERT(cs->numchars((const char *) pos2 + pack_length, length2) <=
+                  key_part->length / cs->mbmaxlen);
       if (cs->strnncollsp(pos1 + pack_length, length1,
                           pos2 + pack_length, length2))
         return true;

@@ -6420,3 +6420,47 @@ DROP TABLE t1,t2,t3;
 #
 # End of 10.4 tests
 #
+#
+# Start of 10.5 tests
+#
+#
+# MDEV-34580 Assertion `(key_part->key_part_flag & 4) == 0' failed key_hashnr 
+#
+SET join_cache_level=3;
+CREATE TABLE t1 (
+a TIMESTAMP,
+b varchar(100),
+c varchar(10),
+KEY b (b(66)),
+KEY a (a));
+INSERT INTO `t1` VALUES
+('0000-00-00 00:00:00','GHOBS','EMLCG'),
+('0000-00-00 00:00:00','t','p');
+CREATE TABLE t2 (
+a varchar(100),
+b varchar(100),
+c varchar(10),
+KEY b (b(66)),
+KEY a (a)) ;
+INSERT INTO `t2` VALUES
+('a','CLUSK','FMJIK'),('d','b','folk'),('YVTAH','MSRXN','NZHIW'),
+('LOKJB','RJZAB','admission'),('ICCMG','girlfriend','JICGI'),
+('EBZEZ','p','fjzhuwxgb'),('m','KKAXM','NGJWJ'),('FHWPN','v','k'),
+('KBNOR','ALWLV','PUAIZ'),('u','d','below'),('NJCXE','always','a'),
+('e','minister','i'),('b','c','jxhojyrze'),('j','l','o'),('i','p','kikirjxho'),
+('r','y','l'),('YPUJI','p','IREVK'),('YPAMT','defender','ersfjzhuw'),
+('FLNLS','x','horror'),('q','h','difficult'),('m','z','e'),('n','cut','y'),
+('u','PLPLJ','k');
+SELECT t1.a FROM t1 JOIN t2 ON t1.b = t2.b
+WHERE t1.b > 'e' OR t1.c != t2.c GROUP BY t1.a;
+a
+INSERT INTO t2 VALUES ('a','t','p');
+SELECT t1.a FROM t1 JOIN t2 ON t1.b = t2.b
+WHERE t1.b > 'e' OR t1.c != t2.c GROUP BY t1.a;
+a
+0000-00-00 00:00:00
+DROP TABLE t1, t2;
+SET join_cache_level=DEFAULT;
+#
+# End of 10.5 tests
+#
