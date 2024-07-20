@@ -489,6 +489,25 @@ error_wide_handler_alloc:
   DBUG_RETURN(error_num);
 }
 
+/*
+  Given a SPIDER_SHARE that will be freed, update all SPIDER_TRX_HAs
+  of spider_current_trx to point to a NULL share, which will cause the
+  removal of the SPIDER_TRX_HA in spider_check_trx_ha().
+*/
+static void spider_update_current_trx_ha_with_freed_share(SPIDER_SHARE *share)
+{
+  SPIDER_TRX *trx= spider_current_trx;
+  if (trx)
+  {
+    for (uint i = 0; i < trx->trx_ha_hash.records; i++)
+    {
+      SPIDER_TRX_HA *trx_ha = (SPIDER_TRX_HA *) my_hash_element(&trx->trx_ha_hash, i);
+      if (trx_ha->share == share)
+        trx_ha->share= NULL;
+    }
+  }
+}
+
 int ha_spider::close()
 {
   int error_num= 0, roop_count;
@@ -583,6 +602,7 @@ int ha_spider::close()
     result_list.tmp_sqls = NULL;
   }
 
+  spider_update_current_trx_ha_with_freed_share(share);
   spider_free_share(share);
   is_clone = FALSE;
   pt_clone_source_handler = NULL;
@@ -930,6 +950,8 @@ int ha_spider::external_lock(
     }
   }
 
+  if ((error_num= spider_check_trx_and_get_conn(thd, this, FALSE)))
+    DBUG_RETURN(error_num);
   if (!partition_handler || !partition_handler->handlers)
   {
     DBUG_RETURN(lock_tables()); /* Non-partitioned table */
@@ -5842,6 +5864,8 @@ int ha_spider::rnd_next(
       DBUG_RETURN(error_num);
     use_pre_call = FALSE;
   }
+  if ((error_num= spider_check_trx_and_get_conn(ha_thd(), this, FALSE)))
+    DBUG_RETURN(error_num);
   DBUG_RETURN(rnd_next_internal(buf));
 }
 
@@ -10086,6 +10110,15 @@ void ha_spider::sync_from_clone_source_base(
   DBUG_VOID_RETURN;
 }
 
+/*
+  Set the initial values for each dbton_handler's first_link_idx and
+  strict_group_by.
+
+  First, reset first_link_idx to -1.
+  Then, for each active remote server, if the corresponding
+  dbton_handler has not been set yet (first_link_idx == -1), set its
+  first_link_idx to be the index of the connection.
+*/
 void ha_spider::set_first_link_idx()
 {
   int roop_count, all_link_idx;
@@ -10125,6 +10158,16 @@ void ha_spider::set_first_link_idx()
   DBUG_VOID_RETURN;
 }
 
+/*
+  Reset the initial values for each dbton_handler's first_link_idx to
+  -1.
+
+  Also, set the search_link_idx'th active server's first_link_idx to
+  search_link_idx.
+
+  search_link_idx is commonly randomly set using
+  spider_conn_first_link_idx - see the commentary of that function.
+*/
 void ha_spider::reset_first_link_idx()
 {
   int all_link_idx;

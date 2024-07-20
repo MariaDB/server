@@ -3941,9 +3941,8 @@ String *Item_func_charset::val_str(String *str)
   DBUG_ASSERT(fixed());
   uint dummy_errors;
 
-  CHARSET_INFO *cs= args[0]->charset_for_protocol(); 
   null_value= 0;
-  str->copy(cs->cs_name.str, cs->cs_name.length,
+  str->copy(m_cached_charset_info.str, m_cached_charset_info.length,
 	    &my_charset_latin1, collation.collation, &dummy_errors);
   return str;
 }

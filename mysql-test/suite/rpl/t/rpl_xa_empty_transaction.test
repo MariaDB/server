@@ -32,6 +32,10 @@
 #   MDEV-25616: Binlog event for XA COMMIT is generated without matching
 #               XA START, replication aborts
 #
+#   MDEV-33921: Replication fails when XA transactions are used where the slave
+#               has replicate_do_db set and the client has touched a different
+#               database when running DML such as inserts.
+#
 --source include/have_log_bin.inc
 
 --let $rpl_server_count= 3
@@ -166,6 +170,133 @@ set @@global.binlog_format = row;
 --connection server_1
 set @@binlog_format = @sav_binlog_format;
 set @@global.binlog_format = @sav_binlog_format;
+
+
+--echo #
+--echo # MDEV-33921.1: If a slave's replication of an XA transaction results in
+--echo # an empty transaction, e.g. due to replication filters, the slave
+--echo # should not binlog any part of the XA transaction.
+#
+#    Note that the MDEV-33921 report is actually about that XA END is filtered
+# out (not executed), and then its corresponding XA PREPARE errors because the
+# XA state of the transaction is incorrect. This test case inherently tests
+# both bugs.
+
+--connection server_1
+create database db1;
+create database db2;
+create table db1.t1 (a int) engine=innodb;
+--source include/save_master_gtid.inc
+--connection server_3
+--source include/sync_with_master_gtid.inc
+--source include/stop_slave.inc
+change master to master_use_gtid=slave_pos;
+
+--connection server_2
+--source include/stop_slave.inc
+SET @@GLOBAL.replicate_ignore_db= "";
+SET @@GLOBAL.replicate_do_db= "db2";
+change master to master_use_gtid=slave_pos;
+--source include/start_slave.inc
+
+--connection server_1
+--let $pre_xa_gtid= `SELECT @@global.gtid_binlog_pos`
+use db1;
+XA START "x1";
+insert into db1.t1 values (1);
+XA END "x1";
+XA PREPARE "x1";
+XA COMMIT "x1";
+--source include/save_master_gtid.inc
+
+--connection server_2
+--source include/sync_with_master_gtid.inc
+--let $slave_binlogged_gtid= `SELECT @@global.gtid_binlog_pos`
+if (`SELECT strcmp("$slave_binlogged_gtid","$pre_xa_gtid")`)
+{
+  --die Slave binlogged an empty XA transaction yet should not have
+}
+
+--connection server_2
+--source include/save_master_gtid.inc
+
+--connection server_3
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+
+--echo #
+--echo # 33921.2: If the slave shuts down after "preparing" a filtered-to-empty
+--echo # XA transaction (and not completing it), then when the respective
+--echo # XA completion (COMMIT in this test) command is replicated, the slave
+--echo # should not throw ER_XAER_NOTA. Note that internally, the error is
+--echo # thrown, but it is ignored because the target db is filtered.
+
+--connection server_3
+--source include/stop_slave.inc
+
+--connection server_1
+--let $pre_xa_gtid= `SELECT @@global.gtid_binlog_pos`
+
+#  Used by mysqlbinlog in part 3
+--let $pre_xa_pos  = query_get_value(SHOW MASTER STATUS, Position, 1)
+
+use db1;
+XA START "x2";
+insert into db1.t1 values (2);
+XA END "x2";
+XA PREPARE "x2";
+--source include/save_master_gtid.inc
+
+--connection server_2
+--source include/sync_with_master_gtid.inc
+--let $rpl_server_number= 2
+--echo # Connection named slave is needed for reconnection
+--connect(slave,localhost,root,,)
+--connect(slave1,localhost,root,,)
+--source include/rpl_restart_server.inc
+
+--connection server_2
+--source include/stop_slave.inc
+SET @@GLOBAL.replicate_do_db= "db2";
+change master to master_use_gtid=slave_pos;
+--source include/start_slave.inc
+
+--connection server_1
+XA COMMIT "x2";
+--source include/save_master_gtid.inc
+
+--connection server_2
+--source include/sync_with_master_gtid.inc
+--source include/save_master_gtid.inc
+
+--connection server_3
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+
+--echo #
+--echo # 33921.3: Ensure XA commands are not considered by mysqlbinlog's
+--echo # --database filter
+--connection server_1
+--let $datadir= `select @@datadir`
+--let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1)
+--let assert_file= $MYSQLTEST_VARDIR/tmp/binlog_decoded.out
+--echo # MYSQL_BINLOG datadir/binlog_file --start-position=pre_xa_pos --database=db2 --result-file=assert_file
+--exec $MYSQL_BINLOG $datadir/$binlog_file --start-position=$pre_xa_pos --database=db2 --result-file=$assert_file
+
+--let assert_text= Mysqlbinlog should output all XA commands from the filtered transaction
+--let assert_count= 4
+--let assert_select= XA START|XA END|XA PREPARE|XA COMMIT
+--source include/assert_grep.inc
+
+--connection server_2
+--source include/stop_slave.inc
+SET @@GLOBAL.replicate_do_db="";
+--source include/start_slave.inc
+
+--connection server_1
+drop database db1;
+drop database db2;
+
 
 #
 # Cleanup

@@ -24,6 +24,7 @@
 #include "my_json_writer.h"
 #include "opt_range.h"
 #include "sql_expression_cache.h"
+#include "item_subselect.h"
 
 #include <stack>
 
@@ -858,6 +859,18 @@ bool Explain_node::print_explain_json_cache(Json_writer *writer,
 }
 
 
+bool Explain_node::print_explain_json_subq_materialization(Json_writer *writer,
+                                                           bool is_analyze)
+{
+  if (subq_materialization)
+  {
+    subq_materialization->print_explain_json(writer, is_analyze);
+    return true;
+  }
+  return false;
+}
+
+
 Explain_basic_join::~Explain_basic_join()
 {
   if (join_tabs)
@@ -1005,6 +1018,8 @@ void Explain_select::print_explain_json(Explain_query *query,
   Json_writer_nesting_guard guard(writer);
   
   bool started_cache= print_explain_json_cache(writer, is_analyze);
+  bool started_subq_mat= print_explain_json_subq_materialization(writer,
+                                                                 is_analyze);
 
   if (message ||
       select_type == pushed_derived_text ||
@@ -1114,6 +1129,8 @@ void Explain_select::print_explain_json(Explain_query *query,
     writer->end_object();
   }
 
+  if (started_subq_mat)
+    writer->end_object();
   if (started_cache)
     writer->end_object();
 }
@@ -2848,3 +2865,41 @@ void Explain_range_checked_fer::print_json(Json_writer *writer,
     writer->end_object();
   }
 }
+
+
+void Explain_subq_materialization::print_explain_json(Json_writer *writer,
+                                                      bool is_analyze)
+{
+  writer->add_member("materialization").start_object();
+  if (is_analyze)
+    tracker.print_json_members(writer);
+}
+
+
+void Subq_materialization_tracker::print_json_members(Json_writer *writer) const
+{
+  writer->add_member("r_strategy").add_str(get_exec_strategy());
+  if (loops_count)
+    writer->add_member("r_loops").add_ull(loops_count);
+
+  if (index_lookups_count)
+    writer->add_member("r_index_lookups").add_ull(index_lookups_count);
+
+  if (partial_matches_count)
+    writer->add_member("r_partial_matches").add_ull(partial_matches_count);
+
+  if (partial_match_buffer_size)
+  {
+    writer->add_member("r_partial_match_buffer_size").
+            add_size(partial_match_buffer_size);
+  }
+
+  if (partial_match_array_sizes.elements())
+  {
+    writer->add_member("r_partial_match_array_sizes").start_array();
+    for(size_t i= 0; i < partial_match_array_sizes.elements(); i++)
+      writer->add_ull(partial_match_array_sizes[i]);
+    writer->end_array();
+  }
+}
+

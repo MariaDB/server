@@ -777,19 +777,24 @@ typedef struct st_spider_conn
   SPIDER_IP_PORT_CONN *ip_port_conn;
 
   pthread_mutex_t    loop_check_mutex;
+  /*
+    A hash of SPIDER_CONN_LOOP_CHECK, indexed by
+    SPIDER_CONN_LOOP_CHECK::full_name
+  */
   HASH               loop_checked;
   uint               loop_checked_id;
   const char         *loop_checked_func_name;
   const char         *loop_checked_file_name;
   ulong              loop_checked_line_no;
+  /*
+    A hash of SPIDER_CONN_LOOP_CHECK, indexed by
+    SPIDER_CONN_LOOP_CHECK::to_name
+  */
   HASH               loop_check_queue;
   uint               loop_check_queue_id;
   const char         *loop_check_queue_func_name;
   const char         *loop_check_queue_file_name;
   ulong              loop_check_queue_line_no;
-  SPIDER_CONN_LOOP_CHECK *loop_check_ignored_first;
-  SPIDER_CONN_LOOP_CHECK *loop_check_ignored_last;
-  SPIDER_CONN_LOOP_CHECK *loop_check_meraged_first;
 } SPIDER_CONN;
 
 typedef struct st_spider_lgtm_tblhnd_share
@@ -985,15 +990,24 @@ typedef struct st_spider_share
   char               *table_name;
   uint               table_name_length;
   uint               use_count;
+  /**
+    Probably equals `active_link_count`. See also commit ddff602 of
+    https://github.com/nayuta-yanagisawa/spider-history
+
+    FIXME: consider removing it and using `active_link_count` instead.
+  */
   uint               link_count;
+  /* Number of all links, i.e. all remote servers for the spider
+  table. */
   uint               all_link_count;
+  /*
+    The bitmap size of ha_spider::conn_can_fo, where the ha_spider
+    is the one `this' associates with (i.e. spider->share == this)
+  */
   uint               link_bitmap_size;
   pthread_mutex_t    mutex;
   pthread_mutex_t    sts_mutex;
   pthread_mutex_t    crd_mutex;
-/*
-  pthread_mutex_t    auto_increment_mutex;
-*/
   TABLE_SHARE        *table_share;
   SPIDER_LGTM_TBLHND_SHARE *lgtm_tblhnd_share;
   my_hash_value_type table_name_hash_value;
@@ -1497,16 +1511,42 @@ public:
   ulong sort;
 };
 
+/*
+  A SPIDER_TRX_HA contains the HA information of a spider table or
+  partition.
+
+  Each SPIDER_TRX_HA is stored in a hash belonging to a SPIDER_TRX
+  i.e. its trx_ha_hash field.
+
+  It thus may have a different lifespan from the ha_spider or
+  SPIDER_SHARE associated with the same spider table/partition.
+*/
 typedef struct st_spider_trx_ha
 {
+  /*
+    A fully qualified table name, used as the key in
+    SPIDER_TRX::trx_ha_hash
+  */
   char                       *table_name;
   uint                       table_name_length;
-  SPIDER_TRX                 *trx;
+  /*
+    The associated SPIDER_SHARE. Will be used to check against a
+    given SPIDER_SHARE
+  */
   SPIDER_SHARE               *share;
+  /*
+    link_count and link_bitmap_size are read from and checked against
+    the corresponding fields of the associated SPIDER_SHARE.
+  */
   uint                       link_count;
   uint                       link_bitmap_size;
+  /*
+    conn_link_idx and conn_can_fo are read from and written to the
+    corresponding fields of the associated ha_spider.
+  */
   uint                       *conn_link_idx;
   uchar                      *conn_can_fo;
+  /* TODO: document */
   bool                       wait_for_reusing;
 } SPIDER_TRX_HA;
 

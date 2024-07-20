@@ -84,8 +84,6 @@
 char internal_table_name[2]= "*";
 char empty_c_string[1]= {0};    /* used for not defined db */
 
-const char * const THD::DEFAULT_WHERE= "field list";
-
 /****************************************************************************
 ** User variables
 ****************************************************************************/
@@ -630,6 +628,64 @@ extern "C" void thd_kill_timeout(THD* thd)
   thd->awake(KILL_TIMEOUT);
 }
 
+const char *thd_where(THD *thd)
+{
+    switch(thd->where) {
+    case THD_WHERE::CHECKING_TRANSFORMED_SUBQUERY:
+        return "checking transformed subquery";
+        break;
+    case THD_WHERE::IN_ALL_ANY_SUBQUERY:
+        return "IN/ALL/ANY subquery";
+        break;
+    case THD_WHERE::JSON_TABLE_ARGUMENT:
+        return "JSON_TABLE argument";
+        break;
+    case THD_WHERE::DEFAULT_WHERE:  // same as FIELD_LIST
+    case THD_WHERE::FIELD_LIST:
+        return "field list";
+        break;
+    case THD_WHERE::PARTITION_FUNCTION:
+        return "partition function";
+        break;
+    case THD_WHERE::FROM_CLAUSE:
+        return "from clause";
+        break;
+    case THD_WHERE::ON_CLAUSE:
+        return "on clause";
+        break;
+    case THD_WHERE::WHERE_CLAUSE:
+        return "where clause";
+        break;
+    case THD_WHERE::CONVERT_CHARSET_CONST:
+        return "convert character set partition constant";
+        break;
+    case THD_WHERE::FOR_SYSTEM_TIME:
+        return "FOR SYSTEM_TIME";
+        break;
+    case THD_WHERE::ORDER_CLAUSE:
+        return "order clause";
+        break;
+    case THD_WHERE::HAVING_CLAUSE:
+        return "having clause";
+        break;
+    case THD_WHERE::GROUP_STATEMENT:
+        return "group statement";
+        break;
+    case THD_WHERE::PROCEDURE_LIST:
+        return "procedure list";
+        break;
+    case THD_WHERE::CHECK_OPTION:
+        return "check option";
+        break;
+    case THD_WHERE::USE_WHERE_STRING:
+        return thd->where_str;
+    default:
+        break; // "fall-through" to default return below
+    };
+    DBUG_ASSERT(false);
+    return "UNKNOWN";
+}
+
 THD::THD(my_thread_id id, bool is_wsrep_applier)
   :Statement(&main_lex, &main_mem_root, STMT_CONVENTIONAL_EXECUTION,
              /* statement id */ 0),
@@ -835,7 +891,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
 
   /* Variables with default values */
   proc_info="login";
-  where= THD::DEFAULT_WHERE;
+  where= THD_WHERE::DEFAULT_WHERE;
   slave_net = 0;
   m_command=COM_CONNECT;
   *scramble= '\0';
@@ -2312,7 +2368,7 @@ void THD::cleanup_after_query()
   /* Free Items that were created during this execution */
   free_items();
   /* Reset where. */
-  where= THD::DEFAULT_WHERE;
+  where= THD_WHERE::DEFAULT_WHERE;
   /* reset table map for multi-table update */
   table_map_for_update= 0;
   m_binlog_invoker= INVOKER_NONE;

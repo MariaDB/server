@@ -12,7 +12,7 @@ create procedure sp() select * from `v1
 1v`;
 flush tables;
 use test;
-/*!999999\- enable the sandbox mode */ 
+/*M!999999\- enable the sandbox mode */ 
 
 --
 -- Current Database: `mysqltest1
@@ -135,7 +135,7 @@ test\`
 \! ls
 #
 test`
-/*!999999\- enable the sandbox mode */ 
+/*M!999999\- enable the sandbox mode */ 
 
 --
 -- Current Database: `test```

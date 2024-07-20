@@ -268,6 +268,13 @@ Rpl_filter::is_on()
 }
 
 
+bool
+Rpl_filter::is_db_empty()
+{
+  return do_db.is_empty() && ignore_db.is_empty();
+}
+
+
 /**
   Parse and add the given comma-separated sequence of filter rules.
 

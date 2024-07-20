@@ -340,4 +340,3 @@ SELECT * FROM cg;
 
 DROP TABLE cg;
 DROP TABLE pg;
-

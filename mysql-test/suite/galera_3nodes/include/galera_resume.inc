@@ -6,4 +6,3 @@
         system("kill -SIGCONT $mysqld_pid");
         exit(0);
 EOF
-

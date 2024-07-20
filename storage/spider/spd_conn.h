@@ -24,22 +24,60 @@
 #define SPIDER_SIMPLE_RECORDS             3
 #define SPIDER_SIMPLE_CHECKSUM_TABLE      4
 
+/*
+  The SPIDER_CONN_LOOP_CHECK has been added to the loop_check queue to
+  check for self-reference.
+*/
 #define SPIDER_LOP_CHK_QUEUED             (1 << 0)
+/*
+  The SPIDER_CONN_LOOP_CHECK is a merge of multiple
+  SPIDER_CONN_LOOP_CHECKs with the same data node table
+*/
 #define SPIDER_LOP_CHK_MERAGED            (1 << 1)
+/*
+  The SPIDER_CONN_LOOP_CHECK has been ignored because it has already
+  been marked as checked
+*/
 #define SPIDER_LOP_CHK_IGNORED            (1 << 2)
 
+/* Used for self-reference check. */
 typedef struct st_spider_conn_loop_check
 {
+  /*
+    Could be 0, SPIDER_LOP_CHK_QUEUED, SPIDER_LOP_CHK_MERAGED, or
+    SPIDER_LOP_CHK_IGNORED
+  */
   uint               flag;
+  /* hash value of to_name, used for the hash conn->loop_checked */
   my_hash_value_type hash_value_to;
-  my_hash_value_type hash_value_full;
-  LEX_CSTRING        from_name;
+  /*
+    The fully qualified name of the current spider table, which will
+    also be used to construct the user var name to set in the data
+    node
+  */
   LEX_CSTRING        cur_name;
+  /*
+    The fully qualified data node table name, also used as key in
+    conn->loop_check_queue
+  */
   LEX_CSTRING        to_name;
+  /*
+    A concatenation of from_value, cur_name and to_name, used as key
+    in hash conn->loop_checked
+  */
   LEX_CSTRING        full_name;
+  /*
+    The first component of the uservar value on the current server,
+    consisting of information of a table that uses the current spider
+    table as a data node
+  */
   LEX_CSTRING        from_value;
+  /*
+    The uservar value to set in the data node, a concatenation of info
+    of tables, mac addresses and process ids of tables that use the
+    current spider table as the data node
+  */
   LEX_CSTRING        merged_value;
-  st_spider_conn_loop_check *next;
 } SPIDER_CONN_LOOP_CHECK;
 
 uchar *spider_conn_get_key(

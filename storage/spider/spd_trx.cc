@@ -1124,6 +1124,7 @@ int spider_free_trx_alloc(
   DBUG_RETURN(0);
 }
 
+/* Get or create a trx associated with the given THD. */
 SPIDER_TRX *spider_get_trx(
   THD *thd,
   bool regist_allocated_thds,
@@ -3671,6 +3672,13 @@ void spider_free_tmp_thd(
   DBUG_VOID_RETURN;
 }
 
+/*
+  Check the info of a given SPIDER_TRX_HA with spider->share. If it
+  does not match or if the given SPIDER_TRX_HA is NULL, then create a
+  new one from spider and spider->share, and add the new SPIDER_TRX_HA
+  to trx->trx_ha_hash. On mismatch and non-NULL trx_ha, then it will
+  be removed from the hash and freed before the creation of a new one.
+*/
 int spider_create_trx_ha(
   SPIDER_TRX *trx,
   ha_spider *spider,
@@ -3716,7 +3724,6 @@ int spider_create_trx_ha(
     memcpy(trx_ha->table_name, share->table_name, share->table_name_length);
     trx_ha->table_name[share->table_name_length] = '\0';
     trx_ha->table_name_length = share->table_name_length;
-    trx_ha->trx = trx;
     trx_ha->share = share;
     trx_ha->link_count = share->link_count;
     trx_ha->link_bitmap_size = share->link_bitmap_size;
@@ -3751,15 +3758,29 @@ SPIDER_TRX_HA *spider_check_trx_ha(
   SPIDER_TRX_HA *trx_ha;
   SPIDER_SHARE *share = spider->share;
   DBUG_ENTER("spider_check_trx_ha");
+  /*
+    Check for mismatch in trx_ha->share, link_count and
+    link_bitmap_size, which is an indication of a share that has been
+    freed. Delete the trx_ha and return NULL on mismatch.
+  */
   if ((trx_ha = (SPIDER_TRX_HA *) my_hash_search_using_hash_value(
     &trx->trx_ha_hash, share->table_name_hash_value,
     (uchar*) share->table_name, share->table_name_length)))
   {
-    memcpy(spider->conn_link_idx, trx_ha->conn_link_idx,
-      sizeof(uint) * share->link_count);
-    memcpy(spider->conn_can_fo, trx_ha->conn_can_fo,
-      sizeof(uint) * share->link_bitmap_size);
-    DBUG_RETURN(trx_ha);
+    if (trx_ha->share == share && trx_ha->link_count == share->link_count &&
+        trx_ha->link_bitmap_size == share->link_bitmap_size)
+    {
+      memcpy(spider->conn_link_idx, trx_ha->conn_link_idx,
+             sizeof(uint) * share->link_count);
+      memcpy(spider->conn_can_fo, trx_ha->conn_can_fo,
+             sizeof(uint) * share->link_bitmap_size);
+      DBUG_RETURN(trx_ha);
+    }
+    else
+    {
+      my_hash_delete(&trx->trx_ha_hash, (uchar*) trx_ha);
+      spider_free(trx, trx_ha, MYF(0));
+    }
   }
   DBUG_RETURN(NULL);
 }
@@ -3801,6 +3822,15 @@ void spider_reuse_trx_ha(
   DBUG_VOID_RETURN;
 }
 
+/**
+  Sets link indices for load balancing read connections
+
+  Assuming `spider->share->link_count` is the number of active servers
+  to use, this function updates `spider->conn_link_idx` with the first
+  server in the same "modulus group" whose link status is not
+  `SPIDER_LINK_STATUS_NG`, or if one cannot be found, use the
+  `link_idx`th server
+*/
 void spider_trx_set_link_idx_for_all(
   ha_spider *spider
 ) {

@@ -1213,7 +1213,8 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
 
     expr_str.length(parse_vcol_keyword.length);
     expr_str.append((char*)pos, expr_length);
-    thd->where= vcol_type_name(static_cast<enum_vcol_info_type>(type));
+    thd->where= THD_WHERE::USE_WHERE_STRING;
+    thd->where_str= vcol_type_name(static_cast<enum_vcol_info_type>(type));
 
     switch (type) {
     case VCOL_GENERATED_VIRTUAL:
@@ -6300,8 +6301,8 @@ bool TABLE_LIST::prep_check_option(THD *thd, uint8 check_opt_type)
 
   if (check_option)
   {
-    const char *save_where= thd->where;
-    thd->where= "check option";
+    THD_WHERE save_where= thd->where;
+    thd->where= THD_WHERE::CHECK_OPTION;
     if (check_option->fix_fields_if_needed_for_bool(thd, &check_option))
       DBUG_RETURN(TRUE);
     thd->where= save_where;

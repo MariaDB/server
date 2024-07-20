@@ -12247,7 +12247,7 @@ opt_order_clause:
 order_clause:
           ORDER_SYM BY
           {
-            thd->where= "ORDER clause";
+            thd->where= THD_WHERE::ORDER_CLAUSE;
           }
           order_list
           {

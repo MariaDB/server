@@ -19,7 +19,7 @@ wsrep_ready	OFF
 SHOW STATUS LIKE 'wsrep_cluster_status';
 Variable_name	Value
 wsrep_cluster_status	Disconnected
-call mtr.add_suppression("WSREP: .*Invalid backend URI.*");
+call mtr.add_suppression("WSREP: .*Invalid backend URI");
 call mtr.add_suppression("WSREP: gcs connect failed: Invalid argument");
 disconnect node_2;
 disconnect node_1;

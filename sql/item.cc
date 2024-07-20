@@ -1284,6 +1284,25 @@ bool Item::eq(const Item *item, bool binary_cmp) const
 }
 
 
+Item *Item::multiple_equality_transformer(THD *thd, uchar *arg)
+{
+  if (const_item())
+  {
+    /*
+      Mark constant item in the condition with the MARKER_IMMUTABLE flag.
+      It is needed to prevent cleanup of the sub-items of this item and following
+      fix_fields() call that can cause a crash on this step of the optimization.
+      This flag will be removed at the end of the pushdown optimization by
+      remove_immutable_flag_processor processor.
+    */
+    int new_flag= MARKER_IMMUTABLE;
+    this->walk(&Item::set_extraction_flag_processor, false,
+               (void*)&new_flag);
+  }
+  return this;
+}
+
+
 Item *Item::safe_charset_converter(THD *thd, CHARSET_INFO *tocs)
 {
   if (!needs_charset_converter(tocs))
@@ -2184,6 +2203,36 @@ bool Item_name_const::fix_fields(THD *thd, Item **ref)
     my_error(ER_RESERVED_SYNTAX, MYF(0), "NAME_CONST");
     return TRUE;
   }
+
+  /*
+    If we have either of the following:
+      ... WHERE foo=NAME_CONST(...)
+      ... JOIN ... ON foo=NAME_CONST(...)
+    then we have an opportunity to unwrap the NAME_CONST and
+    use the enclosed value directly, replacing NAME_CONST in
+    the parse tree with the value it encloses.
+  */
+  if ((thd->where == THD_WHERE::WHERE_CLAUSE ||
+       thd->where == THD_WHERE::ON_CLAUSE) &&
+      (value_item->type() == FUNC_ITEM ||
+       value_item->type() == CONST_ITEM))
+  {
+    thd->change_item_tree(ref, value_item);
+
+    /*
+      We're replacing NAME_CONST('name', value_item) with value_item.
+      Only a few constants and functions are possible as value_item, see
+      Create_func_name_const::create_2_arg.
+      Set the value_item's coercibility to be the same as NAME_CONST(...)
+      would have (see how it's set a few lines below).
+    */
+    if (value_item->collation.derivation != DERIVATION_NUMERIC)
+      value_item->collation.set(value_item->collation.collation,
+                                DERIVATION_IMPLICIT);
+    return FALSE;
+  }
+  // else, could not unwrap, fall back to default handling below.
+
   if (value_item->collation.derivation == DERIVATION_NUMERIC)
     collation= DTCollation_numeric();
   else
@@ -2723,7 +2772,7 @@ bool Type_std_attributes::agg_item_set_converter(const DTCollation &coll,
    @retval 0 on a failure
 */
 
-Item* Item_func_or_sum::build_clone(THD *thd)
+Item* Item_func_or_sum::do_build_clone(THD *thd) const
 {
   Item *copy_tmp_args[2]= {0,0};
   Item **copy_args= copy_tmp_args;
@@ -3043,7 +3092,7 @@ Item_sp::init_result_field(THD *thd, uint max_length, uint maybe_null,
      0 if an error occurred
 */ 
 
-Item* Item_ref::build_clone(THD *thd)
+Item* Item_ref::do_build_clone(THD *thd) const
 {
   Item_ref *copy= (Item_ref *) get_copy(thd);
   if (unlikely(!copy) ||
@@ -3872,7 +3921,7 @@ void Item_decimal::set_decimal_value(my_decimal *value_par)
 }
 
 
-Item *Item_decimal::clone_item(THD *thd)
+Item *Item_decimal::do_clone_const_item(THD *thd) const
 {
   return new (thd->mem_root) Item_decimal(thd, name.str, &decimal_value, decimals,
                                          max_length);
@@ -3893,7 +3942,7 @@ my_decimal *Item_float::val_decimal(my_decimal *decimal_value)
 }
 
 
-Item *Item_float::clone_item(THD *thd)
+Item *Item_float::do_clone_const_item(THD *thd) const
 {
   return new (thd->mem_root) Item_float(thd, name.str, value, decimals,
                                        max_length);
@@ -4057,7 +4106,7 @@ Item *Item_null::safe_charset_converter(THD *thd, CHARSET_INFO *tocs)
   return this;
 }
 
-Item *Item_null::clone_item(THD *thd)
+Item *Item_null::do_clone_const_item(THD *thd) const
 {
   return new (thd->mem_root) Item_null(thd, name.str);
 }
@@ -4881,7 +4930,7 @@ bool Item_param::basic_const_item() const
 }
 
 
-Item *Item_param::value_clone_item(THD *thd)
+Item *Item_param::value_clone_item(THD *thd) const
 {
   MEM_ROOT *mem_root= thd->mem_root;
   switch (value.type_handler()->cmp_type()) {
@@ -4895,12 +4944,15 @@ Item *Item_param::value_clone_item(THD *thd)
   case DECIMAL_RESULT:
     return 0; // Should create Item_decimal. See MDEV-11361.
   case STRING_RESULT:
+  {
+    String value_copy = value.m_string; // to preserve constness of the func
     return new (mem_root) Item_string(thd, name,
-                                      Lex_cstring(value.m_string.ptr(),
-                                                  value.m_string.length()),
-                                      value.m_string.charset(),
+                                      Lex_cstring(value_copy.ptr(),
+                                                  value_copy.length()),
+                                      value_copy.charset(),
                                       collation.derivation,
                                       collation.repertoire);
+  }
   case TIME_RESULT:
     break;
   case ROW_RESULT:
@@ -4914,7 +4966,7 @@ Item *Item_param::value_clone_item(THD *thd)
 /* see comments in the header file */
 
 Item *
-Item_param::clone_item(THD *thd)
+Item_param::do_clone_const_item(THD *thd) const
 {
   // There's no "default". See comments in Item_param::save_in_field().
   switch (state) {
@@ -5562,7 +5614,7 @@ static Item** find_field_in_group_list(Item *find_item, ORDER *group_list)
         is ambiguous.
       */
       my_error(ER_NON_UNIQ_ERROR, MYF(0),
-               find_item->full_name(), current_thd->where);
+               find_item->full_name(), thd_where(current_thd));
       return NULL;
     }
   }
@@ -5647,7 +5699,7 @@ resolve_ref_in_select_and_group(THD *thd, Item_ident *ref, SELECT_LEX *select)
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                           ER_NON_UNIQ_ERROR,
                           ER_THD(thd,ER_NON_UNIQ_ERROR), ref->full_name(),
-                          thd->where);
+                          thd_where(thd));
 
     }
   }
@@ -5981,7 +6033,7 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
     if (upward_lookup)
     {
       // We can't say exactly what absent table or field
-      my_error(ER_BAD_FIELD_ERROR, MYF(0), full_name(), thd->where);
+      my_error(ER_BAD_FIELD_ERROR, MYF(0), full_name(), thd_where(thd));
     }
     else
     {
@@ -6208,7 +6260,7 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
             {
               /* The column to which we link isn't valid. */
               my_error(ER_BAD_FIELD_ERROR, MYF(0), (*res)->name.str,
-                       thd->where);
+                       thd_where(thd));
               return(1);
             }
 
@@ -6253,7 +6305,7 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
 
       if (unlikely(!select))
       {
-        my_error(ER_BAD_FIELD_ERROR, MYF(0), full_name(), thd->where);
+        my_error(ER_BAD_FIELD_ERROR, MYF(0), full_name(), thd_where(thd));
         goto error;
       }
       if ((ret= fix_outer_field(thd, &from_field, reference)) < 0)
@@ -7005,7 +7057,7 @@ int Item_string::save_in_field(Field *field, bool no_conversions)
 }
 
 
-Item *Item_string::clone_item(THD *thd)
+Item *Item_string::do_clone_const_item(THD *thd) const
 {
   LEX_CSTRING val;
   str_value.get_value(&val);
@@ -7069,7 +7121,7 @@ int Item_int::save_in_field(Field *field, bool no_conversions)
 }
 
 
-Item *Item_int::clone_item(THD *thd)
+Item *Item_int::do_clone_const_item(THD *thd) const
 {
   return new (thd->mem_root) Item_int(thd, name.str, value, max_length, unsigned_flag);
 }
@@ -7098,7 +7150,7 @@ int Item_decimal::save_in_field(Field *field, bool no_conversions)
 }
 
 
-Item *Item_int_with_ref::clone_item(THD *thd)
+Item *Item_int_with_ref::do_clone_const_item(THD *thd) const
 {
   DBUG_ASSERT(ref->const_item());
   /*
@@ -7194,7 +7246,7 @@ Item *Item_uint::neg(THD *thd)
 }
 
 
-Item *Item_uint::clone_item(THD *thd)
+Item *Item_uint::do_clone_const_item(THD *thd) const
 {
   return new (thd->mem_root) Item_uint(thd, name.str, value, max_length);
 }
@@ -7330,10 +7382,8 @@ void Item_hex_constant::hex_string_init(THD *thd, const char *str, size_t str_le
 
 void Item_hex_hybrid::print(String *str, enum_query_type query_type)
 {
-  uint32 len= MY_MIN(str_value.length(), sizeof(longlong));
-  const char *ptr= str_value.ptr() + str_value.length() - len;
-  str->append("0x",2);
-  str->append_hex(ptr, len);
+  str->append("0x", 2);
+  str->append_hex(str_value.ptr(), str_value.length());
 }
 
 
@@ -7434,7 +7484,7 @@ void Item_date_literal::print(String *str, enum_query_type query_type)
 }
 
 
-Item *Item_date_literal::clone_item(THD *thd)
+Item *Item_date_literal::do_clone_const_item(THD *thd) const
 {
   return new (thd->mem_root) Item_date_literal(thd, &cached_time);
 }
@@ -7459,7 +7509,7 @@ void Item_datetime_literal::print(String *str, enum_query_type query_type)
 }
 
 
-Item *Item_datetime_literal::clone_item(THD *thd)
+Item *Item_datetime_literal::do_clone_const_item(THD *thd) const
 {
   return new (thd->mem_root) Item_datetime_literal(thd, &cached_time, decimals);
 }
@@ -7484,7 +7534,7 @@ void Item_time_literal::print(String *str, enum_query_type query_type)
 }
 
 
-Item *Item_time_literal::clone_item(THD *thd)
+Item *Item_time_literal::do_clone_const_item(THD *thd) const
 {
   return new (thd->mem_root) Item_time_literal(thd, &cached_time, decimals);
 }
@@ -8202,7 +8252,7 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
       if (unlikely(!outer_context))
       {
         /* The current reference cannot be resolved in this query. */
-        my_error(ER_BAD_FIELD_ERROR,MYF(0), full_name(), thd->where);
+        my_error(ER_BAD_FIELD_ERROR,MYF(0), full_name(), thd_where(thd));
         goto error;
       }
 
@@ -8353,7 +8403,7 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
       {
         /* The item was not a table field and not a reference */
         my_error(ER_BAD_FIELD_ERROR, MYF(0),
-                 this->full_name(), thd->where);
+                 this->full_name(), thd_where(thd));
         goto error;
       }
       /* Should be checked in resolve_ref_in_select_and_group(). */
@@ -10451,7 +10501,7 @@ void Item_cache_temporal::store_packed(longlong val_arg, Item *example_arg)
 }
 
 
-Item *Item_cache_temporal::clone_item(THD *thd)
+Item *Item_cache_temporal::do_clone_const_item(THD *thd) const
 {
   Item_cache *tmp= type_handler()->Item_get_cache(thd, this);
   Item_cache_temporal *item= static_cast<Item_cache_temporal*>(tmp);

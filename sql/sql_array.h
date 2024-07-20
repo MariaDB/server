@@ -140,10 +140,22 @@ public:
     DBUG_ASSERT(idx < array.elements);
     return *(((Elem*)array.buffer) + idx);
   }
+
   /// Const variant of at(), which cannot change data
   const Elem& at(size_t idx) const
   {
     return *(((Elem*)array.buffer) + idx);
+  }
+
+  Elem& operator[](size_t idx)
+  {
+    return at(idx);
+  }
+
+  /// Const variant of operator[]
+  const Elem& operator[](size_t idx) const
+  {
+    return at(idx);
   }
 
   /// @returns pointer to first element

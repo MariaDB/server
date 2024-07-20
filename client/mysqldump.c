@@ -747,7 +747,7 @@ static void write_header(FILE *sql_file, const char *db_name)
   }
   else
   {
-    fprintf(sql_file, "/*!999999\\- enable the sandbox mode */ \n");
+    fprintf(sql_file, "/*M!999999\\- enable the sandbox mode */ \n");
     if (!opt_compact)
     {
       print_comment(sql_file, 0,
@@ -6145,8 +6145,11 @@ static int dump_selected_tables(char *db, char **table_names, int tables)
 } /* dump_selected_tables */
 
 
+const char fmt_gtid_pos[]= "%sSET GLOBAL gtid_slave_pos='%s';\n";
+
 static int do_show_master_status(MYSQL *mysql_con, int consistent_binlog_pos,
-                                 int have_mariadb_gtid, int use_gtid)
+                                 int have_mariadb_gtid, int use_gtid,
+                                 char *set_gtid_pos)
 {
   MYSQL_ROW row;
   MYSQL_RES *UNINIT_VAR(master);
@@ -6207,15 +6210,21 @@ static int do_show_master_status(MYSQL *mysql_con, int consistent_binlog_pos,
   /* gtid */
   if (have_mariadb_gtid)
   {
-    print_comment(md_result_file, 0,
-                  "\n-- Preferably use GTID to start replication from GTID "
-                  "position:\n\n");
     if (use_gtid)
+    {
       fprintf(md_result_file,
               "%sCHANGE MASTER TO MASTER_USE_GTID=slave_pos;\n",
               comment_prefix);
-    fprintf(md_result_file,
-            "%sSET GLOBAL gtid_slave_pos='%s';\n",
+      /*
+        When --gtid is specified defer print of SET gtid_slave_pos until
+        after its placeholder table is guaranteed to have been dumped.
+      */
+      print_comment(md_result_file, 0,
+                    "\n-- A corresponding to the above master-data "
+                    "CHANGE-MASTER settings to the slave gtid state is printed "
+                    "later in the file.\n");
+    }
+    sprintf(set_gtid_pos, fmt_gtid_pos,
             (!use_gtid ? "-- " : comment_prefix), gtid_pos);
   }
 
@@ -6231,6 +6240,11 @@ static int do_show_master_status(MYSQL *mysql_con, int consistent_binlog_pos,
   fprintf(md_result_file,
           "%sCHANGE MASTER TO MASTER_LOG_FILE='%s', MASTER_LOG_POS=%s;\n",
           (use_gtid ? "-- " : comment_prefix), file, offset);
+  if (have_mariadb_gtid && !use_gtid)
+    print_comment(md_result_file, 0,
+                  "\n-- A corresponding to the above master-data CHANGE-MASTER "
+                  "settings to the slave gtid state is printed as comments "
+                  "later in the file.\n");
   check_io(md_result_file);
 
   if (!consistent_binlog_pos)
@@ -6300,8 +6314,8 @@ static int add_slave_statements(void)
   return(0);
 }
 
-static int do_show_slave_status(MYSQL *mysql_con, int use_gtid,
-                                int have_mariadb_gtid)
+static int do_show_slave_status(MYSQL *mysql_con, int have_mariadb_gtid,
+                                int use_gtid, char* set_gtid_pos)
 {
   MYSQL_RES *UNINIT_VAR(slave);
   MYSQL_ROW row;
@@ -6341,10 +6355,12 @@ static int do_show_slave_status(MYSQL *mysql_con, int use_gtid,
       mysql_free_result(slave);
       return 1;
     }
+    /* defer print similarly to do_show_master_status */
     print_comment(md_result_file, 0,
-                  "-- GTID position to start replication:\n");
-    fprintf(md_result_file, "%sSET GLOBAL gtid_slave_pos='%s';\n",
-            gtid_comment_prefix, gtid_pos);
+                  "\n-- A corresponding to the below dump-slave "
+                  "CHANGE-MASTER settings to the slave gtid state is printed "
+                  "later in the file.\n");
+    sprintf(set_gtid_pos, fmt_gtid_pos, gtid_comment_prefix, gtid_pos);
   }
   if (use_gtid)
     print_comment(md_result_file, 0,
@@ -7065,6 +7081,34 @@ static void dynstr_realloc_checked(DYNAMIC_STRING *str, ulong additional_size)
     die(EX_MYSQLERR, DYNAMIC_STR_ERROR_MSG);
 }
 
+/**
+  Print earlier prepared SET @@global.gtid_slave_pos.
+
+  @param set_gtid_pos[in]  formatted sql set statement
+**/
+static void do_print_set_gtid_slave_pos(const char *set_gtid_pos,
+                                        my_bool is_master_data)
+{
+  DBUG_ASSERT(opt_master_data || opt_slave_data);
+  if (is_master_data)
+  {
+    print_comment(md_result_file, 0,
+                  "\n-- The deferred gtid setting for slave corresponding to "
+                  "the master-data CHANGE-MASTER follows\n");
+    print_comment(md_result_file, 0,
+                  "\n-- Preferably use GTID to start replication from GTID "
+                  "position:\n\n");
+  }
+  else
+  {
+    print_comment(md_result_file, 0,
+                  "\n-- The deferred gtid setting for slave corresponding to "
+                  "the dump-slave CHANGE-MASTER follows\n");
+    print_comment(md_result_file, 0,
+                  "-- GTID position to start replication:\n");
+  }
+  fprintf(md_result_file, "%s", set_gtid_pos);
+}
 
 int main(int argc, char **argv)
 {
@@ -7073,6 +7117,12 @@ int main(int argc, char **argv)
   int exit_code;
   int consistent_binlog_pos= 0;
   int have_mariadb_gtid= 0;
+  /*
+    to hold SET @@global.gtid_slave_pos which is deferred to print
+    until the function epilogue.
+  */
+  char master_set_gtid_pos[3 + sizeof(fmt_gtid_pos) + MAX_GTID_LENGTH]= {0};
+  char slave_set_gtid_pos[3 + sizeof(fmt_gtid_pos) + MAX_GTID_LENGTH]= {0};
   MY_INIT(argv[0]);
 
   sf_leaking_memory=1; /* don't report memory leaks on early exits */
@@ -7111,11 +7161,11 @@ int main(int argc, char **argv)
     write_header(md_result_file, *argv);
 
   /* Set MAX_STATEMENT_TIME to 0 unless set in client */
-  my_snprintf(query, sizeof(query), "/*!100100 SET @@MAX_STATEMENT_TIME=%f */", opt_max_statement_time);
+  my_snprintf(query, sizeof(query), "/*M!100100 SET @@MAX_STATEMENT_TIME=%f */", opt_max_statement_time);
   mysql_query(mysql, query);
 
   /* Set server side timeout between client commands to server compiled-in default */
-  mysql_query(mysql, "/*!100100 SET WAIT_TIMEOUT=DEFAULT */");
+  mysql_query(mysql, "/*M!100100 SET WAIT_TIMEOUT=DEFAULT */");
 
   /* Check if the server support multi source */
   if (mysql_get_server_version(mysql) >= 100000)
@@ -7176,10 +7226,12 @@ int main(int argc, char **argv)
     goto err;
 
   if (opt_master_data && do_show_master_status(mysql, consistent_binlog_pos,
-                                               have_mariadb_gtid, opt_use_gtid))
+                                               have_mariadb_gtid,
+                                               opt_use_gtid, master_set_gtid_pos))
     goto err;
-  if (opt_slave_data && do_show_slave_status(mysql, opt_use_gtid,
-                                             have_mariadb_gtid))
+  if (opt_slave_data && do_show_slave_status(mysql,
+                                             have_mariadb_gtid,
+                                             opt_use_gtid, slave_set_gtid_pos))
     goto err;
   if (opt_single_transaction && do_unlock_tables(mysql)) /* unlock but no commit! */
     goto err;
@@ -7246,6 +7298,11 @@ int main(int argc, char **argv)
 
   if (opt_system & OPT_SYSTEM_TIMEZONES)
     dump_all_timezones();
+
+  if (opt_master_data && master_set_gtid_pos[0])
+    do_print_set_gtid_slave_pos(master_set_gtid_pos, TRUE);
+  if (opt_slave_data && slave_set_gtid_pos[0])
+    do_print_set_gtid_slave_pos(slave_set_gtid_pos, FALSE);
 
   /* add 'START SLAVE' to end of dump */
   if (opt_slave_apply && add_slave_statements())

@@ -2109,10 +2109,11 @@ static void wait_for_signal_thread_to_end()
   if (err && err != ESRCH)
   {
     sql_print_error("Failed to send kill signal to signal handler thread, "
-                    "pthread_kill() errno: %d", err);
+                    "pthread_kill() errno: %d",
+                    err);
   }
 
-  if (i == n_waits && signal_thread_in_use && !opt_bootstrap)
+  if (i == n_waits && signal_thread_in_use)
   {
     sql_print_warning("Signal handler thread did not exit in a timely manner. "
                       "Continuing to wait for it to stop..");
@@ -3162,8 +3163,10 @@ void init_signals(void)
   (void) sigemptyset(&set);
   my_sigset(SIGPIPE,SIG_IGN);
   sigaddset(&set,SIGPIPE);
+#ifndef IGNORE_SIGHUP_SIGQUIT
   sigaddset(&set,SIGQUIT);
   sigaddset(&set,SIGHUP);
+#endif
   sigaddset(&set,SIGTERM);
 
   /* Fix signals if blocked by parents (can happen on Mac OS X) */
@@ -3254,20 +3257,20 @@ pthread_handler_t signal_hand(void *arg __attribute__((unused)))
     (void) sigaddset(&set,SIGINT);
     (void) pthread_sigmask(SIG_UNBLOCK,&set,NULL);
   }
-  (void) sigemptyset(&set);
+  (void) sigemptyset(&set);			// Setup up SIGINT for debug
 #ifdef USE_ONE_SIGNAL_HAND
   (void) sigaddset(&set,THR_SERVER_ALARM);	// For alarms
 #endif
+#ifndef IGNORE_SIGHUP_SIGQUIT
   (void) sigaddset(&set,SIGQUIT);
+  (void) sigaddset(&set,SIGHUP);
+#endif
   (void) sigaddset(&set,SIGTERM);
   (void) sigaddset(&set,SIGTSTP);
 
   /* Save pid to this process (or thread on Linux) */
   if (!opt_bootstrap)
-  {
-    (void) sigaddset(&set,SIGHUP);
     create_pid_file();
-  }
 
   /*
     signal to start_signal_handler that we are ready

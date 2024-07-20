@@ -1162,7 +1162,7 @@ bool push_table_function_arg_context(LEX *lex, MEM_ROOT *alloc)
 bool Table_function_json_table::setup(THD *thd, TABLE_LIST *sql_table,
                                      SELECT_LEX *s_lex)
 {
-  thd->where= "JSON_TABLE argument";
+  thd->where= THD_WHERE::JSON_TABLE_ARGUMENT;
 
   if (!m_context_setup_done)
   {

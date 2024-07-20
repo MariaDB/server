@@ -22,4 +22,3 @@ galera_as_slave_replay : MDEV-32780 galera_as_slave_replay: assertion in the wsr
 galera_slave_replay : MDEV-32780 galera_as_slave_replay: assertion in the wsrep::transaction::before_rollback()
 galera_sst_mysqldump_with_key : MDEV-32782 galera_sst_mysqldump_with_key test failed
 galera_var_ignore_apply_errors : MENT-1997 galera_var_ignore_apply_errors test freezes
-galera_desync_overlapped : MDEV-21538 galera_desync_overlapped MTR failed: Result content mismatch

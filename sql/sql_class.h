@@ -2653,6 +2653,33 @@ struct thd_async_state
 };
 
 
+enum class THD_WHERE
+{
+  NOWHERE = 0,
+  CHECKING_TRANSFORMED_SUBQUERY,
+  IN_ALL_ANY_SUBQUERY,
+  JSON_TABLE_ARGUMENT,
+  FIELD_LIST,
+  PARTITION_FUNCTION,
+  FROM_CLAUSE,
+  DEFAULT_WHERE,
+  ON_CLAUSE,
+  WHERE_CLAUSE,
+  CONVERT_CHARSET_CONST,
+  FOR_SYSTEM_TIME,
+  ORDER_CLAUSE,
+  HAVING_CLAUSE,
+  GROUP_STATEMENT,
+  PROCEDURE_LIST,
+  CHECK_OPTION,
+  USE_WHERE_STRING, // ugh, a compromise for vcol...
+};
+
+
+class THD;
+const char *thd_where(THD *thd);
+
+
 /**
   @class THD
   For each client connection we create a separate thread with THD serving as
@@ -2705,13 +2732,6 @@ public:
   MDL_request *backup_commit_lock;
 
   void reset_for_next_command(bool do_clear_errors= 1);
-  /*
-    Constant for THD::where initialization in the beginning of every query.
-
-    It's needed because we do not save/restore THD::where normally during
-    primary (non subselect) query execution.
-  */
-  static const char * const DEFAULT_WHERE;
 
 #ifdef EMBEDDED_LIBRARY
   struct st_mysql  *mysql;
@@ -2867,12 +2887,15 @@ public:
   const char *get_proc_info() const
   { return proc_info; }
 
+  // Used by thd_where() when where==USE_WHERE_STRING
+  const char *where_str;
+
   /*
     Used in error messages to tell user in what part of MySQL we found an
     error. E. g. when where= "having clause", if fix_fields() fails, user
     will know that the error was in having clause.
   */
-  const char *where;
+  THD_WHERE where;
 
   /* Needed by MariaDB semi sync replication */
   Trans_binlog_info *semisync_info;
