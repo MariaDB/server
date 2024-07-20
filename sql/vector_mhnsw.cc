@@ -37,10 +37,6 @@ static const double ef_construction_multiplier = 4;
 static const double alpha = 1.1;
 static const uint clo_nei_threshold= 10000;
 
-// SIMD definitions
-#define SIMD_bytes  (256/8)
-#define SIMD_dims   (SIMD_bytes/sizeof(int16_t))
-
 enum Graph_table_fields {
   FIELD_LAYER, FIELD_TREF, FIELD_VEC, FIELD_NEIGHBORS
 };
@@ -51,29 +47,84 @@ enum Graph_table_indices {
 class MHNSW_Context;
 class FVectorNode;
 
-#pragma pack(push, 1)
-struct vector
-{
-  float abs2, scale;
-  int16_t dims[4];
-  static constexpr size_t alloc_size(size_t n)
-  { return sizeof(float)*2+MY_ALIGN(n*2, SIMD_bytes) + SIMD_bytes - 1; }
-  static constexpr size_t data_size(size_t n)
-  { return sizeof(float)*2+n*2; }
-};
-#pragma pack(pop)
-
 /*
   One vector, an array of coordinates in ctx->vec_len dimensions
 */
-class FVector
+#pragma pack(push, 1)
+struct FVector
 {
-public:
-  FVector(MHNSW_Context *ctx_, MEM_ROOT *root, const void *vec_);
-  vector *vec;
-protected:
-  FVector() : vec(nullptr) {}
+  float abs2, scale;
+  int16_t dims[4];
+
+  static constexpr size_t header= sizeof(float)*2;
+  static constexpr size_t SIMD_bytes= 256/8;
+  static constexpr size_t SIMD_dims= SIMD_bytes/sizeof(int16_t);
+
+  static constexpr size_t alloc_size(size_t n)
+  { return header + MY_ALIGN(n*2, SIMD_bytes) + SIMD_bytes - 1; }
+
+  static constexpr size_t data_size(size_t n)
+  { return header + n*2; }
+
+  static FVector *align_ptr(void *ptr)
+  { return (FVector*)(MY_ALIGN(((intptr)ptr) + header, SIMD_bytes) - header); }
+
+  void fix_tail(size_t vec_len)
+  { bzero(dims + vec_len, (MY_ALIGN(vec_len, SIMD_dims) - vec_len)*2); }
+
+  static const FVector *create(void *mem, const void *src, size_t src_len)
+  {
+    FVector *vec= align_ptr(mem);
+    float abs2= 0, scale=0, *v= (float *)src;
+    size_t vec_len= src_len / sizeof(float);
+    for (size_t i= 0; i < vec_len; i++)
+    {
+      abs2+= v[i]*v[i];
+      if (std::abs(scale) < std::abs(v[i]))
+        scale= v[i];
+    }
+    vec->abs2= abs2/2;
+    vec->scale= scale ? scale/32767 : 1;
+    for (size_t i= 0; i < vec_len; i++)
+      vec->dims[i] = std::round(v[i] / vec->scale);
+    vec->fix_tail(vec_len);
+    return vec;
+  }
+
+#if __GNUC__ > 7
+  __attribute__ ((target ("avx2,avx")))
+  static float dot_product(const int16_t *v1, const int16_t *v2, size_t len)
+  {
+    typedef float v8f __attribute__((vector_size(SIMD_bytes)));
+    union { v8f v; __m256 i; } tmp;
+    __m256i *p1= (__m256i*)v1;
+    __m256i *p2= (__m256i*)v2;
+    v8f d= {0};
+    for (size_t i= 0; i < len/SIMD_dims; p1++, p2++, i++)
+    {
+      tmp.i= _mm256_cvtepi32_ps(_mm256_madd_epi16(*p1, *p2));
+      d+= tmp.v;
+    }
+    return d[0] + d[1] + d[2] + d[3] + d[4] + d[5] + d[6] + d[7];
+  }
+#endif
+
+  __attribute__ ((target ("default")))
+  static float dot_product(const int16_t *v1, const int16_t *v2, size_t len)
+  {
+    int64_t d= 0;
+    for (size_t i= 0; i < len; i++)
+      d+= int32_t(v1[i]) * int32_t(v2[i]);
+    return d;
+  }
+
+  float distance_to(const FVector *other, size_t vec_len) const
+  {
+    return abs2 + other->abs2 - scale * other->scale *
+           dot_product(dims, other->dims, MY_ALIGN(vec_len, SIMD_dims));
+  }
 };
+#pragma pack(pop)
 
 /*
   An array of pointers to graph nodes
@@ -106,34 +157,6 @@ struct Neighborhood: public Sql_alloc
 };
 
 
-#if __GNUC__ > 7
-__attribute__ ((target ("avx2,avx")))
-float dot_product(int16_t *v1, int16_t *v2, size_t len)
-{
-  typedef float v8f __attribute__((vector_size(SIMD_bytes)));
-  union { v8f v; __m256 i; } tmp;
-  __m256i *p1= (__m256i*)v1;
-  __m256i *p2= (__m256i*)v2;
-  v8f d= {0};
-  for (size_t i= 0; i < len/SIMD_dims; p1++, p2++, i++)
-  {
-    tmp.i= _mm256_cvtepi32_ps(_mm256_madd_epi16(*p1, *p2));
-    d+= tmp.v;
-  }
-  return d[0] + d[1] + d[2] + d[3] + d[4] + d[5] + d[6] + d[7];
-}
-#endif
-
-__attribute__ ((target ("default")))
-float dot_product(int16_t *v1, int16_t *v2, size_t len)
-{
-  int64_t d= 0;
-  for (size_t i= 0; i < len; i++)
-    d+= int32_t(v1[i]) * int32_t(v2[i]);
-  return d;
-}
-
-
 /*
   One node in a graph = one row in the graph table
 
@@ -156,14 +179,15 @@ float dot_product(int16_t *v1, int16_t *v2, size_t len)
   is constrained by mhnsw_cache_size, so every byte matters here
 */
 #pragma pack(push, 1)
-class FVectorNode: public FVector
+class FVectorNode
 {
 private:
   MHNSW_Context *ctx;
 
-  vector *make_vec(const void *v);
+  const FVector *make_vec(const void *v);
   int alloc_neighborhood(size_t layer);
 public:
+  const FVector *vec= nullptr;
   Neighborhood *neighbors= nullptr;
   uint8_t max_layer;
   bool stored:1, deleted:1;
@@ -171,7 +195,7 @@ public:
   FVectorNode(MHNSW_Context *ctx_, const void *gref_);
   FVectorNode(MHNSW_Context *ctx_, const void *tref_, size_t layer,
               const void *vec_);
-  float distance_to(const FVector &other) const;
+  float distance_to(const FVector *other) const;
   int load(TABLE *graph);
   int load_from_record(TABLE *graph);
   int save(TABLE *graph);
@@ -217,7 +241,7 @@ class MHNSW_Context : public Sql_alloc
   void *alloc_node_internal()
   {
     return alloc_root(&root, sizeof(FVectorNode) + gref_len + tref_len
-                      + vector::alloc_size(vec_len));
+                      + FVector::alloc_size(vec_len));
   }
 
 protected:
@@ -541,46 +565,20 @@ int MHNSW_Context::acquire(MHNSW_Context **ctx, TABLE *table, bool for_update)
 }
 
 /* copy the vector, preprocessed as needed */
-static vector *make_vec(void *mem, const void *src, size_t src_len)
+const FVector *FVectorNode::make_vec(const void *v)
 {
-  auto vec= (vector*)(MY_ALIGN(((intptr)mem)+8, SIMD_bytes) - 8);
-  float abs2= 0, scale=0, *v= (float *)src;
-  size_t vec_len= src_len / sizeof(float);
-  for (size_t i= 0; i < vec_len; i++)
-  {
-    abs2+= v[i]*v[i];
-    if (std::abs(scale) < std::abs(v[i]))
-      scale= v[i];
-  }
-  vec->abs2= abs2/2;
-  vec->scale= scale ? scale/32767 : 1;
-  for (size_t i= 0; i < vec_len; i++)
-    vec->dims[i] = std::round(v[i] / vec->scale);
-  bzero(vec->dims + vec_len, (MY_ALIGN(vec_len, SIMD_dims) - vec_len)*2);
-
-  return vec;
-}
-
-FVector::FVector(MHNSW_Context *ctx, MEM_ROOT *root, const void *vec_)
-{
-  vec= make_vec(alloc_root(root, vector::alloc_size(ctx->vec_len)),
-                vec_, ctx->byte_len);
-}
-
-vector *FVectorNode::make_vec(const void *v)
-{
-  return ::make_vec(tref() + tref_len(), v, ctx->byte_len);
+  return FVector::create(tref() + tref_len(), v, ctx->byte_len);
 }
 
 FVectorNode::FVectorNode(MHNSW_Context *ctx_, const void *gref_)
-  : FVector(), ctx(ctx_), stored(true), deleted(false)
+  : ctx(ctx_), stored(true), deleted(false)
 {
   memcpy(gref(), gref_, gref_len());
 }
 
 FVectorNode::FVectorNode(MHNSW_Context *ctx_, const void *tref_, size_t layer,
                          const void *vec_)
-  : FVector(), ctx(ctx_), stored(false), deleted(false)
+  : ctx(ctx_), stored(false), deleted(false)
 {
   DBUG_ASSERT(tref_);
   memset(gref(), 0xff, gref_len()); // important: larger than any real gref
@@ -590,10 +588,9 @@ FVectorNode::FVectorNode(MHNSW_Context *ctx_, const void *tref_, size_t layer,
   alloc_neighborhood(layer);
 }
 
-float FVectorNode::distance_to(const FVector &other) const
+float FVectorNode::distance_to(const FVector *other) const
 {
-  return vec->abs2 + other.vec->abs2 - vec->scale * other.vec->scale *
-         dot_product(vec->dims, other.vec->dims, MY_ALIGN(ctx->vec_len, SIMD_dims));
+  return vec->distance_to(other, ctx->vec_len);
 }
 
 int FVectorNode::alloc_neighborhood(size_t layer)
@@ -644,11 +641,11 @@ int FVectorNode::load_from_record(TABLE *graph)
   if (unlikely(!v))
     return my_errno= HA_ERR_CRASHED;
 
-  if (v->length() != vector::data_size(ctx->vec_len))
+  if (v->length() != FVector::data_size(ctx->vec_len))
     return my_errno= HA_ERR_CRASHED;
-  auto vec_ptr= (vector*)(MY_ALIGN(((intptr)tref() + tref_len())+8, SIMD_bytes) - 8);
+  FVector *vec_ptr= FVector::align_ptr(tref() + tref_len());
   memcpy(vec_ptr, v->ptr(), v->length());
-  bzero(vec_ptr->dims + ctx->vec_len, 2*(MY_ALIGN(ctx->vec_len, SIMD_dims) - ctx->vec_len));
+  vec_ptr->fix_tail(ctx->vec_len);
 
   size_t layer= graph->field[FIELD_LAYER]->val_int();
   if (layer > 100) // 10e30 nodes at M=2, more at larger M's
@@ -725,13 +722,13 @@ struct Visited : public Sql_alloc
 class VisitedSet
 {
   MEM_ROOT *root;
-  const FVector &target;
+  const FVector *target;
   PatternedSimdBloomFilter<FVectorNode> map;
   const FVectorNode *nodes[8]= {0,0,0,0,0,0,0,0};
   size_t idx= 1; // to record 0 in the filter
   public:
   uint count= 0;
-  VisitedSet(MEM_ROOT *root, const FVector &target, uint size) :
+  VisitedSet(MEM_ROOT *root, const FVector *target, uint size) :
     root(root), target(target), map(size, 0.01) {}
   Visited *create(FVectorNode *node)
   {
@@ -780,10 +777,10 @@ static int select_neighbors(MHNSW_Context *ctx, TABLE *graph, size_t layer,
     FVectorNode *node= candidates.links[i];
     if (int err= node->load(graph))
       return err;
-    pq.push(new (root) Visited(node, node->distance_to(target)));
+    pq.push(new (root) Visited(node, node->distance_to(target.vec)));
   }
   if (extra_candidate)
-    pq.push(new (root) Visited(extra_candidate, extra_candidate->distance_to(target)));
+    pq.push(new (root) Visited(extra_candidate, extra_candidate->distance_to(target.vec)));
 
   DBUG_ASSERT(pq.elements());
   neighbors.empty();
@@ -799,7 +796,7 @@ static int select_neighbors(MHNSW_Context *ctx, TABLE *graph, size_t layer,
     else
     {
       for (size_t i=0; i < neighbors.num; i++)
-        if ((discard= node->distance_to(*neighbors.links[i]) < target_dista))
+        if ((discard= node->distance_to(neighbors.links[i]->vec) < target_dista))
           break;
     }
     if (!discard)
@@ -829,7 +826,7 @@ int FVectorNode::save(TABLE *graph)
     graph->field[FIELD_TREF]->set_notnull();
     graph->field[FIELD_TREF]->store_binary(tref(), tref_len());
   }
-  graph->field[FIELD_VEC]->store_binary((uchar*)vec, vector::data_size(ctx->vec_len));
+  graph->field[FIELD_VEC]->store_binary((uchar*)vec, FVector::data_size(ctx->vec_len));
 
   size_t total_size= 0;
   for (size_t i=0; i <= max_layer; i++)
@@ -880,7 +877,7 @@ static int update_second_degree_neighbors(MHNSW_Context *ctx, TABLE *graph,
     FVectorNode *neigh= node->neighbors[layer].links[i];
     Neighborhood &neighneighbors= neigh->neighbors[layer];
     if (neighneighbors.num < max_neighbors)
-      neigh->push_neighbor(layer, neigh->distance_to(*node), node);
+      neigh->push_neighbor(layer, neigh->distance_to(node->vec), node);
     else
       if (int err= select_neighbors(ctx, graph, layer, *neigh, neighneighbors,
                                     node, max_neighbors))
@@ -891,7 +888,7 @@ static int update_second_degree_neighbors(MHNSW_Context *ctx, TABLE *graph,
   return 0;
 }
 
-static int search_layer(MHNSW_Context *ctx, TABLE *graph, const FVector &target,
+static int search_layer(MHNSW_Context *ctx, TABLE *graph, const FVector *target,
                         Neighborhood *start_nodes, uint ef, size_t layer,
                         Neighborhood *result, bool skip_deleted)
 {
@@ -1053,8 +1050,8 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
 
   for (cur_layer= max_layer; cur_layer > target_layer; cur_layer--)
   {
-    if (int err= search_layer(ctx, graph, *target, &start_nodes, 1, cur_layer,
-                              &candidates, false))
+    if (int err= search_layer(ctx, graph, target->vec, &start_nodes, 1,
+                              cur_layer, &candidates, false))
       return err;
     std::swap(start_nodes, candidates);
   }
@@ -1062,7 +1059,7 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
   for (; cur_layer >= 0; cur_layer--)
   {
     uint max_neighbors= ctx->max_neighbors(cur_layer);
-    if (int err= search_layer(ctx, graph, *target, &start_nodes,
+    if (int err= search_layer(ctx, graph, target->vec, &start_nodes,
                               ef_construction_multiplier * max_neighbors,
                               cur_layer, &candidates, false))
       return err;
@@ -1132,7 +1129,8 @@ int mhnsw_first(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit)
   }
 
   const longlong max_layer= start_nodes.links[0]->max_layer;
-  FVector target(ctx, thd->mem_root, res->ptr());
+  auto target= FVector::create(thd->alloc(FVector::alloc_size(ctx->vec_len)),
+                               res->ptr(), res->length());
 
   if (int err= graph->file->ha_rnd_init(0))
     return err;
