@@ -1,0 +1,152 @@
+CREATE TABLE t1 (
+id int NOT NULL PRIMARY KEY,
+item_id varchar(100),
+seller_name varchar(400),
+variant varchar(400),
+FULLTEXT KEY t1_serial_IDX (item_id,seller_name,variant)
+)engine=innodb;
+insert into t1 select seq,seq,seq,seq from seq_1_to_10000;
+analyze format=json
+DELETE FROM t1 WHERE id NOT IN
+(SELECT m FROM (SELECT max(id) m FROM t1 GROUP BY item_id, seller_name, variant) AS innertable);
+ANALYZE
+{
+  "query_block": {
+    "select_id": 1,
+    "r_total_time_ms": 2162.554147,
+    "table": {
+      "delete": 1,
+      "table_name": "t1",
+      "access_type": "ALL",
+      "rows": 9803,
+      "r_rows": 10000,
+      "r_filtered": 0,
+      "r_total_time_ms": 476.8050484,
+      "attached_condition": "!(<in_optimizer>(t1.`id`,t1.`id` in (subquery#2)))"
+    },
+    "subqueries": [
+      {
+        "query_block": {
+          "select_id": 2,
+          "r_loops": 1,
+          "r_total_time_ms": 1624.809141,
+          "table": {
+            "table_name": "<derived3>",
+            "access_type": "ALL",
+            "r_loops": 1,
+            "rows": 9803,
+            "r_rows": 10000,
+            "r_table_time_ms": 2.561216259,
+            "r_other_time_ms": 63.25389227,
+            "filtered": 100,
+            "r_filtered": 100,
+            "materialized": {
+              "query_block": {
+                "select_id": 3,
+                "r_loops": 1,
+                "r_total_time_ms": 1611.231086,
+                "filesort": {
+                  "sort_key": "t1.item_id, t1.seller_name, t1.variant",
+                  "r_loops": 1,
+                  "r_total_time_ms": 27.04788886,
+                  "r_used_priority_queue": false,
+                  "r_output_rows": 10000,
+                  "r_sort_passes": 1,
+                  "r_buffer_size": "255Kb",
+                  "r_sort_mode": "packed_sort_key,rowid",
+                  "temporary_table": {
+                    "table": {
+                      "table_name": "t1",
+                      "access_type": "ALL",
+                      "r_loops": 1,
+                      "rows": 9803,
+                      "r_rows": 10000,
+                      "r_table_time_ms": 633.6655697,
+                      "r_other_time_ms": 898.0809074,
+                      "filtered": 100,
+                      "r_filtered": 100
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+analyze format=json
+UPDATE t1 SET item_id="foo" WHERE id NOT IN
+(SELECT m FROM (SELECT max(id) m FROM t1 GROUP BY item_id, seller_name, variant) AS innertable);
+ANALYZE
+{
+  "query_block": {
+    "select_id": 1,
+    "r_total_time_ms": 1741.85834,
+    "table": {
+      "update": 1,
+      "table_name": "t1",
+      "access_type": "index",
+      "key": "PRIMARY",
+      "key_length": "",
+      "used_key_parts": ["id"],
+      "rows": 9803,
+      "r_rows": 10000,
+      "r_filtered": 0,
+      "r_total_time_ms": 376.8910252,
+      "attached_condition": "!(<in_optimizer>(t1.`id`,t1.`id` in (subquery#2)))"
+    },
+    "subqueries": [
+      {
+        "query_block": {
+          "select_id": 2,
+          "r_loops": 1,
+          "r_total_time_ms": 1311.436222,
+          "table": {
+            "table_name": "<derived3>",
+            "access_type": "ALL",
+            "r_loops": 1,
+            "rows": 9803,
+            "r_rows": 10000,
+            "r_table_time_ms": 2.477005695,
+            "r_other_time_ms": 60.04917769,
+            "filtered": 100,
+            "r_filtered": 100,
+            "materialized": {
+              "query_block": {
+                "select_id": 3,
+                "r_loops": 1,
+                "r_total_time_ms": 1298.122699,
+                "filesort": {
+                  "sort_key": "t1.item_id, t1.seller_name, t1.variant",
+                  "r_loops": 1,
+                  "r_total_time_ms": 26.74490005,
+                  "r_used_priority_queue": false,
+                  "r_output_rows": 10000,
+                  "r_sort_passes": 1,
+                  "r_buffer_size": "255Kb",
+                  "r_sort_mode": "packed_sort_key,rowid",
+                  "temporary_table": {
+                    "table": {
+                      "table_name": "t1",
+                      "access_type": "ALL",
+                      "r_loops": 1,
+                      "rows": 9803,
+                      "r_rows": 10000,
+                      "r_table_time_ms": 430.103423,
+                      "r_other_time_ms": 791.9229759,
+                      "filtered": 100,
+                      "r_filtered": 100
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+drop table t1;

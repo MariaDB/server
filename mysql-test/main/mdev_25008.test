@@ -1,0 +1,22 @@
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+
+CREATE TABLE t1 (
+  id int NOT NULL PRIMARY KEY,
+  item_id varchar(100),
+  seller_name varchar(400),
+  variant varchar(400),
+  FULLTEXT KEY t1_serial_IDX (item_id,seller_name,variant)
+)engine=innodb;
+
+insert into t1 select seq,seq,seq,seq from seq_1_to_10000;
+
+analyze format=json
+DELETE FROM t1 WHERE id NOT IN
+  (SELECT m FROM (SELECT max(id) m FROM t1 GROUP BY item_id, seller_name, variant) AS innertable);
+
+analyze format=json
+UPDATE t1 SET item_id="foo" WHERE id NOT IN
+  (SELECT m FROM (SELECT max(id) m FROM t1 GROUP BY item_id, seller_name, variant) AS innertable);
+
+drop table t1;
