@@ -6606,11 +6606,8 @@ bool JOIN::choose_subquery_plan(table_map join_tables)
     }
     else
     {
-      /*
-        TODO: outer_join can be NULL for DELETE statements.
-        How to compute its cost?
-      */
-      outer_lookup_keys= 1;
+      outer_lookup_keys=
+        (double) unit->outer_select()->table_list.first->table->stat_records();
     }
 
     /*

@@ -535,7 +535,7 @@ int mysql_update(THD *thd,
   switch_to_nullable_trigger_fields(values, table);
 
   /* Apply the IN=>EXISTS transformation to all subqueries and optimize them */
-  if (select_lex->optimize_unflattened_subqueries(false))
+  if (select_lex->optimize_unflattened_subqueries(true))
     DBUG_RETURN(TRUE);
 
   if (select_lex->inner_refs_list.elements &&
@@ -601,6 +601,9 @@ int mysql_update(THD *thd,
     my_ok(thd);				// No matching records
     DBUG_RETURN(0);
   }
+
+  if (select_lex->optimize_unflattened_subqueries(false))
+    DBUG_RETURN(TRUE);
 
   /* If running in safe sql mode, don't allow updates without keys */
   if (!select || !select->quick)

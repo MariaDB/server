@@ -251,7 +251,7 @@ Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be
 EXPLAIN UPDATE        t1 SET a = 10 WHERE 1 IN (SELECT 1 FROM t2 WHERE t2.b < 3);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	
-2	SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	3	Using where
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	Using where
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED UPDATE        t1 SET a = 10 WHERE 1 IN (SELECT 1 FROM t2 WHERE t2.b < 3);
@@ -1027,15 +1027,15 @@ Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be
 EXPLAIN UPDATE t1 SET a = 10 WHERE a IN (SELECT a FROM t2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	Using where
-2	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	3	Using where
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED UPDATE t1 SET a = 10 WHERE a IN (SELECT a FROM t2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
-2	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	
 Warnings:
-Note	1003	/* select#1 */ update `test`.`t1` set `test`.`t1`.`a` = 10 where <in_optimizer>(`test`.`t1`.`a`,<exists>(/* select#2 */ select `test`.`t2`.`a` from `test`.`t2` where <cache>(`test`.`t1`.`a`) = `test`.`t2`.`a`))
+Note	1003	/* select#1 */ update `test`.`t1` set `test`.`t1`.`a` = 10 where <in_optimizer>(`test`.`t1`.`a`,`test`.`t1`.`a` in ( <materialize> (/* select#2 */ select `test`.`t2`.`a` from `test`.`t2` ), <primary_index_lookup>(`test`.`t1`.`a` in <temporary table> on distinct_key where `test`.`t1`.`a` = `<subquery2>`.`a`)))
 # Status of EXPLAIN EXTENDED query
 Variable_name	Value
 Handler_read_key	4
@@ -1059,8 +1059,8 @@ Handler_read_key	7
 Handler_read_rnd_next	8
 # Status of testing query execution:
 Variable_name	Value
-Handler_read_key	4
-Handler_read_rnd_next	10
+Handler_read_key	7
+Handler_read_rnd_next	8
 Handler_update	3
 
 DROP TABLE t1, t2;

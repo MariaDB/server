@@ -404,8 +404,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     }
   }
 
-  /* Apply the IN=>EXISTS transformation to all subqueries and optimize them. */
-  if (select_lex->optimize_unflattened_subqueries(false))
+  if (select_lex->optimize_unflattened_subqueries(true))
     DBUG_RETURN(TRUE);
 
   const_cond= (!conds || conds->const_item());
@@ -533,6 +532,9 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     my_ok(thd, 0);
     DBUG_RETURN(0);				// Nothing to delete
   }
+
+  if (select_lex->optimize_unflattened_subqueries(false))
+    DBUG_RETURN(TRUE);
 
   /* If running in safe sql mode, don't allow updates without keys */
   if (!select || !select->quick)
