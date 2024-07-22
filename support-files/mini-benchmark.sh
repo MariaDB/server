@@ -16,8 +16,8 @@ display_help() {
   echo "                     representing the threads to run."
   echo "                     example: --threads \"1 32 64 128\""
   echo "                     default: \"1 2 4 8 16\""
-  echo "  --duration INTEGER duration of each thread run in seconds"
-  echo "                     default: 60"
+  echo "  --events INTEGER   number of transactions per thread to execute for each test"
+  echo "                     default: 10000"
   echo "  --workload STRING  sysbench workload to execute"
   echo "                     default: oltp_read_write"
   echo "  --log              logs the mini-benchmark stdout/stderr into the"
@@ -34,7 +34,7 @@ display_help() {
 # Default parameters
 BENCHMARK_NAME='mini-benchmark'
 THREADS='1 2 4 8 16'
-DURATION=60
+EVENTS=10000
 WORKLOAD='oltp_read_write'
 
 while :
@@ -59,9 +59,9 @@ do
       THREADS=$1
       shift
       ;;
-    --duration)
+    --events)
       shift
-      DURATION=$1
+      EVENTS=$1
       shift
       ;;
     --workload)
@@ -102,6 +102,7 @@ done
 TIMESTAMP="$(date -Iseconds)"
 mkdir "$BENCHMARK_NAME-$TIMESTAMP"
 cd "$BENCHMARK_NAME-$TIMESTAMP" || exit 1
+FAIL=false
 
 (
 # Check that the dependencies of this script are available
@@ -233,7 +234,7 @@ do
   # Prepend command with perf if defined
   # Output stderr to stdout as perf outputs everything in stderr
   # shellcheck disable=SC2086
-  $PERF_COMMAND $TASKSET_SYSBENCH sysbench "$WORKLOAD" run --threads=$t --time=$DURATION --report-interval=10 2>&1 | tee sysbench-run-$t.log
+  $PERF_COMMAND $TASKSET_SYSBENCH sysbench "$WORKLOAD" run --threads=$t --events=$(($EVENTS * $t)) --report-interval=10 2>&1 | tee sysbench-run-$t.log
 done
 
 sysbench "$WORKLOAD" cleanup --tables=20 | tee sysbench-cleanup.log
@@ -256,20 +257,21 @@ then
 
   if [ -z "$CPU_CYCLE_LIMIT" ]
   then 
-     # 04-04-2024: We found this to be an appropriate default limit after running a few benchmarks
+     # 2024-09-10: We found this to be an appropriate default limit after running a few benchmarks
      # Configure the limit with --cpu-limit if needed
-    CPU_CYCLE_LIMIT=750
+    CPU_CYCLE_LIMIT=125
   fi
   CPU_CYCLE_LIMIT_LONG="${CPU_CYCLE_LIMIT}000000000"
 
   # Final verdict based on cpu cycle count
   RESULT="$(grep -h -e cycles sysbench-run-*.log | sort -k 1 | awk '{s+=$1}END{print s}')"
+  echo "CPU cycle count: ${RESULT}"
   if [ "$RESULT" -gt "$CPU_CYCLE_LIMIT_LONG" ]
   then
     echo # Newline improves readability
     echo "Benchmark exceeded the allowed limit of ${CPU_CYCLE_LIMIT} billion CPU cycles"
     echo "Performance most likely regressed!"
-    exit 1
+    FAIL=true
   fi
 fi
 
@@ -302,12 +304,13 @@ case $RESULT in
     then
       echo # Newline improves readability
       echo "Benchmark did not reach 13000+ qps, performance most likely regressed!"
-      exit 1
+      FAIL=true
     else
-      echo "Banchmark passed with $RESULT queries per second as peak value"
+      echo "Benchmark passed with $RESULT queries per second as peak value"
     fi
     ;;
 esac
+if $FAIL ; then exit 1 ; fi
 # Record the output into the log file, if requested
 ) 2>&1 | ($LOG && tee "$BENCHMARK_NAME"-"$TIMESTAMP".log)
 exit ${PIPESTATUS[0]} # Propagate errors in the sub-shell
