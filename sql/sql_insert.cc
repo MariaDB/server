@@ -703,23 +703,32 @@ Field **TABLE::field_to_fill()
 class Insert_prelocking_strategy : public DML_prelocking_strategy
 {
   bool m_done;
+  bool m_retval;
   TABLE_LIST *m_table_list;
   enum_duplicates m_duplic;
+  bool m_ignore;
   List<Item> *m_fields;
+  List<List_item> *m_values_list;
   List<Item> *m_update_fields;
-  List<List_item> *m_values;
+  List<Item> *m_update_values;
 
 //  bool has_prelocking_list;
 public:
   Insert_prelocking_strategy(TABLE_LIST *table_list,
-                             List<Item> *fields, List<Item> *update_fields,
-                             List<List_item> *values, enum_duplicates duplic) :
-    DML_prelocking_strategy(), m_table_list(table_list), m_duplic(duplic),
-    m_fields(fields), m_update_fields(update_fields), m_values(values)
+                             List<Item> *fields, List<List_item> *values_list,
+                             List<Item> *update_fields,
+                             List<Item> *update_values,
+                             enum_duplicates duplic, bool ignore) :
+    DML_prelocking_strategy(), m_retval(TRUE), m_table_list(table_list),
+    m_duplic(duplic), m_ignore(ignore), m_fields(fields),
+    m_values_list(values_list), m_update_fields(update_fields),
+    m_update_values(update_values)
   {}
   void reset(THD *thd);
   bool handle_end(THD *thd);
+  bool retval() const { return m_retval; }
 };
+
 
 void Insert_prelocking_strategy::reset(THD *thd)
 {
@@ -727,6 +736,13 @@ void Insert_prelocking_strategy::reset(THD *thd)
 }
 
 
+
+
+
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+#include "partition_info.h"
+
+#ifdef VER0
 /**
    Allocates and initializes a MY_BITMAP bitmap, containing one bit per column
    in the table. The table THD's MEM_ROOT is used to allocate memory.
@@ -816,8 +832,6 @@ static MY_BITMAP *get_function_default_columns(TABLE *table,
 end:
   DBUG_RETURN(function_default_columns);
 }
-
-
 static MY_BITMAP *add_function_default_columns(TABLE *table, MY_BITMAP *columns,
     List<Item> *changed_columns, List<Item> *changed_columns2)
 {
@@ -829,10 +843,6 @@ static MY_BITMAP *add_function_default_columns(TABLE *table, MY_BITMAP *columns,
   bitmap_union(columns, function_default_columns);
   return function_default_columns;
 }
-
-
-#ifdef WITH_PARTITION_STORAGE_ENGINE
-#include "partition_info.h"
 
 /**
   Check if fields are in the partitioning expression.
@@ -926,6 +936,8 @@ static void set_function_defaults(MY_BITMAP *default_columns, TABLE *table)
   DBUG_VOID_RETURN;
 }
 
+#endif /*VER0*/
+
 
 enum enum_can_prune { PRUNE_NO= 0, PRUNE_DEFAULTS, PRUNE_YES };
 
@@ -950,6 +962,7 @@ is initialized and cleared
 @retval true   Failure
 */
 
+#ifdef VER0
 static bool can_prune_insert(partition_info *part_info,
     THD* thd, enum_duplicates duplic,
     const MY_BITMAP *update_function_default_columns,
@@ -1182,8 +1195,43 @@ err:
   thd->pop_internal_handler();
   DBUG_RETURN(ret);
 }
+#endif /*VER0*/
 
 
+bool Insert_prelocking_strategy::handle_end(THD *thd)
+{
+  Item *unused_conds= 0;
+  int res;
+  List_iterator_fast<List_item> its(*m_values_list);
+  List_item *values;
+
+  thd->lex->used_tables=0;
+  values= its++;
+  if (bulk_parameters_set(thd))
+    return 1;
+
+  if ((res= mysql_prepare_insert(thd, m_table_list, *m_fields, values,
+                                 *m_update_fields, *m_update_values, m_duplic,
+                                 m_ignore, &unused_conds, FALSE)))
+  {
+    m_retval= thd->is_error();
+    if (res < 0)
+    {
+      /*
+        Insert should be ignored but we have to log the query in statement
+        format in the binary log
+      */
+      if (thd->binlog_current_query_unfiltered())
+        m_retval= 1;
+    }
+    return 1;
+  }
+
+  return 0;
+}
+
+
+#ifdef VER0
 bool Insert_prelocking_strategy::handle_end(THD *thd)
 {
   MY_BITMAP *function_default_columns;
@@ -1222,12 +1270,12 @@ bool Insert_prelocking_strategy::handle_end(THD *thd)
   /* Must be done before can_prune_insert, due to internal initialization. */
   if ((function_default_columns=
          add_function_default_columns(table, table->write_set,
-                                      m_fields, NULL)))
+                                      m_fields, NULL)) == NULL)
       goto abort;
   if (m_duplic == DUP_UPDATE &&
       (upd_function_default_columns= 
          add_function_default_columns(table, table->write_set,
-                                      m_update_fields, NULL)))
+                                      m_update_fields, NULL)) == NULL)
       goto abort;
 
 
@@ -1268,6 +1316,8 @@ bool Insert_prelocking_strategy::handle_end(THD *thd)
 abort:
   DBUG_RETURN(1);
 }
+#endif /*VER0*/
+
 #endif /*WITH_PARTITION_STORAGE_ENGINE*/
 
 /**
@@ -1317,7 +1367,6 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
   bool log_on= (thd->variables.option_bits & OPTION_BIN_LOG);
 #endif
   thr_lock_type lock_type;
-  Item *unused_conds= 0;
   DBUG_ENTER("mysql_insert");
 
   bzero((char*) &info,sizeof(info));
@@ -1350,22 +1399,21 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
   else
   {
     Insert_prelocking_strategy
-      prelocking_strategy(table_list, &fields, &update_fields,
-                          &values_list, duplic);
+      prelocking_strategy(table_list, &fields, &values_list,
+                          &update_fields, &update_values, duplic, ignore);
 
     if (open_and_lock_tables(thd, thd->lex->create_info, table_list,
                              TRUE, 0, &prelocking_strategy))
-      DBUG_RETURN(TRUE);
+      DBUG_RETURN(prelocking_strategy.retval());
   }
 
   THD_STAGE_INFO(thd, stage_init_update);
   lock_type= table_list->lock_type;
-  thd->lex->used_tables=0;
+
   values= its++;
-  if (bulk_parameters_set(thd))
-    DBUG_RETURN(TRUE);
   value_count= values->elements;
 
+#ifdef VER0
   if ((res= mysql_prepare_insert(thd, table_list, fields, values,
                                  update_fields, update_values, duplic, ignore,
                                  &unused_conds, FALSE)))
@@ -1382,6 +1430,7 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
     }
     goto abort;
   }
+#endif /*VER0*/
   /* mysql_prepare_insert sets table_list->table if it was not set */
   table= table_list->table;
 
