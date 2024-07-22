@@ -1557,7 +1557,10 @@ bool Multiupdate_prelocking_strategy::handle_end(THD *thd)
 {
   DBUG_ENTER("Multiupdate_prelocking_strategy::handle_end");
   if (done)
+  {
+    DBUG_ASSERT(0);
     DBUG_RETURN(0);
+  }
 
   LEX *lex= thd->lex;
   SELECT_LEX *select_lex= lex->first_select_lex();
