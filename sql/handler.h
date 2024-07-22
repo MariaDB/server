@@ -2254,11 +2254,12 @@ struct HA_CREATE_INFO: public Table_scope_and_contents_source_st,
 {
   /* TODO: remove after MDEV-20865 */
   Alter_info *alter_info;
-
+  bool is_partition;
   void init()
   {
     Table_scope_and_contents_source_st::init();
     Schema_specification_st::init();
+    is_partition= false;
     alter_info= NULL;
   }
   bool check_conflicting_charset_declarations(CHARSET_INFO *cs);

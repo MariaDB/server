@@ -1,5 +1,6 @@
 --source include/have_plugin_auth.inc
 --source include/not_embedded.inc
+--source include/have_partition.inc
 
 if (!$SERVER_AUDIT_SO) {
   skip No SERVER_AUDIT plugin;
@@ -81,12 +82,15 @@ insert into t1 values (1), (2);
 select * from t1;
 drop table t1;
 use sa_db;
+# Test that creating partitions does not result in duplicate log messages
+create table test_partitions (i int) partition by hash (i) partitions 4;
+drop table test_partitions;
 create table sa_t1(id int);
 insert into sa_t1 values (1), (2);
 drop table sa_t1;
 drop database sa_db;
 disconnect con1;
-let SEARCH_COUNT= 80;
+let SEARCH_COUNT= 87;
 source include/wait_for_line_count_in_file.inc;
 
 connection default;
