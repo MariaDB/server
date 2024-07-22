@@ -29,13 +29,10 @@ ulonglong mhnsw_cache_size;
 #define clo_nei_read  float4get
 
 // Algorithm parameters
-// best by test (fastest construction with recall > 99% for ef=20, limit=10)
-// for random-xs-20-euclidean (9000) [ 3, 1.1, M=7 ]
-// for mnist-784-euclidean   (60000) [ 4, 1.1, M=13 ]
-// for sift-128-euclidean  (1000000) [ 4, 1.1, M>64 ] (98% with M=64)
-static const double ef_construction_multiplier = 4;
-static const double alpha = 1.1;
-static const uint clo_nei_threshold= 10000;
+static constexpr double alpha = 1.1;
+static constexpr double stiffness = 0.002;
+static constexpr uint ef_construction_max_factor= 16;
+static constexpr uint clo_nei_threshold= 10000;
 
 enum Graph_table_fields {
   FIELD_LAYER, FIELD_TREF, FIELD_VEC, FIELD_NEIGHBORS
@@ -230,6 +227,7 @@ class MHNSW_Context : public Sql_alloc
 {
   std::atomic<uint> refcnt;
   std::atomic<double> ef_power; // for the bloom filter size heuristic
+  std::atomic<uint> ef_construction;
   mysql_mutex_t cache_lock;
   mysql_mutex_t node_lock[8];
 
@@ -268,6 +266,7 @@ public:
       mysql_mutex_init(PSI_INSTRUMENT_ME, node_lock + i, MY_MUTEX_INIT_SLOW);
     init_alloc_root(PSI_INSTRUMENT_MEM, &root, 1024*1024, 0, MYF(0));
     set_ef_power(0.6);
+    set_ef_construction(0);
     refcnt.store(0, std::memory_order_relaxed);
   }
 
@@ -303,6 +302,17 @@ public:
   {
     if (x > get_ef_power()) // not atomic, but it doesn't matter
       ef_power.store(x, std::memory_order_relaxed);
+  }
+
+  uint get_ef_construction()
+  {
+    return ef_construction.load(std::memory_order_relaxed);
+  }
+
+  void set_ef_construction(uint x)
+  {
+    x= std::min(std::max(x, M), M*ef_construction_max_factor); // safety
+    ef_construction.store(x, std::memory_order_relaxed);
   }
 
   uint max_neighbors(size_t layer) const
@@ -490,6 +500,8 @@ int MHNSW_Trx::MHNSW_hton::do_commit(handlerton *, THD *thd, bool)
             node->vec= nullptr;
         ctx->start= nullptr;
       }
+      if (ctx->get_ef_construction() < trx->get_ef_construction())
+        ctx->set_ef_construction(trx->get_ef_construction());
       ctx->release(true, trx->table_share);
     }
     trx->~MHNSW_Trx();
@@ -507,6 +519,7 @@ MHNSW_Trx *MHNSW_Trx::get_from_thd(THD *thd, TABLE *table)
     trx= new (&thd->transaction->mem_root) MHNSW_Trx(table);
     trx->next= static_cast<MHNSW_Trx*>(thd_get_ha_data(thd, &hton));
     thd_set_ha_data(thd, &hton, trx);
+    // XXX copy ef_construction from MHNSW_Context
     if (!trx->next)
     {
       bool all= thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN);
@@ -703,7 +716,9 @@ struct Visited : public Sql_alloc
 {
   FVectorNode *node;
   const float distance_to_target;
-  Visited(FVectorNode *n, float d) : node(n), distance_to_target(d) {}
+  bool expand;
+  Visited(FVectorNode *n, float d, bool e= false)
+    : node(n), distance_to_target(d), expand(e) {}
   static int cmp(void *, const Visited* a, const Visited *b)
   {
     return a->distance_to_target < b->distance_to_target ? -1 :
@@ -730,9 +745,9 @@ class VisitedSet
   uint count= 0;
   VisitedSet(MEM_ROOT *root, const FVector *target, uint size) :
     root(root), target(target), map(size, 0.01) {}
-  Visited *create(FVectorNode *node)
+  Visited *create(FVectorNode *node, bool e= false)
   {
-    auto *v= new (root) Visited(node, node->distance_to(target));
+    auto *v= new (root) Visited(node, node->distance_to(target), e);
     insert(node);
     count++;
     return v;
@@ -889,16 +904,34 @@ static int update_second_degree_neighbors(MHNSW_Context *ctx, TABLE *graph,
 }
 
 static int search_layer(MHNSW_Context *ctx, TABLE *graph, const FVector *target,
-                        Neighborhood *start_nodes, uint ef, size_t layer,
-                        Neighborhood *result, bool skip_deleted)
+                        Neighborhood *start_nodes, uint result_size,
+                        size_t layer, Neighborhood *result, bool construction)
 {
   DBUG_ASSERT(start_nodes->num > 0);
   result->empty();
 
   MEM_ROOT * const root= graph->in_use->mem_root;
+  Queue<Visited> candidates, best;
+  bool skip_deleted;
+  uint ef= result_size, expand_size= 0;
 
-  Queue<Visited> candidates;
-  Queue<Visited> best;
+  if (construction)
+  {
+    skip_deleted= false;
+    if (ef > 1)
+    {
+      uint efc= std::max(ctx->get_ef_construction(), ef);
+      // round down efc/2 to 2^n-1
+      expand_size=  (my_round_up_to_next_power((efc >> 1) + 2) - 1) >> 1;
+      ef= efc + expand_size;
+    }
+  }
+  else
+  {
+    skip_deleted= layer == 0;
+    if (ef > 1 || layer == 0)
+      ef= ef * graph->in_use->variables.mhnsw_limit_multiplier;
+  }
 
   // WARNING! heuristic here
   const double est_heuristic= 8 * std::sqrt(ctx->max_neighbors(layer));
@@ -908,23 +941,21 @@ static int search_layer(MHNSW_Context *ctx, TABLE *graph, const FVector *target,
   candidates.init(10000, false, Visited::cmp);
   best.init(ef, true, Visited::cmp);
 
+  DBUG_ASSERT(start_nodes->num <= result_size);
   for (size_t i=0; i < start_nodes->num; i++)
   {
     Visited *v= visited.create(start_nodes->links[i]);
     candidates.push(v);
     if (skip_deleted && v->node->deleted)
       continue;
-    if (best.elements() < ef)
-      best.push(v);
-    else if (v->distance_to_target < best.top()->distance_to_target)
-      best.replace_top(v);
+    best.push(v);
   }
 
   float furthest_best= FLT_MAX;
   while (candidates.elements())
   {
     const Visited &cur= *candidates.pop();
-    if (cur.distance_to_target > furthest_best && best.elements() == ef)
+    if (cur.distance_to_target > furthest_best && best.is_full())
       break; // All possible candidates are worse than what we have
 
     visited.flush();
@@ -943,8 +974,8 @@ static int search_layer(MHNSW_Context *ctx, TABLE *graph, const FVector *target,
           continue;
         if (int err= links[i]->load(graph))
           return err;
-        Visited *v= visited.create(links[i]);
-        if (best.elements() < ef)
+        Visited *v= visited.create(links[i], cur.expand);
+        if (!best.is_full())
         {
           candidates.push(v);
           if (skip_deleted && v->node->deleted)
@@ -957,7 +988,8 @@ static int search_layer(MHNSW_Context *ctx, TABLE *graph, const FVector *target,
           candidates.push(v);
           if (skip_deleted && v->node->deleted)
             continue;
-          best.replace_top(v);
+          if (best.replace_top(v) <= expand_size)
+            v->expand= true;
           furthest_best= best.top()->distance_to_target;
         }
       }
@@ -966,9 +998,21 @@ static int search_layer(MHNSW_Context *ctx, TABLE *graph, const FVector *target,
   if (ef > 1 && visited.count*2 > est_size)
     ctx->set_ef_power(std::log(visited.count*2/est_heuristic) / std::log(ef));
 
+  while (best.elements() > result_size)
+    best.pop();
+
+  uint expanded= 0;
   result->num= best.elements();
   for (FVectorNode **links= result->links + result->num; best.elements();)
+  {
+    expanded+= best.top()->expand;
     *--links= best.pop()->node;
+  }
+
+  if (expanded && expanded > stiffness*expand_size*result_size) // Hooke's law
+    ctx->set_ef_construction(ef);
+  else if (expand_size)
+    ctx->set_ef_construction(ef - expand_size - 1); // decrease slowly
 
   return 0;
 }
@@ -1029,10 +1073,10 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
   if (ctx->byte_len != res->length())
     return bad_value_on_insert(vec_field);
 
-  size_t ef= ctx->max_neighbors(0) * ef_construction_multiplier;
+  const size_t max_found= ctx->max_neighbors(0);
   Neighborhood candidates, start_nodes;
-  candidates.init(thd->alloc<FVectorNode*>(ef + 7), ef);
-  start_nodes.init(thd->alloc<FVectorNode*>(ef + 7), ef);
+  candidates.init(thd->alloc<FVectorNode*>(max_found + 7), max_found);
+  start_nodes.init(thd->alloc<FVectorNode*>(max_found + 7), max_found);
   start_nodes.links[start_nodes.num++]= ctx->start;
 
   const double NORMALIZATION_FACTOR= 1 / std::log(ctx->M);
@@ -1060,8 +1104,7 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
   {
     uint max_neighbors= ctx->max_neighbors(cur_layer);
     if (int err= search_layer(ctx, graph, target->vec, &start_nodes,
-                              ef_construction_multiplier * max_neighbors,
-                              cur_layer, &candidates, false))
+                              max_neighbors, cur_layer, &candidates, true))
       return err;
 
     if (int err= select_neighbors(ctx, graph, cur_layer, *target, candidates,
@@ -1103,13 +1146,9 @@ int mhnsw_first(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit)
     return err;
   SCOPE_EXIT([ctx, table](){ ctx->release(table); });
 
-  // this auto-scales ef with the limit, providing more adequate
-  // behavior than a fixed ef
-  size_t ef= limit * thd->variables.mhnsw_limit_multiplier;
-
   Neighborhood candidates, start_nodes;
-  candidates.init(thd->alloc<FVectorNode*>(ef + 7), ef);
-  start_nodes.init(thd->alloc<FVectorNode*>(ef + 7), ef);
+  candidates.init(thd->alloc<FVectorNode*>(limit + 7), limit);
+  start_nodes.init(thd->alloc<FVectorNode*>(limit + 7), limit);
 
   // one could put all max_layer nodes in start_nodes
   // but it has no effect of the recall or speed
@@ -1144,8 +1183,8 @@ int mhnsw_first(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit)
     std::swap(start_nodes, candidates);
   }
 
-  if (int err= search_layer(ctx, graph, target, &start_nodes, ef, 0,
-                            &candidates, true))
+  if (int err= search_layer(ctx, graph, target, &start_nodes, limit, 0,
+                            &candidates, false))
     return err;
 
   if (limit > candidates.num)

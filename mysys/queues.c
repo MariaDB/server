@@ -284,7 +284,7 @@ uchar *queue_remove(QUEUE *queue, uint idx)
     idx         Index of element to change
 */
 
-void _downheap(QUEUE *queue, uint idx)
+uint _downheap(QUEUE *queue, uint idx)
 {
   uchar *element= queue->root[idx];
   uint   next_index,
@@ -314,6 +314,7 @@ void _downheap(QUEUE *queue, uint idx)
   queue->root[idx]=element;
   if (offset_to_queue_pos)
     (*(uint*) (element + offset_to_queue_pos-1))= idx;
+  return idx;
 }
 
 

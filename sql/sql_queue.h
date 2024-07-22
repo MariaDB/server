@@ -46,11 +46,11 @@ public:
   void push(const Element *element) { queue_insert(&m_queue, (uchar*)element); }
   Element *pop() { return (Element *)queue_remove_top(&m_queue); }
   void clear() { queue_remove_all(&m_queue); }
-  void propagate_top() { queue_replace_top(&m_queue); }
-  void replace_top(const Element *element)
+  uint propagate_top() { return queue_replace_top(&m_queue); }
+  uint replace_top(const Element *element)
   {
     queue_top(&m_queue)= (uchar*)element;
-    propagate_top();
+    return propagate_top();
   }
 private:
   QUEUE m_queue;
