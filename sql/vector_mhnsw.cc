@@ -182,28 +182,22 @@ struct Neighborhood: public Sql_alloc
 class FVectorNode
 {
 private:
-  MHNSW_Context *ctx;
-
-  const FVector *make_vec(const void *v);
-  int alloc_neighborhood(size_t layer);
+  const FVector *make_vec(MHNSW_Context *ctx, const void *v);
 public:
   const FVector *vec= nullptr;
   Neighborhood *neighbors= nullptr;
   uint8_t max_layer;
   bool stored:1, deleted:1;
 
-  FVectorNode(MHNSW_Context *ctx_, const void *gref_);
-  FVectorNode(MHNSW_Context *ctx_, const void *tref_, size_t layer,
-              const void *vec_);
-  float distance_to(const FVector *other) const;
-  int load(TABLE *graph);
-  int load_from_record(TABLE *graph);
-  int save(TABLE *graph);
-  size_t tref_len() const;
-  size_t gref_len() const;
+  FVectorNode(const void *gref_, size_t gref_len);
+  FVectorNode(size_t gref_len,
+              const void *tref_, size_t tref_len,
+              const void *vec_, size_t vec_len,
+              size_t layer, Neighborhood *neighborhood);
+  float distance_to(const FVector *other, size_t vec_len) const;
   uchar *gref() const;
-  uchar *tref() const;
-  void push_neighbor(size_t layer, float dist, FVectorNode *v);
+  uchar *tref(size_t gref_len) const;
+  void push_neighbor(size_t layer, float dist, FVectorNode *v, size_t gref_len);
 
   static uchar *get_key(const FVectorNode *elem, size_t *key_len, my_bool);
 };
@@ -244,10 +238,6 @@ class MHNSW_Context : public Sql_alloc
                       + FVector::alloc_size(vec_len));
   }
 
-protected:
-  MEM_ROOT root;
-  Hash_set<FVectorNode> node_cache{PSI_INSTRUMENT_MEM, FVectorNode::get_key};
-
 public:
   mysql_rwlock_t commit_lock;
   size_t vec_len= 0;
@@ -257,10 +247,19 @@ public:
   const uint gref_len;
   const uint M;
 
+protected:
+  MEM_ROOT root;
+  Hash_set<FVectorNode> node_cache;
+
+public:
+
   MHNSW_Context(TABLE *t)
     : tref_len(t->file->ref_length),
       gref_len(t->hlindex->file->ref_length),
-      M(t->in_use->variables.mhnsw_max_edges_per_node)
+      M(t->in_use->variables.mhnsw_max_edges_per_node),
+      node_cache{PSI_INSTRUMENT_MEM, &my_charset_bin, 100,
+                 sizeof(FVectorNode), gref_len,
+                 nullptr, nullptr, HASH_UNIQUE}
   {
     mysql_rwlock_init(PSI_INSTRUMENT_ME, &commit_lock);
     mysql_mutex_init(PSI_INSTRUMENT_ME, &cache_lock, MY_MUTEX_INIT_FAST);
@@ -294,6 +293,8 @@ public:
     mysql_mutex_unlock(node_lock + ticket);
   }
 
+  int save(TABLE *graph, FVectorNode *ptr);
+
   double get_ef_power()
   {
     return ef_power.load(std::memory_order_relaxed);
@@ -316,7 +317,7 @@ public:
     vec_len= len / sizeof(float);
   }
 
-  static int acquire(MHNSW_Context **ctx, TABLE *table, bool for_update);
+  static int acquire(MHNSW_Context **ret_ctx, TABLE *table, bool for_update);
   static MHNSW_Context *get_from_share(TABLE_SHARE *share, TABLE *table);
 
   virtual void reset(TABLE_SHARE *share)
@@ -345,13 +346,86 @@ public:
       this->~MHNSW_Context(); // XXX reuse
   }
 
+  int load(TABLE *graph, FVectorNode *node)
+  {
+    if (likely(node->vec))
+      return 0;
+
+    DBUG_ASSERT(node->stored);
+    // trx: consider loading nodes from shared, when it makes sense
+    // for ann_benchmarks it does not
+    if (int err= graph->file->ha_rnd_pos(graph->record[0], node->gref()))
+      return err;
+    return load_from_record(graph, node);
+  }
+
+  int load_from_record(TABLE *graph, FVectorNode *node)
+  {
+    DBUG_ASSERT(byte_len);
+
+    uint ticket= lock_node(node);
+    SCOPE_EXIT([this, ticket](){ unlock_node(ticket); });
+
+    if (node->vec)
+      return 0;
+
+    String buf, *v= graph->field[FIELD_TREF]->val_str(&buf);
+    node->deleted= graph->field[FIELD_TREF]->is_null();
+    if (!node->deleted)
+    {
+      if (unlikely(v->length() != tref_len))
+        return my_errno= HA_ERR_CRASHED;
+      memcpy(node->tref(gref_len), v->ptr(), v->length());
+    }
+
+    v= graph->field[FIELD_VEC]->val_str(&buf);
+    if (unlikely(!v))
+      return my_errno= HA_ERR_CRASHED;
+
+    if (v->length() != FVector::data_size(vec_len))
+      return my_errno= HA_ERR_CRASHED;
+    FVector *vec_ptr= FVector::align_ptr(node->tref(gref_len) + tref_len);
+    memcpy(vec_ptr, v->ptr(), v->length());
+    vec_ptr->fix_tail(vec_len);
+
+    size_t layer= graph->field[FIELD_LAYER]->val_int();
+    if (layer > 100) // 10e30 nodes at M=2, more at larger M's
+      return my_errno= HA_ERR_CRASHED;
+
+    node->max_layer= layer;
+    if (!(node->neighbors= alloc_neighborhood(layer)))
+      return 1;
+
+    v= graph->field[FIELD_NEIGHBORS]->val_str(&buf);
+    if (unlikely(!v))
+      return my_errno= HA_ERR_CRASHED;
+
+    // <N> <closest distance> <gref> <gref> ... <N> <closest distance> ...etc...
+    uchar *ptr= (uchar*)v->ptr(), *end= ptr + v->length();
+    for (size_t i=0; i <= layer; i++)
+    {
+      if (unlikely(ptr >= end))
+        return my_errno= HA_ERR_CRASHED;
+      size_t grefs= *ptr++;
+      if (unlikely(ptr + clo_nei_size + grefs * gref_len > end))
+        return my_errno= HA_ERR_CRASHED;
+      clo_nei_read(node->neighbors[i].closest, ptr);
+      ptr+= clo_nei_size;
+      node->neighbors[i].num= grefs;
+      for (size_t j=0; j < grefs; j++, ptr+= gref_len)
+        node->neighbors[i].links[j]= get_node(ptr);
+    }
+    node->vec= vec_ptr; // must be done at the very end
+    return 0;
+  }
+
   FVectorNode *get_node(const void *gref)
   {
     mysql_mutex_lock(&cache_lock);
     FVectorNode *node= node_cache.find(gref, gref_len);
     if (!node)
     {
-      node= new (alloc_node_internal()) FVectorNode(this, gref);
+      node= new (alloc_node_internal()) FVectorNode(gref, gref_len);
       cache_internal(node);
     }
     mysql_mutex_unlock(&cache_lock);
@@ -384,13 +458,21 @@ public:
     return node;
   }
 
-  void *alloc_neighborhood(size_t max_layer)
+  Neighborhood *alloc_neighborhood(size_t max_layer)
   {
     mysql_mutex_lock(&cache_lock);
-    auto p= alloc_root(&root, sizeof(Neighborhood)*(max_layer+1) +
-             sizeof(FVectorNode*)*(MY_ALIGN(M, 4)*2 + MY_ALIGN(M,8)*max_layer));
+    auto neighbors= (Neighborhood *) alloc_root(&root,
+        sizeof(Neighborhood) * (max_layer + 1) + sizeof(FVectorNode *) *
+        (MY_ALIGN(M, 4) * 2 + MY_ALIGN(M, 8) * max_layer));
     mysql_mutex_unlock(&cache_lock);
-    return p;
+
+    if (!neighbors)
+      return nullptr; // OOM
+
+    auto ptr= (FVectorNode**)(neighbors + (max_layer + 1));
+    for (size_t i= 0; i <= max_layer; i++)
+      ptr= neighbors[i].init(ptr, max_neighbors(i));
+    return (Neighborhood *)neighbors;
   }
 };
 
@@ -532,22 +614,26 @@ MHNSW_Context *MHNSW_Context::get_from_share(TABLE_SHARE *share, TABLE *table)
   return ctx;
 }
 
-int MHNSW_Context::acquire(MHNSW_Context **ctx, TABLE *table, bool for_update)
+int MHNSW_Context::acquire(MHNSW_Context **ret_ctx, TABLE *table,
+                           bool for_update)
 {
   TABLE *graph= table->hlindex;
   THD *thd= table->in_use;
+  MHNSW_Context *ctx;
 
   if (table->file->has_transactions() &&
        (for_update || thd_get_ha_data(thd, &MHNSW_Trx::hton)))
-    *ctx= MHNSW_Trx::get_from_thd(thd, table);
+    ctx= MHNSW_Trx::get_from_thd(thd, table);
   else
   {
-    *ctx= MHNSW_Context::get_from_share(table->s, table);
+    ctx= MHNSW_Context::get_from_share(table->s, table);
     if (table->file->has_transactions())
-      mysql_rwlock_rdlock(&(*ctx)->commit_lock);
+      mysql_rwlock_rdlock(&ctx->commit_lock);
   }
 
-  if ((*ctx)->start)
+  *ret_ctx= ctx;
+
+  if (ctx->start)
     return 0;
 
   if (int err= graph->file->ha_index_init(IDX_LAYER, 1))
@@ -559,142 +645,54 @@ int MHNSW_Context::acquire(MHNSW_Context **ctx, TABLE *table, bool for_update)
     return err;
 
   graph->file->position(graph->record[0]);
-  (*ctx)->set_lengths((graph->field[FIELD_VEC]->value_length()-8)*2);
-  (*ctx)->start= (*ctx)->get_node(graph->file->ref);
-  return (*ctx)->start->load_from_record(graph);
+  ctx->set_lengths((graph->field[FIELD_VEC]->value_length()-8)*2);
+  ctx->start= ctx->get_node(graph->file->ref);
+  return ctx->load_from_record(graph, ctx->start);
 }
 
-/* copy the vector, preprocessed as needed */
-const FVector *FVectorNode::make_vec(const void *v)
+FVectorNode::FVectorNode(const void *gref_, size_t gref_len)
+  : stored(true), deleted(false)
 {
-  return FVector::create(tref() + tref_len(), v, ctx->byte_len);
+  memcpy(gref(), gref_, gref_len);
 }
 
-FVectorNode::FVectorNode(MHNSW_Context *ctx_, const void *gref_)
-  : ctx(ctx_), stored(true), deleted(false)
-{
-  memcpy(gref(), gref_, gref_len());
-}
-
-FVectorNode::FVectorNode(MHNSW_Context *ctx_, const void *tref_, size_t layer,
-                         const void *vec_)
-  : ctx(ctx_), stored(false), deleted(false)
+FVectorNode::FVectorNode(size_t gref_len,
+                         const void *tref_, size_t tref_len,
+                         const void *vec_, size_t vec_byte_len,
+                         size_t layer,
+                         Neighborhood *neighborhood)
+  : neighbors(neighborhood), max_layer(layer), stored(false), deleted(false)
 {
   DBUG_ASSERT(tref_);
-  memset(gref(), 0xff, gref_len()); // important: larger than any real gref
-  memcpy(tref(), tref_, tref_len());
-  vec= make_vec(vec_);
-
-  alloc_neighborhood(layer);
+  memset(gref(), 0xff, gref_len); // important: larger than any real gref
+  memcpy(tref(gref_len), tref_, tref_len);
+  vec= FVector::create(tref(gref_len) + tref_len, vec_, vec_byte_len);
 }
 
-float FVectorNode::distance_to(const FVector *other) const
+float FVectorNode::distance_to(const FVector *other, size_t vec_len) const
 {
-  return vec->distance_to(other, ctx->vec_len);
-}
-
-int FVectorNode::alloc_neighborhood(size_t layer)
-{
-  if (neighbors)
-    return 0;
-  max_layer= layer;
-  neighbors= (Neighborhood*)ctx->alloc_neighborhood(layer);
-  auto ptr= (FVectorNode**)(neighbors + (layer+1));
-  for (size_t i= 0; i <= layer; i++)
-    ptr= neighbors[i].init(ptr, ctx->max_neighbors(i));
-  return 0;
-}
-
-int FVectorNode::load(TABLE *graph)
-{
-  if (likely(vec))
-    return 0;
-
-  DBUG_ASSERT(stored);
-  // trx: consider loading nodes from shared, when it makes sense
-  // for ann_benchmarks it does not
-  if (int err= graph->file->ha_rnd_pos(graph->record[0], gref()))
-    return err;
-  return load_from_record(graph);
-}
-
-int FVectorNode::load_from_record(TABLE *graph)
-{
-  DBUG_ASSERT(ctx->byte_len);
-
-  uint ticket= ctx->lock_node(this);
-  SCOPE_EXIT([this, ticket](){ ctx->unlock_node(ticket); });
-
-  if (vec)
-    return 0;
-
-  String buf, *v= graph->field[FIELD_TREF]->val_str(&buf);
-  deleted= graph->field[FIELD_TREF]->is_null();
-  if (!deleted)
-  {
-    if (unlikely(v->length() != tref_len()))
-      return my_errno= HA_ERR_CRASHED;
-    memcpy(tref(), v->ptr(), v->length());
-  }
-
-  v= graph->field[FIELD_VEC]->val_str(&buf);
-  if (unlikely(!v))
-    return my_errno= HA_ERR_CRASHED;
-
-  if (v->length() != FVector::data_size(ctx->vec_len))
-    return my_errno= HA_ERR_CRASHED;
-  FVector *vec_ptr= FVector::align_ptr(tref() + tref_len());
-  memcpy(vec_ptr, v->ptr(), v->length());
-  vec_ptr->fix_tail(ctx->vec_len);
-
-  size_t layer= graph->field[FIELD_LAYER]->val_int();
-  if (layer > 100) // 10e30 nodes at M=2, more at larger M's
-    return my_errno= HA_ERR_CRASHED;
-
-  if (int err= alloc_neighborhood(layer))
-    return err;
-
-  v= graph->field[FIELD_NEIGHBORS]->val_str(&buf);
-  if (unlikely(!v))
-    return my_errno= HA_ERR_CRASHED;
-
-  // <N> <closest distance> <gref> <gref> ... <N> <closest distance> ...etc...
-  uchar *ptr= (uchar*)v->ptr(), *end= ptr + v->length();
-  for (size_t i=0; i <= max_layer; i++)
-  {
-    if (unlikely(ptr >= end))
-      return my_errno= HA_ERR_CRASHED;
-    size_t grefs= *ptr++;
-    if (unlikely(ptr + clo_nei_size + grefs * gref_len() > end))
-      return my_errno= HA_ERR_CRASHED;
-    clo_nei_read(neighbors[i].closest, ptr);
-    ptr+= clo_nei_size;
-    neighbors[i].num= grefs;
-    for (size_t j=0; j < grefs; j++, ptr+= gref_len())
-      neighbors[i].links[j]= ctx->get_node(ptr);
-  }
-  vec= vec_ptr; // must be done at the very end
-  return 0;
+  return vec->distance_to(other, vec_len);
 }
 
 /* note that "closest" relation is asymmetric! */
-void FVectorNode::push_neighbor(size_t layer, float dist, FVectorNode *other)
+void FVectorNode::push_neighbor(size_t layer, float dist, FVectorNode *other,
+                                size_t gref_len)
 {
   DBUG_ASSERT(neighbors[layer].num < ctx->max_neighbors(layer));
   neighbors[layer].links[neighbors[layer].num++]= other;
-  if (memcmp(gref(), other->gref(), gref_len()) < 0 &&
+  if (memcmp(gref(), other->gref(), gref_len) < 0 &&
       neighbors[layer].closest > dist)
     neighbors[layer].closest= dist;
 }
 
-size_t FVectorNode::tref_len() const { return ctx->tref_len; }
-size_t FVectorNode::gref_len() const { return ctx->gref_len; }
 uchar *FVectorNode::gref() const { return (uchar*)(this+1); }
-uchar *FVectorNode::tref() const { return gref() + gref_len(); }
+uchar *FVectorNode::tref(size_t gref_len) const
+{ return gref() + gref_len; }
 
 uchar *FVectorNode::get_key(const FVectorNode *elem, size_t *key_len, my_bool)
 {
-  *key_len= elem->gref_len();
+  DBUG_ASSERT(0);
+  *key_len= 0;
   return elem->gref();
 }
 
@@ -726,13 +724,14 @@ class VisitedSet
   PatternedSimdBloomFilter<FVectorNode> map;
   const FVectorNode *nodes[8]= {0,0,0,0,0,0,0,0};
   size_t idx= 1; // to record 0 in the filter
+  size_t vec_len;
   public:
   uint count= 0;
-  VisitedSet(MEM_ROOT *root, const FVector *target, uint size) :
-    root(root), target(target), map(size, 0.01) {}
+  VisitedSet(MEM_ROOT *root, const FVector *target, uint size, size_t vec_len) :
+    root(root), target(target), map(size, 0.01), vec_len(vec_len) {}
   Visited *create(FVectorNode *node)
   {
-    auto *v= new (root) Visited(node, node->distance_to(target));
+    auto *v= new (root) Visited(node, node->distance_to(target, vec_len));
     insert(node);
     count++;
     return v;
@@ -775,12 +774,15 @@ static int select_neighbors(MHNSW_Context *ctx, TABLE *graph, size_t layer,
   for (size_t i=0; i < candidates.num; i++)
   {
     FVectorNode *node= candidates.links[i];
-    if (int err= node->load(graph))
+    if (int err= ctx->load(graph, node))
       return err;
-    pq.push(new (root) Visited(node, node->distance_to(target.vec)));
+    pq.push(new (root) Visited(node,
+                               node->distance_to(target.vec, ctx->vec_len)));
   }
   if (extra_candidate)
-    pq.push(new (root) Visited(extra_candidate, extra_candidate->distance_to(target.vec)));
+    pq.push(new (root) Visited(extra_candidate,
+                               extra_candidate->distance_to(target.vec,
+                                                            ctx->vec_len)));
 
   DBUG_ASSERT(pq.elements());
   neighbors.empty();
@@ -796,58 +798,63 @@ static int select_neighbors(MHNSW_Context *ctx, TABLE *graph, size_t layer,
     else
     {
       for (size_t i=0; i < neighbors.num; i++)
-        if ((discard= node->distance_to(neighbors.links[i]->vec) < target_dista))
+        if ((discard= node->distance_to(neighbors.links[i]->vec,
+                                        ctx->vec_len) < target_dista))
           break;
     }
     if (!discard)
-      target.push_neighbor(layer, vec->distance_to_target, node);
+      target.push_neighbor(layer, vec->distance_to_target, node,
+                           ctx->gref_len);
     else if (discarded_num + neighbors.num < max_neighbor_connections)
       discarded[discarded_num++]= vec;
   }
 
-  for (size_t i=0; i < discarded_num && neighbors.num < max_neighbor_connections; i++)
-    target.push_neighbor(layer, discarded[i]->distance_to_target, discarded[i]->node);
+  for (size_t i= 0;
+       i < discarded_num && neighbors.num < max_neighbor_connections; i++)
+    target.push_neighbor(layer, discarded[i]->distance_to_target,
+                         discarded[i]->node, ctx->gref_len);
 
   my_safe_afree(discarded, sizeof(Visited**)*max_neighbor_connections);
   return 0;
 }
 
 
-int FVectorNode::save(TABLE *graph)
+int MHNSW_Context::save(TABLE *graph, FVectorNode *node)
 {
-  DBUG_ASSERT(vec);
-  DBUG_ASSERT(neighbors);
+  DBUG_ASSERT(node->vec);
+  DBUG_ASSERT(node->neighbors);
 
-  graph->field[FIELD_LAYER]->store(max_layer, false);
-  if (deleted)
+  graph->field[FIELD_LAYER]->store(node->max_layer, false);
+  if (node->deleted)
     graph->field[FIELD_TREF]->set_null();
   else
   {
     graph->field[FIELD_TREF]->set_notnull();
-    graph->field[FIELD_TREF]->store_binary(tref(), tref_len());
+    graph->field[FIELD_TREF]->store_binary(node->tref(gref_len), tref_len);
   }
-  graph->field[FIELD_VEC]->store_binary((uchar*)vec, FVector::data_size(ctx->vec_len));
+  graph->field[FIELD_VEC]->store_binary((uchar*)node->vec,
+                                        FVector::data_size(vec_len));
 
   size_t total_size= 0;
-  for (size_t i=0; i <= max_layer; i++)
-    total_size+= 1 + clo_nei_size + gref_len() * neighbors[i].num;
+  for (size_t i=0; i <= node->max_layer; i++)
+    total_size+= 1 + clo_nei_size + gref_len * node->neighbors[i].num;
 
   uchar *neighbor_blob= static_cast<uchar *>(my_safe_alloca(total_size));
   uchar *ptr= neighbor_blob;
-  for (size_t i= 0; i <= max_layer; i++)
+  for (size_t i= 0; i <= node->max_layer; i++)
   {
-    *ptr++= (uchar)(neighbors[i].num);
-    clo_nei_store(ptr, neighbors[i].closest);
+    *ptr++= (uchar)(node->neighbors[i].num);
+    clo_nei_store(ptr, node->neighbors[i].closest);
     ptr+= clo_nei_size;
-    for (size_t j= 0; j < neighbors[i].num; j++, ptr+= gref_len())
-      memcpy(ptr, neighbors[i].links[j]->gref(), gref_len());
+    for (size_t j= 0; j < node->neighbors[i].num; j++, ptr+= gref_len)
+      memcpy(ptr, node->neighbors[i].links[j]->gref(), gref_len);
   }
   graph->field[FIELD_NEIGHBORS]->store_binary(neighbor_blob, total_size);
 
   int err;
-  if (stored)
+  if (node->stored)
   {
-    if (!(err= graph->file->ha_rnd_pos(graph->record[1], gref())))
+    if (!(err= graph->file->ha_rnd_pos(graph->record[1], node->gref())))
     {
       err= graph->file->ha_update_row(graph->record[1], graph->record[0]);
       if (err == HA_ERR_RECORD_IS_THE_SAME)
@@ -858,9 +865,9 @@ int FVectorNode::save(TABLE *graph)
   {
     err= graph->file->ha_write_row(graph->record[0]);
     graph->file->position(graph->record[0]);
-    memcpy(gref(), graph->file->ref, gref_len());
-    stored= true;
-    ctx->cache_node(this);
+    memcpy(node->gref(), graph->file->ref, gref_len);
+    node->stored= true;
+    cache_node(node);
   }
   my_safe_afree(neighbor_blob, total_size);
   return err;
@@ -877,12 +884,13 @@ static int update_second_degree_neighbors(MHNSW_Context *ctx, TABLE *graph,
     FVectorNode *neigh= node->neighbors[layer].links[i];
     Neighborhood &neighneighbors= neigh->neighbors[layer];
     if (neighneighbors.num < max_neighbors)
-      neigh->push_neighbor(layer, neigh->distance_to(node->vec), node);
+      neigh->push_neighbor(layer, neigh->distance_to(node->vec, ctx->gref_len),
+                           node, ctx->gref_len);
     else
       if (int err= select_neighbors(ctx, graph, layer, *neigh, neighneighbors,
                                     node, max_neighbors))
         return err;
-    if (int err= neigh->save(graph))
+    if (int err= ctx->save(graph, neigh))
       return err;
   }
   return 0;
@@ -903,7 +911,7 @@ static int search_layer(MHNSW_Context *ctx, TABLE *graph, const FVector *target,
   // WARNING! heuristic here
   const double est_heuristic= 8 * std::sqrt(ctx->max_neighbors(layer));
   const uint est_size= est_heuristic * std::pow(ef, ctx->get_ef_power());
-  VisitedSet visited(root, target, est_size);
+  VisitedSet visited(root, target, est_size, ctx->vec_len);
 
   candidates.init(10000, false, Visited::cmp);
   best.init(ef, true, Visited::cmp);
@@ -941,7 +949,7 @@ static int search_layer(MHNSW_Context *ctx, TABLE *graph, const FVector *target,
       {
         if (res & (1 << i))
           continue;
-        if (int err= links[i]->load(graph))
+        if (int err= ctx->load(graph, links[i]))
           return err;
         Visited *v= visited.create(links[i]);
         if (best.elements() < ef)
@@ -1020,8 +1028,11 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
     // First insert!
     ctx->set_lengths(res->length());
     FVectorNode *target= new (ctx->alloc_node())
-                   FVectorNode(ctx, table->file->ref, 0, res->ptr());
-    if (!((err= target->save(graph))))
+                   FVectorNode(ctx->gref_len,
+                               table->file->ref, ctx->tref_len,
+                               res->ptr(),res->length(), 0,
+                               ctx->alloc_neighborhood(0));
+    if (!((err= ctx->save(graph, target))))
       ctx->start= target;
     return err;
   }
@@ -1042,7 +1053,11 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
   longlong cur_layer;
 
   FVectorNode *target= new (ctx->alloc_node())
-                 FVectorNode(ctx, table->file->ref, target_layer, res->ptr());
+                 FVectorNode(ctx->gref_len,
+                             table->file->ref, ctx->tref_len,
+                             res->ptr(), res->length(),
+                             target_layer,
+                             ctx->alloc_neighborhood(target_layer));
 
   if (int err= graph->file->ha_rnd_init(0))
     return err;
@@ -1070,7 +1085,7 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
     std::swap(start_nodes, candidates);
   }
 
-  if (int err= target->save(graph))
+  if (int err= ctx->save(graph, target))
     return err;
 
   if (target_layer > max_layer)
@@ -1160,7 +1175,7 @@ int mhnsw_first(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit)
   for (size_t i=0; limit--; i++)
   {
     context-= ctx->tref_len;
-    memcpy(context, candidates.links[i]->tref(), ctx->tref_len);
+    memcpy(context, candidates.links[i]->tref(ctx->gref_len), ctx->tref_len);
   }
   DBUG_ASSERT(context - sizeof(ulonglong) == graph->context);
 
