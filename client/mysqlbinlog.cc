@@ -2847,6 +2847,7 @@ static Exit_status dump_local_log_entries(PRINT_EVENT_INFO *print_event_info,
   IO_CACHE cache,*file= &cache;
   uchar tmp_buff[BIN_LOG_HEADER_SIZE];
   Exit_status retval= OK_CONTINUE;
+  my_time_t last_ev_when= MY_TIME_T_MAX;
 
   if (logname && strcmp(logname, "-") != 0)
   {
@@ -2952,8 +2953,21 @@ static Exit_status dump_local_log_entries(PRINT_EVENT_INFO *print_event_info,
                   "end of input", stop_position);
       }
 
+      /*
+        Emit a warning in the event that we finished processing input
+        before reaching the boundary indicated by --stop-datetime.
+      */
+      if (stop_datetime != MY_TIME_T_MAX &&
+          stop_datetime > last_ev_when)
+      {
+          retval = OK_STOP;
+          warning("Did not reach stop datetime '%s' "
+                  "before end of input", stop_datetime_str);
+      }
+
       goto end;
     }
+    last_ev_when= ev->when;
     if ((retval= process_event(print_event_info, ev, old_off, logname)) !=
         OK_CONTINUE)
       goto end;
