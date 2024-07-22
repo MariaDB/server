@@ -24,7 +24,7 @@
 #include "sql_type_geom.h"
 
 
-/*********** INFORMATION_SCHEMA.SPATIEL_REF_SYS *******************/
+/*********** INFORMATION_SCHEMA.SPATIAL_REF_SYS *******************/
 
 namespace Show {
 
