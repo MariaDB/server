@@ -11581,16 +11581,9 @@ table_ref:
 
 json_text_literal:
           TEXT_STRING
-          {
-            Lex->json_table->m_text_literal_cs= NULL;
-          }
         | NCHAR_STRING
-          {
-            Lex->json_table->m_text_literal_cs= national_charset_info;
-          }
         | UNDERSCORE_CHARSET TEXT_STRING
           {
-            Lex->json_table->m_text_literal_cs= $1;
             $$= $2;
           }
         ;
