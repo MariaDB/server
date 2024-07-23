@@ -850,7 +850,7 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
   */
   thd->create_tmp_table_for_derived= TRUE;
   if (!(derived->table) &&
-      derived->derived_result->create_result_table(thd, &unit->types, FALSE,
+      derived->derived_result->create_result_table(thd, &unit->types, unit->distinct,
                                                    (first_select->options |
                                                    thd->variables.option_bits |
                                                    TMP_TABLE_ALL_COLUMNS),
