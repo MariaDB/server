@@ -72,7 +72,7 @@ SELECT COUNT(*) FROM t1;
 --source include/galera_wait_ready.inc
 
 CALL mtr.add_suppression("WSREP: gcs_caused");
-CALL mtr.add_suppression("WSREP: gcs/src/gcs_core.cpp:core_handle_uuid_msg");
+CALL mtr.add_suppression("WSREP: gcs/src/gcs_core\\.cpp:core_handle_uuid_msg");
 
 SET SESSION wsrep_sync_wait = 15;
 SELECT COUNT(*) FROM t1;

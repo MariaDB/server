@@ -3,7 +3,7 @@ connection node_1;
 connection node_1;
 connection node_2;
 connection node_1;
-call mtr.add_suppression("WSREP: Last Applied Action message in non-primary configuration from member .*");
+call mtr.add_suppression("WSREP: Last Applied Action message in non-primary configuration from member ");
 SET GLOBAL wsrep_provider_options = 'pc.ignore_sb=true';
 CREATE TABLE t1 (f1 INTEGER NOT NULL PRIMARY KEY) ENGINE=InnoDB;
 connection node_2;

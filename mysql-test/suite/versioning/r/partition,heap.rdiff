@@ -1,4 +1,6 @@
-@@ -2132,85 +2132,6 @@
+--- partition.result	2024-07-19 08:48:17.680094893 +0200
++++ partition,heap.result	2024-07-19 11:32:08.570439183 +0200
+@@ -2244,85 +2244,6 @@
  (PARTITION `p0` HISTORY ENGINE = X,
   PARTITION `pn` CURRENT ENGINE = X)
  drop tables t1, tp1;
@@ -32,7 +34,7 @@
 -tp1	CREATE TABLE `tp1` (
 -  `x` int(11) NOT NULL AUTO_INCREMENT,
 -  `t` timestamp(6) NULL DEFAULT '2001-11-11 11:11:11.000000',
--  `b` blob /*!100301 COMPRESSED*/ DEFAULT NULL,
+-  `b` blob /*M!100301 COMPRESSED*/ DEFAULT NULL,
 -  `c` varchar(1033) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL,
 -  `u` int(11) DEFAULT NULL,
 -  `m` enum('a','b','c') NOT NULL DEFAULT 'a' COMMENT 'absolute',
@@ -57,7 +59,7 @@
 -t1	CREATE TABLE `t1` (
 -  `x` int(11) NOT NULL AUTO_INCREMENT,
 -  `t` timestamp(6) NULL DEFAULT '2001-11-11 11:11:11.000000',
--  `b` blob /*!100301 COMPRESSED*/ DEFAULT NULL,
+-  `b` blob /*M!100301 COMPRESSED*/ DEFAULT NULL,
 -  `c` varchar(1033) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL,
 -  `u` int(11) DEFAULT NULL,
 -  `m` enum('a','b','c') NOT NULL DEFAULT 'a' COMMENT 'absolute',
@@ -82,9 +84,9 @@
 - PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = X)
 -drop tables t1, tp1;
  #
- # End of 10.7 tests
+ # MDEV-29841 Partition by system_time can be converted into table but not back
  #
-@@ -2765,134 +2686,6 @@
+@@ -2886,134 +2807,6 @@
  Warning	4114	Versioned table `test`.`t1`: last HISTORY partition (`p0`) is out of INTERVAL, need more HISTORY partitions
  drop prepare s;
  affected rows: 0
@@ -118,7 +120,7 @@
 -t1	CREATE TABLE `t1` (
 -  `x` int(11) NOT NULL AUTO_INCREMENT,
 -  `t` timestamp(6) NULL DEFAULT '2001-11-11 11:11:11.000000',
--  `b` blob /*!100301 COMPRESSED*/ DEFAULT NULL,
+-  `b` blob /*M!100301 COMPRESSED*/ DEFAULT NULL,
 -  `c` varchar(1033) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL,
 -  `u` int(11) DEFAULT NULL,
 -  `m` enum('a','b','c') NOT NULL DEFAULT 'a' COMMENT 'absolute',
@@ -155,7 +157,7 @@
 -t1	CREATE TABLE `t1` (
 -  `x` int(11) NOT NULL AUTO_INCREMENT,
 -  `t` timestamp(6) NULL DEFAULT '2001-11-11 11:11:11.000000',
--  `b` blob /*!100301 COMPRESSED*/ DEFAULT NULL,
+-  `b` blob /*M!100301 COMPRESSED*/ DEFAULT NULL,
 -  `c` varchar(1033) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL,
 -  `u` int(11) DEFAULT NULL,
 -  `m` enum('a','b','c') NOT NULL DEFAULT 'a' COMMENT 'absolute',
@@ -190,7 +192,7 @@
 -t1	CREATE TABLE `t1` (
 -  `x` int(11) NOT NULL AUTO_INCREMENT,
 -  `t` timestamp(6) NULL DEFAULT '2001-11-11 11:11:11.000000',
--  `b` blob /*!100301 COMPRESSED*/ DEFAULT NULL,
+-  `b` blob /*M!100301 COMPRESSED*/ DEFAULT NULL,
 -  `c` varchar(1033) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL,
 -  `u` int(11) DEFAULT NULL,
 -  `m` enum('a','b','c') NOT NULL DEFAULT 'a' COMMENT 'absolute',

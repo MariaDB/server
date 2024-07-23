@@ -43,6 +43,7 @@
 #include "sql_cte.h"
 #include "sql_test.h"
 #include "opt_trace.h"
+#include "my_json_writer.h"
 
 double get_post_group_estimate(JOIN* join, double join_op_rows);
 
@@ -197,6 +198,7 @@ void Item_in_subselect::cleanup()
     in_strategy&= ~SUBS_STRATEGY_CHOSEN;
   */
   first_execution= TRUE;
+  materialization_tracker= NULL;
   pushed_cond_guards= NULL;
   Item_subselect::cleanup();
   DBUG_VOID_RETURN;
@@ -242,7 +244,7 @@ Item_subselect::select_transformer(JOIN *join)
 
 bool Item_subselect::fix_fields(THD *thd_param, Item **ref)
 {
-  char const *save_where= thd_param->where;
+  THD_WHERE save_where= thd_param->where;
   uint8 uncacheable;
   bool res;
 
@@ -321,7 +323,7 @@ bool Item_subselect::fix_fields(THD *thd_param, Item **ref)
       if (have_to_be_excluded)
 	engine->exclude();
       substitution= 0;
-      thd->where= "checking transformed subquery";
+      thd->where= THD_WHERE::CHECKING_TRANSFORMED_SUBQUERY;
       res= (*ref)->fix_fields_if_needed(thd, ref);
       goto end;
 
@@ -1647,6 +1649,7 @@ Item_in_subselect::Item_in_subselect(THD *thd, Item * left_exp,
 				     st_select_lex *select_lex):
   Item_exists_subselect(thd), left_expr_cache(0), first_execution(TRUE),
   in_strategy(SUBS_NOT_TRANSFORMED),
+  materialization_tracker(NULL),
   pushed_cond_guards(NULL), do_not_convert_to_sj(FALSE), is_jtbm_merged(FALSE),
   is_jtbm_const_tab(FALSE), is_flattenable_semijoin(FALSE),
   is_registered_semijoin(FALSE),
@@ -3275,6 +3278,7 @@ bool Item_exists_subselect::exists2in_processor(void *opt_arg)
   set_exists_transformed();
 
   first_select->limit_params.select_limit= NULL;
+  first_select->limit_params.explicit_limit= FALSE;
   if (!(in_subs= new (thd->mem_root) Item_in_subselect(thd, left_exp,
                                                          first_select)))
   {
@@ -3466,13 +3470,13 @@ Item_in_subselect::select_in_like_transformer(JOIN *join)
 {
   Query_arena *arena= 0, backup;
   SELECT_LEX *current= thd->lex->current_select;
-  const char *save_where= thd->where;
+  THD_WHERE save_where= thd->where;
   bool trans_res= true;
   bool result;
 
   DBUG_ENTER("Item_in_subselect::select_in_like_transformer");
   DBUG_ASSERT(thd == join->thd);
-  thd->where= "IN/ALL/ANY subquery";
+  thd->where= THD_WHERE::IN_ALL_ANY_SUBQUERY;
 
   /*
     In some optimisation cases we will not need this Item_in_optimizer
@@ -3559,7 +3563,7 @@ bool Item_in_subselect::fix_fields(THD *thd_arg, Item **ref)
 {
   uint outer_cols_num;
   List<Item> *inner_cols;
-  char const *save_where= thd_arg->where;
+  THD_WHERE save_where= thd_arg->where;
   DBUG_ENTER("Item_in_subselect::fix_fields");
 
   thd= thd_arg;
@@ -3568,7 +3572,7 @@ bool Item_in_subselect::fix_fields(THD *thd_arg, Item **ref)
   if (test_strategy(SUBS_SEMI_JOIN))
     DBUG_RETURN( !( (*ref)= new (thd->mem_root) Item_int(thd, 1)) );
 
-  thd->where= "IN/ALL/ANY subquery";
+  thd->where= THD_WHERE::IN_ALL_ANY_SUBQUERY;
   /*
     Check if the outer and inner IN operands match in those cases when we
     will not perform IN=>EXISTS transformation. Currently this is when we
@@ -3747,6 +3751,26 @@ bool Item_in_subselect::init_cond_guards()
       pushed_cond_guards[i]= TRUE;
   }
   return FALSE;
+}
+
+/**
+  Initialize the tracker which will be used to provide information for
+  the output of EXPLAIN and ANALYZE
+*/
+void Item_in_subselect::init_subq_materialization_tracker(THD *thd)
+{
+  if (test_strategy(SUBS_MATERIALIZATION | SUBS_PARTIAL_MATCH_ROWID_MERGE |
+                    SUBS_PARTIAL_MATCH_TABLE_SCAN))
+  {
+    Explain_query *qw= thd->lex->explain;
+    DBUG_ASSERT(qw);
+    Explain_node *node= qw->get_node(unit->first_select()->select_number);
+    if (!node)
+      return;
+    node->subq_materialization= new(qw->mem_root)
+        Explain_subq_materialization(qw->mem_root);
+    materialization_tracker= node->subq_materialization->get_tracker();
+  }
 }
 
 
@@ -4079,7 +4103,7 @@ int join_read_next_same_or_null(READ_RECORD *info);
 
 int subselect_single_select_engine::exec()
 {
-  char const *save_where= thd->where;
+  THD_WHERE save_where= thd->where;
   SELECT_LEX *save_select= thd->lex->current_select;
   thd->lex->current_select= select_lex;
   bool exec_error= 0;
@@ -4201,7 +4225,7 @@ int subselect_single_select_engine::exec()
 
 int subselect_union_engine::exec()
 {
-  char const *save_where= thd->where;
+  THD_WHERE save_where= thd->where;
   int res= unit->exec();
   thd->where= save_where;
   return res;
@@ -4348,12 +4372,14 @@ int subselect_uniquesubquery_engine::exec()
   empty_result_set= TRUE;
   table->status= 0;
   Item_in_subselect *in_subs= item->get_IN_subquery();
+  Subq_materialization_tracker *tracker= in_subs->get_materialization_tracker();
   DBUG_ASSERT(in_subs);
   DBUG_ASSERT(thd);
 
   if (!tab->preread_init_done && tab->preread_init())
     DBUG_RETURN(1);
- 
+  if (tracker)
+    tracker->increment_loops_count();
   if (in_subs->left_expr_has_null())
   {
     /*
@@ -5107,6 +5133,9 @@ subselect_hash_sj_engine::choose_partial_match_strategy(
                                         partial_match_key_parts_arg);
     if (pm_buff_size > thd->variables.rowid_merge_buff_size)
       strategy= PARTIAL_MATCH_SCAN;
+    else
+      item->get_IN_subquery()->get_materialization_tracker()->
+          report_partial_match_buffer_size(pm_buff_size);
   }
 }
 
@@ -5885,6 +5914,7 @@ int subselect_hash_sj_engine::exec()
     }
   }
 
+  item_in->get_materialization_tracker()->report_exec_strategy(strategy);
   if (pm_engine)
     lookup_engine= pm_engine;
   item_in->change_engine(lookup_engine);
@@ -6367,6 +6397,9 @@ int subselect_partial_match_engine::exec()
   DBUG_ASSERT(!(item_in->left_expr_has_null() &&
                 item_in->is_top_level_item()));
 
+  Subq_materialization_tracker *tracker= item_in->get_materialization_tracker();
+  tracker->increment_loops_count();
+
   if (!item_in->left_expr_has_null())
   {
     /* Try to find a matching row by index lookup. */
@@ -6380,6 +6413,7 @@ int subselect_partial_match_engine::exec()
     else
     {
       /* Search for a complete match. */
+      tracker->increment_index_lookups();
       if ((lookup_res= lookup_engine->index_lookup()))
       {
         /* An error occurred during lookup(). */
@@ -6424,6 +6458,7 @@ int subselect_partial_match_engine::exec()
   if (tmp_table->file->inited)
     tmp_table->file->ha_index_end();
 
+  tracker->increment_partial_matches();
   if (partial_match())
   {
     /* The result of IN is UNKNOWN. */
@@ -6631,6 +6666,8 @@ subselect_rowid_merge_engine::init(MY_BITMAP *non_null_key_parts,
                  0, 0))
     return TRUE;
 
+  item->get_IN_subquery()->get_materialization_tracker()->
+      report_partial_merge_keys(merge_keys, merge_keys_count);
   return FALSE;
 }
 
@@ -7088,4 +7125,13 @@ void Item_subselect::init_expr_cache_tracker(THD *thd)
     return;
   DBUG_ASSERT(expr_cache->type() == Item::EXPR_CACHE_ITEM);
   node->cache_tracker= ((Item_cache_wrapper *)expr_cache)->init_tracker(qw->mem_root);
+}
+
+
+void Subq_materialization_tracker::report_partial_merge_keys(
+    Ordered_key **merge_keys, uint merge_keys_count)
+{
+  partial_match_array_sizes.resize(merge_keys_count, 0);
+  for (uint i= 0; i < merge_keys_count; i++)
+    partial_match_array_sizes[i]= merge_keys[i]->get_key_buff_elements();
 }

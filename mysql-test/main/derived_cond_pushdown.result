@@ -9691,10 +9691,12 @@ EXPLAIN
           "filtered": 0,
           "materialized": {
             "unique": 1,
-            "query_block": {
-              "select_id": 2,
-              "table": {
-                "message": "Select tables optimized away"
+            "materialization": {
+              "query_block": {
+                "select_id": 2,
+                "table": {
+                  "message": "Select tables optimized away"
+                }
               }
             }
           }
@@ -9767,10 +9769,12 @@ EXPLAIN
           "filtered": 0,
           "materialized": {
             "unique": 1,
-            "query_block": {
-              "select_id": 2,
-              "table": {
-                "message": "Select tables optimized away"
+            "materialization": {
+              "query_block": {
+                "select_id": 2,
+                "table": {
+                  "message": "Select tables optimized away"
+                }
               }
             }
           }
@@ -9878,10 +9882,12 @@ EXPLAIN
           "filtered": 0,
           "materialized": {
             "unique": 1,
-            "query_block": {
-              "select_id": 3,
-              "table": {
-                "message": "Select tables optimized away"
+            "materialization": {
+              "query_block": {
+                "select_id": 3,
+                "table": {
+                  "message": "Select tables optimized away"
+                }
               }
             }
           }
@@ -9951,10 +9957,12 @@ EXPLAIN
           "filtered": 0,
           "materialized": {
             "unique": 1,
-            "query_block": {
-              "select_id": 3,
-              "table": {
-                "message": "Select tables optimized away"
+            "materialization": {
+              "query_block": {
+                "select_id": 3,
+                "table": {
+                  "message": "Select tables optimized away"
+                }
               }
             }
           }
@@ -10019,10 +10027,12 @@ EXPLAIN
           "filtered": 0,
           "materialized": {
             "unique": 1,
-            "query_block": {
-              "select_id": 3,
-              "table": {
-                "message": "Select tables optimized away"
+            "materialization": {
+              "query_block": {
+                "select_id": 3,
+                "table": {
+                  "message": "Select tables optimized away"
+                }
               }
             }
           }
@@ -10087,10 +10097,12 @@ EXPLAIN
           "filtered": 0,
           "materialized": {
             "unique": 1,
-            "query_block": {
-              "select_id": 3,
-              "table": {
-                "message": "Select tables optimized away"
+            "materialization": {
+              "query_block": {
+                "select_id": 3,
+                "table": {
+                  "message": "Select tables optimized away"
+                }
               }
             }
           }
@@ -10157,10 +10169,12 @@ EXPLAIN
           "filtered": 0,
           "materialized": {
             "unique": 1,
-            "query_block": {
-              "select_id": 3,
-              "table": {
-                "message": "Select tables optimized away"
+            "materialization": {
+              "query_block": {
+                "select_id": 3,
+                "table": {
+                  "message": "Select tables optimized away"
+                }
               }
             }
           }
@@ -10225,10 +10239,12 @@ EXPLAIN
           "filtered": 0,
           "materialized": {
             "unique": 1,
-            "query_block": {
-              "select_id": 3,
-              "table": {
-                "message": "Select tables optimized away"
+            "materialization": {
+              "query_block": {
+                "select_id": 3,
+                "table": {
+                  "message": "Select tables optimized away"
+                }
               }
             }
           }
@@ -10293,10 +10309,12 @@ EXPLAIN
           "filtered": 0,
           "materialized": {
             "unique": 1,
-            "query_block": {
-              "select_id": 3,
-              "table": {
-                "message": "Select tables optimized away"
+            "materialization": {
+              "query_block": {
+                "select_id": 3,
+                "table": {
+                  "message": "Select tables optimized away"
+                }
               }
             }
           }
@@ -10409,10 +10427,12 @@ EXPLAIN
     },
     "subqueries": [
       {
-        "query_block": {
-          "select_id": 2,
-          "table": {
-            "message": "Impossible WHERE"
+        "materialization": {
+          "query_block": {
+            "select_id": 2,
+            "table": {
+              "message": "Impossible WHERE"
+            }
           }
         }
       }
@@ -11737,47 +11757,49 @@ EXPLAIN
           "filtered": 100,
           "materialized": {
             "unique": 1,
-            "query_block": {
-              "select_id": 2,
-              "cost": "COST_REPLACED",
-              "temporary_table": {
-                "nested_loop": [
-                  {
-                    "table": {
-                      "table_name": "<derived3>",
-                      "access_type": "ALL",
-                      "loops": 1,
-                      "rows": 5,
-                      "cost": "COST_REPLACED",
-                      "filtered": 100,
-                      "attached_condition": "d_tab.e > 1",
-                      "materialized": {
-                        "query_block": {
-                          "select_id": 3,
-                          "cost": "COST_REPLACED",
-                          "filesort": {
-                            "sort_key": "t2.e",
-                            "temporary_table": {
-                              "nested_loop": [
-                                {
-                                  "table": {
-                                    "table_name": "t2",
-                                    "access_type": "ALL",
-                                    "loops": 1,
-                                    "rows": 5,
-                                    "cost": "COST_REPLACED",
-                                    "filtered": 100,
-                                    "attached_condition": "t2.e > 1"
+            "materialization": {
+              "query_block": {
+                "select_id": 2,
+                "cost": "COST_REPLACED",
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "<derived3>",
+                        "access_type": "ALL",
+                        "loops": 1,
+                        "rows": 5,
+                        "cost": "COST_REPLACED",
+                        "filtered": 100,
+                        "attached_condition": "d_tab.e > 1",
+                        "materialized": {
+                          "query_block": {
+                            "select_id": 3,
+                            "cost": "COST_REPLACED",
+                            "filesort": {
+                              "sort_key": "t2.e",
+                              "temporary_table": {
+                                "nested_loop": [
+                                  {
+                                    "table": {
+                                      "table_name": "t2",
+                                      "access_type": "ALL",
+                                      "loops": 1,
+                                      "rows": 5,
+                                      "cost": "COST_REPLACED",
+                                      "filtered": 100,
+                                      "attached_condition": "t2.e > 1"
+                                    }
                                   }
-                                }
-                              ]
+                                ]
+                              }
                             }
                           }
                         }
                       }
                     }
-                  }
-                ]
+                  ]
+                }
               }
             }
           }
@@ -11864,47 +11886,49 @@ EXPLAIN
           "filtered": 100,
           "materialized": {
             "unique": 1,
-            "query_block": {
-              "select_id": 2,
-              "cost": "COST_REPLACED",
-              "temporary_table": {
-                "nested_loop": [
-                  {
-                    "table": {
-                      "table_name": "<derived3>",
-                      "access_type": "ALL",
-                      "loops": 1,
-                      "rows": 5,
-                      "cost": "COST_REPLACED",
-                      "filtered": 100,
-                      "attached_condition": "d_tab.max_f > 20",
-                      "materialized": {
-                        "query_block": {
-                          "select_id": 3,
-                          "cost": "COST_REPLACED",
-                          "having_condition": "max_f > 20",
-                          "filesort": {
-                            "sort_key": "t2.e",
-                            "temporary_table": {
-                              "nested_loop": [
-                                {
-                                  "table": {
-                                    "table_name": "t2",
-                                    "access_type": "ALL",
-                                    "loops": 1,
-                                    "rows": 5,
-                                    "cost": "COST_REPLACED",
-                                    "filtered": 100
+            "materialization": {
+              "query_block": {
+                "select_id": 2,
+                "cost": "COST_REPLACED",
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "<derived3>",
+                        "access_type": "ALL",
+                        "loops": 1,
+                        "rows": 5,
+                        "cost": "COST_REPLACED",
+                        "filtered": 100,
+                        "attached_condition": "d_tab.max_f > 20",
+                        "materialized": {
+                          "query_block": {
+                            "select_id": 3,
+                            "cost": "COST_REPLACED",
+                            "having_condition": "max_f > 20",
+                            "filesort": {
+                              "sort_key": "t2.e",
+                              "temporary_table": {
+                                "nested_loop": [
+                                  {
+                                    "table": {
+                                      "table_name": "t2",
+                                      "access_type": "ALL",
+                                      "loops": 1,
+                                      "rows": 5,
+                                      "cost": "COST_REPLACED",
+                                      "filtered": 100
+                                    }
                                   }
-                                }
-                              ]
+                                ]
+                              }
                             }
                           }
                         }
                       }
                     }
-                  }
-                ]
+                  ]
+                }
               }
             }
           }
@@ -13651,24 +13675,26 @@ EXPLAIN
           "attached_condition": "t4.c = `<subquery2>`.`sum(b)`",
           "materialized": {
             "unique": 1,
-            "query_block": {
-              "select_id": 2,
-              "cost": "COST_REPLACED",
-              "having_condition": "`f1(a)` > 1 and `sum(b)` > 123",
-              "temporary_table": {
-                "nested_loop": [
-                  {
-                    "table": {
-                      "table_name": "t1",
-                      "access_type": "ALL",
-                      "loops": 1,
-                      "rows": 3,
-                      "cost": "COST_REPLACED",
-                      "filtered": 100,
-                      "attached_condition": "t1.a + 1 > 10"
+            "materialization": {
+              "query_block": {
+                "select_id": 2,
+                "cost": "COST_REPLACED",
+                "having_condition": "`f1(a)` > 1 and `sum(b)` > 123",
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "loops": 1,
+                        "rows": 3,
+                        "cost": "COST_REPLACED",
+                        "filtered": 100,
+                        "attached_condition": "t1.a + 1 > 10"
+                      }
                     }
-                  }
-                ]
+                  ]
+                }
               }
             }
           }

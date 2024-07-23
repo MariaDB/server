@@ -7315,6 +7315,7 @@ __attribute__((optimize("-O0")))
 #endif
 check_stack_overrun(THD *thd, long margin, uchar *buf __attribute__((unused)))
 {
+#ifndef __SANITIZE_ADDRESS__
   long stack_used;
   DBUG_ASSERT(thd == current_thd);
   if ((stack_used= available_stack_size(thd->thread_stack, &stack_used)) >=
@@ -7337,6 +7338,7 @@ check_stack_overrun(THD *thd, long margin, uchar *buf __attribute__((unused)))
 #ifndef DBUG_OFF
   max_stack_used= MY_MAX(max_stack_used, stack_used);
 #endif
+#endif /* __SANITIZE_ADDRESS__ */
   return 0;
 }
 

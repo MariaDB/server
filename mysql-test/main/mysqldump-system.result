@@ -41,7 +41,7 @@ CREATE FUNCTION metaphon RETURNS STRING SONAME "UDF_EXAMPLE_LIB";
 #
 # mysqldump of system tables with --system=all
 #
-/*!999999\- enable the sandbox mode */ 
+/*M!999999\- enable the sandbox mode */ 
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
@@ -633,7 +633,7 @@ UNLOCK TABLES;
 #
 # mysqldump of system tables with --system=all --replace
 #
-/*!999999\- enable the sandbox mode */ 
+/*M!999999\- enable the sandbox mode */ 
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
@@ -1248,7 +1248,7 @@ UNLOCK TABLES;
 #
 # mysqldump of system tables with --system=all --insert-ignore
 #
-/*!999999\- enable the sandbox mode */ 
+/*M!999999\- enable the sandbox mode */ 
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
