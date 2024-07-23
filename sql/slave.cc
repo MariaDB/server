@@ -3983,6 +3983,7 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
 #endif /* WITH_WSREP */
     int exec_res;
     Log_event_type typ= ev->get_type_code();
+    serial_rgi->orig_exec_time= ev->exec_time;
 
     DBUG_EXECUTE_IF(
         "pause_sql_thread_on_next_event",
@@ -4031,8 +4032,10 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
       if (unlikely(!rli->slave_timestamp) && Log_event::is_group_event(typ))
       {
         /*
-          First event for this slave. Assume that all the slave was up to date
-          with the master just before the current event.
+          First event for this slave, so initialize Slave_last_event_time with
+          a value one second before the new event to appear as if it is
+          otherwise up-to-date with the master. In effect, this will initialize
+          Master_Slave_time_diff to be 1.
         */
         rli->slave_timestamp= (time_t) ev->when + (time_t) ev->exec_time-1;
       }
@@ -6708,9 +6711,9 @@ dbug_gtid_accept:
     if (LOG_EVENT_IS_QUERY((Log_event_type) buf[EVENT_TYPE_OFFSET]) ||
         LOG_EVENT_IS_LOAD_DATA((Log_event_type) buf[EVENT_TYPE_OFFSET]))
     {
-      time_t exec_time= query_event_get_time(buf, rli->relay_log.
-                                             description_event_for_queue);
-      set_if_bigger(rli->newest_master_timestamp, exec_time);
+      time_t end_time= query_event_get_end_time(
+          buf, rli->relay_log.description_event_for_queue);
+      set_if_bigger(rli->newest_master_timestamp, end_time);
     }
     else if (((Log_event_type) buf[EVENT_TYPE_OFFSET]) == XID_EVENT)
     {

@@ -963,19 +963,6 @@ err:
   DBUG_RETURN(res);
 }
 
-/*
-  Update thd->orig_exec_time
-*/
-
-inline void set_orig_exec_time_in_thd(my_time_t exec_time)
-{
-#if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
-  THD *thd= current_thd;
-  if (likely(thd))
-    thd->orig_exec_time= exec_time;
-#endif
-}
-
 /**
   Binlog format tolerance is in (buf, event_len, fdle)
   constructors.
@@ -1115,12 +1102,10 @@ Log_event* Log_event::read_log_event(const uchar *buf, uint event_len,
     switch(event_type) {
     case QUERY_EVENT:
       ev= new Query_log_event(buf, event_len, fdle, QUERY_EVENT);
-      set_orig_exec_time_in_thd(((Query_log_event*) ev)->exec_time);
       break;
     case QUERY_COMPRESSED_EVENT:
       ev= new Query_compressed_log_event(buf, event_len, fdle,
                                          QUERY_COMPRESSED_EVENT);
-      set_orig_exec_time_in_thd(((Query_compressed_log_event*) ev)->exec_time);
       break;
     case ROTATE_EVENT:
       ev= new Rotate_log_event(buf, event_len, fdle);
@@ -1207,7 +1192,6 @@ Log_event* Log_event::read_log_event(const uchar *buf, uint event_len,
       break;
     case EXECUTE_LOAD_QUERY_EVENT:
       ev= new Execute_load_query_log_event(buf, event_len, fdle);
-      set_orig_exec_time_in_thd(((Query_log_event*) ev)->exec_time);
       break;
     case INCIDENT_EVENT:
       ev= new Incident_log_event(buf, event_len, fdle);
@@ -1771,11 +1755,14 @@ Query_log_event::Query_log_event(const uchar *buf, uint event_len,
 #error "Q_EXEC_TIME_OFFSET is not same as L_EXEC_TIME_OFFSET"
 #endif
 
-time_t query_event_get_time(const uchar *buf,
-                            const Format_description_log_event
-                            *description_event)
+time_t
+query_event_get_end_time(const uchar *buf,
+                         const Format_description_log_event *description_event)
 {
-  time_t when= uint4korr(buf);
+  time_t when;
+  DBUG_ASSERT(LOG_EVENT_IS_QUERY((Log_event_type) buf[EVENT_TYPE_OFFSET]) ||
+              LOG_EVENT_IS_LOAD_DATA((Log_event_type) buf[EVENT_TYPE_OFFSET]));
+  when= uint4korr(buf);
   buf+= description_event->common_header_len;
   return when + uint4korr(buf + Q_EXEC_TIME_OFFSET);
 }

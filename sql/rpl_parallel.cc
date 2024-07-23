@@ -62,10 +62,7 @@ rpt_handle_event(rpl_parallel_thread::queued_event *qev,
   safe_strcpy(rgi->future_event_master_log_name, sizeof(rgi->future_event_master_log_name),
               qev->future_event_master_log_name);
   if (event_can_update_last_master_timestamp(ev))
-  {
     rgi->last_master_timestamp= ev->when + ev->exec_time;
-    thd->orig_exec_time= ev->exec_time;
-  }
   err= apply_event_and_update_pos_for_parallel(ev, thd, rgi);
 
   rli->executed_entries++;
@@ -3590,6 +3587,12 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
   {
     qev->rgi= e->current_group_info;
   }
+
+  /*
+    The original execution time of the event from the master is stored on the
+    serial_rgi, so copy it to our new one for parallel execution.
+  */
+  qev->rgi->orig_exec_time= serial_rgi->orig_exec_time;
 
   /*
     Queue the event for processing.

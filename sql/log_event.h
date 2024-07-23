@@ -5526,9 +5526,8 @@ int row_log_event_uncompress(const Format_description_log_event
                              const uchar *src, ulong src_len,
                              uchar* buf, ulong buf_size, bool *is_malloc,
                              uchar **dst, ulong *newlen);
-time_t query_event_get_time(const uchar *buf,
-                            const Format_description_log_event
-                            *description_event);
+time_t query_event_get_end_time(
+    const uchar *buf, const Format_description_log_event *description_event);
 
 bool is_parallel_retry_error(rpl_group_info *rgi, int err);
 

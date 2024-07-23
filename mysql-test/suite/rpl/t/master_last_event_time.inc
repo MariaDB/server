@@ -29,7 +29,6 @@ if (`SELECT NOT "$master_time" = "$slave_time"`)
 --enable_query_log
 
 --connection server_3
---sleep 1
 --source include/start_slave.inc
 --source include/sync_with_master_gtid.inc
 

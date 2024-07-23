@@ -1903,11 +1903,13 @@ binlog_commit_flush_xid_caches(THD *thd, binlog_cache_mngr *cache_mngr,
   DBUG_ASSERT(xid); // replaced former treatment of ONE-PHASE XA
 
   Xid_log_event end_evt(thd, xid, TRUE);
-  if (!thd->slave_thread && ! thd->user_time.val)
+  if (!thd->rgi_slave && !thd->user_time.val)
   {
     /*
-      Ensure that on the master the event time is the time of commit,
-      not the start of statement time.
+      For transactions binlogged without explicit COMMIT queries, e.g.
+      autocommit InnoDB transactions, ensure that the end-time of the
+      transaction still exists in the binlog by setting the timestamp
+      of the Xid_log_event to be the time of commit.
     */
     my_hrtime_t hrtime= my_hrtime();
     end_evt.when= hrtime_to_my_time(hrtime);
@@ -8248,7 +8250,6 @@ MYSQL_BIN_LOG::write_transaction_to_binlog(THD *thd,
 {
   group_commit_entry entry;
   Ha_trx_info *ha_info;
-  bool has_xid;
   DBUG_ENTER("MYSQL_BIN_LOG::write_transaction_to_binlog");
 
   /*
@@ -8276,15 +8277,17 @@ MYSQL_BIN_LOG::write_transaction_to_binlog(THD *thd,
   ha_info= all ? thd->transaction->all.ha_list : thd->transaction->stmt.ha_list;
   entry.ro_1pc= is_ro_1pc;
   entry.end_event= end_ev;
-  has_xid= entry.end_event->get_type_code() == XID_EVENT;
 
-  for (; has_xid && !entry.need_unlog && ha_info; ha_info= ha_info->next())
+  if (!entry.need_unlog && end_ev->get_type_code() == XID_EVENT)
   {
-    if (ha_info->is_started() && ha_info->ht() != binlog_hton &&
-        !ha_info->ht()->commit_checkpoint_request)
+    for (; ha_info; ha_info= ha_info->next())
     {
-      entry.need_unlog= true;
-      break;
+      if (ha_info->is_started() && ha_info->ht() != binlog_hton &&
+          !ha_info->ht()->commit_checkpoint_request)
+      {
+        entry.need_unlog= true;
+        break;
+      }
     }
   }
 

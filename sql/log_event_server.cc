@@ -1350,9 +1350,8 @@ Query_log_event::Query_log_event(THD* thd_arg, const char* query_arg,
     For slave threads, remember the original master exec time.
     This is needed to be able to calculate the master commit time.
   */
-  exec_time= ((thd->slave_thread) ?
-              thd->orig_exec_time :
-              (my_time(0) - thd_arg->start_time));
+  exec_time= ((thd->rgi_slave) ? thd->rgi_slave->orig_exec_time
+                               : (my_time(0) - thd_arg->start_time));
 
   /**
     @todo this means that if we have no catalog, then it is replicated

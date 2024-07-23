@@ -9092,6 +9092,20 @@ int make_proc_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
 
 
 #ifdef HAVE_REPLICATION
+
+/*
+  Constants for columns that are present in
+  SHOW ALL SLAVES STATUS
+  that are not in SHOW SLAVE STATUS. Specifically, columns 0 and 1, and
+  everything at and above 56.
+    0: Connection_name
+    1: Slave_SQL_State
+    56: Retried_transactions
+*/
+#define SLAVE_STATUS_COL_CONNECTION_NAME 0
+#define SLAVE_STATUS_COL_SLAVE_SQL_STATE 1
+#define SLAVE_STATUS_COL_RETRIED_TRANSACTIONS 56
+
 static int make_slave_status_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
 {
   ST_FIELD_INFO *field_info= schema_table->fields_info;
@@ -9102,9 +9116,13 @@ static int make_slave_status_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
 
   if (!all_slaves)
   {
-    /* Remove 2 first fields and all fields above and including field 55 */
-    used_fields&= ~((1ULL << 0) | (1ULL << 1));
-    used_fields&= ((1ULL << 56)-1);
+    /*
+      Remove 2 first fields (Connection_name and Slave_SQL_State) and all
+      fields above and including field 56 (Retried_transactions)
+    */
+    used_fields&= ~((1ULL << SLAVE_STATUS_COL_CONNECTION_NAME) |
+                    (1ULL << SLAVE_STATUS_COL_SLAVE_SQL_STATE));
+    used_fields&= ((1ULL << SLAVE_STATUS_COL_RETRIED_TRANSACTIONS) - 1);
   }
 
   for (uint i=0; !field_info->end_marker(); field_info++, i++)
@@ -9119,9 +9137,33 @@ static int make_slave_status_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
       LEX_CSTRING field_name= field_info->name();
       Item_field *field= new (thd->mem_root)
         Item_field(thd, context, field_name);
+      DBUG_ASSERT(all_slaves || (i > SLAVE_STATUS_COL_SLAVE_SQL_STATE &&
+                                 i < SLAVE_STATUS_COL_RETRIED_TRANSACTIONS));
       if (!field || add_item_to_list(thd, field))
         return 1;
     }
+#ifndef DBUG_OFF
+    else
+    {
+      switch (i)
+      {
+      case SLAVE_STATUS_COL_CONNECTION_NAME:
+        DBUG_ASSERT(strncmp(field_info->name().str,
+                            C_STRING_WITH_LEN("Connection_name")) == 0);
+        break;
+      case SLAVE_STATUS_COL_SLAVE_SQL_STATE:
+        DBUG_ASSERT(strncmp(field_info->name().str,
+                            C_STRING_WITH_LEN("Slave_SQL_State")) == 0);
+        break;
+      case SLAVE_STATUS_COL_RETRIED_TRANSACTIONS:
+        DBUG_ASSERT(strncmp(field_info->name().str,
+                            C_STRING_WITH_LEN("Retried_transactions")) == 0);
+        break;
+      default:
+        DBUG_ASSERT(i > SLAVE_STATUS_COL_RETRIED_TRANSACTIONS);
+      }
+    }
+#endif
   }
   return 0;
 }

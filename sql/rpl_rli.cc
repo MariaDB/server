@@ -2157,6 +2157,7 @@ rpl_group_info::reinit(Relay_log_info *rli)
   gtid_ev_flags_extra= 0;
   gtid_ev_sa_seq_no= 0;
   last_master_timestamp = 0;
+  orig_exec_time= 0;
   gtid_ignore_duplicate_state= GTID_DUPLICATE_NULL;
   speculation= SPECULATE_NO;
   rpt= NULL;

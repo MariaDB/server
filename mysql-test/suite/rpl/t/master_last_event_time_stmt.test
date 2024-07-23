@@ -17,6 +17,13 @@ create table t1 (a int) engine=aria;
 create table t2 (a int) engine=innodb;
 --source include/save_master_gtid.inc
 
+  --echo # Sleep 1 to ensure setup DDL and test statements have different binlog timestamps
+  --sleep 1
+
+--connection server_2
+set @old_par_thds= @@global.slave_parallel_threads;
+
+
 --echo #
 --echo # Ensure that the slave doesn't overwrite exec_time when binlogging
 --echo #
@@ -30,41 +37,68 @@ create table t2 (a int) engine=innodb;
 --eval change master to master_delay=$slave_delay
 --source include/start_slave.inc
 
---connection server_1
---echo # Sleep 2 to ensure DDL and DML have different binlog timestamps
---sleep 2
---let $t1_time_begin= `select truncate(@@timestamp,0)`
---connection server_2
-flush logs;
---connection server_1
---replace_result $t1_time_begin TIMESTAMP
---eval set @@timestamp= $t1_time_begin
---disable_warnings
-insert into t1 values (sleep(2));
---source include/save_master_gtid.inc
---enable_warnings
+--let $serial_slave_const=2
+--let $parallel_slave_const=1
+--let $mode_ctr= 2
+while ($mode_ctr)
+{
+  --connection server_2
+  --source include/stop_slave.inc
+  if ($mode_ctr == $parallel_slave_const)
+  {
+    --let $mode_name= parallel
+    set @@global.slave_parallel_threads= 1;
+  }
+  if ($mode_ctr == $serial_slave_const)
+  {
+    --let $mode_name= serial
+    set @@global.slave_parallel_threads= 0;
+  }
+  --source include/start_slave.inc
 
---echo # Waiting for slave to delay and commit transaction..
---connection server_2
---source include/sync_with_master_gtid.inc
+  --connection server_2
+  flush logs;
+  --connection server_1
+  --disable_warnings
+  --echo # Only sleep on master so the real execution time on the slave is less
+  insert into t1 values (sleep(if(@@global.server_id=1, 2, 0)));
+  --source include/save_master_gtid.inc
+  --enable_warnings
 
-# Slave will replicate the above with a row event which will be very fast
-# compared to the master event.
-# Check the exec time is not 0 (which is typical for very fast row events)
+  --echo # Waiting for slave to delay and commit transaction..
+  --connection server_2
+  --source include/sync_with_master_gtid.inc
 
---let $datadir= `select @@datadir`
---let $filename= query_get_value(SHOW MASTER STATUS, File, 1)
---let $slave_local_binlog=$datadir/$filename
---let $slave_outfile=$MYSQLTEST_VARDIR/tmp/slave_binlog.sql
---echo # MYSQL_BINLOG slave_local_binlog > slave_outfile
---exec $MYSQL_BINLOG $slave_local_binlog > $slave_outfile
---let $assert_count=0
---let $assert_text= Ensure slave doesn't overwrite exec_time in the binlog event
---let $assert_select=exec_time=0
---let $assert_file= $slave_outfile
---source include/assert_grep.inc
+  --let $datadir= `select @@datadir`
+  --let $filename= query_get_value(SHOW MASTER STATUS, File, 1)
+  --let $slave_local_binlog=$datadir/$filename
+  --let $slave_outfile=$MYSQLTEST_VARDIR/tmp/slave_binlog.sql
+  --echo # MYSQL_BINLOG slave_local_binlog > slave_outfile
+  --exec $MYSQL_BINLOG $slave_local_binlog > $slave_outfile
+  --let $assert_count=0
+  --let $assert_text= Ensure $mode_name slave doesn't overwrite exec_time in the binlog event (0s)
+  --let $assert_select=exec_time=0
+  --let $assert_file= $slave_outfile
+  --source include/assert_grep.inc
 
---source master_last_event_time.inc
+  # Double-check in the unlikely case execution time could be rounded to 1
+  --let $assert_text= Ensure $mode_name slave doesn't overwrite exec_time in the binlog event (1s)
+  --let $assert_select=exec_time=1
+  --let $assert_file= $slave_outfile
+  --source include/assert_grep.inc
+
+  --source master_last_event_time.inc
+
+  --connection server_2
+  --source include/stop_slave.inc
+  set @@global.slave_parallel_threads= @old_par_thds;
+  --source include/start_slave.inc
+
+  --dec $mode_ctr
+}
+
+--echo #
+--echo # Cleanup
 
 --connection server_2
 --source include/stop_slave.inc
@@ -73,8 +107,6 @@ change master to master_delay=0;
 --connection server_3
 --source include/start_slave.inc
 
---echo #
---echo # Cleanup
 --connection server_1
 drop table t1;
 drop table t2;

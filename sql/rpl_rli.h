@@ -853,6 +853,13 @@ struct rpl_group_info
   my_time_t last_master_timestamp;
 
   /*
+    The exec_time of the transaction from the master's binlog. It is used with
+    log_slave_updates to preserve execution time value from the master when
+    re-binlogging on the slave.
+  */
+  my_time_t orig_exec_time;
+
+  /*
     Information to be able to re-try an event group in case of a deadlock or
     other temporary error.
   */
