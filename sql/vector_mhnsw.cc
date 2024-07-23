@@ -69,6 +69,7 @@ struct FVector
   static FVector *align_ptr(void *ptr)
   { return (FVector*)(MY_ALIGN(((intptr)ptr) + header, SIMD_bytes) - header); }
 
+  /* Sets the end of vec to 0 so it aligns with SIMD instructions. */
   void fix_tail(size_t vec_len)
   { bzero(dims + vec_len, (MY_ALIGN(vec_len, SIMD_dims) - vec_len)*2); }
 
@@ -151,7 +152,7 @@ struct Neighborhood: public Sql_alloc
     empty();
     links= ptr;
     n= MY_ALIGN(n, 8);
-    bzero(ptr, n*sizeof(*ptr));
+    bzero(ptr, n * sizeof(*ptr));
     return ptr + n;
   }
 };
@@ -183,17 +184,19 @@ class FVectorNode
 {
 private:
   const FVector *make_vec(MHNSW_Context *ctx, const void *v);
-public:
-  const FVector *vec= nullptr;
-  Neighborhood *neighbors= nullptr;
-  uint8_t max_layer;
-  bool stored:1, deleted:1;
 
   FVectorNode(const void *gref_, size_t gref_len);
   FVectorNode(size_t gref_len,
               const void *tref_, size_t tref_len,
               const void *vec_, size_t vec_len,
               size_t layer, Neighborhood *neighborhood);
+public:
+  const FVector *vec= nullptr;
+  Neighborhood *neighbors= nullptr;
+  uint8_t max_layer;
+  bool stored:1;  // True if the node is stored on disk.
+  bool deleted:1; // True if the node was deleted.
+
   float distance_to(const FVector *other, size_t vec_len) const;
   uchar *gref() const;
   uchar *tref(size_t gref_len) const;
@@ -343,7 +346,7 @@ public:
     if (root_size(&root) > mhnsw_cache_size)
       reset(share);
     if (--refcnt == 0)
-      this->~MHNSW_Context(); // XXX reuse
+      delete this;  // XXX reuse.
   }
 
   int load(TABLE *graph, FVectorNode *node)
@@ -402,7 +405,7 @@ public:
 
     // <N> <closest distance> <gref> <gref> ... <N> <closest distance> ...etc...
     uchar *ptr= (uchar*)v->ptr(), *end= ptr + v->length();
-    for (size_t i=0; i <= layer; i++)
+    for (size_t i= 0; i <= layer; i++)
     {
       if (unlikely(ptr >= end))
         return my_errno= HA_ERR_CRASHED;
@@ -412,7 +415,7 @@ public:
       clo_nei_read(node->neighbors[i].closest, ptr);
       ptr+= clo_nei_size;
       node->neighbors[i].num= grefs;
-      for (size_t j=0; j < grefs; j++, ptr+= gref_len)
+      for (size_t j= 0; j < grefs; j++, ptr+= gref_len)
         node->neighbors[i].links[j]= get_node(ptr);
     }
     node->vec= vec_ptr; // must be done at the very end
@@ -458,20 +461,40 @@ public:
     return node;
   }
 
+
+  FVectorNode *new_fvector_node(uchar *tref, uchar *vec,
+                                size_t vec_len, uint8_t max_layer)
+  {
+    Neighborhood *neighbors= alloc_neighborhood(max_layer);
+    return new (alloc_node())
+                   FVectorNode(gref_len,
+                               tref, tref_len,
+                               vec, vec_len, max_layer, neighbors);
+  }
+
   Neighborhood *alloc_neighborhood(size_t max_layer)
   {
     mysql_mutex_lock(&cache_lock);
+    /* Allocate in a single malloc space for:
+       1. Neighborhood structs for each layer the node is part of.
+       2. Space for the neighbors pointers in the neighborhood.
+          2 * M for neighbors in the last layer.
+          M for neighbors in all other layers.
+    */
     auto neighbors= (Neighborhood *) alloc_root(&root,
-        sizeof(Neighborhood) * (max_layer + 1) + sizeof(FVectorNode *) *
+        sizeof(Neighborhood) * (max_layer + 1)  // space for neighborhoods
+        + sizeof(FVectorNode *) *               // space for neighbor ptrs
         (MY_ALIGN(M, 4) * 2 + MY_ALIGN(M, 8) * max_layer));
     mysql_mutex_unlock(&cache_lock);
 
     if (!neighbors)
       return nullptr; // OOM
 
+    /* Initialize all neighbors arrays to empty. */
     auto ptr= (FVectorNode**)(neighbors + (max_layer + 1));
     for (size_t i= 0; i <= max_layer; i++)
       ptr= neighbors[i].init(ptr, max_neighbors(i));
+
     return (Neighborhood *)neighbors;
   }
 };
@@ -1027,11 +1050,9 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
 
     // First insert!
     ctx->set_lengths(res->length());
-    FVectorNode *target= new (ctx->alloc_node())
-                   FVectorNode(ctx->gref_len,
-                               table->file->ref, ctx->tref_len,
-                               res->ptr(),res->length(), 0,
-                               ctx->alloc_neighborhood(0));
+    FVectorNode *target= ctx->new_fvector_node(table->file->ref,
+                                               res->ptr(), res->length(),
+                                               0);
     if (!((err= ctx->save(graph, target))))
       ctx->start= target;
     return err;
