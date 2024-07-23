@@ -380,6 +380,8 @@ int ha_json_table::rnd_init(bool scan)
 
 static void store_json_in_field(Field *f, const json_engine_t *je)
 {
+  String res_tmp("", 0, je->s.cs);
+
   switch (je->value_type)
   {
   case JSON_VALUE_NULL:
@@ -400,7 +402,8 @@ static void store_json_in_field(Field *f, const json_engine_t *je)
   default:
     break;
   };
-  f->store((const char *) je->value, (uint32) je->value_len, je->s.cs);
+  st_append_json(&res_tmp, je->s.cs, je->value, je->value_len);
+  f->store((const char *) res_tmp.ptr(), (uint32) res_tmp.length(), je->s.cs);
 }
 
 
