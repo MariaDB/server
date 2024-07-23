@@ -883,12 +883,11 @@ USING (groupId, id)
 WHERE id IN (1,2,3,4,5,6,7,8);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	index	PRIMARY	PRIMARY	8	NULL	19	Using index
-1	PRIMARY	<subquery4>	eq_ref	distinct_key	distinct_key	4	func	1	Using where
+1	PRIMARY	<derived5>	eq_ref	distinct_key	distinct_key	4	test.t1.id	1	Using where
 1	PRIMARY	<derived3>	ref	key0	key0	8	test.t1.groupId,test.t1.id	2	
-4	MATERIALIZED	<derived5>	ALL	NULL	NULL	NULL	NULL	8	
 5	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-3	LATERAL DERIVED	t1	eq_ref	PRIMARY	PRIMARY	8	test.t1.groupId,test.t1.id	1	Using index
-3	LATERAL DERIVED	<derived7>	ref	key0	key0	4	test.t1.id	2	Using where; FirstMatch(t1)
+3	LATERAL DERIVED	t1	eq_ref	PRIMARY	PRIMARY	8	test.t1.groupId,tvc_0._col_1	1	Using where; Using index
+3	LATERAL DERIVED	<derived7>	eq_ref	distinct_key	distinct_key	4	test.t1.id	1	Using where
 7	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 set statement optimizer_switch='split_materialized=off, loosescan=off' for
 set statement in_predicate_conversion_threshold=2 for

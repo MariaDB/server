@@ -3211,7 +3211,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 2	DEPENDENT SUBQUERY	<derived3>	unique_subquery	distinct_key	distinct_key	5	func	1	100.00	
 3	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using filesort
 Warnings:
-Note	1003	/* select#1 */ update `test`.`t1` set `test`.`t1`.`a` = 10 where <in_optimizer>(`test`.`t1`.`a`,<exists>(<index_lookup>(<cache>(`test`.`t1`.`a`) in (temporary) on key0)))
+Note	1003	/* select#1 */ update `test`.`t1` set `test`.`t1`.`a` = 10 where <in_optimizer>(`test`.`t1`.`a`,<exists>(<primary_index_lookup>(<cache>(`test`.`t1`.`a`) in <temporary table> on distinct_key)))
 # Status of EXPLAIN EXTENDED query
 Variable_name	Value
 Handler_read_key	4
@@ -3266,7 +3266,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	
 3	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using filesort
 Warnings:
-Note	1003	/* select#1 */ update `test`.`t1` semi join ((/* select#3 */ select `test`.`t2`.`b` AS `b` from `test`.`t2` order by `test`.`t2`.`b` limit 2,2) `x`) join `test`.`t2` set `test`.`t1`.`a` = 10 where `x`.`b` = `test`.`t1`.`a`
+Note	1003	/* select#1 */ update (/* select#3 */ select `test`.`t2`.`b` AS `b` from `test`.`t2` order by `test`.`t2`.`b` limit 2,2) `x` join `test`.`t1` join `test`.`t2` set `test`.`t1`.`a` = 10 where `x`.`b` = `test`.`t1`.`a`
 # Status of EXPLAIN EXTENDED query
 Variable_name	Value
 Handler_read_key	4
@@ -3323,7 +3323,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 4	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using filesort
 2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	
 Warnings:
-Note	1003	/* select#1 */ update `test`.`t1` semi join ((/* select#4 */ select `test`.`t2`.`b` AS `b` from `test`.`t2` order by `test`.`t2`.`b` limit 2,2) `x`) join (/* select#2 */ select `test`.`t2`.`b` AS `b` from `test`.`t2`) `y` set `test`.`t1`.`a` = 10 where `x`.`b` = `test`.`t1`.`a`
+Note	1003	/* select#1 */ update (/* select#4 */ select `test`.`t2`.`b` AS `b` from `test`.`t2` order by `test`.`t2`.`b` limit 2,2) `x` join `test`.`t1` join (/* select#2 */ select `test`.`t2`.`b` AS `b` from `test`.`t2`) `y` set `test`.`t1`.`a` = 10 where `x`.`b` = `test`.`t1`.`a`
 # Status of EXPLAIN EXTENDED query
 Variable_name	Value
 Handler_read_key	4
