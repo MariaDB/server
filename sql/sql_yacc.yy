@@ -11581,16 +11581,9 @@ table_ref:
 
 json_text_literal:
           TEXT_STRING
-          {
-            Lex->json_table->m_text_literal_cs= NULL;
-          }
         | NCHAR_STRING
-          {
-            Lex->json_table->m_text_literal_cs= national_charset_info;
-          }
         | UNDERSCORE_CHARSET TEXT_STRING
           {
-            Lex->json_table->m_text_literal_cs= $1;
             $$= $2;
           }
         ;
@@ -11598,21 +11591,9 @@ json_text_literal:
 json_text_literal_or_num:
           json_text_literal
         | NUM
-          {
-            Lex->json_table->m_text_literal_cs= NULL;
-          }
         | LONG_NUM
-          {
-            Lex->json_table->m_text_literal_cs= NULL;
-          }
         | DECIMAL_NUM
-          {
-            Lex->json_table->m_text_literal_cs= NULL;
-          }
         | FLOAT_NUM
-          {
-            Lex->json_table->m_text_literal_cs= NULL;
-          }
         ;
 
 join_table_list:

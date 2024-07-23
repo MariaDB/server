@@ -261,9 +261,6 @@ public:
   /* SQL Parser: current column in JSON_TABLE (...) syntax */
   Json_table_column *m_cur_json_table_column;
 
-  /* SQL Parser: charset of the current text literal */
-  CHARSET_INFO *m_text_literal_cs;
-
 private:
   /* Context to be used for resolving the first argument. */
   Name_resolution_context *m_context;
