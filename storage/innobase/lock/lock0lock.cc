@@ -5015,7 +5015,7 @@ void lock_trx_print_wait_and_mvcc_state(FILE *file, const trx_t *trx,
 	if (const lock_t* wait_lock = trx->lock.wait_lock) {
 		const my_hrtime_t suspend_time= trx->lock.suspend_time;
 		fprintf(file,
-			"------- TRX HAS BEEN WAITING %llu ns"
+			"------- TRX HAS BEEN WAITING %llu us"
 			" FOR THIS LOCK TO BE GRANTED:\n",
 			now.val - suspend_time.val);
 
