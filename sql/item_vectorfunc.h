@@ -48,7 +48,7 @@ public:
   double val_real() override;
   LEX_CSTRING func_name_cstring() const override
   {
-    static LEX_CSTRING name= {STRING_WITH_LEN("vec_distance") };
+    static LEX_CSTRING name= { STRING_WITH_LEN("VEC_Distance") };
     return name;
   }
   Item *get_const_arg() const
@@ -62,6 +62,44 @@ public:
   key_map part_of_sortkey() const override;
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_vec_distance>(thd, this); }
+};
+
+
+class Item_func_vec_totext: public Item_str_ascii_checksum_func
+{
+  bool check_arguments() const override
+  {
+    return check_argument_types_or_binary(NULL, 0, arg_count);
+  }
+
+public:
+  bool fix_length_and_dec(THD *thd) override;
+  Item_func_vec_totext(THD *thd, Item *a);
+  String *val_str_ascii(String *buf) override;
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= { STRING_WITH_LEN("VEC_ToText") };
+    return name;
+  }
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_func_vec_totext>(thd, this); }
+};
+
+
+class Item_func_vec_fromtext: public Item_str_func
+{
+  String tmp_js;
+public:
+  bool fix_length_and_dec(THD *thd) override;
+  Item_func_vec_fromtext(THD *thd, Item *a);
+  String *val_str(String *buf) override;
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= { STRING_WITH_LEN("VEC_FromText") };
+    return name;
+  }
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_func_vec_fromtext>(thd, this); }
 };
 
 
