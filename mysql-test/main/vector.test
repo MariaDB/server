@@ -63,6 +63,7 @@ insert t1 (v) values (x'e360d63ebe554f3fcdbc523f4522193f5236083d'),
                      (x'6ca1d43e9df91b3fe580da3e1c247d3f147cf33e');
 select id,vec_distance(v, x'b047263c9f87233Fcfd27e3eae493e3f0329f43e') d from t1 order by d limit 5;
 
+
 --error ER_TRUNCATED_WRONG_VALUE_FOR_FIELD
 insert t1 (v) values ('');
 --error ER_TRUNCATED_WRONG_VALUE_FOR_FIELD
