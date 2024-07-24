@@ -27,6 +27,7 @@ ulonglong mhnsw_cache_size;
 
 // Algorithm parameters
 static constexpr float alpha = 1.1f;
+static constexpr float generosity = 1.1f;
 static constexpr uint ef_construction= 10;
 
 enum Graph_table_fields {
@@ -928,7 +929,8 @@ static int search_layer(MHNSW_Context *ctx, TABLE *graph, const FVector *target,
     best.push(v);
   }
 
-  float furthest_best= FLT_MAX;
+  float furthest_best= best.is_empty() ? FLT_MAX
+                       : best.top()->distance_to_target * generosity;
   while (candidates.elements())
   {
     const Visited &cur= *candidates.pop();
@@ -958,15 +960,18 @@ static int search_layer(MHNSW_Context *ctx, TABLE *graph, const FVector *target,
           if (skip_deleted && v->node->deleted)
             continue;
           best.push(v);
-          furthest_best= best.top()->distance_to_target;
+          furthest_best= best.top()->distance_to_target * generosity;
         }
         else if (v->distance_to_target < furthest_best)
         {
-          candidates.push(v);
+          candidates.safe_push(v);
           if (skip_deleted && v->node->deleted)
             continue;
-          best.replace_top(v);
-          furthest_best= best.top()->distance_to_target;
+          if (v->distance_to_target < best.top()->distance_to_target)
+          {
+            best.replace_top(v);
+            furthest_best= best.top()->distance_to_target * generosity;
+          }
         }
       }
     }
