@@ -167,3 +167,36 @@ DROP TABLE t1;
 DROP PROCEDURE p1;
 
 --echo # End of 10.11 tests
+
+--echo #
+--echo # MDEV-34517: Memory leak on re-compilation of a failing statement inside a stored routine
+--echo #
+CREATE TABLE t1 (a INT);
+
+CREATE PROCEDURE p1()
+  SELECT * FROM t1;
+
+SET @save_dbug = @@debug_dbug;
+
+CALL p1();
+DROP TABLE t1;
+CREATE TABLE t1 (a INT);
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated,sp_instr_reparsing_1st_time';
+--echo # Recomplilation of the statement 'SELECT * FORM t1' on
+--echo # the second run of the procedure p1 shouldn't result in memory leaks
+CALL p1();
+SET @@debug_dbug='-d,sp_instr_reparsing_1st_time';
+
+DROP TABLE t1;
+CREATE TABLE t1 (a INT);
+--echo # Recompilation is requested the second time
+SET @@debug_dbug='+d,sp_instr_reparsing_2nd_time';
+CALL p1();
+SET @@debug_dbug='-d,sp_instr_reparsing_2nd_time';
+
+--echo # Clean up
+SET @@debug_dbug=@save_dbug;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+--echo # End of 11.2 tests

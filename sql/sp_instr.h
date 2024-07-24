@@ -278,6 +278,7 @@ public:
   {
     if (m_lex_resp)
     {
+      m_lex_resp= false;
       /* Prevent endless recursion. */
       m_lex->sphead= nullptr;
       lex_end(m_lex);
@@ -397,8 +398,29 @@ class sp_lex_instr : public sp_instr
 public:
   sp_lex_instr(uint ip, sp_pcontext *ctx, LEX *lex, bool is_lex_owner)
   : sp_instr(ip, ctx),
-    m_lex_keeper(lex, is_lex_owner)
+    m_lex_keeper(lex, is_lex_owner),
+    m_mem_root_for_reparsing(nullptr)
   {}
+
+  ~sp_lex_instr() override
+  {
+    if (m_mem_root_for_reparsing)
+    {
+      /*
+        Free items owned by an instance of sp_lex_instr and call m_lex_keeper's
+        destructor explicitly to avoid referencing a deallocated memory
+        owned by the memory root m_mem_root_for_reparsing that else would take
+        place in case their implicit invocations (in that case, m_lex_keeper's
+        destructor and the method free_items() called by ~sp_instr are invoked
+        after the memory owned by the memory root m_mem_root_for_reparsing
+        be freed, that would result in abnormal server termination)
+      */
+      free_items();
+      m_lex_keeper.~sp_lex_keeper();
+      free_root(m_mem_root_for_reparsing, MYF(0));
+      m_mem_root_for_reparsing= nullptr;
+    }
+  }
 
   virtual bool is_invalid() const = 0;
 
@@ -470,6 +492,12 @@ private:
   SQL_I_List<Item_trigger_field> m_cur_trigger_stmt_items;
 
   /**
+    MEM_ROOT used for allocation of memory on re-parsing of a statement
+    caused failure of SP-instruction execution
+  */
+  MEM_ROOT *m_mem_root_for_reparsing;
+
+  /**
     Clean up items previously created on behalf of the current instruction.
   */
   void cleanup_before_parsing(enum_sp_type sp_type);
@@ -492,6 +520,8 @@ private:
   bool setup_table_fields_for_trigger(
     THD *thd, sp_head *sp,
     SQL_I_List<Item_trigger_field> *next_trig_items_list);
+
+  bool setup_memroot_for_reparsing(sp_head *sphead);
 };
 
 
