@@ -30,6 +30,7 @@ ulonglong mhnsw_cache_size;
 
 // Algorithm parameters
 static constexpr double alpha = 1.1;
+static constexpr double generosity = 1.2;
 static constexpr double stiffness = 0.002;
 static constexpr uint ef_construction_max_factor= 16;
 static constexpr uint clo_nei_threshold= 10000;
@@ -981,16 +982,18 @@ static int search_layer(MHNSW_Context *ctx, TABLE *graph, const FVector *target,
           if (skip_deleted && v->node->deleted)
             continue;
           best.push(v);
-          furthest_best= best.top()->distance_to_target;
+          furthest_best= best.top()->distance_to_target * generosity;
         }
         else if (v->distance_to_target < furthest_best)
         {
-          candidates.push(v);
+          candidates.safe_push(v);
           if (skip_deleted && v->node->deleted)
             continue;
-          if (best.replace_top(v) <= expand_size)
+          if ((generosity > 1 &&
+               v->distance_to_target >= best.top()->distance_to_target)
+              || best.replace_top(v) <= expand_size)
             v->expand= true;
-          furthest_best= best.top()->distance_to_target;
+          furthest_best= best.top()->distance_to_target * generosity;
         }
       }
     }
