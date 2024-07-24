@@ -18,7 +18,7 @@ sub skip_combinations {
     $skip{'include/platform.combinations'} = [ 'aix', 'win' ];
   }
 
-  if ( $::opt_ps_protocol ) {
+  if ( $::opt_ps_protocol || $::opt_cursor_protocol) {
     $skip{'include/protocol.combinations'} = [ 'nm' ];
   } else {
     $skip{'include/protocol.combinations'} = [ 'ps' ];

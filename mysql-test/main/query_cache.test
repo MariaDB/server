@@ -1863,7 +1863,9 @@ create table t1 (a text);
 insert into t1 values ('{"a":"foo"}');
 flush status;
 SHOW STATUS LIKE 'Qcache_inserts';
+--disable_cursor_protocol
 select * from t1, json_table(t1.a, '$' columns (f varchar(20) path '$.a')) as jt;
+--enable_cursor_protocol
 SHOW STATUS LIKE 'Qcache_inserts';
 drop table t1;
 

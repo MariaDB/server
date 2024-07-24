@@ -71,7 +71,6 @@ SELECT
   CONCAT('', MAX(d10_10)),
   CONCAT('', MAX(d53)),
   CONCAT('', MAX(d53_10)) FROM t1;
---enable_cursor_protocol
 
 # Invalid values
 
@@ -119,6 +118,7 @@ eval ALTER TABLE t1 ADD COLUMN n66_6 DECIMAL(256,1) $extra_col_opts;
 # Error occurs on MySQL but not on MariaDB:
 # --error ER_TOO_BIG_SCALE
 eval ALTER TABLE t1 ADD COLUMN n66_66 DECIMAL(40,35) $extra_col_opts;
+--enable_cursor_protocol
 
 DROP TABLE t1;
 
