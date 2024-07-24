@@ -44,6 +44,11 @@ public:
   Element *top() const { return (Element*)queue_top(&m_queue); }
 
   void push(const Element *element) { queue_insert(&m_queue, (uchar*)element); }
+  void safe_push(const Element *element)
+  {
+    if (is_full()) m_queue.elements--; // remove one of the furthest elements
+    queue_insert(&m_queue, (uchar*)element);
+  }
   Element *pop() { return (Element *)queue_remove_top(&m_queue); }
   void clear() { queue_remove_all(&m_queue); }
   void propagate_top() { queue_replace_top(&m_queue); }
