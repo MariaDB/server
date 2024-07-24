@@ -6238,7 +6238,8 @@ Create_func_year_week::create_native(THD *thd, const LEX_CSTRING *name,
 class Create_func_vec_distance: public Create_func_arg2
 {
 public:
-  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override;
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override
+  { return new (thd->mem_root) Item_func_vec_distance(thd, arg1, arg2); }
 
   static Create_func_vec_distance s_singleton;
 
@@ -6250,11 +6251,37 @@ protected:
 
 Create_func_vec_distance Create_func_vec_distance::s_singleton;
 
-Item*
-Create_func_vec_distance::create_2_arg(THD *thd, Item *arg1, Item *arg2)
+class Create_func_vec_totext: public Create_func_arg1
 {
-  return new (thd->mem_root) Item_func_vec_distance(thd, arg1, arg2);
-}
+public:
+  Item *create_1_arg(THD *thd, Item *arg1) override
+  { return new (thd->mem_root) Item_func_vec_totext(thd, arg1); }
+
+  static Create_func_vec_totext s_singleton;
+
+protected:
+  Create_func_vec_totext() = default;
+  virtual ~Create_func_vec_totext() = default;
+};
+
+
+Create_func_vec_totext Create_func_vec_totext::s_singleton;
+
+
+class Create_func_vec_fromtext: public Create_func_arg1
+{
+public:
+  Item *create_1_arg(THD *thd, Item *arg1) override
+  { return new (thd->mem_root) Item_func_vec_fromtext(thd, arg1); }
+
+  static Create_func_vec_fromtext s_singleton;
+
+protected:
+  Create_func_vec_fromtext() = default;
+  virtual ~Create_func_vec_fromtext() = default;
+};
+
+Create_func_vec_fromtext Create_func_vec_fromtext::s_singleton;
 
 
 #define BUILDER(F) & F::s_singleton
@@ -6484,6 +6511,8 @@ const Native_func_registry func_array[] =
   { { STRING_WITH_LEN("UPPER") }, BUILDER(Create_func_ucase)},
   { { STRING_WITH_LEN("UUID_SHORT") }, BUILDER(Create_func_uuid_short)},
   { { STRING_WITH_LEN("VEC_DISTANCE") }, BUILDER(Create_func_vec_distance)},
+  { { STRING_WITH_LEN("VEC_FROMTEXT") }, BUILDER(Create_func_vec_fromtext)},
+  { { STRING_WITH_LEN("VEC_TOTEXT") }, BUILDER(Create_func_vec_totext)},
   { { STRING_WITH_LEN("VERSION") }, BUILDER(Create_func_version)},
   { { STRING_WITH_LEN("WEEK") }, BUILDER(Create_func_week)},
   { { STRING_WITH_LEN("WEEKDAY") }, BUILDER(Create_func_weekday)},
