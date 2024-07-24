@@ -1,0 +1,49 @@
+create table t1 (id int auto_increment primary key, v blob not null, vector index (v));
+
+insert t1 (v) values (x'e360d63ebe554f3fcdbc523f4522193f5236083d'),
+                     (x'f511303f72224a3fdd05fe3eb22a133ffae86a3f'),
+                     (x'f09baa3ea172763f123def3e0c7fe53e288bf33e'),
+                     (x'b97a523f2a193e3eb4f62e3f2d23583e9dd60d3f'),
+                     (x'f7c5df3e984b2b3e65e59d3d7376db3eac63773e'),
+                     (x'de01453ffa486d3f10aa4d3fdd66813c71cb163f'),
+                     (x'76edfc3e4b57243f10f8423fb158713f020bda3e'),
+                     (x'56926c3fdf098d3e2c8c5e3d1ad4953daa9d0b3e'),
+                     (x'7b713f3e5258323f80d1113d673b2b3f66e3583f'),
+                     (x'6ca1d43e9df91b3fe580da3e1c247d3f147cf33e');
+
+# Error cases first.
+select vec_totext(x'aabbcc');
+select vec_totext(x'0000f07f');
+select vec_totext(x'0000f0ff');
+select vec_totext(x'0000807f');
+select vec_totext(x'000080ff');
+
+select hex(vec_fromtext('["a"]'));
+select hex(vec_fromtext('[]'));
+select hex(vec_fromtext('["a"]'));
+select hex(vec_fromtext('[{"a": "b"}]'));
+select hex(vec_fromtext('[null]'));
+select hex(vec_fromtext('[1, null]'));
+select hex(vec_fromtext('[1, ["a"]]'));
+select hex(vec_fromtext('[1, [2]]'));
+select hex(vec_fromtext('{"a":"b"}'));
+select hex(vec_fromtext('[1, 2, "z", 3]'));
+select hex(vec_fromtext('[1, 2, 3'));
+select hex(vec_fromtext('1, 2, 3]'));
+
+# Empty vectors ok.
+select hex(vec_fromtext('[]'));
+select vec_totext(x'');
+
+select id, vec_totext(t1.v) as a, vec_totext(vec_fromtext(vec_totext(t1.v))) as b,
+       vec_distance(t1.v, vec_fromtext(vec_totext(t1.v))) < 0.000001
+from t1;
+
+drop table t1;
+
+set collation_connection=utf16_general_ci;
+set character_set_results=utf16;
+select hex(vec_fromtext('[1,2,3]'));
+select vec_totext(x'0000803F0000004000004040FFFFFFFF0000807F000080FF');
+set character_set_results=default;
+select vec_totext(x'0000803F0000004000004040FFFFFFFF0000807F000080FF');

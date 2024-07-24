@@ -24,7 +24,7 @@ insert t1 (v) values (x'e360d63ebe554f3fcdbc523f4522193f5236083d'),
                      (x'7b713f3e5258323f80d1113d673b2b3f66e3583f'),
                      (x'6ca1d43e9df91b3fe580da3e1c247d3f147cf33e');
 
-select id, hex(v) from t1;
+select id, hex(v), vec_totext(v) from t1;
 flush tables;
 # test with a valid query vector
 select id,vec_distance(v, x'B047263c9f87233fcfd27e3eae493e3f0329f43e') d from t1 order by d limit 3;
@@ -62,6 +62,7 @@ insert t1 (v) values (x'e360d63ebe554f3fcdbc523f4522193f5236083d'),
                      (x'7b713f3e5258323f80d1113d673b2b3f66e3583f'),
                      (x'6ca1d43e9df91b3fe580da3e1c247d3f147cf33e');
 select id,vec_distance(v, x'b047263c9f87233Fcfd27e3eae493e3f0329f43e') d from t1 order by d limit 5;
+
 
 --error ER_TRUNCATED_WRONG_VALUE_FOR_FIELD
 insert t1 (v) values ('');

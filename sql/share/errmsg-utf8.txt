@@ -12287,3 +12287,7 @@ WARN_SORTING_ON_TRUNCATED_LENGTH
         ger "%llu Werte waren länger als max_sort_length. Sie wurden anhand der ersten %lu Bytes verglichen"
         rus "%llu значений были длиннее, чем max_sort_length. Их сортировка проведена по первым %lu байтам"
         swe "%llu värden var längre än max_sort_length=%lu"
+ER_VECTOR_BINARY_FORMAT_INVALID
+        eng "Invalid binary vector format. Must use IEEE standard float representation in little-endian format. Use VEC_FromText() to generate it."
+ER_VECTOR_FORMAT_INVALID
+        eng "Invalid vector format at offset: %d for '%-.100s'. Must be a valid JSON array of numbers."
