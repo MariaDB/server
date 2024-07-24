@@ -19,9 +19,9 @@
 # Tests that require multibyte character sets, which are not always available,
 #   go into separate files (e.g. sp-ucs2.test)
 
-if (`SELECT $PS_PROTOCOL != 0`)
+if (`SELECT $PS_PROTOCOL + $CURSOR_PROTOCOL > 0`)
 {
-   --skip Need regular protocol but ps-protocol was specified
+   --skip Need regular protocol but ps-protocol and cursor-protocol were specified
 }
 
 --source include/default_charset.inc
