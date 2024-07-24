@@ -1,5 +1,5 @@
 #
-# Start of 11.5 tests
+# Start of 11.7 tests
 #
 #
 # MDEV-32637 Implement native UUID7 function
@@ -31,5 +31,5 @@ PLUGIN_LICENSE	GPL
 PLUGIN_MATURITY	Experimental
 PLUGIN_AUTH_VERSION	1.0
 #
-# End of 11.5 tests
+# End of 11.7 tests
 #

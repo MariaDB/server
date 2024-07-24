@@ -1,4 +1,4 @@
-/* Copyright (c) 2019,2021, MariaDB Corporation
+/* Copyright (c) 2019,2024, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -16,7 +16,6 @@
 #define MYSQL_SERVER
 #include "mariadb.h"
 #include "sql_class.h"
-#include "sql_type_uuid.h"
 #include "item_uuidfunc.h"
 #include <mysql/plugin_data_type.h>
 #include <mysql/plugin_function.h>
@@ -116,7 +115,7 @@ public:
   {
     DBUG_ENTER("Create_func_uuid::create");
     thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
-    thd->lex->safe_to_cache_query= 0;
+    thd->lex->uncacheable(UNCACHEABLE_RAND);
     DBUG_RETURN(new (thd->mem_root) Item_func_uuid(thd));
   }
   static Create_func_uuid s_singleton;
@@ -134,7 +133,7 @@ public:
   {
     DBUG_ENTER("Create_func_sys_guid::create");
     thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
-    thd->lex->safe_to_cache_query= 0;
+    thd->lex->uncacheable(UNCACHEABLE_RAND);
     DBUG_RETURN(new (thd->mem_root) Item_func_sys_guid(thd));
   }
   static Create_func_sys_guid s_singleton;
@@ -144,6 +143,9 @@ protected:
   virtual ~Create_func_sys_guid() {}
 };
 
+uint64 last_uuidv7_timestamp= 0;
+mysql_mutex_t LOCK_uuid_v7_generator;
+
 class Create_func_uuid_v7 : public Create_func_arg0
 {
 public:
@@ -151,7 +153,7 @@ public:
   {
     DBUG_ENTER("Create_func_uuid_v7::create");
     thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
-    thd->lex->safe_to_cache_query= 0;
+    thd->lex->uncacheable(UNCACHEABLE_RAND);
     DBUG_RETURN(new (thd->mem_root) Item_func_uuid_v7(thd));
   }
   static Create_func_uuid_v7 s_singleton;
@@ -176,6 +178,18 @@ int uuid_init(void*)
 {
   Type_handler_uuid_new::singleton()->set_name(type_name);
   Type_handler_uuid_old::singleton()->set_name(type_name);
+  return 0;
+}
+
+int uuidv7_init(void*)
+{
+  mysql_mutex_init(0, &LOCK_uuid_v7_generator, MY_MUTEX_INIT_FAST);
+  return 0;
+}
+
+int uuidv7_terminate(void*)
+{
+  mysql_mutex_destroy(&LOCK_uuid_v7_generator);
   return 0;
 }
 
@@ -234,8 +248,8 @@ maria_declare_plugin(type_uuid)
   "Stefano Petrilli",           // plugin author
   "Function UUIDv7()",          // the plugin description
   PLUGIN_LICENSE_GPL,           // the plugin license (see include/mysql/plugin.h)
-  0,                            // Pointer to plugin initialization function
-  0,                            // Pointer to plugin deinitialization function
+  uuidv7_init,                  // Pointer to plugin initialization function
+  uuidv7_terminate,             // Pointer to plugin deinitialization function
   0x0100,                       // Numeric version 0xAABB means AA.BB version
   NULL,                         // Status variables
   NULL,                         // System variables
