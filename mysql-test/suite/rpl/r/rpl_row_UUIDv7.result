@@ -1,15 +1,13 @@
 include/master-slave.inc
 [connection master]
 #
-# Start of 11.7 tests
+# Start of 11.5 tests
 #
 #
 # MDEV-32637 Implement native UUID7 function
 #
 connection slave;
 connection master;
-DROP PROCEDURE IF EXISTS test.p1;
-DROP TABLE IF EXISTS test.t1;
 CREATE TABLE test.t1 (a INT, blob_column LONGBLOB, vchar_column VARCHAR(100), PRIMARY KEY(a)) engine=myisam;
 INSERT INTO test.t1  VALUES(1,UUIDv7(),UUIDv7());
 create procedure test.p1()
@@ -46,5 +44,5 @@ DROP TABLE test.t1;
 DROP TABLE test.t2;
 include/rpl_end.inc
 #
-# End of 11.7 tests
+# End of 11.5 tests
 #

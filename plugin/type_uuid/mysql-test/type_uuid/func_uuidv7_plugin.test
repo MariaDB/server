@@ -1,5 +1,5 @@
 --echo #
---echo # Start of 11.5 tests
+--echo # Start of 11.7 tests
 --echo #
 
 --echo #
@@ -26,5 +26,5 @@ ORDER BY PLUGIN_NAME;
 --horizontal_results
 
 --echo #
---echo # End of 11.5 tests
+--echo # End of 11.7 tests
 --echo #

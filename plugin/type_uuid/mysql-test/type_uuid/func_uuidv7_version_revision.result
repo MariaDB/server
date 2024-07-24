@@ -1,5 +1,5 @@
 #
-# Start of 11.5 tests
+# Start of 11.7 tests
 #
 #
 # MDEV-32637 Implement native UUID7 function
@@ -8,5 +8,5 @@ SELECT UUIDv7() REGEXP '[a-f0-9]{8}-[a-f0-9]{4}-7[a-f0-9]{3}-[89aAbB][a-f0-9]{3}
 is_correct_version_and_revision
 1
 #
-# End of 11.5 tests
+# End of 11.7 tests
 #
