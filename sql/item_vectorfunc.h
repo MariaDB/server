@@ -43,7 +43,7 @@ public:
   double val_real() override;
   LEX_CSTRING func_name_cstring() const override
   {
-    static LEX_CSTRING name= {STRING_WITH_LEN("vec_distance") };
+    static LEX_CSTRING name= { STRING_WITH_LEN("VEC_Distance") };
     return name;
   }
   Item *get_const_arg() const
@@ -57,6 +57,45 @@ public:
   key_map part_of_sortkey() const override;
   Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_vec_distance>(thd, this); }
+};
+
+
+class Item_func_vec_tostring: public Item_str_func
+{
+  // TODO(cvicentiu) Why is this needed?
+  bool check_arguments() const override
+  {
+    return check_argument_types_or_binary(NULL, 0, arg_count);
+  }
+
+public:
+  bool fix_length_and_dec(THD *thd) override;
+  Item_func_vec_tostring(THD *thd, Item *a);
+  String *val_str(String *buf) override;
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= { STRING_WITH_LEN("VEC_ToString") };
+    return name;
+  }
+  Item *get_copy(THD *thd) override
+  { return get_item_copy<Item_func_vec_tostring>(thd, this); }
+};
+
+
+class Item_func_vec_fromstring: public Item_str_func
+{
+  String tmp_js;
+public:
+  bool fix_length_and_dec(THD *thd) override;
+  Item_func_vec_fromstring(THD *thd, Item *a);
+  String *val_str(String *buf) override;
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= { STRING_WITH_LEN("VEC_ToString") };
+    return name;
+  }
+  Item *get_copy(THD *thd) override
+  { return get_item_copy<Item_func_vec_fromstring>(thd, this); }
 };
 
 

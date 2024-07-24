@@ -1,0 +1,95 @@
+create table t1 (id int auto_increment primary key, v blob not null, vector index (v));
+insert t1 (v) values (x'e360d63ebe554f3fcdbc523f4522193f5236083d'),
+(x'f511303f72224a3fdd05fe3eb22a133ffae86a3f'),
+(x'f09baa3ea172763f123def3e0c7fe53e288bf33e'),
+(x'b97a523f2a193e3eb4f62e3f2d23583e9dd60d3f'),
+(x'f7c5df3e984b2b3e65e59d3d7376db3eac63773e'),
+(x'de01453ffa486d3f10aa4d3fdd66813c71cb163f'),
+(x'76edfc3e4b57243f10f8423fb158713f020bda3e'),
+(x'56926c3fdf098d3e2c8c5e3d1ad4953daa9d0b3e'),
+(x'7b713f3e5258323f80d1113d673b2b3f66e3583f'),
+(x'6ca1d43e9df91b3fe580da3e1c247d3f147cf33e');
+select vec_tostring(x'aabbcc');
+vec_tostring(x'aabbcc')
+NULL
+Warnings:
+Warning	4201	invalid binary vector format. Must use IEEE standard float representation in little-endian format. Use VEC_FromString() to generate it.
+select hex(vec_fromstring('["a"]'));
+hex(vec_fromstring('["a"]'))
+NULL
+Warnings:
+Warning	4202	["a"] invalid vector format. Only arrays of numbers are allowed.
+select hex(vec_fromstring('[]'));
+hex(vec_fromstring('[]'))
+
+select hex(vec_fromstring('["a"]'));
+hex(vec_fromstring('["a"]'))
+NULL
+Warnings:
+Warning	4202	["a"] invalid vector format. Only arrays of numbers are allowed.
+select hex(vec_fromstring('[{"a": "b"}]'));
+hex(vec_fromstring('[{"a": "b"}]'))
+NULL
+Warnings:
+Warning	4202	[{"a": "b"}] invalid vector format. Only arrays of numbers are allowed.
+select hex(vec_fromstring('[null]'));
+hex(vec_fromstring('[null]'))
+NULL
+Warnings:
+Warning	4202	[null] invalid vector format. Only arrays of numbers are allowed.
+select hex(vec_fromstring('[1, null]'));
+hex(vec_fromstring('[1, null]'))
+NULL
+Warnings:
+Warning	4202	[1, null] invalid vector format. Only arrays of numbers are allowed.
+select hex(vec_fromstring('[1, ["a"]]'));
+hex(vec_fromstring('[1, ["a"]]'))
+NULL
+Warnings:
+Warning	4202	[1, ["a"]] invalid vector format. Only arrays of numbers are allowed.
+select hex(vec_fromstring('[1, [2]]'));
+hex(vec_fromstring('[1, [2]]'))
+NULL
+Warnings:
+Warning	4202	[1, [2]] invalid vector format. Only arrays of numbers are allowed.
+select hex(vec_fromstring('{"a":"b"}'));
+hex(vec_fromstring('{"a":"b"}'))
+NULL
+Warnings:
+Warning	4202	{"a":"b"} invalid vector format. Only arrays of numbers are allowed.
+select hex(vec_fromstring('[1, 2, "z", 3]'));
+hex(vec_fromstring('[1, 2, "z", 3]'))
+NULL
+Warnings:
+Warning	4202	[1, 2, "z", 3] invalid vector format. Only arrays of numbers are allowed.
+select hex(vec_fromstring('[1, 2, 3'));
+hex(vec_fromstring('[1, 2, 3'))
+NULL
+Warnings:
+Warning	4202	[1, 2, 3 invalid vector format. Only arrays of numbers are allowed.
+select hex(vec_fromstring('1, 2, 3]'));
+hex(vec_fromstring('1, 2, 3]'))
+NULL
+Warnings:
+Warning	4202	1, 2, 3] invalid vector format. Only arrays of numbers are allowed.
+select hex(vec_fromstring('[]'));
+hex(vec_fromstring('[]'))
+
+select vec_tostring(x'');
+vec_tostring(x'')
+[]
+select id, vec_tostring(t1.v) as a, vec_tostring(vec_fromstring(vec_tostring(t1.v))) as b,
+vec_distance(t1.v, vec_fromstring(vec_tostring(t1.v))) < 0.000001
+from t1;
+id	a	b	vec_distance(t1.v, vec_fromstring(vec_tostring(t1.v))) < 0.000001
+1	[0.418708,0.809902,0.823193,0.598179,0.033255]	[0.418708,0.809902,0.823193,0.598179,0.033255]	1
+2	[0.687774,0.789588,0.496138,0.574870,0.917617]	[0.687774,0.789588,0.496138,0.574870,0.917617]	1
+3	[0.333221,0.962687,0.467263,0.448235,0.475671]	[0.333221,0.962687,0.467263,0.448235,0.475671]	1
+4	[0.822185,0.185643,0.683452,0.211072,0.554056]	[0.822185,0.185643,0.683452,0.211072,0.554056]	1
+5	[0.437057,0.167281,0.077098,0.428638,0.241591]	[0.437057,0.167281,0.077098,0.428638,0.241591]	1
+6	[0.769560,0.926895,0.803376,0.015796,0.589042]	[0.769560,0.926895,0.803376,0.015796,0.589042]	1
+7	[0.493999,0.641957,0.761598,0.942760,0.425865]	[0.493999,0.641957,0.761598,0.942760,0.425865]	1
+8	[0.924108,0.275466,0.054333,0.073158,0.136344]	[0.924108,0.275466,0.054333,0.073158,0.136344]	1
+9	[0.186956,0.696660,0.035600,0.668875,0.847220]	[0.186956,0.696660,0.035600,0.668875,0.847220]	1
+10	[0.415294,0.609278,0.426765,0.988832,0.475556]	[0.415294,0.609278,0.426765,0.988832,0.475556]	1
+drop table t1;
