@@ -2971,19 +2971,22 @@ int JOIN::optimize_stage2()
     which do not use aggregate functions. In such case
     temporary table may not be used and const condition
     elements may be lost during further having
-    condition transformation in JOIN::exec.
+    condition transformation.
   */
   if (having && const_table_map && !having->with_sum_func())
   {
     having->update_used_tables();
-    having= having->remove_eq_conds(thd, &select_lex->having_value, true);
-    if (select_lex->having_value == Item::COND_FALSE)
+    if (having->const_item() && !having->is_expensive())
     {
-      having= new (thd->mem_root) Item_bool(thd, false);
-      zero_result_cause= "Impossible HAVING noticed after reading const tables";
-      error= 0;
-      select_lex->mark_const_derived(zero_result_cause);
-      goto setup_subq_exit;
+      bool having_value= having->val_int();
+      having= new (thd->mem_root) Item_bool(thd, having_value);
+      if (!having_value)
+      {
+        zero_result_cause= "Impossible HAVING noticed after reading const tables";
+        error= 0;
+        select_lex->mark_const_derived(zero_result_cause);
+        goto setup_subq_exit;
+      }
     }
   }
 
