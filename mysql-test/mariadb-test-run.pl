@@ -250,7 +250,7 @@ my @opt_skip_test_list;
 our $opt_ssl_supported;
 our $opt_ps_protocol;
 my $opt_sp_protocol;
-my $opt_cursor_protocol;
+our $opt_cursor_protocol;
 my $opt_view_protocol;
 my $opt_non_blocking_api;
 
