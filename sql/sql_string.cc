@@ -118,6 +118,38 @@ bool Binary_string::realloc_raw(size_t alloc_length)
 }
 
 
+static uint32 write_float_str_to_buff(char *buff, int buff_len,
+                                      float num, uint decimals)
+{
+  if (decimals >= FLOATING_POINT_DECIMALS)
+    return (uint32)my_gcvt(num, MY_GCVT_ARG_FLOAT, buff_len - 1, buff, NULL);
+  else
+    return (uint32)my_fcvt(num, decimals, buff, NULL);
+}
+
+bool String::append_float(float num, uint decimals)
+{
+  uint dummy_errors;
+  size_t len;
+  DBUG_ASSERT(!std::isnan(num));
+  DBUG_ASSERT(!std::isinf(num));
+  if (realloc_with_extra_if_needed(str_length + FLOATING_POINT_BUFFER))
+    return true;
+
+  if (charset()->mbminlen > 1)
+  {
+    char buff[FLOATING_POINT_BUFFER];
+    len= write_float_str_to_buff(buff, sizeof(buff), num, decimals);
+    str_length+= copy_and_convert(Ptr + str_length, len, charset(), buff, len,
+                                  &my_charset_latin1, &dummy_errors);
+  }
+  else
+    str_length+= write_float_str_to_buff(Ptr + str_length,
+                                         FLOATING_POINT_BUFFER, num, decimals);
+  return false;
+}
+
+
 bool String::set_int(longlong num, bool unsigned_flag, CHARSET_INFO *cs)
 {
   /*
