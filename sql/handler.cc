@@ -5477,7 +5477,7 @@ handler::ha_delete_all_rows()
 
   int err= delete_all_rows();
   if (!err)
-    err= table->hlindexes_on_delete_all();
+    err= table->hlindexes_on_delete_all(false);
 
   return err;
 }
@@ -5496,7 +5496,14 @@ handler::ha_truncate()
               m_lock_type == F_WRLCK);
   mark_trx_read_write();
 
-  return truncate();
+  int err= truncate();
+  if (!err && table->s->total_keys > table->s->keys)
+  {
+    if (!(err= table->hlindex_open(table->s->keys)))
+      err= table->hlindexes_on_delete_all(true);
+  }
+
+  return err;
 }
 
 
