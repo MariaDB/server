@@ -36,10 +36,8 @@ int mi_rename(const char *old_name, const char *new_name)
     save_errno= my_errno;
   fn_format(from,old_name,"",MI_NAME_DEXT,MY_UNPACK_FILENAME|MY_APPEND_EXT);
   fn_format(to,new_name,"",MI_NAME_DEXT,MY_UNPACK_FILENAME|MY_APPEND_EXT);
-  if (mysql_file_rename_with_symlink(mi_key_file_dfile,
-                                     from, to,
-                                     MYF(MY_WME)))
-    if (save_errno)
+  if (mysql_file_rename_with_symlink(mi_key_file_dfile, from, to, MYF(MY_WME)))
+    if (!save_errno)
       save_errno= my_errno;
   DBUG_RETURN(save_errno);
 }
