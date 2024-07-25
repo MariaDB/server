@@ -303,11 +303,14 @@ id	hex(v)
 drop table t1, t2;
 db.opt
 create table t1 (id int auto_increment primary key, v blob not null, vector index (v));
+insert t1 (id, v) values (1, x'e360d63ebe554f3fcdbc523f4522193f5236083d');
 truncate table t1;
-insert t1 (v) values (x'e360d63ebe554f3fcdbc523f4522193f5236083d');
+insert t1 (id, v) values (1, x'e360d63ebe554f3fcdbc523f4522193f5236083d');
 truncate table t1;
-select * from t1;
-id	v
+insert t1 (id, v) values (1, x'e360d63ebe554f3fcdbc523f4522193f5236083d');
+select id, hex(v) from t1;
+id	hex(v)
+1	E360D63EBE554F3FCDBC523F4522193F5236083D
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -315,6 +318,6 @@ t1	CREATE TABLE `t1` (
   `v` blob NOT NULL,
   PRIMARY KEY (`id`),
   VECTOR KEY `v` (`v`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+) ENGINE=MyISAM AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 db.opt
