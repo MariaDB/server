@@ -1,0 +1,12 @@
+
+-- source include/not_embedded.inc
+--source include/not_asan.inc
+
+--echo #
+--echo # Bug#58026: massive recursion and crash in regular expression handling
+--echo #
+
+--error ER_STACK_OVERRUN_NEED_MORE,ER_REGEXP_ERROR
+SELECT '1' RLIKE RPAD('1', 10000, '(');
+
+--echo # End of 10.5 tests

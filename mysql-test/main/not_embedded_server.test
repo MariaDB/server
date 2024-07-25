@@ -14,13 +14,6 @@ call mtr.add_suppression("Can't open and lock privilege tables: Table 'db' was n
 
 SHOW VARIABLES like 'slave_skip_errors';
 
---echo #
---echo # Bug#58026: massive recursion and crash in regular expression handling
---echo #
-
---error ER_STACK_OVERRUN_NEED_MORE,ER_REGEXP_ERROR
-SELECT '1' RLIKE RPAD('1', 10000, '(');
-
 
 # End of 5.1 tests
 
