@@ -20,9 +20,13 @@
 
 /* This file is originally from the mysql distribution. Coded by monty */
 
+#include <my_global.h>
+#include <cmath>
+
 #include "m_ctype.h"                            /* my_charset_bin */
 #include <my_sys.h>              /* alloc_root, my_free, my_realloc */
 #include "m_string.h"                           /* TRASH */
+#include "sql_const.h"
 #include "sql_list.h"
 
 class String;
@@ -1007,6 +1011,12 @@ public:
   {
     return Binary_string::append(s);
   }
+
+  // Append a float value to the string keeping the string's charset.
+  //
+  // The float value must not be NaN or Inf, it will be represented as 0 in
+  // that case.
+  bool append_float(float num, uint decimals);
   inline bool append(char chr)
   {
     return Binary_string::append_char(chr);
