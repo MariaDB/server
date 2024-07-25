@@ -5388,6 +5388,7 @@ mysql_rename_table(handlerton *base, const LEX_CSTRING *old_db,
             }
             file->ha_rename_table(to_base, from_base);
             rename_file_ext(to, from, reg_ext);
+            break;
           }
         }
       }
