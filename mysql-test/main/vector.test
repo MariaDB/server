@@ -103,10 +103,20 @@ drop table t1, t2;
 list_files $datadir/test;
 
 create table t1 (id int auto_increment primary key, v blob not null, vector index (v));
+insert t1 (id, v) values (1, x'e360d63ebe554f3fcdbc523f4522193f5236083d');
 truncate table t1;
-insert t1 (v) values (x'e360d63ebe554f3fcdbc523f4522193f5236083d');
+if ($MTR_COMBINATION_MYISAM) {
+--replace_result $datadir datadir
+--exec $MYISAMCHK -d $datadir/test/t1#i#01
+}
+insert t1 (id, v) values (1, x'e360d63ebe554f3fcdbc523f4522193f5236083d');
 truncate table t1;
-select * from t1;
+if ($MTR_COMBINATION_MYISAM) {
+--replace_result $datadir datadir
+--exec $MYISAMCHK -d $datadir/test/t1#i#01
+}
+insert t1 (id, v) values (1, x'e360d63ebe554f3fcdbc523f4522193f5236083d');
+select id, hex(v) from t1;
 replace_result InnoDB MyISAM;
 show create table t1;
 drop table t1;

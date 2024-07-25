@@ -1250,7 +1250,7 @@ int mhnsw_invalidate(TABLE *table, const uchar *rec, KEY *keyinfo)
   return 0;
 }
 
-int mhnsw_delete_all(TABLE *table, KEY *keyinfo)
+int mhnsw_delete_all(TABLE *table, KEY *keyinfo, bool truncate)
 {
   TABLE *graph= table->hlindex;
 
@@ -1259,7 +1259,8 @@ int mhnsw_delete_all(TABLE *table, KEY *keyinfo)
   DBUG_ASSERT(keyinfo->algorithm == HA_KEY_ALG_VECTOR);
   DBUG_ASSERT(keyinfo->usable_key_parts == 1);
 
-  if (int err= graph->file->ha_delete_all_rows())
+  if (int err= truncate ? graph->file->truncate()
+                        : graph->file->delete_all_rows())
    return err;
 
   MHNSW_Context *ctx;
