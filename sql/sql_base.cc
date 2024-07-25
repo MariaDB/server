@@ -9945,11 +9945,11 @@ int TABLE::hlindexes_on_delete(const uchar *buf)
   return 0;
 }
 
-int TABLE::hlindexes_on_delete_all()
+int TABLE::hlindexes_on_delete_all(bool truncate)
 {
   DBUG_ASSERT(s->total_keys - s->keys == (hlindex != NULL));
   if (hlindex && hlindex->in_use)
-    if (int err= mhnsw_delete_all(this, key_info + s->keys))
+    if (int err= mhnsw_delete_all(this, key_info + s->keys, truncate))
       return err;
   return 0;
 }
