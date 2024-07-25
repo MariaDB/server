@@ -328,27 +328,9 @@ Type_handler_data *type_handler_data= NULL;
 
 bool Float::to_string(String *val_buffer, uint dec) const
 {
-  uint to_length= 70;
-  if (val_buffer->alloc(to_length))
-    return true;
-
-  char *to=(char*) val_buffer->ptr();
-  size_t len;
-
-  if (dec >= FLOATING_POINT_DECIMALS)
-    len= my_gcvt(m_value, MY_GCVT_ARG_FLOAT, to_length - 1, to, NULL);
-  else
-  {
-    /*
-      We are safe here because the buffer length is 70, and
-      fabs(float) < 10^39, dec < FLOATING_POINT_DECIMALS. So the resulting string
-      will be not longer than 69 chars + terminating '\0'.
-    */
-    len= my_fcvt(m_value, (int) dec, to, NULL);
-  }
-  val_buffer->length((uint) len);
   val_buffer->set_charset(&my_charset_numeric);
-  return false;
+  val_buffer->length(0);
+  return val_buffer->append_float(m_value, dec);
 }
 
 
