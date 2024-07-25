@@ -1,0 +1,32 @@
+--- a/mysql-test/main/vector.result
++++ b/mysql-test/main/vector.result
+@@ -305,7 +305,29 @@
+ create table t1 (id int auto_increment primary key, v blob not null, vector index (v));
+ truncate table t1;
+ insert t1 (v) values (x'e360d63ebe554f3fcdbc523f4522193f5236083d');
++
++MyISAM file:         datadir/test/t1#i#01
++Record format:       Packed
++Character set:       ? (0)
++Data records:                    1  Deleted blocks:                 0
++Recordlength:                   30
++
++table description:
++Key Start Len Index   Type
++1   3     6   unique  varbin NULL          
++2   2     1   multip. int8                 
+ truncate table t1;
++
++MyISAM file:         datadir/test/t1#i#01
++Record format:       Packed
++Character set:       ? (0)
++Data records:                    0  Deleted blocks:                 0
++Recordlength:                   30
++
++table description:
++Key Start Len Index   Type
++1   3     6   unique  varbin NULL          
++2   2     1   multip. int8                 
+ select * from t1;
+ id	v
+ show create table t1;
