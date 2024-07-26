@@ -118,15 +118,13 @@ bool Binary_string::realloc_raw(size_t alloc_length)
 }
 
 
-static size_t write_float_str_to_buff(char *buff, size_t buff_len,
+static uint32 write_float_str_to_buff(char *buff, int buff_len,
                                   float num, uint decimals)
 {
   if (decimals >= FLOATING_POINT_DECIMALS)
-  {
-    return my_gcvt(num, MY_GCVT_ARG_FLOAT, buff_len - 1, buff, NULL);
-  }
+    return (uint32)my_gcvt(num, MY_GCVT_ARG_FLOAT, buff_len - 1, buff, NULL);
   else
-    return my_fcvt(num, decimals, buff, NULL);
+    return (uint32)my_fcvt(num, decimals, buff, NULL);
 }
 
 bool String::append_float(float num, uint decimals)

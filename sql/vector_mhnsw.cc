@@ -29,8 +29,8 @@ ulonglong mhnsw_cache_size;
 #define clo_nei_read  float4get
 
 // Algorithm parameters
-static constexpr double alpha = 1.1;
-static constexpr double generosity = 1.2;
+static constexpr float alpha = 1.1f;
+static constexpr float generosity = 1.2f;
 static constexpr double stiffness = 0.002;
 static constexpr uint ef_construction_max_factor= 16;
 static constexpr uint clo_nei_threshold= 10000;
@@ -84,7 +84,7 @@ struct FVector
     vec->abs2= abs2/2;
     vec->scale= scale ? scale/32767 : 1;
     for (size_t i= 0; i < vec_len; i++)
-      vec->dims[i] = std::round(v[i] / vec->scale);
+      vec->dims[i] = static_cast<uint16_t>(std::round(v[i] / vec->scale));
     vec->fix_tail(vec_len);
     return vec;
   }
@@ -113,7 +113,7 @@ struct FVector
     int64_t d= 0;
     for (size_t i= 0; i < len; i++)
       d+= int32_t(v1[i]) * int32_t(v2[i]);
-    return d;
+    return static_cast<float>(d);
   }
 
   float distance_to(const FVector *other, size_t vec_len) const
@@ -183,7 +183,7 @@ private:
   MHNSW_Context *ctx;
 
   const FVector *make_vec(const void *v);
-  int alloc_neighborhood(size_t layer);
+  int alloc_neighborhood(uint8_t layer);
 public:
   const FVector *vec= nullptr;
   Neighborhood *neighbors= nullptr;
@@ -191,7 +191,7 @@ public:
   bool stored:1, deleted:1;
 
   FVectorNode(MHNSW_Context *ctx_, const void *gref_);
-  FVectorNode(MHNSW_Context *ctx_, const void *tref_, size_t layer,
+  FVectorNode(MHNSW_Context *ctx_, const void *tref_, uint8_t layer,
               const void *vec_);
   float distance_to(const FVector *other) const;
   int load(TABLE *graph);
@@ -596,7 +596,7 @@ FVectorNode::FVectorNode(MHNSW_Context *ctx_, const void *gref_)
   memcpy(gref(), gref_, gref_len());
 }
 
-FVectorNode::FVectorNode(MHNSW_Context *ctx_, const void *tref_, size_t layer,
+FVectorNode::FVectorNode(MHNSW_Context *ctx_, const void *tref_, uint8_t layer,
                          const void *vec_)
   : ctx(ctx_), stored(false), deleted(false)
 {
@@ -613,7 +613,7 @@ float FVectorNode::distance_to(const FVector *other) const
   return vec->distance_to(other, ctx->vec_len);
 }
 
-int FVectorNode::alloc_neighborhood(size_t layer)
+int FVectorNode::alloc_neighborhood(uint8_t layer)
 {
   if (neighbors)
     return 0;
@@ -667,11 +667,11 @@ int FVectorNode::load_from_record(TABLE *graph)
   memcpy(vec_ptr, v->ptr(), v->length());
   vec_ptr->fix_tail(ctx->vec_len);
 
-  size_t layer= graph->field[FIELD_LAYER]->val_int();
+  longlong layer= graph->field[FIELD_LAYER]->val_int();
   if (layer > 100) // 10e30 nodes at M=2, more at larger M's
     return my_errno= HA_ERR_CRASHED;
 
-  if (int err= alloc_neighborhood(layer))
+  if (int err= alloc_neighborhood(static_cast<uint8_t>(layer)))
     return err;
 
   v= graph->field[FIELD_NEIGHBORS]->val_str(&buf);
@@ -751,7 +751,7 @@ class VisitedSet
   public:
   uint count= 0;
   VisitedSet(MEM_ROOT *root, const FVector *target, uint size) :
-    root(root), target(target), map(size, 0.01) {}
+    root(root), target(target), map(size, 0.01f) {}
   Visited *create(FVectorNode *node, bool e= false)
   {
     auto *v= new (root) Visited(node, node->distance_to(target), e);
@@ -911,7 +911,7 @@ static int update_second_degree_neighbors(MHNSW_Context *ctx, TABLE *graph,
 }
 
 static int search_layer(MHNSW_Context *ctx, TABLE *graph, const FVector *target,
-                        Neighborhood *start_nodes, uint result_size,
+                        Neighborhood *start_nodes, ulonglong result_size,
                         size_t layer, Neighborhood *result, bool construction)
 {
   DBUG_ASSERT(start_nodes->num > 0);
@@ -920,7 +920,7 @@ static int search_layer(MHNSW_Context *ctx, TABLE *graph, const FVector *target,
   MEM_ROOT * const root= graph->in_use->mem_root;
   Queue<Visited> candidates, best;
   bool skip_deleted;
-  uint ef= result_size, expand_size= 0;
+  uint ef= static_cast<uint>(result_size), expand_size= 0;
 
   if (construction)
   {
@@ -937,12 +937,12 @@ static int search_layer(MHNSW_Context *ctx, TABLE *graph, const FVector *target,
   {
     skip_deleted= layer == 0;
     if (ef > 1 || layer == 0)
-      ef= ef * graph->in_use->variables.mhnsw_limit_multiplier;
+      ef= static_cast<uint>(ef * graph->in_use->variables.mhnsw_limit_multiplier);
   }
 
   // WARNING! heuristic here
   const double est_heuristic= 8 * std::sqrt(ctx->max_neighbors(layer));
-  const uint est_size= est_heuristic * std::pow(ef, ctx->get_ef_power());
+  const uint est_size= static_cast<uint>(est_heuristic * std::pow(ef, ctx->get_ef_power()));
   VisitedSet visited(root, target, est_size);
 
   candidates.init(10000, false, Visited::cmp);
@@ -1090,9 +1090,9 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
 
   const double NORMALIZATION_FACTOR= 1 / std::log(ctx->M);
   double log= -std::log(my_rnd(&thd->rand)) * NORMALIZATION_FACTOR;
-  const longlong max_layer= start_nodes.links[0]->max_layer;
-  longlong target_layer= std::min<longlong>(std::floor(log), max_layer + 1);
-  longlong cur_layer;
+  const uint8_t max_layer= start_nodes.links[0]->max_layer;
+  uint8_t target_layer= std::min<uint8_t>(static_cast<uint8_t>(std::floor(log)), max_layer + 1);
+  int cur_layer;
 
   FVectorNode *target= new (ctx->alloc_node())
                  FVectorNode(ctx, table->file->ref, target_layer, res->ptr());
