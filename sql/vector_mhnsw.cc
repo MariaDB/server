@@ -89,7 +89,7 @@ struct FVector
     return vec;
   }
 
-#if __GNUC__ > 7
+#if __GNUC__ > 7 && defined(HAVE_IMMINTRIN_H)
   __attribute__ ((target ("avx2,avx")))
   static float dot_product(const int16_t *v1, const int16_t *v2, size_t len)
   {

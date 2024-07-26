@@ -40,6 +40,11 @@ class Item_func_vec_distance: public Item_real_func
 public:
   Item_func_vec_distance(THD *thd, Item *a, Item *b)
    :Item_real_func(thd, a, b) {}
+  bool fix_length_and_dec(THD *thd) override
+  {
+    set_maybe_null();
+    return Item_real_func::fix_length_and_dec(thd);
+  }
   double val_real() override;
   LEX_CSTRING func_name_cstring() const override
   {

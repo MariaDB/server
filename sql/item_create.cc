@@ -6238,7 +6238,7 @@ Create_func_year_week::create_native(THD *thd, const LEX_CSTRING *name,
 class Create_func_vec_distance: public Create_func_arg2
 {
 public:
-  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2)
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override
   { return new (thd->mem_root) Item_func_vec_distance(thd, arg1, arg2); }
 
   static Create_func_vec_distance s_singleton;
@@ -6254,7 +6254,7 @@ Create_func_vec_distance Create_func_vec_distance::s_singleton;
 class Create_func_vec_totext: public Create_func_arg1
 {
 public:
-  Item *create_1_arg(THD *thd, Item *arg1)
+  Item *create_1_arg(THD *thd, Item *arg1) override
   { return new (thd->mem_root) Item_func_vec_totext(thd, arg1); }
 
   static Create_func_vec_totext s_singleton;
@@ -6271,7 +6271,7 @@ Create_func_vec_totext Create_func_vec_totext::s_singleton;
 class Create_func_vec_fromtext: public Create_func_arg1
 {
 public:
-  Item *create_1_arg(THD *thd, Item *arg1)
+  Item *create_1_arg(THD *thd, Item *arg1) override
   { return new (thd->mem_root) Item_func_vec_fromtext(thd, arg1); }
 
   static Create_func_vec_fromtext s_singleton;
