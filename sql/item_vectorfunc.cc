@@ -197,12 +197,9 @@ String *Item_func_vec_fromtext::val_str(String *buf)
         if (unlikely(error))
             goto error_format;
 
-        char f_bin[4];
-        float4store(&f_bin, f);
-        buf->append(f_bin[0]);
-        buf->append(f_bin[1]);
-        buf->append(f_bin[2]);
-        buf->append(f_bin[3]);
+        uchar f_bin[4];
+        float4store(f_bin, f);
+        buf->append((char *)f_bin, 4);
         break;
       }
       default:
