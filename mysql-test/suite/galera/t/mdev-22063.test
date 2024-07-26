@@ -4,6 +4,11 @@
 --source include/have_sequence.inc
 --source include/have_aria.inc
 
+SET GLOBAL wsrep_mode = "REPLICATE_MYISAM,REPLICATE_ARIA";
+--connection node_2
+SET GLOBAL wsrep_mode = "REPLICATE_MYISAM,REPLICATE_ARIA";
+--connection node_1
+
 --echo # Case 1 CREATE SEQUENCE with no NOCACHE
 --error ER_NOT_SUPPORTED_YET
 CREATE SEQUENCE s ENGINE=InnoDB;
@@ -181,4 +186,6 @@ INSERT INTO view_t1 VALUES (5);
 SELECT * FROM t1;
 DROP TABLE t1;
 DROP VIEW view_t1;
+SET GLOBAL wsrep_mode=DEFAULT;
+--connection node_2
 SET GLOBAL wsrep_mode=DEFAULT;

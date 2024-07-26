@@ -1,5 +1,9 @@
 connection node_2;
 connection node_1;
+SET GLOBAL wsrep_mode = "REPLICATE_MYISAM,REPLICATE_ARIA";
+connection node_2;
+SET GLOBAL wsrep_mode = "REPLICATE_MYISAM,REPLICATE_ARIA";
+connection node_1;
 # Case 1 CREATE SEQUENCE with no NOCACHE
 CREATE SEQUENCE s ENGINE=InnoDB;
 ERROR 42000: This version of MariaDB doesn't yet support 'CACHE without INCREMENT BY 0 in Galera cluster'
@@ -238,4 +242,6 @@ pk
 5
 DROP TABLE t1;
 DROP VIEW view_t1;
+SET GLOBAL wsrep_mode=DEFAULT;
+connection node_2;
 SET GLOBAL wsrep_mode=DEFAULT;
