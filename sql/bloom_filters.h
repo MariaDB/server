@@ -30,6 +30,13 @@ SOFTWARE.
 #include <algorithm>
 #ifdef HAVE_IMMINTRIN_H
 #include <immintrin.h>
+#if __GNUC__ > 7
+#define DEFAULT_IMPLEMENTATION    __attribute__ ((target ("default")))
+#define INTEL_SIMD_IMPLEMENTATION __attribute__ ((target ("avx2,avx,fma")))
+#endif
+#endif
+#ifndef DEFAULT_IMPLEMENTATION
+#define DEFAULT_IMPLEMENTATION
 #endif
 
 template <typename T>
@@ -49,8 +56,8 @@ struct PatternedSimdBloomFilter
     return std::max<uint64_t>(512, bits_per_val * n + 0.5);
   }
 
-#if __GNUC__ > 7 && defined(HAVE_IMMINTRIN_H)
-  __attribute__ ((target ("avx2,avx,fma")))
+#ifdef INTEL_SIMD_IMPLEMENTATION
+  INTEL_SIMD_IMPLEMENTATION
   __m256i CalcHash(__m256i vecData)
   {
     // (almost) xxHash parallel version, 64bit input, 64bit output, seed=0
@@ -76,7 +83,7 @@ struct PatternedSimdBloomFilter
     return _mm256_xor_si256(step9, _mm256_srli_epi64(step9, 28));
   }
 
-  __attribute__ ((target ("avx2,avx,fma")))
+  INTEL_SIMD_IMPLEMENTATION
   __m256i GetBlockIdx(__m256i vecHash)
   {
     __m256i vecNumBlocksMask = _mm256_set1_epi64x(num_blocks - 1);
@@ -84,7 +91,7 @@ struct PatternedSimdBloomFilter
     return _mm256_and_si256(vecBlockIdx, vecNumBlocksMask);
   }
 
-  __attribute__ ((target ("avx2,avx,fma")))
+  INTEL_SIMD_IMPLEMENTATION
   __m256i ConstructMask(__m256i vecHash)
   {
     __m256i vecMaskIdxMask = _mm256_set1_epi64x((1 << mask_idx_bits) - 1);
@@ -103,7 +110,7 @@ struct PatternedSimdBloomFilter
     return _mm256_or_si256(vecShiftDown, vecShiftUp);
   }
 
-  __attribute__ ((target ("avx2,avx,fma")))
+  INTEL_SIMD_IMPLEMENTATION
   void Insert(const T **data)
   {
     __m256i vecDataA = _mm256_loadu_si256(reinterpret_cast<__m256i *>(data + 0));
@@ -137,7 +144,7 @@ struct PatternedSimdBloomFilter
     bv[block7] |= _mm256_extract_epi64(vecMaskB, 3);
   }
 
-  __attribute__ ((target ("avx2,avx,fma")))
+  INTEL_SIMD_IMPLEMENTATION
   uint8_t Query(T **data)
   {
     __m256i vecDataA = _mm256_loadu_si256(reinterpret_cast<__m256i *>(data + 0));
@@ -202,7 +209,7 @@ struct PatternedSimdBloomFilter
     return (unrotated << rotation) | (unrotated >> (64 - rotation));
   }
 
-  __attribute__ ((target ("default")))
+  DEFAULT_IMPLEMENTATION
   void Insert(const T **data)
   {
     for (size_t i = 0; i < 8; i++)
@@ -213,7 +220,7 @@ struct PatternedSimdBloomFilter
     }
   }
 
-  __attribute__ ((target ("default")))
+  DEFAULT_IMPLEMENTATION
   uint8_t Query(T **data)
   {
     uint8_t res_bits = 0;
