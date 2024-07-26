@@ -50,10 +50,10 @@ struct PatternedSimdBloomFilter
     bv.resize(num_blocks);
   }
 
-  uint64_t ComputeNumBits()
+  uint32_t ComputeNumBits()
   {
     double bits_per_val = -1.44 * std::log2(epsilon);
-    return std::max<uint64_t>(512, bits_per_val * n + 0.5);
+    return std::max<uint32_t>(512, static_cast<uint32_t>(bits_per_val * n + 0.5));
   }
 
 #ifdef INTEL_SIMD_IMPLEMENTATION

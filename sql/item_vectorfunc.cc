@@ -193,7 +193,7 @@ String *Item_func_vec_fromtext::val_str(String *buf)
 
         int error;
         char *start= (char *)je.value_begin, *end;
-        float f= cs->strntod(start, je.value_len, &end, &error);
+        float f= (float)cs->strntod(start, je.value_len, &end, &error);
         if (unlikely(error))
             goto error_format;
 
