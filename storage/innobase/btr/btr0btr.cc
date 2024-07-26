@@ -208,26 +208,36 @@ ATTRIBUTE_COLD void btr_read_failed(dberr_t err, const dict_index_t &index)
 }
 
 /** Get an index page and declare its latching order level.
-@param[in]	index	index tree
-@param[in]	page	page number
-@param[in]	mode	latch mode
-@param[in]	merge	whether change buffer merge should be attempted
-@param[in,out]	mtr	mini-transaction
-@param[out]	err	error code
-@param[out]	first	set if this is a first-time access to the page
+@param  index         index tree
+@param  page          page number
+@param  latch_mode    latch mode
+@param  merge         whether change buffer merge should be attempted
+@param  mtr           mini-transaction
+@param  err           error code
+@param  first         set if this is a first-time access to the page
 @return block */
-buf_block_t *btr_block_get(const dict_index_t &index,
-                           uint32_t page, rw_lock_type_t mode, bool merge,
-                           mtr_t *mtr, dberr_t *err, bool *first)
+buf_block_t *btr_block_get(const dict_index_t &index, uint32_t page,
+                           rw_lock_type_t latch_mode, bool merge, mtr_t *mtr,
+                           dberr_t *err, bool *first
+#if defined(UNIV_DEBUG) || !defined(DBUG_OFF)
+                           , ulint page_get_mode
+                           /*!< BUF_GET or BUF_GET_POSSIBLY_FREED */
+#endif /* defined(UNIV_DEBUG) || !defined(DBUG_OFF) */
+                            )
 {
-  ut_ad(mode != RW_NO_LATCH);
+  ut_ad(latch_mode != RW_NO_LATCH);
   dberr_t local_err;
   if (!err)
     err= &local_err;
   buf_block_t *block=
-    buf_page_get_gen(page_id_t{index.table->space->id, page},
-                     index.table->space->zip_size(), mode, nullptr, BUF_GET,
-                     mtr, err, merge && !index.is_clust());
+      buf_page_get_gen(page_id_t{index.table->space->id, page},
+                       index.table->space->zip_size(), latch_mode, nullptr,
+#if defined(UNIV_DEBUG) || !defined(DBUG_OFF)
+                       page_get_mode,
+#else
+                       BUF_GET,
+#endif /* defined(UNIV_DEBUG) || !defined(DBUG_OFF) */
+                       mtr, err, merge && !index.is_clust());
   ut_ad(!block == (*err != DB_SUCCESS));
 
   if (UNIV_LIKELY(block != nullptr))

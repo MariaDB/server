@@ -1,5 +1,10 @@
 --source include/have_innodb.inc
 --source include/count_sessions.inc
+--source include/have_debug.inc
+
+SET @old_innodb_enable_xap_unlock_unmodified_for_primary_debug=
+  @@GLOBAL.innodb_enable_xap_unlock_unmodified_for_primary_debug;
+SET GLOBAL innodb_enable_xap_unlock_unmodified_for_primary_debug= 1;
 
 CREATE TABLE t1 (a int, b int, c int,
   INDEX i1(a),
@@ -29,6 +34,9 @@ SELECT * FROM t1 FORCE INDEX (i1) WHERE a=2 AND b=1 FOR UPDATE;
 --connection default
 XA COMMIT "t1";
 DROP TABLE t1;
+
+SET GLOBAL innodb_enable_xap_unlock_unmodified_for_primary_debug=
+  @old_innodb_enable_xap_unlock_unmodified_for_primary_debug;
 
 SET GLOBAL innodb_lock_wait_timeout= @old_timeout;
 --source include/wait_until_count_sessions.inc
