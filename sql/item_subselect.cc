@@ -5184,8 +5184,6 @@ bool subselect_hash_sj_engine::init(List<Item> *tmp_columns, uint subquery_id)
   if (!(name.str= (char*) thd->memdup(buf, name.length + 1)))
     DBUG_RETURN(TRUE);
 
-  result_sink->get_tmp_table_param()->materialized_subquery= true;
-
   if (item->substype() == Item_subselect::IN_SUBS &&
       (item->get_IN_subquery()->is_jtbm_merged))
   {

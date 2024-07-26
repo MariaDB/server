@@ -1725,7 +1725,37 @@ SELECT * FROM t4 WHERE b NOT IN ( SELECT * FROM v1 );
 drop view v1;
 drop table t1,t2,t3,t4;
 
-SET optimizer_switch=@save_optimizer_switch;
+--echo #
+--echo # MDEV-32401
+--echo #
 
---echo # restore default
-set @@optimizer_switch= default;
+CREATE TABLE t0 (c TEXT);
+INSERT INTO t0 VALUES (71), (-79);
+SELECT t1.d FROM (SELECT c AS d FROM t0) AS t1 JOIN t0 ON (
+  SELECT ORD((SELECT BIT_OR(d))) FROM t0 GROUP BY d
+);
+EXPLAIN EXTENDED SELECT t1.d FROM (SELECT c AS d FROM t0) AS t1 JOIN t0 ON (
+  SELECT ORD((SELECT BIT_OR(d))) FROM t0 GROUP BY d
+);
+SELECT t1.d FROM (SELECT CAST(c as int) AS d FROM t0) AS t1 JOIN t0 ON (
+  SELECT ORD((SELECT BIT_OR(d))) FROM t0 GROUP BY d
+);
+EXPLAIN EXTENDED SELECT t1.d FROM (SELECT CAST(c as int) AS d FROM t0) AS t1 JOIN t0 ON (
+  SELECT ORD((SELECT BIT_OR(d))) FROM t0 GROUP BY d
+);
+CREATE TABLE t1 (c INT);
+INSERT INTO t1 VALUES (71), (-79);
+SELECT t2.d FROM (SELECT c AS d FROM t1) AS t2 JOIN t1 ON (
+  SELECT ORD((SELECT BIT_OR(d))) FROM t1 GROUP BY d
+);
+EXPLAIN EXTENDED SELECT t2.d FROM (SELECT c AS d FROM t1) AS t2 JOIN t1 ON (
+  SELECT ORD((SELECT BIT_OR(d))) FROM t1 GROUP BY d
+);
+
+DROP TABLE t0, t1;
+
+--echo #
+--echo # End of 10.5 tests
+--echo #
+
+SET optimizer_switch=@save_optimizer_switch;

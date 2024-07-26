@@ -19196,8 +19196,11 @@ bool Create_tmp_table::add_fields(THD *thd,
           temp table to override the 'result_field' that was set for
           the internal temp table.
         */
-        if (!agg_item->result_field || !param->materialized_subquery)
+        if (not_all_columns)
+        {
+          DBUG_ASSERT(!agg_item->result_field);
           agg_item->result_field= new_field;
+        }
       }
       tmp_from_field++;
 
