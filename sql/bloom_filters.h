@@ -45,15 +45,15 @@ struct PatternedSimdBloomFilter
   PatternedSimdBloomFilter(int n, float eps) : n(n), epsilon(eps)
   {
     m = ComputeNumBits();
-    int log_num_blocks = my_bit_log2_uint32(m) + 1 - rotate_bits;
+    int log_num_blocks = my_bit_log2_uint64(m) + 1 - rotate_bits;
     num_blocks = (1ULL << log_num_blocks);
     bv.resize(num_blocks);
   }
 
-  uint32_t ComputeNumBits()
+  uint64_t ComputeNumBits()
   {
     double bits_per_val = -1.44 * std::log2(epsilon);
-    return std::max<uint32_t>(512, static_cast<uint32_t>(bits_per_val * n + 0.5));
+    return std::max<uint64_t>(512, static_cast<uint64_t>(bits_per_val * n + 0.5));
   }
 
 #ifdef INTEL_SIMD_IMPLEMENTATION
