@@ -202,6 +202,12 @@ extern uint srv_n_fil_crypt_iops;
 my_bool innodb_evict_tables_on_commit_debug;
 #endif
 
+#if defined(UNIV_DEBUG) || \
+    defined(INNODB_ENABLE_XAP_UNLOCK_UNMODIFIED_FOR_PRIMARY)
+my_bool innodb_enable_xap_unlock_unmodified_for_primary_debug;
+#endif /* defined(UNIV_DEBUG) ||
+          defined(INNODB_ENABLE_XAP_UNLOCK_UNMODIFIED_FOR_PRIMARY) */
+
 /** File format constraint for ALTER TABLE */
 ulong innodb_instant_alter_column_allowed;
 
@@ -19727,6 +19733,15 @@ static MYSQL_SYSVAR_UINT(saved_page_number_debug,
   NULL, NULL, 0, 0, UINT_MAX32, 0);
 #endif /* UNIV_DEBUG */
 
+#if defined(UNIV_DEBUG) || \
+    defined(INNODB_ENABLE_XAP_UNLOCK_UNMODIFIED_FOR_PRIMARY)
+static MYSQL_SYSVAR_BOOL(enable_xap_unlock_unmodified_for_primary_debug,
+  innodb_enable_xap_unlock_unmodified_for_primary_debug, PLUGIN_VAR_NOCMDARG,
+  "Unlock unmodified records on XA PREPARE for primary.",
+  NULL, NULL, FALSE);
+#endif /* defined(UNIV_DEBUG) ||
+          defined(INNODB_ENABLE_XAP_UNLOCK_UNMODIFIED_FOR_PRIMARY) */
+
 static MYSQL_SYSVAR_BOOL(force_primary_key,
   srv_force_primary_key,
   PLUGIN_VAR_OPCMDARG,
@@ -19964,6 +19979,11 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(fil_make_page_dirty_debug),
   MYSQL_SYSVAR(saved_page_number_debug),
 #endif /* UNIV_DEBUG */
+#if defined(UNIV_DEBUG) || \
+    defined(INNODB_ENABLE_XAP_UNLOCK_UNMODIFIED_FOR_PRIMARY)
+  MYSQL_SYSVAR(enable_xap_unlock_unmodified_for_primary_debug),
+#endif /* defined(UNIV_DEBUG) ||
+          defined(INNODB_ENABLE_XAP_UNLOCK_UNMODIFIED_FOR_PRIMARY) */
   MYSQL_SYSVAR(force_primary_key),
   MYSQL_SYSVAR(fatal_semaphore_wait_threshold),
   /* Table page compression feature */
