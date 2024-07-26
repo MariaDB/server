@@ -89,8 +89,8 @@ struct FVector
     return vec;
   }
 
-#if __GNUC__ > 7 && defined(HAVE_IMMINTRIN_H)
-  __attribute__ ((target ("avx2,avx")))
+#ifdef INTEL_SIMD_IMPLEMENTATION
+  INTEL_SIMD_IMPLEMENTATION
   static float dot_product(const int16_t *v1, const int16_t *v2, size_t len)
   {
     typedef float v8f __attribute__((vector_size(SIMD_bytes)));
@@ -107,7 +107,7 @@ struct FVector
   }
 #endif
 
-  __attribute__ ((target ("default")))
+  DEFAULT_IMPLEMENTATION
   static float dot_product(const int16_t *v1, const int16_t *v2, size_t len)
   {
     int64_t d= 0;
