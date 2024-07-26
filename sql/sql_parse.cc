@@ -4728,8 +4728,11 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
           if (!wsrep_toi)
           {
             /* Currently we support TOI for MyISAM only. */
-            if (db_type == DB_TYPE_MYISAM && wsrep_replicate_myisam)
+            if ((db_type == DB_TYPE_MYISAM && wsrep_check_mode(WSREP_MODE_REPLICATE_MYISAM)) ||
+                (db_type == DB_TYPE_ARIA   && wsrep_check_mode(WSREP_MODE_REPLICATE_ARIA)))
+            {
               WSREP_TO_ISOLATION_BEGIN(first_table->db.str, first_table->table_name.str, NULL);
+            }
           }
         }
       }
