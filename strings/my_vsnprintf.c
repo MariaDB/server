@@ -477,12 +477,13 @@ start:
 
   if (!*fmt)                                  /* End of format string */
   {
+    char arg_type;
     uint i;
     print_arr[idx].end= fmt;
     /* Obtain parameters from the list */
     for (i= 0 ; i < arg_count; i++)
     {
-      switch (args_arr[i].arg_type) {
+      switch (arg_type= args_arr[i].arg_type) {
       case 's':
       case 'b':
       case 'T':
@@ -501,7 +502,7 @@ start:
       case 'p':
         if (args_arr[i].have_longlong)
           args_arr[i].longlong_arg= va_arg(ap,longlong);
-        else if (args_arr[i].arg_type == 'd' || args_arr[i].arg_type == 'i')
+        else if (arg_type == 'd' || arg_type == 'i')
           args_arr[i].longlong_arg= va_arg(ap, int);
         else
           args_arr[i].longlong_arg= va_arg(ap, uint);
@@ -518,14 +519,13 @@ start:
     for (i= 0; i <= idx; i++)
     {
       size_t width= 0, length= 0;
-      switch (print_arr[i].arg_type) {
+      switch (arg_type= print_arr[i].arg_type) {
       case 's':
       case 'T':
       case 'b':
       {
         char *par= args_arr[print_arr[i].arg_idx].str_arg;
-        my_bool suffix_b= print_arr[i].arg_type == 'b';
-        my_bool suffix_t= print_arr[i].arg_type == 'T';
+        my_bool suffix_b= arg_type == 'b', suffix_t= arg_type == 'T';
         switch (*print_arr[i].begin) // look at the start of the next chunk
         {
         case 'Q':
@@ -571,7 +571,7 @@ start:
         double d= args_arr[print_arr[i].arg_idx].double_arg;
         width= (print_arr[i].flags & WIDTH_ARG) ?
           (uint)args_arr[print_arr[i].width].longlong_arg : print_arr[i].width;
-        to= process_dbl_arg(to, end, width, d, print_arr[i].arg_type);
+        to= process_dbl_arg(to, end, width, d, arg_type);
         break;
       }
       case 'd':
@@ -585,8 +585,8 @@ start:
       {
         /* Integer parameter */
         longlong larg= args_arr[print_arr[i].arg_idx].longlong_arg;
-        my_bool suffix_e= print_arr[i].arg_type == 'M';
-        if (print_arr[i].arg_type == 'u')
+        my_bool suffix_e= arg_type == 'M';
+        if (arg_type == 'u')
           switch (*print_arr[idx].begin) // look at the start of the next chunk
           {
           case 'E':
@@ -620,7 +620,7 @@ start:
           length= (print_arr[i].flags & LENGTH_ARG)
             ? (size_t)args_arr[print_arr[i].length].longlong_arg
             : print_arr[i].length;
-          to= process_int_arg(to, end, length, larg, print_arr[i].arg_type,
+          to= process_int_arg(to, end, length, larg, arg_type,
                               print_arr[i].flags);
         }
         break;
@@ -681,7 +681,7 @@ start:
 size_t my_vsnprintf_ex(CHARSET_INFO *cs, char *to, size_t n,
                        const char* fmt, va_list ap)
 {
-  char *start=to, *end=to+n-1;
+  char *start=to, *end=to+n-1, arg_type;
   size_t length, width;
   uint print_type, have_longlong;
 
@@ -744,15 +744,15 @@ size_t my_vsnprintf_ex(CHARSET_INFO *cs, char *to, size_t n,
 
     fmt= check_longlong(fmt, &have_longlong);
 
-    switch(*fmt) {
+    switch (arg_type= *fmt) {
     case 's':
     case 'T':
     case 'b':
     {
       /* String parameter */
       reg2 char *par= va_arg(ap, char *);
-      my_bool suffix_b= *fmt == 'b', suffix_t= *fmt == 'T';
-      switch (fmt[1]) // look-ahead
+      my_bool suffix_b= arg_type == 'b', suffix_t= arg_type == 'T';
+      switch (fmt[1]) // look-ahead (will at most land on the terminating `\0`)
       {
       case 'Q':
         print_type|= ESCAPED_ARG;
@@ -786,7 +786,7 @@ size_t my_vsnprintf_ex(CHARSET_INFO *cs, char *to, size_t n,
 #if __has_feature(memory_sanitizer)        /* QQ: MSAN has double trouble? */
       __msan_unpoison(&d, sizeof(double));
 #endif
-      to= process_dbl_arg(to, end, width, d, *fmt);
+      to= process_dbl_arg(to, end, width, d, arg_type);
       continue;
     }
     case 'd':
@@ -800,7 +800,6 @@ size_t my_vsnprintf_ex(CHARSET_INFO *cs, char *to, size_t n,
     {
       /* Integer parameter */
       longlong larg;
-      const char arg_type= *fmt;
       my_bool suffix_e= arg_type == 'M';
       if (have_longlong)
         larg= va_arg(ap,longlong);
