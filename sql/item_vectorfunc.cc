@@ -59,11 +59,10 @@ double Item_func_vec_distance::val_real()
 
 bool Item_func_vec_totext::fix_length_and_dec(THD *thd)
 {
-  collation.set(default_charset());
   decimals= 0;
   max_length= ((args[0]->max_length / 4) *
-               (MAX_FLOAT_STR_LENGTH + 1 /* comma */)) + 2 /* braces */ *
-               collation.collation->mbmaxlen;
+               (MAX_FLOAT_STR_LENGTH + 1 /* comma */)) + 2 /* braces */;
+  fix_length_and_charset(max_length, default_charset());
   set_maybe_null();
   return false;
 }
@@ -140,13 +139,12 @@ Item_func_vec_fromtext::Item_func_vec_fromtext(THD *thd, Item *a)
 
 bool Item_func_vec_fromtext::fix_length_and_dec(THD *thd)
 {
-  collation.set(&my_charset_bin);
   decimals= 0;
   /* Worst case scenario, for a valid input we have a string of the form:
      [1,2,3,4,5,...] single digit numbers.
-     This means we can have (max_length - 2) / 2 floats.
-     Each float takes 4 bytes, so we do max_length - 2 * 2. */
-  max_length= (args[0]->max_length - 2) * 2 * my_charset_bin.mbmaxlen;
+     This means we can have (max_length - 1) / 2 floats.
+     Each float takes 4 bytes, so we do (max_length - 1) * 2. */
+  fix_length_and_charset((args[0]->max_length - 1) * 2, &my_charset_bin);
   set_maybe_null();
   return false;
 }

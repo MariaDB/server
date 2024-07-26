@@ -28,7 +28,9 @@ SOFTWARE.
 #include <cmath>
 #include <vector>
 #include <algorithm>
+#ifdef HAVE_IMMINTRIN_H
 #include <immintrin.h>
+#endif
 
 template <typename T>
 struct PatternedSimdBloomFilter
@@ -36,7 +38,7 @@ struct PatternedSimdBloomFilter
   PatternedSimdBloomFilter(int n, float eps) : n(n), epsilon(eps)
   {
     m = ComputeNumBits();
-    int log_num_blocks = 32 - __builtin_clz(m) - rotate_bits;
+    int log_num_blocks = my_bit_log2_uint32(m) + 1 - rotate_bits;
     num_blocks = (1ULL << log_num_blocks);
     bv.resize(num_blocks);
   }
@@ -47,6 +49,7 @@ struct PatternedSimdBloomFilter
     return std::max<uint64_t>(512, bits_per_val * n + 0.5);
   }
 
+#if __GNUC__ > 7 && defined(HAVE_IMMINTRIN_H)
   __attribute__ ((target ("avx2,avx,fma")))
   __m256i CalcHash(__m256i vecData)
   {
@@ -159,6 +162,7 @@ struct PatternedSimdBloomFilter
     uint8_t res_bits = static_cast<uint8_t>(_mm256_movemask_epi8(_mm256_set1_epi64x(res_bytes)) & 0xff);
     return res_bits;
   }
+#endif
 
   /********************************************************
   ********* non-SIMD fallback version ********************/

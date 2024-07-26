@@ -12,7 +12,7 @@ t1	CREATE TABLE `t1` (
   `v` blob NOT NULL,
   PRIMARY KEY (`id`),
   VECTOR KEY `v` (`v`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show keys from t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t1	0	PRIMARY	1	id	A	0	NULL	NULL		BTREE			NO
@@ -260,7 +260,7 @@ t2	CREATE TABLE `t2` (
   `v` blob NOT NULL,
   PRIMARY KEY (`id`),
   VECTOR KEY `v` (`v`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1, t2;
 db.opt
 # Test insert ... select with vector index
@@ -315,7 +315,7 @@ t1	CREATE TABLE `t1` (
   `v` blob NOT NULL,
   PRIMARY KEY (`id`),
   VECTOR KEY `v` (`v`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 db.opt
 # Test RENAME TABLE with vector index

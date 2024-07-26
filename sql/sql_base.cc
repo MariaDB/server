@@ -9829,17 +9829,17 @@ int TABLE::hlindex_open(uint nr)
     mysql_mutex_lock(&s->LOCK_share);
     if (!s->hlindex)
     {
+      mysql_mutex_unlock(&s->LOCK_share);
       TABLE_SHARE *share;
       char *path= NULL;
-      mysql_mutex_unlock(&s->LOCK_share);
+      size_t path_len= s->normalized_path.length + HLINDEX_BUF_LEN;
 
       share= (TABLE_SHARE*)alloc_root(&s->mem_root, sizeof(*share));
-      path= (char*)alloc_root(&s->mem_root,
-                              s->normalized_path.length + HLINDEX_BUF_LEN);
+      path= (char*)alloc_root(&s->mem_root, path_len);
       if (!share || !path)
         return 1;
 
-      my_snprintf(path, HLINDEX_BUF_LEN, "%s" HLINDEX_TEMPLATE,
+      my_snprintf(path, path_len, "%s" HLINDEX_TEMPLATE,
                   s->normalized_path.str, nr);
       init_tmp_table_share(in_use, share, s->db.str, 0, s->table_name.str,
                            path, false);

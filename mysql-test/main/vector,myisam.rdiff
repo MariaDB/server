@@ -7,7 +7,7 @@
 +
 +MyISAM file:         datadir/test/t1#i#01
 +Record format:       Packed
-+Character set:       latin1_swedish_ci (8)
++Character set:       ? (0)
 +Data records:                    1  Deleted blocks:                 0
 +Recordlength:                   30
 +
@@ -19,7 +19,7 @@
 +
 +MyISAM file:         datadir/test/t1#i#01
 +Record format:       Packed
-+Character set:       latin1_swedish_ci (8)
++Character set:       ? (0)
 +Data records:                    0  Deleted blocks:                 0
 +Recordlength:                   30
 +

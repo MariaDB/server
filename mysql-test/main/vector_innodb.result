@@ -6,7 +6,7 @@ t1	CREATE TABLE `t1` (
   `v` blob NOT NULL,
   PRIMARY KEY (`id`),
   VECTOR KEY `v` (`v`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert t1 (v) values
 (x'106d263fdf68ba3eb08d533f97d46e3fd1e1ec3edc4c123f984c563f621a233f'),
 (x'd55bee3c56eb9e3e84e3093f838dce3eb7cd653fe32d7d3f12de133c5715d23e'),

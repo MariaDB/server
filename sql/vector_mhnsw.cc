@@ -89,7 +89,7 @@ struct FVector
     return vec;
   }
 
-#if __GNUC__ > 7
+#if __GNUC__ > 7 && defined(HAVE_IMMINTRIN_H)
   __attribute__ ((target ("avx2,avx")))
   static float dot_product(const int16_t *v1, const int16_t *v2, size_t len)
   {
@@ -473,18 +473,24 @@ int MHNSW_Trx::MHNSW_hton::do_savepoint_rollback(handlerton *, THD *thd, void *)
 
 int MHNSW_Trx::MHNSW_hton::do_rollback(handlerton *, THD *thd, bool)
 {
+  MHNSW_Trx *trx_next;
   for (auto trx= static_cast<MHNSW_Trx*>(thd_get_ha_data(thd, &hton));
-       trx; trx= trx->next)
+       trx; trx= trx_next)
+  {
+    trx_next= trx->next;
     trx->~MHNSW_Trx();
+  }
   thd_set_ha_data(current_thd, &hton, nullptr);
   return 0;
 }
 
 int MHNSW_Trx::MHNSW_hton::do_commit(handlerton *, THD *thd, bool)
 {
+  MHNSW_Trx *trx_next;
   for (auto trx= static_cast<MHNSW_Trx*>(thd_get_ha_data(thd, &hton));
-       trx; trx= trx->next)
+       trx; trx= trx_next)
   {
+    trx_next= trx->next;
     auto ctx= MHNSW_Context::get_from_share(trx->table_share, nullptr);
     if (ctx)
     {
