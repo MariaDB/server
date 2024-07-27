@@ -365,7 +365,9 @@ char server_uid[SERVER_UID_SIZE+1];   // server uid will be written here
 /* Global variables */
 
 bool opt_bin_log, opt_bin_log_used=0, opt_ignore_builtin_innodb= 0;
-my_bool opt_binlog_in_innodb= FALSE;
+char *opt_binlog_storage_engine= const_cast<char *>("");
+static plugin_ref opt_binlog_engine_plugin;
+handlerton *opt_binlog_engine_hton;
 bool opt_bin_log_compress;
 uint opt_bin_log_compress_min_len;
 my_bool opt_log, debug_assert_if_crashed_table= 0, opt_help= 0;
@@ -1985,6 +1987,8 @@ static void clean_up(bool print_message)
   injector::free_instance();
   mysql_bin_log.cleanup();
   Gtid_index_writer::gtid_index_cleanup();
+  if (opt_binlog_engine_plugin)
+    plugin_unlock(0, opt_binlog_engine_plugin);
 
   my_tz_free();
   my_dboptions_cache_free();
@@ -5465,6 +5469,30 @@ static int init_server_components()
   if (init_gtid_pos_auto_engines())
     unireg_abort(1);
 
+  if (opt_binlog_storage_engine && *opt_binlog_storage_engine && !opt_bootstrap)
+  {
+    LEX_CSTRING name= { opt_binlog_storage_engine, strlen(opt_binlog_storage_engine) };
+    opt_binlog_engine_plugin= ha_resolve_by_name(0, &name, false);
+    if (!opt_binlog_engine_plugin ||
+        !ha_storage_engine_is_enabled(opt_binlog_engine_hton=
+                                      plugin_hton(opt_binlog_engine_plugin)))
+    {
+      if (!opt_binlog_engine_plugin)
+        sql_print_error("Unknown/unsupported storage engine: %s",
+                        opt_binlog_storage_engine);
+      else
+        sql_print_error("Engine %s is not available for --innodb-binlog-engine",
+                        opt_binlog_storage_engine);
+      unireg_abort(1);
+    }
+    if (!opt_binlog_engine_hton->get_binlog_reader)
+    {
+      sql_print_error("Engine %s does not support --innodb-binlog-engine",
+                      opt_binlog_storage_engine);
+      unireg_abort(1);
+    }
+  }
+
 #ifdef USE_ARIA_FOR_TMP_TABLES
   if (!ha_storage_engine_is_enabled(maria_hton) && !opt_bootstrap)
   {
@@ -5501,7 +5529,7 @@ static int init_server_components()
     When binlog is stored in InnoDB, checksums are done on the page level, so
     set the default for per-event checksums to OFF.
   */
-  if (opt_binlog_in_innodb)
+  if (opt_binlog_engine_hton)
     binlog_checksum_options= 0;
 
   tc_log= get_tc_log_implementation();
@@ -6528,12 +6556,13 @@ struct my_option my_long_options[]=
   {"binlog-ignore-db", OPT_BINLOG_IGNORE_DB,
    "Tells the master that updates to the given database should not be logged to the binary log.",
    0, 0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  /* ToDo: option --binlog-storage-engine={binlog|innodb|<potentially other supporting engine>) */
-  {"binlog-in-innodb", OPT_BINLOG_IN_INNODB,
-   "Store the binlog transactionally in an InnoDB tablespace instead of as separate file.",
-   &opt_binlog_in_innodb,
-   &opt_binlog_in_innodb,
-   0, GET_BOOL, OPT_ARG, 0, 0, 1, 0, 0, 0},
+  /* ToDo: A read-only sysvar to show the value of @@binlog_storage_engine. I don't think the complexity of dynamically setting it is worth trying to implement that, not at first at least. */
+  {"binlog-storage-engine", 0,
+   "Store the binlog transactionally in a supporting storage engine instead "
+   "of as separate files. Currently only InnoDB is supported.",
+   &opt_binlog_storage_engine,
+   &opt_binlog_storage_engine,
+   0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 #ifndef DISABLE_GRANT_OPTIONS
   {"bootstrap", OPT_BOOTSTRAP, "Used by mysql installation scripts.", 0, 0, 0,
    GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
@@ -6623,9 +6652,6 @@ struct my_option my_long_options[]=
    &debug_assert_on_not_freed_memory, 0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0,
    0},
 #endif /* DBUG_OFF */
-  /* default-storage-engine should have "MyISAM" as def_value. Instead
-     of initializing it here it is done in init_common_variables() due
-     to a compiler bug in Sun Studio compiler. */
   {"default-storage-engine", 0, "The default storage engine for new tables",
    &default_storage_engine, 0, 0, GET_STR, REQUIRED_ARG,
    0, 0, 0, 0, 0, 0 },
