@@ -18,7 +18,7 @@ SET SESSION binlog_format= ROW;
 --echo *** Do $num_trx transactions ...
 --disable_query_log
 --let $i= 0
-while ($i < 1500) {
+while ($i < $num_trx) {
   eval INSERT INTO t2 VALUES ($i, REPEAT("x", 2048));
   inc $i;
 }
