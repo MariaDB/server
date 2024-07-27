@@ -1897,7 +1897,7 @@ binlog_get_cache(THD *thd, IO_CACHE **out_cache, size_t *out_main_size)
   size_t main_size= 0;
   binlog_cache_mngr *cache_mngr;
   if (likely(!opt_bootstrap /* ToDo needed? */) &&
-      opt_binlog_in_innodb &&
+      opt_binlog_engine_hton &&
       (cache_mngr= thd->binlog_get_cache_mngr()))
   {
     main_size= cache_mngr->gtid_cache_offset;
@@ -9399,7 +9399,7 @@ MYSQL_BIN_LOG::write_transaction_or_stmt(group_commit_entry *entry,
   DBUG_ASSERT(!(entry->using_stmt_cache && !mngr->stmt_cache.empty() &&
                 mngr->get_binlog_cache_log(FALSE)->error));
 
-  if (!opt_binlog_in_innodb)
+  if (!opt_binlog_engine_hton)
   {
   if (write_gtid_event(entry->thd, &log_file, is_prepared_xa(entry->thd),
                        entry->using_trx_cache, commit_id,
@@ -12826,10 +12826,10 @@ binlog_checksum_update(MYSQL_THD thd, struct st_mysql_sys_var *var,
   ulong UNINIT_VAR(prev_binlog_id);
 
   mysql_mutex_unlock(&LOCK_global_system_variables);
-  if (opt_binlog_in_innodb && value)
+  if (opt_binlog_engine_hton && value)
   {
     /* ToDo: Should this be an error instead? Or an SQL-level warning at least. */
-    sql_print_information("Value of binlog_checksum forced to NONE since binlog_in_innodb is enabled, and InnoDB uses its own superior checksumming of pages");
+    sql_print_information("Value of binlog_checksum forced to NONE since binlog_storage_engine is enabled, and InnoDB uses its own superior checksumming of pages");
     value= 0;
   }
   mysql_mutex_lock(mysql_bin_log.get_log_lock());
