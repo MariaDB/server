@@ -59,6 +59,7 @@ class Field_varstring;
 class Field_blob;
 class Column_definition;
 class select_result;
+class handler_binlog_reader;
 
 // the following is for checking tables
 
@@ -1527,6 +1528,10 @@ struct handlerton
   /* Called at startup to update default engine costs */
   void (*update_optimizer_costs)(OPTIMIZER_COSTS *costs);
   void *optimizer_costs;                        /* Costs are stored here */
+
+  /* Optional implementation of binlog in the engine. */
+  handler_binlog_reader * (*get_binlog_reader)();
+  int (*binlog_data)(uchar *data, size_t len);
 
    /*
      Optional clauses in the CREATE/ALTER TABLE
@@ -5808,4 +5813,50 @@ int get_select_field_pos(Alter_info *alter_info, int select_field_count,
 #ifndef DBUG_OFF
 String dbug_format_row(TABLE *table, const uchar *rec, bool print_names= true);
 #endif /* DBUG_OFF */
+
+/*
+  Class for reading a binlog implemented in an engine.
+*/
+class handler_binlog_reader {
+public:
+  /* ToDo: Should some of this state go to the derived class, in case different engines might want to do something different? */
+
+  /* The file number of the currently-being-read binlog file. */
+  uint64_t cur_file_no;
+  /* The current offset into the binlog file. */
+  uint64_t cur_file_offset;
+  /*
+    Open file handle of binlog file.
+    This may be NULL if the currently-being-read binlog file is "hot" and
+    is being read from in-memory buffers while the data may not yet be
+    written out to the file on the OS level.
+  */
+  File cur_file;
+  /* Position and length of any remaining data in buf[]. */
+  uint32_t buf_data_pos;
+  uint32_t buf_data_remain;
+  /* Buffer used when reading data out via read_binlog_data(). */
+  static constexpr size_t BUF_SIZE= 32768;
+  uchar *buf;
+
+  handler_binlog_reader()
+    : cur_file_no(~(uint64_t)0), cur_file_offset(0), cur_file(0),
+      buf_data_pos(0), buf_data_remain(0)
+  {
+    buf= (uchar *)my_malloc(PSI_INSTRUMENT_ME, BUF_SIZE, MYF(0));
+  }
+  virtual int read_binlog_data(uchar *buf, uint32_t len) = 0;
+
+/*
+  cur_file_no      -> implicitly gives file/tablespace
+  cur_file_offset  -> implicitly gives page
+  cur_file_fh      -> open fh, if any
+  cur_chunk_len
+  cur_chunk_sofar
+*/
+  virtual ~handler_binlog_reader() {
+    my_free(buf);
+  };
+};
+
 #endif /* HANDLER_INCLUDED */

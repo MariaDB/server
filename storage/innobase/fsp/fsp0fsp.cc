@@ -6035,7 +6035,17 @@ uint32_t binlog_cur_page_no;
 /* ToDo: This needs to be initialized to the current point in any existing binlog. */
 uint32_t binlog_cur_page_offset= FIL_PAGE_DATA;
 /* ToDo: This needs to discover existing binlogs and start from the next free index. */
-uint64_t binlog_file_no= 0;
+std::atomic<uint64_t> binlog_file_no;
+/*
+  Point at which it is guaranteed that all data has been written out to the
+  binlog file (on the OS level; not necessarily fsync()'ed yet).
+
+  Stores the most recent two values, each corresponding to binlog_file_no&1.
+*/
+/* ToDo: maintain this offset value as up to where data has been written out to the OS. Needs to be binary-searched in current binlog file at server restart; which is also a reason why it might not be a multiple of the page size. */
+std::atomic<uint64_t> binlog_cur_written_offset[2];
+/* Offset of last valid byte of data in most recent 2 binlog files. */
+std::atomic<uint64_t> binlog_cur_end_offset[2];
 
 
 /* '.' + '/' + "binlog" + '-' + (<=20 digits) + '.' + "ibb" + '\0'. */
@@ -6228,15 +6238,21 @@ void fsp_binlog_write_cache(IO_CACHE *cache, size_t main_size, mtr_t *mtr)
           to re-use tablespace ids between just two, SRV_SPACE_ID_BINLOG0 and
           SRV_SPACE_ID_BINLOG1.
         */
-        if (binlog_file_no >= 2)
-          fsp_binlog_tablespace_close(binlog_file_no - 2);
+        uint64_t file_no= binlog_file_no.load(std::memory_order_relaxed);
+        if (file_no >= 1)
+          fsp_binlog_tablespace_close(file_no - 1);
+        ++file_no;
         /*
           Create a new binlog tablespace.
           ToDo: pre-create the next tablespace in a background thread, avoiding
           a large stall here in the common case where pre-allocation is fast
           enough.
         */
-        dberr_t res2= fsp_binlog_tablespace_create(binlog_file_no++);
+        uint32_t idx= file_no & 1;
+        binlog_cur_written_offset[idx].store(0, std::memory_order_relaxed);
+        binlog_cur_end_offset[idx].store(0, std::memory_order_relaxed);
+        binlog_file_no.store(file_no, std::memory_order_release);
+        dberr_t res2= fsp_binlog_tablespace_create(file_no);
         ut_a(res2 == DB_SUCCESS /* ToDo: Error handling. */);
         space= binlog_space;
         binlog_cur_page_no= page_no= 0;
@@ -6331,4 +6347,252 @@ void fsp_binlog_test(const uchar *data, uint32_t len)
     fsp_binlog_tablespace_create(0);
   fsp_binlog_append(data, len, &mtr);
   mtr.commit();
+}
+
+
+class ha_innodb_binlog_reader : public handler_binlog_reader {
+  /* Buffer to hold a page read directly from the binlog file. */
+  uchar *page_buf;
+  /* Used to keep track of partial chunk returned to reader. */
+  uint32_t chunk_pos;
+  uint32_t chunk_remain;
+private:
+  int read_from_buffer_pool_page(buf_block_t *block, uint64_t end_offset,
+                                 uchar *buf, uint32_t len);
+  int read_from_file(uint64_t end_offset, uchar *buf, uint32_t len);
+  int read_from_page(uchar *page_ptr, uint64_t end_offset,
+                     uchar *buf, uint32_t len);
+
+public:
+  ha_innodb_binlog_reader();
+  ~ha_innodb_binlog_reader();
+  virtual int read_binlog_data(uchar *buf, uint32_t len) final;
+};
+
+
+ha_innodb_binlog_reader::ha_innodb_binlog_reader()
+  : chunk_pos(0), chunk_remain(0)
+{
+  page_buf= (uchar *)my_malloc(PSI_NOT_INSTRUMENTED, srv_page_size, MYF(0)); /* ToDo: InnoDB alloc function? */
+}
+
+
+ha_innodb_binlog_reader::~ha_innodb_binlog_reader()
+{
+  my_free(page_buf); /* ToDo: InnoDB alloc function? */
+}
+
+
+/*
+  Read data from current position in binlog.
+
+  If the data is written to disk (visible at the OS level, even if not
+  necessarily fsync()'ed to disk), we can read directly from the file.
+  Otherwise, the data must still be available in the buffer pool and
+  we can read it from there.
+
+  First try a dirty read of current state; if this says the data is available
+  to read from the file, this is safe to do (data cannot become un-written).
+
+  If not, then check if the page is in the buffer pool; if not, the likewise
+  we know it's safe to read from the file directly.
+
+  Finally, do another check of the current state. This will catch the case
+  where we looked for a page in binlog file N, but its tablespace id has been
+  recycled, so we got a page from (N+2) instead. In this case also, we can
+  then read from the real file.
+*/
+int ha_innodb_binlog_reader::read_binlog_data(uchar *buf, uint32_t len)
+{
+  int res;
+  uint64_t file_no= cur_file_no;
+  uint64_t offset= cur_file_offset;
+  uint64_t active_file_no= binlog_file_no.load(std::memory_order_acquire);
+  ut_ad(active_file_no >= file_no);
+  if (active_file_no > file_no + 1)
+    return read_from_file(~(uint64_t)0, buf, len);
+
+  uint32_t idx= file_no & 1;
+  uint64_t write_offset=
+    binlog_cur_written_offset[idx].load(std::memory_order_relaxed);
+  uint64_t end_offset=
+    binlog_cur_end_offset[idx].load(std::memory_order_relaxed);
+  /* ToDo: Should I check end_offset? It might be stale and completely wrong? But on the other hand, I _must_ check it somehow, otherwise I might read not yet committed data (possibly never committed). But I should be able to read and check, it cannot be completely wrong, as I have the per-tablespace-id values. And in case of stale, I will then go to lock and wait and get the real value in a safe way, which also results in correct behaviour. And I can never read stale data from the file, data will not be written out until valid and synced in the redo log. */
+  if (write_offset > offset)
+    return read_from_file(std::min(write_offset, end_offset), buf, len);
+  ut_ad(end_offset >= offset);
+  if (end_offset <= offset)
+    return 0;
+
+  /*
+    The data we need may not yet been written and available to read from the
+    file directly. So try to find it in the buffer pool. But don't ask the pool
+    to bring in the page if it turns out not to be there, in that case we will
+    just read it directly ourselves.
+  */
+  mtr_t mtr;
+  mtr.start();
+  /*
+    ToDo: Here could remember last block and use as guess for the page lookup.
+    This might be useful for reading at the active position in the binlog,
+    where we might read successive events repeatedly from same page. Though
+    there will be a (small) cost to maintaining the hint also, and we should
+    clear the hint block whenever we read a page to completion. Also, care
+    should be taken about the lifetime, if the hint block is required to point
+    to a valid page and does not any more. */
+  buf_block_t *hint_block= nullptr;
+  uint32_t space_id= SRV_SPACE_ID_BINLOG0 + idx;
+  uint32_t page_no= (uint32_t)(offset >> srv_page_size_shift);
+  dberr_t err= DB_SUCCESS;
+  buf_block_t *block=
+    buf_page_get_gen(page_id_t{space_id, page_no}, 0,
+                     RW_S_LATCH, hint_block, BUF_GET_IF_IN_POOL, &mtr, &err);
+  if (err != DB_SUCCESS)
+    res= -1;  // ToDo: More error handling here? Probably this is not expected to fail. Or what is the return if the page is not found?
+  else if (!block)
+    res= read_from_file(end_offset, buf, len);
+  else {
+    /*
+      Ok, we got a page from the buffer pool. Before reading the data from it
+      though, check again that the tablespace ID has not been recycled. If it
+      has, then the page is invalid (it is from a newer binlog file tablespace
+      file_no + 2), and we should just read from the real file directly.
+    */
+    active_file_no= binlog_file_no.load(std::memory_order_acquire);
+    if (active_file_no > file_no + 1)
+      res= read_from_file(~(uint64_t)0, buf, len);
+    else
+      res= read_from_buffer_pool_page(block, end_offset, buf, len);
+  }
+  mtr.commit();
+
+  return res;
+}
+
+
+int
+ha_innodb_binlog_reader::read_from_buffer_pool_page(buf_block_t *block,
+                                                    uint64_t end_offset,
+                                                    uchar *buf, uint32_t len)
+{
+  return read_from_page(block->page.frame, end_offset, buf, len);
+}
+
+
+int
+ha_innodb_binlog_reader::read_from_file(uint64_t end_offset,
+                                        uchar *buf, uint32_t len)
+{
+  uint64_t mask= ((uint64_t)1 << srv_page_size_shift) - 1;
+  uint64_t offset= cur_file_offset;
+  uint64_t page_start_offset= offset & ~mask;
+
+  if (!cur_file) {
+    char filename[BINLOG_NAME_LEN];
+    binlog_name_make(filename, cur_file_no);
+    if (!(cur_file= my_open(filename, O_RDONLY | O_BINARY, MYF(MY_WME))))
+      return -1;
+    /* ToDo: Handle closing the file when we reach the end. In fact, handle reaching the end of a file in the first place. */
+  }
+  size_t res= my_pread(cur_file, page_buf, srv_page_size, page_start_offset,
+                       MYF(MY_WME));
+  if (res == (size_t)-1)
+    return -1;
+
+  return read_from_page(page_buf, end_offset, buf, len);
+}
+
+
+/*
+  Read out max `len` bytes from the chunks stored in a page.
+
+  page_ptr   Points to start of data for current page matching cur_file_offset
+  end_offset Current end of binlog file, no reads past this point
+  buf        Destination buffer to read into
+  len        Maximum number of bytes to read
+
+  Returns number of bytes actually read.
+*/
+int
+ha_innodb_binlog_reader::read_from_page(uchar *page_ptr, uint64_t end_offset,
+                                        uchar *buf, uint32_t len)
+{
+  uint32_t page_size= (uint32_t)srv_page_size;
+  uint64_t mask= ((uint64_t)1 << srv_page_size_shift) - 1;
+  uint64_t offset= cur_file_offset;
+  uint64_t page_start_offset= offset & ~mask;
+  uint32_t page_end=
+    end_offset > page_start_offset + (page_size - FIL_PAGE_DATA_END) ?
+      (page_size - FIL_PAGE_DATA_END) :
+      (uint32_t)(end_offset & mask);
+  uint32_t in_page_offset= (uint32_t)(offset & mask);
+  uint32_t sofar= 0;
+
+  ut_ad(in_page_offset < page_size - FIL_PAGE_DATA_END);
+  if (in_page_offset < FIL_PAGE_DATA)
+    in_page_offset= FIL_PAGE_DATA;
+
+  /* First return data from any partially-read chunk. */
+  if ((sofar= chunk_remain)) {
+    if (sofar <= len) {
+      memcpy(buf, page_ptr + in_page_offset + chunk_pos, sofar);
+      chunk_pos= 0;
+      chunk_remain= 0;
+      in_page_offset+= sofar;
+    } else {
+      memcpy(buf, page_ptr + in_page_offset + chunk_pos, len);
+      chunk_pos+= len;
+      chunk_remain= sofar - len;
+      return len;
+    }
+  }
+
+  while (sofar < len && in_page_offset < page_end)
+  {
+    uchar type= page_ptr[in_page_offset];
+    if (type == 0x00)
+      break;  /* No more data on the page yet */
+    if (type == 0xff /* ToDo FSP_BINLOG_TYPE_FILLER */) {
+      in_page_offset= page_size;  /* Point to start of next page */
+      break;  /* No more data on page */
+    }
+    uint32_t size=
+      page_ptr[in_page_offset + 1] + (uint32_t)(page_ptr[in_page_offset + 2] << 8);
+    if (type != 1 /* ToDo FSP_BINLOG_TYPE_COMMIT */) {
+      /* Skip non-binlog-event record. */
+      in_page_offset += 3 + size;
+      continue;
+    }
+
+    /* Now grab the data in the chunk, or however much the caller requested. */
+    uint32_t rest = len - sofar;
+    if (size > rest) {
+      /*
+        Chunk contains more data than reader requested.
+        Return what was requested, and remember the remaining partial data
+        for the next read.
+      */
+      memcpy(buf + sofar, page_ptr + (in_page_offset + 3), rest);
+      chunk_pos= rest;
+      chunk_remain= size - rest;
+      break;
+    }
+
+    memcpy(buf + sofar, page_ptr + (in_page_offset + 3), size);
+    in_page_offset= in_page_offset + 3 + size;
+    sofar+= size;
+  }
+
+  if (in_page_offset >= page_size - FIL_PAGE_DATA_END)
+    cur_file_offset= page_start_offset + page_size; // To start of next page
+  else
+    cur_file_offset= page_start_offset | in_page_offset;
+  return sofar;
+}
+
+
+handler_binlog_reader *
+innodb_get_binlog_reader()
+{
+  return new ha_innodb_binlog_reader();
 }
