@@ -5374,6 +5374,17 @@ extern "C" int thd_current_status(MYSQL_THD thd)
 }
 
 
+extern "C" int thd_double_innodb_cardinality(MYSQL_THD thd)
+{
+  /*
+    The original behavior was to double the cardinality.
+    OPTIMIZER_FIX_INNODB_CARDINALITY means do not double.
+  */
+  return !(thd->variables.optimizer_adjust_secondary_key_costs &
+           OPTIMIZER_FIX_INNODB_CARDINALITY);
+}
+
+
 extern "C" enum enum_server_command thd_current_command(MYSQL_THD thd)
 {
   return thd->get_command();

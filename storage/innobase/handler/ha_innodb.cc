@@ -15013,7 +15013,8 @@ ha_innobase::info_low(
 				index selectivity is 2 times better than
 				our estimate: */
 
-				rec_per_key_int = rec_per_key_int / 2;
+				rec_per_key_int /= 1
+					+ thd_double_innodb_cardinality(m_user_thd);
 
 				if (rec_per_key_int == 0) {
 					rec_per_key_int = 1;
