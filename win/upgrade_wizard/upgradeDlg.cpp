@@ -128,17 +128,17 @@ void CUpgradeDlg::SelectService(int index)
   Compare mysqld.exe version with current version, and display
   service if corresponding mysqld.exe has lower version.
 
-  The version check is not strict, i.e we allow to "upgrade" 
-  for the same major.minor combination. This can be useful for 
+  The version check is not strict, i.e we allow to "upgrade"
+  for the same major.minor combination. This can be useful for
   "upgrading" from 32 to 64 bit, or for MySQL=>Maria conversion.
 */
 void CUpgradeDlg::PopulateServicesList()
 {
 
-  SC_HANDLE scm = OpenSCManager(NULL, NULL, 
-    SC_MANAGER_ENUMERATE_SERVICE | SC_MANAGER_CONNECT); 
-  if (scm == NULL) 
-  { 
+  SC_HANDLE scm = OpenSCManager(NULL, NULL,
+    SC_MANAGER_ENUMERATE_SERVICE | SC_MANAGER_CONNECT);
+  if (scm == NULL)
+  {
     ErrorExit("OpenSCManager failed");
   }
 
@@ -150,7 +150,7 @@ void CUpgradeDlg::PopulateServicesList()
   DWORD num_services;
   BOOL ok= EnumServicesStatusExW(scm, SC_ENUM_PROCESS_INFO,  SERVICE_WIN32,
     SERVICE_STATE_ALL,  buf, bufsize,  &bufneed, &num_services, NULL, NULL);
-  if(!ok) 
+  if(!ok)
     ErrorExit("EnumServicesStatusEx failed");
 
 
@@ -163,7 +163,7 @@ void CUpgradeDlg::PopulateServicesList()
       SERVICE_QUERY_CONFIG);
     if (!service)
       continue;
-    QUERY_SERVICE_CONFIGW *config= 
+    QUERY_SERVICE_CONFIGW *config=
       (QUERY_SERVICE_CONFIGW*)(void *)configBuffer;
     DWORD needed;
     BOOL ok= QueryServiceConfigW(service, config,sizeof(configBuffer), &needed);
@@ -172,7 +172,7 @@ void CUpgradeDlg::PopulateServicesList()
     {
       mysqld_service_properties service_props;
 
-      if (get_mysql_service_properties(config->lpBinaryPathName, 
+      if (get_mysql_service_properties(config->lpBinaryPathName,
           &service_props))
         continue;
 
@@ -181,8 +181,8 @@ void CUpgradeDlg::PopulateServicesList()
             m_InstallDir.size()) == 0)
         continue;
 
-      if(m_MajorVersion > service_props.version_major || 
-        (m_MajorVersion == service_props.version_major && m_MinorVersion >= 
+      if(m_MajorVersion > service_props.version_major ||
+        (m_MajorVersion == service_props.version_major && m_MinorVersion >=
         service_props.version_minor))
       {
         ServiceProperties props;
@@ -196,7 +196,7 @@ void CUpgradeDlg::PopulateServicesList()
         if (service_props.version_major)
         {
           char ver[64];
-          sprintf(ver, "%d.%d.%d", service_props.version_major, 
+          sprintf(ver, "%d.%d.%d", service_props.version_major,
             service_props.version_minor, service_props.version_patch);
           props.version= ver;
         }
@@ -221,7 +221,7 @@ void CUpgradeDlg::PopulateServicesList()
   else
   {
     char message[128];
-    sprintf(message, 
+    sprintf(message,
       "There is no service that can be upgraded to " PRODUCT_NAME " %d.%d.%d",
       m_MajorVersion, m_MinorVersion, m_PatchVersion);
     MessageBox(message, PRODUCT_NAME " Upgrade Wizard", MB_ICONINFORMATION);
@@ -268,7 +268,7 @@ BOOL CUpgradeDlg::OnInitDialog()
   jeli.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
   SetInformationJobObject(m_JobObject, JobObjectExtendedLimitInformation,
                               &jeli, sizeof(jeli));
-  
+
 
   m_Progress.ShowWindow(SW_HIDE);
   m_Ok.EnableWindow(FALSE);
@@ -291,7 +291,7 @@ void CUpgradeDlg::OnPaint()
   {
     CPaintDC dc(this); // device context for painting
 
-    SendMessage(WM_ICONERASEBKGND, 
+    SendMessage(WM_ICONERASEBKGND,
       reinterpret_cast<WPARAM>(dc.GetSafeHdc()), 0);
 
     // Center icon in client rectangle
@@ -364,8 +364,8 @@ void CUpgradeDlg::UpgradeOneService(const string& servicename)
   SECURITY_ATTRIBUTES saAttr;
   STARTUPINFO si={0};
   PROCESS_INFORMATION pi;
-  saAttr.nLength = sizeof(SECURITY_ATTRIBUTES); 
-  saAttr.bInheritHandle = TRUE; 
+  saAttr.nLength = sizeof(SECURITY_ATTRIBUTES);
+  saAttr.bInheritHandle = TRUE;
   saAttr.lpSecurityDescriptor = NULL;
 
   HANDLE hPipeRead, hPipeWrite;
@@ -374,7 +374,7 @@ void CUpgradeDlg::UpgradeOneService(const string& servicename)
 
   /* Make sure read end of the pipe is not inherited */
   if (!SetHandleInformation(hPipeRead, HANDLE_FLAG_INHERIT, 0) )
-    ErrorExit("Stdout SetHandleInformation"); 
+    ErrorExit("Stdout SetHandleInformation");
 
   string commandline("mysql_upgrade_service.exe --service=");
   commandline += "\"";
@@ -389,8 +389,8 @@ void CUpgradeDlg::UpgradeOneService(const string& servicename)
   si.dwFlags= STARTF_USESTDHANDLES |STARTF_USESHOWWINDOW;
 
 
-  /* 
-   We will try to assign child process to a job, to be able to 
+  /*
+   We will try to assign child process to a job, to be able to
    terminate the process and all of its children. It might fail,
    in case current process is already part of the job which does
    not allows breakaways.
@@ -409,7 +409,7 @@ void CUpgradeDlg::UpgradeOneService(const string& servicename)
   }
   else
   {
-	/* 
+	/*
 	  Creating a process with CREATE_BREAKAWAY_FROM_JOB failed, reset this flag
 	  and retry.
 	*/
@@ -427,7 +427,7 @@ void CUpgradeDlg::UpgradeOneService(const string& servicename)
   DWORD nbytes;
   int lines=0;
   CloseHandle(hPipeWrite);
- 
+
   string output_line;
   while(ReadFile(hPipeRead, pipeReadBuf, 1, &nbytes, NULL))
   {
@@ -523,7 +523,7 @@ void CUpgradeDlg::UpgradeServices()
     }
   }
 
-  MessageBox("Service(s) successfully upgraded", "Success", 
+  MessageBox("Service(s) successfully upgraded", "Success",
     MB_ICONINFORMATION);
 
   /* Rebuild services list */
@@ -581,7 +581,7 @@ static UINT UpgradeServicesThread(void *param)
 
 /*
   Do upgrade  for all services currently selected
-  in the list. Since it is a potentially lengthy operation that 
+  in the list. Since it is a potentially lengthy operation that
   might block it has to be done in a background thread.
 */
 void CUpgradeDlg::OnBnClickedOk()
@@ -593,9 +593,9 @@ void CUpgradeDlg::OnBnClickedOk()
 }
 
 
-/* 
+/*
   Cancel button clicked.
-  If upgrade is running, suspend mysql_upgrade_service, 
+  If upgrade is running, suspend mysql_upgrade_service,
   and ask user whether he really wants to stop.Terminate
   upgrade wizard and all subprocesses if users wants it.
 

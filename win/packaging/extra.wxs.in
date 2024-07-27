@@ -2,8 +2,8 @@
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi"  xmlns:util="http://schemas.microsoft.com/wix/UtilExtension">
   <Fragment>
     <!--
-      Check, if upgrade wizard was built 
-      It currently requires MFC, which is not in SDK 
+      Check, if upgrade wizard was built
+      It currently requires MFC, which is not in SDK
       neither in express edítions of VS.
     -->
     <?ifndef HaveUpgradeWizard ?>
@@ -64,8 +64,8 @@
 
 
 
-    <!-- 
-      User interface dialogs 
+    <!--
+      User interface dialogs
      -->
     <WixVariable Id='WixUIBannerBmp' Value='@SRCDIR@\WixUIBannerBmp.jpg' />
     <WixVariable Id='WixUIDialogBmp' Value='@SRCDIR@\WixUIDialogBmp.jpg' />
@@ -125,15 +125,15 @@
       <!-- Dialog new or upgrade instance -->
 
       <Property Id="CreateOrUpgradeChoice" Value="Create"/>
-      
+
       <Dialog Id="NewOrUpgradeInstanceDlg" Width="370" Height="270" Title="[ProductName] Setup" NoMinimize="yes">
         <Control Id="Text" Type="Text" X="40" Y="65" Width="270" Height="30">
           <Text>Setup found existing database instances that can be upgraded to [ProductName].You can create a new instance and/or upgrade existing one.
           </Text>
         </Control>
 
-        <Control Id="CreateOrUpgradeButton" 
-                 Type="RadioButtonGroup" X="40" Y="100" Width="300" Height="70" 
+        <Control Id="CreateOrUpgradeButton"
+                 Type="RadioButtonGroup" X="40" Y="100" Width="300" Height="70"
                  Property="CreateOrUpgradeChoice" Text="Specify what to do">
           <RadioButtonGroup Property="CreateOrUpgradeChoice">
             <RadioButton Value="Create" X="0" Y="0" Width="300" Height="25"
@@ -167,7 +167,7 @@
         </Control>
         <Control Id="BannerLine" Type="Line" X="0" Y="44" Width="370" Height="0" />
       </Dialog>
-      
+
       <!-- Error popup dialog -->
       <Dialog Id="WarningDlg" Width="320" Height="85" Title="[ProductName] Setup" NoMinimize="yes">
        <Control Id="Icon" Type="Icon" X="15" Y="15" Width="24" Height="24"
@@ -610,7 +610,7 @@
     <?endforeach ?>
 
    </Feature>
-   
+
    <?endif ?>
 
 
@@ -684,7 +684,7 @@
 
     <!-- Custom action to remove data on uninstall  -->
     <Binary Id='wixca.dll' SourceFile='@WIXCA_LOCATION@' />
-    <CustomAction Id="RemoveDataDirectory.SetProperty" Return="check" 
+    <CustomAction Id="RemoveDataDirectory.SetProperty" Return="check"
                   Property="RemoveDataDirectory" Value="[DATADIR]" />
     <CustomAction Id="RemoveDataDirectory"  BinaryKey="wixca.dll"
                   DllEntry="RemoveDataDirectory"
@@ -704,7 +704,7 @@
       <StopServices>SERVICENAME</StopServices>
       <DeleteServices>SERVICENAME</DeleteServices>
     </InstallExecuteSequence>
-    <CustomAction Id="CheckDBInUse" Return="ignore" 
+    <CustomAction Id="CheckDBInUse" Return="ignore"
                   BinaryKey="wixca.dll" DllEntry="CheckDBInUse"  Execute="firstSequence"/>
     <InstallExecuteSequence>
       <Custom Action="CheckDBInUse" Before="LaunchConditions">Installed</Custom>
@@ -719,7 +719,7 @@
 
     <Feature Id='StoreInstallLocation' Level='1' Absent='disallow' Display='hidden'>
       <Component Directory='INSTALLDIR' Guid='*' Id='C.storeinstalllocation'>
-        <RegistryValue Root='HKLM' Key='SOFTWARE\@CPACK_WIX_PACKAGE_NAME@' 
+        <RegistryValue Root='HKLM' Key='SOFTWARE\@CPACK_WIX_PACKAGE_NAME@'
                        Name='INSTALLDIR' Value='[INSTALLDIR]' Type='string'  KeyPath='yes'/>
       </Component>
     </Feature>
@@ -733,7 +733,7 @@
     </Property>
     <CustomAction Id='SaveCmdLineValue_$(var.STOREDVAR)' Property='CMDLINE_$(var.STOREDVAR)'
               Value='[$(var.STOREDVAR)]' Execute='firstSequence' />
-    <CustomAction Id='SetFromCmdLineValue_$(var.STOREDVAR)' Property='$(var.STOREDVAR)' 
+    <CustomAction Id='SetFromCmdLineValue_$(var.STOREDVAR)' Property='$(var.STOREDVAR)'
                   Value='[CMDLINE_$(var.STOREDVAR)]' Execute='firstSequence' />
     <InstallUISequence>
       <Custom Action='SaveCmdLineValue_$(var.STOREDVAR)' Before='AppSearch' />
@@ -746,12 +746,12 @@
 
     <?endforeach?>
 
-    <!-- 
+    <!--
       Optionally, start upgrade wizard on exit.
     -->
-    
 
-    
+
+
     <?if $(var.HaveUpgradeWizard) != "0" ?>
     <UI>
       <Publish Dialog="ExitDialog"
@@ -759,8 +759,8 @@
           Event="DoAction"
           Value="LaunchApplication">WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 and NOT Installed</Publish>
     </UI>
-    <Property 
-      Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" 
+    <Property
+      Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT"
       Value="Launch wizard to upgrade existing MariaDB or MySQL services." />
     <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOX" Value="0"/>
     <Property Id="WixShellExecTarget" Value="[#F.bin.mysql_upgrade_wizard.exe]" />
@@ -768,8 +768,8 @@
         BinaryKey="WixCA"
         DllEntry="WixShellExec"
         Impersonate="yes" />
-    <CustomAction 
-      Id="CheckServiceUpgrades"   Return="ignore" BinaryKey="wixca.dll" 
+    <CustomAction
+      Id="CheckServiceUpgrades"   Return="ignore" BinaryKey="wixca.dll"
       DllEntry="CheckServiceUpgrades"
       Execute="immediate" />
     <InstallUISequence>
@@ -777,20 +777,20 @@
         $C.bin.mysql_upgrade_wizard.exe = 3 AND NOT Installed AND NOT OLDERVERSIONBEINGUPGRADED
       </Custom>
     </InstallUISequence>
-    <SetProperty Before="ExecuteAction" Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" 
+    <SetProperty Before="ExecuteAction" Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT"
        Sequence="ui"  Value="[NonExistentProperty]">
       <![CDATA[($C.bin.mysql_upgrade_wizard.exe <> 3) AND NOT Installed OR OLDERVERSIONBEINGUPGRADED]]>
     </SetProperty>
-    <SetProperty Before="ExecuteAction" Id="WIXUI_EXITDIALOGOPTIONALCHECKBOX" 
+    <SetProperty Before="ExecuteAction" Id="WIXUI_EXITDIALOGOPTIONALCHECKBOX"
        Sequence="ui"  Value="[NonExistentProperty]">
       <![CDATA[($C.bin.mysql_upgrade_wizard.exe <> 3) AND NOT Installed OR OLDERVERSIONBEINGUPGRADED]]>
     </SetProperty>
-    
+
     <?endif ?> <!-- HaveUpgradeWizard -->
 
-    <!-- 
-      Author the registry entries for "add or remove programs" 
-      We choose to define ARPSYSTEMCOMPONENT to 1 because we want to show 
+    <!--
+      Author the registry entries for "add or remove programs"
+      We choose to define ARPSYSTEMCOMPONENT to 1 because we want to show
       "do you want to remove data directory" on uninstall
     -->
     <Property Id="ARPSYSTEMCOMPONENT" Value="1" Secure="yes" />

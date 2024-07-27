@@ -51,7 +51,7 @@ add_component(Backup
   GROUP MySQLServer
   DISPLAY_NAME "Backup utilities"
   DESCRIPTION "Installs backup utilities(mariabackup and mbstream)")
- 
+
 #Miscellaneous hidden components, part of server / or client programs
 foreach(comp connect-engine connect-engine-jdbc ClientPlugins aws-key-management rocksdb-engine plugin-hashicorp-key-management)
   add_component(${comp} GROUP MySQLServer HIDDEN)
@@ -85,7 +85,6 @@ set(WIX_FEATURE_MySQLServer_EXTRA_FEATURES "DBInstance;SharedClientServerCompone
 # Firewall exception for mysqld.exe
 set(bin.mysqld.exe.FILE_EXTRA "
   <FirewallException Id='firewallexception.mysqld.exe' Name='[ProductName]' Scope='any'
-       IgnoreFailure='yes' xmlns='http://schemas.microsoft.com/wix/FirewallExtension' 
+       IgnoreFailure='yes' xmlns='http://schemas.microsoft.com/wix/FirewallExtension'
   />
 ")
-
