@@ -66,7 +66,7 @@ int Xcurl(PGLOBAL g, PCSZ Http, PCSZ Uri, PCSZ filename)
 			my_snprintf(buf, sizeof(buf)-1, "%s/%s", Http, Uri);
 
 	} else
-		my_snprintf(buf, sizeof(buf)-1, "%s", Http);
+		strmake(buf, Http, sizeof(buf)-2);
 
 #if defined(_WIN32)
 	char cmd[1024];
