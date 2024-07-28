@@ -74,6 +74,8 @@ sub skip_combinations {
   $skip{'main/ssl_verify_ip.test'} = 'x509v3 support required'
     unless $openssl_ver ge "1.0.2";
 
+  $skip{'main/openssl_seclevel2.test'} = 'Requires OpenSSL'
+    unless $openssl_ver ge "1.0.1";
 
   %skip;
 }
