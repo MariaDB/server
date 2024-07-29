@@ -4,7 +4,7 @@
 
 ## MariaDB: The innovative open source database
 
-### This is test branch to test existing failures on 11.6 Run 3
+### This is test branch to test existing failures on 11.6 Run 4
 
 MariaDB was designed as a drop-in replacement of MySQL(R) with more
 features, new storage engines, fewer bugs, and better performance.
