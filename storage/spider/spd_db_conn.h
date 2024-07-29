@@ -158,8 +158,7 @@
 #define SPIDER_SQL_PREV_LEN (sizeof(SPIDER_SQL_PREV_STR) - 1)
 #define SPIDER_SQL_LAST_STR " last  "
 #define SPIDER_SQL_LAST_LEN (sizeof(SPIDER_SQL_LAST_STR) - 1)
-#define SPIDER_SQL_AS_STR "as "
-#define SPIDER_SQL_AS_LEN (sizeof(SPIDER_SQL_AS_STR) - 1)
+#define SPIDER_SQL_AS_STR " as "
 #define SPIDER_SQL_WITH_QUERY_EXPANSION_STR " with query expansion"
 #define SPIDER_SQL_WITH_QUERY_EXPANSION_LEN (sizeof(SPIDER_SQL_WITH_QUERY_EXPANSION_STR) - 1)
 #define SPIDER_SQL_IN_BOOLEAN_MODE_STR " in boolean mode"

@@ -1,0 +1,12 @@
+--source ../../include/init_spider.inc
+SET spider_same_server_link= on;
+SET sql_mode='';
+eval CREATE SERVER srv FOREIGN DATA WRAPPER MYSQL OPTIONS (HOST "127.0.0.1", DATABASE "test", USER "root", PORT $MASTER_1_MYPORT);
+CREATE TABLE t1 (c INT) ENGINE=MyISAM;
+CREATE TABLE t2 (c INT) ENGINE=Spider COMMENT='WRAPPER "mysql",SRV "srv",TABLE "t1"';
+insert into t2 values (456), (123);
+SELECT * FROM t2 ORDER BY CAST(c AS char(60));
+SELECT * FROM t2 ORDER BY CAST(c AS INET6);
+# Cleanup
+DROP TABLE t1,t2;
+--source ../../include/deinit_spider.inc
