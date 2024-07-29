@@ -172,7 +172,7 @@ public:
 
     @param[in] thd thd of current session.
  */
-  bool check(const MYSQL_BIN_LOG::group_commit_entry *entry) const;
+  bool should_free_flush(const MYSQL_BIN_LOG::group_commit_entry *entry) const;
 
   /**
     This function convert the long transaction's binlog cache tmp file to
@@ -190,18 +190,11 @@ public:
   bool replace_binlog_file();
   bool complete();
 
-  bool is_free_flushing(const MYSQL_BIN_LOG *binlog) const
-  {
-    return m_is_free_flushing && !binlog->is_relay_log;
-  }
-
 private:
   Binlog_cache_free_flush &operator=(const Binlog_cache_free_flush &);
   Binlog_cache_free_flush(const Binlog_cache_free_flush &);
 
   size_t m_temp_file_length{0};
-  /** Whether in binlog cache free flush process. */
-  bool m_is_free_flushing{false};
   MYSQL_BIN_LOG::group_commit_entry *m_entry{nullptr};
   bool m_replaced{false};
   binlog_cache_data *m_cache_data{nullptr};
@@ -3817,7 +3810,8 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
                          enum cache_type io_cache_type_arg,
                          ulong max_size_arg,
                          bool null_created_arg,
-                         bool need_mutex)
+                         bool need_mutex,
+                         bool is_free_flush)
 {
   xid_count_per_binlog *new_xid_list_entry= NULL, *b;
   DBUG_ENTER("MYSQL_BIN_LOG::open");
@@ -4089,8 +4083,7 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
 
     my_off_t offset= my_b_tell(&log_file);
 
-    if (binlog_cache_free_flush.is_free_flushing(this) &&
-        binlog_cache_free_flush.replace_binlog_file())
+    if (is_free_flush && binlog_cache_free_flush.replace_binlog_file())
       goto err;
 
     if (!is_relay_log)
@@ -5730,9 +5723,9 @@ int MYSQL_BIN_LOG::new_file()
   @retval
     nonzero - error
  */
-int MYSQL_BIN_LOG::new_file_without_locking()
+int MYSQL_BIN_LOG::new_file_without_locking(bool is_free_flush)
 {
-  return new_file_impl();
+  return new_file_impl(is_free_flush);
 }
 
 
@@ -5747,7 +5740,7 @@ int MYSQL_BIN_LOG::new_file_without_locking()
     binlog_space_total will be updated if binlog_space_limit is set
 */
 
-int MYSQL_BIN_LOG::new_file_impl()
+int MYSQL_BIN_LOG::new_file_impl(bool is_free_flush)
 {
   int error= 0, close_on_error= FALSE;
   char new_name[FN_REFLEN], *new_name_ptr, *old_name, *file_to_open;
@@ -5871,7 +5864,8 @@ int MYSQL_BIN_LOG::new_file_impl()
   {
     /* reopen the binary log file. */
     file_to_open= new_name_ptr;
-    error= open(old_name, new_name_ptr, 0, io_cache_type, max_size, 1, FALSE);
+    error= open(old_name, new_name_ptr, 0, io_cache_type, max_size, 1, FALSE,
+                is_free_flush);
   }
 
   /* handle reopening errors */
@@ -6882,7 +6876,8 @@ Event_log::prepare_pending_rows_event(THD *thd, TABLE* table,
 bool
 MYSQL_BIN_LOG::write_gtid_event(THD *thd, bool standalone,
                                 bool is_transactional, uint64 commit_id,
-                                bool has_xid, bool is_ro_1pc)
+                                bool has_xid, bool is_ro_1pc,
+                                bool is_free_flush)
 {
   rpl_gtid gtid;
   uint32 domain_id;
@@ -6954,9 +6949,11 @@ MYSQL_BIN_LOG::write_gtid_event(THD *thd, bool standalone,
     DBUG_RETURN(true);
   status_var_add(thd->status_var.binlog_bytes_written, gtid_event.data_written);
 
-  if (unlikely(binlog_cache_free_flush.is_free_flushing(this) &&
-               binlog_cache_free_flush.complete()))
+  if (unlikely(is_free_flush))
+  {
+    if (binlog_cache_free_flush.complete())
       DBUG_RETURN(true);
+  }
 
   DBUG_RETURN(false);
 }
@@ -7643,7 +7640,8 @@ MYSQL_BIN_LOG::do_checkpoint_request(ulong binlog_id)
   @retval
     nonzero - error in rotating routine.
 */
-int MYSQL_BIN_LOG::rotate(bool force_rotate, bool* check_purge)
+int MYSQL_BIN_LOG::rotate(bool force_rotate, bool *check_purge,
+                          bool is_free_flush)
 {
   int error= 0;
   ulonglong binlog_pos;
@@ -7684,7 +7682,7 @@ int MYSQL_BIN_LOG::rotate(bool force_rotate, bool* check_purge)
     */
     mark_xids_active(binlog_id, 1);
 
-    if (unlikely((error= new_file_without_locking())))
+    if (unlikely((error= new_file_without_locking(is_free_flush))))
     {
       /** 
          Be conservative... There are possible lost events (eg, 
@@ -8725,7 +8723,7 @@ MYSQL_BIN_LOG::write_transaction_to_binlog_events(group_commit_entry *entry)
 {
   int is_leader;
 
-  if (binlog_cache_free_flush.check(entry) &&
+  if (binlog_cache_free_flush.should_free_flush(entry) &&
       binlog_cache_free_flush.commit(entry))
   {
     is_leader= 1;
@@ -8882,7 +8880,8 @@ commit:
 
  */
 void
-MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
+MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader,
+                                       bool is_free_flush)
 {
   uint xid_count= 0;
   my_off_t UNINIT_VAR(commit_offset);
@@ -8897,7 +8896,7 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
     When move a binlog cache to a binlog file, the transaction itself is
     a group.
   */
-  if (unlikely(binlog_cache_free_flush.is_free_flushing(this)))
+  if (unlikely(is_free_flush))
   {
     last_in_queue= leader;
     queue= leader;
@@ -8985,8 +8984,8 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
                   !cache_mngr->trx_cache.empty()  ||
                   current->thd->transaction->xid_state.is_explicit_XA());
 
-      if (unlikely((current->error= write_transaction_or_stmt(current,
-                                                              commit_id))))
+      if (unlikely((current->error= write_transaction_or_stmt(
+                        current, commit_id, is_free_flush))))
         current->commit_errno= errno;
 
       strmake_buf(cache_mngr->last_commit_pos_file, log_file_name);
@@ -9242,7 +9241,7 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
 
 int
 MYSQL_BIN_LOG::write_transaction_or_stmt(group_commit_entry *entry,
-                                         uint64 commit_id)
+                                         uint64 commit_id, bool is_free_flush)
 {
   binlog_cache_mngr *mngr= entry->cache_mngr;
   bool has_xid= entry->end_event->get_type_code() == XID_EVENT;
@@ -9265,7 +9264,7 @@ MYSQL_BIN_LOG::write_transaction_or_stmt(group_commit_entry *entry,
 
   if (write_gtid_event(entry->thd, is_prepared_xa(entry->thd),
                        entry->using_trx_cache, commit_id,
-                       has_xid, entry->ro_1pc))
+                       has_xid, entry->ro_1pc, is_free_flush))
     DBUG_RETURN(ER_ERROR_ON_WRITE);
 
   if (entry->using_stmt_cache && !mngr->stmt_cache.empty() &&
@@ -12954,7 +12953,7 @@ void wsrep_register_binlog_handler(THD *thd, bool trx)
 
 #endif /* WITH_WSREP */
 
-inline bool Binlog_cache_free_flush::check(
+inline bool Binlog_cache_free_flush::should_free_flush(
     const MYSQL_BIN_LOG::group_commit_entry *entry) const
 {
   binlog_cache_data *trx_cache=
@@ -13032,16 +13031,15 @@ bool Binlog_cache_free_flush::commit(MYSQL_BIN_LOG::group_commit_entry *entry)
     return false;
   }
 
-  m_is_free_flushing= true;
   m_entry= entry;
   m_replaced= false;
   m_cache_data= cache_data;
-  ulong prev_binlog_id= mysql_bin_log.current_binlog_id;
+  ulong prev_binlog_id= mysql_bin_log. current_binlog_id;
   /*
     It will call replace_binlog_file() to rename the transaction's binlog cache
     to the new binlog file.
   */
-  if (mysql_bin_log.rotate(true, &check_purge))
+  if (mysql_bin_log.rotate(true, &check_purge, true /* is_free_flush */))
   {
     DBUG_ASSERT(!m_replaced);
     DBUG_ASSERT(!mysql_bin_log.is_open());
@@ -13050,16 +13048,19 @@ bool Binlog_cache_free_flush::commit(MYSQL_BIN_LOG::group_commit_entry *entry)
   DBUG_EXECUTE_IF("binlog_cache_free_flush_crash_after_rotate",
                   DBUG_SUICIDE(););
 
-  if (m_replaced)
-    mysql_bin_log.trx_group_commit_leader(entry);
-  else
+  if (!m_replaced)
+  {
     mysql_mutex_unlock(&mysql_bin_log.LOCK_log);
+    if (check_purge)
+      mysql_bin_log.checkpoint_and_purge(prev_binlog_id);
+    return false;
+  }
+
+  mysql_bin_log.trx_group_commit_leader(entry, true /* is_free_flush */);
 
   if (check_purge)
     mysql_bin_log.checkpoint_and_purge(prev_binlog_id);
-
-  m_is_free_flushing= false;
-  return m_replaced;
+  return true;
 }
 
 bool Binlog_cache_free_flush::replace_binlog_file()
@@ -13142,9 +13143,12 @@ end:
 
 bool Binlog_cache_free_flush::complete()
 {
-  size_t begin_pos = my_b_tell(&mysql_bin_log.log_file);
-  size_t empty_size= m_cache_data->file_reserved_bytes() - begin_pos
-                     - LOG_EVENT_HEADER_LEN;
+  size_t begin_pos= my_b_tell(&mysql_bin_log.log_file);
+  size_t empty_size=
+      m_cache_data->file_reserved_bytes() - begin_pos - LOG_EVENT_HEADER_LEN;
+  size_t cache_size= m_cache_data->temp_file_length();
+
+  m_cache_data->detach_temp_file();
 
   if (binlog_checksum_options != BINLOG_CHECKSUM_ALG_OFF)
     empty_size-= BINLOG_CHECKSUM_LEN;
@@ -13154,14 +13158,10 @@ bool Binlog_cache_free_flush::complete()
       flush_io_cache(&mysql_bin_log.log_file))
     return true;
 
-  reinit_io_cache(&mysql_bin_log.log_file, WRITE_CACHE,
-                  m_cache_data->temp_file_length(),
-                  false, true);
+  reinit_io_cache(&mysql_bin_log.log_file, WRITE_CACHE, cache_size, false,
+                  true);
 
   status_var_add(m_entry->thd->status_var.binlog_bytes_written,
-                 m_cache_data->temp_file_length() - begin_pos);
-
-  m_cache_data->detach_temp_file();
-  m_is_free_flushing= false;
+                 cache_size - begin_pos);
   return false;
 }
