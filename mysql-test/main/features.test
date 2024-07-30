@@ -156,12 +156,14 @@ show status like "feature_insert_returning";
 --echo #
 create table t1(id1 int);
 insert into t1 values (1),(2);
+--disable_cursor_protocol
 --disable_ps2_protocol
 select * into outfile '../../tmp/features_outfile.1' from t1;
 select * from t1 into outfile '../../tmp/features_outfile.2';
 --enable_ps2_protocol
 select id1 INTO @x from t1 where id1=1;
 select * from t1 where id1=1 into @y;
+--enable_cursor_protocol
 select * from t1 where id1=@x;
 select @x=@y;
 drop table t1;
