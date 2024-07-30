@@ -310,6 +310,7 @@ extern ulong	srv_checksum_algorithm;
 
 extern my_bool	srv_force_primary_key;
 
+extern my_bool	innodb_alter_copy_bulk;
 extern ulong	srv_max_purge_lag;
 extern ulong	srv_max_purge_lag_delay;
 

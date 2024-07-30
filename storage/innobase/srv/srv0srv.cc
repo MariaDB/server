@@ -353,6 +353,10 @@ my_bool	srv_print_innodb_lock_monitor;
 PRIMARY KEY */
 my_bool	srv_force_primary_key;
 
+/** innodb_alter_copy_bulk; Whether to allow bulk insert operation
+inside InnoDB alter for copy algorithm; */
+my_bool innodb_alter_copy_bulk;
+
 /** Key version to encrypt the temporary tablespace */
 my_bool innodb_encrypt_temporary_tables;
 

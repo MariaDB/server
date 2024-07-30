@@ -1172,8 +1172,8 @@ public:
   {
     if (UNIV_LIKELY(!bulk_insert))
       return nullptr;
-    ut_ad(!check_unique_secondary);
-    ut_ad(!check_foreigns);
+    ut_ad(table->skip_alter_undo || !check_unique_secondary);
+    ut_ad(table->skip_alter_undo || !check_foreigns);
     auto it= mod_tables.find(table);
     if (it == mod_tables.end() || !it->second.bulk_buffer_exist())
       return nullptr;

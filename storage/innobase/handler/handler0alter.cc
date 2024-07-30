@@ -845,14 +845,13 @@ inline void dict_table_t::rollback_instant(
 	}
 }
 
-/* Report an InnoDB error to the client by invoking my_error(). */
-static ATTRIBUTE_COLD __attribute__((nonnull))
+/* Report an InnoDB error to the client by invoking my_error().
+@param error InnoDB error code
+@param table table name
+@param flags table flags */
+ATTRIBUTE_COLD __attribute__((nonnull))
 void
-my_error_innodb(
-/*============*/
-	dberr_t		error,	/*!< in: InnoDB error code */
-	const char*	table,	/*!< in: table name */
-	ulint		flags)	/*!< in: table flags */
+my_error_innodb(dberr_t error, const char *table, ulint flags)
 {
 	switch (error) {
 	case DB_MISSING_HISTORY:
