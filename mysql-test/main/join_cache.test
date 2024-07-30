@@ -4300,3 +4300,25 @@ DROP TABLE t1,t2,t3;
 --echo #
 --echo # End of 10.4 tests
 --echo #
+
+--echo #
+--echo # MDEV-34580: Assertion `(key_part->key_part_flag & 4) == 0' failed key_hashnr
+--echo #
+--source include/have_sequence.inc
+SET join_cache_level=3;
+
+CREATE TABLE t1 ( a TIMESTAMP , b varchar(100), c varchar(10) ) ;
+INSERT INTO t1 (b,c) VALUES ('GHOBS','EMLCG'),('t','p');
+
+CREATE TABLE t2 (a varchar(100), b varchar(100), c varchar(10) , KEY b (b(66))) ;
+insert into t2 select seq, seq, seq from seq_1_to_20;
+
+explain
+SELECT t1.a FROM t1  JOIN t2 ON t1.b = t2.b ;
+SELECT t1.a FROM t1  JOIN t2 ON t1.b = t2.b ;
+
+set join_cache_level=default;
+DROP TABLE t1, t2;
+--echo #
+--echo # End of 10.5 tests
+--echo #
