@@ -30,7 +30,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 # define SUX_LOCK_GENERIC /* fall back to generic synchronization primitives */
 #endif
 
-#if !defined SUX_LOCK_GENERIC && 0 /* defined SAFE_MUTEX */
+#if !defined SUX_LOCK_GENERIC // && 0 /* defined SAFE_MUTEX */
 # define SUX_LOCK_GENERIC /* Use dummy implementation for debugging purposes */
 #endif
 
@@ -39,15 +39,26 @@ template<bool spinloop>
 class pthread_mutex_wrapper final
 {
   pthread_mutex_t lock;
+#ifdef UNIV_DEBUG
+  bool initialized{false};
 public:
-  void init()
+  ~pthread_mutex_wrapper() { ut_ad(!initialized); }
+#endif
+public:
+  void init(bool maybe_reinit= false)
   {
+    ut_ad(maybe_reinit || !initialized);
+    ut_d(initialized= true);
     if (spinloop)
       pthread_mutex_init(&lock, MY_MUTEX_INIT_FAST);
     else
       pthread_mutex_init(&lock, nullptr);
   }
-  void destroy() { pthread_mutex_destroy(&lock); }
+  void destroy()
+  {
+    ut_ad(initialized); ut_d(initialized=false);
+    pthread_mutex_destroy(&lock);
+  }
 # ifdef PTHREAD_ADAPTIVE_MUTEX_INITIALIZER_NP
   void wr_lock() { pthread_mutex_lock(&lock); }
 # else
