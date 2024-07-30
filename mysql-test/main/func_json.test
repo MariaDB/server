@@ -3908,10 +3908,13 @@ FROM JSON_TABLE(
 
 SELECT JSON_KEY_VALUE('{}', '$.key1');
 
+#enable after fix MDEV-31554
+--disable_cursor_protocol
 #enable after MDEV-32454 fix
 --disable_view_protocol
 SELECT JSON_KEY_VALUE('{"key1":"val1", "key2":"val2"}', '$') as exp;
 --enable_view_protocol
+--enable_cursor_protocol
 SELECT jt.*
 FROM JSON_TABLE(
     JSON_KEY_VALUE('{"key1":"val1", "key2":"val2"}', '$'), '$[*]'
@@ -4111,7 +4114,10 @@ CREATE TABLE t1 (
 
 INSERT INTO t1 VALUES('[1,2,3]', '[2, 3, 4]'), ('[2 ,3, 4]', '[4, 5, 6]');
 
+#check after fix MDEV-31554
+--disable_cursor_protocol
 SELECT JSON_ARRAY_INTERSECT(c1, c2) FROM t1;
+--enable_cursor_protocol
 
 DROP TABLE t1;
 
