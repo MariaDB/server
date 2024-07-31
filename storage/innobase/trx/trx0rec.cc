@@ -1840,7 +1840,7 @@ trx_undo_report_row_operation(
 	auto m = trx->mod_tables.emplace(index->table, trx->undo_no);
 	ut_ad(m.first->second.valid(trx->undo_no));
 
-	if (m.second && index->table->is_active_ddl()) {
+	if (m.second && index->table->is_native_online_ddl()) {
 		trx->apply_online_log= true;
 	}
 

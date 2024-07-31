@@ -374,10 +374,12 @@ found_j:
 			}
 		}
 
-		/* In case of discarded tablespace, InnoDB can't
-		read the root page. So assign the null bytes based
-		on nullabled fields */
-		if (!oindex.table->space) {
+		/* Discard tablespace doesn't remove the instantness
+		from the table definition. if n_core_null_bytes wasn't
+		initialized then assign it based on nullable fields */
+		if (!oindex.table->space
+		    && oindex.n_core_null_bytes
+		       == dict_index_t::NO_CORE_NULL_BYTES) {
 			oindex.n_core_null_bytes = static_cast<uint8_t>(
 				UT_BITS_IN_BYTES(unsigned(oindex.n_nullable)));
 		}
@@ -845,14 +847,13 @@ inline void dict_table_t::rollback_instant(
 	}
 }
 
-/* Report an InnoDB error to the client by invoking my_error(). */
-static ATTRIBUTE_COLD __attribute__((nonnull))
+/* Report an InnoDB error to the client by invoking my_error().
+@param error InnoDB error code
+@param table table name
+@param flags table flags */
+ATTRIBUTE_COLD __attribute__((nonnull))
 void
-my_error_innodb(
-/*============*/
-	dberr_t		error,	/*!< in: InnoDB error code */
-	const char*	table,	/*!< in: table name */
-	ulint		flags)	/*!< in: table flags */
+my_error_innodb(dberr_t error, const char *table, ulint flags)
 {
 	switch (error) {
 	case DB_MISSING_HISTORY:

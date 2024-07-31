@@ -131,6 +131,7 @@ bool log_t::create()
 #endif
 
   latch.SRW_LOCK_INIT(log_latch_key);
+  lsn_lock.init();
 
   last_checkpoint_lsn= FIRST_LSN;
   log_capacity= 0;
@@ -1338,6 +1339,7 @@ void log_t::close()
 #endif
 
   latch.destroy();
+  lsn_lock.destroy();
 
   recv_sys.close();
 

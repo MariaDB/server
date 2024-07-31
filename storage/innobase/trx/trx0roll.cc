@@ -151,7 +151,7 @@ inline void trx_t::rollback_low(trx_savept_t *savept)
         mod_tables.erase(j);
       }
       else if (!apply_online_log)
-        apply_online_log= j->first->is_active_ddl();
+        apply_online_log= j->first->is_native_online_ddl();
     }
     MONITOR_INC(MONITOR_TRX_ROLLBACK_SAVEPOINT);
   }
