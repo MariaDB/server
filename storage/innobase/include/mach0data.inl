@@ -25,11 +25,11 @@ to the machine format.
 Created 11/28/1995 Heikki Tuuri
 ***********************************************************************/
 
+#include "my_valgrind.h"
 #ifndef UNIV_INNOCHECKSUM
 
 #include "mtr0types.h"
 #include "ut0byte.h"
-#include "my_valgrind.h"
 
 /*******************************************************//**
 The following function is used to store data in one byte. */
