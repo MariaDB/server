@@ -12013,6 +12013,60 @@ static int online_alter_read_from_binlog(THD *thd, rpl_group_info *rgi,
 }
 #endif
 
+/** Handle the error when copying data from source to target table.
+@param error          error code
+@param ignore         alter ignore statement
+@param to             target table handler
+@param thd            Mysql Thread
+@param alter_ctx      Runtime context for alter statement
+@retval false in case of error
+@retval true in case of skipping the row and continue alter operation */
+static bool
+copy_data_error_ignore(int &error, bool ignore, TABLE *to,
+                       THD *thd, Alter_table_ctx *alter_ctx)
+{
+  if (to->file->is_fatal_error(error, HA_CHECK_DUP))
+  {
+    /* Not a duplicate key error. */
+    to->file->print_error(error, MYF(0));
+    error= 1;
+    return false;
+  }
+  /* Duplicate key error. */
+  if (unlikely(alter_ctx->fk_error_if_delete_row))
+  {
+    /* We are trying to omit a row from the table which serves
+    as parent in a foreign key. This might have broken
+    referential integrity so emit an error. Note that we
+    can't ignore this error even if we are
+    executing ALTER IGNORE TABLE. IGNORE allows to skip rows, but
+    doesn't allow to break unique or foreign key constraints, */
+    my_error(ER_FK_CANNOT_DELETE_PARENT, MYF(0),
+             alter_ctx->fk_error_id,
+             alter_ctx->fk_error_table);
+    return false;
+  }
+  if (ignore)
+    return true;
+  /* Ordinary ALTER TABLE. Report duplicate key error. */
+  uint key_nr= to->file->get_dup_key(error);
+  if (key_nr <= MAX_KEY)
+  {
+    const char *err_msg= ER_THD(thd, ER_DUP_ENTRY_WITH_KEY_NAME);
+    if (key_nr == 0 && to->s->keys > 0 &&
+        (to->key_info[0].key_part[0].field->flags &
+            AUTO_INCREMENT_FLAG))
+      err_msg= ER_THD(thd, ER_DUP_ENTRY_AUTOINCREMENT_CASE);
+    print_keydup_error(to,
+                       key_nr >= to->s->keys ? NULL :
+                       &to->key_info[key_nr],
+                       err_msg, MYF(0));
+  }
+  else
+    to->file->print_error(error, MYF(0));
+  return false;
+}
+
 static int
 copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
                          bool ignore,
@@ -12300,58 +12354,12 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
       to->auto_increment_field_not_null= FALSE;
       if (unlikely(error))
       {
-        if (to->file->is_fatal_error(error, HA_CHECK_DUP))
-        {
-          /* Not a duplicate key error. */
-          to->file->print_error(error, MYF(0));
-          error= 1;
+        if (!copy_data_error_ignore(error, ignore, to, thd, alter_ctx))
           break;
-        }
-        else
-        {
-          /* Duplicate key error. */
-          if (unlikely(alter_ctx->fk_error_if_delete_row))
-          {
-            /*
-              We are trying to omit a row from the table which serves as parent
-              in a foreign key. This might have broken referential integrity so
-              emit an error. Note that we can't ignore this error even if we are
-              executing ALTER IGNORE TABLE. IGNORE allows to skip rows, but
-              doesn't allow to break unique or foreign key constraints,
-            */
-            my_error(ER_FK_CANNOT_DELETE_PARENT, MYF(0),
-                     alter_ctx->fk_error_id,
-                     alter_ctx->fk_error_table);
-            break;
-          }
-
-          if (ignore)
-          {
-            /* This ALTER IGNORE TABLE. Simply skip row and continue. */
-            to->file->restore_auto_increment(prev_insert_id);
-            delete_count++;
-          }
-          else
-          {
-            /* Ordinary ALTER TABLE. Report duplicate key error. */
-            uint key_nr= to->file->get_dup_key(error);
-            if ((int) key_nr >= 0)
-            {
-              const char *err_msg= ER_THD(thd, ER_DUP_ENTRY_WITH_KEY_NAME);
-              if (key_nr == 0 && to->s->keys > 0 &&
-                  (to->key_info[0].key_part[0].field->flags &
-                   AUTO_INCREMENT_FLAG))
-                err_msg= ER_THD(thd, ER_DUP_ENTRY_AUTOINCREMENT_CASE);
-              print_keydup_error(to,
-                                 key_nr >= to->s->keys ? NULL :
-                                     &to->key_info[key_nr],
-                                 err_msg, MYF(0));
-            }
-            else
-              to->file->print_error(error, MYF(0));
-            break;
-          }
-        }
+        DBUG_ASSERT(ignore);
+        /* This ALTER IGNORE TABLE. Simply skip row and continue. */
+        to->file->restore_auto_increment(prev_insert_id);
+        delete_count++;
       }
       else
       {
@@ -12379,9 +12387,15 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   }
 
   bulk_insert_started= 0;
-  if (!ignore)
-    to->file->extra(HA_EXTRA_END_ALTER_COPY);
-
+  if (!ignore && error <= 0)
+  {
+    int alt_error= to->file->extra(HA_EXTRA_END_ALTER_COPY);
+    if (alt_error > 0)
+    {
+      error= alt_error;
+      copy_data_error_ignore(error, false, to, thd, alter_ctx);
+    }
+  }
   cleanup_done= 1;
   to->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
 
