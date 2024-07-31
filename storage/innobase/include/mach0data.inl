@@ -29,6 +29,7 @@ Created 11/28/1995 Heikki Tuuri
 
 #include "mtr0types.h"
 #include "ut0byte.h"
+#include "my_valgrind.h"
 
 /*******************************************************//**
 The following function is used to store data in one byte. */
