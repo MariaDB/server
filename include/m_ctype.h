@@ -1780,7 +1780,8 @@ const MY_CONTRACTIONS *my_charset_get_contractions(CHARSET_INFO *cs,
                                                    int level);
 
 extern size_t my_vsnprintf_ex(CHARSET_INFO *cs, char *to, size_t n,
-                              const char* fmt, va_list ap);
+                              const char* fmt, va_list ap)
+                              ATTRIBUTE_FORMAT(printf, 4, 0);
 
 /*
   Convert a string between two character sets.
