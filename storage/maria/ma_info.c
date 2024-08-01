@@ -140,7 +140,7 @@ void _ma_report_error(int errcode, const LEX_STRING *name, myf flags)
       file_name+= length - 64;
     }
   }
-  my_printf_error(errcode, "Got error '%M' for '%s'",
+  my_printf_error(errcode, "Got error '%iE' for '%s'",
                   flags, errcode, file_name);
   DBUG_VOID_RETURN;
 }
