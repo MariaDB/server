@@ -1033,7 +1033,7 @@ static Item *create_comparator(MY_XPATH *xpath,
     else
       my_printf_error(ER_UNKNOWN_ERROR,
                       "XPATH error: "
-                      "comparison of two nodesets is not supported: '%.32T'",
+                      "comparison of two nodesets is not supported: '%.32sT'",
                       MYF(0), context->beg);
 
     return 0; // TODO: Comparison of two nodesets
@@ -2693,7 +2693,7 @@ my_xpath_parse_VariableReference(MY_XPATH *xpath)
         my_printf_error(ER_UNKNOWN_ERROR, "Unknown XPATH variable at: '%.*s'",
                         MYF(0), len, dollar_pos);
       else
-        my_printf_error(ER_UNKNOWN_ERROR, "Unknown XPATH variable at: '%.32T'",
+        my_printf_error(ER_UNKNOWN_ERROR, "Unknown XPATH variable at: '%.32sT'",
                         MYF(0), dollar_pos);
     }
   }
@@ -2829,7 +2829,7 @@ bool Item_xml_str_func::fix_fields(THD *thd, Item **ref)
       my_printf_error(ER_UNKNOWN_ERROR, "XPATH syntax error: '%.*s'",
                       MYF(0), clen, xpath.lasttok.beg);
     else
-      my_printf_error(ER_UNKNOWN_ERROR, "XPATH syntax error: '%.32T'",
+      my_printf_error(ER_UNKNOWN_ERROR, "XPATH syntax error: '%.32sT'",
                       MYF(0), xpath.lasttok.beg);
 
     return true;

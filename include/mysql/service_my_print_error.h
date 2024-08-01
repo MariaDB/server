@@ -31,6 +31,7 @@ extern "C" {
 #include <stdarg.h>
 #include <stdlib.h>
 #endif
+#include <my_attribute.h>
 
 #define ME_ERROR_LOG        64 /* Write the message to the error log */
 #define ME_ERROR_LOG_ONLY  128 /* Write the error message to error log only */
@@ -40,8 +41,12 @@ extern "C" {
 
 extern struct my_print_error_service_st {
   void (*my_error_func)(unsigned int nr, unsigned long MyFlags, ...);
-  void (*my_printf_error_func)(unsigned int nr, const char *fmt, unsigned long MyFlags,...);
-  void (*my_printv_error_func)(unsigned int error, const char *format, unsigned long MyFlags, va_list ap);
+  void (*my_printf_error_func)(unsigned int nr, const char *fmt,
+                               unsigned long MyFlags, ...)
+                               ATTRIBUTE_FORMAT_FPTR(printf, 2, 4);
+  void (*my_printv_error_func)(unsigned int error, const char *format,
+                               unsigned long MyFlags, va_list ap)
+                               ATTRIBUTE_FORMAT_FPTR(printf, 2, 0);
 } *my_print_error_service;
 
 #ifdef MYSQL_DYNAMIC_PLUGIN
@@ -52,8 +57,12 @@ extern struct my_print_error_service_st {
 
 #else
 extern void my_error(unsigned int nr, unsigned long MyFlags, ...);
-extern void my_printf_error(unsigned int my_err, const char *format, unsigned long MyFlags, ...);
-extern void my_printv_error(unsigned int error, const char *format, unsigned long MyFlags,va_list ap);
+extern void my_printf_error(unsigned int my_err, const char *format,
+                            unsigned long MyFlags, ...)
+                            ATTRIBUTE_FORMAT(printf, 2, 4);
+extern void my_printv_error(unsigned int error, const char *format,
+                            unsigned long MyFlags,va_list ap)
+                            ATTRIBUTE_FORMAT(printf, 2, 0);
 #endif /* MYSQL_DYNAMIC_PLUGIN */
 
 #ifdef __cplusplus
