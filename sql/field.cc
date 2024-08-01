@@ -992,14 +992,14 @@ bool Field::check_assignability_from(const Type_handler *from,
     */
     if (table->s->db.str && table->s->table_name.str)
       my_printf_error(ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION,
-                      "Cannot cast '%s' as '%s' in assignment of %`s.%`s.%`s",
+                      "Cannot cast '%s' as '%s' in assignment of %sQ.%sQ.%sQ",
                       MYF(error ? 0 : ME_WARNING),
                       from->name().ptr(), type_handler()->name().ptr(),
                       table->s->db.str, table->s->table_name.str,
                       field_name.str);
     else
       my_printf_error(ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION,
-                      "Cannot cast '%s' as '%s' in assignment of %`s",
+                      "Cannot cast '%s' as '%s' in assignment of %sQ",
                       MYF(error ? 0 : ME_WARNING),
                       from->name().ptr(), type_handler()->name().ptr(),
                       field_name.str);

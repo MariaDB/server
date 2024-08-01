@@ -3474,12 +3474,12 @@ end:
            target user, so printing `priv_user@priv_host` is not incorrect.
          */
         if (!host.str)
-          my_printf_error(ER_INVALID_ROLE, "User %`s@%`s has not been granted role %`s",
+          my_printf_error(ER_INVALID_ROLE, "User %sQ@%sQ has not been granted role %sQ",
                           MYF(0), thd->security_ctx->priv_user,
                           thd->security_ctx->priv_host, rolename.str);
         else
           /* Role is not granted but current user can see the role */
-          my_printf_error(ER_INVALID_ROLE, "User %`s@%`s has not been granted role %`s",
+          my_printf_error(ER_INVALID_ROLE, "User %sQ@%sQ has not been granted role %sQ",
                           MYF(0), user.str, host.str, rolename.str);
       }
       else

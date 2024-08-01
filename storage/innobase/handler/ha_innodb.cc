@@ -3738,7 +3738,7 @@ compression_algorithm_is_not_loaded(ulong compression_algorithm, myf flags)
   if (is_loaded[compression_algorithm])
     return 0;
 
-  my_printf_error(HA_ERR_UNSUPPORTED, "InnoDB: compression algorithm %s (%u)"
+  my_printf_error(HA_ERR_UNSUPPORTED, "InnoDB: compression algorithm %s (%lu)"
     " is not available. Please, load the corresponding provider plugin.", flags,
     page_compression_algorithms[compression_algorithm], compression_algorithm);
   return 1;
@@ -18566,7 +18566,7 @@ static void innodb_log_file_size_update(THD *thd, st_mysql_sys_var*,
            *static_cast<const ulonglong*>(save) < log_sys.buf_size)
     my_printf_error(ER_WRONG_ARGUMENTS,
                     "innodb_log_file_size must be at least"
-                    " innodb_log_buffer_size=%zu", MYF(0), log_sys.buf_size);
+                    " innodb_log_buffer_size=%u", MYF(0), log_sys.buf_size);
   else
   {
     switch (log_sys.resize_start(*static_cast<const ulonglong*>(save))) {
