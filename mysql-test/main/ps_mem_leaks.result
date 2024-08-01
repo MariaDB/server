@@ -148,3 +148,17 @@ CALL p1(2);
 DROP TABLE t1;
 DROP PROCEDURE p1;
 # End of 10.11 tests
+#
+# MDEV-34649: Memory leaks on running DELETE statement in PS mode with positional parameters
+#
+CREATE TABLE t1 (a INT, b VARCHAR(30)) CHARSET=utf8mb4;
+INSERT INTO t1 VALUES (1, 'one'), (0, NULL), (3, 'three'), (4, 'four');
+PREPARE stmt FROM 'DELETE FROM t1 WHERE b=?' ;
+SET @arg00=NULL;
+EXECUTE stmt USING @arg00;
+SET @arg00='one';
+EXECUTE stmt USING @arg00;
+# Clean up
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1;
+# End of 11.1
