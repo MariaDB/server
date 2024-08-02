@@ -6805,6 +6805,7 @@ error_pt_attr_setstate:
   pthread_attr_destroy(&spider_pt_attr);
 error_pt_attr_init:
 #endif
+  spider_hton_ptr= NULL;
   DBUG_RETURN(error_num);
 }
 
