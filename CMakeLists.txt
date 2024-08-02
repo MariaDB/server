@@ -192,11 +192,7 @@ ELSE()
 ENDIF()
 
 
-IF("${MYSQL_NO_DASH_VERSION}" VERSION_LESS 11.2)
-  SET(MEMPROTECT_DEFAULT ON)
-ELSE()
-  SET(MEMPROTECT_DEFAULT OFF)
-ENDIF()
+SET(MEMPROTECT_DEFAULT ON)
 
 OPTION(WITH_PROTECT_STATEMENT_MEMROOT "Enable protection of statement's memory root after first SP/PS execution. Turned into account only for debug build"
 ${MEMPROTECT_DEFAULT})
