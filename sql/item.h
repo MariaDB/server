@@ -5225,6 +5225,9 @@ public:
     cached_time.copy_to_mysql_time(ltime);
     return (null_value= false);
   }
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_date_literal_for_invalid_dates>(thd, this); }
+  Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
 };
 
 
@@ -6699,7 +6702,9 @@ public:
     description
   */
   bool associate_with_target_field(THD *thd, Item_field *field) override;
-
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_default_value>(thd, this); }
+  Item* do_build_clone(THD *thd) const override { return get_copy(thd); }
 private:
   bool tie_field(THD *thd);
 };
