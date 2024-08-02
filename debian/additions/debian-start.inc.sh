@@ -31,13 +31,14 @@ function check_for_crashed_tables() {
   # Note that inside single quotes must be quoted with '\'' (to be outside of single quotes).
   set +e
   # The $MARIADB is intentionally used to expand into a command and arguments
+  # shellcheck disable=SC2086
   echo '
     SELECT CONCAT("select count(*) into @discard from '\''", TABLE_SCHEMA, "'\''.'\''", TABLE_NAME, "'\''")
     FROM information_schema.TABLES WHERE TABLE_SCHEMA<>"INFORMATION_SCHEMA" AND TABLE_SCHEMA<>"PERFORMANCE_SCHEMA"
     AND (ENGINE="MyISAM" OR ENGINE="Aria")
     ' | \
-    LC_ALL=C "$MARIADB" --skip-column-names --batch | \
-    xargs --no-run-if-empty -i "$MARIADB" --skip-column-names --silent --batch --force -e "{}" &> "${tempfile}"
+    LC_ALL=C $MARIADB --skip-column-names --batch | \
+    xargs --no-run-if-empty -i $MARIADB --skip-column-names --silent --batch --force -e "{}" &> "${tempfile}"
   set -e
 
   if [ -s "$tempfile" ]
