@@ -1450,11 +1450,23 @@ handle_rpl_parallel_thread(void *arg)
           after mark_start_commit(), we have to unmark, which has at least a
           theoretical possibility of leaving a window where it looks like all
           transactions in a GCO have started committing, while in fact one
-          will need to rollback and retry. This is not supposed to be possible
-          (since there is a deadlock, at least one transaction should be
-          blocked from reaching commit), but this seems a fragile ensurance,
-          and there were historically a number of subtle bugs in this area.
+          will need to rollback and retry.
+
+          Normally this will not happen, since the kill is there to resolve a
+          deadlock that is preventing at least one transaction from proceeding.
+          One case it can happen is with InnoDB dict stats update, which can
+          temporarily cause transactions to block each other, but locks are
+          released immediately, they don't linger until commit. There could be
+          other similar cases, there were historically a number of subtle bugs
+          in this area.
+
+          But once we start the commit, we can expect that no new lock
+          conflicts will be introduced. So by handling any lingering deadlock
+          kill at this point just before mark_start_commit(), we should be
+          robust even towards spurious deadlock kills.
         */
+        if (rgi->killed_for_retry != rpl_group_info::RETRY_KILL_NONE)
+          wait_for_pending_deadlock_kill(thd, rgi);
         if (!thd->killed)
         {
           DEBUG_SYNC(thd, "rpl_parallel_before_mark_start_commit");
