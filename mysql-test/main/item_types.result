@@ -1,0 +1,16 @@
+#
+# MDEV-34634 Types mismatch when cloning items causes debug assertion
+#
+CREATE TABLE t1 (a DATETIME);
+SET optimizer_switch='derived_merge=off';
+SELECT * FROM (SELECT * FROM t1) AS t1 WHERE a='';
+a
+Warnings:
+Warning	1292	Truncated incorrect datetime value: ''
+DROP TABLE t1;
+CREATE TABLE t1 (c YEAR);
+CREATE TABLE t2 (c INT);
+SELECT * FROM t1 JOIN t2 ON t1.c=t2.c WHERE t1.c<=>5;
+c	c
+DROP TABLE t1, t2;
+SET optimizer_switch=default;

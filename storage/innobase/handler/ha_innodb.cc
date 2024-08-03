@@ -13335,7 +13335,7 @@ ha_innobase::discard_or_import_tablespace(
 			     | HA_STATUS_VARIABLE
 			     | HA_STATUS_AUTO);
 
-			fil_crypt_set_encrypt_tables(srv_encrypt_tables);
+			fil_crypt_add_imported_space(m_prebuilt->table->space);
 		}
 	}
 
@@ -14949,7 +14949,8 @@ ha_innobase::info_low(
 				index selectivity is 2 times better than
 				our estimate: */
 
-				rec_per_key_int = rec_per_key_int / 2;
+				rec_per_key_int /= 1
+					+ thd_double_innodb_cardinality(m_user_thd);
 
 				if (rec_per_key_int == 0) {
 					rec_per_key_int = 1;

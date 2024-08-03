@@ -65,6 +65,32 @@ id
 4
 5
 DROP TABLE t2;
+#
+# MDEV-34181  Instant table aborts after discard tablespace
+#
+CREATE TABLE t1(c3 INT, c2 INT, c1 INT KEY)ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1, 1, 1), (2, 2, 2);
+CREATE TABLE t2 (c1 INT KEY) ENGINE=InnoDB;
+INSERT INTO t2 VALUES(1);
+ALTER TABLE t2 ADD c2 INT;
+FLUSH TABLES t1 FOR EXPORT;
+UNLOCK TABLES;
+ALTER TABLE t2 DISCARD TABLESPACE;
+ALTER TABLE t2 ADD c3 INT FIRST;
+Warnings:
+Warning	1814	Tablespace has been discarded for table `t2`
+ALTER TABLE t2 IMPORT TABLESPACE;
+Warnings:
+Warning	1810	IO Read error: (2, No such file or directory) Error opening './test/t2.cfg', will attempt to import without schema verification
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c3` int(11) DEFAULT NULL,
+  `c1` int(11) NOT NULL,
+  `c2` int(11) DEFAULT NULL,
+  PRIMARY KEY (`c1`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t2, t1;
 # End of 10.5 tests
 #
 # MDEV-27006 Assertion `!lock_trx_has_sys_table_locks(trx)'

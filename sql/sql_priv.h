@@ -278,6 +278,7 @@
 #define OPTIMIZER_ADJ_SEC_KEY_COST (1)
 #define OPTIMIZER_ADJ_DISABLE_MAX_SEEKS (2)
 #define OPTIMIZER_ADJ_DISABLE_FORCE_INDEX_GROUP_BY (4)
+#define OPTIMIZER_FIX_INNODB_CARDINALITY (8)
 
 /*
   Replication uses 8 bytes to store SQL_MODE in the binary log. The day you
