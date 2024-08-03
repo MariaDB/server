@@ -1985,7 +1985,7 @@ bool partition_info::add_column_list_value(THD *thd, Item *item)
   part_column_list_val *col_val;
   Name_resolution_context *context= &thd->lex->current_select->context;
   TABLE_LIST *save_list= context->table_list;
-  const char *save_where= thd->where;
+  THD_WHERE save_where= thd->where;
   DBUG_ENTER("partition_info::add_column_list_value");
 
   if (part_type == LIST_PARTITION &&
@@ -1999,9 +1999,9 @@ bool partition_info::add_column_list_value(THD *thd, Item *item)
 
   context->table_list= 0;
   if (column_list)
-    thd->where= "field list";
+    thd->where= THD_WHERE::FIELD_LIST;
   else
-    thd->where= "partition function";
+    thd->where= THD_WHERE::PARTITION_FUNCTION;
 
   if (item->walk(&Item::check_partition_func_processor, 0, NULL))
   {

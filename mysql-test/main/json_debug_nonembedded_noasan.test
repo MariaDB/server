@@ -1,5 +1,6 @@
 -- source include/not_embedded.inc
 --source include/have_debug.inc
+--source include/not_asan.inc
 
 --echo #
 --echo # MDEV-28762: recursive call of some json functions without stack control

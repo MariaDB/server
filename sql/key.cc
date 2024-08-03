@@ -759,10 +759,12 @@ ulong key_hashnr(KEY *key_info, uint used_key_parts, const uchar *key)
     if (is_string)
     {
       /*
-        Prefix keys are not possible in BNLH joins.
-        Use the whole string to calculate the hash.
+        Surprisingly, BNL-H joins may use prefix keys. This may happen
+        when there is a real index on the column used in equi-join.
+
+        In this case, the passed key tuple is already a prefix, no
+        special handling is required.
       */
-      DBUG_ASSERT((key_part->key_part_flag & HA_PART_KEY_SEG) == 0);
       cs->hash_sort(pos+pack_length, length, &nr, &nr2);
       key+= pack_length;
     }
@@ -866,10 +868,10 @@ bool key_buf_cmp(KEY *key_info, uint used_key_parts,
     if (is_string)
     {
       /*
-        Prefix keys are not possible in BNLH joins.
-        Compare whole strings.
+        Surprisingly, BNL-H joins may use prefix keys. This may happen
+        when there is a real index on the column used in equi-join.
+        In this case, we get properly truncated prefixes here.
       */
-      DBUG_ASSERT((key_part->key_part_flag & HA_PART_KEY_SEG) == 0);
       if (cs->strnncollsp(pos1 + pack_length, length1,
                           pos2 + pack_length, length2))
         return true;

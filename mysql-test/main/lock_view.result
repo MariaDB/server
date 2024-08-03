@@ -16,7 +16,7 @@ create definer=definer@localhost view mysqltest3.v3is as select schema_name from
 create definer=definer@localhost view mysqltest3.v3ps as select user from performance_schema.users where current_connections>0 order by user;
 create definer=definer@localhost view mysqltest3.v3nt as select 1;
 create definer=definer@localhost sql security invoker view mysqltest3.v3i as select * from mysqltest1.t1;
-/*!999999\- enable the sandbox mode */ 
+/*M!999999\- enable the sandbox mode */ 
 
 CREATE DATABASE /*!32312 IF NOT EXISTS*/ `mysqltest1` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */;
 
@@ -235,7 +235,7 @@ create view v1 as select * from (select * from t1) dt;
 lock table v1 read;
 disconnect con1;
 connection default;
-/*!999999\- enable the sandbox mode */ 
+/*M!999999\- enable the sandbox mode */ 
 SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8;
 /*!50001 CREATE VIEW `v1` AS SELECT

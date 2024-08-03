@@ -21,7 +21,7 @@ test.t3	analyze	status	OK
 test.t4	analyze	status	Engine-independent statistics collected
 test.t4	analyze	Warning	Engine-independent statistics are not collected for column 'a'
 test.t4	analyze	status	OK
-/*!999999\- enable the sandbox mode */ 
+/*M!999999\- enable the sandbox mode */ 
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `t4` (

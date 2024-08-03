@@ -5,11 +5,12 @@
 --source include/galera_cluster.inc
 --source include/big_test.inc
 
-call mtr.add_suppression("WSREP: It may not be safe to bootstrap the cluster from this node.*");
+call mtr.add_suppression("WSREP: It may not be safe to bootstrap the cluster from this node");
 call mtr.add_suppression("Aborting");
-call mtr.add_suppression("Plugin \'wsrep\' init function returned error.");
-call mtr.add_suppression("Plugin \'wsrep\' registration as a STORAGE ENGINE failed.");
-call mtr.add_suppression("Failed to initialize plugins.");
+call mtr.add_suppression("Plugin 'wsrep' init function returned error");
+call mtr.add_suppression("Plugin 'wsrep' registration as a STORAGE ENGINE failed");
+call mtr.add_suppression("Plugin 'wsrep' registration as a FUNCTION failed");
+call mtr.add_suppression("Failed to initialize plugins");
 
 --connection node_2
 SET SESSION wsrep_sync_wait = 0;

@@ -1,6 +1,6 @@
 connection node_2;
 connection node_1;
-call mtr.add_suppression("WSREP: gcs/src/gcs_core.cpp:core_handle_uuid_msg\\(\\).*");
+call mtr.add_suppression("WSREP: gcs/src/gcs_core\\.cpp:core_handle_uuid_msg\\(\\)");
 connection node_1;
 connection node_2;
 connection node_3;
