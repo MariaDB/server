@@ -1042,13 +1042,19 @@ std::pair<lsn_t,byte*> log_t::append_prepare(size_t size, bool ex) noexcept
   size_t b{spin ? lock_lsn() : buf_free.load(std::memory_order_relaxed)};
   write_to_buf++;
 
-  const lsn_t l{lsn.load(std::memory_order_relaxed)}, end_lsn{l + size};
+  lsn_t l{lsn.load(std::memory_order_relaxed)}, end_lsn{l + size};
 
   if (UNIV_UNLIKELY(pmem
                     ? (end_lsn -
                        get_flushed_lsn(std::memory_order_relaxed)) > capacity()
                     : b + size >= buf_size))
+  {
     b= append_prepare_wait<spin>(b, ex, l);
+    /* While flushing log, we had released the lsn lock and LSN could have
+    progressed in the meantime. */
+    l= lsn.load(std::memory_order_relaxed);
+    end_lsn= l + size;
+  }
 
   size_t new_buf_free= b + size;
   if (pmem && new_buf_free >= file_size)
