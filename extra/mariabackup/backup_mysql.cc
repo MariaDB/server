@@ -1936,9 +1936,17 @@ char *make_argv(char *buf, size_t len, int argc, char **argv)
 	while (argc > 0 && left > 0)
 	{
 		arg = *argv;
-		if (strncmp(*argv, "--password", strlen("--password")) == 0) {
+		if (strncmp(*argv, STRING_WITH_LEN("--password=")) == 0) {
 			arg = "--password=...";
+		} else
+		if (strcmp(*argv, "--password") == 0) {
+			arg = "--password ...";
+                        ++argv; --argc;
+                } else
+                if (strncmp(*argv, STRING_WITH_LEN("-p")) == 0) {
+			arg = "-p...";
 		}
+
 		uint l= snprintf(buf + len - left, left,
 				"%s%c", arg, argc > 1 ? ' ' : 0);
 		++argv; --argc;

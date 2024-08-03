@@ -158,3 +158,84 @@ json_detailed(json_extract(@trace, '$**.considered_access_paths'))
     ]
 ]
 drop table t1, name, flag2;
+select @@optimizer_adjust_secondary_key_costs;
+@@optimizer_adjust_secondary_key_costs
+0
+set @@optimizer_adjust_secondary_key_costs=7;
+Warnings:
+Warning	1287	'@@optimizer_adjust_secondary_key_costs' is deprecated and will be removed in a future release
+Warning	1292	Truncated incorrect optimizer_adjust_secondary_ke... value: '7'
+select @@optimizer_adjust_secondary_key_costs;
+@@optimizer_adjust_secondary_key_costs
+2
+set @@optimizer_adjust_secondary_key_costs=default;
+Warnings:
+Warning	1287	'@@optimizer_adjust_secondary_key_costs' is deprecated and will be removed in a future release
+#
+# MDEV-34664: fix_innodb_cardinality
+#
+set @save_userstat=@@global.userstat;
+set @save_ispsp=@@global.innodb_stats_persistent_sample_pages;
+set @@global.innodb_stats_persistent_sample_pages=20;
+set @@global.userstat=on;
+set use_stat_tables=PREFERABLY_FOR_QUERIES;
+create or replace table t1 (a int primary key, b int, c int, d int, key(b,c,d)) engine=innodb;
+insert into t1 select seq,seq/100,seq/60,seq/10 from seq_1_to_1000;
+create or replace table t2 (a int);
+insert into t2 values (1),(2),(3);
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	OK
+select count(distinct b),count(distinct b,c), count(distinct b,c,d) from t1;
+count(distinct b)	count(distinct b,c)	count(distinct b,c,d)
+11	25	125
+show index from t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	PRIMARY	1	a	A	1000	NULL	NULL		BTREE			NO
+t1	1	b	1	b	A	11	NULL	NULL	YES	BTREE			NO
+t1	1	b	2	c	A	25	NULL	NULL	YES	BTREE			NO
+t1	1	b	3	d	A	125	NULL	NULL	YES	BTREE			NO
+explain select * from t1,t2 where t1.b=t2.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	Using where
+1	SIMPLE	t1	ref	b	b	5	test.t2.a	90	Using index
+set @@optimizer_adjust_secondary_key_costs=8;
+Warnings:
+Warning	1287	'@@optimizer_adjust_secondary_key_costs' is deprecated and will be removed in a future release
+Warning	1292	Truncated incorrect optimizer_adjust_secondary_ke... value: '8'
+explain select * from t1,t2 where t1.b=t2.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	Using where
+1	SIMPLE	t1	ref	b	b	5	test.t2.a	90	Using index
+show index from t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	PRIMARY	1	a	A	1000	NULL	NULL		BTREE			NO
+t1	1	b	1	b	A	11	NULL	NULL	YES	BTREE			NO
+t1	1	b	2	c	A	25	NULL	NULL	YES	BTREE			NO
+t1	1	b	3	d	A	125	NULL	NULL	YES	BTREE			NO
+flush tables;
+explain select * from t1,t2 where t1.b=t2.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	Using where
+1	SIMPLE	t1	ref	b	b	5	test.t2.a	90	Using index
+show index from t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	PRIMARY	1	a	A	1000	NULL	NULL		BTREE			NO
+t1	1	b	1	b	A	11	NULL	NULL	YES	BTREE			NO
+t1	1	b	2	c	A	25	NULL	NULL	YES	BTREE			NO
+t1	1	b	3	d	A	125	NULL	NULL	YES	BTREE			NO
+connect  user2, localhost, root,,;
+show index from t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	PRIMARY	1	a	A	1000	NULL	NULL		BTREE			NO
+t1	1	b	1	b	A	11	NULL	NULL	YES	BTREE			NO
+t1	1	b	2	c	A	25	NULL	NULL	YES	BTREE			NO
+t1	1	b	3	d	A	125	NULL	NULL	YES	BTREE			NO
+connection default;
+disconnect user2;
+drop table t1,t2;
+set global userstat=@save_userstat;
+set global innodb_stats_persistent_sample_pages=@save_ispsp;
+set @@optimizer_adjust_secondary_key_costs=default;
+Warnings:
+Warning	1287	'@@optimizer_adjust_secondary_key_costs' is deprecated and will be removed in a future release

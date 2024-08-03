@@ -290,8 +290,9 @@ public:
       str->append(tmp);
       str->append('\'');
     }
-    Item *get_copy(THD *thd) override
+    Item *do_get_copy(THD *thd) const override
     { return get_item_copy<Item_literal_fbt>(thd, this); }
+    Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
 
     // Non-overriding methods
     void set_value(const Fbt &value)
@@ -869,8 +870,9 @@ public:
     {
       return Item::save_in_field(field, no_conversions);
     }
-    Item *get_copy(THD *thd) override
+    Item *do_get_copy(THD *thd) const override
     { return get_item_copy<Item_copy_fbt>(thd, this); }
+    Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
   };
 
   class Item_char_typecast_func_handler_fbt_to_binary:
@@ -970,7 +972,7 @@ public:
       Fbt_null tmp(args[0]);
       return null_value= tmp.is_null() || tmp.to_native(to);
     }
-    Item *get_copy(THD *thd) override
+    Item *do_get_copy(THD *thd) const override
     { return get_item_copy<Item_typecast_fbt>(thd, this); }
   };
 
@@ -980,8 +982,9 @@ public:
   public:
     Item_cache_fbt(THD *thd)
      :Item_cache(thd, singleton()) { }
-    Item *get_copy(THD *thd) override
+    Item *do_get_copy(THD *thd) const override
     { return get_item_copy<Item_cache_fbt>(thd, this); }
+    Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
     bool cache_value() override
     {
       if (!example)

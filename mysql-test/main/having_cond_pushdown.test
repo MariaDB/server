@@ -1660,6 +1660,7 @@ let $q=
 SELECT a,b,c FROM t1 GROUP BY a,b,c
   HAVING a = (SELECT MIN(b) AS min_b FROM t1) and (a = b or a = c);
 
+--source include/explain-no-costs.inc
 eval EXPLAIN FORMAT=JSON $q;
 eval $q;
 
@@ -1667,6 +1668,7 @@ let $q=
 SELECT a FROM t1 GROUP BY a,b
   HAVING a = (SELECT MIN(a) AS min_a FROM t1) AND (a = 3 or a > b);
 
+--source include/explain-no-costs.inc
 eval EXPLAIN FORMAT=JSON $q;
 eval $q;
 
@@ -1707,5 +1709,33 @@ SELECT * FROM v1
   GROUP BY a HAVING a = (a IS NULL OR a IS NULL);
 
 DROP VIEW v1;
+
+--echo #
+--echo # MDEV-32608: Expression with constant subquery causes a crash
+--echo # in pushdown from HAVING
+--echo #
+
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (2, 1), (3, 2);
+
+let $q=
+SELECT * FROM t1
+GROUP BY b
+HAVING (SELECT MAX(b) FROM t1) = a AND a + b = 3;
+
+--source include/explain-no-costs.inc
+eval EXPLAIN FORMAT=JSON $q;
+eval $q;
+
+let $q=
+SELECT * FROM t1
+GROUP BY b
+HAVING (SELECT MAX(b) FROM t1) = a AND a > b;
+
+--source include/explain-no-costs.inc
+eval EXPLAIN FORMAT=JSON $q;
+eval $q;
+
+DROP TABLE t1;
 
 --echo End of 10.5 tests
