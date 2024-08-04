@@ -1164,6 +1164,88 @@ include/sync_with_master_gtid.inc
 connection server_1;
 set @@binlog_format = @sav_binlog_format;
 set @@global.binlog_format = @sav_binlog_format;
+#
+# MDEV-33921.1: If a slave's replication of an XA transaction results in
+# an empty transaction, e.g. due to replication filters, the slave
+# should not binlog any part of the XA transaction.
+connection server_1;
+create database db1;
+create database db2;
+create table db1.t1 (a int) engine=innodb;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+change master to master_use_gtid=slave_pos;
+connection server_2;
+include/stop_slave.inc
+SET @@GLOBAL.replicate_ignore_db= "";
+SET @@GLOBAL.replicate_do_db= "db2";
+change master to master_use_gtid=slave_pos;
+include/start_slave.inc
+connection server_1;
+use db1;
+XA START "x1";
+insert into db1.t1 values (1);
+XA END "x1";
+XA PREPARE "x1";
+XA COMMIT "x1";
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+connection server_2;
+include/save_master_gtid.inc
+connection server_3;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+#
+# 33921.2: If the slave shuts down after "preparing" a filtered-to-empty
+# XA transaction (and not completing it), then when the respective
+# XA completion (COMMIT in this test) command is replicated, the slave
+# should not throw ER_XAER_NOTA. Note that internally, the error is
+# thrown, but it is ignored because the target db is filtered.
+connection server_3;
+include/stop_slave.inc
+connection server_1;
+use db1;
+XA START "x2";
+insert into db1.t1 values (2);
+XA END "x2";
+XA PREPARE "x2";
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+# Connection named slave is needed for reconnection
+connect slave,localhost,root,,;
+connect slave1,localhost,root,,;
+include/rpl_restart_server.inc [server_number=2]
+connection server_2;
+include/stop_slave.inc
+SET @@GLOBAL.replicate_do_db= "db2";
+change master to master_use_gtid=slave_pos;
+include/start_slave.inc
+connection server_1;
+XA COMMIT "x2";
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
+connection server_3;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+#
+# 33921.3: Ensure XA commands are not considered by mysqlbinlog's
+# --database filter
+connection server_1;
+# MYSQL_BINLOG datadir/binlog_file --start-position=pre_xa_pos --database=db2 --result-file=assert_file
+include/assert_grep.inc [Mysqlbinlog should output all XA commands from the filtered transaction]
+connection server_2;
+include/stop_slave.inc
+SET @@GLOBAL.replicate_do_db="";
+include/start_slave.inc
+connection server_1;
+drop database db1;
+drop database db2;
 connection server_1;
 include/rpl_end.inc
 # End of rpl_xa_empty_transaction.test

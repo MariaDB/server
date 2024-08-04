@@ -7,7 +7,7 @@ Author: Mathias Gug <mathias.gug@canonical.com>
 from __future__ import print_function, unicode_literals
 import os, os.path
 
-from apport.hookutils import *
+from apport.hookutils import path_to_key, read_file, attach_conffiles, attach_mac_events, attach_file
 
 def _add_my_conf_files(report, filename):
     key = 'MySQLConf' + path_to_key(filename)

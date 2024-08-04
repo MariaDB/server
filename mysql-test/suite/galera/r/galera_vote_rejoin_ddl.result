@@ -53,7 +53,7 @@ expect_0
 SELECT COUNT(*) AS expect_1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't2';
 expect_1
 1
-CALL mtr.add_suppression("WSREP: Vote 0 \\(success\\) on .* is inconsistent with group. Leaving cluster.");
+CALL mtr.add_suppression("WSREP: Vote 0 \\(success\\) on .* is inconsistent with group\\. Leaving cluster\\.");
 connection node_4;
 SELECT COUNT(*) AS expect_0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
 expect_0
@@ -61,7 +61,7 @@ expect_0
 SELECT COUNT(*) AS expect_1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't2';
 expect_1
 1
-CALL mtr.add_suppression("WSREP: Vote 0 \\(success\\) on .* is inconsistent with group. Leaving cluster.");
+CALL mtr.add_suppression("WSREP: Vote 0 \\(success\\) on .* is inconsistent with group\\. Leaving cluster\\.");
 DROP TABLE t2;
 disconnect node_3;
 disconnect node_4;

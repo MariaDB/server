@@ -10,7 +10,7 @@ then
   DEBIAN_SCRIPT_TRACE=1
 fi
 
-${DEBIAN_SCRIPT_TRACE:+ echo "#42#DEBUG# RUNNING $0 $*" 1>&2 }
+${DEBIAN_SCRIPT_TRACE:+ echo "#42#DEBUG# RUNNING $0 $*" 1>&2}
 
 export PATH=$PATH:/sbin:/usr/sbin:/bin:/usr/bin
 
@@ -112,7 +112,7 @@ EOF
       fi
       rmdir $mysql_upgradedir 2>/dev/null || true
 
-    done
+    done # end 'for dir' loop
 
     # Upgrading from mysql.com needs might have the root user as auth_socket.
     # auto.cnf is a sign of a mysql install, that doesn't exist in mariadb.
@@ -123,12 +123,12 @@ EOF
     # perform mariadb-upgrade, (MDEV-22678).  To keep the impact minimal, we
     # skip innodb and set key-buffer-size to 0 as it isn't reused.
     if [ -f "$mysql_datadir/auto.cnf" ] &&
-    [ -f "$mysql_datadir/mysql/user.MYD" ] &&
-    ! lsof -nt "$mysql_datadir"/mysql/user.MYD > /dev/null &&
-    [ ! -f "$mysql_datadir/undo_001" ]
+       [ -f "$mysql_datadir/mysql/user.MYD" ] &&
+       ! lsof -nt "$mysql_datadir"/mysql/user.MYD > /dev/null &&
+       [ ! -f "$mysql_datadir/undo_001" ]
     then
-      echo "UPDATE mysql.user SET plugin='unix_socket' WHERE plugin='auth_socket';" |
-      mariadbd --skip-innodb --key_buffer_size=0  --default-storage-engine=MyISAM --bootstrap 2> /dev/null
+      echo "UPDATE mysql.user SET plugin='unix_socket' WHERE plugin='auth_socket';" | \
+        mariadbd --skip-innodb --key_buffer_size=0  --default-storage-engine=MyISAM --bootstrap 2> /dev/null
     fi
 
     # Ensure the existence and right permissions for the database and
@@ -150,9 +150,10 @@ EOF
     # The mysql_statedir must not be writable by the mysql user under any
     # circumstances as it contains scripts that are executed by root.
     set +e
-    chown -R 0:0 $mysql_statedir
+    find $mysql_statedir ! -uid 0 -print0 -or ! -gid 0 -print0 | xargs -0 -r sudo chown 0:0
     find $mysql_datadir ! -uid "$(id -u mysql)" -print0 | xargs -0 -r chown mysql
-    chown -R mysql:adm $mysql_logdir
+    chown mysql:adm $mysql_logdir
+    find "$mysql_logdir" -print0 | xargs -0 -r chown mysql:adm
     chmod 2750 $mysql_logdir
     set -e
 
@@ -183,6 +184,8 @@ EOF
     # Clean up old flags before setting new one
     rm -f $mysql_datadir/debian-*.flag
     # Flag data dir to avoid downgrades
+    # @TODO: Rewrite this to use the new upstream /var/lib/mysql_upgrade_info file
+    # instead of the legacy /var/lib/debian-XX.X.flag file
     touch "$mysql_datadir/debian-__MARIADB_MAJOR_VER__.flag"
 
     # initiate databases. Output is not allowed by debconf :-(
@@ -191,9 +194,13 @@ EOF
     # handle things.
     # Debian: beware of the bashisms...
     # Debian: can safely run on upgrades with existing databases
+    # Workaround for Debian Bug #1022994: failure to create database when
+    # working with libpam-tmpdir (by setting TMPDIR to empty value).
     set +e
-    bash /usr/bin/mariadb-install-db --rpm --cross-bootstrap --user=mysql \
-      --disable-log-bin  --skip-test-db 2>&1 | \
+    TMPDIR='' bash /usr/bin/mariadb-install-db \
+      --rpm --cross-bootstrap \
+      --user=mysql --disable-log-bin \
+      --skip-test-db 2>&1 | \
       $ERR_LOGGER
     set -e
 
@@ -210,6 +217,7 @@ EOF
     then
       install -o 0 -g 0 -m 0755 -d $mysql_cfgdir
     fi
+
     if [ ! -e "$dc" ]
     then
       cat /dev/null > $dc
@@ -241,13 +249,13 @@ EOF
     # on by default) to work both to disable a default profile, and to keep
     # any profile installed and maintained by users themselves.
     profile="/etc/apparmor.d/usr.sbin.mariadbd"
-    if [ -f "$profile" ] && aa-status --enabled 2>/dev/null
+    if [ -f "$profile" ] && aa-status --enabled 2> /dev/null
     then
-      if grep -q /usr/sbin/mariadbd "$profile" 2>/dev/null
+      if grep -q /usr/sbin/mariadbd "$profile" 2> /dev/null
       then
         apparmor_parser -r "$profile" || true
       else
-        echo "/usr/sbin/mariadbd { }" | apparmor_parser --remove 2>/dev/null || true
+        echo "/usr/sbin/mariadbd { }" | apparmor_parser --remove 2> /dev/null || true
       fi
     fi
 
@@ -272,7 +280,8 @@ EOF
     if [ -d /run/systemd/system ]
     then
       systemctl --system daemon-reload
-    else
+    elif [ -x /etc/init.d/mariadb ]
+    then
       invoke-rc.d mariadb restart
     fi
     ;;

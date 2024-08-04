@@ -3334,7 +3334,7 @@ bool MYSQL_QUERY_LOG::write(THD *thd, time_t current_time,
     }
     if (thd->db.str && strcmp(thd->db.str, db))
     {						// Database changed
-      if (my_b_printf(&log_file,"use %s;\n",thd->db.str))
+      if (my_b_printf(&log_file,"use %`s;\n",thd->db.str))
         goto err;
       strmov(db,thd->db.str);
     }
@@ -3543,16 +3543,6 @@ void MYSQL_BIN_LOG::cleanup()
   */
   if (!is_relay_log)
     rpl_global_gtid_binlog_state.free();
-  DBUG_VOID_RETURN;
-}
-
-
-/* Init binlog-specific vars */
-void MYSQL_BIN_LOG::init(ulong max_size_arg)
-{
-  DBUG_ENTER("MYSQL_BIN_LOG::init");
-  max_size= max_size_arg;
-  DBUG_PRINT("info",("max_size: %lu", max_size));
   DBUG_VOID_RETURN;
 }
 
@@ -3810,7 +3800,7 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
     DBUG_RETURN(1);                            /* all warnings issued */
   }
 
-  init(max_size_arg);
+  max_size= max_size_arg;
 
   open_count++;
 
@@ -5733,10 +5723,8 @@ int MYSQL_BIN_LOG::new_file_impl()
   */
   if (unlikely((error= generate_new_name(new_name, name, 0))))
   {
-#ifdef ENABLE_AND_FIX_HANG
-    close_on_error= TRUE;
-#endif
-    goto end2;
+    mysql_mutex_unlock(&LOCK_index);
+    DBUG_RETURN(error);
   }
   new_name_ptr=new_name;
 
@@ -5847,7 +5835,6 @@ end:
     last_used_log_number--;
   }
 
-end2:
   if (delay_close)
   {
     clear_inuse_flag_when_closing(old_file);

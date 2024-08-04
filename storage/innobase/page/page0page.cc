@@ -790,11 +790,11 @@ zip_reorganize:
 			the predefined infimum record, then it would
 			still be the infimum, and we would have
 			ret_pos == 0. */
-			if (UNIV_UNLIKELY(!ret_pos
-					  || ret_pos == ULINT_UNDEFINED)) {
+			if (UNIV_UNLIKELY(ret_pos == ULINT_UNDEFINED)) {
 				*err = DB_CORRUPTION;
 				return nullptr;
 			}
+
 			*err = page_zip_reorganize(new_block, index,
 						   page_zip_level, mtr);
 			switch (*err) {

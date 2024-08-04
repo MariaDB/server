@@ -20,6 +20,7 @@
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 */
 
+#include "mrn.hpp"
 #include "mrn_mysql.h"
 #include "mrn_mysql_compat.h"
 
@@ -296,6 +297,7 @@ static PSI_mutex_info mrn_mutexes[] =
 #endif
 
 /* global variables */
+bool mrn_initialized = false;
 handlerton *mrn_hton_ptr;
 HASH mrn_open_tables;
 mysql_mutex_t mrn_open_tables_mutex;
@@ -1963,6 +1965,8 @@ static int mrn_init(void *p)
   mrn::PathMapper::default_mysql_data_home_path = mysql_data_home;
 #endif
 
+  mrn_initialized = true;
+
   return 0;
 
 error_allocated_long_term_share_hash_init:
@@ -2056,6 +2060,8 @@ static int mrn_deinit(void *p)
   }
   mysql_mutex_destroy(&mrn_query_log_mutex);
   mysql_mutex_destroy(&mrn_log_mutex);
+
+  mrn_initialized = false;
 
   return 0;
 }
