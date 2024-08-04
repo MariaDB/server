@@ -2,6 +2,10 @@ if (!$AUTH_ED25519_SO) {
   skip No auth_ed25519 plugin;
 }
 
+if (!$CLIENT_ED25519_SO) {
+  skip No client_ed25519 plugin;
+}
+
 source include/master-slave.inc;
 
 sync_slave_with_master;
