@@ -165,6 +165,7 @@ static my_bool column_types_flag;
 static my_bool preserve_comments= 0;
 static my_bool in_com_source, aborted= 0;
 static ulong opt_max_allowed_packet, opt_net_buffer_length;
+unsigned long quick_max_column_width= LONG_MAX;
 static uint verbose=0,opt_silent=0,opt_mysql_port=0, opt_local_infile=0;
 static uint my_end_arg;
 static char * opt_mysql_unix_port=0;
@@ -1679,6 +1680,10 @@ static struct my_option my_long_options[] =
    "Don't cache result, print it row by row. This may slow down the server "
    "if the output is suspended. Doesn't use history file.",
    &quick, &quick, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+  {"quick-max-column-width", 0,
+   "Maximal field length limit in case of --qick", &quick_max_column_width,
+   &quick_max_column_width, 0, GET_ULONG, REQUIRED_ARG, LONG_MAX, 0, ULONG_MAX,
+   0, 1, 0},
   {"raw", 'r', "Write fields without conversion. Used with --batch.",
    &opt_raw_data, &opt_raw_data, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"reconnect", 0, "Reconnect if the connection is lost.",
@@ -3712,7 +3717,7 @@ print_table_data(MYSQL_RES *result)
   {
     uint length= column_names ? field->name_length : 0;
     if (quick)
-      length= MY_MAX(length,field->length);
+      length= MY_MAX(length, MY_MIN(field->length, quick_max_column_width));
     else
       length= MY_MAX(length,field->max_length);
     if (length < 4 && !IS_NOT_NULL(field->flags))
