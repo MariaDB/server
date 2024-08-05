@@ -816,8 +816,6 @@ static MYSQL *db_connect(char *host, char *database,
     db_error(mysql);
   if (mysql_query(mysql, "set @save_tz=@@session.time_zone"))
     db_error(mysql);
-  if (mysql_query(mysql, "set unique_checks= 0"))
-    db_error(mysql);
   if (mysql_query(mysql, "/*M!100200 set check_constraint_checks=0*/"))
     db_error(mysql);
   return mysql;
