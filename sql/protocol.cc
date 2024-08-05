@@ -1485,7 +1485,7 @@ bool Protocol_text::store_str(const char *from, size_t length,
                               CHARSET_INFO *fromcs, CHARSET_INFO *tocs)
 {
 #ifndef DBUG_OFF
-  DBUG_PRINT("info", ("Protocol_text::store field %u : %.*b", field_pos,
+  DBUG_PRINT("info", ("Protocol_text::store field %u : %.*sB", field_pos,
                       (int) length, (length == 0 ? "" : from)));
   DBUG_ASSERT(field_handlers == 0 || field_pos < field_count);
   DBUG_ASSERT(valid_handler(field_pos, PROTOCOL_SEND_STRING));
@@ -1501,7 +1501,7 @@ bool Protocol_text::store_numeric_zerofill_str(const char *from,
 {
 #ifndef DBUG_OFF
   DBUG_PRINT("info",
-       ("Protocol_text::store_numeric_zerofill_str field %u : %.*b",
+       ("Protocol_text::store_numeric_zerofill_str field %u : %.*sB",
         field_pos, (int) length, (length == 0 ? "" : from)));
   DBUG_ASSERT(field_handlers == 0 || field_pos < field_count);
   DBUG_ASSERT(valid_handler(field_pos, send_type));
