@@ -318,7 +318,7 @@ void get_dynamic(DYNAMIC_ARRAY *array, void *element, size_t idx)
 {
   if (unlikely(idx >= array->elements))
   {
-    DBUG_PRINT("warning",("To big array idx: %d, array size is %d",
+    DBUG_PRINT("warning",("To big array idx: %zu, array size is %zu",
                           idx,array->elements));
     bzero(element,array->size_of_element);
     return;
