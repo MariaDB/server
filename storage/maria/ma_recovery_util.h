@@ -31,12 +31,7 @@ extern FILE *tracef;
 my_bool _ma_redo_not_needed_for_page(uint16 shortid, LSN lsn,
                                      pgcache_page_no_t page,
                                      my_bool index);
-#ifdef WAITING_FOR_BUGFIX_TO_VSPRINTF
 void tprint(FILE *trace_file, const char *format, ...)
   ATTRIBUTE_FORMAT(printf, 2, 3);
 void eprint(FILE *trace_file, const char *format, ...)
   ATTRIBUTE_FORMAT(printf, 2, 3);
-#else
-void tprint(FILE *trace_file, const char *format, ...);
-void eprint(FILE *trace_file, const char *format, ...);
-#endif
