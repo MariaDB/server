@@ -321,9 +321,11 @@ insert into t1 values ('б');
 insert into t1 values ('бб');
 --error ER_DUP_ENTRY
 insert into t1 values ('ббб');
+--disable_service_connection
 select c as c_all from t1 order by c;
 select c as c_a from t1 where c='a';
 select c as c_a from t1 where c='б';
+--enable_service_connection
 drop table t1;
 
 #
@@ -345,9 +347,11 @@ insert into t1 values ('б');
 insert into t1 values ('бб');
 --error ER_DUP_ENTRY
 insert into t1 values ('ббб');
+--disable_service_connection
 select c as c_all from t1 order by c;
 select c as c_a from t1 where c='a';
 select c as c_a from t1 where c='б';
+--enable_service_connection
 drop table t1;
 
 #
@@ -368,9 +372,11 @@ insert into t1 values ('б');
 insert into t1 values ('бб');
 --error ER_DUP_ENTRY
 insert into t1 values ('ббб');
+--disable_service_connection
 select c as c_all from t1 order by c;
 select c as c_a from t1 where c='a';
 select c as c_a from t1 where c='б';
+--enable_service_connection
 drop table t1;
 
 #

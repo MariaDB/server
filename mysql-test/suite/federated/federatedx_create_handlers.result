@@ -1180,7 +1180,7 @@ ERROR 42S22: Unknown column '2' in 'order clause'
 SELECT a FROM federated.t1 UNION ALL SELECT a FROM federated.t2 ORDER BY 2,1,3;
 ERROR 42S22: Unknown column '2' in 'order clause'
 SELECT a FROM federated.t1 UNION ALL SELECT a FROM federated.t2 ORDER BY t1.a;
-ERROR 42000: Table 't1' from one of the SELECTs cannot be used in ORDER clause
+ERROR 42000: Table 't1' from one of the SELECTs cannot be used in order clause
 SELECT * from federated.t1 INTERSECT
 SELECT * from federated.t2 UNION ALL
 SELECT * from federated.t2 EXCEPT

@@ -5232,7 +5232,23 @@ int spider_db_mbase_util::append_time_zone(
   to the value of `"$spider_unique_id$spider_table_path-"`, where
   $target_table_path is the path to the data node table ("to"), and
   $spider_table_path the path to the spider table ("from")
-*/
+
+
+  iterate over loop_check_queue and build queries for loop check
+
+  The query is in the form of
+
+  set @`spider_lc_.<to_table>` =
+  '-<mac1>-<pid1>-<from_table1>--<mac2>-<pid2>-<from_table2>-...'
+
+  where from_table1, from_table2 etc. are spider tables whose direct
+  or indirect remote data nodes contain to_table.
+
+  e.g. if t0->t1->t2, then the query could be:
+
+  set @`spider_lc_./test/t2` =
+  '-234567890abc-def012-./test/t1--1234567890ab-cdef01-./test/t0-'
+  */
 int spider_db_mbase_util::append_loop_check(
   spider_string *str,
   SPIDER_CONN *conn

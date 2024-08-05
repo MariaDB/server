@@ -10,3 +10,4 @@
 #
 ##############################################################################
 conc_charset : TODO: client side ID for utf8mb4_general_as_ci
+conc_tls : broken

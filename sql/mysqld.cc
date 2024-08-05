@@ -527,6 +527,7 @@ uint default_password_lifetime;
 my_bool disconnect_on_expired_password;
 
 bool max_user_connections_checking=0;
+
 /**
   Limit of the total number of prepared statements in the server.
   Is necessary to protect the server against out-of-memory attacks.
@@ -2110,10 +2111,11 @@ static void wait_for_signal_thread_to_end()
   if (err && err != ESRCH)
   {
     sql_print_error("Failed to send kill signal to signal handler thread, "
-                    "pthread_kill() errno: %d", err);
+                    "pthread_kill() errno: %d",
+                    err);
   }
 
-  if (i == n_waits && signal_thread_in_use && !opt_bootstrap)
+  if (i == n_waits && signal_thread_in_use)
   {
     sql_print_warning("Signal handler thread did not exit in a timely manner. "
                       "Continuing to wait for it to stop..");
@@ -3163,8 +3165,10 @@ void init_signals(void)
   (void) sigemptyset(&set);
   my_sigset(SIGPIPE,SIG_IGN);
   sigaddset(&set,SIGPIPE);
+#ifndef IGNORE_SIGHUP_SIGQUIT
   sigaddset(&set,SIGQUIT);
   sigaddset(&set,SIGHUP);
+#endif
   sigaddset(&set,SIGTERM);
 
   /* Fix signals if blocked by parents (can happen on Mac OS X) */
@@ -3248,16 +3252,16 @@ pthread_handler_t signal_hand(void *)
     (void) pthread_sigmask(SIG_UNBLOCK,&set,NULL);
   }
   (void) sigemptyset(&set);			// Setup up SIGINT for debug
+#ifndef IGNORE_SIGHUP_SIGQUIT
   (void) sigaddset(&set,SIGQUIT);
+  (void) sigaddset(&set,SIGHUP);
+#endif
   (void) sigaddset(&set,SIGTERM);
   (void) sigaddset(&set,SIGTSTP);
 
   /* Save pid to this process (or thread on Linux) */
   if (!opt_bootstrap)
-  {
-    (void) sigaddset(&set,SIGHUP);
     create_pid_file();
-  }
 
   /*
     signal to start_signal_handler that we are ready
@@ -5957,7 +5961,28 @@ int mysqld_main(int argc, char **argv)
 #ifdef WITH_WSREP
   wsrep_set_wsrep_on(nullptr);
   if (WSREP_ON && wsrep_check_opts()) unireg_abort(1);
-#endif
+
+  if (!opt_bootstrap && WSREP_PROVIDER_EXISTS && WSREP_ON)
+  {
+    if (global_system_variables.binlog_format != BINLOG_FORMAT_ROW)
+    {
+      sql_print_information("Binlog_format changed to \"ROW\" because of "
+                            "Galera");
+      SYSVAR_AUTOSIZE(global_system_variables.binlog_format, BINLOG_FORMAT_ROW);
+    }
+    binlog_format_used= 1;
+    if (IS_SYSVAR_AUTOSIZE(&internal_slave_connections_needed_for_purge))
+    {
+      slave_connections_needed_for_purge=
+        internal_slave_connections_needed_for_purge= 0;
+      SYSVAR_AUTOSIZE(internal_slave_connections_needed_for_purge, 0);
+      sql_print_information(
+      "slave_connections_needed_for_purge changed to 0 because "
+      "of Galera. Change it to 1 or higher if this Galera node "
+      "is also Master in a normal replication setup");
+    }
+  }
+#endif /* WITH_WSREP */
 
 #ifdef _WIN32
   /* 
@@ -8334,7 +8359,6 @@ mysqld_get_one_option(const struct my_option *opt, const char *argument,
       ((enum_slave_parallel_mode)opt_slave_parallel_mode);
     break;
   }
-
   case (int)OPT_BINLOG_IGNORE_DB:
   {
     binlog_filter->add_ignore_db(argument);
@@ -8835,18 +8859,14 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
     opt_bin_log= opt_bin_log_used= 1;
 
     /* Force format to row */
+    if (global_system_variables.binlog_format != BINLOG_FORMAT_ROW)
+    {
+      sql_print_information("Binlog_format changed to \"ROW\" because of "
+                            "flashback");
+      SYSVAR_AUTOSIZE(global_system_variables.binlog_format,
+                      BINLOG_FORMAT_ROW);
+    }
     binlog_format_used= 1;
-    global_system_variables.binlog_format= BINLOG_FORMAT_ROW;
-  }
-
-  if (!opt_bootstrap && WSREP_PROVIDER_EXISTS && WSREP_ON &&
-      global_system_variables.binlog_format != BINLOG_FORMAT_ROW)
-  {
-
-    WSREP_ERROR ("Only binlog_format = 'ROW' is currently supported. "
-                 "Configured value: '%s'. Please adjust your configuration.",
-                 binlog_format_names[global_system_variables.binlog_format]);
-    return 1;
   }
 
   // Synchronize @@global.autocommit on --autocommit
@@ -9468,6 +9488,7 @@ PSI_stage_info stage_deleting_from_reference_tables= { 0, "Deleting from referen
 PSI_stage_info stage_discard_or_import_tablespace= { 0, "Discard_or_import_tablespace", 0};
 PSI_stage_info stage_enabling_keys= { 0, "Enabling keys", 0};
 PSI_stage_info stage_end= { 0, "End of update loop", 0};
+PSI_stage_info stage_ending_io_thread= { 0, "Ending IO thread", 0};
 PSI_stage_info stage_executing= { 0, "Executing", 0};
 PSI_stage_info stage_execution_of_init_command= { 0, "Execution of init_command", 0};
 PSI_stage_info stage_explaining= { 0, "Explaining", 0};

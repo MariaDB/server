@@ -1301,11 +1301,9 @@ dberr_t btr_cur_t::search_leaf(const dtuple_t *tuple, page_cur_mode_t mode,
     }
 
     switch (latch_mode) {
-    case BTR_SEARCH_PREV:
-      static_assert(BTR_SEARCH_PREV & BTR_SEARCH_LEAF, "");
+    case BTR_SEARCH_PREV: /* btr_pcur_move_to_prev() */
       ut_ad(!latch_by_caller);
-      ut_ad(rw_latch ==
-            rw_lock_type_t(latch_mode & (RW_X_LATCH | RW_S_LATCH)));
+      ut_ad(rw_latch == RW_S_LATCH);
 
       /* latch also siblings from left to right */
       if (page_has_prev(block->page.frame) &&
@@ -1479,7 +1477,7 @@ release_tree:
       rw_latch= RW_X_LATCH;
       break;
     case BTR_SEARCH_PREV: /* btr_pcur_move_to_prev() */
-      ut_ad(rw_latch == RW_S_LATCH || rw_latch == RW_X_LATCH);
+      ut_ad(rw_latch == RW_S_LATCH);
 
       if (!not_first_access)
         buf_read_ahead_linear(page_id, zip_size);

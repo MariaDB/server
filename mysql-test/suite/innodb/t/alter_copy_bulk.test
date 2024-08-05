@@ -1,0 +1,44 @@
+--source include/have_innodb.inc
+--source include/have_partition.inc
+--source include/have_sequence.inc
+SET @@alter_algorithm=COPY;
+
+CREATE TABLE t1(f1 CHAR(200), f2 INT NOT NULL)engine=InnoDB;
+INSERT INTO t1 SELECT repeat('a', 200), seq FROM seq_1_to_2;
+# Buffer fits in the memory
+ALTER TABLE t1 FORCE;
+
+# Insert more entries
+INSERT INTO t1 SELECT repeat('b', 200), seq FROM seq_3_to_65536;
+# Alter should use temporary file for sorting
+ALTER TABLE t1 ADD INDEX(f2);
+
+# Error while buffering the insert operation
+--error ER_DUP_ENTRY
+ALTER TABLE t1 ADD PRIMARY KEY(f1(2));
+
+INSERT INTO t1 VALUES(repeat('a', 200), 1);
+# Error while applying the bulk insert operation
+--error ER_DUP_ENTRY
+ALTER TABLE t1 ADD UNIQUE KEY(f2);
+
+# Ignore shouldn't go through bulk operation
+ALTER IGNORE TABLE t1 MODIFY f1 CHAR(200) NOT NULL;
+
+CREATE TABLE t2(f1 INT NOT NULL,
+		FOREIGN KEY(f1) REFERENCES t1(f2))ENGINE=InnoDB;
+INSERT INTO t2 VALUES(1);
+# Bulk operation shouldn't happen because of foreign key constraints
+ALTER TABLE t2 FORCE;
+DROP TABLE t2, t1;
+
+CREATE TABLE t1 (f1 INT, f2 INT) ENGINE=InnoDB PARTITION BY HASH(f1) PARTITIONS 2;
+INSERT INTO t1 VALUES(1, 1);
+INSERT INTO t1 SELECT seq, seq * 2 FROM seq_1_to_2;
+# Buffer fits in the memory
+ALTER TABLE t1 FORCE;
+# Insert more entries
+INSERT INTO t1 SELECT seq, seq * 2 FROM seq_3_to_65536;
+# Alter should use temporary file for sorting
+ALTER TABLE t1 ADD INDEX(f2);
+DROP TABLE t1;

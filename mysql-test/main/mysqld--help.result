@@ -1304,7 +1304,8 @@ The following specify which files/extra groups are read (specified before remain
  --slave-connections-needed-for-purge=# 
  Minimum number of connected slaves required for automatic
  binary log purge with max_binlog_total_size,
- binlog_expire_logs_seconds or binlog_expire_logs_days
+ binlog_expire_logs_seconds or binlog_expire_logs_days.
+ Default is 0 when Galera is enabled and 1 otherwise
  --slave-ddl-exec-mode=name 
  How replication events should be executed. Legal values
  are STRICT and IDEMPOTENT (default). In IDEMPOTENT mode,

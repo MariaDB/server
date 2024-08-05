@@ -1,0 +1,2 @@
+# This little bit diffrent than MariaDB so needed file
+mariadb-plugin-mroonga: extra-license-file [usr/share/mysql/mroonga/COPYING]

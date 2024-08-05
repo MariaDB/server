@@ -336,10 +336,9 @@ btr_pcur_t::restore_position(btr_latch_mode restore_latch_mode, mtr_t *mtr)
 	ut_a(old_n_core_fields <= index->n_core_fields);
 	ut_a(old_n_fields);
 
-	static_assert(BTR_SEARCH_PREV == (4 | BTR_SEARCH_LEAF), "");
+	static_assert(int{BTR_SEARCH_PREV} == (4 | BTR_SEARCH_LEAF), "");
 
-	switch (restore_latch_mode | 4) {
-	case BTR_SEARCH_PREV:
+	if ((restore_latch_mode | 4) == BTR_SEARCH_PREV) {
 		/* Try optimistic restoration. */
 		if (btr_pcur_optimistic_latch_leaves(this, &restore_latch_mode,
 						     mtr)) {
@@ -561,19 +560,13 @@ btr_pcur_move_backward_from_page(
 	ut_ad(btr_pcur_is_before_first_on_page(cursor));
 	ut_ad(!btr_pcur_is_before_first_in_tree(cursor));
 
-	const auto latch_mode = cursor->latch_mode;
-	ut_ad(latch_mode == BTR_SEARCH_LEAF || latch_mode == BTR_MODIFY_LEAF);
-
 	btr_pcur_store_position(cursor, mtr);
 
 	mtr_commit(mtr);
 
 	mtr_start(mtr);
 
-	static_assert(BTR_SEARCH_PREV == (4 | BTR_SEARCH_LEAF), "");
-
-	if (UNIV_UNLIKELY(cursor->restore_position(
-				  btr_latch_mode(4 | latch_mode), mtr)
+	if (UNIV_UNLIKELY(cursor->restore_position(BTR_SEARCH_PREV, mtr)
 			  == btr_pcur_t::CORRUPTED)) {
 		return true;
 	}
@@ -605,7 +598,7 @@ btr_pcur_move_backward_from_page(
 
 	mtr->rollback_to_savepoint(1);
 	ut_ad(block == mtr->at_savepoint(0));
-	cursor->latch_mode = latch_mode;
+	cursor->latch_mode = BTR_SEARCH_LEAF;
 	cursor->old_rec = nullptr;
 	return false;
 }
@@ -622,7 +615,7 @@ btr_pcur_move_to_prev(
 	mtr_t*		mtr)	/*!< in: mtr */
 {
 	ut_ad(cursor->pos_state == BTR_PCUR_IS_POSITIONED);
-	ut_ad(cursor->latch_mode != BTR_NO_LATCHES);
+	ut_ad(cursor->latch_mode == BTR_SEARCH_LEAF);
 
 	cursor->old_rec = nullptr;
 

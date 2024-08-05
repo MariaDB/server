@@ -2267,6 +2267,9 @@ past_checksum:
     if (unlikely(mysql_real_query(mysql,
                                   STRING_WITH_LEN("SET skip_replication=1"))))
     {
+      if (check_io_slave_killed(mi, NULL))
+        goto slave_killed_err;
+
       err_code= mysql_errno(mysql);
       if (is_network_error(err_code))
       {
@@ -2311,6 +2314,9 @@ past_checksum:
                          STRINGIFY_ARG(MARIA_SLAVE_CAPABILITY_MINE)));
     if (unlikely(rc))
     {
+      if (check_io_slave_killed(mi, NULL))
+        goto slave_killed_err;
+
       err_code= mysql_errno(mysql);
       if (is_network_error(err_code))
       {
@@ -2360,6 +2366,9 @@ after_set_capability:
         !(master_res= mysql_store_result(mysql)) ||
         !(master_row= mysql_fetch_row(master_res)))
     {
+      if (check_io_slave_killed(mi, NULL))
+        goto slave_killed_err;
+
       err_code= mysql_errno(mysql);
       if (is_network_error(err_code))
       {
@@ -2395,6 +2404,9 @@ after_set_capability:
     rc= mysql_real_query(mysql, query_str.ptr(), query_str.length());
     if (unlikely(rc))
     {
+      if (check_io_slave_killed(mi, NULL))
+        goto slave_killed_err;
+
       err_code= mysql_errno(mysql);
       if (is_network_error(err_code))
       {
@@ -2428,6 +2440,9 @@ after_set_capability:
     rc= mysql_real_query(mysql, query_str.ptr(), query_str.length());
     if (unlikely(rc))
     {
+      if (check_io_slave_killed(mi, NULL))
+        goto slave_killed_err;
+
       err_code= mysql_errno(mysql);
       if (is_network_error(err_code))
       {
@@ -2461,6 +2476,9 @@ after_set_capability:
     rc= mysql_real_query(mysql, query_str.ptr(), query_str.length());
     if (unlikely(rc))
     {
+      if (check_io_slave_killed(mi, NULL))
+        goto slave_killed_err;
+
       err_code= mysql_errno(mysql);
       if (is_network_error(err_code))
       {
@@ -2497,6 +2515,9 @@ after_set_capability:
       rc= mysql_real_query(mysql, query_str.ptr(), query_str.length());
       if (unlikely(rc))
       {
+        if (check_io_slave_killed(mi, NULL))
+          goto slave_killed_err;
+
         err_code= mysql_errno(mysql);
         if (is_network_error(err_code))
         {
@@ -3722,7 +3743,7 @@ static ulong read_event(MYSQL* mysql, Master_info *mi, bool* suppress_warnings,
     }
     else
     {
-      if (!mi->rli.abort_slave)
+      if (!(mi->rli.abort_slave || io_slave_killed(mi)))
       {
         sql_print_error("Error reading packet from server: %s (server_errno=%d)",
                         mysql_error(mysql), mysql_errno(mysql));
@@ -5197,6 +5218,7 @@ log space");
 
   // error = 0;
 err:
+  THD_STAGE_INFO(thd, stage_ending_io_thread);
   // print the current replication position
   if (mi->using_gtid == Master_info::USE_GTID_NO)
     sql_print_information("Slave I/O thread exiting, read up to log '%s', "
@@ -7284,7 +7306,7 @@ static int connect_to_master(THD* thd, MYSQL* mysql, Master_info* mi,
                              mi->port, 0, client_flag) == 0))
   {
     /* Don't repeat last error */
-    if ((int)mysql_errno(mysql) != last_errno)
+    if ((int)mysql_errno(mysql) != last_errno && !io_slave_killed(mi))
     {
       last_errno=mysql_errno(mysql);
       suppress_warnings= 0;

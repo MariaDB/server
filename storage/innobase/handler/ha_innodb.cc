@@ -13318,7 +13318,7 @@ ha_innobase::discard_or_import_tablespace(
 			     | HA_STATUS_VARIABLE
 			     | HA_STATUS_AUTO);
 
-			fil_crypt_set_encrypt_tables(srv_encrypt_tables);
+			fil_crypt_add_imported_space(m_prebuilt->table->space);
 		}
 	}
 
@@ -15719,6 +15719,26 @@ ha_innobase::extra(
 		break;
 	case HA_EXTRA_END_ALTER_COPY:
 		trx = check_trx_exists(ha_thd());
+		if (m_prebuilt->table->skip_alter_undo) {
+			if (dberr_t err= trx->bulk_insert_apply()) {
+				m_prebuilt->table->skip_alter_undo = 0;
+				return convert_error_code_to_mysql(
+					 err,
+					 m_prebuilt->table->flags,
+					 trx->mysql_thd);
+			}
+
+			trx->end_bulk_insert(*m_prebuilt->table);
+			trx->bulk_insert = false;
+			/* During copy alter operation, InnoDB
+			updates the stats only for non-persistent
+			tables. */
+			if (!dict_stats_is_persistent_enabled(
+					m_prebuilt->table)) {
+				dict_stats_update_if_needed(
+					m_prebuilt->table, *trx);
+			}
+		}
 		m_prebuilt->table->skip_alter_undo = 0;
 		if (!m_prebuilt->table->is_temporary()
 		    && !high_level_read_only) {
@@ -19622,6 +19642,10 @@ static MYSQL_SYSVAR_BOOL(force_primary_key,
   "Do not allow creating a table without primary key (off by default)",
   NULL, NULL, FALSE);
 
+static MYSQL_SYSVAR_BOOL(alter_copy_bulk, innodb_alter_copy_bulk,
+  PLUGIN_VAR_NOCMDARG,
+  "Allow bulk insert operation for copy alter operation", NULL, NULL, TRUE);
+
 const char *page_compression_algorithms[]= { "none", "zlib", "lz4", "lzo", "lzma", "bzip2", "snappy", 0 };
 static TYPELIB page_compression_algorithms_typelib=
 {
@@ -19854,6 +19878,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(saved_page_number_debug),
 #endif /* UNIV_DEBUG */
   MYSQL_SYSVAR(force_primary_key),
+  MYSQL_SYSVAR(alter_copy_bulk),
   MYSQL_SYSVAR(fatal_semaphore_wait_threshold),
   /* Table page compression feature */
   MYSQL_SYSVAR(compression_default),

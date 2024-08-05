@@ -221,7 +221,7 @@ public:
     return { STRING_WITH_LEN("xpath_rootelement") };
   }
   bool val_native(THD *thd, Native *nodeset) override;
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_nodeset_func_rootelement>(thd, this); }
 };
 
@@ -237,7 +237,7 @@ public:
     return { STRING_WITH_LEN("xpath_union") };
   }
   bool val_native(THD *thd, Native *nodeset) override;
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_nodeset_func_union>(thd, this); }
 };
 
@@ -277,7 +277,7 @@ public:
     return { STRING_WITH_LEN("xpath_selfbyname") };
   }
   bool val_native(THD *thd, Native *nodeset) override;
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_nodeset_func_selfbyname>(thd, this); }
 };
 
@@ -294,7 +294,7 @@ public:
     return { STRING_WITH_LEN("xpath_childbyname") };
   }
   bool val_native(THD *thd, Native *nodeset) override;
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_nodeset_func_childbyname>(thd, this); }
 };
 
@@ -313,7 +313,7 @@ public:
     return { STRING_WITH_LEN("xpath_descendantbyname") };
   }
   bool val_native(THD *thd, Native *nodeset) override;
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_nodeset_func_descendantbyname>(thd, this); }
 };
 
@@ -332,7 +332,7 @@ public:
     return { STRING_WITH_LEN("xpath_ancestorbyname") };
   }
   bool val_native(THD *thd, Native *nodeset) override;
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_nodeset_func_ancestorbyname>(thd, this); }
 };
 
@@ -350,7 +350,7 @@ public:
     return { STRING_WITH_LEN("xpath_parentbyname") };
   }
   bool val_native(THD *thd, Native *nodeset) override;
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_nodeset_func_parentbyname>(thd, this); }
 };
 
@@ -367,7 +367,7 @@ public:
     return { STRING_WITH_LEN("xpath_attributebyname") };
   }
   bool val_native(THD *thd, Native *nodeset) override;
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_nodeset_func_attributebyname>(thd, this); }
 };
 
@@ -387,7 +387,7 @@ public:
     return { STRING_WITH_LEN("xpath_predicate") };
   }
   bool val_native(THD *thd, Native *nodeset) override;
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_nodeset_func_predicate>(thd, this); }
 };
 
@@ -403,7 +403,7 @@ public:
     return { STRING_WITH_LEN("xpath_elementbyindex") };
   }
   bool val_native(THD *thd, Native *nodeset) override;
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_nodeset_func_elementbyindex>(thd, this); }
 };
 
@@ -434,7 +434,7 @@ public:
     }
     return args[0]->val_real() ? 1 : 0;
   }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_xpath_cast_bool>(thd, this); }
 };
 
@@ -451,7 +451,7 @@ public:
     return { STRING_WITH_LEN("xpath_cast_number") };
   }
   double val_real() override { return args[0]->val_real(); }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_xpath_cast_number>(thd, this); }
 };
 
@@ -471,7 +471,7 @@ public:
   }
   bool fix_length_and_dec(THD *thd) override
   { max_length= MAX_BLOB_WIDTH; return FALSE; }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_nodeset_context_cache>(thd, this); }
 };
 
@@ -495,7 +495,7 @@ public:
       return tmp_native_value.element(0).pos + 1;
     return 0;
   }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_xpath_position>(thd, this); }
 };
 
@@ -521,7 +521,7 @@ public:
       return predicate_supplied_context_size;
     return tmp_native_value.elements();
   }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_xpath_count>(thd, this); }
 };
 
@@ -569,7 +569,7 @@ public:
     }
     return sum;
   }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_xpath_sum>(thd, this); }
 };
 
@@ -654,7 +654,7 @@ public:
     }
     return 0;
   }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_nodeset_to_const_comparator>(thd, this); }
 };
 
