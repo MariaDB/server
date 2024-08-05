@@ -6902,6 +6902,7 @@ static const char *rdb_error_messages[] = {
     "File I/O error during merge/sort operation.",
     "RocksDB status: not found.",
     "RocksDB status: corruption.",
+    "RocksDB status: not supported.",
     "RocksDB status: invalid argument.",
     "RocksDB status: io error.",
     "RocksDB status: no space.",
