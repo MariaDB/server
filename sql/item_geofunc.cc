@@ -3032,11 +3032,13 @@ bool Item_func_latlongfromgeohash::is_invalid_geohash_field(
     case MYSQL_TYPE_VARCHAR:
     case MYSQL_TYPE_LONG_BLOB:
     case MYSQL_TYPE_GEOMETRY:
+    case MYSQL_TYPE_STRING:
       return false;
     default:
       return true;
   }
 }
+
 
 
 double Item_func_latlongfromgeohash::val_real()
@@ -3080,6 +3082,87 @@ double Item_func_latlongfromgeohash::val_real()
   if (decode_longitude) return longitude;
   return latitude;
 }
+
+
+bool Item_func_pointfromgeohash::is_invalid_SRID_field
+                                  (enum_field_types field_type)
+{
+  switch (field_type)
+  {
+    case MYSQL_TYPE_NULL:
+    case MYSQL_TYPE_LONG:
+    case MYSQL_TYPE_VARCHAR:
+    case MYSQL_TYPE_LONGLONG:
+      return false;
+    default:
+      return true;
+  }
+}
+
+
+String *Item_func_pointfromgeohash::val_str(String *str)
+{
+  DBUG_ASSERT(fixed());
+  null_value= 1;
+  String *input_value;
+  uint32 srid;
+
+  if (args[0]->null_value || args[1]->null_value)
+    return NULL;
+
+  if (is_invalid_SRID_field(args[1]->field_type()) ||
+      Item_func_latlongfromgeohash::is_invalid_geohash_field(
+        args[0]->field_type()
+      ))
+  {
+    my_error(ER_GIS_INVALID_DATA, MYF(0), "ST_PointFromGeoHash");
+    return NULL;
+  }
+
+  input_value= args[0]->val_str(&buf);
+  if (args[0]->null_value)
+  {
+    args[0]->null_value= 0;
+    return NULL;
+  }
+
+  if (input_value->length() == 0)
+  {
+    my_error(ER_WRONG_VALUE_FOR_TYPE, MYF(0), "geohash",
+            input_value->c_ptr_safe(), func_name());
+    return NULL;
+  }
+
+  srid= static_cast<uint32>(args[1]->val_uint());
+  if (args[1]->null_value)
+  {
+    my_error(ER_WRONG_VALUE_FOR_TYPE, MYF(0), "geohash",
+        input_value->c_ptr_safe(), func_name());
+    return NULL;
+  }
+
+  double latitude= 0.0, longitude= 0.0;
+  if (Item_func_latlongfromgeohash::decode_geohash(input_value, &latitude, &longitude)) {
+    my_error(ER_WRONG_VALUE_FOR_TYPE, MYF(0), "geohash",
+             input_value->c_ptr_safe(), func_name());
+    return NULL;
+  }
+
+  str->set_charset(&my_charset_bin);
+  str->length(0);
+  if (str->reserve(SRID_SIZE + WKB_HEADER_SIZE + POINT_DATA_SIZE))
+    return NULL;
+
+  str->q_append((uint32) srid);
+  str->q_append((char) Geometry::wkb_ndr);
+  str->q_append((uint32) Geometry::wkb_point);
+  str->q_append(longitude);
+  str->q_append(latitude);
+
+  null_value= 0;
+  return str;
+}
+
 
 String *Item_func_pointonsurface::val_str(String *str)
 {
@@ -3553,6 +3636,22 @@ public:
 protected:
   Create_func_longfromgeohash() = default;
   virtual ~Create_func_longfromgeohash() = default;
+};
+
+
+class Create_func_pointfromgeohash : public Create_func_arg2
+{
+public:
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override
+  {
+    return new (thd->mem_root) Item_func_pointfromgeohash(thd, arg1, arg2);
+  }
+
+  static Create_func_pointfromgeohash s_singleton;
+
+protected:
+  Create_func_pointfromgeohash() = default;
+  virtual ~Create_func_pointfromgeohash() = default;
 };
 
 
@@ -4411,6 +4510,7 @@ Create_func_distance_sphere Create_func_distance_sphere::s_singleton;
 Create_func_geohash Create_func_geohash::s_singleton;
 Create_func_latfromgeohash Create_func_latfromgeohash ::s_singleton;
 Create_func_longfromgeohash Create_func_longfromgeohash ::s_singleton;
+Create_func_pointfromgeohash Create_func_pointfromgeohash ::s_singleton;
 Create_func_endpoint Create_func_endpoint::s_singleton;
 Create_func_envelope Create_func_envelope::s_singleton;
 Create_func_equals Create_func_equals::s_singleton;
@@ -4537,6 +4637,7 @@ static Native_func_registry func_array_geom[] =
   { { STRING_WITH_LEN("GEOHASH") }, GEOM_BUILDER(Create_func_geohash)},
   { { STRING_WITH_LEN("LATFROMGEOHASH") }, GEOM_BUILDER(Create_func_latfromgeohash)},
   { { STRING_WITH_LEN("LONGFROMGEOHASH") }, GEOM_BUILDER(Create_func_longfromgeohash)},
+  { { STRING_WITH_LEN("POINTFROMGEOHASH") }, GEOM_BUILDER(Create_func_pointfromgeohash)},
   { { STRING_WITH_LEN("SRID") }, GEOM_BUILDER(Create_func_srid)},
   { { STRING_WITH_LEN("ST_AREA") }, GEOM_BUILDER(Create_func_area)},
   { { STRING_WITH_LEN("STARTPOINT") }, GEOM_BUILDER(Create_func_startpoint)},
@@ -4620,6 +4721,7 @@ static Native_func_registry func_array_geom[] =
   { { STRING_WITH_LEN("ST_GEOHASH") }, GEOM_BUILDER(Create_func_geohash)},
   { { STRING_WITH_LEN("ST_LATFROMGEOHASH") }, GEOM_BUILDER(Create_func_latfromgeohash)},
   { { STRING_WITH_LEN("ST_LONGFROMGEOHASH") }, GEOM_BUILDER(Create_func_longfromgeohash)},
+  { { STRING_WITH_LEN("ST_POINTFROMGEOHASH") }, GEOM_BUILDER(Create_func_pointfromgeohash)},
   { { STRING_WITH_LEN("TOUCHES") }, GEOM_BUILDER(Create_func_touches)},
   { { STRING_WITH_LEN("WITHIN") }, GEOM_BUILDER(Create_func_within)},
   { { STRING_WITH_LEN("X") }, GEOM_BUILDER(Create_func_x)},

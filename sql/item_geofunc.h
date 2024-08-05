@@ -1260,13 +1260,13 @@ class Item_func_latlongfromgeohash : public Item_real_func {
   String buf;
   static const uint8_t geohash_alphabet[256];
   const bool decode_longitude;
-  static bool is_invalid_geohash_field(enum_field_types field_type);
 
  public:
   Item_func_latlongfromgeohash(THD *thd, Item *a, bool start_on_even_bit_arg)
       : Item_real_func(thd, a),
         decode_longitude(start_on_even_bit_arg) {}
   double val_real() override;
+  static bool is_invalid_geohash_field(const enum_field_types field_type);
   static bool decode_geohash(String *geohash, double *result_latitude,
                              double *result_longitude);
   static double round_latlongitude(double latlongitude, double error_range,
@@ -1301,6 +1301,26 @@ public:
   }
   Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_longfromgeohash>(thd, this); }
+};
+
+
+class Item_func_pointfromgeohash: public Item_geometry_func
+{
+private:
+  String buf;
+  static bool is_invalid_SRID_field(const enum_field_types field_type);
+
+public:
+  Item_func_pointfromgeohash(THD *thd, Item *a, Item *b)
+   :Item_geometry_func(thd, a, b) {}
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("st_pointfromgeohash") };
+    return name;
+  }
+  String *val_str(String *) override;
+  Item *get_copy(THD *thd) override
+  { return get_item_copy<Item_func_pointfromgeohash>(thd, this); }
 };
 
 
