@@ -1999,11 +1999,6 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
     break;
   }
   case COM_FIELD_LIST:				// This isn't actually needed
-#ifdef DONT_ALLOW_SHOW_COMMANDS
-    my_message(ER_NOT_ALLOWED_COMMAND, ER_THD(thd, ER_NOT_ALLOWED_COMMAND),
-               MYF(0));	/* purecov: inspected */
-    break;
-#else
   {
     char *fields, *packet_end= packet + packet_length, *arg_end;
     /* Locked closure of all tables */
@@ -2116,7 +2111,6 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
     thd->cleanup_after_query();
     break;
   }
-#endif
   case COM_QUIT:
     /* Note: We don't calculate statistics for this command */
 
@@ -2674,13 +2668,7 @@ int prepare_schema_table(THD *thd, LEX *lex, Table_ident *table_ident,
 
   switch (schema_table_idx) {
   case SCH_SCHEMATA:
-#if defined(DONT_ALLOW_SHOW_COMMANDS)
-    my_message(ER_NOT_ALLOWED_COMMAND,
-               ER_THD(thd, ER_NOT_ALLOWED_COMMAND), MYF(0));
-    DBUG_RETURN(1);
-#else
     break;
-#endif
 
   case SCH_TABLE_NAMES:
   case SCH_TABLES:
@@ -2688,11 +2676,6 @@ int prepare_schema_table(THD *thd, LEX *lex, Table_ident *table_ident,
   case SCH_VIEWS:
   case SCH_TRIGGERS:
   case SCH_EVENTS:
-#ifdef DONT_ALLOW_SHOW_COMMANDS
-    my_message(ER_NOT_ALLOWED_COMMAND,
-               ER_THD(thd, ER_NOT_ALLOWED_COMMAND), MYF(0));
-    DBUG_RETURN(1);
-#else
     {
       if (lex->first_select_lex()->db.str == NULL &&
           lex->copy_db_to(&lex->first_select_lex()->db))
@@ -2716,14 +2699,8 @@ int prepare_schema_table(THD *thd, LEX *lex, Table_ident *table_ident,
       }
       break;
     }
-#endif
   case SCH_COLUMNS:
   case SCH_STATISTICS:
-#ifdef DONT_ALLOW_SHOW_COMMANDS
-    my_message(ER_NOT_ALLOWED_COMMAND,
-               ER_THD(thd, ER_NOT_ALLOWED_COMMAND), MYF(0));
-    DBUG_RETURN(1);
-#else
   {
     DBUG_ASSERT(table_ident);
     TABLE_LIST **query_tables_last= lex->query_tables_last;
@@ -2738,7 +2715,6 @@ int prepare_schema_table(THD *thd, LEX *lex, Table_ident *table_ident,
     lex->query_tables_last= query_tables_last;
     break;
   }
-#endif
   case SCH_PROFILES:
     /* 
       Mark this current profiling record to be discarded.  We don't
@@ -4417,11 +4393,6 @@ mysql_execute_command(THD *thd)
   }
 #ifndef EMBEDDED_LIBRARY
   case SQLCOM_SHOW_BINLOGS:
-#ifdef DONT_ALLOW_SHOW_COMMANDS
-    my_message(ER_NOT_ALLOWED_COMMAND, ER_THD(thd, ER_NOT_ALLOWED_COMMAND),
-               MYF(0)); /* purecov: inspected */
-    goto error;
-#else
     {
       if (check_global_access(thd, PRIV_STMT_SHOW_BINARY_LOGS))
 	goto error;
@@ -4429,16 +4400,10 @@ mysql_execute_command(THD *thd)
       res = show_binlogs(thd);
       break;
     }
-#endif
 #endif /* EMBEDDED_LIBRARY */
   case SQLCOM_SHOW_CREATE:
   {
      DBUG_ASSERT(first_table == all_tables && first_table != 0);
-#ifdef DONT_ALLOW_SHOW_COMMANDS
-    my_message(ER_NOT_ALLOWED_COMMAND, ER_THD(thd, ER_NOT_ALLOWED_COMMAND),
-               MYF(0)); /* purecov: inspected */
-    goto error;
-#else
       WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_SHOW);
 
      /*
@@ -4455,7 +4420,6 @@ mysql_execute_command(THD *thd)
                            first_table->db.str, first_table->table_name.str));
       res= mysqld_show_create(thd, first_table);
       break;
-#endif
   }
   case SQLCOM_CHECKSUM:
   {
@@ -5109,18 +5073,12 @@ mysql_execute_command(THD *thd)
     res= mysqld_show_privileges(thd);
     break;
   case SQLCOM_SHOW_ENGINE_LOGS:
-#ifdef DONT_ALLOW_SHOW_COMMANDS
-    my_message(ER_NOT_ALLOWED_COMMAND, ER_THD(thd, ER_NOT_ALLOWED_COMMAND),
-               MYF(0));	/* purecov: inspected */
-    goto error;
-#else
     {
       if (check_access(thd, FILE_ACL, any_db, NULL, NULL, 0, 0))
 	goto error;
       res= ha_show_status(thd, lex->create_info.db_type, HA_ENGINE_LOGS);
       break;
     }
-#endif
   case SQLCOM_CHANGE_DB:
   {
     if (!mysql_change_db(thd, &select_lex->db, FALSE))
