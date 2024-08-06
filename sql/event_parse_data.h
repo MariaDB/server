@@ -54,9 +54,18 @@ public:
     ON_COMPLETION_PRESERVE
   };
 
+  enum enum_event_kind
+  {
+    SCHEDULE = 1,
+    STARTUP,
+    SHUTDOWN,
+    EVENT_KIND_LAST
+  };
+
   int on_completion;
   int status;
   bool status_changed;
+  int event_kind;
   uint32 originator;
   /*
     do_not_create will be set if STARTS time is in the past and

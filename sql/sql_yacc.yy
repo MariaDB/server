@@ -1102,6 +1102,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  SQL_THREAD
 %token  <kwd>  STAGE_SYM
 %token  <kwd>  STARTS_SYM
+%token  <kwd>  STARTUP_SYM
 %token  <kwd>  START_SYM                     /* SQL-2003-R */
 %token  <kwd>  STATEMENT_SYM
 %token  <kwd>  STATUS_SYM
@@ -1465,6 +1466,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         opt_if_exists_table_element opt_if_not_exists_table_element
         opt_recursive opt_format_xid opt_for_portion_of_time_clause
         ignorability
+        database_ev
 
 %type <object_ddl_options>
         create_or_replace
@@ -2931,8 +2933,38 @@ server_option:
           }
         ;
 
-event_tail:
-          remember_name opt_if_not_exists sp_name
+generalized_ev_tail:
+          remember_name
+          opt_if_not_exists
+          sp_name
+          database_ev
+          {
+            LEX *lex=Lex;
+
+            lex->stmt_definition_begin= $1;
+            if (unlikely(lex->add_create_options_with_check($2)))
+              MYSQL_YYABORT;
+            if (unlikely(!(lex->event_parse_data=
+                           Event_parse_data::new_instance(thd))))
+              MYSQL_YYABORT;
+            lex->event_parse_data->identifier= $3;
+            lex->event_parse_data->on_completion=
+                                  Event_parse_data::ON_COMPLETION_PRESERVE;
+            Lex->event_parse_data->event_kind= $4;
+
+            lex->sql_command= SQLCOM_CREATE_EVENT;
+            /* We need that for disallowing subqueries */
+          }
+          opt_ev_status
+          opt_ev_comment
+          DO_SYM ev_sql_stmt 
+        ;
+
+ev_scheduler_tail:
+          remember_name
+          opt_if_not_exists
+          sp_name
+          ON SCHEDULE_SYM 
           {
             LEX *lex=Lex;
 
@@ -2945,21 +2977,43 @@ event_tail:
             lex->event_parse_data->identifier= $3;
             lex->event_parse_data->on_completion=
                                   Event_parse_data::ON_COMPLETION_DROP;
+            Lex->event_parse_data->event_kind= Event_parse_data::SCHEDULE;
 
             lex->sql_command= SQLCOM_CREATE_EVENT;
             /* We need that for disallowing subqueries */
           }
-          ON SCHEDULE_SYM ev_schedule_time
+          ev_schedule_time
           opt_ev_on_completion
           opt_ev_status
           opt_ev_comment
           DO_SYM ev_sql_stmt
+        ;
+
+ev_scheduler_or_generalized_ev:
+          ev_scheduler_tail 
+        |
+          generalized_ev_tail
+        ;
+
+event_tail:
+          ev_scheduler_or_generalized_ev 
           {
             /*
               sql_command is set here because some rules in ev_sql_stmt
               can overwrite it
             */
             Lex->sql_command= SQLCOM_CREATE_EVENT;
+          }
+        ;
+
+database_ev:
+          AFTER_SYM STARTUP_SYM
+          {
+            $$= Event_parse_data::STARTUP;
+          }
+        | BEFORE_SYM SHUTDOWN
+          {
+            $$= Event_parse_data::SHUTDOWN;
           }
         ;
 
@@ -13193,8 +13247,14 @@ drop:
         | DROP TRIGGER_SYM opt_if_exists sp_name
           {
             LEX *lex= Lex;
-            lex->set_command(SQLCOM_DROP_TRIGGER, $3);
             lex->spname= $4;
+            char trn_path_buff[FN_REFLEN];
+            LEX_CSTRING trn_path= { trn_path_buff, 0 };
+            build_trn_path(thd, lex->spname, (LEX_STRING*) &trn_path);
+            if (check_trn_exists(&trn_path) && !opt_bootstrap)
+              lex->set_command(SQLCOM_DROP_EVENT, $3);
+            else
+              lex->set_command(SQLCOM_DROP_TRIGGER, $3);
           }
         | DROP SERVER_SYM opt_if_exists ident_or_text
           {

@@ -186,7 +186,7 @@ Event_creation_ctx::load_from_db(THD *thd,
 */
 
 bool
-Event_queue_element_for_exec::init(const LEX_CSTRING &db, const LEX_CSTRING &n)
+Event_queue_element_for_exec::init(const LEX_CSTRING &db, const LEX_CSTRING &n, int ek)
 {
   if (!(dbname.str= my_strndup(key_memory_Event_queue_element_for_exec_names,
                                db.str, dbname.length= db.length, MYF(MY_WME))))
@@ -198,6 +198,7 @@ Event_queue_element_for_exec::init(const LEX_CSTRING &db, const LEX_CSTRING &n)
     dbname.str= NULL;
     return TRUE;
   }
+  event_kind = ek;
   return FALSE;
 }
 
@@ -315,7 +316,7 @@ Event_queue_element::Event_queue_element():
 {
   DBUG_ENTER("Event_queue_element::Event_queue_element");
 
-  starts= ends= execute_at= last_executed= 0;
+  event_kind= starts= ends= execute_at= last_executed= 0;
   starts_null= ends_null= execute_at_null= TRUE;
 
   DBUG_VOID_RETURN;
@@ -518,12 +519,7 @@ Event_queue_element::load_from_row(THD *thd, TABLE *table)
     expression= table->field[ET_FIELD_INTERVAL_EXPR]->val_int();
   else
     expression= 0;
-  /*
-    If neigher STARTS and ENDS is set, then both fields are empty.
-    Hence, if ET_FIELD_EXECUTE_AT is empty there is an error.
-  */
   execute_at_null= table->field[ET_FIELD_EXECUTE_AT]->is_null();
-  DBUG_ASSERT(!(starts_null && ends_null && !expression && execute_at_null));
   if (!expression && !execute_at_null)
   {
     if (table->field[ET_FIELD_EXECUTE_AT]->get_date(&time, TIME_NO_ZERO_DATE |
@@ -531,6 +527,14 @@ Event_queue_element::load_from_row(THD *thd, TABLE *table)
       DBUG_RETURN(TRUE);
     execute_at= my_tz_OFFSET0->TIME_to_gmt_sec(&time,&not_used);
   }
+
+  /*
+    If neigher STARTS and ENDS is set, then both fields are empty.
+    Hence, if ET_FIELD_EXECUTE_AT is empty and event_kind is SCHEDULE
+    there is an error.
+  */
+  DBUG_ASSERT(!(event_kind == Event_parse_data::SCHEDULE &&
+               (starts_null && ends_null && !expression && execute_at_null)));
 
   /*
     We load the interval type from disk as string and then map it to
@@ -594,6 +598,10 @@ Event_queue_element::load_from_row(THD *thd, TABLE *table)
 
   on_completion= (ptr[0]=='D'? Event_parse_data::ON_COMPLETION_DROP:
                                Event_parse_data::ON_COMPLETION_PRESERVE);
+
+  if(!table->field[ET_FIELD_DB_EVENT]->is_null()) {
+    event_kind= table->field[ET_FIELD_DB_EVENT]->val_int();
+  }
 
   DBUG_RETURN(FALSE);
 }

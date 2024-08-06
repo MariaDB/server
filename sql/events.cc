@@ -340,7 +340,7 @@ Events::create_event(THD *thd, Event_parse_data *parse_data)
     DBUG_RETURN(TRUE);
 
   /* At create, one of them must be set */
-  DBUG_ASSERT(parse_data->expression || parse_data->execute_at);
+  DBUG_ASSERT(parse_data->expression || parse_data->execute_at || parse_data->event_kind);
 
   if (check_access(thd, EVENT_ACL, parse_data->dbname.str, NULL, NULL, 0, 0))
     DBUG_RETURN(TRUE);
@@ -364,7 +364,8 @@ Events::create_event(THD *thd, Event_parse_data *parse_data)
   */
   save_binlog_format= thd->set_current_stmt_binlog_format_stmt();
 
-  if (thd->lex->create_info.or_replace() && event_queue)
+  if (thd->lex->create_info.or_replace() && event_queue &&
+      parse_data->event_kind == Event_parse_data::SCHEDULE)
     event_queue->drop_event(thd, &parse_data->dbname, &parse_data->name);
 
   /* On error conditions my_error() is called so no need to handle here */
@@ -374,7 +375,8 @@ Events::create_event(THD *thd, Event_parse_data *parse_data)
     Event_queue_element *new_element;
     bool dropped= 0;
 
-    if (!event_already_exists)
+    /* We only add the event to the event queue if it is a SCHEDULE event. */
+    if (!event_already_exists || parse_data->event_kind == Event_parse_data::SCHEDULE)
     {
       if (!(new_element= new Event_queue_element()))
         ret= TRUE;                                // OOM
@@ -420,7 +422,8 @@ Events::create_event(THD *thd, Event_parse_data *parse_data)
 
   thd->restore_stmt_binlog_format(save_binlog_format);
 
-  if (!ret && Events::opt_event_scheduler == Events::EVENTS_OFF)
+  if (parse_data->event_kind == Event_parse_data::SCHEDULE &&
+      !ret && Events::opt_event_scheduler == Events::EVENTS_OFF)
   {
     push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR, 
       "Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.");
@@ -1224,6 +1227,13 @@ Events::load_events_from_db(THD *thd)
       goto end;
     }
 
+    /* It's not a SCHEDULE event, so we don't add to the queue. */
+    if(et->event_kind != Event_parse_data::SCHEDULE)
+    {
+      delete et;
+      continue;
+    }
+
 #ifdef WITH_WSREP
     /**
       If SST is done from a galera node that is also acting as MASTER
@@ -1300,6 +1310,142 @@ end:
   end_read_record(&read_record_info);
 
   close_mysql_tables(thd);
+  DBUG_RETURN(ret);
+}
+
+/*
+  Name description of event_kind names.
+
+  Useful for printing notes to the user.
+*/
+
+LEX_CSTRING event_kind_to_name[Event_parse_data::EVENT_KIND_LAST] = {
+  { STRING_WITH_LEN("")},
+  { STRING_WITH_LEN("SCHEDULE")},
+  { STRING_WITH_LEN("STARTUP")},
+  { STRING_WITH_LEN("SHUTDOWN")},
+};
+
+/**
+  Searches and executes all events matching a specific event kind.
+
+  This function is called whenever an event with an event_kind other
+  than SCHEDULE occurs.
+
+  @param event_kind The kind of event that should be executed.
+
+  @retval  FALSE  success
+  @retval  TRUE   error
+
+  @note Reports the error to the console
+*/
+
+bool
+Events::search_n_execute_events(Event_parse_data::enum_event_kind event_kind)
+{
+  DBUG_ENTER("Events::search_n_execute_events");
+
+  if (opt_bootstrap)
+    DBUG_RETURN(FALSE);
+
+  /* We need a temporary THD */
+  THD *thd;
+  if (!(thd= new THD(0)))
+    DBUG_RETURN(TRUE);
+  thd->thread_stack= (char*) &thd;
+  thd->store_globals();
+  thd->set_query_inner((char*) STRING_WITH_LEN("intern:Events::search_n_execute_events"),
+                       default_charset_info);
+  thd->set_time();
+
+  bool ret= TRUE;
+  uint count= 0;
+  TABLE *table;
+  READ_RECORD read_record_info;
+  DBUG_PRINT("enter", ("thd: %p", thd));
+
+  privilege_t saved_master_access(thd->security_ctx->master_access);
+  thd->security_ctx->master_access |= PRIV_IGNORE_READ_ONLY;
+  bool save_tx_read_only= thd->tx_read_only;
+  thd->tx_read_only= false;
+
+  ret= db_repository->open_event_table(thd, TL_READ, &table);
+
+  thd->tx_read_only= save_tx_read_only;
+  thd->security_ctx->master_access= saved_master_access;
+
+  if (ret)
+  {
+    my_message_sql(ER_STARTUP,
+                   "Failed to open table mysql.event",
+                   MYF(ME_ERROR_LOG));
+    delete thd;
+    DBUG_RETURN(TRUE);
+  }
+
+  if (init_read_record(&read_record_info, thd, table, NULL, NULL, 0, 1, FALSE))
+  {
+    close_thread_tables(thd);
+    delete thd;
+    DBUG_RETURN(TRUE);
+  }
+
+  while (!(read_record_info.read_record()))
+  {
+    Event_queue_element *et;
+
+    if (!(et= new Event_queue_element))
+      goto end;
+
+    DBUG_PRINT("info", ("Loading event from row."));
+
+    if (et->load_from_row(thd, table))
+    {
+      my_message(ER_STARTUP,
+                 "Error while loading events from mysql.event. "
+                 "The table probably contains bad data or is corrupted",
+                 MYF(ME_ERROR_LOG));
+      delete et;
+      goto end;
+    }
+
+    if((Event_parse_data::enum_event_kind) et->event_kind == event_kind) {
+      Event_queue_element_for_exec *event_name;
+      if(!(event_name= new Event_queue_element_for_exec()) ||
+        event_name->init(et->dbname, et->name, et->event_kind))
+      {
+        delete event_name;
+        ret= TRUE;
+        goto end;
+      }
+      event_name->dropped = FALSE;
+      scheduler->execute_top(event_name);
+      count++;
+    }
+    delete et;
+  }
+  ret= FALSE;
+
+  if(count) {
+    /*
+      Give some time for worker threads to start executing their jobs
+      when event_kind is SHUTDOWN
+    */
+    if(event_kind == Event_parse_data::SHUTDOWN)
+      my_sleep(100000);
+
+    my_printf_error(ER_STARTUP,
+                    "Loaded %d %s trigger%s",
+                    MYF(ME_ERROR_LOG | ME_NOTE),
+                    count, event_kind_to_name[event_kind].str,
+                    (count == 1) ? "" : "s");
+  }
+
+end:
+  end_read_record(&read_record_info);
+
+  close_mysql_tables(thd);
+  delete thd;
   DBUG_RETURN(ret);
 }
 

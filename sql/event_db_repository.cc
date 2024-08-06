@@ -162,6 +162,11 @@ const TABLE_FIELD_TYPE event_table_fields[ET_FIELD_COUNT] =
     { STRING_WITH_LEN("body_utf8") },
     { STRING_WITH_LEN("longblob") },
     { NULL, 0 }
+  },
+  {
+    { STRING_WITH_LEN("event_kind") },
+    { STRING_WITH_LEN("enum('SCHEDULE','STARTUP','SHUTDOWN')") },
+    { NULL, 0 }
   }
 };
 
@@ -285,6 +290,7 @@ mysql_event_fill_row(THD *thd,
                                   scs);
 
     fields[ET_FIELD_EXECUTE_AT]->set_null();
+    fields[ET_FIELD_DB_EVENT]->set_null();
 
     if (!et->starts_null)
     {
@@ -315,12 +321,21 @@ mysql_event_fill_row(THD *thd,
     fields[ET_FIELD_TRANSIENT_INTERVAL]->set_null();
     fields[ET_FIELD_STARTS]->set_null();
     fields[ET_FIELD_ENDS]->set_null();
+    fields[ET_FIELD_DB_EVENT]->set_null();
 
     MYSQL_TIME time;
     my_tz_OFFSET0->gmt_sec_to_TIME(&time, et->execute_at);
 
     fields[ET_FIELD_EXECUTE_AT]->set_notnull();
     fields[ET_FIELD_EXECUTE_AT]->store_time(&time);
+  }
+  else if (et->event_kind != Event_parse_data::SCHEDULE)
+  {
+    fields[ET_FIELD_INTERVAL_EXPR]->set_null();
+    fields[ET_FIELD_TRANSIENT_INTERVAL]->set_null();
+    fields[ET_FIELD_STARTS]->set_null();
+    fields[ET_FIELD_ENDS]->set_null();
+    fields[ET_FIELD_EXECUTE_AT]->set_null();
   }
   else
   {
@@ -364,6 +379,9 @@ mysql_event_fill_row(THD *thd,
     rs|= fields[ET_FIELD_BODY_UTF8]->store(&sp->m_body_utf8,
                                            system_charset_info);
   }
+
+  fields[ET_FIELD_DB_EVENT]->set_notnull();
+  rs|= fields[ET_FIELD_DB_EVENT]->store((longlong)et->event_kind, TRUE);
 
   if (rs)
   {

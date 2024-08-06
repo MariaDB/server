@@ -1592,7 +1592,8 @@ static void kill_thread(THD *thd)
 
 
 /**
-  First shutdown everything but slave threads and binlog dump connections
+  First shutdown everything but slave threads, binlog dump connections
+  and shutdown triggers
 */
 static my_bool kill_thread_phase_1(THD *thd, void *)
 {
@@ -1600,6 +1601,8 @@ static my_bool kill_thread_phase_1(THD *thd, void *)
                       (ulong) thd->thread_id));
 
   if (thd->slave_thread || thd->is_binlog_dump_thread())
+    return 0;
+  if (thd->system_thread == SYSTEM_THREAD_SHUTDOWN_EVENT_WORKER)
     return 0;
 
   if (DBUG_IF("only_kill_system_threads") && !thd->system_thread)
@@ -1613,7 +1616,7 @@ static my_bool kill_thread_phase_1(THD *thd, void *)
 
 
 /**
-  Last shutdown binlog dump connections
+  Last shutdown binlog dump connections and shutdown triggers
 */
 static my_bool kill_thread_phase_2(THD *thd, void *)
 {
@@ -1634,6 +1637,9 @@ static my_bool kill_thread_phase_2(THD *thd, void *)
 /* associated with the kill thread phase 1 */
 static my_bool warn_threads_active_after_phase_1(THD *thd, void *)
 {
+  if (thd->system_thread == SYSTEM_THREAD_SHUTDOWN_EVENT_WORKER)
+      return 0;
+
   if (!thd->is_binlog_dump_thread() && thd->vio_ok())
     sql_print_warning("%s: Thread %llu (user : '%s') did not exit\n", my_progname,
                       (ulonglong) thd->thread_id,
@@ -5988,6 +5994,8 @@ int mysqld_main(int argc, char **argv)
   if (Events::init((THD*) 0, opt_noacl || opt_bootstrap))
     unireg_abort(1);
 
+  Events::search_n_execute_events(Event_parse_data::STARTUP);
+
 #ifdef WITH_WSREP
   if (WSREP_ON)
   {
@@ -6105,6 +6113,7 @@ int mysqld_main(int argc, char **argv)
 #endif /* _WIN32 */
 
   /* Shutdown requested */
+  Events::search_n_execute_events(Event_parse_data::SHUTDOWN);
   char *user= shutdown_user.load(std::memory_order_relaxed);
   sql_print_information(ER_DEFAULT(ER_NORMAL_SHUTDOWN), my_progname,
                         user ? user : "unknown");
