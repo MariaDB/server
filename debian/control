@@ -676,13 +676,13 @@ Architecture: any
 Suggests: mailx,
           mariadb-test,
           netcat-openbsd
-Recommends: libhtml-template-perl,
+Recommends: galera-4 (>= 26.4),
+            libhtml-template-perl,
             pv
 Pre-Depends: adduser (>= 3.40),
              debconf,
              mariadb-common (>= ${source:Version})
-Depends: galera-4 (>= 26.4),
-         gawk,
+Depends: gawk,
          iproute2 [linux-any],
          libdbi-perl,
          lsof [linux-any],
