@@ -381,60 +381,66 @@ LEX_CSTRING spider_unique_id;
 
 // for spider_open_tables
 uchar *spider_tbl_get_key(
-  SPIDER_SHARE *share,
+  const uchar *_share,
   size_t *length,
   my_bool not_used __attribute__ ((unused))
 ) {
+  SPIDER_SHARE *share= (SPIDER_SHARE*) _share;
   DBUG_ENTER("spider_tbl_get_key");
   *length = share->table_name_length;
   DBUG_RETURN((uchar*) share->table_name);
 }
 
 uchar *spider_wide_share_get_key(
-  SPIDER_WIDE_SHARE *share,
+  const uchar *_share,
   size_t *length,
   my_bool not_used __attribute__ ((unused))
 ) {
+  SPIDER_WIDE_SHARE *share= (SPIDER_WIDE_SHARE*) _share;
   DBUG_ENTER("spider_wide_share_get_key");
   *length = share->table_name_length;
   DBUG_RETURN((uchar*) share->table_name);
 }
 
 uchar *spider_lgtm_tblhnd_share_hash_get_key(
-  SPIDER_LGTM_TBLHND_SHARE *share,
+  const uchar *_share,
   size_t *length,
   my_bool not_used __attribute__ ((unused))
 ) {
+  SPIDER_LGTM_TBLHND_SHARE *share= (SPIDER_LGTM_TBLHND_SHARE*) _share;
   DBUG_ENTER("spider_lgtm_tblhnd_share_hash_get_key");
   *length = share->table_name_length;
   DBUG_RETURN((uchar*) share->table_name);
 }
 
 uchar *spider_link_get_key(
-  SPIDER_LINK_FOR_HASH *link_for_hash,
+  const uchar *_link_for_hash,
   size_t *length,
   my_bool not_used __attribute__ ((unused))
 ) {
+  SPIDER_LINK_FOR_HASH *link_for_hash= (SPIDER_LINK_FOR_HASH*) _link_for_hash;
   DBUG_ENTER("spider_link_get_key");
   *length = link_for_hash->db_table_str->length();
   DBUG_RETURN((uchar*) link_for_hash->db_table_str->ptr());
 }
 
 uchar *spider_ha_get_key(
-  ha_spider *spider,
+  const uchar *_spider,
   size_t *length,
   my_bool not_used __attribute__ ((unused))
 ) {
+  ha_spider *spider= (ha_spider*) _spider;
   DBUG_ENTER("spider_ha_get_key");
   *length = spider->share->table_name_length;
   DBUG_RETURN((uchar*) spider->share->table_name);
 }
 
 uchar *spider_udf_tbl_mon_list_key(
-  SPIDER_TABLE_MON_LIST *table_mon_list,
+  const uchar *_table_mon_list,
   size_t *length,
   my_bool not_used __attribute__ ((unused))
 ) {
+  SPIDER_TABLE_MON_LIST *table_mon_list= (SPIDER_TABLE_MON_LIST*) _table_mon_list;
   DBUG_ENTER("spider_udf_tbl_mon_list_key");
   DBUG_PRINT("info",("spider hash key=%s", table_mon_list->key));
   DBUG_PRINT("info",("spider hash key length=%u", table_mon_list->key_length));
@@ -443,10 +449,11 @@ uchar *spider_udf_tbl_mon_list_key(
 }
 
 uchar *spider_allocated_thds_get_key(
-  THD *thd,
+  const uchar *_thd,
   size_t *length,
   my_bool not_used __attribute__ ((unused))
 ) {
+  THD *thd= (THD *) _thd;
   DBUG_ENTER("spider_allocated_thds_get_key");
   *length = sizeof(THD *);
   DBUG_RETURN((uchar*) thd);
@@ -8334,9 +8341,11 @@ bool spider_check_index_merge(
 }
 
 int spider_compare_for_sort(
-  SPIDER_SORT *a,
-  SPIDER_SORT *b
+  const void *_a,
+  const void *_b
 ) {
+  SPIDER_SORT *a= (SPIDER_SORT*) _a;
+  SPIDER_SORT *b= (SPIDER_SORT*) _b;
   DBUG_ENTER("spider_compare_for_sort");
   if (a->sort > b->sort)
     DBUG_RETURN(-1);
