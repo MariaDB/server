@@ -23,12 +23,26 @@
 #include <my_atomic_wrapper.h>
 #include "bloom_filters.h"
 
+#include <random>
+#include <eigen3/Eigen/Dense>
+using namespace Eigen;
+
 ulonglong mhnsw_cache_size;
 
 // Algorithm parameters
 static constexpr float alpha = 1.1f;
 static constexpr float generosity = 1.1f;
 static constexpr uint ef_construction= 10;
+static constexpr size_t subdist_part= 192;
+static constexpr float subdist_margin= 1.1f;
+
+static inline bool use_subdist_heuristic(uint M, size_t vec_len, ha_rows rows)
+{
+  if (vec_len < subdist_part * 2)
+    return false;
+  double logrows= rows < 100000 ? std::log(100000) : std::log(rows); // safety
+  return M >= 8e5/logrows/logrows/(vec_len - subdist_part);
+}
 
 enum Graph_table_fields {
   FIELD_LAYER, FIELD_TREF, FIELD_VEC, FIELD_NEIGHBORS
@@ -47,9 +61,9 @@ class FVectorNode;
 struct FVector
 {
   static constexpr size_t data_header= sizeof(float);
-  static constexpr size_t alloc_header= data_header + sizeof(float);
+  static constexpr size_t alloc_header= data_header + sizeof(float)*2;
 
-  float abs2, scale;
+  float abs2, subabs2, scale;
   int16_t dims[4];
 
   uchar *data() const { return (uchar*)(&scale); }
@@ -60,32 +74,28 @@ struct FVector
   static size_t data_to_value_size(size_t data_size)
   { return (data_size - data_header)*2; }
 
-  static const FVector *create(void *mem, const void *src, size_t src_len)
-  {
-    float scale=0, *v= (float *)src;
-    size_t vec_len= src_len / sizeof(float);
-    for (size_t i= 0; i < vec_len; i++)
-      if (std::abs(scale) < std::abs(v[i]))
-        scale= v[i];
+  static const FVector *create(const MHNSW_Context *ctx, void *mem, const void *src);
 
-    FVector *vec= align_ptr(mem);
-    vec->scale= scale ? scale/32767 : 1;
-    for (size_t i= 0; i < vec_len; i++)
-      vec->dims[i] = static_cast<int16_t>(std::round(v[i] / vec->scale));
-    vec->postprocess(vec_len);
-    return vec;
-  }
-
-  void postprocess(size_t vec_len)
+  void postprocess(bool use_subdist, size_t vec_len)
   {
+    int16_t *d= dims;
     fix_tail(vec_len);
-    abs2= scale * scale * dot_product(dims, dims, vec_len) / 2;
+    if (use_subdist)
+    {
+      subabs2= scale * scale * dot_product(d, d, subdist_part) / 2;
+      d+= subdist_part;
+      vec_len-= subdist_part;
+    }
+    else
+      subabs2= 0;
+    abs2= subabs2 + scale * scale * dot_product(d, d, vec_len) / 2;
   }
 
 #ifdef INTEL_SIMD_IMPLEMENTATION
   /************* AVX2 *****************************************************/
   static constexpr size_t AVX2_bytes= 256/8;
   static constexpr size_t AVX2_dims= AVX2_bytes/sizeof(int16_t);
+  static_assert(subdist_part % AVX2_dims == 0);
 
   INTEL_SIMD_IMPLEMENTATION
   static float dot_product(const int16_t *v1, const int16_t *v2, size_t len)
@@ -137,6 +147,18 @@ struct FVector
 
   DEFAULT_IMPLEMENTATION
   void fix_tail(size_t) {  }
+
+  float distance_greater_than(const FVector *other, size_t vec_len, float than) const
+  {
+    float k = scale * other->scale;
+    float dp= dot_product(dims, other->dims, subdist_part);
+    float subdist= (subabs2 + other->subabs2 - k * dp)/subdist_part*vec_len;
+    if (subdist > than*subdist_margin)
+      return subdist;
+    dp+= dot_product(dims+subdist_part, other->dims+subdist_part,
+                     vec_len - subdist_part);
+    return abs2 + other->abs2 - k * dp;
+  }
 
   float distance_to(const FVector *other, size_t vec_len) const
   {
@@ -213,6 +235,7 @@ public:
   FVectorNode(MHNSW_Context *ctx_, const void *tref_, uint8_t layer,
               const void *vec_);
   float distance_to(const FVector *other) const;
+  float distance_greater_than(const FVector *other, float than) const;
   int load(TABLE *graph);
   int load_from_record(TABLE *graph);
   int save(TABLE *graph);
@@ -260,6 +283,19 @@ class MHNSW_Context : public Sql_alloc
                       + FVector::alloc_size(vec_len));
   }
 
+  /*
+    Despite the name, the matrix isn't random, it's deterministic, because
+    the random value generator is seeded with Q.rows().
+  */
+  static void generate_random_orthogonal_matrix(Map<MatrixXf> &Q)
+  {
+    std::mt19937 rnd((unsigned int)Q.rows());
+    std::normal_distribution<float> gauss(0, 1);
+    MatrixXf A(MatrixXf::NullaryExpr(Q.rows(), Q.rows(), [&](){ return gauss(rnd); }));
+    HouseholderQR<MatrixXf> qr(A);
+    Q = qr.householderQ();
+  }
+
 protected:
   MEM_ROOT root;
   Hash_set<FVectorNode> node_cache{PSI_INSTRUMENT_MEM, FVectorNode::get_key};
@@ -270,12 +306,15 @@ public:
   size_t byte_len= 0;
   Atomic_relaxed<double> ef_power{0.6}; // for the bloom filter size heuristic
   FVectorNode *start= 0;
+  Map<MatrixXf> randomizer;
   const uint tref_len;
   const uint gref_len;
   const uint M;
+  bool use_subdist;
 
   MHNSW_Context(TABLE *t)
-    : tref_len(t->file->ref_length),
+    : randomizer(nullptr, 1, 1),
+      tref_len(t->file->ref_length),
       gref_len(t->hlindex->file->ref_length),
       M(t->in_use->variables.mhnsw_max_edges_per_node)
   {
@@ -314,10 +353,23 @@ public:
     return (layer ? 1 : 2) * M; // heuristic from the paper
   }
 
-  void set_lengths(size_t len)
+  void set_lengths(size_t len, ha_rows min_rows)
   {
-    byte_len= len;
-    vec_len= len / sizeof(float);
+    mysql_mutex_lock(node_lock); // let's hijack this mutex, just once
+    if (!byte_len)
+    {
+      byte_len= len;
+      vec_len= len / sizeof(float);
+      if ((use_subdist= use_subdist_heuristic(M, vec_len, min_rows)))
+      {
+        mysql_mutex_lock(&cache_lock);
+        void *data= alloc_root(&root, sizeof(float)*vec_len*vec_len);
+        mysql_mutex_unlock(&cache_lock);
+        new (&randomizer) Map<MatrixXf>((float*)data, vec_len, vec_len);
+        generate_random_orthogonal_matrix(randomizer);
+      }
+    }
+    mysql_mutex_unlock(node_lock);
   }
 
   static int acquire(MHNSW_Context **ctx, TABLE *table, bool for_update);
@@ -570,15 +622,33 @@ int MHNSW_Context::acquire(MHNSW_Context **ctx, TABLE *table, bool for_update)
     return err;
 
   graph->file->position(graph->record[0]);
-  (*ctx)->set_lengths(FVector::data_to_value_size(graph->field[FIELD_VEC]->value_length()));
+  (*ctx)->set_lengths(FVector::data_to_value_size(graph->field[FIELD_VEC]->value_length()),
+                      table->s->min_rows);
   (*ctx)->start= (*ctx)->get_node(graph->file->ref);
   return (*ctx)->start->load_from_record(graph);
 }
 
 /* copy the vector, preprocessed as needed */
+const FVector *FVector::create(const MHNSW_Context *ctx, void *mem, const void *src)
+{
+  const void *vdata= ctx->use_subdist ? alloca(ctx->byte_len) : src;
+  Map<const VectorXf> in((const float*)src, ctx->vec_len);
+  Map<VectorXf> v((float*)vdata, ctx->vec_len);
+  if (ctx->use_subdist)
+    v= ctx->randomizer * in;
+
+  FVector *vec= align_ptr(mem);
+  float scale= std::max(-v.minCoeff(), v.maxCoeff());
+  vec->scale= scale ? scale/32767 : 1;
+  for (size_t i= 0; i < ctx->vec_len; i++)
+    vec->dims[i] = static_cast<int16_t>(std::round(v(i) / vec->scale));
+  vec->postprocess(ctx->use_subdist, ctx->vec_len);
+  return vec;
+}
+
 const FVector *FVectorNode::make_vec(const void *v)
 {
-  return FVector::create(tref() + tref_len(), v, ctx->byte_len);
+  return FVector::create(ctx, tref() + tref_len(), v);
 }
 
 FVectorNode::FVectorNode(MHNSW_Context *ctx_, const void *gref_)
@@ -602,6 +672,13 @@ FVectorNode::FVectorNode(MHNSW_Context *ctx_, const void *tref_, uint8_t layer,
 float FVectorNode::distance_to(const FVector *other) const
 {
   return vec->distance_to(other, ctx->vec_len);
+}
+
+float FVectorNode::distance_greater_than(const FVector *other, float than) const
+{
+  if (ctx->use_subdist)
+    return vec->distance_greater_than(other, ctx->vec_len, than);
+  return distance_to(other);
 }
 
 int FVectorNode::alloc_neighborhood(uint8_t layer)
@@ -656,7 +733,7 @@ int FVectorNode::load_from_record(TABLE *graph)
     return my_errno= HA_ERR_CRASHED;
   FVector *vec_ptr= FVector::align_ptr(tref() + tref_len());
   memcpy(vec_ptr->data(), v->ptr(), v->length());
-  vec_ptr->postprocess(ctx->vec_len);
+  vec_ptr->postprocess(ctx->use_subdist, ctx->vec_len);
 
   longlong layer= graph->field[FIELD_LAYER]->val_int();
   if (layer > 100) // 10e30 nodes at M=2, more at larger M's
@@ -727,17 +804,16 @@ struct Visited : public Sql_alloc
 class VisitedSet
 {
   MEM_ROOT *root;
-  const FVector *target;
   PatternedSimdBloomFilter<FVectorNode> map;
   const FVectorNode *nodes[8]= {0,0,0,0,0,0,0,0};
   size_t idx= 1; // to record 0 in the filter
   public:
   uint count= 0;
-  VisitedSet(MEM_ROOT *root, const FVector *target, uint size) :
-    root(root), target(target), map(size, 0.01f) {}
-  Visited *create(FVectorNode *node)
+  VisitedSet(MEM_ROOT *root, uint size) :
+    root(root), map(size, 0.01f) {}
+  Visited *create(FVectorNode *node, float dist)
   {
-    auto *v= new (root) Visited(node, node->distance_to(target));
+    auto *v= new (root) Visited(node, dist);
     insert(node);
     count++;
     return v;
@@ -796,7 +872,7 @@ static int select_neighbors(MHNSW_Context *ctx, TABLE *graph, size_t layer,
     const float target_dista= vec->distance_to_target / alpha;
     bool discard= false;
     for (size_t i=0; i < neighbors.num; i++)
-      if ((discard= node->distance_to(neighbors.links[i]->vec) < target_dista))
+      if ((discard= node->distance_greater_than(neighbors.links[i]->vec, target_dista) < target_dista))
         break;
     if (!discard)
       target.push_neighbor(layer, node);
@@ -913,7 +989,7 @@ static int search_layer(MHNSW_Context *ctx, TABLE *graph, const FVector *target,
   // WARNING! heuristic here
   const double est_heuristic= 8 * std::sqrt(ctx->max_neighbors(layer));
   const uint est_size= static_cast<uint>(est_heuristic * std::pow(ef, ctx->ef_power));
-  VisitedSet visited(root, target, est_size);
+  VisitedSet visited(root, est_size);
 
   candidates.init(10000, false, Visited::cmp);
   best.init(ef, true, Visited::cmp);
@@ -921,7 +997,8 @@ static int search_layer(MHNSW_Context *ctx, TABLE *graph, const FVector *target,
   DBUG_ASSERT(start_nodes->num <= result_size);
   for (size_t i=0; i < start_nodes->num; i++)
   {
-    Visited *v= visited.create(start_nodes->links[i]);
+    auto node= start_nodes->links[i];
+    Visited *v= visited.create(node, node->distance_to(target));
     candidates.push(v);
     if (skip_deleted && v->node->deleted)
       continue;
@@ -952,24 +1029,28 @@ static int search_layer(MHNSW_Context *ctx, TABLE *graph, const FVector *target,
           continue;
         if (int err= links[i]->load(graph))
           return err;
-        Visited *v= visited.create(links[i]);
         if (!best.is_full())
         {
+          Visited *v= visited.create(links[i], links[i]->distance_to(target));
           candidates.push(v);
           if (skip_deleted && v->node->deleted)
             continue;
           best.push(v);
           furthest_best= best.top()->distance_to_target * generosity;
         }
-        else if (v->distance_to_target < furthest_best)
+        else
         {
-          candidates.safe_push(v);
-          if (skip_deleted && v->node->deleted)
-            continue;
-          if (v->distance_to_target < best.top()->distance_to_target)
+          Visited *v= visited.create(links[i], links[i]->distance_greater_than(target, furthest_best));
+          if (v->distance_to_target < furthest_best)
           {
-            best.replace_top(v);
-            furthest_best= best.top()->distance_to_target * generosity;
+            candidates.safe_push(v);
+            if (skip_deleted && v->node->deleted)
+              continue;
+            if (v->distance_to_target < best.top()->distance_to_target)
+            {
+              best.replace_top(v);
+              furthest_best= best.top()->distance_to_target * generosity;
+            }
           }
         }
       }
@@ -1036,7 +1117,7 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
       return err;
 
     // First insert!
-    ctx->set_lengths(res->length());
+    ctx->set_lengths(res->length(), table->s->min_rows);
     FVectorNode *target= new (ctx->alloc_node())
                    FVectorNode(ctx, table->file->ref, 0, res->ptr());
     if (!((err= target->save(graph))))
@@ -1142,8 +1223,8 @@ int mhnsw_first(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit)
   }
 
   const longlong max_layer= start_nodes.links[0]->max_layer;
-  auto target= FVector::create(thd->alloc(FVector::alloc_size(ctx->vec_len)),
-                               res->ptr(), res->length());
+  auto target= FVector::create(ctx, thd->alloc(FVector::alloc_size(ctx->vec_len)),
+                               res->ptr());
 
   if (int err= graph->file->ha_rnd_init(0))
     return err;
