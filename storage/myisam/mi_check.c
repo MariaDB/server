@@ -61,7 +61,8 @@ static int sort_one_index(HA_CHECK *, MI_INFO *, MI_KEYDEF *, my_off_t, File);
 static int sort_key_read(MI_SORT_PARAM *sort_param,void *key);
 static int sort_ft_key_read(MI_SORT_PARAM *sort_param,void *key);
 static int sort_get_next_record(MI_SORT_PARAM *sort_param);
-static int sort_key_cmp(MI_SORT_PARAM *sort_param, const void *a,const void *b);
+static int sort_key_cmp(const void *sort_param, const void *a,const void *b);
+static int sort_queue_cmp(void *sort_param, uchar *a, uchar *b);
 static int sort_ft_key_write(MI_SORT_PARAM *sort_param, const void *a);
 static int sort_key_write(MI_SORT_PARAM *sort_param, const void *a);
 static my_off_t get_record_for_key(MI_INFO *, MI_KEYDEF *, uchar *);
@@ -2312,6 +2313,7 @@ int mi_repair_by_sort(HA_CHECK *param, register MI_INFO *info,
     ((param->testflag & T_CREATE_MISSING_KEYS) ? info->state->records :
      (ha_rows) (sort_info.filelength/length+1));
   sort_param.key_cmp=sort_key_cmp;
+  sort_param.queue_cmp=sort_queue_cmp;
   sort_param.lock_in_memory=lock_memory;
   sort_param.tmpdir=param->tmpdir;
   sort_param.sort_info=&sort_info;
@@ -2844,6 +2846,7 @@ int mi_repair_parallel(HA_CHECK *param, register MI_INFO *info,
       sort_param[i].key_write=sort_key_write;
     }
     sort_param[i].key_cmp=sort_key_cmp;
+    sort_param[i].queue_cmp=sort_queue_cmp;
     sort_param[i].lock_in_memory=lock_memory;
     sort_param[i].tmpdir=param->tmpdir;
     sort_param[i].sort_info=&sort_info;
@@ -3805,9 +3808,23 @@ int sort_write_record(MI_SORT_PARAM *sort_param)
 
 	/* Compare two keys from _create_index_by_sort */
 
-static int sort_key_cmp(MI_SORT_PARAM *sort_param, const void *a,
-			const void *b)
+static int sort_key_cmp(const void *_sort_param, const void *a, const void *b)
 {
+  MI_SORT_PARAM *sort_param= (MI_SORT_PARAM*) _sort_param;
+  uint not_used[2];
+  return (ha_key_cmp(sort_param->seg, *((uchar**) a), *((uchar**) b),
+		     USE_WHOLE_KEY, SEARCH_SAME, not_used));
+} /* sort_key_cmp */
+
+
+/*
+  Same as sort_key_cmp, but with parameters that conform to queue_compare type
+  for init_queue usage.
+*/
+
+static int sort_queue_cmp(void *_sort_param, uchar *a, uchar *b)
+{
+  MI_SORT_PARAM *sort_param= (MI_SORT_PARAM*) _sort_param;
   uint not_used[2];
   return (ha_key_cmp(sort_param->seg, *((uchar**) a), *((uchar**) b),
 		     USE_WHOLE_KEY, SEARCH_SAME, not_used));

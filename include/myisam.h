@@ -373,7 +373,8 @@ typedef struct st_mi_sort_param
   my_bool fix_datafile, master;
   my_bool calc_checksum;                /* calculate table checksum */
 
-  int (*key_cmp)(struct st_mi_sort_param *, const void *, const void *);
+  int (*key_cmp)(const void *, const void *, const void *);
+  int (*queue_cmp)(void *, uchar *, uchar *);
   int (*key_read)(struct st_mi_sort_param *,void *);
   int (*key_write)(struct st_mi_sort_param *, const void *);
   void (*lock_in_memory)(HA_CHECK *);
