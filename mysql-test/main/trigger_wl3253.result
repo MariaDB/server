@@ -310,7 +310,7 @@ CREATE TABLE t1 (a INT);
 CREATE TRIGGER tr1_bi BEFORE INSERT ON t1 FOR EACH ROW SET @a:=1;
 CREATE TRIGGER tr2_bi BEFORE INSERT ON t1 FOR EACH ROW SET @a:=2;
 CREATE TRIGGER tr1_bu BEFORE UPDATE ON t1 FOR EACH ROW SET @a:=3;
-/*!999999\- enable the sandbox mode */ 
+/*M!999999\- enable the sandbox mode */ 
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `t1` (
@@ -373,7 +373,7 @@ CREATE TRIGGER tr2_bi BEFORE INSERT ON t1 FOR EACH ROW SET @a:=2;
 CREATE TRIGGER tr0_bi BEFORE INSERT ON t1 FOR EACH ROW PRECEDES tr1_bi SET @a:=0;
 CREATE TRIGGER tr1_1_bi BEFORE INSERT ON t1 FOR EACH ROW FOLLOWS tr1_bi SET @a:=0;
 # Expected order of triggers in the dump is: tr0_bi, tr1_bi, tr1_1_bi, tr2_i.
-/*!999999\- enable the sandbox mode */ 
+/*M!999999\- enable the sandbox mode */ 
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `t1` (

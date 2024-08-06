@@ -612,14 +612,26 @@ static my_bool log_in_use_callback(THD *thd, st_log_in_use *arg)
 }
 
 
-bool log_in_use(const char* log_name, uint min_connected)
+/*
+  Check if a log is in use.
+
+  @return 0  Not used
+  @return 1  A slave is reading from the log
+  @return 2  There are less than 'min_connected' slaves that
+             has recived the log.
+*/
+
+int log_in_use(const char* log_name, uint min_connected)
 {
   st_log_in_use arg;
   arg.log_name= log_name;
   arg.connected_slaves= 0;
 
-  return ((server_threads.iterate(log_in_use_callback, &arg) ||
-           arg.connected_slaves < min_connected));
+  if (server_threads.iterate(log_in_use_callback, &arg))
+    return 1;
+  if (arg.connected_slaves < min_connected)
+    return 2;
+  return 0;
 }
 
 
@@ -659,8 +671,8 @@ bool purge_master_logs(THD* thd, const char* to_log)
 
   mysql_bin_log.make_log_name(search_file_name, to_log);
   return purge_error_message(thd,
-			     mysql_bin_log.purge_logs(search_file_name, 0, 1,
-						      1, NULL));
+			     mysql_bin_log.purge_logs(thd, search_file_name,
+                                                      0, 1, 1, 1, NULL));
 }
 
 
@@ -683,7 +695,9 @@ bool purge_master_logs_before_date(THD* thd, time_t purge_time)
     return 0;
   }
   return purge_error_message(thd,
-                             mysql_bin_log.purge_logs_before_date(purge_time));
+                             mysql_bin_log.purge_logs_before_date(thd,
+                                                                  purge_time,
+                                                                  1));
 }
 
 void set_read_error(binlog_send_info *info, int error)

@@ -70,6 +70,8 @@ master-bin.000002	#
 master-bin.000003	#
 SELECT @time_for_purge:=DATE_ADD('tmpval', INTERVAL 1 SECOND);
 purge master logs before (@time_for_purge);
+Warnings:
+Note	1375	Binary log 'master-bin.000003' is not purged because it is the current active binlog
 show binary logs;
 Log_name	File_size
 master-bin.000003	#

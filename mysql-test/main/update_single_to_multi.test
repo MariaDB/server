@@ -40,6 +40,7 @@ select o_orderkey, o_totalprice from orders where $c1;
 eval
 explain
 update orders set o_totalprice = o_totalprice-50 where $c1;
+--source include/explain-no-costs.inc
 eval
 explain format=json
 update orders set o_totalprice = o_totalprice-50 where $c1;
@@ -158,6 +159,7 @@ let $c5=
 eval
 explain
 select c_name, c_acctbal from customer where $c5;
+--source include/explain-no-costs.inc
 eval
 explain format=json
 select c_name, c_acctbal from customer where $c5;
@@ -167,6 +169,7 @@ select c_name, c_acctbal from customer where $c5;
 eval
 explain
 update customer set c_acctbal = c_acctbal+10 where $c5;
+--source include/explain-no-costs.inc
 eval
 explain format=json
 update customer set c_acctbal = c_acctbal+10 where $c5;
@@ -256,6 +259,7 @@ select c_name, c_acctbal from customer where $c8;
 eval
 explain
 update customer set c_acctbal = c_acctbal+5 where $c8;
+--source include/explain-no-costs.inc
 eval
 explain format=json
 update customer set c_acctbal = c_acctbal+5 where $c8;
@@ -306,6 +310,7 @@ let $c10=
 eval
 explain
 select c_name, c_acctbal from customer where $c10;
+--source include/explain-no-costs.inc
 eval
 explain format=json
 select c_name, c_acctbal from customer where $c10;
@@ -315,6 +320,7 @@ select c_name, c_acctbal from customer where $c10;
 eval
 explain
 update customer set c_acctbal = c_acctbal-5 where $c10;
+--source include/explain-no-costs.inc
 eval
 explain format=json
 update customer set c_acctbal = c_acctbal-5 where $c10;
@@ -612,6 +618,7 @@ let $c12 = l_suppkey in
 eval
 explain
 select count(*) from lineitem where $c12;
+--source include/explain-no-costs.inc
 eval
 explain format=json
 select count(*) from lineitem where $c12;
@@ -628,6 +635,7 @@ eval select  $l_count as count, $l_old_sum as old_sum;
 eval
 explain
 update  lineitem set l_extendedprice=l_extendedprice+10 where $c12;
+--source include/explain-no-costs.inc
 eval
 explain format=json
 update  lineitem set l_extendedprice=l_extendedprice+10 where $c12;
@@ -728,6 +736,7 @@ let $c13 = l_partkey in (
 eval
 explain
 select count(*) from lineitem where $c13;
+--source include/explain-no-costs.inc
 eval
 explain format=json
 select count(*) from lineitem where $c13;
@@ -743,6 +752,7 @@ eval select  $l_count as count, $l_old_sum as old_sum;
 eval
 explain
 update  lineitem set l_extendedprice=l_extendedprice+10 where $c13;
+--source include/explain-no-costs.inc
 eval
 explain format=json
 update  lineitem set l_extendedprice=l_extendedprice+10 where $c13;

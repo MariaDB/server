@@ -1035,7 +1035,7 @@ public:
   void mark_xid_done(ulong cookie, bool write_checkpoint);
   void make_log_name(char* buf, const char* log_ident);
   bool is_active(const char* log_file_name);
-  bool can_purge_log(const char *log_file_name);
+  bool can_purge_log(const char *log_file_name, bool interactive);
   int update_log_index(LOG_INFO* linfo, bool need_update_threads);
   int rotate(bool force_rotate, bool* check_purge);
   void checkpoint_and_purge(ulong binlog_id);
@@ -1054,10 +1054,10 @@ public:
      @retval other Failure
   */
   bool flush_and_sync(bool *synced);
-  int purge_logs(const char *to_log, bool included,
-                 bool need_mutex, bool need_update_threads,
+  int purge_logs(THD *thd, const char *to_log, bool included,
+                 bool need_mutex, bool need_update_threads, bool interactive,
                  ulonglong *decrease_log_space);
-  int purge_logs_before_date(time_t purge_time);
+  int purge_logs_before_date(THD *thd, time_t purge_time, bool interactive);
   int purge_first_log(Relay_log_info* rli, bool included);
   int count_binlog_space();
   void count_binlog_space_with_mutex()

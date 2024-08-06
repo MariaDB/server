@@ -42,7 +42,7 @@ public:
   }
   const Lex_ident_routine fully_qualified_func_name() const override
   { return Lex_ident_routine("sysconst_test()"_LEX_CSTRING); }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_sysconst_test>(thd, this); }
 };
 

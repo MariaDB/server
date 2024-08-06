@@ -37,7 +37,7 @@ connection node_2;
 # Start node_2 again
 ¤ Wait until node_2 is back on cluster
 connection node_2;
-call mtr.add_suppression("Slave: Operation CREATE USER failed for .*");
+call mtr.add_suppression("Slave: Operation CREATE USER failed for ");
 SELECT COUNT(*) AS EXPECT_0 FROM mysql.gtid_slave_pos;
 EXPECT_0
 0

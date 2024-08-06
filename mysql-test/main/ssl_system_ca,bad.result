@@ -1,1 +1,1 @@
-ERROR 2026 (HY000): TLS/SSL error: Validation of SSL server certificate failed
+ERROR 2026 (HY000): TLS/SSL error: Hostname verification failed

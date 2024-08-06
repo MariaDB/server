@@ -111,7 +111,7 @@ f1	f2
 SELECT EVENT_CATALOG, EVENT_SCHEMA, EVENT_NAME, DEFINER, EVENT_BODY, EVENT_DEFINITION, EVENT_TYPE, EXECUTE_AT, INTERVAL_VALUE, INTERVAL_FIELD, STATUS,ON_COMPLETION, EVENT_COMMENT FROM INFORMATION_SCHEMA.EVENTS WHERE EVENT_NAME='one_event';
 EVENT_CATALOG	EVENT_SCHEMA	EVENT_NAME	DEFINER	EVENT_BODY	EVENT_DEFINITION	EVENT_TYPE	EXECUTE_AT	INTERVAL_VALUE	INTERVAL_FIELD	STATUS	ON_COMPLETION	EVENT_COMMENT
 def	test	one_event	root@localhost	SQL	SELECT 123	RECURRING	NULL	10	SECOND	SLAVESIDE_DISABLED	NOT PRESERVE	
-call mtr.add_suppression("WSREP: Failed to scan the last segment to the end. Last events may be missing. Last recovered event:.*");
+call mtr.add_suppression("WSREP: Failed to scan the last segment to the end\\. Last events may be missing\\. Last recovered event: ");
 connection node_1;
 SELECT * FROM t1;
 f1	f2

@@ -135,8 +135,8 @@ SET SESSION wsrep_sync_wait = 15;
 SET GLOBAL wsrep_on=OFF;
 # restart
 DROP TABLE t1;
-CALL mtr.add_suppression('Can\'t find record in \'t1\'');
-CALL mtr.add_suppression('Update_rows_v1 apply failed');
-CALL mtr.add_suppression('Inconsistency detected: Inconsistent by consensus on');
-CALL mtr.add_suppression('last left .* greater than drain seqno');
-CALL mtr.add_suppression('WSREP: Failed to apply write set:');
+CALL mtr.add_suppression("Can't find record in 't1'");
+CALL mtr.add_suppression("Update_rows_v1 apply failed");
+CALL mtr.add_suppression("Inconsistency detected: Inconsistent by consensus on");
+CALL mtr.add_suppression("last left .* greater than drain seqno");
+CALL mtr.add_suppression("WSREP: Failed to apply write set: ");

@@ -1,4 +1,4 @@
-/*!999999\- enable the sandbox mode */ 
+/*M!999999\- enable the sandbox mode */ 
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `sv_basic` (
@@ -41,7 +41,7 @@ INSERT INTO `sv_partition` (`a`, row_start, row_end) VALUES (2,'2023-12-19 14:23
 (1,'2023-12-19 14:23:22.331143','2038-01-19 03:14:07.999999'),
 (3,'2023-12-19 14:23:22.331143','2038-01-19 03:14:07.999999');
 /*!101100 SET system_versioning_insert_history=@old_system_versioning_insert_history */;
-/*!999999\- enable the sandbox mode */ 
+/*M!999999\- enable the sandbox mode */ 
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `sv_basic` (
