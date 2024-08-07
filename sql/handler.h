@@ -5832,10 +5832,13 @@ public:
   uchar buf[32768];
 
   handler_binlog_reader()
-    : cur_file_no(~(uint64_t)0), cur_file_offset(0), cur_file(0),
+    : cur_file_no(~(uint64_t)0), cur_file_offset(0), cur_file((File)-1),
       buf_data_pos(0), buf_data_remain(0)
   { }
+  virtual ~handler_binlog_reader() { };
   virtual int read_binlog_data(uchar *buf, uint32_t len) = 0;
+
+  int read_log_event(String *packet, uint32_t ev_offset, size_t max_allowed);
 
 /*
   cur_file_no      -> implicitly gives file/tablespace
@@ -5844,7 +5847,6 @@ public:
   cur_chunk_len
   cur_chunk_sofar
 */
-  virtual ~handler_binlog_reader() { };
 };
 
 #endif /* HANDLER_INCLUDED */

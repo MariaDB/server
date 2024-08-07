@@ -25,4 +25,6 @@ while ($i < $num_trx) {
 --enable_query_log
 SET SESSION binlog_format= MIXED;
 
+--exec $MYSQL_BINLOG --read-from-remote-server --user=root --host=127.0.0.1 --port=$MASTER_MYPORT master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog.txt
+
 DROP TABLE t2;
