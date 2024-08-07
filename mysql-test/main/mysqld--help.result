@@ -723,6 +723,14 @@ The following specify which files/extra groups are read (specified before remain
  in MariaDB 11.0 as it is not needed with the new 11.0
  optimizer.
  Use 'ALL' to set all combinations.
+ --optimizer-join-limit-pref-ratio=# 
+ For queries with JOIN and ORDER BY LIMIT : change the
+ join plan to one that can short-cut after producing
+ #LIMIT matches if that promises N times speedup. (That
+ is, a conservative setting is a high value, like var=100
+ to change only if this promises 100x) The default is 0
+ which gives old behavior (don't change no matter what the
+ speedup)
  --optimizer-max-sel-arg-weight=# 
  The maximum weight of the SEL_ARG graph. Set to 0 for no
  limit
@@ -1696,6 +1704,7 @@ old-mode UTF8_IS_UTF8MB3
 old-passwords FALSE
 old-style-user-limits FALSE
 optimizer-adjust-secondary-key-costs 
+optimizer-join-limit-pref-ratio 0
 optimizer-max-sel-arg-weight 32000
 optimizer-max-sel-args 16000
 optimizer-prune-level 1

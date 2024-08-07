@@ -1,0 +1,167 @@
+#
+# MDEV-34720: Poor plan choice for large JOIN with ORDER BY and small LIMIT
+#
+create table t1 (
+a int,
+b int,
+c int,
+col1 int,
+col2 int,
+index(a),
+index(b),
+index(col1)
+);
+insert into t1 select 
+mod(seq, 100),
+mod(seq, 95),
+seq,
+seq,
+seq
+from
+seq_1_to_10000;
+create table t10 (
+a int,
+a_value char(10),
+key(a)
+);
+insert into t10 select seq, seq from seq_1_to_100;
+create table t11 (
+b int,
+b_value char(10),
+key(b)
+);
+insert into t11 select seq, seq from seq_1_to_100;
+set @tmp_os=@@optimizer_trace;
+set optimizer_trace=1;
+#
+# Query 1 - basic example.
+#
+# Table t1 is not the first, have to use temporary+filesort:
+explain
+select
+*
+from 
+t1
+join t10 on t1.a=t10.a
+join t11 on t1.b=t11.b
+order by
+t1.col1
+limit 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t10	ALL	a	NULL	NULL	NULL	100	Using where; Using temporary; Using filesort
+1	SIMPLE	t1	ref	a,b	a	5	test.t10.a	100	Using where
+1	SIMPLE	t11	ref	b	b	5	test.t1.b	1	
+set optimizer_join_limit_pref_ratio=10;
+# t1 is first, key=col1 produces ordering, no filesort or temporary:
+explain
+select
+*
+from 
+t1
+join t10 on t1.a=t10.a
+join t11 on t1.b=t11.b
+order by
+t1.col1
+limit 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	a,b	col1	5	NULL	10	Using where
+1	SIMPLE	t10	ref	a	a	5	test.t1.a	1	
+1	SIMPLE	t11	ref	b	b	5	test.t1.b	1	
+set @trace=(select trace from information_schema.optimizer_trace);
+select json_detailed(json_extract(@trace, '$**.limit_shortcut_choice')) as JS;
+JS
+[
+    {
+        "limit_fraction": 0.001,
+        "test_if_skip_sort_order": 
+        [
+            {
+                "reconsidering_access_paths_for_index_ordering": 
+                {
+                    "clause": "ORDER BY",
+                    "fanout": 1,
+                    "read_time": 53.27053125,
+                    "table": "t1",
+                    "rows_estimation": 10000,
+                    "possible_keys": 
+                    [
+                        {
+                            "index": "a",
+                            "can_resolve_order": false,
+                            "cause": "not usable index for the query"
+                        },
+                        {
+                            "index": "b",
+                            "can_resolve_order": false,
+                            "cause": "not usable index for the query"
+                        },
+                        {
+                            "index": "col1",
+                            "can_resolve_order": true,
+                            "updated_limit": 10,
+                            "index_scan_time": 10,
+                            "records": 10000,
+                            "chosen": true
+                        }
+                    ]
+                }
+            }
+        ],
+        "can_skip_filesort": true,
+        "full_join_cost": 46064.98442,
+        "shortcut_join_cost": 99.28224614,
+        "use_shortcut_plan": true
+    }
+]
+#
+# Query 2 - same as above but without a suitable index.
+#
+# Table t1 is not the first, have to use temporary+filesort:
+set optimizer_join_limit_pref_ratio=0;
+explain
+select
+*
+from 
+t1
+join t10 on t1.a=t10.a
+join t11 on t1.b=t11.b
+order by
+t1.col2
+limit 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t10	ALL	a	NULL	NULL	NULL	100	Using where; Using temporary; Using filesort
+1	SIMPLE	t1	ref	a,b	a	5	test.t10.a	100	Using where
+1	SIMPLE	t11	ref	b	b	5	test.t1.b	1	
+# t1 is first but there's no suitable index,
+#   so we use filesort but using temporary: 
+set optimizer_join_limit_pref_ratio=10;
+explain
+select
+*
+from 
+t1
+join t10 on t1.a=t10.a
+join t11 on t1.b=t11.b
+order by
+t1.col2
+limit 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	a,b	NULL	NULL	NULL	10000	Using where; Using filesort
+1	SIMPLE	t10	ref	a	a	5	test.t1.a	1	
+1	SIMPLE	t11	ref	b	b	5	test.t1.b	1	
+set @trace=(select trace from information_schema.optimizer_trace);
+select json_detailed(json_extract(@trace, '$**.limit_shortcut_choice')) as JS;
+JS
+[
+    {
+        "limit_fraction": 0.001,
+        "test_if_skip_sort_order": 
+        [],
+        "can_skip_filesort": false,
+        "full_join_cost": 46064.98442,
+        "shortcut_join_cost": 2097.281246,
+        "use_shortcut_plan": true
+    }
+]
+set optimizer_trace=@tmp_os;
+drop table t1, t10, t11;

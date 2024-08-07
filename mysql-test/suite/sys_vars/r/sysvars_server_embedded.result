@@ -2282,6 +2282,16 @@ NUMERIC_BLOCK_SIZE	NULL
 ENUM_VALUE_LIST	adjust_secondary_key_cost,disable_max_seek,disable_forced_index_in_group_by
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	OPTIMIZER_JOIN_LIMIT_PREF_RATIO
+VARIABLE_SCOPE	SESSION
+VARIABLE_TYPE	BIGINT UNSIGNED
+VARIABLE_COMMENT	For queries with JOIN and ORDER BY LIMIT : change the join plan to one that can short-cut after producing #LIMIT matches if that promises N times speedup. (That is, a conservative setting is a high value, like var=100 to change only if this promises 100x) The default is 0 which gives old behavior (don't change no matter what the speedup)
+NUMERIC_MIN_VALUE	0
+NUMERIC_MAX_VALUE	4294967295
+NUMERIC_BLOCK_SIZE	1
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	OPTIMIZER_MAX_SEL_ARGS
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BIGINT UNSIGNED

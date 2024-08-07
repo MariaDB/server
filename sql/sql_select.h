@@ -1205,6 +1205,10 @@ public:
     passing 1st non-const table to filesort(). NULL means no such table exists.
   */
   TABLE    *sort_by_table;
+
+  bool    limit_shortcut_applicable;
+  bool    limit_optimization_mode;
+
   /* 
     Number of tables in the join. 
     (In MySQL, it is named 'tables' and is also the number of elements in 
