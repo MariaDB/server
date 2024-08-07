@@ -130,6 +130,7 @@ struct binlog_send_info {
   slave_connection_state *until_gtid_state;
   slave_connection_state until_gtid_state_obj;
   Format_description_log_event *fdev;
+  handler_binlog_reader *engine_binlog_reader;
   int mariadb_slave_capability;
   enum_gtid_skip_type gtid_skip_group;
   enum_gtid_until_state gtid_until_group;
@@ -169,6 +170,7 @@ struct binlog_send_info {
                    char *lfn)
     : thd(thd_arg), net(&thd_arg->net), packet(packet_arg),
       log_file_name(lfn), until_gtid_state(NULL), fdev(NULL),
+      engine_binlog_reader(NULL),
       gtid_skip_group(GTID_SKIP_NOT), gtid_until_group(GTID_UNTIL_NOT_DONE),
       flags(flags_arg), current_checksum_alg(BINLOG_CHECKSUM_ALG_UNDEF),
       slave_gtid_strict_mode(false), send_fake_gtid_list(false),
@@ -188,6 +190,7 @@ struct binlog_send_info {
     bzero(&error_gtid, sizeof(error_gtid));
     until_binlog_state.init();
   }
+  ~binlog_send_info() { delete engine_binlog_reader; }
 };
 
 // prototype
@@ -2332,6 +2335,16 @@ static int init_binlog_sender(binlog_send_info *info,
   String slave_until_gtid_str(str_buf2, sizeof(str_buf2), system_charset_info);
   connect_gtid_state.length(0);
 
+  /* ToDo: Need more complex logic here. I want to be able to at least switch from legacy to innodb binlog without having to RESET MASTER. So we need to be able to start reading from legacy and then switch over to the binlog in innodb. Also, we might want to pass the init GTID position in so that the binlog reader can find the place to start by itself? But probably still want to allocate the reader here like this. */
+  if (opt_binlog_engine_hton &&
+      !(info->engine_binlog_reader=
+        (*opt_binlog_engine_hton->get_binlog_reader)()))
+  {
+    LEX_CSTRING *engine_name= hton_name(opt_binlog_engine_hton);
+    my_error(ER_CANNOT_INIT_ENGINE_BINLOG_READER, MYF(0), engine_name->str);
+    return 1;
+  }
+
   /** save start file/pos that was requested by slave */
   strmake(info->start_log_file_name, log_ident,
           sizeof(info->start_log_file_name));
@@ -2919,11 +2932,18 @@ static int send_events(binlog_send_info *info, IO_CACHE* log, LOG_INFO* linfo,
     if (reset_transmit_packet(info, info->flags, &ev_offset, &info->errmsg))
       return 1;
 
-    info->last_pos= linfo->pos;
-    error= Log_event::read_log_event(log, packet, info->fdev,
-                       opt_master_verify_checksum ? info->current_checksum_alg
-                                                  : BINLOG_CHECKSUM_ALG_OFF);
-    linfo->pos= my_b_tell(log);
+    handler_binlog_reader *reader= info->engine_binlog_reader;
+    if (!reader)
+    {
+      info->last_pos= linfo->pos;
+      error= Log_event::read_log_event(log, packet, info->fdev,
+                                       opt_master_verify_checksum ? info->current_checksum_alg
+                                       : BINLOG_CHECKSUM_ALG_OFF);
+      linfo->pos= my_b_tell(log);
+    }
+    else
+      error= reader->read_log_event(packet, packet->length(),
+                                    info->thd->variables.max_allowed_packet);
 
     if (unlikely(error))
     {
