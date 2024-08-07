@@ -188,7 +188,7 @@ public:
   bool commit(MYSQL_BIN_LOG::group_commit_entry *entry);
 
   bool replace_binlog_file();
-  bool complete();
+  bool complete(Gtid_log_event &gtid_ev);
 
 private:
   Binlog_cache_free_flush &operator=(const Binlog_cache_free_flush &);
@@ -6945,16 +6945,18 @@ MYSQL_BIN_LOG::write_gtid_event(THD *thd, bool standalone,
   }
 #endif
 
-  if (write_event(&gtid_event))
-    DBUG_RETURN(true);
-  status_var_add(thd->status_var.binlog_bytes_written, gtid_event.data_written);
-
   if (unlikely(is_free_flush))
   {
-    if (binlog_cache_free_flush.complete())
+    if (binlog_cache_free_flush.complete(gtid_event))
       DBUG_RETURN(true);
   }
-
+  else
+  {
+    if (write_event(&gtid_event))
+      DBUG_RETURN(true);
+    status_var_add(thd->status_var.binlog_bytes_written,
+                   gtid_event.data_written);
+  }
   DBUG_RETURN(false);
 }
 
@@ -13142,20 +13144,19 @@ end:
   return ret;
 }
 
-bool Binlog_cache_free_flush::complete()
+bool Binlog_cache_free_flush::complete(Gtid_log_event &gtid_ev)
 {
   size_t begin_pos= my_b_tell(&mysql_bin_log.log_file);
-  size_t empty_size=
-      m_cache_data->file_reserved_bytes() - begin_pos - LOG_EVENT_HEADER_LEN;
   size_t cache_size= m_cache_data->temp_file_length();
+
+  gtid_ev.pad_to_size=
+      m_cache_data->file_reserved_bytes() - begin_pos - LOG_EVENT_HEADER_LEN;
+  if (binlog_checksum_options != BINLOG_CHECKSUM_ALG_OFF)
+    gtid_ev.pad_to_size-= BINLOG_CHECKSUM_LEN;
 
   m_cache_data->detach_temp_file();
 
-  if (binlog_checksum_options != BINLOG_CHECKSUM_ALG_OFF)
-    empty_size-= BINLOG_CHECKSUM_LEN;
-
-  Empty_log_event empty_ev(m_entry->thd, (int) empty_size);
-  if (mysql_bin_log.write_event(&empty_ev) ||
+  if (mysql_bin_log.write_event(&gtid_ev) ||
       flush_io_cache(&mysql_bin_log.log_file))
     return true;
 

@@ -2829,7 +2829,7 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
                                bool ro_1pc)
   : Log_event(thd_arg, flags_arg, is_transactional),
     seq_no(seq_no_arg), commit_id(commit_id_arg), domain_id(domain_id_arg),
-    flags2((standalone ? FL_STANDALONE : 0) |
+    pad_to_size(0), flags2((standalone ? FL_STANDALONE : 0) |
            (commit_id_arg ? FL_GROUP_COMMIT_ID : 0)),
     flags_extra(0), extra_engines(0),
     thread_id(thd_arg->variables.pseudo_thread_id)
@@ -3029,6 +3029,27 @@ Gtid_log_event::write(Log_event_writer *writer)
     bzero(buf+write_len, GTID_HEADER_LEN-write_len);
     write_len= GTID_HEADER_LEN;
   }
+
+  if (unlikely(pad_to_size > write_len))
+  {
+    if (write_header(writer, pad_to_size) ||
+        write_data(writer, buf, write_len))
+      return true;
+
+    pad_to_size-= write_len;
+
+    char pad_buf[IO_SIZE];
+    bzero(pad_buf,  pad_to_size);
+    while (pad_to_size)
+    {
+      uint64 size= pad_to_size >= IO_SIZE ? IO_SIZE : pad_to_size;
+      if (write_data(writer, pad_buf, size))
+        return true;
+      pad_to_size-= size;
+    }
+    return write_footer(writer);
+  }
+
   return write_header(writer, write_len) ||
          write_data(writer, buf, write_len) ||
          write_footer(writer);

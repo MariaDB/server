@@ -3337,6 +3337,14 @@ public:
   uint64 sa_seq_no;   // start alter identifier for CA/RA
 #ifdef MYSQL_SERVER
   event_xid_t xid;
+  /*
+    Pad the event to this size if it is not zero. It is only used for renaming
+    a binlog cache to binlog file. There is some reserved space for gtid event
+    and the events at the begin of the binlog file. There must be some space
+    left after the events are filled. Thus the left space is padded into the
+    gtid event with 0.
+  */
+  uint64 pad_to_size;
 #else
   event_mysql_xid_t xid;
 #endif

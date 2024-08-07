@@ -31,7 +31,6 @@ INSERT INTO t1 VALUES("after_update");
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000004	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000004	#	Ignorable log event	#	#	# Ignorable event type 28 (Ignorable log event)
 master-bin.000004	#	Annotate_rows	#	#	UPDATE t1 SET c1 = repeat('3', 5242880)
 master-bin.000004	#	Table_map	#	#	table_id: # (test.t1)
 master-bin.000004	#	Update_rows_v1	#	#	table_id: #
@@ -50,7 +49,6 @@ COMMIT;
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000005	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000005	#	Ignorable log event	#	#	# Ignorable event type 28 (Ignorable log event)
 master-bin.000005	#	Annotate_rows	#	#	UPDATE t2 SET c1 = repeat('4', 5242880)
 master-bin.000005	#	Table_map	#	#	table_id: # (test.t2)
 master-bin.000005	#	Update_rows_v1	#	#	table_id: #
@@ -66,7 +64,6 @@ CREATE TABLE t3 SELECT * FROM t1;
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000006	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000006	#	Ignorable log event	#	#	# Ignorable event type 28 (Ignorable log event)
 master-bin.000006	#	Query	#	#	use `test`; CREATE TABLE `t3` (
   `c1` longtext DEFAULT NULL
 )
@@ -80,7 +77,6 @@ CREATE TABLE t4 SELECT * FROM t2;
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000007	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000007	#	Ignorable log event	#	#	# Ignorable event type 28 (Ignorable log event)
 master-bin.000007	#	Query	#	#	use `test`; CREATE TABLE `t4` (
   `c1` longtext DEFAULT NULL
 )
@@ -98,7 +94,6 @@ XA COMMIT "test-a-long-xid========================================";
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000008	#	Gtid	#	#	XA START X'746573742d612d6c6f6e672d7869643d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d',X'',1 GTID #-#-#
-master-bin.000008	#	Ignorable log event	#	#	# Ignorable event type 28 (Ignorable log event)
 master-bin.000008	#	Annotate_rows	#	#	UPDATE t1 SET c1 = repeat('1', 5242880)
 master-bin.000008	#	Table_map	#	#	table_id: # (test.t1)
 master-bin.000008	#	Update_rows_v1	#	#	table_id: #
@@ -116,7 +111,6 @@ XA COMMIT "test-xid" ONE PHASE;
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000009	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000009	#	Ignorable log event	#	#	# Ignorable event type 28 (Ignorable log event)
 master-bin.000009	#	Annotate_rows	#	#	UPDATE t1 SET c1 = repeat('2', 5242880)
 master-bin.000009	#	Table_map	#	#	table_id: # (test.t1)
 master-bin.000009	#	Update_rows_v1	#	#	table_id: #
@@ -149,7 +143,6 @@ UPDATE t2 SET c1 = repeat('5', 5242880);
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000003	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000003	#	Ignorable log event	#	#	# Ignorable event type 28 (Ignorable log event)
 master-bin.000003	#	Annotate_rows	#	#	UPDATE t2 SET c1 = repeat('5', 5242880)
 master-bin.000003	#	Table_map	#	#	table_id: # (test.t2)
 master-bin.000003	#	Update_rows_v1	#	#	table_id: #
