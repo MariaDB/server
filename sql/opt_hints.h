@@ -73,7 +73,7 @@
 #include "sql_bitmap.h"
 #include "sql_show.h"
 #include "mysqld_error.h"
-
+#include "opt_hints_parser.h"
 
 struct LEX;
 struct TABLE;
@@ -91,6 +91,7 @@ enum opt_hints_enum
   MRR_HINT_ENUM,
   NO_RANGE_HINT_ENUM,
   QB_NAME_HINT_ENUM,
+  MAX_EXEC_TIME_HINT_ENUM,
   MAX_HINT_ENUM
 };
 
@@ -304,6 +305,13 @@ public:
   void check_unresolved(THD *thd);
   virtual void append_name(THD *thd, String *str)= 0;
 
+  /**
+    Append additional hint arguments to the printed string if they exist.
+    For example, SEMIJOIN and SUBQUERY hints may have a list of strategies
+    as additional arguments
+  */
+  virtual void append_args(THD *thd, String *str) const {}
+
   virtual ~Opt_hints() {}
 
 private:
@@ -336,13 +344,29 @@ protected:
 
 class Opt_hints_global : public Opt_hints
 {
-
 public:
+  const Optimizer_hint_parser::Max_execution_time_hint *max_exec_time_hint= nullptr;
+
+  /*
+    If MAX_EXECUTION_TIME() hint was provided, this pointer is set to
+    the SELECT_LEX which the hint is attached to.
+    NULL if MAX_EXECUTION_TIME() hint is missing.
+  */
+  st_select_lex *max_exec_time_select_lex= nullptr;
+
   Opt_hints_global(MEM_ROOT *mem_root_arg)
     : Opt_hints(Lex_ident_sys(), NULL, mem_root_arg)
   {}
 
   virtual void append_name(THD *thd, String *str) override {}
+
+  virtual void append_args(THD *thd, String *str) const override
+  {
+    if (max_exec_time_hint)
+      max_exec_time_hint->append_args(thd, str);
+  }
+
+  bool resolve(THD *thd);
 };
 
 
