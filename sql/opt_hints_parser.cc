@@ -57,12 +57,17 @@ Optimizer_hint_tokenizer::find_keyword(const LEX_CSTRING &str)
       return TokenID::keyword_QB_NAME;
     break;
 
+  case 18:
+    if ("MAX_EXECUTION_TIME"_Lex_ident_column.streq(str))
+      return TokenID::keyword_MAX_EXECUTION_TIME;
+    break;
+
   case 21:
     if ("NO_RANGE_OPTIMIZATION"_Lex_ident_column.streq(str))
       return TokenID::keyword_NO_RANGE_OPTIMIZATION;
     break;
   }
-  return TokenID::tIDENT;
+  return TokenID::tIDENTorNUMBER;
 }
 
 
@@ -86,7 +91,7 @@ Optimizer_hint_tokenizer::get_token(CHARSET_INFO *cs)
       all identifiers in the same way in the hint parser.
     */
     if (delimited_ident.length > 2)
-      return Token(delimited_ident, TokenID::tIDENT);
+      return Token(delimited_ident, TokenID::tIDENTorNUMBER);
     /*
       If the string is empty, "unget" it to have a good
       syntax error position in the message text.
@@ -100,7 +105,7 @@ Optimizer_hint_tokenizer::get_token(CHARSET_INFO *cs)
   const Token_with_metadata ident= get_ident();
   if (ident.length)
     return Token(ident, ident.m_extended_chars ?
-                 TokenID::tIDENT : find_keyword(ident));
+                 TokenID::tIDENTorNUMBER : find_keyword(ident));
   if (!get_char(','))
     return Token(Lex_cstring(m_ptr - 1, 1), TokenID::tCOMMA);
   if (!get_char('@'))

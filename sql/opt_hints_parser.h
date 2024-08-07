@@ -72,9 +72,10 @@ public:
     keyword_NO_RANGE_OPTIMIZATION,
     keyword_MRR,
     keyword_QB_NAME,
+    keyword_MAX_EXECUTION_TIME,
 
     // Other token types
-    tIDENT
+    tIDENTorNUMBER
   };
 
   class Token: public Lex_cstring
@@ -240,7 +241,14 @@ private:
     using TOKEN::TOKEN;
   };
 
-  class Identifier: public TOKEN<PARSER, TokenID::tIDENT>
+  class Keyword_MAX_EXECUTION_TIME:
+      public TOKEN<PARSER, TokenID::keyword_MAX_EXECUTION_TIME>
+  {
+  public:
+    using TOKEN::TOKEN;
+  };
+
+  class Identifier: public TOKEN<PARSER, TokenID::tIDENTorNUMBER>
   {
   public:
     using TOKEN::TOKEN;
@@ -255,6 +263,27 @@ private:
     {
       const Lex_ident_cli_st cli= to_ident_cli();
       return Lex_ident_sys(thd, &cli);
+    }
+  };
+
+  class Number: public TOKEN<PARSER, TokenID::tIDENTorNUMBER>
+  {
+  public:
+    using TOKEN::TOKEN;
+
+    /*
+      Converts token string to a non-negative number ( >=0 ).
+      Returns the converted number if the conversion succeeds.
+      Returns -1 if the string conversion failed or the number is negative
+    */
+    longlong get_number() const
+    {
+      int error;
+      char *end= const_cast<char *>(str + length);
+      longlong n= my_strtoll10(str, &end, &error);
+      if (error != 0 || end != str + length || n < 1 || n > INT_MAX32)
+        return -1;
+      return n;
     }
   };
 
@@ -311,7 +340,6 @@ private:
   public:
     using TokenChoice::TokenChoice;
   };
-
 
   // Identifiers of various kinds
 
@@ -554,18 +582,34 @@ private:
   };
 
 
+  // max_execution_time_hint ::= MAX_EXECUTION_TIME ( milliseconds )
+  class Max_execution_time_hint: public AND4<PARSER,
+                                  Keyword_MAX_EXECUTION_TIME,
+                                  LParen,
+                                  Number,
+                                  RParen>
+  {
+  public:
+    using AND4::AND4;
+
+    bool resolve(Parse_context *pc) const;
+  };
+
+
   /*
     hint ::=   index_level_hint
              | table_level_hint
              | qb_name_hint
+             | statement_level_hint
   */
-  class Hint: public OR3<PARSER,
+  class Hint: public OR4<PARSER,
                          Index_level_hint,
                          Table_level_hint,
-                         Qb_name_hint>
+                         Qb_name_hint,
+                         Max_execution_time_hint>
   {
   public:
-    using OR3::OR3;
+    using OR4::OR4;
   };
 
 
