@@ -2065,6 +2065,7 @@ void innodb_shutdown()
 		logs_empty_and_mark_files_at_shutdown();
 	}
 
+        fsp_binlog_close();
 	os_aio_free();
 	fil_space_t::close_all();
 	/* Exit any remaining threads. */

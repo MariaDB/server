@@ -560,6 +560,7 @@ extern void fsp_binlog_test(const uchar *data, uint32_t len);
 extern void fsp_binlog_trx(trx_t *trx, mtr_t *mtr);
 class handler_binlog_reader;
 extern handler_binlog_reader *innodb_get_binlog_reader();
+extern void fsp_binlog_close();
 
 #ifndef UNIV_DEBUG
 # define fsp_init_file_page(space, block, mtr) fsp_init_file_page(block, mtr)
