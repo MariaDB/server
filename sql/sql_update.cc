@@ -1666,7 +1666,7 @@ bool Multiupdate_prelocking_strategy::handle_end(THD *thd)
 
   if (setup_tables_and_check_access(thd, &select_lex->context,
       &select_lex->top_join_list, table_list, select_lex->leaf_tables,
-      FALSE, UPDATE_ACL, SELECT_ACL, TRUE))
+      false, UPDATE_ACL, SELECT_ACL, true, false))
     DBUG_RETURN(1);
 
   if (table_list->has_period() &&
@@ -3105,7 +3105,7 @@ bool Sql_cmd_update::prepare_inner(THD *thd)
     DBUG_RETURN(TRUE);
 
   if (setup_tables(thd, &select_lex->context, &select_lex->top_join_list,
-                   table_list, select_lex->leaf_tables, false, false))
+                   table_list, select_lex->leaf_tables, false, false, true))
     DBUG_RETURN(TRUE);
 
   if (select_lex->vers_setup_conds(thd, table_list))

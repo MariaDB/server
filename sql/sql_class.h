@@ -6012,7 +6012,7 @@ public:
   ulonglong  num_of_strings_sorted_on_truncated_length;
 
 public:
-  void set_query_timer()
+  void set_query_timer_if_needed()
   {
 #ifndef EMBEDDED_LIBRARY
     /*
@@ -6031,8 +6031,12 @@ public:
     */
     if (!timeout_val || spcont || in_sub_stmt || query_timer.expired == 0)
       return;
-    thr_timer_settime(&query_timer, timeout_val);
+    set_query_timer_force(timeout_val);
 #endif
+  }
+  void set_query_timer_force(ulonglong timeout_val)
+  {
+    thr_timer_settime(&query_timer, timeout_val);
   }
   void reset_query_timer()
   {

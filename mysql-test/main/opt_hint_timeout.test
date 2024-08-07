@@ -1,0 +1,95 @@
+--source include/have_sequence.inc
+--echo #
+--echo # MAX_EXECUTION_TIME hint testing
+--echo #
+--enable_prepare_warnings
+
+CREATE TABLE t1 (a INT, b VARCHAR(300));
+INSERT INTO t1 VALUES (1, 'string');
+INSERT INTO t1 SELECT * FROM t1;
+INSERT INTO t1 SELECT * FROM t1;
+INSERT INTO t1 SELECT * FROM t1;
+INSERT INTO t1 SELECT * FROM t1;
+INSERT INTO t1 SELECT * FROM t1;
+INSERT INTO t1 SELECT * FROM t1;
+INSERT INTO t1 SELECT * FROM t1;
+INSERT INTO t1 SELECT * FROM t1;
+INSERT INTO t1 SELECT * FROM t1;
+
+-- disable_query_log
+-- disable_result_log
+analyze table t1;
+-- enable_result_log
+-- enable_query_log
+
+--echo # Correct hint usage
+--error ER_STATEMENT_TIMEOUT
+SELECT /*+ MAX_EXECUTION_TIME(10) */* FROM t1 a, t1 b;
+
+EXPLAIN EXTENDED SELECT /*+ MAX_EXECUTION_TIME(000149) */* FROM t1;
+
+--error ER_STATEMENT_TIMEOUT
+SELECT  /*+ MAX_EXECUTION_TIME(20) */ *, SLEEP(1) FROM t1 UNION SELECT 1, 2, 3;
+--error ER_STATEMENT_TIMEOUT
+(SELECT /*+ MAX_EXECUTION_TIME(30) */ *, SLEEP(1) FROM t1) UNION (SELECT 1, 2, 3);
+--error ER_STATEMENT_TIMEOUT
+((SELECT  /*+ MAX_EXECUTION_TIME(50) */ *, SLEEP(1) FROM t1));
+
+--echo # Check that prepared statements process the hint correctly
+PREPARE s FROM 'SELECT  /*+ MAX_EXECUTION_TIME(20) */ seq, SLEEP(1) FROM seq_1_to_10';
+--error ER_STATEMENT_TIMEOUT
+EXECUTE s;
+--error ER_STATEMENT_TIMEOUT
+EXECUTE s;
+
+--echo # Hint duplication
+
+SELECT /*+ MAX_EXECUTION_TIME(10) MAX_EXECUTION_TIME(100) */ count(*) FROM t1;
+
+--echo # Wrong values
+SELECT /*+ MAX_EXECUTION_TIME(0) */ count(*) FROM t1;
+SELECT /*+ MAX_EXECUTION_TIME(-1) */ count(*) FROM t1;
+SELECT /*+ MAX_EXECUTION_TIME(4294967296) */ count(*) FROM t1;
+
+--echo # Conflicting max_statement_time and hint (must issue a warning)
+SET STATEMENT max_statement_time=1 FOR
+  SELECT /*+ MAX_EXECUTION_TIME(500) */ count(*) FROM t1 a;
+
+--echo
+--echo # only SELECT statements supports the MAX_EXECUTION_TIME hint (warning):
+--echo
+CREATE TABLE t2 (i INT);
+INSERT /*+ MAX_EXECUTION_TIME(10) */ INTO t2 SELECT 1;
+REPLACE /*+ MAX_EXECUTION_TIME(15) */ INTO t2 SELECT 1;
+UPDATE /*+ MAX_EXECUTION_TIME(23) */ t2 SET i = 1;
+DELETE /*+ MAX_EXECUTION_TIME(5000) */ FROM t2 WHERE i = 1;
+
+--echo # Not supported inside stored procedures/functions
+DELIMITER |;
+CREATE PROCEDURE p1() BEGIN SELECT /*+ MAX_EXECUTION_TIME(10) */ count(*) FROM t1 a, t1 b
+INTO @a; END|
+DELIMITER ;|
+
+CALL p1();
+DROP PROCEDURE p1;
+
+--echo # Hint in a subquery is not allowed (warning):
+SELECT 1 FROM (SELECT /*+ MAX_EXECUTION_TIME(10) */ 1) a;
+
+--echo # Hint is allowed only for the first select of UNION (warning):
+SELECT /*+ MAX_EXECUTION_TIME(20) */ count(*) FROM t1
+UNION
+SELECT /*+ MAX_EXECUTION_TIME(30) */ count(*) FROM t1;
+
+SELECT count(*) FROM t1
+UNION
+SELECT /*+ MAX_EXECUTION_TIME(30) */ count(*) FROM t1;
+
+--echo # Check that hint actually works:
+--error ER_STATEMENT_TIMEOUT
+SELECT /*+ MAX_EXECUTION_TIME(20) */ count(*), SLEEP(1) FROM t1
+UNION
+SELECT count(*), SLEEP(1) FROM t1;
+
+DROP TABLE t1, t2;
+

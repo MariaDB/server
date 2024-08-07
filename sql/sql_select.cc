@@ -1468,7 +1468,7 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
   if (!(select_options & OPTION_SETUP_TABLES_DONE) &&
       setup_tables_and_check_access(thd, &select_lex->context, join_list,
                                     tables_list, select_lex->leaf_tables,
-                                    FALSE, SELECT_ACL, SELECT_ACL, FALSE))
+                                    false, SELECT_ACL, SELECT_ACL, false, true))
       DBUG_RETURN(-1);
 
   /* System Versioning: handle FOR SYSTEM_TIME clause. */

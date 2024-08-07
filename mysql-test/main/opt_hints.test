@@ -914,6 +914,11 @@ EXPLAIN EXTENDED SELECT /*+ QB_NAME(`*b`) */ 1;
 EXPLAIN EXTENDED SELECT /*+ QB_NAME(`a
 b`) */ 1;
 
+--echo # Identifiers starting with digits must be supported:
+CREATE OR REPLACE TABLE 0a (8a INT, KEY 6a(8a));
+EXPLAIN EXTENDED SELECT /*+ NO_MRR(0a 6a) BKA(0a)*/ 8a FROM 0a;
+DROP TABLE 0a;
+
 --echo # hint syntax error: empty quoted identifier
 EXPLAIN EXTENDED SELECT /*+ QB_NAME(``) */ 1;
 
