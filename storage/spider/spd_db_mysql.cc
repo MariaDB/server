@@ -13310,8 +13310,8 @@ int spider_mbase_handler::show_table_status(
         my_printf_error(
           ER_SPIDER_REMOTE_TABLE_NOT_FOUND_NUM,
           ER_SPIDER_REMOTE_TABLE_NOT_FOUND_STR, MYF(0),
-          mysql_share->db_names_str[spider->conn_link_idx[link_idx]].ptr(),
-          mysql_share->table_names_str[spider->conn_link_idx[link_idx]].ptr());
+          mysql_share->db_names_str[spider->conn_link_idx[link_idx]].c_ptr_safe(),
+          mysql_share->table_names_str[spider->conn_link_idx[link_idx]].c_ptr_safe());
         DBUG_RETURN(ER_SPIDER_REMOTE_TABLE_NOT_FOUND_NUM);
       }
     } else                      /* get from information schema */
@@ -13337,15 +13337,15 @@ int spider_mbase_handler::show_table_status(
       my_printf_error(
         ER_SPIDER_REMOTE_TABLE_NOT_FOUND_NUM,
         ER_SPIDER_REMOTE_TABLE_NOT_FOUND_STR, MYF(0),
-        mysql_share->db_names_str[spider->conn_link_idx[link_idx]].ptr(),
-        mysql_share->table_names_str[spider->conn_link_idx[link_idx]].ptr());
+        mysql_share->db_names_str[spider->conn_link_idx[link_idx]].c_ptr_safe(),
+        mysql_share->table_names_str[spider->conn_link_idx[link_idx]].c_ptr_safe());
       break;
     case ER_SPIDER_INVALID_REMOTE_TABLE_INFO_NUM:
       my_printf_error(
         ER_SPIDER_INVALID_REMOTE_TABLE_INFO_NUM,
         ER_SPIDER_INVALID_REMOTE_TABLE_INFO_STR, MYF(0),
-        mysql_share->db_names_str[spider->conn_link_idx[link_idx]].ptr(),
-        mysql_share->table_names_str[spider->conn_link_idx[link_idx]].ptr());
+        mysql_share->db_names_str[spider->conn_link_idx[link_idx]].c_ptr_safe(),
+        mysql_share->table_names_str[spider->conn_link_idx[link_idx]].c_ptr_safe());
       break;
     default:
       break;
@@ -13361,8 +13361,8 @@ int spider_mbase_handler::show_table_status(
       my_printf_error(
         ER_SPIDER_TABLE_OPEN_LOCK_WAIT_TIMEOUT_NUM,
         ER_SPIDER_TABLE_OPEN_LOCK_WAIT_TIMEOUT_STR, MYF(0),
-        mysql_share->db_names_str[spider->conn_link_idx[link_idx]].ptr(),
-        mysql_share->table_names_str[spider->conn_link_idx[link_idx]].ptr());
+        mysql_share->db_names_str[spider->conn_link_idx[link_idx]].c_ptr_safe(),
+        mysql_share->table_names_str[spider->conn_link_idx[link_idx]].c_ptr_safe());
     }
     DBUG_RETURN(error_num);
   }
@@ -13480,15 +13480,15 @@ int spider_mbase_handler::show_index(
     my_printf_error(
       ER_SPIDER_REMOTE_TABLE_NOT_FOUND_NUM,
       ER_SPIDER_REMOTE_TABLE_NOT_FOUND_STR, MYF(0),
-      mysql_share->db_names_str[spider->conn_link_idx[link_idx]].ptr(),
-      mysql_share->table_names_str[spider->conn_link_idx[link_idx]].ptr());
+      mysql_share->db_names_str[spider->conn_link_idx[link_idx]].c_ptr_safe(),
+      mysql_share->table_names_str[spider->conn_link_idx[link_idx]].c_ptr_safe());
     break;
   case ER_SPIDER_INVALID_REMOTE_TABLE_INFO_NUM:
     my_printf_error(
       ER_SPIDER_INVALID_REMOTE_TABLE_INFO_NUM,
       ER_SPIDER_INVALID_REMOTE_TABLE_INFO_STR, MYF(0),
-      mysql_share->db_names_str[spider->conn_link_idx[link_idx]].ptr(),
-      mysql_share->table_names_str[spider->conn_link_idx[link_idx]].ptr());
+      mysql_share->db_names_str[spider->conn_link_idx[link_idx]].c_ptr_safe(),
+      mysql_share->table_names_str[spider->conn_link_idx[link_idx]].c_ptr_safe());
     break;
   default:
     break;
