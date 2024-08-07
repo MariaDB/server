@@ -22,6 +22,7 @@
 #include "simple_tokenizer.h"
 #include "sql_list.h"
 #include "sql_string.h"
+#include "sql_type_int.h"
 #include "simple_parser.h"
 
 class st_select_lex;
@@ -72,9 +73,11 @@ public:
     keyword_NO_RANGE_OPTIMIZATION,
     keyword_MRR,
     keyword_QB_NAME,
+    keyword_MAX_EXECUTION_TIME,
 
     // Other token types
-    tIDENT
+    tIDENT,
+    tUNSIGNED_NUMBER
   };
 
   class Token: public Lex_cstring
@@ -240,6 +243,13 @@ private:
     using TOKEN::TOKEN;
   };
 
+  class Keyword_MAX_EXECUTION_TIME:
+      public TOKEN<Parser, TokenID::keyword_MAX_EXECUTION_TIME>
+  {
+  public:
+    using TOKEN::TOKEN;
+  };
+
   class Identifier: public TOKEN<Parser, TokenID::tIDENT>
   {
   public:
@@ -255,6 +265,28 @@ private:
     {
       const Lex_ident_cli_st cli= to_ident_cli();
       return Lex_ident_sys(thd, &cli);
+    }
+  };
+
+  class Unsigned_Number: public TOKEN<Parser, TokenID::tUNSIGNED_NUMBER>
+  {
+  public:
+    using TOKEN::TOKEN;
+
+    /*
+      Converts token string to a non-negative number ( >=0 ).
+      Returns the converted number if the conversion succeeds.
+      Returns non-NULL ULonglong_null value on successful string conversion and
+      NULL ULonglong_null if the conversion failed or the number is negative
+    */
+    ULonglong_null get_ulonglong() const
+    {
+      int error;
+      char *end= const_cast<char *>(str + length);
+      longlong n= my_strtoll10(str, &end, &error);
+      if (error != 0 || end != str + length || n < 0)
+        return ULonglong_null(0, true);
+      return ULonglong_null(n, false);
     }
   };
 
@@ -554,21 +586,40 @@ private:
   };
 
 
+public:
+  // max_execution_time_hint ::= MAX_EXECUTION_TIME ( milliseconds )
+  class Max_execution_time_hint: public AND4<Parser,
+                                  Keyword_MAX_EXECUTION_TIME,
+                                  LParen,
+                                  Unsigned_Number,
+                                  RParen>
+  {
+  public:
+    using AND4::AND4;
+
+    bool resolve(Parse_context *pc) const;
+    void append_args(THD *thd, String *str) const;
+    ulong get_milliseconds() const;
+  };
+
   /*
     hint ::=   index_level_hint
              | table_level_hint
              | qb_name_hint
+             | statement_level_hint
   */
-  class Hint: public OR3<Parser,
+  class Hint: public OR4<Parser,
                          Index_level_hint,
                          Table_level_hint,
-                         Qb_name_hint>
+                         Qb_name_hint,
+                         Max_execution_time_hint>
   {
   public:
-    using OR3::OR3;
+    using OR4::OR4;
   };
 
 
+private:
   // hint_list ::= hint [ hint... ]
   class Hint_list_container: public List<Hint>
   {
