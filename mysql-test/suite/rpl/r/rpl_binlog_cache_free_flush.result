@@ -89,6 +89,41 @@ master-bin.000007	#	Table_map	#	#	table_id: # (test.t4)
 master-bin.000007	#	Write_rows_v1	#	#	table_id: #
 master-bin.000007	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000007	#	Query	#	#	COMMIT
+# XA statement works well
+XA START "test-a-long-xid========================================";
+UPDATE t1 SET c1 = repeat('1', 5242880);
+XA END "test-a-long-xid========================================";
+XA PREPARE "test-a-long-xid========================================";
+XA COMMIT "test-a-long-xid========================================";
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000008	#	Gtid	#	#	XA START X'746573742d612d6c6f6e672d7869643d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d',X'',1 GTID #-#-#
+master-bin.000008	#	Ignorable log event	#	#	# Ignorable event type 28 (Ignorable log event)
+master-bin.000008	#	Annotate_rows	#	#	UPDATE t1 SET c1 = repeat('1', 5242880)
+master-bin.000008	#	Table_map	#	#	table_id: # (test.t1)
+master-bin.000008	#	Update_rows_v1	#	#	table_id: #
+master-bin.000008	#	Update_rows_v1	#	#	table_id: #
+master-bin.000008	#	Update_rows_v1	#	#	table_id: #
+master-bin.000008	#	Update_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000008	#	Query	#	#	XA END X'746573742d612d6c6f6e672d7869643d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d',X'',1
+master-bin.000008	#	XA_prepare	#	#	XA PREPARE X'746573742d612d6c6f6e672d7869643d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d',X'',1
+master-bin.000008	#	Gtid	#	#	GTID #-#-#
+master-bin.000008	#	Query	#	#	XA COMMIT X'746573742d612d6c6f6e672d7869643d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d',X'',1
+XA START "test-xid";
+UPDATE t1 SET c1 = repeat('2', 5242880);
+XA END "test-xid";
+XA COMMIT "test-xid" ONE PHASE;
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000009	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000009	#	Ignorable log event	#	#	# Ignorable event type 28 (Ignorable log event)
+master-bin.000009	#	Annotate_rows	#	#	UPDATE t1 SET c1 = repeat('2', 5242880)
+master-bin.000009	#	Table_map	#	#	table_id: # (test.t1)
+master-bin.000009	#	Update_rows_v1	#	#	table_id: #
+master-bin.000009	#	Update_rows_v1	#	#	table_id: #
+master-bin.000009	#	Update_rows_v1	#	#	table_id: #
+master-bin.000009	#	Update_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000009	#	Xid	#	#	COMMIT /* XID */
 #
 # RESET MASTER should work well. It also verifies binlog checksum mechanism.
 #

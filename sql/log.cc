@@ -8927,7 +8927,6 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader,
     current= group_commit_queue;
     group_commit_queue= NULL;
     mysql_mutex_unlock(&LOCK_prepare_ordered);
-    binlog_id= current_binlog_id;
 
     /* As the queue is in reverse order of entering, reverse it. */
     last_in_queue= current;
@@ -8947,7 +8946,9 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader,
 
     /* Now we have in queue the list of transactions to be committed in order. */
   }
-    
+
+  binlog_id= current_binlog_id;
+
   if (likely(is_open()))                       // Should always be true
   {
     commit_id= (last_in_queue == leader ? 0 : (uint64)leader->thd->query_id);

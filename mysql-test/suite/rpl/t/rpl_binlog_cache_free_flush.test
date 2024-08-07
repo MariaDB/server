@@ -63,6 +63,20 @@ CREATE TABLE t3 SELECT * FROM t1;
 CREATE TABLE t4 SELECT * FROM t2;
 --source include/show_binlog_events.inc
 
+--echo # XA statement works well
+XA START "test-a-long-xid========================================";
+UPDATE t1 SET c1 = repeat('1', 5242880);
+XA END "test-a-long-xid========================================";
+XA PREPARE "test-a-long-xid========================================";
+XA COMMIT "test-a-long-xid========================================";
+--source include/show_binlog_events.inc
+
+XA START "test-xid";
+UPDATE t1 SET c1 = repeat('2', 5242880);
+XA END "test-xid";
+XA COMMIT "test-xid" ONE PHASE;
+--source include/show_binlog_events.inc
+
 --echo #
 --echo # RESET MASTER should work well. It also verifies binlog checksum mechanism.
 --echo #
