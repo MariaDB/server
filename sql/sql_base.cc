@@ -8431,6 +8431,8 @@ bool setup_tables(THD *thd, Name_resolution_context *context,
   if (setup_natural_join_row_types(thd, from_clause, context))
     DBUG_RETURN(1);
 
+  if (thd->lex->opt_hints_global && select_lex->select_number == 1)
+    thd->lex->opt_hints_global->resolve(thd);
   if (qb_hints)
     qb_hints->check_unresolved(thd);
   DBUG_RETURN(0);
