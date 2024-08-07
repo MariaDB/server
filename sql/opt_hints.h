@@ -65,6 +65,7 @@
 #ifndef OPT_HINTS_INCLUDED
 #define OPT_HINTS_INCLUDED
 
+#include <functional>
 #include "my_config.h"
 #include "sql_alloc.h"
 #include "sql_list.h"
@@ -73,7 +74,7 @@
 #include "sql_bitmap.h"
 #include "sql_show.h"
 #include "mysqld_error.h"
-
+#include "opt_hints_parser.h"
 
 struct LEX;
 struct TABLE;
@@ -91,6 +92,7 @@ enum opt_hints_enum
   MRR_HINT_ENUM,
   NO_RANGE_HINT_ENUM,
   QB_NAME_HINT_ENUM,
+  MAX_EXEC_TIME_HINT_ENUM,
   MAX_HINT_ENUM
 };
 
@@ -100,9 +102,10 @@ struct st_opt_hint_info
   LEX_CSTRING hint_name;  // Hint name.
   bool check_upper_lvl;   // true if upper level hint check is needed (for hints
                           // which can be specified on more than one level).
-  bool switch_hint;       // true if hint is not complex.
+  bool has_arguments;     // true if hint has additional arguments.
 };
 
+typedef Optimizer_hint_parser Parser;
 
 /**
   Opt_hints_map contains information
@@ -304,6 +307,16 @@ public:
   void check_unresolved(THD *thd);
   virtual void append_name(THD *thd, String *str)= 0;
 
+  /**
+    Get the function appending additional hint arguments to the printed string,
+    if the arguments exist. For example, SEMIJOIN and SUBQUERY hints may have
+    a list of strategies as additional arguments
+  */
+  virtual std::function<void(THD*, String*)> get_args_printer() const
+  {
+    return [](THD*, String*) {};
+  }
+
   virtual ~Opt_hints() {}
 
 private:
@@ -336,13 +349,31 @@ protected:
 
 class Opt_hints_global : public Opt_hints
 {
-
 public:
+  const Parser::Max_execution_time_hint *max_exec_time_hint= nullptr;
+
+  /*
+    If MAX_EXECUTION_TIME() hint was provided, this pointer is set to
+    the SELECT_LEX which the hint is attached to.
+    NULL if MAX_EXECUTION_TIME() hint is missing.
+  */
+  st_select_lex *max_exec_time_select_lex= nullptr;
+
   Opt_hints_global(MEM_ROOT *mem_root_arg)
     : Opt_hints(Lex_ident_sys(), NULL, mem_root_arg)
   {}
 
   virtual void append_name(THD *thd, String *str) override {}
+
+  virtual std::function<void(THD*, String*)> get_args_printer() const override
+  {
+    using std::placeholders::_1;
+    using std::placeholders::_2;
+    return std::bind(&Parser::Max_execution_time_hint::append_args,
+                     max_exec_time_hint, _1, _2);
+  }
+
+  bool resolve(THD *thd);
 };
 
 

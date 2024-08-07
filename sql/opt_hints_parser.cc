@@ -57,10 +57,29 @@ Optimizer_hint_tokenizer::find_keyword(const LEX_CSTRING &str)
       return TokenID::keyword_QB_NAME;
     break;
 
+  case 18:
+    if ("MAX_EXECUTION_TIME"_Lex_ident_column.streq(str))
+      return TokenID::keyword_MAX_EXECUTION_TIME;
+    break;
+
   case 21:
     if ("NO_RANGE_OPTIMIZATION"_Lex_ident_column.streq(str))
       return TokenID::keyword_NO_RANGE_OPTIMIZATION;
     break;
+  }
+
+  if (str.length > 0 && (str.str[0] >= '0' && str.str[0] <= '9'))
+  {
+    /*
+      If all characters are digits, qualify the token as a number,
+      otherwise as an identifier
+    */
+    for(size_t i = 1; i < str.length; i++)
+    {
+      if (str.str[i] < '0' || str.str[i] > '9')
+        return TokenID::tIDENT;
+    }
+    return TokenID::tUNSIGNED_NUMBER;
   }
   return TokenID::tIDENT;
 }

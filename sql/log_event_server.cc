@@ -4857,7 +4857,7 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
     set/reset the slave thread's timer; a Rows_log_event update needs to set
     the timer itself
   */
-  thd->set_query_timer();
+  thd->set_query_timer_if_needed();
 
   /*
     If there are no tables open, this must be the first row event seen

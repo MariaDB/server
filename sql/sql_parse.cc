@@ -3847,7 +3847,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     thd->query_plan_flags|= QPLAN_ADMIN;
 
   /* Start timeouts */
-  thd->set_query_timer();
+  thd->set_query_timer_if_needed();
 
 #ifdef WITH_WSREP
   /* Check wsrep_mode rules before command execution. */
