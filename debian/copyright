@@ -1,59 +1,781 @@
-== MariaDB ==
+Files: mysys/array.c
+ mysys/base64.c
+ mysys/charset.c
+ mysys/charset-def.c
+ mysys/errors.c
+ mysys/file_logger.c
+ mysys/guess_malloc_library.c
+ mysys/hash.c
+ mysys/lf_alloc-pin.c
+ mysys/lf_dynarray.c
+ mysys/list.c
+ mysys/mf_cache.c
+ mysys/mf_dirname.c
+ mysys/mf_fn_ext.c
+ mysys/mf_format.c
+ mysys/mf_getdate.c
+ mysys/mf_iocache2.c
+ mysys/mf_iocache.c
+ mysys/mf_keycache.c
+ mysys/mf_keycaches.c
+ mysys/mf_loadpath.c
+ mysys/mf_pack.c
+ mysys/mf_path.c
+ mysys/mf_sort.c
+ mysys/mf_tempdir.c
+ mysys/mf_tempfile.c
+ mysys/mf_unixpath.c
+ mysys/my_access.c
+ mysys/my_addr_resolve.c
+ mysys/my_alloc.c
+ mysys/my_atomic_writes.c
+ mysys/my_basename.c
+ mysys/my_bit.c
+ mysys/my_bitmap.c
+ mysys/my_chsize.c
+ mysys/my_compare.c
+ mysys/my_compress.c
+ mysys/my_copy.c
+ mysys/my_cpu.c
+ mysys/my_create.c
+ mysys/my_default.c
+ mysys/my_delete.c
+ mysys/my_dlerror.c
+ mysys/my_error.c
+ mysys/my_file.c
+ mysys/my_fopen.c
+ mysys/my_fstream.c
+ mysys/my_gethwaddr.c
+ mysys/my_getncpus.c
+ mysys/my_getopt.c
+ mysys/my_getsystime.c
+ mysys/my_getwd.c
+ mysys/my_init.c
+ mysys/my_largepage.c
+ mysys/my_lib.c
+ mysys/my_likely.c
+ mysys/my_lock.c
+ mysys/my_lockmem.c
+ mysys/my_malloc.c
+ mysys/my_mess.c
+ mysys/my_mmap.c
+ mysys/my_once.c
+ mysys/my_open.c
+ mysys/my_pread.c
+ mysys/my_pthread.c
+ mysys/my_quick.c
+ mysys/my_rdtsc.c
+ mysys/my_read.c
+ mysys/my_redel.c
+ mysys/my_rename.c
+ mysys/my_rnd.c
+ mysys/my_seek.c
+ mysys/my_sleep.c
+ mysys/my_static.c
+ mysys/my_symlink.c
+ mysys/my_sync.c
+ mysys/my_thr_init.c
+ mysys/my_uuid.c
+ mysys/my_wincond.c
+ mysys/my_winerr.c
+ mysys/my_winfile.c
+ mysys/my_winthread.c
+ mysys/my_wintoken.c
+ mysys/my_write.c
+ mysys/ptr_cmp.c
+ mysys/safemalloc.c
+ mysys_ssl/openssl.c
+ mysys/stacktrace.c
+ mysys/string.c
+ mysys/test_charset.c
+ mysys/testhash.c
+ mysys/test_thr_mutex.c
+ mysys/thr_alarm.c
+ mysys/thr_lock.c
+ mysys/thr_mutex.c
+ mysys/thr_rwlock.c
+ mysys/tree.c
+ mysys/typelib.c
+ mysys/waiting_threads.c
+ mysys/wqueue.c
+ scripts/comp_sql.c
+ sql-common/client.c
+ sql-common/client_plugin.c
+ sql-common/my_time.c
+ sql-common/my_user.c
+ sql/password.c
+ sql/plistsort.c
+ sql/udf_example.c
+ sql/winservice.c
+ strings/conf_to_src.c
+ strings/ctype-big5.c
+ strings/ctype.c
+ strings/ctype-cp932.c
+ strings/ctype-czech.c
+ strings/ctype-euc_kr.c
+ strings/ctype-extra.c
+ strings/ctype-gb2312.c
+ strings/ctype-gbk.c
+ strings/ctype-latin1.c
+ strings/ctype-mb.c
+ strings/ctype-simple.c
+ strings/ctype-sjis.c
+ strings/ctype-uca.c
+ strings/decimal.c
+ strings/do_ctype.c
+ strings/dump_map.c
+ strings/json_lib.c
+ strings/json_normalize.c
+ strings/my_strchr.c
+ strings/my_vsnprintf.c
+ strings/strmake.c
+ strings/uca-dump.c
+ strings/unidata-dump.c
+ strings/utr11-dump.c
+ strings/xml.c
+ tests/bug25714.c
+ tests/mysql_client_fw.c
+ tests/mysql_client_test.c
+ tests/thread_test.c
+ vio/test-ssl.c
+ vio/test-sslclient.c
+ vio/test-sslserver.c
+ vio/vio.c
+ vio/viopipe.c
+ vio/viosocket.c
+ vio/viossl.c
+ vio/viosslfactories.c
+ vio/viotest-ssl.c
+Copyright: 1985, 2011, Monty Program Ab
+  2000-2003, 2005-2008, MySQL AB, 2009 Sun Microsystems, Inc.
+  2000-2007, MySQL AB
+  2000-2008, MySQL AB, 2008-2009 Sun Microsystems, Inc.
+  2000-2001, 2003-2018, 2022 Oracle and/or its affiliates
+  2000, MySQL AB, 2011 Monty Program Ab
+  2003-2004, 2006, MySQL AB
+  2007-2008, Sun Microsystems, Inc,
+  2007, MySQL AB & Michael Widenius
+  2007, MySQL AB, Sergei Golubchik & Michael Widenius
+  2008, 2011, Monty Program Ab
+  2008-2024, MariaDB Corporation
+  2008, MySQL AB, 2008-2009 Sun Microsystems, Inc.
+  2008, Sun Microsystems, Inc
+  2009-2014, Monty Program Ab
+  2009, 2014, SkySQL Ab
+  2009, Sun Microsystems, Inc.
+  2010, Sergei Golubchik and Monty Program Ab
+  2011-2024, MariaDB Corporation
+  2012, 2014, SkySQL Ab
+  2013, MariaDB Foundation
+  2018, Monty Program Ab
+  2019-2020, IBM.
+  2021, Eric Herman and MariaDB Foundation.
+  2024, MariaDB Plc
+License: GPL-2.0
 
-The Debian package of MySQL was first debianzed on 1997-04-12 by Christian
-Schwarz <schwarz@debian.org> and is maintained since 1999-04-20 by
-Christian Hammers <ch@debian.org>.
+Files: client/client_metadata.h
+ client/client_priv.h
+ client/my_readline.h
+ include/aligned.h
+ include/aria_backup.h
+ include/assume_aligned.h
+ include/big_endian.h
+ include/byte_order_generic.h
+ include/byte_order_generic_x86_64.h
+ include/byte_order_generic_x86.h
+ include/decimal.h
+ include/dur_prop.h
+ include/errmsg.h
+ include/ft_global.h
+ include/handler_ername.h
+ include/hash.h
+ include/heap.h
+ include/ilist.h
+ include/keycache.h
+ include/lf.h
+ include/little_endian.h
+ include/mariadb_capi_rename.h
+ include/m_ctype.h
+ include/m_string.h
+ include/my_alarm.h
+ include/my_alloca.h
+ include/my_alloc.h
+ include/my_atomic.h
+ include/my_atomic_wrapper.h
+ include/my_attribute.h
+ include/my_base.h
+ include/my_bit.h
+ include/my_bitmap.h
+ include/my_byteorder.h
+ include/my_check_opt.h
+ include/my_compare.h
+ include/my_compiler.h
+ include/my_counter.h
+ include/my_cpu.h
+ include/my_crypt.h
+ include/my_dbug.h
+ include/my_decimal_limits.h
+ include/my_default.h
+ include/my_dir.h
+ include/my_getopt.h
+ include/my_global.h
+ include/my_handler_errors.h
+ include/myisam.h
+ include/myisammrg.h
+ include/myisampack.h
+ include/my_libwrap.h
+ include/my_list.h
+ include/my_md5.h
+ include/my_minidump.h
+ include/my_net.h
+ include/my_nosys.h
+ include/my_pthread.h
+ include/my_rdtsc.h
+ include/my_service_manager.h
+ include/mysql_com.h
+ include/mysql_com_server.h
+ include/mysql_embed.h
+ include/mysql.h
+ include/my_stack_alloc.h
+ include/my_stacktrace.h
+ include/mysys_err.h
+ include/my_sys.h
+ include/my_time.h
+ include/my_tree.h
+ include/my_uctype.h
+ include/my_valgrind.h
+ include/pack.h
+ include/password.h
+ include/pfs_file_provider.h
+ include/pfs_idle_provider.h
+ include/pfs_memory_provider.h
+ include/pfs_metadata_provider.h
+ include/pfs_socket_provider.h
+ include/pfs_stage_provider.h
+ include/pfs_statement_provider.h
+ include/pfs_table_provider.h
+ include/pfs_thread_provider.h
+ include/pfs_transaction_provider.h
+ include/probes_mysql.h
+ include/rijndael.h
+ include/scope.h
+ include/service_versions.h
+ include/span.h
+ include/sql_common.h
+ include/ssl_compat.h
+ include/sslopt-case.h
+ include/sslopt-longopts.h
+ include/sslopt-vars.h
+ include/thr_alarm.h
+ include/thr_lock.h
+ include/typelib.h
+ include/violite.h
+ include/waiting_threads.h
+ include/welcome_copyright_notice.h
+ include/wqueue.h
+ include/wsrep.h
+ libmysqld/client_settings.h
+ libmysqld/embedded_priv.h
+ libmysqld/emb_qcache.h
+ mysys/my_static.h
+ mysys/mysys_priv.h
+ sql/authors.h
+ sql/backup.h
+ sql/bounded_queue.h
+ sql/client_settings.h
+ sql/compat56.h
+ sql/contributors.h
+ sql/create_options.h
+ sql/create_tmp_table.h
+ sql/cset_narrowing.h
+ sql/datadict.h
+ sql/ddl_log.h
+ sql/debug.h
+ sql/debug_sync.h
+ sql/derived_handler.h
+ sql/derror.h
+ sql/des_key_file.h
+ sql/discover.h
+ sql/event_data_objects.h
+ sql/event_db_repository.h
+ sql/event_parse_data.h
+ sql/event_queue.h
+ sql/event_scheduler.h
+ sql/events.h
+ sql/field_comp.h
+ sql/field.h
+ sql/filesort.h
+ sql/filesort_utils.h
+ sql/gcalc_slicescan.h
+ sql/gcalc_tools.h
+ sql/grant.h
+ sql/group_by_handler.h
+ sql/gstream.h
+ sql/ha_handler_stats.h
+ sql/handle_connections_win.h
+ sql/handler.h
+ sql/ha_partition.h
+ sql/ha_sequence.h
+ sql/hash_filo.h
+ sql/hostname.h
+ sql/init.h
+ sql/innodb_priv.h
+ sql/item_cmpfunc.h
+ sql/item_create.h
+ sql/item_func.h
+ sql/item_geofunc.h
+ sql/item.h
+ sql/item_jsonfunc.h
+ sql/item_row.h
+ sql/item_strfunc.h
+ sql/item_subselect.h
+ sql/item_sum.h
+ sql/item_timefunc.h
+ sql/item_vers.h
+ sql/item_windowfunc.h
+ sql/item_xmlfunc.h
+ sql/json_table.h
+ sql/keycaches.h
+ sql/key.h
+ sql/lex_charset.h
+ sql/lex.h
+ sql/lex_ident.h
+ sql/lex_string.h
+ sql/lock.h
+ sql/log_event_data_type.h
+ sql/log_event.h
+ sql/log_event_old.h
+ sql/log.h
+ sql/mariadb.h
+ sql/mdl.h
+ sql/mem_root_array.h
+ sql/multi_range_read.h
+ sql/my_apc.h
+ sql/my_decimal.h
+ sql/my_json_writer.h
+ sql/mysqld.h
+ sql/mysqld_suffix.h
+ sql/opt_histogram_json.h
+ sql/opt_range.h
+ sql/opt_subselect.h
+ sql/opt_trace.h
+ sql/parse_file.h
+ sql/partition_element.h
+ sql/partition_info.h
+ sql/privilege.h
+ sql/procedure.h
+ sql/protocol.h
+ sql/records.h
+ sql/repl_failsafe.h
+ sql/replication.h
+ sql/rowid_filter.h
+ sql/rpl_constants.h
+ sql/rpl_filter.h
+ sql/rpl_gtid.h
+ sql/rpl_injector.h
+ sql/rpl_mi.h
+ sql/rpl_record.h
+ sql/rpl_record_old.h
+ sql/rpl_reporting.h
+ sql/rpl_rli.h
+ sql/rpl_tblmap.h
+ sql/rpl_utility.h
+ sql/scheduler.h
+ sql/select_handler.h
+ sql/semisync.h
+ sql/semisync_master_ack_receiver.h
+ sql/semisync_master.h
+ sql/semisync_slave.h
+ sql/session_tracker.h
+ sql/set_var.h
+ sql/slave.h
+ sql/socketpair.h
+ sql/spatial.h
+ sql/sp_cache.h
+ sql/sp.h
+ sql/sp_head.h
+ sql/sp_pcontext.h
+ sql/sp_rcontext.h
+ sql/sql_acl.h
+ sql/sql_admin.h
+ sql/sql_alloc.h
+ sql/sql_alter.h
+ sql/sql_analyse.h
+ sql/sql_analyze_stmt.h
+ sql/sql_array.h
+ sql/sql_audit.h
+ sql/sql_base.h
+ sql/sql_basic_types.h
+ sql/sql_binlog.h
+ sql/sql_bitmap.h
+ sql/sql_bootstrap.h
+ sql/sql_cache.h
+ sql/sql_callback.h
+ sql/sql_class.h
+ sql/sql_cmd.h
+ sql/sql_connect.h
+ sql/sql_const.h
+ sql/sql_crypt.h
+ sql/sql_cte.h
+ sql/sql_cursor.h
+ sql/sql_db.h
+ sql/sql_debug.h
+ sql/sql_delete.h
+ sql/sql_derived.h
+ sql/sql_digest.h
+ sql/sql_digest_stream.h
+ sql/sql_do.h
+ sql/sql_error.h
+ sql/sql_explain.h
+ sql/sql_expression_cache.h
+ sql/sql_get_diagnostics.h
+ sql/sql_handler.h
+ sql/sql_help.h
+ sql/sql_hset.h
+ sql/sql_insert.h
+ sql/sql_i_s.h
+ sql/sql_join_cache.h
+ sql/sql_lex.h
+ sql/sql_lifo_buffer.h
+ sql/sql_limit.h
+ sql/sql_list.h
+ sql/sql_load.h
+ sql/sql_locale.h
+ sql/sql_manager.h
+ sql/sql_mode.h
+ sql/sql_parse.h
+ sql/sql_partition_admin.h
+ sql/sql_partition.h
+ sql/sql_plist.h
+ sql/sql_plugin_compat.h
+ sql/sql_plugin.h
+ sql/sql_prepare.h
+ sql/sql_priv.h
+ sql/sql_profile.h
+ sql/sql_reload.h
+ sql/sql_rename.h
+ sql/sql_repl.h
+ sql/sql_schema.h
+ sql/sql_select.h
+ sql/sql_sequence.h
+ sql/sql_servers.h
+ sql/sql_show.h
+ sql/sql_signal.h
+ sql/sql_sort.h
+ sql/sql_statistics.h
+ sql/sql_string.h
+ sql/sql_table.h
+ sql/sql_test.h
+ sql/sql_time.h
+ sql/sql_trigger.h
+ sql/sql_truncate.h
+ sql/sql_tvc.h
+ sql/sql_type_fixedbin.h
+ sql/sql_type_fixedbin_storage.h
+ sql/sql_type_geom.h
+ sql/sql_type.h
+ sql/sql_type_int.h
+ sql/sql_type_json.h
+ sql/sql_type_real.h
+ sql/sql_type_string.h
+ sql/sql_udf.h
+ sql/sql_union.h
+ sql/sql_update.h
+ sql/sql_view.h
+ sql/sql_window.h
+ sql/strfunc.h
+ sql/structs.h
+ sql/sys_vars_shared.h
+ sql/table_cache.h
+ sql/table.h
+ sql/thread_cache.h
+ sql/threadpool_generic.h
+ sql/threadpool.h
+ sql/threadpool_winsockets.h
+ sql/thr_malloc.h
+ sql/transaction.h
+ sql/tzfile.h
+ sql/tztime.h
+ sql/uniques.h
+ sql/unireg.h
+ sql/vers_string.h
+ sql/winservice.h
+ sql/wsrep_allowlist_service.h
+ sql/wsrep_applier.h
+ sql/wsrep_binlog.h
+ sql/wsrep_client_service.h
+ sql/wsrep_client_state.h
+ sql/wsrep_condition_variable.h
+ sql/wsrep_high_priority_service.h
+ sql/wsrep_mutex.h
+ sql/wsrep_mysqld_c.h
+ sql/wsrep_mysqld.h
+ sql/wsrep_on.h
+ sql/wsrep_priv.h
+ sql/wsrep_schema.h
+ sql/wsrep_server_service.h
+ sql/wsrep_server_state.h
+ sql/wsrep_sst.h
+ sql/wsrep_status.h
+ sql/wsrep_storage_service.h
+ sql/wsrep_thd.h
+ sql/wsrep_trans_observer.h
+ sql/wsrep_types.h
+ sql/wsrep_utils.h
+ sql/wsrep_var.h
+ sql/wsrep_xid.h
+ sql/xa.h
+ strings/ctype-mb.h
+ strings/ctype-simple.h
+ strings/ctype-ucs2.h
+ strings/ctype-unicode1400-casefold.h
+ strings/ctype-unicode1400-casefold-tr.h
+ strings/ctype-unicode300-casefold.h
+ strings/ctype-unicode300-casefold-tr.h
+ strings/ctype-unicode300-general_ci.h
+ strings/ctype-unicode300-general_mysql500_ci.h
+ strings/ctype-unicode520-casefold.h
+ strings/ctype-unidata.h
+ strings/ctype-utf16.h
+ strings/ctype-utf32.h
+ strings/ctype-utf8.h
+ strings/strings_def.h
+ tpool/tpool.h
+ tpool/tpool_structs.h
+ vio/vio_priv.h
+Copyright: 1995-2008, MySQL AB, 2009 Sun Microsystems, Inc.
+  2000-2019, Oracle and/or its affiliates.
+  2003-2007, MySQL AB, 2009 Sun Microsystems, Inc.
+  2006-2008, MySQL AB, 2008 Sun Microsystems, Inc.
+  2006, MySQL AB, 2009 Sun Microsystems, Inc.
+  2007-2008, Sun Microsystems, Inc,
+  2007, Google Inc.
+  2007, MySQL AB, 2008 Sun Microsystems, Inc.
+  2008, 2011, 2013 SkySQL Ab.
+  2008-2024, MariaDB Corporation
+  2008-2023, Codership Oy <http://www.codership.com>
+  2008, MySQL AB
+  2008, MySQL AB, 2008-2009 Sun Microsystems, Inc.
+  2008, Sun Microsystems, Inc.
+  2009-2011, 2013, 2017, 2020, Monty Program Ab
+  2013, Kristian Nielsen and MariaDB Services Ab.
+  2013, Sergei Golubchik and Monty Program Ab
+  2013, Sergey Vojtovich and MariaDB Foundation
+  2014-2015, SkySQL Ab & MariaDB Foundation
+  2014, Google Inc.
+  2014, SkySQL Ab, MariaDB Corporation
+  2015, Daniel Black.
+  2016-2024, MariaDB Corporation
+  2017, Aliyun and/or its affiliates
+  2017-2018, MariaDB Foundation
+  2023, MariaDB Plc
+License: GPL-2.0
 
-The MariaDB packages were initially made by http://ourdelta.org/, and
-are now managed by the MariaDB development team, developers@lists.mariadb.org
+Files: mysys/psi_noop.c
+Copyright: Copyright (c) 2011, 2022, Oracle and/or its affiliates.
+License: GPL-2.0 with unknown exception
+ This program is free software; you can redistribute it and/or modify
+ it under the terms of the GNU General Public License, version 2.0,
+ as published by the Free Software Foundation.
+ .
+ This program is also distributed with certain software (including
+ but not limited to OpenSSL) that is licensed under separate terms,
+ as designated in a particular file or component or in included license
+ documentation.  The authors of MySQL hereby grant you an additional
+ permission to link the program and your derivative works with the
+ separately licensed software that they have included with MySQL.
+ .
+ Without limiting anything contained in the foregoing, this file,
+ which is part of C Driver for MySQL (Connector/C), is also subject to the
+ Universal FOSS Exception, version 1.0, a copy of which can be found at
+ http://oss.oracle.com/licenses/universal-foss-exception.
 
-MariaDB can be downloaded from https://downloads.mariadb.org/
+Files: debian/autobake-deb.sh
+ extra/mysqld_safe_helper.c
+ include/handler_state.h
+ include/json_lib.h
+ include/mysqld_default_groups.h
+ libmysqld/resource.h
+ libservices/my_crypt_service.c
+ mysys/my_setuser.c
+ scripts/convert-debug-for-diff.sh
+ sql-bench/graph-compare-results.sh
+ sql-bench/test-table-elimination.sh
+ sql/message.h
+ sql/opt_trace_context.h
+ sql/proxy_protocol.h
+ sql/rpl_parallel.h
+ sql/win_tzname_data.h
+ strings/ctype-ascii.h
+ support-files/binary-configure.sh
+ support-files/mariadb.logrotate.sh
+ support-files/mini-benchmark.sh
+ support-files/mysql.server-sys5.sh
+ support-files/mysqld_multi.server.sh
+ support-files/wsrep.cnf.sh
+ support-files/wsrep_notify.sh
+License: GPL-2.0
+Comment: These files do not have a GPL 2.0 header.
+ If someone has obligations, please state otherwise.
 
-Copyright:
+Files: zlib/adler32.c
+ zlib/compress.c
+ zlib/crc32.c
+ zlib/crc32.h
+ zlib/deflate.c
+ zlib/gzclose.c
+ zlib/gzguts.h
+ zlib/gzlib.c
+ zlib/gzread.c
+ zlib/gzwrite.c
+ zlib/infback.c
+ zlib/inffast.c
+ zlib/inffast.h
+ zlib/inffixed.h
+ zlib/inflate.c
+ zlib/inflate.h
+ zlib/inftrees.c
+ zlib/inftrees.h
+ zlib/trees.c
+ zlib/trees.h
+ zlib/uncompr.c
+ zlib/zlib.h
+ zlib/zutil.c
+ zlib/zutil.h
+Copyright: 1995-2022, Mark Adler
+  1995-2024, Jean-loup Gailly
+  1995-2024, Jean-loup Gailly, Mark Adler
+License: Zlib
+ 
+Files: include/ma_dyncol.h
+ include/queues.h
+ mysys/ma_dyncol.c
+ mysys/queues.c 
+ strings/bchange.c
+ strings/bmove_upp.c
+ strings/int2str.c
+ strings/is_prefix.c
+ strings/llstr.c
+ strings/longlong2str.c
+ strings/my_strtoll10.c
+ strings/str2int.c
+ strings/strappend.c
+ strings/strcend.c
+ strings/strcont.c
+ strings/strend.c
+ strings/strfill.c
+ strings/strmov.c
+ strings/strnlen.c
+ strings/strnmov.c
+ strings/strxmov.c
+ strings/strxnmov.c
+Copyright: 2000, TXT DataKonsult Ab & Monty Program Ab
+  2003, TXT DataKonsult Ab
+  2009-2011, 2013, Monty Program Ab
+  2011-2012, Oleksandr Byelkin
+  2011, 2017, MariaDB Corporation
+  2011, Oleksandr Byelkin
+  1984 Richard A. O'Keefe
+License: MIT
 
-According to the file "COPYING" all parts of this package are licenced
-under the terms of the GNU GPL Version 2 of which a copy is available
-in /usr/share/common-licenses.
+Files: BUILD/FINISH.sh
+ BUILD/SETUP.sh
+ BUILD/autorun.sh
+ BUILD/cmake_configure.sh
+ scripts/mysql_fix_extensions.sh
+ scripts/mysql_setpermission.sh
+ scripts/mysqlaccess.sh
+ scripts/mysqldumpslow.sh
+ scripts/mysqlhotcopy.sh
+Copyright: 2000, 2005, 2009-2011, 2017, Oracle and/or its affiliates.
+License: LGPL-2.0
 
-To allow free software with other licences than the GPL to link against the
-shared library, special terms for "derived works" are granted in the README file of MySQL 5.5, as follows:
+Files: client/completion_hash.h
+ mysys/my_port.c
+ strings/ctype-bin.c
+ strings/ctype-eucjpms.c
+ strings/ctype-uca1400.h
+ strings/ctype-uca.h
+ strings/ctype-ucs2.c
+ strings/ctype-ujis.c
+ strings/ctype-unidata.c
+ strings/ctype-utf8.c
+ strings/dtoa.c
+Copyright: 2000-2002, 2006, MySQL AB
+  2000, 2003-2004, 2007, 2013-2014, 2017, Oracle and/or its affiliates.
+  2002-2007, MySQL AB & tommy@valley.ne.jp
+  2002, MySQL AB
+  2009, 2014, SkySQL Ab.
+  2009, 2017, 2020-2021, MariaDB Corporation.
+License: LGPL-2.0
 
-> MySQL FOSS License Exception
-> We want free and open source software applications under certain
-> licenses to be able to use specified GPL-licensed MySQL client
-> libraries despite the fact that not all such FOSS licenses are
-> compatible with version 2 of the GNU General Public License.
-> Therefore there are special exceptions to the terms and conditions
-> of the GPLv2 as applied to these client libraries, which are
-> identified and described in more detail in the FOSS License
-> Exception at
-> <http://www.mysql.com/about/legal/licensing/foss-exception.html>.
+Files: scripts/mysqld_multi.sh
+License: LGPL-2.0
 
-The manual had to be removed as it is not free in the sense of the
-Debian Free Software Guidelines (DFSG).
+Files: include/maria.h
+ include/myisamchk.h
+ include/my_rnd.h
+ include/thr_timer.h
+ mysys/my_safehash.c
+ mysys/my_safehash.h
+ mysys/thr_timer.c
+ sql/log_slow.h
+Copyright:   2003-2007, MySQL AB
+  2006-2008, MySQL AB, 2008-2009 Sun Microsystems, Inc.
+  2006, MySQL AB
+  2009, 2017, 2019, MariaDB Corporation.
+  2012-2014, 2017, Monty Program Ab
+License: GPL-2.0+
 
+Files: client/async_example.c
+ tests/nonblock-wrappers.h
+ tests/async_queries.c
+Copyright: 2011, Kristian Nielsen and Monty Program Ab.
+License: LGPL-2.1+
 
-== innotop ==
+Files: scripts/galera_new_cluster.sh
+License: LGPL-2.1+
 
-Copyright 2006-2009, Baron Schwartz <baron@xaprb.com>
-URL:    http://innotop.sourceforge.net
+Files: scripts/mysqld_safe.sh
+ support-files/mysql-multi.server.sh
+ support-files/mysql.server.sh
+Copyright: Abandoned 1996 TCX DataKonsult AB & Monty Program KB & Detron HB
+License: public-domain
 
-License:
-> This software is dual licensed, either GPL version 2 or Artistic License.
->
-> This package is free software; you can redistribute it and/or modify
-> it under the terms of the GNU General Public License as published by
-> the Free Software Foundation; either version 2 of the License, or
-> (at your option) any later version.
->
-> This package is distributed in the hope that it will be useful,
-> but WITHOUT ANY WARRANTY; without even the implied warranty of
-> MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-> GNU General Public License for more details.
->
-> You should have received a copy of the GNU General Public License
-> along with this package; if not, write to the Free Software
-> Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335 USA
+Files: dbug/dbug.c
+ dbug/dbug_long.h
+Copyright: Abandoned, 1987, Fred Fish
+License: public-domain
 
-On Debian systems, the complete text of the GNU General Public License and the
-Artistic License can be found in `/usr/share/common-licenses/'.
+Files: sql/socketpair.c
+Copyright: 2007, 2010, Nathan C. Myers <ncm@cantrip.org>
+License: BSD-3-clause
+
+Files: libmysqld/libmysql.c
+ sql-common/conf_to_src.c
+ sql-common/errmsg.c
+Copyright: 2000, 2014, Oracle and/or its affiliates
+  2002, 2006, MySQL AB, 2009 Sun Microsystems, Inc.
+  2009, 2020, MariaDB Corporation
+License: GPL-2.0
+ This program is free software; you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation.
+ .
+ There are special exceptions to the terms and conditions of the GPL as it
+ is applied to this software.
+ .
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
+
+Files: strings/ctype-tis620.c
+Copyright: 1989, 1991, Samphan Raruenrom <samphan@thai.com>
+  1998, Theppitak Karoonboonyanan <thep@links.nectec.or.th>
+  1998-1999, Pruet Boonma <pruet@eng.cmu.ac.th>
+  2000, 2011, Oracle and/or its affiliates.
+  2001, Korakot Chaovavanich <korakot@iname.com> and
+  2003, Sathit Jittanupat
+  2009, 2020, MariaDB Corporation.
+License: NTP
