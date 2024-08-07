@@ -345,7 +345,7 @@ protected:
 
 
   /*
-    A rule consisting of a choice of thee rules:
+    A rule consisting of a choice of three rules:
       rule ::= rule1 | rule2 | rule3
 
     For the case when the three branches have incompatible storage
@@ -443,7 +443,117 @@ protected:
 
 
   /*
-    A list with at least MIN_COUNT elements (typlically 0 or 1),
+    A rule consisting of a choice of four rules:
+      rule ::= rule1 | rule2 | rule3 | rule4
+
+    For the case when the three branches have incompatible storage
+  */
+  template<class PARSER, class A, class B, class C, class D>
+  class OR4: public A, public B, public C, public D
+  {
+  public:
+    OR4()
+    { }
+    OR4(OR4 &&rhs)
+     :A(std::move(static_cast<A&&>(rhs))),
+      B(std::move(static_cast<B&&>(rhs))),
+      C(std::move(static_cast<C&&>(rhs))),
+      D(std::move(static_cast<D&&>(rhs)))
+    { }
+    OR4 & operator=(OR4 &&rhs)
+    {
+      A::operator=(std::move(static_cast<A&&>(rhs)));
+      B::operator=(std::move(static_cast<B&&>(rhs)));
+      C::operator=(std::move(static_cast<C&&>(rhs)));
+      D::operator=(std::move(static_cast<D&&>(rhs)));
+      return *this;
+    }
+    OR4(PARSER *p)
+     :A(p),
+      B(A::operator bool() ? B() : B(p)),
+      C(A::operator bool() || B::operator bool() ? C() : C(p)),
+      D(A::operator bool() || B::operator bool() || C::operator bool() ?
+          D() : D(p))
+    {
+      DBUG_ASSERT(!operator bool() || !p->is_error());
+    }
+    operator bool() const
+    {
+      return A::operator bool() || B::operator bool() || C::operator bool() ||
+             D::operator bool();
+    }
+  };
+
+  /*
+    A rule consisting of a choice of four rules, e.g.
+      rule ::= rule1 | rule2 | rule3 | rule4
+
+    For the cases when the three branches have a compatible storage,
+    passed as a CONTAINER, which must have constructors:
+      CONTAINER(const A &a)
+      CONTAINER(const B &b)
+      CONTAINER(const C &c)
+      CONTAINER(const D &d)
+  */
+  template<class PARSER, class CONTAINER, class A, class B, class C, class D>
+  class OR4C: public CONTAINER
+  {
+  public:
+    OR4C()
+    { }
+    OR4C(OR4C &&rhs)
+     :CONTAINER(std::move(rhs))
+    { }
+    OR4C(A &&a)
+     :CONTAINER(std::move(a))
+    { }
+    OR4C(B &&b)
+     :CONTAINER(std::move(b))
+    { }
+    OR4C(C &&c)
+     :CONTAINER(std::move(c))
+    { }
+    OR4C & operator=(OR4C &&rhs)
+    {
+      CONTAINER::operator=(std::move(rhs));
+      return *this;
+    }
+    OR4C & operator=(A &&rhs)
+    {
+      CONTAINER::operator=(std::move(rhs));
+      return *this;
+    }
+    OR4C & operator=(B &&rhs)
+    {
+      CONTAINER::operator=(std::move(rhs));
+      return *this;
+    }
+    OR4C & operator=(C &&rhs)
+    {
+      CONTAINER::operator=(std::move(rhs));
+      return *this;
+    }
+    OR4C & operator=(D &&rhs)
+    {
+      CONTAINER::operator=(std::move(rhs));
+      return *this;
+    }
+
+    OR4C(PARSER *p)
+     :CONTAINER(A(p))
+    {
+      if (CONTAINER::operator bool() ||
+          CONTAINER::operator=(B(p)) ||
+          CONTAINER::operator=(C(p)) ||
+          CONTAINER::operator=(D(p)))
+        return;
+      DBUG_ASSERT(!CONTAINER::operator bool());
+    }
+  };
+
+
+  /*
+    A list with at least MIN_COUNT elements (typically 0 or 1),
     with or without a token separator between elements:
 
       list ::= element [ {, element }... ]       // with a separator

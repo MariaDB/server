@@ -8765,6 +8765,7 @@ query_specification:
           opt_having_clause
           opt_window_clause
           {
+            Lex->resolve_optimizer_hints();
             $$= Lex->pop_select();
           }
         ;
@@ -8917,7 +8918,6 @@ query_expression_body:
           query_simple
           {
             Lex->push_select($1);
-            Lex->resolve_optimizer_hints();
             if (!($$= Lex->create_unit($1)))
               MYSQL_YYABORT;
           }

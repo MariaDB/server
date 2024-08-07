@@ -40,6 +40,7 @@ struct st_opt_hint_info opt_hint_info[]=
   {{STRING_WITH_LEN("MRR")}, true, true},
   {{STRING_WITH_LEN("NO_RANGE_OPTIMIZATION")}, true, true},
   {{STRING_WITH_LEN("QB_NAME")}, false, false},
+  {{STRING_WITH_LEN("MAX_EXECUTION_TIME")}, false, false},
   {null_clex_str, 0, 0}
 };
 
@@ -52,11 +53,21 @@ const LEX_CSTRING sys_qb_prefix=  {"select#", 7};
 
 static const Lex_ident_sys null_ident_sys;
 
+
+static void append_ulong_to_str(String* str, ulong number)
+{
+  char numbuf[STRING_BUFFER_USUAL_SIZE];
+  size_t size= my_snprintf(numbuf, sizeof(numbuf), "%u", number);
+  str->append(numbuf, size);
+}
+
+
 static void print_warn(THD *thd, uint err_code, opt_hints_enum hint_type,
                 bool hint_state,
                 const Lex_ident_sys *qb_name_arg,
                 const Lex_ident_sys *table_name_arg,
-                const Lex_ident_sys *key_name_arg)
+                const Lex_ident_sys *key_name_arg,
+                ulong *numeric_arg)
 {
   String str;
 
@@ -103,6 +114,10 @@ static void print_warn(THD *thd, uint err_code, opt_hints_enum hint_type,
     str.append(' ');
     append_identifier(thd, &str, key_name_arg->str, key_name_arg->length);
   }
+  if (numeric_arg)
+  {
+    append_ulong_to_str(&str, *numeric_arg);
+  }
 
   str.append(')');
 
@@ -130,8 +145,6 @@ static Opt_hints_global *get_global_hints(Parse_context *pc)
     lex->opt_hints_global= new (pc->thd->mem_root)
         Opt_hints_global(pc->thd->mem_root);
   }
-  if (lex->opt_hints_global)
-    lex->opt_hints_global->set_resolved();
   return lex->opt_hints_global;
 }
 
@@ -183,7 +196,7 @@ static Opt_hints_qb *find_qb_hints(Parse_context *pc,
   if (qb == NULL)
   {
     print_warn(pc->thd, ER_WARN_UNKNOWN_QB_NAME, hint_type, hint_state,
-               &qb_name, NULL, NULL);
+               &qb_name, NULL, NULL, NULL);
   }
   return qb;
 }
@@ -300,13 +313,6 @@ void Opt_hints::check_unresolved(THD *thd)
     for (uint i= 0; i < child_array.size(); i++)
       child_array[i]->check_unresolved(thd);
   }
-}
-
-
-PT_hint *Opt_hints_global::get_complex_hints(uint type)
-{
-  DBUG_ASSERT(0);
-  return NULL;
 }
 
 
@@ -519,7 +525,7 @@ bool Optimizer_hint_parser::Table_level_hint::resolve(Parse_context *pc) const
       // e.g. BKA(@qb1)
       if (qb->set_switch(hint_state, hint_type, false))
         print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, hint_type, hint_state,
-                   &qb_name_sys, NULL, NULL);
+                   &qb_name_sys, NULL, NULL, NULL);
       return false;
     }
     else
@@ -534,7 +540,7 @@ bool Optimizer_hint_parser::Table_level_hint::resolve(Parse_context *pc) const
           return true;
         if (tab->set_switch(hint_state, hint_type, true))
           print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, hint_type, hint_state,
-                     &qb_name_sys, &table_name_sys, NULL);
+                     &qb_name_sys, &table_name_sys, NULL, NULL);
       }
     }
   }
@@ -551,7 +557,7 @@ bool Optimizer_hint_parser::Table_level_hint::resolve(Parse_context *pc) const
       // e.g. BKA()
       if (qb->set_switch(hint_state, hint_type, false))
         print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, hint_type, hint_state,
-                   &null_ident_sys, NULL, NULL);
+                   &null_ident_sys, NULL, NULL, NULL);
       return false;
     }
     for (const Table_name &table : table_name_list)
@@ -563,7 +569,7 @@ bool Optimizer_hint_parser::Table_level_hint::resolve(Parse_context *pc) const
         return true;
       if (tab->set_switch(hint_state, hint_type, true))
         print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, hint_type, hint_state,
-                   &null_ident_sys, &table_name_sys, NULL);
+                   &null_ident_sys, &table_name_sys, NULL, NULL);
     }
   
     for (const Hint_param_table &table : opt_hint_param_table_list)
@@ -581,7 +587,7 @@ bool Optimizer_hint_parser::Table_level_hint::resolve(Parse_context *pc) const
         return true;
       if (tab->set_switch(hint_state, hint_type, true))
          print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, hint_type, hint_state,
-                    &qb_name_sys, &table_name_sys, NULL);
+                    &qb_name_sys, &table_name_sys, NULL, NULL);
     }
   }
   return false;
@@ -634,7 +640,7 @@ bool Optimizer_hint_parser::Index_level_hint::resolve(Parse_context *pc) const
   {
     if (tab->set_switch(hint_state, hint_type, false))
       print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, hint_type, hint_state,
-                 &qb_name_sys, &table_name_sys, NULL);
+                 &qb_name_sys, &table_name_sys, NULL, NULL);
     return false;
   }
 
@@ -651,7 +657,7 @@ bool Optimizer_hint_parser::Index_level_hint::resolve(Parse_context *pc) const
 
     if (idx->set_switch(hint_state, hint_type, true))
       print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, hint_type, hint_state,
-                 &qb_name_sys, &table_name_sys, &index_name_sys);
+                 &qb_name_sys, &table_name_sys, &index_name_sys, NULL);
   }
 
   return false;
@@ -670,11 +676,78 @@ bool Optimizer_hint_parser::Qb_name_hint::resolve(Parse_context *pc) const
       qb->get_parent()->find_by_name(qb_name_sys)) // Name is already used
   {
     print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, QB_NAME_HINT_ENUM, true,
-               &qb_name_sys, NULL, NULL);
+               &qb_name_sys, NULL, NULL, NULL);
     return false;
   }
 
   qb->set_name(qb_name_sys);
+  return false;
+}
+
+/*
+  This is the first step of MAX_EXECUTION_TIME() hint resolution. It is invoked
+  during the parsing phase, but at this stage some essential information is
+  not yet available, preventing a full validation of the hint.
+  Particularly, the type of SQL command, mark of a stored procedure execution
+  or whether SELECT_LEX is not top-level (i.e., a subquery) are not yet set.
+  However, some basic checks like the numeric argument validation or hint
+  duplication check can still be performed.
+  The second step of hint validation is performed during the JOIN preparation
+  phase, within Opt_hints_global::resolve(). By this point, all necessary
+  information is up-to-date, allowing the hint to be fully resolved
+*/ 
+bool Optimizer_hint_parser::Max_execution_time_hint::resolve(
+    Parse_context *pc) const
+{
+  const long long exec_time_ms= Number::get_number();
+  if (exec_time_ms == -1)
+  {
+    print_warn(pc->thd, ER_WARN_BAD_MAX_EXECUTION_TIME, MAX_EXEC_TIME_HINT_ENUM,
+               true, NULL, NULL, NULL, NULL);
+    return false;
+  }
+
+  Opt_hints_global *global_hint= get_global_hints(pc);
+  if (global_hint->is_specified(MAX_EXEC_TIME_HINT_ENUM))
+  {
+    // Hint duplication: /*+ MAX_EXECUTION_TIME ... MAX_EXECUTION_TIME */
+    print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, MAX_EXEC_TIME_HINT_ENUM, true,
+               NULL, NULL, NULL, (ulong*)&exec_time_ms);
+    return false;
+  }
+
+  global_hint->set_switch(true, MAX_EXEC_TIME_HINT_ENUM, false);
+  global_hint->max_exec_time_ms= (ulong*)pc->thd->alloc(sizeof(ulong));
+  *global_hint->max_exec_time_ms= std::move(exec_time_ms);
+  global_hint->max_exec_time_select_lex= pc->select;
+  return false;
+}
+
+
+bool Opt_hints_global::resolve(THD *thd)
+{
+  if (!max_exec_time_select_lex || is_resolved())
+    return false;
+
+  if (thd->lex->sql_command != SQLCOM_SELECT || // not a SELECT statement
+      thd->lex->sphead || thd->in_sub_stmt != 0 || // or a SP/trigger/event
+      max_exec_time_select_lex->master_unit() != &thd->lex->unit) // or a subquery
+  {
+    print_warn(thd, ER_WARN_UNSUPPORTED_MAX_EXECUTION_TIME,
+               MAX_EXEC_TIME_HINT_ENUM, true, NULL, NULL, NULL,
+               max_exec_time_ms);
+  }
+  else if (thd->variables.max_statement_time != 0 ||
+           thd->query_timer.expired == 0)
+  {
+    print_warn(thd, ER_WARN_CONFLICTING_HINT, MAX_EXEC_TIME_HINT_ENUM, true,
+               NULL, NULL, NULL, max_exec_time_ms);
+  }
+  else
+  {
+    thd->set_query_timer_force(*max_exec_time_ms * 1000);
+  }
+  set_resolved();
   return false;
 }
 
@@ -705,6 +778,19 @@ bool Optimizer_hint_parser::Hint_list::resolve(Parse_context *pc)
       if (qb_hint.resolve(pc))
         return true;
     }
+    else if (const Max_execution_time_hint &max_hint=
+             static_cast<const Max_execution_time_hint &>(*hint))
+    {
+      if (max_hint.resolve(pc))
+        return true;
+    }
   }
   return false;
+}
+
+
+void Opt_hints_global::append_name(THD *thd, String *str)
+{
+  if (max_exec_time_ms)
+    append_ulong_to_str(str, *max_exec_time_ms);
 }

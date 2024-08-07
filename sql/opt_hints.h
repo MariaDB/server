@@ -48,6 +48,7 @@ enum opt_hints_enum
   MRR_HINT_ENUM,
   NO_RANGE_HINT_ENUM,
   QB_NAME_HINT_ENUM,
+  MAX_EXEC_TIME_HINT_ENUM,
   MAX_HINT_ENUM
 };
 
@@ -119,8 +120,6 @@ public:
 };
 
 
-class PT_hint;
-class PT_hint_max_execution_time;
 class Opt_hints_key;
 
 
@@ -295,18 +294,27 @@ protected:
 
 class Opt_hints_global : public Opt_hints
 {
-
 public:
-  PT_hint_max_execution_time *max_exec_time;
+  /*
+    If MAX_EXECUTION_TIME() hint was provided, this pointer is set to
+    the SELECT_LEX which the hint is attached to.
+    NULL if MAX_EXECUTION_TIME() hint is missing.
+  */
+  st_select_lex *max_exec_time_select_lex= nullptr;
+  /*
+    Value of MAX_EXECUTION_TIME() in milliseconds in the case when the hint
+    was provided.
+    Otherwise NULL.
+  */
+  ulong *max_exec_time_ms= nullptr; // NULL if not set
 
   Opt_hints_global(MEM_ROOT *mem_root_arg)
     : Opt_hints(Lex_ident_sys(), NULL, mem_root_arg)
-  {
-    max_exec_time= NULL;
-  }
+  { }
 
-  virtual void append_name(THD *thd, String *str) override {}
-  virtual PT_hint *get_complex_hints(uint type);
+  virtual void append_name(THD *thd, String *str) override;
+
+  bool resolve(THD *thd);
 };
 
 

@@ -1070,7 +1070,9 @@ i
 Warnings:
 Warning	4202	Hint NO_ICP(`t1`@`q1` `PRIMARY`) is ignored as conflicting/duplicated
 DROP TABLE t1;
-# WL#8016 Parser for optimizer hints
+#
+# Tests of the optimizer hints parser
+#
 CREATE TABLE t1 (i INT, j INT);
 CREATE INDEX i1 ON t1(i);
 CREATE INDEX i2 ON t1(j);
@@ -1224,7 +1226,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 2	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
-Note	1003	/* select#1 */ select /*+ QB_NAME(`qb1`) */ 1 AS `1` union /* select#2 */ select 1 AS `1`
+Note	1003	/* select#1 */ select /*+ QB_NAME(`qb1`) */ 1 AS `1` union /* select#2 */ select /*+ QB_NAME(`qb2`) */ 1 AS `1`
 EXPLAIN EXTENDED (SELECT /*+ QB_NAME(qb1) */ 1) UNION (SELECT /*+ QB_NAME(qb2) */ 1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used

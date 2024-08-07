@@ -12290,3 +12290,7 @@ ER_UNRESOLVED_TABLE_HINT_NAME
         eng "Unresolved table name %s for %s hint"
 ER_UNRESOLVED_INDEX_HINT_NAME
         eng "Unresolved index name %s for %s hint"
+ER_WARN_BAD_MAX_EXECUTION_TIME
+        eng "Unsupported MAX_EXECUTION_TIME"
+ER_WARN_UNSUPPORTED_MAX_EXECUTION_TIME
+        eng "MAX_EXECUTION_TIME hint is supported by top-level standalone SELECT statements only"

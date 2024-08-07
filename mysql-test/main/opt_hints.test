@@ -500,9 +500,10 @@ SELECT /*+ QB_NAME(q1) NO_ICP(@q1 t1 PRIMARY) NO_ICP(@q1 t1 PRIMARY) */ * FROM t
 
 DROP TABLE t1;
 
---echo # WL#8016 Parser for optimizer hints
 
-
+--echo #
+--echo # Tests of the optimizer hints parser
+--echo #
 CREATE TABLE t1 (i INT, j INT);
 CREATE INDEX i1 ON t1(i);
 CREATE INDEX i2 ON t1(j);
