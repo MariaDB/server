@@ -2753,6 +2753,7 @@ trx_deregister_from_2pc(
 {
   trx->is_registered= false;
   trx->active_commit_ordered= false;
+  trx->active_prepare= false;
 }
 
 /**
@@ -17183,7 +17184,10 @@ innobase_xa_prepare(
   case TRX_STATE_ACTIVE:
     trx->xid= *thd->get_xid();
     if (prepare_trx)
+    {
       trx_prepare_for_mysql(trx);
+      trx->active_prepare= true;
+    }
     else
     {
       lock_unlock_table_autoinc(trx);
