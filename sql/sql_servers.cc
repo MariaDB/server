@@ -454,7 +454,8 @@ get_server_from_table_to_cache(TABLE *table)
       name_copy= safe_lexcstrdup_root(&mem, name),
       value_copy= safe_lexcstrdup_root(&mem, value);
     engine_option_value *option= new (&mem) engine_option_value(
-      name_copy, value_copy, true);
+      engine_option_value::Name(name_copy),
+      engine_option_value::Value(value_copy), true);
     option->link(&server->option_list, &option_list_last);
     if (option->value.length)
     {
@@ -1254,8 +1255,10 @@ static void copy_option_list(MEM_ROOT *mem, FOREIGN_SERVER *server,
        option= option->next)
   {
     engine_option_value *new_option= new (mem) engine_option_value(option);
-    new_option->name= safe_lexcstrdup_root(mem, option->name);
-    new_option->value= safe_lexcstrdup_root(mem, option->value);
+    new_option->name= engine_option_value::Name(
+      safe_lexcstrdup_root(mem, option->name));
+    new_option->value= engine_option_value::Value(
+      safe_lexcstrdup_root(mem, option->value));
     new_option->link(&server->option_list, &option_list_last);
   }
 }
