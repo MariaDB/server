@@ -1290,8 +1290,10 @@ public:
 class in_inet6 :public in_vector
 {
   Inet6 m_value;
-  static int cmp_inet6(void *cmp_arg, Inet6 *a, Inet6 *b)
+  static int cmp_inet6(const void *cmp_arg, const void *_a, const void *_b)
   {
+    Inet6 *a= (Inet6*) _a;
+    Inet6 *b= (Inet6*) _b;
     return a->cmp(*b);
   }
 public:
