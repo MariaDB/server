@@ -106,6 +106,8 @@ trx_init(
 
 	trx->active_commit_ordered = false;
 
+	trx->active_prepare = false;
+
 	trx->isolation_level = TRX_ISO_REPEATABLE_READ;
 
 	trx->check_foreigns = true;
@@ -405,6 +407,7 @@ void trx_t::free()
                                    bulk_insert */);
   MEM_NOACCESS(&is_registered, sizeof is_registered);
   MEM_NOACCESS(&active_commit_ordered, sizeof active_commit_ordered);
+  MEM_NOACCESS(&active_prepare, sizeof active_prepare);
   MEM_NOACCESS(&flush_log_later, sizeof flush_log_later);
   MEM_NOACCESS(&duplicates, sizeof duplicates);
   MEM_NOACCESS(&dict_operation, sizeof dict_operation);
@@ -1743,7 +1746,7 @@ void trx_commit_complete_for_mysql(trx_t *trx)
   case 0:
     return;
   case 1:
-    if (trx->active_commit_ordered)
+    if (trx->active_commit_ordered && trx->active_prepare)
       return;
   }
   trx_flush_log_if_needed(lsn, trx);
