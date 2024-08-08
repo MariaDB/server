@@ -1993,6 +1993,10 @@ int ha_commit_trans(THD *thd, bool all)
     */
     if (! hi->is_trx_read_write())
       continue;
+    /* We do not need to 2pc the binlog with the engine that implements it. */
+    /* ToDo: This needs refinement, at least to handle the case when we are not binlogging. And maybe the logic could happen more elegantly in a different place, higher in the call stack? */
+    if (ht == opt_binlog_engine_hton)
+      continue;
     /*
       Sic: we know that prepare() is not NULL since otherwise
       trans->no_2pc would have been set.
