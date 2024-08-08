@@ -446,9 +446,9 @@ private:
   /** Sorted array of partition ids in descending order of number of rows. */
   uint32 *m_part_ids_sorted_by_num_of_records;
   /* Compare function for my_qsort2, for reversed order. */
-  static int compare_number_of_records(ha_partition *me,
-                                       const uint32 *a,
-                                       const uint32 *b);
+  static int compare_number_of_records(const void *me,
+                                       const void *a,
+                                       const void *b);
   /** keep track of partitions to call ha_reset */
   MY_BITMAP m_partitions_to_reset;
   /** partitions that returned HA_ERR_KEY_NOT_FOUND. */
