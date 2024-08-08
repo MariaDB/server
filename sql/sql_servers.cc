@@ -447,7 +447,9 @@ get_server_from_table_to_cache(TABLE *table)
     if (vt != JSV_STRING)
       DBUG_RETURN(TRUE);
     Lex_cstring name= {keyname, keyname_end}, value= {v, v + v_len};
-    engine_option_value *option= new (&mem) engine_option_value(name, value, true);
+    engine_option_value *option= new (&mem) engine_option_value(
+      engine_option_value::Name(safe_lexcstrdup_root(&mem, name)),
+      engine_option_value::Value(safe_lexcstrdup_root(&mem, value)), true);
     option->link(&server->option_list, &option_list_last);
   }
   engine_option_value *option= server->option_list;
@@ -1252,8 +1254,10 @@ static void copy_option_list(MEM_ROOT *mem, FOREIGN_SERVER *server,
        option= option->next)
   {
     engine_option_value *new_option= new (mem) engine_option_value(option);
-    new_option->name= safe_lexcstrdup_root(mem, option->name);
-    new_option->value= safe_lexcstrdup_root(mem, option->value);
+    new_option->name= engine_option_value::Name(
+      safe_lexcstrdup_root(mem, option->name));
+    new_option->value= engine_option_value::Value(
+      safe_lexcstrdup_root(mem, option->value));
     new_option->link(&server->option_list, &option_list_last);
   }
 }
