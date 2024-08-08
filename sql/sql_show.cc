@@ -9112,27 +9112,16 @@ static int make_slave_status_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
   Name_resolution_context *context= &thd->lex->first_select_lex()->context;
   DBUG_ASSERT(thd->lex->sql_command == SQLCOM_SHOW_SLAVE_STAT);
   bool all_slaves= thd->lex->mi.show_all_slaves;
-  ulonglong used_fields= ~0ULL;
-
-  if (!all_slaves)
-  {
-    /*
-      Remove 2 first fields (Connection_name and Slave_SQL_State) and all
-      fields above and including field 56 (Retried_transactions)
-    */
-    used_fields&= ~((1ULL << SLAVE_STATUS_COL_CONNECTION_NAME) |
-                    (1ULL << SLAVE_STATUS_COL_SLAVE_SQL_STATE));
-    used_fields&= ((1ULL << SLAVE_STATUS_COL_RETRIED_TRANSACTIONS) - 1);
-  }
 
   for (uint i=0; !field_info->end_marker(); field_info++, i++)
   {
-    /*
-      We have all_slaves here to take into account that we some day may have
-      more than 64 fields in the list. If all_slaves is set we should show
-      all fields.
-    */
-    if (all_slaves || (used_fields & ((1ULL << i))))
+    if (all_slaves ||
+        // not SLAVE_STATUS_COL_CONNECTION_NAME,
+        // SLAVE_STATUS_COL_SLAVE_SQL_STATE
+        // and less
+        // SLAVE_STATUS_COL_RETRIED_TRANSACTIONS
+        !(i <= SLAVE_STATUS_COL_SLAVE_SQL_STATE ||
+          i >= SLAVE_STATUS_COL_RETRIED_TRANSACTIONS))
     {
       LEX_CSTRING field_name= field_info->name();
       Item_field *field= new (thd->mem_root)
