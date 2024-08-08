@@ -4014,9 +4014,10 @@ mysql_options(MYSQL *mysql,enum mysql_option option, const void *arg)
   A function to return the key from a connection attribute
 */
 uchar *
-get_attr_key(LEX_STRING *part, size_t *length,
+get_attr_key(const uchar *_part, size_t *length,
              my_bool not_used __attribute__((unused)))
 {
+  LEX_STRING *part= (LEX_STRING*) _part;
   *length= part[0].length;
   return (uchar *) part[0].str;
 }
