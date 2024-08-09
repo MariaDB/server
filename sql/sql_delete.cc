@@ -912,6 +912,7 @@ cleanup:
   {
     thd->lex->current_select->save_leaf_tables(thd);
     thd->lex->current_select->leaf_tables_saved= true;
+    thd->lex->current_select->first_cond_optimization= false;
   }
 
   delete deltempfile;
