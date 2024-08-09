@@ -5485,7 +5485,8 @@ static int init_server_components()
                         opt_binlog_storage_engine);
       unireg_abort(1);
     }
-    if (!opt_binlog_engine_hton->get_binlog_reader)
+    if (!opt_binlog_engine_hton->binlog_write_direct ||
+        !opt_binlog_engine_hton->get_binlog_reader)
     {
       sql_print_error("Engine %s does not support --innodb-binlog-engine",
                       opt_binlog_storage_engine);
