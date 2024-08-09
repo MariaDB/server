@@ -1530,8 +1530,8 @@ struct handlerton
   void *optimizer_costs;                        /* Costs are stored here */
 
   /* Optional implementation of binlog in the engine. */
+  bool (*binlog_write_direct)(IO_CACHE *cache, size_t main_size);
   handler_binlog_reader * (*get_binlog_reader)();
-  int (*binlog_data)(uchar *data, size_t len);
 
    /*
      Optional clauses in the CREATE/ALTER TABLE
