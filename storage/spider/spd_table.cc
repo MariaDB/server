@@ -6511,8 +6511,10 @@ bool spider_init_system_tables()
 
 
 /*
-  Spider is typically loaded before ddl_recovery, but DDL statements
-  cannot be executed before ddl_recovery, so we delay system table creation.
+  Spider may be loaded before ddl_recovery (e.g. with
+  --plugin-load-add), but DDL statements in spider init queries cannot
+  be executed before ddl_recovery, so we execute these queries only
+  after ddl recovery.
 */
 static int spider_after_ddl_recovery(handlerton *)
 {
