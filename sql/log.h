@@ -1116,6 +1116,7 @@ public:
   void set_status_variables(THD *thd);
   bool is_xidlist_idle();
   bool write_gtid_event(THD *thd, IO_CACHE *dest, bool standalone,
+                        bool direct_write,
                         bool is_transactional, uint64 commit_id,
                         bool has_xid= false, bool ro_1pc= false);
   int read_state_from_file();
