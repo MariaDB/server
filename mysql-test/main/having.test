@@ -1011,3 +1011,48 @@ DROP TABLE t;
 --echo #
 --echo # End of 10.4 tests
 --echo #
+
+--echo #
+--echo # MDEV-23983: Crash caused by query containing constant having clause
+--echo #
+
+CREATE TABLE t1 (id INT PRIMARY KEY, a INT, b TEXT, c INT);
+INSERT INTO t1 VALUES (3, 7, 'b', 1), (4, 7, 'b', 1);
+
+SELECT * FROM t1
+WHERE t1.id = 3
+GROUP BY t1.a
+HAVING t1.b = 'b' and t1.c = 1;
+
+let $q=
+SELECT * FROM t1
+WHERE t1.id = 3
+GROUP BY t1.a
+HAVING t1.b = 'b' and t1.c = 2;
+
+eval $q;
+eval explain $q;
+
+DROP TABLE t1;
+
+CREATE TABLE t1 (a INT, b INT) ENGINE=MyISAM;
+CREATE TABLE t2 (id INT, b TEXT, c INT) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (3, 'b', 1);
+
+SELECT t2.* FROM t2 LEFT JOIN t1 ON t2.id = t1.a
+GROUP BY t2.id
+HAVING t2.b = 'b' and t2.c = 1;
+
+let $q=
+SELECT t2.* FROM t2 LEFT JOIN t1 ON t2.id = t1.a
+GROUP BY t2.id
+HAVING t2.b = 'b' and t2.c = 2;
+
+eval $q;
+eval explain $q;
+
+DROP TABLE t1,t2;
+
+--echo #
+--echo # End of 10.5 tests
+--echo #

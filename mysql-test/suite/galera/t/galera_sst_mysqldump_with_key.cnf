@@ -3,6 +3,11 @@
 # We do not set mysqldump-related SST options here because doing so on startup
 # causes the first MTR connection to be forefully dropped by Galera, which in turn confuses MTR
 
+[mysqld]
+wsrep-debug=1
+wsrep-sync_wait=15
+loose-galera_sst_mysqldump_with_key=1
+
 [mysqld.1]
 wsrep_provider_options='base_port=@mysqld.1.#galera_port;gcache.size=1;pc.ignore_sb=true'
 

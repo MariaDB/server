@@ -249,7 +249,6 @@ get_one_option(const struct my_option *opt, const char *argument,
 #ifdef __WIN__
   case 'W':
     opt_protocol = MYSQL_PROTOCOL_PIPE;
-    opt_local_file=1;
     break;
 #endif
   case OPT_MYSQL_PROTOCOL:
