@@ -330,6 +330,14 @@ static void optimize_rownum(THD *thd, SELECT_LEX_UNIT *unit, Item *cond);
 static bool process_direct_rownum_comparison(THD *thd, SELECT_LEX_UNIT *unit,
                                              Item *cond);
 
+static
+bool find_indexes_matching_order(JOIN *join, TABLE *table, ORDER *order,
+                                 key_map *usable_keys);
+static
+void compute_part_of_sort_key_for_equals(JOIN *join, TABLE *table,
+                                         Item_field *item_field,
+                                         key_map *col_keys);
+
 #ifndef DBUG_OFF
 
 /*
@@ -24633,6 +24641,7 @@ find_field_in_item_list (Field *field, void *data)
   that belong to 'table' and are equal to 'item_field'.
 */
 
+static
 void compute_part_of_sort_key_for_equals(JOIN *join, TABLE *table,
                                          Item_field *item_field,
                                          key_map *col_keys)
@@ -24777,6 +24786,58 @@ static void prepare_for_reverse_ordered_access(JOIN_TAB *tab)
 }
 
 
+/*
+  @brief
+    Given a table and order, find indexes that produce rows in the order
+
+  @param  usable_keys OUT  Bitmap of indexes that produce rows in order.
+
+  @return
+     false  Some indexes were found
+     true   No indexes found
+*/
+
+static
+bool find_indexes_matching_order(JOIN *join, TABLE *table, ORDER *order,
+                                 key_map *usable_keys)
+{
+  /* Find indexes that cover all ORDER/GROUP BY fields */
+  for (ORDER *tmp_order=order; tmp_order ; tmp_order=tmp_order->next)
+  {
+    Item *item= (*tmp_order->item)->real_item();
+    if (item->type() != Item::FIELD_ITEM)
+    {
+      usable_keys->clear_all();
+      return true;  /* No suitable keys */
+    }
+
+    /*
+      Take multiple-equalities into account. Suppose we have
+        ORDER BY col1, col10
+      and there are
+         multiple-equal(col1, col2, col3),
+         multiple-equal(col10, col11).
+
+      Then,
+      - when item=col1, we find the set of indexes that cover one of {col1,
+        col2, col3}
+      - when item=col10, we find the set of indexes that cover one of {col10,
+        col11}
+
+      And we compute an intersection of these sets to find set of indexes that
+      cover all ORDER BY components.
+    */
+    key_map col_keys;
+    compute_part_of_sort_key_for_equals(join, table, (Item_field*)item,
+                                        &col_keys);
+    usable_keys->intersect(col_keys);
+    if (usable_keys->is_clear_all())
+      return true; // No usable keys
+  }
+  return false;
+
+}
+
 /**
   Test if we can skip the ORDER BY by using an index.
 
@@ -24838,41 +24899,17 @@ test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,ha_rows select_limit,
     been taken into account.
   */
   usable_keys= *map;
-  
-  /* Find indexes that cover all ORDER/GROUP BY fields */
-  for (ORDER *tmp_order=order; tmp_order ; tmp_order=tmp_order->next)
+
+  // Step #1: Find indexes that produce the required ordering.
+  if (find_indexes_matching_order(tab->join, table, order, &usable_keys))
   {
-    Item *item= (*tmp_order->item)->real_item();
-    if (item->type() != Item::FIELD_ITEM)
-    {
-      usable_keys.clear_all();
-      DBUG_RETURN(0);
-    }
-
-    /*
-      Take multiple-equalities into account. Suppose we have
-        ORDER BY col1, col10
-      and there are
-         multiple-equal(col1, col2, col3),
-         multiple-equal(col10, col11).
-
-      Then, 
-      - when item=col1, we find the set of indexes that cover one of {col1,
-        col2, col3}
-      - when item=col10, we find the set of indexes that cover one of {col10,
-        col11}
-
-      And we compute an intersection of these sets to find set of indexes that
-      cover all ORDER BY components.
-    */
-    key_map col_keys;
-    compute_part_of_sort_key_for_equals(tab->join, table, (Item_field*)item,
-                                        &col_keys);
-    usable_keys.intersect(col_keys);
-    if (usable_keys.is_clear_all())
-      goto use_filesort;                        // No usable keys
+    DBUG_RETURN(false); // Cannot skip sorting
   }
 
+  /*
+    Step #2: Analyze the current access method. Note the used index as ref_key
+    and #used keyparts in ref_key_parts.
+  */
   ref_key= -1;
   /* Test if constant range in WHERE */
   if (tab->ref.key >= 0 && tab->ref.key_parts)
@@ -24916,6 +24953,12 @@ test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,ha_rows select_limit,
     }
   }
 
+  /*
+    Step #3: Check if index ref_key that we're using produces the required
+    ordering or if there is another index new_ref_key such that
+    - ref_key is a prefix of new_ref_key  (so, access method can be reused)
+    - new_ref_key produces the required ordering
+  */
   if (ref_key >= 0 && ref_key != MAX_KEY)
   {
     /* Current access method uses index ref_key with ref_key_parts parts */
@@ -25035,6 +25078,11 @@ test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,ha_rows select_limit,
 					       &used_key_parts)))
       goto check_reverse_order;
   }
+
+  /*
+    Step #4: Go through all indexes that produce required ordering (in
+    usable_keys) and check if any of them is cheaper than ref_key
+  */
   {
     uint UNINIT_VAR(best_key_parts);
     uint saved_best_key_parts= 0;
