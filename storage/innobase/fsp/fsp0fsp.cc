@@ -6666,3 +6666,16 @@ innodb_get_binlog_reader()
 {
   return new ha_innodb_binlog_reader();
 }
+
+
+bool
+innobase_binlog_write_direct(IO_CACHE *cache, size_t main_size)
+{
+  mtr_t mtr;
+  mtr.start();
+  fsp_binlog_write_cache(cache, main_size, &mtr);
+  mtr.commit();
+  /* ToDo: Should we sync the log here? Maybe depending on an extra bool parameter? */
+  /* ToDo: Presumably fsp_binlog_write_cache() should be able to fail in some cases? Then return any such error to the caller. */
+  return false;
+}
