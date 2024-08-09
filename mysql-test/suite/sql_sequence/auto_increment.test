@@ -51,5 +51,5 @@ set global auto_increment_increment= default, auto_increment_offset= default;
 --enable_ps2_protocol
 
 --echo #
---echo # End of 11.4 tests
+--echo # End of 11.5 tests
 --echo #

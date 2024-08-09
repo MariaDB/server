@@ -767,5 +767,5 @@ select * from information_schema.sequences order by sequence_name;
 drop sequence s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12, s13;
 
 --echo #
---echo # End of 11.4 tests
+--echo # End of 11.5 tests
 --echo #

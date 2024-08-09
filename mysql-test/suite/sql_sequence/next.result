@@ -848,5 +848,5 @@ next value for t1
 18446744073709551614
 drop sequence t1;
 #
-# End of 11.4 tests
+# End of 11.5 tests
 #

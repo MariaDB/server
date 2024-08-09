@@ -253,4 +253,4 @@ select nextval(s);
 drop sequence s;
 --enable_ps2_protocol
 
---echo # End of 11.4 tests
+--echo # End of 11.5 tests

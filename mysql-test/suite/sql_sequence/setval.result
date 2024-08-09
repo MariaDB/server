@@ -418,4 +418,4 @@ setval(s, 32767)
 select nextval(s);
 ERROR HY000: Sequence 'test.s' has run out
 drop sequence s;
-# End of 11.4 tests
+# End of 11.5 tests

@@ -47,5 +47,5 @@ create sequence s as bigint start with -9223372036854775805 minvalue -9223372036
 drop sequence s;
 set global auto_increment_increment= default, auto_increment_offset= default;
 #
-# End of 11.4 tests
+# End of 11.5 tests
 #

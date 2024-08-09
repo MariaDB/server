@@ -1342,5 +1342,5 @@ def	test	s8	bigint	64	2	0	1	1	9223372036854775806	1	0
 def	test	s9	tinyint unsigned	8	2	0	1	1	254	1	0
 drop sequence s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12, s13;
 #
-# End of 11.4 tests
+# End of 11.5 tests
 #
