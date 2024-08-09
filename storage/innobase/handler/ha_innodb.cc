@@ -4105,6 +4105,7 @@ static int innodb_init(void* p)
 		= innodb_prepare_commit_versioned;
 
         innobase_hton->update_optimizer_costs= innobase_update_optimizer_costs;
+        innobase_hton->binlog_write_direct= innobase_binlog_write_direct;
         innobase_hton->get_binlog_reader= innodb_get_binlog_reader;
 
 	innodb_remember_check_sysvar_funcs();
