@@ -13616,7 +13616,7 @@ static bool secure_auth(THD *thd)
   else
   {
     my_error(ER_NOT_SUPPORTED_AUTH_MODE, MYF(0));
-    general_log_print(thd, COM_CONNECT,
+    general_log_print(thd, COM_CONNECT, "%s",
                       ER_THD(thd, ER_NOT_SUPPORTED_AUTH_MODE));
   }
   return 1;
@@ -13689,7 +13689,7 @@ static bool send_plugin_request_packet(MPVIO_EXT *mpvio,
   if (switch_from_short_to_long_scramble)
   {
     my_error(ER_NOT_SUPPORTED_AUTH_MODE, MYF(0));
-    general_log_print(mpvio->auth_info.thd, COM_CONNECT,
+    general_log_print(mpvio->auth_info.thd, COM_CONNECT, "%s",
                       ER_THD(mpvio->auth_info.thd, ER_NOT_SUPPORTED_AUTH_MODE));
     DBUG_RETURN (1);
   }
@@ -13779,7 +13779,7 @@ static bool find_mpvio_user(MPVIO_EXT *mpvio)
       !ignore_max_password_errors(mpvio->acl_user))
   {
     my_error(ER_USER_IS_BLOCKED, MYF(0));
-    general_log_print(mpvio->auth_info.thd, COM_CONNECT,
+    general_log_print(mpvio->auth_info.thd, COM_CONNECT, "%s",
       ER_THD(mpvio->auth_info.thd, ER_USER_IS_BLOCKED));
     DBUG_RETURN(1);
   }
@@ -13794,7 +13794,7 @@ static bool find_mpvio_user(MPVIO_EXT *mpvio)
     DBUG_ASSERT(!Lex_ident_plugin(mpvio->acl_user->auth->plugin).
                   streq(old_password_plugin_name));
     my_error(ER_NOT_SUPPORTED_AUTH_MODE, MYF(0));
-    general_log_print(mpvio->auth_info.thd, COM_CONNECT,
+    general_log_print(mpvio->auth_info.thd, COM_CONNECT, "%s",
                       ER_THD(mpvio->auth_info.thd, ER_NOT_SUPPORTED_AUTH_MODE));
     DBUG_RETURN (1);
   }

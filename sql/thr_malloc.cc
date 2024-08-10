@@ -54,7 +54,7 @@ extern "C" {
     /* Skip writing to the error log to avoid mtr complaints */
     DBUG_EXECUTE_IF("simulate_out_of_memory", return;);
 
-    sql_print_error(ER_DEFAULT(ER_OUT_OF_RESOURCES));
+    sql_print_error("%s", ER_DEFAULT(ER_OUT_OF_RESOURCES));
   }
 }
 
@@ -95,4 +95,3 @@ char *sql_strmake_with_convert(THD *thd, const char *str, size_t arg_length,
   *result_length= new_length;
   return pos;
 }
-

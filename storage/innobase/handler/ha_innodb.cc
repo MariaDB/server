@@ -3981,7 +3981,7 @@ static int innodb_init_params()
 			"InnoDB: innodb_open_files=%lu is not greater "
 			"than the number of system tablespace files, "
 			"temporary tablespace files, "
-			"innodb_undo_tablespaces=%lu; adjusting "
+			"innodb_undo_tablespaces=%u; adjusting "
 			"to innodb_open_files=%zu",
 			innobase_open_files, srv_undo_tablespaces,
 			min_open_files_limit);

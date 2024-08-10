@@ -1068,7 +1068,7 @@ const int MYROCKS_MARIADB_PLUGIN_MATURITY_LEVEL= MariaDB_PLUGIN_MATURITY_STABLE;
 
 extern uint32_t rocksdb_ignore_datadic_errors;
 
-void sql_print_verbose_info(const char *format, ...);
+void sql_print_verbose_info(const char *format, ...)
+  ATTRIBUTE_FORMAT(printf, 1, 2);
 
 }  // namespace myrocks
-
