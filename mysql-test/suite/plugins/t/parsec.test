@@ -1,13 +1,14 @@
 source include/platform.inc;
 source include/not_embedded.inc;
 
-if (!$AUTH_PARSEC_SO) {
-  skip No auth_parsec plugin;
+if (`select count(*) = 0 from information_schema.plugins where plugin_name = 'parsec'`)
+{
+  --skip Needs parsec plugin
 }
+
 if (!$PARSEC_SO) {
   skip No auth_parsec plugin;
 }
-install soname 'auth_parsec';
 --error ER_CANNOT_USER
 create user test1@'%' identified via parsec using 'pwd';
 create user test1@'%' identified via parsec using PASSWORD('pwd');
@@ -42,4 +43,3 @@ if ($MTR_COMBINATION_WIN) {
 
 drop function have_ssl;
 drop user test1@'%';
-uninstall soname 'auth_parsec';

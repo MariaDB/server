@@ -1,25 +1,15 @@
 install soname 'CLIENT_PLUGIN';
 Got one of the listed errors
-include/master-slave.inc
-[connection master]
-connection slave;
-install soname 'auth_PLUGIN';
-connection master;
-install soname 'auth_plugin';
 create user rpluser@'%' identified via PLUGIN using PASSWORD('rpl_pass');
 grant replication slave on *.* to rpluser@'%';
-connection master;
+include/master-slave.inc
+[connection master]
 connection slave;
 include/stop_slave.inc
 change master to master_user='rpluser', master_password='rpl_pass';
 include/start_slave.inc
-# Cleanup
 include/stop_slave.inc
 change master to master_user='root', master_password='';
 include/start_slave.inc
-include/stop_slave.inc
+include/rpl_end.inc
 drop user rpluser@'%';
-uninstall soname 'auth_plugin';
-connection master;
-drop user rpluser@'%';
-uninstall soname 'auth_plugin';

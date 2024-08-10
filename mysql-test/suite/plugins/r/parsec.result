@@ -1,4 +1,3 @@
-install soname 'auth_parsec';
 create user test1@'%' identified via parsec using 'pwd';
 ERROR HY000: Operation CREATE USER failed for 'test1'@'%'
 create user test1@'%' identified via parsec using PASSWORD('pwd');
@@ -29,4 +28,3 @@ test.have_ssl()
 yes
 drop function have_ssl;
 drop user test1@'%';
-uninstall soname 'auth_parsec';
