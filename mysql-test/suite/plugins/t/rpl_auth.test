@@ -1,3 +1,6 @@
+# MSAN doesn't like gnutls_rnd
+source include/not_msan.inc;
+
 if ($MTR_COMBINATION_ED25519) {
   if (!$AUTH_ED25519_SO) {
     skip No auth_ed25519 plugin;
