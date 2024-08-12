@@ -2082,6 +2082,26 @@ bool log_drop_table(THD *thd, const LEX_CSTRING *db_name,
 }
 
 
+static int get_hlindex_keys(THD *thd, const LEX_CSTRING *db,
+                            const LEX_CSTRING *table_name, const char *path,
+                            uint *keys, uint *total_keys)
+{
+  TABLE_SHARE share;
+  int error;
+  DBUG_ENTER("get_hlindex_keys");
+
+  init_tmp_table_share(thd, &share, db->str, 0, table_name->str, path, 1);
+  error= open_table_def(thd, &share, GTS_TABLE | GTS_USE_DISCOVERY);
+  if (!error)
+  {
+    *keys= share.keys;
+    *total_keys= share.total_keys;
+  }
+  free_table_share(&share);
+  DBUG_RETURN(error);
+}
+
+
 /**
   Quickly remove a table, without any logging
 
@@ -2116,7 +2136,25 @@ bool quick_rm_table(THD *thd, handlerton *base, const LEX_CSTRING *db,
     delete file;
   }
   if (!(flags & (FRM_ONLY|NO_HA_TABLE)))
+  {
+    uint keys, total_keys;
+    int hlindex_error= get_hlindex_keys(thd, db, table_name, path, &keys,
+                                        &total_keys);
     error|= ha_delete_table(thd, base, path, db, table_name, 0) > 0;
+    if (!hlindex_error)
+    {
+      char idx_path[FN_REFLEN + 1];
+      char *idx_path_end= strmov(idx_path, path);
+      for (uint i= keys; i < total_keys; i++)
+      {
+        my_snprintf(idx_path_end, HLINDEX_BUF_LEN, HLINDEX_TEMPLATE, i);
+        if (ha_delete_table(thd, base, idx_path, db, table_name, 0))
+          error= 1;
+      }
+    }
+    else
+      error= 1;
+  }
 
   if (!(flags & NO_FRM_RENAME))
   {
@@ -5373,18 +5411,17 @@ mysql_rename_table(handlerton *base, const LEX_CSTRING *old_db,
       char idx_from[FN_REFLEN + 1], idx_to[FN_REFLEN + 1];
       char *idx_from_end= strmov(idx_from, from_base);
       char *idx_to_end= strmov(idx_to, to_base);
-      TABLE_SHARE share;
+      uint keys, total_keys;
 
-      init_tmp_table_share(thd, &share, new_db->str, 0, new_name->str, to, 1);
-      if (!open_table_def(thd, &share, GTS_TABLE | GTS_USE_DISCOVERY))
+      if (!get_hlindex_keys(thd, new_db, new_name, to, &keys, &total_keys))
       {
-        for (uint i= share.keys; i < share.total_keys; i++)
+        for (uint i= keys; i < total_keys; i++)
         {
           my_snprintf(idx_from_end, HLINDEX_BUF_LEN, HLINDEX_TEMPLATE, i);
           my_snprintf(idx_to_end, HLINDEX_BUF_LEN, HLINDEX_TEMPLATE, i);
           if ((error= file->ha_rename_table(idx_from, idx_to)))
           {
-            for (; i >= share.keys; i--)
+            for (; i >= keys; i--)
             {
               my_snprintf(idx_from_end, HLINDEX_BUF_LEN, HLINDEX_TEMPLATE, i);
               my_snprintf(idx_to_end, HLINDEX_BUF_LEN, HLINDEX_TEMPLATE, i);
@@ -5402,7 +5439,6 @@ mysql_rename_table(handlerton *base, const LEX_CSTRING *old_db,
         rename_file_ext(to, from, reg_ext);
         error= 1;
       }
-      free_table_share(&share);
     }
   }
   if (!error && log_query && !(flags & (FN_TO_IS_TMP | FN_FROM_IS_TMP)))
@@ -12186,7 +12222,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
 
   from->file->info(HA_STATUS_VARIABLE);
   to->file->extra(HA_EXTRA_PREPARE_FOR_ALTER_TABLE);
-  if (!to->s->long_unique_table)
+  if (!to->s->long_unique_table && to->s->keys == to->s->total_keys)
   {
     to->file->ha_start_bulk_insert(from->file->stats.records,
                                    ignore ? 0 : HA_CREATE_UNIQUE_INDEX_BY_SORT);
@@ -12313,7 +12349,8 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
 
   thd->progress.max_counter= from->file->records();
   time_to_report_progress= MY_HOW_OFTEN_TO_WRITE/10;
-  if (!ignore) /* for now, InnoDB needs the undo log for ALTER IGNORE */
+  /* for now, InnoDB needs the undo log for ALTER IGNORE */
+  if (!ignore && to->s->keys == to->s->total_keys)
     to->file->extra(HA_EXTRA_BEGIN_ALTER_COPY);
 
   if (!(error= info.read_record()))
@@ -12490,7 +12527,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   }
 
   bulk_insert_started= 0;
-  if (!ignore && error <= 0)
+  if (!ignore && to->s->keys == to->s->total_keys && error <= 0)
   {
     int alt_error= to->file->extra(HA_EXTRA_END_ALTER_COPY);
     if (alt_error > 0)
