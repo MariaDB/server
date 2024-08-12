@@ -586,16 +586,12 @@ start:
         /* Integer parameter */
         longlong larg= args_arr[print_arr[i].arg_idx].longlong_arg;
         my_bool suffix_e= arg_type == 'M';
-        if (arg_type == 'u')
-          switch (*print_arr[idx].begin) // look at the start of the next chunk
-          {
-          case 'E':
-            suffix_e= TRUE;
-            // fall-through
-          case 'U': // escape
-            ++print_arr[idx].begin; // roll forward to consume the char
-            break;
-          }
+        // look at the start of the next chunk
+        if (arg_type == 'i' && *print_arr[i].begin == 'E')
+        {
+          suffix_e= TRUE;
+          ++print_arr[i].begin; // roll forward to consume the char
+        }
         if (suffix_e)
         {
           const char *real_end;
@@ -807,16 +803,11 @@ size_t my_vsnprintf_ex(CHARSET_INFO *cs, char *to, size_t n,
         larg= va_arg(ap, int);
       else
         larg= va_arg(ap, uint);
-      if (arg_type == 'u')
-        switch (fmt[1]) // look-ahead
-        {
-        case 'E':
-          suffix_e= TRUE;
-          // fall-through
-        case 'U': // escape
-          ++fmt;
-          break;
-        }
+      if (arg_type == 'i' && fmt[1] == 'E') // look-ahead
+      {
+        suffix_e= TRUE;
+        ++fmt;
+      }
       if (suffix_e)
       {
         const char *real_end= MY_MIN(to + width, end);
