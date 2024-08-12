@@ -197,3 +197,79 @@ flush session status;
 select id,vec_distance_euclidean(v, x'B047263c9f87233fcfd27e3eae493e3f0329f43e') d from t1 order by d limit 3;
 show status like 'handler_read_rnd_next';
 drop table t1;
+
+
+--echo # Test ALTER TABLE, CREATE/DROP INDEX
+create table t1 (id int auto_increment primary key, v blob not null, vector index (v));
+insert t1 (v) values (x'e360d63ebe554f3fcdbc523f4522193f5236083d'),
+                     (x'f511303f72224a3fdd05fe3eb22a133ffae86a3f'),
+                     (x'f09baa3ea172763f123def3e0c7fe53e288bf33e'),
+                     (x'b97a523f2a193e3eb4f62e3f2d23583e9dd60d3f'),
+                     (x'f7c5df3e984b2b3e65e59d3d7376db3eac63773e'),
+                     (x'de01453ffa486d3f10aa4d3fdd66813c71cb163f'),
+                     (x'76edfc3e4b57243f10f8423fb158713f020bda3e'),
+                     (x'56926c3fdf098d3e2c8c5e3d1ad4953daa9d0b3e'),
+                     (x'7b713f3e5258323f80d1113d673b2b3f66e3583f'),
+                     (x'6ca1d43e9df91b3fe580da3e1c247d3f147cf33e');
+
+--echo # ADD/DROP COLUMN, ALGORITHM=COPY
+alter table t1 add column a int, algorithm=copy;
+list_files $datadir/test;
+show create table t1;
+alter table t1 drop column a, algorithm=copy;
+list_files $datadir/test;
+show create table t1;
+
+--echo # ADD/DROP INDEX, ALGORITHM=COPY (non-vector)
+alter table t1 add index a(id), algorithm=copy;
+list_files $datadir/test;
+show create table t1;
+alter table t1 drop index a, algorithm=copy;
+list_files $datadir/test;
+show create table t1;
+
+--echo # CREATE/DROP INDEX, ALGORITHM=COPY (non-vector)
+create index a on t1(id) algorithm=copy;
+list_files $datadir/test;
+show create table t1;
+if ($MTR_COMBINATION_MYISAM) {
+drop index a on t1;
+}
+if ($MTR_COMBINATION_INNODB) {
+alter table t1 drop index a, algorithm=copy;
+}
+list_files $datadir/test;
+show create table t1;
+
+--echo # ADD/DROP COLUMN IF [NOT] EXISTS, ALGORITHM=COPY (non-vector)
+alter table t1 add column if not exists a int, algorithm=copy;
+list_files $datadir/test;
+show create table t1;
+alter table t1 drop column if exists a, algorithm=copy;
+list_files $datadir/test;
+show create table t1;
+
+--echo # ADD/DROP INDEX, ALGORITHM=COPY (vector)
+alter table t1 drop index v, algorithm=copy;
+list_files $datadir/test;
+show create table t1;
+
+alter table t1 add vector index v(v), algorithm=copy;
+list_files $datadir/test;
+show create table t1;
+
+--echo # CREATE/DROP INDEX, ALGORITHM=COPY (vector)
+if ($MTR_COMBINATION_MYISAM) {
+# To be fixed to: drop index v on t1;
+alter table t1 drop index v, algorithm=copy;
+}
+if ($MTR_COMBINATION_INNODB) {
+alter table t1 drop index v, algorithm=copy;
+}
+list_files $datadir/test;
+show create table t1;
+create vector index v on t1(v) algorithm=copy;
+list_files $datadir/test;
+show create table t1;
+
+drop table t1;

@@ -456,3 +456,178 @@ show status like 'handler_read_rnd_next';
 Variable_name	Value
 Handler_read_rnd_next	11
 drop table t1;
+# Test ALTER TABLE, CREATE/DROP INDEX
+create table t1 (id int auto_increment primary key, v blob not null, vector index (v));
+insert t1 (v) values (x'e360d63ebe554f3fcdbc523f4522193f5236083d'),
+(x'f511303f72224a3fdd05fe3eb22a133ffae86a3f'),
+(x'f09baa3ea172763f123def3e0c7fe53e288bf33e'),
+(x'b97a523f2a193e3eb4f62e3f2d23583e9dd60d3f'),
+(x'f7c5df3e984b2b3e65e59d3d7376db3eac63773e'),
+(x'de01453ffa486d3f10aa4d3fdd66813c71cb163f'),
+(x'76edfc3e4b57243f10f8423fb158713f020bda3e'),
+(x'56926c3fdf098d3e2c8c5e3d1ad4953daa9d0b3e'),
+(x'7b713f3e5258323f80d1113d673b2b3f66e3583f'),
+(x'6ca1d43e9df91b3fe580da3e1c247d3f147cf33e');
+# ADD/DROP COLUMN, ALGORITHM=COPY
+alter table t1 add column a int, algorithm=copy;
+db.opt
+t1#i#01.ibd
+t1.frm
+t1.ibd
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `v` blob NOT NULL,
+  `a` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  VECTOR KEY `v` (`v`)
+) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+alter table t1 drop column a, algorithm=copy;
+db.opt
+t1#i#01.ibd
+t1.frm
+t1.ibd
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `v` blob NOT NULL,
+  PRIMARY KEY (`id`),
+  VECTOR KEY `v` (`v`)
+) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+# ADD/DROP INDEX, ALGORITHM=COPY (non-vector)
+alter table t1 add index a(id), algorithm=copy;
+db.opt
+t1#i#02.ibd
+t1.frm
+t1.ibd
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `v` blob NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `a` (`id`),
+  VECTOR KEY `v` (`v`)
+) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+alter table t1 drop index a, algorithm=copy;
+db.opt
+t1#i#01.ibd
+t1.frm
+t1.ibd
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `v` blob NOT NULL,
+  PRIMARY KEY (`id`),
+  VECTOR KEY `v` (`v`)
+) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+# CREATE/DROP INDEX, ALGORITHM=COPY (non-vector)
+create index a on t1(id) algorithm=copy;
+db.opt
+t1#i#02.ibd
+t1.frm
+t1.ibd
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `v` blob NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `a` (`id`),
+  VECTOR KEY `v` (`v`)
+) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+alter table t1 drop index a, algorithm=copy;
+db.opt
+t1#i#01.ibd
+t1.frm
+t1.ibd
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `v` blob NOT NULL,
+  PRIMARY KEY (`id`),
+  VECTOR KEY `v` (`v`)
+) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+# ADD/DROP COLUMN IF [NOT] EXISTS, ALGORITHM=COPY (non-vector)
+alter table t1 add column if not exists a int, algorithm=copy;
+db.opt
+t1#i#01.ibd
+t1.frm
+t1.ibd
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `v` blob NOT NULL,
+  `a` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  VECTOR KEY `v` (`v`)
+) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+alter table t1 drop column if exists a, algorithm=copy;
+db.opt
+t1#i#01.ibd
+t1.frm
+t1.ibd
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `v` blob NOT NULL,
+  PRIMARY KEY (`id`),
+  VECTOR KEY `v` (`v`)
+) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+# ADD/DROP INDEX, ALGORITHM=COPY (vector)
+alter table t1 drop index v, algorithm=copy;
+db.opt
+t1.frm
+t1.ibd
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `v` blob NOT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+alter table t1 add vector index v(v), algorithm=copy;
+db.opt
+t1#i#01.ibd
+t1.frm
+t1.ibd
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `v` blob NOT NULL,
+  PRIMARY KEY (`id`),
+  VECTOR KEY `v` (`v`)
+) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+# CREATE/DROP INDEX, ALGORITHM=COPY (vector)
+alter table t1 drop index v, algorithm=copy;
+db.opt
+t1.frm
+t1.ibd
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `v` blob NOT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+create vector index v on t1(v) algorithm=copy;
+db.opt
+t1#i#01.ibd
+t1.frm
+t1.ibd
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `v` blob NOT NULL,
+  PRIMARY KEY (`id`),
+  VECTOR KEY `v` (`v`)
+) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+drop table t1;
