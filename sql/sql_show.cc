@@ -47,6 +47,7 @@
 #include "sql_derived.h"
 #include "sql_statistics.h"
 #include "sql_connect.h"
+#include "sql_servers.h"
 #include "sql_repl.h"                       // rpl_load_gtid_state
 #include "rpl_mi.h"                         // master_info_index
 #include "authors.h"
@@ -1522,6 +1523,61 @@ bool mysqld_show_create_db(THD *thd, LEX_CSTRING *dbname,
   DBUG_RETURN(FALSE);
 }
 
+bool mysql_show_create_server(THD *thd, LEX_CSTRING *name)
+{
+  MEM_ROOT *mem_root= thd->mem_root;
+  FOREIGN_SERVER *server, server_buf;
+  Protocol *protocol=thd->protocol;
+  List<Item> field_list;
+  char buff[4096];
+  String buffer(buff, sizeof(buff), system_charset_info);
+  DBUG_ENTER("mysql_show_create_server");
+  if (!(server= get_server_by_name(mem_root, name->str, &server_buf)))
+  {
+    my_error(ER_FOREIGN_SERVER_DOESNT_EXIST, MYF(0), name->str);
+    DBUG_RETURN(TRUE);
+  }
+  field_list.push_back(new (mem_root)
+                        Item_empty_string(thd, "Server", NAME_CHAR_LEN),
+                        mem_root);
+  field_list.push_back(new (mem_root)
+                        Item_empty_string(thd, "Create Server", 1024),
+                        mem_root);
+
+  if (protocol->send_result_set_metadata(&field_list,
+                                         Protocol::SEND_NUM_ROWS |
+                                         Protocol::SEND_EOF))
+    DBUG_RETURN(TRUE);
+
+  protocol->prepare_for_resend();
+  protocol->store(name->str, name->length, system_charset_info);
+  buffer.length(0);
+  buffer.append(STRING_WITH_LEN("CREATE SERVER "));
+  append_identifier(thd, &buffer, name);
+  buffer.append(STRING_WITH_LEN(" FOREIGN DATA WRAPPER "));
+  buffer.append(server->scheme, strlen(server->scheme));
+  buffer.append(STRING_WITH_LEN(" OPTIONS ("));
+  engine_option_value* option= server->option_list;
+  bool first= true;
+  while (option)
+  {
+    if (!first)
+      buffer.append(STRING_WITH_LEN(", "));
+    buffer.append(option->name);
+    buffer.append(STRING_WITH_LEN(" "));
+    append_unescaped(&buffer, option->value.str, option->value.length);
+    first= false;
+    option= option->next;
+  }
+  buffer.append(STRING_WITH_LEN(");"));
+  protocol->store(buffer.ptr(), buffer.length(), buffer.charset());
+
+  if (protocol->write())
+    DBUG_RETURN(TRUE);
+
+  my_eof(thd);
+  DBUG_RETURN(FALSE);
+}
 
 
 /****************************************************************************
