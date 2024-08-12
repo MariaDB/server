@@ -11538,10 +11538,10 @@ ER_JSON_PATH_EMPTY
         spa "La expresión de ruta '$' no está permitida en argumento %d a función '%s'."
         sw "Usemi wa njia '$' hauruhusiwi katika hoja %d ya kitendakazi '%s'."
 ER_SLAVE_SAME_ID
-        chi "与此从站相同的server_uuId / server_id的从站已连接到主设备"
-        eng "A slave with the same server_uuid/server_id as this slave has connected to the master"
-        spa "Un esclavo con el mismo server_uuid/server_id que este esclavo se ha conectado al maestro (master)"
-        sw "Mtumwa aliye na seva_uuid/server_id sawa na mtumwa huyu ameunganishwa na bwana"
+        chi "与此从站相同的server_id的从站已连接到主设备"
+        eng "A slave with the same server_id as this slave has connected to the master"
+        spa "Un esclavo con el mismo server_id que este esclavo se ha conectado al maestro (master)"
+        sw "Mtumwa aliye na server_id sawa na mtumwa huyu ameunganishwa na bwana"
 ER_FLASHBACK_NOT_SUPPORTED
         chi "闪回不支持%s%s"
         eng "Flashback does not support %s %s"
