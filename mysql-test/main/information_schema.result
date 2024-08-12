@@ -914,6 +914,7 @@ sys	processlist	current_statement
 sys	processlist	last_statement
 sys	schema_auto_increment_columns	column_type
 sys	schema_table_lock_waits	waiting_query
+mysql	servers	Options
 sys	session	current_statement
 sys	session	last_statement
 sys	statement_analysis	query
@@ -2437,6 +2438,7 @@ using (CONSTRAINT_CATALOG, CONSTRAINT_SCHEMA, TABLE_NAME, CONSTRAINT_NAME)
 ;
 TABLE_SCHEMA	TABLE_NAME	CONSTRAINT_NAME	CHECK_CLAUSE
 mysql	global_priv	Priv	json_valid(`Priv`)
+mysql	servers	Options	json_valid(`Options`)
 test	t	a	`i` > 0
 select
 tc.TABLE_SCHEMA,
@@ -2449,6 +2451,7 @@ using (CONSTRAINT_CATALOG, CONSTRAINT_SCHEMA, TABLE_NAME, CONSTRAINT_NAME)
 ;
 TABLE_SCHEMA	TABLE_NAME	CONSTRAINT_NAME	CHECK_CLAUSE
 mysql	global_priv	Priv	json_valid(`Priv`)
+mysql	servers	Options	json_valid(`Options`)
 test	t	a	`i` > 0
 select
 tc.TABLE_SCHEMA,
@@ -2460,6 +2463,7 @@ NATURAL join information_schema.CHECK_CONSTRAINTS cc
 ;
 TABLE_SCHEMA	TABLE_NAME	CONSTRAINT_NAME	CHECK_CLAUSE
 mysql	global_priv	Priv	json_valid(`Priv`)
+mysql	servers	Options	json_valid(`Options`)
 test	t	a	`i` > 0
 select
 tc.TABLE_SCHEMA,
@@ -2471,6 +2475,7 @@ NATURAL join information_schema.TABLE_CONSTRAINTS tc
 ;
 TABLE_SCHEMA	TABLE_NAME	CONSTRAINT_NAME	CHECK_CLAUSE
 mysql	global_priv	Priv	json_valid(`Priv`)
+mysql	servers	Options	json_valid(`Options`)
 test	t	a	`i` > 0
 select
 tc.TABLE_SCHEMA,
@@ -2485,6 +2490,7 @@ using (CONSTRAINT_CATALOG, CONSTRAINT_SCHEMA, TABLE_NAME, CONSTRAINT_NAME)
 ;
 TABLE_SCHEMA	TABLE_NAME	CONSTRAINT_NAME	CHECK_CLAUSE	CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA
 mysql	global_priv	Priv	json_valid(`Priv`)	def	mysql
+mysql	servers	Options	json_valid(`Options`)	def	mysql
 test	t	a	`i` > 0	def	test
 drop table t;
 #
