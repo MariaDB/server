@@ -3277,8 +3277,7 @@ err:
       ER_ABORTING_CONNECTION.
     */
     info->errmsg=
-      "A slave with the same server_uuid/server_id is already "
-      "connected";
+      "A slave with the same server_id is already connected";
     info->error= ER_SLAVE_SAME_ID;
   }
 
