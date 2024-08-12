@@ -14334,6 +14334,12 @@ show_param:
             lex->sql_command = SQLCOM_SHOW_CREATE_PACKAGE_BODY;
             lex->spname= $4;
           }
+        | CREATE SERVER_SYM ident_or_text
+          {
+            LEX *lex= Lex;
+            lex->sql_command = SQLCOM_SHOW_CREATE_SERVER;
+            lex->name= $3;
+          }
         | CREATE TRIGGER_SYM sp_name
           {
             LEX *lex= Lex;

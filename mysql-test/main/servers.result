@@ -29,3 +29,38 @@ SELECT Socket FROM mysql.servers where Server_name = 's1';
 Socket
 /tmp/1234567890_1234567890_1234567890_1234567890_1234567890_1234567890.sock
 DROP SERVER s1;
+#
+# MDEV-34716 - Arbitrary OPTIONS for CREATE SERVER
+# MDEV-15696 - SHOW CREATE SERVER
+#
+create server srv foreign data wrapper mysql options
+(host "localhost", port 12345, wait_what "it's all good");
+show create server srv;
+Server	Create Server
+srv	CREATE SERVER `srv` FOREIGN DATA WRAPPER mysql OPTIONS (host 'localhost', port '12345', wait_what 'it''s all good');
+create or replace server srv foreign data wrapper Foo options
+(host "somewhere.else", port 54321, wait_what "it's all good", foo 'bar');
+show create server srv;
+Server	Create Server
+srv	CREATE SERVER `srv` FOREIGN DATA WRAPPER Foo OPTIONS (host 'somewhere.else', port '54321', wait_what 'it''s all good', foo 'bar');
+alter server srv options (socket "sock", port 123, foo "", bar ")\"{");
+show create server srv;
+Server	Create Server
+srv	CREATE SERVER `srv` FOREIGN DATA WRAPPER Foo OPTIONS (host 'somewhere.else', wait_what 'it''s all good', socket 'sock', port '123', foo '', bar ')"{');
+alter server srv options (socket "sock", port 123, bar "quux");
+show create server srv;
+Server	Create Server
+srv	CREATE SERVER `srv` FOREIGN DATA WRAPPER Foo OPTIONS (host 'somewhere.else', wait_what 'it''s all good', foo '', socket 'sock', port '123', bar 'quux');
+create or replace server srv foreign data wrapper foo options
+(host "localhost", port "12345");
+create or replace server srv foreign data wrapper mysql options
+(host "localhost", port "bar321");
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '"bar321")' at line 2
+create or replace server srv foreign data wrapper mysql options
+(host "localhost", port "123bar");
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '"123bar")' at line 2
+create or replace server srv foreign data wrapper mysql options
+(host "localhost", port "0");
+show create server nonexist;
+ERROR HY000: The foreign server name you are trying to reference does not exist. Data source error:  nonexist
+drop server srv;
