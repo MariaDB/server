@@ -5089,6 +5089,10 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_SHOW);
     res= show_create_db(thd, lex);
     break;
+  case SQLCOM_SHOW_CREATE_SERVER:
+    WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_SHOW);
+    res= mysql_show_create_server(thd, &lex->name);
+    break;
   case SQLCOM_CREATE_EVENT:
   case SQLCOM_ALTER_EVENT:
   #ifdef HAVE_EVENT_SCHEDULER
