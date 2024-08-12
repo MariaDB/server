@@ -3001,8 +3001,8 @@ err:
 
   if (info->thd->killed == KILL_SLAVE_SAME_ID)
   {
-    info->errmsg= "A slave with the same server_uuid/server_id as this slave "
-                  "has connected to the master";
+    info->errmsg= "A slave with the same server_id as this slave has "
+                  "connected to the master";
     info->error= ER_SLAVE_SAME_ID;
   }
 
