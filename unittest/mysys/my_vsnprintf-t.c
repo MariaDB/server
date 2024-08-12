@@ -113,9 +113,6 @@ int main(void)
 
   test1("MariaDB extension escape sS works",
         "MariaDB extension escape sS %sS", "works");
-  test1("MariaDB extension escape uU 2",
-        "MariaDB extension escape uU %uU", 2);
-
   test1("MariaDB extension sQ works: `abcd` `op``q`",
         "MariaDB extension sQ works: %sQ %.4sQ", "abcd", "op`qrst");
 
@@ -131,21 +128,24 @@ int main(void)
   }
 
   {
-    // Test that %uE works
+    // Test that %iE works
     const char *results[]=
     {
-      "MariaDB extension uE works: 1 \"Operation not permitted\"", // Linux
-      "MariaDB extension uE works: 1 \"Not owner\"",               // Solaris
+      "MariaDB extension iE works: 1 \"Operation not permitted\"", // Linux
+      "MariaDB extension iE works: 1 \"Not owner\"",               // Solaris
       NullS
     };
-    test_many(results, "MariaDB extension uE works: %uE", 1);
+    test_many(results, "MariaDB extension iE works: %iE", 1);
   }
-  test1("uE with 0 errno: 0 \"Internal error/check (Not system error)\"",
-        "uE with 0 errno: %uE", 0);
-  test1("uE with width: <0 \"Internal error...>",
-        "uE with width: <%.20uE>", 0);
-  test_w_len("uE with small buf: 0 \"..",
-         25, "uE with small buf: %uE", 0);
+  test1("iE with 0 errno: 0 \"Internal error/check (Not system error)\"",
+        "iE with 0 errno: %iE", 0);
+  test1("iE with width: <0 \"Internal error...>",
+        "iE with width: <%.20iE>", 0);
+  test_w_len("iE with small buf: 0 \"..",
+         25, "iE with small buf: %iE", 0);
+
+  test1("MariaDB extension dE DOESN'T work: 0E",
+        "MariaDB extension dE DOESN'T work: %dE", 0);
 
   test1("MariaDB extension sT works: <abcd> <op...>",
         "MariaDB extension sT %sT: <%.5sT> <%.5sT>", "works", "abcd", "opqrst");
