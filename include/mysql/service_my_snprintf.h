@@ -67,21 +67,22 @@
       <precision> bytes without terminating on any '\0's in the sequence.
       The default <precision> when it's unspecified is not defined.
 
-    Format 'uE'
-      treats the argument as an errno number. It prints this number, a space,
-      then its corresponding error message in double quotes. In other words:
-        printf("%uE", n) === printf("%d \"%sT\"", n, strerror(n))
-
     Format 'sT'
       replaces the end of the printed string with "..." if it was truncated.
 
-    Format 'sS' and 'uU'
-      are synonyms of 's' and 'u' respectively. They are escapes that avoid
+    Format 'sS'
+      is a synonym for 's'. It's an escape that avoid
       consuming the following plain char as one of the above extension suffixes.
-      Example: "Data size: %uUEiB"
+      Example: "Data Class: %sSType"
+
+    Format 'iE'
+      treats the argument as an errno number. It prints this number, a space,
+      then its corresponding error message in double quotes. In other words:
+        printf("%iE", n) === printf("%i \"%sT\"", n, strerror(n))
+      Format 'dE' has no effect. Therefore, to escape '%iE', use '%dE' instead.
 
     Unrecognized and multiple suffixes are not parsed;
-      for example, both "%sTQ" and "%uQ" will print a literal 'Q'.
+      for example, both "%sTQ" and "%iQ" will suffix with a literal 'Q'.
 */
 
 #ifdef __cplusplus
