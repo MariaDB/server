@@ -418,4 +418,15 @@ setval(s, 32767)
 select nextval(s);
 ERROR HY000: Sequence 'test.s' has run out
 drop sequence s;
+#
+# MDEV-33836 Assertion `(ulonglong) next_free_value % real_increment == (ulonglong) offset' failed in void sequence_definition::adjust_values(longlong)
+#
+CREATE SEQUENCE s AS BIGINT UNSIGNED START WITH 9223372036854775800 INCREMENT 0;
+set @old_AUTO_INCREMENT_INCREMENT=@@global.AUTO_INCREMENT_INCREMENT;
+set global AUTO_INCREMENT_INCREMENT=100;
+SELECT SETVAL (s,12345678901234567890);
+SETVAL (s,12345678901234567890)
+12345678901234567890
+drop sequence s;
+set global AUTO_INCREMENT_INCREMENT=@old_AUTO_INCREMENT_INCREMENT;
 # End of 11.5 tests
