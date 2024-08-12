@@ -628,8 +628,6 @@ static int handle_one_table(const table_load_params *params, MYSQL *mysql)
     }
     if (tz_utc && exec_sql(mysql, "SET TIME_ZONE='+00:00';"))
       DBUG_RETURN(1);
-    if (exec_sql(mysql, std::string("LOCK TABLE ") + full_tablename + "WRITE"))
-      DBUG_RETURN(1);
     if (exec_sql(mysql, std::string("ALTER TABLE ") + full_tablename + " DISABLE KEYS"))
       DBUG_RETURN(1);
   }
@@ -716,8 +714,6 @@ static int handle_one_table(const table_load_params *params, MYSQL *mysql)
       if (exec_sql(mysql, std::string("FLUSH TABLE ").append(full_tablename).c_str()))
         DBUG_RETURN(1);
     }
-    if (exec_sql(mysql, "UNLOCK TABLES"))
-      DBUG_RETURN(1);
   }
 
   if (tz_utc)
