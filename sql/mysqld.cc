@@ -1435,6 +1435,7 @@ C_MODE_START
   @param level          log message level
   @param format         log message format string
 */
+ATTRIBUTE_FORMAT(printf, 2, 3)
 static void buffered_option_error_reporter(enum loglevel level,
                                            const char *format, ...)
 {
@@ -1465,6 +1466,7 @@ static void buffered_option_error_reporter(enum loglevel level,
   to print general character set subsystem initialization errors,
   such as Index.xml syntax problems, bad XML tag hierarchy, etc.
 */
+ATTRIBUTE_FORMAT(printf, 2, 3)
 static void charset_error_reporter(enum loglevel level,
                                    const char *format, ...)
 {
@@ -8720,7 +8722,7 @@ mysql_getopt_value(const char *name, uint length,
   return option->value;
 }
 
-
+ATTRIBUTE_FORMAT(printf, 2, 3)
 static void option_error_reporter(enum loglevel level, const char *format, ...)
 {
   va_list args;
