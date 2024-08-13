@@ -477,7 +477,7 @@ static int add_collation(struct charset_info_st *cs)
   Report character set initialization errors and warnings.
   Be silent by default: no warnings on the client side.
 */
-static void
+ATTRIBUTE_FORMAT(printf, 2, 3) static void
 default_reporter(enum loglevel level  __attribute__ ((unused)),
                  const char *format  __attribute__ ((unused)),
                  ...)
