@@ -6325,16 +6325,11 @@ void handle_connections_sockets()
   uint error_count=0;
   struct sockaddr_storage cAddr;
   int retval;
-#ifdef HAVE_POLL
   // for ip_sock, unix_sock and extra_ip_sock
   Dynamic_array<struct pollfd> fds(PSI_INSTRUMENT_MEM);
-#else
-  fd_set readFDs,clientFDs;
-#endif
 
   DBUG_ENTER("handle_connections_sockets");
 
-#ifdef HAVE_POLL
   for (size_t i= 0; i < listen_sockets.size(); i++)
   {
     struct pollfd local_fds;
@@ -6344,15 +6339,6 @@ void handle_connections_sockets()
     fds.push(local_fds);
     set_non_blocking_if_supported(listen_sockets.at(i));
   }
-#else
-  FD_ZERO(&clientFDs);
-  for (size_t i= 0; i < listen_sockets.size(); i++)
-  {
-    int fd= mysql_socket_getfd(listen_sockets.at(i));
-    FD_SET(fd, &clientFDs);
-    set_non_blocking_if_supported(listen_sockets.at(i));
-  }
-#endif
 
   sd_notify(0, "READY=1\n"
             "STATUS=Taking your SQL requests now...\n");
@@ -6360,12 +6346,7 @@ void handle_connections_sockets()
   DBUG_PRINT("general",("Waiting for connections."));
   while (!abort_loop)
   {
-#ifdef HAVE_POLL
     retval= poll(fds.get_pos(0), fds.size(), -1);
-#else
-    readFDs=clientFDs;
-    retval= select(FD_SETSIZE, &readFDs, NULL, NULL, NULL);
-#endif
 
     if (retval < 0)
     {
@@ -6387,7 +6368,6 @@ void handle_connections_sockets()
       break;
 
     /* Is this a new connection request ? */
-#ifdef HAVE_POLL
     for (size_t i= 0; i < fds.size(); ++i)
     {
       if (fds.at(i).revents & POLLIN)
@@ -6396,16 +6376,6 @@ void handle_connections_sockets()
         break;
       }
     }
-#else  // HAVE_POLL
-    for (size_t i=0; i < listen_sockets.size(); i++)
-    {
-      if (FD_ISSET(mysql_socket_getfd(listen_sockets.at(i)), &readFDs))
-      {
-        sock= listen_sockets.at(i);
-        break;
-      }
-    }
-#endif // HAVE_POLL
 
     for (uint retry=0; retry < MAX_ACCEPT_RETRY && !abort_loop; retry++)
     {
