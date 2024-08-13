@@ -2606,8 +2606,11 @@ buf_page_get_gen(
 	would typically be around 60000 with the default
 	innodb_undo_tablespaces=3, and less than 110000 with the maximum
 	innodb_undo_tablespaces=127. */
+	ut_d(extern bool ibuf_upgrade_was_needed;)
 	ut_ad(mode == BUF_GET_RECOVER
 	      ? recv_recovery_is_on() || log_sys.get_lsn() < 120000
+	      || log_sys.get_lsn() == recv_sys.lsn + SIZE_OF_FILE_CHECKPOINT
+	      || ibuf_upgrade_was_needed
 	      : !recv_recovery_is_on() || recv_sys.after_apply);
 	ut_ad(!mtr || mtr->is_active());
 	ut_ad(mtr || mode == BUF_PEEK_IF_IN_POOL);
