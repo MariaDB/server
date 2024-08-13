@@ -5,7 +5,7 @@ Some tests are known to fail on some platforms or be otherwise unreliable.
 In the file collections/smoke_test there is a list of tests that are
 expected to be stable.
 
-In general you do not have to have to do "make install", and you can have
+In general you do not have to do "make install", and you can have
 a co-existing MariaDB installation, the tests will not conflict with it.
 To run the tests in a source directory, you must do "make" first.
 
