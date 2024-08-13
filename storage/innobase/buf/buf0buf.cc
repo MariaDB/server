@@ -830,6 +830,7 @@ public:
       my_close(m_fds[m_num_fds].fd, MYF(MY_WME));
       m_fds[m_num_fds].fd= -1;
     }
+    m_event_fd= -1;
   }
 
   static void pressure_routine(mem_pressure *m);
@@ -838,10 +839,8 @@ public:
   void trigger_collection()
   {
     uint64_t u= 1;
-    if (m_event_fd >=0 && write(m_event_fd, &u, sizeof(uint64_t)) != sizeof(uint64_t))
+    if (m_event_fd < 0 || write(m_event_fd, &u, sizeof(uint64_t)) != sizeof(uint64_t))
       sql_print_information("InnoDB: (Debug) Failed to trigger memory pressure");
-    else /* assumed failed to meet intialization criteria, so trigger directy */
-      buf_pool.garbage_collect();
   }
 #endif
 
@@ -900,7 +899,7 @@ void mem_pressure::pressure_routine(mem_pressure *m)
       else
         break;
     }
-    if (!m->m_abort)
+    if (m->m_abort)
       break;
 
     for (pollfd &p : st_::span<pollfd>(m->m_fds, m->m_num_fds))
