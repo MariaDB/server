@@ -874,7 +874,7 @@ static int chk_index(HA_CHECK *param, MI_INFO *info, MI_KEYDEF *keyinfo,
   if (keypos != endpos)
   {
     mi_check_print_error(param,"Keyblock size at page %s is not correct.  Block length: %d  key length: %d",
-                llstr(page,llbuff), used_length, (keypos - buff));
+                llstr(page,llbuff), used_length, (int) (keypos - buff));
     goto err;
   }
   my_afree((uchar*) temp_buff);
@@ -1167,7 +1167,7 @@ int chk_data_link(HA_CHECK *param, MI_INFO *info, my_bool extend)
 	  block_info.rec_len > (uint) info->s->max_pack_length)
       {
 	mi_check_print_error(param,
-			     "Found block with wrong recordlength: %d at %s",
+			     "Found block with wrong recordlength: %lu at %s",
 			     block_info.rec_len, llstr(start_recpos,llbuff));
 	got_error=1;
 	break;
@@ -3390,7 +3390,7 @@ static int sort_get_next_record(MI_SORT_PARAM *sort_param)
 	  {
 	    if (!searching)
 	      mi_check_print_info(param,
-				  "Deleted block with impossible length %u at %s",
+				  "Deleted block with impossible length %lu at %s",
 				  block_info.block_len,llstr(pos,llbuff));
 	    error=1;
 	  }
@@ -3430,8 +3430,8 @@ static int sort_get_next_record(MI_SORT_PARAM *sort_param)
 	  {
 	    if (!searching)
 	      mi_check_print_info(param,
-				  "Found block with impossible length %u at %s; Skipped",
-				  block_info.block_len+ (uint) (block_info.filepos-pos),
+				  "Found block with impossible length %lu at %s; Skipped",
+				  block_info.block_len+ (ulong) (block_info.filepos-pos),
 				  llstr(pos,llbuff));
 	    if (found_record)
 	      goto try_next;
@@ -3626,7 +3626,7 @@ static int sort_get_next_record(MI_SORT_PARAM *sort_param)
 	  block_info.rec_len > (uint) share->max_pack_length)
       {
 	if (! searching)
-	  mi_check_print_info(param,"Found block with wrong recordlength: %d at %s\n",
+	  mi_check_print_info(param,"Found block with wrong recordlength: %ld at %s\n",
 			      block_info.rec_len,
 			      llstr(sort_param->pos,llbuff));
 	continue;
@@ -4134,7 +4134,7 @@ static int sort_delete_record(MI_SORT_PARAM *sort_param)
   if (info->s->options & HA_OPTION_COMPRESS_RECORD)
   {
     mi_check_print_error(param,
-			 "Recover aborted; Can't run standard recovery on compressed tables with errors in data-file. Use switch 'myisamchk --safe-recover' to fix it\n",stderr);;
+			 "Recover aborted; Can't run standard recovery on compressed tables with errors in data-file. Use switch 'myisamchk --safe-recover' to fix it\n");
     DBUG_RETURN(1);
   }
 
