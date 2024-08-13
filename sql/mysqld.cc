@@ -2092,6 +2092,7 @@ static void clean_up(bool print_message)
 */
 static void wait_for_signal_thread_to_end()
 {
+#ifndef _WIN32
   uint i, n_waits= DBUG_IF("force_sighup_processing_timeout") ? 5 : 100;
   int err= 0;
   /*
@@ -2100,9 +2101,7 @@ static void wait_for_signal_thread_to_end()
   */
   for (i= 0 ; i < n_waits && signal_thread_in_use; i++)
   {
-    err= pthread_kill(signal_thread, MYSQL_KILL_SIGNAL);
-    if (err)
-      break;
+    kill(getpid(), MYSQL_KILL_SIGNAL);
     my_sleep(100000); // Give it time to die, .1s per iteration
   }
 
@@ -2119,6 +2118,7 @@ static void wait_for_signal_thread_to_end()
                       "Continuing to wait for it to stop..");
     pthread_join(signal_thread, NULL);
   }
+#endif
 }
 #endif /*EMBEDDED_LIBRARY*/
 
