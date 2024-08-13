@@ -1,5 +1,5 @@
 # Copyright (c) 2009, 2010, Oracle and/or its affiliates. All rights reserved.
-# 
+#
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation; version 2 of the License.
@@ -11,7 +11,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA 
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA
 
 #
 # Rules for checking that the abi/api has not changed.
@@ -24,7 +24,7 @@
 #    results in messages in stderr saying that these headers
 #    were not found. Redirect the stderr output to /dev/null
 #    to prevent seeing these messages.
-# 2) sed the output to 
+# 2) sed the output to
 #    2.1) remove blank lines and lines that begin with "# "
 #    2.2) When gcc -E is run on the Mac OS  and solaris sparc platforms it
 #         introduces a line of output that shows up as a difference between
@@ -46,7 +46,7 @@
 # leave a <build directory>/abi_check.out file.
 #
 # A developer with a justified API change will then do a
-# mv <build directory>/abi_check.out include/mysql/plugin.pp 
+# mv <build directory>/abi_check.out include/mysql/plugin.pp
 # to replace the old canons with the new ones.
 #
 
@@ -57,11 +57,11 @@ FOREACH(file ${ABI_HEADERS})
   SET(tmpfile ${BINARY_DIR}/${header_basename}.pp.tmp)
 
   EXECUTE_PROCESS(
-    COMMAND ${COMPILER} 
+    COMMAND ${COMPILER}
       -E -nostdinc -DMYSQL_ABI_CHECK -D__cplusplus
       -I${SOURCE_DIR}/include
       -I${BINARY_DIR}/include -I${SOURCE_DIR}/include/mysql -I${SOURCE_DIR}/sql
-      ${file} 
+      ${file}
       ERROR_QUIET OUTPUT_FILE ${tmpfile})
   EXECUTE_PROCESS(
     COMMAND sed -e "/^# /d"
@@ -81,7 +81,7 @@ FOREACH(file ${ABI_HEADERS})
     IF(ABI_UPDATE)
       EXECUTE_PROCESS(COMMAND mv -v ${abi_check_out} ${file}.pp)
     ELSE(ABI_UPDATE)
-      MESSAGE(WARNING
+      MESSAGE(FATAL_ERROR
         "ABI check found difference between ${abi_check_out} and ${file}.pp")
     ENDIF(ABI_UPDATE)
   ENDIF()
