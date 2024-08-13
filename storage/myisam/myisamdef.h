@@ -754,9 +754,12 @@ static inline check_result_t mi_check_index_tuple(MI_INFO *info, uint keynr,
 
     /* Functions needed by mi_check */
 int killed_ptr(HA_CHECK *param);
-void mi_check_print_error(HA_CHECK *param, const char *fmt, ...);
-void mi_check_print_warning(HA_CHECK *param, const char *fmt, ...);
-void mi_check_print_info(HA_CHECK *param, const char *fmt, ...);
+void mi_check_print_error(HA_CHECK *param, const char *fmt, ...)
+  ATTRIBUTE_FORMAT(printf, 2, 3);
+void mi_check_print_warning(HA_CHECK *param, const char *fmt, ...)
+  ATTRIBUTE_FORMAT(printf, 2, 3);
+void mi_check_print_info(HA_CHECK *param, const char *fmt, ...)
+  ATTRIBUTE_FORMAT(printf, 2, 3);
 pthread_handler_t thr_find_all_keys(void *arg);
 extern void mi_set_index_cond_func(MI_INFO *info, index_cond_func_t check_func,
                                    void *func_arg);
