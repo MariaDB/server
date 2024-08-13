@@ -1395,6 +1395,9 @@ Dynamic_array<MYSQL_SOCKET> listen_sockets(PSI_INSTRUMENT_MEM, 0);
 bool unix_sock_is_online= false;
 static int systemd_sock_activation; /* systemd socket activation */
 
+/** wakeup listening(main) thread by writing to this descriptor */
+static int termination_event_fd= -1;
+
 
 C_MODE_START
 #ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
@@ -1651,44 +1654,20 @@ static my_bool warn_threads_active_after_phase_2(THD *thd, void *)
 
 static void break_connect_loop()
 {
-#ifdef EXTRA_DEBUG
-  int count=0;
-#endif
-
   abort_loop= 1;
 
 #if defined(_WIN32)
   mysqld_win_initiate_shutdown();
 #else
-  /* Avoid waiting for ourselves when thread-handling=no-threads. */
-  if (pthread_equal(pthread_self(), select_thread))
-    return;
-  DBUG_PRINT("quit", ("waiting for select thread: %lu",
-                      (ulong)select_thread));
-
   mysql_mutex_lock(&LOCK_start_thread);
-  while (select_thread_in_use)
+  if (termination_event_fd >= 0)
   {
-    struct timespec abstime;
-    int UNINIT_VAR(error);
-    DBUG_PRINT("info",("Waiting for select thread"));
-
-#ifndef DONT_USE_THR_ALARM
-    if (pthread_kill(select_thread, thr_client_alarm))
-      break;					// allready dead
-#endif
-    set_timespec(abstime, 2);
-    for (uint tmp=0 ; tmp < 10 && select_thread_in_use; tmp++)
+    uint64_t u= 1;
+    if(write(termination_event_fd, &u, sizeof(uint64_t)) < 0)
     {
-      error= mysql_cond_timedwait(&COND_start_thread, &LOCK_start_thread,
-                                  &abstime);
-      if (error != EINTR)
-        break;
+      sql_print_error("Couldn't send event to terminate listen loop");
+      abort();
     }
-#ifdef EXTRA_DEBUG
-    if (error != 0 && error != ETIMEDOUT && !count++)
-      sql_print_error("Got error %d from mysql_cond_timedwait", error);
-#endif
   }
   mysql_mutex_unlock(&LOCK_start_thread);
 #endif /* _WIN32 */
@@ -6324,6 +6303,25 @@ void handle_connections_sockets()
     fds.push(local_fds);
     set_non_blocking_if_supported(listen_sockets.at(i));
   }
+  int termination_fds[2];
+  if (pipe(termination_fds))
+  {
+    sql_print_error("pipe() failed %d", errno);
+    DBUG_VOID_RETURN;
+  }
+#ifdef FD_CLOEXEC
+  for (int fd : termination_fds)
+    (void)fcntl(fd, F_SETFD, FD_CLOEXEC);
+#endif
+
+  mysql_mutex_lock(&LOCK_start_thread);
+  termination_event_fd= termination_fds[1];
+  mysql_mutex_unlock(&LOCK_start_thread);
+
+  struct pollfd event_fd;
+  event_fd.fd= termination_fds[0];
+  event_fd.events= POLLIN;
+  fds.push(event_fd);
 
   sd_notify(0, "READY=1\n"
             "STATUS=Taking your SQL requests now...\n");
@@ -6388,6 +6386,12 @@ void handle_connections_sockets()
       }
     }
   }
+  mysql_mutex_lock(&LOCK_start_thread);
+  for(int fd : termination_fds)
+    close(fd);
+  termination_event_fd= -1;
+  mysql_mutex_unlock(&LOCK_start_thread);
+
   sd_notify(0, "STOPPING=1\n"
             "STATUS=Shutdown in progress\n");
   DBUG_VOID_RETURN;
