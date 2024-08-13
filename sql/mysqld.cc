@@ -2960,23 +2960,14 @@ static void start_signal_handler(void)
   DBUG_VOID_RETURN;
 }
 
-/** Called only from signal_hand function. */
-static void* exit_signal_handler()
-{
-    my_thread_end();
-    signal_thread_in_use= 0;
-    pthread_exit(0);  // Safety
-    return nullptr;  // Avoid compiler warnings
-}
-
-
-/** This threads handles all signals and alarms. */
+/** This threads handles all signals */
 /* ARGSUSED */
-pthread_handler_t signal_hand(void *arg __attribute__((unused)))
+pthread_handler_t signal_hand(void *)
 {
   sigset_t set;
   int sig;
   my_thread_init();				// Init new thread
+  DBUG_ENTER("signal_hand");
   signal_thread_in_use= 1;
 
   /*
@@ -3025,16 +3016,17 @@ pthread_handler_t signal_hand(void *arg __attribute__((unused)))
     int error;
     int origin;
 
-    while ((error= my_sigwait(&set, &sig, &origin)) == EINTR) /* no-op */;
     if (abort_loop)
-    {
-      DBUG_PRINT("quit",("signal_handler: calling my_thread_end()"));
-      return exit_signal_handler();
-    }
+      break;
+
+    while ((error= my_sigwait(&set, &sig, &origin)) == EINTR) /* no-op */;
+
+    if (abort_loop)
+      break;
+
     switch (sig) {
     case SIGTERM:
     case SIGQUIT:
-    case SIGKILL:
 #ifdef EXTRA_DEBUG
       sql_print_information("Got signal %d to shutdown mysqld",sig);
 #endif
@@ -3042,22 +3034,15 @@ pthread_handler_t signal_hand(void *arg __attribute__((unused)))
       logger.set_handlers(global_system_variables.sql_log_slow ? LOG_FILE:LOG_NONE,
                           opt_log ? LOG_FILE:LOG_NONE);
       DBUG_PRINT("info",("Got signal: %d  abort_loop: %d",sig,abort_loop));
-      if (!abort_loop)
-      {
-        /* Delete the instrumentation for the signal thread */
-        PSI_CALL_delete_current_thread();
-        my_sigset(sig, SIG_IGN);
-        break_connect_loop(); // MIT THREAD has a alarm thread
-        return exit_signal_handler();
-      }
+
+      break_connect_loop();
+      DBUG_ASSERT(abort_loop);
       break;
     case SIGHUP:
 #if defined(SI_KERNEL)
-      if (!abort_loop && origin != SI_KERNEL)
+      if (origin != SI_KERNEL)
 #elif defined(SI_USER)
-      if (!abort_loop && origin <= SI_USER)
-#else
-      if (!abort_loop)
+      if (origin <= SI_USER)
 #endif
       {
         int not_used;
@@ -3077,11 +3062,6 @@ pthread_handler_t signal_hand(void *arg __attribute__((unused)))
                             opt_log ? fixed_log_output_options : LOG_NONE);
       }
       break;
-#ifdef USE_ONE_SIGNAL_HAND
-    case THR_SERVER_ALARM:
-      process_alarm(sig);			// Trigger alarms.
-      break;
-#endif
     default:
 #ifdef EXTRA_DEBUG
       sql_print_warning("Got signal: %d  error: %d",sig,error); /* purecov: tested */
@@ -3089,6 +3069,11 @@ pthread_handler_t signal_hand(void *arg __attribute__((unused)))
       break;					/* purecov: tested */
     }
   }
+  DBUG_PRINT("quit", ("signal_handler: calling my_thread_end()"));
+  my_thread_end();
+  DBUG_LEAVE; // Must match DBUG_ENTER()
+  signal_thread_in_use= 0;
+  pthread_exit(0); // Safety
   return(0);					/* purecov: deadcode */
 }
 
