@@ -425,7 +425,7 @@ static void _ma_check_print(HA_CHECK *param, const LEX_CSTRING *msg_type,
 
 
 // collect errors printed by maria_check routines
-
+ATTRIBUTE_FORMAT(printf, 3, 0)
 static void _ma_check_print_msg(HA_CHECK *param, const LEX_CSTRING *msg_type,
                                 const char *fmt, va_list args)
 {
