@@ -50,6 +50,7 @@ const LEX_CSTRING ivflfat_hlindex_table_def(THD *thd, uint ref_length)
   len= my_snprintf(s, len, templ, ref_length);
   return {s, len};
 }
+
 template<typename T>
 void printAsString(  T* value) {
     printf("%s\n", value);
@@ -72,6 +73,8 @@ void printAsDecimal(  T* value, size_t length) {
     }
     printf("\n");
 }
+
+int REINDEX(TABLE *table);
 
 double distance_func(char *vec1, char *vec2, size_t vec_len){
   return euclidean_vec_distance(reinterpret_cast<float *>(vec1),reinterpret_cast< float *>(vec2), vec_len/4);
@@ -168,7 +171,6 @@ int write_cluster(TABLE *graph,
   DBUG_ASSERT(cluster_nodes.getElements() <= INT16_MAX);
   auto head=cluster_nodes.getHead();
   while(head!=nullptr){
-    printAsHex(head->getRef(), ref_len);
     head=head->getNext();
   }
   size_t total_size_ref=sizeof(uint16_t) +
@@ -193,7 +195,7 @@ int write_cluster(TABLE *graph,
   // Allocate memory for the struct and the flexible array member
   char *neighbor_array_bytes_vec= static_cast<char *>(alloca(total_size_vec));
   // store the size of the data in the first 2 bytes
-  *(uint16_t *) neighbor_array_bytes_vec=cluster_nodes.getElements();
+  *(uint16_t *) neighbor_array_bytes_vec= vec_len;
   pos= neighbor_array_bytes_vec + sizeof(uint16_t);
   head=cluster_nodes.getHead();
   while(head!=nullptr){
@@ -230,6 +232,7 @@ int write_cluster(TABLE *graph,
   return false;
 }
 
+
 int find_nearst_class(TABLE*graph,  char* vec, size_t vec_len){
 
   graph->file->ha_index_first(graph->record[0]);
@@ -249,9 +252,17 @@ int find_nearst_class(TABLE*graph,  char* vec, size_t vec_len){
   return id;
 }
 
+static int bad_value_on_insert(Field *f)
+{
+  my_error(ER_TRUNCATED_WRONG_VALUE_FOR_FIELD, MYF(0), "vector", "...",
+           f->table->s->db.str, f->table->s->table_name.str, f->field_name.str,
+           f->table->in_use->get_stmt_da()->current_row_for_warning());
+  return HA_ERR_GENERIC;
+}
 int ivfflat_insert(TABLE *table, KEY *keyinfo)
 {
   printf("ivfflat_insert\n");
+  // THD *thd= table->in_use;
   TABLE *graph= table->hlindex;
   MY_BITMAP *old_map= dbug_tmp_use_all_columns(table, &table->read_set);
   Field *vec_field= keyinfo->key_part->field;
@@ -260,7 +271,7 @@ int ivfflat_insert(TABLE *table, KEY *keyinfo)
 
   /* metadata are checked on open */
   DBUG_ASSERT(graph);
-  DBUG_ASSERT(keyinfo->algorithm == HA_KEY_ALG_IVFFLAT);
+  DBUG_ASSERT(keyinfo->algorithm == HA_KEY_ALG_MHNSW);
   DBUG_ASSERT(keyinfo->usable_key_parts == 1);
   DBUG_ASSERT(vec_field->binary());
   DBUG_ASSERT(vec_field->cmp_type() == STRING_RESULT);
@@ -280,8 +291,12 @@ int ivfflat_insert(TABLE *table, KEY *keyinfo)
   // res is the actual vector
   // ref is id for the row
 
+
   int sz= res->length();
+  printf("the size of the vector is : %d\n",sz);
+  printAsHex(res->c_ptr(), sz);
   table->file->position(table->record[0]);
+  
   if (int err= h->ha_rnd_init(0))
     return err;
 
@@ -313,7 +328,9 @@ int ivfflat_insert(TABLE *table, KEY *keyinfo)
     graph->file->ha_index_end();
     return err;
   }
+  printf("find the nearset cendroid\n");
   int id=find_nearst_class(graph, res->c_ptr(), res->length());
+  printf("nearset cluster is :%d\n",id);
 
   graph->field[0]->store(id);
 
@@ -352,6 +369,7 @@ int ivfflat_insert(TABLE *table, KEY *keyinfo)
   err= write_cluster(graph, id, res->ptr(), res->length(),cluster_nodes ,h->ref_length);
   graph->file->ha_index_end();
   dbug_tmp_restore_column_map(&table->read_set, old_map);
+  REINDEX(table);
   return err;
 }
 
@@ -461,11 +479,12 @@ int cmp_points(void *param,const cluster_point *a,const cluster_point *b){
     return 1;
   return 0;
 }
-int ivfflat_first(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit){
+
+int ivfflat_first(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit)
+{
   printf("ivfvlat _first\n");
   THD *thd= table->in_use;
   TABLE *graph= table->hlindex;
-  Field *vec_field= keyinfo->key_part->field;
   Item_func_vec_distance *fun= (Item_func_vec_distance *)dist;
   String buf, *res= fun->get_const_arg()->val_str(&buf);
   handler *h= table->file;
@@ -578,8 +597,7 @@ int ivfflat_first(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit){
   }
   DBUG_ASSERT(context - sizeof(ulonglong) == graph->context);
 
-  return ivfflat_next(table);
-
+  return mhnsw_next(table);
 }
 
 int ivfflat_next(TABLE *table)
@@ -592,3 +610,367 @@ int ivfflat_next(TABLE *table)
   }
   return HA_ERR_END_OF_FILE;
 }
+
+/////////////////////////////////////////// REINDEX //////////////////////////////////////////// 
+class VectorNode{
+private:
+  uchar* gref;
+  uchar* vec;
+  size_t vec_len;
+  size_t ref_len;
+  int cluster_id;
+public:
+  VectorNode(uchar* gref,uchar* vec,size_t vec_len,size_t ref_len){
+    this->cluster_id=-1;
+    this->vec_len=vec_len;
+    this->ref_len=ref_len;
+    this->gref=new uchar[ref_len];
+    this->vec=new uchar[vec_len];
+    for(size_t i=0;i<ref_len;i++){
+      this->gref[i]=gref[i];
+    }
+    for(size_t i=0;i<vec_len;i++){
+      this->vec[i]=vec[i];
+    }
+  }
+  uchar* get_gref(){
+    return this->gref;
+  }
+  uchar* get_vec(){
+    return this->vec;
+  }
+  size_t get_vec_len(){
+    return this->vec_len;
+  }
+  size_t get_ref_len(){
+    return this->ref_len;
+  }
+  int get_cluster_id(){
+    return this->cluster_id;
+  }
+  void set_cluster_id(int cluster_id){
+    this->cluster_id=cluster_id;
+  }
+  ~VectorNode(){
+    delete[] gref;
+    delete[] vec;
+  }
+};
+
+
+template<typename T>
+class Linked_list{
+private:
+
+  class Node{
+  private:
+    Node *next;
+    Node *prev;
+    T data;
+  public:
+    Node(){
+      this->next=nullptr;
+      this->prev=nullptr;
+    }
+    Node(T data){
+      this->data=data;
+      this->next=nullptr;
+      this->prev=nullptr;
+    }
+    void setNext(Node *next){
+      this->next=next;
+    }
+    void setPrev(Node *prev){
+      this->prev=prev;
+    }
+    Node *getNext(){
+      return this->next;
+    }
+    Node *getPrev(){
+      return this->prev;
+    }
+    T getData(){
+      return this->data;
+    }
+  };
+  
+  Node *head;
+  Node *tail;
+  size_t elements;
+public:
+  Linked_list(){
+    this->head=nullptr;
+    this->tail=nullptr;
+    this->elements=0;
+  }
+  void push_back(T data){
+    if(this->head==nullptr){
+      this->head=new Node(data);
+      this->tail=this->head;
+    
+    }else{
+      Node *node=new Node(data);
+      this->tail->setNext(node);
+      node->setPrev(this->tail);
+      this->tail=node;
+    }
+    this->elements++;
+  }
+  size_t getElements(){
+    return this->elements;
+  }
+  Node* getHead(){
+    return this->head;
+  }
+  Node* getTail(){
+    return this->tail;
+  }
+  void convert_to_array(T *&nodes){
+    nodes=new T[this->elements];
+    Node *current=this->head;
+    size_t i=0;
+    while(current!=nullptr){
+      nodes[i]=current->getData();
+      current=current->getNext();
+      i++;
+    }
+  }
+  ~Linked_list(){
+    Node *current=this->head;
+    while(current!=nullptr){
+      Node *next=current->getNext();
+      delete current;
+      current=next;
+    }
+  }
+};
+class Cluster_Centroid{
+private:
+  uchar *centroid;
+  uchar *temp_centroid;
+  size_t centroid_size;
+  size_t num_points;
+  size_t temp_num_points;
+public:
+  Cluster_Centroid(){
+    this->centroid=nullptr;
+    this->temp_centroid=nullptr;
+    this->centroid_size=0;
+    this->num_points=0;
+    this->temp_num_points=0;
+  }
+  Cluster_Centroid(size_t centroid_size){
+    this->centroid=new uchar[centroid_size];
+    this->temp_centroid=new uchar[centroid_size];
+    this->centroid_size=centroid_size;
+    this->num_points=0;
+    this->temp_num_points=0;
+    for(size_t i=0;i<centroid_size;i++){
+      this->centroid[i]=0;
+      this->temp_centroid[i]=0;
+    }
+  }
+  Cluster_Centroid(uchar *centroid,size_t centroid_size){
+    this->centroid=new uchar[centroid_size];
+    this->temp_centroid=new uchar[centroid_size];
+    for(size_t i=0;i<centroid_size;i++){
+      this->centroid[i]=centroid[i];
+      this->temp_centroid[i]=0;
+    }
+    this->centroid_size=centroid_size;
+    this->num_points=1;
+    this->temp_num_points=0;
+  }
+  void add_point(uchar* point){
+    float* p1=reinterpret_cast<float*>(this->temp_centroid);
+    float* p2=reinterpret_cast<float*>(point);
+    for(size_t i=0;i<this->centroid_size/4;i++){
+      p1[i]+=p2[i];
+    }
+    this->temp_num_points++;
+  }
+  void set_centroid(uchar* centroid){
+    for(size_t i=0;i<this->centroid_size;i++){
+      this->centroid[i]=centroid[i];
+    }
+    this->num_points=1;
+  }
+  void set_centroid_size(size_t centroid_size,bool reset=false){
+    this->centroid_size=centroid_size;
+    if(!reset){
+      return;
+    }
+    // delete the old if not null
+    if(this->centroid!=nullptr){
+      delete[] centroid;
+    }
+    if(this->temp_centroid!=nullptr){
+      delete[] temp_centroid;
+    }
+    this->centroid=new uchar[centroid_size];
+    this->temp_centroid=new uchar[centroid_size];
+    for(size_t i=0;i<centroid_size;i++){
+      this->centroid[i]=0;
+    }
+    for(size_t i=0;i<centroid_size;i++){
+      this->temp_centroid[i]=0;
+    }
+  }
+  void calculate_centroid(){
+    float* p1=reinterpret_cast<float*>(this->temp_centroid);
+    float* p2=reinterpret_cast<float*>(this->centroid);
+    for(size_t i=0;i<this->centroid_size/4;i++){
+      p1[i]/=this->temp_num_points;
+      p2[i]=p1[i];
+      p1[i]=0;
+    }
+    this->num_points=this->temp_num_points;
+    this->temp_num_points=0;
+  }
+  size_t get_num_points(){
+    return this->num_points;
+  }
+  uchar *get_centroid(){
+    return this->centroid;
+  }
+  size_t get_centroid_size(){
+    return this->centroid_size;
+  }
+  ~Cluster_Centroid(){
+    delete[] centroid;
+    delete[] temp_centroid;
+  }
+};
+void init_centroids(Cluster_Centroid *centroids,VectorNode **nodes,size_t num_points,THD *thd){
+  int select[num_clusters];
+  for(size_t i=0;i<num_clusters;i++){
+    select[i]=-1;
+  }
+  int num=num_points;
+  int *select_to_cluster=new int[num_points];
+  for(size_t i=0;i<num_points;i++){
+    select_to_cluster[i]=0;
+  }
+  for(size_t i=0;i<num_clusters;i++)
+  {
+    int ret=thd_rnd(thd)*num;
+    if(ret==num)ret--;
+    for(int j=0;j<=ret;j++)
+      ret+=select_to_cluster[j];
+    select_to_cluster[ret]+=1;
+    select[i]=ret;
+    num--;
+  }
+  // sort the selected indexes
+  for(size_t i=0;i<num_clusters;i++){
+    printf("cluster %d take vector index as initial centroid %d\n",(int)i,select[i]);
+  }
+  for(size_t i=0;i<num_clusters;i++){
+    size_t index=select[i];
+    centroids[i].set_centroid_size(nodes[index]->get_vec_len(),true);
+    centroids[i].set_centroid(nodes[index]->get_vec());
+  }
+  delete[] select_to_cluster;
+}
+int REINDEX(TABLE *table)
+{
+  printf("ivfflat_reindex\n");
+  const int max_iterations=100;
+  TABLE *graph= table->hlindex;
+  handler *h= table->file;
+  THD *thd= table->in_use;
+  DBUG_ASSERT(graph);
+  if (int err= graph->file->ha_index_init(0, 1))
+    return err;
+  int err=graph->file->ha_index_last(graph->record[0]);
+  if (err)
+  {
+    if (err != HA_ERR_END_OF_FILE)
+    {
+      graph->file->ha_index_end();
+      return err;
+    }
+    graph->file->ha_index_end();
+    return 0;
+  }
+  else if(graph->field[0]->val_int() < num_clusters-1){
+    graph->file->ha_index_end();
+    return 0;
+  }
+  graph->file->ha_index_first(graph->record[0]);
+  // load all points in all clusters
+  Linked_list<VectorNode*> cluster_nodes;
+  do{
+    //load the cluster nodes from graph->fiels[2]
+    String strbuf,strbuf2;
+    String *str= graph->field[2]->val_str(&strbuf);//ref
+    String *str2= graph->field[3]->val_str(&strbuf2);//vec
+    uchar *cluster_data= reinterpret_cast<uchar *>(str->c_ptr());
+    uchar *cluster_data_vec= reinterpret_cast<uchar *>(str2->c_ptr());
+    // load the number of points from the first 2 bytes
+    uint16_t number_of_points=
+      *reinterpret_cast<uint16_t*>(cluster_data);
+    uint16_t vec_len=
+      *reinterpret_cast<uint16_t*>(cluster_data_vec);
+    uchar *start = cluster_data + sizeof(uint16_t);
+    uchar *start_vec = cluster_data_vec + sizeof(uint16_t);
+    for (uint16_t i= 0; i < number_of_points; i++)
+    {
+      VectorNode *node=new VectorNode(start,start_vec,vec_len,h->ref_length);
+      cluster_nodes.push_back(node);
+      start+= h->ref_length;
+      start_vec+= vec_len;
+    }
+  }while (!graph->file->ha_index_next(graph->record[0]));
+  
+  VectorNode **nodes;
+  cluster_nodes.convert_to_array(nodes);
+  // select num_clusters centroids random from the points
+  Cluster_Centroid centroids[num_clusters];
+  init_centroids(centroids,nodes,cluster_nodes.getElements(),thd);
+  for(size_t i=0;i<cluster_nodes.getElements();i++){
+    nodes[i]->set_cluster_id(-1);
+  }
+  bool change=true;
+  int iteration=0;
+  while (change && iteration<max_iterations)
+  {
+    change=false;
+    for(size_t i=0;i<cluster_nodes.getElements();i++){
+      double min_distance=distance_func((char*)nodes[i]->get_vec(),(char*)centroids[0].get_centroid(),centroids[0].get_centroid_size());
+      int cluster_id=0;
+      for(size_t j=1;j<num_clusters;j++){
+        double distance=distance_func((char*)nodes[i]->get_vec(),(char*)centroids[j].get_centroid(),centroids[j].get_centroid_size());
+        if(distance<min_distance){
+          min_distance=distance;
+          cluster_id=j;
+        }
+      }
+      if(nodes[i]->get_cluster_id()!=cluster_id){
+        change=true;
+        nodes[i]->set_cluster_id(cluster_id);
+      }
+      centroids[cluster_id].add_point(nodes[i]->get_vec());
+    }
+    for(size_t i=0;i<num_clusters;i++){
+      centroids[i].calculate_centroid();
+    }
+    iteration++;
+  }
+  cluster_list clusters[num_clusters];
+  for(size_t i=0;i<cluster_nodes.getElements();i++){
+    clusters[nodes[i]->get_cluster_id()].push_back(nodes[i]->get_gref(),nodes[i]->get_vec());
+  }
+  for(size_t i=0;i<num_clusters;i++){
+    write_cluster(graph, i, (char*)centroids[i].get_centroid(), centroids[i].get_centroid_size(), clusters[i], h->ref_length);
+  }
+  graph->file->ha_index_end();
+  // clean memory
+  for(size_t i=0;i<cluster_nodes.getElements();i++){
+    delete nodes[i];
+  }
+  delete[] nodes;
+
+  return 0;
+}
+//////////////////////////////////////////////////////////////
