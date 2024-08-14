@@ -272,7 +272,9 @@ void *alloc_root(MEM_ROOT *mem_root, size_t length)
   DBUG_ENTER("alloc_root");
   DBUG_PRINT("enter",("root: %p", mem_root));
   DBUG_ASSERT(alloc_root_inited(mem_root));
+#ifdef PROTECT_STATEMENT_MEMROOT
   DBUG_ASSERT((mem_root->flags & ROOT_FLAG_READ_ONLY) == 0);
+#endif
 
   DBUG_EXECUTE_IF("simulate_out_of_memory",
 		  {
