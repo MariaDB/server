@@ -4621,6 +4621,9 @@ bool Item_func_collect::add() {
   if (tmp_arg[0]->null_value)
     return 0;
 
+  if(is_distinct && list_contains_element(wkb))
+    return 0;
+
   current_geometry_srid= uint4korr(wkb->ptr());
   if (geometries.is_empty())
     srid= current_geometry_srid;
@@ -4636,7 +4639,6 @@ bool Item_func_collect::add() {
 
 
 void Item_func_collect::remove() {
-  String value;
   String *wkb= args[0]->val_str(&value);
   has_cached_result= false;
 
@@ -4661,17 +4663,34 @@ void Item_func_collect::remove() {
 }
 
 
-Item_func_collect::Item_func_collect(THD *thd, Item *item_par) :
+bool Item_func_collect::list_contains_element(String *wkb) {
+  List_iterator<String> geometries_iterator(geometries);
+  String* temp_geometry;
+  while ((temp_geometry= geometries_iterator++))
+  {
+    String temp(temp_geometry->ptr(), temp_geometry->length(), &my_charset_bin);
+
+    if (wkb->eq(&temp, &my_charset_bin))
+      return true;
+  }
+
+  return false;
+}
+
+
+Item_func_collect::Item_func_collect(THD *thd, bool is_distinct, Item *item_par) :
   Item_sum_int(thd, item_par),
   mem_root(thd->mem_root),
+  is_distinct(is_distinct),
   group_collect_max_len(thd->variables.group_concat_max_len)
 {
 }
 
 
-Item_func_collect::Item_func_collect(THD *thd, Item_func_collect *item) :
+Item_func_collect::Item_func_collect(THD *thd, bool is_distinct, Item_func_collect *item) :
   Item_sum_int(thd, item),
   mem_root(thd->mem_root),
+  is_distinct(is_distinct),
   group_collect_max_len(thd->variables.group_concat_max_len)
 {
 }
@@ -4748,5 +4767,5 @@ String *Item_func_collect::val_str(String *str)
 
 
 Item *Item_func_collect::copy_or_same(THD *thd) {
-  return new (thd->mem_root) Item_func_collect(thd, this);
+  return new (thd->mem_root) Item_func_collect(thd, is_distinct, this);
 }
