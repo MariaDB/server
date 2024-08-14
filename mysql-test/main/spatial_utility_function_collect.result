@@ -18,6 +18,13 @@ ST_EQUALS( (SELECT ST_COLLECT( location ) AS t FROM
 table_simple_aggregation) , ST_GEOMFROMTEXT('MULTIPOINT(0 0,0 0,1 0,2
 0,3 0) ',4326))
 1
+SELECT ST_EQUALS( (SELECT ST_COLLECT( DISTINCT location ) AS t FROM
+table_simple_aggregation) , ST_GEOMFROMTEXT('MULTIPOINT(0 0,1 0,2 0,3
+0) ',4326));
+ST_EQUALS( (SELECT ST_COLLECT( DISTINCT location ) AS t FROM
+table_simple_aggregation) , ST_GEOMFROMTEXT('MULTIPOINT(0 0,1 0,2 0,3
+0) ',4326))
+1
 INSERT INTO table_simple_aggregation (location) VALUES
 ( ST_GEOMFROMTEXT('POINT(0 -0)'         ,4326)),
 ( NULL);
