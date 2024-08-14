@@ -2125,6 +2125,7 @@ class Item_func_collect :public Item_sum_int
   bool has_cached_result;
   String cached_result;
   MEM_ROOT *mem_root;
+  bool is_distinct;
   List<String> geometries;
   String value;
   const uint group_collect_max_len;
@@ -2133,10 +2134,11 @@ class Item_func_collect :public Item_sum_int
   bool add() override;
   void cleanup() override;
   void remove() override;
+  bool list_contains_element(String* wkb);
 
 public:
-  Item_func_collect(THD *thd, Item *item_par);
-  Item_func_collect(THD *thd, Item_func_collect *item);
+  Item_func_collect(THD *thd, bool is_distinct, Item *item_par);
+  Item_func_collect(THD *thd, bool is_distinct, Item_func_collect *item);
 
   enum Sumfunctype sum_func () const override
   {
