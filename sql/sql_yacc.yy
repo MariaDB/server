@@ -11311,9 +11311,9 @@ sum_expr:
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
-        | ST_COLLECT_SYM '(' in_sum_expr ')'
+        | ST_COLLECT_SYM '(' opt_distinct in_sum_expr ')'
           {
-            $$= new (thd->mem_root) Item_func_collect(thd, $3);
+            $$= new (thd->mem_root) Item_func_collect(thd, $3, $4);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
