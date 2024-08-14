@@ -2215,8 +2215,8 @@ static uint spider_table_sts_thread_count;
 static MYSQL_SYSVAR_UINT(
   table_sts_thread_count,
   spider_table_sts_thread_count,
-  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-  "Static thread count of table sts",
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY | PLUGIN_VAR_DEPRECATED,
+  "Deprecated parameter with no effect",
   NULL,
   NULL,
   1,
@@ -2234,8 +2234,8 @@ static uint spider_table_crd_thread_count;
 static MYSQL_SYSVAR_UINT(
   table_crd_thread_count,
   spider_table_crd_thread_count,
-  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-  "Static thread count of table crd",
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY | PLUGIN_VAR_DEPRECATED,
+  "Deprecated parameter with no effect",
   NULL,
   NULL,
   1,
