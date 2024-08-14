@@ -743,3 +743,44 @@ DROP TABLE t1;
 --enable_ps2_protocol
 
 --echo # End of MariaDB 10.10 tests
+
+--echo #
+--echo # MDEV-25008: Delete query gets stuck on mariadb, same query works
+--echo #             on MySQL 8.0.21
+--echo #
+
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+
+# original case
+CREATE TABLE t1 (
+  id int NOT NULL PRIMARY KEY,
+  item_id varchar(100),
+  seller_name varchar(400),
+  variant varchar(400),
+  FULLTEXT KEY t1_serial_IDX (item_id,seller_name,variant)
+)engine=innodb;
+
+insert into t1 select seq,seq,seq,seq from seq_1_to_10000;
+
+# Masking the `rows` column as the value might vary a bit
+--replace_column 9 #
+explain
+DELETE FROM t1 WHERE id NOT IN
+  (SELECT m FROM (SELECT max(id) m FROM t1 GROUP BY item_id, seller_name, variant) AS innertable);
+
+# Masking the `rows` column as the value might vary a bit
+--replace_column 9 #
+explain
+UPDATE t1 SET item_id="foo" WHERE id NOT IN
+  (SELECT m FROM (SELECT max(id) m FROM t1 GROUP BY item_id, seller_name, variant) AS innertable);
+
+drop table t1;
+
+# example of not full table
+create table t1 (a int primary key, b int, c int, key(b));
+insert into t1 select seq, seq, seq from seq_1_to_20000;
+create table t2 as select * from t1;
+explain delete from t1  where    b <= 2 and a not in (select b from t2);
+explain delete from t1  where    b <= 3 and a not in (select b from t2);
+drop table t1, t2;

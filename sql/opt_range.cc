@@ -2663,9 +2663,7 @@ static int fill_used_fields_bitmap(PARAM *param)
 
     In the table struct the following information is updated:
       quick_keys           - Which keys can be used
-      quick_rows           - How many rows the key matches
-      opt_range_condition_rows - E(# rows that will satisfy the table
-                                 condition)
+      opt_range_condition_rows - E(# rows that will satisfy the table condition)
 
   IMPLEMENTATION
     opt_range_condition_rows value is obtained as follows:

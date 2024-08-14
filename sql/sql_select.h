@@ -33,6 +33,7 @@
 #include "records.h"                          /* READ_RECORD */
 #include "opt_range.h"                /* SQL_SELECT, QUICK_SELECT_I */
 #include "filesort.h"
+#include "sql_delete.h"
 
 #include "cset_narrowing.h"
 
@@ -1721,6 +1722,13 @@ public:
     the optimize_cond() call in JOIN::optimize_inner() method.
   */
   bool is_orig_degenerated;
+
+  /*
+    UPDATE and DELETE may have an imitation JOIN, which is not NULL,
+    but has NULL join_tab. In such cases we may want to access
+    sql_cmd_dml::scanned_rows to choose optimization strategies.
+  */
+  Sql_cmd_dml *sql_cmd_dml;
 
   JOIN(THD *thd_arg, List<Item> &fields_arg, ulonglong select_options_arg,
        select_result *result_arg)

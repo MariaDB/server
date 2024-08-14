@@ -329,10 +329,12 @@ public:
 
   select_result *get_result() { return result; }
 
+  my_off_t get_scanned_rows() { return scanned_rows; }
+
 protected:
   Sql_cmd_dml()
       : Sql_cmd(), lex(nullptr), result(nullptr),
-        m_empty_query(false)
+        m_empty_query(false), scanned_rows(0)
   {}
 
   /**
@@ -399,6 +401,7 @@ protected:
   LEX *lex;              /**< Pointer to LEX for this statement */
   select_result *result; /**< Pointer to object for handling of the result */
   bool m_empty_query;    /**< True if query will produce no rows */
+  my_off_t scanned_rows; /**< Number of scanned rows */
 };
 
 

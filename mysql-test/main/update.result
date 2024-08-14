@@ -801,3 +801,42 @@ DROP FUNCTION f1;
 DROP FUNCTION f2;
 DROP TABLE t1;
 # End of MariaDB 10.10 tests
+#
+# MDEV-25008: Delete query gets stuck on mariadb, same query works
+#             on MySQL 8.0.21
+#
+CREATE TABLE t1 (
+id int NOT NULL PRIMARY KEY,
+item_id varchar(100),
+seller_name varchar(400),
+variant varchar(400),
+FULLTEXT KEY t1_serial_IDX (item_id,seller_name,variant)
+)engine=innodb;
+insert into t1 select seq,seq,seq,seq from seq_1_to_10000;
+explain
+DELETE FROM t1 WHERE id NOT IN
+(SELECT m FROM (SELECT max(id) m FROM t1 GROUP BY item_id, seller_name, variant) AS innertable);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	#	Using where
+2	MATERIALIZED	<derived3>	ALL	NULL	NULL	NULL	NULL	#	
+3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	#	Using temporary; Using filesort
+explain
+UPDATE t1 SET item_id="foo" WHERE id NOT IN
+(SELECT m FROM (SELECT max(id) m FROM t1 GROUP BY item_id, seller_name, variant) AS innertable);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	index	NULL	PRIMARY	4	NULL	#	Using where
+2	MATERIALIZED	<derived3>	ALL	NULL	NULL	NULL	NULL	#	
+3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	#	Using temporary; Using filesort
+drop table t1;
+create table t1 (a int primary key, b int, c int, key(b));
+insert into t1 select seq, seq, seq from seq_1_to_20000;
+create table t2 as select * from t1;
+explain delete from t1  where    b <= 2 and a not in (select b from t2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	range	b	b	5	NULL	2	Using where
+2	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	20000	Using where
+explain delete from t1  where    b <= 3 and a not in (select b from t2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	range	b	b	5	NULL	3	Using where
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	20000	
+drop table t1, t2;

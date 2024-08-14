@@ -6803,15 +6803,15 @@ bool JOIN::choose_subquery_plan(table_map join_tables)
                                               &dummy,
                                               &outer_lookup_keys);
     }
+    /*
+      In case of a DELETE or UPDATE, get number of scanned rows as an
+      (upper bound) estimate of how many times the subquery will be
+      executed.
+    */
+    else if (outer_join && outer_join->sql_cmd_dml)
+      outer_lookup_keys= (double) outer_join->sql_cmd_dml->get_scanned_rows();
     else
-    {
-      /*
-        TODO: outer_join can be NULL for DELETE statements.
-        How to compute its cost?
-      */
       outer_lookup_keys= 1;
-    }
-
     /*
       B. Estimate the cost and number of records of the subquery both
       unmodified, and with injected IN->EXISTS predicates.

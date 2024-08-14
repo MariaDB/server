@@ -388,8 +388,13 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
 
   thd->lex->promote_select_describe_flag_if_needed();
 
-  /* Apply the IN=>EXISTS transformation to all subqueries and optimize them. */
-  if (select_lex->optimize_unflattened_subqueries(false))
+  /*
+    It is too early to choose subquery optimization strategies without
+    an estimate of how many times the subquery will be executed so we
+    call optimize_unflattened_subqueries() with const_only= true, and
+    apply materialization / in-to-exists later.
+  */
+  if (select_lex->optimize_unflattened_subqueries(true))
     DBUG_RETURN(TRUE);
 
   const_cond= (!conds || conds->const_item());
@@ -517,6 +522,8 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
       goto produce_explain_and_leave;
 
     delete select;
+    if (select_lex->optimize_unflattened_subqueries(false))
+      DBUG_RETURN(TRUE);
     free_underlaid_joins(thd, select_lex);
     /* 
       Error was already created by quick select evaluation (check_quick()).
@@ -556,7 +563,16 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
   if (options & OPTION_QUICK)
     (void) table->file->extra(HA_EXTRA_QUICK);
 
-  query_plan.scanned_rows= select? select->records: table->file->stats.records;
+  /*
+    Estimate the number of scanned rows and have it accessible in
+    JOIN::choose_subquery_plan() from the outer join through
+    JOIN::sql_cmd_dml
+  */
+  scanned_rows= query_plan.scanned_rows= select ?
+    select->records : table->file->stats.records;
+  select_lex->join->sql_cmd_dml= (Sql_cmd_dml *) this;
+  if (select_lex->optimize_unflattened_subqueries(false))
+    DBUG_RETURN(TRUE);
   if (order)
   {
     table->update_const_key_parts(conds);
