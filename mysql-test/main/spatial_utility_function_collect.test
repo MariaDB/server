@@ -35,9 +35,9 @@ table_simple_aggregation) , ST_GEOMFROMTEXT('MULTIPOINT(0 0,0 0,1 0,2
 0,3 0) ',4326));
 # --echo # Functional requirement F-8 Shall support DISTINCT in aggregates
 # --echo # result shall be 1
-# SELECT ST_EQUALS( (SELECT ST_COLLECT( DISTINCT location ) AS t FROM
-# table_simple_aggregation) , ST_GEOMFROMTEXT('MULTIPOINT(0 0,1 0,2 0,3
-# 0) ',4326));
+SELECT ST_EQUALS( (SELECT ST_COLLECT( DISTINCT location ) AS t FROM
+table_simple_aggregation) , ST_GEOMFROMTEXT('MULTIPOINT(0 0,1 0,2 0,3
+0) ',4326));
 # --echo # Functional requirement F-5: ST_COLLECT shall support group by, which
 # --echo # is given by aggregation machinery
 # --echo # result shall be
