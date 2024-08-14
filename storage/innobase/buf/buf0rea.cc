@@ -212,6 +212,7 @@ static buf_page_t* buf_page_init_for_read(ulint mode, const page_id_t page_id,
     page_zip_set_size(&bpage->zip, zip_size);
     bpage->zip.data = (page_zip_t*) data;
 
+    bpage->lock.init();
     bpage->init(buf_page_t::READ_FIX, page_id);
     bpage->lock.x_lock(true);
 

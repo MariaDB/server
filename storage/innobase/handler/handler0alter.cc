@@ -181,6 +181,13 @@ inline void dict_table_t::init_instant(const dict_table_t& table)
 
 		auto fixed_len = dict_col_get_fixed_size(
 			f.col, not_redundant());
+
+		/* Long fixed length can be treated as variable
+		length fields that needs external storage */
+		if (fixed_len > DICT_MAX_FIXED_COL_LEN) {
+			fixed_len = 0;
+		}
+
 		field_map_it->set_dropped();
 		if (!f.col->is_nullable()) {
 			field_map_it->set_not_null();
