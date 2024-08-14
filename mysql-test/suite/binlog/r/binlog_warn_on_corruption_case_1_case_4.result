@@ -1,0 +1,5 @@
+
+# MDEV-34687: Attempt to warn on unexpected binlog file modification
+
+call mtr.add_suppression("The binlog file was written unexpectedly by another thread or process and may be corrupt");
+FOUND 1 /The binlog file was written unexpectedly/ in mysqld.1.err

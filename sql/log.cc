@@ -329,8 +329,11 @@ public:
     truncate(0,1);                              // Forget what's in cache
     if (!cache_was_empty)
       compute_statistics();
-    if (truncate_file)
+    if (truncate_file) {
+      cache_log.on_pre_write();
       my_chsize(cache_log.file, 0, 0, MYF(MY_WME));
+      cache_log.on_post_write();
+    }
 
     status= 0;
     incident= FALSE;
@@ -403,7 +406,7 @@ public:
   /*
     Cache to store data before copying it to the binary log.
   */
-  IO_CACHE cache_log;
+  FileEventAwareIOCache cache_log;
 
 private:
   /*
@@ -483,6 +486,7 @@ private:
       set_pending(0);
     }
     reinit_io_cache(&cache_log, WRITE_CACHE, pos, 0, reset_cache);
+    cache_log.on_cache_init();
     cache_log.end_of_file= saved_max_binlog_cache_size;
   }
 
@@ -505,22 +509,39 @@ void Log_event_writer::set_incident()
 
 class binlog_cache_mngr {
 public:
-  binlog_cache_mngr(my_off_t param_max_binlog_stmt_cache_size,
-                    my_off_t param_max_binlog_cache_size,
-                    ulong *param_ptr_binlog_stmt_cache_use,
-                    ulong *param_ptr_binlog_stmt_cache_disk_use,
-                    ulong *param_ptr_binlog_cache_use,
-                    ulong *param_ptr_binlog_cache_disk_use)
-    : last_commit_pos_offset(0), using_xa(FALSE), xa_xid(0)
+  static binlog_cache_mngr* create()
   {
-     stmt_cache.set_binlog_cache_info(param_max_binlog_stmt_cache_size,
-                                      param_ptr_binlog_stmt_cache_use,
-                                      param_ptr_binlog_stmt_cache_disk_use);
-     trx_cache.set_binlog_cache_info(param_max_binlog_cache_size,
-                                     param_ptr_binlog_cache_use,
-                                     param_ptr_binlog_cache_disk_use);
-     last_commit_pos_file[0]= 0;
+    auto cache_mngr=
+        (binlog_cache_mngr*) my_malloc(key_memory_binlog_cache_mngr,
+                                       sizeof(binlog_cache_mngr),
+                                       MYF(MY_ZEROFILL));
+    if (!cache_mngr ||
+        open_cached_file(&cache_mngr->stmt_cache.cache_log, mysql_tmpdir,
+                         LOG_PREFIX, (size_t)binlog_stmt_cache_size,
+                         MYF(MY_WME)) ||
+        open_cached_file(&cache_mngr->trx_cache.cache_log, mysql_tmpdir,
+                         LOG_PREFIX, (size_t)binlog_cache_size,
+                         MYF(MY_WME)))
+    {
+      my_free(cache_mngr);
+      return nullptr;
+    }
+
+    cache_mngr= new (cache_mngr)
+                binlog_cache_mngr(max_binlog_stmt_cache_size,
+                                  max_binlog_cache_size,
+                                  &binlog_stmt_cache_use,
+                                  &binlog_stmt_cache_disk_use,
+                                  &binlog_cache_use,
+                                  &binlog_cache_disk_use);
+    return cache_mngr;
   }
+
+  binlog_cache_mngr() = delete;
+  binlog_cache_mngr(const binlog_cache_mngr&) = delete;
+  binlog_cache_mngr(binlog_cache_mngr&&) = delete;
+  binlog_cache_mngr& operator=(const binlog_cache_mngr&) = delete;
+  binlog_cache_mngr& operator=(binlog_cache_mngr&&) = delete;
 
   void reset(bool do_stmt, bool do_trx)
   {
@@ -540,7 +561,7 @@ public:
     return (is_transactional ? &trx_cache : &stmt_cache);
   }
 
-  IO_CACHE* get_binlog_cache_log(bool is_transactional)
+  FileEventAwareIOCache* get_binlog_cache_log(bool is_transactional)
   {
     return (is_transactional ? &trx_cache.cache_log : &stmt_cache.cache_log);
   }
@@ -575,9 +596,22 @@ public:
   bool delayed_error;
 
 private:
-
-  binlog_cache_mngr& operator=(const binlog_cache_mngr& info);
-  binlog_cache_mngr(const binlog_cache_mngr& info);
+  binlog_cache_mngr(my_off_t param_max_binlog_stmt_cache_size,
+                    my_off_t param_max_binlog_cache_size,
+                    ulong *param_ptr_binlog_stmt_cache_use,
+                    ulong *param_ptr_binlog_stmt_cache_disk_use,
+                    ulong *param_ptr_binlog_cache_use,
+                    ulong *param_ptr_binlog_cache_disk_use)
+    : last_commit_pos_offset(0), using_xa(FALSE), xa_xid(0)
+  {
+     stmt_cache.set_binlog_cache_info(param_max_binlog_stmt_cache_size,
+                                      param_ptr_binlog_stmt_cache_use,
+                                      param_ptr_binlog_stmt_cache_disk_use);
+     trx_cache.set_binlog_cache_info(param_max_binlog_cache_size,
+                                     param_ptr_binlog_cache_use,
+                                     param_ptr_binlog_cache_disk_use);
+     last_commit_pos_file[0]= 0;
+  }
 };
 
 bool LOGGER::is_log_table_enabled(uint log_table_type)
@@ -2902,7 +2936,7 @@ bool MYSQL_LOG::open(
                     MYF(MY_WME | MY_NABP |
                         ((log_type == LOG_BIN) ? MY_WAIT_IF_FULL : 0))))
     goto err;
-
+  log_file.on_cache_init();
   if (log_type == LOG_NORMAL)
   {
     char *end;
@@ -3613,7 +3647,7 @@ bool MYSQL_BIN_LOG::open_index_file(const char *index_file_name_arg,
       mysql_file_close(index_file_nr, MYF(0));
     return TRUE;
   }
-
+  index_file.on_cache_init();
 #ifdef HAVE_REPLICATION
   /*
     Sync the index by purging any binary log file that is not registered.
@@ -3974,6 +4008,7 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
       DBUG_ASSERT(my_b_inited(&index_file) != 0);
       reinit_io_cache(&index_file, WRITE_CACHE,
                       my_b_filelength(&index_file), 0, 0);
+      index_file.on_cache_init();
       /*
         As this is a new log file, we write the file name to the index
         file. As every time we write to the index file, we sync it.
@@ -4099,7 +4134,7 @@ int MYSQL_BIN_LOG::raw_get_current_log(LOG_INFO* linfo)
 
 #ifdef HAVE_REPLICATION
 
-static bool copy_up_file_and_fill(IO_CACHE *index_file, my_off_t offset)
+static bool copy_up_file_and_fill(FileEventAwareIOCache *index_file, my_off_t offset)
 {
   int bytes_read;
   my_off_t init_offset= offset;
@@ -4128,6 +4163,7 @@ static bool copy_up_file_and_fill(IO_CACHE *index_file, my_off_t offset)
 
   /* Reset data in old index cache */
   reinit_io_cache(index_file, READ_CACHE, (my_off_t) 0, 0, 1);
+  index_file->on_cache_init();
   DBUG_RETURN(0);
 
 err:
@@ -4192,6 +4228,7 @@ int MYSQL_BIN_LOG::find_log_pos(LOG_INFO *linfo, const char *log_name,
 
   /* As the file is flushed, we can't get an error here */
   (void) reinit_io_cache(&index_file, READ_CACHE, (my_off_t) 0, 0, 0);
+  index_file.on_cache_init();
 
   for (;;)
   {
@@ -4276,6 +4313,7 @@ int MYSQL_BIN_LOG::find_next_log(LOG_INFO* linfo, bool need_lock)
   /* As the file is flushed, we can't get an error here */
   (void) reinit_io_cache(&index_file, READ_CACHE, linfo->index_file_offset, 0,
 			 0);
+  index_file.on_cache_init();
 
   linfo->index_file_start_offset= linfo->index_file_offset;
   if ((length=my_b_gets(&index_file, fname, FN_REFLEN)) <= 1)
@@ -4886,6 +4924,7 @@ int MYSQL_BIN_LOG::open_purge_index_file(bool destroy)
       sql_print_error("MYSQL_BIN_LOG::open_purge_index_file failed to open register "
                       " file.");
     }
+    purge_index_file.on_cache_init();
   }
   DBUG_RETURN(error);
 }
@@ -4962,7 +5001,7 @@ int MYSQL_BIN_LOG::purge_index_entry(THD *thd, ulonglong *reclaimed_space,
                     "for read");
     goto err;
   }
-
+  purge_index_file.on_cache_init();
   for (;;)
   {
     size_t length;
@@ -5800,6 +5839,100 @@ bool stmt_has_updated_non_trans_table(const THD* thd)
   return (thd->transaction->stmt.modified_non_trans_table);
 }
 
+void fecache_on_open_callback(struct st_io_cache* io_cache)
+{
+  auto pcache= static_cast<FileEventAwareIOCache*>(io_cache);
+  pcache->on_open();
+}
+
+void fecache_on_pre_write_callback(struct st_io_cache* io_cache)
+{
+  auto pcache= static_cast<FileEventAwareIOCache*>(io_cache);
+  pcache->on_pre_write();
+}
+
+void fecache_on_post_write_callback(struct st_io_cache* io_cache)
+{
+  auto pcache = static_cast<FileEventAwareIOCache*>(io_cache);
+  pcache->on_post_write();
+}
+
+void fecache_on_close_callback(struct st_io_cache* io_cache)
+{
+  auto pcache= static_cast<FileEventAwareIOCache*>(io_cache);
+  pcache->on_close();
+}
+
+static void get_tv_times(const struct stat& st, time_t& sec, time_t& nsec)
+{
+#ifdef __APPLE__
+    sec= st.st_mtimespec.tv_sec;
+    nsec= st.st_mtimespec.tv_nsec;
+#else
+    sec= st.st_mtim.tv_sec;
+    nsec= st.st_mtim.tv_nsec;
+#endif
+}
+
+void FileEventAwareIOCache::warn_on_mismatch() const
+{
+  struct stat present_time;
+  fstat(file, &present_time);
+
+  time_t cs_sec, cs_nsec, pt_sec, pt_nsec;
+  get_tv_times(cached_stat, cs_sec, cs_nsec);
+  get_tv_times(present_time, pt_sec, pt_nsec);
+
+  if ((cs_sec != pt_sec) || (cs_nsec != pt_nsec)) {
+    sql_print_warning("The binlog file was written unexpectedly by another "
+                      "thread or process and may be corrupt");
+  }
+}
+
+void FileEventAwareIOCache::initialize_callbacks()
+{
+  on_open_callback= fecache_on_open_callback;
+  on_pre_write_callback= fecache_on_pre_write_callback;
+  on_post_write_callback= fecache_on_post_write_callback;
+  on_close_callback= fecache_on_close_callback;
+}
+
+void FileEventAwareIOCache::refresh_cached_file_stat()
+{
+  fstat(file, &cached_stat);
+}
+
+FileEventAwareIOCache::FileEventAwareIOCache()
+{
+  initialize_callbacks();
+}
+
+void FileEventAwareIOCache::on_cache_init()
+{
+  initialize_callbacks();
+  refresh_cached_file_stat();
+}
+
+void FileEventAwareIOCache::on_open()
+{
+  refresh_cached_file_stat();
+}
+
+void FileEventAwareIOCache::on_pre_write()
+{
+  warn_on_mismatch();
+}
+
+void FileEventAwareIOCache::on_post_write()
+{
+  refresh_cached_file_stat();
+}
+
+void FileEventAwareIOCache::on_close()
+{
+  warn_on_mismatch();
+}
+
 /*
   These functions are placed in this file since they need access to
   binlog_hton, which has internal linkage.
@@ -5814,26 +5947,10 @@ binlog_cache_mngr *THD::binlog_setup_trx_data()
   if (cache_mngr)
     DBUG_RETURN(cache_mngr);                             // Already set up
 
-  cache_mngr= (binlog_cache_mngr*) my_malloc(key_memory_binlog_cache_mngr,
-                                  sizeof(binlog_cache_mngr), MYF(MY_ZEROFILL));
-  if (!cache_mngr ||
-      open_cached_file(&cache_mngr->stmt_cache.cache_log, mysql_tmpdir,
-                       LOG_PREFIX, (size_t)binlog_stmt_cache_size, MYF(MY_WME)) ||
-      open_cached_file(&cache_mngr->trx_cache.cache_log, mysql_tmpdir,
-                       LOG_PREFIX, (size_t)binlog_cache_size, MYF(MY_WME)))
-  {
-    my_free(cache_mngr);
-    DBUG_RETURN(0);                      // Didn't manage to set it up
-  }
-  thd_set_ha_data(this, binlog_hton, cache_mngr);
+  cache_mngr= binlog_cache_mngr::create();
+  if (cache_mngr)
+    thd_set_ha_data(this, binlog_hton, cache_mngr);
 
-  cache_mngr= new (cache_mngr)
-              binlog_cache_mngr(max_binlog_stmt_cache_size,
-                                max_binlog_cache_size,
-                                &binlog_stmt_cache_use,
-                                &binlog_stmt_cache_disk_use,
-                                &binlog_cache_use,
-                                &binlog_cache_disk_use);
   DBUG_RETURN(cache_mngr);
 }
 
@@ -6408,7 +6525,7 @@ int
 MYSQL_BIN_LOG::write_state_to_file()
 {
   File file_no;
-  IO_CACHE cache;
+  FileEventAwareIOCache cache;
   char buf[FN_REFLEN];
   int err;
   bool opened= false;
@@ -6427,6 +6544,7 @@ MYSQL_BIN_LOG::write_state_to_file()
   if ((err= init_io_cache(&cache, file_no, IO_SIZE, WRITE_CACHE, 0, 0,
                            MYF(MY_WME|MY_WAIT_IF_FULL))))
     goto err;
+  cache.on_cache_init();
   log_inited= true;
   if ((err= rpl_global_gtid_binlog_state.write_to_iocache(&cache)))
     goto err;
@@ -6461,7 +6579,7 @@ int
 MYSQL_BIN_LOG::read_state_from_file()
 {
   File file_no;
-  IO_CACHE cache;
+  FileEventAwareIOCache cache;
   char buf[FN_REFLEN];
   int err;
   bool opened= false;
@@ -6492,6 +6610,7 @@ MYSQL_BIN_LOG::read_state_from_file()
   if ((err= init_io_cache(&cache, file_no, IO_SIZE, READ_CACHE, 0, 0,
                           MYF(MY_WME|MY_WAIT_IF_FULL))))
     goto err;
+  cache.on_cache_init();
   log_inited= true;
   if ((err= rpl_global_gtid_binlog_state.read_from_iocache(&cache)))
     goto err;
@@ -6683,7 +6802,7 @@ bool MYSQL_BIN_LOG::write(Log_event *event_info, my_bool *with_annotate)
       DBUG_RETURN(0);
 #endif /* HAVE_REPLICATION */
 
-    IO_CACHE *file= NULL;
+    FileEventAwareIOCache *file= NULL;
 
     if (direct)
     {
@@ -7221,7 +7340,7 @@ static int do_delete_gtid_domain(DYNAMIC_ARRAY *domain_drop_lex)
   Gtid_list_log_event *glev= NULL;
   char buf[FN_REFLEN];
   File file;
-  IO_CACHE cache;
+  FileEventAwareIOCache cache;
   const char* errmsg= NULL;
   char errbuf[MYSQL_ERRMSG_SIZE]= {0};
 
@@ -7236,6 +7355,7 @@ static int do_delete_gtid_domain(DYNAMIC_ARRAY *domain_drop_lex)
   bzero((char*) &cache, sizeof(cache));
   if ((file= open_binlog(&cache, buf, &errmsg)) == (File) -1)
     goto end;
+  cache.on_cache_init();
   errmsg= get_gtid_list_event(&cache, &glev);
   end_io_cache(&cache);
   mysql_file_close(file, MYF(MY_WME));
@@ -7377,13 +7497,14 @@ private:
     events prior to fill in the binlog cache.
 */
 
-int MYSQL_BIN_LOG::write_cache(THD *thd, IO_CACHE *cache)
+int MYSQL_BIN_LOG::write_cache(THD *thd, FileEventAwareIOCache *cache)
 {
   DBUG_ENTER("MYSQL_BIN_LOG::write_cache");
 
   mysql_mutex_assert_owner(&LOCK_log);
   if (reinit_io_cache(cache, READ_CACHE, 0, 0, 0))
     DBUG_RETURN(ER_ERROR_ON_WRITE);
+  cache->on_cache_init();
   size_t length= my_b_bytes_in_cache(cache), group, carry, hdr_offs;
   size_t val;
   size_t end_log_pos_inc= 0; // each event processed adds BINLOG_CHECKSUM_LEN 2 t
@@ -10621,7 +10742,7 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
   char binlog_checkpoint_name[FN_REFLEN];
   bool binlog_checkpoint_found;
   bool first_round;
-  IO_CACHE log;
+  FileEventAwareIOCache log;
   File file= -1;
   const char *errmsg;
 #ifdef HAVE_REPLICATION
@@ -10794,6 +10915,7 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
       sql_print_error("%s", errmsg);
       goto err2;
     }
+    log.on_cache_init();
     /*
       We do not need to read the Format_description_log_event of other binlog
       files. It is not possible for a binlog checkpoint to span multiple
@@ -10844,7 +10966,7 @@ MYSQL_BIN_LOG::do_binlog_recovery(const char *opt_name, bool do_xa_recovery)
 {
   LOG_INFO log_info;
   const char *errmsg;
-  IO_CACHE    log;
+  FileEventAwareIOCache    log;
   File        file;
   Log_event  *ev= 0;
   Format_description_log_event fdle(BINLOG_VERSION);
@@ -10895,6 +11017,7 @@ MYSQL_BIN_LOG::do_binlog_recovery(const char *opt_name, bool do_xa_recovery)
     sql_print_error("%s", errmsg);
     return 1;
   }
+  log.on_cache_init();
 
   if ((ev= Log_event::read_log_event(&log, &fdle,
                                      opt_master_verify_checksum)) &&

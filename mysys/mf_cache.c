@@ -63,6 +63,7 @@ my_bool real_open_cached_file(IO_CACHE *cache)
                                     O_BINARY, MYF(MY_WME | MY_TEMPORARY))) >= 0)
   {
     error=0;
+    cache->on_open_callback(cache);
   }
   DBUG_RETURN(error);
 }
@@ -74,6 +75,8 @@ void close_cached_file(IO_CACHE *cache)
   if (my_b_inited(cache))
   {
     File file=cache->file;
+    if (file >= 0)
+      cache->on_close_callback(cache);
     cache->file= -1;				/* Don't flush data */
     (void) end_io_cache(cache);
     if (file >= 0)

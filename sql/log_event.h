@@ -932,6 +932,13 @@ class Log_event_writer
   /* Log_event_writer is updated when ctx is set */
   int (Log_event_writer::*encrypt_or_write)(const uchar *pos, size_t len);
 public:
+  Log_event_writer() = delete;
+  Log_event_writer(const Log_event_writer&) = delete;
+  Log_event_writer(Log_event_writer&&) = delete;
+  Log_event_writer& operator=(const Log_event_writer&) = delete;
+  Log_event_writer& operator=(Log_event_writer&&) = delete;
+  virtual ~Log_event_writer() = default;
+
   ulonglong bytes_written;
   void *ctx;         ///< Encryption context or 0 if no encryption is needed
   uint checksum_len;
