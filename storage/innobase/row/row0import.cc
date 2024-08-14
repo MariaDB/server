@@ -3212,6 +3212,7 @@ static void add_fts_index(dict_table_t *table)
 {
   dict_index_t *fts_index= dict_mem_index_create(
     table, FTS_DOC_ID_INDEX_NAME, DICT_UNIQUE, 2);
+  fts_index->lock.SRW_LOCK_INIT(index_tree_rw_lock_key);
   fts_index->page= FIL_NULL;
   fts_index->cached= 1;
   fts_index->n_uniq= 1;
@@ -3293,6 +3294,7 @@ static dict_table_t *build_fts_hidden_table(
       new_table, old_index->name, old_index->type,
       old_index->n_fields + is_clustered);
 
+    new_index->lock.SRW_LOCK_INIT(index_tree_rw_lock_key);
     new_index->id= old_index->id;
     new_index->n_uniq= old_index->n_uniq;
     new_index->type= old_index->type;

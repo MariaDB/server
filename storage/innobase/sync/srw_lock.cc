@@ -661,6 +661,7 @@ void srw_lock_debug::destroy()
     ut_ad(r->empty());
     delete r;
   }
+  readers_lock.destroy();
   srw_lock::destroy();
 }
 

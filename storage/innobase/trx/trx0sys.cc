@@ -152,6 +152,10 @@ void trx_sys_t::create()
   m_initialised= true;
   trx_list.create();
   rw_trx_hash.init();
+  for (auto &rseg : temp_rsegs)
+    rseg.init(nullptr, FIL_NULL);
+  for (auto &rseg : rseg_array)
+    rseg.init(nullptr, FIL_NULL);
 }
 
 size_t trx_sys_t::history_size()
@@ -230,6 +234,7 @@ static trx_rseg_t *trx_rseg_create(ulint space_id)
           ? nullptr : trx_rseg_header_create(space, rseg_id, 0, &mtr, &err))
       {
         rseg= &trx_sys.rseg_array[rseg_id];
+        rseg->destroy();
         rseg->init(space, rblock->page.id().page_no());
         ut_ad(rseg->is_persistent());
         mtr.write<4,mtr_t::MAYBE_NOP>
@@ -329,13 +334,8 @@ trx_sys_t::close()
 	rw_trx_hash.destroy();
 
 	/* There can't be any active transactions. */
-
-	for (ulint i = 0; i < array_elements(temp_rsegs); ++i) {
-		temp_rsegs[i].destroy();
-	}
-	for (ulint i = 0; i < array_elements(rseg_array); ++i) {
-		rseg_array[i].destroy();
-	}
+	for (auto& rseg : temp_rsegs) rseg.destroy();
+	for (auto& rseg : rseg_array) rseg.destroy();
 
 	ut_a(trx_list.empty());
 	trx_list.close();

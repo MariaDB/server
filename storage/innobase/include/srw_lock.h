@@ -40,32 +40,45 @@ template<bool spinloop>
 class pthread_mutex_wrapper final
 {
   pthread_mutex_t lock;
+#ifdef UNIV_DEBUG
+  /** whether the mutex is usable; set by init(); cleared by destroy() */
+  bool initialized{false};
+public:
+  ~pthread_mutex_wrapper() { ut_ad(!initialized); }
+#endif
 public:
   void init()
   {
+    ut_ad(!initialized);
+    ut_d(initialized= true);
     if (spinloop)
       pthread_mutex_init(&lock, MY_MUTEX_INIT_FAST);
     else
       pthread_mutex_init(&lock, nullptr);
   }
-  void destroy() { pthread_mutex_destroy(&lock); }
+  void destroy()
+  {
+    ut_ad(initialized); ut_d(initialized=false);
+    pthread_mutex_destroy(&lock);
+  }
 # ifdef PTHREAD_ADAPTIVE_MUTEX_INITIALIZER_NP
-  void wr_lock() { pthread_mutex_lock(&lock); }
+  void wr_lock() { ut_ad(initialized); pthread_mutex_lock(&lock); }
 # else
 private:
   void wr_wait();
 public:
   inline void wr_lock();
 # endif
-  void wr_unlock() { pthread_mutex_unlock(&lock); }
-  bool wr_lock_try() { return !pthread_mutex_trylock(&lock); }
+  void wr_unlock() { ut_ad(initialized); pthread_mutex_unlock(&lock); }
+  bool wr_lock_try()
+  { ut_ad(initialized); return !pthread_mutex_trylock(&lock); }
 };
 
 # ifndef PTHREAD_ADAPTIVE_MUTEX_INITIALIZER_NP
 template<> void pthread_mutex_wrapper<true>::wr_wait();
 template<>
 inline void pthread_mutex_wrapper<false>::wr_lock()
-{ pthread_mutex_lock(&lock); }
+{ ut_ad(initialized); pthread_mutex_lock(&lock); }
 template<>
 inline void pthread_mutex_wrapper<true>::wr_lock()
 { if (!wr_lock_try()) wr_wait(); }

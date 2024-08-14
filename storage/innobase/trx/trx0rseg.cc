@@ -631,6 +631,7 @@ dberr_t trx_rseg_array_init()
 				sys, rseg_id);
 			if (page_no != FIL_NULL) {
 				trx_rseg_t& rseg = trx_sys.rseg_array[rseg_id];
+				rseg.destroy();
 				rseg.init(fil_space_get(
 						  trx_sysf_rseg_get_space(
 							  sys, rseg_id)),
@@ -715,6 +716,7 @@ dberr_t trx_temp_rseg_create(mtr_t *mtr)
       mtr->commit();
       return err;
     }
+    trx_sys.temp_rsegs[i].destroy();
     trx_sys.temp_rsegs[i].init(fil_system.temp_space,
                                rblock->page.id().page_no());
     mtr->commit();

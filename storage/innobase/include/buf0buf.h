@@ -648,10 +648,10 @@ public:
   void init(uint32_t state, page_id_t id)
   {
     ut_ad(state < REMOVE_HASH || state >= UNFIXED);
+    ut_ad(!lock.is_locked_or_waiting());
     id_= id;
     zip.fix= state;
     oldest_modification_= 0;
-    lock.init();
     ut_d(in_zip_hash= false);
     ut_d(in_free_list= false);
     ut_d(in_LRU_list= false);

@@ -842,6 +842,7 @@ buf_block_init(buf_block_t* block, byte* frame)
 	MEM_MAKE_DEFINED(&block->modify_clock, sizeof block->modify_clock);
 	ut_ad(!block->modify_clock);
 	MEM_MAKE_DEFINED(&block->page.lock, sizeof block->page.lock);
+	block->page.lock.init();
 	block->page.init(buf_page_t::NOT_USED, page_id_t(~0ULL));
 #ifdef BTR_CUR_HASH_ADAPT
 	MEM_MAKE_DEFINED(&block->index, sizeof block->index);
