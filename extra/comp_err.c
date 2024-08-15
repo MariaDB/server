@@ -774,12 +774,15 @@ static ha_checksum checksum_format_specifier(const char* msg)
     {
       chksum= my_checksum(chksum, p, 1);
       switch(*p) {
+      case 'c':
       case 'd':
+      case 'i':
+      case 'o':
+      case 'p':
       case 'u':
       case 'x':
+      case 'X':
       case 's':
-      case 'M':
-      case 'T':
         start= 0; /* Not in format specifier anymore */
         break;
       }
