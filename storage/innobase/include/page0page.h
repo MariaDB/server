@@ -421,8 +421,7 @@ inline void page_rec_set_n_owned(buf_block_t *block, rec_t *rec, ulint n_owned,
   ut_ad(block->frame == page_align(rec));
   ut_ad(comp == (page_is_comp(block->frame) != 0));
 
-  if (page_zip_des_t *page_zip= compressed
-      ? buf_block_get_page_zip(block) : nullptr)
+  if (compressed && is_buf_block_get_page_zip(block))
   {
     ut_ad(comp);
     rec_set_bit_field_1(rec, n_owned, REC_NEW_N_OWNED,
