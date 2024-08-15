@@ -152,6 +152,38 @@ struct FVector
   }
 #endif
 
+#ifdef AVX512_IMPLEMENTATION
+  /************* AVX512 ****************************************************/
+  static constexpr size_t AVX512_bytes= 512/8;
+  static constexpr size_t AVX512_dims= AVX512_bytes/sizeof(int16_t);
+
+  AVX512_IMPLEMENTATION
+  static float dot_product(const int16_t *v1, const int16_t *v2, size_t len)
+  {
+    __m512i *p1= (__m512i*)v1;
+    __m512i *p2= (__m512i*)v2;
+    __m512 d= _mm512_setzero_ps();
+    for (size_t i= 0; i < (len + AVX512_dims-1)/AVX512_dims; p1++, p2++, i++)
+      d= _mm512_add_ps(d, _mm512_cvtepi32_ps(_mm512_madd_epi16(*p1, *p2)));
+    return _mm512_reduce_add_ps(d);
+  }
+
+  AVX512_IMPLEMENTATION
+  static size_t alloc_size(size_t n)
+  { return alloc_header + MY_ALIGN(n*2, AVX512_bytes) + AVX512_bytes - 1; }
+
+  AVX512_IMPLEMENTATION
+  static FVector *align_ptr(void *ptr)
+  { return (FVector*)(MY_ALIGN(((intptr)ptr) + alloc_header, AVX512_bytes)
+                      - alloc_header); }
+
+  AVX512_IMPLEMENTATION
+  void fix_tail(size_t vec_len)
+  {
+    bzero(dims + vec_len, (MY_ALIGN(vec_len, AVX512_dims) - vec_len)*2);
+  }
+#endif
+
   /************* no-SIMD default ******************************************/
   DEFAULT_IMPLEMENTATION
   static float dot_product(const int16_t *v1, const int16_t *v2, size_t len)

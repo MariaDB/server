@@ -33,6 +33,9 @@ SOFTWARE.
 #if __GNUC__ > 7 && defined __x86_64__
 #define DEFAULT_IMPLEMENTATION    __attribute__ ((target ("default")))
 #define AVX2_IMPLEMENTATION __attribute__ ((target ("avx2,avx,fma")))
+#if __GNUC__ > 9
+#define AVX512_IMPLEMENTATION __attribute__ ((target ("avx512f,avx512bw")))
+#endif
 #endif
 #endif
 #ifndef DEFAULT_IMPLEMENTATION
@@ -169,6 +172,9 @@ struct PatternedSimdBloomFilter
     uint8_t res_bits = static_cast<uint8_t>(_mm256_movemask_epi8(_mm256_set1_epi64x(res_bytes)) & 0xff);
     return res_bits;
   }
+
+  /* AVX-512 version can be (and was) implemented, but the speedup is,
+     basically, unnoticeable, well below the noise level */
 #endif
 
   /********************************************************
