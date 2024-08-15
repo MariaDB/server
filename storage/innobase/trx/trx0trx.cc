@@ -1807,7 +1807,7 @@ trx_print_low(
 			/*!< in: mem_heap_get_size(trx->lock.lock_heap) */
 {
 	if (const trx_id_t id = trx->id) {
-		fprintf(f, "TRANSACTION " TRX_ID_FMT, trx->id);
+		fprintf(f, "TRANSACTION " TRX_ID_FMT, id);
 	} else {
 		fprintf(f, "TRANSACTION (%p)", trx);
 	}
