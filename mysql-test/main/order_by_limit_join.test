@@ -94,7 +94,33 @@ eval $query;
 set @trace=(select trace from information_schema.optimizer_trace);
 select json_detailed(json_extract(@trace, '$**.limit_shortcut_choice')) as JS;
 
-set optimizer_trace=@tmp_os;
+--echo #
+--echo # Counter example with large limit
+--echo #
+let $query= explain
+select
+  *
+from 
+  t1
+  join t10 on t1.a=t10.a
+  join t11 on t1.b=t11.b
+order by
+  t1.col1
+limit 5000;
 
+--echo # Table t1 is not the first, have to use temporary+filesort:
+set optimizer_join_limit_pref_ratio=0;
+eval $query;
+
+--echo # Same plan as above:
+--echo # Table t1 is not the first, have to use temporary+filesort:
+set optimizer_join_limit_pref_ratio=10;
+eval $query;
+
+set @trace=(select trace from information_schema.optimizer_trace);
+select json_detailed(json_extract(@trace, '$**.limit_shortcut_choice')) as JS;
+
+set optimizer_trace=@tmp_os;
+set optimizer_join_limit_pref_ratio=default;
 drop table t1, t10, t11;
 
