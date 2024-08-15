@@ -169,6 +169,9 @@ struct PatternedSimdBloomFilter
     uint8_t res_bits = static_cast<uint8_t>(_mm256_movemask_epi8(_mm256_set1_epi64x(res_bytes)) & 0xff);
     return res_bits;
   }
+
+  /* AVX-512 version can be (and was) implemented, but the speedup is,
+     basically, unnoticeable, well below the noise level */
 #endif
 
   /********************************************************
