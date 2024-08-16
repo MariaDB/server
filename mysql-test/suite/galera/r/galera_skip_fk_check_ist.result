@@ -1,0 +1,102 @@
+connection node_4;
+connection node_3;
+connection node_2;
+connection node_1;
+connection node_1;
+connection node_2;
+connection node_3;
+connection node_4;
+connection node_1;
+CREATE TABLE parent (
+id INT PRIMARY KEY
+) ENGINE=InnoDB;
+CREATE TABLE child (
+id INT PRIMARY KEY,
+parent_id INT,
+KEY (parent_id),
+CONSTRAINT FOREIGN KEY (parent_id) REFERENCES parent(id)
+) ENGINE=InnoDB;
+INSERT INTO parent VALUES (1), (2);
+connection node_4;
+SET SESSION wsrep_on = OFF;
+DELETE FROM parent;
+SET SESSION wsrep_on = ON;
+Shutting down server 4
+connection node_1;
+SET SESSION wsrep_on = ON;
+SET SESSION wsrep_sync_wait = 15;
+connection node_2;
+SET SESSION wsrep_on = ON;
+SET SESSION wsrep_sync_wait = 15;
+connection node_3;
+SET SESSION wsrep_on = ON;
+SET SESSION wsrep_sync_wait = 15;
+Server 4 left the cluster
+connection node_1;
+INSERT INTO child VALUES (1, 1);
+connection node_4;
+Restarting server 4 with disabled FK checks during IST
+include/assert_grep.inc [no FK constraint failure]
+Server 4
+SELECT COUNT(*) AS EXPECT_0 FROM parent;
+EXPECT_0
+0
+SELECT COUNT(*) AS EXPECT_1 FROM child;
+EXPECT_1
+1
+connection node_1;
+Server 1
+SELECT COUNT(*) AS EXPECT_2 FROM parent;
+EXPECT_2
+2
+SELECT COUNT(*) AS EXPECT_1 FROM child;
+EXPECT_1
+1
+connection node_2;
+Server 2
+SELECT COUNT(*) AS EXPECT_2 FROM parent;
+EXPECT_2
+2
+SELECT COUNT(*) AS EXPECT_1 FROM child;
+EXPECT_1
+1
+connection node_3;
+Server 3
+SELECT COUNT(*) AS EXPECT_2 FROM parent;
+EXPECT_2
+2
+SELECT COUNT(*) AS EXPECT_1 FROM child;
+EXPECT_1
+1
+Causing server 4 inconsistency with failed FK check on apply
+INSERT INTO child VALUES (2, 2);
+connection node_1;
+SET SESSION wsrep_on = ON;
+SET SESSION wsrep_sync_wait = 15;
+connection node_2;
+SET SESSION wsrep_on = ON;
+SET SESSION wsrep_sync_wait = 15;
+connection node_3;
+SET SESSION wsrep_on = ON;
+SET SESSION wsrep_sync_wait = 15;
+Server 4 is non-primary
+connection node_4;
+SET SESSION wsrep_on = OFF;
+include/assert_grep.inc [FK constraint failure]
+Restarting server 4 with enabled FK checks during IST
+SELECT COUNT(*) AS EXPECT_2 FROM parent;
+EXPECT_2
+2
+SELECT COUNT(*) AS EXPECT_2 FROM child;
+EXPECT_2
+2
+CALL mtr.add_suppression("Slave SQL: Could not execute Write_rows_v1 event");
+CALL mtr.add_suppression("Event 3 Write_rows_v1 apply failed");
+CALL mtr.add_suppression("Inconsistency detected: Inconsistent by consensus");
+CALL mtr.add_suppression("Failed to apply write set");
+DROP TABLE child;
+DROP TABLE parent;
+disconnect node_4;
+disconnect node_3;
+disconnect node_2;
+disconnect node_1;
