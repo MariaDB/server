@@ -28,7 +28,6 @@
 #define LENGTH_ARG     1
 #define WIDTH_ARG      2
 #define PREZERO_ARG    4
-#define ESCAPED_ARG    8 
 
 typedef struct pos_arg_info ARGS_INFO;
 typedef struct print_info PRINT_INFO;
@@ -153,15 +152,12 @@ static const char *check_longlong(const char *fmt, uint *have_longlong)
 */
 
 static char *backtick_string(CHARSET_INFO *cs, char *to, const char *end,
-                             char *par, size_t par_len, char quote_char,
-                             my_bool cut)
+                             char *par, size_t par_len, char quote_char)
 {
-  char *last[3]= {0,0,0};
   uint char_len;
   char *start= to;
   char *par_end= par + par_len;
   size_t buff_length= (size_t) (end - to);
-  uint index= 0;
 
   if (buff_length <= par_len)
     goto err;
@@ -170,11 +166,6 @@ static char *backtick_string(CHARSET_INFO *cs, char *to, const char *end,
   for ( ; par < par_end; par+= char_len)
   {
     uchar c= *(uchar *) par;
-    if (cut)
-    {
-      last[index]= start;
-      index= (index + 1) % 3;
-    }
     char_len= my_ci_charlen_fix(cs, (const uchar *) par, (const uchar *) par_end);
     if (char_len == 1 && c == (uchar) quote_char )
     {
@@ -190,26 +181,6 @@ static char *backtick_string(CHARSET_INFO *cs, char *to, const char *end,
   if (start + 1 >= end)
     goto err;
 
-  if (cut)
-  {
-    uint dots= 0;
-    start= NULL;
-    for (; dots < 3; dots++)
-    {
-      if (index == 0)
-        index= 2;
-      else
-        index--;
-      if (!last[index])
-        break;
-      start= last[index];
-    }
-    if (start == NULL)
-      goto err; // there was no characters at all
-    for (; dots; dots--)
-      *start++= '.';
-
-  }
   *start++= quote_char;
   return start;
 
@@ -225,7 +196,7 @@ err:
 
 static char *process_str_arg(CHARSET_INFO *cs, char *to, const char *end,
                              longlong length_arg, size_t width, char *par,
-                             uint print_type, my_bool nice_cut)
+                             my_bool escaped_arg, my_bool nice_cut)
 {
   int well_formed_error;
   uint dots= 0;
@@ -284,10 +255,10 @@ static char *process_str_arg(CHARSET_INFO *cs, char *to, const char *end,
   }
 
   plen= my_well_formed_length(cs, par, par + plen, width, &well_formed_error);
-  if (print_type & ESCAPED_ARG)
+  if (escaped_arg)
   {
     const char *org_to= to;
-    to= backtick_string(cs, to, end, par, plen + dots, '`', MY_TEST(dots));
+    to= backtick_string(cs, to, end, par, plen + dots, '`');
     plen= (size_t) (to - org_to);
     dots= 0;
   }
@@ -431,11 +402,6 @@ start:
   /* Here we are at the beginning of positional argument, right after $ */
   arg_index--;
   print_arr[idx].flags= 0;
-  if (*fmt == '`')
-  {
-    print_arr[idx].flags|= ESCAPED_ARG;
-    fmt++;
-  }
   if (*fmt == '-')
     fmt++;
   print_arr[idx].length= print_arr[idx].width= 0;
@@ -485,8 +451,6 @@ start:
     {
       switch (arg_type= args_arr[i].arg_type) {
       case 's':
-      case 'b':
-      case 'T':
         args_arr[i].str_arg= va_arg(ap, char *);
         break;
       case 'f':
@@ -507,7 +471,6 @@ start:
         else
           args_arr[i].longlong_arg= va_arg(ap, uint);
         break;
-      case 'M':
       case 'c':
         args_arr[i].longlong_arg= va_arg(ap, int);
         break;
@@ -521,15 +484,13 @@ start:
       size_t width= 0, length= 0;
       switch (arg_type= print_arr[i].arg_type) {
       case 's':
-      case 'T':
-      case 'b':
       {
         char *par= args_arr[print_arr[i].arg_idx].str_arg;
-        my_bool suffix_b= arg_type == 'b', suffix_t= arg_type == 'T';
+        my_bool suffix_q= FALSE, suffix_b= FALSE, suffix_t= FALSE;
         switch (*print_arr[i].begin) // look at the start of the next chunk
         {
         case 'Q':
-          print_arr[i].flags|= ESCAPED_ARG;
+          suffix_q= TRUE;
           ++print_arr[i].begin;
           break;
         case 'B':
@@ -554,7 +515,7 @@ start:
             ? args_arr[print_arr[i].length].longlong_arg
             : (longlong) print_arr[i].length;
           to= process_str_arg(cs, to, end, min_field_width, width, par,
-                              print_arr[i].flags, suffix_t);
+                              suffix_q, suffix_t);
         }
         break;
       }
@@ -581,20 +542,14 @@ start:
       case 'X':
       case 'o':
       case 'p':
-      case 'M':
       {
         /* Integer parameter */
         longlong larg= args_arr[print_arr[i].arg_idx].longlong_arg;
-        my_bool suffix_e= arg_type == 'M';
         // look at the start of the next chunk
         if (arg_type == 'i' && *print_arr[i].begin == 'E')
         {
-          suffix_e= TRUE;
-          ++print_arr[i].begin; // roll forward to consume the char
-        }
-        if (suffix_e)
-        {
           const char *real_end;
+          ++print_arr[i].begin; // roll forward to consume the char
           width= (print_arr[i].flags & WIDTH_ARG)
             ? (size_t)args_arr[print_arr[i].width].longlong_arg
             : print_arr[i].width;
@@ -607,7 +562,7 @@ start:
             *to++= '"';
             my_strerror(errmsg_buff, sizeof(errmsg_buff), (int) larg);
             to= process_str_arg(cs, to, real_end, 0, width, errmsg_buff,
-                                print_arr[i].flags, 1);
+                                FALSE, TRUE);
             if (real_end > to)
               *to++= '"';
           }
@@ -707,11 +662,6 @@ size_t my_vsnprintf_ex(CHARSET_INFO *cs, char *to, size_t n,
     }
     else
     {
-      if (*fmt == '`')
-      {
-        print_type|= ESCAPED_ARG;
-        fmt++;
-      }
       if (*fmt == '-')
         fmt++;
       if (*fmt == '*')
@@ -742,16 +692,14 @@ size_t my_vsnprintf_ex(CHARSET_INFO *cs, char *to, size_t n,
 
     switch (arg_type= *fmt) {
     case 's':
-    case 'T':
-    case 'b':
     {
       /* String parameter */
       reg2 char *par= va_arg(ap, char *);
-      my_bool suffix_b= arg_type == 'b', suffix_t= arg_type == 'T';
+      my_bool suffix_q= FALSE, suffix_b= FALSE, suffix_t= FALSE;
       switch (fmt[1]) // look-ahead (will at most land on the terminating `\0`)
       {
       case 'Q':
-        print_type|= ESCAPED_ARG;
+        suffix_q= TRUE;
         ++fmt;
         break;
       case 'B':
@@ -768,7 +716,7 @@ size_t my_vsnprintf_ex(CHARSET_INFO *cs, char *to, size_t n,
       to= (suffix_b)
         ? process_bin_arg(to, end, width, par)
         : process_str_arg(cs, to, end, (longlong) length, width, par,
-                          print_type, suffix_t);
+                          suffix_q, suffix_t);
       continue;
     }
     case 'f':
@@ -792,25 +740,19 @@ size_t my_vsnprintf_ex(CHARSET_INFO *cs, char *to, size_t n,
     case 'X':
     case 'o':
     case 'p':
-    case 'M':
     {
       /* Integer parameter */
       longlong larg;
-      my_bool suffix_e= arg_type == 'M';
       if (have_longlong)
         larg= va_arg(ap,longlong);
-      else if (arg_type == 'd' || arg_type == 'i' || suffix_e)
+      else if (arg_type == 'd' || arg_type == 'i')
         larg= va_arg(ap, int);
       else
         larg= va_arg(ap, uint);
       if (arg_type == 'i' && fmt[1] == 'E') // look-ahead
       {
-        suffix_e= TRUE;
-        ++fmt;
-      }
-      if (suffix_e)
-      {
         const char *real_end= MY_MIN(to + width, end);
+        ++fmt;
         to= process_int_arg(to, real_end, 0, larg, 'd', print_type);
         if (real_end - to >= 3)
         {
@@ -819,7 +761,7 @@ size_t my_vsnprintf_ex(CHARSET_INFO *cs, char *to, size_t n,
           *to++= '"';
           my_strerror(errmsg_buff, sizeof(errmsg_buff), (int) larg);
           to= process_str_arg(cs, to, real_end, 0, width, errmsg_buff,
-                              print_type, 1);
+                              FALSE, TRUE);
           if (real_end > to)
             *to++= '"';
         }
