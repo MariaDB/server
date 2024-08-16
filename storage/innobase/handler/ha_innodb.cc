@@ -558,6 +558,7 @@ mysql_pfs_key_t	lock_wait_mutex_key;
 mysql_pfs_key_t	trx_sys_mutex_key;
 mysql_pfs_key_t	srv_threads_mutex_key;
 mysql_pfs_key_t	tpool_cache_mutex_key;
+mysql_pfs_key_t fsp_active_binlog_mutex_key;
 
 /* all_innodb_mutexes array contains mutexes that are
 performance schema instrumented if "UNIV_PFS_MUTEX"
@@ -4154,6 +4155,7 @@ static int innodb_init(void* p)
 		= innodb_prepare_commit_versioned;
 
         innobase_hton->update_optimizer_costs= innobase_update_optimizer_costs;
+        innobase_hton->binlog_init= innodb_binlog_init;
         innobase_hton->binlog_write_direct= innobase_binlog_write_direct;
         innobase_hton->get_binlog_reader= innodb_get_binlog_reader;
 
