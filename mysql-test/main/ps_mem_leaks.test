@@ -142,4 +142,17 @@ CALL p1(2);
 DROP TABLE t1;
 DROP PROCEDURE p1;
 
+--echo #
+--echo # MDEV-33858: Assertion `(mem_root->flags & 4) == 0' fails on 2nd execution of PS with -DWITH_PROTECT_STATEMENT_MEMROOT=ON
+--echo #
+
+CREATE TABLE t (a INT);
+INSERT INTO t VALUES (1),(2); # Optional, fails either way
+PREPARE stmt FROM "UPDATE t SET a = 0 LIMIT ?";
+EXECUTE stmt USING 0;
+EXECUTE stmt USING 1;
+
+# CLeanup
+DROP TABLE t;
+
 --echo # End of 10.5 tests
