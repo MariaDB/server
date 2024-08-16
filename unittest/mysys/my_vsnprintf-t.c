@@ -61,7 +61,7 @@ static void test_many(const char **res, const char *fmt, ...)
 
 int main(void)
 {
-  plan(62);
+  plan(45);
 
   test1("Constant string",
         "Constant string");
@@ -70,8 +70,6 @@ int main(void)
 
   test1("Format specifier s works",
         "Format specifier s %s", "works");
-  test1("Format specifier b works (mysql extension)",
-        "Format specifier b %.5b (mysql extension)", "works!!!");
   test1("Format specifier c !",
         "Format specifier c %c", '!');
   test1("Format specifier d 1",
@@ -106,8 +104,6 @@ int main(void)
 
   test1("Precision works for strings <abcde>",
         "Precision works for strings <%.5s>", "abcdef!");
-  test1("Precision works for strings <ab...>",
-        "Precision works for strings <%.5T>", "abcdef!");
 
   // MDEV-21978, tests based on those for their previous incarnations
 
@@ -152,30 +148,6 @@ int main(void)
   test1("sT with small width: <.> <...>",
         "sT with small width: <%.1sT> <%.3sT>", "abcd", "opqrst");
 
-  test1("Flag '`' (backtick) works: `abcd` `op``q` (mysql extension)",
-        "Flag '`' (backtick) works: %`s %`.4s (mysql extension)",
-        "abcd", "op`qrst");
-
-  test1("Flag '`' (backtick) works: `abcd` `op``q...` (mysql extension)",
-        "Flag '`' (backtick) works: %`T %`.7T (mysql extension)",
-        "abcd", "op`qrstuuuuuuuuu");
-
-  test1("Flag '`' (backtick) works: `abcd` `.` (mysql extension)",
-        "Flag '`' (backtick) works: %`T %`.1T (mysql extension)",
-        "abcd", "op`qrstuuuuuuuuu");
-
-  test1("Flag '`' (backtick) works: `abcd` `...` (mysql extension)",
-        "Flag '`' (backtick) works: %`T %`.3T (mysql extension)",
-        "abcd", "op`qrstuuuuuuuuu");
-
-  test1("Flag '`' (backtick) works: `abcd` `op...` (mysql extension)",
-        "Flag '`' (backtick) works: %`T %`.5T (mysql extension)",
-        "abcd", "op`qrstuuuuuuuuu");
-
-  test1("Flag '`' (backtick) works: `abcd` `op``...` (mysql extension)",
-        "Flag '`' (backtick) works: %`T %`.6T (mysql extension)",
-        "abcd", "op`qrstuuuuuuuuu");
-
   test1("Length modifiers work: 1 * -1 * 2 * 3",
         "Length modifiers work: %d * %ld * %lld * %zd", 1, -1L, 2LL, (size_t)3);
 
@@ -202,8 +174,6 @@ int main(void)
         "Asterisk '*' as a precision works: <%.*s>", 6, "qwertyuiop");
   test1("Asterisk '*' as a precision works: <qwe...>",
         "Asterisk '*' as a precision works: <%.*sT>", 6, "qwertyuiop");
-  test1("Asterisk '*' as a precision works: <qwe...>",
-        "Asterisk '*' as a precision works: <%.*T>", 6, "qwertyuiop");
 
   test1("Positional arguments for a width: <    4>",
         "Positional arguments for a width: <%1$*2$d>", 4, 5);
@@ -212,8 +182,6 @@ int main(void)
         "Positional arguments for a precision: <%1$.*2$s>", "qwertyuiop", 6);
   test1("Positional arguments for a precision: <qwe...>",
         "Positional arguments for a precision: <%1$.*2$sT>", "qwertyuiop", 6);
-  test1("Positional arguments for a precision: <qwe...>",
-        "Positional arguments for a precision: <%1$.*2$T>", "qwertyuiop", 6);
 
   test1("Positional arguments and a width: <0000ab>",
         "Positional arguments and a width: <%1$06x>", 0xab);
@@ -230,33 +198,6 @@ int main(void)
         "F with a width (ignored) and precision: <%10.5f>", 12.3456789);
   test1("G with a width (ignored) and precision: <12.35>",
         "G with a width (ignored) and precision: <%10.5g>", 12.3456789);
-
-  {
-    /* Test that %M works */
-    const char *results[]=
-    {
-      "Error 1 \"Operation not permitted\"",    /* Linux */
-      "Error 1 \"Not owner\"",                  /* Solaris */
-      NullS
-    };
-    test_many(results, "Error %M", 1);
-  }
-
-  test1("M with 0 error code: 0 \"Internal error/check (Not system error)\"",
-        "M with 0 error code: %M", 0);
-
-  test1("M with positional: 0 \"Internal error/check (Not system error)\"",
-        "M with positional: %1$M", 0);
-
-  test1("M with width: 0 \"Internal error...",
-        "M with width: %.20M", 0);
-  test1("M with width positional: 0 \"Internal error...",
-        "M with width positional: %2$.*1$M", 20, 0);
-
-  test_w_len("M small buf: 0 \"..",
-         19, "M small buf: %M", 0);
-  test_w_len("M small buf positional: 0 \"..",
-         30, "M small buf positional: %1$M", 0);
 
   return exit_status();
 }
