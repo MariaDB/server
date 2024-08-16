@@ -563,6 +563,8 @@ extern void fsp_binlog_trx(trx_t *trx, mtr_t *mtr);
 class handler_binlog_reader;
 extern bool innobase_binlog_write_direct(IO_CACHE *cache, size_t main_size);
 extern handler_binlog_reader *innodb_get_binlog_reader();
+extern void fsp_binlog_init();
+extern bool innodb_binlog_init(size_t binlog_size);
 extern void fsp_binlog_close();
 
 #ifndef UNIV_DEBUG

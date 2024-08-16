@@ -1970,6 +1970,8 @@ skip_monitors:
 		return(srv_init_abort(err));
 	}
 
+        fsp_binlog_init();
+
 	if (!srv_read_only_mode
 	    && srv_operation <= SRV_OPERATION_EXPORT_RESTORED) {
 		/* Initialize the innodb_temporary tablespace and keep

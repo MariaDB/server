@@ -5539,13 +5539,21 @@ static int init_server_components()
   if (opt_bin_log)
   {
     int error;
-    mysql_mutex_t *log_lock= mysql_bin_log.get_log_lock();
-    mysql_mutex_lock(log_lock);
-    error= mysql_bin_log.open(opt_bin_logname, 0, 0,
-                              WRITE_CACHE, max_binlog_size, 0, TRUE);
-    mysql_mutex_unlock(log_lock);
-    if (unlikely(error))
-      unireg_abort(1);
+    if (opt_binlog_engine_hton)
+    {
+      if ((*opt_binlog_engine_hton->binlog_init)((size_t)max_binlog_size))
+        error= 1;
+    }
+    if (true) /* ToDo: `else` branch (don't open legacy binlog if using engine implementation). */
+    {
+      mysql_mutex_t *log_lock= mysql_bin_log.get_log_lock();
+      mysql_mutex_lock(log_lock);
+      error= mysql_bin_log.open(opt_bin_logname, 0, 0,
+                                WRITE_CACHE, max_binlog_size, 0, TRUE);
+      mysql_mutex_unlock(log_lock);
+      if (unlikely(error))
+        unireg_abort(1);
+    }
   }
 
 #ifdef HAVE_REPLICATION
