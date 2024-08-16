@@ -203,6 +203,21 @@ int wsrep_apply_events(THD*        thd,
       }
     }
 
+    if (LOG_EVENT_IS_WRITE_ROW(typ) ||
+        LOG_EVENT_IS_UPDATE_ROW(typ) ||
+        LOG_EVENT_IS_DELETE_ROW(typ))
+    {
+      Rows_log_event* rle = static_cast<Rows_log_event*>(ev);
+      if (thd_test_options(thd, OPTION_RELAXED_UNIQUE_CHECKS))
+      {
+        rle->set_flags(Rows_log_event::RELAXED_UNIQUE_CHECKS_F);
+      }
+      if (thd_test_options(thd, OPTION_NO_FOREIGN_KEY_CHECKS))
+      {
+        rle->set_flags(Rows_log_event::NO_FOREIGN_KEY_CHECKS_F);
+      }
+    }
+
     /* Use the original server id for logging. */
     thd->set_server_id(ev->server_id);
     thd->lex->current_select= 0;
