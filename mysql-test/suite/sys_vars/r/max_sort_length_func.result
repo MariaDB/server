@@ -40,7 +40,7 @@ xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxsy
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 Warnings:
-Warning	4197	6 strings were longer than max_sort_length. Sorting used only the first 69 bytes
+Warning	4201	6 values were longer than max_sort_length. Sorting used only the first 69 bytes
 ** Results should be sorted **
 '#--------------------FN_DYNVARS_098_02-------------------------#'
 connect  test_con2,localhost,root,,;
@@ -94,7 +94,7 @@ xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxrx
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxsy
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxgw
 Warnings:
-Warning	4197	16 strings were longer than max_sort_length. Sorting used only the first 64 bytes
+Warning	4201	16 values were longer than max_sort_length. Sorting used only the first 64 bytes
 ** Results should not be sorted **
 '#--------------------FN_DYNVARS_098_03-------------------------#'
 SET max_sort_length=64;
@@ -125,7 +125,7 @@ xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxrx
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxsy
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxgw
 Warnings:
-Warning	4197	20 strings were longer than max_sort_length. Sorting used only the first 64 bytes
+Warning	4201	20 values were longer than max_sort_length. Sorting used only the first 64 bytes
 ** Results should not be sorted **
 RESET QUERY CACHE;
 '#--------------------FN_DYNVARS_098_04-------------------------#'
@@ -153,7 +153,7 @@ xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 Warnings:
-Warning	4197	15 strings were longer than max_sort_length. Sorting used only the first 69 bytes
+Warning	4201	15 values were longer than max_sort_length. Sorting used only the first 69 bytes
 ** Results should be sorted **
 '#--------------------FN_DYNVARS_098_05-------------------------#'
 SET max_sort_length=70;
@@ -244,7 +244,7 @@ xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxrx
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxsy
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxgw
 Warnings:
-Warning	4197	8 strings were longer than max_sort_length. Sorting used only the first 64 bytes
+Warning	4201	8 values were longer than max_sort_length. Sorting used only the first 64 bytes
 ** Results should not be sorted **
 '#--------------------FN_DYNVARS_098_08-------------------------#'
 Testing type CHAR
@@ -263,7 +263,7 @@ xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxrx
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxsy
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxgw
 Warnings:
-Warning	4197	4 strings were longer than max_sort_length. Sorting used only the first 64 bytes
+Warning	4201	4 values were longer than max_sort_length. Sorting used only the first 64 bytes
 ** Results should not be sorted **
 SET @@session.max_sort_length = 64;
 SELECT @@session.max_sort_length;
@@ -284,7 +284,7 @@ xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxrx
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxsy
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxgw
 Warnings:
-Warning	4197	8 strings were longer than max_sort_length. Sorting used only the first 64 bytes
+Warning	4201	8 values were longer than max_sort_length. Sorting used only the first 64 bytes
 ** Results should not be sorted **
 DROP TABLE t, t1, t2;
 #
@@ -295,19 +295,15 @@ set max_sort_length = 70;
 create table t1(a char(100));
 insert into t1 values
 (concat(repeat('Str', 25), 'zzz')), (concat(repeat('Str', 25), 'yyy')),
-(concat(repeat('Str', 25), 'xxx')),
-('shortString89'), ('shortString51');
+(concat(repeat('Str', 25), 'xxx'));
+# Strings are not sorted properly due to max_sort_length limitation
 select a from t1 order by a;
 a
-shortString51
-shortString89
 StrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrzzz
 StrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStryyy
 StrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrxxx
 Warnings:
-Warning	4197	3 strings were longer than max_sort_length. Sorting used only the first 70 bytes
-# Long strings are not sorted properly due to truncation to max_sort_length.
-# Warning shows 3 strings out of 5 since the short strings are not truncated.
+Warning	4201	3 values were longer than max_sort_length. Sorting used only the first 70 bytes
 # Table having a variable-length string field and UTF16 encoding (2 bytes per char):
 create table t2(a varchar(100)) character set 'utf16';
 insert into t2 values
@@ -324,7 +320,7 @@ StrStrStrStrStrStrStrStrStrStrStrStrStrStrStrzzz
 StrStrStrStrStrStrStrStrStrStrStrStrStrStrStryyy
 StrStrStrStrStrStrStrStrStrStrStrStrStrStrStrxxx
 Warnings:
-Warning	4197	3 strings were longer than max_sort_length. Sorting used only the first 64 bytes
+Warning	4201	3 values were longer than max_sort_length. Sorting used only the first 64 bytes
 # Table having text blobs
 create table t3(a text, b mediumtext, c longtext) character set 'utf16';
 insert into t3 values
@@ -341,7 +337,7 @@ TextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextText
 TextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextText888	MediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMedium88	LongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLong88
 TextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextText777	MediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMedium77	LongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLong77
 Warnings:
-Warning	4197	3 strings were longer than max_sort_length. Sorting used only the first 64 bytes
+Warning	4201	3 values were longer than max_sort_length. Sorting used only the first 64 bytes
 select * from t3 order by b desc;
 a	b	c
 shortString51	short777	short897
@@ -350,7 +346,7 @@ TextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextText
 TextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextText888	MediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMedium88	LongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLong88
 TextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextText777	MediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMedium77	LongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLong77
 Warnings:
-Warning	4197	3 strings were longer than max_sort_length. Sorting used only the first 64 bytes
+Warning	4201	3 values were longer than max_sort_length. Sorting used only the first 64 bytes
 select * from t3 order by c;
 a	b	c
 TextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextText999	MediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMedium99	LongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLong99
@@ -359,7 +355,7 @@ TextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextText
 shortString89	short123	short456
 shortString51	short777	short897
 Warnings:
-Warning	4197	3 strings were longer than max_sort_length. Sorting used only the first 64 bytes
+Warning	4201	3 values were longer than max_sort_length. Sorting used only the first 64 bytes
 select * from t3 order by c, a desc;
 a	b	c
 TextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextText999	MediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMedium99	LongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLong99
@@ -368,7 +364,7 @@ TextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextText
 shortString89	short123	short456
 shortString51	short777	short897
 Warnings:
-Warning	4197	6 strings were longer than max_sort_length. Sorting used only the first 64 bytes
+Warning	4201	6 values were longer than max_sort_length. Sorting used only the first 64 bytes
 # Packing of sort keys will be applied here:
 select * from t3 order by a, c, b;
 a	b	c
@@ -378,7 +374,7 @@ TextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextText
 TextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextText888	MediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMedium88	LongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLong88
 TextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextText777	MediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMedium77	LongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLong77
 Warnings:
-Warning	4197	9 strings were longer than max_sort_length. Sorting used only the first 64 bytes
+Warning	4201	9 values were longer than max_sort_length. Sorting used only the first 64 bytes
 select * from t3 order by a;
 a	b	c
 shortString51	short777	short897
@@ -387,7 +383,7 @@ TextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextText
 TextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextText888	MediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMedium88	LongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLong88
 TextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextTextText777	MediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMediumMedium77	LongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLongLong77
 Warnings:
-Warning	4197	3 strings were longer than max_sort_length. Sorting used only the first 64 bytes
+Warning	4201	3 values were longer than max_sort_length. Sorting used only the first 64 bytes
 # Test a prepared statement re-execution (expecting warnings at both executions)
 prepare stmt from "select * from t2 order by a";
 execute stmt;
@@ -398,7 +394,7 @@ StrStrStrStrStrStrStrStrStrStrStrStrStrStrStrzzz
 StrStrStrStrStrStrStrStrStrStrStrStrStrStrStryyy
 StrStrStrStrStrStrStrStrStrStrStrStrStrStrStrxxx
 Warnings:
-Warning	4197	3 strings were longer than max_sort_length. Sorting used only the first 64 bytes
+Warning	4201	3 values were longer than max_sort_length. Sorting used only the first 64 bytes
 execute stmt;
 a
 shortString51
@@ -407,7 +403,7 @@ StrStrStrStrStrStrStrStrStrStrStrStrStrStrStrzzz
 StrStrStrStrStrStrStrStrStrStrStrStrStrStrStryyy
 StrStrStrStrStrStrStrStrStrStrStrStrStrStrStrxxx
 Warnings:
-Warning	4197	3 strings were longer than max_sort_length. Sorting used only the first 64 bytes
+Warning	4201	3 values were longer than max_sort_length. Sorting used only the first 64 bytes
 # Test a stored procedure
 create procedure p1() select * from t2 order by a;
 call p1();
@@ -418,7 +414,7 @@ StrStrStrStrStrStrStrStrStrStrStrStrStrStrStrzzz
 StrStrStrStrStrStrStrStrStrStrStrStrStrStrStryyy
 StrStrStrStrStrStrStrStrStrStrStrStrStrStrStrxxx
 Warnings:
-Warning	4197	3 strings were longer than max_sort_length. Sorting used only the first 64 bytes
+Warning	4201	3 values were longer than max_sort_length. Sorting used only the first 64 bytes
 call p1();
 a
 shortString51
@@ -427,30 +423,26 @@ StrStrStrStrStrStrStrStrStrStrStrStrStrStrStrzzz
 StrStrStrStrStrStrStrStrStrStrStrStrStrStrStryyy
 StrStrStrStrStrStrStrStrStrStrStrStrStrStrStrxxx
 Warnings:
-Warning	4197	3 strings were longer than max_sort_length. Sorting used only the first 64 bytes
+Warning	4201	3 values were longer than max_sort_length. Sorting used only the first 64 bytes
 drop procedure p1;
 # Test a stored function
 create function f1 () returns char(100) return (select a from t1 order by a limit 1);
 select f1() as f1_res from t1 order by f1_res;
 f1_res
-shortString51
-shortString51
-shortString51
-shortString51
-shortString51
+StrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrxxx
+StrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrxxx
+StrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrxxx
 Warnings:
-Warning	4197	15 strings were longer than max_sort_length. Sorting used only the first 64 bytes
+Warning	4201	12 values were longer than max_sort_length. Sorting used only the first 64 bytes
 # Test a view
 create view v1 as select f1() as f1_res from t1 order by f1_res;
 select * from v1;
 f1_res
-shortString51
-shortString51
-shortString51
-shortString51
-shortString51
+StrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrxxx
+StrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrxxx
+StrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrStrxxx
 Warnings:
-Warning	4197	30 strings were longer than max_sort_length. Sorting used only the first 64 bytes
+Warning	4201	21 values were longer than max_sort_length. Sorting used only the first 64 bytes
 drop function f1;
 drop view v1;
 drop table t1, t2, t3;

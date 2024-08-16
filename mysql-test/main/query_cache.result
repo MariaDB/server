@@ -827,7 +827,7 @@ xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxw
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxy
 Warnings:
-Warning	4201	4 strings were longer than max_sort_length. Sorting used only the first 200 bytes
+Warning	4201	4 values were longer than max_sort_length. Sorting used only the first 200 bytes
 reset query cache;
 set max_sort_length=64;
 select c from t1 order by c, id;
@@ -837,7 +837,7 @@ xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxw
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxy
 Warnings:
-Warning	4201	4 strings were longer than max_sort_length. Sorting used only the first 64 bytes
+Warning	4201	4 values were longer than max_sort_length. Sorting used only the first 64 bytes
 set max_sort_length=200;
 select c from t1 order by c, id;
 c
@@ -846,7 +846,7 @@ xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxw
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxy
 Warnings:
-Warning	4201	4 strings were longer than max_sort_length. Sorting used only the first 200 bytes
+Warning	4201	4 values were longer than max_sort_length. Sorting used only the first 200 bytes
 set max_sort_length=default;
 select '1' || '3' from t1;
 '1' || '3'

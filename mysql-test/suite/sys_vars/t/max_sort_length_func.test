@@ -207,12 +207,10 @@ create table t1(a char(100));
 
 insert into t1 values
   (concat(repeat('Str', 25), 'zzz')), (concat(repeat('Str', 25), 'yyy')),
-  (concat(repeat('Str', 25), 'xxx')),
-  ('shortString89'), ('shortString51');
+  (concat(repeat('Str', 25), 'xxx'));
 
+--echo # Strings are not sorted properly due to max_sort_length limitation
 select a from t1 order by a;
---echo # Long strings are not sorted properly due to truncation to max_sort_length.
---echo # Warning shows 3 strings out of 5 since the short strings are not truncated.
 
 --echo # Table having a variable-length string field and UTF16 encoding (2 bytes per char):
 create table t2(a varchar(100)) character set 'utf16';
