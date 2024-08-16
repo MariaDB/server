@@ -115,7 +115,9 @@ static void wsrep_setup_uk_and_fk_checks(THD* thd)
   else
     thd->variables.option_bits&= ~OPTION_RELAXED_UNIQUE_CHECKS;
 
-  if (wsrep_slave_FK_checks == FALSE)
+  if (wsrep_slave_FK_checks == FALSE ||
+      (wsrep_check_mode(WSREP_MODE_APPLIER_SKIP_FK_CHECKS_IN_IST) &&
+       !wsrep_ready_get()))
     thd->variables.option_bits|= OPTION_NO_FOREIGN_KEY_CHECKS;
   else
     thd->variables.option_bits&= ~OPTION_NO_FOREIGN_KEY_CHECKS;
