@@ -269,8 +269,8 @@ static char provider_vendor[256]= { 0, };
  * Wsrep status variables. LOCK_status must be locked When modifying
  * these variables,
  */
+std::atomic<bool> wsrep_ready(false);
 my_bool     wsrep_connected         = FALSE;
-my_bool     wsrep_ready             = FALSE;
 const char* wsrep_cluster_state_uuid= cluster_uuid_str;
 long long   wsrep_cluster_conf_id   = WSREP_SEQNO_UNDEFINED;
 const char* wsrep_cluster_status    = "Disconnected";
@@ -565,10 +565,7 @@ void wsrep_verify_SE_checkpoint(const wsrep_uuid_t& uuid,
  */
 my_bool wsrep_ready_get (void)
 {
-  if (mysql_mutex_lock (&LOCK_wsrep_ready)) abort();
-  my_bool ret= wsrep_ready;
-  mysql_mutex_unlock (&LOCK_wsrep_ready);
-  return ret;
+  return wsrep_ready;
 }
 
 int wsrep_show_ready(THD *thd, SHOW_VAR *var, void *buff,
@@ -3452,6 +3449,10 @@ bool wsrep_consistency_check(THD *thd)
 // Wait until wsrep has reached ready state
 void wsrep_wait_ready(THD *thd)
 {
+  // First check not locking the mutex.
+  if (wsrep_ready)
+    return;
+
   mysql_mutex_lock(&LOCK_wsrep_ready);
   while(!wsrep_ready)
   {
