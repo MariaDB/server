@@ -32123,16 +32123,20 @@ my_char_weight_addr(const MY_UCA_WEIGHT_LEVEL *level, uint wc)
 }
 
 
-static uchar *
+static my_strnxfrm_pad_ret_t
 my_strnxfrm_uca_padn(uchar *dst, uchar *de, uint nweights, int weight)
 {
-  uint count= MY_MIN((uint) (de - dst) / 2, nweights);
+  size_t dstlen= de - dst;
+  uint count= MY_MIN((uint) (dstlen) / 2, nweights);
+  my_strnxfrm_pad_ret_t rc= {count * 2,
+                             count < nweights ?
+                             MY_STRNXFRM_TRUNCATED_WEIGHT_TRAILING_SPACE : 0};
   for (; count ; count--)
   {
     *dst++= weight >> 8;
     *dst++= weight & 0xFF;
   }
-  return dst;
+  return rc;
 }
 
 

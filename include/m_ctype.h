@@ -434,6 +434,25 @@ typedef struct
   uint mb_len;
 } my_match_t;
 
+
+#define MY_STRNXFRM_TRUNCATED_WEIGHT_TRAILING_SPACE  1
+#define MY_STRNXFRM_TRUNCATED_WEIGHT_REAL_CHAR       2
+
+typedef struct
+{
+  size_t m_result_length;
+  size_t m_source_length_used;
+  uint   m_warnings;
+} my_strnxfrm_ret_t;
+
+
+typedef struct
+{
+  size_t m_result_length;
+  uint m_warnings;
+} my_strnxfrm_pad_ret_t;
+
+
 enum my_lex_states
 {
   MY_LEX_START, MY_LEX_CHAR, MY_LEX_IDENT, 
@@ -532,9 +551,9 @@ struct my_collation_handler_st
                                 const uchar *str2, size_t len2,
                                 size_t nchars,
                                 uint flags);
-  size_t     (*strnxfrm)(CHARSET_INFO *,
-                         uchar *dst, size_t dstlen, uint nweights,
-                         const uchar *src, size_t srclen, uint flags);
+  my_strnxfrm_ret_t (*strnxfrm)(CHARSET_INFO *,
+                                uchar *dst, size_t dstlen, uint nweights,
+                                const uchar *src, size_t srclen, uint flags);
   size_t    (*strnxfrmlen)(CHARSET_INFO *, size_t); 
   my_bool (*like_range)(CHARSET_INFO *,
 			const char *s, size_t s_length,
@@ -1086,22 +1105,22 @@ struct charset_info_st
                                      (uchar *) b.str, b.length);
   }
 
-  size_t strnxfrm(char *dst, size_t dstlen, uint nweights,
-                  const char *src, size_t srclen, uint flags) const
+  my_strnxfrm_ret_t strnxfrm(char *dst, size_t dstlen, uint nweights,
+                             const char *src, size_t srclen, uint flags) const
   {
     return (coll->strnxfrm)(this,
                             (uchar *) dst, dstlen, nweights,
                             (const uchar *) src, srclen, flags);
   }
-  size_t strnxfrm(uchar *dst, size_t dstlen, uint nweights,
-                  const uchar *src, size_t srclen, uint flags) const
+  my_strnxfrm_ret_t strnxfrm(uchar *dst, size_t dstlen, uint nweights,
+                             const uchar *src, size_t srclen, uint flags) const
   {
     return (coll->strnxfrm)(this,
                             dst, dstlen, nweights,
                             src, srclen, flags);
   }
-  size_t strnxfrm(uchar *dst, size_t dstlen,
-                  const uchar *src, size_t srclen) const
+  my_strnxfrm_ret_t strnxfrm(uchar *dst, size_t dstlen,
+                             const uchar *src, size_t srclen) const
   {
     return (coll->strnxfrm)(this,
                             dst, dstlen, (uint) dstlen,
@@ -1523,10 +1542,6 @@ const uint16 *my_cs_contraction2_weight(CHARSET_INFO *cs, my_wc_t wc1,
                                          my_wc_t wc2);
 
 /* declarations for simple charsets */
-extern size_t my_strnxfrm_simple(CHARSET_INFO *,
-                                 uchar *dst, size_t dstlen, uint nweights,
-                                 const uchar *src, size_t srclen, uint flags); 
-size_t  my_strnxfrmlen_simple(CHARSET_INFO *, size_t); 
 extern int  my_strnncoll_simple(CHARSET_INFO *, const uchar *, size_t,
 				const uchar *, size_t, my_bool);
 
@@ -1716,27 +1731,6 @@ void my_hash_sort_mb_nopad_bin(CHARSET_INFO *cs __attribute__((unused)),
                                const uchar *key, size_t len,
                                ulong *nr1, ulong *nr2);
 
-size_t my_strnxfrm_mb(CHARSET_INFO *,
-                      uchar *dst, size_t dstlen, uint nweights,
-                      const uchar *src, size_t srclen, uint flags);
-
-size_t my_strnxfrm_mb_nopad(CHARSET_INFO *,
-			    uchar *dst, size_t dstlen, uint nweights,
-			    const uchar *src, size_t srclen, uint flags);
-
-size_t  my_strnxfrmlen_unicode(CHARSET_INFO *, size_t); 
-
-size_t my_strnxfrm_unicode_full_bin(CHARSET_INFO *,
-                                    uchar *dst, size_t dstlen,
-                                    uint nweights, const uchar *src,
-                                    size_t srclen, uint flags);
-
-size_t my_strnxfrm_unicode_full_nopad_bin(CHARSET_INFO *,
-					  uchar *dst, size_t dstlen,
-					  uint nweights, const uchar *src,
-					  size_t srclen, uint flags);
-
-size_t  my_strnxfrmlen_unicode_full_bin(CHARSET_INFO *, size_t); 
 
 extern my_bool my_parse_charset_xml(MY_CHARSET_LOADER *loader,
                                     const char *buf, size_t buflen);
@@ -1768,13 +1762,6 @@ my_repertoire_t my_charset_repertoire(CHARSET_INFO *cs);
 uint my_strxfrm_flag_normalize(CHARSET_INFO *cs, uint flags);
 void my_strxfrm_desc_and_reverse(uchar *str, uchar *strend,
                                  uint flags, uint level);
-size_t my_strxfrm_pad_desc_and_reverse(CHARSET_INFO *cs,
-                                       uchar *str, uchar *frmend, uchar *strend,
-                                       uint nweights, uint flags, uint level);
-size_t my_strxfrm_pad_desc_and_reverse_nopad(CHARSET_INFO *cs,
-					     uchar *str, uchar *frmend,
-					     uchar *strend, uint nweights,
-					     uint flags, uint level);
 
 const MY_CONTRACTIONS *my_charset_get_contractions(CHARSET_INFO *cs,
                                                    int level);

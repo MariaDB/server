@@ -7814,15 +7814,13 @@ int Field_string::cmp_prefix(const uchar *a_ptr, const uchar *b_ptr,
 
 void Field_string::sort_string(uchar *to,uint length)
 {
-#ifdef DBUG_ASSERT_EXISTS
-  size_t tmp=
-#endif
+  my_strnxfrm_ret_t rc=
     field_charset()->strnxfrm(to, length,
                               char_length() * field_charset()->strxfrm_multiply,
                               ptr, field_length,
                               MY_STRXFRM_PAD_WITH_SPACE |
                               MY_STRXFRM_PAD_TO_MAXLEN);
-  DBUG_ASSERT(tmp == length);
+  DBUG_ASSERT(rc.m_result_length == length);
 }
 
 
@@ -8270,15 +8268,13 @@ void Field_varstring::sort_string(uchar *to,uint length)
     length-= length_bytes;
   }
 
-#ifdef DBUG_ASSERT_EXISTS
-    size_t rc=
-#endif
+  my_strnxfrm_ret_t rc=
   field_charset()->strnxfrm(to, length,
                             char_length() * field_charset()->strxfrm_multiply,
                             (const uchar *) buf.ptr(), buf.length(),
                             MY_STRXFRM_PAD_WITH_SPACE |
                             MY_STRXFRM_PAD_TO_MAXLEN);
-  DBUG_ASSERT(rc == length);
+  DBUG_ASSERT(rc.m_result_length == length);
 }
 
 
@@ -9160,14 +9156,12 @@ void Field_blob::sort_string(uchar *to,uint length)
       store_bigendian(buf.length(), to + length, packlength);
     }
 
-#ifdef DBUG_ASSERT_EXISTS
-    size_t rc=
-#endif
+    my_strnxfrm_ret_t rc=
     field_charset()->strnxfrm(to, length, length,
                               (const uchar *) buf.ptr(), buf.length(),
                               MY_STRXFRM_PAD_WITH_SPACE |
                               MY_STRXFRM_PAD_TO_MAXLEN);
-    DBUG_ASSERT(rc == length);
+    DBUG_ASSERT(rc.m_result_length == length);
   }
 }
 
