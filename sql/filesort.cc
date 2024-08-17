@@ -1241,14 +1241,14 @@ Type_handler_string_result::make_sort_key_part(uchar *to, Item *item,
   if (use_strnxfrm(cs))
   {
 #ifdef DBUG_ASSERT_EXISTS
-    size_t tmp_length=
+    my_strnxfrm_ret_t rc=
 #endif
     cs->strnxfrm(to, sort_field->length,
                  item->max_char_length() * cs->strxfrm_multiply,
                  (uchar*) res->ptr(), res->length(),
                  MY_STRXFRM_PAD_WITH_SPACE |
                  MY_STRXFRM_PAD_TO_MAXLEN);
-    DBUG_ASSERT(tmp_length == sort_field->length);
+    DBUG_ASSERT(rc.m_result_length == sort_field->length);
   }
   else
   {

@@ -4208,7 +4208,7 @@ String *Item_func_weight_string::val_str(String *str)
   frm_length= cs->strnxfrm((char*) str->ptr(), tmp_length,
                            nweights ? nweights : (uint) tmp_length,
                            res->ptr(), res->length(),
-                           weigth_flags);
+                           weigth_flags).m_result_length;
   DBUG_ASSERT(frm_length <= tmp_length);
 
   str->set_charset(&my_charset_bin);
