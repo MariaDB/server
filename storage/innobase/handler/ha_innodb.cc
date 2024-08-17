@@ -6308,12 +6308,13 @@ wsrep_innobase_mysql_sort(
 
 		tmp_length = charset->strnxfrm(str, str_length,
 					       uint(str_length), tmp_str,
-					       tmp_length, 0);
+					       tmp_length, 0).m_result_length;
 		DBUG_ASSERT(tmp_length <= str_length);
 		if (wsrep_protocol_version < 3) {
 			tmp_length = charset->strnxfrm(
 				str, str_length,
-				uint(str_length), tmp_str, tmp_length, 0);
+				uint(str_length), tmp_str,
+				tmp_length, 0).m_result_length;
 			DBUG_ASSERT(tmp_length <= str_length);
 		} else {
 			/* strnxfrm will expand the destination string,
@@ -6322,7 +6323,8 @@ wsrep_innobase_mysql_sort(
 			*/
 			tmp_length = charset->strnxfrm(
 				str, buf_length,
-				uint(str_length), tmp_str, str_length, 0);
+				uint(str_length), tmp_str,
+				str_length, 0).m_result_length;
 			DBUG_ASSERT(tmp_length <= buf_length);
 			ret_length = tmp_length;
 		}

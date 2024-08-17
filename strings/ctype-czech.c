@@ -142,8 +142,6 @@ static const struct wordvalue doubles[] = {
 	We append 0 to the end.
  */
 
-#define ADD_TO_RESULT(dest, len, totlen, value)			\
-{ if ((totlen) < (len)) { dest[totlen++]= value; } }
 #define IS_END(p, src, len)	(((char *)p - (char *)src) >= (len))
 
 #define NEXT_CMP_VALUE(src, p, store, pass, value, len)		\
@@ -277,12 +275,13 @@ my_strnxfrmlen_czech(CHARSET_INFO *cs
   the length of the strings being specified
 */
 
-static size_t
+static my_strnxfrm_ret_t
 my_strnxfrm_czech(CHARSET_INFO *cs __attribute__((unused)), 
                   uchar *dest, size_t len,
                   uint nweights_arg __attribute__((unused)),
                   const uchar *src, size_t srclen, uint flags)
 {
+  uint warnings= 0;
   int value;
   const uchar *p, * store;
   int pass = 0;
@@ -297,15 +296,27 @@ my_strnxfrm_czech(CHARSET_INFO *cs __attribute__((unused)),
     int add= (1 << pass) & flags; /* If this level is needed */
     NEXT_CMP_VALUE(src, p, store, pass, value, (int)srclen);
     if (add)
-      ADD_TO_RESULT(dest, len, totlen, value);
+    {
+      if (totlen < len)
+        dest[totlen++]= value;
+      else
+      {
+        warnings|= MY_STRNXFRM_TRUNCATED_WEIGHT_TRAILING_SPACE;
+        if (value >= 0x01 || pass < 3)
+          warnings|= MY_STRNXFRM_TRUNCATED_WEIGHT_REAL_CHAR;
+        break;
+      }
+    }
   }
   while (value);
   if ((flags & MY_STRXFRM_PAD_TO_MAXLEN) && len > totlen)
   {
-    memset(dest + totlen, ' ', len - totlen);
+    memset(dest + totlen, 0x00, len - totlen);
     totlen= len;
   }
-  return totlen;
+  DBUG_ASSERT(src <= p);
+  return my_strnxfrm_ret_construct(totlen, (pass * srclen) + p - src,
+                                   warnings);
 }
 
 #undef IS_END

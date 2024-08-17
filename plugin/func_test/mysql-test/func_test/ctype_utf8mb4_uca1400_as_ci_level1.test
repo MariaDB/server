@@ -1,0 +1,11 @@
+SET NAMES utf8mb4;
+
+--source strnxfrm_sp_create.inc
+
+CREATE TABLE t1 (str TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_as_ci);
+CALL populate_t1('uca');
+# 0xC1 = MY_STRXFRM_PAD_WITH_SPACE | MY_STRXFRM_PAD_TO_MAXLEN | MY_STRXFRM_LEVEL1
+CALL test_strnxfrm(10,42,0xC1);
+DROP TABLE t1;
+
+--source strnxfrm_sp_drop.inc

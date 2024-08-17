@@ -174,12 +174,16 @@ extern MY_CASEFOLD_INFO my_casefold_unicode1400;
 extern MY_CASEFOLD_INFO my_casefold_unicode1400tr;
 
 
-size_t my_strxfrm_pad_nweights_unicode_be2(uchar *str, uchar *strend,
-                                           size_t nweights);
+my_strnxfrm_pad_ret_t
+my_strxfrm_pad_nweights_unicode_be2(uchar *str, uchar *strend,
+                                    size_t nweights);
+
 size_t my_strxfrm_pad_unicode_be2(uchar *str, uchar *strend);
 
-size_t my_strxfrm_pad_nweights_unicode_be3(uchar *str, uchar *strend,
-                                           size_t nweights);
+my_strnxfrm_pad_ret_t
+my_strxfrm_pad_nweights_unicode_be3(uchar *str, uchar *strend,
+                                    size_t nweights);
+
 size_t my_strxfrm_pad_unicode_be3(uchar *str, uchar *strend);
 
 
