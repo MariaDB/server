@@ -6270,7 +6270,6 @@ void handle_connections_sockets()
   uint error_count=0;
   struct sockaddr_storage cAddr;
   int retval;
-#ifdef HAVE_POLL
   int socket_count= 0;
   struct pollfd fds[3]; // for ip_sock, unix_sock and extra_ip_sock
   MYSQL_SOCKET  pfs_fds[3]; // for performance schema
@@ -6280,11 +6279,6 @@ void handle_connections_sockets()
     fds[socket_count].fd= mysql_socket_getfd(X);  \
     fds[socket_count].events= POLLIN;   \
     socket_count++
-#else
-#define setup_fds(X)    FD_SET(mysql_socket_getfd(X),&clientFDs)
-  fd_set readFDs,clientFDs;
-  FD_ZERO(&clientFDs);
-#endif
 
   DBUG_ENTER("handle_connections_sockets");
 
@@ -6309,12 +6303,7 @@ void handle_connections_sockets()
   DBUG_PRINT("general",("Waiting for connections."));
   while (!abort_loop)
   {
-#ifdef HAVE_POLL
     retval= poll(fds, socket_count, -1);
-#else
-    readFDs=clientFDs;
-    retval= select((int) 0,&readFDs,0,0,0);
-#endif
 
     if (retval < 0)
     {
@@ -6336,7 +6325,6 @@ void handle_connections_sockets()
       break;
 
     /* Is this a new connection request ? */
-#ifdef HAVE_POLL
     for (int i= 0; i < socket_count; ++i) 
     {
       if (fds[i].revents & POLLIN)
@@ -6345,15 +6333,6 @@ void handle_connections_sockets()
         break;
       }
     }
-#else  // HAVE_POLL
-    if (FD_ISSET(mysql_socket_getfd(base_ip_sock),&readFDs))
-      sock=  base_ip_sock;
-    else
-    if (FD_ISSET(mysql_socket_getfd(extra_ip_sock),&readFDs))
-      sock=  extra_ip_sock;
-    else
-      sock = unix_sock;
-#endif // HAVE_POLL
 
     for (uint retry=0; retry < MAX_ACCEPT_RETRY && !abort_loop; retry++)
     {
