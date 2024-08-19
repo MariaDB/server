@@ -93,6 +93,28 @@ operation:
   By default, the path is not set, therefore you must
   replace with the correct path to your secrets.
 
+--[loose-]hashicorp-key-management-namespace="<namespace>"
+
+  An optional parameter that specifies the namespace
+  to use for all API calls. Alternatively, the namespace
+  can be part of the secrets path. That is:
+
+    --hashicorp-key-management-vault-url="https://127.0.0.1:8200/v1/ns1/ns2/my_secrets"
+
+  is equivalent to:
+
+    --hashicorp-key-management-vault-url="https://127.0.0.1:8200/v1/my_secrets"
+    --hashicorp-key-management-namespace="ns1/ns2"
+
+  and is equivalent to:
+
+    --hashicorp-key-management-vault-url="https://127.0.0.1:8200/v1/ns2/my_secrets"
+    --hashicorp-key-management-namespace="ns1"
+
+  The plugin also supports the standard Hashicorp environment
+  variable VAULT_NAMESPACE, and issues a warning if its value
+  does not match the configuration parameter.
+
 --[loose-]hashicorp-key-management-token="<token>"
 
   Authentication token that passed to the Hashicorp Vault
@@ -101,6 +123,11 @@ operation:
   By default, this parameter contains an empty string,
   so you must specify the correct value for it, otherwise
   the Hashicorp Vault server will refuse authorization.
+
+  Alternatively, the plugin also supports the standard
+  Hashicorp environment variable VAULT_TOKEN (if set),
+  and issues a warning if its value does not match the
+  configuration parameter.
 
 --[loose-]hashicorp-key-management-vault-ca="<path>"
 

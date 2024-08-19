@@ -1,0 +1,42 @@
+# MDEV-28330: Key caching doesn't appear to be working
+
+# The test presumes that the local vault is running at $VAULT_ADDR,
+# and the token is configured in $VAULT_TOKEN.
+
+--source include/have_innodb.inc
+--source hashicorp_plugin.inc
+
+--exec vault namespace create ns1 > /dev/null
+
+--exec vault secrets disable -namespace ns1 test1 > /dev/null
+--exec vault secrets enable -namespace ns1 -path /test1 -version=2 kv > /dev/null
+--exec vault kv put -namespace ns1 /test1/11 data=01234567890123456789012345678901 > /dev/null
+--exec vault kv put -namespace ns1 /test1/12 data=01234567890123456789012345678904 > /dev/null
+
+--let $restart_parameters=--plugin-load-add=hashicorp_key_management --hashicorp-key-management-vault-url=$VAULT_ADDR/v1/test1/ --hashicorp-key-management-token=$VAULT_TOKEN --hashicorp-key-management-namespace="ns1"
+--let $restart_noprint=1
+--source include/restart_mysqld.inc
+
+select @@hashicorp_key_management_namespace;
+
+CREATE TABLE t1 (a VARCHAR(8)) ENGINE=InnoDB ENCRYPTED=YES ENCRYPTION_KEY_ID=11;
+INSERT INTO t1 VALUES ('foo'),('bar');
+
+--source include/restart_mysqld.inc
+
+select @@hashicorp_key_management_namespace;
+
+CREATE TABLE t2 (a VARCHAR(8)) ENGINE=InnoDB ENCRYPTED=YES ENCRYPTION_KEY_ID=12;
+INSERT INTO t2 VALUES ('foo'),('bar');
+
+SELECT * FROM t1;
+SELECT * FROM t2;
+
+# Cleanup
+DROP TABLE t1, t2;
+
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+
+--exec vault secrets disable -namespace ns1 test1 > /dev/null
+--exec vault namespace delete ns1 > /dev/null

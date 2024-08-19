@@ -31,6 +31,12 @@
 #hashicorp-key-management-vault-url="<url>"
 
 #
+# An optional parameter that specifies the namespace
+# to use for all API calls:
+#
+#hashicorp-key-management-namespace="<namespace>"
+
+#
 # Authentication token that passed to the Hashicorp Vault
 # in the request header:
 #

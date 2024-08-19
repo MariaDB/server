@@ -75,7 +75,9 @@ private:
   char *vault_url_data;
   size_t vault_url_len;
   char *local_token;
+  char *local_namespace;
   char *token_header;
+  char *namespace_header;
   bool curl_inited;
 public:
   HCData()
@@ -83,7 +85,9 @@ public:
     vault_url_data(NULL),
     vault_url_len(0),
     local_token(NULL),
+    local_namespace(NULL),
     token_header(NULL),
+    namespace_header(NULL),
     curl_inited(false)
   {}
   unsigned int get_latest_version (unsigned int key_id);
@@ -110,10 +114,20 @@ public:
       free(vault_url_data);
       vault_url_data = NULL;
     }
+    if (namespace_header)
+    {
+      free(namespace_header);
+      namespace_header = NULL;
+    }
     if (token_header)
     {
       free(token_header);
       token_header = NULL;
+    }
+    if (local_namespace)
+    {
+      free(local_namespace);
+      local_namespace = NULL;
     }
     if (local_token)
     {
@@ -337,6 +351,7 @@ unsigned int HCData::cache_check_version (unsigned int key_id)
 }
 
 static char* vault_url;
+static char* vault_namespace;
 static char* token;
 static char* vault_ca;
 static int timeout;
@@ -356,6 +371,11 @@ static MYSQL_SYSVAR_STR(vault_ca, vault_ca,
 static MYSQL_SYSVAR_STR(vault_url, vault_url,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
   "HTTP[s] URL that is used to connect to the Hashicorp Vault server",
+  NULL, NULL, "");
+
+static MYSQL_SYSVAR_STR(namespace, vault_namespace,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+  "Namespace that is used in interactions with the Hashicorp Vault server",
   NULL, NULL, "");
 
 static MYSQL_SYSVAR_STR(token, token,
@@ -425,6 +445,7 @@ static MYSQL_SYSVAR_BOOL(use_cache_on_timeout, use_cache_on_timeout,
 
 static struct st_mysql_sys_var *settings[] = {
   MYSQL_SYSVAR(vault_url),
+  MYSQL_SYSVAR(namespace),
   MYSQL_SYSVAR(token),
   MYSQL_SYSVAR(vault_ca),
   MYSQL_SYSVAR(timeout),
@@ -966,7 +987,8 @@ int HCData::init ()
         local_token = token;
       }
     }
-    if (token_len == 0) {
+    if (token_len == 0)
+    {
       my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
                       "The --hashicorp-key-management-token option value "
                       "or the value of the corresponding parameter in the "
@@ -996,9 +1018,9 @@ int HCData::init ()
       {
         my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
                         "The --hashicorp-key-management-token option value "
-                        "or the value of the corresponding parameter is not "
-                        "equal to the value of the VAULT_TOKEN environment "
-                        "variable",
+                        "or the value of the corresponding configuration "
+                        "parameter is not equal to the value of the "
+                        "VAULT_TOKEN environment variable",
                         ME_ERROR_LOG_ONLY | ME_WARNING);
       }
     }
@@ -1014,6 +1036,62 @@ int HCData::init ()
     return 1;
   }
   snprintf(token_header, buf_len, "%s%s", x_vault_token, token);
+  /*
+    Let's construct a header for the namespace (if the corresponding
+    parameter or environment variable is present):
+  */
+  char *namespace_env= getenv("VAULT_NAMESPACE");
+  size_t namespace_len= 0;
+  if (vault_namespace && *vault_namespace)
+  {
+    namespace_len = strlen(vault_namespace);
+    /*
+      Issue a warning if the VAULT_NAMESPACE environment variable
+      is not equal to the namespace parameter:
+    */
+    if (namespace_env != NULL && strcmp(namespace_env, vault_namespace) != 0)
+    {
+      my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
+                      "The --hashicorp-key-management-namespace option "
+                      "value or the value of the corresponding configuration "
+                      "parameter is not equal to the value of the "
+                      "VAULT_NAMESPACE environment variable",
+                      ME_ERROR_LOG_ONLY | ME_WARNING);
+    }
+  }
+  else if (namespace_env)
+  {
+    namespace_len = strlen(namespace_env);
+    if (namespace_len != 0)
+    {
+      /*
+        The value of the namespace parameter obtained using the getenv()
+        system call, which does not guarantee that the memory pointed
+        to by the returned pointer can be read in the long term (for
+        example, after changing the values of the environment variables
+        of the current process). Therefore, we need to copy the namespace
+        value to the working buffer:
+      */
+      if (!(vault_namespace = (char *) alloc(namespace_len + 1)))
+      {
+        return 1;
+      }
+      memcpy(vault_namespace, namespace_env, namespace_len + 1);
+      local_namespace = vault_namespace;
+    }
+  }
+  if (namespace_len)
+  {
+    const static char *x_vault_namespace = "X-Vault-Namespace:";
+    const static size_t x_vault_namespace_len = strlen(x_vault_namespace);
+    size_t ns_buf_len = x_vault_namespace_len + namespace_len + 1;
+    if (!(namespace_header = (char *) alloc(ns_buf_len)))
+    {
+      return 1;
+    }
+    snprintf(namespace_header, ns_buf_len, "%s%s",
+             x_vault_namespace, vault_namespace);
+  }
   /* We need to check that the path inside the URL starts with "/v1/": */
   const char *suffix = strchr(vault_url, '/');
   if (suffix == NULL)
@@ -1171,6 +1249,16 @@ No_Secret:
                     "curl: unable to construct slist", 0);
     return 1;
   }
+  if (namespace_header)
+  {
+    slist = curl_slist_append(slist, namespace_header);
+    if (slist == NULL)
+    {
+      my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
+                      "curl: unable to append to slist", 0);
+      return 1;
+    }
+  }
   /*
     If we do not need to check the key-value storage version,
     then we immediately return from this function:
@@ -1184,8 +1272,6 @@ No_Secret:
   char *mount_url = (char *) alloc(vault_url_len + 11 + 6);
   if (mount_url == NULL)
   {
-    my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
-                    "Memory allocation error", 0);
     return 1;
   }
   /*
