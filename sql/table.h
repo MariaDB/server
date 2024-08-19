@@ -1936,6 +1936,7 @@ public:
   bool vers_switch_partition(THD *thd, TABLE_LIST *table_list,
                              Open_table_context *ot_ctx);
 #endif
+  bool vers_implicit() const;
 
   int update_generated_fields();
   void period_prepare_autoinc();
