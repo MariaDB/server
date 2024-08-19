@@ -135,8 +135,8 @@ remove_file $MYSQLTEST_VARDIR/tmp/rpl_rotate_logs.tmp;
 --enable_result_log
 
 # Disable the warning "is not purged because it is the current active binlog".
-# (If the purge is delayed, this warning will not occur, causing .result
-# difference).
+# This warning will appear or not, depending on whether the timestamp of
+# master-bin.000003 ends up earlier than @time_for_purge or not in the test run.
 --disable_warnings
 purge master logs before (@time_for_purge);
 --enable_warnings
