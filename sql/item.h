@@ -4719,6 +4719,9 @@ public:
   Item_string_sys(THD *thd, const char *str):
     Item_string(thd, str, (uint) strlen(str), system_charset_info)
   { }
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_string_sys>(thd, this); }
+  Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
 };
 
 
@@ -4733,6 +4736,9 @@ public:
     Item_string(thd, str, (uint) strlen(str), &my_charset_latin1,
                 DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII)
   { }
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_string_ascii>(thd, this); }
+  Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
 };
 
 
@@ -4769,6 +4775,9 @@ public:
     // require fix_fields() to be re-run for every statement.
     return mark_unsupported_function(func_name.str, arg, VCOL_TIME_FUNC);
   }
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_static_string_func>(thd, this); }
+  Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
 };
 
 
@@ -4786,6 +4795,9 @@ public:
   {
     return mark_unsupported_function("safe_string", arg, VCOL_IMPOSSIBLE);
   }
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_partition_func_safe_string>(thd, this); }
+  Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
 };
 
 

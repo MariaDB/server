@@ -39,5 +39,13 @@ SELECT * FROM t WHERE a=b'';
 drop view t;
 
 --echo #
+--echo # MDEV-34776: Assertion failure in Item_string::do_build_clone
+--echo #
+
+CREATE VIEW v AS SELECT version() AS f;
+SELECT * FROM v WHERE f = '10.5.20';
+drop view v;
+
+--echo #
 --echo # End of 10.5 tests
 --echo #
