@@ -6664,7 +6664,7 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table,
   alter_table_operations flags_to_remove=
       ALTER_ADD_INDEX | ALTER_DROP_INDEX | ALTER_PARSER_ADD_COLUMN |
       ALTER_PARSER_DROP_COLUMN | ALTER_COLUMN_ORDER | ALTER_RENAME_COLUMN |
-      ALTER_CHANGE_COLUMN;
+      ALTER_CHANGE_COLUMN | ALTER_VERS_EXPLICIT;
 
   if (!table->file->native_versioned())
     flags_to_remove|= ALTER_COLUMN_UNVERSIONED;
@@ -8398,7 +8398,8 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       dropped_sys_vers_fields|= field->flags;
       drop_it.remove();
     }
-    else if (field->invisible < INVISIBLE_SYSTEM)
+    else if (field->invisible < INVISIBLE_SYSTEM ||
+             (alter_info->flags & ALTER_VERS_EXPLICIT))
     {
       /*
         This field was not dropped and not changed, add it to the list
@@ -8413,12 +8414,14 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         if (field->field_name.streq(alter->name))
 	  break;
       }
-      if (alter && field->invisible < INVISIBLE_SYSTEM)
+      if (alter)
       {
         if (alter->is_rename())
         {
           def->change= Lex_ident_column(alter->name);
           def->field_name= Lex_ident_column(alter->new_name);
+          if (vers_system_invisible)
+            def->invisible= VISIBLE;
           column_rename_param.fields.push_back(def);
           if (field->flags & VERS_ROW_START)
           {

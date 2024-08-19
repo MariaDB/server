@@ -88,9 +88,9 @@ t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
 alter table t add column trx_start timestamp(6) as row start;
-ERROR HY000: Duplicate ROW START column `trx_start`
+ERROR HY000: Wrong parameters for `t`: missing 'AS ROW END'
 alter table t modify a int as row start;
-ERROR HY000: Duplicate ROW START column `a`
+ERROR 42000: Incorrect column specifier for column 'a'
 alter table t add column b int;
 show create table t;
 Table	Create Table
@@ -879,3 +879,58 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
 drop table t1;
 # End of 10.5 tests
+#
+# MDEV-27293 Allow converting a versioned table from implicit
+#            to explicit row_start/row_end columns
+#
+create table t1 (x int) with system versioning;
+insert t1 values (0), (1);
+update t1 set x= x + 10;
+set @old_system_versioning_alter_history= @@system_versioning_alter_history;
+set @@system_versioning_alter_history= keep;
+alter table t1 add column y int;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL,
+  `y` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
+alter table t1 add column rs timestamp(6) as row start;
+ERROR HY000: Wrong parameters for `t1`: missing 'AS ROW END'
+alter table t1 add column re timestamp(6) as row end, add period for system_time (row_start, re);
+ERROR HY000: Wrong parameters for `t1`: missing 'AS ROW START'
+alter table t1 add column rs timestamp(6) as row start, add column re timestamp(6) as row end;
+ERROR HY000: Wrong parameters for `t1`: missing 'PERIOD FOR SYSTEM_TIME'
+alter table t1 rename column row_start to re;
+ERROR 42S22: Unknown column 'row_start' in 't1'
+alter table t1 add column rs timestamp(5) as row start, add column re timestamp(6) as row end, add period for system_time (rs,re);
+ERROR 42000: Incorrect column specifier for column 'rs'
+alter table t1 add column rs timestamp(6) as row start, add column re timestamp(6) as row end, add period for system_time (rs,re);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL,
+  `y` int(11) DEFAULT NULL,
+  `rs` timestamp(6) GENERATED ALWAYS AS ROW START,
+  `re` timestamp(6) GENERATED ALWAYS AS ROW END,
+  PERIOD FOR SYSTEM_TIME (`rs`, `re`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
+select x, check_row_ts(rs, re) from t1 for system_time all order by x;
+x	check_row_ts(rs, re)
+0	HISTORICAL ROW
+1	HISTORICAL ROW
+10	CURRENT ROW
+11	CURRENT ROW
+create or replace table t1 (x int) engine innodb with system versioning;
+alter table t1 add column rs timestamp(6) as row start, add column re timestamp(6) as row end, add period for system_time (rs,re);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL,
+  `rs` timestamp(6) GENERATED ALWAYS AS ROW START,
+  `re` timestamp(6) GENERATED ALWAYS AS ROW END,
+  PERIOD FOR SYSTEM_TIME (`rs`, `re`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
+set @@system_versioning_alter_history= @old_system_versioning_alter_history;
+drop table t1;
+# End of 11.6 tests

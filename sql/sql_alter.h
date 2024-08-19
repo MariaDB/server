@@ -325,6 +325,9 @@ public:
   }
   uint check_vcol_field(Item_field *f) const;
 
+  bool add_alter_list(THD *thd, LEX_CSTRING name, LEX_CSTRING new_name,
+                      bool exists);
+
 private:
   Alter_info &operator=(const Alter_info &rhs); // not implemented
   Alter_info(const Alter_info &rhs);            // not implemented
