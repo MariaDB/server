@@ -4946,6 +4946,9 @@ class Item_bin_string: public Item_hex_hybrid
 public:
   Item_bin_string(THD *thd, const char *str, size_t str_length);
   void print(String *str, enum_query_type query_type) override;
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_bin_string>(thd, this); }
+  Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
 };
 
 
