@@ -127,6 +127,7 @@ struct table_name_t
 
 	/** The start of the table basename suffix for partitioned tables */
 	static const char part_suffix[4];
+	static const char subpart_suffix[5];
 
 	/** Determine the partition or subpartition name suffix.
 	@return the partition name

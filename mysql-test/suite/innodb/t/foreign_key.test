@@ -17,7 +17,7 @@ constraint c1 foreign key (f1) references t1(f1)) engine=InnoDB;
 create table t2 (f1 int primary key,
    constraint c1 foreign key (f1) references t1(f1)) engine=innodb;
 
---error ER_DUP_CONSTRAINT_NAME_2
+--error ER_CANT_CREATE_TABLE
 alter table t2 add constraint c1 foreign key (f1) references t1(f1);
 
 set foreign_key_checks = 0;
@@ -805,6 +805,10 @@ CONSTRAINT `t2_ibfk_2` FOREIGN KEY (f1) REFERENCES t1(f1) ON DELETE CASCADE
 
 SET FOREIGN_KEY_CHECKS=0;
 ALTER TABLE t2 DROP PRIMARY KEY, ADD PRIMARY KEY(f3), ALGORITHM=INPLACE;
+--disable_query_log
+# This warning was missing and it appears due to ALTER creating and renaming FKs for backup/tmp tables
+call mtr.add_suppression("InnoDB: In ALTER TABLE `test`.`t1` has or is referenced in foreign key.*");
+--enable_query_log
 ALTER TABLE t2 DROP INDEX `f2`, ALGORITHM=COPY;
 SHOW CREATE TABLE t2;
 --error ER_TABLE_EXISTS_ERROR

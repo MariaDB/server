@@ -4285,27 +4285,6 @@ handler *mysql_create_frm_image(THD *thd, HA_CREATE_INFO *create_info,
         DBUG_RETURN(NULL);
     }
   }
-  /*
-    Unless table's storage engine supports partitioning natively
-    don't allow foreign keys on partitioned tables (they won't
-    work work even with InnoDB beneath of partitioning engine).
-    If storage engine handles partitioning natively (like NDB)
-    foreign keys support is possible, so we let the engine decide.
-  */
-  if (create_info->db_type == partition_hton)
-  {
-    List_iterator_fast<Key> key_iterator(alter_info->key_list);
-    Key *key;
-    while ((key= key_iterator++))
-    {
-      if (key->type == Key::FOREIGN_KEY)
-      {
-        my_error(ER_FEATURE_NOT_SUPPORTED_WITH_PARTITIONING, MYF(0),
-                 "FOREIGN KEY");
-        goto err;
-      }
-    }
-  }
 #endif
 
   if (mysql_prepare_create_table_finalize(thd, create_info,
@@ -10595,7 +10574,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
 
   if ((create_info->db_type != table->s->db_type() ||
        (alter_info->partition_flags & ALTER_PARTITION_INFO)) &&
-      !table->file->can_switch_engines())
+      table->file->referenced_by_foreign_key())
   {
     my_error(ER_ROW_IS_REFERENCED, MYF(0));
     DBUG_RETURN(true);
