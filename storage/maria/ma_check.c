@@ -2409,7 +2409,17 @@ static int initialize_variables_for_repair(HA_CHECK *param,
     return 1;
 
   /* calculate max_records */
-  sort_info->filelength= my_seek(info->dfile.file, 0L, MY_SEEK_END, MYF(0));
+  if (!share->internal_table)
+  {
+    /* Get real file size */
+    sort_info->filelength= my_seek(info->dfile.file, 0L, MY_SEEK_END, MYF(0));
+  }
+  else
+  {
+    /* For internal temporary files we are using the logical file length */
+    sort_info->filelength= share->state.state.data_file_length;
+  }
+
   param->max_progress= sort_info->filelength;
   if ((param->testflag & T_CREATE_MISSING_KEYS) ||
       sort_info->org_data_file_type == COMPRESSED_RECORD)
