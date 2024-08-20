@@ -21,7 +21,7 @@ set binlog_alter_two_phase = ON;
 create table t1 (f1 int primary key) engine=InnoDB;
 create table t2 (f1 int primary key, constraint c1 foreign key (f1) references t1(f1)) engine=innodb;
 
---error ER_DUP_CONSTRAINT_NAME
+--error ER_CANT_CREATE_TABLE
 alter table t2 add constraint c1 foreign key (f1) references t1(f1);
 
 drop table t2, t1;

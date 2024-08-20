@@ -3800,13 +3800,22 @@ dict_print_info_on_foreign_key_in_create_format(
 	const char*	stripped_id;
 	ulint	i;
 	std::string	str;
+	char foreign_id[MAX_FOREIGN_ID_LEN];
+	const char* s;
 
-	if (strchr(foreign->id, '/')) {
+	if (size_t db_len= dict_get_db_name_len(foreign->id)) {
+		ut_ad(foreign->id[db_len + 1]);
 		/* Strip the preceding database name from the constraint id */
-		stripped_id = foreign->id + 1
-			+ dict_get_db_name_len(foreign->id);
+		stripped_id = foreign->id + 1 + db_len;
 	} else {
 		stripped_id = foreign->id;
+	}
+
+	if ((s= strchr(stripped_id, '\xFF')) && s > stripped_id) {
+		size_t l= size_t(s - stripped_id);
+		memcpy(foreign_id, stripped_id, l);
+		foreign_id[l]= 0;
+		stripped_id= foreign_id;
 	}
 
 	str.append(",");
