@@ -169,6 +169,24 @@ DROP PROCEDURE p1;
 --echo # End of 10.11 tests
 
 --echo #
+--echo # MDEV-34649: Memory leaks on running DELETE statement in PS mode with positional parameters
+--echo #
+CREATE TABLE t1 (a INT, b VARCHAR(30)) CHARSET=utf8mb4;
+INSERT INTO t1 VALUES (1, 'one'), (0, NULL), (3, 'three'), (4, 'four');
+PREPARE stmt FROM 'DELETE FROM t1 WHERE b=?' ;
+SET @arg00=NULL;
+EXECUTE stmt USING @arg00;
+SET @arg00='one';
+# Without the patch, attempt to run the same prepared statement the second time
+# would result in memory leaks
+EXECUTE stmt USING @arg00;
+--echo # Clean up
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1;
+
+--echo # End of 11.1
+
+--echo #
 --echo # MDEV-34517: Memory leak on re-compilation of a failing statement inside a stored routine
 --echo #
 CREATE TABLE t1 (a INT);
