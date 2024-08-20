@@ -418,6 +418,8 @@ int maria_chk_size(HA_CHECK *param, register MARIA_HA *info)
     /* We cannot check file sizes for S3 */
     DBUG_RETURN(0);
   }
+  /* We should never come here with internal temporary tables */
+  DBUG_ASSERT(!share->internal_table);
 
   if (!(param->testflag & T_SILENT))
     puts("- check file-size");
@@ -712,6 +714,8 @@ static int chk_index_down(HA_CHECK *param, MARIA_HA *info,
   MARIA_SHARE *share= info->s;
   MARIA_PAGE ma_page;
   DBUG_ENTER("chk_index_down");
+
+  DBUG_ASSERT(!share->internal_table);
 
   /* Key blocks must lay within the key file length entirely. */
   if (page + keyinfo->block_length > share->state.state.key_file_length)
@@ -2464,7 +2468,16 @@ static int initialize_variables_for_repair(HA_CHECK *param,
     return 1;
 
   /* calculate max_records */
-  sort_info->filelength= my_seek(info->dfile.file, 0L, MY_SEEK_END, MYF(0));
+  if (!share->internal_table)
+  {
+    /* Get real file size */
+    sort_info->filelength= my_seek(info->dfile.file, 0L, MY_SEEK_END, MYF(0));
+  }
+  else
+  {
+    /* For internal temporary files we are using the logical file length */
+    sort_info->filelength= share->state.state.data_file_length;
+  }
 
   param->max_progress= sort_info->filelength;
   if ((param->testflag & T_CREATE_MISSING_KEYS) ||
@@ -2860,7 +2873,8 @@ int maria_repair(HA_CHECK *param, register MARIA_HA *info,
   {
     fputs("          \r",stdout); fflush(stdout);
   }
-  if (mysql_file_chsize(share->kfile.file,
+  if (!share->internal_table &&
+      mysql_file_chsize(share->kfile.file,
                         share->state.state.key_file_length, 0, MYF(0)))
   {
     _ma_check_print_warning(param,
@@ -4168,7 +4182,8 @@ int maria_repair_by_sort(HA_CHECK *param, register MARIA_HA *info,
   if (param->testflag & T_CALC_CHECKSUM)
     share->state.state.checksum=param->glob_crc;
 
-  if (mysql_file_chsize(share->kfile.file,
+  if (!share->internal_table &&
+      mysql_file_chsize(share->kfile.file,
                         share->state.state.key_file_length, 0, MYF(0)))
     _ma_check_print_warning(param,
 			   "Can't change size of indexfile, error: %d",
@@ -4706,7 +4721,8 @@ int maria_repair_parallel(HA_CHECK *param, register MARIA_HA *info,
   if (param->testflag & T_CALC_CHECKSUM)
     share->state.state.checksum=param->glob_crc;
 
-  if (mysql_file_chsize(share->kfile.file,
+  if (!share->internal_table &&
+      mysql_file_chsize(share->kfile.file,
                         share->state.state.key_file_length, 0, MYF(0)))
     _ma_check_print_warning(param,
 			   "Can't change size of indexfile, error: %d",
@@ -6107,6 +6123,8 @@ static MA_SORT_KEY_BLOCKS *alloc_key_blocks(HA_CHECK *param, uint blocks,
 int maria_test_if_almost_full(MARIA_HA *info)
 {
   MARIA_SHARE *share= info->s;
+
+  DBUG_ASSERT(!share->internal_table);
 
   if (share->options & HA_OPTION_COMPRESS_RECORD)
     return 0;
