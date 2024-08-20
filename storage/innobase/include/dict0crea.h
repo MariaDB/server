@@ -129,7 +129,9 @@ dict_create_add_foreign_id(
 	ulint*		id_nr,		/*!< in/out: number to use in id
 					generation; incremented if used */
 	const char*	name,		/*!< in: table name */
-	dict_foreign_t*	foreign);	/*!< in/out: foreign key */
+	dict_foreign_t*	foreign,	/*!< in/out: foreign key */
+	const char *	part_suffix,
+	size_t		part_suffix_len);
 
 /** Check if a foreign constraint is on columns server as base columns
 of any stored column. This is to prevent creating SET NULL or CASCADE

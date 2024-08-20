@@ -189,7 +189,8 @@ public:
 		TABLE*			form,
 		HA_CREATE_INFO*		create_info,
 		bool			file_per_table,
-		trx_t*			trx);
+		trx_t*			trx= nullptr,
+		bool			create_fk= true);
 
 	int create(
 		const char*		name,
@@ -796,7 +797,14 @@ private:
 
 	/** Whether we are creating a stub table for importing. */
 	const bool	m_creating_stub;
-	dict_table_t* alter_table;
+	/** Buffer used for part_suffix */
+	char		part_suffix_buf[FN_REFLEN];
+	/** For partitioned tables contains partition suffix of table name */
+	const char *	part_suffix;
+	/** Length of part_suffix */
+	size_t		part_suffix_len;
+	/** True if the name is temporary (is_temporary_name()) */
+	bool		tmp_name;
 };
 
 /**

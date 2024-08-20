@@ -11020,3 +11020,19 @@ void TABLE::mark_table_for_reopen()
   DBUG_ASSERT(thd);
   thd->locked_tables_list.mark_table_for_reopen(this);
 }
+
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+bool TABLE::vers_system_time_partitioned() const
+{
+  DBUG_ASSERT(part_info);
+  return part_info->vers_info;
+}
+bool TABLE::is_vers_current_partition(handler *part_file) const
+{
+  DBUG_ASSERT(part_info);
+  DBUG_ASSERT(part_info->vers_info);
+  ha_partition *hp= static_cast<ha_partition *>(file);
+  partition_element *el= hp->part_elem_by_file(part_file);
+  return part_info->vers_info->now_part == el;
+}
+#endif /* WITH_PARTITION_STORAGE_ENGINE */

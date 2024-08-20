@@ -1746,14 +1746,37 @@ struct dict_foreign_matches_id {
 	bool operator()(const dict_foreign_t*	foreign) const
 	{
 		const Lex_ident_column ident = Lex_cstring_strlen(m_id);
-		if (ident.streq(Lex_cstring_strlen(foreign->id))) {
+		const char *s;
+		char foreign_id[MAX_FOREIGN_ID_LEN];
+		const char*	stripped_id;
+		Lex_cstring id;
+
+		/* Similar to dict_print_info_on_foreign_key_in_create_format() */
+		if ((s= strchr(foreign->id, '/'))) {
+			/* Strip the preceding database name from the constraint id */
+			stripped_id = s + 1;
+			ut_ad(*stripped_id);
+		} else {
+			stripped_id = foreign->id;
+		}
+
+		if ((s= strchr(stripped_id, '\xFF')) && s > stripped_id) {
+			size_t l= size_t(s - stripped_id);
+			memcpy(foreign_id, stripped_id, l);
+			foreign_id[l]= 0;
+			id.str= foreign_id;
+			id.length= l;
+		}
+		else
+		{
+			id.str= stripped_id;
+			id.length= strlen(stripped_id);
+		}
+
+		if (ident.streq(id)) {
 			return(true);
 		}
-		if (const char* pos = strchr(foreign->id, '/')) {
-			if (ident.streq(Lex_cstring_strlen(pos + 1))) {
-				return(true);
-			}
-		}
+
 		return(false);
 	}
 

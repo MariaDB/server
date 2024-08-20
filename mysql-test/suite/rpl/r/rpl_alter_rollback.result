@@ -15,7 +15,7 @@ ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint 
 create table t2 (f1 int primary key,
 constraint c1 foreign key (f1) references t1(f1)) engine=innodb;
 alter table t2 add constraint c1 foreign key (f1) references t1(f1);
-ERROR HY000: Can't create table `test`.`t2` (errno: 121 "Duplicate key on write or update")
+ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
