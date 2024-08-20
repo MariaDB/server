@@ -134,7 +134,10 @@ ELSEIF(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|AARCH64")
   ENDIF()
 ENDIF()
 
-IF(CMAKE_SYSTEM_PROCESSOR MATCHES "ppc64|powerpc64" OR CMAKE_SYSTEM_NAME MATCHES AIX)
+cmake_host_system_information(RESULT procname QUERY PROCESSOR_NAME)
+string(FIND ${procname} "PPC970" proc_is_ppc970)
+IF((proc_is_ppc970 EQUAL -1) AND
+   (CMAKE_SYSTEM_PROCESSOR MATCHES "ppc64|powerpc64" OR CMAKE_SYSTEM_NAME MATCHES AIX))
   SET(MYSYS_SOURCES ${MYSYS_SOURCES} crc32/crc32_ppc64.c crc32/crc32c_ppc.c)
   SET_SOURCE_FILES_PROPERTIES(crc32/crc32_ppc64.c crc32/crc32c_ppc.c PROPERTIES
         COMPILE_FLAGS "${COMPILE_FLAGS} -maltivec -mvsx -mpower8-vector -mcrypto -mpower8-vector")

@@ -50,9 +50,6 @@ static my_crc32_t init_crc32()
 
 static const my_crc32_t my_checksum_func= init_crc32();
 
-#ifdef __powerpc64__
-# error "my_checksum() is defined in mysys/crc32/crc32_ppc64.c"
-#endif
 extern "C"
 unsigned int my_checksum(unsigned int crc, const void *data, size_t len)
 {
