@@ -54,9 +54,11 @@ include/wait_for_slave_param.inc [Exec_Master_Log_Pos]
 # Test that changes are properly applied by server_2 and server_3
 #
 connection server_1;
-include/save_master_gtid.inc
+include/save_master_pos.inc
 connection server_2;
-include/sync_with_master_gtid.inc
+include/wait_for_slave_param.inc [Relay_Master_Log_File]
+include/wait_for_slave_param.inc [Exec_Master_Log_Pos]
+include/save_master_pos.inc
 # Show that the server_2 received the insert from master
 select * from t1;
 a
@@ -67,7 +69,8 @@ master_time == slave_time ; Should be 1
 1
 connection server_3;
 include/start_slave.inc
-include/sync_with_master_gtid.inc
+include/wait_for_slave_param.inc [Relay_Master_Log_File]
+include/wait_for_slave_param.inc [Exec_Master_Log_Pos]
 # Show that the server_3 received the insert from master
 select * from t1;
 a
@@ -87,9 +90,11 @@ insert into t1 values (1+sleep(3));
 # Test that changes are properly applied by server_2 and server_3
 #
 connection server_1;
-include/save_master_gtid.inc
+include/save_master_pos.inc
 connection server_2;
-include/sync_with_master_gtid.inc
+include/wait_for_slave_param.inc [Relay_Master_Log_File]
+include/wait_for_slave_param.inc [Exec_Master_Log_Pos]
+include/save_master_pos.inc
 # Show that the server_2 received the insert from master
 select * from t1;
 a
@@ -101,7 +106,8 @@ master_time == slave_time ; Should be 1
 1
 connection server_3;
 include/start_slave.inc
-include/sync_with_master_gtid.inc
+include/wait_for_slave_param.inc [Relay_Master_Log_File]
+include/wait_for_slave_param.inc [Exec_Master_Log_Pos]
 # Show that the server_3 received the insert from master
 select * from t1;
 a
@@ -123,9 +129,11 @@ SET TIMESTAMP=DEFAULT;
 # Test that changes are properly applied by server_2 and server_3
 #
 connection server_1;
-include/save_master_gtid.inc
+include/save_master_pos.inc
 connection server_2;
-include/sync_with_master_gtid.inc
+include/wait_for_slave_param.inc [Relay_Master_Log_File]
+include/wait_for_slave_param.inc [Exec_Master_Log_Pos]
+include/save_master_pos.inc
 # Show that the server_2 received the insert from master
 select * from t1;
 a
@@ -138,7 +146,8 @@ master_time == slave_time ; Should be 1
 1
 connection server_3;
 include/start_slave.inc
-include/sync_with_master_gtid.inc
+include/wait_for_slave_param.inc [Relay_Master_Log_File]
+include/wait_for_slave_param.inc [Exec_Master_Log_Pos]
 # Show that the server_3 received the insert from master
 select * from t1;
 a
@@ -162,9 +171,11 @@ commit;
 # Test that changes are properly applied by server_2 and server_3
 #
 connection server_1;
-include/save_master_gtid.inc
+include/save_master_pos.inc
 connection server_2;
-include/sync_with_master_gtid.inc
+include/wait_for_slave_param.inc [Relay_Master_Log_File]
+include/wait_for_slave_param.inc [Exec_Master_Log_Pos]
+include/save_master_pos.inc
 # Show that the server_2 received the insert from master
 select * from t1;
 a
@@ -179,7 +190,8 @@ master_time == slave_time ; Should be 1
 1
 connection server_3;
 include/start_slave.inc
-include/sync_with_master_gtid.inc
+include/wait_for_slave_param.inc [Relay_Master_Log_File]
+include/wait_for_slave_param.inc [Exec_Master_Log_Pos]
 # Show that the server_3 received the insert from master
 select * from t1;
 a
