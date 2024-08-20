@@ -1,0 +1,74 @@
+include/master-slave.inc
+[connection master]
+#
+# MDEV-19191 Partial support of foreign keys in partitioned tables
+#
+create or replace table t1 (id int primary key)
+with system versioning engine innodb;
+# Partition by HASH, explicit constraint id
+insert into t1 values (1), (2), (3), (4), (5), (6);
+create or replace table t2 (
+fk int,
+foreign key fk01 (fk) references t1(id))
+engine innodb
+partition by hash (fk) partitions 2;
+connection slave;
+connection master;
+insert into t2 values (3), (4), (5);
+select * from t2 partition (p0) order by fk;
+fk
+4
+select * from t2 partition (p1) order by fk;
+fk
+3
+5
+connection slave;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `fk` int(11) DEFAULT NULL,
+  KEY `fk01` (`fk`),
+  CONSTRAINT `fk01` FOREIGN KEY (`fk`) REFERENCES `t1` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+ PARTITION BY HASH (`fk`)
+PARTITIONS 2
+select * from t2 partition (p0) order by fk;
+fk
+4
+select * from t2 partition (p1) order by fk;
+fk
+3
+5
+delete from t1 where id = 3;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2` /* Partition `p1` */, CONSTRAINT `fk01` FOREIGN KEY (`fk`) REFERENCES `t1` (`id`))
+delete from t1 where id = 4;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2` /* Partition `p0` */, CONSTRAINT `fk01` FOREIGN KEY (`fk`) REFERENCES `t1` (`id`))
+delete from t1 where id = 5;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2` /* Partition `p1` */, CONSTRAINT `fk01` FOREIGN KEY (`fk`) REFERENCES `t1` (`id`))
+insert into t2 values (7);
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t2` /* Partition `p1` */, CONSTRAINT `fk01` FOREIGN KEY (`fk`) REFERENCES `t1` (`id`))
+delete from t1 where id = 1;
+delete from t1 where id > 2;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2` /* Partition `p1` */, CONSTRAINT `fk01` FOREIGN KEY (`fk`) REFERENCES `t1` (`id`))
+delete from t2;
+select * from t2 order by fk;
+fk
+delete from t1 where id > 2;
+insert into t2 values (3), (5);
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t2` /* Partition `p1` */, CONSTRAINT `fk01` FOREIGN KEY (`fk`) REFERENCES `t1` (`id`))
+insert into t2 values (2);
+select * from information_schema.innodb_sys_foreign;
+ID	FOR_NAME	REF_NAME	N_COLS	TYPE
+test/fk01:p0	test/t2#P#p0	test/t1	1	0
+test/fk01:p1	test/t2#P#p1	test/t1	1	0
+insert into t2 values (4);
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t2` /* Partition `p0` */, CONSTRAINT `fk01` FOREIGN KEY (`fk`) REFERENCES `t1` (`id`))
+connection master;
+drop tables t2, t1;
+include/rpl_end.inc

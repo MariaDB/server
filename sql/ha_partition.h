@@ -1643,6 +1643,26 @@ public:
     return part_recs;
   }
 
+  /*
+    Used by is_vers_current_partition() which allows to create FKs only for
+    current SYSTEM_TIME partition.
+  */
+  partition_element *part_elem_by_file(handler *file)
+  {
+    const uint32 sub_factor=
+        m_part_info->num_subparts ? m_part_info->num_subparts : 1;
+    for (uint i= 0; i < m_tot_parts; i++)
+    {
+      if (file == m_file[i])
+      {
+        uint32 part_id= i / sub_factor;
+        return m_part_info->get_partition(part_id);
+      }
+    }
+    return NULL;
+  }
+  handler *get_fk_file();
+
   int notify_tabledef_changed(LEX_CSTRING *db, LEX_CSTRING *table,
                               LEX_CUSTRING *frm, LEX_CUSTRING *version);
 
@@ -1657,6 +1677,28 @@ public:
   void update_optimizer_costs(OPTIMIZER_COSTS *costs) override;
   virtual ulonglong index_blocks(uint index, uint ranges, ha_rows rows) override;
   virtual ulonglong row_blocks() override;
+  virtual int get_foreign_key_list(THD *thd,
+                                   List<FOREIGN_KEY_INFO> *f_key_list) override
+  {
+    handler *fk_file= get_fk_file();
+    return fk_file->get_foreign_key_list(thd, f_key_list);
+  }
+  virtual char *get_foreign_key_create_info() override
+  {
+    handler *fk_file= get_fk_file();
+    return fk_file->get_foreign_key_create_info();
+  }
+  virtual void free_foreign_key_create_info(char *str) override
+  {
+    my_free(str);
+  }
+  virtual int
+  get_parent_foreign_key_list(THD *thd,
+                              List<FOREIGN_KEY_INFO> *f_key_list) override
+  {
+    handler *fk_file= get_fk_file();
+    return fk_file->get_parent_foreign_key_list(thd, f_key_list);
+  }
 };
 
 #endif /* HA_PARTITION_INCLUDED */

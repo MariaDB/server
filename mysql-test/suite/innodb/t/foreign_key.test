@@ -807,6 +807,10 @@ CONSTRAINT `t2_ibfk_2` FOREIGN KEY (f1) REFERENCES t1(f1) ON DELETE CASCADE
 
 SET FOREIGN_KEY_CHECKS=0;
 ALTER TABLE t2 DROP PRIMARY KEY, ADD PRIMARY KEY(f3), ALGORITHM=INPLACE;
+--disable_query_log
+# This warning was missing and it appears due to ALTER creating and renaming FKs for backup/tmp tables
+call mtr.add_suppression("InnoDB: In ALTER TABLE `test`.`t1` has or is referenced in foreign key.*");
+--enable_query_log
 ALTER TABLE t2 DROP INDEX `f2`, ALGORITHM=COPY;
 SHOW CREATE TABLE t2;
 --error ER_TABLE_EXISTS_ERROR

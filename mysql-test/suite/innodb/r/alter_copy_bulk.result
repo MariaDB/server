@@ -47,8 +47,7 @@ ALTER TABLE t1 ALGORITHM=COPY, FORCE;
 affected rows: 2
 info: Records: 2  Duplicates: 0  Warnings: 0
 ALTER TABLE t2 ALGORITHM=COPY, FORCE;
-affected rows: 1
-info: Records: 1  Duplicates: 0  Warnings: 0
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`#sql-alter`, CONSTRAINT `)
 DROP TABLE t2, t1;
 #
 #  MDEV-35237 Bulk insert fails to apply buffered

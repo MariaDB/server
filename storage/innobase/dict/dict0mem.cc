@@ -81,6 +81,13 @@ const char table_name_t::part_suffix[4]
 = "#P#";
 #endif
 
+const char table_name_t::subpart_suffix[5]
+#ifdef _WIN32
+= "#sp#";
+#else
+= "#SP#";
+#endif
+
 /** Display an identifier.
 @param[in,out]	s	output stream
 @param[in]	id_name	SQL identifier (other than table name)
