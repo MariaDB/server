@@ -1596,6 +1596,39 @@ static void reset_equality_number_for_subq_conds(Item * cond)
   return;
 }
 
+
+#ifdef NEW_ITEM_SUBSELECT_RECALC_USED_TABLES
+/**
+  Remove Item_field elements of list that have been resolved in 'remove'.
+
+  @param     list    A list of item (idents) that contain contextual information
+                        (where they are defined).
+             remove  A SELECT_LEX pointer for items that need to be removed.
+  @details
+  During optimization we can merge two SELECT_LEXs together.  Each SELECT_LEX
+  contains a list of items that are resolved within that select_lex.  Before
+  we merge a query into it's new parent, we need to remove items that are
+  resolved in the new parent, but are defined within the query being merged.
+  This function does that.
+*/
+
+void remove_outer_references_to(List<Item_ident> *list,
+                                SELECT_LEX *remove)
+{
+  if (list)
+  {
+    List_iterator<Item_ident>  it( *list );
+    Item_ident *item;
+
+    while ((item= it++))
+    {
+      if (item->context->get_select_lex() == remove)
+        it.remove();
+    }
+  }
+}
+#endif
+
 /*
   Convert a subquery predicate into a TABLE_LIST semi-join nest
 
@@ -1639,6 +1672,9 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
   uint ncols;
   DBUG_ENTER("convert_subq_to_sj");
 
+  DBUG_PRINT("info", ("parent_lex select #%d, subq_pred select #%d",
+          parent_lex->select_number,
+          subq_pred->unit->first_select()->select_number) );
   /*
     1. Find out where to put the predicate into.
      Note: for "t1 LEFT JOIN t2" this will be t2, a leaf.
@@ -1947,6 +1983,33 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
     item_eq->in_equality_no= 0;
     sj_nest->sj_on_expr= and_items(thd, sj_nest->sj_on_expr, item_eq);
   }
+
+#ifdef NEW_ITEM_SUBSELECT_RECALC_USED_TABLES
+  /*
+    References in parent_lex->outer_references_resolved_here that are
+    resolved in subq_lex need to be removed as they are no longer outer
+    references
+  */
+  remove_outer_references_to(parent_lex->outer_references_resolved_here,
+                             subq_lex);
+  if (subq_lex->outer_references_resolved_here)
+  {
+    DBUG_PRINT("info",
+          ("shifting outer_references_resolved_here from select #%d to #%d",
+            subq_lex->select_number,
+            parent_lex->select_number));
+    if (!parent_lex->outer_references_resolved_here)
+      parent_lex->outer_references_resolved_here=
+                                      subq_lex->outer_references_resolved_here;
+    else
+    {
+      parent_lex->outer_references_resolved_here->
+        append(subq_lex->outer_references_resolved_here);
+      subq_lex->outer_references_resolved_here= nullptr;
+    }
+  }
+#endif
+
   /*
     Fix the created equality and AND
 
@@ -1958,6 +2021,9 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
   */
   if (sj_nest->sj_on_expr->fix_fields_if_needed(thd, &sj_nest->sj_on_expr))
     goto restore_tl_and_exit;
+
+  /* We may need this during fix_after_pullout below */
+  subq_lex->merged_into= parent_lex;
 
   /*
     Walk through sj nest's WHERE and ON expressions and call

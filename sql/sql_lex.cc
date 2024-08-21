@@ -3024,7 +3024,7 @@ void st_select_lex::init_query()
   having_fix_field= 0;
   having_fix_field_for_pushed_cond= 0;
   leaf_tables_saved= false;
-  context.select_lex= this;
+  context.set_select_lex(this);
   context.init();
   cond_count= between_count= with_wild= 0;
   max_equal_elems= 0;
@@ -3053,6 +3053,7 @@ void st_select_lex::init_query()
   have_merged_subqueries= FALSE;
   bzero((char*) expr_cache_may_be_used, sizeof(expr_cache_may_be_used));
   select_list_tables= 0;
+  merged_into= 0;
   m_non_agg_field_used= false;
   m_agg_func_used= false;
   m_custom_agg_func_used= false;
@@ -3064,6 +3065,9 @@ void st_select_lex::init_query()
   versioned_tables= 0;
   pushdown_select= 0;
   orig_names_of_item_list_elems= 0;
+#ifdef NEW_ITEM_SUBSELECT_RECALC_USED_TABLES
+  outer_references_resolved_here= 0;
+#endif
 }
 
 void st_select_lex::init_select()
@@ -3112,6 +3116,9 @@ void st_select_lex::init_select()
   is_tvc_wrapper= false;
   nest_flags= 0;
   orig_names_of_item_list_elems= 0;
+#ifdef NEW_ITEM_SUBSELECT_RECALC_USED_TABLES
+  outer_references_resolved_here= 0;
+#endif
 }
 
 /*
@@ -3416,6 +3423,8 @@ bool st_select_lex::mark_as_dependent(THD *thd, st_select_lex *last,
 
   DBUG_ASSERT(this != last);
 
+  if (dependency)
+    last->add_outer_reference_resolved_here(thd, dependency, dependency);
   /*
     Mark all selects from resolved to 1 before select where was
     found table as depended (of select where was found table)
@@ -3426,7 +3435,7 @@ bool st_select_lex::mark_as_dependent(THD *thd, st_select_lex *last,
   Name_resolution_context *c= &this->context;
   do
   {
-    SELECT_LEX *s= c->select_lex;
+    SELECT_LEX *s= c->get_select_lex();
     if (!(s->uncacheable & UNCACHEABLE_DEPENDENT_GENERATED))
     {
       // Select is dependent of outer select
@@ -3448,7 +3457,8 @@ bool st_select_lex::mark_as_dependent(THD *thd, st_select_lex *last,
     if (subquery_expr && subquery_expr->mark_as_dependent(thd, last, 
                                                           dependency))
       return TRUE;
-  } while ((c= c->outer_context) != NULL && (c->select_lex != last));
+  } while ((c= c->get_outer_context()) != NULL &&
+           (c->get_select_lex() != last));
   is_correlated= TRUE;
   master_unit()->item->is_correlated= TRUE;
   return FALSE;
@@ -5188,6 +5198,12 @@ void st_select_lex::remap_tables(TABLE_LIST *derived, table_map map,
   }
 }
 
+#ifdef NEW_ITEM_SUBSELECT_RECALC_USED_TABLES
+extern
+void remove_outer_references_to(List<Item_ident>*list,
+                                 SELECT_LEX *remove_me);
+#endif
+
 /**
   @brief
   Merge a subquery into this select.
@@ -5254,6 +5270,29 @@ bool SELECT_LEX::merge_subquery(THD *thd, TABLE_LIST *derived,
    * parent_lex */
   subq_select->remap_tables(derived, map, table_no, this);
   subq_select->merged_into= this;
+
+#ifdef NEW_ITEM_SUBSELECT_RECALC_USED_TABLES
+  /*
+    References in this->outer_references_resolved_here that are resolved in
+    subq_select need to be removed as they are no longer outer references
+  */
+  remove_outer_references_to(this->outer_references_resolved_here, subq_select);
+  if (subq_select->outer_references_resolved_here)
+  {
+    DBUG_PRINT("info",
+        ("shifting outer_references_resolved_here from select #%d to #%d",
+          subq_select->select_number,
+          this->select_number) );
+    if (!this->outer_references_resolved_here)
+      this->outer_references_resolved_here=
+        subq_select->outer_references_resolved_here;
+    else
+    {
+      this->outer_references_resolved_here->append(
+                                   subq_select->outer_references_resolved_here);
+    }
+  }
+#endif
 
   replace_leaf_table(derived, subq_select->leaf_tables);
 
@@ -5803,53 +5842,6 @@ void st_select_lex::set_unique_exclude()
 }
 
 
-/*
-  Return true if this select_lex has been converted into a semi-join nest
-  within 'ancestor'.
-
-  We need a loop to check this because there could be several nested
-  subselects, like
-
-    SELECT ... FROM grand_parent 
-      WHERE expr1 IN (SELECT ... FROM parent 
-                        WHERE expr2 IN ( SELECT ... FROM child)
-
-  which were converted into:
-  
-    SELECT ... 
-    FROM grand_parent SEMI_JOIN (parent JOIN child) 
-    WHERE 
-      expr1 AND expr2
-
-  In this case, both parent and child selects were merged into the parent.
-*/
-
-bool st_select_lex::is_merged_child_of(st_select_lex *ancestor)
-{
-  bool all_merged= TRUE;
-  for (SELECT_LEX *sl= this; sl && sl!=ancestor;
-       sl=sl->outer_select())
-  {
-    Item *subs= sl->master_unit()->item;
-    Item_in_subselect *in_subs= (subs ? subs->get_IN_subquery() : NULL);
-    if (in_subs &&
-        ((Item_subselect*)subs)->substype() == Item_subselect::IN_SUBS &&
-        in_subs->test_strategy(SUBS_SEMI_JOIN))
-    {
-      continue;
-    }
-
-    if (sl->master_unit()->derived &&
-      sl->master_unit()->derived->is_merged_derived())
-    {
-      continue;
-    }
-    all_merged= FALSE;
-    break;
-  }
-  return all_merged;
-}
-
 /* 
   This is used by SHOW EXPLAIN. It assuses query plan has been already 
   collected into QPF structures and we only need to print it out.
@@ -6328,9 +6320,9 @@ bool LEX::push_context(Name_resolution_context *context)
 {
   DBUG_ENTER("LEX::push_context");
   DBUG_PRINT("info", ("Context: %p Select: %p (%d)",
-                       context, context->select_lex,
-                       (context->select_lex ?
-                        context->select_lex->select_number:
+                       context, context->get_select_lex(),
+                       (context->get_select_lex() ?
+                        context->get_select_lex()->select_number:
                         0)));
   bool res= context_stack.push_front(context, thd->mem_root);
   DBUG_RETURN(res);
@@ -6342,9 +6334,9 @@ Name_resolution_context *LEX::pop_context()
   DBUG_ENTER("LEX::pop_context");
   Name_resolution_context *context= context_stack.pop();
   DBUG_PRINT("info", ("Context: %p Select: %p (%d)",
-                       context, context->select_lex,
-                       (context->select_lex ?
-                        context->select_lex->select_number:
+                       context, context->get_select_lex(),
+                       (context->get_select_lex() ?
+                        context->get_select_lex()->select_number:
                         0)));
   DBUG_RETURN(context);
 }
@@ -9985,7 +9977,7 @@ void st_select_lex::register_unit(SELECT_LEX_UNIT *unit,
 
   for(SELECT_LEX *sel= unit->first_select();sel; sel= sel->next_select())
   {
-    sel->context.outer_context= outer_context;
+    sel->context.set_outer_context(outer_context);
   }
 }
 
@@ -12046,3 +12038,65 @@ bool SELECT_LEX_UNIT::explainable() const
                derived->is_materialized_derived() :   // (3)
                false;
 }
+
+
+#ifdef NEW_ITEM_SUBSELECT_RECALC_USED_TABLES
+/**
+  Add an outer reference to the SELECT_LEX in which it is resolved.
+
+  @param        thd           Thread Handle
+                original      Item on which we are calling fix_outer_field
+                translated    Item that is used to fetch data for results.
+
+  @details
+  Adds an Item pointer to the maintained list of outer references that are
+  resolved in this SELECT_LEX.  We pass in both the item which causes the
+  outer reference (on which fix_outer_field is called) and the result of
+  name resolution on this item.  We need both as we need an item we can call
+  real_item() on to get Field information, as well as contextual information
+  which for an Item_ref will need saving.
+
+  @retval FALSE  no error
+          TRUE   an error occurred
+*/
+
+bool SELECT_LEX::add_outer_reference_resolved_here(THD *thd,
+                                                   Item_ident *original,
+                                                   Item *translated)
+{
+  bool ret= FALSE;
+
+  /*
+    Only populate outer reference during either conventional execution or
+    on first execution of a prepared statement/stored procedure
+  */
+  if (thd->stmt_arena->state == Query_arena::STMT_CONVENTIONAL_EXECUTION ||
+      thd->stmt_arena->state == Query_arena::STMT_INITIALIZED_FOR_SP ||
+      thd->stmt_arena->state == Query_arena::STMT_PREPARED)
+  {
+    Query_arena *arena, backup;
+    arena= thd->activate_stmt_arena_if_needed(&backup);
+
+    if (!outer_references_resolved_here)
+    {
+      ret= !(outer_references_resolved_here=
+                  new (thd->mem_root)List<Item_ident>);
+      if (!ret)
+        outer_references_resolved_here->empty();
+    }
+    if (!ret)
+    {
+      Item_ident *to_push= original;
+//      if (original->type() == Item::REF_ITEM)
+//        to_push->context= &thd->lex->current_select->context;
+      if (translated->type() == Item::REF_ITEM)
+        to_push= (Item_ident *) translated;
+      to_push->context= &thd->lex->current_select->context;
+      ret= outer_references_resolved_here->push_back( to_push, thd->mem_root);
+    }
+    if (arena)
+      thd->restore_active_arena(arena, &backup);
+  }
+  return ret;
+}
+#endif          // NEW_ITEM_SUBSELECT_RECALC_USED_TABLES

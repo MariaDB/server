@@ -1194,7 +1194,6 @@ public:
   enum leaf_list_state prep_leaf_list_state;
   uint insert_tables;
   st_select_lex *merged_into; /* select which this select is merged into */
-                              /* (not 0 only for views/derived tables)   */
 
   const char *type;               /* type of select for EXPLAIN          */
 
@@ -1267,6 +1266,15 @@ public:
   bool having_fix_field_for_pushed_cond;
   /* List of references to fields referenced from inner selects */
   List<Item_outer_ref> inner_refs_list;
+
+#define NEW_ITEM_SUBSELECT_RECALC_USED_TABLES
+#ifdef NEW_ITEM_SUBSELECT_RECALC_USED_TABLES
+  /* List of Items that are in inner selects but resolved here */
+  List<Item_ident> *outer_references_resolved_here;
+  bool add_outer_reference_resolved_here(THD *thd, Item_ident *original,
+                                         Item *translated);
+#endif
+
   /* Number of Item_sum-derived objects in this SELECT */
   uint n_sum_items;
   /* Number of Item_sum-derived objects in children and descendant SELECTs */

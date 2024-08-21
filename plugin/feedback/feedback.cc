@@ -102,7 +102,7 @@ static COND* make_cond(THD *thd, TABLE_LIST *tables, LEX_STRING *filter)
 
   nrc->init();
   nrc->resolve_in_table_list_only(tables);
-  nrc->select_lex= tables->select_lex;
+  nrc->set_select_lex(tables->select_lex);
 
   res= new (thd->mem_root) Item_cond_or(thd);
   if (!res)
