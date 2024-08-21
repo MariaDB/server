@@ -815,7 +815,7 @@ int ha_initialize_handlerton(st_plugin_int *plugin)
   update_discovery_counters(hton, 1);
 
   if (ddl_recovery_done && hton->signal_ddl_recovery_done)
-    hton->signal_ddl_recovery_done(hton);
+    ret= hton->signal_ddl_recovery_done(hton);
 
   DBUG_RETURN(ret);
 

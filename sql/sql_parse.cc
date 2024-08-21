@@ -4599,7 +4599,14 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
 
         // For !InnoDB we start TOI if it is not yet started and hope for the best
         if (!is_innodb && !wsrep_toi)
-          WSREP_TO_ISOLATION_BEGIN(first_table->db.str, first_table->table_name.str, NULL);
+        {
+          const legacy_db_type db_type= first_table->table->file->partition_ht()->db_type;
+
+          /* Currently we support TOI for MyISAM only. */
+          if (db_type == DB_TYPE_MYISAM &&
+              wsrep_check_mode(WSREP_MODE_REPLICATE_MYISAM))
+            WSREP_TO_ISOLATION_BEGIN(first_table->db.str, first_table->table_name.str, NULL);
+        }
       }
 #endif /* WITH_WSREP */
       /*

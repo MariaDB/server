@@ -6493,6 +6493,24 @@ int THD::decide_logging_format(TABLE_LIST *tables)
     }
     set_current_stmt_binlog_format_row();
   }
+
+  /* If user has requested binlog_format STMT OR MIXED
+     in CREATE TABLE [SELECT|REPLACE] we will fall back
+     to ROW.
+
+     Note that we can't use local binlog_format variable
+     here because wsrep_binlog_format sets it to ROW.
+  */
+  if (wsrep_ctas && variables.binlog_format != BINLOG_FORMAT_ROW)
+  {
+    push_warning_printf(this, Sql_condition::WARN_LEVEL_WARN,
+                        ER_UNKNOWN_ERROR,
+                        "Galera does not support binlog_format = %s "
+                        "in CREATE TABLE [SELECT|REPLACE] forcing ROW",
+                        binlog_format == BINLOG_FORMAT_STMT ?
+                        "STMT" : "MIXED");
+    set_current_stmt_binlog_format_row();
+  }
 #endif /* WITH_WSREP */
 
   if (WSREP_EMULATE_BINLOG_NNULL(this) ||
