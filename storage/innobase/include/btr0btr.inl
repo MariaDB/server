@@ -40,14 +40,16 @@ btr_page_get_index_id(
 
 /** Set PAGE_LEVEL.
 @param[in,out]  block  buffer block
+@param[in,out]  page   buffer block frame
 @param[in]      level  page level
 @param[in,out]  mtr    mini-transaction */
 inline
-void btr_page_set_level(buf_block_t *block, ulint level, mtr_t *mtr)
+void btr_page_set_level(buf_block_t *block, page_t *page, ulint level,
+                        mtr_t *mtr)
 {
   ut_ad(level <= BTR_MAX_NODE_LEVEL);
   constexpr uint16_t field= PAGE_HEADER + PAGE_LEVEL;
-  byte *b= my_assume_aligned<2>(&block->page.frame[field]);
+  byte *b= my_assume_aligned<2>(&page[field]);
   if (mtr->write<2,mtr_t::MAYBE_NOP>(*block, b, level) &&
       UNIV_LIKELY_NULL(block->page.zip.data))
     memcpy_aligned<2>(&block->page.zip.data[field], b, 2);
@@ -55,12 +57,14 @@ void btr_page_set_level(buf_block_t *block, ulint level, mtr_t *mtr)
 
 /** Set FIL_PAGE_NEXT.
 @param[in,out]  block  buffer block
+@param[in,out]  page   buffer block frame
 @param[in]      next   number of successor page
 @param[in,out]  mtr    mini-transaction */
-inline void btr_page_set_next(buf_block_t *block, ulint next, mtr_t *mtr)
+inline void btr_page_set_next(buf_block_t *block, page_t *page, ulint next,
+                              mtr_t *mtr)
 {
   constexpr uint16_t field= FIL_PAGE_NEXT;
-  byte *b= my_assume_aligned<4>(&block->page.frame[field]);
+  byte *b= my_assume_aligned<4>(&page[field]);
   if (mtr->write<4,mtr_t::MAYBE_NOP>(*block, b, next) &&
       UNIV_LIKELY_NULL(block->page.zip.data))
     memcpy_aligned<4>(&block->page.zip.data[field], b, 4);
@@ -68,12 +72,14 @@ inline void btr_page_set_next(buf_block_t *block, ulint next, mtr_t *mtr)
 
 /** Set FIL_PAGE_PREV.
 @param[in,out]  block  buffer block
+@param[in,out]  page   buffer block frame
 @param[in]      prev   number of predecessor page
 @param[in,out]  mtr    mini-transaction */
-inline void btr_page_set_prev(buf_block_t *block, ulint prev, mtr_t *mtr)
+inline void btr_page_set_prev(buf_block_t *block, page_t *page, ulint prev,
+                              mtr_t *mtr)
 {
   constexpr uint16_t field= FIL_PAGE_PREV;
-  byte *b= my_assume_aligned<4>(&block->page.frame[field]);
+  byte *b= my_assume_aligned<4>(&page[field]);
   if (mtr->write<4,mtr_t::MAYBE_NOP>(*block, b, prev) &&
       UNIV_LIKELY_NULL(block->page.zip.data))
     memcpy_aligned<4>(&block->page.zip.data[field], b, 4);

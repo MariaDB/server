@@ -173,8 +173,7 @@ ibuf_index_page_calc_free_zip(
 	merging a buffered insert to a compressed page will always
 	succeed without reorganizing or recompressing the page, just
 	by using the page modification log. */
-	max_ins_size = page_get_max_insert_size(
-		buf_block_get_frame(block), 1);
+	max_ins_size = page_get_max_insert_size(block->page.frame, 1);
 
 	page_zip = buf_block_get_page_zip(block);
 	zip_max_ins = page_zip_max_ins_size(page_zip,
@@ -203,7 +202,7 @@ ibuf_index_page_calc_free(
 		ulint	max_ins_size;
 
 		max_ins_size = page_get_max_insert_size_after_reorganize(
-			buf_block_get_frame(block), 1);
+			block->page.frame, 1);
 
 		return(ibuf_index_page_calc_free_bits(
 				block->physical_size(), max_ins_size));

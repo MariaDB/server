@@ -2173,6 +2173,7 @@ rec_validate_old(
 /***************************************************************//**
 Validates the consistency of a physical record.
 @return TRUE if ok */
+ATTRIBUTE_COLD
 ibool
 rec_validate(
 /*=========*/
@@ -2230,6 +2231,7 @@ rec_validate(
 
 /***************************************************************//**
 Prints an old-style physical record. */
+ATTRIBUTE_COLD
 void
 rec_print_old(
 /*==========*/
@@ -2280,6 +2282,7 @@ rec_print_old(
 /***************************************************************//**
 Prints a physical record in ROW_FORMAT=COMPACT.  Ignores the
 record header. */
+ATTRIBUTE_COLD
 static
 void
 rec_print_comp(
@@ -2332,6 +2335,7 @@ rec_print_comp(
 
 /***************************************************************//**
 Prints an old-style spatial index record. */
+ATTRIBUTE_COLD
 static
 void
 rec_print_mbr_old(
@@ -2407,6 +2411,7 @@ rec_print_mbr_old(
 
 /***************************************************************//**
 Prints a spatial index record. */
+ATTRIBUTE_COLD
 void
 rec_print_mbr_rec(
 /*==============*/
@@ -2475,6 +2480,7 @@ rec_print_mbr_rec(
 
 /***************************************************************//**
 Prints a physical record. */
+ATTRIBUTE_COLD
 void
 rec_print_new(
 /*==========*/
@@ -2508,6 +2514,7 @@ rec_print_new(
 
 /***************************************************************//**
 Prints a physical record. */
+ATTRIBUTE_COLD
 void
 rec_print(
 /*======*/
@@ -2539,6 +2546,7 @@ rec_print(
 @param[in]	rec	physical record
 @param[in]	info	rec_get_info_bits(rec)
 @param[in]	offsets	rec_get_offsets(rec) */
+ATTRIBUTE_COLD
 void
 rec_print(
 	std::ostream&	o,
@@ -2597,6 +2605,7 @@ rec_print(
 @param[in,out]	o	output stream
 @param[in]	r	record to display
 @return	the output stream */
+ATTRIBUTE_COLD
 std::ostream&
 operator<<(std::ostream& o, const rec_index_print& r)
 {
@@ -2616,6 +2625,7 @@ operator<<(std::ostream& o, const rec_index_print& r)
 @param[in,out]	o	output stream
 @param[in]	r	record to display
 @return	the output stream */
+ATTRIBUTE_COLD
 std::ostream&
 operator<<(std::ostream& o, const rec_offsets_print& r)
 {

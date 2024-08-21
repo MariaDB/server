@@ -1821,18 +1821,19 @@ err_exit:
 		trx->error_key_num = 0;
 		goto func_exit;
 	} else {
-		rec_t* rec = page_rec_get_next(btr_pcur_get_rec(&pcur));
+		page_t* page = btr_pcur_get_page(&pcur);
+		rec_t* rec = page_rec_get_next(page, btr_pcur_get_rec(&pcur));
 		if (!rec) {
 corrupted_metadata:
 			err = DB_CORRUPTION;
 			goto err_exit;
 		}
-		if (rec_get_info_bits(rec, page_rec_is_comp(rec))
+		if (rec_get_info_bits(rec, page_is_comp(page))
 		    & REC_INFO_MIN_REC_FLAG) {
 			if (!clust_index->is_instant()) {
 				goto corrupted_metadata;
 			}
-			if (page_rec_is_comp(rec)
+			if (page_is_comp(page)
 			    && rec_get_status(rec) != REC_STATUS_INSTANT) {
 				goto corrupted_metadata;
 			}

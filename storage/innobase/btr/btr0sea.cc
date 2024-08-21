@@ -403,10 +403,12 @@ bool
 btr_search_update_block_hash_info(btr_search_t* info, buf_block_t* block)
 {
 	ut_ad(block->page.lock.have_x() || block->page.lock.have_s());
+	ut_ad(info->magic_n == BTR_SEARCH_MAGIC_N);
+
+	const page_t* const page = block->page.frame;
+	ut_ad(page);
 
 	info->last_hash_succ = FALSE;
-	ut_ad(block->page.frame);
-	ut_ad(info->magic_n == BTR_SEARCH_MAGIC_N);
 
 	if ((block->n_hash_helps > 0)
 	    && (info->n_hash_potential > 0)
@@ -433,13 +435,12 @@ btr_search_update_block_hash_info(btr_search_t* info, buf_block_t* block)
 		block->left_side = info->left_side;
 	}
 
-	if ((block->n_hash_helps > page_get_n_recs(block->page.frame)
+	if ((block->n_hash_helps > page_get_n_recs(page)
 	     / BTR_SEARCH_PAGE_BUILD_LIMIT)
 	    && (info->n_hash_potential >= BTR_SEARCH_BUILD_LIMIT)) {
 
 		if ((!block->index)
-		    || (block->n_hash_helps
-			> 2U * page_get_n_recs(block->page.frame))
+		    || (block->n_hash_helps > 2U * page_get_n_recs(page))
 		    || (block->n_fields != block->curr_n_fields)
 		    || (block->n_bytes != block->curr_n_bytes)
 		    || (block->left_side != block->curr_left_side)) {
@@ -721,7 +722,7 @@ btr_search_update_hash_ref(
 
 		const rec_t* rec = btr_cur_get_rec(cursor);
 
-		if (!page_rec_is_user_rec(rec)) {
+		if (!page_rec_is_user_rec(btr_cur_get_page(cursor), rec)) {
 			goto func_exit;
 		}
 
@@ -767,7 +768,6 @@ btr_search_check_guess(
 	const dtuple_t*	tuple,
 	ulint		mode)
 {
-	rec_t*		rec;
 	ulint		n_unique;
 	ulint		match;
 	int		cmp;
@@ -779,10 +779,11 @@ btr_search_check_guess(
 
 	n_unique = dict_index_get_n_unique_in_tree(cursor->index());
 
-	rec = btr_cur_get_rec(cursor);
+	rec_t* rec = btr_cur_get_rec(cursor);
+        page_t* page = btr_cur_get_page(cursor);
 
-	if (UNIV_UNLIKELY(!page_rec_is_user_rec(rec)
-			  || !page_rec_is_leaf(rec))) {
+	if (UNIV_UNLIKELY(!page_rec_is_user_rec(page, rec)
+			  || !page_is_leaf(page))) {
 		ut_ad("corrupted index" == 0);
 		return false;
 	} else if (cursor->index()->table->not_redundant()) {
@@ -840,15 +841,15 @@ btr_search_check_guess(
 	match = 0;
 
 	if ((mode == PAGE_CUR_G) || (mode == PAGE_CUR_GE)) {
-		const rec_t* prev_rec = page_rec_get_prev(rec);
+		const rec_t* prev_rec = page_rec_get_prev(page, rec);
 
 		if (UNIV_UNLIKELY(!prev_rec)) {
 			ut_ad("corrupted index" == 0);
 			goto exit_func;
 		}
 
-		if (page_rec_is_infimum(prev_rec)) {
-			success = !page_has_prev(page_align(prev_rec));
+		if (page_rec_is_infimum(page, prev_rec)) {
+			success = !page_has_prev(page);
 			goto exit_func;
 		}
 
@@ -874,17 +875,17 @@ btr_search_check_guess(
 			success = cmp >= 0;
 		}
 	} else {
-		ut_ad(!page_rec_is_supremum(rec));
+		ut_ad(!page_rec_is_supremum(page, rec));
 
-		const rec_t* next_rec = page_rec_get_next(rec);
+		const rec_t* next_rec = page_rec_get_next(page, rec);
 
 		if (UNIV_UNLIKELY(!next_rec)) {
 			ut_ad("corrupted index" == 0);
 			goto exit_func;
 		}
 
-		if (page_rec_is_supremum(next_rec)) {
-			if (!page_has_next(page_align(next_rec))) {
+		if (page_rec_is_supremum(page, next_rec)) {
+			if (!page_has_next(page)) {
 				cursor->up_match = 0;
 				success = true;
 			}
@@ -1153,7 +1154,7 @@ block_and_ahi_release_and_fail:
 
 	mtr->memo_push(block, mtr_memo_type_t(latch_mode));
 
-	ut_ad(page_rec_is_user_rec(rec));
+	ut_ad(page_rec_is_user_rec(block->page.frame, rec));
 
 	btr_cur_position(index, (rec_t*) rec, block, cursor);
 
@@ -1212,14 +1213,16 @@ retry:
 	      || !(~buf_page_t::LRU_MASK & state)
 	      || block->page.lock.have_any());
 	ut_ad(state < buf_page_t::READ_FIX || state >= buf_page_t::WRITE_FIX);
-	ut_ad(page_is_leaf(block->page.frame));
+
+	const page_t* const page = block->page.frame;
+
+	ut_ad(page_is_leaf(page));
 
 	/* We must not dereference block->index here, because it could be freed
 	if (!index->table->get_ref_count() && !dict_sys.frozen()).
 	Determine the ahi_slot based on the block contents. */
 
-	const index_id_t	index_id
-		= btr_page_get_index_id(block->page.frame);
+	const index_id_t	index_id = btr_page_get_index_id(page);
 
 	auto part = btr_search_sys.get_part(index_id,
 					    block->page.id().space());
@@ -1271,7 +1274,6 @@ retry:
 
 	ut_a(n_fields > 0 || n_bytes > 0);
 
-	const page_t* const page = block->page.frame;
 	ulint n_recs = page_get_n_recs(page);
 	if (!n_recs) {
 		ut_ad("corrupted adaptive hash index" == 0);
@@ -1282,14 +1284,14 @@ retry:
 	from the hash index */
 
 	rec = page_get_infimum_rec(page);
-	rec = page_rec_get_next_low(rec, page_is_comp(page));
+	rec = page_rec_get_next(page, rec);
 
 	ulint* folds;
 	ulint n_cached = 0;
 	ulint prev_fold = 0;
 
 	if (rec && rec_is_metadata(rec, *index)) {
-		rec = page_rec_get_next_low(rec, page_is_comp(page));
+		rec = page_rec_get_next(page, rec);
 		if (!--n_recs) {
 			/* The page only contains the hidden metadata record
 			for instant ALTER TABLE that the adaptive hash index
@@ -1305,10 +1307,10 @@ retry:
 
 	while (rec) {
 		if (n_cached >= n_recs) {
-			ut_ad(page_rec_is_supremum(rec));
+			ut_ad(page_rec_is_supremum(page, rec));
 			break;
 		}
-		ut_ad(page_rec_is_user_rec(rec));
+		ut_ad(page_rec_is_user_rec(page, rec));
 		offsets = rec_get_offsets(
 			rec, index, offsets, index->n_core_fields,
 			btr_search_get_n_fields(n_fields, n_bytes),
@@ -1326,8 +1328,8 @@ retry:
 		folds[n_cached++] = fold;
 
 next_rec:
-		rec = page_rec_get_next_low(rec, page_rec_is_comp(rec));
-		if (!rec || page_rec_is_supremum(rec)) {
+		rec = page_rec_get_next(page, rec);
+		if (!rec || page_rec_is_supremum(page, rec)) {
 			break;
 		}
 		prev_fold = fold;
@@ -1461,10 +1463,12 @@ btr_search_build_page_hash_index(
 	ut_ad(index);
 	ut_ad(block->page.id().space() == index->table->space_id);
 	ut_ad(!dict_index_is_ibuf(index));
-	ut_ad(page_is_leaf(block->page.frame));
 
 	ut_ad(block->page.lock.have_x() || block->page.lock.have_s());
 	ut_ad(block->page.id().page_no() >= 3);
+
+	const page_t* const page = block->page.frame;
+	ut_ad(page_is_leaf(page));
 
 	ahi_latch->rd_lock(SRW_LOCK_CALL);
 
@@ -1496,7 +1500,6 @@ btr_search_build_page_hash_index(
 		return;
 	}
 
-	page_t*		page	= buf_block_get_frame(block);
 	n_recs = page_get_n_recs(page);
 
 	if (n_recs == 0) {
@@ -1504,11 +1507,11 @@ btr_search_build_page_hash_index(
 		return;
 	}
 
-	rec = page_rec_get_next_const(page_get_infimum_rec(page));
+	rec = page_rec_get_first(page);
         if (!rec) return;
 
 	if (rec_is_metadata(rec, *index)) {
-		rec = page_rec_get_next_const(rec);
+		rec = page_rec_get_next(page, rec);
 		if (!rec || !--n_recs) return;
 	}
 
@@ -1527,7 +1530,7 @@ btr_search_build_page_hash_index(
 		rec, index, offsets, index->n_core_fields,
 		btr_search_get_n_fields(n_fields, n_bytes),
 		&heap);
-	ut_ad(page_rec_is_supremum(rec)
+	ut_ad(page_rec_is_supremum(page, rec)
 	      || n_fields == rec_offs_n_fields(offsets) - (n_bytes > 0));
 
 	fold = rec_fold(rec, offsets, n_fields, n_bytes, index->id);
@@ -1539,8 +1542,8 @@ btr_search_build_page_hash_index(
 		n_cached++;
 	}
 
-	while (const rec_t* next_rec = page_rec_get_next_const(rec)) {
-		if (page_rec_is_supremum(next_rec)) {
+	while (const rec_t* next_rec = page_rec_get_next(page, rec)) {
+		if (page_rec_is_supremum(page, next_rec)) {
 
 			if (!left_side) {
 
@@ -1827,23 +1830,17 @@ void btr_search_update_hash_on_delete(btr_cur_t *cursor)
 void btr_search_update_hash_node_on_insert(btr_cur_t *cursor,
                                            srw_spin_lock *ahi_latch)
 {
-	buf_block_t*	block;
-	dict_index_t*	index;
-	rec_t*		rec;
-
 	ut_ad(ahi_latch == &btr_search_sys.get_part(*cursor->index())->latch);
 
 	if (!btr_search_enabled) {
 		return;
 	}
 
-	rec = btr_cur_get_rec(cursor);
-
-	block = btr_cur_get_block(cursor);
+	const rec_t* rec = btr_cur_get_rec(cursor);
+        buf_block_t *block = btr_cur_get_block(cursor);
+	dict_index_t* index = block->index;
 
 	ut_ad(block->page.lock.have_x());
-
-	index = block->index;
 
 	if (!index) {
 
@@ -1873,7 +1870,8 @@ void btr_search_update_hash_node_on_insert(btr_cur_t *cursor,
 	    && (cursor->n_fields == block->curr_n_fields)
 	    && (cursor->n_bytes == block->curr_n_bytes)
 	    && !block->curr_left_side) {
-		if (const rec_t *new_rec = page_rec_get_next_const(rec)) {
+		if (const rec_t *new_rec =
+		    page_rec_get_next(block->page.frame, rec)) {
 			if (ha_search_and_update_if_found(
 				&btr_search_sys.get_part(*cursor->index())
 				->table,
@@ -1957,10 +1955,11 @@ drop:
 	n_fields = block->curr_n_fields;
 	n_bytes = block->curr_n_bytes;
 	const bool left_side = block->curr_left_side;
+	const page_t* page = block->page.frame;
 
-	ins_rec = page_rec_get_next_const(rec);
+	ins_rec = page_rec_get_next(page, rec);
 	if (UNIV_UNLIKELY(!ins_rec)) goto drop;
-	next_rec = page_rec_get_next_const(ins_rec);
+	next_rec = page_rec_get_next(page, ins_rec);
 	if (UNIV_UNLIKELY(!next_rec)) goto drop;
 
 	offsets = rec_get_offsets(ins_rec, index, offsets,
@@ -1968,7 +1967,7 @@ drop:
 				  ULINT_UNDEFINED, &heap);
 	ins_fold = rec_fold(ins_rec, offsets, n_fields, n_bytes, index->id);
 
-	if (!page_rec_is_supremum(next_rec)) {
+	if (!page_rec_is_supremum(page, next_rec)) {
 		offsets = rec_get_offsets(
 			next_rec, index, offsets, index->n_core_fields,
 			btr_search_get_n_fields(n_fields, n_bytes), &heap);
@@ -1980,7 +1979,7 @@ drop:
 	btr_search_sys_t::partition* part= nullptr;
 	bool locked = false;
 
-	if (!page_rec_is_infimum(rec) && !rec_is_metadata(rec, *index)) {
+	if (!page_rec_is_infimum(page, rec) && !rec_is_metadata(rec, *index)) {
 		offsets = rec_get_offsets(
 			rec, index, offsets, index->n_core_fields,
 			btr_search_get_n_fields(n_fields, n_bytes), &heap);
@@ -2027,7 +2026,7 @@ drop:
 	}
 
 check_next_rec:
-	if (page_rec_is_supremum(next_rec)) {
+	if (page_rec_is_supremum(page, next_rec)) {
 
 		if (!left_side) {
 			if (!locked) {

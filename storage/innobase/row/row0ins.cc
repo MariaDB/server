@@ -838,11 +838,15 @@ row_ins_foreign_report_add_err(
 	fprintf(ef, ", in index %s,\n"
 		"the closest match we can find is record:\n",
 		foreign->referenced_index->name());
-	if (rec && page_rec_is_supremum(rec)) {
+	if (rec) {
+		const page_t* page = page_align(rec);
+
 		/* If the cursor ended on a supremum record, it is better
 		to report the previous record in the error message, so that
 		the user gets a more descriptive error message. */
-		rec = page_rec_get_prev_const(rec);
+		if (page_rec_is_supremum(page, rec)) {
+			rec = page_rec_get_prev(page, rec);
+		}
 	}
 
 	if (rec) {
@@ -1149,7 +1153,7 @@ row_ins_foreign_check_on_constraint(
 		clust_rec = btr_pcur_get_rec(cascade->pcur);
 		clust_block = btr_pcur_get_block(cascade->pcur);
 
-		if (!page_rec_is_user_rec(clust_rec)
+		if (!page_rec_is_user_rec(clust_block->page.frame, clust_rec)
 		    || btr_pcur_get_low_match(cascade->pcur)
 		    < dict_index_get_n_unique(clust_index)) {
 
@@ -1635,7 +1639,7 @@ row_ins_check_foreign_constraint(
 		const rec_t*		rec = btr_pcur_get_rec(&pcur);
 		const buf_block_t*	block = btr_pcur_get_block(&pcur);
 
-		if (page_rec_is_infimum(rec)) {
+		if (page_rec_is_infimum(block->page.frame, rec)) {
 
 			continue;
 		}
@@ -1644,7 +1648,7 @@ row_ins_check_foreign_constraint(
 					  check_index->n_core_fields,
 					  ULINT_UNDEFINED, &heap);
 
-		if (page_rec_is_supremum(rec)) {
+		if (page_rec_is_supremum(block->page.frame, rec)) {
 
 			if (skip_gap_lock) {
 
@@ -2121,11 +2125,12 @@ row_ins_scan_sec_index_for_duplicate(
 	/* Scan index records and check if there is a duplicate */
 
 	do {
-		const rec_t*		rec	= btr_pcur_get_rec(&pcur);
+		const rec_t* const	rec	= btr_pcur_get_rec(&pcur);
 		const buf_block_t*	block	= btr_pcur_get_block(&pcur);
 		const ulint		lock_type = LOCK_ORDINARY;
+		const page_t* const	page	= block->page.frame;
 
-		if (page_rec_is_infimum(rec)) {
+		if (page_rec_is_infimum(page, rec)) {
 
 			continue;
 		}
@@ -2161,7 +2166,7 @@ row_ins_scan_sec_index_for_duplicate(
 			goto end_scan;
 		}
 
-		if (page_rec_is_supremum(rec)) {
+		if (page_rec_is_supremum(page, rec)) {
 
 			continue;
 		}
@@ -2273,10 +2278,11 @@ row_ins_duplicate_error_in_clust_online(
 {
 	dberr_t		err	= DB_SUCCESS;
 	const rec_t*	rec	= btr_cur_get_rec(cursor);
+	const page_t*	page	= btr_cur_get_page(cursor);
 
 	ut_ad(!cursor->index()->is_instant());
 
-	if (cursor->low_match >= n_uniq && !page_rec_is_infimum(rec)) {
+	if (cursor->low_match >= n_uniq && !page_rec_is_infimum(page, rec)) {
 		*offsets = rec_get_offsets(rec, cursor->index(), *offsets,
 					   cursor->index()->n_fields,
 					   ULINT_UNDEFINED, heap);
@@ -2286,11 +2292,13 @@ row_ins_duplicate_error_in_clust_online(
 		}
 	}
 
-	if (!(rec = page_rec_get_next_const(btr_cur_get_rec(cursor)))) {
+	rec = page_rec_get_next(page, rec);
+
+	if (!rec) {
 		return DB_CORRUPTION;
 	}
 
-	if (cursor->up_match >= n_uniq && !page_rec_is_supremum(rec)) {
+	if (cursor->up_match >= n_uniq && !page_rec_is_supremum(page, rec)) {
 		*offsets = rec_get_offsets(rec, cursor->index(), *offsets,
 					   cursor->index()->n_fields,
 					   ULINT_UNDEFINED, heap);
@@ -2317,7 +2325,6 @@ row_ins_duplicate_error_in_clust(
 	que_thr_t*	thr)	/*!< in: query thread */
 {
 	dberr_t	err;
-	rec_t*	rec;
 	ulint	n_unique;
 	trx_t*	trx		= thr_get_trx(thr);
 	mem_heap_t*heap		= NULL;
@@ -2341,12 +2348,11 @@ row_ins_duplicate_error_in_clust(
 	that a duplicate key violation may occur, this may not be the case. */
 
 	n_unique = dict_index_get_n_unique(cursor->index());
+	const page_t *const page = btr_cur_get_page(cursor);
+	const rec_t* rec = btr_cur_get_rec(cursor);
 
 	if (cursor->low_match >= n_unique) {
-
-		rec = btr_cur_get_rec(cursor);
-
-		if (!page_rec_is_infimum(rec)) {
+		if (!page_rec_is_infimum(page, rec)) {
 			offsets = rec_get_offsets(rec, cursor->index(),
 						  offsets,
 						  cursor->index()
@@ -2400,7 +2406,7 @@ duplicate:
 				    && entry->vers_history_row())
 				{
 					ulint trx_id_len;
-					byte *trx_id = rec_get_nth_field(
+					const byte *trx_id = rec_get_nth_field(
 						rec, offsets, n_unique,
 						&trx_id_len);
 					ut_ad(trx_id_len == DATA_TRX_ID_LEN);
@@ -2416,10 +2422,9 @@ duplicate:
 	err = DB_SUCCESS;
 
 	if (cursor->up_match >= n_unique) {
+		rec = page_rec_get_next(page, rec);
 
-		rec = page_rec_get_next(btr_cur_get_rec(cursor));
-
-		if (rec && !page_rec_is_supremum(rec)) {
+		if (rec && !page_rec_is_supremum(page, rec)) {
 			offsets = rec_get_offsets(rec, cursor->index(),
 						  offsets,
 						  cursor->index()
@@ -2496,7 +2501,7 @@ row_ins_must_modify_rec(
 
 	return(cursor->low_match
 	       >= dict_index_get_n_unique_in_tree(cursor->index())
-	       && !page_rec_is_infimum(btr_cur_get_rec(cursor)));
+	       && !page_cur_is_before_first(&cursor->page_cur));
 }
 
 /** Insert the externally stored fields (off-page columns)
@@ -2687,10 +2692,9 @@ err_exit:
 #ifdef UNIV_DEBUG
 	{
 		page_t*	page = btr_pcur_get_page(&pcur);
-		rec_t*	first_rec = page_rec_get_next(
-			page_get_infimum_rec(page));
+		rec_t*	first_rec = page_rec_get_first(page);
 
-		ut_ad(page_rec_is_supremum(first_rec)
+		ut_ad(page_rec_is_supremum(page, first_rec)
 		      || rec_n_fields_is_sane(index, first_rec, entry));
 	}
 #endif /* UNIV_DEBUG */
@@ -2700,7 +2704,7 @@ err_exit:
 	DBUG_EXECUTE_IF("row_ins_row_level", goto skip_bulk_insert;);
 
 	if (!(flags & BTR_NO_UNDO_LOG_FLAG)
-	    && page_is_empty(block->page.frame)
+	    && page_is_empty(btr_pcur_get_page(&pcur))
 	    && !entry->is_metadata() && !trx->duplicates
 	    && !trx->check_unique_secondary && !trx->check_foreigns
 	    && !trx->dict_operation
@@ -2759,7 +2763,8 @@ skip_bulk_insert:
 	if (UNIV_UNLIKELY(entry->info_bits != 0)) {
 		const rec_t* rec = btr_pcur_get_rec(&pcur);
 
-		if (rec_get_info_bits(rec, page_rec_is_comp(rec))
+		if (rec_get_info_bits(rec,
+				      page_is_comp(btr_pcur_get_page(&pcur)))
 		    & REC_INFO_MIN_REC_FLAG) {
 			trx->error_info = index;
 			err = DB_DUPLICATE_KEY;
@@ -3029,10 +3034,9 @@ row_ins_sec_index_entry_low(
 #ifdef UNIV_DEBUG
 	{
 		page_t*	page = btr_cur_get_page(&cursor);
-		rec_t*	first_rec = page_rec_get_next(
-			page_get_infimum_rec(page));
+		rec_t*	first_rec = page_rec_get_first(page);
 
-		ut_ad(page_rec_is_supremum(first_rec)
+		ut_ad(page_rec_is_supremum(page, first_rec)
 		      || rec_n_fields_is_sane(index, first_rec, entry));
 	}
 #endif /* UNIV_DEBUG */

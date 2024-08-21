@@ -1100,11 +1100,12 @@ btr_cur_t::open_random_leaf(rec_offs *&offsets, mem_heap_t *&heap, mtr_t &mtr)
 
   mtr_s_lock_index(index(), &mtr);
 
-  if (index()->page == FIL_NULL)
+  auto offset= index()->page;
+
+  if (offset == FIL_NULL)
     return DB_CORRUPTION;
 
   dberr_t err;
-  auto offset= index()->page;
   bool merge= false;
   ulint height= ULINT_UNDEFINED;
 
@@ -1112,10 +1113,11 @@ btr_cur_t::open_random_leaf(rec_offs *&offsets, mem_heap_t *&heap, mtr_t &mtr)
          btr_block_get(*index(), offset, RW_S_LATCH, merge, &mtr, &err))
   {
     page_cur.block= block;
+    page_cur.rec= block->page.frame;
 
     if (height == ULINT_UNDEFINED)
     {
-      height= btr_page_get_level(block->page.frame);
+      height= btr_page_get_level(page_cur.rec);
       if (height > BTR_MAX_LEVELS)
         return DB_CORRUPTION;
 
@@ -1127,14 +1129,23 @@ btr_cur_t::open_random_leaf(rec_offs *&offsets, mem_heap_t *&heap, mtr_t &mtr)
     {
       mtr.rollback_to_savepoint(0, mtr.get_savepoint() - 1);
     got_leaf:
-      page_cur.rec= page_get_infimum_rec(block->page.frame);
+      page_cur.rec= page_get_infimum_rec(page_cur.rec);
       return DB_SUCCESS;
     }
 
     if (!--height)
       merge= !index()->is_clust();
 
-    page_cur_open_on_rnd_user_rec(&page_cur);
+    if (const ulint n_recs= page_get_n_recs(page_cur.rec))
+    {
+      page_cur.rec= page_rec_get_nth(page_cur.rec,
+                                     ut_rnd_interval(n_recs) + 1);
+      if (UNIV_UNLIKELY(!page_cur.rec))
+        goto goto_infimum;
+    }
+    else
+    goto_infimum:
+      page_cur.rec= page_get_infimum_rec(page_cur.rec);
 
     offsets= rec_get_offsets(page_cur.rec, page_cur.index, offsets, 0,
                              ULINT_UNDEFINED, &heap);
@@ -1309,10 +1320,10 @@ btr_estimate_number_of_different_key_vals(dict_index_t* index,
 
 		page = btr_cur_get_page(&cursor);
 
-		rec = page_rec_get_next(cursor.page_cur.rec);
+		rec = page_rec_get_next(page, cursor.page_cur.rec);
 		const ulint n_core = index->n_core_fields;
 
-		if (rec && !page_rec_is_supremum(rec)) {
+		if (rec && !page_rec_is_supremum(page, rec)) {
 			not_empty_flag = 1;
 			offsets_rec = rec_get_offsets(rec, index, offsets_rec,
 						      n_core,
@@ -1324,10 +1335,11 @@ btr_estimate_number_of_different_key_vals(dict_index_t* index,
 			}
 		}
 
-		while (!page_rec_is_supremum(rec)) {
+		while (!page_rec_is_supremum(page, rec)) {
 			ulint	matched_fields;
-			rec_t*	next_rec = page_rec_get_next(rec);
-			if (!next_rec || page_rec_is_supremum(next_rec)) {
+			rec_t*	next_rec = page_rec_get_next(page, rec);
+			if (!next_rec
+			    || page_rec_is_supremum(page, next_rec)) {
 				total_external_size +=
 					btr_rec_get_externally_stored_len(
 						rec, offsets_rec);
@@ -1501,17 +1513,18 @@ invalid:
 			goto invalid;
 		}
 
+		const page_t* page = root->page.frame;
 		mtr.x_lock_space(index->table->space);
 
 		ulint dummy, size;
 		index->stat_index_size
 			= fseg_n_reserved_pages(*root, PAGE_HEADER
 						+ PAGE_BTR_SEG_LEAF
-						+ root->page.frame, &size,
+						+ page, &size,
 						&mtr)
 			+ fseg_n_reserved_pages(*root, PAGE_HEADER
 						+ PAGE_BTR_SEG_TOP
-						+ root->page.frame, &dummy,
+						+ page, &dummy,
 						&mtr);
 
 		mtr.commit();
@@ -1647,15 +1660,16 @@ static dberr_t page_cur_open_level(page_cur_t *page_cur, ulint level,
 
   uint32_t page= index->page;
 
-  for (ulint height = ULINT_UNDEFINED;; height--)
+  for (ulint height= ULINT_UNDEFINED;; height--)
   {
-    buf_block_t* block=
+    buf_block_t *block=
       btr_block_get(*index, page, RW_S_LATCH,
                     !height && !index->is_clust(), mtr, &err);
     if (!block)
       break;
 
-    const uint32_t l= btr_page_get_level(block->page.frame);
+    const page_t *p= block->page.frame;
+    const uint32_t l= btr_page_get_level(p);
 
     if (height == ULINT_UNDEFINED)
     {
@@ -1665,7 +1679,7 @@ static dberr_t page_cur_open_level(page_cur_t *page_cur, ulint level,
       if (UNIV_UNLIKELY(height < level))
         return DB_CORRUPTION;
     }
-    else if (UNIV_UNLIKELY(height != l) || page_has_prev(block->page.frame))
+    else if (UNIV_UNLIKELY(height != l) || page_has_prev(p))
     {
       err= DB_CORRUPTION;
       break;
@@ -1844,18 +1858,15 @@ dict_stats_analyze_index_level(
 		bool	rec_is_last_on_page;
 
 		rec = btr_pcur_get_rec(&pcur);
+		const page_t *const page = btr_pcur_get_page(&pcur);
 
 		/* If rec and prev_rec are on different pages, then prev_rec
 		must have been copied, because we hold latch only on the page
 		where rec resides. */
-		if (prev_rec != NULL
-		    && page_align(rec) != page_align(prev_rec)) {
+		ut_ad(!prev_rec || prev_rec_is_copied
+		      || page == page_align(prev_rec));
 
-			ut_a(prev_rec_is_copied);
-		}
-
-		rec_is_last_on_page =
-			page_rec_is_supremum(page_rec_get_next_const(rec));
+		rec_is_last_on_page = page_rec_is_last(page, rec);
 
 		/* increment the pages counter at the end of each page */
 		if (rec_is_last_on_page) {
@@ -1872,7 +1883,7 @@ dict_stats_analyze_index_level(
 
 		if (level == 0
 		    && !srv_stats_include_delete_marked
-		    && rec_get_deleted_flag(rec, page_rec_is_comp(rec))) {
+		    && rec_get_deleted_flag(rec, page_is_comp(page))) {
 			if (rec_is_last_on_page
 			    && !prev_rec_is_copied
 			    && prev_rec != NULL) {
@@ -2043,28 +2054,29 @@ Gets the pointer to the next non delete-marked record on the page.
 If all subsequent records are delete-marked, then this function
 will return the supremum record.
 @return pointer to next non delete-marked record or pointer to supremum */
-static
-const rec_t*
-page_rec_get_next_non_del_marked(
-/*=============================*/
-	const rec_t*	rec)	/*!< in: pointer to record */
+static const rec_t *page_rec_get_next_non_del_marked(const page_t *page,
+                                                     const rec_t *rec)
 {
-  const page_t *const page= page_align(rec);
-
   if (page_is_comp(page))
   {
-    for (rec= page_rec_get_next_low(rec, TRUE);
+    for (rec= page_rec_get_next_low(page, rec, TRUE);
          rec && rec_get_deleted_flag(rec, TRUE);
-         rec= page_rec_get_next_low(rec, TRUE));
+         rec= page_rec_get_next_low(page, rec, TRUE));
     return rec ? rec : page + PAGE_NEW_SUPREMUM;
   }
   else
   {
-    for (rec= page_rec_get_next_low(rec, FALSE);
+    for (rec= page_rec_get_next_low(page, rec, FALSE);
          rec && rec_get_deleted_flag(rec, FALSE);
-         rec= page_rec_get_next_low(rec, FALSE));
+         rec= page_rec_get_next_low(page, rec, FALSE));
     return rec ? rec : page + PAGE_OLD_SUPREMUM;
   }
+}
+
+static const rec_t *page_rec_get_next_const(const page_t *page,
+                                            const rec_t *rec)
+{
+  return page_rec_get_next(page, rec);
 }
 
 /** Scan a page, reading records from left to right and counting the number
@@ -2089,7 +2101,7 @@ be big enough)
 to the number of externally stored pages which were encountered
 @return offsets1 or offsets2 (the offsets of *out_rec),
 or NULL if the page is empty and does not contain user records. */
-UNIV_INLINE
+static
 rec_offs*
 dict_stats_scan_page(
 	const rec_t**		out_rec,
@@ -2111,7 +2123,7 @@ dict_stats_scan_page(
 	this memory heap should never be used. */
 	mem_heap_t*	heap			= NULL;
 	ut_ad(!!n_core == page_is_leaf(page));
-	const rec_t*	(*get_next)(const rec_t*)
+	const rec_t*	(*get_next)(const page_t*, const rec_t*)
 		= !n_core || srv_stats_include_delete_marked
 		? page_rec_get_next_const
 		: page_rec_get_next_non_del_marked;
@@ -2122,9 +2134,9 @@ dict_stats_scan_page(
 		*n_external_pages = 0;
 	}
 
-	rec = get_next(page_get_infimum_rec(page));
+	rec = get_next(page, page_get_infimum_rec(page));
 
-	if (!rec || page_rec_is_supremum(rec)) {
+	if (!rec || page_rec_is_supremum(page, rec)) {
 		/* the page is empty or contains only delete-marked records */
 		*n_diff = 0;
 		*out_rec = NULL;
@@ -2139,11 +2151,11 @@ dict_stats_scan_page(
 			rec, offsets_rec);
 	}
 
-	next_rec = get_next(rec);
+	next_rec = get_next(page, rec);
 
 	*n_diff = 1;
 
-	while (next_rec && !page_rec_is_supremum(next_rec)) {
+	while (next_rec && !page_rec_is_supremum(page, next_rec)) {
 
 		ulint	matched_fields;
 
@@ -2184,7 +2196,7 @@ dict_stats_scan_page(
 				rec, offsets_rec);
 		}
 
-		next_rec = get_next(next_rec);
+		next_rec = get_next(page, next_rec);
 	}
 
 	/* offsets1,offsets2 should have been big enough */
@@ -2246,7 +2258,7 @@ dict_stats_analyze_index_below_cur(
 	rec_offs_set_n_alloc(offsets2, size);
 
 	rec = btr_cur_get_rec(cur);
-	page = page_align(rec);
+	page = btr_cur_get_page(cur);
 	ut_ad(!page_rec_is_leaf(rec));
 
 	offsets_rec = rec_get_offsets(rec, index, offsets1, 0,
@@ -2443,7 +2455,7 @@ dict_stats_analyze_index_for_n_prefix(
 	if (page_has_prev(page)
 	    || !btr_pcur_is_on_user_rec(&pcur)
 	    || btr_page_get_level(page) != n_diff_data->level
-	    || first_rec != page_rec_get_next_const(page_get_infimum_rec(page))
+	    || first_rec != page_rec_get_first(page)
 	    || !(rec_get_info_bits(first_rec, page_is_comp(page))
 		 & REC_INFO_MIN_REC_FLAG)) {
 		return;
@@ -2707,14 +2719,16 @@ empty_index:
 		DBUG_RETURN(result);
 	}
 
-	uint16_t root_level = btr_page_get_level(root->page.frame);
+	const page_t *page = root->page.frame;
+
+	uint16_t root_level = btr_page_get_level(page);
 	mtr.x_lock_space(index->table->space);
 	ulint dummy, size;
 	result.index_size
 		= fseg_n_reserved_pages(*root, PAGE_HEADER + PAGE_BTR_SEG_LEAF
-					+ root->page.frame, &size, &mtr)
+					+ page, &size, &mtr)
 		+ fseg_n_reserved_pages(*root, PAGE_HEADER + PAGE_BTR_SEG_TOP
-					+ root->page.frame, &dummy, &mtr);
+					+ page, &dummy, &mtr);
 	result.n_leaf_pages = size ? size : 1;
 
 	const auto bulk_trx_id = index->table->bulk_trx_id;
@@ -2821,7 +2835,8 @@ empty_index:
 		ut_ad(mtr.get_savepoint() == 1);
 		buf_block_t *root = btr_root_block_get(index, RW_S_LATCH,
 						       &mtr, &err);
-		if (!root || root_level != btr_page_get_level(root->page.frame)
+		if (!root
+		    || root_level != btr_page_get_level(root->page.frame)
 		    || index->table->bulk_trx_id != bulk_trx_id) {
 			/* Just quit if the tree has changed beyond
 			recognition here. The old stats from previous

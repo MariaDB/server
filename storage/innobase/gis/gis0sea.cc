@@ -101,6 +101,7 @@ rtr_latch_leaves(
 	switch (latch_mode) {
 		uint32_t	left_page_no;
 		uint32_t	right_page_no;
+                const page_t*	page;
 	default:
 		ut_ad(latch_mode == BTR_CONT_MODIFY_TREE);
 		break;
@@ -111,7 +112,8 @@ rtr_latch_leaves(
 						 MTR_MEMO_X_LOCK
 						 | MTR_MEMO_SX_LOCK));
 		/* x-latch also siblings from left to right */
-		left_page_no = btr_page_get_prev(block->page.frame);
+		page = block->page.frame;
+		left_page_no = btr_page_get_prev(page);
 
 		if (left_page_no != FIL_NULL) {
 			btr_block_get(*cursor->index(), left_page_no, RW_X_LATCH,
@@ -120,7 +122,7 @@ rtr_latch_leaves(
 
 		mtr->upgrade_buffer_fix(block_savepoint, RW_X_LATCH);
 
-		right_page_no = btr_page_get_next(block->page.frame);
+		right_page_no = btr_page_get_next(page);
 
 		if (right_page_no != FIL_NULL) {
 			btr_block_get(*cursor->index(), right_page_no,
@@ -302,7 +304,7 @@ rtr_pcur_getnext_from_path(
 
 		buf_page_make_young_if_needed(&block->page);
 
-		page = buf_block_get_frame(block);
+		page = block->page.frame;
 		page_ssn = page_get_ssn_id(page);
 
 		/* If there are splits, push the splitted page.
@@ -467,7 +469,7 @@ rtr_pcur_getnext_from_path(
 
 	const rec_t* rec = btr_cur_get_rec(btr_cur);
 
-	if (!page_rec_is_user_rec(rec)) {
+	if (!page_rec_is_user_rec(btr_cur_get_page(btr_cur), rec)) {
 		mtr->commit();
 		mtr->start();
 	} else if (!index_locked) {
@@ -688,7 +690,7 @@ dberr_t rtr_search_to_nth_level(ulint level, const dtuple_t *tuple,
 
   buf_page_make_young_if_needed(&block->page);
 
-  const page_t *page= buf_block_get_frame(block);
+  const page_t *page= block->page.frame;
 #ifdef UNIV_ZIP_DEBUG
   if (rw_latch != RW_NO_LATCH) {
     const page_zip_des_t *page_zip= buf_block_get_page_zip(block);
@@ -863,15 +865,15 @@ dberr_t rtr_search_to_nth_level(ulint level, const dtuple_t *tuple,
 
     const rec_t *node_ptr= btr_cur_get_rec(cur);
 
-    offsets= rec_get_offsets(node_ptr, index, offsets, 0,
-                             ULINT_UNDEFINED, &heap);
-
-    if (page_rec_is_supremum(node_ptr))
+    if (page_rec_is_supremum(btr_cur_get_page(cur), node_ptr))
     {
       cur->low_match= 0;
       cur->up_match= 0;
       goto func_exit;
     }
+
+    offsets= rec_get_offsets(node_ptr, index, offsets, 0,
+                             ULINT_UNDEFINED, &heap);
 
     /* If we are doing insertion or record locating,
        remember the tree nodes we visited */
@@ -905,7 +907,7 @@ dberr_t rtr_search_to_nth_level(ulint level, const dtuple_t *tuple,
       if (add_latch)
         block->page.lock.s_unlock();
 
-      ut_ad(!page_rec_is_supremum(node_ptr));
+      ut_ad(!page_rec_is_supremum(page, node_ptr));
     }
 
     ut_ad(page_mode == search_mode ||
@@ -1074,7 +1076,7 @@ bool rtr_search(
 	const bool d= rec_get_deleted_flag(
 		rec, cursor->index()->table->not_redundant());
 
-	if (page_rec_is_infimum(rec)
+	if (page_rec_is_infimum(btr_pcur_get_page(cursor), rec)
 	    || btr_pcur_get_low_match(cursor) != dtuple_get_n_fields(tuple)
 	    || (d && latch_mode
 		& (BTR_RTREE_DELETE_MARK | BTR_RTREE_UNDO_INS))) {
@@ -1182,7 +1184,7 @@ static const rec_t* rtr_get_father_node(
 		rec = btr_cur_get_rec(btr_cur);
 		const ulint n_fields = dtuple_get_n_fields_cmp(tuple);
 
-		if (page_rec_is_infimum(rec)
+		if (page_rec_is_infimum(btr_cur_get_page(btr_cur), rec)
 		    || (btr_cur->low_match != n_fields)) {
 			if (!rtr_pcur_getnext_from_path(
 				    tuple, PAGE_CUR_RTREE_LOCATE, btr_cur,
@@ -1234,10 +1236,11 @@ rtr_page_get_father_node_ptr(
 
 	ut_ad(dict_index_get_page(index) != page_no);
 
-	level = btr_page_get_level(btr_cur_get_page(cursor));
+	const page_t* page = btr_cur_get_page(cursor);
+	level = btr_page_get_level(page);
 
 	const rec_t* user_rec = btr_cur_get_rec(cursor);
-	ut_a(page_rec_is_user_rec(user_rec));
+	ut_a(page_rec_is_user_rec(page, user_rec));
 
 	offsets = rec_get_offsets(user_rec, index, offsets,
 				  level ? 0 : index->n_fields,
@@ -1285,8 +1288,7 @@ rtr_page_get_father_block(
 	btr_cur_t*	cursor)	/*!< out: cursor on node pointer record,
 				its page x-latched */
 {
-  rec_t *rec=
-    page_rec_get_next(page_get_infimum_rec(cursor->block()->page.frame));
+  rec_t *rec= page_rec_get_first(btr_cur_get_page(cursor));
   if (!rec)
     return nullptr;
   cursor->page_cur.rec= rec;
@@ -1690,7 +1692,7 @@ corrupted:
 	buf_page_make_young_if_needed(&page_cursor->block->page);
 
 	/* Get the page SSN */
-	page = buf_block_get_frame(page_cursor->block);
+	page = page_cur_get_page(page_cursor);
 	page_ssn = page_get_ssn_id(page);
 
 	if (page_cur_search_with_match(tuple, PAGE_CUR_LE,
@@ -2011,7 +2013,7 @@ rtr_cur_search_with_match(
 
 	ut_ad(dict_index_is_spatial(index));
 
-	page = buf_block_get_frame(block);
+	page = block->page.frame;
 
 	const ulint level = btr_page_get_level(page);
 	const ulint n_core = level ? 0 : index->n_fields;
@@ -2021,7 +2023,8 @@ rtr_cur_search_with_match(
 		mode = PAGE_CUR_WITHIN;
 	}
 
-	rec = page_dir_slot_get_rec_validate(page_dir_get_nth_slot(page, 0));
+	rec = page_dir_slot_get_rec_validate(
+		page, page_dir_get_nth_slot(page, 0));
 
 	if (UNIV_UNLIKELY(!rec)) {
 		return false;
@@ -2030,8 +2033,8 @@ rtr_cur_search_with_match(
 	last_rec = rec;
 	best_rec = rec;
 
-	if (page_rec_is_infimum(rec)) {
-		rec = page_rec_get_next_const(rec);
+	if (page_rec_is_infimum(page, rec)) {
+		rec = page_rec_get_next(page, rec);
 		if (UNIV_UNLIKELY(!rec)) {
 			return false;
 		}
@@ -2039,7 +2042,8 @@ rtr_cur_search_with_match(
 
 	/* Check insert tuple size is larger than first rec, and try to
 	avoid it if possible */
-	if (mode == PAGE_CUR_RTREE_INSERT && !page_rec_is_supremum(rec)) {
+	if (mode == PAGE_CUR_RTREE_INSERT
+	    && !page_rec_is_supremum(page, rec)) {
 
 		ulint	new_rec_size = rec_get_converted_size(index, tuple, 0);
 
@@ -2059,11 +2063,11 @@ rtr_cur_search_with_match(
 		    && !page_has_prev(page)
 		    && page_get_n_recs(page) >= 2) {
 
-			rec = page_rec_get_next_const(rec);
+			rec = page_rec_get_next(page, rec);
 		}
 	}
 
-	while (!page_rec_is_supremum(rec)) {
+	while (!page_rec_is_supremum(page, rec)) {
 		if (!n_core) {
 			switch (mode) {
 			case PAGE_CUR_CONTAIN:
@@ -2228,11 +2232,11 @@ rtr_cur_search_with_match(
 
 		last_rec = rec;
 
-		rec = page_rec_get_next_const(rec);
+		rec = page_rec_get_next(page, rec);
 	}
 
 	/* All records on page are searched */
-	if (rec && page_rec_is_supremum(rec)) {
+	if (rec && page_rec_is_supremum(page, rec)) {
 		if (!n_core) {
 			if (!found) {
 				/* No match case, if it is for insertion,
@@ -2328,7 +2332,7 @@ rtr_cur_search_with_match(
 #ifdef UNIV_DEBUG
 	/* Verify that we are positioned at the same child page as pushed in
 	the path stack */
-	if (!n_core && (!page_rec_is_supremum(rec) || found)
+	if (!n_core && (!page_rec_is_supremum(page, rec) || found)
 	    && mode != PAGE_CUR_RTREE_INSERT) {
 		ulint		page_no;
 

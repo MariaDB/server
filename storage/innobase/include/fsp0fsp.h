@@ -501,29 +501,32 @@ fseg_free_step_not_header(
 Data files created before MySQL 5.1.48 may contain garbage in FIL_PAGE_TYPE.
 In MySQL 3.23.53, only undo log pages and index pages were tagged.
 Any other pages were written with uninitialized bytes in FIL_PAGE_TYPE.
-@param[in]	block	block with invalid FIL_PAGE_TYPE
+@param[in]	block	block descriptor
+@param[in,out]	page	page with invalid FIL_PAGE_TYPE
 @param[in]	type	expected page type
 @param[in,out]	mtr	mini-transaction */
 ATTRIBUTE_COLD
-void fil_block_reset_type(const buf_block_t& block, ulint type, mtr_t* mtr);
+void fil_block_reset_type(const buf_block_t &block, page_t *page, ulint type,
+                          mtr_t *mtr);
 
 /** Check (and if needed, reset) the page type.
 Data files created before MySQL 5.1.48 may contain
 garbage in the FIL_PAGE_TYPE field.
 In MySQL 3.23.53, only undo log pages and index pages were tagged.
 Any other pages were written with uninitialized bytes in FIL_PAGE_TYPE.
-@param[in]	page_id	page number
+@param[in]	block	block descriptor
 @param[in,out]	page	page with possibly invalid FIL_PAGE_TYPE
 @param[in]	type	expected page type
 @param[in,out]	mtr	mini-transaction */
 inline void
 fil_block_check_type(
 	const buf_block_t&	block,
+        page_t*			page,
 	ulint			type,
 	mtr_t*			mtr)
 {
-  if (UNIV_UNLIKELY(type != fil_page_get_type(block.page.frame)))
-    fil_block_reset_type(block, type, mtr);
+  if (UNIV_UNLIKELY(type != fil_page_get_type(page)))
+    fil_block_reset_type(block, page, type, mtr);
 }
 
 /** Checks if a page address is an extent descriptor page address.
@@ -536,14 +539,16 @@ inline bool fsp_descr_page(const page_id_t page_id, ulint physical_size)
 }
 
 /** Initialize a file page whose prior contents should be ignored.
-@param[in,out]	block	buffer pool block */
-void fsp_apply_init_file_page(buf_block_t *block);
+@param[in,out]	block	buffer pool block
+@return the page frame */
+page_t *fsp_apply_init_file_page(buf_block_t *block);
 
 /** Initialize a file page.
 @param[in]	space	tablespace
 @param[in,out]	block	file page
-@param[in,out]	mtr	mini-transaction */
-inline void fsp_init_file_page(
+@param[in,out]	mtr	mini-transaction
+@return the page frame */
+inline page_t* fsp_init_file_page(
 #ifdef UNIV_DEBUG
 	const fil_space_t* space,
 #endif
@@ -551,8 +556,8 @@ inline void fsp_init_file_page(
 {
 	ut_d(space->modify_check(*mtr));
 	ut_ad(space->id == block->page.id().space());
-	fsp_apply_init_file_page(block);
 	mtr->init(block);
+	return fsp_apply_init_file_page(block);
 }
 
 #ifndef UNIV_DEBUG

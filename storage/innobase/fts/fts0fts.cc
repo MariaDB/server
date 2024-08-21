@@ -3453,18 +3453,17 @@ fts_add_doc_by_id(
 				       BTR_SEARCH_LEAF, &pcur, &mtr)
 	    == DB_SUCCESS
 	    && btr_pcur_get_low_match(&pcur) == n_uniq) {
-		const rec_t*	rec;
 		btr_pcur_t*	doc_pcur;
 		const rec_t*	clust_rec;
 		btr_pcur_t	clust_pcur;
 		rec_offs*	offsets = NULL;
 		ulint		num_idx = ib_vector_size(cache->get_docs);
-
-		rec = btr_pcur_get_rec(&pcur);
+		const rec_t* rec = btr_pcur_get_rec(&pcur);
+                const page_t* page = btr_pcur_get_page(&pcur);
 
 		/* Doc could be deleted */
-		if (page_rec_is_infimum(rec)
-		    || rec_get_deleted_flag(rec, dict_table_is_comp(table))) {
+		if (page_rec_is_infimum(page, rec)
+		    || rec_get_deleted_flag(rec, page_is_comp(page))) {
 
 			goto func_exit;
 		}
@@ -3660,7 +3659,8 @@ fts_get_max_doc_id(
 		do {
 			rec = btr_pcur_get_rec(&pcur);
 
-			if (!page_rec_is_user_rec(rec)) {
+			if (!page_rec_is_user_rec(btr_pcur_get_page(&pcur),
+						  rec)) {
 				continue;
 			}
 

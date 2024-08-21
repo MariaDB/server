@@ -210,19 +210,20 @@ inline bool mtr_t::write(const buf_block_t &block, void *ptr, V val)
     p--;
   }
   ::memcpy(ptr, buf, l);
-  memcpy_low(block, static_cast<uint16_t>
-             (ut_align_offset(p, srv_page_size)), p, end - p);
+  memcpy(block, p, end - p);
   return true;
 }
 
 /** Log an initialization of a string of bytes.
-@param[in]      b       buffer page
-@param[in]      ofs     byte offset from b->frame
-@param[in]      len     length of the data to write
-@param[in]      val     the data byte to write */
-inline void mtr_t::memset(const buf_block_t &b, ulint ofs, ulint len, byte val)
+@param b       buffer page
+@param ofs     byte offset within buffer page frame
+@param len     length of the data to write
+@param val     the data byte to write */
+inline void mtr_t::memset(const buf_block_t &b, size_t ofs, size_t len,
+                          byte val)
 {
   ut_ad(len);
+  ut_ad(ofs + len < srv_page_size);
   set_modified(b);
   if (!is_logged())
     return;
@@ -233,33 +234,32 @@ inline void mtr_t::memset(const buf_block_t &b, ulint ofs, ulint len, byte val)
   l= mlog_encode_varint(l, len);
   *l++= val;
   m_log.close(l);
-  m_last_offset= static_cast<uint16_t>(ofs + len);
+  m_last_offset= uint16_t(ofs + len);
 }
 
 /** Initialize a string of bytes.
-@param[in,out]  b       buffer page
-@param[in]      ofs     byte offset from block->frame
-@param[in]      len     length of the data to write
-@param[in]      val     the data byte to write */
-inline void mtr_t::memset(const buf_block_t *b, ulint ofs, ulint len, byte val)
+@param b       buffer page
+@param ofs     byte offset within buffer page frame
+@param len     length of the data to write
+@param val     the data byte to write */
+inline void mtr_t::memset(const buf_block_t *b, byte *ofs, ulint len, byte val)
 {
-  ut_ad(ofs <= ulint(srv_page_size));
-  ut_ad(ofs + len <= ulint(srv_page_size));
-  ::memset(ofs + b->page.frame, val, len);
-  memset(*b, ofs, len, val);
+  ::memset(ofs, val, len);
+  memset(*b, ofs - b->page.frame, len, val);
 }
 
 /** Log an initialization of a repeating string of bytes.
-@param[in]      b       buffer page
-@param[in]      ofs     byte offset from b->frame
-@param[in]      len     length of the data to write, in bytes
-@param[in]      str     the string to write
-@param[in]      size    size of str, in bytes */
-inline void mtr_t::memset(const buf_block_t &b, ulint ofs, size_t len,
+@param b       buffer page
+@param ofs     byte offset within buffer page frame
+@param len     length of the data to write, in bytes
+@param str     the string to write
+@param size    size of str, in bytes */
+inline void mtr_t::memset(const buf_block_t &b, size_t ofs, size_t len,
                           const void *str, size_t size)
 {
   ut_ad(size);
   ut_ad(len > size); /* use mtr_t::memcpy() for shorter writes */
+  ut_ad(ofs + len < srv_page_size);
   set_modified(b);
   if (!is_logged())
     return;
@@ -271,87 +271,75 @@ inline void mtr_t::memset(const buf_block_t &b, ulint ofs, size_t len,
   ::memcpy(l, str, size);
   l+= size;
   m_log.close(l);
-  m_last_offset= static_cast<uint16_t>(ofs + len);
+  m_last_offset= uint16_t(ofs + len);
 }
 
 /** Initialize a repeating string of bytes.
-@param[in,out]  b       buffer page
-@param[in]      ofs     byte offset from b->frame
-@param[in]      len     length of the data to write, in bytes
-@param[in]      str     the string to write
-@param[in]      size    size of str, in bytes */
-inline void mtr_t::memset(const buf_block_t *b, ulint ofs, size_t len,
+@param b       buffer page
+@param ofs     byte offset within buffer page frame
+@param len     length of the data to write, in bytes
+@param str     the string to write
+@param size    size of str, in bytes */
+inline void mtr_t::memset(const buf_block_t *b, byte *ofs, size_t len,
                           const void *str, size_t size)
 {
-  ut_ad(ofs <= ulint(srv_page_size));
-  ut_ad(ofs + len <= ulint(srv_page_size));
   ut_ad(len > size); /* use mtr_t::memcpy() for shorter writes */
   size_t s= 0;
   while (s < len)
   {
-    ::memcpy(ofs + s + b->page.frame, str, size);
+    ::memcpy(ofs + s, str, size);
     s+= len;
   }
-  ::memcpy(ofs + s + b->page.frame, str, len - s);
-  memset(*b, ofs, len, str, size);
-}
-
-/** Log a write of a byte string to a page.
-@param[in]      b       buffer page
-@param[in]      offset  byte offset from b->frame
-@param[in]      str     the data to write
-@param[in]      len     length of the data to write */
-inline void mtr_t::memcpy(const buf_block_t &b, ulint offset, ulint len)
-{
-  ut_ad(len);
-  ut_ad(offset <= ulint(srv_page_size));
-  ut_ad(offset + len <= ulint(srv_page_size));
-  memcpy_low(b, uint16_t(offset), &b.page.frame[offset], len);
+  ::memcpy(ofs + s, str, len - s);
+  memset(*b, ofs - b->page.frame, len, str, size);
 }
 
 /** Log a write of a byte string to a page.
 @param block   page
-@param offset  byte offset within page
-@param data    data to be written
+@param offset  byte offset within page frame
 @param len     length of the data, in bytes */
-inline void mtr_t::memcpy_low(const buf_block_t &block, uint16_t offset,
-                              const void *data, size_t len)
+inline void mtr_t::memcpy(const buf_block_t &block, const void *offset,
+                          size_t len)
 {
+  ut_ad(ut_align_down(offset, srv_page_size) == block.page.frame);
   ut_ad(len);
   set_modified(block);
   if (!is_logged())
     return;
+  const uint16_t o=
+    uint16_t(static_cast<const byte*>(offset) - block.page.frame);
+  ut_ad(o + len <= ulint(srv_page_size));
   if (len < mtr_buf_t::MAX_DATA_SIZE - (1 + 3 + 3 + 5 + 5))
   {
-    byte *end= log_write<WRITE>(block.page.id(), &block.page, len, true,
-                                offset);
-    ::memcpy(end, data, len);
+    byte *end= log_write<WRITE>(block.page.id(), &block.page, len, true, o);
+    ::memcpy(end, offset, len);
     m_log.close(end + len);
   }
   else
   {
-    m_log.close(log_write<WRITE>(block.page.id(), &block.page, len, false,
-                                 offset));
-    m_log.push(static_cast<const byte*>(data), static_cast<uint32_t>(len));
+    m_log.close(log_write<WRITE>(block.page.id(), &block.page, len, false, o));
+    m_log.push(static_cast<const byte*>(offset), static_cast<uint32_t>(len));
   }
-  m_last_offset= static_cast<uint16_t>(offset + len);
+  m_last_offset= static_cast<uint16_t>(o + len);
 }
 
 /** Log that a string of bytes was copied from the same page.
-@param[in]      b       buffer page
-@param[in]      d       destination offset within the page
-@param[in]      s       source offset within the page
-@param[in]      len     length of the data to copy */
-inline void mtr_t::memmove(const buf_block_t &b, ulint d, ulint s, ulint len)
+@param b       buffer page
+@param d       destination offset within the page
+@param s       source offset within the page
+@param len     length of the data to copy */
+inline void mtr_t::memmove(const buf_block_t &b, const byte *d, const byte *s,
+                           ulint len)
 {
-  ut_ad(d >= 8);
-  ut_ad(s >= 8);
   ut_ad(len);
-  ut_ad(s <= ulint(srv_page_size));
-  ut_ad(s + len <= ulint(srv_page_size));
   ut_ad(s != d);
-  ut_ad(d <= ulint(srv_page_size));
-  ut_ad(d + len <= ulint(srv_page_size));
+  ut_d(const byte *frame= b.page.frame);
+  ut_ad(d >= frame + 8);
+  ut_ad(s >= frame + 8);
+  ut_ad(s <= frame + srv_page_size);
+  ut_ad(d <= frame + srv_page_size);
+  ut_ad(s + len <= frame + srv_page_size);
+  ut_ad(d + len <= frame + srv_page_size);
 
   set_modified(b);
   if (!is_logged())
@@ -360,18 +348,16 @@ inline void mtr_t::memmove(const buf_block_t &b, ulint d, ulint s, ulint len)
   size_t lenlen= (len < MIN_2BYTE ? 1 : len < MIN_3BYTE ? 2 : 3);
   /* The source offset is encoded relative to the destination offset,
   with the sign in the least significant bit. */
-  if (s > d)
-    s= (s - d) << 1;
-  else
-    s= (d - s) << 1 | 1;
+  uint16_t S= s > d ? uint16_t((s - d) << 1) : uint16_t((d - s) << 1 | 1);
   /* The source offset 0 is not possible. */
-  s-= 1 << 1;
-  size_t slen= (s < MIN_2BYTE ? 1 : s < MIN_3BYTE ? 2 : 3);
-  byte *l= log_write<MEMMOVE>(b.page.id(), &b.page, lenlen + slen, true, d);
+  S= uint16_t(S - (1U << 1));
+  const uint16_t D= uint16_t(d - b.page.frame);
+  size_t slen= (S < MIN_2BYTE ? 1 : S < MIN_3BYTE ? 2 : 3);
+  byte *l= log_write<MEMMOVE>(b.page.id(), &b.page, lenlen + slen, true, D);
   l= mlog_encode_varint(l, len);
-  l= mlog_encode_varint(l, s);
+  l= mlog_encode_varint(l, S);
   m_log.close(l);
-  m_last_offset= static_cast<uint16_t>(d + len);
+  m_last_offset= uint16_t(D + len);
 }
 
 /**
@@ -481,7 +467,7 @@ inline byte *mtr_t::log_write(const page_id_t id, const buf_page_t *bpage,
 
 /** Write a byte string to a page.
 @param[in]      b       buffer page
-@param[in]      dest    destination within b.frame
+@param[in]      dest    destination within page frame
 @param[in]      str     the data to write
 @param[in]      len     length of the data to write
 @tparam w       write request type */
@@ -509,7 +495,7 @@ inline void mtr_t::memcpy(const buf_block_t &b, void *dest, const void *str,
     len= static_cast<ulint>(end - d);
   }
   ::memcpy(d, s, len);
-  memcpy(b, ut_align_offset(d, srv_page_size), len);
+  memcpy(b, d, len);
 }
 
 /** Write an EXTENDED log record.

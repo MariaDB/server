@@ -248,7 +248,7 @@ btr_defragment_calc_n_recs_for_size(
 	ulint* n_recs_size)	/*!< out: actual size of the records that fit
 				in size_limit. */
 {
-	page_t* page = buf_block_get_frame(block);
+	page_t* page = block->page.frame;
 	ulint n_recs = 0;
 	rec_offs offsets_[REC_OFFS_NORMAL_SIZE];
 	rec_offs* offsets = offsets_;
@@ -260,7 +260,7 @@ btr_defragment_calc_n_recs_for_size(
 	const ulint n_core = page_is_leaf(page) ? index->n_core_fields : 0;
 	page_cur_set_before_first(block, &cur);
 	while (rec_t* cur_rec = page_cur_move_to_next(&cur)) {
-		if (page_rec_is_supremum(cur_rec)) {
+		if (page_rec_is_supremum(block->page.frame, cur_rec)) {
 			break;
 		}
 		offsets = rec_get_offsets(cur_rec, index, offsets, n_core,
@@ -306,7 +306,7 @@ btr_page_search_father_node_ptr(
 	const auto level = btr_page_get_level(btr_cur_get_page(cursor));
 
 	const rec_t* user_rec = btr_cur_get_rec(cursor);
-	ut_a(page_rec_is_user_rec(user_rec));
+	ut_a(page_rec_is_user_rec(btr_cur_get_page(cursor), user_rec));
 
 	if (btr_cur_search_to_nth_level(level + 1,
 					dict_index_build_node_ptr(index,
@@ -333,8 +333,7 @@ btr_page_search_father_node_ptr(
 
 static bool btr_page_search_father(mtr_t *mtr, btr_cur_t *cursor)
 {
-  rec_t *rec=
-    page_rec_get_next(page_get_infimum_rec(cursor->block()->page.frame));
+  rec_t *rec= page_rec_get_first(cursor->block()->page.frame);
   if (UNIV_UNLIKELY(!rec))
     return false;
   cursor->page_cur.rec= rec;
@@ -363,8 +362,8 @@ btr_defragment_merge_pages(
 	mem_heap_t*	heap,		/*!< in/out: pointer to memory heap */
 	mtr_t*		mtr)		/*!< in/out: mini-transaction */
 {
-	page_t* from_page = buf_block_get_frame(from_block);
-	page_t* to_page = buf_block_get_frame(to_block);
+	page_t* from_page = from_block->page.frame;
+	page_t* to_page = to_block->page.frame;
 	ulint level = btr_page_get_level(from_page);
 	ulint n_recs = page_get_n_recs(from_page);
 	ulint new_data_size = page_get_data_size(to_page);
@@ -505,8 +504,7 @@ btr_defragment_merge_pages(
 			    != DB_SUCCESS) {
 				return nullptr;
 			}
-			rec = page_rec_get_next(
-				page_get_infimum_rec(from_page));
+			rec = page_rec_get_first(from_page);
 			if (!rec) {
 				return nullptr;
 			}
@@ -574,13 +572,13 @@ btr_defragment_n_pages(
 		n_pages = BTR_DEFRAGMENT_MAX_N_PAGES;
 	}
 
-	first_page = buf_block_get_frame(block);
+	first_page = block->page.frame;
 	const ulint zip_size = index->table->space->zip_size();
 
 	/* 1. Load the pages and calculate the total data size. */
 	blocks[0] = block;
 	for (uint i = 1; i <= n_pages; i++) {
-		page_t* page = buf_block_get_frame(blocks[i-1]);
+		page_t* page = blocks[i - 1]->page.frame;
 		uint32_t page_no = btr_page_get_next(page);
 		total_data_size += page_get_data_size(page);
 		total_n_recs += page_get_n_recs(page);
@@ -774,10 +772,10 @@ processed:
 			/* If we haven't reached the end of the index,
 			place the cursor on the last record of last page,
 			store the cursor position, and put back in queue. */
-			page_t* last_page = buf_block_get_frame(last_block);
+			page_t* last_page = last_block->page.frame;
 			rec_t* rec = page_rec_get_prev(
-				page_get_supremum_rec(last_page));
-			if (rec && page_rec_is_user_rec(rec)) {
+				last_page, page_get_supremum_rec(last_page));
+			if (rec && page_rec_is_user_rec(last_page, rec)) {
 				page_cur_position(rec, last_block,
 						  btr_pcur_get_page_cur(
 							  item->pcur));

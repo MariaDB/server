@@ -1222,7 +1222,8 @@ row_search_on_row_ref(
 		}
 	}
 
-	return !page_rec_is_infimum(btr_pcur_get_rec(pcur))
+	return !page_rec_is_infimum(btr_pcur_get_page(pcur),
+				    btr_pcur_get_rec(pcur))
 		&& btr_pcur_get_low_match(pcur) == dtuple_get_n_fields(ref);
 }
 
@@ -1304,11 +1305,8 @@ row_search_index_entry(
 
 	n_fields = dtuple_get_n_fields(entry);
 
-	if (page_rec_is_infimum(rec)) {
-
-		return(ROW_NOT_FOUND);
-	} else if (low_match != n_fields) {
-
+	if (low_match != n_fields
+	    || page_rec_is_infimum(btr_pcur_get_page(pcur), rec)) {
 		return(ROW_NOT_FOUND);
 	}
 

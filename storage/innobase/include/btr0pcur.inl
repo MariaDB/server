@@ -193,25 +193,23 @@ btr_pcur_move_to_next_user_rec(
 				function may release the page latch */
 	mtr_t*		mtr)	/*!< in: mtr */
 {
-	ut_ad(cursor->pos_state == BTR_PCUR_IS_POSITIONED);
-	ut_ad(cursor->latch_mode != BTR_NO_LATCHES);
-	cursor->old_rec = nullptr;
+  ut_ad(cursor->pos_state == BTR_PCUR_IS_POSITIONED);
+  ut_ad(cursor->latch_mode != BTR_NO_LATCHES);
+  cursor->old_rec= nullptr;
+  if (btr_pcur_is_after_last_on_page(cursor))
 loop:
-	if (btr_pcur_is_after_last_on_page(cursor)) {
-		if (btr_pcur_is_after_last_in_tree(cursor)
-		    || btr_pcur_move_to_next_page(cursor, mtr) != DB_SUCCESS) {
-			return(FALSE);
-		}
-	} else if (UNIV_UNLIKELY(!btr_pcur_move_to_next_on_page(cursor))) {
-		return false;
-	}
+    if (btr_pcur_move_to_next_page(cursor, mtr) != DB_SUCCESS)
+      return false;
 
-	if (btr_pcur_is_on_user_rec(cursor)) {
+  const rec_t *rec= btr_pcur_move_to_next_on_page(cursor);
 
-		return(TRUE);
-	}
+  if (UNIV_UNLIKELY(!rec))
+    return false;
 
-	goto loop;
+  if (page_rec_is_supremum(btr_pcur_get_page(cursor), rec))
+    goto loop;
+
+  return true;
 }
 
 /*********************************************************//**

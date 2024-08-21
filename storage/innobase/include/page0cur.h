@@ -31,14 +31,6 @@ Created 10/4/1994 Heikki Tuuri
 
 #ifdef UNIV_DEBUG
 /*********************************************************//**
-Gets pointer to the page frame where the cursor is positioned.
-@return page */
-UNIV_INLINE
-page_t*
-page_cur_get_page(
-/*==============*/
-	page_cur_t*	cur);	/*!< in: page cursor */
-/*********************************************************//**
 Gets pointer to the buffer block where the cursor is positioned.
 @return page */
 UNIV_INLINE
@@ -60,12 +52,20 @@ page_cur_get_page_zip(
 UNIV_INLINE
 rec_t *page_cur_get_rec(const page_cur_t *cur);
 #else /* UNIV_DEBUG */
-# define page_cur_get_page(cur)		page_align((cur)->rec)
 # define page_cur_get_block(cur)	(cur)->block
 # define page_cur_get_page_zip(cur)	buf_block_get_page_zip((cur)->block)
 # define page_cur_get_rec(cur)		(cur)->rec
 #endif /* UNIV_DEBUG */
+# define page_cur_get_page(cur)		(cur)->block->page.frame
 # define is_page_cur_get_page_zip(cur)	is_buf_block_get_page_zip((cur)->block)
+
+/** Looks for the directory slot which owns the given record.
+@param page  index page
+@param rec   index record
+@return the directory slot number
+@retval ULINT_UNDEFINED on corruption */
+ulint page_dir_find_owner_slot(const page_t *page, const rec_t *rec);
+
 /*********************************************************//**
 Sets the cursor object to point before the first user record
 on the page. */
@@ -271,10 +271,6 @@ page_cur_search_with_match_bytes(
 	ulint*			ilow_matched_bytes,
 	page_cur_t*		cursor);
 #endif /* BTR_CUR_HASH_ADAPT */
-/***********************************************************//**
-Positions a page cursor on a randomly chosen user record on a page. If there
-are no user records, sets the cursor on the infimum record. */
-void page_cur_open_on_rnd_user_rec(page_cur_t *cursor);
 
 /** Index page cursor */
 
@@ -289,13 +285,13 @@ struct page_cur_t{
 MY_ATTRIBUTE((nonnull, warn_unused_result))
 inline rec_t *page_cur_move_to_next(page_cur_t *cur)
 {
-  return cur->rec= page_rec_get_next(cur->rec);
+  return cur->rec= page_rec_get_next(cur->block->page.frame, cur->rec);
 }
 
 MY_ATTRIBUTE((nonnull, warn_unused_result))
 inline rec_t *page_cur_move_to_prev(page_cur_t *cur)
 {
-  return cur->rec= page_rec_get_prev(cur->rec);
+  return cur->rec= page_rec_get_prev(cur->block->page.frame, cur->rec);
 }
 
 #include "page0cur.inl"

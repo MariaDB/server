@@ -99,13 +99,15 @@ start_again:
     return false;
   }
 
+  page_t *const trx_sys_page= trx_sys_block->page.frame;
+
   if (mach_read_from_4(TRX_SYS_DOUBLEWRITE + TRX_SYS_DOUBLEWRITE_MAGIC +
-                       trx_sys_block->page.frame) ==
+                       trx_sys_page) ==
       TRX_SYS_DOUBLEWRITE_MAGIC_N)
   {
     /* The doublewrite buffer has already been created: just read in
     some numbers */
-    init(TRX_SYS_DOUBLEWRITE + trx_sys_block->page.frame);
+    init(TRX_SYS_DOUBLEWRITE + trx_sys_page);
     mtr.commit();
     return true;
   }
@@ -139,8 +141,8 @@ fail:
     user-specified location. */
   }
 
-  byte *fseg_header= TRX_SYS_DOUBLEWRITE + TRX_SYS_DOUBLEWRITE_FSEG +
-    trx_sys_block->page.frame;
+  byte *const fseg_header= TRX_SYS_DOUBLEWRITE + TRX_SYS_DOUBLEWRITE_FSEG +
+    trx_sys_page;
   for (uint32_t prev_page_no= 0, i= 0, extent_size= FSP_EXTENT_SIZE;
        i < 2 * size + extent_size / 2; i++)
   {
@@ -182,10 +184,10 @@ fail:
       ut_a(id.page_no() == size);
       mtr.write<4>(*trx_sys_block,
                    TRX_SYS_DOUBLEWRITE + TRX_SYS_DOUBLEWRITE_BLOCK1 +
-                   trx_sys_block->page.frame, id.page_no());
+                   trx_sys_page, id.page_no());
       mtr.write<4>(*trx_sys_block,
                    TRX_SYS_DOUBLEWRITE + TRX_SYS_DOUBLEWRITE_REPEAT +
-                   TRX_SYS_DOUBLEWRITE_BLOCK1 + trx_sys_block->page.frame,
+                   TRX_SYS_DOUBLEWRITE_BLOCK1 + trx_sys_page,
                    id.page_no());
     }
     else if (i == size / 2 + size)
@@ -193,44 +195,28 @@ fail:
       ut_a(id.page_no() == 2 * size);
       mtr.write<4>(*trx_sys_block,
                    TRX_SYS_DOUBLEWRITE + TRX_SYS_DOUBLEWRITE_BLOCK2 +
-                   trx_sys_block->page.frame, id.page_no());
+                   trx_sys_page, id.page_no());
       mtr.write<4>(*trx_sys_block,
                    TRX_SYS_DOUBLEWRITE + TRX_SYS_DOUBLEWRITE_REPEAT +
-                   TRX_SYS_DOUBLEWRITE_BLOCK2 + trx_sys_block->page.frame,
-                   id.page_no());
+                   TRX_SYS_DOUBLEWRITE_BLOCK2 + trx_sys_page, id.page_no());
     }
     else if (i > size / 2)
       ut_a(id.page_no() == prev_page_no + 1);
-
-    if (((i + 1) & 15) == 0) {
-      /* rw_locks can only be recursively x-locked 2048 times. (on 32
-      bit platforms, (lint) 0 - (X_LOCK_DECR * 2049) is no longer a
-      negative number, and thus lock_word becomes like a shared lock).
-      For 4k page size this loop will lock the fseg header too many
-      times. Since this code is not done while any other threads are
-      active, restart the MTR occasionally. */
-      mtr.commit();
-      mtr.start();
-      trx_sys_block= buf_dblwr_trx_sys_get(&mtr);
-      fseg_header= TRX_SYS_DOUBLEWRITE + TRX_SYS_DOUBLEWRITE_FSEG +
-        trx_sys_block->page.frame;
-    }
 
     prev_page_no= id.page_no();
   }
 
   mtr.write<4>(*trx_sys_block,
                TRX_SYS_DOUBLEWRITE + TRX_SYS_DOUBLEWRITE_MAGIC +
-               trx_sys_block->page.frame, TRX_SYS_DOUBLEWRITE_MAGIC_N);
+               trx_sys_page, TRX_SYS_DOUBLEWRITE_MAGIC_N);
   mtr.write<4>(*trx_sys_block,
                TRX_SYS_DOUBLEWRITE + TRX_SYS_DOUBLEWRITE_MAGIC +
-               TRX_SYS_DOUBLEWRITE_REPEAT + trx_sys_block->page.frame,
+               TRX_SYS_DOUBLEWRITE_REPEAT + trx_sys_page,
                TRX_SYS_DOUBLEWRITE_MAGIC_N);
 
   mtr.write<4>(*trx_sys_block,
                TRX_SYS_DOUBLEWRITE + TRX_SYS_DOUBLEWRITE_SPACE_ID_STORED +
-               trx_sys_block->page.frame,
-               TRX_SYS_DOUBLEWRITE_SPACE_ID_STORED_N);
+               trx_sys_page, TRX_SYS_DOUBLEWRITE_SPACE_ID_STORED_N);
   mtr.commit();
 
   buf_flush_wait_flushed(mtr.commit_lsn());
