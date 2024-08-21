@@ -8314,7 +8314,7 @@ bool setup_tables(THD *thd, Name_resolution_context *context,
                                    0);
   SELECT_LEX *select_lex= select_insert ? thd->lex->first_select_lex() :
                                           thd->lex->current_select;
-  if (select_lex->first_cond_optimization)
+  if (select_lex->first_cond_optimization || !select_lex->leaf_tables_saved)
   {
     leaves.empty();
     if (select_lex->prep_leaf_list_state != SELECT_LEX::SAVED)

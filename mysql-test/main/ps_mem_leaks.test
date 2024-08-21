@@ -170,7 +170,9 @@ DROP PROCEDURE p1;
 --echo #
 --echo # MDEV-34757: assertion of (mem_root->flags & 4) == 0 fails in 2nd ps execution with partition pruning
 --echo #
-# same as the first MDEV-34444 testcase but with explain
+# same as the first MDEV-34447 testcase but with explain; calling
+# select_lex->optimize_unflattened_subqueries(false) under the
+# emit_explain_and_leave label
 CREATE TABLE t1 (id INT, value INT);
 CREATE TABLE t2 (id INT);
 
@@ -183,7 +185,9 @@ SELECT * FROM t1;
 DEALLOCATE PREPARE stmt;
 DROP TABLE t1, t2;
 
-# 2nd ps mem leak; partition pruning
+# 2nd ps mem leak; partition pruning; calls
+# select_lex->optimize_unflattened_subqueries(false) under if
+# (prune_partitions())...
 set @var1=5;
 set @var2=4;
 create table t1 (a int) partition by list(a) (
@@ -219,7 +223,9 @@ select * from t1;
 deallocate prepare stmt;
 drop table t1, t2;
 
-# top level impossible where
+# top level impossible where; calling
+# select_lex->optimize_unflattened_subqueries(false) in if (... ||
+# (select && select->check_quick(...)))
 set @var1=1;
 set @var2=2;
 CREATE TABLE t1 ( id INT(10), value INT(10) );
@@ -233,7 +239,9 @@ execute stmt using @var1, @var1;
 deallocate prepare stmt;
 DROP TABLE t1,t2;
 
-# top level impossible where, with explain
+# top level impossible where, with explain; also calling
+# select_lex->optimize_unflattened_subqueries(false) under the
+# emit_explain_and_leave label
 set @var1=1;
 set @var2=2;
 CREATE TABLE t1 ( id INT(10), value INT(10) );
@@ -264,7 +272,9 @@ CALL p1(2);
 DROP TABLE t1;
 DROP PROCEDURE p1;
 
-# partition pruning
+# partition pruning; calling
+# select_lex->optimize_unflattened_subqueries(false) under if
+# (prune_partitions())...
 set @var1=5;
 set @var2=4;
 create table t1 (a int) partition by list(a) (
@@ -300,7 +310,15 @@ select * from t1;
 deallocate prepare stmt;
 drop table t1, t2;
 
-# top level impossible where
+# top level impossible where;
+
+# execute stmt using @var1, @var2; calling
+# select_lex->optimize_unflattened_subqueries(false) under if (...
+# (select && select->check_quick(...)) ...)
+#
+# execute stmt using @var1, @var1; calling
+# select_lex->optimize_unflattened_subqueries(false)) after jumping to
+# the cleanup label
 set @var1=1;
 set @var2=2;
 CREATE TABLE t1 ( id INT(10), value INT(10) );
@@ -314,7 +332,9 @@ execute stmt using @var1, @var1;
 deallocate prepare stmt;
 DROP TABLE t1,t2;
 
-# top level impossible where, with explain
+# top level impossible where, with explain; calling
+# select_lex->optimize_unflattened_subqueries(false) under the
+# send_nothing_and_leave label
 set @var1=1;
 set @var2=2;
 CREATE TABLE t1 ( id INT(10), value INT(10) );

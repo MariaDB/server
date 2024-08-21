@@ -564,6 +564,8 @@ void JOIN::init(THD *thd_arg, List<Item> &fields_arg,
   is_orig_degenerated= false;
   with_ties_order_count= 0;
   prepared= false;
+  sql_cmd_delete= NULL;
+  sql_cmd_update= NULL;
 };
 
 
