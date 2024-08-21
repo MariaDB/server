@@ -24,6 +24,8 @@ The memory management
 Created 6/9/1994 Heikki Tuuri
 *************************************************************************/
 
+#include "my_global.h"
+
 #include "mem0mem.h"
 #include "buf0buf.h"
 #include "srv0srv.h"
@@ -124,7 +126,9 @@ mem_heap_printf_low(
 
 				val = va_arg(ap, unsigned long);
 
-				plen = size_t(sprintf(tmp, "%lu", val));
+				int res = snprintf(tmp, sizeof(tmp), "%lu", val);
+				DBUG_ASSERT(res >= 0);
+				plen = size_t(res);
 				len += plen;
 
 				if (buf) {
