@@ -1163,8 +1163,11 @@ static dberr_t srv_log_rebuild_if_needed()
   return srv_log_rebuild();
 }
 
+ut_d(bool ibuf_upgrade_was_needed;)
+
 ATTRIBUTE_COLD static dberr_t ibuf_log_rebuild_if_needed()
 {
+  ut_d(ibuf_upgrade_was_needed= true;)
   mysql_mutex_lock(&recv_sys.mutex);
   recv_sys.apply(true);
   mysql_mutex_unlock(&recv_sys.mutex);

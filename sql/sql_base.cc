@@ -9246,10 +9246,22 @@ fill_record_n_invoke_before_triggers(THD *thd, TABLE *table,
 
   if (!result && triggers)
   {
+    void *save_bulk_param= thd->bulk_param;
+    /*
+      Reset the sentinel thd->bulk_param in order not to consume the next
+      values of a bound array in case one of statement executed by
+      the trigger's body is INSERT statement.
+    */
+    thd->bulk_param= nullptr;
+
     if (triggers->process_triggers(thd, event, TRG_ACTION_BEFORE,
                                     TRUE) ||
         not_null_fields_have_null_values(table))
+    {
+      thd->bulk_param= save_bulk_param;
       return TRUE;
+    }
+    thd->bulk_param= save_bulk_param;
 
     /*
       Re-calculate virtual fields to cater for cases when base columns are

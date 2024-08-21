@@ -751,7 +751,10 @@ void sequence_definition::adjust_values(longlong next_value)
 
       next_free_value % real_increment == offset
     */
-    off= next_free_value % real_increment;
+    if (is_unsigned)
+      off= (ulonglong) next_free_value % real_increment;
+    else
+      off= next_free_value % real_increment;
     if (off < 0)
       off+= real_increment;
     to_add= (real_increment + offset - off) % real_increment;

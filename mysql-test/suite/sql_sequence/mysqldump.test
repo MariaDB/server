@@ -117,5 +117,5 @@ DROP DATABASE test2;
 set sql_mode=default;
 
 --echo #
---echo # End of 11.4 tests
+--echo # End of 11.5 tests
 --echo #

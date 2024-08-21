@@ -1063,13 +1063,19 @@ error:
         rows_inserted++;
       }
 
+      void *save_bulk_param= thd->bulk_param;
+      thd->bulk_param= nullptr;
+
       if (table->triggers &&
           unlikely(table->triggers->process_triggers(thd, TRG_EVENT_UPDATE,
                                                      TRG_ACTION_AFTER, TRUE)))
       {
         error= 1;
+        thd->bulk_param= save_bulk_param;
+
         break;
       }
+      thd->bulk_param= save_bulk_param;
 
       if (!--limit && using_limit)
       {
@@ -1262,6 +1268,20 @@ update_end:
             (thd->client_capabilities & CLIENT_FOUND_ROWS) ? found : updated);
     my_ok(thd, (thd->client_capabilities & CLIENT_FOUND_ROWS) ? found : updated,
           id, buff);
+    if (thd->get_stmt_da()->is_bulk_op())
+    {
+      /*
+        Update the diagnostics message sent to a client with number of actual
+        rows update by the statement. For bulk UPDATE operation it should be
+        done after returning from my_ok() since the final number of updated
+        rows be knows on finishing the entire bulk update statement.
+      */
+      my_snprintf(buff, sizeof(buff), ER_THD(thd, ER_UPDATE_INFO),
+                  (ulong) thd->get_stmt_da()->affected_rows(),
+                  (ulong) thd->get_stmt_da()->affected_rows(),
+                  (ulong) thd->get_stmt_da()->current_statement_warn_count());
+      thd->get_stmt_da()->set_message(buff);
+    }
     DBUG_PRINT("info",("%ld records updated", (long) updated));
   }
   thd->count_cuted_fields= CHECK_FIELD_IGNORE;		/* calc cuted fields */

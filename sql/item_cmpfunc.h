@@ -810,11 +810,12 @@ public:
   uint in_equality_no;
   uint exists2in_reserved_items() override { return 1; };
   friend class  Arg_comparator;
-  Item *do_get_copy(THD *thd) const override
-  { return get_item_copy<Item_func_eq>(thd, this); }
   Item* date_conds_transformer(THD *thd, uchar *arg) override
   { return do_date_conds_transformation(thd, this); }
   Item* varchar_upper_cmp_transformer(THD *thd, uchar *arg) override;
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_func_eq>(thd, this); }
+  Item *do_build_clone(THD *thd) const override;
 };
 
 class Item_func_equal final :public Item_bool_rowready_func2
@@ -2457,7 +2458,7 @@ public:
   Item *do_build_clone(THD *thd) const override
   {
     Item_func_case_simple *clone= (Item_func_case_simple *)
-                                  Item_func_case::build_clone(thd);
+                                  Item_func_case::do_build_clone(thd);
     uint ncases= when_count();
     if (clone && clone->Predicant_to_list_comparator::init_clone(thd, ncases))
       return NULL;

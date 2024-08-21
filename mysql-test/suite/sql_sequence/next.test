@@ -480,5 +480,5 @@ select next value for t1;
 drop sequence t1;
 
 --echo #
---echo # End of 11.4 tests
+--echo # End of 11.5 tests
 --echo #
