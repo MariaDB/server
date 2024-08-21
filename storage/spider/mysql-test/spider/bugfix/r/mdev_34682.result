@@ -1,0 +1,19 @@
+set @old_aria_encrypt_tables=@@global.aria_encrypt_tables;
+set global aria_encrypt_tables=ON;
+CREATE FUNCTION spider_direct_sql RETURNS INT SONAME 'ha_spider.so';
+call mtr.add_suppression(".*\\[ERROR\\] SPIDER plugin initialization failed at.* by 'Initialization of encryption failed for");
+call mtr.add_suppression(".*\\[ERROR\\] Plugin 'SPIDER' registration as a STORAGE ENGINE failed.");
+INSTALL PLUGIN spider SONAME 'ha_spider.so';
+ERROR HY000: Can't initialize function 'spider'; Plugin initialization function failed.
+SELECT spider_direct_sql ('SELECT * FROM s','a','srv "b"');
+ERROR HY000: Can't initialize function 'spider_direct_sql'; Plugin 'SPIDER' is not loaded
+Warnings:
+Note	1305	FUNCTION test.spider_flush_table_mon_cache does not exist
+Warnings:
+Note	1305	FUNCTION test.spider_copy_tables does not exist
+Warnings:
+Note	1305	FUNCTION test.spider_ping_table does not exist
+Warnings:
+Note	1305	FUNCTION test.spider_bg_direct_sql does not exist
+Warnings:
+Note	1305	SONAME ha_spider.so does not exist
