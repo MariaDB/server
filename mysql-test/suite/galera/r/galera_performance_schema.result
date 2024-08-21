@@ -3,10 +3,17 @@ connection node_1;
 use performance_schema;
 SELECT name
 FROM threads
-WHERE name LIKE 'thread/sql/wsrep%'
+WHERE name LIKE 'thread/sql/wsrep%' AND
+name NOT LIKE 'thread/sql/wsrep_provider%'
 ORDER BY name;
 name	thread/sql/wsrep_applier_thread
 name	thread/sql/wsrep_rollbacker_thread
+SELECT COUNT(*) > 0 FROM threads WHERE name LIKE 'thread/sql/wsrep_provider%';
+COUNT(*) > 0	0
+connection node_2;
+use performance_schema;
+use test;
+connection node_1;
 use test;
 create table t1 (a int not null primary key) engine=innodb;
 insert into t1 values (1),(2);
@@ -34,6 +41,19 @@ name	wait/synch/cond/sql/COND_wsrep_replaying
 name	wait/synch/cond/sql/COND_wsrep_sst
 name	wait/synch/cond/sql/COND_wsrep_sst_init
 name	wait/synch/cond/sql/COND_wsrep_wsrep_slave_threads
+connection node_2;
+select * from t1;
+a	1
+a	2
+connection node_1;
+connection node_2;
+use performance_schema;
+use test;
+connection node_1;
+SET GLOBAL wsrep_on=OFF;
+select * from galera_group_members;
+select * from galera_group_member_stats;
+SET GLOBAL wsrep_on=ON;
 connection node_2;
 use test;
 SET SESSION wsrep_on=OFF;
