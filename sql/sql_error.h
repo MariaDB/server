@@ -1097,6 +1097,11 @@ public:
     return m_affected_rows;
   }
 
+  void set_message(const char *msg)
+  {
+    strmake_buf(m_message, msg);
+  }
+
   ulonglong last_insert_id() const
   {
     DBUG_ASSERT(m_status == DA_OK || m_status == DA_OK_BULK);

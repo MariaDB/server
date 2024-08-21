@@ -265,9 +265,20 @@ static inline void safe_strcpy(char *dst, size_t dst_size, const char *src)
    *
    * 2) IF there is no 0 byte in the first dst_size bytes of src, strncpy will
    *    copy dst_size bytes, and the final byte won't be 0.
+   *
+   * In GCC 8+, the `-Wstringop-truncation` warning may object to strncpy()
+   * being used in this way, so we need to disable this warning for this
+   * single statement.
    */
 
+#if defined __GNUC__ && __GNUC__ >= 8
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstringop-truncation"
+#endif
   strncpy(dst, src, dst_size);
+#if defined __GNUC__ && __GNUC__ >= 8
+#pragma GCC diagnostic pop
+#endif
   dst[dst_size - 1]= 0;
 }
 

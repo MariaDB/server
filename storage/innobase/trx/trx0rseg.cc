@@ -660,6 +660,7 @@ dberr_t trx_rseg_array_init()
 					break;
 				}
 
+				rseg.destroy();
 				rseg.init(rseg_space, page_no);
 				ut_ad(rseg.is_persistent());
 				err = trx_rseg_mem_restore(&rseg, &mtr);
@@ -741,6 +742,7 @@ dberr_t trx_temp_rseg_create(mtr_t *mtr)
       mtr->commit();
       return err;
     }
+    trx_sys.temp_rsegs[i].destroy();
     trx_sys.temp_rsegs[i].init(fil_system.temp_space,
                                rblock->page.id().page_no());
     mtr->commit();
