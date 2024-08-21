@@ -2775,10 +2775,16 @@ avoid_bulk:
 
 		ut_ad(index->table->skip_alter_undo);
 		ut_ad(!entry->is_metadata());
+
+		/* If foreign key exist and foreign key is enabled
+		then avoid using bulk insert for copy algorithm */
 		if (innodb_alter_copy_bulk
 		    && !index->table->is_temporary()
 		    && !index->table->versioned()
-		    && !index->table->has_spatial_index()) {
+		    && !index->table->has_spatial_index()
+		    && (!trx->check_foreigns
+                        || (index->table->foreign_set.empty()
+                            && index->table->referenced_set.empty()))) {
 			ut_ad(page_is_empty(block->page.frame));
 			/* This code path has been executed at the
 			start of the alter operation. Consecutive

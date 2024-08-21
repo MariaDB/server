@@ -22,3 +22,30 @@ ALTER TABLE t1 FORCE;
 INSERT INTO t1 SELECT seq, seq * 2 FROM seq_3_to_65536;
 ALTER TABLE t1 ADD INDEX(f2);
 DROP TABLE t1;
+#
+# MDEV-34756 Validation of new foreign key skipped
+#            if innodb_alter_copy_bulk=ON
+#
+CREATE TABLE t1(f1 INT NOT NULL PRIMARY KEY,
+f2 INT NOT NULL)ENGINE=InnoDB;
+CREATE TABLE t2(f1 INT NOT NULL PRIMARY KEY,
+f2 INT NOT NULL)ENGINE=InnoDB;
+ALTER TABLE t2 ADD CONSTRAINT FOREIGN KEY(f1) REFERENCES t1(f1);
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+INSERT INTO t1 VALUES (1, 1);
+INSERT INTO t2 VALUES (1, 2);
+ALTER TABLE t2 ADD CONSTRAINT FOREIGN KEY(f2) REFERENCES t1(f1);
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`#sql-alter`, CONSTRAINT `#sql-alter_ibfk_2` FOREIGN KEY (`f2`) REFERENCES `t1` (`f1`))
+INSERT INTO t1 VALUES(3, 1);
+SET STATEMENT foreign_key_checks=0 FOR
+ALTER TABLE t2 ADD CONSTRAINT FOREIGN KEY(f2) REFERENCES t1(f1);
+affected rows: 1
+info: Records: 1  Duplicates: 0  Warnings: 0
+ALTER TABLE t1 FORCE;
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+ALTER TABLE t2 FORCE;
+affected rows: 1
+info: Records: 1  Duplicates: 0  Warnings: 0
+DROP TABLE t2, t1;
