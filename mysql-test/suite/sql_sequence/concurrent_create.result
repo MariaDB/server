@@ -62,5 +62,5 @@ next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_si
 1	1	16777214	1	1	1000	0	0
 DROP SEQUENCE s1, s2;
 #
-# End of 11.4 tests
+# End of 11.5 tests
 #

@@ -1893,6 +1893,16 @@ longlong Item_func_eq::val_int()
 }
 
 
+Item *Item_func_eq::do_build_clone(THD *thd) const
+{
+  /*
+    Clone the parent and cast to the child class since there is nothing
+    specific for Item_func_eq
+  */
+  return (Item_func_eq*) Item_bool_rowready_func2::do_build_clone(thd);
+}
+
+
 /** Same as Item_func_eq, but NULL = NULL. */
 
 bool Item_func_equal::fix_length_and_dec(THD *thd)

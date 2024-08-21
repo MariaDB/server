@@ -49,7 +49,6 @@ class ha_myisam final : public handler
   bool can_enable_indexes;
   int repair(THD *thd, HA_CHECK &param, bool optimize);
   void setup_vcols_for_repair(HA_CHECK *param);
-  void restore_vcos_after_repair();
 
  public:
   ha_myisam(handlerton *hton, TABLE_SHARE *table_arg);

@@ -94,5 +94,5 @@ select * from s2;
 DROP SEQUENCE s1, s2;
 
 --echo #
---echo # End of 11.4 tests
+--echo # End of 11.5 tests
 --echo #

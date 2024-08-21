@@ -173,6 +173,7 @@ page_exists:
     page_zip_set_size(&bpage->zip, zip_size);
     bpage->zip.data = (page_zip_t*) data;
 
+    bpage->lock.init();
     bpage->init(buf_page_t::READ_FIX, page_id);
     bpage->lock.x_lock(true);
 

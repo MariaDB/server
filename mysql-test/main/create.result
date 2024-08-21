@@ -506,9 +506,9 @@ FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `ifnull(c_tinytext,   CAST('yet another binary data' AS BINARY))` blob DEFAULT NULL,
-  `ifnull(c_text,       CAST('yet another binary data' AS BINARY))` mediumblob DEFAULT NULL,
-  `ifnull(c_mediumtext, CAST('yet another binary data' AS BINARY))` longblob DEFAULT NULL,
+  `ifnull(c_tinytext,   CAST('yet another binary data' AS BINARY))` tinyblob DEFAULT NULL,
+  `ifnull(c_text,       CAST('yet another binary data' AS BINARY))` blob DEFAULT NULL,
+  `ifnull(c_mediumtext, CAST('yet another binary data' AS BINARY))` mediumblob DEFAULT NULL,
   `ifnull(c_longtext,   CAST('yet another binary data' AS BINARY))` longblob DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;

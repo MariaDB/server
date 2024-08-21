@@ -1300,7 +1300,7 @@ uint32 Type_numeric_attributes::find_max_octet_length(Item **item, uint nitems)
 {
   uint32 octet_length= 0;
   for (uint i= 0; i < nitems ; i++)
-    set_if_bigger(octet_length, item[i]->max_length);
+    set_if_bigger(octet_length, item[i]->character_octet_length());
   return octet_length;
 }
 

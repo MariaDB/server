@@ -3550,6 +3550,7 @@ public:
   Type_all_attributes(const Type_all_attributes &) = default;
   virtual ~Type_all_attributes() = default;
   virtual void set_type_maybe_null(bool maybe_null_arg)= 0;
+  virtual uint32 character_octet_length() const { return max_length; }
   // Returns total number of decimal digits
   virtual decimal_digits_t decimal_precision() const= 0;
   virtual Type_extra_attributes *type_extra_attributes_addr() = 0;

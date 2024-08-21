@@ -3773,6 +3773,10 @@ public:
       return &type_handler_null;
     return field->type_handler();
   }
+  uint32 character_octet_length() const override
+  {
+    return field->character_octet_length();
+  }
   Field *create_tmp_field_from_item_field(MEM_ROOT *root, TABLE *new_table,
                                           Item_ref *orig_item,
                                           const Tmp_field_param *param);
@@ -4941,6 +4945,9 @@ public:
   Item_string_sys(THD *thd, const char *str):
     Item_string(thd, str, (uint) strlen(str), system_charset_info_for_i_s)
   { }
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_string_sys>(thd, this); }
+  Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
 };
 
 
@@ -4955,6 +4962,9 @@ public:
     Item_string(thd, str, (uint) strlen(str), &my_charset_latin1,
                 DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII)
   { }
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_string_ascii>(thd, this); }
+  Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
 };
 
 
@@ -4991,6 +5001,9 @@ public:
     // require fix_fields() to be re-run for every statement.
     return mark_unsupported_function(func_name.str, arg, VCOL_TIME_FUNC);
   }
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_static_string_func>(thd, this); }
+  Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
 };
 
 
@@ -5008,6 +5021,9 @@ public:
   {
     return mark_unsupported_function("safe_string", arg, VCOL_IMPOSSIBLE);
   }
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_partition_func_safe_string>(thd, this); }
+  Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
 };
 
 
@@ -5169,6 +5185,9 @@ class Item_bin_string: public Item_hex_hybrid
 public:
   Item_bin_string(THD *thd, const char *str, size_t str_length);
   void print(String *str, enum_query_type query_type) override;
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_bin_string>(thd, this); }
+  Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
 };
 
 
@@ -5485,6 +5504,9 @@ public:
     cached_time.copy_to_mysql_time(ltime);
     return (null_value= false);
   }
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_date_literal_for_invalid_dates>(thd, this); }
+  Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
 };
 
 
@@ -5858,6 +5880,10 @@ public:
   { return (*ref)->type_handler(); }
   const Type_handler *real_type_handler() const override
   { return (*ref)->real_type_handler(); }
+  uint32 character_octet_length() const override
+  {
+    return Item_ref::real_item()->character_octet_length();
+  }
   Field *get_tmp_table_field() override
   { return result_field ? result_field : (*ref)->get_tmp_table_field(); }
   Item *get_tmp_table_item(THD *thd) override;
@@ -5898,9 +5924,10 @@ public:
   {
     (*ref)->save_in_field(result_field, no_conversions);
   }
-  Item *real_item() override
+  Item *real_item() override { return ref ? (*ref)->real_item() : this; }
+  const Item *real_item() const
   {
-    return ref ? (*ref)->real_item() : this;
+    return const_cast<Item_ref*>(this)->Item_ref::real_item();
   }
   const Type_extra_attributes type_extra_attributes() const override
   {
@@ -6984,7 +7011,9 @@ public:
     description
   */
   bool associate_with_target_field(THD *thd, Item_field *field) override;
-
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_default_value>(thd, this); }
+  Item* do_build_clone(THD *thd) const override { return get_copy(thd); }
 private:
   bool tie_field(THD *thd);
 };

@@ -181,5 +181,5 @@ DROP DATABASE test1;
 DROP DATABASE test2;
 set sql_mode=default;
 #
-# End of 11.4 tests
+# End of 11.5 tests
 #

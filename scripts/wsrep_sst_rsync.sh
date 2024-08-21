@@ -100,10 +100,9 @@ check_pid_and_port()
         local busy=0
 
         if [ $lsof_available -ne 0 ]; then
-            port_info=$(lsof -Pnl -i ":$port" 2>/dev/null | \
-                        grep -F '(LISTEN)')
+            port_info=$(lsof -Pnl -i ":$port" 2>/dev/null | grep -F '(LISTEN)')
             echo "$port_info" | \
-            grep -q -E "[[:space:]](\\*|\\[?::\\]?):$port[[:space:]]" && busy=1
+            grep -q -E "[[:space:]]\\[?(\\*|[[:xdigit:]]*(:[[:xdigit:]]*)+)(\\](%[^:]+)?)?:$port[[:space:]]" && busy=1
         else
             local filter='([^[:space:]]+[[:space:]]+){4}[^[:space:]]+'
             if [ $sockstat_available -ne 0 ]; then
@@ -122,7 +121,7 @@ check_pid_and_port()
                     grep -F 'users:(' | grep -o -E "$filter")
             fi
             echo "$port_info" | \
-            grep -q -E "[[:space:]](\\*|\\[?::\\]?):$port\$" && busy=1
+            grep -q -E "[[:space:]]\\[?(\\*|[[:xdigit:]]*(:[[:xdigit:]]*)+)(\\](%[^:]+)?)?:$port\$" && busy=1
         fi
 
         if [ $busy -eq 0 ]; then
