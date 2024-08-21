@@ -4706,7 +4706,6 @@ public:
   }
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_string_with_introducer>(thd, this); }
-  Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
 };
 
 
@@ -4721,7 +4720,6 @@ public:
   { }
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_string_sys>(thd, this); }
-  Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
 };
 
 
@@ -4738,7 +4736,6 @@ public:
   { }
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_string_ascii>(thd, this); }
-  Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
 };
 
 
@@ -4777,7 +4774,6 @@ public:
   }
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_static_string_func>(thd, this); }
-  Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
 };
 
 
@@ -4797,7 +4793,6 @@ public:
   }
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_partition_func_safe_string>(thd, this); }
-  Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
 };
 
 
@@ -4960,7 +4955,6 @@ public:
   void print(String *str, enum_query_type query_type) override;
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_bin_string>(thd, this); }
-  Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
 };
 
 
