@@ -562,6 +562,8 @@ Expect 200
 # This will not change the counter to 150, but to 201, which is the next
 # of current max counter in the table
 ALTER TABLE t3 AUTO_INCREMENT = 150;
+Warnings:
+Warning	167	Can not set AUTO_INCREMENT to 150 which is lower than or equal to the current max value in the table: 200
 SHOW CREATE TABLE t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
@@ -603,6 +605,8 @@ UPDATE t3 SET a = 200 WHERE a = 150;
 INSERT INTO t3 VALUES(220);
 # This still fails to set to 120, but just 221
 ALTER TABLE t3 AUTO_INCREMENT = 120;
+Warnings:
+Warning	167	Can not set AUTO_INCREMENT to 120 which is lower than or equal to the current max value in the table: 220
 SHOW CREATE TABLE t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
@@ -725,6 +729,8 @@ t_inplace	CREATE TABLE `t_inplace` (
 # current max counter in the table, since the specified value
 # is smaller than the existing biggest value(50 < 123)
 ALTER TABLE t_inplace DROP COLUMN b, AUTO_INCREMENT = 50, ALGORITHM = INPLACE;
+Warnings:
+Warning	167	Can not set AUTO_INCREMENT to 50 which is lower than or equal to the current max value in the table: 122
 # We expect the counter to be 123
 SHOW CREATE TABLE t_inplace;
 Table	Create Table
