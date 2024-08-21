@@ -219,6 +219,7 @@ SET NAMES utf8mb4;
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (1), (2);
 
+--enable_prepare_warnings
 # Test that aliases are accent sensitive with lowercase-table-names=1
 # Test that table names in hints are also accent sensitive
 SELECT /*+BKA(a) BKA(å)*/ a.a FROM t1 a, t1 å;
@@ -228,6 +229,7 @@ SELECT /*+BKA(a) BKA(å)*/ a.a FROM t1 a, t1 å;
 SELECT a.a, A.a FROM t1 a, t1 A;
 # Test that table names in hints are also case insensitive
 SELECT /*+BKA(a) BKA(A)*/ a.a FROM t1 a;
+--disable_prepare_warnings
 
 DROP TABLE t1;
 

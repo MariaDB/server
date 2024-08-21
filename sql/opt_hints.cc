@@ -687,6 +687,15 @@ bool Optimizer_hint_parser::Qb_name_hint::resolve(Parse_context *pc) const
 
 bool Optimizer_hint_parser::Hint_list::resolve(Parse_context *pc)
 {
+  if (pc->thd->lex->create_view)
+  {
+    // we're creating or modifying a view, hints are not allowed here
+    push_warning_printf(pc->thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_HINTS_INSIDE_VIEWS_NOT_SUPPORTED,
+                        ER_THD(pc->thd, ER_HINTS_INSIDE_VIEWS_NOT_SUPPORTED));
+    return false;
+  }
+
   if (!get_qb_hints(pc))
     return true;
 

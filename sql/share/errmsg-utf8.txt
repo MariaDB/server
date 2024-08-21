@@ -12322,3 +12322,5 @@ ER_UNRESOLVED_TABLE_HINT_NAME
         eng "Unresolved table name %s for %s hint"
 ER_UNRESOLVED_INDEX_HINT_NAME
         eng "Unresolved index name %s for %s hint"
+ER_HINTS_INSIDE_VIEWS_NOT_SUPPORTED
+        eng "Optimizer hints are not supported inside view definitions"
