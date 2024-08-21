@@ -1,5 +1,5 @@
 --enable_prepare_warnings
-
+--disable_view_protocol # Since optimizer hints are not supported inside views
 SET NAMES utf8mb4;
 
 --echo # Testing that index names in hints are accent sensitive case insensitive
@@ -7,8 +7,13 @@ CREATE TABLE t1 (a INT, ä INT, INDEX idx_a(a), INDEX idx_ä(ä));
 INSERT INTO t1 VALUES (1,1),(2,2);
 SELECT /*+ NO_MRR(t1 idx_a) */ a FROM t1;
 SELECT /*+ NO_MRR(t1 idx_A) */ a FROM t1;
+
+# Warnings "Unresolved table/index name..." are generated during both prepare
+# and execution stages. So disable PS protocol to avoid duplication
+--disable_ps_protocol
 SELECT /*+ NO_MRR(t1 idx_å) */ a FROM t1;
 SELECT /*+ NO_MRR(t1 idx_a, idx_å, idx_A) */ a FROM t1;
+--enable_ps_protocol
 DROP TABLE t1;
 
 --echo # Testing that query block names are accent sensitive case insensitive
@@ -129,9 +134,13 @@ EXPLAIN EXTENDED SELECT /*+ NO_ICP(t5@блок1 x_idx) */ * FROM
 
 
 --echo # Expected warning for z_idx key, unresolved name.
+# Warnings "Unresolved table/index name..." are generated during both prepare
+# and execution stages. So disable PS protocol to avoid duplication
+--disable_ps_protocol
 EXPLAIN EXTENDED SELECT * FROM
   (SELECT /*+ NO_ICP(t5 y_idx, x_idx, z_idx) */ t4.x, t5.y FROM t4, t4 t5
    WHERE t4.y = 8 AND t5.x BETWEEN 7 AND t4.y+0) AS TD;
+--enable_ps_protocol
 
 --echo # ICP should still be used
 EXPLAIN EXTENDED SELECT * FROM
@@ -300,10 +309,14 @@ EXPLAIN EXTENDED SELECT /*+ BKA(tbl12, tbl13) */ * FROM t12 tbl12, t13 tbl13
 WHERE tbl12.a=tbl13.a AND (tbl13.b+1 <= tbl13.b+1);
 
 --echo # Print warnings for nonexistent names
+# Warnings "Unresolved table/index name..." are generated during both prepare
+# and execution stages. So disable PS protocol to avoid duplication
+--disable_ps_protocol
 EXPLAIN EXTENDED
 SELECT /*+ BKA(t2) NO_BNL(t1) BKA(t3) NO_RANGE_OPTIMIZATION(t3 idx1) NO_RANGE_OPTIMIZATION(t3) */
 t2.f1, t2.f2, t2.f3 FROM t1,t2 WHERE t1.f1=t2.f1 AND
 t2.f2 BETWEEN t1.f1 AND t1.f2 AND t2.f2 + 1 >= t1.f1 + 1;
+--enable_ps_protocol
 
 --echo # Check illegal syntax
 EXPLAIN EXTENDED SELECT /*+ BKA(qb1 t3@qb1) */ f2 FROM
@@ -319,8 +332,12 @@ EXPLAIN EXTENDED SELECT /*+ BKA(@qb1 t13) */ * FROM (SELECT /*+ QB_NAME(QB1) */ 
 WHERE t12.a=t13.a AND (t13.b+1 <= t13.b+1)) AS s1;
 
 --echo # Check that original table name is not recognized if alias is used.
+# Warnings "Unresolved table/index name..." are generated during both prepare
+# and execution stages. So disable PS protocol to avoid duplication
+--disable_ps_protocol
 EXPLAIN EXTENDED SELECT /*+ BKA(tbl2) */ * FROM t12 tbl12, t13 tbl13 
 WHERE tbl12.a=tbl13.a AND (tbl13.b+1 <= tbl13.b+1);
+--enable_ps_protocol
 
 --disable_ps2_protocol
 --echo # Check that PS and conventional statements give the same result.
@@ -500,8 +517,41 @@ SELECT /*+ QB_NAME(q1) NO_ICP(@q1 t1 PRIMARY) NO_ICP(@q1 t1 PRIMARY) */ * FROM t
 
 DROP TABLE t1;
 
---echo # WL#8016 Parser for optimizer hints
+--echo #
+--echo # Hints inside views are not supported
+--echo #
+CREATE TABLE t1 (a INT, INDEX idx_a(a));
+INSERT INTO t1 VALUES (1),(2);
 
+CREATE VIEW v1 AS SELECT /*+ NO_MRR(t1 idx_a) */ a FROM t1;
+SELECT * FROM v1;
+--echo # Make sure hints are not present inside the view definition:
+SHOW CREATE VIEW v1;
+EXPLAIN EXTENDED SELECT * FROM v1;
+
+CREATE OR REPLACE VIEW v1 AS SELECT /*+ NO_MRR(t1 idx_a) BKA(t1)*/ a FROM t1;
+SHOW CREATE VIEW v1;
+
+ALTER VIEW v1 AS SELECT /*+ QB_NAME(q1)*/ a FROM t1;
+SHOW CREATE VIEW v1;
+SELECT * FROM v1;
+
+--echo # Wrong place for the hint, must be simply ignored:
+CREATE OR REPLACE VIEW v1 AS SELECT a /*+ NO_ICP(t1 idx_a)*/ FROM t1;
+SHOW CREATE VIEW v1;
+
+--echo # Incorrect hint does not prevent view creation, only a warning generated:
+CREATE VIEW v2 AS SELECT /*+ BAD HINT*/ a+10 FROM t1;
+SELECT * FROM v2;
+EXPLAIN EXTENDED SELECT * FROM v2;
+SHOW CREATE VIEW v2;
+
+DROP VIEW v1, v2;
+DROP TABLE t1;
+
+--echo #
+--echo # Tests of parser for optimizer hints
+--echo #
 
 CREATE TABLE t1 (i INT, j INT);
 CREATE INDEX i1 ON t1(i);
@@ -552,8 +602,12 @@ DELETE  /*+ NO_ICP() */ FROM t1 WHERE 1;
 
 SELECT /*+ BKA(a b) */   1 FROM t1 a, t1 b;
 
+# Warnings "Unresolved table/index name..." are generated during both prepare
+# and execution stages. So disable PS protocol to avoid duplication
+--disable_ps_protocol
 SELECT /*+ NO_ICP(i1) */ 1 FROM t1;
 SELECT /*+ NO_ICP(i1 i2) */ 1 FROM t1;
+--enable_ps_protocol
 SELECT /*+ NO_ICP(@qb ident) */ 1 FROM t1;
 
 --echo
@@ -578,6 +632,10 @@ EXPLAIN EXTENDED DELETE /*+ test */ FROM t1 WHERE i = 10;
 --echo
 
 CREATE INDEX 3rd_index ON t1(i, j);
+
+# Warnings "Unresolved table/index name..." are generated during both prepare
+# and execution stages. So disable PS protocol to avoid duplication
+--disable_ps_protocol
 SELECT /*+ NO_ICP(3rd_index) */ 1 FROM t1;
 
 CREATE INDEX $index ON t1(j, i);
@@ -605,6 +663,7 @@ SELECT /*+ BKA(" quoted name test") */ 1 FROM t1;
 
 DROP TABLE ` quoted name test`;
 DROP TABLE `test1``test2```;
+--enable_ps_protocol
 
 --echo # Valid hints, no warning:
 EXPLAIN EXTENDED SELECT /*+ QB_NAME(`*`) */ 1;
@@ -622,6 +681,10 @@ EXPLAIN EXTENDED SELECT /*+ QB_NAME(`\BF``\BF`) */ 1;
 CREATE TABLE tableТ (i INT);
 
 --echo # invalid hints, should warn:
+
+# Warnings "Unresolved table/index name..." are generated during both prepare
+# and execution stages. So disable PS protocol to avoid duplication
+--disable_ps_protocol
 SELECT /*+ BKA(tableТ) */ 1 FROM t1;
 SELECT /*+ BKA(test@tableТ) */ 1 FROM t1;
 DROP TABLE tableТ;
@@ -635,6 +698,7 @@ SELECT /*+ BKA(test@таблица) */ 1 FROM t1;
 SELECT /*+ NO_ICP(`\D1`) */ 1 FROM t1;
 
 DROP TABLE таблица;
+--enable_ps_protocol
 
 --echo
 --echo # derived tables and other subqueries:
@@ -649,7 +713,9 @@ SELECT 1 FROM DUAL WHERE 1 IN (SELECT /*+ DEBUG_HINT3 */ 1);
 --echo
 SELECT /*+ 10 */ 1;
 SELECT /*+ NO_ICP() */ 1;
+--disable_ps_protocol # to avoid warnings duplication, see details above
 SELECT /*+ NO_ICP(10) */ 1;
+--enable_ps_protocol
 SELECT /*+ NO_ICP( */ 1;
 SELECT /*+ NO_ICP) */ 1;
 SELECT /*+ NO_ICP(t1 */ 1;
@@ -664,6 +730,7 @@ INSERT INTO t1 VALUES (1, 1), (2, 2);
 
 SELECT 1 FROM /*+ regular commentary, not a hint! */ t1;
 SELECT 1 FROM /*+ #1 */ t1 WHERE /*+ #2 */ 1 /*+ #3 */;
+SELECT 1 FROM /*+ QB_NAME(q1) */ t1 /*+ NO_ICP() */WHERE /*+ NO_MRR(t1) */ 1 /*+ #3 */;
 
 --echo # Warnings expected:
 SELECT /*+ NO_ICP() */ 1
