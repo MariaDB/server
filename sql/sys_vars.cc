@@ -68,7 +68,8 @@
 #include <ssl_compat.h>
 #ifdef WITH_WSREP
 #include "wsrep_mysqld.h"
-#endif
+#include "wsrep_buffered_error_log.h"
+#endif /* WITH_WSREP */
 
 #define PCRE2_STATIC 1             /* Important on Windows */
 #include "pcre2.h"                 /* pcre2 header file */
@@ -5173,7 +5174,7 @@ Sys_proxy_protocol_networks(
     ON_CHECK(check_proxy_protocol_networks), ON_UPDATE(fix_proxy_protocol_networks));
 
 
-static bool check_log_path(sys_var *self, THD *thd, set_var *var)
+bool check_log_path(sys_var *self, THD *thd, set_var *var)
 {
   if (!var->value)
     return false; // DEFAULT is ok
@@ -6469,6 +6470,38 @@ static Sys_var_charptr Sys_wsrep_allowlist(
        READ_ONLY GLOBAL_VAR(wsrep_allowlist), CMD_LINE(REQUIRED_ARG),
        DEFAULT(""));
 
+static Sys_var_charptr_fscs Sys_wsrep_buffered_error_log_filename(
+    "wsrep_buffered_error_log_filename", "Filename of the buffered error log",
+    PREALLOCATED GLOBAL_VAR(wsrep_buffered_error_log_filename), CMD_LINE(REQUIRED_ARG),
+    DEFAULT(0), NO_MUTEX_GUARD, NOT_IN_BINLOG,
+    ON_CHECK(wsrep_buffered_error_log_filename_check));
+
+static Sys_var_ulonglong Sys_wsrep_buffered_error_log_size(
+    "wsrep_buffered_error_log_size", "Size of the buffered error log (kB)",
+    GLOBAL_VAR(wsrep_buffered_error_log_size), CMD_LINE(REQUIRED_ARG),
+    VALID_RANGE(0, ULLONG_MAX), DEFAULT(0), BLOCK_SIZE(1), NO_MUTEX_GUARD,
+    NOT_IN_BINLOG,
+    ON_CHECK(wsrep_buffered_error_log_size_check),
+    ON_UPDATE(wsrep_buffered_error_log_size_update));
+
+#ifdef WITH_BLACKBOX
+static Sys_var_ulonglong Sys_wsrep_black_box_size(
+       "wsrep_black_box_size",
+       "The size of the Black Box (kB)",
+       GLOBAL_VAR(wsrep_black_box_size),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, ULLONG_MAX),
+       DEFAULT(0), BLOCK_SIZE(1), NO_MUTEX_GUARD, NOT_IN_BINLOG,
+       ON_CHECK(wsrep_black_box_size_check),
+       ON_UPDATE(wsrep_resize_black_box));
+
+static Sys_var_charptr_fscs Sys_wsrep_black_box_name(
+       "wsrep_black_box_name",
+       "The name of the Black Box",
+       READ_ONLY GLOBAL_VAR(wsrep_black_box_name),
+       CMD_LINE(REQUIRED_ARG), DEFAULT(0),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG,
+       ON_CHECK(wsrep_black_box_name_check));
+#endif /* WITH_BLACKBOX */
 #endif /* WITH_WSREP */
 
 static bool fix_host_cache_size(sys_var *, THD *, enum_var_type)

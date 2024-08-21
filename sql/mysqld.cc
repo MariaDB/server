@@ -81,6 +81,9 @@
 #include "wsrep_thd.h"
 #include "wsrep_sst.h"
 #include "wsrep_server_state.h"
+#ifdef WITH_BLACKBOX
+#include "blackbox/blackbox.h"
+#endif
 #endif /* WITH_WSREP */
 #include "proxy_protocol.h"
 #include "gtid_index.h"
@@ -1332,6 +1335,7 @@ void Buffered_log::print()
   case WARNING_LEVEL:
     sql_print_warning("Buffered warning: %s", m_message.c_ptr_safe());
     break;
+  case DEBUG_LEVEL:
   case INFORMATION_LEVEL:
     /*
       Messages printed as "information" still end up in the mysqld *error* log,
@@ -2067,6 +2071,10 @@ static void clean_up(bool print_message)
   free_error_messages();
   /* Tell main we are ready */
   logger.cleanup_end();
+#ifdef WITH_WSREP
+  wsrep_buffered_error_log.write_to_disk();
+  wsrep_buffered_error_log.close();
+#endif /* WITH_WSREP */
   sys_var_end();
   free_charsets();
 
@@ -5047,6 +5055,37 @@ static int init_server_components()
   /* set up the hook before initializing plugins which may use it */
   error_handler_hook= my_message_sql;
   proc_info_hook= set_thd_stage_info;
+
+#ifdef WITH_WSREP
+  wsrep_buffered_error_log.resize(wsrep_buffered_error_log_size * 1024);
+#ifdef WITH_BLACKBOX
+  if (wsrep_black_box_size)
+  {
+    /* Initialize Black Box */
+    int rcode=0;
+
+    rcode = bb_open(wsrep_black_box_name, wsrep_black_box_size * 1024,
+                    mysql_real_data_home);
+    if (rcode < 0)
+    {
+      /* failure */
+      fprintf(stderr, "Opening of Black Box failed: %s", bb_get_error(rcode));
+      wsrep_black_box_size = 0;
+    }
+
+    if (wsrep_black_box_size)
+      wsrep_debug_mode |= WSREP_DEBUG_MODE_BLACKBOX;
+    else
+       wsrep_debug_mode &= ~WSREP_DEBUG_MODE_BLACKBOX;
+  }
+#endif /* WITH_BLACKBOX */
+
+  if (wsrep_debug)
+    wsrep_debug_mode |= WSREP_DEBUG_MODE_DEBUG;
+  if (wsrep_buffered_error_log_size)
+    wsrep_debug_mode |= WSREP_DEBUG_MODE_BUFFERED;
+
+#endif /* WITH_WSREP */
 
   /* Set up hook to handle disk full */
   my_sleep_for_space= mariadb_sleep_for_space;

@@ -1,0 +1,68 @@
+--source include/galera_cluster.inc
+
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--source ../galera/include/auto_increment_offset_save.inc
+
+--connection node_1
+SELECT @@wsrep_black_box_size;
+SELECT @@wsrep_black_box_name;
+
+#
+--echo # Node1 should not have operational blackbox
+#
+--error 254
+exec $BBTOOL bb_info1 status;
+
+--connection node_2
+SELECT @@wsrep_black_box_size;
+SELECT @@wsrep_black_box_name;
+
+#
+--echo # Node2 should have operational blackbox
+#
+exec $BBTOOL bb_info2 status;
+
+--source include/shutdown_mysqld.inc
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+#
+--echo # Node2 should not have operational blackbox after clean shutdown
+#
+--error 254
+exec $BBTOOL bb_info2 status;
+
+--echo # Restart node_2
+--connection node_2
+--source include/start_mysqld.inc
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+#
+--echo # Node2 should have operational blackbox
+#
+exec $BBTOOL bb_info2 status;
+
+--echo # Kill Node2
+--connection node_2
+SET SESSION wsrep_sync_wait = 0;
+--source include/kill_galera.inc
+
+--connection node_1
+
+#
+--echo # Node2 should have operational blackbox after kill
+#
+exec $BBTOOL bb_info2 status;
+
+--echo # start node_2
+--connection node_2
+--source include/start_mysqld.inc
+--source include/wait_until_connected_again.inc
+
+# Restore original auto_increment_offset values.
+--source ../galera/include/auto_increment_offset_restore.inc

@@ -1,0 +1,24 @@
+--source include/have_wsrep.inc
+
+SET @start_value = @@global.wsrep_buffered_error_log_filename;
+SELECT @start_value;
+SET @size_start_value = @@global.wsrep_buffered_error_log_size;
+SELECT @size_start_value;
+
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@global.wsrep_buffered_error_log_filename = "/tmp/bar.txt";
+SHOW WARNINGS;
+SELECT @@global.wsrep_buffered_error_log_filename;
+SET @@global.wsrep_buffered_error_log_filename = '';
+SELECT @@global.wsrep_buffered_error_log_filename;
+
+
+--Error ER_GLOBAL_VARIABLE
+SET @@session.wsrep_buffered_error_log_filename = OFF;
+--Error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT @@session.wsrep_buffered_error_log_filename;
+
+
+SET @@global.wsrep_buffered_error_log_filename = @start_value;
+SET @@global.wsrep_buffered_error_log_size = @size_start_value;
+SELECT @@global.wsrep_buffered_error_log_filename;

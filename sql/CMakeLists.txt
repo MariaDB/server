@@ -17,6 +17,7 @@
 
 IF(WITH_WSREP AND NOT EMBEDDED_LIBRARY)
   SET(WSREP_SOURCES
+    wsrep_buffered_error_log.cc
     wsrep_client_service.cc
     wsrep_high_priority_service.cc
     wsrep_server_service.cc
@@ -192,6 +193,10 @@ SET (SQL_SOURCE
                ${GEN_SOURCES}
                ${MYSYS_LIBWRAP_SOURCE}
 )
+
+IF (WITH_BLACKBOX)
+  SET(SQL_SOURCE ${SQL_SOURCE} ../blackbox/src/blackbox.c)
+ENDIF()
 
 MY_CHECK_CXX_COMPILER_FLAG(-Wno-unused-but-set-variable)
 IF(have_CXX__Wno_unused_but_set_variable)

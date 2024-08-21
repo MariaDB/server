@@ -1,4 +1,4 @@
-/* Copyright 2008-2023 Codership Oy <http://www.codership.com>
+/* Copyright 2008-2024 Codership Oy <http://www.codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -38,6 +38,7 @@ typedef struct st_mysql_show_var SHOW_VAR;
 #include "wsrep/streaming_context.hpp"
 #include "wsrep_api.h"
 #include <map>
+#include "wsrep_buffered_error_log.h"
 
 #define WSREP_UNDEFINED_TRX_ID ULONGLONG_MAX
 
@@ -92,6 +93,17 @@ extern bool        wsrep_gtid_mode;
 extern uint32      wsrep_gtid_domain_id;
 extern std::atomic <bool > wsrep_thread_create_failed;
 extern ulonglong   wsrep_mode;
+#ifdef WITH_BLACKBOX
+extern long long   wsrep_black_box_size;
+extern const char* wsrep_black_box_name;
+#endif
+
+enum enum_wsrep_debug_mode {
+  WSREP_DEBUG_MODE_OFF = 0x0,
+  WSREP_DEBUG_MODE_DEBUG = 0x1,
+  WSREP_DEBUG_MODE_BUFFERED = 0x2,
+  WSREP_DEBUG_MODE_BLACKBOX = 0x4
+};
 
 enum enum_wsrep_reject_types {
   WSREP_REJECT_NONE,    /* nothing rejected */
@@ -159,6 +171,9 @@ extern const char* wsrep_provider_version;
 extern const char* wsrep_provider_vendor;
 extern char*       wsrep_provider_capabilities;
 extern char*       wsrep_cluster_capabilities;
+extern long long   wsrep_buffered_error_log_size;
+extern const char* wsrep_buffered_error_log_filename;
+extern Buffered_error_logger wsrep_buffered_error_log;
 
 int  wsrep_show_status(THD *thd, SHOW_VAR *var, void *buff,
                        system_status_var *status_var, enum_var_type scope);

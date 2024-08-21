@@ -1297,6 +1297,9 @@ int _db_pargs_(uint _line_, const char *keyword)
  */
 
 #include <stdarg.h>
+#ifdef WITH_BLACKBOX
+#include "blackbox/blackbox.h"
+#endif
 
 void _db_doprnt_(const char *format,...)
 {
@@ -1319,6 +1322,21 @@ void _db_doprnt_(const char *format,...)
   DbugVfprintf(cs->stack->out_file->file, format, args);
   UnlockMutex(cs);
   DbugFlush(cs);
+
+#ifdef WITH_BLACKBOX
+  if (bb_get_state() == BB_STATE_OPERATIONAL)
+  {
+    /* write message to Black Box */
+    va_list args;
+    char buffer[1024];
+
+    va_start(args, format);
+    vsnprintf(buffer, sizeof(buffer) - 1, format, args);
+    buffer[sizeof(buffer) - 1] = 0;
+    bb_write(cs->u_keyword, buffer, strlen(buffer));
+  }
+#endif /* WITH_BLACKBOX */
+
   errno=save_errno;
 
   va_end(args);

@@ -1360,6 +1360,8 @@ void sql_print_error(const char *format, ...);
 void sql_print_warning(const char *format, ...);
 void sql_print_information(const char *format, ...);
 void sql_print_information_v(const char *format, va_list ap);
+void sql_print_debug(const char *format, ...);
+
 typedef void (*sql_print_message_func)(const char *format, ...);
 extern sql_print_message_func sql_print_message_handlers[];
 
