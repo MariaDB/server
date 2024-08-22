@@ -4527,6 +4527,14 @@ static Sys_var_plugin Sys_enforce_storage_engine(
        DEFAULT(&enforced_storage_engine), NO_MUTEX_GUARD, NOT_IN_BINLOG,
        ON_CHECK(check_has_super));
 
+extern const char *default_auth_plugin_name;
+extern LEX_CSTRING native_password_plugin_name;
+static Sys_var_charptr Sys_default_auth_plugin(
+        "default_auth_plugin", "Default plugin, that will be tried first when authenticating new connections",
+        READ_ONLY GLOBAL_VAR(default_auth_plugin_name), CMD_LINE(OPT_ARG),
+        DEFAULT(native_password_plugin_name.str),
+        NO_MUTEX_GUARD, NOT_IN_BINLOG);
+
 
 #ifdef HAVE_REPLICATION
 /*

@@ -704,6 +704,7 @@ typedef struct st_mysql_server_auth_info
   const char *host_or_ip;
   unsigned int host_or_ip_length;
   THD* thd;
+  char *scramble;
 } MYSQL_SERVER_AUTH_INFO;
 struct st_mysql_auth
 {

@@ -26,6 +26,14 @@ connect con3, localhost, test1, wrong_pwd;
 
 connection default;
 
+change_user test1,pwd,;
+select "change_user success" as "result";
+change_user root,,test;
+--replace_result $MASTER_MYSOCK MASTER_MYSOCK $MASTER_MYPORT MASTER_MYPORT
+--error ER_ACCESS_DENIED_ERROR
+change_user test1,bad_pwd,test;
+
+
 create function have_ssl() returns char(3)
   return (select if(variable_value > '','yes','no') as 'have_ssl'
   from information_schema.session_status

@@ -111,6 +111,11 @@ typedef struct st_mysql_server_auth_info
   */
   MYSQL_THD thd;
 
+  /**
+    Pointer to thd->scramble, which is used to verify the session handshake.
+  */
+  char *scramble;
+
 } MYSQL_SERVER_AUTH_INFO;
 
 /**
