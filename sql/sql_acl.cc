@@ -2549,6 +2549,15 @@ bool acl_init(bool dont_read_acl_tables)
   if (!native_password_plugin || !old_password_plugin || !default_auth_plugin)
     DBUG_RETURN(1);
 
+  st_plugin_int *default_auth_int= plugin_ref_to_int(default_auth_plugin);
+  if (!(default_auth_int->plugin->type.flags() & MYSQL_AUTH_CAN_BE_DEFAULT))
+  {
+    sql_print_error("Error: plugin %s cannot be set as default.",
+                    default_auth_int->name.str);
+    DBUG_RETURN(1);
+  }
+
+
   if (dont_read_acl_tables)
   {
     DBUG_RETURN(0); /* purecov: tested */
@@ -15362,7 +15371,8 @@ static struct st_mysql_auth old_password_handler=
 
 maria_declare_plugin(mysql_password)
 {
-  MYSQL_AUTHENTICATION_PLUGIN,                  /* type constant    */
+  MYSQL_AUTHENTICATION_PLUGIN | MYSQL_AUTH_CAN_BE_DEFAULT,
+                                                /* type constant    */
   &native_password_handler,                     /* type descriptor  */
   native_password_plugin_name.str,              /* Name             */
   "R.J.Silk, Sergei Golubchik",                 /* Author           */
@@ -15377,7 +15387,8 @@ maria_declare_plugin(mysql_password)
   MariaDB_PLUGIN_MATURITY_STABLE                /* Maturity         */
 },
 {
-  MYSQL_AUTHENTICATION_PLUGIN,                  /* type constant    */
+  MYSQL_AUTHENTICATION_PLUGIN | MYSQL_AUTH_CAN_BE_DEFAULT,
+                                                /* type constant    */
   &old_password_handler,                        /* type descriptor  */
   old_password_plugin_name.str,                 /* Name             */
   "R.J.Silk, Sergei Golubchik",                 /* Author           */

@@ -98,6 +98,9 @@ typedef struct st_mysql_xid MYSQL_XID;
 #define MYSQL_AUTHENTICATION_PLUGIN  7
 #define MYSQL_MAX_PLUGIN_TYPE_NUM    12  /**< The number of plugin types */
 
+#define MYSQL_PLUGIN_TYPE_MASK     ((1<<16)-1)
+#define MYSQL_AUTH_CAN_BE_DEFAULT  (1<<16)
+
 /* MariaDB plugin types */
 /** Client and server password validation */
 #define MariaDB_PASSWORD_VALIDATION_PLUGIN  8 
@@ -565,7 +568,22 @@ struct st_mysql_plugin
 
 struct st_maria_plugin
 {
+#ifdef __cplusplus
+  struct alignas(sizeof(int)) auth_type_t
+  {
+    int raw_version;
+    auth_type_t() = default;
+    auth_type_t(int version): raw_version(version){}
+    operator int() const
+    { return raw_version & MYSQL_PLUGIN_TYPE_MASK; }
+    int flags() const
+    { return raw_version & ~MYSQL_PLUGIN_TYPE_MASK; }
+  };
+
+  auth_type_t type;     /**< the plugin type (a MYSQL_XXX_PLUGIN value)   */
+#else
   int type;             /**< the plugin type (a MYSQL_XXX_PLUGIN value)   */
+#endif
   void *info;           /**< pointer to type-specific plugin descriptor   */
   const char *name;     /**< plugin name                                  */
   const char *author;   /**< plugin author (for SHOW PLUGINS)             */

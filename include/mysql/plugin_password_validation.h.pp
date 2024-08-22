@@ -569,7 +569,17 @@ struct st_mysql_plugin
 };
 struct st_maria_plugin
 {
-  int type;
+  struct alignas(sizeof(int)) auth_type_t
+  {
+    int raw_version;
+    auth_type_t() = default;
+    auth_type_t(int version): raw_version(version){}
+    operator int() const
+    { return raw_version & ((1<<16)-1); }
+    int flags() const
+    { return raw_version & ~((1<<16)-1); }
+  };
+  auth_type_t type;
   void *info;
   const char *name;
   const char *author;
