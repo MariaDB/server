@@ -257,7 +257,7 @@ ev1	DROP TABLE IF EXISTS t2
 DROP EVENT ev1;
 DROP EVENT IF EXISTS ev1;
 Warnings:
-Note	1305	Event ev1 does not exist
+Note	1305	Trigger ev1 does not exist
 SHOW BINLOG EVENTS;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 #	#	Format_desc	1	#	VER
@@ -283,7 +283,7 @@ Note	1359	Trigger 'test.tr1' already exists
 DROP TRIGGER IF EXISTS tr1;
 DROP TRIGGER IF EXISTS tr1;
 Warnings:
-Note	1360	Trigger does not exist
+Note	1305	Trigger tr1 does not exist
 DROP TABLE t1;
 SHOW BINLOG EVENTS;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info

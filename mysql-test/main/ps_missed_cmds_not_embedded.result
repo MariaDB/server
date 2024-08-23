@@ -26,7 +26,7 @@ EXECUTE stmt_1;
 # results in emitting the error ER_EVENT_ALREADY_EXISTS since the event
 # with the same name has just been created.
 EXECUTE stmt_1;
-ERROR HY000: Event 'e1' already exists
+ERROR HY000: Trigger 'e1' already exists
 # Alter event e1
 EXECUTE stmt_2;
 # Execute the same prepared statement the second time to check that
@@ -41,7 +41,7 @@ EXECUTE stmt_3;
 # results in emitting the error ER_EVENT_DOESNT_EXIST since the event
 # with the same name has just been dropped.
 EXECUTE stmt_3;
-ERROR HY000: Unknown event 'e1'
+ERROR HY000: Trigger does not exist
 # Clean up
 DEALLOCATE PREPARE stmt_1;
 DEALLOCATE PREPARE stmt_2;

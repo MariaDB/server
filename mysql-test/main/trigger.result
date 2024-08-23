@@ -1294,7 +1294,7 @@ drop trigger not_a_trigger;
 ERROR HY000: Trigger does not exist
 drop trigger if exists not_a_trigger;
 Warnings:
-Note	1360	Trigger does not exist
+Note	1305	Trigger not_a_trigger does not exist
 create trigger t1_bi before insert on t1
 for each row set NEW.b := "In trigger t1_bi";
 insert into t1 values (1, "a");
@@ -1302,7 +1302,7 @@ drop trigger if exists t1_bi;
 insert into t1 values (2, "b");
 drop trigger if exists t1_bi;
 Warnings:
-Note	1360	Trigger does not exist
+Note	1305	Trigger t1_bi does not exist
 insert into t1 values (3, "c");
 select * from t1;
 a	b
@@ -1992,7 +1992,7 @@ ERROR HY000: Table 't1' was locked with a READ lock and can't be updated
 create trigger t1_bi before insert on t1 for each row begin end;
 ERROR HY000: Table 't1' was locked with a READ lock and can't be updated
 drop trigger t1_bi;
-ERROR HY000: Trigger does not exist
+ERROR HY000: Can't execute the given command because you have active locked tables or an active transaction
 unlock tables;
 create trigger t1_bi before insert on t1 for each row begin end;
 lock tables t1 read;

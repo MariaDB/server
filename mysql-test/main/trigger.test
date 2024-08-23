@@ -2245,7 +2245,7 @@ lock tables t1 read;
 create trigger t1_bi before insert on t1 for each row begin end;
 --error ER_TABLE_NOT_LOCKED_FOR_WRITE
 create trigger t1_bi before insert on t1 for each row begin end;
---error ER_TRG_DOES_NOT_EXIST
+--error ER_LOCK_OR_ACTIVE_TRANSACTION
 drop trigger t1_bi;
 unlock tables;
 
