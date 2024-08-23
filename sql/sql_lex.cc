@@ -3606,6 +3606,42 @@ List<Item>* st_select_lex::get_item_list()
 }
 
 
+/**
+  @brief
+    Replace the name of each item in the item_list with a new name.
+
+  @param
+    new_names     pointer to a List of Lex_ident_sys from which replacement
+    names are taken.
+
+  @details
+    This is used in derived tables to optionally set the names in the item_list.
+    Usually called in unit::prepare().
+
+  @retval
+    true:  an error occurred
+    false: success
+*/
+
+bool st_select_lex::set_item_list_names(List<Lex_ident_sys> *new_names)
+{
+  if (item_list.elements != new_names->elements)
+  {
+    my_error(ER_INCORRECT_COLUMN_NAME_COUNT, MYF(0));
+    return true;
+  }
+
+  List_iterator<Lex_ident_sys> it(*new_names);
+  List_iterator_fast<Item> li(item_list);
+  Item *item;
+
+  while ((item= li++))
+    lex_string_set( &item->name, (it++)->str);
+
+  return false;
+}
+
+
 uint st_select_lex::get_cardinality_of_ref_ptrs_slice(uint order_group_num_arg)
 {
   if (!((options & SELECT_DISTINCT) && !group_list.elements))
@@ -10745,7 +10781,8 @@ SELECT_LEX *LEX::parsed_TVC_end()
 
 TABLE_LIST *LEX::parsed_derived_table(SELECT_LEX_UNIT *unit,
                                      int for_system_time,
-                                     LEX_CSTRING *alias)
+                                     LEX_CSTRING *alias,
+                                     List<Lex_ident_sys> *column_names)
 {
   TABLE_LIST *res;
   derived_tables|= DERIVED_SUBQUERY;
@@ -10765,6 +10802,15 @@ TABLE_LIST *LEX::parsed_derived_table(SELECT_LEX_UNIT *unit,
   if (for_system_time)
   {
     res->vers_conditions= vers_conditions;
+  }
+
+  if (column_names && column_names->elements > 0)
+  {
+    res->column_names= column_names;
+    // pre-allocate space to save item_list names
+    res->original_names= new (thd->mem_root) List<Lex_ident_sys>;
+    for (uint i= 0; i < column_names->elements; i++)
+      res->original_names->push_back( new Lex_ident_sys );
   }
   return res;
 }

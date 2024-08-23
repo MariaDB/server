@@ -805,6 +805,8 @@ public:
   bool is_view:1;
   bool describe:1; /* union exec() called for EXPLAIN */
   bool columns_are_renamed:1;
+  inline bool rename_item_list(TABLE_LIST *derived_arg);
+  inline void rename_types_list(List<Lex_ident_sys> *new_names);
 
 protected:
   /* This is bool, not bit, as it's used and set in many places */
@@ -1324,7 +1326,7 @@ public:
   List<Item>* get_item_list();
   bool save_item_list_names(THD *thd);
   void restore_item_list_names();
-
+  bool set_item_list_names( List<Lex_ident_sys> *overwrite );
   ulong get_table_join_options();
   void set_lock_for_tables(thr_lock_type lock_type, bool for_update,
                            bool skip_locks);
@@ -4736,7 +4738,8 @@ public:
   SELECT_LEX *parsed_TVC_end();
   TABLE_LIST *parsed_derived_table(SELECT_LEX_UNIT *unit,
                                    int for_system_time,
-                                   LEX_CSTRING *alias);
+                                   LEX_CSTRING *alias,
+                                   List<Lex_ident_sys> *column_names= nullptr);
   bool parsed_create_view(SELECT_LEX_UNIT *unit, int check);
   bool select_finalize(st_select_lex_unit *expr);
   bool select_finalize(st_select_lex_unit *expr, Lex_select_lock l);

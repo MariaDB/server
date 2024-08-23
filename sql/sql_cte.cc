@@ -1652,10 +1652,14 @@ void With_clause::print(THD *thd, String *str, enum_query_type query_type)
 }
 
 
-static void list_strlex_print(THD *thd, String *str, List<Lex_ident_sys> *list)
+void list_strlex_print(THD *thd, String *str, List<Lex_ident_sys> *list,
+                              bool bracketed)
 {
   List_iterator_fast<Lex_ident_sys> li(*list);
   bool first= TRUE;
+
+  if (bracketed)
+    str->append('(');
   while(Lex_ident_sys *col_name= li++)
   {
     if (first)
@@ -1664,6 +1668,8 @@ static void list_strlex_print(THD *thd, String *str, List<Lex_ident_sys> *list)
       str->append(',');
     append_identifier(thd, str, col_name);
   }
+  if (bracketed)
+    str->append(')');
 }
 
 
@@ -1684,12 +1690,7 @@ void With_element::print(THD *thd, String *str, enum_query_type query_type)
 {
   str->append(get_name());
   if (column_list.elements)
-  {
-    List_iterator_fast<Lex_ident_sys> li(column_list);
-    str->append('(');
-    list_strlex_print(thd, str, &column_list);
-    str->append(')');
-  }
+    list_strlex_print(thd, str, &column_list, true);
   str->append(STRING_WITH_LEN(" as ("));
   spec->print(str, query_type);
   str->append(')');
