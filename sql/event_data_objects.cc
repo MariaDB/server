@@ -316,8 +316,9 @@ Event_queue_element::Event_queue_element():
 {
   DBUG_ENTER("Event_queue_element::Event_queue_element");
 
-  event_kind= starts= ends= execute_at= last_executed= 0;
+  starts= ends= execute_at= last_executed= 0;
   starts_null= ends_null= execute_at_null= TRUE;
+  event_kind= 0;
 
   DBUG_VOID_RETURN;
 }
@@ -600,7 +601,7 @@ Event_queue_element::load_from_row(THD *thd, TABLE *table)
                                Event_parse_data::ON_COMPLETION_PRESERVE);
 
   if(!table->field[ET_FIELD_DB_EVENT]->is_null()) {
-    event_kind= table->field[ET_FIELD_DB_EVENT]->val_int();
+    event_kind= (uint32) table->field[ET_FIELD_DB_EVENT]->val_int();
   }
 
   DBUG_RETURN(FALSE);
