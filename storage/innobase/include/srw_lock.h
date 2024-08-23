@@ -282,6 +282,8 @@ public:
 #endif
   }
 
+  bool rd_u_upgrade_try() { return writer.wr_lock_try(); }
+
   void u_wr_upgrade()
   {
     DBUG_ASSERT(writer.is_locked());
@@ -295,6 +297,13 @@ public:
     DBUG_ASSERT(is_write_locked());
     readers.store(0, std::memory_order_release);
     /* Note: Any pending rd_lock() will not be woken up until u_unlock() */
+  }
+  void u_rd_downgrade()
+  {
+    DBUG_ASSERT(writer.is_locked());
+    ut_d(uint32_t lk=) readers.fetch_add(1, std::memory_order_relaxed);
+    ut_ad(lk < WRITER);
+    u_unlock();
   }
 
   void rd_unlock()
