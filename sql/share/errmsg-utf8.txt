@@ -12280,3 +12280,6 @@ ER_SEQUENCE_TABLE_ORDER_BY
         eng "ORDER BY"
 ER_VARIABLE_IGNORED
         eng "The variable '%s' is ignored. It only exists for compatibility with old installations and will be removed in a future release"
+ER_INCORRECT_COLUMN_NAME_COUNT
+        eng "Incorrect column name count for derived table"
+        chi "派生表的列名计数不正确"

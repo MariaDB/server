@@ -8635,6 +8635,10 @@ insert_fields(THD *thd, Name_resolution_context *context,
     */
     field_iterator.set(tables);
 
+    List_iterator_fast<Lex_ident_sys> ni;
+    if (tables->column_names)
+      ni.init(*tables->column_names);
+
     for (; !field_iterator.end_of_fields(); field_iterator.next())
     {
       /*
@@ -8649,6 +8653,9 @@ insert_fields(THD *thd, Name_resolution_context *context,
 
       if (!(item= field_iterator.create_item(thd)))
         DBUG_RETURN(TRUE);
+
+      if (tables->column_names)
+        lex_string_set(&item->name, (ni++)->str);
 
       /* cache the table for the Item_fields inserted by expanding stars */
       if (item->type() == Item::FIELD_ITEM && tables->cacheable_table)

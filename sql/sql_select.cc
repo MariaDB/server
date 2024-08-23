@@ -31173,6 +31173,9 @@ void TABLE_LIST::print(THD *thd, table_map eliminated_tables, String *str,
       str->append(' ');
       append_identifier_opt_casedn(thd, str, alias,
                                    lower_case_table_names == 1);
+
+      if (column_names && (column_names->elements > 0))
+        list_strlex_print(thd, str, column_names, true);
     }
 
     if (index_hints)
