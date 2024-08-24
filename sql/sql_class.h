@@ -918,10 +918,6 @@ typedef struct system_variables
   my_bool binlog_alter_two_phase;
 
   Charset_collation_map_st character_set_collations;
-
-  /* Temporary for HNSW tests */
-  uint mhnsw_max_edges_per_node;
-  uint mhnsw_min_limit;
 } SV;
 
 /**

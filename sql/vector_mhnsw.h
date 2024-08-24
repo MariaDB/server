@@ -29,4 +29,5 @@ int mhnsw_invalidate(TABLE *table, const uchar *rec, KEY *keyinfo);
 int mhnsw_delete_all(TABLE *table, KEY *keyinfo, bool truncate);
 void mhnsw_free(TABLE_SHARE *share);
 
-extern ulonglong mhnsw_cache_size;
+extern ha_create_table_option mhnsw_index_options[];
+extern st_plugin_int *mhnsw_plugin;

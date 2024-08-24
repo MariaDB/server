@@ -11,6 +11,20 @@ create table t1 (id int auto_increment primary key, v blob not null, vector inde
 replace_result InnoDB MyISAM;
 show create table t1;
 show keys from t1;
+drop table t1;
+set mhnsw_max_edges_per_node=@@mhnsw_max_edges_per_node+1;
+create table t1 (id int auto_increment primary key, v blob not null, vector index (v));
+replace_result InnoDB MyISAM;
+show create table t1;
+show keys from t1;
+drop table t1;
+create table t1 (id int auto_increment primary key, v blob not null,
+  vector index (v) max_edges_per_node=5);
+replace_result InnoDB MyISAM;
+show create table t1;
+show keys from t1;
+set mhnsw_max_edges_per_node=default;
+
 query_vertical select * from information_schema.statistics where table_name='t1';
 # print unpack("H*",pack("f*",map{rand}1..5))
 insert t1 (v) values (x'e360d63ebe554f3fcdbc523f4522193f5236083d'),
