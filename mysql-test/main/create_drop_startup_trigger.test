@@ -1,3 +1,6 @@
+--source include/not_embedded.inc
+--source include/no_view_protocol.inc
+
 CREATE TABLE t1 (inc INT);
 INSERT INTO t1 VALUES (0);
 SELECT * FROM t1;

@@ -51,10 +51,11 @@ Event_parse_data::new_instance(THD *thd)
 Event_parse_data::Event_parse_data()
   :on_completion(Event_parse_data::ON_COMPLETION_DEFAULT),
   status(Event_parse_data::ENABLED), status_changed(false),
-  event_kind(0), do_not_create(FALSE), body_changed(FALSE),
+  do_not_create(FALSE), body_changed(FALSE),
   item_starts(NULL), item_ends(NULL), item_execute_at(NULL),
   starts_null(TRUE), ends_null(TRUE), execute_at_null(TRUE),
-  item_expression(NULL), expression(0)
+  item_expression(NULL), expression(0),
+  event_kind(Event_parse_data::SCHEDULE)
 {
   DBUG_ENTER("Event_parse_data::Event_parse_data");
 

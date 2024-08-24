@@ -28,8 +28,6 @@ SET max_statement_time= 0.0001;
 CREATE TRIGGER tr16 AFTER UPDATE ON t1 FOR EACH ROW INSERT INTO t1 VALUES (1);
 SET max_statement_time= default;
 DROP TRIGGER IF EXISTS trg16;
-Warnings:
-Note	1305	Trigger trg16 does not exist
 DROP TABLE t1;
 #
 # End of 10.3 tests

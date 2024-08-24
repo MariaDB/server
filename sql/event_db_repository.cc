@@ -269,81 +269,83 @@ mysql_event_fill_row(THD *thd,
     }
   }
 
-  if (et->expression)
+  if(et->event_kind == Event_parse_data::SCHEDULE)
   {
-    const String *tz_name= thd->variables.time_zone->get_name();
-    if (!is_update || !et->starts_null)
+    if (et->expression)
     {
+      const String *tz_name= thd->variables.time_zone->get_name();
+      if (!is_update || !et->starts_null)
+      {
+        fields[ET_FIELD_TIME_ZONE]->set_notnull();
+        rs|= fields[ET_FIELD_TIME_ZONE]->store(tz_name->ptr(), tz_name->length(),
+                                               tz_name->charset());
+      }
+
+      fields[ET_FIELD_INTERVAL_EXPR]->set_notnull();
+      rs|= fields[ET_FIELD_INTERVAL_EXPR]->store((longlong)et->expression, TRUE);
+
+      fields[ET_FIELD_TRANSIENT_INTERVAL]->set_notnull();
+
+      rs|= fields[ET_FIELD_TRANSIENT_INTERVAL]->
+                              store(interval_type_to_name[et->interval].str,
+                                    interval_type_to_name[et->interval].length,
+                                    scs);
+
+      fields[ET_FIELD_EXECUTE_AT]->set_null();
+
+      if (!et->starts_null)
+      {
+        MYSQL_TIME time;
+        my_tz_OFFSET0->gmt_sec_to_TIME(&time, et->starts);
+
+        fields[ET_FIELD_STARTS]->set_notnull();
+        fields[ET_FIELD_STARTS]->store_time(&time);
+      }
+
+      if (!et->ends_null)
+      {
+        MYSQL_TIME time;
+        my_tz_OFFSET0->gmt_sec_to_TIME(&time, et->ends);
+
+        fields[ET_FIELD_ENDS]->set_notnull();
+        fields[ET_FIELD_ENDS]->store_time(&time);
+      }
+    }
+    else if (et->execute_at)
+    {
+      const String *tz_name= thd->variables.time_zone->get_name();
       fields[ET_FIELD_TIME_ZONE]->set_notnull();
       rs|= fields[ET_FIELD_TIME_ZONE]->store(tz_name->ptr(), tz_name->length(),
                                              tz_name->charset());
-    }
 
-    fields[ET_FIELD_INTERVAL_EXPR]->set_notnull();
-    rs|= fields[ET_FIELD_INTERVAL_EXPR]->store((longlong)et->expression, TRUE);
+      fields[ET_FIELD_INTERVAL_EXPR]->set_null();
+      fields[ET_FIELD_TRANSIENT_INTERVAL]->set_null();
+      fields[ET_FIELD_STARTS]->set_null();
+      fields[ET_FIELD_ENDS]->set_null();
 
-    fields[ET_FIELD_TRANSIENT_INTERVAL]->set_notnull();
-
-    rs|= fields[ET_FIELD_TRANSIENT_INTERVAL]->
-                            store(interval_type_to_name[et->interval].str,
-                                  interval_type_to_name[et->interval].length,
-                                  scs);
-
-    fields[ET_FIELD_EXECUTE_AT]->set_null();
-    fields[ET_FIELD_DB_EVENT]->set_null();
-
-    if (!et->starts_null)
-    {
       MYSQL_TIME time;
-      my_tz_OFFSET0->gmt_sec_to_TIME(&time, et->starts);
+      my_tz_OFFSET0->gmt_sec_to_TIME(&time, et->execute_at);
 
-      fields[ET_FIELD_STARTS]->set_notnull();
-      fields[ET_FIELD_STARTS]->store_time(&time);
+      fields[ET_FIELD_EXECUTE_AT]->set_notnull();
+      fields[ET_FIELD_EXECUTE_AT]->store_time(&time);
     }
-
-    if (!et->ends_null)
+    else
     {
-      MYSQL_TIME time;
-      my_tz_OFFSET0->gmt_sec_to_TIME(&time, et->ends);
-
-      fields[ET_FIELD_ENDS]->set_notnull();
-      fields[ET_FIELD_ENDS]->store_time(&time);
+      DBUG_ASSERT(is_update);
+      /*
+        it is normal to be here when the action is update
+        this is an error if the action is create. something is borked
+      */
     }
-  }
-  else if (et->execute_at)
-  {
-    const String *tz_name= thd->variables.time_zone->get_name();
-    fields[ET_FIELD_TIME_ZONE]->set_notnull();
-    rs|= fields[ET_FIELD_TIME_ZONE]->store(tz_name->ptr(), tz_name->length(),
-                                           tz_name->charset());
-
-    fields[ET_FIELD_INTERVAL_EXPR]->set_null();
-    fields[ET_FIELD_TRANSIENT_INTERVAL]->set_null();
-    fields[ET_FIELD_STARTS]->set_null();
-    fields[ET_FIELD_ENDS]->set_null();
-    fields[ET_FIELD_DB_EVENT]->set_null();
-
-    MYSQL_TIME time;
-    my_tz_OFFSET0->gmt_sec_to_TIME(&time, et->execute_at);
-
-    fields[ET_FIELD_EXECUTE_AT]->set_notnull();
-    fields[ET_FIELD_EXECUTE_AT]->store_time(&time);
-  }
-  else if (et->event_kind != Event_parse_data::SCHEDULE)
-  {
-    fields[ET_FIELD_INTERVAL_EXPR]->set_null();
-    fields[ET_FIELD_TRANSIENT_INTERVAL]->set_null();
-    fields[ET_FIELD_STARTS]->set_null();
-    fields[ET_FIELD_ENDS]->set_null();
-    fields[ET_FIELD_EXECUTE_AT]->set_null();
   }
   else
   {
-    DBUG_ASSERT(is_update);
-    /*
-      it is normal to be here when the action is update
-      this is an error if the action is create. something is borked
-    */
+    fields[ET_FIELD_INTERVAL_EXPR]->set_null();
+    fields[ET_FIELD_TRANSIENT_INTERVAL]->set_null();
+    fields[ET_FIELD_STARTS]->set_null();
+    fields[ET_FIELD_ENDS]->set_null();
+    fields[ET_FIELD_EXECUTE_AT]->set_null();
+    rs|= fields[ET_FIELD_EVENT_KIND]->store((longlong)et->event_kind, TRUE);
   }
 
   rs|= fields[ET_FIELD_MODIFIED]->set_time();
@@ -379,9 +381,6 @@ mysql_event_fill_row(THD *thd,
     rs|= fields[ET_FIELD_BODY_UTF8]->store(&sp->m_body_utf8,
                                            system_charset_info);
   }
-
-  fields[ET_FIELD_DB_EVENT]->set_notnull();
-  rs|= fields[ET_FIELD_DB_EVENT]->store((longlong)et->event_kind, TRUE);
 
   if (rs)
   {
@@ -938,8 +937,7 @@ Event_db_repository::drop_event(THD *thd, const LEX_CSTRING *db,
   }
 
   push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-                      ER_SP_DOES_NOT_EXIST, ER_THD(thd, ER_SP_DOES_NOT_EXIST),
-                      "Trigger", name->str);
+                      ER_TRG_DOES_NOT_EXIST, ER_THD(thd, ER_TRG_DOES_NOT_EXIST));
   ret= 0;
 
 end:

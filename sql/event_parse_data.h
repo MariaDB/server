@@ -65,7 +65,6 @@ public:
   int on_completion;
   int status;
   bool status_changed;
-  int event_kind;
   uint32 originator;
   /*
     do_not_create will be set if STARTS time is in the past and
@@ -95,6 +94,8 @@ public:
   Item* item_expression;
   longlong expression;
   interval_type interval;
+
+  int event_kind;
 
   static Event_parse_data *
   new_instance(THD *thd);

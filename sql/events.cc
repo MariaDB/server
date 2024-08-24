@@ -340,7 +340,8 @@ Events::create_event(THD *thd, Event_parse_data *parse_data)
     DBUG_RETURN(TRUE);
 
   /* At create, one of them must be set */
-  DBUG_ASSERT(parse_data->expression || parse_data->execute_at || parse_data->event_kind);
+  DBUG_ASSERT(parse_data->expression || parse_data->execute_at
+              || parse_data->event_kind != Event_parse_data::SCHEDULE);
 
   if (check_access(thd, EVENT_ACL, parse_data->dbname.str, NULL, NULL, 0, 0))
     DBUG_RETURN(TRUE);
@@ -376,7 +377,8 @@ Events::create_event(THD *thd, Event_parse_data *parse_data)
     bool dropped= 0;
 
     /* We only add the event to the event queue if it is a SCHEDULE event. */
-    if (!event_already_exists || parse_data->event_kind == Event_parse_data::SCHEDULE)
+    if (parse_data->event_kind == Event_parse_data::SCHEDULE &&
+        !event_already_exists)
     {
       if (!(new_element= new Event_queue_element()))
         ret= TRUE;                                // OOM
@@ -1377,7 +1379,7 @@ Events::search_n_execute_events(Event_parse_data::enum_event_kind event_kind)
   if (ret)
   {
     my_message_sql(ER_STARTUP,
-                   "Failed to open table mysql.event",
+                   "System trigger: Failed to open table mysql.event",
                    MYF(ME_ERROR_LOG));
     delete thd;
     DBUG_RETURN(TRUE);
@@ -1402,7 +1404,7 @@ Events::search_n_execute_events(Event_parse_data::enum_event_kind event_kind)
     if (et->load_from_row(thd, table))
     {
       my_message(ER_STARTUP,
-                 "Error while loading events from mysql.event. "
+                 "System trigger: Error while loading events from mysql.event. "
                  "The table probably contains bad data or is corrupted",
                  MYF(ME_ERROR_LOG));
       delete et;
