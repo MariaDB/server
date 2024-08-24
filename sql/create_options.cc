@@ -789,7 +789,7 @@ bool engine_table_options_frm_read(const uchar *buff, size_t length,
     buff++;
   }
 
-  for (count=0; count < share->keys; count++)
+  for (count=0; count < share->total_keys; count++)
   {
     while (buff < buff_end && *buff)
     {

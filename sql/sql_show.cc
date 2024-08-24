@@ -69,6 +69,7 @@
 #include "opt_trace.h"
 #include "my_cpu.h"
 #include "key.h"
+#include "vector_mhnsw.h"
 
 #include "lex_symbol.h"
 #define KEYWORD_SIZE 64
@@ -2445,7 +2446,8 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
       packet->append(STRING_WITH_LEN(" */ "));
     }
     append_create_options(thd, packet, key_info->option_list, check_options,
-                          hton->index_options);
+                          (key_info->algorithm == HA_KEY_ALG_VECTOR
+                           ? mhnsw_index_options : hton->index_options));
   }
 
   if (table->versioned())
