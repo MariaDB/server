@@ -7384,23 +7384,3 @@ static Sys_var_enum Sys_block_encryption_mode(
   "AES_ENCRYPT() and AES_DECRYPT() functions",
   SESSION_VAR(block_encryption_mode), CMD_LINE(REQUIRED_ARG),
   block_encryption_mode_values, DEFAULT(0));
-
-static Sys_var_uint Sys_mhnsw_min_limit(
-       "mhnsw_min_limit",
-       "Defines the minimal number of result candidates to look for in the "
-       "vector index for ORDER BY ... LIMIT N queries. The search will never "
-       "search for less rows than that, even if LIMIT is smaller. "
-       "This notably improves the search quality at low LIMIT values, "
-       "at the expense of search time",
-       SESSION_VAR(mhnsw_min_limit), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(1, 65535), DEFAULT(20), BLOCK_SIZE(1));
-static Sys_var_uint Sys_mhnsw_max_edges_per_node(
-       "mhnsw_max_edges_per_node",
-       "Larger values means slower INSERT, larger index size and higher "
-       "memory consumption, but better search results",
-       SESSION_VAR(mhnsw_max_edges_per_node), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(3, 200), DEFAULT(6), BLOCK_SIZE(1));
-static Sys_var_ulonglong Sys_mhnsw_cache_size(
-       "mhnsw_cache_size", "Size of the cache for the MHNSW vector index",
-       GLOBAL_VAR(mhnsw_cache_size), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(1024*1024, SIZE_T_MAX), DEFAULT(16*1024*1024), BLOCK_SIZE(1));
