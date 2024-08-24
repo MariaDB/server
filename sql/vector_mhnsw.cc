@@ -17,18 +17,37 @@
 
 #include <my_global.h>
 #include "key.h"                                // key_copy()
+#include "create_options.h"
 #include "vector_mhnsw.h"
 #include "item_vectorfunc.h"
 #include <scope.h>
 #include <my_atomic_wrapper.h>
 #include "bloom_filters.h"
 
-ulonglong mhnsw_cache_size;
-
 // Algorithm parameters
 static constexpr float alpha = 1.1f;
 static constexpr float generosity = 1.1f;
 static constexpr uint ef_construction= 10;
+
+static ulonglong mhnsw_cache_size;
+static MYSQL_SYSVAR_ULONGLONG(cache_size, mhnsw_cache_size,
+       PLUGIN_VAR_RQCMDARG, "Size of the cache for the MHNSW vector index",
+       nullptr, nullptr, 16*1024*1024, 1024*1024, SIZE_T_MAX, 1);
+static MYSQL_THDVAR_UINT(min_limit, PLUGIN_VAR_RQCMDARG,
+       "Defines the minimal number of result candidates to look for in the "
+       "vector index for ORDER BY ... LIMIT N queries. The search will never "
+       "search for less rows than that, even if LIMIT is smaller. "
+       "This notably improves the search quality at low LIMIT values, "
+       "at the expense of search time", nullptr, nullptr, 20, 1, 65535, 1);
+static MYSQL_THDVAR_UINT(max_edges_per_node, PLUGIN_VAR_RQCMDARG,
+       "Larger values means slower INSERT, larger index size and higher "
+       "memory consumption, but better search results",
+       nullptr, nullptr, 6, 3, 200, 1);
+
+struct ha_index_option_struct
+{
+  ulonglong M; // option struct does not support uint
+};
 
 enum Graph_table_fields {
   FIELD_LAYER, FIELD_TREF, FIELD_VEC, FIELD_NEIGHBORS
@@ -277,7 +296,7 @@ public:
   MHNSW_Context(TABLE *t)
     : tref_len(t->file->ref_length),
       gref_len(t->hlindex->file->ref_length),
-      M(t->in_use->variables.mhnsw_max_edges_per_node)
+      M(static_cast<uint>(t->s->key_info[t->s->keys].option_struct->M))
   {
     mysql_rwlock_init(PSI_INSTRUMENT_ME, &commit_lock);
     mysql_mutex_init(PSI_INSTRUMENT_ME, &cache_lock, MY_MUTEX_INIT_FAST);
@@ -429,58 +448,59 @@ public:
       reset(nullptr);
   }
 
-  static MHNSW_Trx *get_from_thd(THD *thd, TABLE *table);
+  static MHNSW_Trx *get_from_thd(TABLE *table, bool for_update);
 
   // it's okay in a transaction-local cache, there's no concurrent access
   Hash_set<FVectorNode> &get_cache() { return node_cache; }
 
-  /* fake handlerton to use thd->ha_data and to get notified of commits */
-  static struct MHNSW_hton : public handlerton
-  {
-    MHNSW_hton()
-    {
-      db_type= DB_TYPE_HLINDEX_HELPER;
-      flags = HTON_NOT_USER_SELECTABLE | HTON_HIDDEN;
-      savepoint_offset= 0;
-      savepoint_set= [](THD *, void *){ return 0; };
-      savepoint_rollback_can_release_mdl= [](THD *){ return true; };
-      savepoint_rollback= do_savepoint_rollback;
-      commit= do_commit;
-      rollback= do_rollback;
-    }
-    static int do_commit(THD *thd, bool);
-    static int do_rollback(THD *thd, bool);
-    static int do_savepoint_rollback(THD *thd, void *);
-  } hton;
+  static transaction_participant tp;
+  static int do_commit(THD *thd, bool);
+  static int do_savepoint_rollback(THD *thd, void *);
+  static int do_rollback(THD *thd, bool);
 };
 
-MHNSW_Trx::MHNSW_hton MHNSW_Trx::hton;
-
-int MHNSW_Trx::MHNSW_hton::do_savepoint_rollback(THD *thd, void *)
+struct transaction_participant MHNSW_Trx::tp=
 {
-  for (auto trx= static_cast<MHNSW_Trx*>(thd_get_ha_data(thd, &hton));
+  0, 0, 0,
+  nullptr,                        /* close_connection */
+  [](THD *, void *){ return 0; }, /* savepoint_set */
+  MHNSW_Trx::do_savepoint_rollback,
+  [](THD *thd){ return true; },   /*savepoint_rollback_can_release_mdl*/
+  nullptr,                        /*savepoint_release*/
+  MHNSW_Trx::do_commit, MHNSW_Trx::do_rollback,
+  nullptr,                        /* prepare */
+  nullptr,                        /* recover */
+  nullptr, nullptr,               /* commit/rollback_by_xid */
+  nullptr, nullptr,               /* recover_rollback_by_xid/recovery_done */
+  nullptr, nullptr, nullptr,      /* snapshot, commit/prepare_ordered */
+  nullptr, nullptr                /* checkpoint, versioned */
+};
+
+int MHNSW_Trx::do_savepoint_rollback(THD *thd, void *)
+{
+  for (auto trx= static_cast<MHNSW_Trx*>(thd_get_ha_data(thd, &tp));
        trx; trx= trx->next)
     trx->reset(nullptr);
   return 0;
 }
 
-int MHNSW_Trx::MHNSW_hton::do_rollback(THD *thd, bool)
+int MHNSW_Trx::do_rollback(THD *thd, bool)
 {
   MHNSW_Trx *trx_next;
-  for (auto trx= static_cast<MHNSW_Trx*>(thd_get_ha_data(thd, &hton));
+  for (auto trx= static_cast<MHNSW_Trx*>(thd_get_ha_data(thd, &tp));
        trx; trx= trx_next)
   {
     trx_next= trx->next;
     trx->~MHNSW_Trx();
   }
-  thd_set_ha_data(current_thd, &hton, nullptr);
+  thd_set_ha_data(current_thd, &tp, nullptr);
   return 0;
 }
 
-int MHNSW_Trx::MHNSW_hton::do_commit(THD *thd, bool)
+int MHNSW_Trx::do_commit(THD *thd, bool)
 {
   MHNSW_Trx *trx_next;
-  for (auto trx= static_cast<MHNSW_Trx*>(thd_get_ha_data(thd, &hton));
+  for (auto trx= static_cast<MHNSW_Trx*>(thd_get_ha_data(thd, &tp));
        trx; trx= trx_next)
   {
     trx_next= trx->next;
@@ -504,23 +524,30 @@ int MHNSW_Trx::MHNSW_hton::do_commit(THD *thd, bool)
     }
     trx->~MHNSW_Trx();
   }
-  thd_set_ha_data(current_thd, &hton, nullptr);
+  thd_set_ha_data(current_thd, &tp, nullptr);
   return 0;
 }
 
-MHNSW_Trx *MHNSW_Trx::get_from_thd(THD *thd, TABLE *table)
+MHNSW_Trx *MHNSW_Trx::get_from_thd(TABLE *table, bool for_update)
 {
-  auto trx= static_cast<MHNSW_Trx*>(thd_get_ha_data(thd, &hton));
+  if (!table->file->has_transactions())
+      return NULL;
+
+  THD *thd= table->in_use;
+  auto trx= static_cast<MHNSW_Trx*>(thd_get_ha_data(thd, &tp));
+  if (!for_update && !trx)
+    return NULL;
+
   while (trx && trx->table_share != table->s) trx= trx->next;
   if (!trx)
   {
     trx= new (&thd->transaction->mem_root) MHNSW_Trx(table);
-    trx->next= static_cast<MHNSW_Trx*>(thd_get_ha_data(thd, &hton));
-    thd_set_ha_data(thd, &hton, trx);
+    trx->next= static_cast<MHNSW_Trx*>(thd_get_ha_data(thd, &tp));
+    thd_set_ha_data(thd, &tp, trx);
     if (!trx->next)
     {
       bool all= thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN);
-      trans_register_ha(thd, all, &hton, 0);
+      trans_register_ha(thd, all, &tp, 0);
     }
   }
   return trx;
@@ -546,12 +573,8 @@ MHNSW_Context *MHNSW_Context::get_from_share(TABLE_SHARE *share, TABLE *table)
 int MHNSW_Context::acquire(MHNSW_Context **ctx, TABLE *table, bool for_update)
 {
   TABLE *graph= table->hlindex;
-  THD *thd= table->in_use;
 
-  if (table->file->has_transactions() &&
-       (for_update || thd_get_ha_data(thd, &MHNSW_Trx::hton)))
-    *ctx= MHNSW_Trx::get_from_thd(thd, table);
-  else
+  if (!(*ctx= MHNSW_Trx::get_from_thd(table, for_update)))
   {
     *ctx= MHNSW_Context::get_from_share(table->s, table);
     if (table->file->has_transactions())
@@ -908,7 +931,7 @@ static int search_layer(MHNSW_Context *ctx, TABLE *graph, const FVector *target,
   {
     skip_deleted= layer == 0;
     if (ef > 1 || layer == 0)
-      ef= std::max(graph->in_use->variables.mhnsw_min_limit, ef);
+      ef= std::max(THDVAR(graph->in_use, min_limit), ef);
   }
 
   // WARNING! heuristic here
@@ -1287,3 +1310,52 @@ const LEX_CSTRING mhnsw_hlindex_table_def(THD *thd, uint ref_length)
   len= my_snprintf(s, len, templ, ref_length);
   return {s, len};
 }
+
+/*
+  Declare the plugin and index options
+*/
+
+ha_create_table_option mhnsw_index_options[]=
+{
+  HA_IOPTION_SYSVAR("max_edges_per_node", M, max_edges_per_node),
+  HA_IOPTION_END
+};
+
+st_plugin_int *mhnsw_plugin;
+
+static int mhnsw_init(void *p)
+{
+  mhnsw_plugin= (st_plugin_int *)p;
+  mhnsw_plugin->data= &MHNSW_Trx::tp;
+  if (setup_transaction_participant(mhnsw_plugin))
+    return 1;
+
+  return resolve_sysvar_table_options(mhnsw_index_options);
+}
+
+static int mhnsw_deinit(void *)
+{
+  free_sysvar_table_options(mhnsw_index_options);
+  return 0;
+}
+
+static struct st_mysql_storage_engine mhnsw_daemon=
+{ MYSQL_DAEMON_INTERFACE_VERSION };
+
+static struct st_mysql_sys_var *mhnsw_sys_vars[]=
+{
+  MYSQL_SYSVAR(cache_size),
+  MYSQL_SYSVAR(max_edges_per_node),
+  MYSQL_SYSVAR(min_limit),
+  NULL
+};
+
+maria_declare_plugin(mhnsw)
+{
+  MYSQL_DAEMON_PLUGIN,
+  &mhnsw_daemon, "mhnsw", "MariaDB plc",
+  "A plugin for mhnsw vector index algorithm",
+  PLUGIN_LICENSE_GPL, mhnsw_init, mhnsw_deinit, 0x0100, NULL,
+  mhnsw_sys_vars, "1.0", MariaDB_PLUGIN_MATURITY_STABLE
+}
+maria_declare_plugin_end;

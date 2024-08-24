@@ -3426,6 +3426,16 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   if (parse_engine_table_options(thd, handler_file->partition_ht(), share))
     goto err;
 
+  if (share->hlindexes())
+  {
+    DBUG_ASSERT(share->hlindexes() == 1);
+    keyinfo= share->key_info + share->keys;
+    if (parse_option_list(thd, mhnsw_plugin, &keyinfo->option_struct,
+                          &keyinfo->option_list, mhnsw_index_options,
+                          TRUE, thd->mem_root))
+      goto err;
+  }
+
   if (share->found_next_number_field)
   {
     reg_field= *share->found_next_number_field;
