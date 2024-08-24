@@ -322,12 +322,20 @@ int ivfflat_insert(TABLE *table, KEY *keyinfo)
     graph->file->ha_index_end();
     return err;
   }
-  else if(graph->field[0]->val_int() < num_clusters-1){
+  const uint byte_len= graph->field[1]->value_length();
+  if (byte_len != res->length())
+  {
+    graph->file->ha_index_end();
+    return bad_value_on_insert(vec_field);
+  }
+
+  if(graph->field[0]->val_int() < num_clusters-1){
     // continue instert untill we have "num_clusters" points
     err=write_cluster(graph, graph->field[0]->val_int() +1, res->ptr(), res->length(), cluster_nodes ,h->ref_length);
     graph->file->ha_index_end();
     return err;
   }
+
   printf("find the nearset cendroid\n");
   int id=find_nearst_class(graph, res->c_ptr(), res->length());
   printf("nearset cluster is :%d\n",id);
@@ -482,7 +490,7 @@ int cmp_points(void *param,const cluster_point *a,const cluster_point *b){
 
 int ivfflat_first(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit)
 {
-  printf("ivfvlat _first\n");
+  printf("ivfflat _first\n");
   THD *thd= table->in_use;
   TABLE *graph= table->hlindex;
   Item_func_vec_distance *fun= (Item_func_vec_distance *)dist;
@@ -500,6 +508,7 @@ int ivfflat_first(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit)
 
   if (err)
     return err;
+  
 
   // step 1: sort the clusters by distance to the query vector
   Queue<cluster>cluster_pq; 
@@ -508,12 +517,20 @@ int ivfflat_first(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit)
   // loop over all clusters
   graph->file->ha_index_init(0, 1);
   graph->file->ha_index_first(graph->record[0]);
+  const uint32_t byte_len= graph->field[1]->value_length();
+  cluster* c = new cluster(graph->field[1]->val_str(&buf)->c_ptr(),byte_len,graph->field[0]->val_int());
+  /*
+    if the query vector is NULL or invalid, VEC_DISTANCE will return
+    NULL, so the result is basically unsorted, we can return rows
+    in any order. there is no need for the cost of the search ,
+    then basiclly return the first 'limit' rows in the table.
+  */
+  if (!res || byte_len != res->length())
+    (res= &buf)->set(c->get_centroid(), byte_len, &my_charset_bin);
   double distance= distance_func(res->c_ptr(),graph->field[1]->val_str(&buf)->c_ptr(),res->length());
-  cluster* c = new cluster(graph->field[1]->val_str(&buf)->c_ptr(),res->length(),graph->field[0]->val_int());
   c->set_distance(distance);
   cluster_pq.push(c);
   clusters.push_back(c);
-  // c= nullptr;
   while (!graph->file->ha_index_next(graph->record[0]))
   {
     // load the cluster centroid
@@ -584,17 +601,20 @@ int ivfflat_first(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit)
   *(ulonglong*)context= limit;
   context+= context_size;
   _limit=limit;
-  while (points_pq.elements() && _limit--)
+  while (points_pq.elements() && _limit>0)
   {
     cluster_point *c_p = points_pq.pop();
+    _limit--;
     context-= h->ref_length;
     memcpy(context, c_p->get_ref(), h->ref_length);
   }
-  while (_limit--)
+  while (_limit>0)
   {
+    _limit--;
     context-= h->ref_length;
     memset(context, 0, h->ref_length);
   }
+
   DBUG_ASSERT(context - sizeof(ulonglong) == graph->context);
 
   return mhnsw_next(table);
