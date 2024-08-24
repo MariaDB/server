@@ -63,6 +63,7 @@
 #include "rpl_mi.h"
 #include "rpl_rli.h"
 #include "log.h"
+#include "vector_mhnsw.h"
 
 #ifdef WITH_WSREP
 #include "wsrep_mysqld.h"
@@ -3209,6 +3210,8 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
     uint key_length=0;
     Create_field *auto_increment_key= 0;
     Key_part_spec *column;
+    st_plugin_int *index_plugin= hton2plugin[create_info->db_type->slot];
+    ha_create_table_option *index_options= create_info->db_type->index_options;
 
     is_hash_field_needed= false;
     if (key->type == Key::IGNORE_KEY)
@@ -3250,6 +3253,8 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
         }
         if (key->key_create_info.algorithm == HA_KEY_ALG_UNDEF)
           key->key_create_info.algorithm= HA_KEY_ALG_VECTOR;
+        index_plugin= mhnsw_plugin;
+        index_options= mhnsw_index_options;
         break;
     case Key::IGNORE_KEY:
       DBUG_ASSERT(0);
@@ -3267,10 +3272,9 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
     key_info->usable_key_parts= key_number;
     key_info->algorithm= key->key_create_info.algorithm;
     key_info->option_list= key->option_list;
-    if (parse_option_list(thd, create_info->db_type, &key_info->option_struct,
-                          &key_info->option_list,
-                          create_info->db_type->index_options, FALSE,
-                          thd->mem_root))
+    if (parse_option_list(thd, index_plugin, &key_info->option_struct,
+                          &key_info->option_list, index_options,
+                          FALSE, thd->mem_root))
       DBUG_RETURN(TRUE);
 
     if (key->type == Key::FULLTEXT)
