@@ -17,6 +17,37 @@ show keys from t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t1	0	PRIMARY	1	id	A	0	NULL	NULL		BTREE			NO
 t1	1	v	1	v	A	NULL	1	NULL		VECTOR			NO
+drop table t1;
+set mhnsw_max_edges_per_node=@@mhnsw_max_edges_per_node+1;
+create table t1 (id int auto_increment primary key, v blob not null, vector index (v));
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `v` blob NOT NULL,
+  PRIMARY KEY (`id`),
+  VECTOR KEY `v` (`v`) `max_edges_per_node`=7
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+show keys from t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	PRIMARY	1	id	A	0	NULL	NULL		BTREE			NO
+t1	1	v	1	v	A	NULL	1	NULL		VECTOR			NO
+drop table t1;
+create table t1 (id int auto_increment primary key, v blob not null,
+vector index (v) max_edges_per_node=5);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `v` blob NOT NULL,
+  PRIMARY KEY (`id`),
+  VECTOR KEY `v` (`v`) `max_edges_per_node`=5
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+show keys from t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	PRIMARY	1	id	A	0	NULL	NULL		BTREE			NO
+t1	1	v	1	v	A	NULL	1	NULL		VECTOR			NO
+set mhnsw_max_edges_per_node=default;
 select * from information_schema.statistics where table_name='t1';
 TABLE_CATALOG	def
 TABLE_SCHEMA	test
