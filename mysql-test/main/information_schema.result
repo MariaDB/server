@@ -2326,6 +2326,9 @@ LOGFILE_GROUP_NAME, FILE_NAME, ENGINE
 ORDER BY 
 LOGFILE_GROUP_NAME;
 LOGFILE_GROUP_NAME	FILE_NAME	TOTAL_EXTENTS	INITIAL_SIZE	ENGINE	EXTRA
+Warnings:
+Warning	1287	'information_schema.FILES' is deprecated and will be removed in a future release
+Warning	1287	'information_schema.FILES' is deprecated and will be removed in a future release
 # This must have Opened_tables=3, not 6.
 show status like 'Opened_tables';
 Variable_name	Value

@@ -1257,12 +1257,6 @@ typedef struct st_order ORDER;
   handlerton is a singleton structure - one instance per storage engine -
   to provide access to storage engine functionality that works on the
   "global" level (unlike handler class that works on a per-table basis)
-
-  usually handlerton instance is defined statically in ha_xxx.cc as
-
-  static handlerton { ... } xxx_hton;
-
-  savepoint_*, prepare, recover, and *_by_xid pointers can be 0.
 */
 struct handlerton
 {
@@ -1280,150 +1274,243 @@ struct handlerton
       thd->ha_data[xxx_hton.slot]
 
    slot number is initialized by MySQL after xxx_init() is called.
-   */
-   uint slot;
-   /*
-     to store per-savepoint data storage engine is provided with an area
-     of a requested size (0 is ok here).
-     savepoint_offset must be initialized statically to the size of
-     the needed memory to store per-savepoint information.
-     After xxx_init it is changed to be an offset to savepoint storage
-     area and need not be used by storage engine.
-     see binlog_hton and binlog_savepoint_set/rollback for an example.
-   */
-   uint savepoint_offset;
-   /*
-     handlerton methods:
+  */
+  uint slot;
+  /*
+    to store per-savepoint data storage engine is provided with an area
+    of a requested size (0 is ok here).
+    savepoint_offset must be initialized statically to the size of
+    the needed memory to store per-savepoint information.
+    After xxx_init it is changed to be an offset to savepoint storage
+    area and need not be used by storage engine.
+    see binlog_hton and binlog_savepoint_set/rollback for an example.
+  */
+  uint savepoint_offset;
+  /*
+    global handlerton flags HTON_...
+  */
+  uint32 flags;
+  /*
+    Optional clauses in the CREATE/ALTER TABLE
+  */
+  ha_create_table_option *table_options; // table level options
+  ha_create_table_option *field_options; // these are specified per field
+  ha_create_table_option *index_options; // these are specified per index
 
-     close_connection is only called if
-     thd->ha_data[xxx_hton.slot] is non-zero, so even if you don't need
-     this storage area - set it to something, so that MySQL would know
-     this storage engine was accessed in this connection
-   */
-   int  (*close_connection)(handlerton *hton, THD *thd);
-   /*
-     Tell handler that query has been killed.
-   */
-   void (*kill_query)(handlerton *hton, THD *thd, enum thd_kill_levels level);
-   /*
-     sv points to an uninitialized storage area of requested size
-     (see savepoint_offset description)
-   */
-   int  (*savepoint_set)(handlerton *hton, THD *thd, void *sv);
-   /*
-     sv points to a storage area, that was earlier passed
-     to the savepoint_set call
-   */
-   int  (*savepoint_rollback)(handlerton *hton, THD *thd, void *sv);
-   /**
-     Check if storage engine allows to release metadata locks which were
-     acquired after the savepoint if rollback to savepoint is done.
-     @return true  - If it is safe to release MDL locks.
-             false - If it is not.
-   */
-   bool (*savepoint_rollback_can_release_mdl)(handlerton *hton, THD *thd);
-   int  (*savepoint_release)(handlerton *hton, THD *thd, void *sv);
-   /*
-     'all' is true if it's a real commit, that makes persistent changes
-     'all' is false if it's not in fact a commit but an end of the
-     statement that is part of the transaction.
-     NOTE 'all' is also false in auto-commit mode where 'end of statement'
-     and 'real commit' mean the same event.
-   */
-   int (*commit)(handlerton *hton, THD *thd, bool all);
-   /*
-     The commit_ordered() method is called prior to the commit() method, after
-     the transaction manager has decided to commit (not rollback) the
-     transaction. Unlike commit(), commit_ordered() is called only when the
-     full transaction is committed, not for each commit of statement
-     transaction in a multi-statement transaction.
+  /**
+    The list of extensions of files created for a single table in the
+    database directory (datadir/db_name/).
 
-     Not that like prepare(), commit_ordered() is only called when 2-phase
-     commit takes place. Ie. when no binary log and only a single engine
-     participates in a transaction, one commit() is called, no
-     commit_ordered(). So engines must be prepared for this.
+    Used by open_table_error(), by the default rename_table and delete_table
+    handler methods, and by the default discovery implementation.
 
-     The calls to commit_ordered() in multiple parallel transactions is
-     guaranteed to happen in the same order in every participating
-     handler. This can be used to ensure the same commit order among multiple
-     handlers (eg. in table handler and binlog). So if transaction T1 calls
-     into commit_ordered() of handler A before T2, then T1 will also call
-     commit_ordered() of handler B before T2.
+    For engines that have more than one file name extensions (separate
+    metadata, index, and/or data files), the order of elements is relevant.
+    First element of engine file name extensions array should be metadata
+    file extention. This is assumed by the open_table_error()
+    and the default discovery implementation.
 
-     Engines that implement this method should during this call make the
-     transaction visible to other transactions, thereby making the order of
-     transaction commits be defined by the order of commit_ordered() calls.
+    Second element - data file extension. This is
+    assumed by REPAIR TABLE ... USE_FRM implementation.
+  */
+  const char **tablefile_extensions; // by default - empty list
 
-     The intention is that commit_ordered() should do the minimal amount of
-     work that needs to happen in consistent commit order among handlers. To
-     preserve ordering, calls need to be serialised on a global mutex, so
-     doing any time-consuming or blocking operations in commit_ordered() will
-     limit scalability.
+  /**********************************************************************
+   Generic handlerton methods
+  **********************************************************************/
+  handler *(*create)(handlerton *hton, TABLE_SHARE *table, MEM_ROOT *mem_root);
+  /*
+    close_connection is only called if
+    thd->ha_data[xxx_hton.slot] is non-zero, so even if you don't need
+    this storage area - set it to something, so that MySQL would know
+    this storage engine was accessed in this connection
+  */
+  int  (*close_connection)(handlerton *hton, THD *thd);
+  /*
+    Tell handler that query has been killed.
+  */
+  void (*kill_query)(handlerton *hton, THD *thd, enum thd_kill_levels level);
+  void (*drop_database)(handlerton *hton, char* path);
+  /*
+    return 0 if dropped successfully,
+          -1 if nothing was done by design (as in e.g. blackhole)
+          an error code (e.g. HA_ERR_NO_SUCH_TABLE) otherwise
+  */
+  int (*drop_table)(handlerton *hton, const char* path);
+  int (*panic)(handlerton *hton, enum ha_panic_function flag);
+  /** Disable or enable the internal writes of a storage engine
 
-     Handlers can rely on commit_ordered() calls to be serialised (no two
-     calls can run in parallel, so no extra locking on the handler part is
-     required to ensure this).
+      This is used by Galera and by
+      FLUSH TABLES WITH READ LOCK AND DISABLE CHECKPOINT
 
-     Note that commit_ordered() can be called from a different thread than the
-     one handling the transaction! So it can not do anything that depends on
-     thread local storage, in particular it can not call my_error() and
-     friends (instead it can store the error code and delay the call of
-     my_error() to the commit() method).
+      While internal writes are disabled, the engine should pause any
+      background write activity (such as tablespace checkpointing) that require
+      consistency between different files (such as transaction log and
+      tablespace files) for crash recovery to succeed. The idea is to use this
+      to make safe multi-volume LVM snapshot backups.
+  */
+  void (*disable_internal_writes)(bool disable);
 
-     Similarly, since commit_ordered() returns void, any return error code
-     must be saved and returned from the commit() method instead.
+  bool (*flush_logs)(handlerton *hton);
+  bool (*show_status)(handlerton *hton, THD *thd, stat_print_fn *print, enum ha_stat_type stat);
+  uint (*partition_flags)();
+  alter_table_operations (*alter_table_flags)(alter_table_operations flags);
 
-     The commit_ordered method is optional, and can be left unset if not
-     needed in a particular handler (then there will be no ordering guarantees
-     wrt. other engines and binary log).
-   */
-   void (*commit_ordered)(handlerton *hton, THD *thd, bool all);
-   int  (*rollback)(handlerton *hton, THD *thd, bool all);
-   int  (*prepare)(handlerton *hton, THD *thd, bool all);
-   /*
-     The prepare_ordered method is optional. If set, it will be called after
-     successful prepare() in all handlers participating in 2-phase
-     commit. Like commit_ordered(), it is called only when the full
-     transaction is committed, not for each commit of statement transaction.
+  /*
+    Called for all storage handlers after ddl recovery is done
+    If the engine needs to do something on startup that requires a fully
+    functional server (like Spider creating system tables) - it should be
+    done here, not in init().
+  */
+  int (*signal_ddl_recovery_done)(handlerton *hton);
+  /*
+    Server shutdown early notification.
+    If some parts of the engine need a fully functional server (like, InnoDB
+    purge thread) they need to be stopped now, not in deinit() or panic().
+  */
+  void (*pre_shutdown)(void);
 
-     The calls to prepare_ordered() among multiple parallel transactions are
-     ordered consistently with calls to commit_ordered(). This means that
-     calls to prepare_ordered() effectively define the commit order, and that
-     each handler will see the same sequence of transactions calling into
-     prepare_ordered() and commit_ordered().
+  /* Called at startup to update default engine costs */
+  void (*update_optimizer_costs)(OPTIMIZER_COSTS *costs);
+  void *optimizer_costs;                        /* Costs are stored here */
+  /*
+    Notify the storage engine that the definition of the table (and the .frm
+    file) has changed. Returns 0 if ok.
+  */
+  int (*notify_tabledef_changed)(handlerton *hton, LEX_CSTRING *db,
+                                 LEX_CSTRING *table_name, LEX_CUSTRING *frm,
+                                 LEX_CUSTRING *org_tabledef_version,
+                                 handler *file);
+  /*
+    Inform handler that partitioning engine has changed the .frm and the .par
+    files
+  */
+  int (*create_partitioning_metadata)(const char *path, const char *old_path,
+                                      chf_create_flags action_flag);
 
-     Thus, prepare_ordered() can be used to define commit order for handlers
-     that need to do this in the prepare step (like binlog). It can also be
-     used to release transaction's locks early in an order consistent with the
-     order transactions will be eventually committed.
 
-     Like commit_ordered(), prepare_ordered() calls are serialised to maintain
-     ordering, so the intention is that they should execute fast, with only
-     the minimal amount of work needed to define commit order. Handlers can
-     rely on this serialisation, and do not need to do any extra locking to
-     avoid two prepare_ordered() calls running in parallel.
+  /**********************************************************************
+   Transaction handling
+  **********************************************************************/
+  /*
+    sv points to an uninitialized storage area of requested size
+    (see savepoint_offset description)
+  */
+  int  (*savepoint_set)(handlerton *hton, THD *thd, void *sv);
+  /*
+    sv points to a storage area, that was earlier passed
+    to the savepoint_set call
+  */
+  int  (*savepoint_rollback)(handlerton *hton, THD *thd, void *sv);
+  /**
+    Check if storage engine allows to release metadata locks which were
+    acquired after the savepoint if rollback to savepoint is done.
+    @return true  - If it is safe to release MDL locks.
+            false - If it is not.
+  */
+  bool (*savepoint_rollback_can_release_mdl)(handlerton *hton, THD *thd);
+  int  (*savepoint_release)(handlerton *hton, THD *thd, void *sv);
+  /*
+    'all' is true if it's a real commit, that makes persistent changes
+    'all' is false if it's not in fact a commit but an end of the
+    statement that is part of the transaction.
+    NOTE 'all' is also false in auto-commit mode where 'end of statement'
+    and 'real commit' mean the same event.
+  */
+  int (*commit)(handlerton *hton, THD *thd, bool all);
+  /*
+    The commit_ordered() method is called prior to the commit() method, after
+    the transaction manager has decided to commit (not rollback) the
+    transaction. Unlike commit(), commit_ordered() is called only when the
+    full transaction is committed, not for each commit of statement
+    transaction in a multi-statement transaction.
 
-     Like commit_ordered(), prepare_ordered() is not guaranteed to be called
-     in the context of the thread handling the rest of the transaction. So it
-     cannot invoke code that relies on thread local storage, in particular it
-     cannot call my_error().
+    Not that like prepare(), commit_ordered() is only called when 2-phase
+    commit takes place. Ie. when no binary log and only a single engine
+    participates in a transaction, one commit() is called, no
+    commit_ordered(). So engines must be prepared for this.
 
-     prepare_ordered() cannot cause a rollback by returning an error, all
-     possible errors must be handled in prepare() (the prepare_ordered()
-     method returns void). In case of some fatal error, a record of the error
-     must be made internally by the engine and returned from commit() later.
+    The calls to commit_ordered() in multiple parallel transactions is
+    guaranteed to happen in the same order in every participating
+    handler. This can be used to ensure the same commit order among multiple
+    handlers (eg. in table handler and binlog). So if transaction T1 calls
+    into commit_ordered() of handler A before T2, then T1 will also call
+    commit_ordered() of handler B before T2.
 
-     Note that for user-level XA SQL commands, no consistent ordering among
-     prepare_ordered() and commit_ordered() is guaranteed (as that would
-     require blocking all other commits for an indefinite time).
+    Engines that implement this method should during this call make the
+    transaction visible to other transactions, thereby making the order of
+    transaction commits be defined by the order of commit_ordered() calls.
 
-     When 2-phase commit is not used (eg. only one engine (and no binlog) in
-     transaction), neither prepare() nor prepare_ordered() is called.
-   */
-   void (*prepare_ordered)(handlerton *hton, THD *thd, bool all);
-   int  (*recover)(handlerton *hton, XID *xid_list, uint len);
-   int  (*commit_by_xid)(handlerton *hton, XID *xid);
-   int  (*rollback_by_xid)(handlerton *hton, XID *xid);
+    The intention is that commit_ordered() should do the minimal amount of
+    work that needs to happen in consistent commit order among handlers. To
+    preserve ordering, calls need to be serialised on a global mutex, so
+    doing any time-consuming or blocking operations in commit_ordered() will
+    limit scalability.
+
+    Handlers can rely on commit_ordered() calls to be serialised (no two
+    calls can run in parallel, so no extra locking on the handler part is
+    required to ensure this).
+
+    Note that commit_ordered() can be called from a different thread than the
+    one handling the transaction! So it can not do anything that depends on
+    thread local storage, in particular it can not call my_error() and
+    friends (instead it can store the error code and delay the call of
+    my_error() to the commit() method).
+
+    Similarly, since commit_ordered() returns void, any return error code
+    must be saved and returned from the commit() method instead.
+
+    The commit_ordered method is optional, and can be left unset if not
+    needed in a particular handler (then there will be no ordering guarantees
+    wrt. other engines and binary log).
+  */
+  void (*commit_ordered)(handlerton *hton, THD *thd, bool all);
+  int  (*rollback)(handlerton *hton, THD *thd, bool all);
+  int  (*prepare)(handlerton *hton, THD *thd, bool all);
+  /*
+    The prepare_ordered method is optional. If set, it will be called after
+    successful prepare() in all handlers participating in 2-phase
+    commit. Like commit_ordered(), it is called only when the full
+    transaction is committed, not for each commit of statement transaction.
+
+    The calls to prepare_ordered() among multiple parallel transactions are
+    ordered consistently with calls to commit_ordered(). This means that
+    calls to prepare_ordered() effectively define the commit order, and that
+    each handler will see the same sequence of transactions calling into
+    prepare_ordered() and commit_ordered().
+
+    Thus, prepare_ordered() can be used to define commit order for handlers
+    that need to do this in the prepare step (like binlog). It can also be
+    used to release transaction's locks early in an order consistent with the
+    order transactions will be eventually committed.
+
+    Like commit_ordered(), prepare_ordered() calls are serialised to maintain
+    ordering, so the intention is that they should execute fast, with only
+    the minimal amount of work needed to define commit order. Handlers can
+    rely on this serialisation, and do not need to do any extra locking to
+    avoid two prepare_ordered() calls running in parallel.
+
+    Like commit_ordered(), prepare_ordered() is not guaranteed to be called
+    in the context of the thread handling the rest of the transaction. So it
+    cannot invoke code that relies on thread local storage, in particular it
+    cannot call my_error().
+
+    prepare_ordered() cannot cause a rollback by returning an error, all
+    possible errors must be handled in prepare() (the prepare_ordered()
+    method returns void). In case of some fatal error, a record of the error
+    must be made internally by the engine and returned from commit() later.
+
+    Note that for user-level XA SQL commands, no consistent ordering among
+    prepare_ordered() and commit_ordered() is guaranteed (as that would
+    require blocking all other commits for an indefinite time).
+
+    When 2-phase commit is not used (eg. only one engine (and no binlog) in
+    transaction), neither prepare() nor prepare_ordered() is called.
+  */
+  void (*prepare_ordered)(handlerton *hton, THD *thd, bool all);
+  int  (*recover)(handlerton *hton, XID *xid_list, uint len);
+  int  (*commit_by_xid)(handlerton *hton, XID *xid);
+  int  (*rollback_by_xid)(handlerton *hton, XID *xid);
    /*
      recover_rollback_by_xid is optional. If set, it will be called instead of
      rollback_by_xid when transactions should be rolled back at server startup.
@@ -1441,153 +1528,47 @@ struct handlerton
      together to rollback prepared transactions asynchronously.
    */
    void (*signal_tc_log_recovery_done)();
-   /*
-     The commit_checkpoint_request() handlerton method is used to checkpoint
-     the XA recovery process for storage engines that support two-phase
-     commit.
-
-     The method is optional - an engine that does not implemented is expected
-     to work the traditional way, where every commit() durably flushes the
-     transaction to disk in the engine before completion, so XA recovery will
-     no longer be needed for that transaction.
-
-     An engine that does implement commit_checkpoint_request() is also
-     expected to implement commit_ordered(), so that ordering of commits is
-     consistent between 2pc participants. Such engine is no longer required to
-     durably flush to disk transactions in commit(), provided that the
-     transaction has been successfully prepare()d and commit_ordered(); thus
-     potentionally saving one fsync() call. (Engine must still durably flush
-     to disk in commit() when no prepare()/commit_ordered() steps took place,
-     at least if durable commits are wanted; this happens eg. if binlog is
-     disabled).
-
-     The TC will periodically (eg. once per binlog rotation) call
-     commit_checkpoint_request(). When this happens, the engine must arrange
-     for all transaction that have completed commit_ordered() to be durably
-     flushed to disk (this does not include transactions that might be in the
-     middle of executing commit_ordered()). When such flush has completed, the
-     engine must call commit_checkpoint_notify_ha(), passing back the opaque
-     "cookie".
-
-     The flush and call of commit_checkpoint_notify_ha() need not happen
-     immediately - it can be scheduled and performed asynchronously (ie. as
-     part of next prepare(), or sync every second, or whatever), but should
-     not be postponed indefinitely. It is however also permissible to do it
-     immediately, before returning from commit_checkpoint_request().
-
-     When commit_checkpoint_notify_ha() is called, the TC will know that the
-     transactions are durably committed, and thus no longer require XA
-     recovery. It uses that to reduce the work needed for any subsequent XA
-     recovery process.
-   */
-   void (*commit_checkpoint_request)(void *cookie);
   /*
-    "Disable or enable checkpointing internal to the storage engine. This is
-    used for FLUSH TABLES WITH READ LOCK AND DISABLE CHECKPOINT to ensure that
-    the engine will never start any recovery from a time between
-    FLUSH TABLES ... ; UNLOCK TABLES.
+    The commit_checkpoint_request() handlerton method is used to checkpoint
+    the XA recovery process for storage engines that support two-phase
+    commit.
 
-    While checkpointing is disabled, the engine should pause any background
-    write activity (such as tablespace checkpointing) that require consistency
-    between different files (such as transaction log and tablespace files) for
-    crash recovery to succeed. The idea is to use this to make safe
-    multi-volume LVM snapshot backups.
+    The method is optional - an engine that does not implemented is expected
+    to work the traditional way, where every commit() durably flushes the
+    transaction to disk in the engine before completion, so XA recovery will
+    no longer be needed for that transaction.
+
+    An engine that does implement commit_checkpoint_request() is also
+    expected to implement commit_ordered(), so that ordering of commits is
+    consistent between 2pc participants. Such engine is no longer required to
+    durably flush to disk transactions in commit(), provided that the
+    transaction has been successfully prepare()d and commit_ordered(); thus
+    potentionally saving one fsync() call. (Engine must still durably flush
+    to disk in commit() when no prepare()/commit_ordered() steps took place,
+    at least if durable commits are wanted; this happens eg. if binlog is
+    disabled).
+
+    The TC will periodically (eg. once per binlog rotation) call
+    commit_checkpoint_request(). When this happens, the engine must arrange
+    for all transaction that have completed commit_ordered() to be durably
+    flushed to disk (this does not include transactions that might be in the
+    middle of executing commit_ordered()). When such flush has completed, the
+    engine must call commit_checkpoint_notify_ha(), passing back the opaque
+    "cookie".
+
+    The flush and call of commit_checkpoint_notify_ha() need not happen
+    immediately - it can be scheduled and performed asynchronously (ie. as
+    part of next prepare(), or sync every second, or whatever), but should
+    not be postponed indefinitely. It is however also permissible to do it
+    immediately, before returning from commit_checkpoint_request().
+
+    When commit_checkpoint_notify_ha() is called, the TC will know that the
+    transactions are durably committed, and thus no longer require XA
+    recovery. It uses that to reduce the work needed for any subsequent XA
+    recovery process.
   */
-   int  (*checkpoint_state)(handlerton *hton, bool disabled);
-   void *(*create_cursor_read_view)(handlerton *hton, THD *thd);
-   void (*set_cursor_read_view)(handlerton *hton, THD *thd, void *read_view);
-   void (*close_cursor_read_view)(handlerton *hton, THD *thd, void *read_view);
-   handler *(*create)(handlerton *hton, TABLE_SHARE *table, MEM_ROOT *mem_root);
-   void (*drop_database)(handlerton *hton, char* path);
-   /*
-     return 0 if dropped successfully,
-           -1 if nothing was done by design (as in e.g. blackhole)
-           an error code (e.g. HA_ERR_NO_SUCH_TABLE) otherwise
-   */
-   int (*drop_table)(handlerton *hton, const char* path);
-   int (*panic)(handlerton *hton, enum ha_panic_function flag);
-   int (*start_consistent_snapshot)(handlerton *hton, THD *thd);
-   bool (*flush_logs)(handlerton *hton);
-   bool (*show_status)(handlerton *hton, THD *thd, stat_print_fn *print, enum ha_stat_type stat);
-   uint (*partition_flags)();
-   alter_table_operations (*alter_table_flags)(alter_table_operations flags);
-   int (*fill_is_table)(handlerton *hton, THD *thd, TABLE_LIST *tables,
-                        class Item *cond, 
-                        enum enum_schema_tables);
-   uint32 flags;                                /* global handler flags */
-   /*
-      Those handlerton functions below are properly initialized at handler
-      init.
-   */
-   int (*binlog_func)(handlerton *hton, THD *thd, enum_binlog_func fn, void *arg);
-   void (*binlog_log_query)(handlerton *hton, THD *thd, 
-                            enum_binlog_command binlog_command,
-                            const char *query, uint query_length,
-                            const char *db, const char *table_name);
-
-   void (*abort_transaction)(handlerton *hton, THD *bf_thd, THD *victim_thd,
-                             my_bool signal) __attribute__((nonnull));
-   int (*set_checkpoint)(handlerton *hton, const XID *xid);
-   int (*get_checkpoint)(handlerton *hton, XID* xid);
-  /**
-     Check if the version of the table matches the version in the .frm
-     file.
-
-     This is mainly used to verify in recovery to check if an inplace
-     ALTER TABLE succeded.
-     Storage engines that does not support inplace alter table does not
-     have to implement this function.
-
-     @param hton      handlerton
-     @param path      Path for table
-     @param version   The unique id that is stored in the .frm file for
-                      CREATE and updated for each ALTER TABLE (but not for
-                      simple renames).
-                      This is the ID used for the final table.
-     @param create_id The value returned from handler->table_version() for
-                      the original table (before ALTER TABLE).
-
-     @retval 0     If id matches or table is newer than create_id (depending
-                   on what version check the engine supports. This means that
-                   The (inplace) alter table did succeed.
-     @retval # > 0 Alter table did not succeed.
-
-     Related to handler::discover_check_version().
-   */
-  int (*check_version)(handlerton *hton, const char *path,
-                       const LEX_CUSTRING *version, ulonglong create_id);
-
-  /* Called for all storage handlers after ddl recovery is done */
-  int (*signal_ddl_recovery_done)(handlerton *hton);
-
-  /* Called at startup to update default engine costs */
-  void (*update_optimizer_costs)(OPTIMIZER_COSTS *costs);
-  void *optimizer_costs;                        /* Costs are stored here */
-
-   /*
-     Optional clauses in the CREATE/ALTER TABLE
-   */
-   ha_create_table_option *table_options; // table level options
-   ha_create_table_option *field_options; // these are specified per field
-   ha_create_table_option *index_options; // these are specified per index
-
-   /**
-     The list of extensions of files created for a single table in the
-     database directory (datadir/db_name/).
-
-     Used by open_table_error(), by the default rename_table and delete_table
-     handler methods, and by the default discovery implementation.
-  
-     For engines that have more than one file name extensions (separate
-     metadata, index, and/or data files), the order of elements is relevant.
-     First element of engine file name extensions array should be metadata
-     file extention. This is implied by the open_table_error()
-     and the default discovery implementation.
-     
-     Second element - data file extension. This is implied
-     assumed by REPAIR TABLE ... USE_FRM implementation.
-   */
-   const char **tablefile_extensions; // by default - empty list
+  void (*commit_checkpoint_request)(void *cookie);
+  int (*start_consistent_snapshot)(handlerton *hton, THD *thd);
 
   /**********************************************************************
    Functions to intercept queries
@@ -1625,132 +1606,147 @@ struct handlerton
     the statement, return NULL
   */
   select_handler *(*create_unit)(THD *thd, SELECT_LEX_UNIT *select_unit);
-   
-   /*********************************************************************
-     Table discovery API.
-     It allows the server to "discover" tables that exist in the storage
-     engine, without user issuing an explicit CREATE TABLE statement.
-   **********************************************************************/
 
-   /*
-     This method is required for any engine that supports automatic table
-     discovery, there is no default implementation.
-
-     Given a TABLE_SHARE discover_table() fills it in with a correct table
-     structure using one of the TABLE_SHARE::init_from_* methods.
-
-     Returns HA_ERR_NO_SUCH_TABLE if the table did not exist in the engine,
-     zero if the table was discovered successfully, or any other
-     HA_ERR_* error code as appropriate if the table existed, but the
-     discovery failed.
-   */
-   int (*discover_table)(handlerton *hton, THD* thd, TABLE_SHARE *share);
-
-   /*
-     The discover_table_names method tells the server
-     about all tables in the specified database that the engine
-     knows about. Tables (or file names of tables) are added to
-     the provided discovered_list collector object using
-     add_table() or add_file() methods.
-   */
-   class discovered_list
-   {
-     public:
-     virtual bool add_table(const char *tname, size_t tlen) = 0;
-     virtual bool add_file(const char *fname) = 0;
-     protected: virtual ~discovered_list() = default;
-   };
-
-   /*
-     By default (if not implemented by the engine, but the discover_table() is
-     implemented) it will perform a file-based discovery:
-
-     - if tablefile_extensions[0] is not null, this will discovers all tables
-       with the tablefile_extensions[0] extension.
-
-     Returns 0 on success and 1 on error.
-   */
-   int (*discover_table_names)(handlerton *hton, const LEX_CSTRING *db,
-                               MY_DIR *dir,
-                               discovered_list *result);
-
-   /*
-     This is a method that allows to server to check if a table exists without
-     an overhead of the complete discovery.
-
-     By default (if not implemented by the engine, but the discovery_table() is
-     implemented) it will try to perform a file-based discovery:
-
-     - if tablefile_extensions[0] is not null this will look for a file name
-       with the tablefile_extensions[0] extension.
-
-     - if tablefile_extensions[0] is null, this will resort to discover_table().
-
-     Note that resorting to discover_table() is slow and the engine
-     should probably implement its own discover_table_existence() method,
-     if its tablefile_extensions[0] is null.
-
-     Returns 1 if the table exists and 0 if it does not.
-   */
-   int (*discover_table_existence)(handlerton *hton, const char *db,
-                                   const char *table_name);
-
-   /*
-     This is the assisted table discovery method. Unlike the fully
-     automatic discovery as above, here a user is expected to issue an
-     explicit CREATE TABLE with the appropriate table attributes to
-     "assist" the discovery of a table. But this "discovering" CREATE TABLE
-     statement will not specify the table structure - the engine discovers
-     it using this method. For example, FederatedX uses it in
-
-      CREATE TABLE t1 ENGINE=FEDERATED CONNECTION="mysql://foo/bar/t1";
-
-     Given a TABLE_SHARE discover_table_structure() fills it in with a correct
-     table structure using one of the TABLE_SHARE::init_from_* methods.
-
-     Assisted discovery works independently from the automatic discover.
-     An engine is allowed to support only assisted discovery and not
-     support automatic one. Or vice versa.
-   */
-   int (*discover_table_structure)(handlerton *hton, THD* thd,
-                                   TABLE_SHARE *share, HA_CREATE_INFO *info);
+  /*********************************************************************
+    Table discovery API.
+    It allows the server to "discover" tables that exist in the storage
+    engine, without user issuing an explicit CREATE TABLE statement.
+  **********************************************************************/
 
   /*
-    Notify the storage engine that the definition of the table (and the .frm
-    file) has changed. Returns 0 if ok.
+    This method is required for any engine that supports automatic table
+    discovery, there is no default implementation.
+
+    Given a TABLE_SHARE discover_table() fills it in with a correct table
+    structure using one of the TABLE_SHARE::init_from_* methods.
+
+    Returns HA_ERR_NO_SUCH_TABLE if the table did not exist in the engine,
+    zero if the table was discovered successfully, or any other
+    HA_ERR_* error code as appropriate if the table existed, but the
+    discovery failed.
   */
-  int (*notify_tabledef_changed)(handlerton *hton, LEX_CSTRING *db,
-                                 LEX_CSTRING *table_name, LEX_CUSTRING *frm,
-                                 LEX_CUSTRING *org_tabledef_version,
-                                 handler *file);
+  int (*discover_table)(handlerton *hton, THD* thd, TABLE_SHARE *share);
 
-   /*
-     System Versioning
+  /*
+    The discover_table_names method tells the server
+    about all tables in the specified database that the engine
+    knows about. Tables (or file names of tables) are added to
+    the provided discovered_list collector object using
+    add_table() or add_file() methods.
+  */
+  class discovered_list
+  {
+    public:
+    virtual bool add_table(const char *tname, size_t tlen) = 0;
+    virtual bool add_file(const char *fname) = 0;
+    protected: virtual ~discovered_list() = default;
+  };
+
+  /*
+    By default (if not implemented by the engine, but the discover_table() is
+    implemented) it will perform a file-based discovery:
+
+    - if tablefile_extensions[0] is not null, this will discovers all tables
+      with the tablefile_extensions[0] extension.
+
+    Returns 0 on success and 1 on error.
+  */
+  int (*discover_table_names)(handlerton *hton, const LEX_CSTRING *db,
+                              MY_DIR *dir, discovered_list *result);
+
+  /*
+    This is a method that allows to server to check if a table exists without
+    an overhead of the complete discovery.
+
+    By default (if not implemented by the engine, but the discovery_table() is
+    implemented) it will try to perform a file-based discovery:
+
+    - if tablefile_extensions[0] is not null this will look for a file name
+      with the tablefile_extensions[0] extension.
+
+    - if tablefile_extensions[0] is null, this will resort to discover_table().
+
+    Note that resorting to discover_table() is slow and the engine
+    should probably implement its own discover_table_existence() method,
+    if its tablefile_extensions[0] is null.
+
+    Returns 1 if the table exists and 0 if it does not.
+  */
+  int (*discover_table_existence)(handlerton *hton, const char *db,
+                                  const char *table_name);
+
+  /*
+    This is the assisted table discovery method. Unlike the fully
+    automatic discovery as above, here a user is expected to issue an
+    explicit CREATE TABLE with the appropriate table attributes to
+    "assist" the discovery of a table. But such "discovering" CREATE TABLE
+    statement must not specify the table structure - the engine discovers
+    it using this method. For example, FederatedX uses it in
+
+     CREATE TABLE t1 ENGINE=FEDERATED CONNECTION="mysql://foo/bar/t1";
+
+    Given a TABLE_SHARE discover_table_structure() fills it in with a correct
+    table structure using one of the TABLE_SHARE::init_from_* methods.
+
+    Assisted discovery works independently from the automatic discover.
+    An engine is allowed to support only assisted discovery and not
+    support automatic one. Or vice versa.
+  */
+  int (*discover_table_structure)(handlerton *hton, THD* thd,
+                                  TABLE_SHARE *share, HA_CREATE_INFO *info);
+
+  /**
+     Check if the version of the table matches the version in the .frm
+     file.
+
+     This is mainly used to verify in recovery to check if an inplace
+     ALTER TABLE succeded.
+     Storage engines that does not support inplace alter table does not
+     have to implement this function.
+
+     @param hton      handlerton
+     @param path      Path for table
+     @param version   The unique id that is stored in the .frm file for
+                      CREATE and updated for each ALTER TABLE (but not for
+                      simple renames).
+                      This is the ID used for the final table.
+     @param create_id The value returned from handler->table_version() for
+                      the original table (before ALTER TABLE).
+
+     @retval 0     If id matches or table is newer than create_id (depending
+                   on what version check the engine supports. This means that
+                   The (inplace) alter table did succeed.
+     @retval # > 0 Alter table did not succeed.
+
+     Related to handler::discover_check_version().
    */
-   /** Determine if system-versioned data was modified by the transaction.
-   @param[in,out] thd          current session
-   @param[out]    trx_id       transaction start ID
-   @return transaction commit ID
-   @retval 0 if no system-versioned data was affected by the transaction */
-   ulonglong (*prepare_commit_versioned)(THD *thd, ulonglong *trx_id);
+  int (*check_version)(handlerton *hton, const char *path,
+                       const LEX_CUSTRING *version, ulonglong create_id);
 
-  /** Disable or enable the internal writes of a storage engine */
-  void (*disable_internal_writes)(bool disable);
+  /*********************************************************************
+    System Versioning
+  **********************************************************************/
+  /** Determine if system-versioned data was modified by the transaction.
+      @param[in,out] thd          current session
+      @param[out]    trx_id       transaction start ID
+      @return transaction commit ID
+      @retval 0 if no system-versioned data was affected by the transaction
+  */
+  ulonglong (*prepare_commit_versioned)(THD *thd, ulonglong *trx_id);
 
-  /* backup */
+  /*********************************************************************
+    backup
+  **********************************************************************/
   void (*prepare_for_backup)(void);
   void (*end_backup)(void);
 
-  /* Server shutdown early notification.*/
-  void (*pre_shutdown)(void);
-
-  /*
-    Inform handler that partitioning engine has changed the .frm and the .par
-    files
-  */
-  int (*create_partitioning_metadata)(const char *path,
-                                      const char *old_path,
-                                      chf_create_flags action_flag);
+  /**********************************************************************
+   WSREP specific
+  **********************************************************************/
+  void (*abort_transaction)(handlerton *hton, THD *bf_thd, THD *victim_thd,
+                            my_bool signal) __attribute__((nonnull));
+  int (*set_checkpoint)(handlerton *hton, const XID *xid);
+  int (*get_checkpoint)(handlerton *hton, XID* xid);
 };
 
 
@@ -1854,7 +1850,7 @@ handlerton *ha_default_tmp_handlerton(THD *thd);
 #define HTON_TRUNCATE_REQUIRES_EXCLUSIVE_USE (1 << 19)
 /*
   Used by mysql_inplace_alter_table() to decide if we should call
-  hton->notify_tabledef_changed() before commit (MyRocks) or after (InnoDB).
+  hton->notify_tabledef_changed() before commit (S3) or after (InnoDB).
 */
 #define HTON_REQUIRES_NOTIFY_TABLEDEF_CHANGED_AFTER_COMMIT (1 << 20)
 
@@ -4947,7 +4943,7 @@ public:
   *) Update SQL-layer data-dictionary by installing .FRM file for the new version
      of the table.
   *) Inform the storage engine about this change by calling the
-     hton::notify_table_changed()
+     hton::notify_tabledef_changed()
   *) Destroy the Alter_inplace_info and handler_ctx objects.
 
  */
@@ -5637,7 +5633,6 @@ void ha_signal_ddl_recovery_done();
 void ha_signal_tc_log_recovery_done();
 bool ha_flush_logs();
 void ha_drop_database(const char* path);
-void ha_checkpoint_state(bool disable);
 void ha_commit_checkpoint_request(void *cookie, void (*pre_hook)(void *));
 int ha_create_table(THD *thd, const char *path, const char *db,
                     const char *table_name, HA_CREATE_INFO *create_info,
