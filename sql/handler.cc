@@ -888,21 +888,6 @@ void ha_drop_database(const char* path)
 }
 
 
-static my_bool checkpoint_state_handlerton(THD *, plugin_ref plugin, void *disable)
-{
-  handlerton *hton= plugin_hton(plugin);
-  if (hton->checkpoint_state)
-    hton->checkpoint_state(hton, (int) *(bool*) disable);
-  return FALSE;
-}
-
-
-void ha_checkpoint_state(bool disable)
-{
-  plugin_foreach(NULL, checkpoint_state_handlerton, MYSQL_STORAGE_ENGINE_PLUGIN, &disable);
-}
-
-
 struct st_commit_checkpoint_request {
   void *cookie;
   void (*pre_hook)(void *);
