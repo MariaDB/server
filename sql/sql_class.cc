@@ -441,7 +441,7 @@ void thd_storage_lock_wait(THD *thd, long long value)
   Provide a handler data getter to simplify coding
 */
 extern "C"
-void *thd_get_ha_data(const THD *thd, const struct handlerton *hton)
+void *thd_get_ha_data(const THD *thd, const struct transaction_participant *hton)
 {
   DBUG_ASSERT(thd == current_thd ||  mysql_mutex_is_owner(&thd->LOCK_thd_data));
   return thd->ha_data[hton->slot].ha_ptr;
@@ -453,7 +453,7 @@ void *thd_get_ha_data(const THD *thd, const struct handlerton *hton)
   @see thd_set_ha_data() definition in plugin.h
 */
 extern "C"
-void thd_set_ha_data(THD *thd, const struct handlerton *hton,
+void thd_set_ha_data(THD *thd, const struct transaction_participant *hton,
                      const void *ha_data)
 {
   plugin_ref *lock= &thd->ha_data[hton->slot].lock;
