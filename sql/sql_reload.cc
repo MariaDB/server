@@ -678,6 +678,6 @@ static void disable_checkpoints(THD *thd)
   {
     thd->global_disable_checkpoint= 1;
     if (!global_disable_checkpoint++)
-      ha_checkpoint_state(1);                   // Disable checkpoints
+      ha_disable_internal_writes(1);                   // Disable checkpoints
   }
 }

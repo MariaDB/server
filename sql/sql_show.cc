@@ -9626,35 +9626,14 @@ bool get_schema_tables_result(JOIN *join,
   DBUG_RETURN(result);
 }
 
-struct run_hton_fill_schema_table_args
-{
-  TABLE_LIST *tables;
-  COND *cond;
-};
-
-static my_bool run_hton_fill_schema_table(THD *thd, plugin_ref plugin,
-                                          void *arg)
-{
-  struct run_hton_fill_schema_table_args *args=
-    (run_hton_fill_schema_table_args *) arg;
-  handlerton *hton= plugin_hton(plugin);
-  if (hton->fill_is_table)
-      hton->fill_is_table(hton, thd, args->tables, args->cond,
-            get_schema_table_idx(args->tables->schema_table));
-  return false;
-}
-
 int hton_fill_schema_table(THD *thd, TABLE_LIST *tables, COND *cond)
 {
   DBUG_ENTER("hton_fill_schema_table");
-
-  struct run_hton_fill_schema_table_args args;
-  args.tables= tables;
-  args.cond= cond;
-
-  plugin_foreach(thd, run_hton_fill_schema_table,
-                 MYSQL_STORAGE_ENGINE_PLUGIN, &args);
-
+  StringBuffer<STRING_BUFFER_USUAL_SIZE> str(system_charset_info);
+  str.append(INFORMATION_SCHEMA_NAME);
+  str.append('.');
+  str.append(tables->schema_table->table_name);
+  warn_deprecated<1107>(thd, str.c_ptr());
   DBUG_RETURN(0);
 }
 

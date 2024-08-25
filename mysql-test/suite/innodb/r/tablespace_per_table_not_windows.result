@@ -116,6 +116,10 @@ test/#################################################_long_
 twenty_byte_db_name_/#################################################_long_
 ##################################################_long/#################################################_long
 SELECT file_name, tablespace_name FROM information_schema.files WHERE file_name LIKE '%long%';
+Warnings:
+Level	Warning
+Code	1287
+Message	'information_schema.FILES' is deprecated and will be removed in a future release
 #
 # Cleanup
 #
