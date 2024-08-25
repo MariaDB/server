@@ -1054,7 +1054,7 @@ static int ha_s3_init(void *p)
   s3_hton->tablefile_extensions= no_exts;
   s3_hton->commit= 0;
   s3_hton->rollback= 0;
-  s3_hton->checkpoint_state= 0;
+  s3_hton->disable_internal_writes= 0;
   s3_hton->flush_logs= 0;
   s3_hton->show_status= 0;
   s3_hton->prepare_for_backup= 0;
