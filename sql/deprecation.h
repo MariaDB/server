@@ -30,7 +30,7 @@ template<uint V> static inline void check_deprecated_version(void)
      V <= 1004 ? MYSQL_VERSION_ID < 110500 :   /* until 10.4  EOL */
      V <= 1005 ? MYSQL_VERSION_ID < 120100 :   /* until 10.5  EOL */
      V <= 1010 ? MYSQL_VERSION_ID < 120500 :   /* until 10.6  EOL */
-     V <= 1106 ? MYSQL_VERSION_ID < 130400 :   /* until 10.11 EOL */
+     V <= 1107 ? MYSQL_VERSION_ID < 130400 :   /* until 10.11 EOL */
      V == 999999,    /* only for sys_var::do_deprecated_warning() */
      "check_deprecated_version failed"
   );
