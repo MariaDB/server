@@ -2999,7 +2999,6 @@ void st_select_lex::init_query()
   top_join_list.empty();
   join_list= &top_join_list;
   embedding= 0;
-  leaf_tables_prep.empty();
   leaf_tables.empty();
   item_list.empty();
   fix_after_optimize.empty();
@@ -5745,65 +5744,6 @@ bool st_select_lex::save_leaf_tables(THD *thd)
 
   return 0;
 }
-
-
-bool LEX::save_prep_leaf_tables()
-{
-  if (!thd->save_prep_leaf_list)
-    return FALSE;
-
-  Query_arena *arena= thd->stmt_arena, backup;
-  arena= thd->activate_stmt_arena_if_needed(&backup);
-  //It is used for DETETE/UPDATE so top level has only one SELECT
-  DBUG_ASSERT(first_select_lex()->next_select() == NULL);
-  bool res= first_select_lex()->save_prep_leaf_tables(thd);
-
-  if (arena)
-    thd->restore_active_arena(arena, &backup);
-
-  if (res)
-    return TRUE;
-
-  thd->save_prep_leaf_list= FALSE;
-  return FALSE;
-}
-
-
-bool st_select_lex::save_prep_leaf_tables(THD *thd)
-{
-  if (prep_leaf_list_state == SAVED)
-    return FALSE;
-
-  List_iterator_fast<TABLE_LIST> li(leaf_tables);
-  TABLE_LIST *table;
-
-  /*
-    Check that the SELECT_LEX was really prepared and so tables are setup.
-
-    It can be subquery in SET clause of UPDATE which was not prepared yet, so
-    its tables are not yet setup and ready for storing.
-  */
-  if (prep_leaf_list_state != READY)
-    return FALSE;
-
-  while ((table= li++))
-  {
-    if (leaf_tables_prep.push_back(table))
-      return TRUE;
-  }
-  prep_leaf_list_state= SAVED;
-  for (SELECT_LEX_UNIT *u= first_inner_unit(); u; u= u->next_unit())
-  {
-    for (SELECT_LEX *sl= u->first_select(); sl; sl= sl->next_select())
-    {
-      if (sl->save_prep_leaf_tables(thd))
-        return TRUE;
-    }
-  }
-
-  return FALSE;
-}
-
 
 /**
   Set exclude_from_table_unique_test for selects of this select and all selects

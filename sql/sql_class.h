@@ -2984,8 +2984,6 @@ public:
   */ 
   bool create_tmp_table_for_derived;
 
-  bool save_prep_leaf_list;
-
   /**
     The data member reset_sp_cache is to signal that content of sp_cache
     must be reset (all items be removed from it).
