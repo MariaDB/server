@@ -1556,7 +1556,6 @@ static bool srv_purge_should_exit(size_t old_history_size)
 
 /*********************************************************************//**
 Fetch and execute a task from the work queue.
-@param [in,out]	slot	purge worker thread slot
 @return true if a task was executed */
 static bool srv_task_execute()
 {
@@ -1696,6 +1695,13 @@ static void release_thd(THD *thd, void *ctx)
 	set_current_thd(0);
 }
 
+void srv_purge_worker_task_low()
+{
+  ut_ad(current_thd);
+  while (srv_task_execute())
+    ut_ad(purge_sys.running());
+}
+
 static void purge_worker_callback(void*)
 {
   ut_ad(!current_thd);
@@ -1703,8 +1709,7 @@ static void purge_worker_callback(void*)
   ut_ad(srv_force_recovery < SRV_FORCE_NO_BACKGROUND);
   void *ctx;
   THD *thd= acquire_thd(&ctx);
-  while (srv_task_execute())
-    ut_ad(purge_sys.running());
+  srv_purge_worker_task_low();
   release_thd(thd,ctx);
 }
 

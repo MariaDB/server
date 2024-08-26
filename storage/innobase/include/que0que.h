@@ -209,17 +209,6 @@ que_eval_sql(
 	const char*	sql,	/*!< in: SQL string */
 	trx_t*		trx);	/*!< in: trx */
 
-/**********************************************************************//**
-Round robin scheduler.
-@return a query thread of the graph moved to QUE_THR_RUNNING state, or
-NULL; the query thread should be executed by que_run_threads by the
-caller */
-que_thr_t*
-que_fork_scheduler_round_robin(
-/*===========================*/
-	que_fork_t*	fork,		/*!< in: a query fork */
-	que_thr_t*	thr);		/*!< in: current pos */
-
 /** Query thread states */
 enum que_thr_state_t {
 	/** in selects this means that the thread is at the end of its
