@@ -6201,7 +6201,7 @@ drop_create_field:
         uint n_key;
         if (drop->type != Alter_drop::FOREIGN_KEY)
         {
-          for (n_key=0; n_key < table->s->keys; n_key++)
+          for (n_key=0; n_key < table->s->total_keys; n_key++)
           {
             if (table->key_info[n_key].name.streq(drop->name))
             {
@@ -6272,7 +6272,7 @@ drop_create_field:
       if (!rename_key->alter_if_exists)
         continue;
       bool exists= false;
-      for (uint n_key= 0; n_key < table->s->keys; n_key++)
+      for (uint n_key= 0; n_key < table->s->total_keys; n_key++)
       {
         if (table->key_info[n_key].name.streq(rename_key->old_name))
         {
@@ -6298,7 +6298,7 @@ drop_create_field:
       if (!aii->if_exists())
         continue;
       bool exists= false;
-      for (uint n_key= 0; n_key < table->s->keys; n_key++)
+      for (uint n_key= 0; n_key < table->s->total_keys; n_key++)
       {
         if (table->key_info[n_key].name.streq(aii->name()))
         {
@@ -6355,7 +6355,7 @@ drop_create_field:
       }
       if (key->type != Key::FOREIGN_KEY)
       {
-        for (n_key=0; n_key < table->s->keys; n_key++)
+        for (n_key=0; n_key < table->s->total_keys; n_key++)
         {
           if (table->key_info[n_key].name.streq(keyname))
           {
@@ -6767,7 +6767,8 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table,
 
   /* Allocate result buffers. */
   DBUG_ASSERT(ha_alter_info->rename_keys.mem_root() == thd->mem_root);
-  if (! (ha_alter_info->index_drop_buffer= thd->alloc<KEY*>(table->s->keys)) ||
+  if (! (ha_alter_info->index_drop_buffer=
+           thd->alloc<KEY*>(table->s->total_keys)) ||
       ! (ha_alter_info->index_add_buffer=
            thd->alloc<uint>(alter_info->key_list.elements)) ||
       ha_alter_info->rename_keys.reserve(ha_alter_info->index_add_count) ||
@@ -6891,7 +6892,7 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table,
               DBUG_RETURN(true);
 
             KEY *key_info= table->key_info;
-            for (uint i= 0; i < table->s->keys; i++, key_info++)
+            for (uint i= 0; i < table->s->total_keys; i++, key_info++)
             {
               if (!field->part_of_key.is_set(i))
                 continue;
@@ -7068,7 +7069,7 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table,
     with new table.
   */
   KEY *table_key;
-  KEY *table_key_end= table->key_info + table->s->keys;
+  KEY *table_key_end= table->key_info + table->s->total_keys;
   KEY *new_key;
   KEY *new_key_end=
     ha_alter_info->key_info_buffer + ha_alter_info->key_count;
@@ -7083,8 +7084,9 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table,
   const KEY *const old_pk= table->s->primary_key == MAX_KEY ? NULL :
                            table->key_info + table->s->primary_key;
 
-  DBUG_PRINT("info", ("index count old: %d  new: %d",
-                      table->s->keys, ha_alter_info->key_count));
+  DBUG_PRINT("info", ("index count old: %d  total: %d  new: %d",
+                      table->s->keys, table->s->total_keys,
+                      ha_alter_info->key_count));
 
   /*
     Step through all keys of the old table and search matching new keys.
@@ -7185,6 +7187,9 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table,
       ha_alter_info->handler_flags|= ALTER_RENAME_INDEX;
       ha_alter_info->rename_keys.push_back(
           Alter_inplace_info::Rename_key_pair(old_key, new_key));
+      /* Renaming high-level index is algorithm=copy operation. */
+      if (old_key->algorithm == HA_KEY_ALG_VECTOR)
+        ha_alter_info->inplace_supported= HA_ALTER_INPLACE_NOT_SUPPORTED;
 
       --ha_alter_info->index_add_count;
       --ha_alter_info->index_drop_count;
@@ -7266,7 +7271,19 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table,
     }
     else
       ha_alter_info->handler_flags|= ALTER_ADD_NON_UNIQUE_NON_PRIM_INDEX;
+    /* Adding high-level index is algorithm=copy operation. */
+    if (new_key->algorithm == HA_KEY_ALG_VECTOR)
+      ha_alter_info->inplace_supported= HA_ALTER_INPLACE_NOT_SUPPORTED;
   }
+
+  /*
+    Adding/dropping any indexes in a table that already has high-level indexes
+    may shift high-level indexes numbers. And thus require high-level indexes
+    rename, which algorithm=inplace (storage engines) shouldn't do.
+  */
+  if (table->s->keys < table->s->total_keys &&
+      (ha_alter_info->index_drop_count || ha_alter_info->index_add_count))
+    ha_alter_info->inplace_supported= HA_ALTER_INPLACE_NOT_SUPPORTED;
 
   DBUG_PRINT("exit", ("handler_flags: %llu", ha_alter_info->handler_flags));
   DBUG_RETURN(false);
@@ -8381,7 +8398,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   if ((create_info->fields_option_struct= 
          thd->calloc<ha_field_option_struct*>(table->s->fields)) == NULL ||
       (create_info->indexes_option_struct= 
-         thd->calloc<ha_index_option_struct*>(table->s->keys)) == NULL)
+         thd->calloc<ha_index_option_struct*>(table->s->total_keys)) == NULL)
     DBUG_RETURN(1);
 
   if (merge_engine_options(table->s->option_list, create_info->option_list,
@@ -11224,6 +11241,17 @@ do_continue:;
     if (fill_alter_inplace_info(thd, table, &ha_alter_info))
       goto err_new_table_cleanup;
 
+    if (ha_alter_info.inplace_supported == HA_ALTER_INPLACE_NOT_SUPPORTED)
+    {
+      if (alter_info->algorithm_is_nocopy(thd))
+      {
+        my_error(ER_ALTER_OPERATION_NOT_SUPPORTED, MYF(0),
+                 alter_info->algorithm_clause(thd), "ALGORITHM=COPY");
+        goto err_new_table_cleanup;
+      }
+      goto alter_copy;
+    }
+
     alter_ctx.tmp_storage_engine_name_partitioned=
       table->file->partition_engine();
     alter_ctx.tmp_storage_engine_name.length=
@@ -11369,6 +11397,7 @@ do_continue:;
       cleanup_table_after_inplace_alter_keep_files(&altered_table);
   }
 
+alter_copy:
   /* ALTER TABLE using copy algorithm. */
 
   /* Check if ALTER TABLE is compatible with foreign key definitions. */
