@@ -1053,7 +1053,6 @@ public:
   List<Item_func_in> in_funcs;
   List<TABLE_LIST> leaf_tables;
   List<TABLE_LIST> leaf_tables_exec;
-  List<TABLE_LIST> leaf_tables_prep;
 
   /* current index hint kind. used in filling up index_hints */
   enum index_hint_type current_index_hint_type;
@@ -1192,7 +1191,7 @@ public:
   enum_parsing_place parsing_place; /* where we are parsing expression */
   enum_parsing_place save_parsing_place;
   enum_parsing_place context_analysis_place; /* where we are in prepare */
-  enum leaf_list_state {UNINIT, READY, SAVED};
+  enum leaf_list_state {UNINIT, READY};
   enum leaf_list_state prep_leaf_list_state;
   enum olap_type olap;
   /* SELECT [FOR UPDATE/LOCK IN SHARE MODE] [SKIP LOCKED] */

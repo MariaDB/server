@@ -7461,8 +7461,6 @@ void THD::reset_for_next_command(bool do_clear_error)
   reset_current_stmt_binlog_format_row();
   binlog_unsafe_warning_flags= 0;
 
-  save_prep_leaf_list= false;
-
 #if defined(WITH_WSREP) && !defined(DBUG_OFF)
   if (mysql_bin_log.is_open())
     DBUG_PRINT("info",

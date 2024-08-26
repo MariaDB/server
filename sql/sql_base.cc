@@ -8317,26 +8317,16 @@ bool setup_tables(THD *thd, Name_resolution_context *context,
   if (select_lex->first_cond_optimization)
   {
     leaves.empty();
-    if (select_lex->prep_leaf_list_state != SELECT_LEX::SAVED)
-    {
-      /*
-        For INSERT ... SELECT statements we must not include the first table
-        (where the data is being inserted into) in the list of leaves
-      */
-      TABLE_LIST *tables_for_leaves=
-          select_insert ? first_select_table : tables;
-      make_leaves_list(thd, leaves, tables_for_leaves, full_table_list,
-                       first_select_table);
-      select_lex->prep_leaf_list_state= SELECT_LEX::READY;
-      select_lex->leaf_tables_exec.empty();
-    }
-    else
-    {
-      List_iterator_fast <TABLE_LIST> ti(select_lex->leaf_tables_prep);
-      while ((table_list= ti++))
-        leaves.push_back(table_list, thd->mem_root);
-    }
-      
+    /*
+    For INSERT ... SELECT statements we must not include the first table
+    (where the data is being inserted into) in the list of leaves
+    */
+    TABLE_LIST *tables_for_leaves=
+    select_insert ? first_select_table : tables;
+    make_leaves_list(thd, leaves, tables_for_leaves, full_table_list,
+                     first_select_table);
+    select_lex->prep_leaf_list_state= SELECT_LEX::READY;
+    select_lex->leaf_tables_exec.empty();
     List_iterator<TABLE_LIST> ti(leaves);
     while ((table_list= ti++))
     {
