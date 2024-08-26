@@ -3293,7 +3293,7 @@ public:
   bool zero_pack() const override { return false; }
   /*
     This method is used by storage/perfschema and
-    Item_func_now_local::save_in_field().
+    thd_get_query_start_data().
   */
   void store_TIME(my_time_t ts, ulong sec_part)
   {

@@ -2748,6 +2748,26 @@ bool Type_std_attributes::agg_item_set_converter(const DTCollation &coll,
 }
 
 
+bool
+Item_func_or_sum
+ ::check_fsp_or_error() const
+{
+  if (decimals > TIME_SECOND_PART_DIGITS)
+  {
+    /*
+      Historically MariaDB raises ER_TOO_BIG_PRECISION
+      instead of ER_TOO_BIG_SCALE when checking fractional digits
+      of an SQL function. Perhaps should be fixed eventually.
+    */
+    my_error(ER_TOO_BIG_PRECISION, MYF(0),
+             func_name(), TIME_SECOND_PART_DIGITS);
+    return true;
+  }
+  return false;
+}
+
+
+
 /**
   @brief
     Building clone for Item_func_or_sum

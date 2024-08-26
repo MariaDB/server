@@ -3270,3 +3270,79 @@ SET timestamp=DEFAULT;
 --echo #
 --echo # End of 11.6 tests
 --echo #
+
+--echo #
+--echo # Start of 11.7 tests
+--echo #
+
+--echo #
+--echo # MDEV-15751 CURRENT_TIMESTAMP should return a TIMESTAMP [WITH TIME ZONE?]
+--echo #
+
+--error ER_PARSE_ERROR
+CREATE TABLE t1 (localtimestamp TIMESTAMP);
+--error ER_PARSE_ERROR
+CREATE TABLE t1 (current_timestamp TIMESTAMP);
+
+CREATE TABLE t1 AS
+SELECT
+  localtimestamp,
+  localtimestamp(),
+  localtimestamp(0),
+  localtimestamp(1),
+  localtimestamp(2),
+  localtimestamp(3),
+  localtimestamp(4),
+  localtimestamp(5),
+  localtimestamp(6);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+
+CREATE TABLE t1 AS
+SELECT
+  current_timestamp(),
+  current_timestamp(0),
+  current_timestamp(1),
+  current_timestamp(2),
+  current_timestamp(3),
+  current_timestamp(4),
+  current_timestamp(5),
+  current_timestamp(6);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 AS
+SELECT
+  sysdate(),
+  sysdate(0),
+  sysdate(1),
+  sysdate(2),
+  sysdate(3),
+  sysdate(4),
+  sysdate(5),
+  sysdate(6);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 AS
+SELECT
+  from_unixtime(1000000e0),
+  from_unixtime(1000000),
+  from_unixtime(1000000.1),
+  from_unixtime(1000000.12),
+  from_unixtime(1000000.123),
+  from_unixtime(1000000.1234),
+  from_unixtime(1000000.12345),
+  from_unixtime(1000000.123456),
+  from_unixtime(1000000.1234567),
+  from_unixtime(1000000.12345678),
+  from_unixtime(1000000.123456789),
+  from_unixtime(1000000.1234567891),
+  from_unixtime(1000000.12345678912);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 11.7 tests
+--echo #

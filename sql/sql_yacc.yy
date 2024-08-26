@@ -571,6 +571,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd> LINEAR_SYM
 %token  <kwd> LINES
 %token  <kwd> LOAD
+%token  <kwd> LOCALTIMESTAMP                /* SQL-2003-R */
 %token  <kwd> LOCATOR_SYM                   /* SQL-2003-N */
 %token  <kwd> LOCK_SYM
 %token  <kwd> LONGBLOB
@@ -3008,7 +3009,7 @@ opt_ev_status:
 ev_starts:
           /* empty */
           {
-            Item *item= new (thd->mem_root) Item_func_now_local(thd, 0);
+            Item *item= new (thd->mem_root) Item_func_current_timestamp(thd, 0);
             if (unlikely(item == NULL))
               MYSQL_YYABORT;
             Lex->event_parse_data->item_starts= item;
@@ -6592,7 +6593,7 @@ attribute:
           }
         | ON UPDATE_SYM NOW_SYM opt_default_time_precision
           {
-            Item *item= new (thd->mem_root) Item_func_now_local(thd, $4);
+            Item *item= new (thd->mem_root) Item_func_current_timestamp(thd, $4);
             if (unlikely(item == NULL))
               MYSQL_YYABORT;
             Lex->last_field->on_update= item;
@@ -10402,9 +10403,16 @@ function_call_nonkeyword:
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
-        | NOW_SYM opt_time_precision
+        | LOCALTIMESTAMP opt_time_precision
           {
             $$= new (thd->mem_root) Item_func_now_local(thd, $2);
+            if (unlikely($$ == NULL))
+              MYSQL_YYABORT;
+            Lex->safe_to_cache_query= false;
+          }
+        | NOW_SYM opt_time_precision
+          {
+            $$= new (thd->mem_root) Item_func_current_timestamp(thd, $2);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
             Lex->safe_to_cache_query=0;

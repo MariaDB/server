@@ -1335,7 +1335,7 @@ public:
   {
     return is_valid_temporal() ? TIME_to_double(this) : 0;
   }
-  my_decimal *to_decimal(my_decimal *to)
+  my_decimal *to_decimal(my_decimal *to) const
   {
     return is_valid_temporal() ? Temporal::to_decimal(to) : bad_to_decimal(to);
   }
@@ -1982,7 +1982,7 @@ public:
       str->length(my_time_to_str(this, const_cast<char*>(str->ptr()), dec));
     return str;
   }
-  my_decimal *to_decimal(my_decimal *to)
+  my_decimal *to_decimal(my_decimal *to) const
   {
     return is_valid_time() ? Temporal::to_decimal(to) : bad_to_decimal(to);
   }
@@ -2337,7 +2337,7 @@ public:
       str->length(my_date_to_str(this, const_cast<char*>(str->ptr())));
     return str;
   }
-  my_decimal *to_decimal(my_decimal *to)
+  my_decimal *to_decimal(my_decimal *to) const
   {
     return is_valid_date() ? Temporal::to_decimal(to) : bad_to_decimal(to);
   }
@@ -2658,7 +2658,7 @@ public:
       str->length(my_datetime_to_str(this, const_cast<char*>(str->ptr()), dec));
     return str;
   }
-  my_decimal *to_decimal(my_decimal *to)
+  my_decimal *to_decimal(my_decimal *to) const
   {
     return is_valid_datetime() ? Temporal::to_decimal(to) : bad_to_decimal(to);
   }
