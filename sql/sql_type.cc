@@ -468,7 +468,10 @@ bool Timestamp::to_native(Native *to, uint decimals) const
 {
   uint len= my_timestamp_binary_length(decimals);
   if (to->reserve(len))
+  {
+    to->length(0); // Safety: set to '0000-00-00 00:00:00' on falures
     return true;
+  }
   my_timestamp_to_binary(this, (uchar *) to->ptr(), decimals);
   to->length(len);
   return false;
