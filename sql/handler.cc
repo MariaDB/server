@@ -5737,6 +5737,7 @@ Alter_inplace_info::Alter_inplace_info(HA_CREATE_INFO *create_info_arg,
     rename_keys(current_thd->mem_root),
     modified_part_info(modified_part_info_arg),
     ignore(ignore_arg),
+    inplace_supported(HA_ALTER_ERROR),
     error_if_not_empty(error_non_empty)
   {}
 
