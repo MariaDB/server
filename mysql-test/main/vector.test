@@ -232,12 +232,7 @@ show create table t1;
 create index a on t1(id) algorithm=copy;
 list_files $datadir/test;
 show create table t1;
-if ($MTR_COMBINATION_MYISAM) {
 drop index a on t1;
-}
-if ($MTR_COMBINATION_INNODB) {
-alter table t1 drop index a, algorithm=copy;
-}
 list_files $datadir/test;
 show create table t1;
 
@@ -259,17 +254,111 @@ list_files $datadir/test;
 show create table t1;
 
 --echo # CREATE/DROP INDEX, ALGORITHM=COPY (vector)
-if ($MTR_COMBINATION_MYISAM) {
-# To be fixed to: drop index v on t1;
-alter table t1 drop index v, algorithm=copy;
-}
-if ($MTR_COMBINATION_INNODB) {
-alter table t1 drop index v, algorithm=copy;
-}
+drop index v on t1;
 list_files $datadir/test;
 show create table t1;
 create vector index v on t1(v) algorithm=copy;
 list_files $datadir/test;
 show create table t1;
 
+--echo # ADD/DROP INDEX, ALGORITHM=INPLACE (non-vector)
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+alter table t1 add index a(id), algorithm=inplace;
+alter table t1 add index a(id);
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+alter table t1 drop index a, algorithm=inplace;
+alter table t1 drop index a;
+
+--echo # ADD/DROP INDEX, ALGORITHM=INPLACE (vector)
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+alter table t1 drop index v, algorithm=inplace;
+alter table t1 drop index v;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+alter table t1 add vector index v(v), algorithm=inplace;
+alter table t1 add vector index v(v);
+
+--echo # CHANGE/DROP/MODIFY COLUMN, ALGORITHM=INPLACE (vector)
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+alter table t1 change column v v mediumblob not null, algorithm=inplace;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+alter table t1 drop column v, algorithm=inplace;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+alter table t1 modify column v mediumblob not null, algorithm=inplace;
+
+--echo # ADD/CHANGE/DROP/MODIFY COLUMN, ALGORITHM=INPLACE (non-vector)
+if ($MTR_COMBINATION_INNODB) {
+alter table t1 add column a varchar(10), algorithm=inplace;
+alter table t1 change column a a varchar(20), algorithm=inplace;
+alter table t1 modify column a varchar(30), algorithm=inplace;
+alter table t1 drop column a, algorithm=inplace;
+list_files $datadir/test;
+show create table t1;
+}
+
+--echo # ENABLE/DISABLE INDEXES
+alter table t1 disable keys;
+alter table t1 enable keys;
+list_files $datadir/test;
+show create table t1;
+
+--echo # RENAME COLUMN (vector)
+alter table t1 rename column v to w;
+list_files $datadir/test;
+show create table t1;
+alter table t1 rename column w to v;
+
+--echo # RENAME INDEX (vector)
+alter table t1 rename key v to w;
+list_files $datadir/test;
+show create table t1;
+alter table t1 rename key w to v;
+
+--echo # IF [NOT] EXISTS
+create vector index if not exists v on t1(v);
+drop index if exists v on t1;
+drop index if exists v on t1;
+list_files $datadir/test;
+show create table t1;
+create vector index if not exists v on t1(v);
+alter table t1 rename key if exists v to w;
+alter table t1 rename key if exists w to v;
+alter table t1 alter key if exists v ignored;
+alter table t1 alter key if exists v not ignored;
+
+--echo # ENGINE
+if ($MTR_COMBINATION_INNODB) {
+alter table t1 engine=myisam;
+list_files $datadir/test;
+show create table t1;
+alter table t1 engine=innodb;
+list_files $datadir/test;
+show create table t1;
+}
+
+--echo # CHANGE/MODIFY/DROP COLUMN (vector)
+--error ER_WRONG_ARGUMENTS
+alter table t1 modify column v int;
+--error ER_WRONG_ARGUMENTS
+alter table t1 change column v v int;
+--error ER_INDEX_CANNOT_HAVE_NULL
+alter table t1 modify column v blob;
+--error ER_INDEX_CANNOT_HAVE_NULL
+alter table t1 change column v v blob;
+alter table t1 modify column v tinyblob not null;
+list_files $datadir/test;
+show create table t1;
+alter table t1 change column v v blob not null;
+list_files $datadir/test;
+show create table t1;
+alter table t1 drop column v;
+list_files $datadir/test;
+show create table t1;
+
+drop table t1;
+
+# This is supposed to test crash while filling indexes_option_struct array,
+# which doesn't happen because alloc_root(0) returns something. Add a test
+# anyway and fix indexes_option_struct array allocation.
+create table t1(v blob not null, vector index(v));
+alter table t1 add column a int;
 drop table t1;

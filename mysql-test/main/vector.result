@@ -539,7 +539,7 @@ t1	CREATE TABLE `t1` (
   KEY `a` (`id`),
   VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-alter table t1 drop index a, algorithm=copy;
+drop index a on t1;
 db.opt
 t1#i#01.ibd
 t1.frm
@@ -606,7 +606,7 @@ t1	CREATE TABLE `t1` (
   VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 # CREATE/DROP INDEX, ALGORITHM=COPY (vector)
-alter table t1 drop index v, algorithm=copy;
+drop index v on t1;
 db.opt
 t1.frm
 t1.ibd
@@ -630,4 +630,189 @@ t1	CREATE TABLE `t1` (
   PRIMARY KEY (`id`),
   VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+# ADD/DROP INDEX, ALGORITHM=INPLACE (non-vector)
+alter table t1 add index a(id), algorithm=inplace;
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
+alter table t1 add index a(id);
+alter table t1 drop index a, algorithm=inplace;
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
+alter table t1 drop index a;
+# ADD/DROP INDEX, ALGORITHM=INPLACE (vector)
+alter table t1 drop index v, algorithm=inplace;
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
+alter table t1 drop index v;
+alter table t1 add vector index v(v), algorithm=inplace;
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
+alter table t1 add vector index v(v);
+# CHANGE/DROP/MODIFY COLUMN, ALGORITHM=INPLACE (vector)
+alter table t1 change column v v mediumblob not null, algorithm=inplace;
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
+alter table t1 drop column v, algorithm=inplace;
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
+alter table t1 modify column v mediumblob not null, algorithm=inplace;
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
+# ADD/CHANGE/DROP/MODIFY COLUMN, ALGORITHM=INPLACE (non-vector)
+alter table t1 add column a varchar(10), algorithm=inplace;
+alter table t1 change column a a varchar(20), algorithm=inplace;
+alter table t1 modify column a varchar(30), algorithm=inplace;
+alter table t1 drop column a, algorithm=inplace;
+db.opt
+t1#i#01.ibd
+t1.frm
+t1.ibd
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `v` blob NOT NULL,
+  PRIMARY KEY (`id`),
+  VECTOR KEY `v` (`v`)
+) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+# ENABLE/DISABLE INDEXES
+alter table t1 disable keys;
+alter table t1 enable keys;
+Warnings:
+Note	1031	Storage engine InnoDB of the table `test`.`t1` doesn't have this option
+db.opt
+t1#i#01.ibd
+t1.frm
+t1.ibd
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `v` blob NOT NULL,
+  PRIMARY KEY (`id`),
+  VECTOR KEY `v` (`v`)
+) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+# RENAME COLUMN (vector)
+alter table t1 rename column v to w;
+db.opt
+t1#i#01.ibd
+t1.frm
+t1.ibd
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `w` blob NOT NULL,
+  PRIMARY KEY (`id`),
+  VECTOR KEY `v` (`w`)
+) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+alter table t1 rename column w to v;
+# RENAME INDEX (vector)
+alter table t1 rename key v to w;
+db.opt
+t1#i#01.ibd
+t1.frm
+t1.ibd
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `v` blob NOT NULL,
+  PRIMARY KEY (`id`),
+  VECTOR KEY `w` (`v`)
+) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+alter table t1 rename key w to v;
+# IF [NOT] EXISTS
+create vector index if not exists v on t1(v);
+Warnings:
+Note	1061	Duplicate key name 'v'
+drop index if exists v on t1;
+drop index if exists v on t1;
+Warnings:
+Note	1091	Can't DROP INDEX `v`; check that it exists
+db.opt
+t1.frm
+t1.ibd
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `v` blob NOT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+create vector index if not exists v on t1(v);
+alter table t1 rename key if exists v to w;
+alter table t1 rename key if exists w to v;
+alter table t1 alter key if exists v ignored;
+alter table t1 alter key if exists v not ignored;
+# ENGINE
+alter table t1 engine=myisam;
+db.opt
+t1#i#01.MYD
+t1#i#01.MYI
+t1.MYD
+t1.MYI
+t1.frm
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `v` blob NOT NULL,
+  PRIMARY KEY (`id`),
+  VECTOR KEY `v` (`v`)
+) ENGINE=MyISAM AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+alter table t1 engine=innodb;
+db.opt
+t1#i#01.ibd
+t1.frm
+t1.ibd
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `v` blob NOT NULL,
+  PRIMARY KEY (`id`),
+  VECTOR KEY `v` (`v`)
+) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+# CHANGE/MODIFY/DROP COLUMN (vector)
+alter table t1 modify column v int;
+ERROR HY000: Incorrect arguments to VECTOR INDEX
+alter table t1 change column v v int;
+ERROR HY000: Incorrect arguments to VECTOR INDEX
+alter table t1 modify column v blob;
+ERROR 42000: All parts of a VECTOR index must be NOT NULL
+alter table t1 change column v v blob;
+ERROR 42000: All parts of a VECTOR index must be NOT NULL
+alter table t1 modify column v tinyblob not null;
+db.opt
+t1#i#01.ibd
+t1.frm
+t1.ibd
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `v` tinyblob NOT NULL,
+  PRIMARY KEY (`id`),
+  VECTOR KEY `v` (`v`)
+) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+alter table t1 change column v v blob not null;
+db.opt
+t1#i#01.ibd
+t1.frm
+t1.ibd
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `v` blob NOT NULL,
+  PRIMARY KEY (`id`),
+  VECTOR KEY `v` (`v`)
+) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+alter table t1 drop column v;
+db.opt
+t1.frm
+t1.ibd
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+drop table t1;
+create table t1(v blob not null, vector index(v));
+alter table t1 add column a int;
 drop table t1;
