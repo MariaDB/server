@@ -149,10 +149,11 @@ public:
 private:
   /** number of pending stop() calls without resume() */
   Atomic_counter<uint32_t> m_paused;
-  /** number of stop_SYS() calls without resume_SYS() */
-  Atomic_counter<uint32_t> m_SYS_paused;
-  /** number of stop_FTS() calls without resume_FTS() */
-  Atomic_counter<uint32_t> m_FTS_paused;
+  /** PAUSED_SYS * number of stop_SYS() calls without resume_SYS() +
+  number of stop_FTS() calls without resume_FTS() */
+  Atomic_relaxed<uint32_t> m_FTS_paused;
+  /** The stop_SYS() multiplier in m_FTS_paused */
+  static constexpr const uint32_t PAUSED_SYS= 1U << 16;
 
   /** latch protecting end_view */
   alignas(CPU_LEVEL1_DCACHE_LINESIZE) srw_spin_lock_low end_latch;
@@ -321,16 +322,21 @@ private:
   void wait_FTS(bool also_sys);
 public:
   /** Suspend purge in data dictionary tables */
-  void stop_SYS() { m_SYS_paused++; }
+  void stop_SYS()
+  {
+    ut_d(const auto p=) m_FTS_paused.fetch_add(PAUSED_SYS);
+    ut_ad(p < p + PAUSED_SYS);
+  }
   /** Resume purge in data dictionary tables */
   static void resume_SYS(void *);
 
   /** Pause purge during a DDL operation that could drop FTS_ tables. */
   void stop_FTS();
   /** Resume purge after stop_FTS(). */
-  void resume_FTS() { ut_d(const auto p=) m_FTS_paused--; ut_ad(p); }
+  void resume_FTS()
+  { ut_d(const auto p=) m_FTS_paused.fetch_sub(1); ut_ad(p & ~PAUSED_SYS); }
   /** @return whether stop_SYS() is in effect */
-  bool must_wait_FTS() const { return m_FTS_paused; }
+  bool must_wait_FTS() const { return m_FTS_paused & ~PAUSED_SYS; }
 
 private:
   /**

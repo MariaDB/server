@@ -1065,15 +1065,8 @@ static void trx_purge_close_tables(purge_node_t *node, THD *thd)
 
 void purge_sys_t::wait_FTS(bool also_sys)
 {
-  bool paused;
-  do
-  {
-    latch.wr_lock(SRW_LOCK_CALL);
-    paused= m_FTS_paused || (also_sys && m_SYS_paused);
-    latch.wr_unlock();
+  for (const uint32_t mask= also_sys ? ~0U : ~PAUSED_SYS; m_FTS_paused & mask;)
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
-  }
-  while (paused);
 }
 
 __attribute__((nonnull))

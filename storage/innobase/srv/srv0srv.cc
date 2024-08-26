@@ -1298,10 +1298,9 @@ bool purge_sys_t::running()
 
 void purge_sys_t::stop_FTS()
 {
-  latch.rd_lock(SRW_LOCK_CALL);
-  m_FTS_paused++;
-  latch.rd_unlock();
-  while (m_active)
+  ut_d(const auto paused=) m_FTS_paused.fetch_add(1);
+  ut_ad(paused < PAUSED_SYS);
+  while (m_active.load(std::memory_order_acquire))
     std::this_thread::sleep_for(std::chrono::seconds(1));
 }
 
@@ -1335,8 +1334,8 @@ void purge_sys_t::stop()
 /** Resume purge in data dictionary tables */
 void purge_sys_t::resume_SYS(void *)
 {
-  ut_d(auto paused=) purge_sys.m_SYS_paused--;
-  ut_ad(paused);
+  ut_d(auto paused=) purge_sys.m_FTS_paused.fetch_sub(PAUSED_SYS);
+  ut_ad(paused >= PAUSED_SYS);
 }
 
 /** Resume purge at UNLOCK TABLES after FLUSH TABLES FOR EXPORT */
