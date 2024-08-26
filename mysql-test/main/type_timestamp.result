@@ -1541,7 +1541,7 @@ Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` =
 # Corner cases: DATETIME values inside the supported optimization range:
 # FROM_UNIXTIME(24*3600) .. FROM_UNIXTIME(0x7FFFFFFF-24*3600)
 #
-EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=FROM_UNIXTIME(24*3600);
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=CAST(FROM_UNIXTIME(24*3600) AS DATETIME);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 Warnings:
@@ -1556,7 +1556,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP/*WITH LOCAL TIME ZONE*/'2038-01-18 03:14:07'
-EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=FROM_UNIXTIME(0x7FFFFFFF-24*3600);
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=CAST(FROM_UNIXTIME(0x7FFFFFFF-24*3600) AS DATETIME);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 Warnings:
@@ -1565,7 +1565,7 @@ Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` =
 # Corner cases: DATETIME values after the supported optimization range
 # FROM_UNIXTIME(0x7FFFFFFF-24*3600+1) .. FROM_UNIXTIME(0x7FFFFFFF)
 #
-EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=FROM_UNIXTIME(0x7FFFFFFF-24*3600+1);
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=CAST(FROM_UNIXTIME(0x7FFFFFFF-24*3600+1) AS DATETIME);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 Warnings:
@@ -1580,7 +1580,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP/*WITH LOCAL TIME ZONE*/'2038-01-19 03:14:07'
-EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=FROM_UNIXTIME(0x7FFFFFFF);
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=CAST(FROM_UNIXTIME(0x7FFFFFFF) AS DATETIME);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 Warnings:

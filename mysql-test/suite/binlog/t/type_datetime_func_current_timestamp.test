@@ -1,0 +1,29 @@
+--source include/not_embedded.inc
+--source include/have_binlog_format_statement.inc
+-- source include/have_log_bin.inc
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+
+--disable_query_log
+reset master; # get rid of previous tests binlog
+--enable_query_log
+
+SET time_zone='+02:00';
+SET timestamp=100000000;
+
+--echo #
+--echo # This test makes sure binlog has SET time_zone
+--echo # for "TIMESTAMP function to DATETIME column" conversion.
+--echo #
+
+CREATE TABLE t1 (a DATETIME);
+INSERT INTO t1 VALUES (CURRENT_TIMESTAMP());
+INSERT INTO t1 VALUES (COALESCE(CURRENT_TIMESTAMP()));
+DROP TABLE t1;
+FLUSH LOGS;
+
+--replace_regex /@@session.sql_mode=\d+/@@session.sql_mode=#/ /collation_server=\d+/collation_server=#/
+--exec $MYSQL_BINLOG $MYSQLD_DATADIR/master-bin.000001 --short-form
+
+SET time_zone=DEFAULT;
+SET Timestamp=DEFAULT;
