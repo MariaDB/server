@@ -642,10 +642,10 @@ public:
 	/** Create InnoDB foreign keys from MySQL alter_info. */
 	dberr_t create_foreign_keys();
 	dberr_t create_foreign_key(
-		Foreign_key*   fk, dict_table_t* table,
+		Foreign_key*   fk, dict_table_t* table, const char* basename,
 		dict_foreign_set &local_fk_set, const char **column_names,
 		const char** ref_column_names, char* create_name,
-		const char* operation, ulint &number);
+		const char* operation, ulint &number, char *db_name, char *t_name);
 
 	/** Create the internal innodb table.
 	@param create_fk	whether to add FOREIGN KEY constraints */
