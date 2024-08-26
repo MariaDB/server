@@ -1277,7 +1277,7 @@ dberr_t btr_cur_t::search_leaf(const dtuple_t *tuple, page_cur_mode_t mode,
       ut_ad(buf_mode == BUF_GET_IF_IN_POOL_OR_WATCH);
       auto& chain = buf_pool.page_hash.cell_get(page_id.fold());
 
-      if (!row_purge_poss_sec(purge_node, index(), tuple))
+      if (!row_purge_poss_sec(purge_node, index(), tuple, mtr))
         /* The record cannot be purged yet. */
         flag= BTR_CUR_DELETE_REF;
       else if (ibuf_insert(IBUF_OP_DELETE, tuple, index(),

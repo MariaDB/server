@@ -776,26 +776,18 @@ not_free:
 
 buf_block_t *purge_sys_t::get_page(page_id_t id)
 {
+  ut_ad(!recv_sys.recovery_on);
+
   buf_block_t*& undo_page= pages[id];
 
-  if (undo_page)
-    return undo_page;
-
-  mtr_t mtr;
-  mtr.start();
-  undo_page=
-    buf_page_get_gen(id, 0, RW_S_LATCH, nullptr, BUF_GET_POSSIBLY_FREED, &mtr);
-
-  if (UNIV_LIKELY(undo_page != nullptr))
+  if (!undo_page)
   {
-    undo_page->fix();
-    mtr.commit();
-    return undo_page;
+    undo_page= buf_pool.page_fix(id); // batch_cleanup() will unfix()
+    if (!undo_page)
+      pages.erase(id);
   }
 
-  mtr.commit();
-  pages.erase(id);
-  return nullptr;
+  return undo_page;
 }
 
 bool purge_sys_t::rseg_get_next_history_log()

@@ -1416,6 +1416,12 @@ public:
   }
 
 public:
+  /** Look up and buffer-fix a page.
+  @param id        page identifier
+  @return undo log page, buffer-fixed
+  @retval nullptr  if the undo page was corrupted or freed */
+  buf_block_t *page_fix(const page_id_t id);
+
   /** @return whether the buffer pool contains a page
   @tparam allow_watch  whether to allow watch_is_sentinel()
   @param page_id       page identifier

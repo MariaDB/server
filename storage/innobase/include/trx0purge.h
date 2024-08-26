@@ -438,10 +438,17 @@ public:
 
   struct view_guard
   {
-    inline view_guard();
+    enum guard { END_VIEW= -1, PURGE= 0, VIEW= 1};
+    guard latch;
+    inline view_guard(guard latch);
     inline ~view_guard();
+    /** Fetch an undo log page.
+    @param id   page identifier
+    @param mtr  mini-transaction
+    @return reference to buffer page, possibly buffer-fixed in mtr */
+    inline const buf_block_t *get(const page_id_t id, mtr_t *mtr);
 
-    /** @return purge_sys.view */
+    /** @return purge_sys.view or purge_sys.end_view */
     inline const ReadViewBase &view() const;
   };
 
@@ -470,14 +477,39 @@ public:
 /** The global data structure coordinating a purge */
 extern purge_sys_t	purge_sys;
 
-purge_sys_t::view_guard::view_guard()
-{ purge_sys.latch.rd_lock(SRW_LOCK_CALL); }
+purge_sys_t::view_guard::view_guard(purge_sys_t::view_guard::guard latch) :
+  latch(latch)
+{
+  switch (latch) {
+  case VIEW:
+    purge_sys.latch.rd_lock(SRW_LOCK_CALL);
+    break;
+  case END_VIEW:
+    purge_sys.end_latch.rd_lock();
+    break;
+  case PURGE:
+    /* the access is within a purge batch; purge_coordinator_task
+    will wait for all workers to complete before updating the views */
+    break;
+  }
+}
 
 purge_sys_t::view_guard::~view_guard()
-{ purge_sys.latch.rd_unlock(); }
+{
+  switch (latch) {
+  case VIEW:
+    purge_sys.latch.rd_unlock();
+    break;
+  case END_VIEW:
+    purge_sys.end_latch.rd_unlock();
+    break;
+  case PURGE:
+    break;
+  }
+}
 
 const ReadViewBase &purge_sys_t::view_guard::view() const
-{ return purge_sys.view; }
+{ return latch == END_VIEW ? purge_sys.end_view : purge_sys.view; }
 
 purge_sys_t::end_view_guard::end_view_guard()
 { purge_sys.end_latch.rd_lock(); }

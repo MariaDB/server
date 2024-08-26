@@ -6614,7 +6614,7 @@ rec_loop:
           err= trx_undo_prev_version_build(clust_rec,
                                            clust_index, clust_offsets,
                                            vers_heap, &old_vers,
-                                           nullptr, nullptr, 0);
+                                           &mtr, 0, nullptr, nullptr);
           if (prev_heap)
             mem_heap_free(prev_heap);
           if (err != DB_SUCCESS)
