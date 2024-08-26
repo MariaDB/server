@@ -708,6 +708,50 @@ public:
 };
 
 
+class Item_timestampfunc: public Item_func
+{
+protected:
+  Datetime to_datetime(THD *thd)
+  {
+    return Timestamp_or_zero_datetime_native_null(thd, this).to_datetime(thd);
+  }
+public:
+  Item_timestampfunc(THD *thd) :Item_func(thd) {}
+  Item_timestampfunc(THD *thd, uint dec) :Item_func(thd) { decimals= dec; }
+  Item_timestampfunc(THD *thd, Item *a) :Item_func(thd, a) {}
+  const Type_handler *type_handler() const override
+  { return &type_handler_timestamp2; }
+  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override
+  {
+    return null_value= to_datetime(thd).copy_to_mysql_time(ltime);
+  }
+  double val_real() override
+  {
+    const Datetime dt= to_datetime(current_thd);
+    null_value= !dt.is_valid_datetime();
+    return dt.to_double();
+  }
+  longlong val_int() override
+  {
+    const Datetime dt= to_datetime(current_thd);
+    null_value= !dt.is_valid_datetime();
+    return dt.to_longlong();
+  }
+  my_decimal *val_decimal(my_decimal *to) override
+  {
+    const Datetime dt= to_datetime(current_thd);
+    null_value= !dt.is_valid_datetime();
+    return dt.to_decimal(to);
+  }
+  String *val_str(String *to) override
+  {
+    const Datetime dt= to_datetime(current_thd);
+    null_value= !dt.is_valid_datetime();
+    return dt.to_string(to, decimals);
+  }
+};
+
+
 /* Abstract CURTIME function. Children should define what time zone is used */
 
 class Item_func_curtime :public Item_timefunc
@@ -838,18 +882,53 @@ public:
 };
 
 
+class Item_func_current_timestamp: public Item_timestampfunc
+{
+public:
+  Item_func_current_timestamp(THD *thd, uint dec)
+   :Item_timestampfunc(thd, dec)
+  { }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("current_timestamp") };
+    return name;
+  }
+  void print(String *str, enum_query_type query_type) override
+  {
+    str->append(func_name_cstring());
+    str->append('(');
+    if (decimals)
+      str->append_ulonglong(decimals);
+    str->append(')');
+  }
+  bool fix_length_and_dec(THD *thd) override
+  {
+    if (check_fsp_or_error())
+      return true;
+    fix_attributes_datetime(decimals);
+    return false;
+  }
+  bool val_native(THD *thd, Native *to) override;
+  bool check_vcol_func_processor(void *arg) override
+  {
+    return mark_unsupported_function(func_name(), "()", arg, VCOL_TIME_FUNC);
+  }
+  enum Functype functype() const override { return NOW_FUNC; }
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_func_current_timestamp>(thd, this); }
+};
+
+
 class Item_func_now_local :public Item_func_now
 {
 public:
   Item_func_now_local(THD *thd, uint dec): Item_func_now(thd, dec) {}
   LEX_CSTRING func_name_cstring() const override
   {
-    static LEX_CSTRING name= {STRING_WITH_LEN("current_timestamp") };
+    static LEX_CSTRING name= {STRING_WITH_LEN("localtimestamp") };
     return name;
   }
-  int save_in_field(Field *field, bool no_conversions) override;
   void store_now_in_TIME(THD *thd, MYSQL_TIME *now_time) override;
-  enum Functype functype() const override { return NOW_FUNC; }
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_now_local>(thd, this); }
 };
@@ -880,18 +959,34 @@ public:
   This is like NOW(), but always uses the real current time, not the
   query_start(). This matches the Oracle behavior.
 */
-class Item_func_sysdate_local :public Item_func_now
+class Item_func_sysdate_local :public Item_timestampfunc
 {
 public:
-  Item_func_sysdate_local(THD *thd, uint dec): Item_func_now(thd, dec) {}
+  Item_func_sysdate_local(THD *thd, uint dec)
+   :Item_timestampfunc(thd, dec)
+  { }
   bool const_item() const override { return 0; }
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("sysdate") };
     return name;
   }
-  void store_now_in_TIME(THD *thd, MYSQL_TIME *now_time) override;
-  bool get_date(THD *thd, MYSQL_TIME *res, date_mode_t fuzzydate) override;
+  void print(String *str, enum_query_type query_type) override
+  {
+    str->append(func_name_cstring());
+    str->append('(');
+    if (decimals)
+      str->append_ulonglong(decimals);
+    str->append(')');
+  }
+  bool fix_length_and_dec(THD *thd) override
+  {
+    if (check_fsp_or_error())
+      return true;
+    fix_attributes_datetime(decimals);
+    return false;
+  }
+  bool val_native(THD *thd, Native *to) override;
   table_map used_tables() const override { return RAND_TABLE_BIT; }
   bool check_vcol_func_processor(void *arg) override
   {
@@ -1033,20 +1128,20 @@ public:
 };
 
 
-class Item_func_from_unixtime :public Item_datetimefunc
+class Item_func_from_unixtime :public Item_timestampfunc
 {
   bool check_arguments() const override
   { return args[0]->check_type_can_return_decimal(func_name_cstring()); }
   Time_zone *tz;
  public:
-  Item_func_from_unixtime(THD *thd, Item *a): Item_datetimefunc(thd, a) {}
+  Item_func_from_unixtime(THD *thd, Item *a): Item_timestampfunc(thd, a) {}
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("from_unixtime") };
     return name;
   }
   bool fix_length_and_dec(THD *thd) override;
-  bool get_date(THD *thd, MYSQL_TIME *res, date_mode_t fuzzydate) override;
+  bool val_native(THD *thd, Native *to) override;
   bool check_vcol_func_processor(void *arg) override
   {
     return mark_unsupported_function(func_name(), "()", arg, VCOL_SESSION_FUNC);

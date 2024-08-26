@@ -9575,7 +9575,7 @@ Item *LEX::make_item_func_sysdate(THD *thd, uint fsp)
   set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
   Item *item= global_system_variables.sysdate_is_now == 0 ?
               (Item *) new (thd->mem_root) Item_func_sysdate_local(thd, fsp) :
-              (Item *) new (thd->mem_root) Item_func_now_local(thd, fsp);
+              (Item *) new (thd->mem_root) Item_func_current_timestamp(thd, fsp);
   if (unlikely(item == NULL))
     return NULL;
   safe_to_cache_query=0;

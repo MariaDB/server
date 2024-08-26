@@ -5605,6 +5605,8 @@ class Item_func_or_sum: public Item_result_field,
                         public Used_tables_and_const_cache
 {
 protected:
+  bool check_fsp_or_error() const;
+
   bool agg_arg_charsets(DTCollation &c, Item **items, uint nitems,
                         uint flags, int item_sep)
   {

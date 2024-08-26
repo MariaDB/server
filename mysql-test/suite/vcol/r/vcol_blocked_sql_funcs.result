@@ -43,9 +43,9 @@ create or replace table t1 (a datetime, b varchar(10) as (localtime) PERSISTENT)
 ERROR HY000: Function or expression 'curtime()' cannot be used in the GENERATED ALWAYS AS clause of `b`
 # LOCALTIMESTAMP, LOCALTIMESTAMP()(v4.0.6)
 create or replace table t1 (a datetime, b varchar(10) as (localtimestamp()) PERSISTENT);
-ERROR HY000: Function or expression 'current_timestamp()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+ERROR HY000: Function or expression 'localtimestamp()' cannot be used in the GENERATED ALWAYS AS clause of `b`
 create or replace table t1 (a datetime, b varchar(10) as (localtimestamp) PERSISTENT);
-ERROR HY000: Function or expression 'current_timestamp()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+ERROR HY000: Function or expression 'localtimestamp()' cannot be used in the GENERATED ALWAYS AS clause of `b`
 # NOW()
 create or replace table t1 (a datetime, b varchar(10) as (now()) PERSISTENT);
 ERROR HY000: Function or expression 'current_timestamp()' cannot be used in the GENERATED ALWAYS AS clause of `b`
