@@ -1965,6 +1965,9 @@ typedef enum {
 	DICT_FRM_INCONSISTENT_KEYS = 3	/*!< Key count mismatch */
 } dict_frm_t;
 
+char*
+is_partition(const char *file_name);
+
 /** Data structure for a database table.  Most fields will be
 zero-initialized in dict_table_t::create(). */
 struct dict_table_t {
@@ -2016,7 +2019,9 @@ struct dict_table_t {
 	which denotes temporary or intermediate tables in MariaDB. */
 	static bool is_temporary_name(const char* name)
 	{
-		return strstr(name, "/#sql");
+		return strstr(name, "/#sql") || (
+                  is_partition(name) &&
+                  0 == memcmp(name + strlen(name) - 5, "#TMP#", 5));
 	}
 
 	/** @return whether instant ALTER TABLE is in effect */
