@@ -250,7 +250,7 @@ static const size_t ha_option_type_sizeof[]=
   @retval FALSE OK
 */
 
-bool parse_option_list(THD* thd, handlerton *hton, void *option_struct_arg,
+bool parse_option_list(THD* thd, st_plugin_int *plugin, void *option_struct_arg,
                        engine_option_value **option_list,
                        ha_create_table_option *rules,
                        bool suppress_warning, MEM_ROOT *root)
@@ -326,7 +326,7 @@ bool parse_option_list(THD* thd, handlerton *hton, void *option_struct_arg,
           (thd->lex->sql_command == SQLCOM_CREATE_TABLE || seen))
       {
         // take a value from the variable and add it to the list
-        sys_var *sysvar= find_hton_sysvar(hton, opt->var);
+        sys_var *sysvar= find_plugin_sysvar(plugin, opt->var);
         DBUG_ASSERT(sysvar);
 
         if (!sysvar->session_is_default(thd))
@@ -368,7 +368,7 @@ bool parse_option_list(THD* thd, handlerton *hton, void *option_struct_arg,
 
   This is done when an engine is loaded.
 */
-static bool resolve_sysvars(handlerton *hton, ha_create_table_option *rules)
+bool resolve_sysvar_table_options(ha_create_table_option *rules)
 {
   for (ha_create_table_option *opt= rules; rules && opt->name; opt++)
   {
@@ -421,13 +421,6 @@ static bool resolve_sysvars(handlerton *hton, ha_create_table_option *rules)
   return 0;
 }
 
-bool resolve_sysvar_table_options(handlerton *hton)
-{
-  return resolve_sysvars(hton, hton->table_options) ||
-         resolve_sysvars(hton, hton->field_options) ||
-         resolve_sysvars(hton, hton->index_options);
-}
-
 /*
   Restore HA_OPTION_TYPE_SYSVAR options back as they were
   before resolve_sysvars().
@@ -435,7 +428,7 @@ bool resolve_sysvar_table_options(handlerton *hton)
   This is done when the engine is unloaded, so that we could
   call resolve_sysvars() if the engine is installed again.
 */
-static void free_sysvars(handlerton *hton, ha_create_table_option *rules)
+void free_sysvar_table_options(ha_create_table_option *rules)
 {
   for (ha_create_table_option *opt= rules; rules && opt->name; opt++)
   {
@@ -451,14 +444,6 @@ static void free_sysvars(handlerton *hton, ha_create_table_option *rules)
     }
   }
 }
-
-void free_sysvar_table_options(handlerton *hton)
-{
-  free_sysvars(hton, hton->table_options);
-  free_sysvars(hton, hton->field_options);
-  free_sysvars(hton, hton->index_options);
-}
-
 
 /**
   Parses all table/fields/keys options
