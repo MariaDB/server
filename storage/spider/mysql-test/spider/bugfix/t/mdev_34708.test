@@ -1,0 +1,18 @@
+INSTALL PLUGIN Spider SONAME 'ha_spider.so';
+set @old_completion_type=@@global.completion_type;
+SET SESSION autocommit=0, GLOBAL completion_type=2;
+set spider_same_server_link= 1;
+evalp CREATE SERVER srv FOREIGN DATA WRAPPER mysql
+OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
+CREATE TABLE t (a INT KEY) ENGINE=Spider COMMENT='WRAPPER "mysql",SRV "srv",TABLE "t"';
+--error 12719
+INSERT INTO t VALUES (1);
+alter table t COMMENT='WRAPPER "mysql",SRV "srv",TABLE "t1"';
+--error 1146
+INSERT INTO t VALUES (1);
+DROP PROCEDURE IF EXISTS p;
+drop table t;
+drop server srv;
+set global completion_type=@old_completion_type;
+--disable_query_log
+--source ../../include/clean_up_spider.inc

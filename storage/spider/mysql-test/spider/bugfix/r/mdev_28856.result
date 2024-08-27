@@ -16,12 +16,11 @@ INSERT INTO mysql.spider_link_mon_servers
 create table t1 (c int) ENGINE=Spider
 COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2", monitoring_kind "2"';
 /* 1 */ insert into t1 values (42);
-ERROR HY000: Table 'test.t2' get a problem
+ERROR 42S02: Table 'test.t2' doesn't exist
 /* 2 */ insert into t1 values (42);
-ERROR HY000: All links of 'test.t1' are failed
+ERROR 42S02: Table 'test.t2' doesn't exist
 create table t2 (c int);
 /* 3 */ insert into t1 values (42);
-ERROR HY000: All links of 'test.t1' are failed
 drop table t1, t2;
 create table t1 (c int) ENGINE=Spider
 COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2", monitoring_bg_kind "2",

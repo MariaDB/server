@@ -24,14 +24,11 @@ INSERT INTO mysql.spider_link_mon_servers
 create table t1 (c int) ENGINE=Spider
 COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2", monitoring_kind "2"';
 
---error 12511
+--error ER_NO_SUCH_TABLE
 /* 1 */ insert into t1 values (42);
---error 12514
+--error ER_NO_SUCH_TABLE
 /* 2 */ insert into t1 values (42);
 create table t2 (c int);
-# Even though the table is available now, we still get "all links
-# failed" error
---error 12514
 /* 3 */ insert into t1 values (42);
 drop table t1, t2;
 

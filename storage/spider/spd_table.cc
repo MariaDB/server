@@ -4838,7 +4838,9 @@ SPIDER_SHARE *spider_get_share(
 #endif
           1))
       ) {
-        if (*error_num != ER_SPIDER_SYS_TABLE_VERSION_NUM)
+        if (*error_num != ER_SPIDER_SYS_TABLE_VERSION_NUM &&
+            *error_num != ER_SPIDER_INFINITE_LOOP_NUM &&
+            *error_num != ER_NO_SUCH_TABLE)
         {
           thd->clear_error();
         } else {

@@ -24,7 +24,7 @@ ERROR HY000: Unable to connect to foreign data source: localhost
 drop table t;
 CREATE TABLE t1 (a INT,b VARCHAR(255),PRIMARY KEY(a)) ENGINE=Spider comment="srv 'srv', table 't1', read_only_mode '1'";
 INSERT INTO t1 VALUES (1,'aaa'),(2,'bbb'),(3,'ccc'),(4,'ddd');
-ERROR HY000: Table 'test.t1' is read only
+ERROR HY000: An infinite loop is detected when opening table test.t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -42,7 +42,7 @@ drop table t1;
 CREATE TABLE t1 (c INT, KEY(c)) ENGINE=Spider COMMENT='WRAPPER "mysql", SRV "srv",TABLE "t2", PK_NAME "f"';
 SET GLOBAL general_log=1;
 INSERT INTO t1 VALUES (1, "aaa"),(2, "bbb"),(3, "ccc"),(4, "ddd");
-ERROR 21S01: Column count doesn't match value count at row 1
+ERROR 42S02: Table 'test.t2' doesn't exist
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (

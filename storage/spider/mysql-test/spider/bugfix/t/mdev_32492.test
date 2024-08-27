@@ -22,7 +22,7 @@ DELETE FROM t;
 drop table t;
 
 CREATE TABLE t1 (a INT,b VARCHAR(255),PRIMARY KEY(a)) ENGINE=Spider comment="srv 'srv', table 't1', read_only_mode '1'";
---error 12518
+--error 12719
 INSERT INTO t1 VALUES (1,'aaa'),(2,'bbb'),(3,'ccc'),(4,'ddd');
 --disable_ps_protocol
 SHOW CREATE TABLE t1;
@@ -36,7 +36,7 @@ drop table t1;
 
 CREATE TABLE t1 (c INT, KEY(c)) ENGINE=Spider COMMENT='WRAPPER "mysql", SRV "srv",TABLE "t2", PK_NAME "f"';
 SET GLOBAL general_log=1;
---error ER_WRONG_VALUE_COUNT_ON_ROW
+--error ER_NO_SUCH_TABLE
 INSERT INTO t1 VALUES (1, "aaa"),(2, "bbb"),(3, "ccc"),(4, "ddd");
 --disable_ps_protocol
 SHOW CREATE TABLE t1;

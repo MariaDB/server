@@ -1,0 +1,22 @@
+INSTALL PLUGIN Spider SONAME 'ha_spider.so';
+set @old_completion_type=@@global.completion_type;
+SET SESSION autocommit=0, GLOBAL completion_type=2;
+set spider_same_server_link= 1;
+CREATE SERVER srv FOREIGN DATA WRAPPER mysql
+OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
+CREATE TABLE t (a INT KEY) ENGINE=Spider COMMENT='WRAPPER "mysql",SRV "srv",TABLE "t"';
+INSERT INTO t VALUES (1);
+ERROR HY000: An infinite loop is detected when opening table test.t
+alter table t COMMENT='WRAPPER "mysql",SRV "srv",TABLE "t1"';
+INSERT INTO t VALUES (1);
+ERROR 42S02: Table 'test.t1' doesn't exist
+DROP PROCEDURE IF EXISTS p;
+Warnings:
+Note	1305	PROCEDURE test.p does not exist
+drop table t;
+drop server srv;
+set global completion_type=@old_completion_type;
+Warnings:
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
+Note	1305	PLUGIN SPIDER_ALLOC_MEM does not exist
+Note	1305	PLUGIN SPIDER_WRAPPER_PROTOCOLS does not exist
