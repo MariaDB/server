@@ -607,7 +607,9 @@ int ha_finalize_handlerton(st_plugin_int *plugin)
   if (plugin->plugin->deinit)
     deinit_status= plugin->plugin->deinit(NULL);
 
-  free_sysvar_table_options(hton);
+  free_sysvar_table_options(hton->table_options);
+  free_sysvar_table_options(hton->field_options);
+  free_sysvar_table_options(hton->index_options);
   update_discovery_counters(hton, -1);
 
   /*
@@ -811,7 +813,9 @@ int ha_initialize_handlerton(st_plugin_int *plugin)
     break;
   };
 
-  resolve_sysvar_table_options(hton);
+  resolve_sysvar_table_options(hton->table_options);
+  resolve_sysvar_table_options(hton->field_options);
+  resolve_sysvar_table_options(hton->index_options);
   update_discovery_counters(hton, 1);
 
   if (ddl_recovery_done && hton->signal_ddl_recovery_done)
