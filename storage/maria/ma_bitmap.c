@@ -3074,21 +3074,25 @@ my_bool _ma_check_if_right_bitmap_type(MARIA_HA *info,
 int _ma_bitmap_create_first(MARIA_SHARE *share)
 {
   uint block_size= share->bitmap.block_size;
+  size_t error;
   File file= share->bitmap.file.file;
-  uchar marker[CRC_SIZE];
+  uchar *temp_buff;
+
+  if (!(temp_buff= (uchar*) my_alloca(block_size)))
+    return 1;
+  bzero(temp_buff, block_size);
 
   /*
     Next write operation of the page will write correct CRC
     if it is needed
   */
-  int4store(marker, MARIA_NO_CRC_BITMAP_PAGE);
+  int4store(temp_buff + block_size - CRC_SIZE, MARIA_NO_CRC_BITMAP_PAGE);
 
-  if (mysql_file_chsize(file, block_size - sizeof(marker),
-                        0, MYF(MY_WME)) ||
-      my_pwrite(file, marker, sizeof(marker),
-                block_size - sizeof(marker),
-                MYF(MY_NABP | MY_WME)))
+  error= my_pwrite(file, temp_buff, block_size, 0, MYF(MY_NABP | MY_WME));
+  my_afree(temp_buff);
+  if (error)
     return 1;
+
   share->state.state.data_file_length= block_size;
   _ma_bitmap_delete_all(share);
   return 0;
