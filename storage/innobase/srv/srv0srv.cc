@@ -1299,7 +1299,7 @@ bool purge_sys_t::running()
 void purge_sys_t::stop_FTS()
 {
   ut_d(const auto paused=) m_FTS_paused.fetch_add(1);
-  ut_ad(paused < PAUSED_SYS);
+  ut_ad((paused + 1) & ~PAUSED_SYS);
   while (m_active.load(std::memory_order_acquire))
     std::this_thread::sleep_for(std::chrono::seconds(1));
 }
