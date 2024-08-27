@@ -262,15 +262,14 @@ void set_my_errno(int err)
 /** Checks whether the file name belongs to a partition of a table.
 @param[in]	file_name	file name
 @return pointer to the end of the table name part of the file name, or NULL */
-static
 char*
 is_partition(
 /*=========*/
-	char*		file_name)
+	const char*		file_name)
 {
 	/* We look for pattern #P# to see if the table is partitioned
 	MariaDB table. */
-	return strstr(file_name, table_name_t::part_suffix);
+	return strstr(const_cast<char *>(file_name), table_name_t::part_suffix);
 }
 
 
