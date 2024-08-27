@@ -1065,7 +1065,8 @@ error:
 
       if (table->triggers &&
           unlikely(table->triggers->process_triggers(thd, TRG_EVENT_UPDATE,
-                                                     TRG_ACTION_AFTER, TRUE)))
+                                                     TRG_ACTION_AFTER, true,
+                                                     fields)))
       {
         error= 1;
         break;

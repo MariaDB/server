@@ -9247,7 +9247,7 @@ fill_record_n_invoke_before_triggers(THD *thd, TABLE *table,
   if (!result && triggers)
   {
     if (triggers->process_triggers(thd, event, TRG_ACTION_BEFORE,
-                                    TRUE) ||
+                                   true, &fields) ||
         not_null_fields_have_null_values(table))
       return TRUE;
 
