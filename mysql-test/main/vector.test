@@ -341,6 +341,12 @@ show create table t1;
 alter table t1 engine=innodb;
 list_files $datadir/test;
 show create table t1;
+alter table t1 rename to t2, engine=myisam;
+list_files $datadir/test;
+show create table t2;
+alter table t2 rename to t1, engine=innodb;
+list_files $datadir/test;
+show create table t1;
 }
 
 --echo # CHANGE/MODIFY/DROP COLUMN (vector)

@@ -393,7 +393,7 @@
  create vector index if not exists v on t1(v);
  # CHANGE/MODIFY/DROP COLUMN (vector)
  alter table t1 modify column v int;
-@@ -666,34 +666,6 @@
+@@ -666,62 +666,6 @@
  alter table t1 alter key if exists v ignored;
  alter table t1 alter key if exists v not ignored;
  # ENGINE
@@ -413,6 +413,34 @@
 -  VECTOR KEY `v` (`v`)
 -) ENGINE=MyISAM AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 -alter table t1 engine=innodb;
+-db.opt
+-t1#i#01.ibd
+-t1.frm
+-t1.ibd
+-show create table t1;
+-Table	Create Table
+-t1	CREATE TABLE `t1` (
+-  `id` int(11) NOT NULL AUTO_INCREMENT,
+-  `v` blob NOT NULL,
+-  PRIMARY KEY (`id`),
+-  VECTOR KEY `v` (`v`)
+-) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+-alter table t1 rename to t2, engine=myisam;
+-db.opt
+-t2#i#01.MYD
+-t2#i#01.MYI
+-t2.MYD
+-t2.MYI
+-t2.frm
+-show create table t2;
+-Table	Create Table
+-t2	CREATE TABLE `t2` (
+-  `id` int(11) NOT NULL AUTO_INCREMENT,
+-  `v` blob NOT NULL,
+-  PRIMARY KEY (`id`),
+-  VECTOR KEY `v` (`v`)
+-) ENGINE=MyISAM AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+-alter table t2 rename to t1, engine=innodb;
 -db.opt
 -t1#i#01.ibd
 -t1.frm
