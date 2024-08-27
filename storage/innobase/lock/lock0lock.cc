@@ -608,14 +608,13 @@ lock_rec_get_insert_intention(
 	return(lock->type_mode & LOCK_INSERT_INTENTION);
 }
 
-#ifdef UNIV_DEBUG
-#ifdef WITH_WSREP
+#if defined UNIV_DEBUG && defined WITH_WSREP
 /** Check if both conflicting lock transaction and other transaction
 requesting record lock are brute force (BF). If they are check is
 this BF-BF wait correct and if not report BF wait and assert.
 
-@param[in]	lock_rec	other waiting record lock
-@param[in]	trx		trx requesting conflicting record lock
+@param lock  other waiting lock
+@param trx   transaction requesting conflicting lock
 */
 static void wsrep_assert_no_bf_bf_wait(const lock_t *lock, const trx_t *trx)
 {
@@ -682,8 +681,7 @@ static void wsrep_assert_no_bf_bf_wait(const lock_t *lock, const trx_t *trx)
 	/* BF-BF wait is a bug */
 	ut_error;
 }
-#endif /* WITH_WSREP */
-#endif /* UNIV_DEBUG */
+#endif
 
 /*********************************************************************//**
 Checks if a lock request for a new lock has to wait for request lock2.
