@@ -1760,11 +1760,6 @@ static inline handlerton *plugin_hton(plugin_ref plugin)
   return plugin_data(plugin, handlerton *);
 }
 
-static inline sys_var *find_hton_sysvar(transaction_participant *hton, st_mysql_sys_var *var)
-{
-  return find_plugin_sysvar(hton2plugin[hton->slot], var);
-}
-
 handlerton *ha_default_handlerton(THD *thd);
 handlerton *ha_default_tmp_handlerton(THD *thd);
 
