@@ -48,7 +48,7 @@ git push --force my_branch
 ### Target branch
 
 Pull requests should be based against the correct MariaDB version.
-New features should be based against the latest MariaDB development branch, which is the current GitHub default branch: https://github.com/MariaDB/server/blob/-/VERSION
+New features should be based against the `main` branch, which is the GitHub default branch.
 Bug fixes should be based against the earliest maintained branch in which the bug can be reproduced.
 The earliest maintained branch is found at https://mariadb.org/about/#maintenance-policy.
 
