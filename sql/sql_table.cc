@@ -11843,16 +11843,17 @@ alter_copy:
   thd->push_internal_handler(&errors_to_warnings);
   error_handler_pushed=1;
 
-  quick_rm_table(thd, old_db_type, &alter_ctx.db, &backup_name,
-                        FN_IS_TMP | (engine_changed ? NO_HA_TABLE | NO_PAR_TABLE: 0));
-
-  debug_crash_here("ddl_log_alter_after_delete_backup");
   if (engine_changed)
   {
     /* the .frm file was removed but not the original table */
     quick_rm_table(thd, old_db_type, &alter_ctx.db, &alter_ctx.table_name,
                            NO_FRM_RENAME | (engine_changed ? 0 : FN_IS_TMP));
   }
+
+  debug_crash_here("ddl_log_alter_after_delete_backup");
+
+  quick_rm_table(thd, old_db_type, &alter_ctx.db, &backup_name,
+                        FN_IS_TMP | (engine_changed ? NO_HA_TABLE | NO_PAR_TABLE: 0));
 
   debug_crash_here("ddl_log_alter_after_drop_original_table");
   if (binlog_as_create_select)
