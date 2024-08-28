@@ -1428,20 +1428,12 @@ Events::search_n_execute_events(Event_parse_data::enum_event_kind event_kind)
   }
   ret= FALSE;
 
-  if(count) {
-    /*
-      Give some time for worker threads to start executing their jobs
-      when event_kind is SHUTDOWN
-    */
-    if(event_kind == Event_parse_data::SHUTDOWN)
-      my_sleep(100000);
-
+  if(count)
     my_printf_error(ER_STARTUP,
                     "Loaded %d %s trigger%s",
                     MYF(ME_ERROR_LOG | ME_NOTE),
                     count, event_kind_to_name[event_kind].str,
                     (count == 1) ? "" : "s");
-  }
 
 end:
   end_read_record(&read_record_info);
