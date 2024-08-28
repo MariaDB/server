@@ -3474,10 +3474,9 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 	ut_d(mysql_mutex_unlock(&buf_pool.flush_list_mutex));
 
 	if (srv_force_recovery >= SRV_FORCE_NO_LOG_REDO) {
-
-		ib::info() << "innodb_force_recovery=6 skips redo log apply";
-
-		return(DB_SUCCESS);
+		sql_print_information("InnoDB: innodb_force_recovery=6"
+				      " skips redo log apply");
+		return err;
 	}
 
 	mysql_mutex_lock(&log_sys.mutex);
@@ -3493,13 +3492,9 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 
 	ut_ad(RECV_SCAN_SIZE <= srv_log_buffer_size);
 
-
 	ut_ad(recv_sys.pages.empty());
 	contiguous_lsn = checkpoint_lsn;
 	switch (log_sys.log.format) {
-	case 0:
-		mysql_mutex_unlock(&log_sys.mutex);
-		return DB_SUCCESS;
 	default:
 		if (end_lsn == 0) {
 			break;
@@ -3509,8 +3504,13 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 			break;
 		}
 		recv_sys.found_corrupt_log = true;
+	err_exit:
+		err = DB_ERROR;
+		/* fall through */
+	func_exit:
+	case 0:
 		mysql_mutex_unlock(&log_sys.mutex);
-		return(DB_ERROR);
+		return err;
 	}
 
 	size_t sizeof_checkpoint;
@@ -3527,14 +3527,15 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 	ut_ad(!recv_sys.found_corrupt_fs || !srv_force_recovery);
 
 	if (srv_read_only_mode && recv_needed_recovery) {
-		mysql_mutex_unlock(&log_sys.mutex);
-		return(DB_READ_ONLY);
+	read_only:
+		err = DB_READ_ONLY;
+		goto func_exit;
 	}
 
 	if (recv_sys.found_corrupt_log && !srv_force_recovery) {
-		mysql_mutex_unlock(&log_sys.mutex);
-		ib::warn() << "Log scan aborted at LSN " << contiguous_lsn;
-		return(DB_ERROR);
+		sql_print_warning("InnoDB: Log scan aborted at LSN " LSN_PF,
+				  contiguous_lsn);
+		goto err_exit;
 	}
 
 	/* If we fail to open a tablespace while looking for FILE_CHECKPOINT, we
@@ -3542,14 +3543,12 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 	would not be able to open an encrypted tablespace and the flag could be
 	set. */
 	if (recv_sys.found_corrupt_fs) {
-		mysql_mutex_unlock(&log_sys.mutex);
-		return DB_ERROR;
+		goto err_exit;
 	}
 
 	if (recv_sys.mlog_checkpoint_lsn == 0) {
 		lsn_t scan_lsn = log_sys.log.scanned_lsn;
 		if (!srv_read_only_mode && scan_lsn != checkpoint_lsn) {
-			mysql_mutex_unlock(&log_sys.mutex);
 			ib::error err;
 			err << "Missing FILE_CHECKPOINT";
 			if (end_lsn) {
@@ -3557,7 +3556,7 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 			}
 			err << " between the checkpoint " << checkpoint_lsn
 			    << " and the end " << scan_lsn << ".";
-			return(DB_ERROR);
+			goto err_exit;
 		}
 
 		log_sys.log.scanned_lsn = checkpoint_lsn;
@@ -3568,8 +3567,7 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 
 		if ((recv_sys.found_corrupt_log && !srv_force_recovery)
 		    || recv_sys.found_corrupt_fs) {
-			mysql_mutex_unlock(&log_sys.mutex);
-			return(DB_ERROR);
+			goto err_exit;
 		}
 	}
 
@@ -3599,19 +3597,17 @@ completed:
 		}
 
 		if (!recv_needed_recovery) {
-
-			ib::info()
-				<< "The log sequence number " << flush_lsn
-				<< " in the system tablespace does not match"
-				   " the log sequence number "
-				<< checkpoint_lsn << " in the "
-				<< LOG_FILE_NAME << "!";
+			sql_print_information(
+				"InnoDB: The log sequence number " LSN_PF
+				" in the system tablespace does not match"
+				" the log sequence number " LSN_PF
+				" in the ib_logfile0!",
+				flush_lsn, checkpoint_lsn);
 
 			if (srv_read_only_mode) {
-				ib::error() << "innodb_read_only"
-					" prevents crash recovery";
-				mysql_mutex_unlock(&log_sys.mutex);
-				return(DB_READ_ONLY);
+				sql_print_error("InnoDB: innodb_read_only"
+						" prevents crash recovery");
+				goto read_only;
 			}
 
 			recv_needed_recovery = true;
@@ -3632,8 +3628,7 @@ completed:
 			rescan, missing_tablespace);
 
 		if (err != DB_SUCCESS) {
-			mysql_mutex_unlock(&log_sys.mutex);
-			return(err);
+			goto func_exit;
 		}
 
 		/* If there is any missing tablespace and rescan is needed
@@ -3662,8 +3657,7 @@ completed:
 					rescan, missing_tablespace);
 
 			if (err != DB_SUCCESS) {
-				mysql_mutex_unlock(&log_sys.mutex);
-				return err;
+				goto func_exit;
 			}
 
 			rescan = true;
@@ -3686,8 +3680,7 @@ completed:
 			if ((recv_sys.found_corrupt_log
 			     && !srv_force_recovery)
 			    || recv_sys.found_corrupt_fs) {
-				mysql_mutex_unlock(&log_sys.mutex);
-				return(DB_ERROR);
+				goto err_exit;
 			}
 
 			/* In case of multi-batch recovery,
@@ -3699,26 +3692,26 @@ completed:
 		ut_ad(!rescan || recv_sys.pages.empty());
 	}
 
-	if (log_sys.is_physical()
-	    && (log_sys.log.scanned_lsn < checkpoint_lsn
-		|| log_sys.log.scanned_lsn < recv_max_page_lsn)) {
-
-		ib::error() << "We scanned the log up to "
-			<< log_sys.log.scanned_lsn
-			<< ". A checkpoint was at " << checkpoint_lsn << " and"
-			" the maximum LSN on a database page was "
-			<< recv_max_page_lsn << ". It is possible that the"
-			" database is now corrupt!";
-	}
-
-	if (recv_sys.recovered_lsn < checkpoint_lsn) {
-		mysql_mutex_unlock(&log_sys.mutex);
-
-		ib::error() << "Recovered only to lsn:"
-			    << recv_sys.recovered_lsn
-			    << " checkpoint_lsn: " << checkpoint_lsn;
-
-		return(DB_ERROR);
+	if (!log_sys.is_physical()) {
+	} else if (recv_sys.recovered_lsn < checkpoint_lsn
+		   || recv_sys.recovered_lsn < end_lsn) {
+		sql_print_error("InnoDB: The log was only scanned up to "
+				LSN_PF ", while the current LSN at the "
+				"time of the latest checkpoint " LSN_PF
+				" was " LSN_PF "!",
+				recv_sys.recovered_lsn,
+				checkpoint_lsn, end_lsn);
+		goto err_exit;
+	} else if (log_sys.log.scanned_lsn < checkpoint_lsn
+		   || log_sys.log.scanned_lsn < end_lsn
+		   || log_sys.log.scanned_lsn < recv_max_page_lsn) {
+		sql_print_error("InnoDB: We scanned the log up to " LSN_PF
+				". A checkpoint was at " LSN_PF
+				" and the maximum LSN on a database page was "
+				LSN_PF ". It is possible that the"
+				" database is now corrupt!",
+				log_sys.log.scanned_lsn, checkpoint_lsn,
+				recv_max_page_lsn);
 	}
 
 	log_sys.next_checkpoint_lsn = checkpoint_lsn;
@@ -3750,9 +3743,7 @@ completed:
 
 	log_sys.next_checkpoint_no = ++checkpoint_no;
 
-	DBUG_EXECUTE_IF("before_final_redo_apply",
-			mysql_mutex_unlock(&log_sys.mutex);
-			return DB_ERROR;);
+	DBUG_EXECUTE_IF("before_final_redo_apply", goto err_exit;);
 	mutex_enter(&recv_sys.mutex);
 
 	recv_sys.apply_log_recs = true;
@@ -3760,17 +3751,14 @@ completed:
 	ut_d(recv_no_log_write = srv_operation == SRV_OPERATION_RESTORE
 	     || srv_operation == SRV_OPERATION_RESTORE_EXPORT);
 
-	mutex_exit(&recv_sys.mutex);
-
-	mysql_mutex_unlock(&log_sys.mutex);
-
 	recv_lsn_checks_on = true;
+	mutex_exit(&recv_sys.mutex);
 
 	/* The database is now ready to start almost normal processing of user
 	transactions: transaction rollbacks and the application of the log
 	records in the hash table can be run in background. */
-
-	return(DB_SUCCESS);
+	ut_ad(err == DB_SUCCESS);
+	goto func_exit;
 }
 
 bool recv_dblwr_t::validate_page(const page_id_t page_id,
