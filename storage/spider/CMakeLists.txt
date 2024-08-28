@@ -1,6 +1,3 @@
-SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DHAVE_HANDLERSOCKET")
-SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DHAVE_HANDLERSOCKET")
-
 IF(HAVE_WVLA)
   SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Wno-vla")
   SET(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -Wno-vla")
@@ -45,8 +42,6 @@ IF(EXISTS ${PROJECT_SOURCE_DIR}/storage/mysql_storage_engine.cmake)
 ELSEIF(PLUGIN_PARTITION MATCHES "^NO$")
   MESSAGE(STATUS "Spider is skipped because partitioning is disabled")
 ELSE()
-  INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/storage/spider/hs_client)
-
   IF(DEB)
     SET(extra_options COMPONENT spider-engine)
   ELSE()
