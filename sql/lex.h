@@ -352,7 +352,7 @@ SYMBOL symbols[] = {
   { "LIST",             SYM(LIST_SYM)},
   { "LOAD",		SYM(LOAD)},
   { "LOCAL",		SYM(LOCAL_SYM)},
-  { "LOCALTIME",	SYM(NOW_SYM)},
+  { "LOCALTIME",	SYM(CURTIME)},
   { "LOCALTIMESTAMP",	SYM(NOW_SYM)},
   { "LOCK",		SYM(LOCK_SYM)},
   { "LOCKED",		SYM(LOCKED_SYM)},
