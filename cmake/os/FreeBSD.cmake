@@ -28,3 +28,6 @@ SET(EXECINFO_ROOT /usr/local CACHE INTERNAL "Where to find execinfo library and 
 INCLUDE_DIRECTORIES(${EXECINFO_ROOT}/include)
 SET(CMAKE_REQUIRED_INCLUDES ${CMAKE_REQUIRED_INCLUDES} ${EXECINFO_ROOT}/include)
 SET(ENV{LIB} "$ENV{LIB}:${EXECINFO_ROOT}/lib")
+
+# For all userspace dependencies
+LINK_DIRECTORIES(/usr/local/lib)
