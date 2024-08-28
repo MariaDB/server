@@ -190,6 +190,7 @@ int main(int args, char **argv)
   pthread_t request_thr[N_THREADS];
   int i;
 
+  my_mutex_init();
   my_thread_global_init();
 
   mysql_mutex_init(0, &apc_counters_mutex, MY_MUTEX_INIT_FAST);
