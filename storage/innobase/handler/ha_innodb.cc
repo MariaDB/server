@@ -18936,7 +18936,7 @@ static MYSQL_SYSVAR_ULONG(purge_batch_size, srv_purge_batch_size,
   PLUGIN_VAR_OPCMDARG,
   "Number of UNDO log pages to purge in one batch from the history list.",
   NULL, NULL,
-  1000,			/* Default setting */
+  127,			/* Default setting */
   1,			/* Minimum value */
   innodb_purge_batch_size_MAX, 0);
 
@@ -19254,11 +19254,6 @@ static MYSQL_SYSVAR_ULONG(lru_scan_depth, srv_LRU_scan_depth,
   "How deep to scan LRU to keep it clean",
   NULL, NULL, 1536, 100, ~0UL, 0);
 
-static MYSQL_SYSVAR_SIZE_T(lru_flush_size, innodb_lru_flush_size,
-  PLUGIN_VAR_RQCMDARG,
-  "How many pages to flush on LRU eviction",
-  NULL, NULL, 32, 1, SIZE_T_MAX, 0);
-
 static MYSQL_SYSVAR_ULONG(flush_neighbors, srv_flush_neighbors,
   PLUGIN_VAR_OPCMDARG,
   "Set to 0 (don't flush neighbors from buffer pool),"
@@ -19508,13 +19503,20 @@ static MYSQL_SYSVAR_ULONGLONG(max_undo_log_size, srv_max_undo_log_size,
   10 << 20, 10 << 20,
   1ULL << (32 + UNIV_PAGE_SIZE_SHIFT_MAX), 0);
 
-static ulong innodb_purge_rseg_truncate_frequency;
+static ulong innodb_purge_rseg_truncate_frequency= 128;
 
 static MYSQL_SYSVAR_ULONG(purge_rseg_truncate_frequency,
   innodb_purge_rseg_truncate_frequency,
-  PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_DEPRECATED,
+  PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_DEPRECATED | PLUGIN_VAR_NOCMDOPT,
   "Deprecated parameter with no effect",
   NULL, NULL, 128, 1, 128, 0);
+
+static size_t innodb_lru_flush_size;
+
+static MYSQL_SYSVAR_SIZE_T(lru_flush_size, innodb_lru_flush_size,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED | PLUGIN_VAR_NOCMDOPT,
+  "Deprecated parameter with no effect",
+  NULL, NULL, 32, 1, SIZE_T_MAX, 0);
 
 static void innodb_undo_log_truncate_update(THD *thd, struct st_mysql_sys_var*,
                                             void*, const void *save)

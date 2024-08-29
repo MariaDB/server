@@ -10106,7 +10106,7 @@ uint TABLE_SHARE::actual_n_key_parts(THD *thd)
 }  
 
 
-double KEY::actual_rec_per_key(uint i)
+double KEY::actual_rec_per_key(uint i) const
 { 
   if (rec_per_key == 0)
     return 0;

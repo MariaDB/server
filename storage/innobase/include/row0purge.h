@@ -50,26 +50,13 @@ inserts a record that the secondary index entry would refer to.
 However, in that case, the user transaction would also re-insert the
 secondary index entry after purge has removed it and released the leaf
 page latch.
-@param[in,out]	node		row purge node
-@param[in]	index		secondary index
-@param[in]	entry		secondary index entry
-@param[in,out]	sec_pcur	secondary index cursor or NULL
-				if it is called for purge buffering
-				operation.
-@param[in,out]	sec_mtr		mini-transaction which holds
-				secondary index entry or NULL if it is
-				called for purge buffering operation.
-@param[in]	is_tree		true=pessimistic purge,
-				false=optimistic (leaf-page only)
-@return true if the secondary index record can be purged */
-bool
-row_purge_poss_sec(
-	purge_node_t*	node,
-	dict_index_t*	index,
-	const dtuple_t*	entry,
-	btr_pcur_t*	sec_pcur=NULL,
-	mtr_t*		sec_mtr=NULL,
-	bool		is_tree=false);
+@param node   row purge node
+@param index  secondary index
+@param entry  secondary index entry
+@param mtr    mini-transaction for looking up clustered index
+@return whether the secondary index record can be purged */
+bool row_purge_poss_sec(purge_node_t *node, dict_index_t *index,
+                        const dtuple_t *entry, mtr_t *mtr);
 
 /***************************************************************
 Does the purge operation.

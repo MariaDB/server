@@ -2702,6 +2702,123 @@ err_exit:
 	return(FALSE);
 }
 
+ATTRIBUTE_COLD
+/** Try to merge buffered changes to a buffer pool page.
+@param block     buffer-fixed and latched block
+@param rw_latch  RW_X_LATCH, RW_SX_LATCH, RW_S_LATCH held on block
+@param err       error code
+@return whether the page is invalid (corrupted) */
+static bool buf_page_ibuf_merge_try(buf_block_t *block, ulint rw_latch,
+                                    dberr_t *err)
+{
+  ut_ad(block->page.lock.have_any());
+  ut_ad(block->page.buf_fix_count());
+
+  if (fil_page_get_type(block->page.frame) != FIL_PAGE_INDEX ||
+      !page_is_leaf(block->page.frame))
+    return false;
+
+  if (rw_latch != RW_X_LATCH)
+  {
+    if (rw_latch == RW_S_LATCH)
+    {
+      if (!block->page.lock.s_x_upgrade())
+      {
+        uint32_t state;
+        state= block->page.state();
+        if (state < buf_page_t::UNFIXED)
+        {
+        fail:
+          block->page.lock.x_unlock();
+          return true;
+        }
+        ut_ad(state & ~buf_page_t::LRU_MASK);
+        ut_ad(state < buf_page_t::READ_FIX);
+        if (state < buf_page_t::IBUF_EXIST || state >= buf_page_t::REINIT)
+          /* ibuf_merge_or_delete_for_page() was already invoked in
+          another thread. */
+          goto downgrade_to_s;
+      }
+    }
+    else
+    {
+      ut_ad(rw_latch == RW_SX_LATCH);
+      block->page.lock.u_x_upgrade();
+    }
+  }
+
+  ut_ad(block->page.lock.have_x());
+  block->page.clear_ibuf_exist();
+  if (dberr_t e= ibuf_merge_or_delete_for_page(block, block->page.id(),
+                                               block->zip_size()))
+  {
+    if (err)
+      *err= e;
+    goto fail;
+  }
+
+  switch (rw_latch) {
+  default:
+    ut_ad(rw_latch == RW_X_LATCH);
+    break;
+  case RW_SX_LATCH:
+    block->page.lock.x_u_downgrade();
+    break;
+  case RW_S_LATCH:
+  downgrade_to_s:
+    block->page.lock.x_u_downgrade();
+    block->page.lock.u_s_downgrade();
+    break;
+  }
+
+  return false;
+}
+
+buf_block_t* buf_pool_t::page_fix(const page_id_t id)
+{
+  ha_handler_stats *const stats= mariadb_stats;
+  buf_inc_get(stats);
+  auto& chain= page_hash.cell_get(id.fold());
+  page_hash_latch &hash_lock= page_hash.lock_get(chain);
+  for (;;)
+  {
+    hash_lock.lock_shared();
+    buf_page_t *b= page_hash.get(id, chain);
+    if (b)
+    {
+      uint32_t state= b->fix();
+      hash_lock.unlock_shared();
+      ut_ad(!b->in_zip_hash);
+      ut_ad(b->frame);
+      ut_ad(state >= buf_page_t::FREED);
+      if (state >= buf_page_t::READ_FIX && state < buf_page_t::WRITE_FIX)
+      {
+        b->lock.s_lock();
+        state= b->state();
+        ut_ad(state < buf_page_t::READ_FIX || state >= buf_page_t::WRITE_FIX);
+        b->lock.s_unlock();
+      }
+      if (UNIV_UNLIKELY(state < buf_page_t::UNFIXED))
+      {
+        /* The page was marked as freed or corrupted. */
+        b->unfix();
+        b= nullptr;
+      }
+      return reinterpret_cast<buf_block_t*>(b);
+    }
+
+    hash_lock.unlock_shared();
+    switch (buf_read_page(id, 0)) {
+    default:
+      return nullptr;
+    case DB_SUCCESS:
+    case DB_SUCCESS_LOCKED_REC:
+      mariadb_increment_pages_read(stats);
+      buf_read_ahead_random(id, 0, false);
+    }
+  }
+}
+
 /** Low level function used to get access to a database page.
 @param[in]	page_id			page id
 @param[in]	zip_size		ROW_FORMAT=COMPRESSED page size, or 0
@@ -2741,6 +2858,7 @@ buf_page_get_low(
 	      || (rw_latch == RW_X_LATCH)
 	      || (rw_latch == RW_SX_LATCH)
 	      || (rw_latch == RW_NO_LATCH));
+	ut_ad(rw_latch != RW_NO_LATCH || !allow_ibuf_merge);
 
 	if (err) {
 		*err = DB_SUCCESS;
@@ -3142,88 +3260,49 @@ re_evict_fail:
 	state to FREED). Therefore, after acquiring the page latch we
 	must recheck the state. */
 
-	if (state >= buf_page_t::UNFIXED
-	    && allow_ibuf_merge
-	    && fil_page_get_type(block->page.frame) == FIL_PAGE_INDEX
-	    && page_is_leaf(block->page.frame)) {
-		block->page.lock.x_lock();
-		state = block->page.state();
-		ut_ad(state < buf_page_t::READ_FIX);
-
-		if (state >= buf_page_t::IBUF_EXIST
-		    && state < buf_page_t::REINIT) {
-			block->page.clear_ibuf_exist();
-			if (dberr_t local_err =
-			    ibuf_merge_or_delete_for_page(block, page_id,
-							  block->zip_size())) {
-				if (err) {
-					*err = local_err;
-				}
-				goto release_and_ignore_block;
-			}
-		} else if (state < buf_page_t::UNFIXED) {
-release_and_ignore_block:
-			block->page.lock.x_unlock();
-			goto ignore_block;
-		}
-
-#ifdef BTR_CUR_HASH_ADAPT
-		btr_search_drop_page_hash_index(block, true);
-#endif /* BTR_CUR_HASH_ADAPT */
-
-		switch (rw_latch) {
-		case RW_NO_LATCH:
-			block->page.lock.x_unlock();
-			break;
-		case RW_S_LATCH:
-			block->page.lock.x_unlock();
-			block->page.lock.s_lock();
-			break;
-		case RW_SX_LATCH:
-			block->page.lock.x_u_downgrade();
-			break;
-		default:
-			ut_ad(rw_latch == RW_X_LATCH);
-		}
-
-		mtr->memo_push(block, mtr_memo_type_t(rw_latch));
-	} else {
-		switch (rw_latch) {
-		case RW_NO_LATCH:
-			mtr->memo_push(block, MTR_MEMO_BUF_FIX);
+	switch (rw_latch) {
+	case RW_NO_LATCH:
+		ut_ad(!allow_ibuf_merge);
+		mtr->memo_push(block, MTR_MEMO_BUF_FIX);
+		return block;
+	case RW_S_LATCH:
+		block->page.lock.s_lock();
+		break;
+	case RW_SX_LATCH:
+		block->page.lock.u_lock();
+		ut_ad(!block->page.is_io_fixed());
+		break;
+	default:
+		ut_ad(rw_latch == RW_X_LATCH);
+		if (block->page.lock.x_lock_upgraded()) {
+			ut_ad(block->page.id() == page_id);
+			block->unfix();
+			mtr->page_lock_upgrade(*block);
 			return block;
-		case RW_S_LATCH:
-			block->page.lock.s_lock();
-			break;
-		case RW_SX_LATCH:
-			block->page.lock.u_lock();
-			ut_ad(!block->page.is_io_fixed());
-			break;
-		default:
-			ut_ad(rw_latch == RW_X_LATCH);
-			if (block->page.lock.x_lock_upgraded()) {
-				ut_ad(block->page.id() == page_id);
-				block->unfix();
-				mtr->page_lock_upgrade(*block);
-				return block;
-			}
 		}
-
-		mtr->memo_push(block, mtr_memo_type_t(rw_latch));
-		state = block->page.state();
-
-		if (UNIV_UNLIKELY(state < buf_page_t::UNFIXED)) {
-			mtr->release_last_page();
-			goto ignore_unfixed;
-		}
-
-		ut_ad(state < buf_page_t::READ_FIX
-		      || state > buf_page_t::WRITE_FIX);
-
-#ifdef BTR_CUR_HASH_ADAPT
-		btr_search_drop_page_hash_index(block, true);
-#endif /* BTR_CUR_HASH_ADAPT */
 	}
+
+	mtr->memo_push(block, mtr_memo_type_t(rw_latch));
+	state = block->page.state();
+
+	if (UNIV_UNLIKELY(state < buf_page_t::UNFIXED)) {
+	corrupted:
+		mtr->release_last_page();
+		goto ignore_unfixed;
+	}
+
+	ut_ad(state < buf_page_t::READ_FIX
+	      || state > buf_page_t::WRITE_FIX);
+	if (state >= buf_page_t::IBUF_EXIST && state < buf_page_t::REINIT
+	    && allow_ibuf_merge
+	    && buf_page_ibuf_merge_try(block, rw_latch, err)) {
+		ut_ad(block == mtr->at_savepoint(mtr->get_savepoint() - 1));
+		mtr->lock_register(mtr->get_savepoint() - 1, MTR_MEMO_BUF_FIX);
+		goto corrupted;
+	}
+#ifdef BTR_CUR_HASH_ADAPT
+	btr_search_drop_page_hash_index(block, true);
+#endif /* BTR_CUR_HASH_ADAPT */
 
 	ut_ad(page_id_t(page_get_space_id(block->page.frame),
 			page_get_page_no(block->page.frame)) == page_id);

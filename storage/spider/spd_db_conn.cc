@@ -1486,6 +1486,7 @@ int spider_db_append_key_hint(
     if (str->reserve(
           hint_str_len - 2 + SPIDER_SQL_INDEX_USE_LEN +
           SPIDER_SQL_OPEN_PAREN_LEN + SPIDER_SQL_CLOSE_PAREN_LEN))
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
     hint_str += 2;
     str->q_append(SPIDER_SQL_INDEX_USE_STR, SPIDER_SQL_INDEX_USE_LEN);
     str->q_append(SPIDER_SQL_OPEN_PAREN_STR, SPIDER_SQL_OPEN_PAREN_LEN);
@@ -1498,10 +1499,11 @@ int spider_db_append_key_hint(
     if (str->reserve(
           hint_str_len - 3 + SPIDER_SQL_INDEX_IGNORE_LEN +
           SPIDER_SQL_OPEN_PAREN_LEN + SPIDER_SQL_CLOSE_PAREN_LEN))
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
     hint_str += 3;
     str->q_append(SPIDER_SQL_INDEX_IGNORE_STR, SPIDER_SQL_INDEX_IGNORE_LEN);
     str->q_append(SPIDER_SQL_OPEN_PAREN_STR, SPIDER_SQL_OPEN_PAREN_LEN);
-    str->q_append(hint_str, hint_str_len - 2);
+    str->q_append(hint_str, hint_str_len - 3);
     str->q_append(SPIDER_SQL_CLOSE_PAREN_STR, SPIDER_SQL_CLOSE_PAREN_LEN);
   } else if (str->reserve(hint_str_len + SPIDER_SQL_SPACE_LEN))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);

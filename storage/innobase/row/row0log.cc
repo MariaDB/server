@@ -3857,7 +3857,7 @@ UndorecApplier::get_old_rec(const dtuple_t &tuple, dict_index_t *index,
     if (is_same(roll_ptr))
       return version;
     trx_undo_prev_version_build(version, index, *offsets, heap, &prev_version,
-                                nullptr, nullptr, 0);
+                                &mtr, 0, nullptr, nullptr);
     version= prev_version;
   }
   while (version);
@@ -4026,7 +4026,7 @@ void UndorecApplier::log_update(const dtuple_t &tuple,
       copy_rec= rec_copy(mem_heap_alloc(
         heap, rec_offs_size(offsets)), match_rec, offsets);
     trx_undo_prev_version_build(match_rec, clust_index, offsets, heap,
-                                &prev_version, nullptr, nullptr, 0);
+                                &prev_version, &mtr, 0, nullptr, nullptr);
 
     prev_offsets= rec_get_offsets(prev_version, clust_index, prev_offsets,
                                   clust_index->n_core_fields,

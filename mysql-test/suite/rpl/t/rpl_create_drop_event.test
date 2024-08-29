@@ -14,6 +14,12 @@ SET GLOBAL event_scheduler=on;
 let $wait_condition= SELECT count(*)>0 FROM t1;
 --source include/wait_condition.inc
 SET GLOBAL event_scheduler=off;
+# If the time rolls to the next whole second just at this point, a new event
+# run may be scheduled. Wait for this to disappear, otherwise we see occasional
+# test failures if the table gets dropped before the extra event run completes.
+# Expect 5 connections: default, master, master1, server_1, binlog dump thread
+--let $wait_condition= SELECT COUNT(*) = 5 FROM INFORMATION_SCHEMA.PROCESSLIST;
+--source include/wait_condition.inc
 SELECT DISTINCT a FROM t1;
 DELETE FROM t1;
 
