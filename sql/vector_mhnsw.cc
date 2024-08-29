@@ -1137,7 +1137,7 @@ int mhnsw_read_first(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit)
 {
   THD *thd= table->in_use;
   TABLE *graph= table->hlindex;
-  Item_func_vec_distance *fun= (Item_func_vec_distance *)dist;
+  auto *fun= (Item_func_vec_distance_euclidean *)(dist->real_item());
   String buf, *res= fun->get_const_arg()->val_str(&buf);
   MHNSW_Context *ctx;
 
