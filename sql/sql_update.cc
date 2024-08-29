@@ -376,6 +376,16 @@ bool Sql_cmd_update::update_single_table(THD *thd)
   List<Item> all_fields;
   killed_state killed_status= NOT_KILLED;
   bool has_triggers, binlog_is_row, do_direct_update= FALSE;
+  /*
+    TRUE if we are after the call to
+    select_lex->optimize_unflattened_subqueries(true) and before the
+    call to select_lex->optimize_unflattened_subqueries(false), to
+    ensure a call to
+    select_lex->optimize_unflattened_subqueries(false) happens which
+    avoid 2nd ps mem leaks when e.g. the first execution produces
+    empty result and the second execution produces a non-empty set
+  */
+  bool need_to_optimize= FALSE;
   Update_plan query_plan(thd->mem_root);
   Explain_update *explain;
   query_plan.index= MAX_KEY;
@@ -422,9 +432,18 @@ bool Sql_cmd_update::update_single_table(THD *thd)
   switch_to_nullable_trigger_fields(*fields, table);
   switch_to_nullable_trigger_fields(*values, table);
 
-  /* Apply the IN=>EXISTS transformation to all subqueries and optimize them */
-  if (select_lex->optimize_unflattened_subqueries(false))
+  /*
+    Apply the IN=>EXISTS transformation to all constant subqueries
+    and optimize them.
+
+    It is too early to choose subquery optimization strategies without
+    an estimate of how many times the subquery will be executed so we
+    call optimize_unflattened_subqueries() with const_only= true, and
+    choose between materialization and in-to-exists later.
+  */
+  if (select_lex->optimize_unflattened_subqueries(true))
     DBUG_RETURN(TRUE);
+  need_to_optimize= TRUE;
 
   if (conds)
   {
@@ -458,6 +477,9 @@ bool Sql_cmd_update::update_single_table(THD *thd)
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   if (prune_partitions(thd, table, conds))
   {
+    if (need_to_optimize && select_lex->optimize_unflattened_subqueries(false))
+      DBUG_RETURN(TRUE);
+    need_to_optimize= FALSE;
     free_underlaid_joins(thd, select_lex);
 
     query_plan.set_no_partitions();
@@ -493,6 +515,9 @@ bool Sql_cmd_update::update_single_table(THD *thd)
       goto produce_explain_and_leave;
 
     delete select;
+    if (need_to_optimize && select_lex->optimize_unflattened_subqueries(false))
+      DBUG_RETURN(TRUE);
+    need_to_optimize= FALSE;
     free_underlaid_joins(thd, select_lex);
     /*
       There was an error or the error was already sent by
@@ -545,8 +570,20 @@ bool Sql_cmd_update::update_single_table(THD *thd)
 
   table->update_const_key_parts(conds);
   order= simple_remove_const(order, conds);
-  query_plan.scanned_rows= select? select->records: table->file->stats.records;
-        
+
+  /*
+    Estimate the number of scanned rows and have it accessible in
+    JOIN::choose_subquery_plan() from the outer join through
+    JOIN::sql_cmd_dml
+  */
+  scanned_rows= query_plan.scanned_rows= select ?
+    select->records : table->file->stats.records;
+  select_lex->join->sql_cmd_dml= this;
+  DBUG_ASSERT(need_to_optimize);
+  if (select_lex->optimize_unflattened_subqueries(false))
+    DBUG_RETURN(TRUE);
+  need_to_optimize= FALSE;
+
   if (select && select->quick && select->quick->unique_key_range())
   {
     /* Single row select (always "ordered"): Ok to use with key field UPDATE */
@@ -1308,6 +1345,9 @@ update_end:
 err:
   delete select;
   delete file_sort;
+  if (!thd->is_error() && need_to_optimize &&
+      select_lex->optimize_unflattened_subqueries(false))
+    DBUG_RETURN(TRUE);
   free_underlaid_joins(thd, select_lex);
   table->file->ha_end_keyread();
   if (table->file->pushed_cond)
@@ -1328,6 +1368,9 @@ emit_explain_and_leave:
   int err2= thd->lex->explain->send_explain(thd, extended);
 
   delete select;
+  if (!thd->is_error() && need_to_optimize &&
+      select_lex->optimize_unflattened_subqueries(false))
+    DBUG_RETURN(TRUE);
   free_underlaid_joins(thd, select_lex);
   DBUG_RETURN((err2 || thd->is_error()) ? 1 : 0);
 }

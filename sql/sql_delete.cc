@@ -359,6 +359,16 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
   bool delete_record= false;
   bool delete_while_scanning= table_list->delete_while_scanning;
   bool portion_of_time_through_update;
+  /*
+    TRUE if we are after the call to
+    select_lex->optimize_unflattened_subqueries(true) and before the
+    call to select_lex->optimize_unflattened_subqueries(false), to
+    ensure a call to
+    select_lex->optimize_unflattened_subqueries(false) happens which
+    avoid 2nd ps mem leaks when e.g. the first execution produces
+    empty result and the second execution produces a non-empty set
+  */
+  bool optimize_subqueries= FALSE;
 
   DBUG_ENTER("Sql_cmd_delete::delete_single_table");
 
@@ -395,9 +405,18 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
 
   thd->lex->promote_select_describe_flag_if_needed();
 
-  /* Apply the IN=>EXISTS transformation to all subqueries and optimize them. */
-  if (select_lex->optimize_unflattened_subqueries(false))
+  /*
+    Apply the IN=>EXISTS transformation to all constant subqueries
+    and optimize them.
+
+    It is too early to choose subquery optimization strategies without
+    an estimate of how many times the subquery will be executed so we
+    call optimize_unflattened_subqueries() with const_only= true, and
+    choose between materialization and in-to-exists later.
+  */
+  if (select_lex->optimize_unflattened_subqueries(true))
     DBUG_RETURN(TRUE);
+  optimize_subqueries= TRUE;
 
   const_cond= (!conds || conds->const_item());
   safe_update= (thd->variables.option_bits & OPTION_SAFE_UPDATES) &&
@@ -499,6 +518,9 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   if (prune_partitions(thd, table, conds))
   {
+    if (optimize_subqueries && select_lex->optimize_unflattened_subqueries(false))
+      DBUG_RETURN(TRUE);
+    optimize_subqueries= FALSE;
     free_underlaid_joins(thd, select_lex);
 
     query_plan.set_no_partitions();
@@ -537,6 +559,9 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
       goto produce_explain_and_leave;
 
     delete select;
+    if (select_lex->optimize_unflattened_subqueries(false))
+      DBUG_RETURN(TRUE);
+    optimize_subqueries= FALSE;
     free_underlaid_joins(thd, select_lex);
     /* 
       Error was already created by quick select evaluation (check_quick()).
@@ -567,6 +592,9 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
     if (safe_update && !using_limit)
     {
       delete select;
+      if (optimize_subqueries && select_lex->optimize_unflattened_subqueries(false))
+        DBUG_RETURN(TRUE);
+      optimize_subqueries= FALSE;
       free_underlaid_joins(thd, select_lex);
       my_message(ER_UPDATE_WITHOUT_KEY_IN_SAFE_MODE,
                  ER_THD(thd, ER_UPDATE_WITHOUT_KEY_IN_SAFE_MODE), MYF(0));
@@ -576,7 +604,18 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
   if (options & OPTION_QUICK)
     (void) table->file->extra(HA_EXTRA_QUICK);
 
-  query_plan.scanned_rows= select? select->records: table->file->stats.records;
+  /*
+    Estimate the number of scanned rows and have it accessible in
+    JOIN::choose_subquery_plan() from the outer join through
+    JOIN::sql_cmd_dml
+  */
+  scanned_rows= query_plan.scanned_rows= select ?
+    select->records : table->file->stats.records;
+  select_lex->join->sql_cmd_dml= this;
+  DBUG_ASSERT(optimize_subqueries);
+  if (select_lex->optimize_unflattened_subqueries(false))
+    DBUG_RETURN(TRUE);
+  optimize_subqueries= FALSE;
   if (order)
   {
     table->update_const_key_parts(conds);
@@ -999,6 +1038,8 @@ cleanup:
     DBUG_PRINT("info",("%ld records deleted",(long) deleted));
   }
   delete file_sort;
+  if (optimize_subqueries && select_lex->optimize_unflattened_subqueries(false))
+    DBUG_RETURN(TRUE);
   free_underlaid_joins(thd, select_lex);
   if (table->file->pushed_cond)
     table->file->cond_pop();
@@ -1022,6 +1063,9 @@ send_nothing_and_leave:
 
   delete select;
   delete file_sort;
+  if (!thd->is_error() && optimize_subqueries &&
+      select_lex->optimize_unflattened_subqueries(false))
+    DBUG_RETURN(TRUE);
   free_underlaid_joins(thd, select_lex);
   if (table->file->pushed_cond)
     table->file->cond_pop();
