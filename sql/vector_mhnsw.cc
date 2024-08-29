@@ -44,9 +44,17 @@ static MYSQL_THDVAR_UINT(max_edges_per_node, PLUGIN_VAR_RQCMDARG,
        "memory consumption, but better search results",
        nullptr, nullptr, 6, 3, 200, 1);
 
+enum metric_type : uint { EUCLIDEAN, COSINE };
+static const char *distance_function_names[]= { "euclidean", "cosine", nullptr };
+static TYPELIB distance_functions= CREATE_TYPELIB_FOR(distance_function_names);
+static MYSQL_THDVAR_ENUM(distance_function, PLUGIN_VAR_RQCMDARG,
+       "Distance function to build the vector index for",
+       nullptr, nullptr, EUCLIDEAN, &distance_functions);
+
 struct ha_index_option_struct
 {
   ulonglong M; // option struct does not support uint
+  metric_type metric;
 };
 
 enum Graph_table_fields {
@@ -79,7 +87,7 @@ struct FVector
   static size_t data_to_value_size(size_t data_size)
   { return (data_size - data_header)*2; }
 
-  static const FVector *create(void *mem, const void *src, size_t src_len)
+  static const FVector *create(metric_type metric, void *mem, const void *src, size_t src_len)
   {
     float scale=0, *v= (float *)src;
     size_t vec_len= src_len / sizeof(float);
@@ -92,6 +100,12 @@ struct FVector
     for (size_t i= 0; i < vec_len; i++)
       vec->dims[i] = static_cast<int16_t>(std::round(get_float(v + i) / vec->scale));
     vec->postprocess(vec_len);
+    if (metric == COSINE)
+    {
+      if (vec->abs2 > 0.0f)
+        vec->scale/= std::sqrt(vec->abs2);
+      vec->abs2= 1.0f;
+    }
     return vec;
   }
 
@@ -292,11 +306,13 @@ public:
   const uint tref_len;
   const uint gref_len;
   const uint M;
+  metric_type metric;
 
   MHNSW_Context(TABLE *t)
     : tref_len(t->file->ref_length),
       gref_len(t->hlindex->file->ref_length),
-      M(static_cast<uint>(t->s->key_info[t->s->keys].option_struct->M))
+      M(static_cast<uint>(t->s->key_info[t->s->keys].option_struct->M)),
+      metric(t->s->key_info[t->s->keys].option_struct->metric)
   {
     mysql_rwlock_init(PSI_INSTRUMENT_ME, &commit_lock);
     mysql_mutex_init(PSI_INSTRUMENT_ME, &cache_lock, MY_MUTEX_INIT_FAST);
@@ -601,7 +617,7 @@ int MHNSW_Context::acquire(MHNSW_Context **ctx, TABLE *table, bool for_update)
 /* copy the vector, preprocessed as needed */
 const FVector *FVectorNode::make_vec(const void *v)
 {
-  return FVector::create(tref() + tref_len(), v, ctx->byte_len);
+  return FVector::create(ctx->metric, tref() + tref_len(), v, ctx->byte_len);
 }
 
 FVectorNode::FVectorNode(MHNSW_Context *ctx_, const void *gref_)
@@ -1137,7 +1153,9 @@ int mhnsw_read_first(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit)
 {
   THD *thd= table->in_use;
   TABLE *graph= table->hlindex;
-  auto *fun= (Item_func_vec_distance_euclidean *)(dist->real_item());
+  auto *fun= static_cast<Item_func_vec_distance_common*>(dist->real_item());
+  DBUG_ASSERT(fun);
+
   String buf, *res= fun->get_const_arg()->val_str(&buf);
   MHNSW_Context *ctx;
 
@@ -1172,7 +1190,7 @@ int mhnsw_read_first(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit)
   }
 
   const longlong max_layer= start_nodes.links[0]->max_layer;
-  auto target= FVector::create(thd->alloc(FVector::alloc_size(ctx->vec_len)),
+  auto target= FVector::create(ctx->metric, thd->alloc(FVector::alloc_size(ctx->vec_len)),
                                res->ptr(), res->length());
 
   if (int err= graph->file->ha_rnd_init(0))
@@ -1311,6 +1329,13 @@ const LEX_CSTRING mhnsw_hlindex_table_def(THD *thd, uint ref_length)
   return {s, len};
 }
 
+bool mhnsw_uses_distance(const TABLE *table, KEY *keyinfo, const Item *dist)
+{
+  if (keyinfo->option_struct->metric == EUCLIDEAN)
+    return dynamic_cast<const Item_func_vec_distance_euclidean*>(dist) != NULL;
+  return dynamic_cast<const Item_func_vec_distance_cosine*>(dist) != NULL;
+}
+
 /*
   Declare the plugin and index options
 */
@@ -1318,6 +1343,7 @@ const LEX_CSTRING mhnsw_hlindex_table_def(THD *thd, uint ref_length)
 ha_create_table_option mhnsw_index_options[]=
 {
   HA_IOPTION_SYSVAR("max_edges_per_node", M, max_edges_per_node),
+  HA_IOPTION_SYSVAR("distance_function", metric, distance_function),
   HA_IOPTION_END
 };
 
@@ -1346,6 +1372,7 @@ static struct st_mysql_sys_var *mhnsw_sys_vars[]=
 {
   MYSQL_SYSVAR(cache_size),
   MYSQL_SYSVAR(max_edges_per_node),
+  MYSQL_SYSVAR(distance_function),
   MYSQL_SYSVAR(min_limit),
   NULL
 };
