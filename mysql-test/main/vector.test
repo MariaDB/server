@@ -50,6 +50,16 @@ select id>0,vec_distance_euclidean(v, NULL) d from t1 order by d limit 3;
 select id>0,vec_distance_euclidean(v, x'123456') d from t1 order by d limit 3;
 select t1.id as id1, t2.id as id2, vec_distance_euclidean(t1.v, t2.v) from t1, t1 as t2 order by 3,1,2;
 
+# see if order by uses index:
+flush session status;
+select id,vec_distance_euclidean(v, x'B047263c9f87233fcfd27e3eae493e3f0329f43e') d from t1 order by d limit 3;
+show status like 'handler_read_rnd_next'; # used
+select id,vec_distance_euclidean(v, x'B047263c9f87233fcfd27e3eae493e3f0329f43e') d from t1 use index () order by d limit 3;
+show status like 'handler_read_rnd_next'; # not used
+flush session status;
+select id,vec_distance_cosine(v, x'B047263c9f87233fcfd27e3eae493e3f0329f43e') d from t1 order by d limit 3;
+show status like 'handler_read_rnd_next'; # not used, wrong distance metric
+
 # test delete
 delete from t1 where v = x'7b713f3e5258323f80d1113d673b2b3f66e3583f';
 select id,vec_distance_euclidean(v, x'B047263C9f87233fcfd27e3eae493e3f0329f43e') d from t1 order by d limit 3;
@@ -156,3 +166,34 @@ rename table test1.t1 to test1.t2;
 list_files $datadir/test1;
 drop database test1;
 list_files $datadir/test;
+
+--echo #
+--echo # Cosine distance
+--echo #
+create table t1 (id int auto_increment primary key, v blob not null,
+  vector index (v) distance_function=cosine);
+replace_result InnoDB MyISAM;
+show create table t1;
+insert t1 (v) values (x'e360d63ebe554f3fcdbc523f4522193f5236083d'),
+                     (x'f511303f72224a3fdd05fe3eb22a133ffae86a3f'),
+                     (x'f09baa3ea172763f123def3e0c7fe53e288bf33e'),
+                     (x'b97a523f2a193e3eb4f62e3f2d23583e9dd60d3f'),
+                     (x'f7c5df3e984b2b3e65e59d3d7376db3eac63773e'),
+                     (x'de01453ffa486d3f10aa4d3fdd66813c71cb163f'),
+                     (x'76edfc3e4b57243f10f8423fb158713f020bda3e'),
+                     (x'56926c3fdf098d3e2c8c5e3d1ad4953daa9d0b3e'),
+                     (x'7b713f3e5258323f80d1113d673b2b3f66e3583f'),
+                     (x'6ca1d43e9df91b3fe580da3e1c247d3f147cf33e');
+
+# make sure the graph is loaded
+select id,vec_distance_cosine(v, x'B047263c9f87233fcfd27e3eae493e3f0329f43e') d from t1 order by d limit 3;
+
+flush session status;
+select id,vec_distance_cosine(v, x'B047263c9f87233fcfd27e3eae493e3f0329f43e') d from t1 order by d limit 3;
+show status like 'handler_read_rnd_next';
+select id,vec_distance_cosine(v, x'B047263c9f87233fcfd27e3eae493e3f0329f43e') d from t1 use index () order by d limit 3;
+show status like 'handler_read_rnd_next';
+flush session status;
+select id,vec_distance_euclidean(v, x'B047263c9f87233fcfd27e3eae493e3f0329f43e') d from t1 order by d limit 3;
+show status like 'handler_read_rnd_next';
+drop table t1;
