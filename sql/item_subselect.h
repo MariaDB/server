@@ -1515,7 +1515,8 @@ protected:
     Comparison function used by the priority queue pq, the 'smaller' key
     is the one with the smaller current row number.
   */
-  static int cmp_keys_by_cur_rownum(void *arg, uchar *k1, uchar *k2);
+  static int cmp_keys_by_cur_rownum(const void *,
+                                    const void *k1, const void *k2);
 
   bool test_null_row(rownum_t row_num);
   bool exists_complementing_null_row(MY_BITMAP *keys_to_complement);

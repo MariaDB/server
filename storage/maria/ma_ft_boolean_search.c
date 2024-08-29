@@ -144,9 +144,12 @@ typedef struct st_ft_info
   enum { UNINITIALIZED, READY, INDEX_SEARCH, INDEX_DONE } state;
 } FTB;
 
-static int FTB_WORD_cmp(my_off_t *v, FTB_WORD *a, FTB_WORD *b)
+static int FTB_WORD_cmp(const void *_v, const void *_a, const void *_b)
 {
   int i;
+  const my_off_t *v= (const my_off_t *) _v;
+  const FTB_WORD *a= (const FTB_WORD *) _a;
+  const FTB_WORD *b= (const FTB_WORD *) _b;
 
   /* if a==curdoc, take it as  a < b */
   if (v && a->docid[0] == *v)
@@ -597,7 +600,7 @@ FT_INFO * maria_ft_init_boolean_search(MARIA_HA *info, uint keynr,
                                               sizeof(void *))))
     goto err;
   reinit_queue(&ftb->queue, ftb->queue.max_elements, 0, 0,
-               (int (*)(void*, uchar*, uchar*))FTB_WORD_cmp, 0, 0, 0);
+               FTB_WORD_cmp, 0, 0, 0);
   for (ftbw= ftb->last_word; ftbw; ftbw= ftbw->prev)
     queue_insert(&ftb->queue, (uchar *)ftbw);
   ftb->list=(FTB_WORD **)alloc_root(&ftb->mem_root,
