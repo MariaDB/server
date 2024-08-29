@@ -21271,3 +21271,75 @@ buf_pool_size_align(
     return (size / m + 1) * m;
   }
 }
+
+bool innodb_execute_triggers(upd_node_t *node, bool is_delete, bool after) {
+	btr_pcur_t	*pcur = node->pcur;
+	char db_buf[NAME_LEN + 1];
+	char tbl_buf[NAME_LEN + 1];
+	ulint db_buf_len, tbl_buf_len;
+
+	dict_table_t *table = node->table;
+	dict_index_t *clust_index = dict_table_get_first_index(table);
+
+	if (!table->parse_name(db_buf, tbl_buf, &db_buf_len, &tbl_buf_len)) {
+		return true;
+	}
+
+	THD *thd = current_thd;
+	TABLE *maria_table = find_fk_open_table(thd, db_buf, db_buf_len, tbl_buf, tbl_buf_len);
+
+	//TODO: add maria_table->triggers->has_triggers(TYPE) check
+	if (maria_table->triggers == NULL) {
+		return false;
+	}
+	
+	ha_innobase *handler = (ha_innobase*)maria_table->file;
+	row_prebuilt_t *prebuilt = handler->get_prebuilt(table);
+	
+	//ut_ad(is_delete);
+	//ut_ad(after);
+
+	const rec_t* rec = btr_pcur_get_rec(pcur); // FIXME: not sure that it's correct
+	const rec_offs*	offsets = rec_get_offsets(rec, clust_index, nullptr, clust_index->n_core_fields, ULINT_UNDEFINED, &node->heap);
+	
+	
+	if (!is_delete) {
+		dberr_t err;
+		dtuple_t* upd_row = node->upd_row;
+		if (upd_row == NULL) {
+			dtuple_t* row = row_build(ROW_COPY_DATA, clust_index, rec,
+				      offsets, NULL,
+				      NULL, NULL, &node->upd_ext, node->heap);
+
+			upd_row = dtuple_copy(row, node->heap);
+			row_upd_replace(upd_row, &node->upd_ext,
+				clust_index, node->update, node->heap);
+		}
+
+		dtuple_t* entry = row_build_index_entry(upd_row, NULL, clust_index, node->heap);
+		ulint n_ext = dtuple_get_n_ext(upd_row);
+		
+		ulint size = rec_get_converted_size(clust_index, entry, n_ext);
+		byte *buf = static_cast<byte*>(mem_heap_alloc(node->heap, size));
+
+		rec_t *rec_upd = rec_convert_dtuple_to_rec(buf, clust_index, entry, n_ext);
+		const rec_offs* upd_offsets = rec_get_offsets(rec_upd, clust_index, nullptr, clust_index->n_core_fields, ULINT_UNDEFINED, &node->heap);
+
+		row_sel_store_mysql_rec(maria_table->record[0], prebuilt, rec_upd, NULL, false, clust_index, upd_offsets); //FIXME:Check return value
+	}
+
+	row_sel_store_mysql_rec(maria_table->record[1], prebuilt, rec, NULL, false, clust_index, offsets); //FIXME: Check return value
+	trg_event_type trigger_event = is_delete ? TRG_EVENT_DELETE : TRG_EVENT_UPDATE; // FIXME:
+	trg_action_time_type trigger_time = after? TRG_ACTION_AFTER: TRG_ACTION_BEFORE; //FIXME: 
+	//maria_table->column_bitmaps_set(&maria_table->s->all_set, &maria_table->s->all_set);
+	maria_table->triggers->process_triggers(thd, TRG_EVENT_UPDATE, TRG_ACTION_AFTER, true); //FIXME: Check return value
+
+
+	/* FIX_ME: This blob heap is used to compensate an issue in server
+	for virtual column blob handling */
+	// mem_heap_t*	blob_heap = NULL;
+	// row_mysql_convert_row_to_innobase(node->upd_row, prebuilt, maria_table->record[0],
+	// 				  &blob_heap);
+
+
+}
