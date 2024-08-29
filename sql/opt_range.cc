@@ -1749,9 +1749,12 @@ QUICK_ROR_UNION_SELECT::QUICK_ROR_UNION_SELECT(THD *thd_param,
 
 C_MODE_START
 
-static int QUICK_ROR_UNION_SELECT_queue_cmp(void *arg, uchar *val1, uchar *val2)
+static int QUICK_ROR_UNION_SELECT_queue_cmp(const void *arg, const void *_val1,
+                                            const void *_val2)
 {
-  QUICK_ROR_UNION_SELECT *self= (QUICK_ROR_UNION_SELECT*)arg;
+  const QUICK_ROR_UNION_SELECT *self= (const QUICK_ROR_UNION_SELECT*)arg;
+  const uchar *val1= (const uchar *) _val1;
+  const uchar *val2= (const uchar *) _val2;
   return self->head->file->cmp_ref(((QUICK_SELECT_I*)val1)->last_rowid,
                                    ((QUICK_SELECT_I*)val2)->last_rowid);
 }

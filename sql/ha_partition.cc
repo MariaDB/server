@@ -82,6 +82,10 @@
 
 static const char *ha_par_ext= PAR_EXT;
 
+static_assert(std::is_same<queue_compare, qsort2_cmp>::value,
+              "queue_compare and qsort2_cmp compare functions should have the "
+              "same signature");
+
 /****************************************************************************
                 MODULE create/delete handler object
 ****************************************************************************/
@@ -5535,7 +5539,7 @@ bool ha_partition::init_record_priority_queue()
   m_start_key.key= (const uchar*)ptr;
 
   /* Initialize priority queue, initialized to reading forward. */
-  int (*cmp_func)(void *, uchar *, uchar *);
+  int (*cmp_func)(const void *, const void *, const void *);
   void *cmp_arg= (void*) this;
   if (!m_using_extended_keys && !(table_flags() & HA_SLOW_CMP_REF))
     cmp_func= cmp_key_rowid_part_id;
@@ -5783,8 +5787,10 @@ int ha_partition::index_read_map(uchar *buf, const uchar *key,
 
 
 /* Compare two part_no partition numbers */
-static int cmp_part_ids(uchar *ref1, uchar *ref2)
+static int cmp_part_ids(const void *_ref1, const void *_ref2)
 {
+  const uchar *ref1= (const uchar *) _ref1;
+  const uchar *ref2= (const uchar *) _ref2;
   uint32 diff2= uint2korr(ref2);
   uint32 diff1= uint2korr(ref1);
   if (diff2 > diff1)
@@ -5800,9 +5806,12 @@ static int cmp_part_ids(uchar *ref1, uchar *ref2)
     Provide ordering by (key_value, part_no).
 */
 
-extern "C" int cmp_key_part_id(void *ptr, uchar *ref1, uchar *ref2)
+extern "C" int cmp_key_part_id(const void *ptr, const void *_ref1,
+                               const void *_ref2)
 {
   ha_partition *file= (ha_partition*)ptr;
+  const uchar *ref1= (const uchar *) _ref1;
+  const uchar *ref2= (const uchar *) _ref2;
   if (int res= key_rec_cmp(file->m_curr_key_info,
                            ref1 + PARTITION_BYTES_IN_POS,
                            ref2 + PARTITION_BYTES_IN_POS))
@@ -5814,9 +5823,12 @@ extern "C" int cmp_key_part_id(void *ptr, uchar *ref1, uchar *ref2)
   @brief
     Provide ordering by (key_value, underying_table_rowid, part_no).
 */
-extern "C" int cmp_key_rowid_part_id(void *ptr, uchar *ref1, uchar *ref2)
+extern "C" int cmp_key_rowid_part_id(const void *ptr, const void *_ref1,
+                                     const void *_ref2)
 {
   ha_partition *file= (ha_partition*)ptr;
+  const uchar *ref1= (const uchar *) _ref1;
+  const uchar *ref2= (const uchar *) _ref2;
   int res;
 
   if ((res= key_rec_cmp(file->m_curr_key_info, ref1 + PARTITION_BYTES_IN_POS,

@@ -6600,9 +6600,9 @@ subselect_rowid_merge_engine::cmp_keys_by_null_selectivity(Ordered_key **k1,
 /*
 */
 
-int
-subselect_rowid_merge_engine::cmp_keys_by_cur_rownum(void *arg,
-                                                     uchar *k1, uchar *k2)
+int subselect_rowid_merge_engine::cmp_keys_by_cur_rownum(const void *arg,
+                                                         const void *k1,
+                                                         const void *k2)
 {
   rownum_t r1= ((Ordered_key*) k1)->current();
   rownum_t r2= ((Ordered_key*) k2)->current();
