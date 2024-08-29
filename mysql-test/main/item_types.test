@@ -55,6 +55,18 @@ CREATE VIEW t AS SELECT 0 AS a;
 SELECT * FROM t WHERE a=ALL (SELECT 0);
 DROP VIEW t;
 
+
+--echo #
+--echo # MDEV-34833: Assertion failure in Item_float::do_build_clone
+--echo # (Item_static_float_func)
+--echo #
+
+CREATE VIEW v1 (f,f2) AS SELECT connection_id(),pi();
+CREATE TABLE t1 AS SELECT 1;
+SELECT * FROM v1 JOIN t1 ON f=f2;
+DROP VIEW v1;
+DROP TABLE t1;
+
 --echo #
 --echo # End of 10.5 tests
 --echo #
