@@ -41,27 +41,33 @@ insert t1 (v) values (x'e360d63ebe554f3fcdbc523f4522193f5236083d'),
 select id, hex(v), vec_totext(v) from t1;
 flush tables;
 # test with a valid query vector
-select id,vec_distance(v, x'B047263c9f87233fcfd27e3eae493e3f0329f43e') d from t1 order by d limit 3;
+select id,vec_distance_euclidean(v, x'B047263c9f87233fcfd27e3eae493e3f0329f43e') d from t1 order by d limit 3;
 # swapped arguments
-select id,vec_distance(x'b047263C9f87233fcfd27e3eae493e3f0329f43e', v) d from t1 order by d limit 3;
+select id,vec_distance_euclidean(x'b047263C9f87233fcfd27e3eae493e3f0329f43e', v) d from t1 order by d limit 3;
 # test with NULL (id is unpredictable)
-select id>0,vec_distance(v, NULL) d from t1 order by d limit 3;
+select id>0,vec_distance_euclidean(v, NULL) d from t1 order by d limit 3;
 # test with invalid query vector (id is unpredictable)
-select id>0,vec_distance(v, x'123456') d from t1 order by d limit 3;
-select t1.id as id1, t2.id as id2, vec_distance(t1.v, t2.v) from t1, t1 as t2 order by 3,1,2;
+select id>0,vec_distance_euclidean(v, x'123456') d from t1 order by d limit 3;
+select t1.id as id1, t2.id as id2, vec_distance_euclidean(t1.v, t2.v) from t1, t1 as t2 order by 3,1,2;
+
+# subquery
+select * from (
+  select id,vec_distance_euclidean(v, x'b047263C9F87233fcfd27e3eae493e3f0329f43e') d
+  from t1 where id < 10
+) u order by d limit 3;
 
 # test delete
 delete from t1 where v = x'7b713f3e5258323f80d1113d673b2b3f66e3583f';
-select id,vec_distance(v, x'B047263C9f87233fcfd27e3eae493e3f0329f43e') d from t1 order by d limit 3;
+select id,vec_distance_euclidean(v, x'B047263C9f87233fcfd27e3eae493e3f0329f43e') d from t1 order by d limit 3;
 
 # test insert deleted vec
 insert t1 (v) values (x'7b713f3e5258323f80d1113d673b2b3f66e3583f');
-select id,vec_distance(v, x'b047263c9F87233fcfd27e3eae493e3f0329f43e') d from t1 order by d limit 3;
+select id,vec_distance_euclidean(v, x'b047263c9F87233fcfd27e3eae493e3f0329f43e') d from t1 order by d limit 3;
 
 # test update
-select id,vec_distance(v, x'B047263c9F87233fcfd27e3eae493e3f0329f43e') d from t1 order by d limit 5;
+select id,vec_distance_euclidean(v, x'B047263c9F87233fcfd27e3eae493e3f0329f43e') d from t1 order by d limit 5;
 update t1 set v=x'76EDFC3E4B57243F10F8423FB158713F020BAA3E' where v=x'6CA1D43E9DF91B3FE580DA3E1C247D3F147CF33E';
-select id,vec_distance(v, x'B047263C9F87233fcfd27e3eae493e3f0329f43e') d from t1 order by d limit 5;
+select id,vec_distance_euclidean(v, x'B047263C9F87233fcfd27e3eae493e3f0329f43e') d from t1 order by d limit 5;
 
 # test delete all and reinsert
 delete from t1;
@@ -75,7 +81,7 @@ insert t1 (v) values (x'e360d63ebe554f3fcdbc523f4522193f5236083d'),
                      (x'56926c3fdf098d3e2c8c5e3d1ad4953daa9d0b3e'),
                      (x'7b713f3e5258323f80d1113d673b2b3f66e3583f'),
                      (x'6ca1d43e9df91b3fe580da3e1c247d3f147cf33e');
-select id,vec_distance(v, x'b047263c9f87233Fcfd27e3eae493e3f0329f43e') d from t1 order by d limit 5;
+select id,vec_distance_euclidean(v, x'b047263c9f87233Fcfd27e3eae493e3f0329f43e') d from t1 order by d limit 5;
 
 
 --error ER_TRUNCATED_WRONG_VALUE_FOR_FIELD
