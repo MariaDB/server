@@ -32187,7 +32187,8 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
     else
     {
       const KEY *ref_keyinfo= table->key_info + ref_key;
-      refkey_rows_estimate= ref_keyinfo->rec_per_key[tab->ref.key_parts - 1];
+      refkey_rows_estimate=
+        (ha_rows)ref_keyinfo->actual_rec_per_key(tab->ref.key_parts - 1);
     }
     set_if_bigger(refkey_rows_estimate, 1);
   }

@@ -1358,6 +1358,12 @@ public:
   }
 
 public:
+  /** Look up and buffer-fix a page.
+  @param id        page identifier
+  @return undo log page, buffer-fixed
+  @retval nullptr  if the undo page was corrupted or freed */
+  buf_block_t *page_fix(const page_id_t id);
+
   /** @return whether the buffer pool contains a page
   @param page_id       page identifier
   @param chain         hash table chain for page_id.fold() */
