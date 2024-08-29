@@ -36,7 +36,7 @@ select hex(vec_fromtext('[]'));
 select vec_totext(x'');
 
 select id, vec_totext(t1.v) as a, vec_totext(vec_fromtext(vec_totext(t1.v))) as b,
-       vec_distance(t1.v, vec_fromtext(vec_totext(t1.v))) < 0.000001
+       vec_distance_euclidean(t1.v, vec_fromtext(vec_totext(t1.v))) < 0.000001 as c
 from t1;
 
 drop table t1;

@@ -20,17 +20,9 @@
   This file defines all vector functions
 */
 
-#include <cmath>
-#include <my_global.h>
-
-#include "item.h"
 #include "item_vectorfunc.h"
-#include "json_lib.h"
-#include "m_ctype.h"
-#include "sql_const.h"
-#include "sql_error.h"
 
-key_map Item_func_vec_distance::part_of_sortkey() const
+key_map Item_func_vec_distance_common::part_of_sortkey() const
 {
   key_map map(0);
   if (Item_field *item= get_field_arg())
@@ -44,7 +36,7 @@ key_map Item_func_vec_distance::part_of_sortkey() const
   return map;
 }
 
-double Item_func_vec_distance::val_real()
+double Item_func_vec_distance_common::val_real()
 {
   String *r1= args[0]->val_str();
   String *r2= args[1]->val_str();
@@ -54,7 +46,7 @@ double Item_func_vec_distance::val_real()
     return 0;
   float *v1= (float *) r1->ptr();
   float *v2= (float *) r2->ptr();
-  return euclidean_vec_distance(v1, v2, (r1->length()) / sizeof(float));
+  return calc_distance(v1, v2, (r1->length()) / sizeof(float));
 }
 
 bool Item_func_vec_totext::fix_length_and_dec(THD *thd)
@@ -112,19 +104,6 @@ String *Item_func_vec_totext::val_str_ascii(String *str)
   str->append(']');
 
   return str;
-}
-
-double euclidean_vec_distance(float *v1, float *v2, size_t v_len)
-{
-  float *p1= v1;
-  float *p2= v2;
-  double d= 0;
-  for (size_t i= 0; i < v_len; p1++, p2++, i++)
-  {
-    float dist= *p1 - *p2;
-    d+= dist * dist;
-  }
-  return sqrt(d);
 }
 
 Item_func_vec_totext::Item_func_vec_totext(THD *thd, Item *a)
