@@ -38,14 +38,14 @@ insert t1 values
 (41, x'71046a3e85329b3e05240e3f45c9283f1847363f98d47d3f4224b73d487b613f');
 delete from t1 where id=7;
 rollback;
-select id,vec_distance(v, x'c923e33dc0da313fe7c7983e526b3d3fde63963e6eaf3a3f27fa133fe27a583f') d from t1 order by d limit 5;
+select id,vec_distance_euclidean(v, x'c923e33dc0da313fe7c7983e526b3d3fde63963e6eaf3a3f27fa133fe27a583f') d from t1 order by d limit 5;
 id	d
 2	0.8781474260354732
 10	0.8856208347761952
 30	1.0162643974895857
 7	1.026397313888122
 5	1.0308161006949719
-select id,vec_distance(v, x'754b5f3ea2312b3fc169f43e4604883e1d20173e8dd7443f421b703fb11e0d3e') d from t1 order by d limit 5;
+select id,vec_distance_euclidean(v, x'754b5f3ea2312b3fc169f43e4604883e1d20173e8dd7443f421b703fb11e0d3e') d from t1 order by d limit 5;
 id	d
 2	0.9426904171992334
 33	0.9477554826856
@@ -71,14 +71,14 @@ insert t2 values
 (20, x'58dc7d3fc9feaa3e19e26b3f31820c3f93070b3fc4e36e3f'),
 (21, x'35e05d3f18e8513fb81a3d3f8acf7d3e794a1d3c72f9613f');
 commit;
-select id,vec_distance(v, x'1f4d053f7056493f937da03dd8c97a3f220cbb3c926c1c3facca213ec0618a3e') d from t1 order by d limit 5;
+select id,vec_distance_euclidean(v, x'1f4d053f7056493f937da03dd8c97a3f220cbb3c926c1c3facca213ec0618a3e') d from t1 order by d limit 5;
 id	d
 6	0.9309383181777582
 5	0.9706304662574956
 30	0.98144492002831
 50	1.079862635421575
 2	1.0907138991979892
-select id,vec_distance(v, x'f618663f256be73e62cd453f8bcdbf3e16ae503c3858313f') d from t2 order by d limit 5;
+select id,vec_distance_euclidean(v, x'f618663f256be73e62cd453f8bcdbf3e16ae503c3858313f') d from t2 order by d limit 5;
 id	d
 21	0.43559180321379337
 20	0.6435053022072372
