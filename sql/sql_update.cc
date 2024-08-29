@@ -676,6 +676,7 @@ bool Sql_cmd_update::update_single_table(THD *thd)
         (select->cond->used_tables() & ~RAND_TABLE_BIT) == table->map)
     {
       DBUG_ASSERT(!table->file->pushed_cond);
+      abort();
       if (!table->file->cond_push(select->cond))
       {
         use_direct_update= TRUE;

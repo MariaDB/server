@@ -14047,6 +14047,7 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
               {
                 trace_cp.add("push_cond", push_cond);
                 /* Push condition to handler */
+                abort();
                 if (!tab->table->file->cond_push(push_cond))
                   tab->table->file->pushed_cond= push_cond;
               }
