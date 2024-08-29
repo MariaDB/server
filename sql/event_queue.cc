@@ -67,10 +67,11 @@
 
 extern "C" int event_queue_element_compare_q(void *, uchar *, uchar *);
 
-int event_queue_element_compare_q(void *vptr, uchar* a, uchar *b)
+int event_queue_element_compare_q(const void *vptr, const void *a,
+                                  const void *b)
 {
-  Event_queue_element *left = (Event_queue_element *)a;
-  Event_queue_element *right = (Event_queue_element *)b;
+  const Event_queue_element *left = (const Event_queue_element *)a;
+  const Event_queue_element *right = (const Event_queue_element *)b;
   my_time_t lhs = left->execute_at;
   my_time_t rhs = right->execute_at;
 

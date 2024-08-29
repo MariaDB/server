@@ -277,8 +277,8 @@ typedef struct st_partition_part_key_multi_range_hld
 } PARTITION_PART_KEY_MULTI_RANGE_HLD;
 
 
-extern "C" int cmp_key_part_id(void *key_p, uchar *ref1, uchar *ref2);
-extern "C" int cmp_key_rowid_part_id(void *ptr, uchar *ref1, uchar *ref2);
+extern "C" int cmp_key_part_id(const void *key_p, const void *ref1, const void *ref2);
+extern "C" int cmp_key_rowid_part_id(const void *ptr, const void *ref1, const void *ref2);
 
 class ha_partition :public handler
 {
@@ -1635,8 +1635,10 @@ public:
   int notify_tabledef_changed(LEX_CSTRING *db, LEX_CSTRING *table,
                               LEX_CUSTRING *frm, LEX_CUSTRING *version);
 
-  friend int cmp_key_rowid_part_id(void *ptr, uchar *ref1, uchar *ref2);
-  friend int cmp_key_part_id(void *key_p, uchar *ref1, uchar *ref2);
+  friend int cmp_key_rowid_part_id(const void *ptr, const void *ref1,
+                                   const void *ref2);
+  friend int cmp_key_part_id(const void *key_p, const void *ref1,
+                             const void *ref2);
 
   bool can_convert_nocopy(const Field &field,
                           const Column_definition &new_field) const override;
