@@ -527,7 +527,7 @@ Event_queue_element::load_from_row(THD *thd, TABLE *table)
   */
   execute_at_null= table->field[ET_FIELD_EXECUTE_AT]->is_null();
   DBUG_ASSERT(!(event_kind == Event_parse_data::SCHEDULE &&
-               (starts_null && ends_null && !expression && execute_at_null)));
+              (starts_null && ends_null && !expression && execute_at_null)));
   if (!expression && !execute_at_null)
   {
     if (table->field[ET_FIELD_EXECUTE_AT]->get_date(&time, TIME_NO_ZERO_DATE |
@@ -599,9 +599,8 @@ Event_queue_element::load_from_row(THD *thd, TABLE *table)
   on_completion= (ptr[0]=='D'? Event_parse_data::ON_COMPLETION_DROP:
                                Event_parse_data::ON_COMPLETION_PRESERVE);
 
-  if(!table->field[ET_FIELD_EVENT_KIND]->is_null()) {
+  if (!table->field[ET_FIELD_EVENT_KIND]->is_null())
     event_kind= (uint32) table->field[ET_FIELD_EVENT_KIND]->val_int();
-  }
 
   DBUG_RETURN(FALSE);
 }

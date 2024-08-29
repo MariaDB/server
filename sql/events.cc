@@ -340,8 +340,8 @@ Events::create_event(THD *thd, Event_parse_data *parse_data)
     DBUG_RETURN(TRUE);
 
   /* At create, one of them must be set */
-  DBUG_ASSERT(parse_data->expression || parse_data->execute_at
-              || parse_data->event_kind != Event_parse_data::SCHEDULE);
+  DBUG_ASSERT(parse_data->expression || parse_data->execute_at ||
+              parse_data->event_kind != Event_parse_data::SCHEDULE);
 
   if (check_access(thd, EVENT_ACL, parse_data->dbname.str, NULL, NULL, 0, 0))
     DBUG_RETURN(TRUE);
@@ -1411,9 +1411,9 @@ Events::search_n_execute_events(Event_parse_data::enum_event_kind event_kind)
       goto end;
     }
 
-    if((Event_parse_data::enum_event_kind) et->event_kind == event_kind) {
+    if ((Event_parse_data::enum_event_kind) et->event_kind == event_kind) {
       Event_queue_element_for_exec *event_name;
-      if(!(event_name= new Event_queue_element_for_exec()) ||
+      if (!(event_name= new Event_queue_element_for_exec()) ||
         event_name->init(et->dbname, et->name, et->event_kind))
       {
         delete event_name;
@@ -1428,7 +1428,7 @@ Events::search_n_execute_events(Event_parse_data::enum_event_kind event_kind)
   }
   ret= FALSE;
 
-  if(count)
+  if (count)
     my_printf_error(ER_STARTUP,
                     "Loaded %d %s trigger%s",
                     MYF(ME_ERROR_LOG | ME_NOTE),

@@ -269,7 +269,7 @@ mysql_event_fill_row(THD *thd,
     }
   }
 
-  if(et->event_kind == Event_parse_data::SCHEDULE)
+  if (et->event_kind == Event_parse_data::SCHEDULE)
   {
     if (et->expression)
     {

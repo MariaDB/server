@@ -1638,7 +1638,7 @@ static my_bool kill_thread_phase_2(THD *thd, void *)
 static my_bool warn_threads_active_after_phase_1(THD *thd, void *)
 {
   if (thd->system_thread == SYSTEM_THREAD_SHUTDOWN_EVENT_WORKER)
-      return 0;
+    return 0;
 
   if (!thd->is_binlog_dump_thread() && thd->vio_ok())
     sql_print_warning("%s: Thread %llu (user : '%s') did not exit\n", my_progname,

@@ -702,8 +702,8 @@ end:
 
 static my_bool workers_count_callback(THD *thd, uint32_t *count)
 {
-  if (thd->system_thread == SYSTEM_THREAD_EVENT_WORKER
-      || thd->system_thread == SYSTEM_THREAD_SHUTDOWN_EVENT_WORKER)
+  if (thd->system_thread == SYSTEM_THREAD_EVENT_WORKER ||
+      thd->system_thread == SYSTEM_THREAD_SHUTDOWN_EVENT_WORKER)
     ++*count;
   return 0;
 }
