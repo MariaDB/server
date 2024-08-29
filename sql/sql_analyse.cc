@@ -1158,7 +1158,7 @@ int collect_ulonglong(void *_element,
 		      element_count count __attribute__((unused)),
 		      void *_info)
 {
-  ulonglong *element= static_cast<longlong*>(_element);
+  ulonglong *element= static_cast<ulonglong*>(_element);
   TREE_INFO *info= static_cast<TREE_INFO*>(_info);
   char buff[MAX_FIELD_WIDTH];
   String s(buff, sizeof(buff),&my_charset_bin);
