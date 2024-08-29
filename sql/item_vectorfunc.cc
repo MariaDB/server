@@ -21,6 +21,7 @@
 */
 
 #include "item_vectorfunc.h"
+#include "vector_mhnsw.h"
 
 key_map Item_func_vec_distance_common::part_of_sortkey() const
 {
@@ -28,9 +29,10 @@ key_map Item_func_vec_distance_common::part_of_sortkey() const
   if (Item_field *item= get_field_arg())
   {
     Field *f= item->field;
+    KEY *keyinfo= f->table->s->key_info;
     for (uint i= f->table->s->keys; i < f->table->s->total_keys; i++)
-      if (f->table->s->key_info[i].algorithm == HA_KEY_ALG_VECTOR &&
-          f->key_start.is_set(i))
+      if (keyinfo[i].algorithm == HA_KEY_ALG_VECTOR && f->key_start.is_set(i)
+          && mhnsw_uses_distance(f->table, keyinfo + i, this))
         map.set_bit(i);
   }
   return map;
