@@ -4720,6 +4720,8 @@ public:
   {
     return const_charset_converter(thd, tocs, true, func_name);
   }
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_static_float_func>(thd, this); }
 };
 
 
