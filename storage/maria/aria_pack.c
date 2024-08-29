@@ -146,7 +146,8 @@ static int test_space_compress(HUFF_COUNTS *huff_counts,my_off_t records,
 			       enum en_fieldtype field_type);
 static HUFF_TREE* make_huff_trees(HUFF_COUNTS *huff_counts,uint trees);
 static int make_huff_tree(HUFF_TREE *tree,HUFF_COUNTS *huff_counts);
-static int compare_huff_elements(void *not_used, uchar *a,uchar *b);
+static int compare_huff_elements(const void *not_used, const void *a,
+                                 const void *b);
 static int save_counts_in_queue(uchar *key,element_count count,
 				    HUFF_TREE *tree);
 static my_off_t calc_packed_length(HUFF_COUNTS *huff_counts,uint flag);
@@ -1257,11 +1258,11 @@ static int get_statistic(PACK_MRG_INFO *mrg,HUFF_COUNTS *huff_counts)
   DBUG_RETURN(error != HA_ERR_END_OF_FILE);
 }
 
-static int compare_huff_elements(void *not_used __attribute__((unused)),
-				 uchar *a, uchar *b)
+static int compare_huff_elements(const void *not_used __attribute__((unused)),
+				 const void *a, const void *b)
 {
-  return *((my_off_t*) a) < *((my_off_t*) b) ? -1 :
-    (*((my_off_t*) a) == *((my_off_t*) b)  ? 0 : 1);
+  return *((const my_off_t*) a) < *((const my_off_t*) b) ? -1 :
+    (*((const my_off_t*) a) == *((const my_off_t*) b)  ? 0 : 1);
 }
 
 	/* Check each tree if we should use pre-space-compress, end-space-

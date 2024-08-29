@@ -2925,10 +2925,10 @@ gtid_waiting::destroy()
 
 
 static int
-cmp_queue_elem(void *, uchar *a, uchar *b)
+cmp_queue_elem(const void *, const void *a, const void *b)
 {
-  uint64 seq_no_a= *(uint64 *)a;
-  uint64 seq_no_b= *(uint64 *)b;
+  const uint64 seq_no_a= *(const uint64 *)a;
+  const uint64 seq_no_b= *(const uint64 *)b;
   if (seq_no_a < seq_no_b)
     return -1;
   else if (seq_no_a == seq_no_b)
