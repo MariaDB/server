@@ -1057,6 +1057,7 @@ public:
   */
   List<Item_func_in> in_funcs;
   List<TABLE_LIST> leaf_tables;
+  /* Saved leaf tables for subsequent executions */
   List<TABLE_LIST> leaf_tables_exec;
   List<TABLE_LIST> leaf_tables_prep;
 
