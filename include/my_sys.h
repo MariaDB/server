@@ -462,7 +462,7 @@ typedef struct st_io_cache		/* Used when caching files */
   size_t alloced_buffer;
 } IO_CACHE;
 
-typedef int (*qsort2_cmp)(const void *, const void *, const void *);
+typedef int (*qsort2_cmp)(const void *param, const void *a, const void *b);
 
 typedef void (*my_error_reporter)(enum loglevel level, const char *format, ...)
   ATTRIBUTE_FORMAT_FPTR(printf, 2, 3);

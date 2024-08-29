@@ -429,11 +429,12 @@ Unique::reset()
 
 C_MODE_START
 
-static int buffpek_compare(void *arg, uchar *key_ptr1, uchar *key_ptr2)
+static int buffpek_compare(const void *arg, const void *key_ptr1,
+                           const void *key_ptr2)
 {
-  BUFFPEK_COMPARE_CONTEXT *ctx= (BUFFPEK_COMPARE_CONTEXT *) arg;
+  const BUFFPEK_COMPARE_CONTEXT *ctx= (const BUFFPEK_COMPARE_CONTEXT *) arg;
   return ctx->key_compare(ctx->key_compare_arg,
-                          *((uchar **) key_ptr1), *((uchar **)key_ptr2));
+                          *((const uchar **) key_ptr1), *((const uchar **)key_ptr2));
 }
 
 C_MODE_END
