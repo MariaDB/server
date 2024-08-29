@@ -1310,6 +1310,15 @@ inline void log_t::resize_write(lsn_t lsn, const byte *end, size_t len,
   }
 }
 
+inline void log_t::append(byte *&d, const void *s, size_t size) noexcept
+{
+  ut_ad(log_sys.latch_have_any());
+  ut_ad(d + size <= log_sys.buf +
+        (log_sys.is_pmem() ? log_sys.file_size : log_sys.buf_size));
+  memcpy(d, s, size);
+  d+= size;
+}
+
 template<bool spin,bool pmem>
 std::pair<lsn_t,mtr_t::page_flush_ahead>
 mtr_t::finish_writer(mtr_t *mtr, size_t len)

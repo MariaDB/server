@@ -516,17 +516,14 @@ log_t::resize_start_status log_t::resize_start(os_offset_t size) noexcept
         resize_target= size;
         resize_buf= static_cast<byte*>(ptr);
         resize_flush_buf= static_cast<byte*>(ptr2);
+        start_lsn= get_lsn();
+
         if (is_pmem())
-        {
           resize_log.close();
-          start_lsn= get_lsn();
-        }
         else
-        {
-          memcpy_aligned<16>(resize_buf, buf, (buf_free + 15) & ~15);
           start_lsn= first_lsn +
-            (~lsn_t{write_size - 1} & (write_lsn - first_lsn));
-        }
+            (~lsn_t{write_size - 1} &
+             (lsn_t{write_size - 1} + start_lsn - first_lsn));
       }
       resize_lsn.store(start_lsn, std::memory_order_relaxed);
       status= success ? RESIZE_STARTED : RESIZE_FAILED;
@@ -780,19 +777,26 @@ inline void log_t::persist(lsn_t lsn) noexcept
 #endif
 
 ATTRIBUTE_COLD ATTRIBUTE_NOINLINE
-/** Write resize_buf to resize_log.
-@param length  the used length of resize_buf */
-void log_t::resize_write_buf(size_t length) noexcept
+void log_t::resize_write_buf(const byte *b, size_t length) noexcept
 {
   const size_t block_size_1= write_size - 1;
+  ut_ad(b == resize_buf || b == resize_flush_buf);
   ut_ad(!(resize_target & block_size_1));
   ut_ad(!(length & block_size_1));
   ut_ad(length > block_size_1);
   ut_ad(length <= resize_target);
-  const lsn_t resizing{resize_in_progress()};
-  ut_ad(resizing <= write_lsn);
-  lsn_t offset= START_OFFSET +
-    ((write_lsn - resizing) & ~lsn_t{block_size_1}) %
+
+  int64_t d= int64_t(write_lsn - resize_in_progress());
+  if (UNIV_UNLIKELY(d <= 0))
+  {
+    d&= ~int64_t(block_size_1);
+    if (int64_t(d + length) <= 0)
+      return;
+    length+= d;
+    b-= d;
+    d= 0;
+  }
+  lsn_t offset= START_OFFSET + (lsn_t(d) & ~lsn_t{block_size_1}) %
     (resize_target - START_OFFSET);
 
   if (UNIV_UNLIKELY(offset + length > resize_target))
@@ -804,7 +808,7 @@ void log_t::resize_write_buf(size_t length) noexcept
   }
 
   ut_a(os_file_write_func(IORequestWrite, "ib_logfile101", resize_log.m_file,
-                          buf, offset, length) == DB_SUCCESS);
+                          b, offset, length) == DB_SUCCESS);
 }
 
 /** Write buf to ib_logfile0.
@@ -838,6 +842,7 @@ template<bool release_latch> inline lsn_t log_t::write_buf() noexcept
     ut_ad(write_size_1 >= 511);
 
     const byte *const write_buf{buf};
+    const byte *const re_write_buf{resize_buf};
     offset&= ~lsn_t{write_size_1};
 
     if (length <= write_size_1)
@@ -851,8 +856,8 @@ template<bool release_latch> inline lsn_t log_t::write_buf() noexcept
 #else
 # ifdef HAVE_valgrind
       MEM_MAKE_DEFINED(buf + length, (write_size_1 + 1) - length);
-      if (UNIV_LIKELY_NULL(resize_buf))
-        MEM_MAKE_DEFINED(resize_buf + length, (write_size_1 + 1) - length);
+      if (UNIV_LIKELY_NULL(re_write_buf))
+        MEM_MAKE_DEFINED(re_write_buf + length, (write_size_1 + 1) - length);
 # endif
       buf[length]= 0; /* allow recovery to catch EOF faster */
 #endif
@@ -872,15 +877,15 @@ template<bool release_latch> inline lsn_t log_t::write_buf() noexcept
         the current LSN are generated. */
 #ifdef HAVE_valgrind
           MEM_MAKE_DEFINED(buf + length, (write_size_1 + 1) - new_buf_free);
-        if (UNIV_LIKELY_NULL(resize_buf))
-          MEM_MAKE_DEFINED(resize_buf + length, (write_size_1 + 1) -
+        if (UNIV_LIKELY_NULL(re_write_buf))
+          MEM_MAKE_DEFINED(re_write_buf + length, (write_size_1 + 1) -
                            new_buf_free);
 #endif
         buf[length]= 0; /* allow recovery to catch EOF faster */
         length&= ~write_size_1;
         memcpy_aligned<16>(flush_buf, buf + length, (new_buf_free + 15) & ~15);
-        if (UNIV_LIKELY_NULL(resize_buf))
-          memcpy_aligned<16>(resize_flush_buf, resize_buf + length,
+        if (UNIV_LIKELY_NULL(re_write_buf))
+          memcpy_aligned<16>(resize_flush_buf, re_write_buf + length,
                              (new_buf_free + 15) & ~15);
         length+= write_size_1 + 1;
       }
@@ -899,8 +904,8 @@ template<bool release_latch> inline lsn_t log_t::write_buf() noexcept
     /* Do the write to the log file */
     log_write_buf(write_buf, length, offset);
 
-    if (UNIV_LIKELY_NULL(resize_buf))
-      resize_write_buf(length);
+    if (UNIV_LIKELY_NULL(re_write_buf))
+      resize_write_buf(re_write_buf, length);
     write_lsn= lsn;
 
     if (UNIV_UNLIKELY(srv_shutdown_state > SRV_SHUTDOWN_INITIATED))
