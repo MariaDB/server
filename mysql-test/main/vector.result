@@ -228,6 +228,32 @@ id1	id2	vec_distance_euclidean(t1.v, t2.v)
 9	8	1.2575258643523053
 7	8	1.288239696195716
 8	7	1.288239696195716
+flush session status;
+select id,vec_distance_euclidean(v, x'B047263c9f87233fcfd27e3eae493e3f0329f43e') d from t1 order by d limit 3;
+id	d
+9	0.4719976290006591
+10	0.5069011044450041
+3	0.5865673124650332
+show status like 'handler_read_rnd_next';
+Variable_name	Value
+Handler_read_rnd_next	0
+select id,vec_distance_euclidean(v, x'B047263c9f87233fcfd27e3eae493e3f0329f43e') d from t1 use index () order by d limit 3;
+id	d
+9	0.4719976290006591
+10	0.5069011044450041
+3	0.5865673124650332
+show status like 'handler_read_rnd_next';
+Variable_name	Value
+Handler_read_rnd_next	11
+flush session status;
+select id,vec_distance_cosine(v, x'B047263c9f87233fcfd27e3eae493e3f0329f43e') d from t1 order by d limit 3;
+id	d
+10	0.05905546376032378
+9	0.06546887818344715
+3	0.10750282439505232
+show status like 'handler_read_rnd_next';
+Variable_name	Value
+Handler_read_rnd_next	11
 delete from t1 where v = x'7b713f3e5258323f80d1113d673b2b3f66e3583f';
 select id,vec_distance_euclidean(v, x'B047263C9f87233fcfd27e3eae493e3f0329f43e') d from t1 order by d limit 3;
 id	d
@@ -375,3 +401,58 @@ t1.frm
 t1.ibd
 drop database test1;
 db.opt
+#
+# Cosine distance
+#
+create table t1 (id int auto_increment primary key, v blob not null,
+vector index (v) distance_function=cosine);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `v` blob NOT NULL,
+  PRIMARY KEY (`id`),
+  VECTOR KEY `v` (`v`) `distance_function`=cosine
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+insert t1 (v) values (x'e360d63ebe554f3fcdbc523f4522193f5236083d'),
+(x'f511303f72224a3fdd05fe3eb22a133ffae86a3f'),
+(x'f09baa3ea172763f123def3e0c7fe53e288bf33e'),
+(x'b97a523f2a193e3eb4f62e3f2d23583e9dd60d3f'),
+(x'f7c5df3e984b2b3e65e59d3d7376db3eac63773e'),
+(x'de01453ffa486d3f10aa4d3fdd66813c71cb163f'),
+(x'76edfc3e4b57243f10f8423fb158713f020bda3e'),
+(x'56926c3fdf098d3e2c8c5e3d1ad4953daa9d0b3e'),
+(x'7b713f3e5258323f80d1113d673b2b3f66e3583f'),
+(x'6ca1d43e9df91b3fe580da3e1c247d3f147cf33e');
+select id,vec_distance_cosine(v, x'B047263c9f87233fcfd27e3eae493e3f0329f43e') d from t1 order by d limit 3;
+id	d
+10	0.05905546376032378
+9	0.06546887818344715
+3	0.10750282439505232
+flush session status;
+select id,vec_distance_cosine(v, x'B047263c9f87233fcfd27e3eae493e3f0329f43e') d from t1 order by d limit 3;
+id	d
+10	0.05905546376032378
+9	0.06546887818344715
+3	0.10750282439505232
+show status like 'handler_read_rnd_next';
+Variable_name	Value
+Handler_read_rnd_next	0
+select id,vec_distance_cosine(v, x'B047263c9f87233fcfd27e3eae493e3f0329f43e') d from t1 use index () order by d limit 3;
+id	d
+10	0.05905546376032378
+9	0.06546887818344715
+3	0.10750282439505232
+show status like 'handler_read_rnd_next';
+Variable_name	Value
+Handler_read_rnd_next	11
+flush session status;
+select id,vec_distance_euclidean(v, x'B047263c9f87233fcfd27e3eae493e3f0329f43e') d from t1 order by d limit 3;
+id	d
+9	0.4719976290006591
+10	0.5069011044450041
+3	0.5865673124650332
+show status like 'handler_read_rnd_next';
+Variable_name	Value
+Handler_read_rnd_next	11
+drop table t1;

@@ -58,9 +58,17 @@ static MYSQL_THDVAR_UINT(max_edges_per_node, PLUGIN_VAR_RQCMDARG,
        "memory consumption, but better search results",
        nullptr, nullptr, 6, 3, 200, 1);
 
+enum metric_type : uint { EUCLIDEAN, COSINE };
+static const char *distance_function_names[]= { "euclidean", "cosine", nullptr };
+static TYPELIB distance_functions= CREATE_TYPELIB_FOR(distance_function_names);
+static MYSQL_THDVAR_ENUM(distance_function, PLUGIN_VAR_RQCMDARG,
+       "Distance function to build the vector index for",
+       nullptr, nullptr, EUCLIDEAN, &distance_functions);
+
 struct ha_index_option_struct
 {
   uint M;
+  metric_type metric;
 };
 
 enum Graph_table_fields {
@@ -360,13 +368,15 @@ public:
   const uint tref_len;
   const uint gref_len;
   const uint M;
+  metric_type metric;
   bool use_subdist;
 
   MHNSW_Context(TABLE *t)
     : randomizer(nullptr, 1, 1),
       tref_len(t->file->ref_length),
       gref_len(t->hlindex->file->ref_length),
-      M(t->s->key_info[t->s->keys].option_struct->M)
+      M(t->s->key_info[t->s->keys].option_struct->M),
+      metric(t->s->key_info[t->s->keys].option_struct->metric)
   {
     mysql_rwlock_init(PSI_INSTRUMENT_ME, &commit_lock);
     mysql_mutex_init(PSI_INSTRUMENT_ME, &cache_lock, MY_MUTEX_INIT_FAST);
@@ -697,6 +707,12 @@ const FVector *FVector::create(const MHNSW_Context *ctx, void *mem, const void *
   for (size_t i= 0; i < ctx->vec_len; i++)
     vec->dims[i] = static_cast<int16_t>(std::round(v(i) / vec->scale));
   vec->postprocess(ctx->use_subdist, ctx->vec_len);
+  if (ctx->metric == COSINE && vec->abs2)
+  {
+    vec->scale/= std::sqrt(vec->abs2);
+    vec->subabs2/= vec->abs2;
+    vec->abs2= 1.0f;
+  }
   return vec;
 }
 
@@ -1244,7 +1260,9 @@ int mhnsw_first(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit)
 {
   THD *thd= table->in_use;
   TABLE *graph= table->hlindex;
-  auto *fun= (Item_func_vec_distance_euclidean *)dist;
+  auto *fun= static_cast<Item_func_vec_distance_common*>(dist);
+  DBUG_ASSERT(fun);
+
   String buf, *res= fun->get_const_arg()->val_str(&buf);
   MHNSW_Context *ctx;
 
@@ -1415,6 +1433,13 @@ const LEX_CSTRING mhnsw_hlindex_table_def(THD *thd, uint ref_length)
   return {s, len};
 }
 
+bool mhnsw_uses_distance(const TABLE *table, KEY *keyinfo, const Item *dist)
+{
+  if (keyinfo->option_struct->metric == EUCLIDEAN)
+    return dynamic_cast<const Item_func_vec_distance_euclidean*>(dist) != NULL;
+  return dynamic_cast<const Item_func_vec_distance_cosine*>(dist) != NULL;
+}
+
 /*
   Declare the plugin and index options
 */
@@ -1422,6 +1447,7 @@ const LEX_CSTRING mhnsw_hlindex_table_def(THD *thd, uint ref_length)
 ha_create_table_option mhnsw_index_options[]=
 {
   HA_IOPTION_SYSVAR("max_edges_per_node", M, max_edges_per_node),
+  HA_IOPTION_SYSVAR("distance_function", metric, distance_function),
   HA_IOPTION_END
 };
 
@@ -1450,6 +1476,7 @@ static struct st_mysql_sys_var *mhnsw_sys_vars[]=
 {
   MYSQL_SYSVAR(cache_size),
   MYSQL_SYSVAR(max_edges_per_node),
+  MYSQL_SYSVAR(distance_function),
   MYSQL_SYSVAR(min_limit),
   NULL
 };
