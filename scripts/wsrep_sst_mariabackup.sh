@@ -951,17 +951,17 @@ if [ $ssyslog -eq 1 ]; then
 
         wsrep_log_error()
         {
-            logger -p daemon.err -t ${ssystag}wsrep-sst-$WSREP_SST_OPT_ROLE "$@"
+            logger -p daemon.err -t ${ssystag}wsrep-sst-$WSREP_SST_OPT_ROLE -- "$@"
         }
 
         wsrep_log_warning()
         {
-            logger -p daemon.warning -t ${ssystag}wsrep-sst-$WSREP_SST_OPT_ROLE "$@"
+            logger -p daemon.warning -t ${ssystag}wsrep-sst-$WSREP_SST_OPT_ROLE -- "$@"
         }
 
         wsrep_log_info()
         {
-            logger -p daemon.info -t ${ssystag}wsrep-sst-$WSREP_SST_OPT_ROLE "$@"
+            logger -p daemon.info -t ${ssystag}wsrep-sst-$WSREP_SST_OPT_ROLE -- "$@"
         }
     else
         wsrep_log_error "logger not in path: $PATH. Ignoring"
