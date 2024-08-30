@@ -1,0 +1,13 @@
+--source ../../include/init_spider.inc
+SET spider_same_server_link=on;
+evalp CREATE SERVER srv FOREIGN DATA WRAPPER MYSQL OPTIONS (HOST "127.0.0.1", DATABASE "test", USER "root", PORT $MASTER_1_MYPORT);
+CREATE TABLE t1 (c1 INT,c2 INT) ENGINE=MyISAM;
+CREATE TABLE t2 (c1 INT,c2 INT) ENGINE=Spider COMMENT='WRAPPER "mysql", SRV "srv", TABLE "t1"';
+insert into t2 values (12, 31), (81, 90);
+CREATE VIEW v AS SELECT * FROM t2;
+UPDATE v SET c1=1;
+select * from t2;
+# Cleanup
+DROP TABLE t1,t2;
+drop view v;
+--source ../../include/deinit_spider.inc

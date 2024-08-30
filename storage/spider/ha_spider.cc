@@ -11418,6 +11418,8 @@ Field *ha_spider::field_exchange(
   Field *field
 ) {
   DBUG_ENTER("ha_spider::field_exchange");
+  if (!field)
+    DBUG_RETURN(NULL);
 #ifdef HA_CAN_BULK_ACCESS
   if (is_bulk_access_clone)
   {

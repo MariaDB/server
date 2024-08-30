@@ -1,0 +1,46 @@
+INSTALL SONAME 'ha_spider';
+CREATE SERVER s_1 FOREIGN DATA WRAPPER mysql OPTIONS (
+HOST 'localhost',
+DATABASE 'auto_test_local',
+USER 'root',
+PASSWORD '',
+SOCKET '/home/ycp/source/mariadb-server/10.5/build/mysql-test/var/tmp/mysqld.1.1.sock'
+    );
+SET spider_internal_sql_log_off= 0;
+SET spider_same_server_link=on;
+CREATE SERVER srv FOREIGN DATA WRAPPER MYSQL OPTIONS (HOST "127.0.0.1", DATABASE "test", USER "root", PORT $MASTER_1_MYPORT);
+CREATE TABLE t1 (c1 INT,c2 INT) ENGINE=MyISAM;
+CREATE TABLE t2 (c1 INT,c2 INT) ENGINE=Spider COMMENT='WRAPPER "mysql", SRV "srv", TABLE "t1"';
+insert into t2 values (12, 31), (81, 90);
+CREATE VIEW v AS SELECT * FROM t2;
+UPDATE v SET c1=1;
+select * from t2;
+c1	c2
+1	31
+1	90
+DROP TABLE t1,t2;
+drop view v;
+DROP FUNCTION IF EXISTS spider_flush_table_mon_cache;
+DROP FUNCTION IF EXISTS spider_copy_tables;
+DROP FUNCTION IF EXISTS spider_ping_table;
+DROP FUNCTION IF EXISTS spider_bg_direct_sql;
+DROP FUNCTION IF EXISTS spider_direct_sql;
+UNINSTALL SONAME IF EXISTS 'ha_spider';
+Warnings:
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
+DROP TABLE IF EXISTS mysql.spider_xa;
+DROP TABLE IF EXISTS mysql.spider_xa_member;
+DROP TABLE IF EXISTS mysql.spider_xa_failed_log;
+DROP TABLE IF EXISTS mysql.spider_tables;
+DROP TABLE IF EXISTS mysql.spider_link_mon_servers;
+DROP TABLE IF EXISTS mysql.spider_link_failed_log;
+DROP TABLE IF EXISTS mysql.spider_table_position_for_recovery;
+DROP TABLE IF EXISTS mysql.spider_table_sts;
+DROP TABLE IF EXISTS mysql.spider_table_crd;
+DROP SERVER IF EXISTS s_1;
+DROP SERVER IF EXISTS s_2_1;
+DROP SERVER IF EXISTS s_2_2;
+DROP SERVER IF EXISTS s_2_3;
+DROP SERVER IF EXISTS s_3_1;
+DROP SERVER IF EXISTS s_3_2;
+DROP SERVER IF EXISTS s_3_3;
